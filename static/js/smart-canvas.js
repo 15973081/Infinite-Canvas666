@@ -1841,6 +1841,7 @@ function renderVolcengineVideoParams(){
     const providers = [provider];
     const models = volcengineVideoModels();
     settings.videoProvider = 'volcengine';
+    settings.videoUseFrameRoles = false;
     if(!settings.videoModel || !models.includes(settings.videoModel)) settings.videoModel = models[0] || 'seedance-1.0-pro';
     dynamicParams.innerHTML = `
         ${renderVideoProviderControl(providers)}
@@ -1854,7 +1855,6 @@ function renderVolcengineVideoParams(){
         ${renderVideoToggleControl('videoCameraFixed', tr('smart.videoCameraFixed'))}
         ${renderVideoToggleControl('videoWatermark', tr('smart.videoWatermark'))}
         ${renderVideoToggleControl('videoMultimodal', tr('smart.videoMultimodal'))}
-        ${renderVideoToggleControl('videoUseFrameRoles', tr('smart.videoUseFrameRoles'))}
         ${renderVideoTrustedAssetControl()}
     `;
 }
@@ -12030,9 +12030,10 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
             }
             return ref?.url;
         };
+        const useFrameRoles = runSettings.videoProvider !== 'volcengine' && runSettings.videoUseFrameRoles;
         const refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
             const item = {url:effUrl(ref), name:ref.name || `图${i + 1}`};
-            if(runSettings.videoUseFrameRoles){
+            if(useFrameRoles){
                 if(i === 0) item.role = 'first_frame';
                 else if(i === 1) item.role = 'last_frame';
             }

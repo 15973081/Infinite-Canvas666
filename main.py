@@ -5424,6 +5424,57 @@ def media_reference_to_url(value, max_image_size=None):
 def is_private_asset_url(value: str) -> bool:
     return isinstance(value, str) and value.strip().startswith("asset://")
 
+def volcengine_asset_uri_for_library_url(value: str) -> str:
+    target = str(value or "").strip()
+    if not target:
+        return ""
+    try:
+        lib = load_asset_library()
+    except Exception:
+        return ""
+    for library in lib.get("libraries", []):
+        for category in library.get("categories", []):
+            for item in category.get("items", []):
+                if str(item.get("url") or "").strip() != target:
+                    continue
+                regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
+                reg = regs.get("volcengine") if isinstance(regs.get("volcengine"), dict) else {}
+                asset_uri = str(reg.get("asset_uri") or "").strip()
+                if str(reg.get("status") or "") == "Active" and asset_uri.startswith("asset://"):
+                    return asset_uri
+    return ""
+
+def private_asset_id(value: str) -> str:
+    text = str(value or "").strip()
+    return text.replace("asset://", "", 1).strip() if text.startswith("asset://") else ""
+
+async def ensure_volcengine_asset_active(value: str, project_name: str = "default") -> str:
+    asset_id = private_asset_id(value)
+    if not asset_id:
+        return ""
+    async with httpx.AsyncClient(timeout=60) as client:
+        info = await volcengine_ark_asset_call(client, "GetAsset", {
+            "Id": asset_id,
+            "ProjectName": (project_name or "default").strip() or "default",
+        })
+    status = str(info.get("Status") or "").strip()
+    if status != "Active":
+        raise HTTPException(status_code=400, detail=f"Volcengine asset {asset_id} status is {status or 'Unknown'}, cannot be used for video generation yet.")
+    return f"asset://{asset_id}"
+
+async def volcengine_video_media_reference_url(value, project_name: str = "default", max_image_size=1536):
+    if not isinstance(value, str):
+        return ""
+    value = value.strip()
+    if not value:
+        return ""
+    if is_private_asset_url(value):
+        return await ensure_volcengine_asset_active(value, project_name)
+    library_asset_uri = volcengine_asset_uri_for_library_url(value)
+    if library_asset_uri:
+        return await ensure_volcengine_asset_active(library_asset_uri, project_name)
+    return volcengine_media_reference_url(value, max_image_size=max_image_size)
+
 def volcengine_media_reference_url(value, max_image_size=1536):
     if not isinstance(value, str):
         return ""
@@ -10114,34 +10165,31 @@ async def canvas_video(payload: CanvasVideoRequest):
                         body["generate_audio"] = True
                     if payload.camerafixed:
                         body["camerafixed"] = True
+                    project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
                     image_like_urls = set()
                     volc_video_count = 0
                     for ref in payload.images[:9]:
-                        url = volcengine_media_reference_url(ref.url, max_image_size=1536)
+                        url = await volcengine_video_media_reference_url(ref.url, project_name, max_image_size=1536)
                         if not url:
                             continue
-                        item = {
+                        body["content"].append({
                             "type": "image_url",
                             "image_url": {"url": url},
-                        }
-                        # 火山视频接口要求每个 image 内容项都必须带 role；图生视频缺省应按首帧处理。
-                        # reference_image 会被 seedance 后端推断成 r2v，导致 task_type 不支持。
-                        role = volcengine_content_role(ref.role, "image") or "first_frame"
-                        item["role"] = role
-                        body["content"].append(item)
+                            "role": "reference_image",
+                        })
                         image_like_urls.add(url)
                     for url in (payload.videos or [])[:3]:
                         text_url = str(url or "").strip()
                         if not text_url:
                             continue
-                        media_url = volcengine_media_reference_url(text_url, max_image_size=1536 if looks_like_image_media_url(text_url) else None)
+                        media_url = await volcengine_video_media_reference_url(text_url, project_name, max_image_size=1536 if looks_like_image_media_url(text_url) else None)
                         if not media_url:
                             continue
                         if media_url in image_like_urls or looks_like_image_media_url(media_url):
                             body["content"].append({
                                 "type": "image_url",
                                 "image_url": {"url": media_url},
-                                "role": "first_frame",
+                                "role": "reference_image",
                             })
                             image_like_urls.add(media_url)
                             continue
@@ -10149,7 +10197,7 @@ async def canvas_video(payload: CanvasVideoRequest):
                         body["content"].extend(video_items)
                         volc_video_count += 1
                     for url in (payload.audios or [])[:3]:
-                        audio_url = volcengine_media_reference_url(url, max_image_size=None)
+                        audio_url = await volcengine_video_media_reference_url(url, project_name, max_image_size=None)
                         if not audio_url:
                             continue
                         body["content"].append({
@@ -10239,6 +10287,34 @@ async def canvas_video(payload: CanvasVideoRequest):
             for idx, candidate_url in enumerate(submit_urls):
                 submit_url = candidate_url
                 is_last = idx == total_candidates - 1
+                if is_volcengine and not volc_is_proxy:
+                    debug_items = []
+                    for item in (body.get("content") or []):
+                        item_type = item.get("type")
+                        url = ""
+                        if item_type == "image_url":
+                            url = ((item.get("image_url") or {}).get("url") or "")
+                        elif item_type == "video_url":
+                            url = ((item.get("video_url") or {}).get("url") or "")
+                        elif item_type == "audio_url":
+                            url = ((item.get("audio_url") or {}).get("url") or "")
+                        if url.startswith("asset://"):
+                            url_kind = "asset"
+                        elif url.startswith("/assets/") or url.startswith("/output/"):
+                            url_kind = "local"
+                        elif url.startswith("data:"):
+                            url_kind = "data"
+                        elif url.startswith("http://") or url.startswith("https://"):
+                            url_kind = "http"
+                        else:
+                            url_kind = "none"
+                        debug_items.append({
+                            "type": item_type,
+                            "role": item.get("role", ""),
+                            "url_kind": url_kind,
+                            "url_prefix": url[:32],
+                        })
+                    print(f"[volc-video-debug] model={body.get('model')} project={provider.get('volcengine_project_name') or VOLCENGINE_DEFAULT_PROJECT_NAME} trusted_asset={payload.trusted_asset} content={debug_items}")
                 response = await client.post(submit_url, headers=api_headers(provider=provider), json=body)
                 last_response = response
                 if response.status_code >= 400:
@@ -10330,6 +10406,18 @@ async def canvas_video(payload: CanvasVideoRequest):
                 f"  1. 改用非真人参考图，例如插画、AI 头像、商品图、场景图；\n"
                 f"  2. 先把真人脸做模糊、遮挡、裁掉，或转成明显的二次元/插画风；\n"
                 f"  3. 如果只是想做文生视频，先去掉参考图只保留文字提示词测试。"
+            )
+            raise HTTPException(status_code=exc.response.status_code, detail=hint) from exc
+        if "specified asset" in text.lower() and "is not found" in text.lower():
+            hint = (
+                "火山视频接口找不到当前引用的 asset:// 素材。\n\n"
+                "这通常不是图片上传失败，而是项目隔离或 API Key 不一致：素材入库使用的 ProjectName / 账号，必须和视频生成 API Key 所属的 ProjectName / 推理接入点一致。\n\n"
+                f"当前火山配置的 ProjectName：{provider.get('volcengine_project_name') or VOLCENGINE_DEFAULT_PROJECT_NAME}\n\n"
+                "处理方式：\n"
+                "  1. 在火山控制台确认这个 asset 是否在同一个项目下；\n"
+                "  2. 用视频生成所用的同一个 API Key / 项目重新上传素材到资产库；\n"
+                "  3. 或把 API 设置里的火山 ProjectName 改成素材所在项目，并确保视频生成 key 也属于该项目。\n\n"
+                f"原始错误：{text}"
             )
             raise HTTPException(status_code=exc.response.status_code, detail=hint) from exc
         raise HTTPException(status_code=exc.response.status_code, detail=f"上游视频接口错误：{text}") from exc
@@ -13069,4 +13157,4 @@ def run_workflow(name: str, payload: WorkflowRunRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    uvicorn.run(app, host="0.0.0.0", port=6003)

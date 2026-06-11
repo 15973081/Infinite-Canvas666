@@ -3561,11 +3561,13 @@ async function uploadImages(files, point){
 async function uploadImageGroup(files, point){
     return uploadMediaFiles(files, point, false, {group:true});
 }
-function createImageCardFromUrl(url, point, name='image'){
+function createImageCardFromUrl(url, point, name='image', opts={}){
     if(!ensureCanvas() || !url) return;
     const p = point || defaultPoint(0, 0);
     const mediaKind = isVideoUrl(url) ? 'video' : isAudioUrl(url) ? 'audio' : 'image';
-    nodes.push({id:uid('img'), type:'image', x:p.x, y:p.y, url, name:name || outputImageName(url), mediaKind});
+    const node = {id:uid('img'), type:'image', x:p.x, y:p.y, url, name:name || outputImageName(url), mediaKind};
+    if(opts.asset_uris && typeof opts.asset_uris === 'object') node.asset_uris = opts.asset_uris;
+    nodes.push(node);
     render();
     scheduleSave();
 }
@@ -5809,12 +5811,12 @@ function renderLoopPrompt(node, ctx=loopContext){
 }
 function imageRefsFromNode(node){
     if(!node) return [];
-    if(node.type === 'image' && node.url && mediaKindForNode(node) === 'image') return [{url:node.url, name:node.name || 'image', role:node.role || '', kind:'image'}];
+    if(node.type === 'image' && node.url && mediaKindForNode(node) === 'image') return [{url:node.url, name:node.name || 'image', role:node.role || '', kind:'image', asset_uris:node.asset_uris || canvasAssetUrisForUrl(node.url)}];
     if(node.type === 'group'){
         return (node.items || [])
             .map(id => nodes.find(x => x.id === id))
             .filter(x => x?.type === 'image' && x?.url && mediaKindForNode(x) === 'image')
-            .map(img => ({url:img.url, name:img.name || 'image', role:img.role || '', kind:'image'}));
+            .map(img => ({url:img.url, name:img.name || 'image', role:img.role || '', kind:'image', asset_uris:img.asset_uris || canvasAssetUrisForUrl(img.url)}));
     }
     if(node.type === 'output'){
         return (node.images || [])
@@ -6020,6 +6022,27 @@ function currentCanvasAssetItem(itemId){
         || (activeCanvasWorkflowCategory()?.items || []).find(item => item.id === itemId)
         || null;
 }
+function canvasAssetRegisteredUris(item){
+    const regs = (item && item.registrations && typeof item.registrations === 'object') ? item.registrations : {};
+    const out = {};
+    Object.keys(regs).forEach(platform => {
+        const reg = regs[platform];
+        if(reg && reg.status === 'Active' && reg.asset_uri) out[platform] = reg.asset_uri;
+    });
+    return out;
+}
+function canvasAssetUrisForUrl(url){
+    const target = String(url || '');
+    if(!target) return {};
+    for(const lib of canvasAssetLibraries()){
+        for(const cat of (lib.categories || [])){
+            for(const item of (cat.items || [])){
+                if(item?.url === target) return canvasAssetRegisteredUris(item);
+            }
+        }
+    }
+    return {};
+}
 function canvasAssetItemKind(item){
     const explicit = String(item?.kind || item?.mediaKind || '').toLowerCase();
     if(['image','video','audio','text','file','workflow'].includes(explicit)) return explicit;
@@ -6167,7 +6190,7 @@ function renderCanvasAssetLibrary(){
     }
     const items = cat?.items || [];
     canvasAssetGrid.innerHTML = items.length ? items.map(item => `
-        <div class="canvas-asset-item" draggable="true" data-asset-id="${escapeAttr(item.id || '')}" data-url="${escapeAttr(item.url)}" data-name="${escapeAttr(item.name || 'asset')}" data-kind="${escapeAttr(canvasAssetItemKind(item))}">
+        <div class="canvas-asset-item" draggable="true" data-asset-id="${escapeAttr(item.id || '')}" data-url="${escapeAttr(item.url)}" data-name="${escapeAttr(item.name || 'asset')}" data-kind="${escapeAttr(canvasAssetItemKind(item))}" data-asset-uris="${escapeAttr(JSON.stringify(canvasAssetRegisteredUris(item)))}">
             ${canvasAssetThumbHtml(item)}
             <div class="canvas-asset-meta">
                 <span class="canvas-asset-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'asset')}</span>
@@ -6182,12 +6205,18 @@ function renderCanvasAssetLibrary(){
     canvasAssetGrid.querySelectorAll('.canvas-asset-item').forEach(card => {
         card.addEventListener('dragstart', event => {
             event.dataTransfer.effectAllowed = 'copy';
-            event.dataTransfer.setData('application/x-canvas-asset', JSON.stringify({url:card.dataset.url, name:card.dataset.name, kind:card.dataset.kind || ''}));
+            let assetUris = {};
+            try { assetUris = JSON.parse(card.dataset.assetUris || '{}') || {}; } catch(e) { assetUris = {}; }
+            event.dataTransfer.setData('application/x-canvas-asset', JSON.stringify({url:card.dataset.url, name:card.dataset.name, kind:card.dataset.kind || '', asset_uris:assetUris}));
             event.dataTransfer.setData('text/plain', card.dataset.url || '');
         });
         card.addEventListener('dblclick', () => {
             if(card.dataset.kind === 'workflow') importWorkflowAssetUrl(card.dataset.url, card.dataset.name || 'workflow');
-            else createImageCardFromUrl(card.dataset.url, defaultPoint(0, 0), card.dataset.name || 'asset');
+            else {
+                let assetUris = {};
+                try { assetUris = JSON.parse(card.dataset.assetUris || '{}') || {}; } catch(e) { assetUris = {}; }
+                createImageCardFromUrl(card.dataset.url, defaultPoint(0, 0), card.dataset.name || 'asset', {asset_uris:assetUris});
+            }
         });
         const item = items.find(entry => entry.id === card.dataset.assetId);
         card.addEventListener('mouseenter', event => showCanvasAssetHoverPreview(event, item));
@@ -7800,6 +7829,8 @@ function renderVideoBody(node){
     const imageInputs = ordered.filter(src => src.refs?.length);
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
     sanitizeVideoNodeProviderModel(node);
+    const isVolcengineVideoNode = resolveVideoProviderId(node.apiProvider || 'comfly') === 'volcengine';
+    if(isVolcengineVideoNode) node.useFrameRoles = false;
     node.model = node.model || 'veo3-fast';
     wrap.innerHTML = `
         <div class="prompt-list mb-3"></div>
@@ -7853,7 +7884,7 @@ function renderVideoBody(node){
                 <button type="button" class="setting-check ${node.cameraFixed ? 'active' : ''}" data-video-toggle="cameraFixed"><span class="check-dot"></span>${tr('canvas.videoCameraFixed')}</button>
                 <button type="button" class="setting-check ${node.generateAudio ? 'active' : ''}" data-video-toggle="generateAudio"><span class="check-dot"></span>${tr('canvas.videoGenerateAudio')}</button>
                 <button type="button" class="setting-check ${node.multimodal ? 'active' : ''}" data-video-toggle="multimodal"><span class="check-dot"></span>${tr('canvas.videoMultimodal')}</button>
-                <button type="button" class="setting-check ${node.useFrameRoles ? 'active' : ''}" data-video-toggle="useFrameRoles"><span class="check-dot"></span>${tr('canvas.videoFirstLastFrames')}</button>
+                ${isVolcengineVideoNode ? '' : `<button type="button" class="setting-check ${node.useFrameRoles ? 'active' : ''}" data-video-toggle="useFrameRoles"><span class="check-dot"></span>${tr('canvas.videoFirstLastFrames')}</button>`}
             </div>
         </div>
         <div class="gen-run-row">
@@ -9584,10 +9615,15 @@ async function runVideoNode(nodeId, opts={}){
     const sources = orderedSources(node, generatorSources(node));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const allRefs = sources.flatMap(s => s.refs || []);
-    const refs = applyUploadedUrlToRefs(imageRefsOnly(allRefs), node);
+    const providerId = resolveVideoProviderId(node.apiProvider || 'comfly');
+    const refs = applyUploadedUrlToRefs(imageRefsOnly(allRefs), node).map(ref => {
+        const uris = (ref && ref.asset_uris && typeof ref.asset_uris === 'object') ? ref.asset_uris : {};
+        return providerId === 'volcengine' && uris.volcengine ? {...ref, url:uris.volcengine, originalLocalUrl:ref.originalLocalUrl || ref.url} : ref;
+    });
+    const usesTrustedVolcengineAssets = providerId === 'volcengine' && refs.some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     const videoRefs = applyUploadedUrlToRefs(videoRefsOnly(allRefs), node);
-    if(node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
-    if(node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
+    if(providerId !== 'volcengine' && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
+    if(providerId !== 'volcengine' && node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
     if(!prompt){ alert(tr('canvas.videoNeedsPrompt')); return; }
     let out = outputForNode(node, 460);
     const pendingId = uid('p');
@@ -9601,7 +9637,7 @@ async function runVideoNode(nodeId, opts={}){
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({
                 prompt,
-                provider_id:resolveVideoProviderId(node.apiProvider || 'comfly'),
+                provider_id:providerId,
                 model:node.model || 'veo3-fast',
                 duration:Number(node.duration || 5),
                 aspect_ratio:node.aspectRatio || '16:9',
@@ -9615,7 +9651,8 @@ async function runVideoNode(nodeId, opts={}){
                 watermark:Boolean(node.watermark),
                 camerafixed:Boolean(node.cameraFixed),
                 generate_audio:Boolean(node.generateAudio),
-                multimodal:Boolean(node.multimodal)
+                multimodal:Boolean(node.multimodal),
+                trusted_asset:usesTrustedVolcengineAssets
             })
         }, {cascadeTargetId}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, tr('canvas.videoFailed'))); return r.json(); });
         const meta = collectRunMeta(out, pendingId);
@@ -13481,7 +13518,7 @@ board.addEventListener('drop', async e => {
             const payload = JSON.parse(e.dataTransfer.getData('application/x-canvas-asset') || '{}');
             if(payload?.url) {
                 if(String(payload.kind || '').toLowerCase() === 'workflow') await importWorkflowAssetUrl(payload.url, payload.name || 'workflow');
-                else createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset');
+                else createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {asset_uris:payload.asset_uris || {}});
             }
         } catch(err) {}
         return;
