@@ -6,7 +6,7 @@
         "smart.engineVolcengine": { zh: "火山引擎", en: "Volcengine" },
         "smart.engineMs": { zh: "Modelscope生成", en: "Modelscope" },
         "smart.engineComfy": { zh: "ComfyUI生成", en: "ComfyUI" },
-        "smart.engineRh": { zh: "RunningHub", en: "RunningHub" },
+
         "smart.kindImage": { zh: "图片", en: "Image" },
         "smart.kindVideo": { zh: "视频", en: "Video" },
         "smart.promptPlaceholder": { zh: "描述你想生成或编辑的图片...", en: "Describe what you want to generate or edit..." },
