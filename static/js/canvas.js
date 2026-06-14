@@ -1084,7 +1084,6 @@ async function saveCanvas(){
                 icon:canvas.icon || '🧩',
                 nodes:serializableCanvasNodes(),
                 connections,
-                viewport,
                 logs:canvas.logs || [],
                 client_id:CLIENT_ID,
                 base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0)
@@ -1537,7 +1536,7 @@ async function createCanvas(){
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
         connections = canvas.connections || [];
-        viewport = localViewportForCanvas(canvas.id, canvas.viewport || {x:0, y:0, scale:1});
+        viewport = localViewportForCanvas(canvas.id, {x:0, y:0, scale:1});
         canvas.viewport = {...viewport};
         resetTransientRunState(nodes);
         sanitizeConnections();
@@ -1683,7 +1682,7 @@ async function openCanvas(id){
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
         connections = canvas.connections || [];
-        viewport = localViewportForCanvas(canvas.id, canvas.viewport || {x:0, y:0, scale:1});
+        viewport = localViewportForCanvas(canvas.id, {x:0, y:0, scale:1});
         canvas.viewport = {...viewport};
         lastCanvasUpdatedAt = Number(canvas.updated_at || 0);
         localCanvasDirty = false;
@@ -1713,7 +1712,7 @@ function applyRemoteCanvasData(remote){
     applyingRemoteCanvas = true;
     try {
         resetCascadeRuntimeState();
-        const localViewport = localViewportForCanvas(canvas.id, viewport || remote.viewport || {x:0, y:0, scale:1});
+        const localViewport = localViewportForCanvas(canvas.id, viewport || {x:0, y:0, scale:1});
         const localSelectedIds = new Set(selected);
         canvas = remote;
         canvas.logs = canvas.logs || [];

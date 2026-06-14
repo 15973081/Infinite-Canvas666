@@ -4312,7 +4312,8 @@ async function loadCanvas(){
         });
         canvas.connections = Array.isArray(canvas.connections) ? canvas.connections : [];
         const cleanedDetachedInputs = cleanupDetachedRunInputRefs();
-        viewport = {...viewport, ...(canvas.viewport || {})};
+        /* 不从服务端合并视野 —— 每台电脑保持各自的视角 */
+        /* viewport = {...viewport, ...(canvas.viewport || {})}; */
         viewport.scale = safeScale(viewport.scale);
         if(canvas.settings) settings = {...settings, ...canvas.settings};
         canvasDefaultSmartSettings = cloneSmartSettings(settings);
