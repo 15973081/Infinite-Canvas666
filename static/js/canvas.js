@@ -21,12 +21,12 @@ function canvasMediaPreviewUrl(url, size=512){
 function canvasPreviewImgHtml(url, size=512, attrs=''){
     const original = String(url || '');
     const preview = canvasMediaPreviewUrl(original, size);
-    return `<img src="${escapeAttr(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}"${attrs ? ` ${attrs}` : ''}>`;
+    return `<img src="${escapeAttr(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function canvasVideoPreviewHtml(url, size=512, attrs=''){
     const original = String(url || '');
     const preview = canvasMediaPreviewUrl(original, size);
-    return `<img src="${escapeAttr(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video"${attrs ? ` ${attrs}` : ''}>`;
+    return `<img src="${escapeAttr(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function canvasVideoFallbackHtml(url, attrs=''){
     const safe = escapeAttr(url || '');
@@ -424,6 +424,33 @@ function saveLocalViewport(){
         sessionStorage.setItem(CANVAS_SESSION_VIEWPORTS_KEY, JSON.stringify(map));
     } catch(e) {}
 }
+// 视野裁剪：判断节点是否在画布可见区域内（含缓冲 margin，世界坐标像素）
+function isNodeInCanvasViewport(node, margin=400){
+    if(!shell) return true;
+    const vw = shell.clientWidth;
+    const vh = shell.clientHeight;
+    if(!vw || !vh) return true;
+    const vx = -viewport.x / viewport.scale;
+    const vy = -viewport.y / viewport.scale;
+    const vwWorld = vw / viewport.scale;
+    const vhWorld = vh / viewport.scale;
+    const m = margin / viewport.scale;
+    const nx = Number(node.x || 0);
+    const ny = Number(node.y || 0);
+    const nw = Number(node.w || 300);
+    const nh = Number(node.h || 200);
+    return !(nx + nw < vx - m || nx > vx + vwWorld + m || ny + nh < vy - m || ny > vy + vhWorld + m);
+}
+let pendingViewportRefresh = null;
+function scheduleViewportRefresh(delay=200){
+    clearTimeout(pendingViewportRefresh);
+    pendingViewportRefresh = setTimeout(() => {
+        pendingViewportRefresh = null;
+        // 只刷新视野外变视野内的节点内容，不触发全量 render
+        renderOffscreenPlaceholders();
+    }, delay);
+}
+
 function applyTheme(theme){
     const dark = theme === 'dark';
     document.documentElement.classList.toggle('studio-theme-dark', dark);
@@ -1027,6 +1054,7 @@ function scheduleSave(){
 }
 function scheduleViewportSave(){
     saveLocalViewport();
+    scheduleViewportRefresh();
 }
 function refreshOutputTimer(){
     const hasPending = nodes.some(n => n.type === 'output' && (n._pending || []).length);
@@ -5181,6 +5209,64 @@ function restoreMediaPlaybackStates(states){
     });
 }
 
+// 轻量占位节点 —— 视野外只渲染壳子，不生成图片 innerHTML，避免触发缩略图请求
+function renderNodePlaceholder(node){
+    const size = defaultNodeSize(node.type);
+    const el = document.createElement('div');
+    el.className = `node ${node.type}-node node-placeholder ${selected.has(node.id) ? 'selected' : ''}`;
+    el.style.left = `${node.x}px`;
+    el.style.top = `${node.y}px`;
+    el.style.width = `${node.w || size.w}px`;
+    if(node.h || size.h) el.style.height = `${node.h || size.h}px`;
+    el.dataset.id = node.id;
+    el.onclick = (e) => {
+        e.stopPropagation();
+        if(isNodeControl(e.target)) return;
+        if(e.ctrlKey || e.metaKey) selected.has(node.id) ? selected.delete(node.id) : selected.add(node.id);
+        else if(!selected.has(node.id)) { selected.clear(); selected.add(node.id); }
+        refreshSelectionVisuals();
+    };
+    el.innerHTML = `<div class="node-head"><span class="node-title">${escapeHtml(node.title || nodeTypeLabel(node) || 'Node')}</span></div>`;
+    return el;
+}
+function nodeTypeLabel(node){
+    if(!node) return '';
+    const t = node.type;
+    if(t === 'image') return 'Image';
+    if(t === 'prompt') return 'Prompt';
+    if(t === 'loop') return tr('canvas.loopNode');
+    if(t === 'output') return 'Output';
+    if(t === 'llm') return 'LLM';
+    if(t === 'comfy') return 'ComfyUI';
+    if(t === 'video') return tr('canvas.videoGenerateNode');
+    if(t === 'rh') return 'RunningHub';
+    if(t === 'msgen') return tr('canvas.modelscopeGenerate');
+    if(t === 'ltxDirector') return tr('canvas.ltxDirector');
+    return t || 'Node';
+}
+function renderOffscreenPlaceholders(){
+    if(!nodesEl) return;
+    const placeholders = nodesEl.querySelectorAll('.node-placeholder');
+    if(!placeholders.length) return;
+    placeholders.forEach(el => {
+        const id = el.dataset.id;
+        if(!id) return;
+        const node = nodes.find(n => n.id === id);
+        if(!node || !isNodeInCanvasViewport(node, 400)){
+            // 仍在视野外或节点已删除，保持/移除占位
+            if(!node) el.remove();
+            return;
+        }
+        // 进入视野：替换为完整节点
+        const fresh = renderNode(node);
+        el.replaceWith(fresh);
+        bindCanvasPreviewImageFallbacks(fresh);
+    });
+    refreshIcons();
+    refreshGeometry();
+    refreshGeometryAfterLayout();
+}
+
 function render(){
     const outputScrolls = captureOutputScrolls();
     const mediaStates = captureMediaPlaybackStates();
@@ -5194,7 +5280,8 @@ function render(){
         if(!reusableMediaNodes.has(child.dataset?.id)) child.remove();
     });
     nodes.forEach(node => {
-        const fresh = renderNode(node);
+        const inViewport = isNodeInCanvasViewport(node, 400);
+        const fresh = inViewport ? renderNode(node) : renderNodePlaceholder(node);
         const old = reusableMediaNodes.get(node.id);
         nodesEl.appendChild(fresh);
         if(old){

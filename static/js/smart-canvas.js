@@ -379,12 +379,12 @@ function smartMediaPreviewUrl(itemOrUrl, size=512){
 function smartPreviewImgHtml(itemOrUrl, size=512, attrs=''){
     const original = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
     const preview = smartMediaPreviewUrl(itemOrUrl, size);
-    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}"${attrs ? ` ${attrs}` : ''}>`;
+    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function smartVideoPreviewHtml(itemOrUrl, size=512, attrs=''){
     const original = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
     const preview = smartMediaPreviewUrl(itemOrUrl, size);
-    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video"${attrs ? ` ${attrs}` : ''}>`;
+    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function smartVideoFallbackHtml(url, attrs=''){
     const safe = escapeHtml(url || '');
@@ -1211,7 +1211,112 @@ function applyViewport(){
     shell.style.backgroundSize = '24px 24px';
     shell.style.backgroundPosition = '0 0';
     renderMinimap();
+    scheduleSmartViewportRefresh();
 }
+// 视野裁剪：判断节点是否在智能画布可见区域内
+function isSmartNodeInViewport(node, margin=400){
+    if(!shell) return true;
+    const vw = shell.clientWidth;
+    const vh = shell.clientHeight;
+    if(!vw || !vh) return true;
+    const vx = -viewport.x / viewport.scale;
+    const vy = -viewport.y / viewport.scale;
+    const vwWorld = vw / viewport.scale;
+    const vhWorld = vh / viewport.scale;
+    const m = margin / viewport.scale;
+    const layout = imageLayout(node.images || [], nodeScale(node), node);
+    const nx = Number(node.x || 0);
+    const ny = Number(node.y || 0);
+    const nw = Number(layout.width || 260);
+    const nh = Number(layout.height || 200);
+    return !(nx + nw < vx - m || nx > vx + vwWorld + m || ny + nh < vy - m || ny > vy + vhWorld + m);
+}
+let pendingSmartViewportRefresh = null;
+function scheduleSmartViewportRefresh(delay=200){
+    clearTimeout(pendingSmartViewportRefresh);
+    pendingSmartViewportRefresh = setTimeout(() => {
+        pendingSmartViewportRefresh = null;
+        renderSmartOffscreenPlaceholders();
+    }, delay);
+}
+function renderSmartOffscreenPlaceholders(){
+    if(!world) return;
+    const placeholders = world.querySelectorAll('.image-node.image-node-placeholder');
+    if(!placeholders.length) return;
+    placeholders.forEach(el => {
+        const id = el.dataset.id;
+        if(!id) return;
+        const node = nodes.find(n => n.id === id);
+        if(!node || !isSmartNodeInViewport(node, 400)){
+            if(!node) el.remove();
+            return;
+        }
+        const freshHtml = renderSmartNodeHtml(node);
+        const tpl = document.createElement('template');
+        tpl.innerHTML = freshHtml;
+        const fresh = tpl.content.firstElementChild;
+        if(fresh){
+            el.replaceWith(fresh);
+            bindSmartNodeEvents(fresh, node);
+        }
+    });
+    if(window.lucide) lucide.createIcons();
+    bindSmartPreviewImageFallbacks(world);
+}
+function renderSmartNodePlaceholderHtml(node){
+    const layout = imageLayout(node.images || [], nodeScale(node), node);
+    const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : ((node.images || []).length > 1 ? 'Group' : 'Image');
+    return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+        <div class="node-head"><div class="node-title">${escapeHtml(title)}</div></div>
+        <div class="node-port port-in" data-port="in" title="input"></div>
+        <div class="node-port port-out" data-port="out" title="output"></div>
+    </div>`;
+}
+function renderSmartNodeHtml(node){
+    const imgs = node.images || [];
+    const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? 'Image' : escapeHtml(tr('smart.createImportNode')));
+    const scale = nodeScale(node);
+    const layout = imageLayout(imgs, scale, node);
+    const isPrompt = node.type === 'smart-prompt';
+    const isLoop = node.type === 'smart-loop';
+    const isImageNode = node.type === 'smart-image' || !node.type;
+    const isJimengPending = Boolean(node.jimengPending && node.jimengPending.submitId && imgs.length === 0);
+    const isQueued = Boolean(node.queued && imgs.length === 0 && !node.pending && !isJimengPending);
+    const isEmpty = isImageNode && imgs.length === 0 && !node.pending && !isQueued && !isJimengPending;
+    const isHistory = isHistoryGroupNode(node);
+    const isGroup = isImageNode && imgs.length > 1;
+    const isPending = ((node.pending || isQueued || isJimengPending) && imgs.length === 0);
+    const body = nodeBodyHtml(node, layout);
+    const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
+    const hint = isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')));
+    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+        <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
+        ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
+        ${smartNodeToolbarHtml(node)}
+        ${runTimePillHtml(node)}
+        <div class="node-body">${body}</div>
+        <div class="node-hint">${hint}</div>
+        ${imgs.length || node.pending || isQueued || isJimengPending || isPrompt || isLoop ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
+        <div class="node-port port-in" data-port="in" title="input"></div>
+        <div class="node-port port-out" data-port="out" title="output"></div>
+    </div>`;
+}
+function bindSmartNodeEvents(el, node){
+    if(!el || !node) return;
+    const deleteBtn = el.querySelector('.node-delete');
+    if(deleteBtn){
+        deleteBtn.addEventListener('click', e => { e.stopPropagation(); deleteSmartNode(node.id); });
+    }
+    el.addEventListener('click', e => {
+        if(e.target.closest('.node-delete, .smart-node-toolbar, .run-time-pill')) return;
+        handleSmartNodeClick(node.id, e);
+    });
+    el.addEventListener('mousedown', e => {
+        if(e.target.closest('.node-delete, .node-resize-handle, .smart-node-toolbar, .run-time-pill, .node-port')) return;
+        startSmartNodeDrag(node.id, e);
+    });
+}
+
 function screenToWorld(event){
     const rect = shell.getBoundingClientRect();
     return {
@@ -5619,34 +5724,10 @@ function render(){
         if(smartNodeHasLiveMedia(node)) reusableNodes.set(node.id, el);
     });
     const nodeHtmlEntries = nodes.map(node => {
-        const imgs = node.images || [];
-        const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? 'Image' : escapeHtml(tr('smart.createImportNode')));
-        const scale = nodeScale(node);
-        const layout = imageLayout(imgs, scale, node);
-        const isPrompt = node.type === 'smart-prompt';
-        const isLoop = node.type === 'smart-loop';
-        const isImageNode = node.type === 'smart-image' || !node.type;
-        const isJimengPending = Boolean(node.jimengPending && node.jimengPending.submitId && imgs.length === 0);
-        const isQueued = Boolean(node.queued && imgs.length === 0 && !node.pending && !isJimengPending);
-        const isEmpty = isImageNode && imgs.length === 0 && !node.pending && !isQueued && !isJimengPending;
-        const isHistory = isHistoryGroupNode(node);
-        const isGroup = isImageNode && imgs.length > 1;
-        const isPending = ((node.pending || isQueued || isJimengPending) && imgs.length === 0);
-        const body = nodeBodyHtml(node, layout);
-        const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
-        const hint = isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')));
-        const html = `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
-            <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
-            ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
-            ${smartNodeToolbarHtml(node)}
-            ${runTimePillHtml(node)}
-            <div class="node-body">${body}</div>
-            <div class="node-hint">${hint}</div>
-            ${imgs.length || node.pending || isQueued || isJimengPending || isPrompt || isLoop ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
-            <div class="node-port port-in" data-port="in" title="input"></div>
-            <div class="node-port port-out" data-port="out" title="output"></div>
-        </div>`;
-        return {node, html};
+        if(!isSmartNodeInViewport(node, 400)){
+            return {node, html: renderSmartNodePlaceholderHtml(node), placeholder: true};
+        }
+        return {node, html: renderSmartNodeHtml(node), placeholder: false};
     });
     const tpl = document.createElement('template');
     tpl.innerHTML = nodeHtmlEntries.map(entry => entry.html).join('');
