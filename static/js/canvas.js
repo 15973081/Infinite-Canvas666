@@ -11389,6 +11389,125 @@ function closeCanvasLog(){
 }
 window.openCanvasLog = openCanvasLog;
 window.closeCanvasLog = closeCanvasLog;
+
+// --- 画布备份 ---
+
+async function createCanvasBackup(){
+    if(!canvas?.id) return;
+    const btn = document.getElementById('canvasBackupToggle');
+    if(btn) btn.disabled = true;
+    try {
+        const res = await fetch(`/api/canvases/${canvas.id}/backup`, { method:'POST' });
+        if(!res.ok) throw new Error('backup failed');
+        const data = await res.json();
+        setStatus(langIsEn() ? `Backup saved (${new Date(data.updated_at).toLocaleTimeString()})` : `备份已保存 (${new Date(data.updated_at).toLocaleTimeString()})`);
+    } catch(e) {
+        setStatus(langIsEn() ? 'Backup failed' : '备份失败');
+        console.error(e);
+    } finally {
+        if(btn) btn.disabled = false;
+    }
+}
+
+async function showBackupList(event){
+    event?.preventDefault?.();
+    if(!canvas?.id) return;
+    // 先存一份
+    const btn = document.getElementById('canvasBackupToggle');
+    if(btn) btn.disabled = true;
+    let backups = [];
+    try {
+        const res = await fetch(`/api/canvases/${canvas.id}/backups`);
+        if(res.ok){
+            const data = await res.json();
+            backups = data.backups || [];
+        }
+    } catch(e) { console.error(e); }
+    if(btn) btn.disabled = false;
+    renderBackupModal(backups);
+}
+
+function renderBackupModal(backups){
+    let existing = document.getElementById('backupModal');
+    if(existing) existing.remove();
+    const isEn = langIsEn();
+    const rows = backups.length
+        ? backups.map(b => {
+            const d = new Date(b.timestamp);
+            const time = d.toLocaleString();
+            const size = b.size > 1024 ? `${(b.size/1024).toFixed(1)} KB` : `${b.size} B`;
+            return `<div class="backup-row">
+                <div class="backup-info">
+                    <div class="backup-title">${escapeHtml(b.title || '—')}</div>
+                    <div class="backup-meta">${time} · ${b.node_count} nodes · ${size}</div>
+                </div>
+                <div class="backup-actions">
+                    <button class="backup-restore-btn" data-filename="${escapeAttr(b.filename)}" title="${isEn ? 'Restore' : '恢复'}"><i data-lucide="rotate-ccw"></i></button>
+                    <button class="backup-delete-btn" data-filename="${escapeAttr(b.filename)}" title="${isEn ? 'Delete' : '删除'}"><i data-lucide="trash-2"></i></button>
+                </div>
+            </div>`;
+        }).join('')
+        : `<div class="backup-empty">${isEn ? 'No backups yet' : '暂无备份'}</div>`;
+
+    const html = `<div id="backupModal" class="log-modal backup-modal open">
+        <div class="log-modal-overlay" onclick="closeBackupModal()"></div>
+        <div class="log-modal-panel">
+            <div class="log-modal-head">
+                <h3>${isEn ? 'Canvas Backups' : '画布备份'}</h3>
+                <button class="log-modal-close" onclick="closeBackupModal()"><i data-lucide="x"></i></button>
+            </div>
+            <div class="log-modal-body">
+                <button class="backup-create-btn" onclick="createCanvasBackup()" type="button">
+                    <i data-lucide="hard-drive"></i><span>${isEn ? 'Create Backup Now' : '立即备份'}</span>
+                </button>
+                <div class="backup-list">${rows}</div>
+            </div>
+        </div>
+    </div>`;
+    const container = shell || document.body;
+    container.insertAdjacentHTML('beforeend', html);
+    if(window.lucide) lucide.createIcons();
+    // bind events
+    const modal = document.getElementById('backupModal');
+    modal?.querySelectorAll('.backup-restore-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const fn = btn.dataset.filename;
+            if(!fn) return;
+            if(!confirm(isEn ? `Restore this backup? Current canvas will be overwritten.` : `恢复此备份？当前画布将被覆盖。`)) return;
+            try {
+                const res = await fetch(`/api/canvases/${canvas.id}/backups/${encodeURIComponent(fn)}/restore`, { method:'POST' });
+                if(!res.ok) throw new Error('restore failed');
+                syncRemoteCanvasNow();
+                closeBackupModal();
+                setStatus(isEn ? 'Backup restored' : '备份已恢复');
+            } catch(e) {
+                console.error(e);
+                setStatus(isEn ? 'Restore failed' : '恢复失败');
+            }
+        });
+    });
+    modal?.querySelectorAll('.backup-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const fn = btn.dataset.filename;
+            if(!fn) return;
+            try {
+                await fetch(`/api/canvases/${canvas.id}/backups/${encodeURIComponent(fn)}`, { method:'DELETE' });
+                closeBackupModal();
+                showBackupList();
+            } catch(e) { console.error(e); }
+        });
+    });
+}
+
+function closeBackupModal(){
+    const modal = document.getElementById('backupModal');
+    if(modal) modal.remove();
+}
+
+window.createCanvasBackup = createCanvasBackup;
+window.showBackupList = showBackupList;
+window.closeBackupModal = closeBackupModal;
+
 function makePending(id, run, task={}){
     return {id, startedAt:nowMs(), run, ...task};
 }

@@ -11664,6 +11664,78 @@ async def purge_canvas(canvas_id: str):
         os.remove(path)
     return {"ok": True}
 
+# --- 画布备份 ---
+
+BACKUP_DIR = os.path.join(CANVAS_DIR, "backups")
+MAX_BACKUPS_PER_CANVAS = 50
+
+def _backup_dir(canvas_id: str) -> str:
+    return os.path.join(BACKUP_DIR, canvas_id)
+
+def _backup_path(canvas_id: str, filename: str) -> str:
+    return os.path.join(_backup_dir(canvas_id), filename)
+
+@app.post("/api/canvases/{canvas_id}/backup")
+async def create_canvas_backup(canvas_id: str):
+    canvas = load_canvas(canvas_id)
+    ts = now_ms()
+    filename = f"{ts}.json"
+    backup_dir = _backup_dir(canvas_id)
+    os.makedirs(backup_dir, exist_ok=True)
+    with open(_backup_path(canvas_id, filename), 'w', encoding='utf-8') as f:
+        json.dump(canvas, f, ensure_ascii=False, indent=2)
+    # 清理旧备份，最多保留 MAX_BACKUPS_PER_CANVAS 份
+    try:
+        files = sorted(os.listdir(backup_dir), reverse=True)
+        for old in files[MAX_BACKUPS_PER_CANVAS:]:
+            os.remove(os.path.join(backup_dir, old))
+    except Exception:
+        pass
+    return {"ok": True, "filename": filename, "updated_at": ts}
+
+@app.get("/api/canvases/{canvas_id}/backups")
+async def list_canvas_backups(canvas_id: str):
+    backup_dir = _backup_dir(canvas_id)
+    if not os.path.isdir(backup_dir):
+        return {"backups": []}
+    files = []
+    for name in sorted(os.listdir(backup_dir), reverse=True):
+        if name.endswith('.json'):
+            p = _backup_path(canvas_id, name)
+            try:
+                stat = os.stat(p)
+                with open(p, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                files.append({
+                    "filename": name,
+                    "timestamp": int(name.replace('.json', '') or 0),
+                    "size": stat.st_size,
+                    "title": data.get("title", ""),
+                    "node_count": len(data.get("nodes", [])),
+                })
+            except Exception:
+                continue
+    return {"backups": files}
+
+@app.post("/api/canvases/{canvas_id}/backups/{filename}/restore")
+async def restore_canvas_backup(canvas_id: str, filename: str):
+    path = _backup_path(canvas_id, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="备份不存在")
+    with open(path, 'r', encoding='utf-8') as f:
+        backup = json.load(f)
+    # 恢复时保留原 ID，更新 updated_at
+    backup["id"] = canvas_id
+    save_canvas(backup)
+    return {"canvas": backup}
+
+@app.delete("/api/canvases/{canvas_id}/backups/{filename}")
+async def delete_canvas_backup(canvas_id: str, filename: str):
+    path = _backup_path(canvas_id, filename)
+    if os.path.exists(path):
+        os.remove(path)
+    return {"ok": True}
+
 # --- GPT 对话 ---
 
 @app.post("/api/chat")

@@ -1207,3 +1207,116 @@ body.studio-theme-dark .comfy-random-btn.active,
     .asset-manager-side,.asset-manager-main { overflow:visible; }
     .canvas-asset-panel { right:14px; top:66px; bottom:90px; }
 }
+
+/* --- 画布备份弹窗 --- */
+
+.backup-modal .log-modal-panel {
+    width: min(520px, 94vw);
+    max-height: 72vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 22px;
+    background: var(--card-solid);
+    border: 1px solid var(--line);
+    box-shadow: 0 30px 90px rgba(15,23,42,.22);
+    overflow: hidden;
+}
+.backup-modal .log-modal-head {
+    height: 58px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+}
+.backup-modal .log-modal-head h3 {
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--text);
+    margin: 0;
+}
+.backup-modal .log-modal-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.backup-modal .log-modal-close:hover { color: var(--text); }
+.backup-modal .log-modal-body {
+    flex: 1;
+    min-height: 0;
+    padding: 16px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.backup-create-btn {
+    width: 100%;
+    height: 44px;
+    border-radius: 14px;
+    border: 1px dashed var(--line);
+    background: var(--soft);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background .2s, border-color .2s;
+}
+.backup-create-btn:hover { background: var(--nav-hover-bg); border-color: var(--accent); }
+.backup-list { display: flex; flex-direction: column; gap: 8px; }
+.backup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--soft);
+    gap: 12px;
+}
+.backup-info { min-width: 0; flex: 1; }
+.backup-title { font-size: 13px; font-weight: 800; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.backup-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.backup-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.backup-restore-btn,
+.backup-delete-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--card-solid);
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.backup-restore-btn:hover { color: #059669; border-color: rgba(5,150,105,.35); }
+.backup-delete-btn:hover { color: #dc2626; border-color: rgba(220,38,38,.35); }
+.backup-empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+.backup-modal .log-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+}
+.backup-modal .log-modal-panel {
+    position: relative;
+    z-index: 1;
+}
