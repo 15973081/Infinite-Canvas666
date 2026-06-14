@@ -208,9 +208,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKFLOW_DIR = os.path.join(BASE_DIR, "workflows")
 WORKFLOW_PATH = os.path.join(WORKFLOW_DIR, "Z-Image.json")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-STATIC_RUNNINGHUB_DIR = os.path.join(STATIC_DIR, "runninghub")
-STATIC_RUNNINGHUB_THUMBNAIL_DIR = os.path.join(STATIC_RUNNINGHUB_DIR, "thumbnails")
-STATIC_RUNNINGHUB_API_PROVIDERS_FILE = os.path.join(STATIC_RUNNINGHUB_DIR, "api_providers.json")
+
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 OUTPUT_INPUT_DIR = os.path.join(ASSETS_DIR, "input")
@@ -226,13 +224,13 @@ MEDIA_PREVIEW_DIR = os.path.join(DATA_DIR, "media_previews")
 ASSET_LIBRARY_PATH = os.path.join(DATA_DIR, "asset_library.json")
 PROMPT_LIBRARY_PATH = os.path.join(DATA_DIR, "prompt_libraries.json")
 API_PROVIDERS_FILE = os.path.join(DATA_DIR, "api_providers.json")
-RUNNINGHUB_WORKFLOW_STORE_FILE = os.path.join(DATA_DIR, "runninghub_workflows.json")
+
 SHARED_FOLDERS_FILE = os.path.join(DATA_DIR, "shared_folders.json")
 GLOBAL_CONFIG_FILE = os.path.join(BASE_DIR, "global_config.json")
 CANVAS_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 LOCAL_IMAGE_IMPORT_MAX_BYTES = int(os.getenv("LOCAL_IMAGE_IMPORT_MAX_BYTES", str(50 * 1024 * 1024)))
 LOCAL_IMAGE_IMPORT_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-RUNNINGHUB_THUMBNAIL_EXTS = (".jpg",)
+
 
 QUEUE = []
 QUEUE_LOCK = Lock()
@@ -241,52 +239,21 @@ GLOBAL_CONFIG_LOCK = Lock()
 CONVERSATION_LOCK = Lock()
 CANVAS_LOCK = Lock()
 LOAD_LOCK = Lock()
-RUNNINGHUB_WORKFLOW_LOCK = Lock()
+
 NEXT_TASK_ID = 1
 UPDATE_LOCK = Lock()
-JIMENG_LOGIN_SESSION = {
-    "proc": None,
-    "stdout": "",
-    "stderr": "",
-    "started_at": 0.0,
-}
+
 
 PROVIDER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,40}$")
-SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine", "runninghub", "jimeng"}
+SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine"}
 SUPPORTED_IMAGE_REQUEST_MODES = {"openai", "openai-json"}
-RUNNINGHUB_DEFAULT_BASE_URL = "https://www.runninghub.cn"
-JIMENG_DEFAULT_IMAGE_MODELS = [
-    "5.0",
-    "4.6",
-    "4.5",
-    "4.1",
-    "4.0",
-    "3.1",
-    "3.0",
-]
-JIMENG_DEFAULT_VIDEO_MODELS = [
-    "seedance2.0_vip",
-    "seedance2.0fast_vip",
-    "seedance2.0",
-    "seedance2.0fast",
-    "3.5pro",
-    "3.0pro",
-    "3.0",
-    "3.0fast",
-]
+
+
+
 AGNES_DEFAULT_VIDEO_MODELS = ["agnes-video-v2.0"]
-JIMENG_LEGACY_IMAGE_MODELS = {
-    "jimeng-image-2k",
-    "jimeng-image-4k",
-}
-JIMENG_LEGACY_VIDEO_MODELS = {
-    "jimeng-video-720p",
-    "jimeng-video-1080p",
-}
-try:
-    JIMENG_DEFAULT_POLL_SECONDS = max(1, min(3600, int(os.getenv("JIMENG_POLL_SECONDS", "900"))))
-except Exception:
-    JIMENG_DEFAULT_POLL_SECONDS = 900
+
+
+
 VOLCENGINE_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 VOLCENGINE_DEFAULT_PROJECT_NAME = "default"
 VOLCENGINE_DEFAULT_REGION = "cn-beijing"
@@ -298,77 +265,8 @@ VOLCENGINE_DEFAULT_VIDEO_MODELS = [
     "doubao-seedance-1-0-lite-t2v-250428",
     "doubao-seedance-1-0-lite-i2v-250428",
 ]
-RUNNINGHUB_DEFAULT_IMAGE_MODELS = [
-    "seedream-v5-lite/text-to-image",
-    "seedream-v5-lite/image-to-image",
-]
-RUNNINGHUB_DEFAULT_APPS = [
-    {
-        "id": "2058517022748798977",
-        "appId": "2058517022748798977",
-        "title": "2511-风格迁移",
-        "note": "",
-        "thumbnail": "",
-        "enabled": True,
-        "fields": [
-            {
-                "id": "100::image",
-                "nodeId": "100",
-                "fieldName": "image",
-                "fieldValue": "pasted/57ef7dc980b6446bca366caaf3f94eb12b22b23f78aa30e294b39cabd7d0187b.png",
-                "fieldType": "IMAGE",
-                "label": "image",
-                "enabled": True,
-                "sourceFromUpstream": True,
-                "group": "AI 应用参数",
-                "note": "image",
-                "options": [],
-                "random_enabled": False,
-                "min": "",
-                "max": "",
-                "step": "",
-                "imageOrder": 0,
-                "required": False,
-            },
-            {
-                "id": "112::image",
-                "nodeId": "112",
-                "fieldName": "image",
-                "fieldValue": "8cff63ee4b3e0285ca85ab90a52e26746df84ed0dec0be9d76c679cbb62a247d.png",
-                "fieldType": "IMAGE",
-                "label": "image",
-                "enabled": True,
-                "sourceFromUpstream": True,
-                "group": "AI 应用参数",
-                "note": "image",
-                "options": [],
-                "random_enabled": False,
-                "min": "",
-                "max": "",
-                "step": "",
-                "imageOrder": 0,
-                "required": False,
-            },
-            {
-                "id": "14::seed",
-                "nodeId": "14",
-                "fieldName": "seed",
-                "fieldValue": "554049736557817",
-                "fieldType": "INT",
-                "label": "seed",
-                "enabled": True,
-                "sourceFromUpstream": True,
-                "group": "AI 应用参数",
-                "note": "seed",
-                "options": [],
-                "random_enabled": True,
-                "min": "",
-                "max": "",
-                "step": "",
-                "imageOrder": 0,
-                "required": False,
-            },
-        ],
+
+,
     },
     {
         "id": "1997622492837646338",
@@ -379,78 +277,7 @@ RUNNINGHUB_DEFAULT_APPS = [
         "enabled": True,
     },
 ]
-RUNNINGHUB_DEFAULT_WORKFLOWS = [
-    {
-        "id": "2058554058318897153",
-        "workflowId": "2058554058318897153",
-        "title": "GPT-Image-2-图片编辑",
-        "note": "",
-        "thumbnail": "",
-        "enabled": True,
-        "optionalImageMode": "prune-workflow",
-    },
-    {
-        "id": "2058541134623891458",
-        "workflowId": "2058541134623891458",
-        "title": "NanoBanana-2-图片编辑",
-        "note": "",
-        "thumbnail": "",
-        "enabled": True,
-        "optionalImageMode": "prune-workflow",
-    },
-]
-
-def ensure_runtime_config_files():
-    """首次运行时提前创建配置目录，避免第一次保存 API Key 时才创建目录/文件。"""
-    try:
-        os.makedirs(os.path.dirname(API_ENV_FILE), exist_ok=True)
-        os.makedirs(DATA_DIR, exist_ok=True)
-        if not os.path.exists(API_ENV_FILE):
-            with open(API_ENV_FILE, "a", encoding="utf-8"):
-                pass
-    except Exception as e:
-        print(f"初始化 API 配置目录失败: {e}")
-
-def load_env_file():
-    if not os.path.exists(API_ENV_FILE):
-        return
-    try:
-        with open(API_ENV_FILE, 'r', encoding='utf-8-sig') as f:
-            for raw_line in f.read().splitlines():
-                line = raw_line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                os.environ.setdefault(key, value)
-    except Exception as e:
-        print(f"加载 API/.env 失败: {e}")
-ensure_runtime_config_files()
-load_env_file()
-
-COMFYUI_INSTANCES = [s.strip() for s in os.getenv("COMFYUI_INSTANCES", "127.0.0.1:8188").split(",") if s.strip()]
-COMFYUI_ADDRESS = COMFYUI_INSTANCES[0]
-
-AI_BASE_URL = os.getenv("COMFLY_BASE_URL", "https://ai.comfly.chat").rstrip("/")
-AI_API_KEY = os.getenv("COMFLY_API_KEY", "")
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
-PUBLIC_MEDIA_BASE_URL = os.getenv("PUBLIC_MEDIA_BASE_URL", "").strip().rstrip("/")
-MODELSCOPE_API_KEY = os.getenv("MODELSCOPE_API_KEY", "")
-MODELSCOPE_CHAT_BASE_URL = "https://api-inference.modelscope.cn/v1"
-MODELSCOPE_DEFAULT_IMAGE_MODELS = [
-    "Tongyi-MAI/Z-Image-Turbo",
-    "Qwen/Qwen-Image-2512",
-    "Qwen/Qwen-Image-Edit-2511",
-    "black-forest-labs/FLUX.2-klein-9B",
-]
-MODELSCOPE_DEFAULT_CHAT_MODELS = [
-    "Qwen/Qwen3-235B-A22B",
-    "Qwen/Qwen3-VL-235B-A22B-Instruct",
-    "MiniMax/MiniMax-M2.7:MiniMax",
-]
-_MODELSCOPE_CONFIGURED_CHAT_MODELS = [m.strip() for m in os.getenv("MODELSCOPE_CHAT_MODELS", "").split(",") if m.strip()]
-MODELSCOPE_CHAT_MODELS = list(dict.fromkeys([m for m in [*MODELSCOPE_DEFAULT_CHAT_MODELS, *_MODELSCOPE_CONFIGURED_CHAT_MODELS] if m]))
+ if m]))
 MODELSCOPE_DEFAULT_IMAGE_MODEL = MODELSCOPE_DEFAULT_IMAGE_MODELS[0]
 MODELSCOPE_DEFAULT_CHAT_MODEL = "Qwen/Qwen3-235B-A22B"
 MODELSCOPE_DEFAULT_LORAS = [
@@ -598,7 +425,6 @@ def provider_key_env(provider_id):
         return "ARK_API_KEY"
     return f"API_PROVIDER_{re.sub(r'[^A-Za-z0-9]', '_', provider_id).upper()}_KEY"
 
-def runninghub_wallet_key_env():
     return "RUNNINGHUB_WALLET_API_KEY"
 
 def volcengine_access_key_env():
@@ -634,7 +460,6 @@ def provider_env_key_value(provider_id: str) -> str:
         return MODELSCOPE_API_KEY or ""
     return ""
 
-def runninghub_wallet_key_value() -> str:
     env_key = runninghub_wallet_key_env()
     return os.getenv(env_key, "") or read_api_env_value(env_key)
 
@@ -783,20 +608,6 @@ def merge_default_api_providers(providers):
             current["protocol"] = "volcengine"
             current["volcengine_project_name"] = str(current.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
             current["volcengine_region"] = str(current.get("volcengine_region") or VOLCENGINE_DEFAULT_REGION).strip() or VOLCENGINE_DEFAULT_REGION
-    # 即梦 CLI 不再是强制保留的默认平台：仅在用户已添加了即梦协议的平台时，规范化其默认模型/地址。
-    for current in merged:
-        if not is_jimeng_provider(current):
-            continue
-        current["protocol"] = "jimeng"
-        current["base_url"] = ""
-        current["image_models"] = model_list_from_values([
-            *[item for item in (current.get("image_models") or []) if str(item or "").strip() not in JIMENG_LEGACY_IMAGE_MODELS],
-            *JIMENG_DEFAULT_IMAGE_MODELS,
-        ])
-        current["video_models"] = model_list_from_values([
-            *[item for item in (current.get("video_models") or []) if str(item or "").strip() not in JIMENG_LEGACY_VIDEO_MODELS],
-            *JIMENG_DEFAULT_VIDEO_MODELS,
-        ])
     return merged
 
 def normalize_model_list(values):
@@ -843,7 +654,6 @@ def normalize_ms_loras(values):
         })
     return normalized
 
-def normalize_runninghub_entry(raw, kind):
     if not isinstance(raw, dict):
         return None
     raw_id = raw.get("appId") if kind == "app" else raw.get("workflowId")
@@ -891,7 +701,6 @@ def normalize_runninghub_entry(raw, kind):
         entry["workflowId"] = entry["id"]
     return entry
 
-def normalize_runninghub_entries(values, kind):
     normalized = []
     seen = set()
     for raw in values or []:
@@ -902,13 +711,11 @@ def normalize_runninghub_entries(values, kind):
         normalized.append(entry)
     return normalized
 
-def runninghub_entry_id(entry, kind):
     if not isinstance(entry, dict):
         return ""
     raw_id = entry.get("workflowId") if kind == "workflow" else entry.get("appId")
     return str(raw_id or entry.get("id") or "").strip()
 
-def static_runninghub_thumbnail_url(entry_id, kind):
     entry_id = re.sub(r"[^0-9A-Za-z_-]", "", str(entry_id or "").strip())
     kind_prefix = "workflow" if kind == "workflow" else "app"
     if not entry_id:
@@ -927,7 +734,6 @@ def static_runninghub_thumbnail_url(entry_id, kind):
             return f"/static/{urllib.parse.quote(rel, safe='/._-')}?v={int(os.path.getmtime(path))}"
     return ""
 
-def apply_runninghub_system_thumbnails(entries, kind):
     result = []
     for entry in normalize_runninghub_entries(entries or [], kind):
         if not entry.get("thumbnail"):
@@ -937,7 +743,6 @@ def apply_runninghub_system_thumbnails(entries, kind):
         result.append(entry)
     return result
 
-def merge_runninghub_entry_overlay(system_entry, user_entry):
     # 用户条目优先，但当它把 fields/workflowJson 留空（例如配置前生成的空壳）时，
     # 继承系统模板里的完整配置，否则模板里的必选/可选等设置会被空壳覆盖丢失。
     if not isinstance(system_entry, dict):
@@ -959,7 +764,6 @@ def merge_runninghub_entry_overlay(system_entry, user_entry):
         merged["raw"] = system_entry["raw"]
     return merged
 
-def merge_runninghub_system_entries(system_entries, user_entries, kind):
     merged = []
     index = {}
     hidden_ids = set()
@@ -986,7 +790,6 @@ def merge_runninghub_system_entries(system_entries, user_entries, kind):
             merged.append(entry)
     return [entry for entry in merged if runninghub_entry_id(entry, kind) not in hidden_ids]
 
-def load_static_runninghub_provider():
     if not os.path.exists(STATIC_RUNNINGHUB_API_PROVIDERS_FILE):
         return None
     try:
@@ -1005,7 +808,6 @@ def load_static_runninghub_provider():
         print(f"加载 static RunningHub 配置失败: {e}")
     return None
 
-def merge_runninghub_provider_with_static(provider):
     static_provider = load_static_runninghub_provider()
     if not static_provider:
         return provider
@@ -1018,7 +820,6 @@ def merge_runninghub_provider_with_static(provider):
     merged["rh_workflows"] = merge_runninghub_system_entries(static_provider.get("rh_workflows") or [], provider.get("rh_workflows") or [], "workflow")
     return normalize_provider(merged)
 
-def preserve_runninghub_hidden_overrides(provider):
     if not isinstance(provider, dict) or provider.get("id") != "runninghub":
         return provider
     static_provider = load_static_runninghub_provider()
@@ -1068,7 +869,6 @@ def provider_endpoint_url(provider, key, default_path):
             return f"{base_url}{default_path[len(prefix):]}"
     return f"{base_url}{default_path}"
 
-def runninghub_endpoint_url(provider, path):
     base_url = str((provider or {}).get("base_url") or RUNNINGHUB_DEFAULT_BASE_URL).strip().rstrip("/")
     return f"{base_url}{path}"
 
@@ -2343,29 +2143,6 @@ class CloudVideoUploadRequest(BaseModel):
     url: str = ""
     service: str = "auto"
 
-class RunningHubSubmitRequest(BaseModel):
-    webappId: str = ""
-    nodeInfoList: List[Dict[str, Any]] = []
-    instanceType: str = ""
-    useWallet: bool = False
-
-class RunningHubWorkflowSubmitRequest(BaseModel):
-    workflowId: str = ""
-    nodeInfoList: List[Dict[str, Any]] = []
-    workflow: Any = None
-    useWallet: bool = False
-
-class RunningHubUploadAssetRequest(BaseModel):
-    url: str = ""
-    useWallet: bool = False
-
-class JimengHelpRequest(BaseModel):
-    command: str = ""
-
-class JimengQueryMediaRequest(BaseModel):
-    submit_id: str = ""
-    kind: str = "image"
-
 class RunningHubWorkflowConfigField(BaseModel):
     id: str = ""
     nodeId: str = ""
@@ -3480,7 +3257,7 @@ def provider_protocol(provider):
 # 单模型可覆盖的协议（仅 OpenAI / Gemini，二者可共用同一站点的 Base URL + Key）
 PER_MODEL_PROTOCOL_OPTIONS = {"openai", "gemini"}
 # 协议固定、不支持单模型覆盖的内置平台
-FIXED_PROTOCOL_PROVIDER_IDS = {"modelscope", "volcengine", "jimeng", "runninghub"}
+FIXED_PROTOCOL_PROVIDER_IDS = {"modelscope", "volcengine"}
 
 def normalize_model_protocols(value):
     """规整 {模型名: 协议} 覆盖表，仅保留 openai/gemini。"""
@@ -3531,10 +3308,8 @@ def is_gemini_provider(provider):
 def is_volcengine_provider(provider):
     return provider_protocol(provider) == "volcengine"
 
-def is_runninghub_provider(provider):
     return provider_protocol(provider) == "runninghub" or str((provider or {}).get("id") or "").strip().lower() == "runninghub"
 
-def is_jimeng_provider(provider):
     return provider_protocol(provider) == "jimeng" or str((provider or {}).get("id") or "").strip().lower() == "jimeng"
 
 def is_yuli_provider(provider):
@@ -3566,14 +3341,11 @@ def avatar_platform_for_provider(provider) -> str:
 def provider_supports_avatar(provider) -> bool:
     return avatar_platform_for_provider(provider) in AVATAR_SUPPORTED_PLATFORMS
 
-def jimeng_env_value(key):
     return os.getenv(key, "") or read_api_env_value(key)
 
-def jimeng_use_wsl():
     value = str(jimeng_env_value("JIMENG_USE_WSL") or "").strip().lower()
     return value in {"1", "true", "yes", "on", "wsl"}
 
-def jimeng_cli_executable():
     if jimeng_use_wsl():
         return shutil.which("wsl.exe") or shutil.which("wsl") or "wsl.exe"
     configured = str(
@@ -3596,7 +3368,6 @@ def decode_wsl_output(data: bytes) -> str:
             pass
     return data.decode("utf-8-sig", errors="ignore")
 
-def jimeng_wsl_base_args(exe="wsl.exe"):
     configured = str(jimeng_env_value("JIMENG_WSL_DISTRO") or "").strip()
     names = []
     try:
@@ -3627,7 +3398,6 @@ def jimeng_wsl_base_args(exe="wsl.exe"):
         pass
     return []
 
-def jimeng_clean_wsl_stderr(text):
     lines = []
     for line in str(text or "").splitlines():
         clean = line.replace("\x00", "").strip()
@@ -3652,16 +3422,13 @@ def wsl_path_to_windows(path):
         return f"{match.group(1).upper()}:\\{tail}"
     return text
 
-def jimeng_cli_path_arg(path):
     return windows_path_to_wsl(path) if jimeng_use_wsl() else path
 
-def jimeng_poll_seconds(default=JIMENG_DEFAULT_POLL_SECONDS):
     try:
         return max(1, min(3600, int(os.getenv("JIMENG_POLL_SECONDS", str(default)) or default)))
     except Exception:
         return default
 
-def jimeng_extract_json(text):
     text = str(text or "").strip()
     if not text:
         return {}
@@ -3689,7 +3456,6 @@ def jimeng_extract_json(text):
         return weight
     return max(parsed, key=score)[1] if parsed else {"text": text}
 
-async def run_jimeng_cli(args, timeout=120, raw_text=False):
     exe = jimeng_cli_executable()
     if not exe:
         raise HTTPException(status_code=400, detail="未找到 dreamina CLI。请先安装：curl -fsSL https://jimeng.jianying.com/cli | bash，并完成 dreamina login。")
@@ -3725,13 +3491,11 @@ async def run_jimeng_cli(args, timeout=120, raw_text=False):
 # 与当前轮询逻辑不兼容。这里做尽力而为的版本探测，失败不阻断主流程。
 JIMENG_MIN_CLI_VERSION = (1, 4, 2)
 
-def jimeng_parse_version(text):
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(text or ""))
     if not match:
         return None
     return tuple(int(part) for part in match.groups())
 
-async def jimeng_cli_version():
     for flag in ("--version", "-V", "version"):
         try:
             raw = await run_jimeng_cli([flag], timeout=15)
@@ -3743,7 +3507,6 @@ async def jimeng_cli_version():
             return version, str(text).strip()
     return None, ""
 
-def jimeng_command(clean_args, exe=None):
     exe = exe or jimeng_cli_executable()
     if jimeng_use_wsl():
         shell_line = (
@@ -3755,13 +3518,11 @@ def jimeng_command(clean_args, exe=None):
         return [exe, *jimeng_wsl_base_args(exe), "-e", "sh", "-lc", shell_line]
     return [exe, *clean_args]
 
-def jimeng_decode_cli_output(stdout, stderr):
     out_text = (decode_wsl_output(stdout) if jimeng_use_wsl() else stdout.decode("utf-8", errors="replace")).strip()
     err_text = (decode_wsl_output(stderr) if jimeng_use_wsl() else stderr.decode("utf-8", errors="replace")).strip()
     clean_err_text = jimeng_clean_wsl_stderr(err_text) if jimeng_use_wsl() else err_text
     return out_text, clean_err_text
 
-def jimeng_login_text():
     parts = []
     for key in ("stdout", "stderr"):
         value = str(JIMENG_LOGIN_SESSION.get(key) or "").strip()
@@ -3769,7 +3530,6 @@ def jimeng_login_text():
             parts.append(value)
     return "\n".join(parts).strip()
 
-def jimeng_login_qr_from_text(text):
     text = str(text or "")
     candidates = []
     patterns = [
@@ -3784,7 +3544,6 @@ def jimeng_login_qr_from_text(text):
             return value
     return candidates[0] if candidates else ""
 
-async def jimeng_login_reader(proc):
     async def read_stream(stream, key):
         while True:
             chunk = await stream.readline()
@@ -3797,7 +3556,6 @@ async def jimeng_login_reader(proc):
                 JIMENG_LOGIN_SESSION[key] = str(JIMENG_LOGIN_SESSION.get(key) or "") + text
     await asyncio.gather(read_stream(proc.stdout, "stdout"), read_stream(proc.stderr, "stderr"))
 
-def jimeng_submit_id(raw):
     found = []
     def visit(value):
         if isinstance(value, dict):
@@ -3821,7 +3579,6 @@ class JimengPendingError(Exception):
         self.raw = raw
         super().__init__(f"jimeng pending submit_id={self.submit_id}")
 
-def jimeng_queue_info(raw):
     """从即梦原始返回里就近取出 queue_info（含 queue_idx/queue_length/queue_status）。"""
     found = []
     def visit(value):
@@ -3838,7 +3595,6 @@ def jimeng_queue_info(raw):
     visit(raw)
     return found[0] if found else {}
 
-def jimeng_pending_payload(exc: "JimengPendingError"):
     qi = exc.queue_info or {}
     idx = qi.get("queue_idx")
     length = qi.get("queue_length")
@@ -3855,11 +3611,9 @@ def jimeng_pending_payload(exc: "JimengPendingError"):
     }
 
 @app.exception_handler(JimengPendingError)
-async def jimeng_pending_exception_handler(request: Request, exc: JimengPendingError):
     # 轮询超时但任务还在云端排队：返回 202 + submit_id，让前端保持「排队中」卡片并续查
     return JSONResponse(status_code=202, content=jimeng_pending_payload(exc))
 
-def jimeng_failure_reason(raw):
     found = []
     def visit(value):
         if isinstance(value, dict):
@@ -3876,7 +3630,6 @@ def jimeng_failure_reason(raw):
     visit(raw)
     return found[0] if found else ""
 
-def jimeng_collect_media_values(value, outputs):
     media_ext = re.compile(r"\.(png|jpe?g|webp|gif|bmp|mp4|webm|mov|m4v)(\?|#|$)", re.I)
     if isinstance(value, str):
         text = value.strip()
@@ -3902,7 +3655,6 @@ def jimeng_collect_media_values(value, outputs):
             if isinstance(item, (dict, list)):
                 jimeng_collect_media_values(item, outputs)
 
-def jimeng_output_values(raw):
     outputs = []
     jimeng_collect_media_values(raw, outputs)
     deduped = []
@@ -3912,7 +3664,6 @@ def jimeng_output_values(raw):
     return deduped
 
 JIMENG_RATIO_CHOICES = [(21, 9), (16, 9), (3, 2), (4, 3), (1, 1), (3, 4), (2, 3), (9, 16)]
-def jimeng_ratio_from_size(size, fallback="1:1"):
     width, height = parse_size_pair(size)
     if not width or not height:
         return fallback
@@ -3925,16 +3676,13 @@ def jimeng_ratio_from_size(size, fallback="1:1"):
 JIMENG_TEXT2IMAGE_MODELS = {"3.0", "3.1", "4.0", "4.1", "4.5", "4.6", "5.0"}
 JIMENG_IMAGE2IMAGE_MODELS = {"4.0", "4.1", "4.5", "4.6", "5.0"}
 
-def jimeng_normalize_image_model(model):
     match = re.search(r"(\d+\.\d+)", str(model or ""))
     return match.group(1) if match else ""
 
-def jimeng_image_model_version(model, mode="text2image"):
     version = jimeng_normalize_image_model(model)
     allowed = JIMENG_IMAGE2IMAGE_MODELS if mode == "image2image" else JIMENG_TEXT2IMAGE_MODELS
     return version if version in allowed else ""
 
-def jimeng_image_resolution(model, size, mode="text2image"):
     text = str(model or "").lower()
     if "4k" in text:
         desired = "4k"
@@ -3959,7 +3707,6 @@ def jimeng_image_resolution(model, size, mode="text2image"):
 # 仅 VIP seedance 支持 1080P；其余模型最高 720P（官方无 480P 选项）
 JIMENG_VIDEO_1080P_MODELS = {"seedance2.0_vip", "seedance2.0fast_vip"}
 
-def jimeng_video_resolution(model, resolution):
     version = jimeng_video_model_version(model)
     requested = str(resolution or "").strip().upper()
     if requested not in {"480P", "720P", "1080P"}:
@@ -3970,7 +3717,6 @@ def jimeng_video_resolution(model, resolution):
     return "720P"
 
 # 各模型支持的时长区间（秒）：3.0 系列 3-10，3.5pro 4-12，seedance 4-15
-def jimeng_video_duration_range(model):
     version = jimeng_video_model_version(model)
     if version in ("3.0", "3.0fast", "3.0pro"):
         return 3, 10
@@ -3978,7 +3724,6 @@ def jimeng_video_duration_range(model):
         return 4, 12
     return 4, 15
 
-def jimeng_video_duration(duration, model=None):
     low, high = jimeng_video_duration_range(model)
     default = max(low, min(high, 5))
     try:
@@ -3996,7 +3741,6 @@ def jimeng_transition_duration(total_duration, transition_count):
         total = 5.0
     return max(0.5, min(8.0, total / count))
 
-def jimeng_video_model_version(model):
     value = str(model or "").strip()
     low = value.lower()
     aliases = {
@@ -4017,30 +3761,25 @@ def jimeng_video_model_version(model):
             return mapped
     return ""
 
-def jimeng_video_resolution_arg(model, resolution):
     return jimeng_video_resolution(model, resolution).lower()
 
-def jimeng_video_ratio_arg(aspect_ratio):
     value = str(aspect_ratio or "").strip()
     allowed = {"1:1", "3:4", "16:9", "4:3", "9:16", "21:9"}
     if value in allowed:
         return value
     return ""
 
-def jimeng_append_model_resolution_args(args, payload: CanvasVideoRequest, include_model=False):
     model_version = jimeng_video_model_version(payload.model)
     if include_model and model_version:
         args.append(f"--model_version={model_version}")
     if payload.resolution:
         args.append(f"--video_resolution={jimeng_video_resolution_arg(payload.model, payload.resolution)}")
 
-def jimeng_video_ref_role(ref):
     role = getattr(ref, "role", "")
     if isinstance(ref, dict):
         role = ref.get("role", role)
     return str(role or "").lower()
 
-def jimeng_video_ref_url(ref):
     url = getattr(ref, "url", "")
     if isinstance(ref, dict):
         url = ref.get("url", url)
@@ -4067,7 +3806,6 @@ def jimeng_local_output_url(path, kind="image"):
     shutil.copyfile(path, dest)
     return output_url_for(filename, "output")
 
-async def jimeng_store_output_value(value, kind="image"):
     text = str(value or "").strip()
     if not text:
         return ""
@@ -4087,7 +3825,6 @@ async def jimeng_store_output_value(value, kind="image"):
         return jimeng_local_output_url(text, kind)
     return ""
 
-async def jimeng_query_result(submit_id, kind="image"):
     args = [
         "query_result",
         f"--submit_id={submit_id}",
@@ -4095,7 +3832,6 @@ async def jimeng_query_result(submit_id, kind="image"):
     ]
     return await run_jimeng_cli(args, timeout=min(300, jimeng_poll_seconds() + 60))
 
-async def jimeng_store_outputs(raw, kind="image", allow_query=True):
     failure = jimeng_failure_reason(raw)
     if failure:
         raise HTTPException(status_code=502, detail=f"即梦生成失败：{failure}")
@@ -4122,7 +3858,6 @@ async def jimeng_store_outputs(raw, kind="image", allow_query=True):
         raise JimengPendingError(submit_id, kind, jimeng_queue_info(raw), raw)
     raise HTTPException(status_code=502, detail=f"即梦 CLI 未返回可用媒体结果：{status_text}")
 
-async def jimeng_prepare_local_media(ref_url, kind="image"):
     text = str(ref_url or "").strip()
     if not text:
         return "", []
@@ -4165,7 +3900,6 @@ async def jimeng_prepare_local_media(ref_url, kind="image"):
             return path, temp_paths
     raise HTTPException(status_code=400, detail=f"即梦 CLI 只支持本地文件参考素材，无法读取：{text[:120]}")
 
-async def generate_jimeng_provider_image(prompt, size, model, reference_images=None, provider=None):
     refs = [ref for ref in (reference_images or []) if ref.get("url")]
     temp_paths = []
     try:
@@ -4204,7 +3938,6 @@ async def generate_jimeng_provider_image(prompt, size, model, reference_images=N
             except Exception:
                 pass
 
-async def generate_jimeng_video(payload: CanvasVideoRequest, provider):
     image_refs = [ref for ref in (payload.images or []) if jimeng_video_ref_url(ref)]
     video_refs = [url for url in (payload.videos or []) if str(url or "").strip()]
     audio_refs = [url for url in (payload.audios or []) if str(url or "").strip()][:3]
@@ -6833,16 +6566,13 @@ async def generate_volcengine_provider_image(prompt, size, model, reference_imag
         raw = response.json()
         return extract_image(raw), raw
 
-def runninghub_api_headers(provider):
     api_key = runninghub_api_key(provider)
     if not api_key:
         raise HTTPException(status_code=400, detail="未配置 RunningHub API Key，请在 API 设置中填写。")
     return {"Authorization": bearer_auth_value(api_key), "Accept": "application/json", "Content-Type": "application/json"}
 
-def runninghub_provider():
     return get_api_provider_exact("runninghub")
 
-def runninghub_api_key(provider=None, use_wallet=False, prefer_wallet=False):
     provider = provider or runninghub_provider()
     free_key = os.getenv(provider_key_env(provider["id"]), "")
     wallet_key = os.getenv(runninghub_wallet_key_env(), "")
@@ -6851,7 +6581,6 @@ def runninghub_api_key(provider=None, use_wallet=False, prefer_wallet=False):
         raise HTTPException(status_code=400, detail="未配置 RunningHub API Key，请在 RH 设置中填写。")
     return api_key
 
-def runninghub_app_headers(json_body=True, use_wallet=False):
     headers = {"Host": "www.runninghub.cn"}
     provider = runninghub_provider()
     if provider:
@@ -6864,7 +6593,6 @@ def runninghub_app_headers(json_body=True, use_wallet=False):
         headers["Content-Type"] = "application/json"
     return headers
 
-def runninghub_local_asset_path(url):
     text = str(url or "").strip()
     if not text:
         return None
@@ -6889,7 +6617,6 @@ def runninghub_local_asset_path(url):
         return None
     return path
 
-def runninghub_output_ext(remote, content_type=""):
     tail = str(remote or "").split("?", 1)[0].split("#", 1)[0]
     ext = os.path.splitext(tail)[1].lower().strip(".")
     allowed = {"png","jpg","jpeg","webp","gif","bmp","mp4","webm","mov","m4v","mkv","mp3","wav","ogg","m4a","flac","aac"}
@@ -6914,7 +6641,6 @@ def runninghub_output_ext(remote, content_type=""):
         return "jpg"
     return "png"
 
-def runninghub_extract_outputs(data):
     arr = []
     if isinstance(data, list):
         arr = data
@@ -6938,7 +6664,6 @@ def runninghub_extract_outputs(data):
                 outputs.append(str(url))
     return outputs
 
-async def runninghub_store_remote_output(client, remote):
     if not str(remote or "").startswith(("http://", "https://")):
         return remote
     response = await client.get(remote, follow_redirects=True)
@@ -6951,7 +6676,6 @@ async def runninghub_store_remote_output(client, remote):
         f.write(response.content)
     return output_url_for(filename, "output")
 
-def runninghub_fail_reason(raw):
     data = raw.get("data") if isinstance(raw, dict) else None
     values = []
     if isinstance(data, dict):
@@ -6968,7 +6692,6 @@ def runninghub_fail_reason(raw):
         return str(value)
     return ""
 
-def runninghub_infer_workflow_field_type(field_name, field_value):
     key = f"{field_name or ''} {field_value or ''}".lower()
     if re.search(r"\b(image|img|mask|photo|picture)\b", key) or re.search(r"\.(png|jpe?g|webp|gif|bmp)(\?|$)", key, re.I):
         return "IMAGE"
@@ -6987,7 +6710,6 @@ def runninghub_infer_workflow_field_type(field_name, field_value):
         pass
     return "TEXT"
 
-def runninghub_is_workflow_link_value(value):
     return (
         isinstance(value, list)
         and len(value) == 2
@@ -6995,7 +6717,6 @@ def runninghub_is_workflow_link_value(value):
         and isinstance(value[1], int)
     )
 
-def runninghub_workflow_node_info_list(workflow_json):
     result = []
     if not isinstance(workflow_json, dict):
         return result
@@ -7021,7 +6742,6 @@ def runninghub_workflow_node_info_list(workflow_json):
             })
     return result
 
-def runninghub_task_endpoint(provider, model):
     model_path = str(model or "").strip().strip("/")
     if not model_path:
         model_path = RUNNINGHUB_DEFAULT_IMAGE_MODELS[0]
@@ -7031,7 +6751,6 @@ def runninghub_task_endpoint(provider, model):
         return runninghub_endpoint_url(provider, f"/{model_path}")
     return runninghub_endpoint_url(provider, f"/openapi/v2/{model_path}")
 
-def runninghub_query_status(raw):
     if not isinstance(raw, dict):
         return ""
     values = [
@@ -7048,7 +6767,6 @@ def runninghub_query_status(raw):
             return str(value).lower()
     return ""
 
-def runninghub_extract_task_id(raw):
     if not isinstance(raw, dict):
         return ""
     for key in ("taskId", "task_id", "id"):
@@ -7061,7 +6779,6 @@ def runninghub_extract_task_id(raw):
                 return str(data[key])
     return ""
 
-def runninghub_extract_image(raw):
     if not isinstance(raw, dict):
         raise HTTPException(status_code=502, detail="RunningHub 返回格式不是 JSON 对象")
     containers = [raw]
@@ -7089,7 +6806,6 @@ def runninghub_extract_image(raw):
                     return {"type": "url", "value": url}
     return extract_image(raw)
 
-async def runninghub_upload_reference(client, provider, ref):
     path = output_file_from_url(ref.get("url", ""))
     if not path:
         value = ref.get("url", "")
@@ -7133,9 +6849,8 @@ async def wait_for_runninghub_image_task(client, provider, task_id):
             pass
     raise HTTPException(status_code=504, detail=f"RunningHub 生图任务超时：{last_payload}")
 
-RUNNINGHUB_ENTRY_MODEL_RE = re.compile(r"^(app|workflow):(.+)$")
 
-def rh_field_kind(field):
+
     field = field or {}
     t = str(field.get("fieldType") or "").strip().upper()
     if t == "IMAGE":
@@ -7159,7 +6874,6 @@ def rh_field_kind(field):
         return "audio"
     return "text"
 
-def rh_field_role(field):
     kind = rh_field_kind(field)
     if kind in ("image", "video", "audio", "number", "slider", "boolean"):
         return kind
@@ -7200,10 +6914,8 @@ def _rh_field_cmp(a, b):
     fa, fb = str(a.get("fieldName") or ""), str(b.get("fieldName") or "")
     return (fa > fb) - (fa < fb)
 
-def rh_sort_fields(fields):
     return sorted(list(fields or []), key=functools.cmp_to_key(_rh_field_cmp))
 
-def rh_field_indexes(fields):
     counters = {"image": 0, "video": 0, "audio": 0}
     mapping = {}
     for field in rh_sort_fields(fields):
@@ -7213,7 +6925,6 @@ def rh_field_indexes(fields):
             counters[kind] += 1
     return mapping
 
-def rh_default_value(field):
     value = (field or {}).get("fieldValue")
     if isinstance(value, list):
         value = value[0] if value else ""
@@ -7221,7 +6932,6 @@ def rh_default_value(field):
         return ""
     return str(value)
 
-def rh_random_field_value(field):
     def _num(raw, default):
         try:
             s = str(raw).strip()
@@ -7242,7 +6952,6 @@ def rh_random_field_value(field):
         return str(int(round(value)))
     return str(value)
 
-def runninghub_entry_config_from_model(provider, model):
     """解析 model=app:ID / workflow:ID，返回 {kind,id,fields,optionalImageMode,workflowJson} 或 None。"""
     text = str(model or "").strip()
     match = RUNNINGHUB_ENTRY_MODEL_RE.match(text)
@@ -7291,7 +7000,6 @@ def runninghub_entry_config_from_model(provider, model):
         "workflowJson": {},
     }
 
-async def runninghub_upload_local_to_filename(client, provider, url, use_wallet=False):
     """把本地/远程素材上传到 RunningHub /task/openapi/upload，返回 fileName（供 nodeInfoList 使用）。"""
     text = str(url or "").strip()
     if not text:
@@ -7322,7 +7030,6 @@ async def runninghub_upload_local_to_filename(client, provider, url, use_wallet=
         return raw["data"]["fileName"]
     raise HTTPException(status_code=502, detail=(raw.get("msg") if isinstance(raw, dict) else "") or f"RunningHub 上传素材失败：{raw}")
 
-async def generate_runninghub_entry_image(prompt, model, reference_images, provider, entry):
     """运行 RunningHub 工作流 / AI 应用（与智能画布一致的运行方式），返回首张图片结果。"""
     kind = entry["kind"]
     entry_id = entry["id"]
@@ -7408,7 +7115,6 @@ async def generate_runninghub_entry_image(prompt, model, reference_images, provi
             # 804 运行中 / 813 排队中 / 其他状态继续轮询
         raise HTTPException(status_code=504, detail=f"RunningHub 任务超时：{last_payload}")
 
-async def generate_runninghub_provider_image(prompt, size, model, reference_images=None, provider=None):
     entry = runninghub_entry_config_from_model(provider, model)
     if entry:
         return await generate_runninghub_entry_image(prompt, model, reference_images, provider, entry)
@@ -7441,10 +7147,6 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
     provider = get_api_provider(provider_id)
     if provider["id"] == "modelscope":
         return await generate_modelscope_provider_image(prompt, size, model, reference_images, provider)
-    if is_jimeng_provider(provider):
-        return await generate_jimeng_provider_image(prompt, size, model, reference_images, provider)
-    if is_runninghub_provider(provider):
-        return await generate_runninghub_provider_image(prompt, size, model, reference_images, provider)
     if effective_protocol(provider, model) == "gemini":
         return await generate_gemini_provider_image(prompt, size, model, reference_images, provider)
     if is_volcengine_provider(provider):
@@ -12643,10 +12345,8 @@ def workflow_config_path(name: str) -> str:
 def is_builtin_workflow(name: str) -> bool:
     return "/" not in name and os.path.basename(name) in BUILTIN_WORKFLOWS
 
-def runninghub_workflow_store_path() -> str:
     return RUNNINGHUB_WORKFLOW_STORE_FILE
 
-def load_runninghub_workflow_store():
     if not os.path.exists(RUNNINGHUB_WORKFLOW_STORE_FILE):
         return {}
     try:
@@ -12656,17 +12356,14 @@ def load_runninghub_workflow_store():
     except Exception:
         return {}
 
-def save_runninghub_workflow_store(store):
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(RUNNINGHUB_WORKFLOW_STORE_FILE, "w", encoding="utf-8") as f:
         json.dump(store, f, ensure_ascii=False, indent=2)
 
-def runninghub_workflow_config_has_payload(cfg):
     if not isinstance(cfg, dict):
         return False
     return bool(cfg.get("fields") or cfg.get("workflowJson") or cfg.get("raw"))
 
-def runninghub_workflow_entry_from_config(cfg, fallback=None):
     fallback = fallback if isinstance(fallback, dict) else {}
     key = runninghub_workflow_store_key((cfg or {}).get("workflowId") or fallback.get("workflowId") or fallback.get("id"))
     if not key:
@@ -12685,7 +12382,6 @@ def runninghub_workflow_entry_from_config(cfg, fallback=None):
         "updatedAt": (cfg or {}).get("updatedAt") or fallback.get("updatedAt") or 0,
     }, "workflow")
 
-def runninghub_provider_with_workflow_store(provider):
     if not isinstance(provider, dict) or provider.get("id") != "runninghub":
         return provider
     store = load_runninghub_workflow_store()
@@ -12720,7 +12416,6 @@ def runninghub_provider_with_workflow_store(provider):
     merged["rh_workflows"] = normalize_runninghub_entries(workflows, "workflow")
     return merged
 
-def runninghub_provider_workflow_config(workflow_id: str):
     key = runninghub_workflow_store_key(workflow_id)
     if not key:
         return None
@@ -12749,7 +12444,6 @@ def runninghub_provider_workflow_config(workflow_id: str):
         return cfg if runninghub_workflow_config_has_payload(cfg) else None
     return None
 
-def runninghub_select_workflow_config(local_cfg, provider_cfg):
     if isinstance(local_cfg, dict) and isinstance(provider_cfg, dict):
         try:
             local_updated = int(local_cfg.get("updatedAt") or 0)
@@ -12766,7 +12460,6 @@ def runninghub_select_workflow_config(local_cfg, provider_cfg):
         return provider_cfg
     return None
 
-def sync_runninghub_workflow_to_provider(cfg):
     if not isinstance(cfg, dict):
         return
     key = runninghub_workflow_store_key(cfg.get("workflowId"))
@@ -12830,7 +12523,6 @@ def sync_runninghub_workflow_to_provider(cfg):
         entry["thumbnail"] = ""
     save_api_providers([normalize_provider(item) for item in providers])
 
-def remove_runninghub_workflow_from_provider(workflow_id: str):
     key = runninghub_workflow_store_key(workflow_id)
     if not key:
         return
@@ -12863,10 +12555,8 @@ def remove_runninghub_workflow_from_provider(workflow_id: str):
     if changed:
         save_api_providers([normalize_provider(item) for item in providers])
 
-def runninghub_workflow_store_key(workflow_id: str) -> str:
     return str(workflow_id or "").strip()
 
-def runninghub_normalize_field(raw, fallback=None):
     fallback = fallback or {}
     if hasattr(raw, "dict"):
         raw = raw.dict()
@@ -12915,7 +12605,6 @@ def runninghub_normalize_field(raw, fallback=None):
         "required": bool(raw.get("required", fallback.get("required", False))),
     }
 
-def runninghub_is_saved_link_field(field):
     if not isinstance(field, dict):
         return False
     value = field.get("fieldValue")
@@ -12930,7 +12619,6 @@ def runninghub_is_saved_link_field(field):
         return False
     return runninghub_is_workflow_link_value(parsed)
 
-def runninghub_collect_workflow_fields(workflow_json):
     fields = []
     if not isinstance(workflow_json, dict):
         return fields
