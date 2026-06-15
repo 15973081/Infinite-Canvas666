@@ -254,6 +254,7 @@ let remoteSyncTimer = null;
 let remoteSyncInterval = null;
 let remoteSyncBusy = false;
 let lastCanvasUpdatedAt = 0;
+let openCanvasRequestSeq = 0;
 let models = {gpt:'gpt-image-2', nano:'nano-banana-pro'};
 let imageModels = ['gpt-image-2', 'nano-banana-pro'];
 let chatModels = ['gpt-4o-mini'];
@@ -1549,6 +1550,7 @@ function positionCanvasMetaPopover(){
     pop.style.top = `${Math.round(top)}px`;
 }
 async function createCanvas(){
+    openCanvasRequestSeq++;
     const customTitle = gateTitleInput?.value.trim();
     const isSmart = createCanvasKind === 'smart';
     const titleBase = isSmart ? tr('canvas.newSmartCanvas') : tr('canvas.newCanvas');
@@ -1705,19 +1707,23 @@ async function setCanvasTitle(id, title){
     }
 }
 async function openCanvas(id){
+    const openSeq = ++openCanvasRequestSeq;
     setStatus('Opening...');
     try {
         const res = await fetch(`/api/canvases/${id}`);
         if(!res.ok) throw new Error(tr('canvas.openFailed'));
         const data = await res.json();
+        if(openSeq !== openCanvasRequestSeq) return;
         resetCascadeRuntimeState();
-        canvas = data.canvas;
-        const touched = await touchCanvasOpened(canvas.id);
-        if(touched?.updated_at) canvas.updated_at = Number(touched.updated_at);
-        if((canvas.kind || 'classic') === 'smart'){
-            openSmartCanvasPage(canvas.id);
+        const nextCanvas = data.canvas;
+        const touched = await touchCanvasOpened(nextCanvas.id);
+        if(openSeq !== openCanvasRequestSeq) return;
+        if(touched?.updated_at) nextCanvas.updated_at = Number(touched.updated_at);
+        if((nextCanvas.kind || 'classic') === 'smart'){
+            openSmartCanvasPage(nextCanvas.id);
             return;
         }
+        canvas = nextCanvas;
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
         connections = canvas.connections || [];
@@ -1873,14 +1879,16 @@ function handleCanvasUpdatedMessage(data){
     if(data.canvas_id !== canvas.id) return;
     const remoteUpdatedAt = Number(data.updated_at || 0);
     if(remoteUpdatedAt && remoteUpdatedAt <= Number(lastCanvasUpdatedAt || 0)) return;
-    clearTimeout(saveTimer);
-    saveTimer = null;
-    localCanvasDirty = false;
     clearTimeout(remoteSyncTimer);
+    if(localCanvasDirty || saveTimer || savingCanvasNow || saveCanvasAgain){
+        remoteSyncTimer = setTimeout(syncRemoteCanvasNow, savingCanvasNow ? 1000 : 1500);
+        return;
+    }
     remoteSyncTimer = setTimeout(syncRemoteCanvasNow, savingCanvasNow ? 700 : 120);
     setStatus('Syncing...');
 }
 async function returnToCanvasManager(){
+    openCanvasRequestSeq++;
     clearTimeout(saveTimer);
     if(canvas && localCanvasDirty) await saveCanvas();
     stopCanvasRemotePolling();
