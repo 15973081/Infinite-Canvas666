@@ -49,6 +49,17 @@ function canvasActivateVideoPreview(img){
     video.play?.().catch(() => {});
     return true;
 }
+document.addEventListener('click', event => {
+    const btn = event.target?.closest?.('.canvas-video-play');
+    if(!btn) return;
+    const wrap = btn.closest('.output-img-wrap,.media-card.video-card');
+    const preview = wrap?.querySelector?.('img[data-preview-kind="video"]');
+    if(!preview) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    canvasActivateVideoPreview(preview);
+}, true);
 function isCanvasPreviewImage(img){
     return img?.tagName?.toLowerCase?.() === 'img'
         && img.dataset?.previewSrc
