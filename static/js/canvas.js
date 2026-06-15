@@ -5708,8 +5708,20 @@ function bindOutputWrap(wrap, node){
     if(video){
         video.onclick = e => {
             e.stopPropagation();
+        };
+        video.ondblclick = e => {
+            e.stopPropagation();
             openOutputLightbox(video.dataset.url, node);
         };
+    }
+    if(playBtn){
+        playBtn.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            const preview = wrap.querySelector('img[data-preview-kind="video"]');
+            if(preview) canvasActivateVideoPreview(preview);
+        }, true);
     }
     if(fileCard){
         fileCard.onclick = e => {
