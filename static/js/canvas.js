@@ -5739,7 +5739,13 @@ function bindOutputWrap(wrap, node){
             e.stopPropagation();
             e.stopImmediatePropagation();
             const preview = wrap.querySelector('img[data-preview-kind="video"]');
-            if(preview) canvasActivateVideoPreview(preview);
+            if(preview){
+                canvasActivateVideoPreview(preview);
+                return;
+            }
+            const fallbackVideo = wrap.querySelector('video[data-url]');
+            const url = fallbackVideo?.dataset.url || wrap.dataset.outputUrl || '';
+            if(url) openOutputLightbox(url, node);
         }, true);
     }
     if(fileCard){
@@ -9748,6 +9754,10 @@ async function runVideoNode(nodeId, opts={}){
     if(out) out._pending = [...(out._pending || []), makePendingForRun(pendingId, run, node, {refs, cascadeTargetId})];
     if(!opts.cascade){ node.running = true; refreshRunNodes(node, out); }
     else refreshRunNodes(node, out);
+    if(out){
+        scheduleSave();
+        await saveCanvas();
+    }
     try {
         const result = await cascadeFetch('/api/canvas-video', {
             method:'POST',
@@ -9772,35 +9782,43 @@ async function runVideoNode(nodeId, opts={}){
                 trusted_asset:usesTrustedVolcengineAssets
             })
         }, {cascadeTargetId}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, tr('canvas.videoFailed'))); return r.json(); });
-        const meta = collectRunMeta(out, pendingId);
-        if(out) out._pending = (out._pending || []).filter(p => p.id !== pendingId);
+        const currentNode = nodes.find(n => n.id === nodeId) || node;
+        const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
+        const meta = collectRunMeta(currentOut, pendingId);
+        if(currentOut) currentOut._pending = (currentOut._pending || []).filter(p => p.id !== pendingId);
         const outputUrls = resultMediaUrls(result).map(item => {
             const url = outputUrlValue(item);
             return item && typeof item === 'object' ? {...item, url, kind:item.kind || 'video'} : {url, kind:'video'};
         }).filter(item => item.url);
         if(!outputUrls.length) throw new Error(tr('canvas.videoFailed'));
         run.request = requestMetaFromResult(result);
-        appendOutputImages(out, outputUrls, refs[0], [{...meta, kind:'video'}]);
-        mergeGeneratedOutputs(node, outputUrls, Boolean(opts.cascade));
+        appendOutputImages(currentOut, outputUrls, refs[0], [{...meta, kind:'video'}]);
+        mergeGeneratedOutputs(currentNode, outputUrls, Boolean(opts.cascade));
         addGenerationLog({run, outputs:outputUrls, runMs:meta.runMs || 0});
-        node.runStatus = 'done'; node.runError = '';
-        refreshRunNodes(node, out);
+        currentNode.runStatus = 'done'; currentNode.runError = '';
+        refreshRunNodes(currentNode, currentOut);
         scheduleSave();
+        await saveCanvas();
     } catch(err) {
-        const meta = collectRunMeta(out, pendingId);
+        const currentNode = nodes.find(n => n.id === nodeId) || node;
+        const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
+        const meta = collectRunMeta(currentOut, pendingId);
         addGenerationLog({run, outputs:[], runMs:meta.runMs || 0, error:err.message || String(err)});
-        if(out) out._pending = (out._pending || []).filter(p => p.id !== pendingId);
+        if(currentOut) currentOut._pending = (currentOut._pending || []).filter(p => p.id !== pendingId);
         if(isCascadeAbortError(err)){
             if(opts.cascade) throw err;
             return;
         }
-        node.runStatus = 'failed'; node.runError = err.message || String(err);
-        refreshRunNodes(node, out);
+        currentNode.runStatus = 'failed'; currentNode.runError = err.message || String(err);
+        refreshRunNodes(currentNode, currentOut);
+        scheduleSave();
         if(opts.cascade) throw err;
         alert(err.message || tr('canvas.videoFailed'));
     } finally {
-        node.running = false;
-        refreshRunNodes(node, out);
+        const currentNode = nodes.find(n => n.id === nodeId) || node;
+        const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
+        currentNode.running = false;
+        refreshRunNodes(currentNode, currentOut);
     }
 }
 async function uploadCanvasUrlToComfy(url){
@@ -11814,7 +11832,7 @@ function renderOutputMedia(item, useGridLayout=false){
         return `<div class="output-img-wrap" data-output-url="${safe}" data-missing-url="${safe}"${gridStyle}>${missingAssetHtml(url, true)}${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'video'){
-        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output" data-video-fallback-attrs="controls"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'audio'){
         return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(outputImageName(url))}</span><audio src="${safe}" data-url="${safe}" controls preload="metadata"></audio></div>${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
@@ -11909,7 +11927,8 @@ function markOutputViewed(out, url){
 function outputLightboxItems(out=null){
     const normalize = (item, sourceOut=null) => {
         const url = outputUrlValue(item);
-        if(!url || mediaKindForOutputItem(item) !== 'image') return null;
+        const kind = mediaKindForOutputItem(item);
+        if(!url || !['image','video'].includes(kind)) return null;
         return {url, outId:sourceOut?.id || ''};
     };
     const sourceOut = out?.id ? nodes.find(n => n.id === out.id) || out : null;
@@ -12580,7 +12599,7 @@ function openOutputLightbox(url, out){
             if(currentOutputLightboxOutId) downloadGroupNodeImages(currentOutputLightboxOutId);
         };
     }
-    const videoMode = isVideoUrl(url);
+    const videoMode = isVideoUrl(url) || mediaKindForOutputItem(meta) === 'video';
     outputLightboxImg.style.display = videoMode ? 'none' : 'block';
     outputLightboxVideo.style.display = videoMode ? 'block' : 'none';
     outputCompareResult.style.display = videoMode ? 'none' : 'block';
