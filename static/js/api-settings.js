@@ -6,6 +6,7 @@ const statusEl = document.getElementById('status');
 const nameInput = document.getElementById('nameInput');
 const idInput = document.getElementById('idInput');
 const baseInput = document.getElementById('baseInput');
+const proxyInput = document.getElementById('proxyInput');
 const protocolInput = document.getElementById('protocolInput');
 const imageRequestModeInput = document.getElementById('imageRequestModeInput');
 const keyInput = document.getElementById('keyInput');
@@ -606,6 +607,7 @@ function syncEditor(){
     item.name = nameInput.value.trim() || item.id;
     const selectedProtocol = item.id === 'modelscope' ? 'openai' : item.id === 'runninghub' ? 'runninghub' : item.id === 'volcengine' ? 'volcengine' : item.id === 'jimeng' ? 'jimeng' : (protocolInput?.value || 'openai');
     item.base_url = selectedProtocol === 'jimeng' ? '' : baseInput.value.trim();
+    item.proxy_url = providerSupportsProxy(item) ? (proxyInput?.value.trim() || '') : '';
     // 固定平台不从协议下拉读取
     item.protocol = selectedProtocol;
     item.image_request_mode = normalizeImageRequestMode(
@@ -2198,6 +2200,7 @@ function renderEditor(){
     clearVerifyResult();
     baseInput.placeholder = EXAMPLE_BASE_URL;
     baseInput.value = item.base_url || '';
+    if(proxyInput) proxyInput.value = providerSupportsProxy(item) ? (item.proxy_url || '') : '';
     if(protocolInput) protocolInput.value = item.id === 'runninghub' ? 'openai' : item.id === 'volcengine' ? 'volcengine' : item.id === 'jimeng' ? 'jimeng' : (item.protocol || 'openai');
     if(imageRequestModeInput) imageRequestModeInput.value = normalizeImageRequestMode(item.image_request_mode);
     keyInput.value = '';
@@ -2208,6 +2211,7 @@ function renderEditor(){
     const isVolcengine = item.id === 'volcengine' || String(protocolInput?.value || item.protocol || '').toLowerCase() === 'volcengine';
     const isStandaloneVolcengine = item.id === 'volcengine';
     const isJimeng = item.id === 'jimeng' || String(protocolInput?.value || item.protocol || '').toLowerCase() === 'jimeng';
+    const supportsProxy = providerSupportsProxy(item);
     if(isRunningHub){
         ensureRunningHubLists(item);
         if(rhFreeKeyInput){
@@ -2255,6 +2259,7 @@ function renderEditor(){
     document.body.classList.toggle('show-volcengine', isVolcengine);
     document.body.classList.toggle('show-volcengine-standalone', isStandaloneVolcengine);
     document.body.classList.toggle('show-jimeng', isJimeng);
+    document.body.classList.toggle('show-provider-proxy', supportsProxy);
     renderProviderOnboarding(item);
     renderRecommendApi();
     if(runninghubConfigBlock){
@@ -2493,6 +2498,7 @@ async function probeAsync(){
                 api_key: apiKey,
                 provider_id: item.id,
                 protocol: currentProtocol,
+                proxy_url: providerSupportsProxy(item) ? (proxyInput?.value.trim() || item.proxy_url || '') : '',
                 image_request_mode: imageRequestModeInput?.value || item.image_request_mode || 'openai'
             })
         }).then(async r => {
@@ -2556,6 +2562,7 @@ async function testConnection(){
                 api_key: apiKey,
                 provider_id: item.id,
                 protocol: protocolInput?.value || 'openai',
+                proxy_url: providerSupportsProxy(item) ? (proxyInput?.value.trim() || item.proxy_url || '') : '',
                 image_request_mode: imageRequestModeInput?.value || item.image_request_mode || 'openai'
             })
         }).then(async r => {
@@ -2618,6 +2625,7 @@ async function fetchModels(){
                 api_key:apiKey,
                 provider_id:item.id,
                 protocol:protocolInput?.value || 'openai',
+                proxy_url:providerSupportsProxy(item) ? (proxyInput?.value.trim() || item.proxy_url || '') : '',
                 image_request_mode:imageRequestModeInput?.value || item.image_request_mode || 'openai'
             })
         }).then(async r => {
@@ -2776,6 +2784,11 @@ async function clearKeyOnly(){
     if(ok) keyInput.value = '';
 }
 const FIXED_PROTOCOL_PROVIDER_IDS = new Set(['modelscope', 'volcengine', 'jimeng', 'runninghub']);
+const PROXY_DISABLED_PROVIDER_IDS = new Set(['modelscope', 'volcengine', 'jimeng', 'runninghub']);
+function providerSupportsProxy(item){
+    const protocol = String(item?.protocol || '').toLowerCase();
+    return Boolean(item) && !PROXY_DISABLED_PROVIDER_IDS.has(item.id) && !PROXY_DISABLED_PROVIDER_IDS.has(protocol);
+}
 function providerSupportsModelProtocol(item){
     return Boolean(item) && !FIXED_PROTOCOL_PROVIDER_IDS.has(item.id);
 }
@@ -2897,7 +2910,7 @@ function addProvider(){
     let id = 'custom-api';
     let index = 2;
     while(providers.some(item => item.id === id)) id = `custom-api-${index++}`;
-    providers.push({id, name:'API', base_url:'', protocol:'openai', image_request_mode:'openai', image_generation_endpoint:'', image_edit_endpoint:'', enabled:true, primary:false, image_models:[], chat_models:[], video_models:[], has_key:false, key_preview:''});
+    providers.push({id, name:'API', base_url:'', protocol:'openai', image_request_mode:'openai', image_generation_endpoint:'', image_edit_endpoint:'', proxy_url:'', enabled:true, primary:false, image_models:[], chat_models:[], video_models:[], has_key:false, key_preview:''});
     selectedId = id;
     renderEditor();
 }
@@ -3044,6 +3057,7 @@ async function saveProviders(){
                 ? 'openai'
                 : item.image_request_mode
         );
+        item.proxy_url = providerSupportsProxy(item) ? String(item.proxy_url || '').trim() : '';
         if(item.id === 'jimeng') item.base_url = '';
         if(item.id === 'jimeng') item.video_models = unique([...(item.video_models || []).filter(model => !JIMENG_LEGACY_VIDEO_MODELS.has(String(model || '').trim())), ...JIMENG_DEFAULT_VIDEO_MODELS]);
         item.image_generation_endpoint = '';
@@ -3079,6 +3093,7 @@ async function saveProviders(){
                 image_request_mode:item.image_request_mode || 'openai',
                 image_generation_endpoint:item.image_generation_endpoint || '',
                 image_edit_endpoint:item.image_edit_endpoint || '',
+                proxy_url:providerSupportsProxy(item) ? (item.proxy_url || '') : '',
                 enabled:item.enabled !== false,
                 primary:false,
                 image_models:item.image_models || [],

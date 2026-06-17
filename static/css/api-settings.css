@@ -99,6 +99,8 @@ html.studio-theme-dark body .recommend-tag.recommend-perk-tag svg { color:#b98cf
 .form { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .field { display:flex; flex-direction:column; gap:7px; min-width:0; }
 .field.full { grid-column:1/-1; }
+.api-proxy-field { display:none; }
+body.show-provider-proxy .api-proxy-field { display:flex; }
 .label { color:var(--muted); font-size:11px; font-weight:800; letter-spacing:.02em; }
 /* 输入框：外层 frame 提供边框 + padding，内部 input 透明无边框，让文字跟边框有视觉距离 */
 .field-frame { display:flex; align-items:center; padding:4px; border:1px solid var(--line); border-radius:11px; background:var(--panel); transition:border-color .15s ease; }

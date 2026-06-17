@@ -255,6 +255,8 @@ JIMENG_LOGIN_SESSION = {
 
 PROVIDER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,40}$")
 SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine", "runninghub", "jimeng"}
+PROXY_DISABLED_PROVIDER_IDS = {"modelscope", "runninghub", "volcengine", "jimeng"}
+SUPPORTED_PROXY_SCHEMES = {"http", "https"}
 SUPPORTED_IMAGE_REQUEST_MODES = {"openai", "openai-json"}
 RUNNINGHUB_DEFAULT_BASE_URL = "https://www.runninghub.cn"
 JIMENG_DEFAULT_IMAGE_MODELS = [
@@ -1074,6 +1076,34 @@ def runninghub_endpoint_url(provider, path):
     base_url = str((provider or {}).get("base_url") or RUNNINGHUB_DEFAULT_BASE_URL).strip().rstrip("/")
     return f"{base_url}{path}"
 
+def provider_supports_proxy(provider):
+    provider_id = str((provider or {}).get("id") or "").strip().lower()
+    protocol = str((provider or {}).get("protocol") or "").strip().lower()
+    return bool(provider_id and provider_id not in PROXY_DISABLED_PROVIDER_IDS and protocol not in PROXY_DISABLED_PROVIDER_IDS)
+
+def normalize_proxy_url(value, provider_id="", name=""):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if str(provider_id or "").strip().lower() in PROXY_DISABLED_PROVIDER_IDS:
+        return ""
+    parsed = urllib.parse.urlparse(text)
+    if parsed.scheme.lower() not in SUPPORTED_PROXY_SCHEMES or not parsed.netloc:
+        label = name or provider_id or "API platform"
+        raise HTTPException(status_code=400, detail=f"{label} proxy URL must start with http:// or https://")
+    return text.rstrip("/")
+
+def provider_proxy_url(provider):
+    if not provider_supports_proxy(provider):
+        return ""
+    return normalize_proxy_url((provider or {}).get("proxy_url") or "", (provider or {}).get("id") or "", (provider or {}).get("name") or "")
+
+def httpx_provider_kwargs(provider=None, proxy_url=None):
+    proxy = str(proxy_url or "").strip() if proxy_url is not None else provider_proxy_url(provider)
+    if not proxy:
+        return {}
+    return {"proxy": proxy, "trust_env": False}
+
 def normalize_provider(item):
     provider_id = str(item.get("id") or "").strip().lower()
     if not PROVIDER_ID_RE.fullmatch(provider_id):
@@ -1098,6 +1128,7 @@ def normalize_provider(item):
     if provider_id == "jimeng":
         protocol = "jimeng"
         base_url = ""
+    proxy_url = "" if protocol in PROXY_DISABLED_PROVIDER_IDS else normalize_proxy_url(item.get("proxy_url"), provider_id, name)
     return {
         "id": provider_id,
         "name": name,
@@ -1106,6 +1137,7 @@ def normalize_provider(item):
         "image_request_mode": image_request_mode,
         "image_generation_endpoint": image_generation_endpoint,
         "image_edit_endpoint": image_edit_endpoint,
+        "proxy_url": proxy_url,
         "enabled": bool(item.get("enabled", True)),
         "primary": bool(item.get("primary", False)),
         "image_models": model_list_from_values(item.get("image_models") or []),
@@ -2404,6 +2436,7 @@ class ApiProviderPayload(BaseModel):
     image_request_mode: str = "openai"
     image_generation_endpoint: str = ""
     image_edit_endpoint: str = ""
+    proxy_url: str = ""
     enabled: bool = True
     primary: bool = False
     image_models: List[str] = []
@@ -5977,7 +6010,7 @@ def is_transient_tls_error(exc) -> bool:
         "SSL", "BAD RECORD MAC", "EOF OCCURRED", "DECRYPTION FAILED", "WRONG VERSION NUMBER",
     ))
 
-async def apimart_upload_post(client, upload_url, headers, file_tuple, timeout=60):
+async def apimart_upload_post(client, upload_url, headers, file_tuple, timeout=60, provider=None):
     """上传文件到 APIMart，对瞬时 TLS 错误自动重试；重试时改用全新连接，避免复用坏掉的 TLS 连接。
     file_tuple 形如 (filename, content_bytes, content_type)，content 为已读入内存的 bytes，可跨重试复用。"""
     last_exc = None
@@ -5989,6 +6022,7 @@ async def apimart_upload_post(client, upload_url, headers, file_tuple, timeout=6
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(connect=20.0, read=max(120.0, float(timeout)), write=120.0, pool=20.0),
                 follow_redirects=True,
+                **httpx_provider_kwargs(provider),
             ) as fresh:
                 return await fresh.post(upload_url, headers=headers, files=files, timeout=timeout)
         except Exception as e:
@@ -6022,7 +6056,7 @@ async def upload_image_for_apimart(client, provider, ref_url: str) -> str:
             mime = header.split(":", 1)[1].split(";", 1)[0] if ":" in header else "image/png"
             raw = base64.b64decode(encoded)
             filename, content, ct = apimart_upload_payload_from_bytes(raw, mime, name_hint="canvas_image")
-            resp = await apimart_upload_post(client, upload_url, api_headers(json_body=False, provider=provider), (filename, content, ct), timeout=60)
+            resp = await apimart_upload_post(client, upload_url, api_headers(json_body=False, provider=provider), (filename, content, ct), timeout=60, provider=provider)
             if resp.status_code in (200, 201):
                 rj = resp.json()
                 url = extract_apimart_asset_url(rj)
@@ -6045,7 +6079,7 @@ async def upload_image_for_apimart(client, provider, ref_url: str) -> str:
             return "ERR:本地文件不存在或已被删除"
         try:
             filename, content, ct = apimart_upload_file_payload(path)
-            resp = await apimart_upload_post(client, upload_url, api_headers(json_body=False, provider=provider), (filename, content, ct), timeout=60)
+            resp = await apimart_upload_post(client, upload_url, api_headers(json_body=False, provider=provider), (filename, content, ct), timeout=60, provider=provider)
             if resp.status_code in (200, 201):
                 rj = resp.json()
                 url = extract_apimart_asset_url(rj)
@@ -6471,7 +6505,7 @@ async def upload_local_video_to_cloud(ref_url: str, service: str = "auto") -> Di
 async def upload_local_video_to_temp_sh(ref_url: str) -> Dict[str, str]:
     return await upload_local_video_to_cloud(ref_url, "auto")
 
-async def save_ai_image_to_output(image_data, prefix="online_", category="output"):
+async def save_ai_image_to_output(image_data, prefix="online_", category="output", provider=None):
     filename = f"{prefix}{uuid.uuid4().hex[:10]}.png"
     path = output_path_for(filename, category)
     if image_data["type"] == "b64":
@@ -6490,7 +6524,7 @@ async def save_ai_image_to_output(image_data, prefix="online_", category="output
         return value
     try:
         timeout = httpx.Timeout(connect=20.0, read=300.0, write=60.0, pool=20.0)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, **httpx_provider_kwargs(provider)) as client:
             response = await client.get(value)
             response.raise_for_status()
             content_type = response.headers.get("Content-Type", "")
@@ -6507,7 +6541,7 @@ async def save_ai_image_to_output(image_data, prefix="online_", category="output
         print(f"保存上游图片失败: {e}")
         return value
 
-async def save_remote_video_to_output(url, prefix="video_", category="output"):
+async def save_remote_video_to_output(url, prefix="video_", category="output", provider=None):
     if not url:
         return ""
     if url.startswith("/output/") or url.startswith("/assets/"):
@@ -6515,7 +6549,7 @@ async def save_remote_video_to_output(url, prefix="video_", category="output"):
     filename = f"{prefix}{uuid.uuid4().hex[:10]}.mp4"
     path = output_path_for(filename, category)
     try:
-        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
             response = await client.get(url)
             response.raise_for_status()
             content_type = (response.headers.get("Content-Type") or "").lower()
@@ -7579,7 +7613,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
     image_refs = [ref for ref in refs if ref not in mask_refs]
     image_request_mode = effective_image_request_mode(provider, model)
     request_timeout = httpx.Timeout(connect=20.0, read=1800.0, write=120.0, pool=20.0) if (is_gpt2 or is_apimart or image_request_mode == "openai-json") else AI_REQUEST_TIMEOUT
-    async with httpx.AsyncClient(timeout=request_timeout) as client:
+    async with httpx.AsyncClient(timeout=request_timeout, **httpx_provider_kwargs(provider)) as client:
         response = None
         async def post_openai_edits(edit_files=None):
             data = {"model": model, "prompt": prompt, "size": size}
@@ -7868,7 +7902,7 @@ async def decide_chat_agent_action(payload, conversation, refs):
     })
     try:
         provider_cfg = get_api_provider(payload.provider) if payload.provider not in ("modelscope",) else {}
-        async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT, **httpx_provider_kwargs(provider_cfg)) as client:
             req_body = {"model": model, "messages": upstream_messages}
             if is_apimart_provider(provider_cfg):
                 req_body["stream"] = False
@@ -7897,7 +7931,7 @@ async def build_chat_text_reply(payload, conversation):
         if msg:
             upstream_messages.append(msg)
     try:
-        async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT, **httpx_provider_kwargs(llm_provider)) as client:
             req_body = {"model": model, "messages": upstream_messages}
             if is_apimart:
                 req_body["stream"] = False
@@ -8927,6 +8961,7 @@ class TestConnectionPayload(BaseModel):
     provider_id: str = ""
     protocol: str = "openai"
     image_request_mode: str = "openai"
+    proxy_url: str = ""
 
 def protocol_from_payload(payload):
     provider_id = str(getattr(payload, "provider_id", "") or "").strip().lower()
@@ -8938,6 +8973,13 @@ def protocol_from_payload(payload):
         return "jimeng"
     protocol = str(getattr(payload, "protocol", "") or "openai").strip().lower()
     return protocol if protocol in SUPPORTED_PROVIDER_PROTOCOLS else "openai"
+
+def proxy_url_from_payload(payload):
+    provider_id = str(getattr(payload, "provider_id", "") or "").strip().lower()
+    protocol = protocol_from_payload(payload)
+    if provider_id in PROXY_DISABLED_PROVIDER_IDS or protocol in PROXY_DISABLED_PROVIDER_IDS:
+        return ""
+    return normalize_proxy_url(getattr(payload, "proxy_url", "") or "", provider_id, provider_id)
 
 def api_key_from_payload(payload, protocol: str = ""):
     explicit = str(getattr(payload, "api_key", "") or "").strip()
@@ -9172,8 +9214,9 @@ async def test_provider_connection(payload: TestConnectionPayload):
         key_name = "方舟 API Key" if protocol == "volcengine" else "API Key"
         raise HTTPException(status_code=400, detail=f"请先填写或保存 {key_name}")
     url = upstream_models_url(base_url, protocol)
+    client_kwargs = httpx_provider_kwargs(proxy_url=proxy_url_from_payload(payload))
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=15, **client_kwargs) as client:
             resp = await client.get(url, headers=upstream_model_headers(api_key, protocol))
             if resp.status_code in (301, 302, 303, 307, 308):
                 location = resp.headers.get("Location") or resp.headers.get("location") or ""
@@ -9215,7 +9258,7 @@ async def test_provider_connection(payload: TestConnectionPayload):
     except httpx.HTTPError as e:
         if protocol == "volcengine":
             try:
-                async with httpx.AsyncClient(timeout=15) as client:
+                async with httpx.AsyncClient(timeout=15, **client_kwargs) as client:
                     detected, probe = await probe_volcengine_auto_detect(client, base_url, api_key)
                     if detected:
                         message = f"{probe.get('message') or '方舟任务接口可达'}；但模型列表请求失败，已使用默认 Seedance 模型。"
@@ -9235,9 +9278,10 @@ async def probe_async_endpoint(payload: TestConnectionPayload):
     api_key = api_key_from_payload(payload, protocol)
     if not api_key:
         raise HTTPException(status_code=400, detail="请先填写或保存 API Key")
+    client_kwargs = httpx_provider_kwargs(proxy_url=proxy_url_from_payload(payload))
     if protocol == "volcengine":
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
+            async with httpx.AsyncClient(timeout=15, **client_kwargs) as client:
                 task_ok, task_probe = await probe_volcengine_task_endpoint(client, base_url, api_key)
                 if task_ok:
                     return {
@@ -9268,7 +9312,7 @@ async def probe_async_endpoint(payload: TestConnectionPayload):
     tasks_base = base_url if base_url.endswith("/v1") else f"{base_url}/v1"
     probe_url = f"{tasks_base}/tasks/healthcheck_probe_do_not_submit"
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=15, **client_kwargs) as client:
             resp = await client.get(probe_url, headers={"Authorization": bearer_auth_value(api_key), "Accept": "application/json"})
             try:
                 body = resp.json()
@@ -9334,7 +9378,7 @@ async def probe_async_endpoint(payload: TestConnectionPayload):
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=str(e)[:300])
 
-async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str = "openai", image_request_mode: str = "openai"):
+async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str = "openai", image_request_mode: str = "openai", proxy_url: str = ""):
     """从上游模型列表端点拉取模型，并按名称做轻量分类。"""
     protocol = protocol if protocol in SUPPORTED_PROVIDER_PROTOCOLS else "openai"
     if protocol == "jimeng":
@@ -9355,8 +9399,9 @@ async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str 
         key_name = "方舟 API Key" if protocol == "volcengine" else "API Key"
         raise HTTPException(status_code=400, detail=f"请先填写或保存 {key_name}")
     url = upstream_models_url(base_url, protocol)
+    client_kwargs = httpx_provider_kwargs(proxy_url=proxy_url)
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30, **client_kwargs) as client:
             resp = await client.get(url, headers=upstream_model_headers(api_key, protocol))
             endpoint_label = "/v1beta/models" if protocol == "gemini" else "/api/v3/models" if protocol == "volcengine" else "/openapi/v2/models" if protocol == "runninghub" else "/v1/models"
             if resp.status_code in (301, 302, 303, 307, 308):
@@ -9407,7 +9452,7 @@ async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str 
     except httpx.HTTPError as e:
         if protocol == "volcengine":
             try:
-                async with httpx.AsyncClient(timeout=15) as client:
+                async with httpx.AsyncClient(timeout=15, **client_kwargs) as client:
                     detected, probe = await probe_volcengine_auto_detect(client, base_url, api_key)
                     if detected:
                         payload = volcengine_default_model_payload(
@@ -9455,7 +9500,7 @@ async def fetch_upstream_models_from_payload(payload: TestConnectionPayload):
     """按页面当前表单值拉取模型，支持新增平台未保存时直接使用临时 Base URL / Key。"""
     protocol = protocol_from_payload(payload)
     api_key = api_key_from_payload(payload, protocol)
-    return await fetch_models_from_upstream(payload.base_url, api_key, protocol, payload.image_request_mode)
+    return await fetch_models_from_upstream(payload.base_url, api_key, protocol, payload.image_request_mode, proxy_url_from_payload(payload))
 
 @app.get("/api/providers/{provider_id}/fetch-models")
 async def fetch_upstream_models(provider_id: str):
@@ -9466,7 +9511,7 @@ async def fetch_upstream_models(provider_id: str):
         api_key = os.getenv(provider_key_env(provider["id"]), "")
     if not api_key:
         raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider_id} 未配置 API Key")
-    return await fetch_models_from_upstream(provider.get("base_url") or "", api_key, provider_protocol(provider), provider.get("image_request_mode") or "openai")
+    return await fetch_models_from_upstream(provider.get("base_url") or "", api_key, provider_protocol(provider), provider.get("image_request_mode") or "openai", provider_proxy_url(provider))
 
 async def build_online_image_result(payload: OnlineImageRequest):
     provider = get_api_provider(payload.provider_id)
@@ -9477,7 +9522,7 @@ async def build_online_image_result(payload: OnlineImageRequest):
     count = max(1, min(8, int(payload.n or 1)))
     async def generate_one():
         image_data, raw_item = await generate_ai_image(payload.prompt, payload.size, payload.quality, model, image_refs, provider["id"])
-        local_url = await save_ai_image_to_output(image_data, prefix="online_")
+        local_url = await save_ai_image_to_output(image_data, prefix="online_", provider=provider)
         return local_url, raw_item
     try:
         generated = await asyncio.gather(*(generate_one() for _ in range(count)))
@@ -9525,7 +9570,7 @@ async def query_image_task(payload: ImageTaskQueryRequest):
     task_id = str(payload.task_id or "").strip()
     timeout = httpx.Timeout(connect=20.0, read=300.0, write=60.0, pool=20.0)
     try:
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, **httpx_provider_kwargs(provider)) as client:
             raw = await fetch_image_task_payload(client, task_id, provider)
     except httpx.HTTPStatusError as exc:
         log_net_error(f"查询生图任务 HTTP状态错误 provider={provider.get('id')} task_id={task_id}", exc)
@@ -9542,7 +9587,7 @@ async def query_image_task(payload: ImageTaskQueryRequest):
     except HTTPException:
         image_data = None
     if image_data:
-        local_url = await save_ai_image_to_output(image_data, prefix="online_")
+        local_url = await save_ai_image_to_output(image_data, prefix="online_", provider=provider)
         result = {
             "status": "succeeded",
             "prompt": "",
@@ -9971,7 +10016,7 @@ async def generate_agnes_video(client, payload, provider, base_url, requested_mo
     urls = video_output_urls(result)
     if not urls:
         raise HTTPException(status_code=502, detail=f"Agnes 视频生成成功但没有返回视频：{result}")
-    local_urls = [await save_remote_video_to_output(url) for url in urls]
+    local_urls = [await save_remote_video_to_output(url, provider=provider) for url in urls]
     return {"videos": local_urls, "task_id": task_id or video_id, "video_id": video_id or None, "raw": result}
 
 # ---- 玉玉API（yuli.host）OpenAI 视频格式：/v1/videos（multipart，支持 seconds 时长）----
@@ -10073,7 +10118,7 @@ async def generate_yuli_openai_video(client, payload, provider, base_url, reques
     urls = video_output_urls(result)
     if not urls:
         raise HTTPException(status_code=502, detail=f"视频生成成功但没有返回视频：{result}")
-    local_urls = [await save_remote_video_to_output(url) for url in urls]
+    local_urls = [await save_remote_video_to_output(url, provider=provider) for url in urls]
     return {"videos": local_urls, "task_id": task_id, "raw": result}
 
 def volcengine_video_prompt_text(prompt, aspect_ratio="", duration=None):
@@ -10109,7 +10154,7 @@ async def canvas_video(payload: CanvasVideoRequest):
     is_veo31 = is_apimart and is_apimart_veo31_model(requested_model)
     if is_agnes:
         try:
-            async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT) as agnes_client:
+            async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as agnes_client:
                 return await generate_agnes_video(agnes_client, payload, provider, base_url, requested_model)
         except httpx.HTTPStatusError as exc:
             text = exc.response.text
@@ -10121,7 +10166,7 @@ async def canvas_video(payload: CanvasVideoRequest):
     # 沿用下方原生 /v1/video/create JSON 流程。
     if is_yuli and yuli_is_veo_openai_model(requested_model):
         try:
-            async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT) as yuli_client:
+            async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as yuli_client:
                 return await generate_yuli_openai_video(yuli_client, payload, provider, base_url, requested_model)
         except httpx.HTTPStatusError as exc:
             text = exc.response.text
@@ -10130,7 +10175,7 @@ async def canvas_video(payload: CanvasVideoRequest):
             log_net_error(f"视频(玉玉) 网络/TLS错误 model={requested_model}", exc)
             raise HTTPException(status_code=502, detail=f"请求上游视频接口失败：{exc}") from exc
     try:
-        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
             # --- 构造图片载荷 ---
             if is_apimart:
                 # APIMart 只接受 http/https 或 asset:// URL，先上传本地图片取回网络 URL
@@ -10472,7 +10517,7 @@ async def canvas_video(payload: CanvasVideoRequest):
             urls = video_output_urls(result)
             if not urls:
                 raise HTTPException(status_code=502, detail=f"视频生成成功但没有返回视频：{result}")
-            local_urls = [await save_remote_video_to_output(url) for url in urls]
+            local_urls = [await save_remote_video_to_output(url, provider=provider) for url in urls]
             return {"videos": local_urls, "task_id": task_id, "raw": result}
     except httpx.HTTPStatusError as exc:
         text = exc.response.text
@@ -11600,7 +11645,7 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
         kind = "image"
     if platform == "apimart":
         project_name = str(payload.project_name or "default").strip() or "default"
-        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
             public_url = await upload_media_for_apimart(client, provider, target_item.get("url") or "", kind)
         if not valid_apimart_video_image_input(public_url):
             reason = public_url[4:] if isinstance(public_url, str) and public_url.startswith("ERR:") else "无法获取公网可访问地址"
@@ -13417,4 +13462,4 @@ def run_workflow(name: str, payload: WorkflowRunRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=6003)
+    uvicorn.run(app, host="0.0.0.0", port=9003)
