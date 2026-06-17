@@ -222,6 +222,7 @@ API_ENV_FILE = os.path.join(BASE_DIR, "API", ".env")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")
 CANVAS_DIR = os.path.join(DATA_DIR, "canvases")
+CANVAS_FOLDERS_FILE = os.path.join(DATA_DIR, "canvas_folders.json")
 MEDIA_PREVIEW_DIR = os.path.join(DATA_DIR, "media_previews")
 ASSET_LIBRARY_PATH = os.path.join(DATA_DIR, "asset_library.json")
 PROMPT_LIBRARY_PATH = os.path.join(DATA_DIR, "prompt_libraries.json")
@@ -240,6 +241,7 @@ HISTORY_LOCK = Lock()
 GLOBAL_CONFIG_LOCK = Lock()
 CONVERSATION_LOCK = Lock()
 CANVAS_LOCK = Lock()
+CANVAS_FOLDERS_LOCK = Lock()
 LOAD_LOCK = Lock()
 RUNNINGHUB_WORKFLOW_LOCK = Lock()
 NEXT_TASK_ID = 1
@@ -2464,6 +2466,19 @@ class CanvasCreateRequest(BaseModel):
     title: str = "未命名画布"
     icon: str = "🧩"
     kind: str = "classic"
+    folder_id: str = ""
+
+class CanvasFolderCreateRequest(BaseModel):
+    name: str = ""
+    parent_id: str = ""
+
+class CanvasFolderUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    parent_id: Optional[str] = None
+    order: Optional[int] = None
+
+class CanvasMoveRequest(BaseModel):
+    folder_id: str = ""
 
 class CanvasMetaUpdate(BaseModel):
     title: Optional[str] = None
@@ -2945,17 +2960,114 @@ def save_canvas(canvas):
         with open(canvas_path(canvas["id"]), 'w', encoding='utf-8') as f:
             json.dump(canvas, f, ensure_ascii=False, indent=2)
 
+def save_canvas_without_touch(canvas):
+    with CANVAS_LOCK:
+        with open(canvas_path(canvas["id"]), 'w', encoding='utf-8') as f:
+            json.dump(canvas, f, ensure_ascii=False, indent=2)
+
 def normalize_canvas_kind(kind="classic"):
     return "smart" if str(kind or "").strip().lower() == "smart" else "classic"
 
-def new_canvas(title="未命名画布", icon="layers", kind="classic"):
+def normalize_canvas_folder_id(folder_id):
+    return re.sub(r"[^a-zA-Z0-9_-]", "", str(folder_id or ""))
+
+def canvas_folders_load():
+    if not os.path.exists(CANVAS_FOLDERS_FILE):
+        return {"folders": []}
+    try:
+        with open(CANVAS_FOLDERS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        return {"folders": []}
+    raw_folders = data.get("folders") if isinstance(data, dict) else []
+    if not isinstance(raw_folders, list):
+        raw_folders = []
+    folders = []
+    seen = set()
+    for raw in raw_folders:
+        if not isinstance(raw, dict):
+            continue
+        folder_id = normalize_canvas_folder_id(raw.get("id"))
+        if not folder_id or folder_id in seen:
+            continue
+        seen.add(folder_id)
+        folders.append({
+            "id": folder_id,
+            "name": str(raw.get("name") or "Folder")[:80],
+            "parent_id": normalize_canvas_folder_id(raw.get("parent_id")),
+            "order": int(raw.get("order") or 0),
+            "created_at": int(raw.get("created_at") or 0),
+        })
+    valid_ids = {folder["id"] for folder in folders}
+    for folder in folders:
+        if folder["parent_id"] not in valid_ids:
+            folder["parent_id"] = ""
+    return {"folders": folders}
+
+def canvas_folders_save(data):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with CANVAS_FOLDERS_LOCK:
+        with open(CANVAS_FOLDERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({"folders": data.get("folders", [])}, f, ensure_ascii=False, indent=2)
+
+def canvas_folder_records():
+    data = canvas_folders_load()
+    return sorted(data.get("folders", []), key=lambda item: (item.get("parent_id") or "", int(item.get("order") or 0), item.get("name") or ""))
+
+def canvas_folder_exists(folder_id, folders=None):
+    target = normalize_canvas_folder_id(folder_id)
+    if not target:
+        return True
+    folders = folders if folders is not None else canvas_folders_load().get("folders", [])
+    return any(folder.get("id") == target for folder in folders)
+
+def canvas_folder_would_cycle(folders, folder_id, parent_id):
+    target = normalize_canvas_folder_id(folder_id)
+    parent = normalize_canvas_folder_id(parent_id)
+    parents = {folder.get("id"): normalize_canvas_folder_id(folder.get("parent_id")) for folder in folders}
+    while parent:
+        if parent == target:
+            return True
+        parent = parents.get(parent, "")
+    return False
+
+def canvas_folder_child_count(parent_id, folders):
+    target = normalize_canvas_folder_id(parent_id)
+    return sum(1 for folder in folders if normalize_canvas_folder_id(folder.get("parent_id")) == target)
+
+def reassign_canvas_folder(old_folder_id, new_folder_id):
+    old_id = normalize_canvas_folder_id(old_folder_id)
+    next_id = normalize_canvas_folder_id(new_folder_id)
+    if not os.path.isdir(CANVAS_DIR):
+        return
+    for filename in os.listdir(CANVAS_DIR):
+        if not filename.endswith(".json"):
+            continue
+        path = os.path.join(CANVAS_DIR, filename)
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception:
+            continue
+        if normalize_canvas_folder_id(data.get("folder_id")) != old_id:
+            continue
+        data["folder_id"] = next_id
+        with CANVAS_LOCK:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+def new_canvas(title="未命名画布", icon="layers", kind="classic", folder_id=""):
     timestamp = now_ms()
     canvas_kind = normalize_canvas_kind(kind)
+    safe_folder_id = normalize_canvas_folder_id(folder_id)
+    if not canvas_folder_exists(safe_folder_id):
+        safe_folder_id = ""
     canvas = {
         "id": uuid.uuid4().hex,
         "title": (title or ("智能画布" if canvas_kind == "smart" else "未命名画布"))[:80],
         "icon": (icon or ("sparkles" if canvas_kind == "smart" else "🧩"))[:32],
         "kind": canvas_kind,
+        "folder_id": safe_folder_id,
         "owner": "",
         "color": "",
         "pinned": False,
@@ -3003,6 +3115,7 @@ def canvas_record(data):
         "created_at": data.get("created_at", 0),
         "updated_at": data.get("updated_at", 0),
         "deleted_at": data.get("deleted_at", 0),
+        "folder_id": normalize_canvas_folder_id(data.get("folder_id")),
         "node_count": len(data.get("nodes", [])),
     }
 
@@ -10542,9 +10655,71 @@ async def canvases():
 async def trashed_canvases():
     return {"canvases": list_deleted_canvases(), "retention_days": 30}
 
+@app.get("/api/canvas-folders")
+async def list_canvas_folders():
+    return {"folders": canvas_folder_records()}
+
+@app.post("/api/canvas-folders")
+async def create_canvas_folder(payload: CanvasFolderCreateRequest):
+    data = canvas_folders_load()
+    folders = data.get("folders", [])
+    parent_id = normalize_canvas_folder_id(payload.parent_id)
+    if parent_id and not canvas_folder_exists(parent_id, folders):
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+    timestamp = now_ms()
+    folder = {
+        "id": uuid.uuid4().hex,
+        "name": (str(payload.name or "").strip() or "新建文件夹")[:80],
+        "parent_id": parent_id,
+        "order": canvas_folder_child_count(parent_id, folders),
+        "created_at": timestamp,
+    }
+    folders.append(folder)
+    canvas_folders_save({"folders": folders})
+    return {"folder": folder, "folders": canvas_folder_records()}
+
+@app.patch("/api/canvas-folders/{folder_id}")
+async def update_canvas_folder(folder_id: str, payload: CanvasFolderUpdateRequest):
+    target_id = normalize_canvas_folder_id(folder_id)
+    data = canvas_folders_load()
+    folders = data.get("folders", [])
+    folder = next((entry for entry in folders if entry.get("id") == target_id), None)
+    if not folder:
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+    if payload.name is not None:
+        folder["name"] = (str(payload.name or "").strip() or folder.get("name") or "新建文件夹")[:80]
+    if payload.parent_id is not None:
+        parent_id = normalize_canvas_folder_id(payload.parent_id)
+        if parent_id and not canvas_folder_exists(parent_id, folders):
+            raise HTTPException(status_code=404, detail="父文件夹不存在")
+        if canvas_folder_would_cycle(folders, target_id, parent_id):
+            raise HTTPException(status_code=400, detail="不能移动到自己的子文件夹")
+        folder["parent_id"] = parent_id
+    if payload.order is not None:
+        folder["order"] = max(0, int(payload.order))
+    canvas_folders_save({"folders": folders})
+    return {"folder": folder, "folders": canvas_folder_records()}
+
+@app.delete("/api/canvas-folders/{folder_id}")
+async def delete_canvas_folder(folder_id: str):
+    target_id = normalize_canvas_folder_id(folder_id)
+    data = canvas_folders_load()
+    folders = data.get("folders", [])
+    folder = next((entry for entry in folders if entry.get("id") == target_id), None)
+    if not folder:
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+    parent_id = normalize_canvas_folder_id(folder.get("parent_id"))
+    for entry in folders:
+        if normalize_canvas_folder_id(entry.get("parent_id")) == target_id:
+            entry["parent_id"] = parent_id
+    data["folders"] = [entry for entry in folders if entry.get("id") != target_id]
+    canvas_folders_save(data)
+    reassign_canvas_folder(target_id, parent_id)
+    return {"ok": True, "folders": canvas_folder_records()}
+
 @app.post("/api/canvases")
 async def create_canvas(payload: CanvasCreateRequest):
-    return {"canvas": new_canvas(payload.title, payload.icon, payload.kind)}
+    return {"canvas": new_canvas(payload.title, payload.icon, payload.kind, payload.folder_id)}
 
 @app.get("/api/canvases/{canvas_id}/meta")
 async def get_canvas_meta(canvas_id: str):
@@ -10555,6 +10730,7 @@ async def get_canvas_meta(canvas_id: str):
         "title": canvas.get("title", "未命名画布"),
         "icon": canvas.get("icon", "layers"),
         "kind": normalize_canvas_kind(canvas.get("kind")),
+        "folder_id": normalize_canvas_folder_id(canvas.get("folder_id")),
     }
 
 @app.post("/api/canvases/{canvas_id}/meta")
@@ -10575,6 +10751,16 @@ async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
     with CANVAS_LOCK:
         with open(canvas_path(canvas["id"]), 'w', encoding='utf-8') as f:
             json.dump(canvas, f, ensure_ascii=False, indent=2)
+    return {"canvas": canvas_record(canvas)}
+
+@app.patch("/api/canvases/{canvas_id}/folder")
+async def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
+    canvas = load_canvas(canvas_id)
+    folder_id = normalize_canvas_folder_id(payload.folder_id)
+    if folder_id and not canvas_folder_exists(folder_id):
+        raise HTTPException(status_code=404, detail="文件夹不存在")
+    canvas["folder_id"] = folder_id
+    save_canvas_without_touch(canvas)
     return {"canvas": canvas_record(canvas)}
 
 @app.get("/api/canvases/{canvas_id}")
@@ -11654,6 +11840,8 @@ async def restore_canvas(canvas_id: str):
     canvas = load_canvas_any(canvas_id)
     if canvas.get("deleted_at"):
         canvas.pop("deleted_at", None)
+        if not canvas_folder_exists(canvas.get("folder_id")):
+            canvas["folder_id"] = ""
         save_canvas(canvas)
     return {"canvas": canvas}
 
