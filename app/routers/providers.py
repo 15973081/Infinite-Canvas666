@@ -495,3 +495,6 @@ async def build_online_image_result(payload: OnlineImageRequest):
         asyncio.run_coroutine_threadsafe(manager.broadcast_new_image(result), GLOBAL_LOOP)
     return result
 
+# ── Cross-router imports (at bottom to avoid circular imports) ──
+from app.routers.jimeng import jimeng_status
+

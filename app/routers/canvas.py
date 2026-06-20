@@ -1039,3 +1039,7 @@ async def delete_canvas_backup(canvas_id: str, filename: str):
         os.remove(path)
     return {"ok": True}
 
+# ── Cross-router imports (at bottom to avoid circular imports) ──
+from app.routers.image import run_canvas_image_task
+from app.services.canvas import _backup_dir, _backup_path
+

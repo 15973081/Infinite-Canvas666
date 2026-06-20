@@ -126,3 +126,6 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
                 "updated_at": time.time(),
             })
 
+# ── Cross-router imports (at bottom to avoid circular imports) ──
+from app.routers.providers import build_online_image_result
+

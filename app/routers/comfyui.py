@@ -201,7 +201,6 @@ def run_workflow(name: str, payload: WorkflowRunRequest):
     )
     return generate(req)
 
-# ── Router registration (at bottom to avoid circular imports) ──
-from app.routers.websocket import router as websocket_router
-from app.routers.update import router as update_router
+# ── Cross-router imports (at bottom to avoid circular imports) ──
+from app.routers.generate import generate
 

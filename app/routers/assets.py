@@ -679,3 +679,10 @@ async def batch_crop_asset_library_items(payload: AssetLibraryBatchCropRequest):
     save_asset_library(lib)
     return {"library": lib, "added": len(added), "items": added}
 
+# ── Explicit imports for underscore-prefixed helpers (not exported by wildcard) ──
+from app.services.assets import (
+    _local_upload_safe_folder, _local_upload_safe_folder_name,
+    _local_upload_kind_ext, _local_upload_item, _local_upload_safe_path,
+    _local_upload_caption_path, _local_upload_tree_and_items,
+)
+
