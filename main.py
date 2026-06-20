@@ -12,6 +12,12 @@ import re
 import random
 import sys
 import subprocess
+
+# Ensure project root is on sys.path for app/ package imports
+_sys_d = os.path.dirname(os.path.abspath(__file__))
+if _sys_d not in sys.path:
+    sys.path.insert(0, _sys_d)
+
 import time
 import traceback
 import shutil
@@ -37,6 +43,119 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+
+# Pydantic models — extracted to app/models.py
+from app.models import (
+    UpdateRequest, RollbackRequest,
+    GenerateRequest, DeleteHistoryRequest, TokenRequest,
+    CloudGenRequest, CloudPollRequest,
+    AIReference,
+    OnlineImageRequest, ImageTaskQueryRequest,
+    CanvasVideoRequest, TempShUploadRequest, CloudVideoUploadRequest,
+    RunningHubSubmitRequest, RunningHubWorkflowSubmitRequest,
+    RunningHubUploadAssetRequest,
+    JimengHelpRequest, JimengQueryMediaRequest,
+    RunningHubWorkflowConfigField, RunningHubWorkflowConfig,
+    ApiProviderPayload,
+    ChatRequest, MsGenerateRequest, CanvasLLMRequest,
+    ConversationCreateRequest,
+    CanvasCreateRequest, CanvasFolderCreateRequest,
+    CanvasFolderUpdateRequest, CanvasMoveRequest,
+    CanvasMetaUpdate, CanvasSaveRequest,
+    CanvasAssetCheckRequest, CanvasAssetDownloadRequest,
+    CanvasWorkflowExportRequest,
+    SmartCanvasGroupExportItem, SmartCanvasGroupExportRequest,
+    LocalImageImportRequest, LocalAssetCaptionRequest,
+    LocalAssetCaptionSaveRequest, LocalAssetFolderRequest,
+    AssetLibraryCategoryRequest, AssetLibraryRequest,
+    AssetLibraryAddRequest, AssetLibraryBatchAddRequest,
+    SharedFolderRegister, SharedFolderImport,
+    AssetLibraryRenameRequest, AssetLibraryBatchDeleteRequest,
+    AssetLibraryBatchMoveRequest, AssetLibraryBatchCropRequest,
+    AssetAvatarRegisterRequest,
+    PromptLibraryRequest, PromptLibraryItemRequest,
+    PromptLibraryBatchDeleteRequest, PromptLibraryCategoryRequest,
+    TestConnectionPayload,
+    WorkflowField, WorkflowConfig,
+    WorkflowUploadRequest, WorkflowRunRequest,
+    ComfyInstancesPayload,
+)
+
+# Pure utilities — extracted to app/utils.py
+from app.utils import (
+    mask_secret, strip_auth_scheme, bearer_auth_value,
+    env_quote, version_tuple, version_gt,
+    safe_user_id, now_ms,
+    selected_model, model_list_from_values, normalize_model_list,
+    sanitize_export_filename, canvas_workflow_unique_archive_name,
+)
+
+# Config — extracted to app/config.py
+from app.config import (
+    BASE_DIR, WORKFLOW_DIR, WORKFLOW_PATH, STATIC_DIR,
+    STATIC_RUNNINGHUB_DIR, STATIC_RUNNINGHUB_THUMBNAIL_DIR,
+    STATIC_RUNNINGHUB_API_PROVIDERS_FILE,
+    OUTPUT_DIR, ASSETS_DIR, OUTPUT_INPUT_DIR, OUTPUT_OUTPUT_DIR,
+    ASSET_LIBRARY_DIR, LOCAL_UPLOAD_DIR, HISTORY_FILE,
+    API_ENV_FILE, DATA_DIR, CONVERSATION_DIR, CANVAS_DIR,
+    CANVAS_FOLDERS_FILE, MEDIA_PREVIEW_DIR,
+    ASSET_LIBRARY_PATH, PROMPT_LIBRARY_PATH,
+    API_PROVIDERS_FILE, RUNNINGHUB_WORKFLOW_STORE_FILE,
+    SHARED_FOLDERS_FILE, GLOBAL_CONFIG_FILE,
+    CANVAS_TRASH_RETENTION_MS,
+    LOCAL_IMAGE_IMPORT_MAX_BYTES, LOCAL_IMAGE_IMPORT_EXTS,
+    RUNNINGHUB_THUMBNAIL_EXTS,
+    PROVIDER_ID_RE, SUPPORTED_PROVIDER_PROTOCOLS,
+    PROXY_DISABLED_PROVIDER_IDS, SUPPORTED_PROXY_SCHEMES,
+    SUPPORTED_IMAGE_REQUEST_MODES,
+    RUNNINGHUB_DEFAULT_BASE_URL,
+    JIMENG_DEFAULT_IMAGE_MODELS, JIMENG_DEFAULT_VIDEO_MODELS,
+    AGNES_DEFAULT_VIDEO_MODELS,
+    JIMENG_LEGACY_IMAGE_MODELS, JIMENG_LEGACY_VIDEO_MODELS,
+    JIMENG_DEFAULT_POLL_SECONDS,
+    VOLCENGINE_DEFAULT_BASE_URL, VOLCENGINE_DEFAULT_PROJECT_NAME,
+    VOLCENGINE_DEFAULT_REGION, VOLCENGINE_DEFAULT_VIDEO_MODELS,
+    RUNNINGHUB_DEFAULT_IMAGE_MODELS as _RH_DEFAULT_IMAGE_MODELS,
+    RUNNINGHUB_DEFAULT_APPS, RUNNINGHUB_DEFAULT_WORKFLOWS,
+    MODELSCOPE_CHAT_BASE_URL,
+    MODELSCOPE_DEFAULT_IMAGE_MODELS, MODELSCOPE_DEFAULT_CHAT_MODELS,
+    MODELSCOPE_CHAT_MODELS,
+    MODELSCOPE_DEFAULT_IMAGE_MODEL, MODELSCOPE_DEFAULT_CHAT_MODEL,
+    MODELSCOPE_DEFAULT_LORAS, MODELSCOPE_DEFAULTS_VERSION,
+    AI_BASE_URL, AI_API_KEY,
+    PUBLIC_BASE_URL, PUBLIC_MEDIA_BASE_URL,
+    MODELSCOPE_API_KEY,
+    CHAT_MODEL, IMAGE_MODEL, SYSTEM_PROMPT,
+    MAX_HISTORY_MESSAGES, AI_REQUEST_TIMEOUT,
+    IMAGE_POLL_INTERVAL, IMAGE_TASK_TIMEOUT,
+    COMFYUI_HISTORY_TIMEOUT,
+    APIMART_IMAGE_TASK_TIMEOUT, APIMART_IMAGE_POLL_INTERVAL,
+    APIMART_IMAGE_INITIAL_POLL_DELAY,
+    VIDEO_POLL_TIMEOUT,
+    ONLINE_IMAGE_PROMPT_MAX_LENGTH, VIDEO_PROMPT_MAX_LENGTH,
+    LLM_MESSAGE_MAX_LENGTH,
+    COMFYUI_INSTANCES, COMFYUI_ADDRESS,
+    FIELD_LABELS,
+    CHAT_MODELS, IMAGE_MODELS, VIDEO_MODELS,
+    model_list, reload_env_globals,
+    ensure_runtime_config_files, load_env_file, init_dirs, init_app,
+)
+
+RUNNINGHUB_DEFAULT_IMAGE_MODELS = _RH_DEFAULT_IMAGE_MODELS
+del _RH_DEFAULT_IMAGE_MODELS
+
+# Global state — extracted to app/state.py
+from app.state import (
+    ConnectionManager, manager, GLOBAL_LOOP,
+    QUEUE, QUEUE_LOCK,
+    HISTORY_LOCK, GLOBAL_CONFIG_LOCK, CONVERSATION_LOCK,
+    CANVAS_LOCK, CANVAS_FOLDERS_LOCK, LOAD_LOCK,
+    RUNNINGHUB_WORKFLOW_LOCK, UPDATE_LOCK,
+    NEXT_TASK_ID,
+    JIMENG_LOGIN_SESSION,
+    BACKEND_LOCAL_LOAD,
+    CANVAS_TASKS, CANVAS_TASK_LOCK,
+)
 
 QUIET_ACCESS_PATHS = {
     "/api/queue_status",
@@ -74,93 +193,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Router registration ──
+from app.routers.websocket import router as websocket_router
+app.include_router(websocket_router)
+
 # --- WebSocket 状态管理器 ---
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-        self.user_connections: Dict[str, WebSocket] = {}
-        self.connection_clients: Dict[WebSocket, str] = {}
+# (ConnectionManager extracted to app/state.py)
 
-    async def connect(self, websocket: WebSocket, client_id: str = None):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        self.connection_clients[websocket] = client_id or f"anon-{id(websocket)}"
-        if client_id:
-            self.user_connections[client_id] = websocket
-        print(f"WS Connected. Total: {len(self.active_connections)}, Online: {self.online_count()}")
-        await self.broadcast_count()
-
-    async def disconnect(self, websocket: WebSocket, client_id: str = None):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-        self.connection_clients.pop(websocket, None)
-        if client_id and self.user_connections.get(client_id) is websocket:
-            del self.user_connections[client_id]
-        print(f"WS Disconnected. Total: {len(self.active_connections)}, Online: {self.online_count()}")
-        await self.broadcast_count()
-
-    def online_count(self):
-        visible_clients = {
-            client_id for client_id in self.connection_clients.values()
-            if client_id and not str(client_id).startswith("canvas_")
-        }
-        return len(visible_clients)
-
-    async def broadcast_count(self):
-        count = self.online_count()
-        data = json.dumps({"type": "stats", "online_count": count})
-        for connection in self.active_connections[:]:
-            try:
-                await connection.send_text(data)
-            except Exception as e:
-                print(f"Broadcast error: {e}")
-                self.active_connections.remove(connection)
-
-    async def broadcast_new_image(self, image_data: dict):
-        data = json.dumps({"type": "new_image", "data": image_data})
-        for connection in self.active_connections[:]:
-            try:
-                await connection.send_text(data)
-            except Exception as e:
-                print(f"Broadcast image error: {e}")
-                self.active_connections.remove(connection)
-
-    async def broadcast_canvas_updated(self, canvas_id: str, updated_at: int, client_id: str = ""):
-        data = json.dumps({
-            "type": "canvas_updated",
-            "canvas_id": canvas_id,
-            "updated_at": updated_at,
-            "client_id": client_id or "",
-        })
-        for connection in self.active_connections[:]:
-            try:
-                await connection.send_text(data)
-            except Exception as e:
-                print(f"Broadcast canvas error: {e}")
-                self.active_connections.remove(connection)
-
-    async def broadcast_asset_library_updated(self, updated_at: int = 0):
-        data = json.dumps({
-            "type": "asset_library_updated",
-            "updated_at": updated_at or now_ms(),
-        })
-        for connection in self.active_connections[:]:
-            try:
-                await connection.send_text(data)
-            except Exception as e:
-                print(f"Broadcast asset library error: {e}")
-                self.active_connections.remove(connection)
-
-    async def send_personal_message(self, message: dict, client_id: str):
-        ws = self.user_connections.get(client_id)
-        if ws:
-            try:
-                await ws.send_text(json.dumps(message))
-            except Exception as e:
-                print(f"Personal message error for {client_id}: {e}")
-
-manager = ConnectionManager()
-GLOBAL_LOOP = None
 APP_VERSION = "2026.06.03"
 GITHUB_REPO_URL = "https://github.com/hero8152/Infinite-Canvas"
 GITHUB_VERSION_URL = "https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main/VERSION"
@@ -187,19 +226,7 @@ async def startup_event():
     except Exception as exc:
         print(f"资产库分组整理失败: {exc}")
 
-@app.websocket("/ws/stats")
-async def websocket_endpoint(websocket: WebSocket, client_id: str = None):
-    await manager.connect(websocket, client_id)
-    try:
-        while True:
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text(json.dumps({"type": "pong"}))
-    except WebSocketDisconnect:
-        await manager.disconnect(websocket, client_id)
-    except Exception as e:
-        print(f"WS Error: {e}")
-        await manager.disconnect(websocket, client_id)
+# (websocket endpoint extracted to app/routers/websocket.py)
 
 # --- 配置区域 ---
 
@@ -234,24 +261,6 @@ CANVAS_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 LOCAL_IMAGE_IMPORT_MAX_BYTES = int(os.getenv("LOCAL_IMAGE_IMPORT_MAX_BYTES", str(50 * 1024 * 1024)))
 LOCAL_IMAGE_IMPORT_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 RUNNINGHUB_THUMBNAIL_EXTS = (".jpg",)
-
-QUEUE = []
-QUEUE_LOCK = Lock()
-HISTORY_LOCK = Lock()
-GLOBAL_CONFIG_LOCK = Lock()
-CONVERSATION_LOCK = Lock()
-CANVAS_LOCK = Lock()
-CANVAS_FOLDERS_LOCK = Lock()
-LOAD_LOCK = Lock()
-RUNNINGHUB_WORKFLOW_LOCK = Lock()
-NEXT_TASK_ID = 1
-UPDATE_LOCK = Lock()
-JIMENG_LOGIN_SESSION = {
-    "proc": None,
-    "stdout": "",
-    "stderr": "",
-    "started_at": 0.0,
-}
 
 PROVIDER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,40}$")
 SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine", "runninghub", "jimeng"}
@@ -656,23 +665,6 @@ def volcengine_provider_api_key(explicit_key: str = "") -> str:
         return explicit_key
     return provider_env_key_value("volcengine")
 
-def mask_secret(value):
-    if not value:
-        return ""
-    tail = value[-4:] if len(value) > 4 else value
-    return f"••••••••{tail}"
-
-def strip_auth_scheme(value, scheme="Bearer"):
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    pattern = rf"^{re.escape(scheme)}\s+"
-    return re.sub(pattern, "", text, flags=re.I).strip()
-
-def bearer_auth_value(value):
-    token = strip_auth_scheme(value, "Bearer")
-    return f"Bearer {token}" if token else ""
-
 def default_api_providers():
     # 独立入口平台强制保留，其他平台均可自定义增删
     return [
@@ -802,18 +794,6 @@ def merge_default_api_providers(providers):
             *JIMENG_DEFAULT_VIDEO_MODELS,
         ])
     return merged
-
-def normalize_model_list(values):
-    return model_list_from_values(values)
-
-def model_list_from_values(values):
-    deduped = []
-    for value in values or []:
-        item = str(value or "").strip()
-        if item and item not in deduped:
-            selected_model(item, item)
-            deduped.append(item)
-    return deduped
 
 def normalize_ms_loras(values):
     normalized = []
@@ -1263,12 +1243,6 @@ def modelscope_api_root(provider=None):
 def modelscope_image_api_root():
     return MODELSCOPE_CHAT_BASE_URL.rstrip("/")
 
-def env_quote(value):
-    text = str(value or "")
-    if not text or re.search(r"\s|#|['\"]", text):
-        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    return text
-
 def update_env_values(updates):
     os.makedirs(os.path.dirname(API_ENV_FILE), exist_ok=True)
     lines = []
@@ -1296,7 +1270,8 @@ def update_env_values(updates):
     with open(API_ENV_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(next_lines).rstrip() + "\n")
 
-BACKEND_LOCAL_LOAD = {addr: 0 for addr in COMFYUI_INSTANCES}
+# ComfyUI instances load balancing
+# (BACKEND_LOCAL_LOAD extracted to app/state.py)
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(ASSETS_DIR, exist_ok=True)
@@ -1731,16 +1706,6 @@ def fetch_remote_version(url: str, timeout: float = 5.0) -> Dict[str, Any]:
         info["error"] = str(exc)
     return info
 
-def version_tuple(value: str) -> List[int]:
-    return [int(x) for x in re.findall(r"\d+", str(value or ""))]
-
-def version_gt(a: str, b: str) -> bool:
-    ta, tb = version_tuple(a), version_tuple(b)
-    n = max(len(ta), len(tb))
-    ta += [0] * (n - len(ta))
-    tb += [0] * (n - len(tb))
-    return ta > tb
-
 @app.get("/api/check-update")
 def check_update():
     """服务端检测 GitHub 与 ModelScope 两个源的远端版本（走系统代理，避免浏览器跨域/被墙）。"""
@@ -1986,12 +1951,6 @@ def schedule_self_restart(delay_seconds: int = 3) -> bool:
         logging.exception("schedule_self_restart failed: %s", exc)
         return False
 
-class UpdateRequest(BaseModel):
-    auto_restart: bool = False
-    restart_delay: int = 3
-    source: str = "github"
-    fallback: bool = True
-
 def github_update_file_list() -> Tuple[List[str], List[str], List[str]]:
     tree_data = github_json(GITHUB_TREE_URL, use_etag_cache=True)
     entries = tree_data.get("tree") or []
@@ -2222,11 +2181,6 @@ def list_update_backups() -> List[Dict[str, Any]]:
 def get_update_backups():
     return {"backups": list_update_backups()}
 
-class RollbackRequest(BaseModel):
-    name: str = ""
-    auto_restart: bool = False
-    restart_delay: int = 3
-
 @app.post("/api/update-rollback")
 def rollback_update(req: RollbackRequest):
     if not req.name:
@@ -2295,364 +2249,7 @@ def rollback_update(req: RollbackRequest):
     finally:
         UPDATE_LOCK.release()
 
-class GenerateRequest(BaseModel):
-    prompt: str = ""
-    width: int = 1024
-    height: int = 1024
-    workflow_json: str = "Z-Image.json"
-    params: Dict[str, Any] = {}
-    type: str = "zimage"
-    client_id: str = ""
-    convert_to_jpg: bool = False
-
-class DeleteHistoryRequest(BaseModel):
-    timestamp: float
-
-class TokenRequest(BaseModel):
-    token: str
-
-class CloudGenRequest(BaseModel):
-    prompt: str
-    api_key: str = ""
-    model: str = ""
-    resolution: str = "1024x1024"
-    type: str = "zimage"
-    image_urls: List[str] = []
-    loras: Optional[Any] = None
-    client_id: Optional[str] = None
-
-class CloudPollRequest(BaseModel):
-    task_id: str
-    api_key: str = ""
-    client_id: Optional[str] = None
-
-class AIReference(BaseModel):
-    url: str = ""
-    name: str = ""
-    role: str = ""
-    kind: str = ""
-    mime: str = ""
-
-class OnlineImageRequest(BaseModel):
-    prompt: str = Field(min_length=1, max_length=ONLINE_IMAGE_PROMPT_MAX_LENGTH)
-    provider_id: str = "comfly"
-    model: str = ""
-    size: str = "1024x1024"
-    quality: str = "auto"
-    n: int = 1
-    reference_images: List[AIReference] = []
-
-class ImageTaskQueryRequest(BaseModel):
-    provider_id: str = "comfly"
-    task_id: str = Field(min_length=1, max_length=240)
-
-CANVAS_TASKS: Dict[str, Dict[str, Any]] = {}
-CANVAS_TASK_LOCK = Lock()
-
-class CanvasVideoRequest(BaseModel):
-    prompt: str = Field(min_length=1, max_length=VIDEO_PROMPT_MAX_LENGTH)
-    provider_id: str = "comfly"
-    model: str = "veo3-fast"
-    duration: int = 5
-    aspect_ratio: str = "16:9"
-    resolution: str = ""
-    size: str = ""
-    images: List[AIReference] = []
-    videos: List[str] = []
-    audios: List[str] = []
-    enhance_prompt: bool = False
-    enable_upsample: bool = False
-    watermark: bool = False
-    seed: Optional[int] = None
-    camerafixed: bool = False
-    return_last_frame: bool = False
-    generate_audio: bool = False
-    multimodal: bool = False
-    trusted_asset: bool = False
-
-class TempShUploadRequest(BaseModel):
-    url: str = ""
-
-class CloudVideoUploadRequest(BaseModel):
-    url: str = ""
-    service: str = "auto"
-
-class RunningHubSubmitRequest(BaseModel):
-    webappId: str = ""
-    nodeInfoList: List[Dict[str, Any]] = []
-    instanceType: str = ""
-    useWallet: bool = False
-
-class RunningHubWorkflowSubmitRequest(BaseModel):
-    workflowId: str = ""
-    nodeInfoList: List[Dict[str, Any]] = []
-    workflow: Any = None
-    useWallet: bool = False
-
-class RunningHubUploadAssetRequest(BaseModel):
-    url: str = ""
-    useWallet: bool = False
-
-class JimengHelpRequest(BaseModel):
-    command: str = ""
-
-class JimengQueryMediaRequest(BaseModel):
-    submit_id: str = ""
-    kind: str = "image"
-
-class RunningHubWorkflowConfigField(BaseModel):
-    id: str = ""
-    nodeId: str = ""
-    fieldName: str = ""
-    fieldValue: str = ""
-    fieldType: str = "TEXT"
-    label: str = ""
-    enabled: bool = True
-    sourceFromUpstream: bool = True
-    group: str = ""
-    note: str = ""
-    options: List[str] = Field(default_factory=list)
-    random_enabled: bool = False
-    min: Any = ""
-    max: Any = ""
-    step: Any = ""
-    imageOrder: int = 0
-    required: bool = False
-
-class RunningHubWorkflowConfig(BaseModel):
-    workflowId: str = ""
-    title: str = ""
-    description: str = ""
-    fields: List[RunningHubWorkflowConfigField] = Field(default_factory=list)
-    workflowJson: Dict[str, Any] = Field(default_factory=dict)
-    optionalImageMode: str = "prune-workflow"
-    raw: Dict[str, Any] = Field(default_factory=dict)
-
-class ApiProviderPayload(BaseModel):
-    id: str = ""
-    name: str = ""
-    base_url: str = ""
-    protocol: str = "openai"
-    image_request_mode: str = "openai"
-    image_generation_endpoint: str = ""
-    image_edit_endpoint: str = ""
-    proxy_url: str = ""
-    enabled: bool = True
-    primary: bool = False
-    image_models: List[str] = []
-    chat_models: List[str] = []
-    video_models: List[str] = []
-    model_protocols: Dict[str, str] = {}
-    ms_loras: List[Dict[str, Any]] = []
-    ms_defaults_version: int = 0
-    rh_apps: List[Dict[str, Any]] = []
-    rh_workflows: List[Dict[str, Any]] = []
-    volcengine_project_name: str = VOLCENGINE_DEFAULT_PROJECT_NAME
-    volcengine_region: str = VOLCENGINE_DEFAULT_REGION
-    volcengine_access_key_id: Optional[str] = None
-    volcengine_secret_access_key: Optional[str] = None
-    api_key: Optional[str] = None
-    wallet_api_key: Optional[str] = None
-    clear_key: bool = False
-    clear_wallet_key: bool = False
-    clear_volcengine_access_key_id: bool = False
-    clear_volcengine_secret_access_key: bool = False
-
-class ChatRequest(BaseModel):
-    conversation_id: str = ""
-    message: str = Field(min_length=1, max_length=LLM_MESSAGE_MAX_LENGTH)
-    model: str = ""
-    image_model: str = ""
-    image_provider: str = ""
-    mode: str = "chat"
-    size: str = "1024x1024"
-    quality: str = "auto"
-    reference_images: List[AIReference] = []
-    provider: str = "comfly"
-    ms_model: str = ""
-
-class MsGenerateRequest(BaseModel):
-    prompt: str
-    api_key: str = ""
-    model: str = "black-forest-labs/FLUX.2-klein-9B"
-    image_urls: List[str] = []
-    width: int = 0
-    height: int = 0
-    size: str = ""
-    loras: Optional[Any] = None
-    client_id: Optional[str] = None
-
-class CanvasLLMRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=LLM_MESSAGE_MAX_LENGTH)
-    system_prompt: str = ""
-    model: str = ""
-    messages: List[Dict[str, Any]] = []
-    provider: str = "comfly"
-    ms_model: str = ""
-    images: List[str] = []   # 可以是 /output/*.png、/assets/*.png 本地路径 或 http(s) URL 或 data URL
-    videos: List[str] = []   # 可以是 /output/*.mp4、/assets/*.mp4 本地路径 或 http(s) URL 或 data URL
-
-class ConversationCreateRequest(BaseModel):
-    title: str = "新对话"
-
-class CanvasCreateRequest(BaseModel):
-    title: str = "未命名画布"
-    icon: str = "🧩"
-    kind: str = "classic"
-    folder_id: str = ""
-
-class CanvasFolderCreateRequest(BaseModel):
-    name: str = ""
-    parent_id: str = ""
-
-class CanvasFolderUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    parent_id: Optional[str] = None
-    order: Optional[int] = None
-
-class CanvasMoveRequest(BaseModel):
-    folder_id: str = ""
-
-class CanvasMetaUpdate(BaseModel):
-    title: Optional[str] = None
-    icon: Optional[str] = None
-    owner: Optional[str] = None
-    color: Optional[str] = None
-    pinned: Optional[bool] = None
-
-class CanvasSaveRequest(BaseModel):
-    title: str = "未命名画布"
-    icon: str = "🧩"
-    nodes: List[Dict[str, Any]] = []
-    connections: List[Dict[str, Any]] = []
-    viewport: Dict[str, Any] = {}
-    logs: List[Dict[str, Any]] = []
-    settings: Dict[str, Any] = {}
-    client_id: str = ""
-    base_updated_at: int = 0
-
-class CanvasAssetCheckRequest(BaseModel):
-    urls: List[str] = []
-
-class CanvasAssetDownloadRequest(BaseModel):
-    urls: List[str] = []
-    items: List[Dict[str, Any]] = []
-    filename: str = "canvas-output-images.zip"
-
-class CanvasWorkflowExportRequest(BaseModel):
-    nodes: List[Dict[str, Any]] = []
-    connections: List[Dict[str, Any]] = []
-    filename: str = "canvas-workflow.zip"
-    include_resources: bool = True
-    library_id: str = ""
-    category_id: str = ""
-    name: str = ""
-
-class SmartCanvasGroupExportItem(BaseModel):
-    kind: str = ""
-    url: str = ""
-    text: str = ""
-    name: str = ""
-
-class SmartCanvasGroupExportRequest(BaseModel):
-    folder: str = ""
-    group_name: str = "group"
-    items: List[SmartCanvasGroupExportItem] = []
-
-class LocalImageImportRequest(BaseModel):
-    path: str = ""
-    paths: List[str] = Field(default_factory=list)
-
-class LocalAssetCaptionRequest(BaseModel):
-    names: List[str] = []
-    provider: str = "comfly"
-    model: str = ""
-    ms_model: str = ""
-    prompt: str = "描述图片"
-
-class LocalAssetCaptionSaveRequest(BaseModel):
-    name: str = ""
-    caption: str = ""
-
-class LocalAssetFolderRequest(BaseModel):
-    parent: str = ""
-    path: str = ""
-    name: str = ""
-
-class AssetLibraryCategoryRequest(BaseModel):
-    name: str = "新文件夹"
-    type: str = "image"
-    library_id: str = ""
-
-class AssetLibraryRequest(BaseModel):
-    name: str = "资产库"
-
-class AssetLibraryAddRequest(BaseModel):
-    category_id: str = ""
-    url: str = ""
-    name: str = ""
-    library_id: str = ""
-
-class AssetLibraryBatchAddRequest(BaseModel):
-    category_id: str = ""
-    library_id: str = ""
-    items: List[AssetLibraryAddRequest] = []
-
-class SharedFolderRegister(BaseModel):
-    path: str = ""
-    name: str = ""
-
-class SharedFolderImport(BaseModel):
-    library_id: str = ""
-    category_id: str = ""
-    folder_id: str = ""
-    paths: List[str] = []
-
-class AssetLibraryRenameRequest(BaseModel):
-    name: str = ""
-    library_id: str = ""
-
-class AssetLibraryBatchDeleteRequest(BaseModel):
-    ids: List[str] = []
-    library_id: str = ""
-
-class AssetLibraryBatchMoveRequest(BaseModel):
-    ids: List[str] = []
-    library_id: str = ""
-    target_library_id: str = ""
-    target_category_id: str = ""
-
-class AssetLibraryBatchCropRequest(BaseModel):
-    ids: List[str] = []
-    library_id: str = ""
-    target_library_id: str = ""
-    target_category_id: str = ""
-    mode: str = "square"
-
-class AssetAvatarRegisterRequest(BaseModel):
-    library_id: str = ""
-    provider_id: str = ""
-    project_name: str = "default"
-    group_name: str = ""
-
-class PromptLibraryRequest(BaseModel):
-    name: str = "提示词库"
-
-class PromptLibraryItemRequest(BaseModel):
-    library_id: str = ""
-    item_id: str = ""
-    name: str = "提示词"
-    category: str = "custom"
-    positive: str = ""
-    negative: str = ""
-    scene: str = ""
-
-class PromptLibraryBatchDeleteRequest(BaseModel):
-    ids: List[str] = []
-
-class PromptLibraryCategoryRequest(BaseModel):
-    name: str = "新分组"
-    library_id: str = ""
+# (CANVAS_TASKS, CANVAS_TASK_LOCK extracted to app/state.py)
 
 # --- 负载均衡 ---
 
@@ -2911,15 +2508,6 @@ def get_comfy_history(comfy_address, prompt_id):
     except Exception as e:
         return {}
 
-def safe_user_id(user_id, request: Request):
-    candidate = (user_id or "").strip()
-    if not candidate and request.client:
-        candidate = f"ip-{request.client.host}"
-    if not candidate:
-        candidate = "anonymous"
-    candidate = re.sub(r"[^a-zA-Z0-9_.-]", "-", candidate)[:80].strip(".-")
-    return candidate or "anonymous"
-
 def user_dir(user_id):
     path = os.path.join(CONVERSATION_DIR, user_id)
     os.makedirs(path, exist_ok=True)
@@ -2930,9 +2518,6 @@ def conversation_path(user_id, conversation_id):
     if not cleaned:
         raise HTTPException(status_code=400, detail="无效的对话 ID")
     return os.path.join(user_dir(user_id), f"{cleaned}.json")
-
-def now_ms():
-    return int(time.time() * 1000)
 
 def save_conversation(user_id, conversation):
     with CONVERSATION_LOCK:
@@ -3416,14 +3001,6 @@ def api_headers(json_body=True, provider=None, model=""):
     if json_body:
         headers["Content-Type"] = "application/json"
     return headers
-
-def selected_model(requested, fallback):
-    model = (requested or fallback).strip()
-    if not model:
-        raise HTTPException(status_code=400, detail="模型名称不能为空")
-    if len(model) > 240 or any(ord(ch) < 32 or ord(ch) == 127 for ch in model):
-        raise HTTPException(status_code=400, detail=f"模型名称不合法：{model}")
-    return model
 
 def looks_like_vision_chat_model(model):
     lc = str(model or "").strip().lower()
@@ -8955,14 +8532,6 @@ async def get_global_token():
 
 # --- 在线生图 (COMFLY) ---
 
-class TestConnectionPayload(BaseModel):
-    base_url: str = ""
-    api_key: str = ""
-    provider_id: str = ""
-    protocol: str = "openai"
-    image_request_mode: str = "openai"
-    proxy_url: str = ""
-
 def protocol_from_payload(payload):
     provider_id = str(getattr(payload, "provider_id", "") or "").strip().lower()
     if provider_id == "volcengine":
@@ -10902,11 +10471,6 @@ async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"}
     return Response(buffer.getvalue(), media_type="application/zip", headers=headers)
 
-def sanitize_export_filename(name: str, fallback: str) -> str:
-    base = os.path.basename(str(name or "").strip()) or fallback
-    base = re.sub(r'[\\/:*?"<>|]+', "_", base)
-    return base or fallback
-
 def canvas_workflow_collect_resource_refs(value, found=None):
     if found is None:
         found = []
@@ -10921,17 +10485,6 @@ def canvas_workflow_collect_resource_refs(value, found=None):
         if (text.startswith("/assets/") or text.startswith("/output/")) and output_file_from_url(text):
             found.append(text)
     return found
-
-def canvas_workflow_unique_archive_name(base, used):
-    safe = sanitize_export_filename(base, "resource.bin")
-    name, ext = os.path.splitext(safe)
-    archive = safe
-    idx = 2
-    while archive in used:
-        archive = f"{name}-{idx}{ext}"
-        idx += 1
-    used.add(archive)
-    return archive
 
 def canvas_workflow_replace_strings(value, mapping):
     if isinstance(value, dict):
@@ -12906,33 +12459,6 @@ CUSTOM_WORKFLOW_FOLDER = "custom"
 LEGACY_CUSTOM_WORKFLOW_FOLDER = "自定义"
 WORKFLOW_NAME_RE = re.compile(rf"^(?:(?:{CUSTOM_WORKFLOW_FOLDER}|{LEGACY_CUSTOM_WORKFLOW_FOLDER})/)?[a-zA-Z0-9_一-龥\.\-]+\.json$")
 
-class WorkflowField(BaseModel):
-    id: str
-    node: str = ""
-    input: str = ""
-    name: str = ""
-    type: str = "text"
-    default: Any = None
-    min: Optional[float] = None
-    max: Optional[float] = None
-    step: Optional[float] = None
-    options: List[str] = []
-    random_enabled: bool = False
-
-class WorkflowConfig(BaseModel):
-    title: str = ""
-    fields: List[WorkflowField] = []
-    mini_cards: Dict[str, Any] = {}
-
-class WorkflowUploadRequest(BaseModel):
-    name: str
-    workflow: Dict[str, Any]
-
-class WorkflowRunRequest(BaseModel):
-    fields: Dict[str, Any] = {}
-    config: WorkflowConfig
-    client_id: str = ""
-
 def workflow_path_from_name(name: str) -> str:
     if not WORKFLOW_NAME_RE.match(name):
         raise HTTPException(status_code=400, detail="Invalid workflow name")
@@ -13276,9 +12802,6 @@ def runninghub_collect_workflow_fields(workflow_json):
                 "required": field_type == "IMAGE",
             })
     return fields
-
-class ComfyInstancesPayload(BaseModel):
-    instances: List[str] = []
 
 @app.get("/api/comfyui/instances")
 def get_comfyui_instances():
