@@ -17,7 +17,8 @@ from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
 from app.providers.jimeng import *
-
+# ── Explicit imports for PIL symbols (resolved via wildcard but invisible to static analysis) ──
+from PIL import Image, ImageOps
 
 router = APIRouter()
 
@@ -190,4 +191,6 @@ async def import_local_ai_reference(payload: LocalImageImportRequest, request: R
     if not requested:
         raise HTTPException(status_code=400, detail="没有可导入的本地图片")
     return {"files": [import_local_image_file(normalize_local_image_path(path)) for path in requested]}
+
+
 

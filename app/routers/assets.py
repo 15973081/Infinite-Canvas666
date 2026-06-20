@@ -686,3 +686,6 @@ from app.services.assets import (
     _local_upload_caption_path, _local_upload_tree_and_items,
 )
 
+# ── Explicit imports for PIL symbols (resolved via wildcard but invisible to static analysis) ──
+from PIL import Image
+

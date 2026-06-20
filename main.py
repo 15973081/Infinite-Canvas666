@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
 from app.providers.jimeng import JimengPendingError
@@ -76,6 +77,9 @@ app.include_router(upload.router)
 app.include_router(video.router)
 app.include_router(websocket.router)
 
+# --- Mount static files (after routers so API routes take priority) ---
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 ensure_runtime_config_files()
 load_env_file()
 
@@ -127,3 +131,11 @@ def jimeng_pending_payload(exc: JimengPendingError):
 @app.exception_handler(JimengPendingError)
 async def jimeng_pending_exception_handler(request: Request, exc: JimengPendingError):
     return JSONResponse(status_code=202, content=jimeng_pending_payload(exc))
+
+
+# ── Startup (runs when invoked directly: python main.py) ──
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("SERVER_PORT", "6003"))
+    print(f"Starting ComfyUI-API-Modelscope on http://127.0.0.1:{port}/")
+    uvicorn.run(app, host="0.0.0.0", port=port)
