@@ -8,6 +8,16 @@ from app.state import *
 from app.config import *
 from app.utils import *
 from app.providers.registry import *
+from app.services.update import *
+from app.services.canvas import *
+from app.services.assets import *
+from app.services.prompt import *
+from app.services.media import *
+from app.services.chat import *
+from app.services.comfyui import *
+from app.services.workflow import *
+from app.providers.jimeng import *
+
 
 router = APIRouter()
 

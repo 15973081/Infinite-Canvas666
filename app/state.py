@@ -6,6 +6,7 @@ All modules import these as module-level singletons (Python module cache ensures
 a single instance across the entire process).
 """
 import json
+import uuid
 from threading import Lock
 from typing import List, Dict
 
@@ -127,6 +128,10 @@ UPDATE_LOCK = Lock()
 
 NEXT_TASK_ID = 1
 
+SHARED_FOLDERS_LOCK = Lock()
+
+CLIENT_ID = str(uuid.uuid4())
+
 
 # ── Jimeng CLI session ──
 
@@ -161,4 +166,6 @@ __all__ = [
     "JIMENG_LOGIN_SESSION",
     "BACKEND_LOCAL_LOAD",
     "CANVAS_TASKS", "CANVAS_TASK_LOCK",
+    "SHARED_FOLDERS_LOCK",
+    "CLIENT_ID",
 ]
