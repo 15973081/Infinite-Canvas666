@@ -79,6 +79,7 @@ app.include_router(websocket.router)
 
 # --- Mount static files (after routers so API routes take priority) ---
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 ensure_runtime_config_files()
 load_env_file()
