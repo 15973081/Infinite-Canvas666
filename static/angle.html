@@ -20,7 +20,6 @@
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.9.1779672342"></script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
-    <script src="/static/js/i18n.js?v=2026.06.9.1780902932"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
     <script type="importmap">
@@ -285,11 +284,10 @@
                 <h1 class="text-4xl font-extrabold tracking-[-0.05em] flex items-center">
                     ANGLE CONTROL<span class="text-base mt-3 ml-1">®</span>
                 </h1>
-                <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-gray-400" data-i18n="studio.cameraPerspective">Camera & Perspective Control
-                </p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-gray-400">相机与视角控制</p>
             </div>
             <nav class="flex gap-8 text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                <span class="text-black border-b-2 border-black pb-1" data-i18n="nav.angle">Angle</span>
+                <span class="text-black border-b-2 border-black pb-1">角度控制</span>
             </nav>
         </header>
 
@@ -297,7 +295,7 @@
             <!-- Row 1: Upload and 3D Control -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
                 <section class="group w-full">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] mb-5 text-gray-400">01. <span data-i18n="studio.inputSource">Input Source</span>
+                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] mb-5 text-gray-400">01. <span>输入图片</span>
                     </h3>
                     <div id="dropzone"
                         class="upload-item relative overflow-hidden rounded-2xl aspect-[4/3] flex flex-col items-center justify-center cursor-pointer">
@@ -308,7 +306,7 @@
                                 class="w-14 h-14 rounded-full border border-gray-200 bg-white flex items-center justify-center mx-auto group-hover:bg-black group-hover:text-white group-hover:border-black transition-all duration-500">
                                 <i data-lucide="arrow-up" class="w-5 h-5"></i>
                             </div>
-                            <p class="text-[11px] font-bold uppercase tracking-tight" data-i18n="studio.dropImage">Drop image here</p>
+                            <p class="text-[11px] font-bold uppercase tracking-tight">拖放图片到这里</p>
                         </div>
 
                         <img id="previewImg" class="hidden absolute inset-0 w-full h-full object-cover">
@@ -316,13 +314,13 @@
                         <div id="changeOverlay"
                             class="hidden absolute inset-0 bg-black/10 backdrop-blur-sm items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                             <span
-                                class="bg-white px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-2xl" data-i18n="studio.change">Change</span>
+                                class="bg-white px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-2xl">更换</span>
                         </div>
                     </div>
                 </section>
 
                 <section id="cameraControl" class="space-y-6 w-full">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">02. <span data-i18n="studio.cameraControl">Camera Control</span></h3>
+                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">02. <span>相机控制</span></h3>
                     <div
                         class="w-full aspect-[4/3] flex flex-col md:flex-row bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                         <!-- 3D View -->
@@ -337,7 +335,7 @@
                                     class="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-500">
                                     <div class="flex items-center gap-2">
                                         <i data-lucide="move-horizontal" class="w-3 h-3"></i>
-                                        <span data-i18n="studio.rotation">Rotation</span>
+                                        <span>旋转</span>
                                     </div>
                                     <div class="flex items-center gap-1.5">
                                         <button onclick="resetControl('h')"
@@ -362,7 +360,7 @@
                                     class="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-500">
                                     <div class="flex items-center gap-2">
                                         <i data-lucide="move-vertical" class="w-3 h-3"></i>
-                                        <span data-i18n="studio.pitch">Pitch</span>
+                                        <span>俯仰</span>
                                     </div>
                                     <div class="flex items-center gap-1.5">
                                         <button onclick="resetControl('v')"
@@ -387,7 +385,7 @@
                                     class="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-gray-500">
                                     <div class="flex items-center gap-2">
                                         <i data-lucide="zoom-in" class="w-3 h-3"></i>
-                                        <span data-i18n="studio.distance">Distance</span>
+                                        <span>距离</span>
                                     </div>
                                     <div class="flex items-center gap-1.5">
                                         <button onclick="resetControl('d')"
@@ -412,7 +410,7 @@
             <!-- Row 2: Parameters & Result -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-10 items-stretch">
                 <section class="flex flex-col space-y-6">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">03. <span data-i18n="studio.parameters">Parameters</span></h3>
+                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">03. <span>参数</span></h3>
 
                     <div class="space-y-3 flex-1 flex flex-col">
                         <div class="flex items-center gap-2 text-gray-800 ml-1">
@@ -442,22 +440,22 @@
                     <button id="genBtn" onclick="handleGenerate()"
                         class="glass-btn w-full py-5 text-white rounded-xl font-bold text-[11px] uppercase tracking-[0.4em] flex items-center justify-center gap-3 shadow-xl shadow-black/10 disabled:opacity-50 disabled:cursor-not-allowed">
                         <i data-lucide="zap" id="btnIcon" class="w-4 h-4 text-yellow-400"></i>
-                        <span id="btnText" data-i18n="studio.generateAngle">Generate New Angle</span>
+                        <span id="btnText">生成新角度</span>
                     </button>
                 </section>
 
                 <section class="space-y-6 flex flex-col">
-                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">04. <span data-i18n="studio.resultPreview">Result Preview</span></h3>
+                    <h3 class="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400">04. <span>结果预览</span></h3>
                     <div id="resultBox"
                         class="result-frame relative aspect-[4/3] w-full flex items-center justify-center overflow-hidden group">
                         <div id="emptyState" class="text-center space-y-4 opacity-20">
                             <i data-lucide="camera" class="w-12 h-12 mx-auto stroke-[1px]"></i>
-                            <p class="text-[10px] font-black tracking-[0.5em] uppercase" data-i18n="studio.canvasReady">Canvas Ready</p>
+                            <p class="text-[10px] font-black tracking-[0.5em] uppercase">画布就绪</p>
                         </div>
 
                         <div id="loadingState" class="hidden flex flex-col items-center gap-5 w-full max-w-[80%]">
                             <div class="loading-box"></div>
-                            <p class="text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse" data-i18n="studio.processing">Processing...</p>
+                            <p class="text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse">处理中...</p>
                             <!-- Progress Bar -->
                             <div id="cloud-progress-container" class="hidden w-full mt-4">
                                 <div class="flex justify-between text-[9px] font-bold text-gray-400 mb-1 uppercase tracking-widest">
@@ -474,14 +472,12 @@
                             class="hidden w-full h-full p-12 flex flex-col items-center justify-center text-center space-y-8">
                             <i data-lucide="terminal" class="w-12 h-12 text-gray-300 mx-auto"></i>
                             <div class="space-y-4 max-w-md">
-                                <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-gray-400" data-i18n="studio.generatedCommand">Generated
-                                    Command
-                                </p>
+                                <p class="text-[10px] font-bold uppercase tracking-[0.5em] text-gray-400">生成指令</p>
                                 <h2 id="generatedText" class="text-2xl font-bold leading-relaxed text-gray-900"></h2>
                             </div>
                             <button onclick="copyText()"
                                 class="px-8 py-3 bg-gray-100 hover:bg-black hover:text-white rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2">
-                                <i data-lucide="copy" class="w-3 h-3"></i><span data-i18n="studio.copy">Copy</span>
+                                <i data-lucide="copy" class="w-3 h-3"></i><span>复制</span>
                             </button>
                         </div>
 
@@ -780,15 +776,21 @@
 
     <script>
         lucide.createIcons();
-        function tr(key){ return window.StudioI18n ? StudioI18n.t(key) : key; }
-        function applyLanguage(lang){
-            if(lang && window.StudioI18n) StudioI18n.set(lang);
+        const PAGE_I18N = {
+            'nav.angle': '角度控制',
+            'studio.generateAngle': '生成新角度',
+            'studio.processing': '处理中...',
+            'studio.uploadFailed': '上传失败',
+            'studio.uploading': '上传中...'
+        };
+        function tr(key){ return PAGE_I18N[key] || key; }
+        function applyLanguage(){
             document.title = tr('nav.angle');
             const btnText = document.getElementById('btnText');
             if(btnText && !document.getElementById('genBtn')?.disabled) btnText.textContent = tr('studio.generateAngle');
         }
         window.addEventListener('message', event => {
-            if(event.data?.type === 'studio-lang') applyLanguage(event.data.lang);
+            if(event.data?.type === 'studio-lang') applyLanguage();
         });
         window.addEventListener('studio-lang-change', () => { document.title = tr('nav.angle'); });
         

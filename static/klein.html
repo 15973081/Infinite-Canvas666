@@ -20,7 +20,6 @@
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.9.1779672342"></script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
-    <script src="/static/js/i18n.js?v=2026.06.9.1780902932"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
     <style>
@@ -197,7 +196,7 @@
         <header class="flex justify-between items-end mb-10">
             <div class="space-y-1">
                 <h1 class="text-4xl font-extrabold tracking-tighter italic">FLUX KLEIN</h1>
-                <p class="text-[10px] font-bold uppercase tracking-[0.4em] text-gray-400" data-i18n="nav.imageEdit">Next-Gen Generative Interface</p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.4em] text-gray-400">图片编辑</p>
             </div>
         </header>
 
@@ -206,18 +205,18 @@
                 <section class="space-y-4">
                     <div class="flex items-center gap-2 text-gray-400">
                         <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
-                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="studio.inputPrompt">Input Prompt</span>
+                        <span class="text-[10px] font-black uppercase tracking-widest">输入提示词</span>
                     </div>
                     <textarea id="promptInput" rows="5"
                         class="nano-input w-full p-6 rounded-3xl text-sm outline-none resize-none placeholder-gray-300"
-                        placeholder="Describe your vision here..." data-i18n-placeholder="studio.describeVision"></textarea>
+                        placeholder="描述你想生成的画面..."></textarea>
                 </section>
 
                 <section class="space-y-4">
                     <div class="flex items-center gap-2 text-gray-400">
                         <i data-lucide="image" class="w-3.5 h-3.5"></i>
-                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="studio.referenceLayers">Reference Layers</span>
-                        <span id="cloudImgNote" class="hidden ml-auto text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full" data-i18n="studio.cloudUsesMain">Cloud uses Main image</span>
+                        <span class="text-[10px] font-black uppercase tracking-widest">参考图层</span>
+                        <span id="cloudImgNote" class="hidden ml-auto text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">云端使用主图</span>
                     </div>
                     <div class="grid grid-cols-3 gap-4">
                         <div id="drop-zone-1" onclick="document.getElementById('file1').click()"
@@ -253,11 +252,11 @@
                 <div class="engine-panel">
                     <div class="engine-label">
                         <i data-lucide="cpu" class="w-3.5 h-3.5"></i>
-                        <span data-i18n="studio.engine">Engine</span>
+                        <span>引擎</span>
                     </div>
                     <div class="engine-switch">
                         <button id="localBtn" class="engine-btn active" onclick="setEngine('local')">
-                            <i data-lucide="cpu" class="w-3 h-3"></i><span data-i18n="studio.local">Local</span>
+                            <i data-lucide="cpu" class="w-3 h-3"></i><span>本地</span>
                         </button>
                         <button id="cloudBtn" class="engine-btn" onclick="setEngine('cloud')">
                             <i data-lucide="cloud" class="w-3 h-3"></i>ModelScope
@@ -265,7 +264,7 @@
                     </div>
                     <div id="cloudStatusBar" class="cloud-status">
                         <div class="cloud-dot"></div>
-                        <span id="cloudStatusText" data-i18n="studio.connecting">Connecting...</span>
+                        <span id="cloudStatusText">连接中...</span>
                     </div>
                     <div id="loraSection" class="hidden flex-col gap-3 pt-2 border-t border-gray-100">
                         <label class="flex items-center gap-3 cursor-pointer select-none" onclick="toggleLora()">
@@ -273,11 +272,11 @@
                                 <div id="loraTrack" class="lora-track w-full h-full rounded-full transition-colors duration-200"></div>
                                 <div id="loraThumb" class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"></div>
                             </div>
-                            <span class="text-[10px] font-bold text-gray-600 uppercase tracking-wider" data-i18n="studio.detailLora">细节增强 LoRA</span>
+                            <span class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">细节增强 LoRA</span>
                         </label>
                         <div id="loraStrengthRow" class="hidden flex-col gap-1.5">
                             <div class="flex justify-between">
-                                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest" data-i18n="studio.loraStrength">LoRA Strength</span>
+                                <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">LoRA 强度</span>
                                 <span id="loraStrengthVal" class="text-[9px] font-bold text-gray-600">0.80</span>
                             </div>
                             <input type="range" id="loraStrengthSlider" min="0.1" max="1.0" step="0.05" value="0.8"
@@ -290,7 +289,7 @@
                 <button id="genBtn" onclick="submitWorkflow()"
                     class="glass-btn w-full py-5 text-white rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg">
                     <i data-lucide="zap" id="btnIcon" class="w-4 h-4 text-yellow-400"></i>
-                    <span id="btnText" class="tracking-[0.3em] text-[11px] uppercase" data-i18n="studio.executeSynthesis">Execute Synthesis</span>
+                    <span id="btnText" class="tracking-[0.3em] text-[11px] uppercase">开始合成</span>
                 </button>
             </div>
 
@@ -299,11 +298,11 @@
                     class="result-frame min-h-[500px] lg:h-full flex items-center justify-center relative overflow-hidden group">
                     <div id="placeholder" class="text-center space-y-4 opacity-20">
                         <i data-lucide="layout" class="w-12 h-12 mx-auto stroke-[1px]"></i>
-                        <p class="text-[10px] font-black tracking-[0.5em] uppercase" data-i18n="studio.canvasReady">Canvas Ready</p>
+                        <p class="text-[10px] font-black tracking-[0.5em] uppercase">画布就绪</p>
                     </div>
                     <div id="loader" class="hidden text-center space-y-4">
                         <div class="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto"></div>
-                        <p class="text-[10px] font-black tracking-[0.5em] uppercase" data-i18n="studio.synthesizing">Synthesizing</p>
+                        <p class="text-[10px] font-black tracking-[0.5em] uppercase">合成中</p>
                     </div>
                     <img id="outputImg"
                         class="hidden w-full h-full object-contain p-8 cursor-zoom-in transition-all duration-700"
@@ -318,13 +317,13 @@
 
         <section class="mt-32">
             <div class="flex items-center gap-6 mb-12">
-                <h2 class="text-[11px] font-black uppercase tracking-[0.5em]" data-i18n="studio.archives">Archives</h2>
+                <h2 class="text-[11px] font-black uppercase tracking-[0.5em]">归档</h2>
                 <div class="h-px flex-1 bg-gray-100"></div>
             </div>
             <div id="masonry" class="masonry-grid"></div>
             <div id="loadMoreTrigger"
                 class="py-20 text-center text-gray-300 text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:text-black transition-colors">
-                <span data-i18n="studio.loadMore">Load More Archive</span>
+                <span>加载更多归档</span>
             </div>
         </section>
     </div>
@@ -359,12 +358,12 @@
             </div>
             <div class="w-full bg-white border border-gray-100 rounded-[2rem] p-8 shadow-sm flex justify-between items-center gap-8">
                 <div class="flex-1">
-                    <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-2" data-i18n="studio.promptExecution">Prompt Execution</span>
+                    <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-2">提示词记录</span>
                     <p id="lightboxPrompt" class="text-gray-700 text-sm leading-relaxed"></p>
                 </div>
                 <button id="sameStyleBtn" onclick="applySameStyle()"
                     class="hidden whitespace-nowrap bg-black text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-all active:scale-95 flex items-center gap-2">
-                    <i data-lucide="copy" class="w-4 h-4"></i><span data-i18n="studio.replicate">Replicate</span>
+                    <i data-lucide="copy" class="w-4 h-4"></i><span>复用</span>
                 </button>
             </div>
             <button onclick="closeLightbox()"
@@ -376,15 +375,22 @@
 
     <script>
         lucide.createIcons();
-        function tr(key){ return window.StudioI18n ? StudioI18n.t(key) : key; }
-        function applyLanguage(lang){
-            if(lang && window.StudioI18n) StudioI18n.set(lang);
+        const PAGE_I18N = {
+            'nav.imageEdit': '图片编辑',
+            'studio.cloudProcessing': '云端处理中...',
+            'studio.executeSynthesis': '开始合成',
+            'studio.loadingArchives': '正在加载归档...',
+            'studio.loadMore': '加载更多归档',
+            'studio.submittingModelscope': '正在提交到 ModelScope...'
+        };
+        function tr(key){ return PAGE_I18N[key] || key; }
+        function applyLanguage(){
             document.title = tr('nav.imageEdit');
             const loader = document.getElementById('loadMoreTrigger');
             if(loader && !isLoading) loader.innerText = tr('studio.loadMore');
         }
         window.addEventListener('message', event => {
-            if(event.data?.type === 'studio-lang') applyLanguage(event.data.lang);
+            if(event.data?.type === 'studio-lang') applyLanguage();
         });
         window.addEventListener('studio-lang-change', () => { document.title = tr('nav.imageEdit'); });
 

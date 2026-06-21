@@ -12,8 +12,20 @@
      * 用法：window.HistoryBulkManager.attach({ masonry:'#masonry' })
      * ------------------------------------------------------------------- */
 
+    const HBM_I18N = {
+        "bulk.manage": "管理",
+        "bulk.selectAll": "全选",
+        "bulk.deselectAll": "取消全选",
+        "bulk.deleteSelected": "删除所选",
+        "bulk.exit": "完成",
+        "bulk.selectedCount": "已选 {n} 张",
+        "bulk.deleteConfirm": "确认删除选中的 {n} 张图片？此操作不可恢复。",
+        "bulk.deleting": "删除中…",
+        "bulk.noSelection": "请先选择要删除的图片"
+};
+
     function tr(key){
-        return (window.StudioI18n && StudioI18n.t) ? StudioI18n.t(key) : key;
+        return HBM_I18N[key] || key;
     }
     function fmt(key, vars){
         let s = tr(key);
