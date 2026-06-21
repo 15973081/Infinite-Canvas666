@@ -3,8 +3,15 @@
     const DEFAULT_LANG = 'zh';
     const dict = { zh: {}, en: {} };
 
+    function persistZh(){
+        try {
+            localStorage.setItem(KEY, DEFAULT_LANG);
+        } catch(e) {}
+    }
+
     function lang(){
-        return localStorage.getItem(KEY) || DEFAULT_LANG;
+        persistZh();
+        return DEFAULT_LANG;
     }
 
     function normalizeEntry(key, entry){
@@ -38,6 +45,7 @@
     }
 
     function apply(root=document){
+        persistZh();
         root.querySelectorAll('[data-i18n]').forEach(el => {
             el.textContent = t(el.dataset.i18n);
         });
@@ -52,12 +60,12 @@
     }
 
     function set(next){
-        localStorage.setItem(KEY, next === 'en' ? 'en' : 'zh');
+        persistZh();
         apply();
     }
 
     function toggle(){
-        set(lang() === 'en' ? 'zh' : 'en');
+        set(DEFAULT_LANG);
     }
 
     function entries(){

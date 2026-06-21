@@ -1554,14 +1554,7 @@
                         </svg>
                         <span class="side-pill-text" data-i18n="common.darkMode">黑夜模式</span>
                     </button>
-                    <button class="side-pill" onclick="toggleLanguage()" id="lang-toggle-btn" type="button" title="Language">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <path d="M2 12h20"></path>
-                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                        </svg>
-                        <span class="side-pill-text" data-i18n="common.language">中文</span>
-                    </button>
+                    <!-- Language toggle removed: Studio is locked to Chinese. -->
                     <button class="side-pill" onclick="switchUI(this, 'comfyui-settings')" type="button" title="工作流设置">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="3" y="3" width="7" height="7" rx="1"></rect>
@@ -2000,8 +1993,7 @@
         }
 
         function toggleLanguage() {
-            if(!window.StudioI18n) return;
-            window.StudioI18n.toggle();
+            if(window.StudioI18n) window.StudioI18n.set('zh');
             document.querySelectorAll('iframe').forEach(frame => syncLanguageToFrame(frame));
             updateProjectUpdateTitle();
             refreshUpdateButtonText();
@@ -2011,14 +2003,14 @@
         function syncLanguageToFrame(frame) {
             if(!window.StudioI18n) return;
             try {
-                frame.contentWindow?.postMessage({ type:'studio-lang', lang:window.StudioI18n.lang() }, '*');
+                frame.contentWindow?.postMessage({ type:'studio-lang', lang:'zh' }, '*');
             } catch(e) {}
         }
 
         function broadcastLanguage() {
             document.querySelectorAll('iframe').forEach(frame => {
                 try {
-                    frame.contentWindow?.postMessage({ type:'studio-lang', lang:window.StudioI18n.lang() }, '*');
+                    frame.contentWindow?.postMessage({ type:'studio-lang', lang:'zh' }, '*');
                 } catch(e) {}
             });
         }
