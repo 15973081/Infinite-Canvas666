@@ -25,7 +25,6 @@
     </script>
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.15.1781457289"></script>
     <script src="/static/js/theme.js?v=2026.06.15.1781457289"></script>
-    <script src="/static/js/i18n.js?v=2026.06.15.1781457289"></script>
     <style>
         @import url('/static/vendor/css/fonts.css?v=2026.06.15.1781457289');
 
@@ -1993,7 +1992,6 @@
         }
 
         function toggleLanguage() {
-            if(window.StudioI18n) window.StudioI18n.set('zh');
             document.querySelectorAll('iframe').forEach(frame => syncLanguageToFrame(frame));
             updateProjectUpdateTitle();
             refreshUpdateButtonText();
@@ -2001,7 +1999,6 @@
         }
 
         function syncLanguageToFrame(frame) {
-            if(!window.StudioI18n) return;
             try {
                 frame.contentWindow?.postMessage({ type:'studio-lang', lang:'zh' }, '*');
             } catch(e) {}
@@ -2024,7 +2021,6 @@
         window.addEventListener('DOMContentLoaded', () => {
             const theme = window.StudioTheme ? window.StudioTheme.get() : 'light';
             updateThemeIcon(theme);
-            if(window.StudioI18n) window.StudioI18n.apply();
             broadcastLanguage();
             checkForUpdates();
         });
@@ -2085,7 +2081,7 @@
             } else {
                 badge.textContent = 'v-';
             }
-            badge.title = window.StudioI18n?.lang?.() === 'en'
+            badge.title = false
                 ? `Current version: ${full} · click to check for updates`
                 : `当前版本：${full} · 点击检测更新`;
         }
@@ -2095,7 +2091,7 @@
             const text = document.getElementById('update-now-text');
             if(!btn || !text || !btn.classList.contains('show')) return;
             const remoteVersion = document.getElementById('github-entry-btn')?.dataset.remoteVersion || '';
-            const isEn = window.StudioI18n?.lang?.() === 'en';
+            const isEn = false;
             text.removeAttribute('data-i18n');
             if(remoteVersion) {
                 const prefix = isEn ? 'Update to' : '更新到';
@@ -2122,7 +2118,7 @@
             setProjectVersionBadge(appInfo.version || gitBtn?.dataset.localVersion || '');
             if(!gitBtn?.classList.contains('update-available')) return;
             const remoteVersion = gitBtn.dataset.remoteVersion || '';
-            const isEn = window.StudioI18n?.lang?.() === 'en';
+            const isEn = false;
             gitBtn.title = isEn
                 ? `Current ${versionLabel(gitBtn.dataset.localVersion || appInfo.version)} · latest ${versionLabel(remoteVersion)}`
                 : `当前 ${versionLabel(gitBtn.dataset.localVersion || appInfo.version)} · 最新 ${versionLabel(remoteVersion)}`;
@@ -2155,7 +2151,7 @@
             const versionEl = document.getElementById('project-update-notes-version');
             const list = document.getElementById('project-update-notes-list');
             const empty = document.getElementById('project-update-notes-empty');
-            const isEn = window.StudioI18n?.lang?.() === 'en';
+            const isEn = false;
             const notes = projectUpdateNotes || {};
             const items = Array.isArray(notes.items) ? notes.items.filter(Boolean) : [];
             if(titleEl) titleEl.textContent = isEn ? 'What changed' : '本次更新内容';
@@ -2190,7 +2186,7 @@
         }
 
         function updateUiText(zh, en) {
-            return window.StudioI18n?.lang?.() === 'en' ? en : zh;
+            return false ? en : zh;
         }
 
         function updateSourceLabel(source = updateSource) {
@@ -2236,7 +2232,7 @@
                 'Google 连通性': ['Google 连通性', 'Google connectivity'],
             };
             const item = labels[name] || [name, name];
-            return window.StudioI18n?.lang?.() === 'en' ? item[1] : item[0];
+            return false ? item[1] : item[0];
         }
 
         function updateStatusLabel(item) {
@@ -2465,7 +2461,7 @@
         let connectivityTesting = false;
         async function runUpdateConnectivityTest() {
             if(connectivityTesting) return; // 防止重复点击导致状态错乱
-            const isEn = window.StudioI18n?.lang?.() === 'en';
+            const isEn = false;
             const btn = document.getElementById('connectivity-test-btn');
             const text = document.getElementById('connectivity-test-text');
             connectivityTesting = true;
@@ -2553,7 +2549,7 @@
         }
 
         async function confirmProjectUpdate() {
-            const isEn = window.StudioI18n?.lang?.() === 'en';
+            const isEn = false;
             const btn = document.getElementById('update-now-btn');
             const text = document.getElementById('update-now-text');
             const confirmBtn = document.getElementById('project-update-confirm-btn');
@@ -2631,7 +2627,7 @@
             }
         }
         async function rollbackProjectUpdate() {
-            const isEn = window.StudioI18n?.lang?.() === 'en';
+            const isEn = false;
             try {
                 const list = await fetch('/api/update-backups').then(r => r.json());
                 const backups = list.backups || [];
@@ -2667,7 +2663,7 @@
         window.rollbackProjectUpdate = rollbackProjectUpdate;
 
         async function checkForUpdates(manual = false) {
-            const isEn = window.StudioI18n?.lang?.() === 'en';
+            const isEn = false;
             const badge = document.getElementById('project-version-badge');
             if(manual && badge) badge.classList.add('checking');
             try {

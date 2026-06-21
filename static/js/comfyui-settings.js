@@ -1,4 +1,90 @@
-function tr(key){ return window.StudioI18n ? window.StudioI18n.t(key) : key; }
+const LOCAL_I18N = {
+    "common.apiSettings": "API 设置",
+    "common.comfyuiSettings": "工作流设置",
+    "common.darkMode": "黑夜模式",
+    "common.language": "中文",
+    "common.cancel": "取消",
+    "common.confirm": "确定",
+    "common.save": "保存",
+    "common.delete": "删除",
+    "common.edit": "编辑",
+    "common.run": "运行",
+    "common.running": "运行中",
+    "common.custom": "自定义",
+    "common.close": "关闭",
+    "common.loading": "加载中...",
+    "common.project": "项目主页",
+    "common.moreSettings": "更多设置",
+    "canvas.comfyCustom": "自定义",
+    "comfy.title": "工作流设置",
+    "comfy.subtitle": "选择本地 ComfyUI 工作流，配置可暴露到画布的输入参数。",
+    "comfy.localWorkflowMode": "本地 ComfyUI 工作流",
+    "comfy.workflowList": "工作流列表",
+    "comfy.uploadWorkflow": "上传工作流",
+    "comfy.nodePreview": "画布节点预览",
+    "comfy.live": "实时",
+    "comfy.previewDesc": "这个工作流在画布 Comfy 节点上将显示出的控件，可直接填写并点击「运行测试」。",
+    "comfy.previewEmpty": "勾选节点输入字段后<br>预览将出现在这里",
+    "comfy.workflowName": "工作流名称",
+    "comfy.editorSubDefault": "从左侧列表选择，或上传新的 API 工作流",
+    "comfy.saveConfig": "保存配置",
+    "comfy.workflow": "工作流",
+    "comfy.testCanvas": "测试画布",
+    "comfy.showNodeList": "显示完整节点列表",
+    "comfy.hideNodeList": "收起节点列表",
+    "comfy.runTest": "运行测试",
+    "comfy.runningTest": "运行中...",
+    "comfy.addPrompt": "提示词",
+    "comfy.addImage": "图片",
+    "comfy.addVideo": "视频",
+    "comfy.addAudio": "音频",
+    "comfy.promptNode": "提示词",
+    "comfy.imageNode": "图片",
+    "comfy.videoNode": "视频",
+    "comfy.audioNode": "音频",
+    "comfy.output": "输出",
+    "comfy.promptPlaceholder": "输入提示词",
+    "comfy.clickUploadImage": "点击上传图片",
+    "comfy.clickUploadVideo": "点击上传视频",
+    "comfy.clickUploadAudio": "点击上传音频",
+    "comfy.resultHere": "运行后显示结果",
+    "comfy.runSuccess": "运行成功",
+    "comfy.inputs": "Inputs",
+    "comfy.needsImages": "需要 {count} 张图片",
+    "comfy.acceptsPrompt": "接收提示词",
+    "comfy.noPromptField": "无提示词字段",
+    "comfy.otherParamsHere": "其他暴露字段会在这里调整",
+    "comfy.noConfigFields": "此节点没有可配置字段（所有输入都来自连线）",
+    "comfy.noConfigInputs": "此节点没有可配置字段（输入都来自连线）",
+    "comfy.fieldCount": "{count} 个字段",
+    "comfy.nodeStats": "{nodes} 个节点 · 已暴露 {fields} 个字段",
+    "comfy.builtin": "内置",
+    "comfy.configurableCount": "{count} 个可配字段",
+    "comfy.exposedCount": "{count} 已暴露",
+    "comfy.usedCount": "{count} 已用",
+    "comfy.defaultValue": "默认值：",
+    "comfy.displayName": "显示名称",
+    "comfy.dropdownOptions": "每行一个选项",
+    "comfy.noOptions": "(无选项)",
+    "comfy.uploadFailed": "上传失败",
+    "comfy.imageUploadFailed": "图片上传失败",
+    "comfy.videoUploadFailed": "视频上传失败",
+    "comfy.audioUploadFailed": "音频上传失败",
+    "comfy.loadFailed": "加载失败",
+    "comfy.loading": "加载中...",
+    "comfy.openFailed": "打开失败",
+    "comfy.saveMissingName": "字段 \"{field}\" 缺少显示名称",
+    "comfy.saving": "保存中...",
+    "comfy.saved": "已保存",
+    "comfy.saveFailed": "保存失败",
+    "comfy.deleteConfirm": "确认删除工作流「{name}」？此操作不可恢复。",
+    "comfy.deleteFailed": "删除失败",
+    "comfy.runFailed": "运行失败",
+    "comfy.invalidJson": "不是有效的 JSON 文件",
+    "comfy.namePrompt": "给这个工作流起个名字（中文/英文/数字/_-.）：",
+    "comfy.uploaded": "已上传："
+};
+function tr(key){ return LOCAL_I18N[key] || key; }
 function tf(key, vars={}){
     return Object.entries(vars).reduce((text, [k,v]) => text.replaceAll(`{${k}}`, v), tr(key));
 }
@@ -11,7 +97,6 @@ function refreshLanguageView(){
     refreshIcons();
 }
 function applyLanguage(){
-    if(window.StudioI18n) window.StudioI18n.apply();
     refreshLanguageView();
 }
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
@@ -27,7 +112,7 @@ const TYPES = [
     { v:'audio', zh:'音频', en:'Audio' },
     { v:'boolean', zh:'开关', en:'Switch' },
 ];
-function currentLang(){ return window.StudioI18n?.lang?.() === 'en' ? 'en' : 'zh'; }
+function currentLang(){ return 'zh'; }
 function typeLabel(type){
     const item = TYPES.find(t => t.v === type);
     return item ? item[currentLang()] : type;
@@ -1384,13 +1469,12 @@ async function onDelete(){
 
 window.addEventListener('message', event => {
     if(event.data?.type === 'studio-theme' && window.StudioTheme) window.StudioTheme.set(event.data.theme);
-    if(event.data?.type === 'studio-lang' && window.StudioI18n) window.StudioI18n.set(event.data.lang);
+    if(event.data?.type === 'studio-lang') refreshLanguageView();
 });
-window.addEventListener('studio-lang-change', refreshLanguageView);
 
 document.addEventListener('DOMContentLoaded', () => {
     refreshIcons();
-    if(window.StudioI18n) StudioI18n.apply();
+    refreshLanguageView();
     loadList();
     loadComfyInstances();
 });
