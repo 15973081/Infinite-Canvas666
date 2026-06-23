@@ -69,6 +69,8 @@ let nodes = [];
 let selectedId = '';
 let selectedIds = [];
 let selectedImage = {nodeId:'', index:-1};
+let lastComposerNodeId = '';
+let activeComposerSubject = null;
 let dragState = null;
 let loopInsertPreview = null;
 let selectionState = null;
@@ -343,7 +345,7 @@ const MS_GEN_MODELS = {
     zimage: { label:'ZImage', modelId:'Tongyi-MAI/Z-Image-Turbo', supportsImage:false, endpoint:'/generate' },
     qwen_edit: { label:'Qwen Edit', modelId:'Qwen/Qwen-Image-Edit-2511', supportsImage:true, endpoint:'/api/angle/generate' },
     klein_edit: { label:'Klein', modelId:'black-forest-labs/FLUX.2-klein-9B', supportsImage:true, endpoint:'/api/ms/generate' },
-    custom: { label:tr('smart.custom') || '自定义', modelId:'', acceptsImage:true, endpoint:'/api/ms/generate' }
+    custom: { label:'Custom', modelId:'', acceptsImage:true, endpoint:'/api/ms/generate' }
 };
 const SIZE_MAP = {
     square: {'1k':'1024x1024','2k':'2048x2048','4k':'4096x4096'},
@@ -1044,7 +1046,14 @@ const LOCAL_I18N = {
     "smart.shortcutZoom": "缩放画布或预览图片",
     "smart.shortcutDelete": "删除选中节点"
 };
-function tr(key){ return LOCAL_I18N[key] || key; }
+function tr(key){
+    try {
+        return LOCAL_I18N[key] || key;
+    } catch (err) {
+        if(err instanceof ReferenceError) return key;
+        throw err;
+    }
+}
 function trf(key, values={}){
     return Object.entries(values).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), tr(key));
 }
@@ -2144,7 +2153,7 @@ function toggleZoomPreview(){
     else enterZoomPreview();
 }
 function imageProviders(){
-    return (apiProviders || []).filter(p => p.enabled !== false && p.id !== 'modelscope' && p.id !== 'runninghub' && p.id !== 'volcengine' && (p.image_models || []).length);
+    return (apiProviders || []).filter(p => p.enabled !== false && p.has_key && p.id !== 'volcengine' && (p.image_models || []).length);
 }
 function volcengineProvider(){
     return (apiProviders || []).find(p => p.id === 'volcengine' && p.enabled !== false) || {
@@ -2242,7 +2251,7 @@ function sortRunningHubFields(fields){
     });
 }
 function chatApiProviders(){
-    return (apiProviders || []).filter(p => p.enabled !== false && (p.chat_models || []).length);
+    return (apiProviders || []).filter(p => p.enabled !== false && p.has_key && (p.chat_models || []).length);
 }
 function resolveChatProviderId(providerId=''){
     const providers = chatApiProviders();
@@ -2381,7 +2390,7 @@ function modelscopeImageModels(){
 }
 const DEFAULT_VIDEO_MODELS = ['veo3-fast','veo3','sora','runway','kling','pika','minimax-video','wan-v2','seedance-1.0-pro','jimeng-vide-3.0','jimeng-video-3.0-pro'];
 function videoApiProviders(){
-    const fromConfig = (apiProviders || []).filter(p => p.enabled !== false && p.id !== 'runninghub' && p.id !== 'volcengine' && (p.video_models || []).length);
+    const fromConfig = (apiProviders || []).filter(p => p.enabled !== false && p.has_key && p.id !== 'volcengine' && (p.video_models || []).length);
     if(fromConfig.length) return fromConfig;
     return [{id:'comfly', name:'Comfly', video_models:DEFAULT_VIDEO_MODELS, enabled:true}];
 }
@@ -9683,8 +9692,6 @@ function applyImageEdit(){
     if(imageEditMode === 'grid') return applyImageGridSplit();
     return applyImageCrop();
 }
-let lastComposerNodeId = '';
-let activeComposerSubject = null;
 function currentComposerSubject(){
     return selectedNode();
 }
