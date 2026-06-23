@@ -121,8 +121,8 @@ const LOCAL_I18N = {
     "canvas.outputCopyToInputGroup": "复制为新的输入组",
     "canvas.outputGroupActions": "分组",
     "canvas.outputFileActions": "文件",
-    "canvas.outputDownloadAllImages": "下载全部图片",
-    "canvas.outputDownloadEmpty": "没有可下载的本地图片",
+    "canvas.outputDownloadAllImages": "下载全部文件",
+    "canvas.outputDownloadEmpty": "没有可下载的本地文件",
     "canvas.loopVariablePrompt": "可变提示词",
     "canvas.loopVariablePlaceholder": "例如：现在生成第[计数]个卖点",
     "canvas.loopFixedPrompt": "固定提示词",
@@ -6692,6 +6692,7 @@ function bindOutputWrap(wrap, node){
     const audio = wrap.querySelector('audio');
     const fileCard = wrap.querySelector('.output-file-card');
     const playBtn = wrap.querySelector('.canvas-video-play');
+    const download = wrap.querySelector('.output-download');
     const del = wrap.querySelector('.output-del');
     const recoverQuery = wrap.querySelector('.output-recover-query');
     if(img){
@@ -6741,6 +6742,15 @@ function bindOutputWrap(wrap, node){
             e.stopPropagation();
             const url = wrap.dataset.outputUrl;
             if(url) downloadUrl(url, outputDownloadName(url)).catch(err => alert(err.message || '下载失败'));
+        };
+    }
+    if(download){
+        download.onmousedown = e => e.stopPropagation();
+        download.onclick = e => {
+            e.stopPropagation();
+            const url = wrap.dataset.outputUrl;
+            const name = outputDownloadName(url);
+            if(url) downloadUrl(`/api/download-output?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`, name);
         };
     }
     if(del){
@@ -12820,7 +12830,7 @@ function renderOutputMedia(item, useGridLayout=false){
         return `<div class="output-img-wrap" data-output-url="${safe}" data-missing-url="${safe}"${gridStyle}>${missingAssetHtml(url, true)}${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'video'){
-        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output" data-video-fallback-attrs="controls"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output" data-video-fallback-attrs="controls"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-download" type="button" title="${tr('canvas.download')}"><i data-lucide="download"></i></button><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'audio'){
         return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(outputImageName(url))}</span><audio src="${safe}" data-url="${safe}" controls preload="metadata"></audio></div>${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
