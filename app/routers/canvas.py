@@ -701,7 +701,6 @@ async def get_canvas(canvas_id: str):
 @router.post("/api/canvases/{canvas_id}/touch")
 async def touch_canvas(canvas_id: str):
     canvas = load_canvas(canvas_id)
-    save_canvas(canvas)
     return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
 @router.get("/api/canvas-assets")

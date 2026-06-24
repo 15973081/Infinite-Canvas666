@@ -2079,7 +2079,7 @@ function serializableCanvasNodes(list=nodes){
 function canvasSavePayload(){
     return {
         title:canvas.title,
-        icon:canvas.icon || '馃З',
+        icon:canvas.icon || '🧩',
         nodes:serializableCanvasNodes(),
         connections,
         logs:canvas.logs || [],
@@ -2111,21 +2111,21 @@ async function saveCanvas(){
         return;
     }
     sanitizeConnections();
+    const payload = canvasSavePayload();
+    const snapshot = canvasSaveSnapshot(payload);
+    if(snapshot && snapshot === lastSavedCanvasSnapshot){
+        localCanvasDirty = false;
+        saveCanvasAgain = false;
+        setStatus('Saved');
+        return;
+    }
     savingCanvasNow = true;
     saveCanvasAgain = false;
     try {
         const res = await fetch(`/api/canvases/${canvas.id}`, {
             method:'PUT',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:canvas.title,
-                icon:canvas.icon || '🧩',
-                nodes:serializableCanvasNodes(),
-                connections,
-                logs:canvas.logs || [],
-                client_id:CLIENT_ID,
-                base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0)
-            })
+            body:JSON.stringify(payload)
         });
         if(res.status === 409){
             const data = await res.json().catch(() => ({}));
@@ -2148,9 +2148,13 @@ async function saveCanvas(){
         canvas.updated_at = Number(canvas.updated_at || Date.now());
         lastCanvasUpdatedAt = canvas.updated_at;
         localCanvasDirty = Boolean(saveCanvasAgain);
+        lastSavedCanvasSnapshot = snapshot;
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at);
         setStatus('Saved');
-        loadCanvasList(false);
+        if(data.canvas) {
+            updateCanvasListRecord(data.canvas);
+            refreshGateViewControls();
+        }
     } catch(e) {
         setStatus('Save failed');
         console.error(e);
@@ -2159,11 +2163,11 @@ async function saveCanvas(){
         if(saveCanvasAgain && canvas && !applyingRemoteCanvas){
             saveCanvasAgain = false;
             localCanvasDirty = true;
-            setTimeout(saveCanvas, 0);
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveCanvas, 1500);
         }
     }
 }
-
 async function loadConfig(){
     loadLocalModelLists();
     try {
@@ -2212,12 +2216,12 @@ function msChatModelOptions(selected){
     const sel = selected && list.includes(selected) ? selected : list[0];
     return list.map(m => `<option value="${escapeHtml(m)}" ${m === sel ? 'selected' : ''}>${escapeHtml(m.split('/').pop().split(':')[0])}</option>`).join('');
 }
-async function loadCanvasList(openFirst=true){
+async function loadCanvasList(openFirst=true, options={}){
     try {
-        const [canvasRes] = await Promise.all([
-            fetch('/api/canvases'),
-            loadCanvasFolders()
-        ]);
+        const refreshFolders = options.refreshFolders === true;
+        const canvasPromise = fetch('/api/canvases');
+        if(refreshFolders) await loadCanvasFolders();
+        const canvasRes = await canvasPromise;
         if(!canvasRes.ok) throw new Error(tr('canvas.canvasListFailed'));
         const data = await canvasRes.json();
         canvases = data.canvases || [];
@@ -2758,6 +2762,7 @@ async function openCanvas(id){
         canvas.viewport = {...viewport};
         lastCanvasUpdatedAt = Number(canvas.updated_at || 0);
         localCanvasDirty = false;
+        resetCanvasSaveSnapshot();
         resetTransientRunState(nodes);
         sanitizeConnections();
         pruneMissingComfyWorkflows();
@@ -2801,6 +2806,7 @@ function applyRemoteCanvasData(remote){
         canvas.viewport = {...viewport};
         lastCanvasUpdatedAt = Number(canvas.updated_at || Date.now());
         localCanvasDirty = false;
+        resetCanvasSaveSnapshot();
         resetTransientRunState(nodes);
         sanitizeConnections();
         pruneMissingComfyWorkflows();
@@ -3209,7 +3215,7 @@ gateCreateSmartBtn?.addEventListener('click', createSmartCanvas);
 gateNewFolderBtn?.addEventListener('click', () => createCanvasFolder(''));
 gateBackBtn.addEventListener('click', () => setTrashMode(false));
 gateTrashBtn.addEventListener('click', () => setTrashMode(true));
-gateRefreshBtn.addEventListener('click', () => trashMode ? loadTrashList() : loadCanvasList(false));
+gateRefreshBtn.addEventListener('click', () => trashMode ? loadTrashList() : loadCanvasList(false, {refreshFolders:true}));
 document.getElementById('gateSortSwitch')?.addEventListener('click', e => {
     const btn = e.target.closest('[data-sort]');
     if(btn) setCanvasSortMode(btn.dataset.sort);
@@ -15168,6 +15174,6 @@ window.onload = async () => {
     applyViewport();
     await loadConfig();
     pruneMissingComfyWorkflows();
-    await loadCanvasList(false);
+    await loadCanvasList(false, {refreshFolders:true});
     setCanvasMode(false);
 };
