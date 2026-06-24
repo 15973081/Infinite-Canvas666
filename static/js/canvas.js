@@ -947,6 +947,9 @@ let applyingRemoteCanvas = false;
 let remoteSyncTimer = null;
 let remoteSyncInterval = null;
 let remoteSyncBusy = false;
+let lastCanvasWsUpdatedAt = 0;
+const REMOTE_SYNC_POLL_MS = 10000;
+const REMOTE_SYNC_WS_QUIET_MS = 30000;
 let lastCanvasUpdatedAt = 0;
 let lastSavedCanvasSnapshot = '';
 let openCanvasRequestSeq = 0;
@@ -2888,6 +2891,7 @@ async function syncRemoteCanvasNow(){
 async function checkRemoteCanvasVersion(){
     if(!canvas || applyingRemoteCanvas || remoteSyncBusy) return;
     if(document.hidden) return;
+    if(lastCanvasWsUpdatedAt && Date.now() - lastCanvasWsUpdatedAt < REMOTE_SYNC_WS_QUIET_MS) return;
     remoteSyncBusy = true;
     try {
         const res = await fetch(`/api/canvases/${canvas.id}/meta`);
@@ -2905,7 +2909,7 @@ async function checkRemoteCanvasVersion(){
 }
 function startCanvasRemotePolling(){
     stopCanvasRemotePolling();
-    remoteSyncInterval = setInterval(checkRemoteCanvasVersion, 2500);
+    remoteSyncInterval = setInterval(checkRemoteCanvasVersion, REMOTE_SYNC_POLL_MS);
 }
 function stopCanvasRemotePolling(){
     if(remoteSyncInterval){
@@ -2917,6 +2921,7 @@ function handleCanvasUpdatedMessage(data){
     if(!canvas || !data || data.type !== 'canvas_updated') return;
     if(data.client_id && data.client_id === CLIENT_ID) return;
     if(data.canvas_id !== canvas.id) return;
+    lastCanvasWsUpdatedAt = Date.now();
     const remoteUpdatedAt = Number(data.updated_at || 0);
     if(remoteUpdatedAt && remoteUpdatedAt <= Number(lastCanvasUpdatedAt || 0)) return;
     clearTimeout(remoteSyncTimer);
@@ -2930,6 +2935,8 @@ function handleCanvasUpdatedMessage(data){
 async function returnToCanvasManager(){
     openCanvasRequestSeq++;
     clearTimeout(saveTimer);
+    clearTimeout(remoteSyncTimer);
+    remoteSyncTimer = null;
     if(canvas && localCanvasDirty) await saveCanvas();
     stopCanvasRemotePolling();
     stopCanvasLockPolling();
