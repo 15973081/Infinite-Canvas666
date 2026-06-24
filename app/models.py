@@ -298,6 +298,11 @@ class CanvasMoveRequest(BaseModel):
     folder_id: str = ""
 
 
+class CanvasLockRequest(BaseModel):
+    client_id: str
+    username: str = ""
+
+
 class CanvasMetaUpdate(BaseModel):
     title: Optional[str] = None
     icon: Optional[str] = None
@@ -535,7 +540,7 @@ __all__ = [
     "ChatRequest", "MsGenerateRequest", "CanvasLLMRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
-    "CanvasFolderUpdateRequest", "CanvasMoveRequest",
+    "CanvasFolderUpdateRequest", "CanvasMoveRequest", "CanvasLockRequest",
     "CanvasMetaUpdate", "CanvasSaveRequest",
     "CanvasAssetCheckRequest", "CanvasAssetDownloadRequest",
     "CanvasWorkflowExportRequest",

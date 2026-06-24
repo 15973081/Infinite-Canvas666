@@ -1,4 +1,4 @@
-function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
+﻿function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 refreshIcons();
 const LOCAL_I18N = {
     "common.apiSettings": "API 设置",
@@ -792,6 +792,8 @@ window.addEventListener('message', event => {
     if(event.origin && event.origin !== location.origin) return;
     if(event.data?.type === 'studio-lang') applyLanguage();
     if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
+    if(event.data?.type === 'canvas_locked') handleCanvasLockedMessage(event.data);
+    if(event.data?.type === 'canvas_unlocked') handleCanvasUnlockedMessage(event.data);
     if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed'){
         refreshCanvasConfigFromSettings();
     }
@@ -838,6 +840,11 @@ const gateTitleInput = document.getElementById('gateTitleInput');
 const gateConfirmBtn = document.getElementById('gateConfirmBtn');
 const gateCancelBtn = document.getElementById('gateCancelBtn');
 const backToManagerBtn = document.getElementById('backToManagerBtn');
+const canvasLockBadge = document.getElementById('canvasLockBadge');
+const canvasLockLabel = document.getElementById('canvasLockLabel');
+const canvasLockOverlay = document.getElementById('canvasLockOverlay');
+const canvasLockOverlayMsg = document.getElementById('canvasLockOverlayMsg');
+const canvasLockRetryBtn = document.getElementById('canvasLockRetryBtn');
 const currentCanvasTitle = document.getElementById('currentCanvasTitle');
 const currentCanvasTime = document.getElementById('currentCanvasTime');
 const outputLightbox = document.getElementById('outputLightbox');
@@ -941,6 +948,7 @@ let remoteSyncTimer = null;
 let remoteSyncInterval = null;
 let remoteSyncBusy = false;
 let lastCanvasUpdatedAt = 0;
+let lastSavedCanvasSnapshot = '';
 let openCanvasRequestSeq = 0;
 let models = {gpt:'gpt-image-2', nano:'nano-banana-pro'};
 let imageModels = ['gpt-image-2', 'nano-banana-pro'];
@@ -1036,6 +1044,10 @@ let imageEditBaseH = 0;
 let textSelectionGuard = null;
 const PROMPT_TEXT_MAX_LENGTH = 20000;
 const CLIENT_ID = 'canvas_' + Math.random().toString(36).slice(2);
+const CANVAS_LOCK_POLL_MS = 5000;
+let canvasLockHolder = null; // {client_id, username, acquired_at} | null (null = no lock)
+let canvasLockPollTimer = null;
+let canvasLockedByOther = false;
 const LTX_DIRECTOR_WORKFLOW = 'LTXDirectorv2-API.json';
 const LTX_DIRECTOR_WF_NODE = '46';
 const LTX_DIRECTOR_SEED_NODE = '94:28';
@@ -2009,6 +2021,10 @@ function refreshGeometryAfterLayout(){
 }
 function scheduleSave(){
     if(!canvas || applyingRemoteCanvas) return;
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法保存');
+        return;
+    }
     localCanvasDirty = true;
     setStatus('Saving...');
     clearTimeout(saveTimer);
@@ -2016,7 +2032,7 @@ function scheduleSave(){
         saveCanvasAgain = true;
         return;
     }
-    saveTimer = setTimeout(saveCanvas, 500);
+    saveTimer = setTimeout(saveCanvas, 1500);
 }
 function scheduleViewportSave(){
     saveLocalViewport();
@@ -2059,6 +2075,34 @@ function serializableCanvasNode(node){
 }
 function serializableCanvasNodes(list=nodes){
     return (list || []).map(serializableCanvasNode);
+}
+function canvasSavePayload(){
+    return {
+        title:canvas.title,
+        icon:canvas.icon || '馃З',
+        nodes:serializableCanvasNodes(),
+        connections,
+        logs:canvas.logs || [],
+        client_id:CLIENT_ID,
+        base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0)
+    };
+}
+function canvasSaveSnapshot(payload){
+    if(!payload) return '';
+    return JSON.stringify({
+        title:payload.title || '',
+        icon:payload.icon || '',
+        nodes:payload.nodes || [],
+        connections:payload.connections || [],
+        logs:payload.logs || []
+    });
+}
+function resetCanvasSaveSnapshot(){
+    if(!canvas) {
+        lastSavedCanvasSnapshot = '';
+        return;
+    }
+    lastSavedCanvasSnapshot = canvasSaveSnapshot(canvasSavePayload());
 }
 async function saveCanvas(){
     if(!canvas || applyingRemoteCanvas) return;
@@ -2725,6 +2769,13 @@ async function openCanvas(id){
         resumeCanvasImageTasks();
         startCanvasRemotePolling();
         setStatus('Ready');
+        // Acquire canvas lock
+        checkCanvasLock().then(() => {
+            if(!canvasLockedByOther && !canvasLockHolder){
+                acquireCanvasLock();
+            }
+            startCanvasLockPolling();
+        });
     } catch(e) {
         setStatus(tr('canvas.openFailed'));
         console.error(e);
@@ -2875,6 +2926,8 @@ async function returnToCanvasManager(){
     clearTimeout(saveTimer);
     if(canvas && localCanvasDirty) await saveCanvas();
     stopCanvasRemotePolling();
+    stopCanvasLockPolling();
+    await releaseCanvasLock();
     canvas = null;
     nodes = [];
     connections = [];
@@ -2887,6 +2940,181 @@ async function returnToCanvasManager(){
     await loadCanvasList(false);
     setCreateMode(false);
 }
+
+// ── Canvas Lock (collaborative editing) ──
+
+function isCanvasLockedByOther(){
+    return canvasLockedByOther;
+}
+
+function updateCanvasLockBadge(){
+    if(!canvasLockBadge || !canvasLockLabel) return;
+    if(!canvas){
+        canvasLockBadge.style.display = 'none';
+        return;
+    }
+    if(canvasLockedByOther){
+        canvasLockBadge.style.display = 'flex';
+        canvasLockBadge.className = 'canvas-lock-badge locked-by-other';
+        const name = (canvasLockHolder?.username || canvasLockHolder?.client_id || '其他人');
+        canvasLockLabel.textContent = `${name} 编辑中`;
+        canvasLockBadge.title = `画布正被 ${name} 编辑，你只能查看`;
+    } else if(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID){
+        canvasLockBadge.style.display = 'flex';
+        canvasLockBadge.className = 'canvas-lock-badge locked-by-me';
+        canvasLockLabel.textContent = '你正在编辑';
+        canvasLockBadge.title = '你持有编辑锁，其他人只能查看';
+    } else {
+        canvasLockBadge.style.display = 'none';
+    }
+}
+
+function showCanvasLockOverlay(msg){
+    if(!canvasLockOverlay) return;
+    canvasLockOverlay.style.display = 'flex';
+    if(canvasLockOverlayMsg) canvasLockOverlayMsg.textContent = msg || '画布正在被其他人编辑中...';
+    if(canvasLockRetryBtn) canvasLockRetryBtn.style.display = 'flex';
+}
+
+function hideCanvasLockOverlay(){
+    if(!canvasLockOverlay) return;
+    canvasLockOverlay.style.display = 'none';
+}
+
+async function checkCanvasLock(){
+    if(!canvas) return;
+    try {
+        const res = await fetch(`/api/canvases/${canvas.id}/lock`);
+        if(!res.ok) return;
+        const data = await res.json();
+        canvasLockHolder = data.holder || null;
+        canvasLockedByOther = !!(canvasLockHolder && canvasLockHolder.client_id !== CLIENT_ID);
+        updateCanvasLockBadge();
+        if(canvasLockedByOther){
+            const name = canvasLockHolder.username || canvasLockHolder.client_id || '其他人';
+            showCanvasLockOverlay(`${name} 正在编辑此画布`);
+        } else if(!canvasLockHolder){
+            hideCanvasLockOverlay();
+        }
+    } catch(e){
+        // Silently ignore — will retry on next poll
+    }
+}
+
+async function acquireCanvasLock(){
+    if(!canvas) return false;
+    try {
+        const res = await fetch(`/api/canvases/${canvas.id}/lock`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({client_id: CLIENT_ID, username: ''})
+        });
+        if(res.ok){
+            const data = await res.json();
+            canvasLockHolder = data.holder || null;
+            canvasLockedByOther = false;
+            hideCanvasLockOverlay();
+            updateCanvasLockBadge();
+            return true;
+        } else if(res.status === 409){
+            const err = await res.json().catch(() => ({}));
+            canvasLockHolder = err.detail?.holder || null;
+            canvasLockedByOther = true;
+            const name = canvasLockHolder?.username || canvasLockHolder?.client_id || '其他人';
+            showCanvasLockOverlay(`${name} 正在编辑此画布`);
+            updateCanvasLockBadge();
+            return false;
+        }
+    } catch(e){
+        console.error('acquireCanvasLock error:', e);
+    }
+    return false;
+}
+
+async function tryAcquireCanvasLock(){
+    if(!canvas) return;
+    if(canvasLockRetryBtn){
+        canvasLockRetryBtn.style.display = 'none';
+        const icon = canvasLockRetryBtn.querySelector('i');
+        if(icon) icon.setAttribute('data-lucide', 'loader');
+        if(typeof lucide !== 'undefined') lucide.createIcons();
+    }
+    const ok = await acquireCanvasLock();
+    if(ok){
+        setStatus('已获得编辑权限');
+    } else {
+        setStatus('画布仍在被其他人编辑中');
+        if(canvasLockRetryBtn) canvasLockRetryBtn.style.display = 'flex';
+        const icon = canvasLockRetryBtn?.querySelector('i');
+        if(icon) icon.setAttribute('data-lucide', 'refresh-cw');
+        if(typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+async function releaseCanvasLock(){
+    if(!canvas) return;
+    if(!(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID)) return;
+    try {
+        await fetch(`/api/canvases/${canvas.id}/lock?client_id=${encodeURIComponent(CLIENT_ID)}`, {
+            method: 'DELETE'
+        });
+        canvasLockHolder = null;
+        canvasLockedByOther = false;
+        hideCanvasLockOverlay();
+        updateCanvasLockBadge();
+    } catch(e){
+        console.error('releaseCanvasLock error:', e);
+    }
+}
+
+function startCanvasLockPolling(){
+    stopCanvasLockPolling();
+    if(!canvas) return;
+    canvasLockPollTimer = setInterval(async () => {
+        if(!canvas || document.hidden) return;
+        await checkCanvasLock();
+    }, CANVAS_LOCK_POLL_MS);
+}
+
+function stopCanvasLockPolling(){
+    if(canvasLockPollTimer){
+        clearInterval(canvasLockPollTimer);
+        canvasLockPollTimer = null;
+    }
+}
+
+function handleCanvasLockedMessage(data){
+    if(!canvas || !data || data.canvas_id !== canvas.id) return;
+    if(data.holder?.client_id === CLIENT_ID) return; // it's us
+    canvasLockHolder = data.holder || null;
+    canvasLockedByOther = true;
+    const name = canvasLockHolder?.username || canvasLockHolder?.client_id || '其他人';
+    showCanvasLockOverlay(`${name} 正在编辑此画布`);
+    updateCanvasLockBadge();
+}
+
+function handleCanvasUnlockedMessage(data){
+    if(!canvas || !data || data.canvas_id !== canvas.id) return;
+    if(data.released_by === CLIENT_ID) return; // we released it
+    canvasLockHolder = null;
+    canvasLockedByOther = false;
+    hideCanvasLockOverlay();
+    updateCanvasLockBadge();
+    setStatus('画布已解锁，可以编辑了');
+}
+
+// beforeunload — release lock on tab close
+window.addEventListener('beforeunload', () => {
+    if(canvas && canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID){
+        try {
+            fetch(`/api/canvases/${canvas.id}/lock?client_id=${encodeURIComponent(CLIENT_ID)}`, {
+                method: 'DELETE',
+                keepalive: true
+            });
+        } catch(e){}
+    }
+});
+
 function requestDeleteCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
@@ -11793,6 +12021,10 @@ function bindCascadeButtons(wrap, nodeId){
 }
 // —— 一键运行：从目标节点反向追溯到所有上游生成节点，按拓扑顺序串行执行 ——
 function runCascadeNodeByType(node, opts={}){
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法执行');
+        return Promise.resolve();
+    }
     const runOpts = {cascade:true, ...opts};
     if(node.type === 'generator') return runGenerator(node.id, runOpts);
     if(node.type === 'msgen') return runMsGenNode(node.id, runOpts);
@@ -14079,6 +14311,10 @@ async function importWorkflowFile(file){
 function startNodeDrag(e, node){
     if(e.button !== 0) return;
     if(startKnifeDrag(e)) return;
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法操作');
+        return;
+    }
     e.preventDefault();
     e.stopPropagation();
     let dragTarget = node;
@@ -14182,6 +14418,10 @@ function onNodeResize(e){
 }
 function startLink(e, originId, originKind){
     e.stopPropagation();
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法连线');
+        return;
+    }
     originKind = originKind || 'out';
     const src = portPoint(originId, originKind);
     const source = nodes.find(n => n.id === originId);
@@ -14857,6 +15097,11 @@ window.addEventListener('keyup', e => {
     if(e.key === 'Shift') setKnifeMode(false);
 });
 window.addEventListener('blur', () => { isRKeyDown = false; setKnifeMode(false); });
+document.addEventListener('visibilitychange', () => {
+    if(!document.hidden && canvas){
+        checkCanvasLock();
+    }
+});
 window.addEventListener('blur', () => {
     if(selectDrag){
         selectionBox.style.display = 'none';
@@ -14868,6 +15113,10 @@ window.addEventListener('blur', () => {
 });
 function deleteSelectedNodes(){
     if(!canvas || selected.size === 0) return;
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法删除');
+        return;
+    }
     pushUndo();
     // 收集所有需要删除的 id（含 group 的 items 一并删除）
     const toDelete = new Set();

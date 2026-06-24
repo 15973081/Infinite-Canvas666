@@ -1039,6 +1039,53 @@ async def delete_canvas_backup(canvas_id: str, filename: str):
         os.remove(path)
     return {"ok": True}
 
+# ── Canvas Lock (collaborative editing) ──
+
+@router.get("/api/canvases/{canvas_id}/lock")
+async def get_canvas_lock(canvas_id: str):
+    """Return current lock status for a canvas."""
+    holder = canvas_lock_manager.get(canvas_id)
+    return {"locked": holder is not None, "holder": holder}
+
+
+@router.post("/api/canvases/{canvas_id}/lock")
+async def acquire_canvas_lock(canvas_id: str, payload: CanvasLockRequest):
+    """Try to acquire the editing lock. 409 if held by someone else."""
+    result = canvas_lock_manager.acquire(canvas_id, payload.client_id, payload.username)
+    if not result.get("ok"):
+        raise HTTPException(status_code=409, detail={
+            "message": "画布正在被其他人编辑中",
+            "holder": result.get("holder"),
+        })
+    await manager.broadcast_canvas_locked(canvas_id, result.get("holder"))
+    return result
+
+
+@router.delete("/api/canvases/{canvas_id}/lock")
+async def release_canvas_lock(canvas_id: str, client_id: str = ""):
+    """Release the editing lock. Triggers an auto-backup before releasing."""
+    # Auto-backup the canvas before releasing the lock
+    try:
+        canvas = load_canvas(canvas_id)
+        backup_dir = _backup_dir(canvas_id)
+        os.makedirs(backup_dir, exist_ok=True)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        filename = f"{stamp}-auto.json"
+        from app.services.canvas import _backup_path, MAX_BACKUPS_PER_CANVAS
+        with open(_backup_path(canvas_id, filename), 'w', encoding='utf-8') as f:
+            json.dump(canvas, f, ensure_ascii=False, indent=2)
+        # Prune old backups
+        files = sorted(os.listdir(backup_dir), reverse=True)
+        for old in files[MAX_BACKUPS_PER_CANVAS:]:
+            os.remove(os.path.join(backup_dir, old))
+    except Exception as e:
+        print(f"Auto-backup failed for canvas {canvas_id}: {e}")
+    released = canvas_lock_manager.release(canvas_id, client_id)
+    if released:
+        await manager.broadcast_canvas_unlocked(canvas_id, client_id)
+    return {"ok": released}
+
+
 # ── Cross-router imports (at bottom to avoid circular imports) ──
 from app.routers.image import run_canvas_image_task
 from app.services.canvas import _backup_dir, _backup_path

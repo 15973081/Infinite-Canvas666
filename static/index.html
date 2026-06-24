@@ -1946,6 +1946,10 @@
                     if (iframe && iframe.contentWindow) {
                         iframe.contentWindow.postMessage(data, '*');
                     }
+                } else if (data.type === 'canvas_locked' || data.type === 'canvas_unlocked') {
+                    document.querySelectorAll('iframe').forEach(iframe => {
+                        if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(data, '*');
+                    });
                 } else if (data.type === 'asset_library_updated') {
                     document.querySelectorAll('iframe').forEach(iframe => {
                         if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(data, '*');

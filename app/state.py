@@ -37,8 +37,13 @@ class ConnectionManager:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         self.connection_clients.pop(websocket, None)
+        cid = client_id or (f"anon-{id(websocket)}" if websocket else "")
         if client_id and self.user_connections.get(client_id) is websocket:
             del self.user_connections[client_id]
+        # Auto-release any canvas locks held by this client
+        released = canvas_lock_manager.release_all_for_client(cid)
+        for canvas_id in released:
+            await self.broadcast_canvas_unlocked(canvas_id, cid)
         print(f"WS Disconnected. Total: {len(self.active_connections)}, Online: {self.online_count()}")
         await self.broadcast_count()
 
@@ -94,6 +99,34 @@ class ConnectionManager:
                 print(f"Broadcast asset library error: {e}")
                 self.active_connections.remove(connection)
 
+    async def broadcast_canvas_locked(self, canvas_id: str, holder: dict):
+        data = json.dumps({
+            "type": "canvas_locked",
+            "canvas_id": canvas_id,
+            "holder": holder,
+            "updated_at": now_ms(),
+        })
+        for connection in self.active_connections[:]:
+            try:
+                await connection.send_text(data)
+            except Exception as e:
+                print(f"Broadcast canvas lock error: {e}")
+                self.active_connections.remove(connection)
+
+    async def broadcast_canvas_unlocked(self, canvas_id: str, released_by: str = ""):
+        data = json.dumps({
+            "type": "canvas_unlocked",
+            "canvas_id": canvas_id,
+            "released_by": released_by or "",
+            "updated_at": now_ms(),
+        })
+        for connection in self.active_connections[:]:
+            try:
+                await connection.send_text(data)
+            except Exception as e:
+                print(f"Broadcast canvas unlock error: {e}")
+                self.active_connections.remove(connection)
+
     async def send_personal_message(self, message: dict, client_id: str):
         ws = self.user_connections.get(client_id)
         if ws:
@@ -103,9 +136,62 @@ class ConnectionManager:
                 print(f"Personal message error for {client_id}: {e}")
 
 
+# ── Canvas Lock Manager ──
+
+class CanvasLockManager:
+    """Per-canvas editing lock. Only the lock holder can edit; others get read-only view.
+    
+    When the lock holder disconnects, all their locks are auto-released after
+    triggering a canvas backup.
+    """
+    def __init__(self):
+        self._locks: Dict[str, dict] = {}
+        self._lock = Lock()
+
+    def acquire(self, canvas_id: str, client_id: str, username: str = "") -> dict:
+        """Try to acquire the lock. Returns {ok: True} or {ok: False, holder: {...}}."""
+        with self._lock:
+            existing = self._locks.get(canvas_id)
+            if existing and existing.get("client_id") != client_id:
+                return {"ok": False, "holder": dict(existing)}
+            self._locks[canvas_id] = {
+                "client_id": client_id,
+                "username": username or "",
+                "acquired_at": now_ms(),
+                "canvas_id": canvas_id,
+            }
+            return {"ok": True, "holder": dict(self._locks[canvas_id])}
+
+    def release(self, canvas_id: str, client_id: str) -> bool:
+        """Release the lock if held by this client. Returns True if released."""
+        with self._lock:
+            existing = self._locks.get(canvas_id)
+            if existing and existing.get("client_id") == client_id:
+                del self._locks[canvas_id]
+                return True
+            return False
+
+    def get(self, canvas_id: str) -> dict | None:
+        """Get current lock info, or None if not locked."""
+        with self._lock:
+            existing = self._locks.get(canvas_id)
+            return dict(existing) if existing else None
+
+    def release_all_for_client(self, client_id: str) -> list:
+        """Release all locks held by a client. Returns list of released canvas_ids."""
+        released = []
+        with self._lock:
+            for cid in list(self._locks.keys()):
+                if self._locks[cid].get("client_id") == client_id:
+                    del self._locks[cid]
+                    released.append(cid)
+        return released
+
+
 # ── Singleton instances ──
 
 manager = ConnectionManager()
+canvas_lock_manager = CanvasLockManager()
 GLOBAL_LOOP = None
 
 
@@ -156,6 +242,8 @@ CANVAS_TASK_LOCK = Lock()
 
 __all__ = [
     "ConnectionManager",
+    "CanvasLockManager",
+    "canvas_lock_manager",
     "manager",
     "GLOBAL_LOOP",
     "QUEUE", "QUEUE_LOCK",
