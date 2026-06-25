@@ -1887,6 +1887,7 @@ function refreshGateViewControls(){
 function setCanvasMode(open){
     shell.classList.toggle('no-canvas', !open);
     if(!open){
+        clearLocalCanvasLock();
         nodesEl.innerHTML = '';
         linksEl.innerHTML = '';
         linkControlsEl.innerHTML = '';
@@ -3003,10 +3004,12 @@ function clearLocalCanvasLock(){
 
 async function checkCanvasLock(){
     if(!canvas) return;
+    const canvasId = canvas.id;
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}/lock`);
+        const res = await fetch(`/api/canvases/${canvasId}/lock`);
         if(!res.ok) return;
         const data = await res.json();
+        if(!canvas || canvas.id !== canvasId) return;
         canvasLockHolder = data.holder || null;
         canvasLockedByOther = !!(canvasLockHolder && canvasLockHolder.client_id !== CLIENT_ID);
         updateCanvasLockBadge();
@@ -3026,14 +3029,17 @@ async function checkCanvasLock(){
 
 async function acquireCanvasLock(){
     if(!canvas) return false;
+    const canvasId = canvas.id;
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}/lock`, {
+        const res = await fetch(`/api/canvases/${canvasId}/lock`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({client_id: CLIENT_ID, username: ''})
         });
+        if(!canvas || canvas.id !== canvasId) return false;
         if(res.ok){
             const data = await res.json();
+            if(!canvas || canvas.id !== canvasId) return false;
             canvasLockHolder = data.holder || null;
             canvasLockedByOther = false;
             hideCanvasLockOverlay();
@@ -3041,6 +3047,7 @@ async function acquireCanvasLock(){
             return true;
         } else if(res.status === 409){
             const err = await res.json().catch(() => ({}));
+            if(!canvas || canvas.id !== canvasId) return false;
             canvasLockHolder = err.detail?.holder || null;
             canvasLockedByOther = true;
             const name = canvasLockHolder?.username || canvasLockHolder?.client_id || '其他人';
@@ -3075,8 +3082,14 @@ async function tryAcquireCanvasLock(){
 }
 
 async function releaseCanvasLock(){
-    if(!canvas) return;
-    if(!(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID)) return;
+    if(!canvas) {
+        clearLocalCanvasLock();
+        return;
+    }
+    if(!(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID)) {
+        clearLocalCanvasLock();
+        return;
+    }
     try {
         await fetch(`/api/canvases/${canvas.id}/lock?client_id=${encodeURIComponent(CLIENT_ID)}`, {
             method: 'DELETE'
