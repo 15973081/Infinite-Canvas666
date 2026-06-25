@@ -1086,6 +1086,12 @@ async def release_canvas_lock(canvas_id: str, client_id: str = ""):
 
 
 # ── Cross-router imports (at bottom to avoid circular imports) ──
+@router.post("/api/canvases/{canvas_id}/lock/release")
+async def release_canvas_lock_beacon(canvas_id: str, payload: CanvasLockRequest):
+    """Release the editing lock via POST so browsers can send it with sendBeacon."""
+    return await release_canvas_lock(canvas_id, payload.client_id)
+
+
 from app.routers.image import run_canvas_image_task
 from app.services.canvas import _backup_dir, _backup_path
 

@@ -2994,6 +2994,13 @@ function hideCanvasLockOverlay(){
     canvasLockOverlay.style.display = 'none';
 }
 
+function clearLocalCanvasLock(){
+    canvasLockHolder = null;
+    canvasLockedByOther = false;
+    hideCanvasLockOverlay();
+    updateCanvasLockBadge();
+}
+
 async function checkCanvasLock(){
     if(!canvas) return;
     try {
@@ -3008,6 +3015,9 @@ async function checkCanvasLock(){
             showCanvasLockOverlay(`${name} 正在编辑此画布`);
         } else if(!canvasLockHolder){
             hideCanvasLockOverlay();
+            if(!document.hidden) setTimeout(() => {
+                if(canvas && !canvasLockHolder && !canvasLockedByOther) acquireCanvasLock();
+            }, 120);
         }
     } catch(e){
         // Silently ignore — will retry on next poll
@@ -3071,13 +3081,33 @@ async function releaseCanvasLock(){
         await fetch(`/api/canvases/${canvas.id}/lock?client_id=${encodeURIComponent(CLIENT_ID)}`, {
             method: 'DELETE'
         });
-        canvasLockHolder = null;
-        canvasLockedByOther = false;
-        hideCanvasLockOverlay();
-        updateCanvasLockBadge();
+        clearLocalCanvasLock();
     } catch(e){
         console.error('releaseCanvasLock error:', e);
     }
+}
+
+function releaseCanvasLockOnExit(){
+    if(!canvas || !(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID)) return;
+    const releaseUrl = `/api/canvases/${canvas.id}/lock/release`;
+    const payload = JSON.stringify({client_id: CLIENT_ID, username: ''});
+    let sent = false;
+    try {
+        if(navigator.sendBeacon){
+            sent = navigator.sendBeacon(releaseUrl, new Blob([payload], {type: 'application/json'}));
+        }
+    } catch(e){}
+    if(!sent){
+        try {
+            fetch(releaseUrl, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: payload,
+                keepalive: true
+            });
+        } catch(e){}
+    }
+    clearLocalCanvasLock();
 }
 
 function startCanvasLockPolling(){
@@ -3109,23 +3139,16 @@ function handleCanvasLockedMessage(data){
 function handleCanvasUnlockedMessage(data){
     if(!canvas || !data || data.canvas_id !== canvas.id) return;
     if(data.released_by === CLIENT_ID) return; // we released it
-    canvasLockHolder = null;
-    canvasLockedByOther = false;
-    hideCanvasLockOverlay();
-    updateCanvasLockBadge();
+    clearLocalCanvasLock();
     setStatus('画布已解锁，可以编辑了');
+    setTimeout(() => {
+        if(canvas && !canvasLockHolder && !canvasLockedByOther) acquireCanvasLock();
+    }, 120);
 }
 
 // beforeunload — release lock on tab close
 window.addEventListener('beforeunload', () => {
-    if(canvas && canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID){
-        try {
-            fetch(`/api/canvases/${canvas.id}/lock?client_id=${encodeURIComponent(CLIENT_ID)}`, {
-                method: 'DELETE',
-                keepalive: true
-            });
-        } catch(e){}
-    }
+    releaseCanvasLockOnExit();
 });
 
 function requestDeleteCanvas(id, event){
@@ -14397,6 +14420,10 @@ function onNodeDrag(e){
     scheduleMinimapRender();
 }
 function startNodeResize(e, node){
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法操作');
+        return;
+    }
     e.preventDefault();
     e.stopPropagation();
     const el = nodesEl.querySelector(`.node[data-id="${node.id}"]`);
@@ -14974,6 +15001,10 @@ board.oncontextmenu = e => {
     if(e.target !== board && e.target !== world && e.target !== nodesEl && e.target !== linksEl) return;
     e.preventDefault();
     e.stopPropagation();
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法操作');
+        return;
+    }
     openCreateMenu(e.clientX, e.clientY);
 };
 board.addEventListener('mousedown', e => {
@@ -14994,6 +15025,10 @@ board.onwheel = e => {
     scheduleViewportSave();
 };
 board.addEventListener('dragover', e => {
+    if(isCanvasLockedByOther()){
+        dropOverlay.classList.remove('active');
+        return;
+    }
     if(e.target.closest?.('.image-node')){
         dropOverlay.classList.remove('active');
         return;
@@ -15014,6 +15049,10 @@ board.addEventListener('dragleave', e => {
 board.addEventListener('drop', async e => {
     e.preventDefault();
     dropOverlay.classList.remove('active');
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法操作');
+        return;
+    }
     if(e.target.closest?.('.image-node')) return;
     if(hasOutputImageDrag(e.dataTransfer)) {
         createImageCardFromOutput(e.dataTransfer.getData('application/x-canvas-output-image'), screenToWorld(e.clientX, e.clientY));
@@ -15046,6 +15085,10 @@ window.addEventListener('dragend', () => dropOverlay.classList.remove('active'))
 window.addEventListener('drop', () => dropOverlay.classList.remove('active'));
 window.addEventListener('paste', e => {
     if(!canvas) return;
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法操作');
+        return;
+    }
     const files = [...(e.clipboardData?.items || [])].filter(x => x.kind === 'file' && /^(image|video|audio)\//.test(String(x.type || ''))).map(x => x.getAsFile());
     if(!files.length) return;
     e.preventDefault();

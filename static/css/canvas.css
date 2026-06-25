@@ -1429,20 +1429,21 @@ body.studio-theme-dark .canvas-lock-badge.unlocked {
     position: fixed;
     inset: 0;
     z-index: 200;
-    background: rgba(15,23,42,.55);
-    backdrop-filter: blur(6px);
+    background: transparent;
+    backdrop-filter: none;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    padding-top: 86px;
     pointer-events: none;
 }
 .canvas-lock-overlay > * {
     pointer-events: auto;
 }
 .canvas-lock-overlay-card {
-    width: min(380px, calc(100vw - 48px));
-    padding: 28px 24px;
-    border-radius: 20px;
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px 18px;
+    border-radius: 16px;
     background: var(--card-solid);
     border: 1px solid var(--line);
     box-shadow: 0 24px 64px rgba(15,23,42,.22);
@@ -1455,11 +1456,11 @@ body.studio-theme-dark .canvas-lock-badge.unlocked {
 }
 .canvas-lock-overlay-icon {
     color: #f59e0b;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
 }
 .canvas-lock-overlay-title {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 900;
     letter-spacing: .02em;
 }
