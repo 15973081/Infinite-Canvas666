@@ -4521,6 +4521,9 @@ function imageRefsOnly(refs){
 function videoRefsOnly(refs){
     return (refs || []).filter(ref => ref?.url && mediaKindForRef(ref) === 'video');
 }
+function videoNodeMediaRefs(refs){
+    return (refs || []).filter(ref => ref?.url && ['image','video'].includes(mediaKindForRef(ref)));
+}
 function isRemoteVideoReferenceUrl(url){
     return /^https?:\/\//i.test(String(url || '')) || /^asset:\/\//i.test(String(url || ''));
 }
@@ -9370,7 +9373,10 @@ function renderImageInputList(list, node, imageInputs, emptyText=null){
         item.className = 'input-item';
         item.draggable = true;
         item.dataset.sourceId = src.id;
-        const previewHtml = src.preview && !isMissingAssetUrl(src.preview) ? canvasPreviewImgHtml(src.preview, 256) : (src.preview ? missingAssetHtml(src.preview, true) : '<i data-lucide="image" class="w-6 h-6 text-slate-400"></i>');
+        const mediaKind = mediaKindForRef(src.refs?.[0] || src.preview);
+        const previewHtml = src.preview && !isMissingAssetUrl(src.preview)
+            ? (mediaKind === 'video' ? canvasVideoPreviewHtml(src.preview, 256) : canvasPreviewImgHtml(src.preview, 256))
+            : (src.preview ? missingAssetHtml(src.preview, true) : '<i data-lucide="image" class="w-6 h-6 text-slate-400"></i>');
         item.innerHTML = `<span class="input-index">${i + 1}</span>${previewHtml}<span class="input-label">${escapeHtml(src.label)}</span>`;
         item.ondragstart = e => {
             e.stopPropagation();
@@ -9399,7 +9405,10 @@ function renderVideoImageInputs(list, node, imageInputs){
         item.draggable = true;
         item.dataset.sourceId = src.id;
         const frameLabel = node.useFrameRoles && i === 0 ? tr('canvas.videoRoleFirstFrame') : node.useFrameRoles && i === 1 ? tr('canvas.videoRoleLastFrame') : '';
-        const previewHtml = src.preview && !isMissingAssetUrl(src.preview) ? canvasPreviewImgHtml(src.preview, 256) : (src.preview ? missingAssetHtml(src.preview, true) : '<i data-lucide="image" class="w-6 h-6 text-slate-400"></i>');
+        const mediaKind = mediaKindForRef(src.refs?.[0] || src.preview);
+        const previewHtml = src.preview && !isMissingAssetUrl(src.preview)
+            ? (mediaKind === 'video' ? canvasVideoPreviewHtml(src.preview, 256) : canvasPreviewImgHtml(src.preview, 256))
+            : (src.preview ? missingAssetHtml(src.preview, true) : '<i data-lucide="image" class="w-6 h-6 text-slate-400"></i>');
         item.innerHTML = `
             <div class="video-input-thumb">
                 <span class="input-index">${i + 1}</span>
@@ -10846,7 +10855,7 @@ function refreshGeneratorInputViews(){
         if(!el) return;
         const sources = orderedSources(gen, generatorSources(gen));
         const imageInputs = sources
-            .map(src => ({...src, refs:imageRefsOnly(src.refs || [])}))
+            .map(src => ({...src, refs:gen.type === 'video' ? videoNodeMediaRefs(src.refs || []) : imageRefsOnly(src.refs || [])}))
             .filter(src => src.refs?.length);
         renderPromptPreview(el.querySelector('.prompt-list'), sources.filter(src => src.prompt && !src.refs?.length));
         if(gen.type === 'generator') renderImageInputList(el.querySelector('.input-list'), gen, imageInputs);
