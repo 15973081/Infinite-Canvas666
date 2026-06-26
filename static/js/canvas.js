@@ -6741,7 +6741,8 @@ function renderNode(node){
     const el = document.createElement('div');
     const size = defaultNodeSize(node.type);
     const hasFixedSize = Boolean(node.h || size.h);
-    el.className = `node ${node.type}-node ${node.url ? 'has-image' : ''} ${hasFixedSize ? 'sized' : ''} ${selected.has(node.id) ? 'selected' : ''}`;
+    const faceVerified = node.type === 'image' && canvasAssetUrisFaceVerified(node.asset_uris);
+    el.className = `node ${node.type}-node ${node.url ? 'has-image' : ''} ${faceVerified ? 'face-verified' : ''} ${hasFixedSize ? 'sized' : ''} ${selected.has(node.id) ? 'selected' : ''}`;
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
     el.style.width = `${node.w || size.w}px`;
@@ -7432,6 +7433,12 @@ function canvasAssetRegisteredUris(item){
     });
     return out;
 }
+function canvasAssetUrisFaceVerified(assetUris){
+    return Boolean(assetUris && typeof assetUris === 'object' && assetUris.volcengine);
+}
+function canvasAssetFaceVerified(item){
+    return canvasAssetUrisFaceVerified(canvasAssetRegisteredUris(item));
+}
 function canvasAssetUrisForUrl(url){
     const target = String(url || '');
     if(!target) return {};
@@ -7458,8 +7465,9 @@ function canvasAssetThumbHtml(item){
     const kind = canvasAssetItemKind(item);
     const url = escapeAttr(item?.url || '');
     const thumbUrl = item?.thumbnail || item?.url || '';
+    const faceBadge = canvasAssetFaceVerified(item) ? `<span class="canvas-face-verified-badge" title="\u5df2\u901a\u8fc7\u4eba\u8138\u8ba4\u8bc1" aria-label="\u5df2\u901a\u8fc7\u4eba\u8138\u8ba4\u8bc1"><i data-lucide="shield-check"></i></span>` : '';
     if(kind === 'video'){
-        return `<div class="canvas-asset-thumb-wrap">${canvasVideoPreviewHtml(item?.url || '', 512, 'class="canvas-asset-thumb" alt=""')}<div class="canvas-asset-video-badge"><i data-lucide="play"></i><span>VIDEO</span></div></div>`;
+        return `<div class="canvas-asset-thumb-wrap">${canvasVideoPreviewHtml(item?.url || '', 512, 'class="canvas-asset-thumb" alt=""')}<div class="canvas-asset-video-badge"><i data-lucide="play"></i><span>VIDEO</span></div>${faceBadge}</div>`;
     }
     if(kind === 'audio'){
         return `<div class="canvas-asset-thumb-wrap canvas-asset-file-thumb"><i data-lucide="file-audio" class="w-6 h-6"></i><span>${escapeHtml(item?.name || 'audio')}</span></div>`;
@@ -7467,7 +7475,7 @@ function canvasAssetThumbHtml(item){
     if(kind === 'workflow'){
         return `<div class="canvas-asset-thumb-wrap canvas-asset-file-thumb workflow-thumb"><i data-lucide="workflow" class="w-6 h-6"></i><span>${escapeHtml(item?.name || 'workflow')}</span></div>`;
     }
-    return `<div class="canvas-asset-thumb-wrap">${canvasPreviewImgHtml(thumbUrl, 512, 'class="canvas-asset-thumb" alt=""')}</div>`;
+    return `<div class="canvas-asset-thumb-wrap">${canvasPreviewImgHtml(thumbUrl, 512, 'class="canvas-asset-thumb" alt=""')}${faceBadge}</div>`;
 }
 function positionCanvasAssetHoverPreview(event){
     if(!canvasAssetHoverPreview || canvasAssetHoverPreview.hidden || canvasAssetHoverPreview.style.display === 'none') return;
