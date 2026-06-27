@@ -451,6 +451,11 @@ class AssetAvatarRegisterRequest(BaseModel):
     group_name: str = ""
 
 
+class AssetAvatarBatchRegisterRequest(AssetAvatarRegisterRequest):
+    ids: List[str] = []
+    concurrency: int = 4
+
+
 # ── Prompt Library ──
 
 class PromptLibraryRequest(BaseModel):
@@ -552,7 +557,7 @@ __all__ = [
     "SharedFolderRegister", "SharedFolderImport",
     "AssetLibraryRenameRequest", "AssetLibraryBatchDeleteRequest",
     "AssetLibraryBatchMoveRequest", "AssetLibraryBatchCropRequest",
-    "AssetAvatarRegisterRequest",
+    "AssetAvatarRegisterRequest", "AssetAvatarBatchRegisterRequest",
     "PromptLibraryRequest", "PromptLibraryItemRequest",
     "PromptLibraryBatchDeleteRequest", "PromptLibraryCategoryRequest",
     "TestConnectionPayload",

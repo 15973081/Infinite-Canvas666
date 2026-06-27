@@ -1206,6 +1206,7 @@ function renderAssetManager(){
                     <button class="asset-btn" type="button" data-asset-copy-selected ${selectedAssetIds.size ? '' : 'disabled'}><i data-lucide="copy"></i><span>复制</span></button>
                     <button class="asset-btn" type="button" data-asset-download-selected ${selectedAssetIds.size ? '' : 'disabled'}><i data-lucide="download"></i><span>下载所选</span></button>
                     <button class="asset-btn" type="button" data-asset-copy-to-canvas ${selectedAssetIds.size ? '' : 'disabled'}><i data-lucide="clipboard-paste"></i><span>复制到画布</span></button>
+                    <button class="asset-btn" type="button" data-avatar-register-selected ${selectedAssetIds.size && !avatarBusyId ? '' : 'disabled'}><i data-lucide="user-round-plus"></i><span>批量认证</span></button>
                     <button class="asset-btn danger" type="button" data-asset-delete-selected ${selectedAssetIds.size ? '' : 'disabled'}><i data-lucide="trash-2"></i><span>删除所选</span></button>
                 </div>
             </div>
@@ -2325,6 +2326,8 @@ async function handleClick(event){
         setStatus(ok ? '已复制 asset:// 地址' : `复制失败，请手动复制：${uri}`);
         return;
     }
+    const avatarRegisterSelected = target.closest?.('[data-avatar-register-selected]');
+    if(avatarRegisterSelected){ await registerSelectedAssetAvatars(); return; }
     const avatarRegister = target.closest?.('[data-avatar-register]');
     if(avatarRegister){ await registerAssetAvatar(avatarRegister.dataset.avatarRegister || '', avatarRegister.dataset.avatarProv || ''); return; }
     const avatarCheck = target.closest?.('[data-avatar-check]');
@@ -2833,6 +2836,35 @@ async function saveAssetInlineName(id, name){
     selectedAssetId = id;
     render();
     setStatus('素材名称已保存');
+}
+async function registerSelectedAssetAvatars(providerId=''){
+    const ids = [...selectedAssetIds].filter(id => findAssetItem(id));
+    if(!ids.length) return;
+    const provider = (providerId && (apiProviders || []).find(p => p.id === providerId)) || activeAvatarProvider();
+    if(!provider){ setStatus('请先在 API 平台管理中添加并启用 API 平台'); return; }
+    if(!providerAvatarSupported(provider)){ setStatus(`「${avatarPlatformLabel(providerAvatarPlatform(provider))}」的资产认证 API 尚未接入`); return; }
+    if(avatarBusyId) return;
+    avatarBusyId = '__batch__';
+    render();
+    setStatus(`正在批量提交 ${ids.length} 个素材到 ${avatarPlatformLabel(providerAvatarPlatform(provider))} 审核…`);
+    try {
+        const data = await apiJson('/api/asset-library/items/batch-register-avatar', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({library_id:activeAssetLibraryId, provider_id:provider.id, ids, concurrency:4})
+        });
+        assetLibrary = data.library || assetLibrary;
+        const results = Array.isArray(data.results) ? data.results : [];
+        const ok = Number(data.submitted || results.filter(r => r && r.ok).length || 0);
+        const failed = Number(data.failed || results.filter(r => r && !r.ok).length || 0);
+        results.filter(r => r && r.ok && r.item_id).forEach(r => scheduleAvatarPoll(r.item_id, provider.id));
+        setStatus(failed ? `已提交 ${ok} 个，${failed} 个失败` : `已批量提交 ${ok} 个素材，正在等待审核…`);
+    } catch(err) {
+        setStatus(err.message || '批量认证提交失败');
+    } finally {
+        avatarBusyId = '';
+        render();
+    }
 }
 async function registerAssetAvatar(id, providerId=''){
     const item = findAssetItem(id);

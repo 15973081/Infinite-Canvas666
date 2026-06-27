@@ -515,6 +515,137 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     save_asset_library(lib)
     return {"library": lib, "item": target_item}
 
+@router.post("/api/asset-library/items/batch-register-avatar")
+async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterRequest):
+    ids = []
+    seen = set()
+    for raw_id in (payload.ids or []):
+        item_id = str(raw_id or "").strip()
+        if item_id and item_id not in seen:
+            ids.append(item_id)
+            seen.add(item_id)
+    if not ids:
+        raise HTTPException(status_code=400, detail="No assets selected")
+    if len(ids) > 100:
+        raise HTTPException(status_code=400, detail="Too many assets selected; please submit at most 100 at a time")
+
+    provider = get_api_provider(payload.provider_id)
+    platform = avatar_platform_for_provider(provider)
+    if platform not in AVATAR_SUPPORTED_PLATFORMS:
+        name = (provider or {}).get("name") or (provider or {}).get("id") or "provider"
+        raise HTTPException(status_code=400, detail=f"{name} does not support avatar asset registration")
+
+    lib = load_asset_library()
+    indexed_items = []
+    results = [None] * len(ids)
+    for index, item_id in enumerate(ids):
+        item = find_asset_item_in_library(lib, item_id, payload.library_id)
+        if not item:
+            results[index] = {"item_id": item_id, "ok": False, "status": "Failed", "detail": "Asset not found"}
+        else:
+            indexed_items.append((index, item))
+
+    if not indexed_items:
+        return {"library": lib, "items": [], "results": [r for r in results if r], "submitted": 0, "failed": len(ids)}
+
+    concurrency = max(1, min(int(payload.concurrency or 4), 8))
+    semaphore = asyncio.Semaphore(concurrency)
+
+    def avatar_kind(item):
+        kind = str(item.get("kind") or "image").lower()
+        return kind if kind in ("image", "video", "audio") else "image"
+
+    def failure_result(index, item, exc):
+        detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
+        return index, {"item_id": item.get("id") or ids[index], "ok": False, "status": "Failed", "detail": str(detail or "Registration failed")}
+
+    if platform == "apimart":
+        project_name = str(payload.project_name or "default").strip() or "default"
+
+        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as upload_client:
+            async def register_one(index, item):
+                async with semaphore:
+                    kind = avatar_kind(item)
+                    try:
+                        public_url = await upload_media_for_apimart(upload_client, provider, item.get("url") or "", kind)
+                        if not valid_apimart_video_image_input(public_url):
+                            reason = public_url[4:] if isinstance(public_url, str) and public_url.startswith("ERR:") else "Unable to get a public media URL"
+                            raise HTTPException(status_code=400, detail=reason)
+                        task_id = await submit_apimart_avatar_asset(
+                            provider, public_url, item.get("name") or "asset", kind,
+                            project_name=project_name, group_name=payload.group_name,
+                        )
+                        return index, {"item_id": item.get("id") or ids[index], "ok": True, "status": "Processing", "task_id": task_id, "detail": "Submitted"}
+                    except Exception as exc:
+                        return failure_result(index, item, exc)
+
+            completed = await asyncio.gather(*(register_one(index, item) for index, item in indexed_items))
+    elif platform == "volcengine":
+        project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            group_id = await volcengine_ensure_asset_group(client, project_name, payload.group_name or "")
+
+            async def register_one(index, item):
+                async with semaphore:
+                    kind = avatar_kind(item)
+                    try:
+                        public_url = volcengine_public_asset_url(item.get("url") or "")
+                        if public_url.startswith("ERR:"):
+                            raise HTTPException(status_code=400, detail=public_url[4:])
+                        created = await volcengine_ark_asset_call(client, "CreateAsset", {
+                            "GroupId": group_id,
+                            "URL": public_url,
+                            "AssetType": apimart_avatar_asset_type(kind),
+                            "Name": (item.get("name") or "asset")[:60],
+                            "ProjectName": project_name,
+                        })
+                        task_id = str(created.get("Id") or "").strip()
+                        if not task_id:
+                            raise HTTPException(status_code=502, detail=f"Volcengine CreateAsset did not return Asset Id: {str(created)[:200]}")
+                        return index, {"item_id": item.get("id") or ids[index], "ok": True, "status": "Processing", "task_id": task_id, "detail": "Submitted"}
+                    except Exception as exc:
+                        return failure_result(index, item, exc)
+
+            completed = await asyncio.gather(*(register_one(index, item) for index, item in indexed_items))
+    else:
+        raise HTTPException(status_code=400, detail="This provider is not wired for avatar registration")
+
+    item_by_id = {item.get("id"): item for _, item in indexed_items}
+    submitted = 0
+    for index, result in completed:
+        results[index] = result
+        if not result.get("ok"):
+            continue
+        item = item_by_id.get(result.get("item_id"))
+        if not item:
+            continue
+        regs = item.get("registrations")
+        if not isinstance(regs, dict):
+            regs = {}
+        regs[platform] = {
+            "provider_id": provider["id"],
+            "project_name": project_name,
+            "task_id": result.get("task_id") or "",
+            "status": "Processing",
+            "detail": "Submitted, processing",
+            "asset_uri": "",
+            "asset_id": "",
+            "registered_at": now_ms(),
+        }
+        item["registrations"] = regs
+        submitted += 1
+
+    if submitted:
+        save_asset_library(lib)
+    final_results = [r for r in results if r]
+    return {
+        "library": lib,
+        "items": [item for _, item in indexed_items],
+        "results": final_results,
+        "submitted": submitted,
+        "failed": len(final_results) - submitted,
+    }
 @router.post("/api/asset-library/items/{item_id}/avatar-status")
 async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterRequest):
     lib = load_asset_library()
