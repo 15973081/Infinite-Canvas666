@@ -842,6 +842,8 @@ const gateCancelBtn = document.getElementById('gateCancelBtn');
 const backToManagerBtn = document.getElementById('backToManagerBtn');
 const canvasLockBadge = document.getElementById('canvasLockBadge');
 const canvasLockLabel = document.getElementById('canvasLockLabel');
+const canvasIdentityBtn = document.getElementById('canvasIdentityBtn');
+const canvasIdentityLabel = document.getElementById('canvasIdentityLabel');
 const canvasLockOverlay = document.getElementById('canvasLockOverlay');
 const canvasLockOverlayMsg = document.getElementById('canvasLockOverlayMsg');
 const canvasLockRetryBtn = document.getElementById('canvasLockRetryBtn');
@@ -1047,8 +1049,9 @@ let imageEditBaseH = 0;
 let textSelectionGuard = null;
 const PROMPT_TEXT_MAX_LENGTH = 20000;
 const CLIENT_ID = 'canvas_' + Math.random().toString(36).slice(2);
+const CANVAS_USER_NAME_KEY = 'canvasUserName';
 const CANVAS_LOCK_POLL_MS = 5000;
-let canvasLockHolder = null; // {client_id, username, acquired_at} | null (null = no lock)
+let canvasLockHolder = null; // {client_id, username, ip, acquired_at} | null (null = no lock)
 let canvasLockPollTimer = null;
 let canvasLockedByOther = false;
 const LTX_DIRECTOR_WORKFLOW = 'LTXDirectorv2-API.json';
@@ -2961,6 +2964,75 @@ function isCanvasLockedByOther(){
     return canvasLockedByOther;
 }
 
+function getCanvasUserName(){
+    try {
+        return (localStorage.getItem(CANVAS_USER_NAME_KEY) || '').trim();
+    } catch(e){
+        return '';
+    }
+}
+
+function setCanvasUserName(name){
+    const clean = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 32);
+    try {
+        if(clean) localStorage.setItem(CANVAS_USER_NAME_KEY, clean);
+        else localStorage.removeItem(CANVAS_USER_NAME_KEY);
+    } catch(e){}
+    updateCanvasIdentityButton();
+    return clean;
+}
+
+function canvasUserDisplayName(){
+    return getCanvasUserName() || '未命名用户';
+}
+
+function canvasLockHolderName(holder){
+    const username = String(holder?.username || '').trim() || '未命名用户';
+    const ip = String(holder?.ip || '').trim();
+    if(ip) return `${username} · ${ip}`;
+    return username || holder?.client_id || '其他人';
+}
+
+function formatCanvasLockTime(ms){
+    const value = Number(ms || 0);
+    if(!value) return '';
+    try {
+        return new Date(value).toLocaleString();
+    } catch(e){
+        return '';
+    }
+}
+
+function canvasLockHolderTitle(holder){
+    if(!holder) return '';
+    const lines = [
+        `用户：${String(holder.username || '').trim() || '未命名用户'}`,
+        `IP：${holder.ip || '未知'}`,
+        `客户端：${holder.client_id || '未知'}`,
+    ];
+    const lockedAt = formatCanvasLockTime(holder.acquired_at);
+    if(lockedAt) lines.push(`锁定时间：${lockedAt}`);
+    return lines.join('\n');
+}
+
+function updateCanvasIdentityButton(){
+    if(!canvasIdentityBtn || !canvasIdentityLabel) return;
+    const name = canvasUserDisplayName();
+    canvasIdentityLabel.textContent = name;
+    canvasIdentityBtn.title = `我的名称：${name}`;
+}
+
+function editCanvasUserName(){
+    const current = getCanvasUserName();
+    const next = window.prompt('设置我的名称，用于别人看到画布锁是谁占用', current || '');
+    if(next === null) return;
+    const clean = setCanvasUserName(next);
+    setStatus(clean ? `我的名称已设置为 ${clean}` : '我的名称已清空');
+    if(canvas && canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID){
+        acquireCanvasLock();
+    }
+}
+
 function updateCanvasLockBadge(){
     if(!canvasLockBadge || !canvasLockLabel) return;
     if(!canvas){
@@ -2970,14 +3042,14 @@ function updateCanvasLockBadge(){
     if(canvasLockedByOther){
         canvasLockBadge.style.display = 'flex';
         canvasLockBadge.className = 'canvas-lock-badge locked-by-other';
-        const name = (canvasLockHolder?.username || canvasLockHolder?.client_id || '其他人');
+        const name = canvasLockHolderName(canvasLockHolder);
         canvasLockLabel.textContent = `${name} 编辑中`;
-        canvasLockBadge.title = `画布正被 ${name} 编辑，你只能查看`;
+        canvasLockBadge.title = `${canvasLockHolderTitle(canvasLockHolder)}\n画布正被编辑，你只能查看`;
     } else if(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID){
         canvasLockBadge.style.display = 'flex';
         canvasLockBadge.className = 'canvas-lock-badge locked-by-me';
         canvasLockLabel.textContent = '你正在编辑';
-        canvasLockBadge.title = '你持有编辑锁，其他人只能查看';
+        canvasLockBadge.title = `${canvasLockHolderTitle(canvasLockHolder)}\n你持有编辑锁，其他人只能查看`;
     } else {
         canvasLockBadge.style.display = 'none';
     }
@@ -3014,7 +3086,7 @@ async function checkCanvasLock(){
         canvasLockedByOther = !!(canvasLockHolder && canvasLockHolder.client_id !== CLIENT_ID);
         updateCanvasLockBadge();
         if(canvasLockedByOther){
-            const name = canvasLockHolder.username || canvasLockHolder.client_id || '其他人';
+            const name = canvasLockHolderName(canvasLockHolder);
             showCanvasLockOverlay(`${name} 正在编辑此画布`);
         } else if(!canvasLockHolder){
             hideCanvasLockOverlay();
@@ -3034,7 +3106,7 @@ async function acquireCanvasLock(){
         const res = await fetch(`/api/canvases/${canvasId}/lock`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({client_id: CLIENT_ID, username: ''})
+            body: JSON.stringify({client_id: CLIENT_ID, username: getCanvasUserName()})
         });
         if(!canvas || canvas.id !== canvasId) return false;
         if(res.ok){
@@ -3050,7 +3122,7 @@ async function acquireCanvasLock(){
             if(!canvas || canvas.id !== canvasId) return false;
             canvasLockHolder = err.detail?.holder || null;
             canvasLockedByOther = true;
-            const name = canvasLockHolder?.username || canvasLockHolder?.client_id || '其他人';
+            const name = canvasLockHolderName(canvasLockHolder);
             showCanvasLockOverlay(`${name} 正在编辑此画布`);
             updateCanvasLockBadge();
             return false;
@@ -3103,7 +3175,7 @@ async function releaseCanvasLock(){
 function releaseCanvasLockOnExit(){
     if(!canvas || !(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID)) return;
     const releaseUrl = `/api/canvases/${canvas.id}/lock/release`;
-    const payload = JSON.stringify({client_id: CLIENT_ID, username: ''});
+    const payload = JSON.stringify({client_id: CLIENT_ID, username: getCanvasUserName()});
     let sent = false;
     try {
         if(navigator.sendBeacon){
@@ -3144,7 +3216,7 @@ function handleCanvasLockedMessage(data){
     if(data.holder?.client_id === CLIENT_ID) return; // it's us
     canvasLockHolder = data.holder || null;
     canvasLockedByOther = true;
-    const name = canvasLockHolder?.username || canvasLockHolder?.client_id || '其他人';
+    const name = canvasLockHolderName(canvasLockHolder);
     showCanvasLockOverlay(`${name} 正在编辑此画布`);
     updateCanvasLockBadge();
 }
@@ -15235,6 +15307,9 @@ document.addEventListener('visibilitychange', () => {
         checkCanvasLock();
     }
 });
+if(canvasIdentityBtn){
+    canvasIdentityBtn.addEventListener('click', editCanvasUserName);
+}
 window.addEventListener('blur', () => {
     if(selectDrag){
         selectionBox.style.display = 'none';
@@ -15294,6 +15369,7 @@ function escapeAttr(str){ return escapeHtml(str); }
 window.onload = async () => {
     applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem(CANVAS_THEME_KEY) || 'light');
     applyQuickToolbarState();
+    updateCanvasIdentityButton();
     
     document.title = tr('canvas.title');
     initOutputCompareEvents();

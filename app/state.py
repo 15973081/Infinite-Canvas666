@@ -148,7 +148,7 @@ class CanvasLockManager:
         self._locks: Dict[str, dict] = {}
         self._lock = Lock()
 
-    def acquire(self, canvas_id: str, client_id: str, username: str = "") -> dict:
+    def acquire(self, canvas_id: str, client_id: str, username: str = "", ip: str = "") -> dict:
         """Try to acquire the lock. Returns {ok: True} or {ok: False, holder: {...}}."""
         with self._lock:
             existing = self._locks.get(canvas_id)
@@ -157,6 +157,7 @@ class CanvasLockManager:
             self._locks[canvas_id] = {
                 "client_id": client_id,
                 "username": username or "",
+                "ip": ip or "",
                 "acquired_at": now_ms(),
                 "canvas_id": canvas_id,
             }

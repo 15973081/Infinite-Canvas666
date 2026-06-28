@@ -1399,6 +1399,33 @@ body.studio-theme-dark .comfy-random-btn.active,
     white-space: nowrap;
     pointer-events: none;
 }
+.canvas-identity-btn {
+    height: 28px;
+    max-width: 180px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--soft);
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+.canvas-identity-btn span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.canvas-identity-btn:hover {
+    background: var(--nav-hover-bg);
+    border-color: var(--line-2);
+    color: var(--text);
+}
 .canvas-lock-badge.locked-by-me {
     background: #dcfce7;
     color: #166534;

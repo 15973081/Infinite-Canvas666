@@ -1047,10 +1047,22 @@ async def get_canvas_lock(canvas_id: str):
     return {"locked": holder is not None, "holder": holder}
 
 
+def _client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        first = forwarded_for.split(",", 1)[0].strip()
+        if first:
+            return first
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        return real_ip
+    return request.client.host if request.client else ""
+
+
 @router.post("/api/canvases/{canvas_id}/lock")
-async def acquire_canvas_lock(canvas_id: str, payload: CanvasLockRequest):
+async def acquire_canvas_lock(canvas_id: str, payload: CanvasLockRequest, request: Request):
     """Try to acquire the editing lock. 409 if held by someone else."""
-    result = canvas_lock_manager.acquire(canvas_id, payload.client_id, payload.username)
+    result = canvas_lock_manager.acquire(canvas_id, payload.client_id, payload.username, _client_ip(request))
     if not result.get("ok"):
         raise HTTPException(status_code=409, detail={
             "message": "画布正在被其他人编辑中",
