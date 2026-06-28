@@ -42,6 +42,7 @@ let workflowTreeEdit = null;
 let promptTreeEdit = null;
 let pendingTreeDelete = '';
 let marqueeState = null;
+let suppressClickAfterMarquee = false;
 let sharedFolders = [];
 let activeSharedFolderId = '';
 let activeSharedFolderName = '';
@@ -2095,6 +2096,10 @@ async function saveLocalUploadCaption(id){
     }
 }
 async function handleClick(event){
+    if(suppressClickAfterMarquee){
+        suppressClickAfterMarquee = false;
+        return;
+    }
     const target = event.target;
     const tabBtn = target.closest?.('[data-tab]');
     if(tabBtn){ activeTab = tabBtn.dataset.tab || 'assets'; selectedAssetIds.clear(); selectedWorkflowIds.clear(); selectedPromptIds.clear(); selectedLocalIds.clear(); selectedLocalUploadIds.clear(); selectedCanvasAssetIds.clear(); render(); return; }
@@ -2381,7 +2386,18 @@ async function handleClick(event){
     const assetCat = target.closest?.('[data-asset-cat]');
     if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); render(); return; }
     const assetCard = target.closest?.('[data-asset-card]');
-    if(assetCard){ selectedAssetId = assetCard.dataset.assetCard || ''; assetEditMode = false; pendingDeleteAssetId = ''; render(); return; }
+    if(assetCard){
+        const id = assetCard.dataset.assetCard || '';
+        selectedAssetId = id;
+        assetEditMode = false;
+        pendingDeleteAssetId = '';
+        if(assetManageMode){
+            if(selectedAssetIds.has(id)) selectedAssetIds.delete(id); else selectedAssetIds.add(id);
+            pendingBatchDelete = '';
+        }
+        render();
+        return;
+    }
 
     const promptEditSave = target.closest?.('[data-prompt-edit-save]');
     if(promptEditSave){ await savePromptEdit(promptEditSave.dataset.promptEditSave || ''); return; }
@@ -2447,7 +2463,19 @@ async function handleClick(event){
     const promptCat = target.closest?.('[data-prompt-cat]');
     if(promptCat){ activePromptLibraryId = promptCat.dataset.promptCatLib || activePromptLibraryId; activePromptCategory = promptCat.dataset.promptCat || 'all'; promptTreeFocus = 'category'; selectedPromptId = ''; promptCreateMode = false; promptEditMode = false; selectedPromptIds.clear(); render(); return; }
     const promptRow = target.closest?.('[data-prompt-row]');
-    if(promptRow){ selectedPromptId = promptRow.dataset.promptRow || ''; promptEditMode = false; promptCreateMode = false; pendingDeletePromptId = ''; render(); return; }
+    if(promptRow){
+        const id = promptRow.dataset.promptRow || '';
+        selectedPromptId = id;
+        promptEditMode = false;
+        promptCreateMode = false;
+        pendingDeletePromptId = '';
+        if(promptManageMode){
+            if(selectedPromptIds.has(id)) selectedPromptIds.delete(id); else selectedPromptIds.add(id);
+            pendingBatchDelete = '';
+        }
+        render();
+        return;
+    }
 }
 function openAssetItem(id){
     const item = findAssetItem(id);
@@ -2578,16 +2606,22 @@ function beginMarqueeSelection(event){
         startY:event.clientY,
         area,
         box,
+        active:false,
         selector,
         baseAsset:new Set(selectedAssetIds),
         basePrompt:new Set(selectedPromptIds),
         baseLocal:new Set(selectedLocalIds),
         baseCanvasAsset:new Set(selectedCanvasAssetIds)
     };
-    updateMarqueeSelection(event);
 }
 function updateMarqueeSelection(event){
     if(!marqueeState) return;
+    if(!marqueeState.active){
+        const dx = Math.abs(event.clientX - marqueeState.startX);
+        const dy = Math.abs(event.clientY - marqueeState.startY);
+        if(Math.max(dx, dy) < 4) return;
+        marqueeState.active = true;
+    }
     const left = Math.min(marqueeState.startX, event.clientX);
     const top = Math.min(marqueeState.startY, event.clientY);
     const right = Math.max(marqueeState.startX, event.clientX);
@@ -2630,10 +2664,14 @@ function updateMarqueeSelection(event){
 }
 function endMarqueeSelection(){
     if(!marqueeState) return;
+    const shouldRender = marqueeState.active;
     marqueeState.box.remove();
     marqueeState = null;
     pendingBatchDelete = '';
-    render();
+    if(shouldRender){
+        suppressClickAfterMarquee = true;
+        render();
+    }
 }
 async function createAssetLibrary(){
     const name = window.prompt('资产库名称', '新资产库');
