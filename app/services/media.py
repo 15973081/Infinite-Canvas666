@@ -2868,6 +2868,10 @@ VIDEO_URL_KEYS = (
     "video", "src", "uri", "preview_url", "previewUrl", "path",
     "last_frame_url", "lastFrameUrl", "remixed_from_video_id",
 )
+VIDEO_CONTAINER_KEYS = (
+    "videos", "video", "outputs", "output", "data", "result", "results",
+    "content", "items", "files", "generations",
+)
 
 def _collect_video_url(value, urls):
     if not value:
@@ -2881,7 +2885,7 @@ def _collect_video_url(value, urls):
             _collect_video_url(item, urls)
         return
     if isinstance(value, dict):
-        for key in ("videos", "outputs", "data", "result", "content"):
+        for key in VIDEO_CONTAINER_KEYS:
             if key in value:
                 _collect_video_url(value.get(key), urls)
         for key in VIDEO_URL_KEYS:
@@ -2918,7 +2922,7 @@ def video_output_urls(raw):
     for node in candidates:
         if not isinstance(node, dict):
             continue
-        for key in ("videos", "outputs", "content"):
+        for key in VIDEO_CONTAINER_KEYS:
             value = node.get(key)
             if value:
                 _collect_video_url(value, urls)
@@ -2987,7 +2991,7 @@ def video_task_url_candidates(provider, base_url, task_id, submit_url=""):
 
 VIDEO_TASK_SUCCESS_STATUSES = {
     "SUCCESS", "SUCCEED", "SUCCEEDED", "COMPLETED", "COMPLETE",
-    "DONE", "FINISHED", "FINISH", "OK", "READY",
+    "DONE", "FINISHED", "FINISH", "OK", "READY", "SUCCESSFUL",
 }
 VIDEO_TASK_FAILURE_STATUSES = {
     "FAILURE", "FAILED", "FAIL", "ERROR", "ERRORED",
@@ -3048,6 +3052,9 @@ async def wait_for_video_task(client, provider, task_id, submit_url=""):
         last_payload = raw
         task_data = raw.get("data") if isinstance(raw.get("data"), dict) else raw
         status = str(task_data.get("status") or task_data.get("task_status") or raw.get("status") or raw.get("task_status") or "").upper()
+        if status and status not in VIDEO_TASK_SUCCESS_STATUSES and status not in VIDEO_TASK_FAILURE_STATUSES:
+            keys = list(raw.keys()) if isinstance(raw, dict) else []
+            print(f"[video-poll-debug] unknown status={status} task_id={task_id} payload_keys={keys}")
         if status in VIDEO_TASK_SUCCESS_STATUSES:
             return raw
         # 部分上游（如玉玉API）status 字段非标准或为空，但已经返回了视频 URL ——
