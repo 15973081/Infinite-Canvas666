@@ -4684,6 +4684,7 @@ function nodeTitleForMedia(node){
     if(kind === 'audio') return 'Audio';
     return 'Image';
 }
+const CANVAS_NODE_ASSET_DRAG_TYPE = 'application/x-canvas-node-asset';
 const IMAGE_DROP_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;
 const IMAGE_DROP_TEXT_TYPES = [
     'text/uri-list',
@@ -6735,6 +6736,24 @@ function destroyLTXEditor(node){
 function isNodeDragSurface(target){
     return !isNodeControl(target) && !target.closest('.port, .resize-handle, .output-img-wrap');
 }
+function bindCanvasNodeAssetDrag(img, node){
+    const payload = canvasNodeAssetDragPayload(node);
+    if(!img || !payload) return;
+    img.draggable = true;
+    img.title = img.title || '拖到资产库侧栏保存';
+    img.addEventListener('mousedown', event => {
+        if(event.button !== 0) return;
+        event.stopPropagation();
+    }, true);
+    img.addEventListener('dragstart', event => {
+        event.stopPropagation();
+        img.dataset.dragging = '1';
+        setOutputDragPreview(event, img);
+        event.dataTransfer.effectAllowed = 'copy';
+        event.dataTransfer.setData(CANVAS_NODE_ASSET_DRAG_TYPE, JSON.stringify(payload));
+    }, true);
+    img.addEventListener('dragend', () => setTimeout(() => { delete img.dataset.dragging; }, 0), true);
+}
 function renderNode(node){
     normalizeApiNodeLayout(node);
     if(node.type === 'rh' && Number(node.h) === 560) delete node.h;
@@ -6779,7 +6798,7 @@ function renderNode(node){
             const missing = isMissingAssetUrl(node.url);
             const mediaKind = mediaKindForNode(node);
             const isEditableImage = mediaKind === 'image' && !missing;
-            body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="false"')}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || 'image')}${missing ? ` · ${langIsEn() ? 'missing' : '文件缺失'}` : ''}</div>`;
+            body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="true"')}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || 'image')}${missing ? ` · ${langIsEn() ? 'missing' : '文件缺失'}` : ''}</div>`;
             if(!missing && mediaKind !== 'image'){
                 const mediaHtml = mediaKind === 'video'
                     ? `<div class="media-card video-card">${canvasVideoPreviewHtml(node.url, 768, 'draggable="false" data-video-fallback-attrs="controls"')}<button class="canvas-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`
@@ -6815,6 +6834,7 @@ function renderNode(node){
                 e.stopPropagation();
                 openImageNodeMenu(node.id, e.clientX, e.clientY);
             };
+            bindCanvasNodeAssetDrag(loadedImg, node);
             if(loadedImg && isEditableImage){
                 loadedImg.addEventListener('mousedown', e => {
                     if(e.detail >= 2) openPreview(e);
@@ -7438,6 +7458,28 @@ function canvasAssetUrisFaceVerified(assetUris){
 }
 function canvasAssetFaceVerified(item){
     return canvasAssetUrisFaceVerified(canvasAssetRegisteredUris(item));
+}
+function canvasNodeAssetDragPayload(node){
+    if(!node || node.type !== 'image' || !node.url || isMissingAssetUrl(node.url)) return null;
+    const kind = mediaKindForNode(node);
+    if(kind !== 'image') return null;
+    return {
+        url: node.url,
+        name: node.name || outputImageName(node.url),
+        kind,
+        asset_uris: node.asset_uris || canvasAssetUrisForUrl(node.url) || {}
+    };
+}
+function hasCanvasNodeAssetDrag(dataTransfer){
+    return [...(dataTransfer?.types || [])].includes(CANVAS_NODE_ASSET_DRAG_TYPE);
+}
+function readCanvasNodeAssetDrag(dataTransfer){
+    try {
+        const payload = JSON.parse(dataTransfer?.getData?.(CANVAS_NODE_ASSET_DRAG_TYPE) || '{}');
+        return payload && payload.url ? payload : null;
+    } catch(_) {
+        return null;
+    }
 }
 function canvasAssetUrisForUrl(url){
     const target = String(url || '');
@@ -13479,7 +13521,7 @@ workflowTransferModal?.addEventListener('drop', event => {
     else setStatus('请拖入 JSON 或 ZIP 工作流文件');
 });
 function hasCanvasAssetSaveDrop(dataTransfer){
-    return hasOutputImageDrag(dataTransfer) || hasImageDropData(dataTransfer);
+    return hasCanvasNodeAssetDrag(dataTransfer) || hasOutputImageDrag(dataTransfer) || hasImageDropData(dataTransfer);
 }
 canvasAssetDropZone?.addEventListener('dragover', event => {
     if(!hasCanvasAssetSaveDrop(event.dataTransfer)) return;
@@ -13494,6 +13536,11 @@ canvasAssetDropZone?.addEventListener('drop', async event => {
     event.stopPropagation();
     canvasAssetDropZone.classList.remove('drag-over');
     try {
+        if(hasCanvasNodeAssetDrag(event.dataTransfer)){
+            const dragged = readCanvasNodeAssetDrag(event.dataTransfer);
+            if(dragged?.url) await addUrlToCanvasAssetLibrary(dragged.url, dragged.name || outputImageName(dragged.url));
+            return;
+        }
         if(hasOutputImageDrag(event.dataTransfer)){
             await addUrlToCanvasAssetLibrary(event.dataTransfer.getData('application/x-canvas-output-image'), 'output');
             return;
