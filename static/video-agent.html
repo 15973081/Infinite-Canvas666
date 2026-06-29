@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <title>视频生成 Agent</title>
+    <script>
+        (function(){
+            try {
+                var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
+                if(theme === 'dark') {
+                    document.documentElement.classList.add('studio-theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.15.1781457289"></script>
+    <script src="/static/vendor/js/lucide.js?v=2026.06.15.1781457289"></script>
+    <script src="/static/js/theme.js?v=2026.06.15.1781457289"></script>
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.15.1781457289">
+    <style>
+        @import url('/static/vendor/css/fonts.css?v=2026.06.15.1781457289');
+        :root {
+            --bg:#f6f7f9;
+            --panel:#ffffff;
+            --panel-2:#f0f3f7;
+            --line:#dfe5ec;
+            --line-2:#c9d3df;
+            --text:#111827;
+            --muted:#64748b;
+            --faint:#9aa6b8;
+            --strong:#111827;
+            --strong-text:#ffffff;
+            --soft:#e8edf3;
+            --ok:#0f766e;
+            --warn:#b45309;
+            --shadow:rgba(15,23,42,.08);
+            --ease:cubic-bezier(.4,0,.2,1);
+        }
+        html.studio-theme-dark,
+        body.studio-theme-dark,
+        html.theme-dark,
+        body.theme-dark {
+            --bg:#0f141d;
+            --panel:#171d29;
+            --panel-2:#111722;
+            --line:#2a3444;
+            --line-2:#334155;
+            --text:#e5e9f0;
+            --muted:#98a4b7;
+            --faint:#6f7d91;
+            --strong:#d8dee9;
+            --strong-text:#10141d;
+            --soft:#1d2533;
+            --shadow:rgba(0,0,0,.28);
+        }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+        button,input,select,textarea { font:inherit; }
+        button { border:0; cursor:pointer; }
+        .shell { min-height:100vh; padding:28px; display:grid; grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr); gap:18px; }
+        .panel { min-width:0; background:var(--panel); border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 44px var(--shadow); overflow:hidden; }
+        .main-panel { display:grid; grid-template-rows:auto minmax(0,1fr) auto; min-height:calc(100vh - 56px); }
+        .head { padding:22px 22px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; border-bottom:1px solid var(--line); }
+        .kicker { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:11px; font-weight:900; letter-spacing:.16em; text-transform:uppercase; }
+        h1 { margin:8px 0 0; font-size:24px; line-height:1.15; font-weight:950; letter-spacing:0; }
+        .status { min-height:34px; max-width:360px; padding:9px 12px; display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); color:var(--muted); font-size:12px; font-weight:800; }
+        .status.ok { color:var(--ok); }
+        .status.warn { color:var(--warn); }
+        .body { min-height:0; overflow:auto; padding:20px 22px 22px; display:flex; flex-direction:column; gap:18px; }
+        .field { display:flex; flex-direction:column; gap:8px; min-width:0; }
+        .label { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:11px; line-height:1; font-weight:900; letter-spacing:.06em; }
+        .label i,.label svg,.status i,.status svg { width:15px; height:15px; flex:0 0 auto; }
+        textarea { width:100%; min-height:184px; resize:vertical; border:1px solid var(--line); border-radius:16px; outline:none; background:var(--panel-2); color:var(--text); padding:15px; line-height:1.65; }
+        textarea:focus, select:focus, input:focus { border-color:var(--line-2); box-shadow:0 0 0 3px rgba(148,163,184,.14); }
+        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+        .grid.three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        select,input[type="number"],input[type="text"] { width:100%; min-width:0; height:42px; border:1px solid var(--line); border-radius:13px; background:var(--panel-2); color:var(--text); outline:none; padding:0 12px; font-size:13px; font-weight:800; }
+        .toggle-row { display:flex; flex-wrap:wrap; gap:8px; }
+        .toggle { height:34px; padding:0 11px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); color:var(--muted); display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:850; transition:background .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease); }
+        .toggle.active { background:var(--strong); color:var(--strong-text); border-color:var(--strong); }
+        .toggle i,.toggle svg,.action i,.action svg,.chip i,.chip svg { width:15px; height:15px; }
+        .drop { min-height:124px; border:1px dashed var(--line-2); border-radius:16px; background:var(--panel-2); display:flex; align-items:center; justify-content:center; text-align:center; padding:18px; color:var(--muted); transition:border-color .16s var(--ease), background .16s var(--ease); }
+        .drop.drag { border-color:var(--strong); background:var(--soft); }
+        .drop-inner { display:flex; flex-direction:column; align-items:center; gap:8px; font-size:12px; font-weight:850; }
+        .drop-inner i,.drop-inner svg { width:24px; height:24px; color:var(--faint); }
+        .refs { display:flex; flex-wrap:wrap; gap:8px; min-height:36px; }
+        .chip { position:relative; min-width:0; max-width:220px; height:52px; padding:6px 30px 6px 7px; border:1px solid var(--line); border-radius:13px; background:var(--panel-2); display:flex; align-items:center; gap:8px; color:var(--text); }
+        .chip img,.chip video { width:38px; height:38px; object-fit:cover; border-radius:9px; background:#000; flex:0 0 auto; }
+        .file-icon { width:38px; height:38px; border-radius:9px; display:flex; align-items:center; justify-content:center; background:var(--soft); color:var(--muted); flex:0 0 auto; }
+        .chip-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:850; }
+        .chip-kind { color:var(--faint); font-size:10px; font-weight:900; text-transform:uppercase; }
+        .chip button { position:absolute; top:5px; right:5px; width:20px; height:20px; border-radius:7px; background:rgba(148,163,184,.18); color:var(--muted); display:flex; align-items:center; justify-content:center; }
+        .foot { padding:14px 22px 20px; border-top:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:14px; }
+        .hint { color:var(--faint); font-size:12px; font-weight:760; }
+        .action { height:44px; border-radius:14px; padding:0 16px; display:inline-flex; align-items:center; justify-content:center; gap:8px; background:var(--strong); color:var(--strong-text); font-size:13px; font-weight:950; }
+        .action.secondary { background:var(--panel-2); color:var(--text); border:1px solid var(--line); }
+        .action:disabled { opacity:.46; cursor:not-allowed; }
+        .side { min-height:calc(100vh - 56px); display:grid; grid-template-rows:minmax(260px,.82fr) minmax(250px,1fr); gap:18px; }
+        .side-panel { min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr); }
+        .side-head { padding:16px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .side-title { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:950; }
+        .side-title i,.side-title svg { width:16px; height:16px; color:var(--muted); }
+        .asset-tools { display:flex; align-items:center; gap:8px; min-width:0; }
+        .mini { height:34px; border:1px solid var(--line); border-radius:11px; background:var(--panel-2); color:var(--muted); padding:0 10px; font-size:12px; font-weight:850; }
+        .assets { min-height:0; overflow:auto; padding:12px; display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:10px; align-content:start; }
+        .asset-card { min-width:0; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--panel-2); text-align:left; color:var(--text); transition:transform .16s var(--ease), border-color .16s var(--ease); }
+        .asset-card:hover { transform:translateY(-2px); border-color:var(--line-2); }
+        .asset-card.active { border-color:var(--strong); box-shadow:0 0 0 2px rgba(148,163,184,.18); }
+        .thumb { aspect-ratio:1/1; background:var(--soft); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+        .thumb img,.thumb video { width:100%; height:100%; object-fit:cover; }
+        .thumb .file-icon { width:50px; height:50px; }
+        .asset-meta { padding:8px; display:flex; flex-direction:column; gap:3px; }
+        .asset-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; font-weight:900; }
+        .asset-sub { color:var(--faint); font-size:10px; font-weight:850; }
+        .result { min-height:0; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+        .result video { width:100%; max-height:52vh; background:#000; border-radius:14px; border:1px solid var(--line); }
+        .result-empty { height:100%; min-height:210px; border:1px dashed var(--line); border-radius:16px; display:flex; align-items:center; justify-content:center; color:var(--faint); text-align:center; font-size:12px; font-weight:850; }
+        .mention { position:fixed; z-index:9999; width:min(440px,calc(100vw - 40px)); max-height:320px; overflow:auto; padding:8px; border:1px solid var(--line); border-radius:14px; background:var(--panel); box-shadow:0 18px 50px var(--shadow); display:none; }
+        .mention.open { display:flex; flex-direction:column; gap:5px; }
+        .mention button { min-height:42px; border-radius:10px; background:transparent; color:var(--text); display:grid; grid-template-columns:24px minmax(0,1fr) auto; align-items:center; gap:8px; padding:6px 8px; text-align:left; }
+        .mention button:hover,.mention button.active { background:var(--panel-2); }
+        .mention .name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:900; }
+        .mention .kind { color:var(--faint); font-size:10px; font-weight:900; text-transform:uppercase; }
+        @media (max-width:980px) {
+            .shell { grid-template-columns:1fr; padding:14px; }
+            .main-panel,.side { min-height:auto; }
+            .grid,.grid.three { grid-template-columns:1fr; }
+            .side { grid-template-rows:auto auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <section class="panel main-panel">
+            <header class="head">
+                <div>
+                    <div class="kicker"><i data-lucide="bot"></i><span>Video Agent Mode</span></div>
+                    <h1>视频生成 Agent</h1>
+                </div>
+                <div id="status" class="status"><i data-lucide="circle-dot"></i><span>准备就绪</span></div>
+            </header>
+
+            <main class="body">
+                <section class="field">
+                    <label class="label" for="promptInput"><i data-lucide="terminal"></i><span>任务描述，可输入 @ 引用素材库</span></label>
+                    <textarea id="promptInput" placeholder="例如：@角色A 在雨夜霓虹街道慢慢转身，镜头从中景推到特写，电影感光影，保持人物一致性。"></textarea>
+                </section>
+
+                <section class="grid">
+                    <label class="field">
+                        <span class="label"><i data-lucide="server"></i><span>API 平台</span></span>
+                        <select id="providerSelect"></select>
+                    </label>
+                    <label class="field">
+                        <span class="label"><i data-lucide="sparkles"></i><span>视频模型</span></span>
+                        <select id="modelSelect"></select>
+                    </label>
+                </section>
+
+                <section class="grid three">
+                    <label class="field">
+                        <span class="label"><i data-lucide="timer"></i><span>时长</span></span>
+                        <select id="durationSelect">
+                            <option value="5">5 秒</option>
+                            <option value="8">8 秒</option>
+                            <option value="10">10 秒</option>
+                            <option value="15">15 秒</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span class="label"><i data-lucide="ratio"></i><span>画幅</span></span>
+                        <select id="aspectSelect">
+                            <option value="16:9">16:9 横屏</option>
+                            <option value="9:16">9:16 竖屏</option>
+                            <option value="1:1">1:1 方形</option>
+                            <option value="4:3">4:3</option>
+                            <option value="3:4">3:4</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span class="label"><i data-lucide="scan"></i><span>清晰度</span></span>
+                        <select id="resolutionSelect">
+                            <option value="">模型默认</option>
+                            <option value="480p">480p</option>
+                            <option value="720p">720p</option>
+                            <option value="1080p">1080p</option>
+                        </select>
+                    </label>
+                </section>
+
+                <section class="field">
+                    <span class="label"><i data-lucide="sliders-horizontal"></i><span>Agent 选项</span></span>
+                    <div class="toggle-row">
+                        <button class="toggle active" type="button" data-toggle="multimodal"><i data-lucide="layers"></i><span>多模态</span></button>
+                        <button class="toggle active" type="button" data-toggle="trusted"><i data-lucide="badge-check"></i><span>优先认证素材</span></button>
+                        <button class="toggle" type="button" data-toggle="enhance"><i data-lucide="wand-sparkles"></i><span>增强提示词</span></button>
+                        <button class="toggle" type="button" data-toggle="audio"><i data-lucide="volume-2"></i><span>生成音频</span></button>
+                        <button class="toggle" type="button" data-toggle="upsample"><i data-lucide="maximize"></i><span>高清放大</span></button>
+                        <button class="toggle" type="button" data-toggle="watermark"><i data-lucide="copyright"></i><span>水印</span></button>
+                    </div>
+                </section>
+
+                <section class="field">
+                    <span class="label"><i data-lucide="paperclip"></i><span>参考图片 / 视频 / 音频</span></span>
+                    <input id="fileInput" class="hidden" type="file" accept="image/*,video/*,audio/*" multiple>
+                    <div id="dropZone" class="drop">
+                        <div class="drop-inner">
+                            <i data-lucide="upload-cloud"></i>
+                            <span>拖入文件，或点击上传参考图片、视频、音频</span>
+                        </div>
+                    </div>
+                    <div id="refList" class="refs"></div>
+                </section>
+            </main>
+
+            <footer class="foot">
+                <div class="hint">素材库卡片可点击加入，也可以在提示词中输入 @ 搜索。</div>
+                <div class="flex gap-2">
+                    <button id="clearBtn" class="action secondary" type="button"><i data-lucide="rotate-ccw"></i><span>清空</span></button>
+                    <button id="runBtn" class="action" type="button"><i data-lucide="play"></i><span>生成视频</span></button>
+                </div>
+            </footer>
+        </section>
+
+        <aside class="side">
+            <section class="panel side-panel">
+                <div class="side-head">
+                    <div class="side-title"><i data-lucide="library"></i><span>素材库</span></div>
+                    <div class="asset-tools">
+                        <select id="librarySelect" class="mini"></select>
+                        <select id="kindFilter" class="mini">
+                            <option value="all">全部</option>
+                            <option value="image">图片</option>
+                            <option value="video">视频</option>
+                            <option value="audio">音频</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="assetGrid" class="assets"></div>
+            </section>
+
+            <section class="panel side-panel">
+                <div class="side-head">
+                    <div class="side-title"><i data-lucide="clapperboard"></i><span>结果预览</span></div>
+                    <a id="downloadLink" class="mini" href="#" download hidden>下载</a>
+                </div>
+                <div id="resultBox" class="result">
+                    <div class="result-empty">生成后的视频会显示在这里</div>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <div id="mentionPanel" class="mention"></div>
+
+    <script>
+        const state = {
+            providers: [],
+            providerId: '',
+            model: '',
+            library: {libraries:[]},
+            refs: [],
+            mentionIndex: 0,
+            toggles: {multimodal:true, trusted:true, enhance:false, audio:false, upsample:false, watermark:false},
+        };
+        const els = {
+            status: document.getElementById('status'),
+            prompt: document.getElementById('promptInput'),
+            provider: document.getElementById('providerSelect'),
+            model: document.getElementById('modelSelect'),
+            duration: document.getElementById('durationSelect'),
+            aspect: document.getElementById('aspectSelect'),
+            resolution: document.getElementById('resolutionSelect'),
+            drop: document.getElementById('dropZone'),
+            file: document.getElementById('fileInput'),
+            refs: document.getElementById('refList'),
+            assets: document.getElementById('assetGrid'),
+            library: document.getElementById('librarySelect'),
+            kind: document.getElementById('kindFilter'),
+            mention: document.getElementById('mentionPanel'),
+            result: document.getElementById('resultBox'),
+            download: document.getElementById('downloadLink'),
+            run: document.getElementById('runBtn'),
+            clear: document.getElementById('clearBtn'),
+        };
+
+        function setStatus(text, mode=''){
+            els.status.className = `status ${mode || ''}`;
+            els.status.innerHTML = `<i data-lucide="${mode === 'warn' ? 'triangle-alert' : mode === 'ok' ? 'check-circle-2' : 'circle-dot'}"></i><span>${escapeHtml(text)}</span>`;
+            refreshIcons();
+        }
+        function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
+        function escapeHtml(value=''){
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+        function escapeAttr(value=''){ return escapeHtml(value); }
+        function mediaKind(item){
+            const kind = String(item?.kind || item?.type || '').toLowerCase();
+            const url = String(item?.url || item?.name || '').toLowerCase();
+            if(kind.includes('video') || /\.(mp4|webm|mov|m4v|mkv)(\?|#|$)/.test(url)) return 'video';
+            if(kind.includes('audio') || /\.(mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/.test(url)) return 'audio';
+            return 'image';
+        }
+        function kindLabel(kind){ return kind === 'video' ? '视频' : kind === 'audio' ? '音频' : '图片'; }
+        function iconForKind(kind){ return kind === 'video' ? 'file-video' : kind === 'audio' ? 'file-audio' : 'image'; }
+        function thumbHtml(item){
+            const kind = mediaKind(item);
+            if(kind === 'image') return `<img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.name || 'asset')}" loading="lazy">`;
+            if(kind === 'video') return `<video src="${escapeAttr(item.url)}" muted preload="metadata" playsinline></video>`;
+            return `<div class="file-icon"><i data-lucide="file-audio"></i></div>`;
+        }
+        function assetRegisteredUris(item){
+            const regs = item && item.registrations && typeof item.registrations === 'object' ? item.registrations : {};
+            const out = {};
+            Object.keys(regs).forEach(platform => {
+                const reg = regs[platform];
+                if(reg && reg.status === 'Active' && reg.asset_uri) out[platform] = reg.asset_uri;
+            });
+            return out;
+        }
+        async function readJson(url, options={}){
+            const res = await fetch(url, options);
+            const data = await res.json().catch(() => ({}));
+            if(!res.ok) throw new Error(data.detail || data.message || '请求失败');
+            return data;
+        }
+        function videoProviders(){
+            return state.providers.filter(p => p && p.enabled !== false && Array.isArray(p.video_models) && p.video_models.length);
+        }
+        async function loadConfig(){
+            const data = await readJson('/api/config');
+            state.providers = data.api_providers || [];
+            const providers = videoProviders();
+            els.provider.innerHTML = providers.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.name || p.id)}</option>`).join('');
+            state.providerId = providers[0]?.id || '';
+            els.provider.value = state.providerId;
+            renderModels();
+        }
+        async function loadAssets(){
+            const data = await readJson('/api/asset-library');
+            state.library = data.library || {libraries:[]};
+            const libs = assetLibraries();
+            els.library.innerHTML = libs.map(lib => `<option value="${escapeAttr(lib.id)}">${escapeHtml(lib.name || '素材库')}</option>`).join('');
+            if(!els.library.value && libs[0]) els.library.value = libs[0].id;
+            renderAssets();
+        }
+        function assetLibraries(){
+            return Array.isArray(state.library.libraries) && state.library.libraries.length
+                ? state.library.libraries
+                : [{id:'default', name:'默认素材库', categories:state.library.categories || []}];
+        }
+        function selectedLibrary(){
+            const libs = assetLibraries();
+            return libs.find(lib => lib.id === els.library.value) || libs[0] || null;
+        }
+        function allAssetItems(){
+            const lib = selectedLibrary();
+            const items = [];
+            (lib?.categories || []).forEach(cat => {
+                if((cat.type || 'image') !== 'image') return;
+                (cat.items || []).forEach(item => items.push({...item, categoryName:cat.name || '', libraryId:lib.id}));
+            });
+            return items;
+        }
+        function filteredAssets(){
+            const kind = els.kind.value || 'all';
+            return allAssetItems().filter(item => kind === 'all' || mediaKind(item) === kind);
+        }
+        function renderAssets(){
+            const items = filteredAssets();
+            if(!items.length) {
+                els.assets.innerHTML = '<div class="result-empty" style="grid-column:1/-1;min-height:170px">当前素材库没有可用媒体</div>';
+                return;
+            }
+            els.assets.innerHTML = items.map(item => {
+                const kind = mediaKind(item);
+                const active = state.refs.some(ref => ref.source === 'library' && ref.url === item.url);
+                return `<button class="asset-card ${active ? 'active' : ''}" type="button" data-url="${escapeAttr(item.url)}">
+                    <div class="thumb">${thumbHtml(item)}</div>
+                    <div class="asset-meta">
+                        <div class="asset-name">${escapeHtml(item.name || 'asset')}</div>
+                        <div class="asset-sub">${escapeHtml(kindLabel(kind))} · ${escapeHtml(item.categoryName || '素材')}</div>
+                    </div>
+                </button>`;
+            }).join('');
+            els.assets.querySelectorAll('.asset-card').forEach((btn, index) => btn.onclick = () => addRefFromAsset(items[index]));
+            refreshIcons();
+        }
+        function renderModels(){
+            const provider = videoProviders().find(p => p.id === state.providerId) || videoProviders()[0];
+            state.providerId = provider?.id || '';
+            const models = provider?.video_models || [];
+            state.model = models.includes(state.model) ? state.model : (models[0] || '');
+            els.model.innerHTML = models.map(model => `<option value="${escapeAttr(model)}">${escapeHtml(model)}</option>`).join('');
+            els.model.value = state.model;
+            if(!models.length) setStatus('还没有配置视频模型，请先到 API 设置添加', 'warn');
+        }
+        function addRefFromAsset(item){
+            if(!item?.url) return;
+            const kind = mediaKind(item);
+            const ref = {
+                url:item.url,
+                name:item.name || 'asset',
+                kind,
+                source:'library',
+                asset_uris:assetRegisteredUris(item),
+            };
+            addRef(ref);
+        }
+        function addRef(ref){
+            if(!ref?.url) return;
+            if(state.refs.some(item => item.url === ref.url && item.kind === ref.kind)) return;
+            state.refs.push(ref);
+            renderRefs();
+            renderAssets();
+        }
+        function removeRef(index){
+            state.refs.splice(index, 1);
+            renderRefs();
+            renderAssets();
+        }
+        function renderRefs(){
+            els.refs.innerHTML = state.refs.map((ref, index) => {
+                const kind = mediaKind(ref);
+                return `<div class="chip">
+                    ${thumbHtml(ref)}
+                    <div style="min-width:0">
+                        <div class="chip-name">${escapeHtml(ref.name || 'reference')}</div>
+                        <div class="chip-kind">${escapeHtml(kindLabel(kind))}${ref.source === 'library' ? ' · 素材库' : ' · 上传'}</div>
+                    </div>
+                    <button type="button" title="移除" data-remove="${index}">×</button>
+                </div>`;
+            }).join('');
+            els.refs.querySelectorAll('[data-remove]').forEach(btn => btn.onclick = () => removeRef(Number(btn.dataset.remove)));
+            refreshIcons();
+        }
+        async function uploadFiles(files){
+            const valid = Array.from(files || []).filter(Boolean);
+            if(!valid.length) return;
+            setStatus('正在上传参考文件...');
+            const form = new FormData();
+            valid.forEach(file => form.append('files', file, file.name));
+            const data = await readJson('/api/local-assets/upload', {method:'POST', body:form});
+            (data.files || []).forEach(item => addRef({...item, source:'upload'}));
+            setStatus(`已加入 ${data.files?.length || 0} 个参考文件`, 'ok');
+        }
+        function providerPlatform(providerId){
+            const p = state.providers.find(item => item.id === providerId) || {};
+            const protocol = String(p.protocol || '').toLowerCase();
+            const base = String(p.base_url || '').toLowerCase();
+            if(protocol === 'volcengine' || providerId === 'volcengine') return 'volcengine';
+            if(protocol === 'jimeng' || providerId === 'jimeng') return 'jimeng';
+            if(base.includes('apimart')) return 'apimart';
+            return '';
+        }
+        function refUrlForPayload(ref){
+            if(!state.toggles.trusted || ref.source !== 'library') return ref.url;
+            const platform = providerPlatform(state.providerId);
+            const uris = ref.asset_uris && typeof ref.asset_uris === 'object' ? ref.asset_uris : {};
+            return platform && uris[platform] ? uris[platform] : ref.url;
+        }
+        function buildPayload(){
+            const prompt = els.prompt.value.trim();
+            const images = [];
+            const videos = [];
+            const audios = [];
+            state.refs.forEach(ref => {
+                const kind = mediaKind(ref);
+                const url = refUrlForPayload(ref);
+                if(kind === 'image') images.push({url, name:ref.name || 'image', kind:'image'});
+                else if(kind === 'video') videos.push(url);
+                else if(kind === 'audio') audios.push(url);
+            });
+            return {
+                prompt,
+                provider_id:state.providerId,
+                model:state.model,
+                duration:Number(els.duration.value || 5),
+                aspect_ratio:els.aspect.value || '16:9',
+                resolution:els.resolution.value || '',
+                images,
+                videos,
+                audios,
+                enhance_prompt:Boolean(state.toggles.enhance),
+                enable_upsample:Boolean(state.toggles.upsample),
+                watermark:Boolean(state.toggles.watermark),
+                generate_audio:Boolean(state.toggles.audio),
+                multimodal:Boolean(state.toggles.multimodal),
+                trusted_asset:Boolean(state.toggles.trusted && state.refs.some(ref => ref.source === 'library')),
+            };
+        }
+        function resultUrls(result){
+            const out = [];
+            if(Array.isArray(result?.videos)) out.push(...result.videos);
+            if(Array.isArray(result?.urls)) out.push(...result.urls);
+            if(result?.url) out.push(result.url);
+            if(Array.isArray(result?.data)) result.data.forEach(item => { if(item?.url) out.push(item.url); });
+            return out.map(item => typeof item === 'string' ? item : item?.url).filter(Boolean);
+        }
+        async function runVideo(){
+            const payload = buildPayload();
+            if(!payload.prompt) { setStatus('请先输入视频任务描述', 'warn'); els.prompt.focus(); return; }
+            if(!payload.model) { setStatus('请选择视频模型', 'warn'); return; }
+            els.run.disabled = true;
+            setStatus('视频任务已提交，正在等待生成...');
+            try {
+                const data = await readJson('/api/canvas-video', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+                const urls = resultUrls(data);
+                if(!urls.length) throw new Error('接口返回成功，但没有找到视频地址');
+                renderResult(urls, payload.prompt);
+                setStatus('视频生成完成', 'ok');
+            } catch(err) {
+                setStatus(err.message || '视频生成失败', 'warn');
+            } finally {
+                els.run.disabled = false;
+            }
+        }
+        function renderResult(urls, prompt){
+            els.result.innerHTML = urls.map(url => `<div>
+                <video src="${escapeAttr(url)}" controls playsinline></video>
+                <div class="hint" style="margin-top:8px">${escapeHtml(prompt)}</div>
+            </div>`).join('');
+            els.download.href = urls[0];
+            els.download.hidden = false;
+        }
+        function resetAll(){
+            state.refs = [];
+            els.prompt.value = '';
+            els.result.innerHTML = '<div class="result-empty">生成后的视频会显示在这里</div>';
+            els.download.hidden = true;
+            renderRefs();
+            renderAssets();
+            setStatus('已清空');
+        }
+        function mentionCandidates(query=''){
+            const q = query.trim().toLowerCase();
+            return allAssetItems().filter(item => {
+                if(!q) return true;
+                return [item.name, item.categoryName, kindLabel(mediaKind(item))].join(' ').toLowerCase().includes(q);
+            }).slice(0, 40);
+        }
+        function currentMentionQuery(){
+            const value = els.prompt.value;
+            const pos = els.prompt.selectionStart || 0;
+            const before = value.slice(0, pos);
+            const at = before.lastIndexOf('@');
+            if(at < 0) return null;
+            const query = before.slice(at + 1);
+            if(/[\s\n，。；：,.!?]/.test(query)) return null;
+            return {at, query, pos};
+        }
+        function openMention(){
+            const info = currentMentionQuery();
+            if(!info) { closeMention(); return; }
+            const items = mentionCandidates(info.query);
+            if(!items.length) { closeMention(); return; }
+            state.mentionIndex = Math.min(state.mentionIndex, items.length - 1);
+            const rect = els.prompt.getBoundingClientRect();
+            els.mention.style.left = `${Math.min(rect.left + 12, window.innerWidth - 460)}px`;
+            els.mention.style.top = `${Math.min(rect.bottom - 8, window.innerHeight - 340)}px`;
+            els.mention.classList.add('open');
+            els.mention.innerHTML = items.map((item, index) => {
+                const kind = mediaKind(item);
+                return `<button type="button" class="${index === state.mentionIndex ? 'active' : ''}" data-idx="${index}">
+                    <i data-lucide="${iconForKind(kind)}"></i>
+                    <span class="name">${escapeHtml(item.name || 'asset')}</span>
+                    <span class="kind">${escapeHtml(kindLabel(kind))}</span>
+                </button>`;
+            }).join('');
+            els.mention.querySelectorAll('button').forEach((btn, index) => btn.onclick = () => chooseMention(items[index], info));
+            refreshIcons();
+        }
+        function closeMention(){ els.mention.classList.remove('open'); els.mention.innerHTML = ''; }
+        function chooseMention(item, info=currentMentionQuery()){
+            if(!item || !info) return;
+            const label = `@${item.name || 'asset'} `;
+            els.prompt.value = els.prompt.value.slice(0, info.at) + label + els.prompt.value.slice(info.pos);
+            const cursor = info.at + label.length;
+            els.prompt.setSelectionRange(cursor, cursor);
+            addRefFromAsset(item);
+            closeMention();
+            els.prompt.focus();
+        }
+
+        els.provider.onchange = () => { state.providerId = els.provider.value; renderModels(); };
+        els.model.onchange = () => { state.model = els.model.value; };
+        els.library.onchange = renderAssets;
+        els.kind.onchange = renderAssets;
+        els.run.onclick = runVideo;
+        els.clear.onclick = resetAll;
+        els.drop.onclick = () => els.file.click();
+        els.file.onchange = () => uploadFiles(els.file.files).finally(() => { els.file.value = ''; });
+        els.drop.ondragover = event => { event.preventDefault(); els.drop.classList.add('drag'); };
+        els.drop.ondragleave = () => els.drop.classList.remove('drag');
+        els.drop.ondrop = event => { event.preventDefault(); els.drop.classList.remove('drag'); uploadFiles(event.dataTransfer.files); };
+        document.querySelectorAll('[data-toggle]').forEach(btn => {
+            btn.onclick = () => {
+                const key = btn.dataset.toggle;
+                state.toggles[key] = !state.toggles[key];
+                btn.classList.toggle('active', state.toggles[key]);
+            };
+        });
+        els.prompt.addEventListener('input', openMention);
+        els.prompt.addEventListener('keyup', openMention);
+        els.prompt.addEventListener('keydown', event => {
+            if(!els.mention.classList.contains('open')) return;
+            const buttons = Array.from(els.mention.querySelectorAll('button'));
+            if(event.key === 'ArrowDown') { event.preventDefault(); state.mentionIndex = Math.min(buttons.length - 1, state.mentionIndex + 1); openMention(); }
+            if(event.key === 'ArrowUp') { event.preventDefault(); state.mentionIndex = Math.max(0, state.mentionIndex - 1); openMention(); }
+            if(event.key === 'Enter' && buttons[state.mentionIndex]) { event.preventDefault(); buttons[state.mentionIndex].click(); }
+            if(event.key === 'Escape') closeMention();
+        });
+        document.addEventListener('click', event => {
+            if(!event.target.closest('#mentionPanel') && !event.target.closest('#promptInput')) closeMention();
+        });
+        window.addEventListener('message', event => {
+            if(event.data?.type === 'providers-changed') loadConfig().catch(err => setStatus(err.message, 'warn'));
+            if(event.data?.type === 'asset_library_updated') loadAssets().catch(err => setStatus(err.message, 'warn'));
+        });
+
+        async function init(){
+            refreshIcons();
+            try {
+                await Promise.all([loadConfig(), loadAssets()]);
+                setStatus('准备就绪', 'ok');
+            } catch(err) {
+                setStatus(err.message || '初始化失败', 'warn');
+            }
+        }
+        init();
+    </script>
+</body>
+</html>

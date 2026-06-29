@@ -1490,6 +1490,15 @@
                     </svg>
                     <span class="nav-text">在线生图</span>
                 </div>
+                <div class="nav-item" onclick="switchUI(this, 'video-agent')">
+                    <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m22 8-6 4 6 4V8Z"></path>
+                        <rect x="2" y="6" width="14" height="12" rx="2"></rect>
+                        <path d="M7 11h4"></path>
+                        <path d="M7 14h2"></path>
+                    </svg>
+                    <span class="nav-text">视频 Agent</span>
+                </div>
                 <div class="nav-item" onclick="switchUI(this, 'gpt-chat')">
                     <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
@@ -1635,6 +1644,7 @@
             <iframe id="frame-klein" data-src="/static/klein.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
             <iframe id="frame-angle" data-src="/static/angle.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
             <iframe id="frame-online" data-src="/static/online.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
+            <iframe id="frame-video-agent" data-src="/static/video-agent.html?v=2026.06.29.1" scrolling="yes"></iframe>
             <iframe id="frame-gpt-chat" data-src="/static/gpt-chat.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
             <iframe id="frame-canvas" data-src="/static/canvas.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
             <iframe id="frame-asset-manager" data-src="/static/asset-manager.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
@@ -1760,7 +1770,7 @@
         const SIDEBAR_SETTINGS_COLLAPSED_KEY = 'studio_sidebar_settings_collapsed';
         const SIDEBAR_PINNED_KEY = 'studio_sidebar_pinned';
         const DEFAULT_PAGE_ID = 'zimage';
-        const PAGE_IDS = ['zimage','enhance','klein','angle','online','gpt-chat','canvas','asset-manager','api-settings','comfyui-settings'];
+        const PAGE_IDS = ['zimage','enhance','klein','angle','online','video-agent','gpt-chat','canvas','asset-manager','api-settings','comfyui-settings'];
         const LOCAL_PAGE_IDS = ['zimage','enhance','klein','angle'];
         const PROJECT_URL = 'https://github.com/hero8152/Infinite-Canvas';
         let appInfo = { version:'', repo_url:PROJECT_URL, version_url:'https://raw.githubusercontent.com/hero8152/Infinite-Canvas/main/VERSION' };
