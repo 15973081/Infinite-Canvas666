@@ -47,8 +47,68 @@ async def get_canvas_image_task(task_id: str):
         raise HTTPException(status_code=404, detail="画布任务不存在，可能服务已重启或任务已过期")
     return task
 
+@router.post("/api/canvas-video-tasks")
+async def create_canvas_video_task(payload: CanvasVideoRequest):
+    task_id = f"canvas_vid_{uuid.uuid4().hex}"
+    with CANVAS_TASK_LOCK:
+        CANVAS_TASKS[task_id] = {
+            "id": task_id,
+            "type": "video",
+            "status": "queued",
+            "created_at": time.time(),
+            "updated_at": time.time(),
+            "result": None,
+            "error": "",
+            "provider_id": payload.provider_id,
+            "model": payload.model,
+        }
+    asyncio.create_task(run_canvas_video_task(task_id, payload))
+    return {"task_id": task_id, "status": "queued"}
+
+@router.get("/api/canvas-video-tasks/{task_id}")
+async def get_canvas_video_task(task_id: str):
+    with CANVAS_TASK_LOCK:
+        task = dict(CANVAS_TASKS.get(task_id) or {})
+    if not task or task.get("type") != "video":
+        raise HTTPException(status_code=404, detail="视频任务不存在，可能服务已重启或任务已过期")
+    return task
+
+async def run_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
+    with CANVAS_TASK_LOCK:
+        if task_id in CANVAS_TASKS:
+            CANVAS_TASKS[task_id]["status"] = "running"
+            CANVAS_TASKS[task_id]["updated_at"] = time.time()
+    try:
+        result = await canvas_video_impl(payload)
+        upstream_task_id = result.get("task_id") if isinstance(result, dict) else ""
+        with CANVAS_TASK_LOCK:
+            if task_id in CANVAS_TASKS:
+                CANVAS_TASKS[task_id].update({
+                    "status": "succeeded",
+                    "result": result,
+                    "error": "",
+                    "upstream_task_id": upstream_task_id or "",
+                    "updated_at": time.time(),
+                })
+    except Exception as exc:
+        detail = getattr(exc, "detail", None) or str(exc)
+        status_code = getattr(exc, "status_code", 500)
+        upstream_task_id = getattr(exc, "upstream_task_id", "") or extract_task_id_from_text(detail)
+        with CANVAS_TASK_LOCK:
+            if task_id in CANVAS_TASKS:
+                CANVAS_TASKS[task_id].update({
+                    "status": "failed",
+                    "error": str(detail),
+                    "status_code": status_code,
+                    "upstream_task_id": upstream_task_id,
+                    "updated_at": time.time(),
+                })
+
 @router.post("/api/canvas-video")
 async def canvas_video(payload: CanvasVideoRequest):
+    return await canvas_video_impl(payload)
+
+async def canvas_video_impl(payload: CanvasVideoRequest):
     provider = get_api_provider(payload.provider_id)
     if is_jimeng_provider(provider):
         return await generate_jimeng_video(payload, provider)
