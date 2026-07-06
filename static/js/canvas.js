@@ -1688,9 +1688,7 @@ function renderFolderTree(){
 }
 async function loadCanvasFolders(){
     try {
-        const res = await fetch('/api/canvas-folders');
-        if(!res.ok) throw new Error('folder load failed');
-        const data = await res.json();
+        const data = await window.CanvasApi.listCanvasFolders();
         canvasFolders = data.folders || [];
         if(activeFolderId !== 'all' && activeFolderId && !canvasFolders.some(folder => folder.id === activeFolderId)){
             activeFolderId = '';
@@ -1716,13 +1714,7 @@ async function createCanvasFolder(parentId=''){
     const trimmed = name.trim();
     if(!trimmed) return;
     try {
-        const res = await fetch('/api/canvas-folders', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({name:trimmed, parent_id:normalizeCanvasFolderId(parentId)})
-        });
-        if(!res.ok) throw new Error('folder create failed');
-        const data = await res.json();
+        const data = await window.CanvasApi.createCanvasFolder({name:trimmed, parent_id:normalizeCanvasFolderId(parentId)});
         canvasFolders = data.folders || canvasFolders;
         activeFolderId = data.folder?.id || activeFolderId;
         renderFolderTree();
@@ -1741,13 +1733,7 @@ async function renameCanvasFolder(folderId){
     const trimmed = name.trim();
     if(!trimmed || trimmed === folder.name) return;
     try {
-        const res = await fetch(`/api/canvas-folders/${encodeURIComponent(folderId)}`, {
-            method:'PATCH',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({name:trimmed})
-        });
-        if(!res.ok) throw new Error('folder rename failed');
-        const data = await res.json();
+        const data = await window.CanvasApi.updateCanvasFolder(folderId, {name:trimmed});
         canvasFolders = data.folders || canvasFolders;
         renderFolderTree();
     } catch(e) {
@@ -1761,9 +1747,7 @@ async function deleteCanvasFolder(folderId){
     if(!confirm(trDefault('canvas.deleteFolderConfirm', '删除该文件夹？其中的画布和子文件夹会移动到上一级。'))) return;
     try {
         const parentId = normalizeCanvasFolderId(folder.parent_id);
-        const res = await fetch(`/api/canvas-folders/${encodeURIComponent(folderId)}`, {method:'DELETE'});
-        if(!res.ok) throw new Error('folder delete failed');
-        const data = await res.json();
+        const data = await window.CanvasApi.deleteCanvasFolder(folderId);
         canvasFolders = data.folders || canvasFolders.filter(item => item.id !== folderId);
         canvases.forEach(item => {
             if(normalizeCanvasFolderId(item.folder_id) === folderId) item.folder_id = parentId;
@@ -4559,13 +4543,7 @@ async function uploadCanvasMediaRefToCloud(node, ref){
     const kind = mediaKindForRef(ref);
     if(!ref?.url) throw new Error('没有可上传的媒体');
     if(/^https?:\/\//i.test(ref.url)) return ref.url;
-    const response = await fetch('/api/cloud-video/upload', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({url:ref.url, service:'auto'})
-    });
-    if(!response.ok) throw new Error(await responseErrorMessage(response, '云端上传失败'));
-    const data = await response.json();
+    const data = await window.CanvasApi.uploadCloudVideo({url:ref.url, service:'auto'}, {errorFallback:'云端上传失败'});
     const uploadedUrl = data.url || '';
     if(!uploadedUrl) throw new Error('云端没有返回链接');
     node.tempShLinks = [
@@ -7850,7 +7828,7 @@ async function loadCanvasPromptTemplates(){
     try {
         loadCanvasPromptTemplateGroups();
         loadCanvasPromptTemplateOverrides();
-        const data = await fetch('/api/prompt-libraries').then(r => r.ok ? r.json() : {library:{libraries:[]}});
+        const data = await window.CanvasApi.getPromptLibraries();
         canvasPromptLibraries = Array.isArray(data.library?.libraries) ? data.library.libraries : [];
         if(!canvasPromptLibraries.some(lib => lib.id === activePromptLibraryId)) {
             activePromptLibraryId = canvasPromptLibraries.some(lib => lib.id === 'system') ? 'system' : (canvasPromptLibraries[0]?.id || 'system');
@@ -8044,20 +8022,13 @@ async function saveCurrentCanvasPromptAsTemplate(){
     const text = currentCanvasPromptTemplateNodeText();
     if(!text){ setStatus('当前提示词为空'); return; }
     try {
-        const data = await fetch('/api/prompt-libraries/items', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                library_id:lib.id,
-                name:canvasPromptTemplateDefaultName(text),
-                category:promptTemplateCategory === 'all' ? 'mine' : promptTemplateCategory,
-                positive:text,
-                scene:'我的提示词预设'
-            })
-        }).then(async r => {
-            if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '保存失败');
-            return r.json();
-        });
+        const data = await window.CanvasApi.createPromptItem({
+            library_id:lib.id,
+            name:canvasPromptTemplateDefaultName(text),
+            category:promptTemplateCategory === 'all' ? 'mine' : promptTemplateCategory,
+            positive:text,
+            scene:'我的提示词预设'
+        }, {errorFallback:'保存失败'});
         activePromptLibraryId = lib.id;
         syncCanvasPromptTemplateMutation(data, data.item?.id || '');
         promptTemplateEditing = true;
@@ -8071,14 +8042,7 @@ async function createBlankCanvasPromptTemplate(){
     if(!currentCanvasPromptTemplateLibraryEditable()){ setStatus('请选择可编辑的提示词库'); return; }
     const category = promptTemplateCategory && promptTemplateCategory !== 'all' ? promptTemplateCategory : 'mine';
     try {
-        const data = await fetch('/api/prompt-libraries/items', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({library_id:lib.id, name:'新模板', category, positive:'新提示词', scene:'我的提示词预设'})
-        }).then(async r => {
-            if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '创建失败');
-            return r.json();
-        });
+        const data = await window.CanvasApi.createPromptItem({library_id:lib.id, name:'新模板', category, positive:'新提示词', scene:'我的提示词预设'}, {errorFallback:'创建失败'});
         activePromptLibraryId = lib.id;
         promptTemplateCategory = category;
         syncCanvasPromptTemplateMutation(data, data.item?.id || '');
@@ -8111,14 +8075,7 @@ async function saveCanvasPromptTemplateEdit(){
             renderPromptTemplateModal();
             return;
         }
-        const data = await fetch(`/api/prompt-libraries/items/${encodeURIComponent(item.id)}`, {
-            method:'PATCH',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({library_id:item.libraryId || lib.id, name, category, scene:item.scene || '', positive, negative:item.negative || ''})
-        }).then(async r => {
-            if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '保存失败');
-            return r.json();
-        });
+        const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:item.libraryId || lib.id, name, category, scene:item.scene || '', positive, negative:item.negative || ''}, {errorFallback:'保存失败'});
         syncCanvasPromptTemplateMutation(data, item.id);
         promptTemplateEditing = false;
         renderPromptTemplateModal();
@@ -8140,10 +8097,7 @@ async function deleteCanvasPromptTemplate(){
             renderPromptTemplateModal();
             return;
         }
-        const data = await fetch(`/api/prompt-libraries/items/${encodeURIComponent(item.id)}`, {method:'DELETE'}).then(async r => {
-            if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '删除失败');
-            return r.json();
-        });
+        const data = await window.CanvasApi.deletePromptItem(item.id, {errorFallback:'删除失败'});
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         refreshCanvasPromptTemplatesFromLibraries();
         promptTemplateSelectedId = '';
@@ -8180,10 +8134,7 @@ async function createCanvasPromptTemplateGroup(){
     const lib = activeCanvasPromptLibrary();
     if(lib && lib.id !== 'system'){
         try {
-            const data = await fetch('/api/prompt-libraries/categories', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({name:String(name).trim().slice(0, 24), library_id:lib.id})
-            }).then(async r => { if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '新增分组失败'); return r.json(); });
+            const data = await window.CanvasApi.createPromptCategory({name:String(name).trim().slice(0, 24), library_id:lib.id}, {errorFallback:'新增分组失败'});
             canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
             promptTemplateCategory = data.category?.id || promptTemplateCategory;
             refreshCanvasPromptTemplatesFromLibraries();
@@ -8205,10 +8156,7 @@ async function renameCanvasPromptTemplateGroup(groupId){
     if(!String(name || '').trim()) return;
     if(lib && lib.id !== 'system'){
         try {
-            const data = await fetch(`/api/prompt-libraries/categories/${encodeURIComponent(groupId)}`, {
-                method:'PATCH', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({name:String(name).trim().slice(0, 24), library_id:lib.id})
-            }).then(async r => { if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '重命名失败'); return r.json(); });
+            const data = await window.CanvasApi.updatePromptCategory(groupId, {name:String(name).trim().slice(0, 24), library_id:lib.id}, {errorFallback:'重命名失败'});
             canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
             refreshCanvasPromptTemplatesFromLibraries();
             renderPromptTemplateModal();
@@ -8224,8 +8172,7 @@ async function deleteCanvasPromptTemplateGroup(groupId){
     if(lib && lib.id !== 'system'){
         if(!window.confirm(tr('smart.tplDeleteGroupConfirm'))) return;
         try {
-            const data = await fetch(`/api/prompt-libraries/categories/${encodeURIComponent(groupId)}`, {method:'DELETE'})
-                .then(async r => { if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '删除失败'); return r.json(); });
+            const data = await window.CanvasApi.deletePromptCategory(groupId, {errorFallback:'删除失败'});
             canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
             if(promptTemplateCategory === groupId) promptTemplateCategory = 'all';
             refreshCanvasPromptTemplatesFromLibraries();
@@ -9453,12 +9400,11 @@ function currentComfyWorkflow(node){
 async function ensureComfyWorkflow(name){
     if(!hasComfyWorkflow(name)) return null;
     if(comfyWorkflowCache[name]) return comfyWorkflowCache[name];
-    const res = await fetch(`/api/workflows/${encodeURIComponent(name)}`);
-    if(!res.ok){
+    const data = await window.CanvasApi.getWorkflow(name, null);
+    if(!data){
         delete comfyWorkflowCache[name];
         return null;
     }
-    const data = await res.json();
     comfyWorkflowCache[name] = data;
     return data;
 }
@@ -9473,12 +9419,11 @@ async function ensureRunningHubWorkflow(workflowId){
     workflowId = validRunningHubWorkflowId(workflowId);
     if(!workflowId) return null;
     if(runningHubWorkflowCache[workflowId]) return runningHubWorkflowCache[workflowId];
-    const res = await fetch(`/api/runninghub/workflows/${encodeURIComponent(workflowId)}`);
-    if(!res.ok){
+    const data = await window.CanvasApi.getRunningHubWorkflow(workflowId, null);
+    if(!data){
         delete runningHubWorkflowCache[workflowId];
         return null;
     }
-    const data = await res.json();
     runningHubWorkflowCache[workflowId] = data.workflow || null;
     return runningHubWorkflowCache[workflowId];
 }
@@ -10251,9 +10196,8 @@ async function rhFetchAppInfo(nodeId, showAlert=true){
     node.rhFetching = true;
     refreshNodes([node.id]);
     try {
-        const res = await fetch(`/api/runninghub/app-info?webappId=${encodeURIComponent(node.webappId.trim())}`);
-        const data = await res.json();
-        if(!res.ok || data.success === false) throw new Error(data.detail || data.error || tr('canvas.rhFailed'));
+        const data = await window.CanvasApi.getRunningHubAppInfo(node.webappId.trim());
+        if(data.success === false) throw new Error(data.detail || data.error || tr('canvas.rhFailed'));
         node.rhAppInfo = data.data || {};
         node.rhParams = node.rhParams || {};
         (node.rhAppInfo.nodeInfoList || []).forEach(field => {
@@ -10283,9 +10227,8 @@ async function rhFetchWorkflowInfo(nodeId, showAlert=true){
     refreshNodes([node.id]);
     try {
         const saved = await ensureRunningHubWorkflow(node.workflowId.trim());
-        const res = await fetch(`/api/runninghub/workflow-info?workflowId=${encodeURIComponent(node.workflowId.trim())}`);
-        const data = await res.json();
-        if(!res.ok || data.success === false) throw new Error(data.detail || data.error || tr('canvas.rhFailed'));
+        const data = await window.CanvasApi.getRunningHubWorkflowInfo(node.workflowId.trim());
+        if(data.success === false) throw new Error(data.detail || data.error || tr('canvas.rhFailed'));
         const info = data.data || {};
         const savedFields = Array.isArray(saved?.fields) ? saved.fields : [];
         const mergedFields = savedFields.length
@@ -10340,13 +10283,8 @@ async function rhUploadValueIfNeeded(value, node=null){
     const text = String(value || '').trim();
     if(!text) return '';
     if(!/^https?:\/\//i.test(text) && !text.startsWith('/output/') && !text.startsWith('/assets/')) return text;
-    const res = await fetch('/api/runninghub/upload-asset', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({url:text, useWallet:rhUseWallet(node)})
-    });
-    const data = await res.json();
-    if(!res.ok || data.success === false) throw new Error(data.detail || data.error || tr('canvas.rhUploadFailed'));
+    const data = await window.CanvasApi.uploadRunningHubAsset({url:text, useWallet:rhUseWallet(node)}, {errorFallback:tr('canvas.rhUploadFailed')});
+    if(data.success === false) throw new Error(data.detail || data.error || tr('canvas.rhUploadFailed'));
     return data.data?.fileName || text;
 }
 async function rhBuildNodeInfoList(node, media){
@@ -10990,11 +10928,7 @@ async function runGeneratorLegacy(genId, opts={}){
         };
         const quality = normalizedImageQuality(gen.quality);
         if(quality) payload.quality = quality;
-        const results = await Promise.all(Array.from({length:count}, () => fetch('/api/online-image', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(payload)
-        }).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, tr('canvas.generationFailed'))); return r.json(); })));
+        const results = await Promise.all(Array.from({length:count}, () => window.CanvasApi.onlineImage(payload, {errorFallback:tr('canvas.generationFailed')})));
         const images = results.flatMap(result => result.images || []);
         const metas = collectRunMetas(out, pendingIds);
         run.request = results[0] ? requestMetaFromResult(results[0]) : {};
@@ -11120,10 +11054,7 @@ async function uploadCanvasUrlToComfy(url){
     const filename = (url || '').split('/').pop()?.split('?')[0] || `canvas_${Date.now()}.png`;
     const form = new FormData();
     form.append('files', blob, filename);
-    const data = await fetch('/api/upload', {method:'POST', body:form}).then(async r => {
-        if(!r.ok) throw new Error(await responseErrorMessage(r, langIsEn() ? 'Image upload to ComfyUI failed' : '图片上传到 ComfyUI 失败'));
-        return r.json();
-    });
+    const data = await window.CanvasApi.uploadGeneric(form, {errorFallback:langIsEn() ? 'Image upload to ComfyUI failed' : '图片上传到 ComfyUI 失败'});
     return data.files?.[0]?.comfy_name || filename;
 }
 async function comfyNameForRef(ref){
@@ -11134,10 +11065,7 @@ async function comfyNameForRef(ref){
 async function runComfyUpscale(imageUrl, resolution){
     if(!imageUrl) throw new Error(actionFailed('studio.superResolution', langIsEn() ? 'missing input image' : '缺少输入图片'));
     const nextInput = await uploadCanvasUrlToComfy(imageUrl);
-    const upscale = await fetch('/api/generate', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
+    const upscale = await window.CanvasApi.generate({
             workflow_json:'upscale.json',
             params:{
                 "15": { image:nextInput },
@@ -11145,8 +11073,7 @@ async function runComfyUpscale(imageUrl, resolution){
             },
             type:'enhance',
             client_id:CLIENT_ID
-        })
-    }).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('studio.superResolution'))); return r.json(); });
+        }, {errorFallback:actionFailed('studio.superResolution')});
     if(upscale.error) throw new Error(actionFailed('studio.superResolution', upscale.error));
     if(!upscale.images?.length) throw new Error(noReturnedImage('studio.superResolution'));
     return upscale.images || [];
@@ -12970,13 +12897,7 @@ async function queryRecoverPendingOutput(pendingId){
     pending.recoverTaskId = taskId;
     refreshNodes([out.id]);
     try {
-        const res = await fetch('/api/image-task-query', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({provider_id:providerIdForPending(pending), task_id:taskId})
-        });
-        if(!res.ok) throw new Error(await responseErrorMessage(res, '查询失败'));
-        const data = await res.json();
+        const data = await window.CanvasApi.queryImageTask({provider_id:providerIdForPending(pending), task_id:taskId}, {errorFallback:'查询失败'});
         if(data.status === 'succeeded'){
             completeRecoverPendingOutput(out, pending, data);
             return;
@@ -13714,7 +13635,7 @@ assetManagerModal?.addEventListener('click', async event => {
         if(!String(name || '').trim()) return;
         const positive = window.prompt('提示词内容', item.positive || '');
         if(!String(positive || '').trim()) return;
-        const data = await fetch(`/api/prompt-libraries/items/${encodeURIComponent(item.id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:lib.id, name, positive, negative:item.negative || '', category:item.category || 'mine', scene:item.scene || ''})}).then(r => r.json());
+        const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:lib.id, name, positive, negative:item.negative || '', category:item.category || 'mine', scene:item.scene || ''});
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         refreshCanvasPromptTemplatesFromLibraries();
         renderAssetManager(); return;
@@ -13726,7 +13647,7 @@ assetManagerModal?.addEventListener('click', async event => {
         const itemId = promptRemove.dataset.managerPromptRemove || '';
         const item = (lib.items || []).find(entry => entry.id === itemId);
         if(!item || !window.confirm(`删除提示词「${item.name || '提示词'}」？`)) return;
-        const data = await fetch(`/api/prompt-libraries/items/${encodeURIComponent(item.id)}`, {method:'DELETE'}).then(r => r.json());
+        const data = await window.CanvasApi.deletePromptItem(item.id);
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         managerSelectedPromptIds.delete(item.id);
         refreshCanvasPromptTemplatesFromLibraries();
@@ -13818,7 +13739,7 @@ assetManagerModal?.addEventListener('click', async event => {
     if(event.target.closest?.('[data-manager-prompt-lib-new]')){
         const name = window.prompt('提示词库名称', '新提示词库');
         if(!String(name || '').trim()) return;
-        const data = await fetch('/api/prompt-libraries', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})}).then(r => r.json());
+        const data = await window.CanvasApi.createPromptLibrary({name});
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         activePromptLibraryId = data.prompt_library?.id || activePromptLibraryId;
         refreshCanvasPromptTemplatesFromLibraries();
@@ -13829,7 +13750,7 @@ assetManagerModal?.addEventListener('click', async event => {
         if(!lib || lib.readonly) return;
         const name = window.prompt('提示词库名称', lib.name || '');
         if(!String(name || '').trim()) return;
-        const data = await fetch(`/api/prompt-libraries/${encodeURIComponent(lib.id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})}).then(r => r.json());
+        const data = await window.CanvasApi.updatePromptLibrary(lib.id, {name});
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         refreshCanvasPromptTemplatesFromLibraries();
         renderAssetManager(); return;
@@ -13837,7 +13758,7 @@ assetManagerModal?.addEventListener('click', async event => {
     if(event.target.closest?.('[data-manager-prompt-lib-delete]')){
         const lib = activeCanvasPromptLibrary();
         if(!lib || lib.readonly || !window.confirm(`删除提示词库「${lib.name || '提示词库'}」？`)) return;
-        const data = await fetch(`/api/prompt-libraries/${encodeURIComponent(lib.id)}`, {method:'DELETE'}).then(r => r.json());
+        const data = await window.CanvasApi.deletePromptLibrary(lib.id);
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         activePromptLibraryId = data.library?.active_library_id || canvasPromptLibraries.find(item => item.id !== 'system')?.id || 'system';
         refreshCanvasPromptTemplatesFromLibraries();
@@ -13850,14 +13771,14 @@ assetManagerModal?.addEventListener('click', async event => {
         if(!String(name || '').trim()) return;
         const positive = window.prompt('提示词内容', '');
         if(!String(positive || '').trim()) return;
-        const data = await fetch('/api/prompt-libraries/items', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:lib.id, name, positive, category:'mine'})}).then(r => r.json());
+        const data = await window.CanvasApi.createPromptItem({library_id:lib.id, name, positive, category:'mine'});
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         refreshCanvasPromptTemplatesFromLibraries();
         renderAssetManager(); return;
     }
     if(event.target.closest?.('[data-manager-prompt-delete]')){
         if(!managerSelectedPromptIds.size) return;
-        const data = await fetch('/api/prompt-libraries/items/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids:[...managerSelectedPromptIds]})}).then(r => r.json());
+        const data = await window.CanvasApi.deletePromptItems({ids:[...managerSelectedPromptIds]});
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
         managerSelectedPromptIds.clear();
         refreshCanvasPromptTemplatesFromLibraries();
@@ -14336,11 +14257,7 @@ async function exportSelectedWorkflow(includeResources=false){
             return;
         }
         const filename = workflowFilename('zip');
-        const res = await fetch('/api/canvas-workflows/export', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({...payload, include_resources:true, filename})
-        });
+        const res = await window.CanvasApi.exportCanvasWorkflow({...payload, include_resources:true, filename});
         if(!res.ok) throw new Error(await responseErrorMessage(res, '导出工作流失败'));
         const blob = await res.blob();
         downloadBlob(blob, filename);
@@ -14380,11 +14297,7 @@ async function exportSelectedWorkflowToLibrary(){
         if(!canvasAssetLibrary?.libraries?.length) await loadCanvasAssetLibrary({renderPanel:false});
         const filename = workflowFilename('zip');
         const target = defaultWorkflowAssetTarget();
-        const res = await fetch('/api/canvas-workflows/export-to-library', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({...payload, include_resources:true, filename, name:filename.replace(/\.zip$/i, ''), library_id:target.libraryId, category_id:target.categoryId})
-        });
+        const res = await window.CanvasApi.exportCanvasWorkflowToLibrary({...payload, include_resources:true, filename, name:filename.replace(/\.zip$/i, ''), library_id:target.libraryId, category_id:target.categoryId});
         if(!res.ok) throw new Error(await responseErrorMessage(res, '导出到资产库失败'));
         const data = await res.json();
         canvasAssetLibrary = data.library || canvasAssetLibrary;
@@ -14468,7 +14381,7 @@ async function importWorkflowFile(file){
     try {
         const form = new FormData();
         form.append('file', file);
-        const res = await fetch('/api/canvas-workflows/import', {method:'POST', body:form});
+        const res = await window.CanvasApi.importCanvasWorkflow(form);
         if(!res.ok) throw new Error(await responseErrorMessage(res, '导入工作流失败'));
         const data = await res.json();
         insertWorkflowIntoCanvas(normalizeImportedWorkflow(data));

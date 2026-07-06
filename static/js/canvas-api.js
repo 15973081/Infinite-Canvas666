@@ -38,6 +38,14 @@
         return jsonOr('/api/workflows', fallback);
     }
 
+    function getWorkflow(name, fallback=null){
+        return jsonOr(`/api/workflows/${encodeURIComponent(name)}`, fallback);
+    }
+
+    function runWorkflow(name, payload, options={}){
+        return json(`/api/workflows/${encodeURIComponent(name)}/run`, jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
     function getAssetLibrary(){
         return json('/api/asset-library');
     }
@@ -192,12 +200,151 @@
         return json(`/api/asset-library/categories/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true, ...options});
     }
 
+    function getPromptLibraries(fallback={library:{libraries:[]}}){
+        return jsonOr('/api/prompt-libraries', fallback);
+    }
+
+    function createPromptLibrary(payload, options={}){
+        return json('/api/prompt-libraries', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function updatePromptLibrary(id, patch, options={}){
+        return json(`/api/prompt-libraries/${encodeURIComponent(id)}`, jsonBodyInit('PATCH', patch), {checkOk:true, ...options});
+    }
+
+    function deletePromptLibrary(id, options={}){
+        return json(`/api/prompt-libraries/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true, ...options});
+    }
+
+    function createPromptItem(payload, options={}){
+        return json('/api/prompt-libraries/items', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function updatePromptItem(id, patch, options={}){
+        return json(`/api/prompt-libraries/items/${encodeURIComponent(id)}`, jsonBodyInit('PATCH', patch), {checkOk:true, ...options});
+    }
+
+    function deletePromptItem(id, options={}){
+        return json(`/api/prompt-libraries/items/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true, ...options});
+    }
+
+    function deletePromptItems(payload, options={}){
+        return json('/api/prompt-libraries/items/delete', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function createPromptCategory(payload, options={}){
+        return json('/api/prompt-libraries/categories', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function updatePromptCategory(id, patch, options={}){
+        return json(`/api/prompt-libraries/categories/${encodeURIComponent(id)}`, jsonBodyInit('PATCH', patch), {checkOk:true, ...options});
+    }
+
+    function deletePromptCategory(id, options={}){
+        return json(`/api/prompt-libraries/categories/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true, ...options});
+    }
+
+    function listCanvasFolders(){
+        return json('/api/canvas-folders', {}, {checkOk:true});
+    }
+
+    function createCanvasFolder(payload){
+        return json('/api/canvas-folders', jsonBodyInit('POST', payload), {checkOk:true});
+    }
+
+    function updateCanvasFolder(id, patch){
+        return json(`/api/canvas-folders/${encodeURIComponent(id)}`, jsonBodyInit('PATCH', patch), {checkOk:true});
+    }
+
+    function deleteCanvasFolder(id){
+        return json(`/api/canvas-folders/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true});
+    }
+
+    function exportCanvasWorkflow(payload){
+        return request('/api/canvas-workflows/export', jsonBodyInit('POST', payload));
+    }
+
+    function exportCanvasWorkflowToLibrary(payload){
+        return request('/api/canvas-workflows/export-to-library', jsonBodyInit('POST', payload));
+    }
+
+    function importCanvasWorkflow(form){
+        return request('/api/canvas-workflows/import', {method:'POST', body:form});
+    }
+
+    function getRunningHubWorkflow(workflowId, fallback=null){
+        return jsonOr(`/api/runninghub/workflows/${encodeURIComponent(workflowId)}`, fallback);
+    }
+
+    function getRunningHubAppInfo(webappId){
+        return json(`/api/runninghub/app-info?webappId=${encodeURIComponent(webappId)}`, {}, {checkOk:true});
+    }
+
+    function getRunningHubWorkflowInfo(workflowId){
+        return json(`/api/runninghub/workflow-info?workflowId=${encodeURIComponent(workflowId)}`, {}, {checkOk:true});
+    }
+
+    function bodyInit(payload){
+        return payload instanceof FormData ? {method:'POST', body:payload} : jsonBodyInit('POST', payload);
+    }
+
+    function uploadRunningHubAsset(payload, options={}){
+        return json('/api/runninghub/upload-asset', bodyInit(payload), {checkOk:true, ...options});
+    }
+
+    function submitRunningHub(mode, payload){
+        const endpoint = mode === 'workflow' ? '/api/runninghub/workflow-submit' : '/api/runninghub/submit';
+        return request(endpoint, jsonBodyInit('POST', payload));
+    }
+
+    function queryRunningHubTask(taskId){
+        return json(`/api/runninghub/query?taskId=${encodeURIComponent(taskId)}`, {}, {checkOk:true});
+    }
+
+    function uploadCloudVideo(payload, options={}){
+        return json('/api/cloud-video/upload', bodyInit(payload), {checkOk:true, ...options});
+    }
+
+    function uploadGeneric(form, options={}){
+        return json('/api/upload', {method:'POST', body:form}, {checkOk:true, ...options});
+    }
+
+    function generate(payload, options={}){
+        return json('/api/generate', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function onlineImage(payload, options={}){
+        return json('/api/online-image', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function canvasLLM(payload, options={}){
+        return json('/api/canvas-llm', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function createCanvasImageTask(payload, options={}){
+        return json('/api/canvas-image-tasks', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function getCanvasImageTask(taskId, fallback=null){
+        return jsonOr(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`, fallback);
+    }
+
+    function createCanvasVideo(payload, options={}){
+        return json('/api/canvas-video', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function queryImageTask(payload, options={}){
+        return json('/api/image-task-query', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
     window.CanvasApi = {
         request,
         json,
         jsonOr,
         getConfig,
         getWorkflows,
+        getWorkflow,
+        runWorkflow,
         getAssetLibrary,
         getLocalAssets,
         getAssetLibraries,
@@ -233,6 +380,39 @@
         deleteAssetLibrary,
         createAssetCategory,
         updateAssetCategory,
-        deleteAssetCategory
+        deleteAssetCategory,
+        getPromptLibraries,
+        createPromptLibrary,
+        updatePromptLibrary,
+        deletePromptLibrary,
+        createPromptItem,
+        updatePromptItem,
+        deletePromptItem,
+        deletePromptItems,
+        createPromptCategory,
+        updatePromptCategory,
+        deletePromptCategory,
+        listCanvasFolders,
+        createCanvasFolder,
+        updateCanvasFolder,
+        deleteCanvasFolder,
+        exportCanvasWorkflow,
+        exportCanvasWorkflowToLibrary,
+        importCanvasWorkflow,
+        getRunningHubWorkflow,
+        getRunningHubAppInfo,
+        getRunningHubWorkflowInfo,
+        uploadRunningHubAsset,
+        submitRunningHub,
+        queryRunningHubTask,
+        uploadCloudVideo,
+        uploadGeneric,
+        generate,
+        onlineImage,
+        canvasLLM,
+        createCanvasImageTask,
+        getCanvasImageTask,
+        createCanvasVideo,
+        queryImageTask
     };
 })();
