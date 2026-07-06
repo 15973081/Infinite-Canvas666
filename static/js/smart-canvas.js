@@ -4657,9 +4657,8 @@ async function mergeReloadCanvasNow(){
         return;
     }
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(canvasId)}`);
-        if(!res.ok) return;
-        const data = await res.json();
+        const data = await window.CanvasApi.getCanvas(canvasId, {fallback:null});
+        if(!data) return;
         if(data && data.canvas) applyMergedServerCanvas(data.canvas);
     } catch(e) {}
 }
@@ -5101,20 +5100,16 @@ async function saveCanvas(){
     const storageCanvas = canvasForStorage();
     canvasSyncInFlight = true;
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(canvasId)}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:storageCanvas.title || tr('smart.title'),
-                icon:storageCanvas.icon || 'sparkles',
-                nodes:storageCanvas.nodes || [],
-                connections:storageCanvas.connections || [],
-                viewport:storageCanvas.viewport || {x:0,y:0,scale:1},
-                logs:storageCanvas.logs || [],
-                settings:storageCanvas.settings,
-                base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
-                client_id:smartClientId
-            })
+        const res = await window.CanvasApi.saveCanvas(canvasId, {
+            title:storageCanvas.title || tr('smart.title'),
+            icon:storageCanvas.icon || 'sparkles',
+            nodes:storageCanvas.nodes || [],
+            connections:storageCanvas.connections || [],
+            viewport:storageCanvas.viewport || {x:0,y:0,scale:1},
+            logs:storageCanvas.logs || [],
+            settings:storageCanvas.settings,
+            base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
+            client_id:smartClientId
         });
         if(res.ok){
             const data = await res.json();

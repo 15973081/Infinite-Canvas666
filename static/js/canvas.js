@@ -1812,13 +1812,7 @@ async function moveCanvasToFolder(id, folderId){
     renderCanvasList();
     refreshGateViewControls();
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/folder`, {
-            method:'PATCH',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({folder_id:target})
-        });
-        if(!res.ok) throw new Error('move failed');
-        const data = await res.json();
+        const data = await window.CanvasApi.moveCanvasToFolder(id, target);
         if(data.canvas) updateCanvasListRecord(data.canvas);
     } catch(e) {
         if(item) item.folder_id = prev;
@@ -2094,11 +2088,7 @@ async function saveCanvas(){
     savingCanvasNow = true;
     saveCanvasAgain = false;
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(payload)
-        });
+        const res = await window.CanvasApi.saveCanvas(canvas.id, payload);
         if(res.status === 409){
             const data = await res.json().catch(() => ({}));
             const remote = data.detail?.canvas || data.canvas;
@@ -2273,13 +2263,7 @@ async function patchCanvasMeta(id, patch){
     sortCanvasListByUpdated();
     renderCanvasList();
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/meta`, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(patch)
-        });
-        if(!res.ok) throw new Error('meta save failed');
-        const data = await res.json();
+        const data = await window.CanvasApi.patchCanvasMeta(id, patch);
         if(data.canvas) updateCanvasListRecord(data.canvas);
     } catch(e){
         setStatus(tr('canvas.metaSaveFailed') || '保存失败');
@@ -2316,9 +2300,8 @@ function updateCanvasListRecord(record){
 async function touchCanvasOpened(id){
     if(!id) return null;
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(id)}/touch`, {method:'POST'});
-        if(!res.ok) return null;
-        const data = await res.json();
+        const data = await window.CanvasApi.touchCanvas(id, null);
+        if(!data) return null;
         if(data.canvas) updateCanvasListRecord(data.canvas);
         return data.canvas || data;
     } catch(e) {
@@ -2610,20 +2593,16 @@ async function setCanvasIcon(id, icon, event){
     try {
         let target = canvas?.id === id ? canvas : null;
         if(!target) {
-            const data = await fetch(`/api/canvases/${id}`).then(r => r.json());
+            const data = await window.CanvasApi.getCanvas(id);
             target = data.canvas;
         }
         target.icon = icon || 'layers';
-        const res = await fetch(`/api/canvases/${id}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:target.title,
-                icon:target.icon,
-                nodes:target.nodes || [],
-                connections:target.connections || [],
-                viewport:target.viewport || {x:0, y:0, scale:1}
-            })
+        const res = await window.CanvasApi.saveCanvas(id, {
+            title:target.title,
+            icon:target.icon,
+            nodes:target.nodes || [],
+            connections:target.connections || [],
+            viewport:target.viewport || {x:0, y:0, scale:1}
         });
         if(!res.ok) throw new Error('图标保存失败');
         if(canvas?.id === id) canvas.icon = target.icon;
@@ -2674,20 +2653,16 @@ async function setCanvasTitle(id, title){
     try {
         let target = canvas?.id === id ? canvas : null;
         if(!target){
-            const data = await fetch(`/api/canvases/${id}`).then(r => r.json());
+            const data = await window.CanvasApi.getCanvas(id);
             target = data.canvas;
         }
         target.title = title;
-        const res = await fetch(`/api/canvases/${id}`, {
-            method:'PUT',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                title:target.title,
-                icon:target.icon,
-                nodes:target.nodes || [],
-                connections:target.connections || [],
-                viewport:target.viewport || {x:0, y:0, scale:1}
-            })
+        const res = await window.CanvasApi.saveCanvas(id, {
+            title:target.title,
+            icon:target.icon,
+            nodes:target.nodes || [],
+            connections:target.connections || [],
+            viewport:target.viewport || {x:0, y:0, scale:1}
         });
         if(!res.ok) throw new Error('重命名失败');
         if(currentCanvasTitle && canvas?.id === id) currentCanvasTitle.textContent = title;
@@ -2831,9 +2806,7 @@ async function refreshMissingCanvasAssets(){
 async function syncRemoteCanvasNow(){
     if(!canvas) return;
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}`);
-        if(!res.ok) throw new Error(tr('canvas.openFailed'));
-        const data = await res.json();
+        const data = await window.CanvasApi.getCanvas(canvas.id, {errorFallback:tr('canvas.openFailed')});
         const remote = data.canvas;
         if(Number(remote?.updated_at || 0) >= Number(lastCanvasUpdatedAt || 0)){
             applyRemoteCanvasData(remote);
@@ -2849,9 +2822,8 @@ async function checkRemoteCanvasVersion(){
     if(lastCanvasWsUpdatedAt && Date.now() - lastCanvasWsUpdatedAt < REMOTE_SYNC_WS_QUIET_MS) return;
     remoteSyncBusy = true;
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}/meta`);
-        if(!res.ok) throw new Error('meta failed');
-        const meta = await res.json();
+        const meta = await window.CanvasApi.getCanvasMeta(canvas.id, null);
+        if(!meta) throw new Error('meta failed');
         const remoteUpdatedAt = Number(meta.updated_at || 0);
         if(remoteUpdatedAt > Number(lastCanvasUpdatedAt || 0)){
             await syncRemoteCanvasNow();
@@ -3029,9 +3001,8 @@ async function checkCanvasLock(){
     if(!canvas) return;
     const canvasId = canvas.id;
     try {
-        const res = await fetch(`/api/canvases/${canvasId}/lock`);
-        if(!res.ok) return;
-        const data = await res.json();
+        const data = await window.CanvasApi.checkCanvasLock(canvasId);
+        if(!data) return;
         if(!canvas || canvas.id !== canvasId) return;
         canvasLockHolder = data.holder || null;
         canvasLockedByOther = !!(canvasLockHolder && canvasLockHolder.client_id !== CLIENT_ID);
@@ -3054,11 +3025,7 @@ async function acquireCanvasLock(){
     if(!canvas) return false;
     const canvasId = canvas.id;
     try {
-        const res = await fetch(`/api/canvases/${canvasId}/lock`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({client_id: CLIENT_ID, username: getCanvasUserName()})
-        });
+        const res = await window.CanvasApi.acquireCanvasLock(canvasId, {client_id: CLIENT_ID, username: getCanvasUserName()});
         if(!canvas || canvas.id !== canvasId) return false;
         if(res.ok){
             const data = await res.json();
@@ -3114,9 +3081,7 @@ async function releaseCanvasLock(){
         return;
     }
     try {
-        await fetch(`/api/canvases/${canvas.id}/lock?client_id=${encodeURIComponent(CLIENT_ID)}`, {
-            method: 'DELETE'
-        });
+        await window.CanvasApi.releaseCanvasLock(canvas.id, CLIENT_ID);
         clearLocalCanvasLock();
     } catch(e){
         console.error('releaseCanvasLock error:', e);
@@ -3135,12 +3100,7 @@ function releaseCanvasLockOnExit(){
     } catch(e){}
     if(!sent){
         try {
-            fetch(releaseUrl, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: payload,
-                keepalive: true
-            });
+            window.CanvasApi.releaseCanvasLockKeepalive(canvas.id, {client_id: CLIENT_ID, username: getCanvasUserName()});
         } catch(e){}
     }
     clearLocalCanvasLock();
@@ -3215,7 +3175,7 @@ async function deleteCanvas(id, event){
     event?.stopPropagation();
     setStatus('Moving to trash...');
     try {
-        const res = await fetch(`/api/canvases/${id}`, {method:'DELETE'});
+        const res = await window.CanvasApi.deleteCanvas(id);
         if(!res.ok) throw new Error(tr('canvas.moveToTrashFailed'));
         const deletingCurrent = canvas?.id === id;
         pendingDeleteCanvasId = null;
@@ -3241,7 +3201,7 @@ async function restoreCanvas(id, event){
     event?.stopPropagation();
     setStatus('Restoring...');
     try {
-        const res = await fetch(`/api/canvases/${id}/restore`, {method:'POST'});
+        const res = await window.CanvasApi.restoreCanvas(id);
         if(!res.ok) throw new Error(tr('canvas.restoreFailed'));
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
@@ -3258,7 +3218,7 @@ async function purgeCanvas(id, event){
     event?.stopPropagation();
     setStatus('Deleting...');
     try {
-        const res = await fetch(`/api/canvases/${id}/purge`, {method:'DELETE'});
+        const res = await window.CanvasApi.purgeCanvas(id);
         if(!res.ok) throw new Error(tr('canvas.purgeFailed'));
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
@@ -12796,9 +12756,7 @@ async function createCanvasBackup(){
     const btn = document.getElementById('canvasBackupToggle');
     if(btn) btn.disabled = true;
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}/backup`, { method:'POST' });
-        if(!res.ok) throw new Error('backup failed');
-        const data = await res.json();
+        const data = await window.CanvasApi.createCanvasBackup(canvas.id);
         setStatus(langIsEn() ? `Backup saved (${new Date(data.updated_at).toLocaleTimeString()})` : `备份已保存 (${new Date(data.updated_at).toLocaleTimeString()})`);
     } catch(e) {
         setStatus(langIsEn() ? 'Backup failed' : '备份失败');
@@ -12816,11 +12774,8 @@ async function showBackupList(event){
     if(btn) btn.disabled = true;
     let backups = [];
     try {
-        const res = await fetch(`/api/canvases/${canvas.id}/backups`);
-        if(res.ok){
-            const data = await res.json();
-            backups = data.backups || [];
-        }
+        const data = await window.CanvasApi.listCanvasBackups(canvas.id, {backups:[]});
+        backups = data.backups || [];
     } catch(e) { console.error(e); }
     if(btn) btn.disabled = false;
     renderBackupModal(backups);
@@ -12874,7 +12829,7 @@ function renderBackupModal(backups){
             if(!fn) return;
             if(!confirm(isEn ? `Restore this backup? Current canvas will be overwritten.` : `恢复此备份？当前画布将被覆盖。`)) return;
             try {
-                const res = await fetch(`/api/canvases/${canvas.id}/backups/${encodeURIComponent(fn)}/restore`, { method:'POST' });
+                const res = await window.CanvasApi.restoreCanvasBackup(canvas.id, fn);
                 if(!res.ok) throw new Error('restore failed');
                 syncRemoteCanvasNow();
                 closeBackupModal();
@@ -12890,7 +12845,7 @@ function renderBackupModal(backups){
             const fn = btn.dataset.filename;
             if(!fn) return;
             try {
-                await fetch(`/api/canvases/${canvas.id}/backups/${encodeURIComponent(fn)}`, { method:'DELETE' });
+                await window.CanvasApi.deleteCanvasBackup(canvas.id, fn);
                 closeBackupModal();
                 showBackupList();
             } catch(e) { console.error(e); }

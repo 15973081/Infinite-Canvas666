@@ -18,6 +18,18 @@
         }
     }
 
+    function request(path, init={}){
+        return fetch(path, init);
+    }
+
+    function jsonBodyInit(method, payload){
+        return {
+            method,
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(payload || {})
+        };
+    }
+
     function getConfig(){
         return json('/api/config');
     }
@@ -65,11 +77,75 @@
         return jsonOr(`/api/canvases/${encodeURIComponent(id)}/meta`, fallback);
     }
 
+    function patchCanvasMeta(id, patch){
+        return json(`/api/canvases/${encodeURIComponent(id)}/meta`, jsonBodyInit('POST', patch), {checkOk:true});
+    }
+
+    function touchCanvas(id, fallback=null){
+        return jsonOr(`/api/canvases/${encodeURIComponent(id)}/touch`, fallback, {method:'POST'});
+    }
+
+    function saveCanvas(id, payload){
+        return request(`/api/canvases/${encodeURIComponent(id)}`, jsonBodyInit('PUT', payload));
+    }
+
+    function deleteCanvas(id){
+        return request(`/api/canvases/${encodeURIComponent(id)}`, {method:'DELETE'});
+    }
+
+    function restoreCanvas(id){
+        return request(`/api/canvases/${encodeURIComponent(id)}/restore`, {method:'POST'});
+    }
+
+    function purgeCanvas(id){
+        return request(`/api/canvases/${encodeURIComponent(id)}/purge`, {method:'DELETE'});
+    }
+
+    function moveCanvasToFolder(id, folderId){
+        return json(`/api/canvases/${encodeURIComponent(id)}/folder`, jsonBodyInit('PATCH', {folder_id:folderId}), {checkOk:true});
+    }
+
+    function createCanvasBackup(id){
+        return json(`/api/canvases/${encodeURIComponent(id)}/backup`, {method:'POST'}, {checkOk:true});
+    }
+
+    function listCanvasBackups(id, fallback={backups:[]}){
+        return jsonOr(`/api/canvases/${encodeURIComponent(id)}/backups`, fallback);
+    }
+
+    function restoreCanvasBackup(id, filename){
+        return request(`/api/canvases/${encodeURIComponent(id)}/backups/${encodeURIComponent(filename)}/restore`, {method:'POST'});
+    }
+
+    function deleteCanvasBackup(id, filename){
+        return request(`/api/canvases/${encodeURIComponent(id)}/backups/${encodeURIComponent(filename)}`, {method:'DELETE'});
+    }
+
+    function checkCanvasLock(id){
+        return jsonOr(`/api/canvases/${encodeURIComponent(id)}/lock`, null);
+    }
+
+    function acquireCanvasLock(id, payload){
+        return request(`/api/canvases/${encodeURIComponent(id)}/lock`, jsonBodyInit('POST', payload));
+    }
+
+    function releaseCanvasLock(id, clientId){
+        return request(`/api/canvases/${encodeURIComponent(id)}/lock?client_id=${encodeURIComponent(clientId)}`, {method:'DELETE'});
+    }
+
+    function releaseCanvasLockKeepalive(id, payload){
+        return request(`/api/canvases/${encodeURIComponent(id)}/lock/release`, {
+            ...jsonBodyInit('POST', payload),
+            keepalive:true
+        });
+    }
+
     function uploadAi(form, options={}){
         return json('/api/ai/upload', {method:'POST', body:form}, options);
     }
 
     window.CanvasApi = {
+        request,
         json,
         jsonOr,
         getConfig,
@@ -82,6 +158,21 @@
         createCanvas,
         getCanvas,
         getCanvasMeta,
+        patchCanvasMeta,
+        touchCanvas,
+        saveCanvas,
+        deleteCanvas,
+        restoreCanvas,
+        purgeCanvas,
+        moveCanvasToFolder,
+        createCanvasBackup,
+        listCanvasBackups,
+        restoreCanvasBackup,
+        deleteCanvasBackup,
+        checkCanvasLock,
+        acquireCanvasLock,
+        releaseCanvasLock,
+        releaseCanvasLockKeepalive,
         uploadAi
     };
 })();
