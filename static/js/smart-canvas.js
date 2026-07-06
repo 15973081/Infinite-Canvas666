@@ -3780,13 +3780,13 @@ function bindDynamicParams(){
 }
 async function loadConfig(){
     try {
-        const cfg = await fetch('/api/config').then(r => r.json());
+        const cfg = await window.CanvasApi.getConfig();
         apiProviders = Array.isArray(cfg.api_providers) ? cfg.api_providers : [];
         comfyInstanceCount = Math.max(1, (Array.isArray(cfg.comfy_instances) ? cfg.comfy_instances : []).filter(Boolean).length || 1);
         // 提供商配置已就绪即先渲染参数面板，避免等工作流/RunningHub 预取完成后参数才「突然刷新出来」。
         sanitizeSmartApiSelection(settings);
         updateProviderModels();
-        const wf = await fetch('/api/workflows').then(r => r.json()).catch(() => ({workflows:[]}));
+        const wf = await window.CanvasApi.getWorkflows();
         comfyWorkflows = Array.isArray(wf.workflows) ? wf.workflows : [];
         runningHubWorkflowCache = {};
         const rhProvider = apiProviders.find(p => p.id === 'runninghub');
@@ -4549,10 +4549,7 @@ function setActiveAssetTabCategory(categoryId=''){
 }
 async function loadAssetLibrary(){
     try {
-        const [data, localData] = await Promise.all([
-            fetch('/api/asset-library').then(r => r.json()),
-            fetch('/api/local-assets').then(r => r.ok ? r.json() : {items:[], tree:null}).catch(() => ({items:[], tree:null}))
-        ]);
+        const [data, localData] = await window.CanvasApi.getAssetLibraries();
         localAssetLibrary = {items:Array.isArray(localData.items) ? localData.items : [], tree:localData.tree || null};
         setAssetLibraryFromResponse(data, {render:false});
         renderAssetLibrary();
@@ -4686,9 +4683,8 @@ function startCanvasMetaPoll(){
         if(!canvasId || !canvas) return;
         if(canvasSyncInFlight || dragState || selectionState) return;
         try {
-            const res = await fetch(`/api/canvases/${encodeURIComponent(canvasId)}/meta`);
-            if(!res.ok) return;
-            const meta = await res.json();
+            const meta = await window.CanvasApi.getCanvasMeta(canvasId, null);
+            if(!meta) return;
             if(Number(meta.updated_at || 0) > Number(canvas.updated_at || 0)) mergeReloadCanvasNow();
         } catch(e) {}
     }, 8000);
@@ -5053,9 +5049,8 @@ function canvasImageDragPayload(node, index=0){
 async function loadCanvas(){
     if(!canvasId) return;
     try {
-        const res = await fetch(`/api/canvases/${encodeURIComponent(canvasId)}`);
-        if(!res.ok) return;
-        const data = await res.json();
+        const data = await window.CanvasApi.getCanvas(canvasId, {fallback:null});
+        if(!data) return;
         canvas = data.canvas;
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
@@ -9403,13 +9398,13 @@ function resizeOutpaintFromDrag(dx, dy){
 async function uploadCroppedBlob(blob, name){
     const form = new FormData();
     form.append('files', blob, name);
-    const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r => r.json());
+    const data = await window.CanvasApi.uploadAi(form);
     return data.files?.[0];
 }
 async function uploadImageBlobs(blobs){
     const form = new FormData();
     blobs.forEach(item => form.append('files', item.blob, item.name));
-    const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r => r.json());
+    const data = await window.CanvasApi.uploadAi(form);
     return data.files || [];
 }
 function replaceEditedImage(file){
@@ -10127,10 +10122,7 @@ async function uploadFiles(files){
     if(!supported.length) return [];
     const form = new FormData();
     supported.forEach(file => form.append('files', file, file.name || 'media'));
-    const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(async r => {
-        if(!r.ok) throw new Error((await r.text()) || tr('smart.toastUploadFail'));
-        return r.json();
-    });
+    const data = await window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:tr('smart.toastUploadFail')});
     return (data.files || []).map((file, index) => ({
         ...file,
         kind:file.kind || mediaKindForFile(supported[index])

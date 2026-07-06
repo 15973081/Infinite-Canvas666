@@ -2143,7 +2143,7 @@ async function saveCanvas(){
 async function loadConfig(){
     loadLocalModelLists();
     try {
-        const cfg = await fetch('/api/config').then(r=>r.json());
+        const cfg = await window.CanvasApi.getConfig();
         imageModels = cfg.image_models?.length ? cfg.image_models : imageModels;
         chatModels = cfg.chat_models?.length ? cfg.chat_models : chatModels;
         videoModels = cfg.video_models?.length ? cfg.video_models : DEFAULT_VIDEO_MODELS;
@@ -2153,7 +2153,7 @@ async function loadConfig(){
         models.nano = imageModels.find(m => m.toLowerCase().includes('nano')) || 'nano-banana-pro';
         models.gpt = imageModels.find(m => !m.toLowerCase().includes('nano')) || cfg.image_model || 'gpt-image-2';
         try {
-            const wf = await fetch('/api/workflows').then(r=>r.json());
+            const wf = await window.CanvasApi.getWorkflows();
             comfyWorkflows = wf.workflows || [];
         } catch(_) {
             comfyWorkflows = [];
@@ -2191,11 +2191,9 @@ function msChatModelOptions(selected){
 async function loadCanvasList(openFirst=true, options={}){
     try {
         const refreshFolders = options.refreshFolders === true;
-        const canvasPromise = fetch('/api/canvases');
+        const canvasPromise = window.CanvasApi.listCanvases();
         if(refreshFolders) await loadCanvasFolders();
-        const canvasRes = await canvasPromise;
-        if(!canvasRes.ok) throw new Error(tr('canvas.canvasListFailed'));
-        const data = await canvasRes.json();
+        const data = await canvasPromise;
         canvases = data.canvases || [];
         sortCanvasListByUpdated();
         refreshGateViewControls();
@@ -2213,9 +2211,7 @@ async function loadCanvasList(openFirst=true, options={}){
 }
 async function loadTrashList(){
     try {
-        const res = await fetch('/api/canvases/trash');
-        if(!res.ok) throw new Error(tr('canvas.trashLoadFailed'));
-        const data = await res.json();
+        const data = await window.CanvasApi.listTrashCanvases();
         deletedCanvases = data.canvases || [];
         refreshGateViewControls();
         renderCanvasList();
@@ -2228,9 +2224,7 @@ async function loadTrashList(){
 async function refreshTrashCount(){
     if(trashMode) return;
     try {
-        const res = await fetch('/api/canvases/trash');
-        if(!res.ok) return;
-        const data = await res.json();
+        const data = await window.CanvasApi.listTrashCanvases({canvases:[]});
         deletedCanvases = data.canvases || [];
         refreshGateViewControls();
     } catch(e) {}
@@ -2562,13 +2556,7 @@ async function createCanvas(){
     refreshGateViewControls();
     setStatus('Creating...');
     try {
-        const res = await fetch('/api/canvases', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({title, icon:isSmart ? 'sparkles' : '🧩', kind:isSmart ? 'smart' : 'classic', folder_id:folderTargetForCreate()})
-        });
-        if(!res.ok) throw new Error(tr('canvas.createFailed'));
-        const data = await res.json();
+        const data = await window.CanvasApi.createCanvas({title, icon:isSmart ? 'sparkles' : '🧩', kind:isSmart ? 'smart' : 'classic', folder_id:folderTargetForCreate()});
         if(isSmart){
             setCreateMode(false);
             await loadCanvasList(false);
@@ -2713,9 +2701,7 @@ async function openCanvas(id){
     const openSeq = ++openCanvasRequestSeq;
     setStatus('Opening...');
     try {
-        const res = await fetch(`/api/canvases/${id}`);
-        if(!res.ok) throw new Error(tr('canvas.openFailed'));
-        const data = await res.json();
+        const data = await window.CanvasApi.getCanvas(id, {errorFallback:tr('canvas.openFailed')});
         if(openSeq !== openCanvasRequestSeq) return;
         resetCascadeRuntimeState();
         const nextCanvas = data.canvas;
@@ -4867,7 +4853,7 @@ async function uploadMediaFiles(files, point, onlyImages=false, opts={}){
     if(!supported.length) return [];
     const form = new FormData();
     supported.forEach(file => form.append('files', file));
-    const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r=>r.json());
+        const data = await window.CanvasApi.uploadAi(form);
     const base = point || screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
     const created = [];
     (data.files || []).forEach((file, i) => {
@@ -5036,7 +5022,7 @@ async function fillImageNode(nodeId, files, opts={}){
     }
     const form = new FormData();
     form.append('files', imgs[0]);
-    const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r=>r.json());
+    const data = await window.CanvasApi.uploadAi(form);
     const file = data.files?.[0];
     const node = nodes.find(n => n.id === nodeId);
     if(file && node){
@@ -6281,13 +6267,13 @@ window.addEventListener('mouseup', () => { cropDrag = null; document.getElementB
 async function uploadCroppedBlob(blob, name){
     const form = new FormData();
     form.append('files', blob, name);
-    const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r=>r.json());
+    const data = await window.CanvasApi.uploadAi(form);
     return data.files?.[0];
 }
 async function uploadImageBlobs(blobs){
     const form = new FormData();
     blobs.forEach(item => form.append('files', item.blob, item.name));
-    const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r=>r.json());
+    const data = await window.CanvasApi.uploadAi(form);
     return data.files || [];
 }
 async function applyImageCrop(){
@@ -7618,10 +7604,7 @@ async function deleteCanvasAssetItem(itemId){
 }
 async function loadCanvasAssetLibrary({renderPanel=true}={}){
     try {
-        const [data, localData] = await Promise.all([
-            fetch('/api/asset-library').then(r => r.json()),
-            fetch('/api/local-assets').then(r => r.ok ? r.json() : {items:[], tree:null}).catch(() => ({items:[], tree:null}))
-        ]);
+        const [data, localData] = await window.CanvasApi.getAssetLibraries();
         canvasAssetLibrary = data.library || canvasAssetLibrary;
         localCanvasAssetLibrary = {items:Array.isArray(localData.items) ? localData.items : [], tree:localData.tree || null};
         const libs = canvasAssetLibraries();
@@ -7741,7 +7724,7 @@ async function addUrlToCanvasAssetLibrary(url, name=''){
 async function uploadFilesToLibrary(files, libraryId, categoryId){
     const form = new FormData();
     [...files].forEach(file => form.append('files', file));
-    const uploaded = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r => r.json());
+    const uploaded = await window.CanvasApi.uploadAi(form);
     const items = (uploaded.files || []).filter(file => file?.url).map(file => ({library_id:libraryId, category_id:categoryId, url:file.url, name:file.name || 'asset'}));
     if(!items.length) return null;
     return fetch('/api/asset-library/items/batch', {
