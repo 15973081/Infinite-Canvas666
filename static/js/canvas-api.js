@@ -144,6 +144,54 @@
         return json('/api/ai/upload', {method:'POST', body:form}, options);
     }
 
+    function createAssetItem(payload, options={}){
+        return json('/api/asset-library/items', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function createAssetItemsBatch(payload, options={}){
+        return json('/api/asset-library/items/batch', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function updateAssetItem(id, patch, options={}){
+        return json(`/api/asset-library/items/${encodeURIComponent(id)}`, jsonBodyInit('PATCH', patch), {checkOk:true, ...options});
+    }
+
+    function deleteAssetItem(id, options={}){
+        return json(`/api/asset-library/items/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true, ...options});
+    }
+
+    function deleteAssetItems(payload, options={}){
+        return json('/api/asset-library/items/delete', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function uploadAssetWorkflows(form, options={}){
+        return json('/api/asset-library/workflows/upload', {method:'POST', body:form}, {checkOk:true, ...options});
+    }
+
+    function createAssetLibrary(payload, options={}){
+        return json('/api/asset-library/libraries', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function updateAssetLibrary(id, patch, options={}){
+        return json(`/api/asset-library/libraries/${encodeURIComponent(id)}`, jsonBodyInit('PATCH', patch), {checkOk:true, ...options});
+    }
+
+    function deleteAssetLibrary(id, options={}){
+        return json(`/api/asset-library/libraries/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true, ...options});
+    }
+
+    function createAssetCategory(payload, options={}){
+        return json('/api/asset-library/categories', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function updateAssetCategory(id, patch, options={}){
+        return json(`/api/asset-library/categories/${encodeURIComponent(id)}`, jsonBodyInit('PATCH', patch), {checkOk:true, ...options});
+    }
+
+    function deleteAssetCategory(id, options={}){
+        return json(`/api/asset-library/categories/${encodeURIComponent(id)}`, {method:'DELETE'}, {checkOk:true, ...options});
+    }
+
     window.CanvasApi = {
         request,
         json,
@@ -173,6 +221,18 @@
         acquireCanvasLock,
         releaseCanvasLock,
         releaseCanvasLockKeepalive,
-        uploadAi
+        uploadAi,
+        createAssetItem,
+        createAssetItemsBatch,
+        updateAssetItem,
+        deleteAssetItem,
+        deleteAssetItems,
+        uploadAssetWorkflows,
+        createAssetLibrary,
+        updateAssetLibrary,
+        deleteAssetLibrary,
+        createAssetCategory,
+        updateAssetCategory,
+        deleteAssetCategory
     };
 })();

@@ -4949,7 +4949,7 @@ function beginAssetInlineRename(assetId){
         }
         input.disabled = true;
         try {
-            const data = await fetch(`/api/asset-library/items/${encodeURIComponent(assetId)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})}).then(r => r.json());
+            const data = await window.CanvasApi.updateAssetItem(assetId, {name});
             setAssetLibraryFromResponse(data);
         } catch(err){
             restore();
@@ -4995,7 +4995,7 @@ function bindAssetItemEvents(){
             e.preventDefault(); e.stopPropagation();
             btn.disabled = true;
             try {
-                const data = await fetch(`/api/asset-library/items/${encodeURIComponent(btn.dataset.deleteAsset)}`, {method:'DELETE'}).then(r => r.json());
+                const data = await window.CanvasApi.deleteAssetItem(btn.dataset.deleteAsset);
                 setAssetLibraryFromResponse(data);
             } catch(err){
                 btn.disabled = false;
@@ -5020,7 +5020,7 @@ function bindWorkflowAssetItemEvents(){
             if(!item) return;
             btn.disabled = true;
             try {
-                const data = await fetch(`/api/asset-library/items/${encodeURIComponent(item.id)}`, {method:'DELETE'}).then(r => r.json());
+                const data = await window.CanvasApi.deleteAssetItem(item.id);
                 setAssetLibraryFromResponse(data);
             } catch(err){
                 btn.disabled = false;
@@ -5033,10 +5033,7 @@ async function addUrlToAssetLibrary(url, name=''){
     if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中上传'); return; }
     const cat = activeAssetCategory();
     if(!cat){ toast(tr('smart.assetNoFolder')); return; }
-    const data = await fetch('/api/asset-library/items', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:activeAssetLibraryId, category_id:cat.id, url, name})}).then(async r => {
-        if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || tr('smart.assetAddFail'));
-        return r.json();
-    });
+    const data = await window.CanvasApi.createAssetItem({library_id:activeAssetLibraryId, category_id:cat.id, url, name}, {errorFallback:tr('smart.assetAddFail')});
     setAssetLibraryFromResponse(data);
     toast(tr('smart.assetSaved'));
 }
@@ -14280,7 +14277,7 @@ if(assetAddCategoryBtn) assetAddCategoryBtn.onclick = async () => {
     const fallbackName = workflowMode ? '工作流' : tr('smart.assetFolder');
     const name = await openAssetNameDialog({title:tr('smart.assetNewFolder'), value:fallbackName, placeholder:fallbackName});
     if(!name) return;
-    const data = await fetch('/api/asset-library/categories', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:activeAssetLibraryId, name, type:workflowMode ? 'workflow' : 'image'})}).then(r => r.json());
+    const data = await window.CanvasApi.createAssetCategory({library_id:activeAssetLibraryId, name, type:workflowMode ? 'workflow' : 'image'});
     setActiveAssetTabCategory(data.category?.id || '');
     setAssetLibraryFromResponse(data);
 };
@@ -14290,7 +14287,7 @@ if(assetRenameCategoryBtn) assetRenameCategoryBtn.onclick = async () => {
     if(!cat) return;
     const name = await openAssetNameDialog({title:tr('smart.assetRenameFolder'), value:cat.name || '', placeholder:currentAssetTabIsWorkflow() ? '工作流' : tr('smart.assetFolder')});
     if(!name) return;
-    const data = await fetch(`/api/asset-library/categories/${encodeURIComponent(cat.id)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})}).then(r => r.json());
+    const data = await window.CanvasApi.updateAssetCategory(cat.id, {name});
     setAssetLibraryFromResponse(data);
 };
 function hasCanvasImageDrag(event){
