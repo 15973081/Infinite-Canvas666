@@ -18,8 +18,9 @@
         }
     }
 
-    function request(path, init={}){
-        return fetch(path, init);
+    function request(path, init={}, options={}){
+        const transport = options.transport || fetch;
+        return transport(path, init, options.transportOptions || {});
     }
 
     function jsonBodyInit(method, payload){
@@ -292,13 +293,17 @@
         return json('/api/runninghub/upload-asset', bodyInit(payload), {checkOk:true, ...options});
     }
 
-    function submitRunningHub(mode, payload){
+    function submitRunningHub(mode, payload, options={}){
         const endpoint = mode === 'workflow' ? '/api/runninghub/workflow-submit' : '/api/runninghub/submit';
-        return request(endpoint, jsonBodyInit('POST', payload));
+        return request(endpoint, jsonBodyInit('POST', payload), options);
     }
 
     function queryRunningHubTask(taskId){
         return json(`/api/runninghub/query?taskId=${encodeURIComponent(taskId)}`, {}, {checkOk:true});
+    }
+
+    function queryRunningHubTaskRequest(taskId, options={}){
+        return request(`/api/runninghub/query?taskId=${encodeURIComponent(taskId)}`, {}, options);
     }
 
     function uploadCloudVideo(payload, options={}){
@@ -313,6 +318,10 @@
         return json('/api/generate', jsonBodyInit('POST', payload), {checkOk:true, ...options});
     }
 
+    function generateRequest(payload, options={}){
+        return request('/api/generate', jsonBodyInit('POST', payload), options);
+    }
+
     function onlineImage(payload, options={}){
         return json('/api/online-image', jsonBodyInit('POST', payload), {checkOk:true, ...options});
     }
@@ -321,16 +330,36 @@
         return json('/api/canvas-llm', jsonBodyInit('POST', payload), {checkOk:true, ...options});
     }
 
+    function canvasLLMRequest(payload, options={}){
+        return request('/api/canvas-llm', jsonBodyInit('POST', payload), options);
+    }
+
     function createCanvasImageTask(payload, options={}){
         return json('/api/canvas-image-tasks', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function createCanvasImageTaskRequest(payload, options={}){
+        return request('/api/canvas-image-tasks', jsonBodyInit('POST', payload), options);
     }
 
     function getCanvasImageTask(taskId, fallback=null){
         return jsonOr(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`, fallback);
     }
 
+    function getCanvasImageTaskRequest(taskId, options={}){
+        return request(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`, {}, options);
+    }
+
     function createCanvasVideo(payload, options={}){
         return json('/api/canvas-video', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
+    function createCanvasVideoTaskRequest(payload, options={}){
+        return request('/api/canvas-video-tasks', jsonBodyInit('POST', payload), options);
+    }
+
+    function getCanvasVideoTaskRequest(taskId, options={}){
+        return request(`/api/canvas-video-tasks/${encodeURIComponent(taskId)}`, {}, options);
     }
 
     function queryImageTask(payload, options={}){
@@ -405,14 +434,21 @@
         uploadRunningHubAsset,
         submitRunningHub,
         queryRunningHubTask,
+        queryRunningHubTaskRequest,
         uploadCloudVideo,
         uploadGeneric,
         generate,
+        generateRequest,
         onlineImage,
         canvasLLM,
+        canvasLLMRequest,
         createCanvasImageTask,
+        createCanvasImageTaskRequest,
         getCanvasImageTask,
+        getCanvasImageTaskRequest,
         createCanvasVideo,
+        createCanvasVideoTaskRequest,
+        getCanvasVideoTaskRequest,
         queryImageTask
     };
 })();

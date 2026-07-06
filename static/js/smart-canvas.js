@@ -1261,11 +1261,7 @@ async function exportSelectedSmartWorkflow(includeResources=false){
             smartWorkflowExportMeta.textContent = '正在打包资源...';
         }
         const filename = smartWorkflowFilename('zip');
-        const res = await fetch('/api/canvas-workflows/export', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({...payload, include_resources:true, filename})
-        });
+        const res = await window.CanvasApi.exportCanvasWorkflow({...payload, include_resources:true, filename});
         if(!res.ok) throw new Error(await responseErrorMessage(res, '导出工作流失败'));
         downloadBlob(await res.blob(), filename);
         if(smartWorkflowExportMeta){
@@ -1322,7 +1318,7 @@ async function importSmartWorkflowFile(file){
         if(smartWorkflowTransferSub) smartWorkflowTransferSub.textContent = '正在导入工作流...';
         const form = new FormData();
         form.append('file', file);
-        const res = await fetch('/api/canvas-workflows/import', {method:'POST', body:form});
+        const res = await window.CanvasApi.importCanvasWorkflow(form);
         if(!res.ok) throw new Error(await responseErrorMessage(res, '导入工作流失败'));
         const data = await res.json();
         insertSmartWorkflowIntoCanvas(normalizeImportedSmartWorkflow(data));
@@ -2505,7 +2501,7 @@ function normalizeApiSizeSettings(prefix=''){
 async function ensureComfyWorkflow(name){
     if(!name) return null;
     if(comfyWorkflowCache[name]) return comfyWorkflowCache[name];
-    const data = await fetch(`/api/workflows/${encodeURIComponent(name)}`).then(r => r.ok ? r.json() : null).catch(() => null);
+    const data = await window.CanvasApi.getWorkflow(name, null);
     if(data) comfyWorkflowCache[name] = data;
     return data;
 }
@@ -3196,12 +3192,11 @@ async function ensureRunningHubWorkflow(workflowId){
     workflowId = String(workflowId || '').trim();
     if(!workflowId) return null;
     if(runningHubWorkflowCache[workflowId]) return runningHubWorkflowCache[workflowId];
-    const res = await fetch(`/api/runninghub/workflows/${encodeURIComponent(workflowId)}`);
-    if(!res.ok){
+    const data = await window.CanvasApi.getRunningHubWorkflow(workflowId, null);
+    if(!data){
         delete runningHubWorkflowCache[workflowId];
         return null;
     }
-    const data = await res.json();
     runningHubWorkflowCache[workflowId] = data.workflow || null;
     return runningHubWorkflowCache[workflowId];
 }
@@ -3298,13 +3293,7 @@ async function uploadMediaRefToCloud(ref){
     const existing = tempShUploadedUrlFor(sourceUrl);
     if(existing && existing !== sourceUrl) return existing;
     if(/^https?:\/\//i.test(sourceUrl)) return sourceUrl;
-    const response = await fetch('/api/cloud-video/upload', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({url:sourceUrl, service:'auto'})
-    });
-    if(!response.ok) throw new Error(await smartResponseErrorMessage(response, '云端上传失败'));
-    const data = await response.json();
+    const data = await window.CanvasApi.uploadCloudVideo({url:sourceUrl, service:'auto'});
     const uploadedUrl = data.url || '';
     if(!uploadedUrl) throw new Error('云端没有返回链接');
     transientSmartCloudLinks = [
@@ -3445,13 +3434,7 @@ async function rhUploadValueIfNeeded(value, sourceSettings=settings){
     const text = String(value || '').trim();
     if(!text) return '';
     if(!/^https?:\/\//i.test(text) && !text.startsWith('/output/') && !text.startsWith('/assets/')) return text;
-    const res = await fetch('/api/runninghub/upload-asset', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({url:text, useWallet:(sourceSettings || settings).rhPayment === 'wallet'})
-    });
-    const data = await res.json();
-    if(!res.ok || data.success === false) throw new Error(data.detail || data.error || tr('smart.rhUploadFailed'));
+    const data = await window.CanvasApi.uploadRunningHubAsset({url:text, useWallet:(sourceSettings || settings).rhPayment === 'wallet'}, {errorFallback:tr('smart.rhUploadFailed')});
     return data.data?.fileName || text;
 }
 async function rhBuildNodeInfoList(media, sourceSettings=settings, randomValues=smartRhRandomValues){
@@ -3861,7 +3844,7 @@ function savePromptTemplateOverrides(){
 }
 async function loadPromptTemplates(){
     try {
-        const data = await fetch('/api/prompt-libraries').then(r => r.ok ? r.json() : {library:{libraries:[]}});
+        const data = await window.CanvasApi.getPromptLibraries();
         promptLibraries = Array.isArray(data.library?.libraries) ? data.library.libraries : [];
         if(!promptLibraries.length) {
             const fallback = await fetch('/api/smart-canvas/prompt-templates').then(r => r.ok ? r.json() : {templates:[]});
@@ -4293,14 +4276,7 @@ async function saveCurrentPromptAsTemplate(){
         : String(nodes.find(n => n.id === promptTemplatePanel?.dataset.nodeId)?.text || '').trim();
     if(!text){ toast(tr('smart.promptPresetEmpty')); return; }
     try {
-        const data = await fetch('/api/prompt-libraries/items', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({library_id:library.id, name:defaultPromptPresetName(text), category:promptTemplateCategory === 'all' ? 'custom' : promptTemplateCategory, positive:text, scene:'我的提示词预设'})
-        }).then(async r => {
-            if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '保存失败');
-            return r.json();
-        });
+        const data = await window.CanvasApi.createPromptItem({library_id:library.id, name:defaultPromptPresetName(text), category:promptTemplateCategory === 'all' ? 'custom' : promptTemplateCategory, positive:text, scene:'我的提示词预设'});
         promptLibraries = data.library?.libraries || promptLibraries;
         activePromptLibraryId = library.id;
         promptTemplateCategory = data.item?.category || 'custom';
@@ -4317,14 +4293,7 @@ async function createBlankPromptTemplate(){
     if(library.readonly){ toast('请选择可编辑的提示词库'); return; }
     const category = promptTemplateCategory && promptTemplateCategory !== 'all' ? promptTemplateCategory : 'custom';
     try {
-        const data = await fetch('/api/prompt-libraries/items', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({library_id:library.id, name:tr('smart.tplNewTemplateName'), category, positive:'新提示词', scene:'我的提示词预设'})
-        }).then(async r => {
-            if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '创建失败');
-            return r.json();
-        });
+        const data = await window.CanvasApi.createPromptItem({library_id:library.id, name:tr('smart.tplNewTemplateName'), category, positive:'新提示词', scene:'我的提示词预设'});
         promptLibraries = data.library?.libraries || promptLibraries;
         activePromptLibraryId = library.id;
         promptTemplateCategory = category;
@@ -4344,14 +4313,7 @@ async function savePromptTemplateEdit(){
     if(!name || !text){ toast(tr('smart.tplRequired')); return; }
     if(item.remote){
         try {
-            const data = await fetch(`/api/prompt-libraries/items/${encodeURIComponent(item.id)}`, {
-                method:'PATCH',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({library_id:item.libraryId || activePromptLibrary().id, name, category, positive:text, scene:item.scene || '', negative:item.negative || ''})
-            }).then(async r => {
-                if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '保存失败');
-                return r.json();
-            });
+            const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:item.libraryId || activePromptLibrary().id, name, category, positive:text, scene:item.scene || '', negative:item.negative || ''});
             promptLibraries = data.library?.libraries || promptLibraries;
             promptTemplateSelectedId = data.item?.id || item.id;
         } catch(err) {
@@ -4385,10 +4347,7 @@ async function deletePromptTemplate(){
     if(!item) return;
     if(item.remote){
         try {
-            const data = await fetch(`/api/prompt-libraries/items/${encodeURIComponent(item.id)}`, {method:'DELETE'}).then(async r => {
-                if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '删除失败');
-                return r.json();
-            });
+            const data = await window.CanvasApi.deletePromptItem(item.id);
             promptLibraries = data.library?.libraries || promptLibraries;
         } catch(err) {
             toast(err.message || '删除失败');
@@ -4415,10 +4374,7 @@ async function createPromptTemplateGroup(){
     // 系统库（readonly=false）也走后端新增分组，与素材库管理同步。
     if(lib && !lib.readonly){
         try {
-            const data = await fetch('/api/prompt-libraries/categories', {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({name:String(name).trim().slice(0, 24), library_id:lib.id})
-            }).then(async r => { if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '新增分组失败'); return r.json(); });
+            const data = await window.CanvasApi.createPromptCategory({name:String(name).trim().slice(0, 24), library_id:lib.id});
             promptLibraries = data.library?.libraries || promptLibraries;
             promptTemplateCategory = data.category?.id || promptTemplateCategory;
             renderPromptTemplatePanel({preserveScroll:false});
@@ -4440,10 +4396,7 @@ async function renamePromptTemplateGroup(groupId){
     // 系统库的内置分组也走后端重命名（后端已放开内置分组限制），两端同步。
     if(lib && !lib.readonly){
         try {
-            const data = await fetch(`/api/prompt-libraries/categories/${encodeURIComponent(groupId)}`, {
-                method:'PATCH', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({name:String(name).trim().slice(0, 24), library_id:lib.id})
-            }).then(async r => { if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '重命名失败'); return r.json(); });
+            const data = await window.CanvasApi.updatePromptCategory(groupId, {name:String(name).trim().slice(0, 24), library_id:lib.id});
             promptLibraries = data.library?.libraries || promptLibraries;
             renderPromptTemplatePanel();
         } catch(err){ if(typeof setStatus === 'function') setStatus(err.message || '重命名失败'); }
@@ -4459,8 +4412,7 @@ async function deletePromptTemplateGroup(groupId){
     if(lib && !lib.readonly){
         if(!window.confirm(tr('smart.tplDeleteGroupConfirm'))) return;
         try {
-            const data = await fetch(`/api/prompt-libraries/categories/${encodeURIComponent(groupId)}`, {method:'DELETE'})
-                .then(async r => { if(!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || '删除失败'); return r.json(); });
+            const data = await window.CanvasApi.deletePromptCategory(groupId);
             promptLibraries = data.library?.libraries || promptLibraries;
             if(promptTemplateCategory === groupId) promptTemplateCategory = 'all';
             renderPromptTemplatePanel({preserveScroll:false});
@@ -12937,10 +12889,7 @@ async function comfyNameForRef(ref){
     const blob = await response.blob();
     const form = new FormData();
     form.append('files', blob, ref.name || 'smart-ref.png');
-    const data = await fetch('/api/upload', {method:'POST', body:form}).then(async r => {
-        if(!r.ok) throw new Error(await r.text());
-        return r.json();
-    });
+    const data = await window.CanvasApi.uploadGeneric(form);
     const name = data.files?.[0]?.comfy_name || ref.name || ref.url;
     const node = selectedNode();
     const image = node?.images?.find(img => img.url === ref.url);

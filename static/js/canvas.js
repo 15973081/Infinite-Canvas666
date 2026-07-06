@@ -10340,15 +10340,10 @@ async function runRhNode(nodeId, opts={}){
     try {
         const nodeInfoList = await rhBuildNodeInfoList(node, media);
         const workflowExtras = mode === 'workflow' ? await rhBuildWorkflowRequestExtras(node, media, nodeInfoList) : {};
-        const endpoint = mode === 'workflow' ? '/api/runninghub/workflow-submit' : '/api/runninghub/submit';
         const body = mode === 'workflow'
             ? {workflowId:node.workflowId.trim(), nodeInfoList, useWallet:rhUseWallet(node), ...workflowExtras}
             : {webappId:node.webappId.trim(), nodeInfoList, instanceType:node.instanceType || '', useWallet:rhUseWallet(node)};
-        const submit = await cascadeFetch(endpoint, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(body)
-        }, {cascadeTargetId}).then(async r => {
+        const submit = await window.CanvasApi.submitRunningHub(mode, body, {transport:cascadeFetch, transportOptions:{cascadeTargetId}}).then(async r => {
             const data = await r.json();
             if(!r.ok || data.success === false) throw new Error(data.detail || data.error || tr('canvas.rhFailed'));
             return data.data || data;
@@ -10360,7 +10355,7 @@ async function runRhNode(nodeId, opts={}){
         for(let i = 0; i < 720; i++){
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
             await sleep(2500);
-            const data = await cascadeFetch(`/api/runninghub/query?taskId=${encodeURIComponent(taskId)}`, {}, {cascadeTargetId}).then(async r => {
+            const data = await window.CanvasApi.queryRunningHubTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}}).then(async r => {
                 const json = await r.json();
                 if(!r.ok || json.success === false) throw new Error(json.detail || json.error || tr('canvas.rhFailed'));
                 return json.data || json;
@@ -11656,17 +11651,13 @@ async function runLTXDirectorNode(nodeId, opts={}){
             [LTX_DIRECTOR_WF_NODE]:directorInputs,
             [LTX_DIRECTOR_SEED_NODE]:{noise_seed:Number(node.noiseSeed ?? 12)}
         };
-        const result = await cascadeFetch('/api/generate', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                prompt:globalPrompt,
-                workflow_json:LTX_DIRECTOR_WORKFLOW,
-                params,
-                type:'ltx-director',
-                client_id:CLIENT_ID
-            })
-        }, {cascadeTargetId}).then(async r => {
+        const result = await window.CanvasApi.generateRequest({
+            prompt:globalPrompt,
+            workflow_json:LTX_DIRECTOR_WORKFLOW,
+            params,
+            type:'ltx-director',
+            client_id:CLIENT_ID
+        }, {transport:cascadeFetch, transportOptions:{cascadeTargetId}}).then(async r => {
             if(!r.ok) throw new Error(await responseErrorMessage(r, tr('canvas.ltxFailed')));
             return r.json();
         });
@@ -11736,36 +11727,28 @@ async function runComfyNode(nodeId, opts={}){
         let images = [];
         if(mode === 'text'){
             run.taskLabel = tr('canvas.comfyText');
-            const result = await cascadeFetch('/api/generate', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    prompt,
-                    width:Number(node.width || 1024),
-                    height:Number(node.height || 1024),
-                    workflow_json:'Z-Image.json',
-                    type:'zimage',
-                    client_id:CLIENT_ID
-                })
-            }, {cascadeTargetId}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyText'))); return r.json(); });
+            const result = await window.CanvasApi.generateRequest({
+                prompt,
+                width:Number(node.width || 1024),
+                height:Number(node.height || 1024),
+                workflow_json:'Z-Image.json',
+                type:'zimage',
+                client_id:CLIENT_ID
+            }, {transport:cascadeFetch, transportOptions:{cascadeTargetId}}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyText'))); return r.json(); });
             run.request = requestMetaFromResult(result);
             images = comfyResultOutputs(result);
         } else if(mode === 'enhance'){
             run.taskLabel = tr('canvas.comfyEnhance');
             const inputName = await comfyNameForRef(refs[0]);
-            const enhance = await cascadeFetch('/api/generate', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    workflow_json:'Z-Image-Enhance.json',
-                    params:{
-                        "15": { image:inputName },
-                        "204": { value:Number(node.enhanceStrength ?? 0.5) }
-                    },
-                    type:'enhance',
-                    client_id:CLIENT_ID
-                })
-            }, {cascadeTargetId}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyEnhance'))); return r.json(); });
+            const enhance = await window.CanvasApi.generateRequest({
+                workflow_json:'Z-Image-Enhance.json',
+                params:{
+                    "15": { image:inputName },
+                    "204": { value:Number(node.enhanceStrength ?? 0.5) }
+                },
+                type:'enhance',
+                client_id:CLIENT_ID
+            }, {transport:cascadeFetch, transportOptions:{cascadeTargetId}}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyEnhance'))); return r.json(); });
             run.request = requestMetaFromResult(enhance);
             if(enhance.error) throw new Error(actionFailed('canvas.comfyEnhance', enhance.error));
             if(!enhance.images?.length) throw new Error(noReturnedImage('canvas.comfyEnhance'));
@@ -11813,17 +11796,13 @@ async function runComfyNode(nodeId, opts={}){
                 }
                 params[f.node][f.input] = comfyParamValue(node, f);
             });
-            const result = await cascadeFetch('/api/generate', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    prompt,
-                    workflow_json:workflowName,
-                    params,
-                    type:'workflow-custom',
-                    client_id:CLIENT_ID
-                })
-            }, {cascadeTargetId}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyCustom'))); return r.json(); });
+            const result = await window.CanvasApi.generateRequest({
+                prompt,
+                workflow_json:workflowName,
+                params,
+                type:'workflow-custom',
+                client_id:CLIENT_ID
+            }, {transport:cascadeFetch, transportOptions:{cascadeTargetId}}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyCustom'))); return r.json(); });
             run.request = requestMetaFromResult(result);
             if(result.error) throw new Error(actionFailed('canvas.comfyCustom', result.error));
             images = comfyResultOutputs(result);
@@ -11832,25 +11811,21 @@ async function runComfyNode(nodeId, opts={}){
             run.taskLabel = tr('canvas.comfyEdit');
             const names = [];
             for (const ref of refs.slice(0, 3)) names.push(await comfyNameForRef(ref));
-            const result = await cascadeFetch('/api/generate', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    prompt,
-                    workflow_json:'Flux2-Klein.json',
-                    type:'klein',
-                    params:{
-                        "168": { text:prompt },
-                        "158": { noise_seed:Math.floor(Math.random() * 1000000) },
-                        "278": { image:names[0] || "" },
-                        "270": { image:names[1] || "" },
-                        "292": { image:names[2] || "" },
-                        "313": { value:Boolean(names[1]) },
-                        "314": { value:Boolean(names[2]) }
-                    },
-                    client_id:CLIENT_ID
-                })
-            }, {cascadeTargetId}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyEdit'))); return r.json(); });
+            const result = await window.CanvasApi.generateRequest({
+                prompt,
+                workflow_json:'Flux2-Klein.json',
+                type:'klein',
+                params:{
+                    "168": { text:prompt },
+                    "158": { noise_seed:Math.floor(Math.random() * 1000000) },
+                    "278": { image:names[0] || "" },
+                    "270": { image:names[1] || "" },
+                    "292": { image:names[2] || "" },
+                    "313": { value:Boolean(names[1]) },
+                    "314": { value:Boolean(names[2]) }
+                },
+                client_id:CLIENT_ID
+            }, {transport:cascadeFetch, transportOptions:{cascadeTargetId}}).then(async r => { if(!r.ok) throw new Error(await responseErrorMessage(r, actionFailed('canvas.comfyEdit'))); return r.json(); });
             run.request = requestMetaFromResult(result);
             if(result.error) throw new Error(actionFailed('canvas.comfyEdit', result.error));
             if(!result.images?.length) throw new Error(noReturnedImage('canvas.comfyEdit'));
@@ -11884,20 +11859,16 @@ async function callCanvasLLM(node, message, messages=[], options={}){
     const model = resolveChatModel(node.model || node.llmMsModel, llmProv);
     const images = llmInputImages(node);
     const videos = llmInputVideos(node);
-    const result = await cascadeFetch('/api/canvas-llm', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-            message,
-            model,
-            ms_model: llmProv === 'modelscope' ? model : '',
-            provider: llmProv,
-            system_prompt:node.systemPrompt || 'You are a helpful assistant.',
-            messages,
-            images,
-            videos,
-        })
-    }, options).then(async r => {
+    const result = await window.CanvasApi.canvasLLMRequest({
+        message,
+        model,
+        ms_model: llmProv === 'modelscope' ? model : '',
+        provider: llmProv,
+        system_prompt:node.systemPrompt || 'You are a helpful assistant.',
+        messages,
+        images,
+        videos,
+    }, {transport:cascadeFetch, transportOptions:options}).then(async r => {
         if(!r.ok){
             throw new Error(await responseErrorMessage(r, 'LLM 运行失败'));
         }
@@ -12834,20 +12805,12 @@ function findPendingTask(taskId){
     return null;
 }
 async function createCanvasImageTask(payload, options={}){
-    const res = await cascadeFetch('/api/canvas-image-tasks', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
-    }, options);
+    const res = await window.CanvasApi.createCanvasImageTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
     return res.json();
 }
 async function createCanvasVideoTask(payload, options={}){
-    const res = await cascadeFetch('/api/canvas-video-tasks', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
-    }, options);
+    const res = await window.CanvasApi.createCanvasVideoTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
     return res.json();
 }
@@ -12932,7 +12895,7 @@ async function pollCanvasImageTask(taskId, options={}){
             if(!found) return 'missing';
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-            const res = await cascadeFetch(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`, {}, {cascadeTargetId});
+            const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
             if(!res.ok){
                 if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
                 throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
@@ -12962,7 +12925,7 @@ async function waitCanvasImageTaskResult(taskId, options={}){
     while(true){
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
         if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-        const res = await cascadeFetch(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`, {}, {cascadeTargetId});
+        const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
         if(!res.ok){
             if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
             throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
@@ -13092,7 +13055,7 @@ async function pollCanvasVideoTask(taskId, options={}){
             if(!found) return 'missing';
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-            const res = await cascadeFetch(`/api/canvas-video-tasks/${encodeURIComponent(taskId)}`, {}, {cascadeTargetId});
+            const res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
             if(!res.ok){
                 if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
                 throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
@@ -13126,7 +13089,7 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
     while(true){
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
         if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-        const res = await cascadeFetch(`/api/canvas-video-tasks/${encodeURIComponent(taskId)}`, {}, {cascadeTargetId});
+        const res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
         if(!res.ok){
             if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
             throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
