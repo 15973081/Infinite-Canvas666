@@ -1382,40 +1382,10 @@ function showErrorModal(message, title=tr('canvas.generationFailed')){
     refreshIcons();
 }
 function apiErrorMessage(data, fallback='请求失败'){
-    if(!data) return fallback;
-    if(typeof data === 'string') return data || fallback;
-    const detail = data.detail ?? data.error ?? data.message;
-    if(typeof detail === 'string') return detail || fallback;
-    if(Array.isArray(detail)){
-        const messages = detail.map(item => {
-            if(typeof item === 'string') return item;
-            const loc = Array.isArray(item?.loc) ? item.loc.filter(x => x !== 'body').join('.') : '';
-            const msg = item?.msg || item?.message || JSON.stringify(item);
-            return loc ? `${loc}: ${msg}` : msg;
-        }).filter(Boolean);
-        return messages.join('\n') || fallback;
-    }
-    if(detail && typeof detail === 'object'){
-        return detail.message || detail.msg || JSON.stringify(detail);
-    }
-    try {
-        return JSON.stringify(data);
-    } catch(e) {
-        return fallback;
-    }
+    return window.CanvasCore?.apiErrorMessage(data, fallback) ?? fallback;
 }
 async function responseErrorMessage(response, fallback='请求失败'){
-    try {
-        const data = await response.clone().json();
-        return apiErrorMessage(data, fallback);
-    } catch(e) {
-        try {
-            const text = await response.text();
-            return text || fallback;
-        } catch(_) {
-            return fallback;
-        }
-    }
+    return window.CanvasCore?.responseErrorMessage(response, fallback) ?? fallback;
 }
 function closeErrorModal(){
     if(errorModal) errorModal.classList.remove('open');
@@ -1470,14 +1440,10 @@ function parseRatioValue(value){
     return n > 0 ? n : null;
 }
 function parseSizeValue(value){
-    const match = String(value || '').trim().match(/^(\d+)\s*[xX*]\s*(\d+)$/);
-    return match ? {width:match[1], height:match[2]} : null;
+    return window.CanvasCore?.parseSizeValue(value) || null;
 }
 function gcdInt(a, b){
-    a = Math.abs(Math.round(Number(a) || 0));
-    b = Math.abs(Math.round(Number(b) || 0));
-    while(b){ const t = b; b = a % b; a = t; }
-    return a || 1;
+    return window.CanvasCore?.gcdInt(a, b) || 1;
 }
 function ratioPartsFromDimensions(width, height){
     const w = Math.max(1, Math.round(Number(width) || 1));
@@ -1516,8 +1482,7 @@ function apiImageSize(ratioValue, resolutionValue, customRatioValue = '', custom
     return SIZE_MAP[ratioKey]?.[resolutionKey] || SIZE_MAP.square[resolutionKey] || SIZE_MAP.square['1k'];
 }
 function parseSizePair(value){
-    const match = String(value || '').match(/(\d+)\s*x\s*(\d+)/i);
-    return match ? {width:Number(match[1]), height:Number(match[2])} : null;
+    return window.CanvasCore?.parseSizePair(value) || null;
 }
 function nearestFourKSizeFor(width, height){
     const w = Math.max(1, Number(width) || 1);
@@ -4337,12 +4302,10 @@ function groupImageItems(group){
         .map((n, index) => ({url:n.url, name:n.name || outputImageName(n.url) || `image-${index + 1}.png`, kind:'image', nodeId:n.id, __index:index}));
 }
 function extensionFromNameOrUrl(name='', url=''){
-    const source = [name, url].map(value => String(value || '').split('?')[0].split('#')[0]).find(value => /\.[a-z0-9]{2,8}$/i.test(value));
-    return source?.match(/(\.[a-z0-9]{2,8})$/i)?.[1] || '.png';
+    return window.CanvasCore?.extensionFromNameOrUrl(name, url, '.png') || '.png';
 }
 function safeDownloadFileName(name, fallback='image.png'){
-    const cleaned = String(name || fallback).replace(/[\\/:*?"<>|]+/g, '_').trim() || fallback;
-    return cleaned;
+    return window.CanvasCore?.safeFileName(name, fallback) || fallback;
 }
 function downloadNameForGroupImage(item, index=0){
     const fallback = `image-${String(index + 1).padStart(2, '0')}${extensionFromNameOrUrl(item?.name, item?.url)}`;
@@ -4546,23 +4509,10 @@ function isSupportedUploadFile(file){
         || /\.(png|jpe?g|webp|gif|bmp|avif|mp4|webm|mov|m4v|avi|mkv|mp3|wav|m4a|aac|ogg|flac)(\?|$)/.test(name);
 }
 function dataTransferItemEntry(item){
-    try { return item?.webkitGetAsEntry?.() || null; } catch { return null; }
+    return window.CanvasCore?.dataTransferItemEntry(item) || null;
 }
 async function filesFromEntry(entry){
-    if(!entry) return [];
-    if(entry.isFile){
-        return new Promise(resolve => entry.file(file => resolve(file ? [file] : []), () => resolve([])));
-    }
-    if(!entry.isDirectory) return [];
-    const reader = entry.createReader();
-    const children = [];
-    while(true){
-        const batch = await new Promise(resolve => reader.readEntries(resolve, () => resolve([])));
-        if(!batch.length) break;
-        children.push(...batch);
-    }
-    const nested = await Promise.all(children.map(filesFromEntry));
-    return nested.flat();
+    return window.CanvasCore?.filesFromEntry(entry) || [];
 }
 async function uploadFilesFromDataTransfer(dataTransfer){
     const items = [...(dataTransfer?.items || [])];
@@ -12656,7 +12606,7 @@ function formatRunDuration(ms){
     const s = total % 60;
     return m ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`;
 }
-function nowMs(){ return Date.now(); }
+function nowMs(){ return window.CanvasCore?.nowMs() || Date.now(); }
 function outputUrlValue(item){
     return typeof item === 'string' ? item : item?.url || '';
 }
@@ -14408,13 +14358,7 @@ function workflowFilename(ext){
     return `${title}-${stamp}.${ext}`;
 }
 function downloadBlob(blob, filename){
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1200);
+    window.CanvasCore?.downloadBlob(blob, filename);
 }
 function downloadUrl(url, filename='download'){
     if(!url) return;
@@ -15484,7 +15428,7 @@ function hasImageDropData(dataTransfer){
     return imageDropPayload(dataTransfer).type !== 'none';
 }
 function hasOutputImageDrag(dataTransfer){ return [...(dataTransfer?.types || [])].includes('application/x-canvas-output-image'); }
-function escapeHtml(str){ return String(str == null ? '' : str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+function escapeHtml(str){ return window.CanvasCore?.escapeHtml(str) || ''; }
 function escapeAttr(str){ return escapeHtml(str); }
 
 window.onload = async () => {

@@ -1059,7 +1059,7 @@ function trf(key, values={}){
 }
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 function uid(prefix){ return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`; }
-function escapeHtml(str){ return String(str == null ? '' : str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+function escapeHtml(str){ return window.CanvasCore?.escapeHtml(str) || ''; }
 const escapeAttr = escapeHtml;
 function smartMediaPreviewUrl(itemOrUrl, size=512){
     const url = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
@@ -1171,48 +1171,13 @@ function canvasForStorage(){
     return clean;
 }
 function apiErrorMessage(data, fallback='请求失败'){
-    if(!data) return fallback;
-    if(typeof data === 'string') return data || fallback;
-    const detail = data.detail ?? data.error ?? data.message;
-    if(typeof detail === 'string') return detail || fallback;
-    if(Array.isArray(detail)){
-        const messages = detail.map(item => {
-            if(typeof item === 'string') return item;
-            const loc = Array.isArray(item?.loc) ? item.loc.filter(x => x !== 'body').join('.') : '';
-            const msg = item?.msg || item?.message || JSON.stringify(item);
-            return loc ? `${loc}: ${msg}` : msg;
-        }).filter(Boolean);
-        return messages.join('\n') || fallback;
-    }
-    if(detail && typeof detail === 'object') return detail.message || detail.msg || JSON.stringify(detail);
-    try {
-        return JSON.stringify(data);
-    } catch(e) {
-        return fallback;
-    }
+    return window.CanvasCore?.apiErrorMessage(data, fallback) ?? fallback;
 }
 async function responseErrorMessage(response, fallback='请求失败'){
-    try {
-        const data = await response.clone().json();
-        return apiErrorMessage(data, fallback);
-    } catch(e) {
-        try {
-            const text = await response.text();
-            return text || fallback;
-        } catch(_) {
-            return fallback;
-        }
-    }
+    return window.CanvasCore?.responseErrorMessage(response, fallback) ?? fallback;
 }
 function downloadBlob(blob, filename){
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename || 'smart-canvas-workflow.json';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 800);
+    window.CanvasCore?.downloadBlob(blob, filename || 'smart-canvas-workflow.json');
 }
 function smartWorkflowFilename(ext='json'){
     const title = (canvas?.title || document.getElementById('smartTitle')?.textContent || 'smart-canvas').trim();
@@ -1489,8 +1454,7 @@ function validOutpaintSize(node){
     return w > 0 && h > 0 ? {width:w, height:h} : null;
 }
 function parseSizePair(value){
-    const match = String(value || '').match(/(\d+)\s*x\s*(\d+)/i);
-    return match ? {width:Number(match[1]), height:Number(match[2])} : null;
+    return window.CanvasCore?.parseSizePair(value) || null;
 }
 function nearestFourKSizeFor(width, height){
     const w = Math.max(1, Number(width) || 1);
@@ -2506,8 +2470,7 @@ function optionHtml(value, label, selected){
     return `<option value="${escapeHtml(value)}" ${String(value) === String(selected) ? 'selected' : ''}>${escapeHtml(label ?? value)}</option>`;
 }
 function parseSizeValue(value){
-    const match = String(value || '').trim().match(/^(\d+)\s*[xX*]\s*(\d+)$/);
-    return match ? {width:match[1], height:match[2]} : null;
+    return window.CanvasCore?.parseSizeValue(value) || null;
 }
 function parseRatioValue(value){
     const raw = String(value || '').trim();
@@ -2832,10 +2795,7 @@ function ratioLabel(prefix=''){
     return map[settings[ratioKey] || 'square'] || '1:1';
 }
 function gcdInt(a, b){
-    a = Math.abs(Math.round(Number(a) || 0));
-    b = Math.abs(Math.round(Number(b) || 0));
-    while(b){ const t = b; b = a % b; a = t; }
-    return a || 1;
+    return window.CanvasCore?.gcdInt(a, b) || 1;
 }
 function imageSizeForRatio(img){
     const w = Math.round(Number(img?.natural_w || img?.width || img?.w || 0));
@@ -5832,16 +5792,10 @@ function bindImageProxyFallback(imgEl, itemOrUrl){
     });
 }
 function safeExportFileName(name, fallback='download.zip'){
-    const cleaned = String(name || fallback).replace(/[\\/:*?"<>|]+/g, '_').trim();
-    return cleaned || fallback;
+    return window.CanvasCore?.safeFileName(name, fallback) || fallback;
 }
 function fileNameFromUrl(url=''){
-    try {
-        const parsed = new URL(String(url || ''), window.location.href);
-        return decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '');
-    } catch(e) {
-        return decodeURIComponent(String(url || '').split('?')[0].split('#')[0].split('/').filter(Boolean).pop() || '');
-    }
+    return window.CanvasCore?.fileNameFromUrl(url) || '';
 }
 function extensionForMediaItem(item, fallback='.png'){
     const source = [item?.name, item?.url].map(value => String(value || '').split('?')[0].split('#')[0]).find(value => /\.[a-z0-9]{2,8}$/i.test(value));
@@ -6357,7 +6311,7 @@ function runSmartNodeToolbarAction(nodeId, action){
         setGridOperationMode('join');
     }
 }
-function nowMs(){ return Date.now(); }
+function nowMs(){ return window.CanvasCore?.nowMs() || Date.now(); }
 function formatRunDuration(ms){
     const total = Math.max(0, Math.floor(Number(ms || 0) / 1000));
     const min = Math.floor(total / 60);
@@ -10000,23 +9954,10 @@ function isSupportedUploadFile(file){
         || /\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v|mp3|wav|m4a|aac|ogg|flac)(\?|$)/.test(name);
 }
 function dataTransferItemEntry(item){
-    try { return item?.webkitGetAsEntry?.() || null; } catch { return null; }
+    return window.CanvasCore?.dataTransferItemEntry(item) || null;
 }
 async function filesFromEntry(entry){
-    if(!entry) return [];
-    if(entry.isFile){
-        return new Promise(resolve => entry.file(file => resolve(file ? [file] : []), () => resolve([])));
-    }
-    if(!entry.isDirectory) return [];
-    const reader = entry.createReader();
-    const children = [];
-    while(true){
-        const batch = await new Promise(resolve => reader.readEntries(resolve, () => resolve([])));
-        if(!batch.length) break;
-        children.push(...batch);
-    }
-    const nested = await Promise.all(children.map(filesFromEntry));
-    return nested.flat();
+    return window.CanvasCore?.filesFromEntry(entry) || [];
 }
 async function uploadFilesFromDataTransfer(dataTransfer){
     const items = [...(dataTransfer?.items || [])];
