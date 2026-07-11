@@ -138,7 +138,6 @@ let runBtnCooldownToken = 0;
 let smartRunStateToken = 0;
 const activeSmartTaskPolls = new Map();
 const smartNodeRunTokens = new Map();
-let smartRhRandomValues = {};
 let lastImagePasteAt = 0;
 let lastNodePasteAt = 0;
 let suppressNodeClickUntil = 0;
@@ -147,7 +146,6 @@ const UNDO_LIMIT = 40;
 const undoStack = [];
 let undoSuppressed = false;
 let pendingUndoSnapshot = null;
-let runningHubWorkflowCache = {};
 function activeSmartCascadeCount(){ return smartCascadeRuns.size; }
 function smartCascadeRunForLoop(loopId){ return loopId ? smartCascadeRuns.get(loopId) || null : null; }
 function smartCascadeIsLoopRunning(loopId){ return Boolean(smartCascadeRunForLoop(loopId)); }
@@ -327,11 +325,6 @@ let settings = {
     comfyMode:'text',
     comfyWorkflow:'',
     comfyParams:{},
-    rhConfigKey:'',
-    rhPayment:'free',
-    rhInstanceType:'',
-    rhParams:{},
-    rhRandomActive:{},
     width:1024,
     height:1024,
     enhanceStrength:0.5,
@@ -538,37 +531,6 @@ const LOCAL_I18N = {
     "canvas.modelscopeGenerate": "Modelscope生成",
     "canvas.comfyGenerate": "ComfyUI 生成",
     "canvas.videoGenerateNode": "视频生成",
-    "canvas.rhGenerate": "RunningHub生成",
-    "canvas.rhModeApp": "AI应用",
-    "canvas.rhModeWorkflow": "工作流",
-    "canvas.rhWebappId": "Webapp ID",
-    "canvas.rhWorkflowId": "Workflow ID",
-    "canvas.rhFetchApp": "拉取应用",
-    "canvas.rhFetchWorkflow": "拉取工作流",
-    "canvas.rhFetching": "拉取中",
-    "canvas.rhImportJson": "导入JSON",
-    "canvas.rhImportJsonFallback": "本地导入JSON",
-    "canvas.rhInstanceType": "实例类型",
-    "canvas.rhDefault": "默认",
-    "canvas.rhInputs": "输入素材",
-    "canvas.rhParams": "RunningHub 参数",
-    "canvas.rhWorkflowParams": "工作流参数",
-    "canvas.rhNoParams": "输入 webappId 并拉取应用参数",
-    "canvas.rhUseUpstream": "使用上游",
-    "canvas.rhRun": "运行 RunningHub",
-    "canvas.rhRunning": "RunningHub运行中",
-    "canvas.rhNeedWebappId": "请先填写 RunningHub webappId",
-    "canvas.rhNeedWorkflowId": "请先填写 RunningHub workflowId",
-    "canvas.rhNeedWorkflowJson": "请先导入工作流 api.json",
-    "canvas.rhWorkflowJsonInvalid": "工作流 JSON 无法解析，或没有可编辑节点",
-    "canvas.rhWorkflowJsonOptional": "可直接用 workflowId 运行默认工作流；如需修改节点参数，再导入从 RunningHub 导出的 api.json。",
-    "canvas.rhWorkflowFetchHint": "填写 workflowId 后点击拉取工作流参数；如果接口不可用，可本地导入 RunningHub 导出的 api.json。",
-    "canvas.rhWorkflowJsonLoaded": "已导入 {n} 个可修改字段，可按需要覆盖参数。",
-    "canvas.rhFailed": "RunningHub 任务失败",
-    "canvas.rhUploadFailed": "RunningHub 素材上传失败",
-    "canvas.rhNoTaskId": "RunningHub 没有返回 taskId",
-    "canvas.rhTimeout": "RunningHub 任务超时",
-    "canvas.rhOutputsEmpty": "RunningHub 没有返回产物",
     "canvas.hint": "拖拽画布移动，Ctrl 框选多选，拖动选中节点可一起移动。上传/提示词节点右下端口拖线到生成节点。",
     "canvas.cropImage": "裁剪图片",
     "canvas.cropHint": "拖动裁剪框移动，拖右下角调整大小",
@@ -773,7 +735,6 @@ const LOCAL_I18N = {
     "smart.engineVolcengine": "火山引擎",
     "smart.engineMs": "Modelscope生成",
     "smart.engineComfy": "ComfyUI生成",
-    "smart.engineRh": "RunningHub",
     "smart.kindImage": "图片",
     "smart.kindVideo": "视频",
     "smart.promptPlaceholder": "描述你想生成或编辑的图片...",
@@ -886,20 +847,6 @@ const LOCAL_I18N = {
     "smart.videoModel": "视频模型",
     "smart.noVideoPlatform": "暂无视频平台",
     "smart.noVideoModel": "暂无视频模型",
-    "smart.rhConfig": "RunningHub 配置",
-    "smart.rhNoConfig": "暂无 RunningHub 配置",
-    "smart.rhKey": "Key",
-    "smart.rhFreeKey": "RunningHub币",
-    "smart.rhWalletKey": "账户余额",
-    "smart.rhMachine": "显存",
-    "smart.rhParams": "RunningHub 参数",
-    "smart.rhNeedConfig": "请先在 API 设置里添加并保存 RunningHub 应用或工作流",
-    "smart.rhNeedFields": "请先在 API 设置里编辑并保存这个 RunningHub 参数",
-    "smart.rhUploadFailed": "RunningHub 素材上传失败",
-    "smart.rhFailed": "RunningHub 任务失败",
-    "smart.rhNoTaskId": "RunningHub 没有返回 taskId",
-    "smart.rhTimeout": "RunningHub 任务超时",
-    "smart.rhOutputsEmpty": "RunningHub 没有返回产物",
     "smart.videoDuration": "时长",
     "smart.videoDurationTip": "时长（秒）",
     "smart.videoAspect": "画面比例",
@@ -1084,10 +1031,6 @@ function smartVideoPreviewHtml(itemOrUrl, size=512, attrs=''){
 function smartVideoFallbackHtml(url, attrs=''){
     const safe = escapeHtml(url || '');
     return `<video src="${safe}" data-url="${safe}" muted preload="metadata" playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback"${attrs ? ` ${attrs}` : ''}></video>`;
-}
-function smartVideoPlayerHtml(url, attrs=''){
-    const safe = escapeHtml(displayMediaUrl({url:url || ''}));
-    return `<video src="${safe}" data-url="${escapeAttr(url || '')}" data-inline-video-active="1" controls autoplay playsinline preload="metadata" disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback"${attrs ? ` ${attrs}` : ''}></video>`;
 }
 function smartActivateVideoPreview(target){
     const root = target?.closest?.('.media-video-card,.video-thumb,.image-wrap,.thumb-item') || target?.parentElement || null;
@@ -1332,11 +1275,10 @@ const initialSmartSettings = cloneSmartSettings(settings);
 let canvasDefaultSmartSettings = cloneSmartSettings(settings);
 let recentSmartSettingsByMode = {};
 function smartSettingsModeKey(source=settings){
-    const engine = ['api','volcengine','modelscope','comfy','runninghub'].includes(source?.engine) ? source.engine : 'api';
+    const engine = ['api','volcengine','modelscope','comfy'].includes(source?.engine) ? source.engine : 'api';
     if(engine === 'api') return `api:${source?.apiKind === 'video' ? 'video' : 'image'}`;
     if(engine === 'volcengine') return `volcengine:${source?.apiKind === 'video' ? 'video' : 'image'}`;
     if(engine === 'comfy') return `comfy:${['text','enhance','edit','custom'].includes(source?.comfyMode) ? source.comfyMode : 'text'}`;
-    if(engine === 'runninghub') return 'runninghub';
     return 'modelscope';
 }
 function loadRecentSmartSettings(){
@@ -1372,7 +1314,7 @@ function rememberRecentSmartSettings(source=settings, node=null){
     saveRecentSmartSettings();
 }
 function applyRecentSmartSettingsForCurrentMode(){
-    const requestedEngine = ['api','volcengine','modelscope','comfy','runninghub'].includes(settings.engine) ? settings.engine : 'api';
+    const requestedEngine = ['api','volcengine','modelscope','comfy'].includes(settings.engine) ? settings.engine : 'api';
     const requestedApiKind = settings.apiKind === 'video' ? 'video' : 'image';
     const key = smartSettingsModeKey(settings);
     const saved = recentSmartSettingsForMode(key);
@@ -1472,7 +1414,7 @@ function exceedsFourKStandard(width, height){
 function withOutpaintDisplaySettings(node, baseSettings){
     const size = validOutpaintSize(node);
     if(!size) return baseSettings;
-    const engine = ['api','volcengine','modelscope','comfy','runninghub'].includes(baseSettings?.engine) ? baseSettings.engine : 'api';
+    const engine = ['api','volcengine','modelscope','comfy'].includes(baseSettings?.engine) ? baseSettings.engine : 'api';
     const next = {
         ...baseSettings,
         resolution:'custom',
@@ -1917,15 +1859,6 @@ function renderSmartOffscreenPlaceholders(){
     if(window.lucide) lucide.createIcons();
     bindSmartPreviewImageFallbacks(world);
 }
-function renderSmartNodePlaceholderHtml(node){
-    const layout = imageLayout(node.images || [], nodeScale(node), node);
-    const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : ((node.images || []).length > 1 ? 'Group' : 'Image');
-    return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
-        <div class="node-head"><div class="node-title">${escapeHtml(title)}</div></div>
-        <div class="node-port port-in" data-port="in" title="input"></div>
-        <div class="node-port port-out" data-port="out" title="output"></div>
-    </div>`;
-}
 function renderSmartNodeHtml(node){
     const imgs = node.images || [];
     const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? 'Image' : escapeHtml(tr('smart.createImportNode')));
@@ -2122,91 +2055,10 @@ function volcengineProvider(){
         enabled:true
     };
 }
-function runningHubProvider(){
-    return (apiProviders || []).find(p => p.id === 'runninghub' && p.enabled !== false) || null;
-}
-function runningHubEntries(kind){
-    const provider = runningHubProvider();
-    const key = kind === 'workflow' ? 'rh_workflows' : 'rh_apps';
-    return Array.isArray(provider?.[key]) ? provider[key].filter(item => item?.enabled !== false && item?.hidden !== true) : [];
-}
-function runningHubEntryId(entry, kind){
-    return String(kind === 'workflow' ? (entry?.workflowId || entry?.id || '') : (entry?.appId || entry?.webappId || entry?.id || '')).trim();
-}
-function runningHubEntryLabel(entry, kind){
-    const id = runningHubEntryId(entry, kind);
-    return entry?.title || entry?.name || (kind === 'workflow' ? `Workflow ${id}` : `AI App ${id}`);
-}
-function runningHubEntryKey(kind, id){
-    return `${kind}:${String(id || '').trim()}`;
-}
-function parseRunningHubEntryKey(value){
-    const text = String(value || '').trim();
-    const match = text.match(/^(app|workflow):(.+)$/);
-    return match ? {kind:match[1], id:match[2].trim()} : null;
-}
-function runningHubAllEntries(){
-    return [
-        ...runningHubEntries('app').map(entry => ({kind:'app', id:runningHubEntryId(entry, 'app'), entry})).filter(x => x.id),
-        ...runningHubEntries('workflow').map(entry => ({kind:'workflow', id:runningHubEntryId(entry, 'workflow'), entry})).filter(x => x.id)
-    ];
-}
-function selectedRunningHubRef(sourceSettings=settings){
-    const all = runningHubAllEntries();
-    sourceSettings = sourceSettings || settings;
-    const parsed = parseRunningHubEntryKey(sourceSettings.rhConfigKey || '');
-    let ref = parsed ? all.find(item => item.kind === parsed.kind && item.id === parsed.id) : null;
-    if(!ref && all.length) ref = all[0];
-    if(ref && sourceSettings === settings) settings.rhConfigKey = runningHubEntryKey(ref.kind, ref.id);
-    return ref || null;
-}
-function rhEntryFields(entry){
-    return Array.isArray(entry?.fields) ? entry.fields : [];
-}
-function rhWorkflowJsonFromSources(...sources){
-    for(const source of sources){
-        if(source && typeof source === 'object' && Object.keys(source).length) return source;
-    }
-    return {};
-}
-function rhCurrentKind(sourceSettings=settings){
-    return selectedRunningHubRef(sourceSettings)?.kind || 'app';
-}
-function rhActiveFields(sourceSettings=settings){
-    const ref = selectedRunningHubRef(sourceSettings);
-    let fields = rhEntryFields(ref?.entry);
-    if(ref?.kind === 'workflow'){
-        const cached = runningHubWorkflowCache[ref.id];
-        if(Array.isArray(cached?.fields) && cached.fields.length) fields = cached.fields;
-    }
-    fields = fields.filter(f => f.enabled === true);
-    return sortRunningHubFields(fields);
-}
-function runningHubRunNeedsPrompt(sourceSettings=settings){
-    if((sourceSettings || settings).engine !== 'runninghub') return true;
-    const fields = rhActiveFields(sourceSettings);
-    const promptFields = fields.filter(field => rhFieldRole(field) === 'prompt');
-    if(!promptFields.length) return false;
-    return promptFields.some(field => field.required === true && !rhDefaultValue(field).trim());
-}
 function smartRunNeedsPrompt(sourceSettings=settings){
     sourceSettings = sourceSettings || settings;
-    if(sourceSettings.engine === 'runninghub') return runningHubRunNeedsPrompt(sourceSettings);
     if(sourceSettings.engine === 'comfy' && sourceSettings.comfyMode === 'enhance') return false;
     return true;
-}
-function sortRunningHubFields(fields){
-    return [...(fields || [])].sort((a, b) => {
-        const ak = rhFieldKind(a), bk = rhFieldKind(b);
-        if(ak === 'image' && bk === 'image'){
-            const ao = Number(a.imageOrder) || 9999;
-            const bo = Number(b.imageOrder) || 9999;
-            if(ao !== bo) return ao - bo;
-        }
-        if(ak === 'image' && bk !== 'image') return -1;
-        if(ak !== 'image' && bk === 'image') return 1;
-        return String(a.nodeId || '').localeCompare(String(b.nodeId || ''), undefined, {numeric:true}) || String(a.fieldName || '').localeCompare(String(b.fieldName || ''));
-    });
 }
 function chatApiProviders(){
     return (apiProviders || []).filter(p => p.enabled !== false && p.has_key && (p.chat_models || []).length);
@@ -2450,7 +2302,7 @@ function comfyParamValue(field){
 function updateProviderModels(){ renderDynamicParams(); }
 function renderDynamicParams(){
     if(!dynamicParams) return;
-    settings.engine = ['api','volcengine','modelscope','comfy','runninghub'].includes(settings.engine) ? settings.engine : 'api';
+    settings.engine = ['api','volcengine','modelscope','comfy'].includes(settings.engine) ? settings.engine : 'api';
     settings.apiKind = settings.apiKind === 'video' ? 'video' : 'image';
     clearVolcengineSelectionOutsideVolcengine(settings);
     engineSelect.value = settings.engine;
@@ -2464,7 +2316,6 @@ function renderDynamicParams(){
         else renderVolcengineParams();
     }
     else if(settings.engine === 'modelscope') renderMsParams();
-    else if(settings.engine === 'runninghub') renderRunningHubParams();
     else renderComfyParams();
     bindDynamicParams();
     updatePromptPlaceholder();
@@ -2550,74 +2401,6 @@ function renderVolcengineVideoParams(){
         ${renderVideoToggleControl('videoMultimodal', tr('smart.videoMultimodal'))}
         ${renderVideoTrustedAssetControl()}
     `;
-}
-function renderRunningHubParams(){
-    const ref = selectedRunningHubRef();
-    const fields = rhActiveFields();
-    settings.rhPayment = settings.rhPayment === 'wallet' ? 'wallet' : 'free';
-    settings.rhParams = settings.rhParams || {};
-    settings.rhRandomActive = settings.rhRandomActive || {};
-    if(!ref){
-        dynamicParams.innerHTML = `<div class="muted-note">${escapeHtml(tr('smart.rhNeedConfig'))}</div>`;
-        return;
-    }
-    const mediaFields = fields.filter(f => ['image','video','audio'].includes(rhFieldRole(f))).length;
-    const promptFields = fields.filter(f => rhFieldRole(f) === 'prompt').length;
-    dynamicParams.innerHTML = `
-        ${renderRhConfigControl(ref)}
-        ${renderRhPaymentControl()}
-        ${renderRhMachineControl()}
-        <div class="rh-mini-summary">${escapeHtml(mediaFields)} 素材 · ${escapeHtml(promptFields)} 提示词</div>
-        ${fields.length ? fields.filter(f => !['image','video','audio','prompt'].includes(rhFieldRole(f))).map(renderRhSettingField).join('') : `<div class="muted-note">${escapeHtml(tr('smart.rhNeedFields'))}</div>`}
-    `;
-}
-function renderRhConfigControl(ref){
-    const apps = runningHubEntries('app');
-    const workflows = runningHubEntries('workflow');
-    const selected = ref ? runningHubEntryKey(ref.kind, ref.id) : '';
-    const groupHtml = (kind, entries, label) => entries.length ? `
-        <div class="model-list-label rh-list-label">${escapeHtml(label)}<span class="count">${entries.length}</span></div>
-        ${entries.map(entry => {
-            const id = runningHubEntryId(entry, kind);
-            const key = runningHubEntryKey(kind, id);
-            return `<button type="button" class="direct-option rh-entry-option ${key === selected ? 'active' : ''}" data-smart-param="rhConfigKey" data-smart-value="${escapeHtml(key)}"><i data-lucide="${kind === 'workflow' ? 'workflow' : 'sparkles'}"></i><span>${escapeHtml(runningHubEntryLabel(entry, kind))}</span></button>`;
-        }).join('')}
-    ` : '';
-    return `<div class="smart-control rh-config-control">
-        <button class="smart-pill" type="button"><i data-lucide="workflow"></i><span class="sub">${escapeHtml(ref ? runningHubEntryLabel(ref.entry, ref.kind) : tr('smart.rhConfig'))}</span><i data-lucide="chevron-down" class="pill-caret"></i></button>
-        <div class="smart-popover compact-popover rh-picker-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.rhConfig'))}</div>
-            <div class="model-list rh-config-list">
-                ${groupHtml('app', apps, 'AI 应用')}${groupHtml('workflow', workflows, '工作流') || ''}
-            </div>
-        </div>
-    </div>`;
-}
-function renderRhPaymentControl(){
-    const value = settings.rhPayment === 'wallet' ? 'wallet' : 'free';
-    const labels = {free:tr('smart.rhFreeKey'), wallet:tr('smart.rhWalletKey')};
-    return `<div class="smart-control rh-payment-control">
-        <button class="smart-pill" type="button"><i data-lucide="key-round"></i><span>${escapeHtml(labels[value])}</span><i data-lucide="chevron-down" class="pill-caret"></i></button>
-        <div class="smart-popover compact-popover rh-picker-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.rhKey'))}</div>
-            <div class="model-list">
-                ${Object.entries(labels).map(([key, label]) => `<button type="button" class="direct-option ${key === value ? 'active' : ''}" data-smart-param="rhPayment" data-smart-value="${escapeHtml(key)}"><span>${escapeHtml(label)}</span></button>`).join('')}
-            </div>
-        </div>
-    </div>`;
-}
-function renderRhMachineControl(){
-    const value = settings.rhInstanceType === 'plus' ? 'plus' : '';
-    const labels = {'':'24G', plus:'48G'};
-    return `<div class="smart-control rh-machine-control">
-        <button class="smart-pill" type="button"><i data-lucide="cpu"></i><span>${escapeHtml(labels[value])}</span><i data-lucide="chevron-down" class="pill-caret"></i></button>
-        <div class="smart-popover compact-popover rh-picker-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.rhMachine'))}</div>
-            <div class="model-list">
-                ${Object.entries(labels).map(([key, label]) => `<button type="button" class="direct-option ${key === value ? 'active' : ''}" data-smart-param="rhInstanceType" data-smart-value="${escapeHtml(key)}"><span>${escapeHtml(label)}</span></button>`).join('')}
-            </div>
-        </div>
-    </div>`;
 }
 function renderMsParams(){
     settings.msgenModel = MS_GEN_MODELS[settings.msgenModel] ? settings.msgenModel : 'zimage';
@@ -2980,182 +2763,9 @@ function renderComfySettingField(field){
     }
     return `<div class="num-compact" title="${escapeHtml(label)}"><span class="num-label">${escapeHtml(label)}</span>${inputHtml}</div>`;
 }
-const RH_KNOWN_FIELD_OPTIONS = {
-    aspectRatio:['1:1','16:9','9:16','4:3','3:4','4:5','5:4','3:2','2:3','21:9','9:21'],
-    aspect_ratio:['1:1','16:9','9:16','4:3','3:4','4:5','5:4','3:2','2:3','21:9','9:21'],
-    ratio:['1:1','16:9','9:16','21:9','9:21','4:3','3:4','4:5','5:4','3:2','2:3'],
-    resolution:['1k','2k','4k','8k'],
-    size:['512','768','1024','1280','1536','2048'],
-    quality:['low','medium','high','best'],
-    scheduler:['normal','karras','exponential','sgm_uniform','simple','ddim_uniform'],
-    sampler:['euler','euler_ancestral','heun','dpm_2','dpm_2_ancestral','lms','dpmpp_2m','dpmpp_sde','ddim','uni_pc']
-};
-function rhParamKey(nodeId, fieldName){
-    return `${nodeId ?? ''}::${fieldName ?? ''}`;
-}
-function rhFieldKind(field){
-    const type = String(field?.fieldType || '').trim().toUpperCase();
-    if(type === 'IMAGE') return 'image';
-    if(type === 'VIDEO') return 'video';
-    if(type === 'AUDIO') return 'audio';
-    if(type === 'SLIDER') return 'slider';
-    if(['NUMBER','FLOAT','INTEGER','INT'].includes(type)) return 'number';
-    if(['BOOLEAN','BOOL'].includes(type)) return 'boolean';
-    const key = `${field?.fieldName || ''} ${field?.fieldValue || ''}`.toLowerCase();
-    if(/\b(image|img|mask|photo|picture)\b/.test(key) || /\.(png|jpe?g|webp|gif|bmp)(\?|$)/i.test(key)) return 'image';
-    if(/\b(video|movie|mp4)\b/.test(key) || /\.(mp4|webm|mov|m4v|mkv)(\?|$)/i.test(key)) return 'video';
-    if(/\b(audio|sound|music|voice)\b/.test(key) || /\.(mp3|wav|ogg|m4a|flac|aac)(\?|$)/i.test(key)) return 'audio';
-    return 'text';
-}
-function rhFieldRole(field){
-    const kind = rhFieldKind(field);
-    if(['image','video','audio','number','slider','boolean'].includes(kind)) return kind;
-    const text = `${field?.fieldName || ''} ${field?.label || ''} ${field?.group || ''}`.toLowerCase();
-    if(/prompt|positive|negative|text|caption|description|关键词|提示词|正向|负向/.test(text)) return 'prompt';
-    return 'text';
-}
-function rhExtractFieldOptions(field){
-    const candidates = [field?.fieldData, field?.options, field?.list, field?.values, field?.enum, field?.choices, field?.items, field?.selectOptions, field?.dropdown];
-    for(const candidate of candidates){
-        if(!Array.isArray(candidate) || !candidate.length) continue;
-        if(candidate.every(x => ['string','number'].includes(typeof x))) return candidate.map(String);
-        if(candidate.every(x => x && typeof x === 'object' && ('value' in x || 'label' in x || 'name' in x))){
-            return candidate.map(x => x.value ?? x.label ?? x.name).filter(v => v !== undefined && v !== null).map(String);
-        }
-    }
-    const name = String(field?.fieldName || '').trim();
-    if(name){
-        if(RH_KNOWN_FIELD_OPTIONS[name]) return RH_KNOWN_FIELD_OPTIONS[name].map(String);
-        const hit = Object.keys(RH_KNOWN_FIELD_OPTIONS).find(k => k.toLowerCase() === name.toLowerCase());
-        if(hit) return RH_KNOWN_FIELD_OPTIONS[hit].map(String);
-    }
-    return null;
-}
-function rhDefaultValue(field){
-    let value = field?.fieldValue;
-    if(Array.isArray(value)) value = value[0];
-    if(value === undefined || value === null || typeof value === 'object') return '';
-    return String(value);
-}
-function rhIsWorkflowLinkValue(value){
-    return Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' && Number.isInteger(value[1]);
-}
-function rhRandomEnabled(field){
-    return rhFieldKind(field) === 'number' && field?.random_enabled === true;
-}
-function smartRhRandomActive(key){
-    return smartRhRandomActiveFor(settings, key);
-}
-function smartRhRandomActiveFor(sourceSettings=settings, key){
-    sourceSettings = sourceSettings || settings;
-    sourceSettings.rhRandomActive = sourceSettings.rhRandomActive || {};
-    return sourceSettings.rhRandomActive[key] !== false;
-}
-function toggleSmartRhRandom(key){
-    const field = rhActiveFields().find(f => rhParamKey(f.nodeId, f.fieldName) === key);
-    if(!rhRandomEnabled(field)) return;
-    settings.rhRandomActive = settings.rhRandomActive || {};
-    settings.rhRandomActive[key] = !smartRhRandomActive(key);
-    persistActiveSmartSettings();
-    renderDynamicParams();
-    scheduleSave();
-}
-function smartRhRandomValue(field){
-    return smartComfyRandomValue({
-        input:field.fieldName,
-        name:field.label || field.fieldName,
-        min:field.min,
-        max:field.max,
-        step:field.step,
-        type:'number'
-    });
-}
-function rhParamValue(field, media=null, sourceSettings=settings, fields=null, randomValues=smartRhRandomValues){
-    sourceSettings = sourceSettings || settings;
-    sourceSettings.rhParams = sourceSettings.rhParams || {};
-    const key = rhParamKey(field.nodeId, field.fieldName);
-    const param = sourceSettings.rhParams[key];
-    const kind = rhFieldKind(field);
-    if(['image','video','audio'].includes(kind)){
-        const idx = rhFieldIndexes(fields || rhActiveFields(sourceSettings))[key] || 0;
-        const up = media?.[kind]?.[idx]?.url || '';
-        if(rhCurrentKind(sourceSettings) === 'workflow' && kind === 'image' && field.required !== true && !up) return '';
-        return up || param?.value || rhDefaultValue(field);
-    }
-    if(rhRandomEnabled(field) && smartRhRandomActiveFor(sourceSettings, key)){
-        if(randomValues[key] === undefined) randomValues[key] = smartRhRandomValue(field);
-        return randomValues[key];
-    }
-    if(rhFieldRole(field) === 'prompt') return param?.value ?? (media?.prompt || rhDefaultValue(field));
-    return param?.value ?? rhDefaultValue(field);
-}
-function rhUserParamValue(field){
-    settings.rhParams = settings.rhParams || {};
-    const key = rhParamKey(field.nodeId, field.fieldName);
-    return settings.rhParams[key]?.value ?? '';
-}
-function rhPromptPlaceholder(field){
-    return rhDefaultValue(field) || field?.label || field?.fieldName || tr('smart.promptPlaceholder');
-}
-function rhDefaultPromptSuggestion(){
-    if(settings.engine !== 'runninghub') return '';
-    const fields = rhActiveFields().filter(field => rhFieldRole(field) === 'prompt');
-    for(const field of fields){
-        const value = rhDefaultValue(field).trim();
-        if(value) return value;
-    }
-    return '';
-}
 function updatePromptPlaceholder(){
     if(!promptInput) return;
-    const suggestion = rhDefaultPromptSuggestion();
-    promptInput.dataset.placeholder = suggestion || tr('smart.promptPlaceholder');
-}
-function rhFieldIndexes(fields){
-    const counters = {image:0, video:0, audio:0};
-    const map = {};
-    sortRunningHubFields(fields).forEach(field => {
-        const kind = rhFieldKind(field);
-        if(['image','video','audio'].includes(kind)){
-            map[rhParamKey(field.nodeId, field.fieldName)] = counters[kind]++;
-        }
-    });
-    return map;
-}
-async function ensureRunningHubWorkflow(workflowId){
-    workflowId = String(workflowId || '').trim();
-    if(!workflowId) return null;
-    if(runningHubWorkflowCache[workflowId]) return runningHubWorkflowCache[workflowId];
-    const data = await window.CanvasApi.getRunningHubWorkflow(workflowId, null);
-    if(!data){
-        delete runningHubWorkflowCache[workflowId];
-        return null;
-    }
-    runningHubWorkflowCache[workflowId] = data.workflow || null;
-    return runningHubWorkflowCache[workflowId];
-}
-async function currentRunningHubWorkflowConfig(sourceSettings=settings){
-    const ref = selectedRunningHubRef(sourceSettings);
-    if(ref?.kind !== 'workflow') return null;
-    const cached = await ensureRunningHubWorkflow(ref.id).catch(() => null);
-    return {
-        ...(ref.entry || {}),
-        ...(cached || {}),
-        workflowId:ref.id,
-        fields:Array.isArray(cached?.fields) && cached.fields.length ? cached.fields : rhEntryFields(ref.entry),
-        optionalImageMode:ref.entry?.optionalImageMode || cached?.optionalImageMode || 'prune-workflow',
-        workflowJson:rhWorkflowJsonFromSources(cached?.workflowJson, ref.entry?.workflowJson, ref.entry?.raw?.workflowJson, ref.entry?.raw?.prompt)
-    };
-}
-function rhMediaForRun(prompt, refs){
-    const cleanRefs = (refs || []).filter(ref => ref?.url);
-    return {
-        refs:cleanRefs,
-        image:imageRefsOnly(cleanRefs),
-        video:videoRefsOnly(cleanRefs),
-        audio:audioRefsOnly(cleanRefs),
-        prompt:String(prompt || '').trim()
-    };
+    promptInput.dataset.placeholder = tr('smart.promptPlaceholder');
 }
 function tempShUploadedUrlFor(url, sourceSettings=settings){
     const source = String(url || '');
@@ -3316,132 +2926,6 @@ async function uploadCurrentSmartVideosToCloud(){
         if(btn) btn.disabled = false;
     }
 }
-function rhRequiredLabel(field){
-    return field?.label || field?.fieldName || `#${field?.nodeId || ''}`;
-}
-function rhPruneWorkflowForMissingFields(workflowJson, missingFields){
-    if(!workflowJson || typeof workflowJson !== 'object' || !missingFields?.length) return null;
-    const workflow = JSON.parse(JSON.stringify(workflowJson));
-    const removeIds = new Set();
-    missingFields.forEach(field => {
-        const node = workflow[String(field.nodeId)];
-        if(node?.inputs && Object.prototype.hasOwnProperty.call(node.inputs, field.fieldName)){
-            delete node.inputs[field.fieldName];
-        }
-        if(node && (!node.inputs || !Object.keys(node.inputs).length)){
-            removeIds.add(String(field.nodeId));
-        }
-    });
-    removeIds.forEach(id => delete workflow[id]);
-    Object.values(workflow).forEach(node => {
-        if(!node?.inputs || typeof node.inputs !== 'object') return;
-        Object.entries(node.inputs).forEach(([name, value]) => {
-            if(rhIsWorkflowLinkValue(value) && removeIds.has(String(value[0]))) delete node.inputs[name];
-        });
-    });
-    return workflow;
-}
-async function rhBuildWorkflowRequestExtras(media, nodeInfoList, sourceSettings=settings){
-    const config = await currentRunningHubWorkflowConfig(sourceSettings);
-    if(!config || (config.optionalImageMode || 'prune-workflow') !== 'prune-workflow') return {};
-    const fields = rhActiveFields(sourceSettings);
-    const indexes = rhFieldIndexes(fields);
-    const missingOptional = [];
-    for(const field of fields){
-        if(rhFieldKind(field) !== 'image') continue;
-        const key = rhParamKey(field.nodeId, field.fieldName);
-        const idx = indexes[key] || 0;
-        const hasInput = Boolean(media.image?.[idx]?.url);
-        if(field.required === true && !hasInput) throw new Error(`RunningHub 工作流缺少必选图片：${rhRequiredLabel(field)}`);
-        if(field.required !== true && !hasInput) missingOptional.push(field);
-    }
-    if(!missingOptional.length) return {};
-    missingOptional.forEach(field => {
-        const key = rhParamKey(field.nodeId, field.fieldName);
-        const idx = nodeInfoList.findIndex(item => rhParamKey(item.nodeId, item.fieldName) === key);
-        if(idx >= 0) nodeInfoList.splice(idx, 1);
-    });
-    const workflow = rhPruneWorkflowForMissingFields(config.workflowJson || {}, missingOptional);
-    return workflow ? {workflow} : {};
-}
-async function rhUploadValueIfNeeded(value, sourceSettings=settings){
-    const text = String(value || '').trim();
-    if(!text) return '';
-    if(!/^https?:\/\//i.test(text) && !text.startsWith('/output/') && !text.startsWith('/assets/')) return text;
-    const data = await window.CanvasApi.uploadRunningHubAsset({url:text, useWallet:(sourceSettings || settings).rhPayment === 'wallet'}, {errorFallback:tr('smart.rhUploadFailed')});
-    return data.data?.fileName || text;
-}
-async function rhBuildNodeInfoList(media, sourceSettings=settings, randomValues=smartRhRandomValues){
-    const fields = rhActiveFields(sourceSettings);
-    const result = [];
-    const indexes = rhFieldIndexes(fields);
-    const mode = rhCurrentKind(sourceSettings);
-    for(const field of fields){
-        const kind = rhFieldKind(field);
-        const key = rhParamKey(field.nodeId, field.fieldName);
-        if(mode === 'workflow' && field.sourceFromUpstream === false && !['image','video','audio'].includes(kind)) continue;
-        if(mode === 'workflow' && kind === 'image'){
-            const idx = indexes[key] || 0;
-            if(field.required !== true && !media.image?.[idx]?.url) continue;
-        }
-        let value = rhParamValue(field, media, sourceSettings, fields, randomValues);
-        if(rhFieldRole(field) === 'prompt' && !String(value || '').trim()) value = rhDefaultValue(field);
-        if(['image','video','audio'].includes(kind)) value = await rhUploadValueIfNeeded(value, sourceSettings);
-        if(['number','slider'].includes(kind) && String(value ?? '').trim() !== '' && !Number.isNaN(Number(value))) value = Number(value);
-        // 只对“单值”字段（下拉/选项等）去换行；prompt / text 这类自由文本必须保留换行，
-        // 否则多行提示词会被截成第一行（例如“一只红猫\n金色的眼睛”只剩“一只红猫”）。
-        if(typeof value === 'string' && !['prompt','text'].includes(rhFieldRole(field)) && /[\r\n]/.test(value)) value = value.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
-        result.push({nodeId:field.nodeId, fieldName:field.fieldName, fieldValue:value});
-    }
-    return result;
-}
-function renderRhSettingField(field){
-    const key = rhParamKey(field.nodeId, field.fieldName);
-    const kind = rhFieldRole(field);
-    const label = field.label || field.fieldName || 'Field';
-    const value = rhParamValue(field, null);
-    const options = rhExtractFieldOptions(field);
-    if(kind === 'boolean'){
-        const active = String(value).toLowerCase() === 'true';
-        return `<button type="button" class="setting-check ${active ? 'active' : ''}" data-rh-bool="${escapeHtml(key)}"><span class="check-box"></span><span>${escapeHtml(label)}</span></button>`;
-    }
-    if(kind === 'slider'){
-        const min = Number.isFinite(Number(field.min)) ? Number(field.min) : 0;
-        const max = Number.isFinite(Number(field.max)) && Number(field.max) > min ? Number(field.max) : 1;
-        const step = Number.isFinite(Number(field.step)) && Number(field.step) > 0 ? Number(field.step) : 0.01;
-        const numericValue = Number.isFinite(Number(value)) ? Number(value) : min;
-        return `<div class="smart-control rh-slider-control" title="${escapeHtml(label)}">
-            <button class="smart-pill" type="button"><span class="sub">${escapeHtml(label)}</span><span class="rh-slider-pill-value">${escapeHtml(numericValue)}</span></button>
-            <div class="smart-popover compact-popover rh-picker-popover rh-param-popover rh-slider-popover">
-                <div class="smart-popover-title"><span>${escapeHtml(label)}</span><span class="rh-slider-value">${escapeHtml(numericValue)}</span></div>
-                <input type="range" class="smart-range rh-slider-input" data-rh-param="${escapeHtml(key)}" data-rh-type="slider" min="${escapeHtml(min)}" max="${escapeHtml(max)}" step="${escapeHtml(step)}" value="${escapeHtml(numericValue)}">
-            </div>
-        </div>`;
-    }
-    if(options?.length){
-        const curLabel = String(value || options[0] || label);
-        return `<div class="smart-control rh-dropdown-control" title="${escapeHtml(label)}">
-            <button class="smart-pill" type="button"><span class="sub">${escapeHtml(curLabel)}</span><i data-lucide="chevron-down" class="pill-caret"></i></button>
-            <div class="smart-popover compact-popover rh-picker-popover rh-param-popover">
-                <div class="smart-popover-title">${escapeHtml(label)}</div>
-                <div class="model-list rh-param-list">
-                    ${options.map(o => `<button type="button" class="direct-option ${String(o) === String(value) ? 'active' : ''}" data-rh-pick="${escapeHtml(key)}" data-rh-value="${escapeHtml(o)}"><span>${escapeHtml(o)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml(tr('smart.noOption'))}</div>`}
-                </div>
-            </div>
-        </div>`;
-    }
-    const type = kind === 'number' ? 'number' : 'text';
-    const inputHtml = `<input type="${type}" data-rh-param="${escapeHtml(key)}" value="${escapeHtml(value)}">`;
-    if(kind === 'number' && rhRandomEnabled(field)){
-        const active = smartRhRandomActive(key);
-        return `<div class="num-with-dice" title="${escapeHtml(label)}">
-            <span class="num-label">${escapeHtml(label)}</span>
-            ${inputHtml}
-            <button type="button" class="dice-btn ${active ? 'active' : ''}" data-rh-random="${escapeHtml(key)}" title="${escapeHtml(active ? tr('smart.diceOn') : tr('smart.diceOff'))}"><i data-lucide="dice-5"></i></button>
-        </div>`;
-    }
-    return `<div class="num-compact ${type === 'text' ? 'rh-text-param' : ''}" title="${escapeHtml(label)}"><span class="num-label">${escapeHtml(label)}</span>${inputHtml}</div>`;
-}
 function comfyRandomEnabledField(field){ return field?.type === 'number' && field.random_enabled === true; }
 function smartComfyRandomActive(fieldId){
     return smartComfyRandomActiveFor(settings, fieldId);
@@ -3474,7 +2958,7 @@ function smartComfyRandomValue(field){
 }
 function setDynamicSetting(key, value){
     const numericKeys = new Set(['count','width','height','videoDuration','enhanceStrength','enhanceUpscaleRes','editUpscaleRes','customRatioWidth','customRatioHeight','customWidth','customHeight','msCustomRatioWidth','msCustomRatioHeight','msCustomWidth','msCustomHeight']);
-    const layoutKeys = new Set(['provider_id','model','resolution','ratio','msgenModel','msCustomModel','msResolution','msRatio','videoProvider','videoModel','videoAspect','videoResolution','comfyMode','comfyWorkflow','quality','count','enhanceUpscaleRes','editUpscaleRes','rhConfigKey','rhPayment','rhInstanceType']);
+    const layoutKeys = new Set(['provider_id','model','resolution','ratio','msgenModel','msCustomModel','msResolution','msRatio','videoProvider','videoModel','videoAspect','videoResolution','comfyMode','comfyWorkflow','quality','count','enhanceUpscaleRes','editUpscaleRes']);
     settings[key] = numericKeys.has(key) && value !== '' ? Number(value) : value;
     if(key === 'provider_id') settings.model = '';
     if(key === 'videoProvider') settings.videoModel = '';
@@ -3505,10 +2989,6 @@ function setDynamicSetting(key, value){
     if(key === 'comfyWorkflow') {
         settings.comfyParams = {};
         ensureComfyWorkflow(settings.comfyWorkflow).then(renderDynamicParams);
-    }
-    if(key === 'rhConfigKey'){
-        settings.rhParams = {};
-        settings.rhRandomActive = {};
     }
     persistActiveSmartSettings();
     rememberRecentSmartSettings(settings, activeSettingsSubject());
@@ -3626,91 +3106,16 @@ function bindDynamicParams(){
             toggleSmartComfyRandom(btn.dataset.comfyRandom);
         };
     });
-    dynamicParams.querySelectorAll('[data-rh-bool]').forEach(btn => {
-        btn.onclick = event => {
-            event.preventDefault();
-            event.stopPropagation();
-            settings.rhParams = settings.rhParams || {};
-            const key = btn.dataset.rhBool;
-            const field = rhActiveFields().find(f => rhParamKey(f.nodeId, f.fieldName) === key);
-            const cur = settings.rhParams[key] || {};
-            const on = String(rhParamValue(field, null)).toLowerCase() === 'true';
-            settings.rhParams[key] = {...cur, value:String(!on)};
-            persistActiveSmartSettings();
-            renderDynamicParams();
-            scheduleSave();
-        };
-    });
-    dynamicParams.querySelectorAll('[data-rh-param]').forEach(input => {
-        input.onclick = event => event.stopPropagation();
-        input.oninput = input.onchange = event => {
-            event?.stopPropagation?.();
-            const key = input.dataset.rhParam;
-            settings.rhParams = settings.rhParams || {};
-            const cur = settings.rhParams[key] || {};
-            settings.rhParams[key] = {...cur, value:input.value};
-            const control = input.closest('.smart-control');
-            const valueText = control?.querySelector('.rh-slider-value');
-            const pillValue = control?.querySelector('.rh-slider-pill-value');
-            if(valueText) valueText.textContent = input.value;
-            if(pillValue) pillValue.textContent = input.value;
-            persistActiveSmartSettings();
-            scheduleSave();
-        };
-        if(input.dataset.rhType === 'slider'){
-            input.onpointerup = () => input.blur();
-            input.onmouseleave = () => {
-                if(!input.closest('.smart-control')?.matches(':hover')) input.blur();
-            };
-        }
-    });
-    dynamicParams.querySelectorAll('[data-rh-pick]').forEach(btn => {
-        btn.onclick = event => {
-            event.preventDefault();
-            event.stopPropagation();
-            const key = btn.dataset.rhPick;
-            const value = btn.dataset.rhValue;
-            settings.rhParams = settings.rhParams || {};
-            const cur = settings.rhParams[key] || {};
-            settings.rhParams[key] = {...cur, value};
-            const popover = btn.closest('.smart-popover');
-            const control = btn.closest('.smart-control');
-            const pillSub = control?.querySelector('.smart-pill .sub');
-            if(pillSub) pillSub.textContent = value;
-            if(popover){
-                popover.querySelectorAll('[data-rh-pick]').forEach(b => {
-                    if(b.dataset.rhPick === key) b.classList.toggle('active', b.dataset.rhValue === value);
-                });
-            }
-            closeAllSmartPopovers();
-            persistActiveSmartSettings();
-            scheduleSave();
-        };
-    });
-    dynamicParams.querySelectorAll('[data-rh-random]').forEach(btn => {
-        btn.onclick = event => {
-            event.preventDefault();
-            event.stopPropagation();
-            toggleSmartRhRandom(btn.dataset.rhRandom);
-        };
-    });
 }
 async function loadConfig(){
     try {
         const cfg = await window.CanvasApi.getConfig();
         apiProviders = Array.isArray(cfg.api_providers) ? cfg.api_providers : [];
         comfyInstanceCount = Math.max(1, (Array.isArray(cfg.comfy_instances) ? cfg.comfy_instances : []).filter(Boolean).length || 1);
-        // 提供商配置已就绪即先渲染参数面板，避免等工作流/RunningHub 预取完成后参数才「突然刷新出来」。
         sanitizeSmartApiSelection(settings);
         updateProviderModels();
         const wf = await window.CanvasApi.getWorkflows();
         comfyWorkflows = Array.isArray(wf.workflows) ? wf.workflows : [];
-        runningHubWorkflowCache = {};
-        const rhProvider = apiProviders.find(p => p.id === 'runninghub');
-        const rhWorkflowIds = (rhProvider?.rh_workflows || []).map(item => String(item.workflowId || item.id || '').trim()).filter(Boolean);
-        await Promise.all(rhWorkflowIds.map(async workflowId => {
-            try { await ensureRunningHubWorkflow(workflowId); } catch(_) {}
-        }));
         lastConfigRefreshAt = Date.now();
         sanitizeSmartApiSelection(settings);
         updateProviderModels();
@@ -6090,30 +5495,6 @@ function smartNodeToolbarImageIndex(node){
         if(Number.isFinite(index) && index >= 0 && index < images.length) return index;
     }
     return 0;
-}
-function smartNodeToolbarHtml(node){
-    const isImageNode = node?.type === 'smart-image' || !node?.type;
-    const images = node?.images || [];
-    if(!isImageNode || !images.some(img => img?.url)) return '';
-    const item = imageForDisplay(images[smartNodeToolbarImageIndex(node)] || images.find(img => img?.url));
-    if(!item?.url) return '';
-    const kind = mediaKindForItem(item);
-    const canEditImage = kind === 'image';
-    const imageCount = images.filter(img => mediaKindForItem(imageForDisplay(img)) === 'image' && imageForDisplay(img)?.url).length;
-    const gridLabel = imageCount > 1 ? '宫格拼接' : '宫格切分';
-    const actions = [
-        {key:'preview', icon:'eye', label:'预览', enabled:kind === 'image' || kind === 'video'},
-        {key:'crop', icon:'crop', label:'裁剪', enabled:canEditImage},
-        {key:'outpaint', icon:'expand', label:'扩图', enabled:canEditImage},
-        {key:'mask', icon:'brush', label:'遮罩', enabled:canEditImage},
-        {key:'brush', icon:'paintbrush', label:'画笔', enabled:canEditImage},
-        {key:'grid', icon:'grid-3x3', label:gridLabel, enabled:canEditImage},
-        {key:'download', icon:'download', label:'下载', enabled:true}
-    ];
-    return `<div class="smart-node-floating-menu" data-smart-node-menu="1">${actions.map(action => `
-        <button type="button" data-smart-node-action="${escapeAttr(action.key)}" data-node-id="${escapeAttr(node.id)}" ${action.enabled ? '' : 'disabled'} title="${escapeAttr(action.label)}">
-            <i data-lucide="${escapeAttr(action.icon)}"></i><span>${escapeHtml(action.label)}</span>
-        </button>`).join('')}</div>`;
 }
 function duplicateSmartNodeMediaToCanvas(node, imageIndex){
     const source = node?.images?.[imageIndex];
@@ -10050,7 +9431,6 @@ function expectedOutputSize(){
         }
         return {w:1024, h:1024};
     }
-    if(settings.engine === 'runninghub') return {w:1024, h:1024};
     const sizeStr = settings.engine === 'modelscope'
         ? apiImageSize(settings.msRatio || 'square', settings.msResolution || '1k', settings.msCustomRatio || '', settings.msCustomSize || '')
         : sizeForRun();
@@ -10887,9 +10267,6 @@ function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=fal
     body = body.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
     const inputPrompt = inputPromptTextFor(node, ctx).trim();
     if(inputPrompt) body = [inputPrompt, body].filter(Boolean).join('\n\n');
-    if(!body && settings.engine === 'runninghub'){
-        body = rhDefaultPromptSuggestion();
-    }
     const displayPrompt = originalPrompt || body;
     if(hasMentionToken && refs.length){
         const mapText = refs.map((img, i) => `图${i + 1}：${img.name || `图片${i + 1}`}`).join('\n');
@@ -11730,11 +11107,9 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
         const urls = resultMediaUrls(taskResult);
         return {urls, kind:mediaKindForUrls(urls, 'image')};
     }
-    const urls = activeSettings.engine === 'runninghub'
-        ? await runRunningHubGeneration(prompt, refs, activeSettings)
-        : activeSettings.engine === 'modelscope'
-            ? await runModelscopeGeneration(prompt, refs, activeSettings)
-            : [];
+    const urls = activeSettings.engine === 'modelscope'
+        ? await runModelscopeGeneration(prompt, refs, activeSettings)
+        : [];
     return {urls, kind:mediaKindForUrls(urls, 'image')};
 }
 async function generateComfyUrlsWithSettings(runSettings, prompt, refs){
@@ -12322,12 +11697,10 @@ async function runGeneration(){
     const runLog = smartRunSnapshot(node, prompt, refs, logKind);
     rememberRecentSmartSettings(settings, node);
     const runLogStart = nowMs();
-    const expectedCount = settings.engine === 'runninghub'
-        ? 1
-        : settings.engine === 'comfy'
+    const expectedCount = settings.engine === 'comfy'
         ? (settings.comfyMode === 'text' || settings.comfyMode === 'enhance' || settings.comfyMode === 'edit' || settings.comfyMode === 'custom' ? 1 : 1)
         : Math.max(1, Math.min(8, Number(settings.count || 1)));
-    const apiConcurrentRun = isApiLikeEngine(settings.engine) || settings.engine === 'runninghub' || settings.engine === 'modelscope';
+    const apiConcurrentRun = isApiLikeEngine(settings.engine) || settings.engine === 'modelscope';
     const nodeHasImages = (node.images || []).some(img => img?.url);
     const workflowModeRun = smartImageUsesWorkflowInput(node, smartLoopContext);
     const sourceVisualState = nodeHasImages && !workflowModeRun ? {
@@ -12385,11 +11758,9 @@ async function runGeneration(){
             scheduleSave();
             return;
         }
-        const outImages = settings.engine === 'runninghub'
-            ? await runRunningHubGeneration(prompt, refs)
-            : settings.engine === 'modelscope'
-                ? await runModelscopeGeneration(prompt, refs)
-                : await runApiGeneration(prompt, refs);
+        const outImages = settings.engine === 'modelscope'
+            ? await runModelscopeGeneration(prompt, refs)
+            : await runApiGeneration(prompt, refs);
         if(isApiLikeEngine(settings.engine)){
             const taskIds = Array.isArray(outImages?.taskIds) ? outImages.taskIds : [];
             if(!taskIds.length) throw new Error(tr('smart.errRunFailed'));
@@ -12511,47 +11882,6 @@ async function runApiGeneration(prompt, refs, runSettings=settings){
         return r.json();
     })));
     return {taskIds:tasks.map(task => task.task_id).filter(Boolean), count, providerId:payload.provider_id, model:payload.model};
-}
-async function runRunningHubGeneration(prompt, refs, runSettings=settings){
-    const ref = selectedRunningHubRef(runSettings);
-    if(!ref) throw new Error(tr('smart.rhNeedConfig'));
-    const fields = rhActiveFields(runSettings);
-    if(!fields.length) throw new Error(tr('smart.rhNeedFields'));
-    const randomValues = {};
-    const mode = ref.kind;
-    const media = rhMediaForRun(prompt, refs);
-    const nodeInfoList = await rhBuildNodeInfoList(media, runSettings, randomValues);
-    const workflowExtras = mode === 'workflow' ? await rhBuildWorkflowRequestExtras(media, nodeInfoList, runSettings) : {};
-    const endpoint = mode === 'workflow' ? '/api/runninghub/workflow-submit' : '/api/runninghub/submit';
-    const body = mode === 'workflow'
-        ? {workflowId:ref.id, nodeInfoList, useWallet:runSettings.rhPayment === 'wallet', ...workflowExtras}
-        : {webappId:ref.id, nodeInfoList, instanceType:runSettings.rhInstanceType || '', useWallet:runSettings.rhPayment === 'wallet'};
-    const submit = await fetch(endpoint, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(body)
-    }).then(async r => {
-        const data = await r.json();
-        if(!r.ok || data.success === false) throw new Error(data.detail || data.error || tr('smart.rhFailed'));
-        return data.data || data;
-    });
-    const taskId = submit.taskId;
-    if(!taskId) throw new Error(tr('smart.rhNoTaskId'));
-    for(let i = 0; i < 720; i++){
-        await sleep(2500);
-        const data = await fetch(`/api/runninghub/query?taskId=${encodeURIComponent(taskId)}`).then(async r => {
-            const json = await r.json();
-            if(!r.ok || json.success === false) throw new Error(json.detail || json.error || tr('smart.rhFailed'));
-            return json.data || json;
-        });
-        if(data.status === 'SUCCESS'){
-            const urls = data.urls || [];
-            if(!urls.length) throw new Error(tr('smart.rhOutputsEmpty'));
-            return urls;
-        }
-        if(data.status === 'FAILED') throw new Error(data.failReason || tr('smart.rhFailed'));
-    }
-    throw new Error(tr('smart.rhTimeout'));
 }
 async function runApiVideoGeneration(prompt, refs, runSettings=settings){
     if(!runSettings.videoModel) throw new Error(tr('smart.errNoVideoModel'));
@@ -14315,3 +13645,43 @@ window.onload = async () => {
     syncApiKindToggleVisibility();
     render();
 };
+
+function renderSmartNodePlaceholderHtml(node){
+    const layout = imageLayout(node.images || [], nodeScale(node), node);
+    const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : ((node.images || []).length > 1 ? 'Group' : 'Image');
+    return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+        <div class="node-head"><div class="node-title">${escapeHtml(title)}</div></div>
+        <div class="node-port port-in" data-port="in" title="input"></div>
+        <div class="node-port port-out" data-port="out" title="output"></div>
+    </div>`;
+}
+
+function smartNodeToolbarHtml(node){
+    const isImageNode = node?.type === 'smart-image' || !node?.type;
+    const images = node?.images || [];
+    if(!isImageNode || !images.some(img => img?.url)) return '';
+    const item = imageForDisplay(images[smartNodeToolbarImageIndex(node)] || images.find(img => img?.url));
+    if(!item?.url) return '';
+    const kind = mediaKindForItem(item);
+    const canEditImage = kind === 'image';
+    const imageCount = images.filter(img => mediaKindForItem(imageForDisplay(img)) === 'image' && imageForDisplay(img)?.url).length;
+    const gridLabel = imageCount > 1 ? '宫格拼接' : '宫格切分';
+    const actions = [
+        {key:'preview', icon:'eye', label:'预览', enabled:kind === 'image' || kind === 'video'},
+        {key:'crop', icon:'crop', label:'裁剪', enabled:canEditImage},
+        {key:'outpaint', icon:'expand', label:'扩图', enabled:canEditImage},
+        {key:'mask', icon:'brush', label:'遮罩', enabled:canEditImage},
+        {key:'brush', icon:'paintbrush', label:'画笔', enabled:canEditImage},
+        {key:'grid', icon:'grid-3x3', label:gridLabel, enabled:canEditImage},
+        {key:'download', icon:'download', label:'下载', enabled:true}
+    ];
+    return `<div class="smart-node-floating-menu" data-smart-node-menu="1">${actions.map(action => `
+        <button type="button" data-smart-node-action="${escapeAttr(action.key)}" data-node-id="${escapeAttr(node.id)}" ${action.enabled ? '' : 'disabled'} title="${escapeAttr(action.label)}">
+            <i data-lucide="${escapeAttr(action.icon)}"></i><span>${escapeHtml(action.label)}</span>
+        </button>`).join('')}</div>`;
+}
+
+function smartVideoPlayerHtml(url, attrs=''){
+    const safe = escapeHtml(displayMediaUrl({url:url || ''}));
+    return `<video src="${safe}" data-url="${escapeAttr(url || '')}" data-inline-video-active="1" controls autoplay playsinline preload="metadata" disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback"${attrs ? ` ${attrs}` : ''}></video>`;
+}

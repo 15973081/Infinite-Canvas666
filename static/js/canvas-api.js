@@ -273,37 +273,8 @@
         return request('/api/canvas-workflows/import', {method:'POST', body:form});
     }
 
-    function getRunningHubWorkflow(workflowId, fallback=null){
-        return jsonOr(`/api/runninghub/workflows/${encodeURIComponent(workflowId)}`, fallback);
-    }
-
-    function getRunningHubAppInfo(webappId){
-        return json(`/api/runninghub/app-info?webappId=${encodeURIComponent(webappId)}`, {}, {checkOk:true});
-    }
-
-    function getRunningHubWorkflowInfo(workflowId){
-        return json(`/api/runninghub/workflow-info?workflowId=${encodeURIComponent(workflowId)}`, {}, {checkOk:true});
-    }
-
     function bodyInit(payload){
         return payload instanceof FormData ? {method:'POST', body:payload} : jsonBodyInit('POST', payload);
-    }
-
-    function uploadRunningHubAsset(payload, options={}){
-        return json('/api/runninghub/upload-asset', bodyInit(payload), {checkOk:true, ...options});
-    }
-
-    function submitRunningHub(mode, payload, options={}){
-        const endpoint = mode === 'workflow' ? '/api/runninghub/workflow-submit' : '/api/runninghub/submit';
-        return request(endpoint, jsonBodyInit('POST', payload), options);
-    }
-
-    function queryRunningHubTask(taskId){
-        return json(`/api/runninghub/query?taskId=${encodeURIComponent(taskId)}`, {}, {checkOk:true});
-    }
-
-    function queryRunningHubTaskRequest(taskId, options={}){
-        return request(`/api/runninghub/query?taskId=${encodeURIComponent(taskId)}`, {}, options);
     }
 
     function uploadCloudVideo(payload, options={}){
@@ -428,13 +399,6 @@
         exportCanvasWorkflow,
         exportCanvasWorkflowToLibrary,
         importCanvasWorkflow,
-        getRunningHubWorkflow,
-        getRunningHubAppInfo,
-        getRunningHubWorkflowInfo,
-        uploadRunningHubAsset,
-        submitRunningHub,
-        queryRunningHubTask,
-        queryRunningHubTaskRequest,
         uploadCloudVideo,
         uploadGeneric,
         generate,

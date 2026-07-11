@@ -15,9 +15,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WORKFLOW_DIR = os.path.join(BASE_DIR, "workflows")
 WORKFLOW_PATH = os.path.join(WORKFLOW_DIR, "Z-Image.json")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-STATIC_RUNNINGHUB_DIR = os.path.join(STATIC_DIR, "runninghub")
-STATIC_RUNNINGHUB_THUMBNAIL_DIR = os.path.join(STATIC_RUNNINGHUB_DIR, "thumbnails")
-STATIC_RUNNINGHUB_API_PROVIDERS_FILE = os.path.join(STATIC_RUNNINGHUB_DIR, "api_providers.json")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 OUTPUT_INPUT_DIR = os.path.join(ASSETS_DIR, "input")
@@ -34,7 +31,6 @@ MEDIA_PREVIEW_DIR = os.path.join(DATA_DIR, "media_previews")
 ASSET_LIBRARY_PATH = os.path.join(DATA_DIR, "asset_library.json")
 PROMPT_LIBRARY_PATH = os.path.join(DATA_DIR, "prompt_libraries.json")
 API_PROVIDERS_FILE = os.path.join(DATA_DIR, "api_providers.json")
-RUNNINGHUB_WORKFLOW_STORE_FILE = os.path.join(DATA_DIR, "runninghub_workflows.json")
 SHARED_FOLDERS_FILE = os.path.join(DATA_DIR, "shared_folders.json")
 GLOBAL_CONFIG_FILE = os.path.join(BASE_DIR, "global_config.json")
 
@@ -61,17 +57,15 @@ UPDATE_SOURCE_LABELS = {"github": "GitHub", "modelscope": "ModelScope"}
 CANVAS_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 LOCAL_IMAGE_IMPORT_MAX_BYTES = int(os.getenv("LOCAL_IMAGE_IMPORT_MAX_BYTES", str(50 * 1024 * 1024)))
 LOCAL_IMAGE_IMPORT_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
-RUNNINGHUB_THUMBNAIL_EXTS = (".jpg",)
 
 # ── Protocol constants ──
 PROVIDER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,40}$")
-SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine", "runninghub"}
-PROXY_DISABLED_PROVIDER_IDS = {"modelscope", "runninghub", "volcengine"}
+SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine"}
+PROXY_DISABLED_PROVIDER_IDS = {"modelscope", "volcengine"}
 SUPPORTED_PROXY_SCHEMES = {"http", "https"}
 SUPPORTED_IMAGE_REQUEST_MODES = {"openai", "openai-json"}
 
 # ── Platform default configs ──
-RUNNINGHUB_DEFAULT_BASE_URL = "https://www.runninghub.cn"
 AGNES_DEFAULT_VIDEO_MODELS = ["agnes-video-v2.0"]
 VOLCENGINE_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 VOLCENGINE_DEFAULT_PROJECT_NAME = "default"
@@ -84,38 +78,6 @@ VOLCENGINE_DEFAULT_VIDEO_MODELS = [
     "doubao-seedance-1-0-lite-t2v-250428",
     "doubao-seedance-1-0-lite-i2v-250428",
 ]
-RUNNINGHUB_DEFAULT_IMAGE_MODELS = [
-    "seedream-v5-lite/text-to-image",
-    "seedream-v5-lite/image-to-image",
-]
-RUNNINGHUB_DEFAULT_APPS = [
-    {
-        "id": "2058517022748798977", "appId": "2058517022748798977",
-        "title": "2511-风格迁移", "note": "", "thumbnail": "", "enabled": True,
-        "fields": [
-            {"id": "100::image", "nodeId": "100", "fieldName": "image", "fieldValue": "pasted/57ef7dc980b6446bca366caaf3f94eb12b22b23f78aa30e294b39cabd7d0187b.png", "fieldType": "IMAGE", "label": "image", "enabled": True, "sourceFromUpstream": True, "group": "AI 应用参数", "note": "image", "options": [], "random_enabled": False, "min": "", "max": "", "step": "", "imageOrder": 0, "required": False},
-            {"id": "112::image", "nodeId": "112", "fieldName": "image", "fieldValue": "8cff63ee4b3e0285ca85ab90a52e26746df84ed0dec0be9d76c679cbb62a247d.png", "fieldType": "IMAGE", "label": "image", "enabled": True, "sourceFromUpstream": True, "group": "AI 应用参数", "note": "image", "options": [], "random_enabled": False, "min": "", "max": "", "step": "", "imageOrder": 0, "required": False},
-            {"id": "14::seed", "nodeId": "14", "fieldName": "seed", "fieldValue": "554049736557817", "fieldType": "INT", "label": "seed", "enabled": True, "sourceFromUpstream": True, "group": "AI 应用参数", "note": "seed", "options": [], "random_enabled": True, "min": "", "max": "", "step": "", "imageOrder": 0, "required": False},
-        ],
-    },
-    {
-        "id": "1997622492837646338", "appId": "1997622492837646338",
-        "title": "2511-光线迁移", "note": "", "thumbnail": "", "enabled": True,
-    },
-]
-RUNNINGHUB_DEFAULT_WORKFLOWS = [
-    {
-        "id": "2058554058318897153", "workflowId": "2058554058318897153",
-        "title": "GPT-Image-2-图片编辑", "note": "", "thumbnail": "",
-        "enabled": True, "optionalImageMode": "prune-workflow",
-    },
-    {
-        "id": "2058541134623891458", "workflowId": "2058541134623891458",
-        "title": "NanoBanana-2-图片编辑", "note": "", "thumbnail": "",
-        "enabled": True, "optionalImageMode": "prune-workflow",
-    },
-]
-
 # ── ModelScope defaults ──
 MODELSCOPE_CHAT_BASE_URL = "https://api-inference.modelscope.cn/v1"
 MODELSCOPE_DEFAULT_IMAGE_MODELS = [

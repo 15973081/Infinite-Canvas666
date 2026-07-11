@@ -17,7 +17,7 @@ from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
 from app.routers import (
     angle, assets, canvas, chat, comfyui, conversation,
     generate, history, image, prompt,
-    providers, runninghub, update, upload, video, websocket,
+    providers, update, upload, video, websocket,
 )
 
 QUIET_ACCESS_PATHS = {
@@ -68,7 +68,6 @@ app.include_router(history.router)
 app.include_router(image.router)
 app.include_router(prompt.router)
 app.include_router(providers.router)
-app.include_router(runninghub.router)
 app.include_router(update.router)
 app.include_router(upload.router)
 app.include_router(video.router)

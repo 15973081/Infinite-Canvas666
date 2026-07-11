@@ -321,7 +321,7 @@
         }
         function imageProviders(){
             const list = (apiProviders || []).filter(p => p.enabled !== false && p.has_key && (
-                (p.image_models || []).length || (p.rh_apps || []).length || (p.rh_workflows || []).length
+                (p.image_models || []).length
             ));
             return list.length ? list : [{id:'comfly', name:'Comfly', image_models:[models.gpt, models.nano]}];
         }
@@ -331,30 +331,23 @@
         function providerModels(id){
             return uniqueModels(providerById(id)?.image_models || [models.gpt]);
         }
-        /* ---- RunningHub：模型下拉来自 API 设置里配置的工作流 / AI 应用，而非通用 image_models ----
          * 与智能画布一致：value=app:ID / workflow:ID，后端 generate_ai_image 走 RH 工作流运行路径。 */
-        function runningHubEntryId(entry, kind){
             if(!entry || typeof entry !== 'object') return '';
             const raw = kind === 'workflow' ? (entry.workflowId || entry.id) : (entry.appId || entry.webappId || entry.id);
             return String(raw || '').trim();
         }
-        function runningHubEntries(id){
             const p = providerById(id) || {};
             const collect = (list, kind) => (list || [])
                 .filter(e => e && e.enabled !== false && e.hidden !== true)
-                .map(e => ({ kind, id: runningHubEntryId(e, kind), title: String(e.title || e.note || '').trim() }))
                 .filter(e => e.id);
             return [...collect(p.rh_workflows, 'workflow'), ...collect(p.rh_apps, 'app')];
         }
-        function isRunningHubProvider(id){ return providerProtocol(id) === 'runninghub'; }
         function renderProviderControls(){
             const providerSelect = document.getElementById('providerSelect');
             const modelSelect = document.getElementById('modelSelect');
             const providers = imageProviders();
             if(!providers.some(p => p.id === provider)) provider = providers[0]?.id || 'comfly';
             providerSelect.innerHTML = providers.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === provider ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
-            if(isRunningHubProvider(provider)){
-                const entries = runningHubEntries(provider);
                 const keys = entries.map(e => `${e.kind}:${e.id}`);
                 if(!keys.includes(selectedModel)) selectedModel = keys[0] || '';
                 modelSelect.innerHTML = entries.length
@@ -382,7 +375,6 @@
             const pid = String(p.id || '').toLowerCase();
             const base = String(p.base_url || '').toLowerCase();
             if(proto === 'modelscope' || pid === 'modelscope') return 'modelscope';
-            if(proto === 'runninghub' || pid === 'runninghub') return 'runninghub';
             if(proto === 'volcengine' || pid === 'volcengine') return 'volcengine';
             if(proto === 'gemini') return 'gemini';
             if(proto === 'apimart' || base.includes('apimart.ai')) return 'apimart';
@@ -405,10 +397,7 @@
             if(qf) qf.style.display = QUALITY_PROTOCOLS.has(proto) ? '' : 'none';
             const qs = document.getElementById('qualitySelect');
             if(qs) qs.value = quality;
-            // RunningHub 每次出图都是一次完整工作流运行，隐藏数量并固定为 1，避免误触发多次昂贵任务。
-            if(proto === 'runninghub') outputCount = 1;
             const cf = document.getElementById('countField');
-            if(cf) cf.style.display = (proto === 'runninghub') ? 'none' : '';
             const cs = document.getElementById('countSelect');
             if(cs) cs.value = String(outputCount);
         }

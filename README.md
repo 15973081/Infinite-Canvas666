@@ -21,7 +21,6 @@ https://www.fhl.mom/register?aff=86L574B4T2N9  （包含codex和GPT image 2模�
 
 支持的功能：
 1. 支持几乎所有OpenAI协议的API/异步协议/Gemini协议/方舟协议
-2. RunningHub的工作流/AI应用/收费模型调用
 3. 火山引擎调用（人脸认证还在修复bug）
 4. Modelscope免费LLM模型和图像模型调用
 6. 支持调用本地局域网的ComfyUI

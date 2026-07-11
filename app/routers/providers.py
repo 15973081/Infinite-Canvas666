@@ -52,8 +52,6 @@ async def save_providers(payload: List[ApiProviderPayload]):
     raw_primary_flags = [bool(getattr(item, "primary", False)) for item in payload]
     for item in payload:
         provider = normalize_provider(item.dict(exclude={"api_key"}))
-        if provider["id"] == "runninghub":
-            provider = preserve_runninghub_hidden_overrides(provider)
         if any(existing["id"] == provider["id"] for existing in providers):
             raise HTTPException(status_code=400, detail=f"API 平台 ID 重复：{provider['id']}")
         providers.append(provider)
@@ -62,12 +60,6 @@ async def save_providers(payload: List[ApiProviderPayload]):
             env_updates[key_env] = ""
         elif item.api_key is not None and item.api_key.strip():
             env_updates[key_env] = item.api_key.strip()
-        if provider["id"] == "runninghub":
-            wallet_env = runninghub_wallet_key_env()
-            if item.clear_wallet_key:
-                env_updates[wallet_env] = ""
-            elif item.wallet_api_key is not None and item.wallet_api_key.strip():
-                env_updates[wallet_env] = item.wallet_api_key.strip()
         if provider["id"] == "volcengine":
             ak_env = volcengine_access_key_env()
             sk_env = volcengine_secret_key_env()
@@ -86,8 +78,6 @@ async def save_providers(payload: List[ApiProviderPayload]):
             env_updates["VIDEO_MODELS"] = ",".join(provider.get("video_models") or [])
         if provider["id"] == "modelscope":
             env_updates["MODELSCOPE_CHAT_MODELS"] = ",".join(provider["chat_models"])
-        if provider["id"] == "runninghub":
-            provider["protocol"] = "runninghub"
         if provider["id"] == "volcengine":
             provider["protocol"] = "volcengine"
     if not providers:
@@ -140,10 +130,10 @@ async def test_provider_connection(payload: TestConnectionPayload):
             if resp.status_code in (301, 302, 303, 307, 308):
                 location = resp.headers.get("Location") or resp.headers.get("location") or ""
                 suffix = f"：{location}" if location else ""
-                endpoint_label = "/v1beta/models" if protocol == "gemini" else "/api/v3/models" if protocol == "volcengine" else "/openapi/v2/models" if protocol == "runninghub" else "/v1/models"
+                endpoint_label = "/v1beta/models" if protocol == "gemini" else "/api/v3/models" if protocol == "volcengine" else "/v1/models"
                 return {"ok": False, "status": resp.status_code, "message": f"上游 {endpoint_label} 发生跳转{suffix}，请填写 API Base URL，不要填写网页登录地址"}
             if looks_like_html_response(resp.text):
-                endpoint_label = "/v1beta/models" if protocol == "gemini" else "/api/v3/models" if protocol == "volcengine" else "/openapi/v2/models" if protocol == "runninghub" else "/v1/models"
+                endpoint_label = "/v1beta/models" if protocol == "gemini" else "/api/v3/models" if protocol == "volcengine" else "/v1/models"
                 return {"ok": False, "status": resp.status_code, "message": f"上游 {endpoint_label} 返回网页 HTML，请检查请求地址是否为 API Base URL"}
             if resp.status_code >= 400:
                 if protocol == "volcengine":
@@ -314,7 +304,7 @@ async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str 
     try:
         async with httpx.AsyncClient(timeout=30, **client_kwargs) as client:
             resp = await client.get(url, headers=upstream_model_headers(api_key, protocol))
-            endpoint_label = "/v1beta/models" if protocol == "gemini" else "/api/v3/models" if protocol == "volcengine" else "/openapi/v2/models" if protocol == "runninghub" else "/v1/models"
+            endpoint_label = "/v1beta/models" if protocol == "gemini" else "/api/v3/models" if protocol == "volcengine" else "/v1/models"
             if resp.status_code in (301, 302, 303, 307, 308):
                 location = resp.headers.get("Location") or resp.headers.get("location") or ""
                 suffix = f"：{location}" if location else ""
@@ -417,9 +407,7 @@ async def fetch_upstream_models_from_payload(payload: TestConnectionPayload):
 async def fetch_upstream_models(provider_id: str):
     """从已保存的上游 OpenAI 兼容接口拉取 /v1/models 列表，按名称智能分类为 image/chat/video。"""
     provider = get_api_provider_exact(provider_id)
-    api_key = os.getenv(runninghub_wallet_key_env(), "") if provider["id"] == "runninghub" else ""
-    if not api_key:
-        api_key = os.getenv(provider_key_env(provider["id"]), "")
+    api_key = os.getenv(provider_key_env(provider["id"]), "")
     if not api_key:
         raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider_id} 未配置 API Key")
     return await fetch_models_from_upstream(provider.get("base_url") or "", api_key, provider_protocol(provider), provider.get("image_request_mode") or "openai", provider_proxy_url(provider))
