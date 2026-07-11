@@ -149,17 +149,6 @@ class RunningHubUploadAssetRequest(BaseModel):
     useWallet: bool = False
 
 
-# ── Jimeng ──
-
-class JimengHelpRequest(BaseModel):
-    command: str = ""
-
-
-class JimengQueryMediaRequest(BaseModel):
-    submit_id: str = ""
-    kind: str = "image"
-
-
 # ── RunningHub Workflow Config ──
 
 class RunningHubWorkflowConfigField(BaseModel):
@@ -539,7 +528,6 @@ __all__ = [
     "CanvasVideoRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "RunningHubSubmitRequest", "RunningHubWorkflowSubmitRequest",
     "RunningHubUploadAssetRequest",
-    "JimengHelpRequest", "JimengQueryMediaRequest",
     "RunningHubWorkflowConfigField", "RunningHubWorkflowConfig",
     "ApiProviderPayload",
     "ChatRequest", "MsGenerateRequest", "CanvasLLMRequest",

@@ -16,9 +16,6 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
-from app.providers.jimeng import *
-
-
 router = APIRouter()
 
 @router.post("/api/canvas-image-tasks")
@@ -110,8 +107,6 @@ async def canvas_video(payload: CanvasVideoRequest):
 
 async def canvas_video_impl(payload: CanvasVideoRequest):
     provider = get_api_provider(payload.provider_id)
-    if is_jimeng_provider(provider):
-        return await generate_jimeng_video(payload, provider)
     base_url = video_api_root(provider)
     if not base_url:
         raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider['id']} 未配置 Base URL")

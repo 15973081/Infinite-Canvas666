@@ -13,12 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
-from app.providers.jimeng import JimengPendingError
-
 # Routers — extracted to app/routers/
 from app.routers import (
     angle, assets, canvas, chat, comfyui, conversation,
-    generate, history, image, jimeng, prompt,
+    generate, history, image, prompt,
     providers, runninghub, update, upload, video, websocket,
 )
 
@@ -68,7 +66,6 @@ app.include_router(conversation.router)
 app.include_router(generate.router)
 app.include_router(history.router)
 app.include_router(image.router)
-app.include_router(jimeng.router)
 app.include_router(prompt.router)
 app.include_router(providers.router)
 app.include_router(runninghub.router)
@@ -110,28 +107,6 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
         status_code=422,
         content={"detail": friendly_validation_error(exc.errors()), "errors": exc.errors()},
     )
-
-
-def jimeng_pending_payload(exc: JimengPendingError):
-    qi = exc.queue_info or {}
-    idx = qi.get("queue_idx")
-    length = qi.get("queue_length")
-    if idx is not None and length is not None:
-        msg = f"即梦云端排队中（第 {idx}/{length} 位），任务未丢失，可继续等待或手动查询。submit_id={exc.submit_id}"
-    else:
-        msg = f"即梦任务仍在生成中，任务未丢失。submit_id={exc.submit_id}"
-    return {
-        "jimeng_pending": True,
-        "submit_id": exc.submit_id,
-        "kind": exc.kind,
-        "queue_info": qi,
-        "message": msg,
-    }
-
-
-@app.exception_handler(JimengPendingError)
-async def jimeng_pending_exception_handler(request: Request, exc: JimengPendingError):
-    return JSONResponse(status_code=202, content=jimeng_pending_payload(exc))
 
 
 # ── Startup (runs when invoked directly: python main.py) ──

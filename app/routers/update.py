@@ -18,7 +18,6 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
-from app.providers.jimeng import *
 
 
 router = APIRouter()

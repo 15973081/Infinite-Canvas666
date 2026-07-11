@@ -65,26 +65,14 @@ RUNNINGHUB_THUMBNAIL_EXTS = (".jpg",)
 
 # ── Protocol constants ──
 PROVIDER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,40}$")
-SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine", "runninghub", "jimeng"}
-PROXY_DISABLED_PROVIDER_IDS = {"modelscope", "runninghub", "volcengine", "jimeng"}
+SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine", "runninghub"}
+PROXY_DISABLED_PROVIDER_IDS = {"modelscope", "runninghub", "volcengine"}
 SUPPORTED_PROXY_SCHEMES = {"http", "https"}
 SUPPORTED_IMAGE_REQUEST_MODES = {"openai", "openai-json"}
 
 # ── Platform default configs ──
 RUNNINGHUB_DEFAULT_BASE_URL = "https://www.runninghub.cn"
-JIMENG_DEFAULT_IMAGE_MODELS = ["5.0", "4.6", "4.5", "4.1", "4.0", "3.1", "3.0"]
-JIMENG_DEFAULT_VIDEO_MODELS = [
-    "seedance2.0_vip", "seedance2.0fast_vip",
-    "seedance2.0", "seedance2.0fast",
-    "3.5pro", "3.0pro", "3.0", "3.0fast",
-]
 AGNES_DEFAULT_VIDEO_MODELS = ["agnes-video-v2.0"]
-JIMENG_LEGACY_IMAGE_MODELS = {"jimeng-image-2k", "jimeng-image-4k"}
-JIMENG_LEGACY_VIDEO_MODELS = {"jimeng-video-720p", "jimeng-video-1080p"}
-try:
-    JIMENG_DEFAULT_POLL_SECONDS = max(1, min(3600, int(os.getenv("JIMENG_POLL_SECONDS", "900"))))
-except Exception:
-    JIMENG_DEFAULT_POLL_SECONDS = 900
 VOLCENGINE_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 VOLCENGINE_DEFAULT_PROJECT_NAME = "default"
 VOLCENGINE_DEFAULT_REGION = "cn-beijing"

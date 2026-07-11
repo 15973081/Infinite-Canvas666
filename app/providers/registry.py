@@ -23,8 +23,6 @@ from app.config import (
     VOLCENGINE_DEFAULT_REGION, VOLCENGINE_DEFAULT_VIDEO_MODELS,
     AI_BASE_URL,
     AGNES_DEFAULT_VIDEO_MODELS,
-    JIMENG_DEFAULT_IMAGE_MODELS, JIMENG_DEFAULT_VIDEO_MODELS,
-    JIMENG_LEGACY_IMAGE_MODELS, JIMENG_LEGACY_VIDEO_MODELS,
     SUPPORTED_IMAGE_REQUEST_MODES, SUPPORTED_PROVIDER_PROTOCOLS,
     PROXY_DISABLED_PROVIDER_IDS, SUPPORTED_PROXY_SCHEMES, PROVIDER_ID_RE,
     STATIC_RUNNINGHUB_DIR, STATIC_RUNNINGHUB_THUMBNAIL_DIR,
@@ -133,7 +131,7 @@ def provider_protocol(provider):
 # 单模型可覆盖的协议（仅 OpenAI / Gemini，二者可共用同一站点的 Base URL + Key）
 PER_MODEL_PROTOCOL_OPTIONS = {"openai", "gemini"}
 # 协议固定、不支持单模型覆盖的内置平台
-FIXED_PROTOCOL_PROVIDER_IDS = {"modelscope", "volcengine", "jimeng", "runninghub"}
+FIXED_PROTOCOL_PROVIDER_IDS = {"modelscope", "volcengine", "runninghub"}
 
 def normalize_model_protocols(value):
     """规整 {模型名: 协议} 覆盖表，仅保留 openai/gemini。"""
@@ -186,9 +184,6 @@ def is_volcengine_provider(provider):
 
 def is_runninghub_provider(provider):
     return provider_protocol(provider) == "runninghub" or str((provider or {}).get("id") or "").strip().lower() == "runninghub"
-
-def is_jimeng_provider(provider):
-    return provider_protocol(provider) == "jimeng" or str((provider or {}).get("id") or "").strip().lower() == "jimeng"
 
 def is_yuli_provider(provider):
     # 玉玉API（yuli.host）的视频接口走自有格式（/v1/video/create + /v1/video/query），
@@ -533,9 +528,6 @@ def normalize_provider(item):
         base_url = base_url or VOLCENGINE_DEFAULT_BASE_URL
         volc_project = volc_project or VOLCENGINE_DEFAULT_PROJECT_NAME
         volc_region = volc_region or VOLCENGINE_DEFAULT_REGION
-    if provider_id == "jimeng":
-        protocol = "jimeng"
-        base_url = ""
     proxy_url = "" if protocol in PROXY_DISABLED_PROVIDER_IDS else normalize_proxy_url(item.get("proxy_url"), provider_id, name)
     return {
         "id": provider_id,
@@ -708,19 +700,6 @@ def merge_default_api_providers(providers):
             current["protocol"] = "volcengine"
             current["volcengine_project_name"] = str(current.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
             current["volcengine_region"] = str(current.get("volcengine_region") or VOLCENGINE_DEFAULT_REGION).strip() or VOLCENGINE_DEFAULT_REGION
-    for current in merged:
-        if not is_jimeng_provider(current):
-            continue
-        current["protocol"] = "jimeng"
-        current["base_url"] = ""
-        current["image_models"] = model_list_from_values([
-            *[item for item in (current.get("image_models") or []) if str(item or "").strip() not in JIMENG_LEGACY_IMAGE_MODELS],
-            *JIMENG_DEFAULT_IMAGE_MODELS,
-        ])
-        current["video_models"] = model_list_from_values([
-            *[item for item in (current.get("video_models") or []) if str(item or "").strip() not in JIMENG_LEGACY_VIDEO_MODELS],
-            *JIMENG_DEFAULT_VIDEO_MODELS,
-        ])
     return merged
 
 
@@ -1204,8 +1183,6 @@ def protocol_from_payload(payload):
         return "volcengine"
     if provider_id == "runninghub":
         return "runninghub"
-    if provider_id == "jimeng":
-        return "jimeng"
     protocol = str(getattr(payload, "protocol", "") or "openai").strip().lower()
     return protocol if protocol in SUPPORTED_PROVIDER_PROTOCOLS else "openai"
 

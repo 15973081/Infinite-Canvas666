@@ -16,7 +16,6 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
-from app.providers.jimeng import *
 # ── Explicit imports for PIL symbols (resolved via wildcard but invisible to static analysis) ──
 from PIL import Image, ImageOps
 

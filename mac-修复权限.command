@@ -16,8 +16,6 @@ echo "正在移除安全限制..."
 
 xattr -r -d com.apple.quarantine mac-启动服务.command 2>/dev/null
 xattr -r -d com.apple.quarantine mac-修复权限.command 2>/dev/null
-xattr -r -d com.apple.quarantine 安装即梦CLI.command 2>/dev/null
-xattr -r -d com.apple.quarantine 登录即梦CLI.command 2>/dev/null
 xattr -r -d com.apple.quarantine main.py 2>/dev/null
 
 echo "✓ 已移除安全限制"
@@ -26,8 +24,6 @@ echo ""
 # 设置执行权限
 chmod +x mac-启动服务.command 2>/dev/null
 chmod +x mac-修复权限.command 2>/dev/null
-chmod +x 安装即梦CLI.command 2>/dev/null
-chmod +x 登录即梦CLI.command 2>/dev/null
 chmod +x main.py 2>/dev/null
 
 echo "✓ 已设置执行权限"

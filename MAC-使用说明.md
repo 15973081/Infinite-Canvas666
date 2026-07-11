@@ -36,8 +36,6 @@ python3 main.py
 | `mac-启动服务.command` | 双击运行的启动器（自动修复权限、清理旧进程、启动服务） |
 | `mac-修复权限.command` | 单独修复 macOS 安全限制 |
 | `main.py` | 服务主程序（直接 `python3 main.py` 即可启动） |
-| `安装即梦CLI.command` | 安装/更新 dreamina CLI |
-| `登录即梦CLI.command` | 登录 dreamina CLI |
 
 ## 常见问题
 

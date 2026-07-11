@@ -16,9 +16,6 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
-from app.providers.jimeng import *
-
-
 router = APIRouter()
 
 @router.get("/api/config")
@@ -126,19 +123,6 @@ async def get_global_token():
 async def test_provider_connection(payload: TestConnectionPayload):
     """测试请求地址是否可用：调上游 /v1/models。验证通过时同时把模型清单按类别返回，避免再调一次拉取接口。"""
     protocol = protocol_from_payload(payload)
-    if protocol == "jimeng":
-        status = await jimeng_status()
-        return {
-            "ok": bool(status.get("installed") and status.get("logged_in")),
-            "status": 200 if status.get("logged_in") else 0,
-            "message": status.get("message") or "即梦 CLI 已登录",
-            "model_count": len(JIMENG_DEFAULT_IMAGE_MODELS) + len(JIMENG_DEFAULT_VIDEO_MODELS),
-            "image_models": JIMENG_DEFAULT_IMAGE_MODELS,
-            "chat_models": [],
-            "video_models": JIMENG_DEFAULT_VIDEO_MODELS,
-            "all": [*JIMENG_DEFAULT_IMAGE_MODELS, *JIMENG_DEFAULT_VIDEO_MODELS],
-            "raw": status.get("raw"),
-        }
     base_url = (payload.base_url or "").strip().rstrip("/")
     if not base_url:
         raise HTTPException(status_code=400, detail="请先填写请求地址")
@@ -316,14 +300,6 @@ async def probe_async_endpoint(payload: TestConnectionPayload):
 async def fetch_models_from_upstream(base_url: str, api_key: str, protocol: str = "openai", image_request_mode: str = "openai", proxy_url: str = ""):
     """从上游模型列表端点拉取模型，并按名称做轻量分类。"""
     protocol = protocol if protocol in SUPPORTED_PROVIDER_PROTOCOLS else "openai"
-    if protocol == "jimeng":
-        return {
-            "total": len(JIMENG_DEFAULT_IMAGE_MODELS) + len(JIMENG_DEFAULT_VIDEO_MODELS),
-            "image_models": JIMENG_DEFAULT_IMAGE_MODELS,
-            "chat_models": [],
-            "video_models": JIMENG_DEFAULT_VIDEO_MODELS,
-            "all": [*JIMENG_DEFAULT_IMAGE_MODELS, *JIMENG_DEFAULT_VIDEO_MODELS],
-        }
     base_url = (base_url or "").strip().rstrip("/")
     if not base_url:
         raise HTTPException(status_code=400, detail="请先填写请求地址")
@@ -494,7 +470,3 @@ async def build_online_image_result(payload: OnlineImageRequest):
     if GLOBAL_LOOP:
         asyncio.run_coroutine_threadsafe(manager.broadcast_new_image(result), GLOBAL_LOOP)
     return result
-
-# ── Cross-router imports (at bottom to avoid circular imports) ──
-from app.routers.jimeng import jimeng_status
-

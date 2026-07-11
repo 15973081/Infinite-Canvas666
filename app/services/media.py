@@ -56,7 +56,7 @@ from app.providers.registry import (
     provider_key_env, provider_env_key_value,
     provider_protocol, effective_protocol,
     is_apimart_provider, is_gemini_provider, is_volcengine_provider,
-    is_runninghub_provider, is_jimeng_provider, is_yuli_provider, is_agnes_provider,
+    is_runninghub_provider, is_yuli_provider, is_agnes_provider,
     effective_image_request_mode,
     normalize_image_request_mode,
     runninghub_wallet_key_value, volcengine_access_key_value,
@@ -138,11 +138,6 @@ def runninghub_provider_workflow_config(workflow_id):
 def runninghub_select_workflow_config(local_cfg, provider_cfg):
     from app.providers.registry import runninghub_select_workflow_config as _f
     return _f(local_cfg, provider_cfg)
-
-
-def generate_jimeng_provider_image(prompt, size, model, reference_images, provider):
-    from app.providers.jimeng import generate_jimeng_provider_image as _f
-    return _f(prompt, size, model, reference_images, provider)
 
 
 def resolve_chat_provider(provider: str, model: str, ms_model: str):
@@ -2709,8 +2704,6 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
     provider = get_api_provider(provider_id)
     if provider["id"] == "modelscope":
         return await generate_modelscope_provider_image(prompt, size, model, reference_images, provider)
-    if is_jimeng_provider(provider):
-        return await generate_jimeng_provider_image(prompt, size, model, reference_images, provider)
     if is_runninghub_provider(provider):
         return await generate_runninghub_provider_image(prompt, size, model, reference_images, provider)
     if effective_protocol(provider, model) == "gemini":

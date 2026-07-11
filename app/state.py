@@ -220,16 +220,6 @@ SHARED_FOLDERS_LOCK = Lock()
 CLIENT_ID = str(uuid.uuid4())
 
 
-# ── Jimeng CLI session ──
-
-JIMENG_LOGIN_SESSION = {
-    "proc": None,
-    "stdout": "",
-    "stderr": "",
-    "started_at": 0.0,
-}
-
-
 # ── ComfyUI backend load tracking ──
 
 BACKEND_LOCAL_LOAD = {addr: 0 for addr in COMFYUI_INSTANCES}
@@ -252,7 +242,6 @@ __all__ = [
     "CANVAS_LOCK", "CANVAS_FOLDERS_LOCK", "LOAD_LOCK",
     "RUNNINGHUB_WORKFLOW_LOCK", "UPDATE_LOCK",
     "NEXT_TASK_ID",
-    "JIMENG_LOGIN_SESSION",
     "BACKEND_LOCAL_LOAD",
     "CANVAS_TASKS", "CANVAS_TASK_LOCK",
     "SHARED_FOLDERS_LOCK",

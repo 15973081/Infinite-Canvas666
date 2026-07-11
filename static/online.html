@@ -383,7 +383,6 @@
             const base = String(p.base_url || '').toLowerCase();
             if(proto === 'modelscope' || pid === 'modelscope') return 'modelscope';
             if(proto === 'runninghub' || pid === 'runninghub') return 'runninghub';
-            if(proto === 'jimeng' || pid === 'jimeng') return 'jimeng';
             if(proto === 'volcengine' || pid === 'volcengine') return 'volcengine';
             if(proto === 'gemini') return 'gemini';
             if(proto === 'apimart' || base.includes('apimart.ai')) return 'apimart';
@@ -391,7 +390,6 @@
         }
         const PROTOCOL_BADGE = {
             api:'online.modeApi', apimart:'online.modeApi', modelscope:'online.modeModelscope',
-            runninghub:'online.modeRunningHub', jimeng:'online.modeJimeng',
             volcengine:'online.modeVolcengine', gemini:'online.modeGemini'
         };
         // 仅 OpenAI / APIMart（gpt-image 系）后端会消费 quality；其它协议忽略，隐藏以免误导。

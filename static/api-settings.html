@@ -199,23 +199,6 @@
                                 <div class="runninghub-hint">
                                 </div>
                             </label>
-                            <div id="jimengCliPanel" class="jimeng-cli-panel" hidden>
-                                <div class="jimeng-cli-head">
-                                    <div>
-                                        <div class="rh-key-title">即梦 CLI 账户</div>
-                                        <div class="rh-key-desc">使用本机 dreamina 登录态，无需 API Key。</div>
-                                    </div>
-                                    <div id="jimengCliStatus" class="jimeng-status-pill">未检测</div>
-                                </div>
-                                <div class="jimeng-actions">
-                                    <button class="action-btn primary-btn" type="button" onclick="startJimengLogin()"><i data-lucide="qr-code" class="w-3.5 h-3.5"></i><span>扫码登录</span></button>
-                                    <button class="action-btn" type="button" onclick="refreshJimengCredit()"><i data-lucide="wallet-cards" class="w-3.5 h-3.5"></i><span>查询积分</span></button>
-                                    <button class="action-btn" type="button" onclick="openJimengHelp()"><i data-lucide="terminal" class="w-3.5 h-3.5"></i><span>帮助</span></button>
-                                    <button class="action-btn danger-btn" type="button" onclick="logoutJimeng()"><i data-lucide="log-out" class="w-3.5 h-3.5"></i><span>退出登录</span></button>
-                                </div>
-                                <div id="jimengCredit" class="jimeng-credit"></div>
-                                <div id="jimengLoginBox" class="jimeng-output" hidden></div>
-                            </div>
                             <!-- 验证操作行 -->
                             <div class="verify-action-row">
                                 <button id="testUrlBtn" class="action-btn" type="button" onclick="testConnection()">
@@ -230,7 +213,6 @@
                                         <option value="apimart">异步协议</option>
                                         <option value="gemini">Gemini 协议</option>
                                         <option value="volcengine">方舟/Ark 任务协议</option>
-                                        <option value="jimeng">即梦 CLI</option>
                                     </select>
                                 </div>
                                 <div class="field-frame image-request-mode-wrap">
@@ -398,38 +380,6 @@
                 <button class="action-btn" type="button" onclick="closeModelPicker()">取消</button>
                 <button class="action-btn save-btn" type="button" onclick="applyModelPicker()">应用到模型列表</button>
             </div>
-        </div>
-    </div>
-
-    <div id="jimengHelpOverlay" class="picker-overlay">
-        <div class="picker-modal jimeng-help-modal">
-            <div class="picker-head">
-                <div>
-                    <div class="picker-title">即梦 CLI 帮助</div>
-                    <div class="picker-count">查看 dreamina 官方命令帮助输出</div>
-                </div>
-                <div class="picker-close" onclick="closeJimengHelp()"><i data-lucide="x" class="w-4 h-4"></i></div>
-            </div>
-            <div class="jimeng-help-toolbar">
-                <select id="jimengHelpCommand">
-                    <option value="">dreamina</option>
-                    <option value="login">login</option>
-                    <option value="logout">logout</option>
-                    <option value="user_credit">user_credit</option>
-                    <option value="text2image">text2image</option>
-                    <option value="image2image">image2image</option>
-                    <option value="image_upscale">image_upscale</option>
-                    <option value="text2video">text2video</option>
-                    <option value="image2video">image2video</option>
-                    <option value="multimodal2video">multimodal2video</option>
-                    <option value="frames2video">frames2video</option>
-                    <option value="multiframe2video">multiframe2video</option>
-                    <option value="list_task">list_task</option>
-                    <option value="query_result">query_result</option>
-                </select>
-                <button class="action-btn primary-btn" type="button" onclick="loadJimengHelp()"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>刷新</span></button>
-            </div>
-            <pre id="jimengHelpOutput" class="jimeng-help-output"></pre>
         </div>
     </div>
 

@@ -16,9 +16,6 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
-from app.providers.jimeng import *
-
-
 router = APIRouter()
 
 @router.post("/api/online-image")
@@ -96,20 +93,6 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
             CANVAS_TASKS[task_id].update({
                 "status": "succeeded",
                 "result": result,
-                "error": "",
-                "updated_at": time.time(),
-            })
-    except JimengPendingError as exc:
-        # 即梦云端还在排队：标记为 jimeng_pending，前端据 submit_id 持久续查（任务未丢失）
-        info = jimeng_pending_payload(exc)
-        with CANVAS_TASK_LOCK:
-            CANVAS_TASKS[task_id].update({
-                "status": "jimeng_pending",
-                "jimeng_pending": True,
-                "submit_id": exc.submit_id,
-                "kind": exc.kind,
-                "queue_info": exc.queue_info,
-                "message": info["message"],
                 "error": "",
                 "updated_at": time.time(),
             })

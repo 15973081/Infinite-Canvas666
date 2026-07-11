@@ -25,7 +25,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 1:1 --style raw --s 50`
-- **即梦/可灵**: 直接粘贴，开启「参考图」锁一致性
 - **Flux**: 配合 `add_detail` LoRA，CFG 3.5-5.0
 
 ---
@@ -47,7 +46,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 1:1 --style raw --s 50 --q 2`
-- **即梦/可灵**: 选择「高清」或「4K」模式
 - **Flux**: 开启 Tiled VAE 或 hires fix
 
 ---
@@ -69,7 +67,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 1:1 --style raw --s 75`
-- **即梦/可灵**: 直接粘贴，建议分镜时先写情绪词再填场景
 - **Flux**: 配合 `film grain` LoRA 增强故事板质感
 
 ---
@@ -91,7 +88,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 16:9 --style raw --s 50`
-- **即梦/可灵**: 上传参考图锁定Actor ID后使用
 - **Flux**: 开启面部修复 + 一致性采样器
 
 ---
@@ -113,7 +109,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 16:9 --style raw --s 50`
-- **即梦/可灵**: 浅暖灰背景建议加 `--no gradient background`
 - **Flux**: 配合 `product photography` LoRA
 
 ---
@@ -135,7 +130,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 1:1 --style raw --s 75 --q 2`
-- **即梦/可灵**: 建议先测试单格效果再生成25格，分段生成更可控
 - **Flux**: 开启 `Batch count: 1`，CFG 4.0，配合 `storyboard` LoRA
 
 ### 叙事节拍分配参考
@@ -168,7 +162,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 3:2 --style raw --s 50`
-- **即梦/可灵**: 适合作为「Talk to Edit」的光影参考基底图
 - **Flux**: 配合 `cinematic lighting` LoRA
 
 ### 6种光效情绪映射
@@ -200,7 +193,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 16:9 --style raw --s 50 --q 2`
-- **即梦/可灵**: 上传此图作为Actor ID参考，Canvas锁脸首选
 - **Flux**: 开启面部一致性 + 服装一致性双重采样
 
 ### 区域功能分工
@@ -230,7 +222,6 @@ numbers, text, letters, labels, frame numbers, corner marks, annotations, captio
 
 ### 平台参数建议
 - **Midjourney**: `--ar 3:2 --style raw --s 50`
-- **即梦/可灵**: 直接粘贴，建议开启「参考图」锁角色一致性
 - **Flux**: 配合 `add_detail` + 面部一致性采样器
 
 ### 六宫格布局
@@ -263,7 +254,6 @@ seam, visible seam, hard seam, broken panorama, discontinuous edge, mismatched l
 
 ### 平台参数建议
 - **Midjourney**: `--ar 2:1 --style raw --s 50`
-- **即梦/可灵**: 使用2:1宽幅比例，生成后用360预览检查左右接缝
 - **Flux**: 建议2:1比例，优先测试左右边缘连续性
 
 ---
