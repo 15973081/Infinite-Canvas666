@@ -2017,16 +2017,12 @@ async function saveCanvas(){
     try {
         const res = await window.CanvasApi.saveCanvas(canvas.id, payload);
         if(res.status === 409){
-            const data = await res.json().catch(() => ({}));
-            const remote = data.detail?.canvas || data.canvas;
-            if(localCanvasDirty || saveCanvasAgain){
-                lastCanvasUpdatedAt = Number(data.detail?.updated_at || data.updated_at || remote?.updated_at || lastCanvasUpdatedAt || 0);
-                saveCanvasAgain = true;
-                setStatus('Saving...');
-                return;
-            }
-            if(remote) applyRemoteCanvasData(remote);
-            setStatus('Synced');
+            saveCanvasAgain = false;
+            localCanvasDirty = true;
+            clearTimeout(saveTimer);
+            saveTimer = null;
+            setStatus('Save conflict');
+            showErrorModal('检测到其他人已更新此画布。为避免覆盖对方修改，当前更改尚未保存，请刷新画布后重试。', '保存冲突');
             return;
         }
         if(!res.ok) throw new Error('save failed');
@@ -13207,16 +13203,6 @@ function workflowFilename(ext){
 }
 function downloadBlob(blob, filename){
     window.CanvasCore?.downloadBlob(blob, filename);
-}
-function downloadUrl(url, filename='download'){
-    if(!url) return;
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename || '';
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
 }
 function openWorkflowTransferModal(){
     if(!canvas){ setStatus(tr('canvas.needCanvas')); return; }
