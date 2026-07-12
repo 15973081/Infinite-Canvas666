@@ -733,25 +733,52 @@ async def batch_move_asset_library_items(payload: AssetLibraryBatchMoveRequest):
         raise HTTPException(status_code=404, detail="目标分组不存在")
     target_type = target_cat.get("type") or "image"
     moved = []
+    source_categories = []
     for library in lib.get("libraries", []):
         if payload.library_id and library.get("id") != payload.library_id:
             continue
         for cat in library.get("categories", []):
             if (cat.get("type") or "image") != target_type:
                 continue
-            keep = []
             for item in cat.get("items", []):
                 if item.get("id") in ids:
                     moved.append(item)
-                else:
-                    keep.append(item)
-            cat["items"] = keep
-    existing_ids = {item.get("id") for item in target_cat.get("items", [])}
-    for item in moved:
-        if item.get("id") not in existing_ids:
-            target_cat.setdefault("items", []).append(item)
-            existing_ids.add(item.get("id"))
-    save_asset_library(lib)
+                    source_categories.append(cat)
+    target_dir = os.path.abspath(os.path.join(ASSET_LIBRARY_DIR, str(target_cat.get("dir") or "").strip("/\\")))
+    library_root = os.path.abspath(ASSET_LIBRARY_DIR)
+    if os.path.commonpath([library_root, target_dir]) != library_root:
+        raise HTTPException(status_code=400, detail="目标分组目录无效")
+    os.makedirs(target_dir, exist_ok=True)
+    file_moves = []
+    try:
+        for item in moved:
+            source = output_file_from_url(item.get("url") or "")
+            if not source or os.path.commonpath([library_root, os.path.abspath(source)]) != library_root:
+                raise HTTPException(status_code=409, detail=f"素材文件不存在或不在素材库中：{item.get('name') or item.get('id')}")
+            destination = os.path.join(target_dir, os.path.basename(source))
+            old_url = item.get("url") or ""
+            if os.path.abspath(source) != os.path.abspath(destination):
+                if os.path.exists(destination):
+                    raise HTTPException(status_code=409, detail=f"目标分组已存在同名文件：{os.path.basename(destination)}")
+                shutil.move(source, destination)
+                file_moves.append((source, destination, item, old_url))
+            rel = os.path.relpath(destination, library_root).replace(os.sep, "/")
+            item["url"] = "/assets/library/" + urllib.parse.quote(rel, safe="/")
+        for cat, item in zip(source_categories, moved):
+            if cat is not target_cat:
+                cat["items"] = [entry for entry in cat.get("items", []) if entry.get("id") != item.get("id")]
+        existing_ids = {item.get("id") for item in target_cat.get("items", [])}
+        for item in moved:
+            if item.get("id") not in existing_ids:
+                target_cat.setdefault("items", []).append(item)
+                existing_ids.add(item.get("id"))
+        save_asset_library(lib)
+    except Exception:
+        for source, destination, item, old_url in reversed(file_moves):
+            if os.path.exists(destination) and not os.path.exists(source):
+                shutil.move(destination, source)
+            item["url"] = old_url
+        raise
     return {"library": lib, "moved": len(moved)}
 
 @router.post("/api/asset-library/items/crop")
