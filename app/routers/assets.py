@@ -211,12 +211,21 @@ async def delete_asset_library(library_id: str):
     libraries = lib.get("libraries") or []
     if len(libraries) <= 1:
         raise HTTPException(status_code=400, detail="至少保留一个资产库")
-    if not any(item.get("id") == library_id for item in libraries):
+    removed_library = next((item for item in libraries if item.get("id") == library_id), None)
+    if not removed_library:
         raise HTTPException(status_code=404, detail="资产库不存在")
     lib["libraries"] = [item for item in libraries if item.get("id") != library_id]
     if lib.get("active_library_id") == library_id:
         lib["active_library_id"] = lib["libraries"][0].get("id")
     save_asset_library(lib)
+    for cat in removed_library.get("categories", []):
+        for item in cat.get("items", []):
+            remove_asset_library_file(item)
+        cat_dir = str(cat.get("dir") or "").strip("/\\")
+        if cat_dir:
+            target = os.path.abspath(os.path.join(ASSET_LIBRARY_DIR, cat_dir))
+            if os.path.commonpath([os.path.abspath(ASSET_LIBRARY_DIR), target]) == os.path.abspath(ASSET_LIBRARY_DIR):
+                shutil.rmtree(target, ignore_errors=True)
     return {"library": lib}
 
 @router.post("/api/asset-library/categories")
