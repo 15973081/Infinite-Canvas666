@@ -19,6 +19,7 @@ from app.services.workflow import *
 
 
 router = APIRouter()
+avatar_status_lock = asyncio.Lock()
 
 @router.post("/api/local-assets/upload")
 async def upload_local_assets(files: List[UploadFile] = File(...), folder: str = Form("")):
@@ -475,7 +476,7 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     target_item = find_asset_item_in_library(lib, item_id, payload.library_id)
     if not target_item:
         raise HTTPException(status_code=404, detail="资产不存在")
-    provider = get_api_provider(payload.provider_id)
+    provider = get_api_provider_exact(payload.provider_id)
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         name = (provider or {}).get("name") or (provider or {}).get("id") or "该平台"
@@ -537,7 +538,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
     if len(ids) > 100:
         raise HTTPException(status_code=400, detail="Too many assets selected; please submit at most 100 at a time")
 
-    provider = get_api_provider(payload.provider_id)
+    provider = get_api_provider_exact(payload.provider_id)
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         name = (provider or {}).get("name") or (provider or {}).get("id") or "provider"
@@ -550,6 +551,8 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
         item = find_asset_item_in_library(lib, item_id, payload.library_id)
         if not item:
             results[index] = {"item_id": item_id, "ok": False, "status": "Failed", "detail": "Asset not found"}
+        elif str(item.get("kind") or "image").lower() not in ("image", "video", "audio"):
+            results[index] = {"item_id": item_id, "ok": False, "status": "Failed", "detail": "Unsupported asset type"}
         else:
             indexed_items.append((index, item))
 
@@ -561,7 +564,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
 
     def avatar_kind(item):
         kind = str(item.get("kind") or "image").lower()
-        return kind if kind in ("image", "video", "audio") else "image"
+        return kind
 
     def failure_result(index, item, exc):
         detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
@@ -619,37 +622,37 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
     else:
         raise HTTPException(status_code=400, detail="This provider is not wired for avatar registration")
 
-    item_by_id = {item.get("id"): item for _, item in indexed_items}
     submitted = 0
     for index, result in completed:
         results[index] = result
-        if not result.get("ok"):
-            continue
-        item = item_by_id.get(result.get("item_id"))
-        if not item:
-            continue
-        regs = item.get("registrations")
-        if not isinstance(regs, dict):
-            regs = {}
-        regs[platform] = {
-            "provider_id": provider["id"],
-            "project_name": project_name,
-            "task_id": result.get("task_id") or "",
-            "status": "Processing",
-            "detail": "Submitted, processing",
-            "asset_uri": "",
-            "asset_id": "",
-            "registered_at": now_ms(),
-        }
-        item["registrations"] = regs
-        submitted += 1
-
-    if submitted:
-        save_asset_library(lib)
+    successful = [result for result in results if result and result.get("ok")]
+    if successful:
+        async with avatar_status_lock:
+            lib = load_asset_library()
+            for result in successful:
+                item = find_asset_item_in_library(lib, result.get("item_id") or "", payload.library_id)
+                if not item:
+                    result.update(ok=False, status="Failed", detail="Asset disappeared before registration could be saved")
+                    continue
+                regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
+                regs[platform] = {
+                    "provider_id": provider["id"],
+                    "project_name": project_name,
+                    "task_id": result.get("task_id") or "",
+                    "status": "Processing",
+                    "detail": "Submitted, processing",
+                    "asset_uri": "",
+                    "asset_id": "",
+                    "registered_at": now_ms(),
+                }
+                item["registrations"] = regs
+                submitted += 1
+            if submitted:
+                save_asset_library(lib)
     final_results = [r for r in results if r]
     return {
         "library": lib,
-        "items": [item for _, item in indexed_items],
+        "items": [find_asset_item_in_library(lib, item.get("id") or "", payload.library_id) for _, item in indexed_items],
         "results": final_results,
         "submitted": submitted,
         "failed": len(final_results) - submitted,
@@ -661,7 +664,7 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
     if not target_item:
         raise HTTPException(status_code=404, detail="资产不存在")
     regs = target_item.get("registrations") if isinstance(target_item.get("registrations"), dict) else {}
-    provider = get_api_provider(payload.provider_id or "")
+    provider = get_api_provider_exact(payload.provider_id or "")
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         raise HTTPException(status_code=400, detail="该平台暂不支持数字人/真人认证审核。")
@@ -677,15 +680,24 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
         )
     else:
         raise HTTPException(status_code=400, detail="该平台的认证后端尚未接入。")
-    reg["status"] = result["status"]
-    reg["detail"] = result.get("detail") or ""
-    if result["status"] == "Active" and result.get("asset_uri"):
-        reg["asset_uri"] = result["asset_uri"]
-        reg["asset_id"] = result["asset_uri"].replace("asset://", "")
-    regs[platform] = reg
-    target_item["registrations"] = regs
-    save_asset_library(lib)
-    return {"library": lib, "item": target_item}
+    async with avatar_status_lock:
+        latest_lib = load_asset_library()
+        latest_item = find_asset_item_in_library(latest_lib, item_id, payload.library_id)
+        if not latest_item:
+            raise HTTPException(status_code=404, detail="资产不存在")
+        latest_regs = latest_item.get("registrations") if isinstance(latest_item.get("registrations"), dict) else {}
+        latest_reg = latest_regs.get(platform) if isinstance(latest_regs.get(platform), dict) else {}
+        if str(latest_reg.get("task_id") or "") != task_id:
+            return {"library": latest_lib, "item": latest_item}
+        latest_reg["status"] = result["status"]
+        latest_reg["detail"] = result.get("detail") or ""
+        if result["status"] == "Active" and result.get("asset_uri"):
+            latest_reg["asset_uri"] = result["asset_uri"]
+            latest_reg["asset_id"] = result["asset_uri"].replace("asset://", "")
+        latest_regs[platform] = latest_reg
+        latest_item["registrations"] = latest_regs
+        save_asset_library(latest_lib)
+        return {"library": latest_lib, "item": latest_item}
 
 @router.delete("/api/asset-library/items/{item_id}")
 async def delete_asset_library_item(item_id: str):

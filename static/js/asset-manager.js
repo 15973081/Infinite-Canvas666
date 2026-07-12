@@ -9,6 +9,8 @@ let promptLibrary = {libraries:[]};
 let apiProviders = [];
 let avatarRegisterProvider = '';
 let avatarBusyId = '';
+const avatarPollTimers = new Map();
+const avatarPollAttempts = new Map();
 let activeAssetLibraryId = '';
 let activeAssetCategoryId = '';
 let activeWorkflowLibraryId = '';
@@ -1493,7 +1495,7 @@ function renderAvatarRegistrationCard(item, platform, reg, busy){
     </div>`;
 }
 function renderAvatarSection(item){
-    const busy = avatarBusyId === item.id;
+    const busy = avatarBusyId === item.id || avatarBusyId === '__batch__';
     const regs = (item.registrations && typeof item.registrations === 'object') ? item.registrations : {};
     const cards = Object.keys(regs)
         .filter(platform => regs[platform] && regs[platform].task_id)
@@ -2508,6 +2510,10 @@ async function handleClick(event){
         return;
     }
 }
+function mergeAssetItem(updated){
+    const current = updated?.id ? findAssetItem(updated.id) : null;
+    if(current) Object.assign(current, updated);
+}
 function openAssetItem(id){
     const item = findAssetItem(id);
     if(item?.url) window.open(item.url, '_blank', 'noopener');
@@ -2907,8 +2913,10 @@ async function saveAssetInlineName(id, name){
     setStatus('素材名称已保存');
 }
 async function registerSelectedAssetAvatars(providerId=''){
-    const ids = [...selectedAssetIds].filter(id => findAssetItem(id));
-    if(!ids.length) return;
+    const selectedItems = [...selectedAssetIds].map(id => findAssetItem(id)).filter(Boolean);
+    const ids = selectedItems.filter(item => ['image','video','audio'].includes(assetKind(item))).map(item => item.id);
+    const unsupported = selectedItems.length - ids.length;
+    if(!ids.length){ setStatus('所选素材中没有可认证的图片、视频或音频'); return; }
     const provider = (providerId && (apiProviders || []).find(p => p.id === providerId)) || activeAvatarProvider();
     if(!provider){ setStatus('请先在 API 平台管理中添加并启用 API 平台'); return; }
     if(!providerAvatarSupported(provider)){ setStatus(`「${avatarPlatformLabel(providerAvatarPlatform(provider))}」的资产认证 API 尚未接入`); return; }
@@ -2917,16 +2925,21 @@ async function registerSelectedAssetAvatars(providerId=''){
     render();
     setStatus(`正在批量提交 ${ids.length} 个素材到 ${avatarPlatformLabel(providerAvatarPlatform(provider))} 审核…`);
     try {
-        const data = await apiJson('/api/asset-library/items/batch-register-avatar', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({library_id:activeAssetLibraryId, provider_id:provider.id, ids, concurrency:4})
-        });
-        assetLibrary = data.library || assetLibrary;
-        const results = Array.isArray(data.results) ? data.results : [];
-        const ok = Number(data.submitted || results.filter(r => r && r.ok).length || 0);
-        const failed = Number(data.failed || results.filter(r => r && !r.ok).length || 0);
-        results.filter(r => r && r.ok && r.item_id).forEach(r => scheduleAvatarPoll(r.item_id, provider.id));
+        let ok = 0;
+        let failed = unsupported;
+        for(let offset = 0; offset < ids.length; offset += 100){
+            const chunk = ids.slice(offset, offset + 100);
+            const data = await apiJson('/api/asset-library/items/batch-register-avatar', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({library_id:activeAssetLibraryId, provider_id:provider.id, ids:chunk, concurrency:4})
+            });
+            assetLibrary = data.library || assetLibrary;
+            const results = Array.isArray(data.results) ? data.results : [];
+            ok += Number(data.submitted || results.filter(r => r && r.ok).length || 0);
+            failed += Number(data.failed || results.filter(r => r && !r.ok).length || 0);
+            results.filter(r => r && r.ok && r.item_id).forEach(r => scheduleAvatarPoll(r.item_id, provider.id, true));
+        }
         setStatus(failed ? `已提交 ${ok} 个，${failed} 个失败` : `已批量提交 ${ok} 个素材，正在等待审核…`);
     } catch(err) {
         setStatus(err.message || '批量认证提交失败');
@@ -2954,7 +2967,7 @@ async function registerAssetAvatar(id, providerId=''){
         });
         assetLibrary = data.library || assetLibrary;
         setStatus(`已提交审核，正在等待 ${avatarPlatformLabel(providerAvatarPlatform(provider))} 通过…`);
-        scheduleAvatarPoll(id, provider.id);
+        scheduleAvatarPoll(id, provider.id, true);
     } catch(err) {
         setStatus(err.message || '数字人提交失败');
     } finally {
@@ -2981,21 +2994,42 @@ async function checkAssetAvatarStatus(id, silent=false, providerId=''){
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({library_id:activeAssetLibraryId, provider_id:provider.id})
         });
-        assetLibrary = data.library || assetLibrary;
+        mergeAssetItem(data.item);
         const newReg = (data.item?.registrations && data.item.registrations[platform]) || {};
         const status = newReg.status || '';
-        if(status === 'Active') setStatus('审核通过，已生成 asset:// 地址，可在视频生成中通过 @ 调用');
-        else if(status === 'Failed') setStatus(newReg.detail || '审核未通过');
-        else { setStatus('仍在审核中，稍后会自动刷新…'); scheduleAvatarPoll(id, provider.id); }
+        if(status === 'Active'){
+            clearAvatarPoll(id, provider.id);
+            if(!silent) setStatus('审核通过，已生成 asset:// 地址，可在视频生成中通过 @ 调用');
+        } else if(status === 'Failed') {
+            clearAvatarPoll(id, provider.id);
+            if(!silent) setStatus(newReg.detail || '审核未通过');
+        } else {
+            if(!silent) setStatus('仍在审核中，稍后会自动刷新…');
+            scheduleAvatarPoll(id, provider.id);
+        }
     } catch(err) {
-        if(!silent) setStatus(err.message || '查询审核状态失败');
+        if(!silent) setStatus(err.message || '查询审核状态失败，稍后自动重试');
+        scheduleAvatarPoll(id, provider.id);
     } finally {
-        avatarBusyId = '';
+        if(!silent) avatarBusyId = '';
         render();
     }
 }
-function scheduleAvatarPoll(id, providerId){
-    setTimeout(() => {
+function clearAvatarPoll(id, providerId){
+    const key = `${providerId}:${id}`;
+    clearTimeout(avatarPollTimers.get(key));
+    avatarPollTimers.delete(key);
+    avatarPollAttempts.delete(key);
+}
+function scheduleAvatarPoll(id, providerId, reset=false){
+    const key = `${providerId}:${id}`;
+    if(reset) clearAvatarPoll(id, providerId);
+    const attempt = (avatarPollAttempts.get(key) || 0) + 1;
+    if(attempt > 100){ clearAvatarPoll(id, providerId); return; }
+    avatarPollAttempts.set(key, attempt);
+    clearTimeout(avatarPollTimers.get(key));
+    avatarPollTimers.set(key, setTimeout(() => {
+        avatarPollTimers.delete(key);
         const item = findAssetItem(id);
         const provider = (apiProviders || []).find(p => p.id === providerId);
         if(!item || !provider) return;
@@ -3003,7 +3037,7 @@ function scheduleAvatarPoll(id, providerId){
         if(reg && reg.task_id && reg.status === 'Processing'){
             checkAssetAvatarStatus(id, true, providerId);
         }
-    }, 6000);
+    }, 6000));
 }
 async function deleteAssetItem(id){
     const item = findAssetItem(id);
