@@ -6390,10 +6390,11 @@ function renderOffscreenPlaceholders(){
     if(!nodesEl) return;
     const placeholders = nodesEl.querySelectorAll('.node-placeholder');
     if(!placeholders.length) return;
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
     placeholders.forEach(el => {
         const id = el.dataset.id;
         if(!id) return;
-        const node = nodes.find(n => n.id === id);
+        const node = nodeById.get(id);
         if(!node || !isNodeInCanvasViewport(node, 400)){
             // 仍在视野外或节点已删除，保持/移除占位
             if(!node) el.remove();
@@ -6413,8 +6414,9 @@ function render(){
     const outputScrolls = captureOutputScrolls();
     const mediaStates = captureMediaPlaybackStates();
     const reusableMediaNodes = new Map();
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
     nodesEl.querySelectorAll('.node').forEach(el => {
-        const node = nodes.find(n => n.id === el.dataset.id);
+        const node = nodeById.get(el.dataset.id);
         if(nodeHasLiveMedia(node)) reusableMediaNodes.set(node.id, el);
     });
     applyViewport();
@@ -6443,9 +6445,10 @@ function refreshNodes(ids=[]){
     const uniqueIds = [...new Set((ids || []).filter(Boolean))];
     if(!uniqueIds.length) return;
     const outputScrolls = captureOutputScrolls();
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
     applyViewport();
     for(const id of uniqueIds){
-        const node = nodes.find(n => n.id === id);
+        const node = nodeById.get(id);
         if(!node) continue;
         if(node.type === 'output' && refreshOutputNodeContent(node)) continue;
         const current = nodesEl.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
@@ -13726,8 +13729,8 @@ function updateGroupMembership(movedNodes){
     }
 }
 
-function portPoint(id, kind){
-    const n = nodes.find(x => x.id === id);
+function portPoint(id, kind, nodeById=null){
+    const n = nodeById ? nodeById.get(id) : nodes.find(x => x.id === id);
     const el = nodesEl.querySelector(`.node[data-id="${id}"]`);
     if(!n || !el) return {x:0,y:0};
     const port = el.querySelector(`.port.${kind}`);
@@ -13741,8 +13744,9 @@ function portPoint(id, kind){
 function renderLinks(){
     linksEl.innerHTML = '';
     linkControlsEl.innerHTML = '';
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
     connections.forEach(c => {
-        const a = portPoint(c.from, 'out'), b = portPoint(c.to, 'in');
+        const a = portPoint(c.from, 'out', nodeById), b = portPoint(c.to, 'in', nodeById);
         linksEl.appendChild(pathEl(a.x, a.y, b.x, b.y, 'link'));
         const btn = linkDeleteButton(c, a, b);
         linkControlsEl.appendChild(btn);
