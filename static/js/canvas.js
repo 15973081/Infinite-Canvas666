@@ -882,6 +882,22 @@ let linkCreateState = null;
 let internalDrag = false;
 let selected = new Set();
 let saveTimer = null;
+let windowPointerSession = null;
+function endWindowPointerSession(session=windowPointerSession){
+    if(session !== windowPointerSession) return;
+    session?.abort();
+    windowPointerSession = null;
+}
+function startWindowPointerSession(onMove, onUp){
+    endWindowPointerSession();
+    const session = new AbortController();
+    windowPointerSession = session;
+    window.addEventListener('mousemove', onMove, {signal:session.signal});
+    window.addEventListener('mouseup', e => {
+        try { onUp?.(e); }
+        finally { endWindowPointerSession(session); }
+    }, {signal:session.signal, once:true});
+}
 let creatingCanvas = false;
 let createCanvasKind = 'classic';
 let trashMode = false;
@@ -8712,8 +8728,7 @@ function startLLMPaneResize(e, node){
         inputStart:Math.max(70, node.llmInputHeight || 110),
         outputStart:Math.max(70, node.llmOutputHeight || 150)
     };
-    window.onmousemove = onLLMPaneResize;
-    window.onmouseup = endDrag;
+    startWindowPointerSession(onLLMPaneResize, endDrag);
 }
 function onLLMPaneResize(e){
     if(!llmPaneDrag) return;
@@ -13046,8 +13061,7 @@ function startSelection(e){
     document.body.classList.add('canvas-selecting');
     selectionBox.style.display = 'block';
     updateSelectionBox(e.clientX, e.clientY);
-    window.onmousemove = e2 => updateSelectionBox(e2.clientX, e2.clientY);
-    window.onmouseup = finishSelection;
+    startWindowPointerSession(e2 => updateSelectionBox(e2.clientX, e2.clientY), finishSelection);
 }
 function updateSelectionBox(x, y){
     if(!selectDrag) return;
@@ -13071,8 +13085,7 @@ function finishSelection(){
     });
     selectDrag = null;
     document.body.classList.remove('canvas-selecting');
-    window.onmousemove = null;
-    window.onmouseup = null;
+    endWindowPointerSession();
     render();
     if(workflowTransferModal?.classList.contains('open')) updateWorkflowTransferMeta();
 }
@@ -13085,17 +13098,14 @@ function startSelectionLink(e, kind){
     e.stopPropagation();
     const p = screenToWorld(e.clientX, e.clientY);
     tempLink = {from:`selection:${kind}`, x1:p.x, y1:p.y, x2:p.x, y2:p.y};
-    window.onmousemove = e2 => { const next = screenToWorld(e2.clientX, e2.clientY); tempLink.x2 = next.x; tempLink.y2 = next.y; renderLinks(); };
-    window.onmouseup = e2 => {
+    startWindowPointerSession(e2 => { const next = screenToWorld(e2.clientX, e2.clientY); tempLink.x2 = next.x; tempLink.y2 = next.y; renderLinks(); }, e2 => {
         const targetPort = nearestPort(e2.clientX, e2.clientY, 'in');
         const target = targetPort?.closest('.generator-node');
         if(target) connectSelectionToGenerator(kind, target.dataset.id);
         tempLink = null;
-        window.onmousemove = null;
-        window.onmouseup = null;
         render();
         scheduleSave();
-    };
+    });
 }
 function connectSelectionToGenerator(kind, genId){
     const ids = [...selected];
@@ -13434,8 +13444,7 @@ function startNodeDrag(e, node){
     const children = [...collected.values()];
     dragNode = {node: dragTarget, children, sx:e.clientX, sy:e.clientY, ox:dragTarget.x, oy:dragTarget.y};
     document.body.classList.add('canvas-node-drag');
-    window.onmousemove = onNodeDrag;
-    window.onmouseup = endDrag;
+    startWindowPointerSession(onNodeDrag, endDrag);
 }
 function onNodeDrag(e){
     if(!dragNode) return;
@@ -13479,8 +13488,7 @@ function startNodeResize(e, node){
         sh:(rect?.height ? rect.height / viewport.scale : node.h || defaultNodeSize(node.type).h || 160)
     };
     document.body.classList.add('canvas-node-resize');
-    window.onmousemove = onNodeResize;
-    window.onmouseup = endDrag;
+    startWindowPointerSession(onNodeResize, endDrag);
 }
 function onNodeResize(e){
     if(!resizeNode) return;
@@ -13509,13 +13517,12 @@ function startLink(e, originId, originKind){
     const src = portPoint(originId, originKind);
     const source = nodes.find(n => n.id === originId);
     tempLink = {from:originId, originKind, x1:src.x, y1:src.y, x2:src.x, y2:src.y};
-    window.onmousemove = e2 => {
+    startWindowPointerSession(e2 => {
         const p = screenToWorld(e2.clientX, e2.clientY);
         tempLink.x2 = p.x;
         tempLink.y2 = p.y;
         renderLinks();
-    };
-    window.onmouseup = e2 => {
+    }, e2 => {
         const targetKind = originKind === 'out' ? 'in' : 'out';
         const targetPort = nearestPort(e2.clientX, e2.clientY, targetKind);
         const target = targetPort?.closest('.node');
@@ -13551,10 +13558,8 @@ function startLink(e, originId, originKind){
             openLinkCreateMenu(originId, originKind, e2.clientX, e2.clientY);
         }
         tempLink = null;
-        window.onmousemove = null;
-        window.onmouseup = null;
         renderLinks();
-    };
+    });
 }
 function nearestPort(clientX, clientY, kind){
     const selector = `.port.${kind}`;
@@ -13639,8 +13644,7 @@ function endDrag(event=null){
     if(!event?.shiftKey) setKnifeMode(false);
     if(textSelectionGuard) textSelectionGuard.active = false;
     document.body.classList.remove('canvas-node-drag', 'canvas-node-resize', 'canvas-selecting', 'canvas-board-pan');
-    window.onmousemove = null;
-    window.onmouseup = null;
+    endWindowPointerSession();
     if(shouldRenderKnife) render();
     scheduleMinimapRender();
     if(hadContentDrag) scheduleSave();
@@ -13936,8 +13940,7 @@ function startKnifeDrag(e){
     knifePoint = screenToWorld(e.clientX, e.clientY);
     knifeTrail = [knifePoint];
     renderLinks();
-    window.onmousemove = continueKnifeDrag;
-    window.onmouseup = endDrag;
+    startWindowPointerSession(continueKnifeDrag, endDrag);
     return true;
 }
 function continueKnifeDrag(e){
@@ -13963,15 +13966,12 @@ minimap?.addEventListener('mousedown', e => {
     e.stopPropagation();
     minimapDrag = true;
     centerViewportOnWorldPoint(minimapEventToWorld(e));
-    window.onmousemove = e2 => {
+    startWindowPointerSession(e2 => {
         if(minimapDrag) centerViewportOnWorldPoint(minimapEventToWorld(e2));
-    };
-    window.onmouseup = () => {
+    }, () => {
         minimapDrag = false;
-        window.onmousemove = null;
-        window.onmouseup = null;
         scheduleViewportSave();
-    };
+    });
 });
 function startBoardPan(e, opts={}){
     if(!canvas) return false;
@@ -13982,20 +13982,19 @@ function startBoardPan(e, opts={}){
     if(document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     dragBoard = {sx:e.clientX, sy:e.clientY, ox:viewport.x, oy:viewport.y, moved:false, clearSelectionOnClick:Boolean(opts.clearSelectionOnClick)};
     document.body.classList.add('canvas-board-pan');
-    window.onmousemove = e2 => {
+    startWindowPointerSession(e2 => {
         if(Math.hypot(e2.clientX - dragBoard.sx, e2.clientY - dragBoard.sy) > 4) dragBoard.moved = true;
         viewport.x = dragBoard.ox + e2.clientX - dragBoard.sx;
         viewport.y = dragBoard.oy + e2.clientY - dragBoard.sy;
         applyViewport();
-    };
-    window.onmouseup = e2 => {
+    }, e2 => {
         const shouldClearSelection = dragBoard?.clearSelectionOnClick && !dragBoard.moved && selected.size;
         if(shouldClearSelection){
             selected.clear();
             refreshSelectionVisuals();
         }
         endDrag(e2);
-    };
+    });
     return true;
 }
 
@@ -14210,8 +14209,7 @@ window.addEventListener('blur', () => {
         selectionBox.style.display = 'none';
         selectDrag = null;
         document.body.classList.remove('canvas-selecting');
-        window.onmousemove = null;
-        window.onmouseup = null;
+        endWindowPointerSession();
     }
 });
 function deleteSelectedNodes(){
