@@ -16,6 +16,7 @@ let activeWorkflowCategoryId = '';
 let activePromptLibraryId = '';
 let activePromptCategory = 'all';
 let assetTreeFocus = 'category';
+let collapsedAssetLibraryIds = new Set();
 let promptTreeFocus = 'category';
 let selectedAssetId = '';
 let selectedWorkflowId = '';
@@ -76,11 +77,25 @@ let selectedCanvasAssetIds = new Set();
 let canvasAssetQuery = '';
 let canvasAssetSort = 'canvas_asc';
 let canvasAssetManageMode = false;
+let searchRenderTimer = 0;
 
 const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|webp|gif|bmp|avif|svg|mp4|webm|mov|m4v|mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/i;
 
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 function setStatus(text='准备就绪'){ if(statusEl) statusEl.textContent = text || '准备就绪'; }
+function scheduleSearchRender(inputId, position){
+    clearTimeout(searchRenderTimer);
+    searchRenderTimer = setTimeout(() => {
+        const restoreFocus = document.activeElement?.id === inputId;
+        render();
+        if(!restoreFocus) return;
+        requestAnimationFrame(() => {
+            const input = document.getElementById(inputId);
+            input?.focus();
+            input?.setSelectionRange?.(position, position);
+        });
+    }, 160);
+}
 function escapeHtml(value=''){
     return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
@@ -1180,7 +1195,7 @@ function renderAssetManager(){
                 </div>
             </div>
             <div class="nav-scroll">
-                <div class="nav-tree">
+                <div class="nav-tree asset-library-tree">
                     ${libs.map(item => renderAssetTreeBranch(item)).join('')}
                 </div>
             </div>
@@ -1383,11 +1398,13 @@ function renderAssetClipboardBar(){
 }
 function renderAssetTreeBranch(lib){
     const isActiveLib = lib.id === activeAssetLibraryId;
+    const isExpanded = !collapsedAssetLibraryIds.has(lib.id);
     const cats = (lib.categories || []).filter(cat => (cat.type || 'image') === 'image');
-    const showLibActions = isActiveLib && assetTreeFocus === 'library';
-    return `<div class="tree-branch ${isActiveLib ? 'expanded' : ''}">
-        <button class="tree-row tree-parent ${isActiveLib ? 'contains-active' : ''} ${showLibActions ? 'active' : ''}" type="button" data-asset-lib="${escapeAttr(lib.id)}">
-            <span class="tree-row-icon"><i data-lucide="${isActiveLib ? 'folder-open' : 'folder'}"></i></span>
+    const showLibActions = isActiveLib && isExpanded && assetTreeFocus === 'library';
+    return `<div class="tree-branch ${isExpanded ? 'expanded' : ''}">
+        <button class="tree-row tree-parent ${isActiveLib ? 'contains-active' : ''} ${showLibActions ? 'active' : ''}" type="button" data-asset-lib="${escapeAttr(lib.id)}" aria-expanded="${isExpanded}">
+            <span class="tree-toggle"><i data-lucide="chevron-right"></i></span>
+            <span class="tree-row-icon"><i data-lucide="${isExpanded ? 'folder-open' : 'folder'}"></i></span>
             <span class="tree-row-name">${escapeHtml(lib.name || '资产库')}</span>
             <span class="tree-row-count">${assetCountForLibrary(lib)}</span>
         </button>
@@ -2382,9 +2399,23 @@ async function handleClick(event){
         await deleteAssetCategory(); return;
     }
     const assetLib = target.closest?.('[data-asset-lib]');
-    if(assetLib){ activeAssetLibraryId = assetLib.dataset.assetLib || ''; assetTreeFocus = 'library'; activeAssetCategoryId = assetCategories()[0]?.id || ''; selectedAssetId = ''; selectedAssetIds.clear(); render(); return; }
+    if(assetLib){
+        const libraryId = assetLib.dataset.assetLib || '';
+        if(libraryId === activeAssetLibraryId){
+            if(collapsedAssetLibraryIds.has(libraryId)) collapsedAssetLibraryIds.delete(libraryId); else collapsedAssetLibraryIds.add(libraryId);
+        } else {
+            activeAssetLibraryId = libraryId;
+            collapsedAssetLibraryIds.delete(libraryId);
+            activeAssetCategoryId = assetCategories()[0]?.id || '';
+            selectedAssetId = '';
+            selectedAssetIds.clear();
+        }
+        assetTreeFocus = 'library';
+        render();
+        return;
+    }
     const assetCat = target.closest?.('[data-asset-cat]');
-    if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); render(); return; }
+    if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; collapsedAssetLibraryIds.delete(activeAssetLibraryId); activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); render(); return; }
     const assetCard = target.closest?.('[data-asset-card]');
     if(assetCard){
         const id = assetCard.dataset.assetCard || '';
@@ -3338,67 +3369,37 @@ root.addEventListener('input', event => {
         const pos = event.target.selectionStart || 0;
         assetQuery = event.target.value || '';
         selectedAssetId = '';
-        render();
-        requestAnimationFrame(() => {
-            const input = document.getElementById('assetSearch');
-            input?.focus();
-            input?.setSelectionRange?.(pos, pos);
-        });
+        scheduleSearchRender('assetSearch', pos);
     }
     if(event.target?.id === 'workflowSearch'){
         const pos = event.target.selectionStart || 0;
         workflowQuery = event.target.value || '';
         selectedWorkflowId = '';
-        render();
-        requestAnimationFrame(() => {
-            const input = document.getElementById('workflowSearch');
-            input?.focus();
-            input?.setSelectionRange?.(pos, pos);
-        });
+        scheduleSearchRender('workflowSearch', pos);
     }
     if(event.target?.id === 'promptSearch'){
         const pos = event.target.selectionStart || 0;
         promptQuery = event.target.value || '';
         selectedPromptId = '';
-        render();
-        requestAnimationFrame(() => {
-            const input = document.getElementById('promptSearch');
-            input?.focus();
-            input?.setSelectionRange?.(pos, pos);
-        });
+        scheduleSearchRender('promptSearch', pos);
     }
     if(event.target?.id === 'localSearch'){
         const pos = event.target.selectionStart || 0;
         localQuery = event.target.value || '';
         selectedLocalId = '';
-        render();
-        requestAnimationFrame(() => {
-            const input = document.getElementById('localSearch');
-            input?.focus();
-            input?.setSelectionRange?.(pos, pos);
-        });
+        scheduleSearchRender('localSearch', pos);
     }
     if(event.target?.id === 'localUploadSearch'){
         const pos = event.target.selectionStart || 0;
         localUploadQuery = event.target.value || '';
         selectedLocalUploadId = '';
-        render();
-        requestAnimationFrame(() => {
-            const input = document.getElementById('localUploadSearch');
-            input?.focus();
-            input?.setSelectionRange?.(pos, pos);
-        });
+        scheduleSearchRender('localUploadSearch', pos);
     }
     if(event.target?.id === 'canvasAssetSearch'){
         const pos = event.target.selectionStart || 0;
         canvasAssetQuery = event.target.value || '';
         selectedCanvasAssetId = '';
-        render();
-        requestAnimationFrame(() => {
-            const input = document.getElementById('canvasAssetSearch');
-            input?.focus();
-            input?.setSelectionRange?.(pos, pos);
-        });
+        scheduleSearchRender('canvasAssetSearch', pos);
     }
     if(event.target?.id === 'localCaptionPrompt'){
         localCaptionPrompt = event.target.value || '';
