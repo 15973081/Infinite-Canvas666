@@ -5474,6 +5474,45 @@ function nodeBodyHtml(node, layout){
         <span class="upload-node-sub">拖拽 / 粘贴 / 点击上传</span>
     </div>`;
 }
+function smartRecoverableImageTask(node){
+    return smartPendingTasks(node).find(task => task.failed && task.recoverTaskId) || null;
+}
+function providerIdForSmartTask(node, task){
+    return task?.providerId || node?.runSettings?.provider_id || settings.provider_id || 'comfly';
+}
+async function querySmartImageTaskNow(nodeId, localTaskId){
+    const node = nodes.find(n => n.id === nodeId);
+    if(!node) return;
+    const task = smartPendingTasks(node).find(item => item.taskId === localTaskId) || smartRecoverableImageTask(node);
+    if(!task || task.querying) return;
+    const recoverTaskId = task.recoverTaskId || extractUpstreamTaskId(task.error || '');
+    if(!recoverTaskId){
+        toast('没有任务 ID，无法查询');
+        return;
+    }
+    task.querying = true;
+    task.recoverTaskId = recoverTaskId;
+    render();
+    try {
+        const data = await window.CanvasApi.queryImageTask({provider_id:providerIdForSmartTask(node, task), task_id:recoverTaskId});
+        if(data.status === 'succeeded'){
+            task.failed = false;
+            task.querying = false;
+            finalizeSmartPendingTask(node, task.taskId, data.images || [], task.kind || 'image');
+        } else {
+            task.error = data.error || data.message || (data.status === 'failed' ? tr('smart.errRunFailed') : '任务仍在生成中，请稍后再查询');
+            toast(task.error.slice(0, 160));
+        }
+    } catch(e){
+        task.error = e.message || '查询失败';
+        toast(task.error.slice(0, 160));
+    } finally {
+        const latest = smartPendingTasks(node).find(item => item.taskId === localTaskId);
+        if(latest) latest.querying = false;
+        render();
+        scheduleSave();
+    }
+}
 function imageTaskRecoverBodyHtml(node, task, layout){
     const querying = Boolean(task.querying);
     const failedCount = smartPendingTasks(node).filter(item => item.failed && item.recoverTaskId).length;
