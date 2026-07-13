@@ -4079,10 +4079,13 @@ function openImageNodeMenu(nodeId, clientX, clientY){
         ${canPreview ? `<button class="menu-btn" data-image-preview="${escapeAttr(nodeId)}"><i data-lucide="eye" class="w-4 h-4"></i><span>预览</span></button>` : ''}
         ${canEdit ? `<button class="menu-btn" data-image-edit="${escapeAttr(nodeId)}"><i data-lucide="pencil" class="w-4 h-4"></i><span>编辑</span></button>` : ''}
         <button class="menu-btn" data-image-replace="${escapeAttr(nodeId)}"><i data-lucide="image-plus" class="w-4 h-4"></i><span>替换</span></button>
+        ${canEdit ? `<div class="menu-divider"></div><button class="menu-btn" data-image-save-asset="${escapeAttr(nodeId)}"><i data-lucide="library-big" class="w-4 h-4"></i><span>上传素材库</span></button>` : ''}
+        ${canEdit ? `<button class="menu-btn" data-image-face-auth="${escapeAttr(nodeId)}"><i data-lucide="shield-check" class="w-4 h-4"></i><span>快速人脸认证</span></button>` : ''}
     `;
     imageNodeMenu.style.left = `${clientX}px`;
     imageNodeMenu.style.top = `${clientY}px`;
     imageNodeMenu.classList.add('open');
+    positionImageNodeMenu(clientX, clientY);
     const previewBtn = imageNodeMenu.querySelector('[data-image-preview]');
     if(previewBtn){
         previewBtn.onclick = e => {
@@ -4104,6 +4107,53 @@ function openImageNodeMenu(nodeId, clientX, clientY){
         closeImageNodeMenu();
         pickImageForNode(nodeId);
     };
+    imageNodeMenu.querySelector('[data-image-save-asset]')?.addEventListener('click', e => {
+        e.stopPropagation();
+        openImageNodeAssetTargetMenu(nodeId, clientX, clientY);
+    });
+    imageNodeMenu.querySelector('[data-image-face-auth]')?.addEventListener('click', e => {
+        e.stopPropagation();
+        openImageNodeAssetTargetMenu(nodeId, clientX, clientY);
+    });
+    refreshIcons();
+}
+function positionImageNodeMenu(clientX, clientY){
+    const menuRect = imageNodeMenu.getBoundingClientRect();
+    imageNodeMenu.style.left = `${Math.max(10, Math.min(window.innerWidth - menuRect.width - 10, clientX))}px`;
+    imageNodeMenu.style.top = `${Math.max(10, Math.min(window.innerHeight - menuRect.height - 10, clientY))}px`;
+}
+async function openImageNodeAssetTargetMenu(nodeId, clientX, clientY){
+    await loadCanvasAssetLibrary({renderPanel:false});
+    const targets = canvasAssetLibraries().flatMap(library => (library.readonly ? [] : (library.categories || [])
+        .filter(category => ['image','media'].includes(String(category.type || 'image').toLowerCase()) && !category.readonly)
+        .map(category => ({libraryId:library.id, categoryId:category.id, label:`${library.name || '素材库'} / ${category.name || '分组'}`}))));
+    if(!targets.length){ closeImageNodeMenu(); showErrorModal('请先创建可编辑的素材库和图片分组。', '上传素材库'); return; }
+    const selectedIndex = Math.max(0, targets.findIndex(target => target.libraryId === activeCanvasAssetLibraryId && target.categoryId === activeCanvasAssetCategoryId));
+    imageNodeMenu.classList.add('asset-target-menu');
+    imageNodeMenu.innerHTML = `
+        <div class="menu-section-title">选择素材库 / 分组</div>
+        <select class="asset-target-select" data-image-asset-target aria-label="上传目标">
+            ${targets.map((target, index) => `<option value="${index}" ${index === selectedIndex ? 'selected' : ''}>${escapeHtml(target.label)}</option>`).join('')}
+        </select>
+        <div class="asset-target-actions">
+            <button class="menu-btn" type="button" data-image-asset-upload><i data-lucide="upload" class="w-4 h-4"></i><span>仅上传</span></button>
+            <button class="menu-btn primary" type="button" data-image-asset-auth><i data-lucide="shield-check" class="w-4 h-4"></i><span>上传并认证</span></button>
+        </div>`;
+    positionImageNodeMenu(clientX, clientY);
+    const selectedTarget = () => targets[Number(imageNodeMenu.querySelector('[data-image-asset-target]')?.value || 0)] || targets[0];
+    imageNodeMenu.querySelector('[data-image-asset-target]')?.addEventListener('click', e => e.stopPropagation());
+    imageNodeMenu.querySelector('[data-image-asset-upload]')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const target = selectedTarget();
+        closeImageNodeMenu();
+        saveImageNodeToAssetLibrary(nodeId, target);
+    });
+    imageNodeMenu.querySelector('[data-image-asset-auth]')?.addEventListener('click', e => {
+        e.stopPropagation();
+        const target = selectedTarget();
+        closeImageNodeMenu();
+        quickFaceAuthImageNode(nodeId, target);
+    });
     refreshIcons();
 }
 function openImageNodePreview(nodeId){
@@ -4158,6 +4208,7 @@ function openOutputNodeMenu(nodeId, clientX, clientY){
 function closeImageNodeMenu(){
     imageNodeMenu.classList.remove('open');
     imageNodeMenu.classList.remove('output-node-menu');
+    imageNodeMenu.classList.remove('asset-target-menu');
     imageNodeMenu.innerHTML = '';
 }
 function outputImageUrls(node){
@@ -4768,6 +4819,8 @@ function createImageCardFromUrl(url, point, name='image', opts={}){
     const mediaKind = isVideoUrl(url) ? 'video' : isAudioUrl(url) ? 'audio' : 'image';
     const node = {id:uid('img'), type:'image', x:p.x, y:p.y, url, name:name || outputImageName(url), mediaKind};
     if(opts.asset_uris && typeof opts.asset_uris === 'object') node.asset_uris = opts.asset_uris;
+    if(opts.asset_item_id) node.asset_item_id = opts.asset_item_id;
+    if(opts.asset_library_id) node.asset_library_id = opts.asset_library_id;
     nodes.push(node);
     render();
     scheduleSave();
@@ -7334,7 +7387,7 @@ function canvasAssetRegisteredUris(item){
     return out;
 }
 function canvasAssetUrisFaceVerified(assetUris){
-    return Boolean(assetUris && typeof assetUris === 'object' && assetUris.volcengine);
+    return Boolean(assetUris && typeof assetUris === 'object' && Object.values(assetUris).some(Boolean));
 }
 function canvasAssetFaceVerified(item){
     return canvasAssetUrisFaceVerified(canvasAssetRegisteredUris(item));
@@ -7531,7 +7584,7 @@ function renderCanvasAssetLibrary(){
             event.dataTransfer.effectAllowed = 'copy';
             let assetUris = {};
             try { assetUris = JSON.parse(card.dataset.assetUris || '{}') || {}; } catch(e) { assetUris = {}; }
-            event.dataTransfer.setData('application/x-canvas-asset', JSON.stringify({url:card.dataset.url, name:card.dataset.name, kind:card.dataset.kind || '', asset_uris:assetUris}));
+            event.dataTransfer.setData('application/x-canvas-asset', JSON.stringify({url:card.dataset.url, name:card.dataset.name, kind:card.dataset.kind || '', asset_uris:assetUris, asset_item_id:card.dataset.assetId, asset_library_id:activeCanvasAssetLibraryId}));
             event.dataTransfer.setData('text/plain', card.dataset.url || '');
         });
         card.addEventListener('dblclick', () => {
@@ -7539,7 +7592,7 @@ function renderCanvasAssetLibrary(){
             else {
                 let assetUris = {};
                 try { assetUris = JSON.parse(card.dataset.assetUris || '{}') || {}; } catch(e) { assetUris = {}; }
-                createImageCardFromUrl(card.dataset.url, defaultPoint(0, 0), card.dataset.name || 'asset', {asset_uris:assetUris});
+                createImageCardFromUrl(card.dataset.url, defaultPoint(0, 0), card.dataset.name || 'asset', {asset_uris:assetUris, asset_item_id:card.dataset.assetId, asset_library_id:activeCanvasAssetLibraryId});
             }
         });
         const item = items.find(entry => entry.id === card.dataset.assetId);
@@ -7581,6 +7634,115 @@ async function addUrlToCanvasAssetLibrary(url, name=''){
     canvasAssetLibrary = data.library || canvasAssetLibrary;
     renderCanvasAssetLibrary();
     setStatus('已保存到资产库');
+    return data;
+}
+function canvasAssetItemLocation(itemId){
+    for(const library of canvasAssetLibraries()) for(const category of library.categories || []) {
+        const item = (category.items || []).find(entry => entry.id === itemId);
+        if(item) return {item, libraryId:library.id, categoryId:category.id};
+    }
+    return null;
+}
+async function ensureImageNodeAsset(node, target=null){
+    if(!canvasAssetLibraries().length || !activeCanvasAssetCategory()) await loadCanvasAssetLibrary({renderPanel:false});
+    const linked = node.asset_item_id && canvasAssetItemLocation(node.asset_item_id);
+    if(linked && (!target || (linked.libraryId === target.libraryId && linked.categoryId === target.categoryId))) {
+        activeCanvasAssetLibraryId = linked.libraryId;
+        activeCanvasAssetCategoryId = linked.categoryId;
+        return linked;
+    }
+    const libraryId = target?.libraryId || activeCanvasAssetLibraryId;
+    const categoryId = target?.categoryId || activeCanvasMediaCategory()?.id;
+    if(!libraryId || !categoryId || libraryId === LOCAL_CANVAS_ASSET_LIBRARY_ID) throw new Error('请选择可编辑的素材库图片分组');
+    const data = await window.CanvasApi.createAssetItem({library_id:libraryId, category_id:categoryId, url:node.url, name:node.name || outputImageName(node.url)}, {errorFallback:'上传素材库失败'});
+    canvasAssetLibrary = data.library || canvasAssetLibrary;
+    activeCanvasAssetLibraryId = libraryId;
+    activeCanvasAssetCategoryId = categoryId;
+    node.asset_item_id = data.item?.id || '';
+    node.asset_library_id = libraryId;
+    node.asset_uris = canvasAssetRegisteredUris(data.item);
+    renderCanvasAssetLibrary();
+    scheduleSave();
+    return {item:data.item, libraryId, categoryId};
+}
+async function saveImageNodeToAssetLibrary(nodeId, target=null){
+    const node = nodes.find(entry => entry.id === nodeId);
+    if(!node?.url || mediaKindForNode(node) !== 'image') return;
+    try {
+        const location = node.asset_item_id && canvasAssetItemLocation(node.asset_item_id);
+        const linked = Boolean(location && (!target || (location.libraryId === target.libraryId && location.categoryId === target.categoryId)));
+        await ensureImageNodeAsset(node, target);
+        setStatus(linked ? '该图片已在素材库中' : '已上传到素材库');
+    } catch(err) {
+        showErrorModal(err.message || '上传素材库失败', '上传素材库');
+    }
+}
+function canvasAvatarPlatform(provider){
+    const protocol = String(provider?.protocol || '').toLowerCase();
+    if(protocol === 'apimart' || String(provider?.base_url || '').toLowerCase().includes('apimart.ai')) return 'apimart';
+    return protocol === 'volcengine' ? 'volcengine' : '';
+}
+function quickCanvasAvatarProvider(){
+    return apiProviders.find(provider => provider?.enabled !== false && provider?.has_key !== false && canvasAvatarPlatform(provider));
+}
+async function canvasAvatarRequest(path, libraryId, providerId){
+    const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
+    if(!response.ok) throw new Error(await responseErrorMessage(response, '人脸认证失败'));
+    return response.json();
+}
+function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
+    if(attempt >= 100) return;
+    setTimeout(async () => {
+        const node = nodes.find(entry => entry.id === nodeId);
+        if(!node) return;
+        try {
+            const data = await canvasAvatarRequest(`/api/asset-library/items/${encodeURIComponent(itemId)}/avatar-status`, libraryId, provider.id);
+            canvasAssetLibrary = data.library || canvasAssetLibrary;
+            const registration = data.item?.registrations?.[canvasAvatarPlatform(provider)] || {};
+            if(registration.status === 'Active') {
+                node.asset_uris = canvasAssetRegisteredUris(data.item);
+                render();
+                scheduleSave();
+                if(canvasAssetLibraryOpen) renderCanvasAssetLibrary();
+                setStatus('人脸认证已通过，可直接用于视频生成');
+            } else if(registration.status === 'Failed') {
+                setStatus(registration.detail || '人脸认证未通过');
+            } else pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt + 1);
+        } catch(err) {
+            if(attempt < 2) pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt + 1);
+            else setStatus(err.message || '认证状态查询失败');
+        }
+    }, 6000);
+}
+async function quickFaceAuthImageNode(nodeId, target=null){
+    const node = nodes.find(entry => entry.id === nodeId);
+    if(!node?.url || mediaKindForNode(node) !== 'image') return;
+    const provider = quickCanvasAvatarProvider();
+    if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置 APIMart 或火山引擎。', '快速人脸认证'); return; }
+    try {
+        setStatus('正在上传素材并提交人脸认证…');
+        const {item, libraryId} = await ensureImageNodeAsset(node, target);
+        const platform = canvasAvatarPlatform(provider);
+        const registration = item?.registrations?.[platform] || {};
+        if(registration.status === 'Active') {
+            node.asset_uris = canvasAssetRegisteredUris(item);
+            render();
+            scheduleSave();
+            setStatus('该图片已通过人脸认证');
+            return;
+        }
+        if(registration.status === 'Processing') {
+            setStatus('该图片正在审核，稍后自动更新');
+            pollImageNodeFaceAuth(nodeId, item.id, libraryId, provider);
+            return;
+        }
+        const data = await canvasAvatarRequest(`/api/asset-library/items/${encodeURIComponent(item.id)}/register-avatar`, libraryId, provider.id);
+        canvasAssetLibrary = data.library || canvasAssetLibrary;
+        setStatus(`已提交 ${provider.name || provider.id} 审核，稍后自动更新`);
+        pollImageNodeFaceAuth(nodeId, item.id, libraryId, provider);
+    } catch(err) {
+        showErrorModal(err.message || '人脸认证提交失败', '快速人脸认证');
+    }
 }
 async function uploadFilesToLibrary(files, libraryId, categoryId){
     const form = new FormData();
@@ -14121,7 +14283,7 @@ board.addEventListener('drop', async e => {
             const payload = JSON.parse(e.dataTransfer.getData('application/x-canvas-asset') || '{}');
             if(payload?.url) {
                 if(String(payload.kind || '').toLowerCase() === 'workflow') await importWorkflowAssetUrl(payload.url, payload.name || 'workflow');
-                else createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {asset_uris:payload.asset_uris || {}});
+                else createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {asset_uris:payload.asset_uris || {}, asset_item_id:payload.asset_item_id || '', asset_library_id:payload.asset_library_id || ''});
             }
         } catch(err) {}
         return;
