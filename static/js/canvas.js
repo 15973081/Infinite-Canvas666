@@ -4075,12 +4075,13 @@ function openImageNodeMenu(nodeId, clientX, clientY){
     const kind = mediaKindForNode(node);
     const canPreview = node.url && !isMissingAssetUrl(node.url) && ['image','video'].includes(kind);
     const canEdit = node.url && !isMissingAssetUrl(node.url) && kind === 'image';
+    const canUseAssetLibrary = node.url && !isMissingAssetUrl(node.url) && ['image','video'].includes(kind);
     imageNodeMenu.innerHTML = `
         ${canPreview ? `<button class="menu-btn" data-image-preview="${escapeAttr(nodeId)}"><i data-lucide="eye" class="w-4 h-4"></i><span>预览</span></button>` : ''}
         ${canEdit ? `<button class="menu-btn" data-image-edit="${escapeAttr(nodeId)}"><i data-lucide="pencil" class="w-4 h-4"></i><span>编辑</span></button>` : ''}
         <button class="menu-btn" data-image-replace="${escapeAttr(nodeId)}"><i data-lucide="image-plus" class="w-4 h-4"></i><span>替换</span></button>
-        ${canEdit ? `<div class="menu-divider"></div><button class="menu-btn" data-image-save-asset="${escapeAttr(nodeId)}"><i data-lucide="library-big" class="w-4 h-4"></i><span>上传素材库</span></button>` : ''}
-        ${canEdit ? `<button class="menu-btn" data-image-face-auth="${escapeAttr(nodeId)}"><i data-lucide="shield-check" class="w-4 h-4"></i><span>快速人脸认证</span></button>` : ''}
+        ${canUseAssetLibrary ? `<div class="menu-divider"></div><button class="menu-btn" data-image-save-asset="${escapeAttr(nodeId)}"><i data-lucide="library-big" class="w-4 h-4"></i><span>上传素材库</span></button>` : ''}
+        ${canUseAssetLibrary ? `<button class="menu-btn" data-image-face-auth="${escapeAttr(nodeId)}"><i data-lucide="shield-check" class="w-4 h-4"></i><span>快速人脸认证</span></button>` : ''}
     `;
     imageNodeMenu.style.left = `${clientX}px`;
     imageNodeMenu.style.top = `${clientY}px`;
@@ -7670,12 +7671,12 @@ async function ensureImageNodeAsset(node, target=null){
 }
 async function saveImageNodeToAssetLibrary(nodeId, target=null){
     const node = nodes.find(entry => entry.id === nodeId);
-    if(!node?.url || mediaKindForNode(node) !== 'image') return;
+    if(!node?.url || !['image','video'].includes(mediaKindForNode(node))) return;
     try {
         const location = node.asset_item_id && canvasAssetItemLocation(node.asset_item_id);
         const linked = Boolean(location && (!target || (location.libraryId === target.libraryId && location.categoryId === target.categoryId)));
         await ensureImageNodeAsset(node, target);
-        setStatus(linked ? '该图片已在素材库中' : '已上传到素材库');
+        setStatus(linked ? '该素材已在素材库中' : '已上传到素材库');
     } catch(err) {
         showErrorModal(err.message || '上传素材库失败', '上传素材库');
     }
@@ -7723,7 +7724,7 @@ function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
 }
 async function quickFaceAuthImageNode(nodeId, target=null){
     const node = nodes.find(entry => entry.id === nodeId);
-    if(!node?.url || mediaKindForNode(node) !== 'image') return;
+    if(!node?.url || !['image','video'].includes(mediaKindForNode(node))) return;
     const provider = quickCanvasAvatarProvider();
     if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置 APIMart 或火山引擎。', '快速人脸认证'); return; }
     try {
@@ -7736,14 +7737,14 @@ async function quickFaceAuthImageNode(nodeId, target=null){
             node.asset_uris = canvasAssetRegisteredUris(item);
             render();
             scheduleSave();
-            setStatus('该图片已通过人脸认证');
+            setStatus('该素材已通过人脸认证');
             return;
         }
         if(registration.status === 'Processing') {
             node.face_auth_status = 'Processing';
             render();
             scheduleSave();
-            setStatus('该图片正在审核，稍后自动更新');
+            setStatus('该素材正在审核，稍后自动更新');
             pollImageNodeFaceAuth(nodeId, item.id, libraryId, provider);
             return;
         }
