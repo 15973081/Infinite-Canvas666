@@ -201,7 +201,6 @@
             <div class="lg:col-span-7">
                 <div id="resultBox" class="result-frame min-h-[500px] lg:h-full flex items-center justify-center relative overflow-hidden">
                     <div id="placeholder" class="text-center space-y-4 opacity-20"><i data-lucide="layout" class="w-12 h-12 mx-auto stroke-[1px]"></i><p class="text-[10px] font-black tracking-[0.5em] uppercase">画布就绪</p></div>
-                    <div id="loader" class="hidden text-center space-y-4"><div class="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mx-auto"></div><p class="text-[10px] font-black tracking-[0.5em] uppercase">生成中</p></div>
                     <img id="outputImg" class="hidden w-full h-full object-contain p-8 cursor-zoom-in" onclick="zoomImage()">
                     <a id="downloadBtn" href="#" download class="hidden absolute top-8 right-8 w-12 h-12 bg-white/90 shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white"><i data-lucide="download" class="w-4 h-4"></i></a>
                 </div>
@@ -590,23 +589,89 @@
             document.getElementById(`del${index}`).classList.add('hidden');
         }
 
+        function renderPendingTaskCard(taskId, request){
+            const card = document.createElement('div');
+            card.id = `pending-${taskId}`;
+            card.className = 'masonry-item relative';
+            card.innerHTML = `<div class="w-full h-full p-6 flex flex-col items-center justify-center text-center bg-gray-50">
+                <div class="w-7 h-7 border-2 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p data-task-status class="text-[10px] font-black tracking-[0.3em] uppercase">排队中</p>
+                <p class="mt-3 text-[10px] text-gray-400 line-clamp-2">${escapeHtml(request.prompt)}</p>
+            </div>`;
+            document.getElementById('masonry').prepend(card);
+        }
+
+        function updatePendingTaskCard(taskId, status){
+            const label = document.getElementById(`pending-${taskId}`)?.querySelector('[data-task-status]');
+            if(label) label.textContent = status === 'queued' ? '排队中' : '生成中';
+        }
+
+        function renderFailedTaskCard(taskId, request, message){
+            const card = document.getElementById(`pending-${taskId}`);
+            if(!card) return;
+            card.innerHTML = `<div class="w-full h-full p-6 flex flex-col items-center justify-center text-center bg-red-50">
+                <i data-lucide="triangle-alert" class="w-7 h-7 text-red-500 mb-4"></i>
+                <p class="text-[10px] font-black tracking-[0.3em] uppercase text-red-600">生成失败</p>
+                <p class="mt-3 text-[10px] text-red-400 line-clamp-3">${escapeHtml(message)}</p>
+                <p class="mt-2 text-[9px] text-gray-400 line-clamp-2">${escapeHtml(request.prompt)}</p>
+            </div>`;
+            lucide.createIcons();
+        }
+
+        async function pollOnlineImageTask(taskId, request){
+            try {
+                for(let i = 0; i < 900; i++){
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    const response = await fetch(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`);
+                    const task = await response.json().catch(() => ({}));
+                    if(!response.ok) throw new Error(task.detail || '查询生图任务失败');
+                    updatePendingTaskCard(taskId, task.status);
+                    if(task.status === 'succeeded'){
+                        const result = task.result || {};
+                        if(!result.images?.[0]) throw new Error('生成任务未返回图片');
+                        document.getElementById(`pending-${taskId}`)?.remove();
+                        currentResult = result;
+                        const out = document.getElementById('outputImg');
+                        document.getElementById('placeholder').classList.add('hidden');
+                        out.src = result.images[0];
+                        out.classList.remove('hidden');
+                        const dl = document.getElementById('downloadBtn');
+                        dl.href = result.images[0];
+                        dl.classList.remove('hidden');
+                        renderImageCard(result, true);
+                        return;
+                    }
+                    if(task.status === 'failed') throw new Error(task.error || '生成失败');
+                }
+                throw new Error('生成超时');
+            } catch(err) {
+                const message = err.message || '生成失败';
+                renderFailedTaskCard(taskId, request, message);
+                alert(message);
+            }
+        }
+
         async function submitImage(){
             const prompt = document.getElementById('promptInput').value.trim();
             if(!prompt){ alert(tr('online.promptRequired')); return; }
-            const btn = document.getElementById('genBtn'), loader = document.getElementById('loader'), placeholder = document.getElementById('placeholder'), out = document.getElementById('outputImg'), dl = document.getElementById('downloadBtn');
-            btn.disabled = true; placeholder.classList.add('hidden'); out.classList.add('hidden'); dl.classList.add('hidden'); loader.classList.remove('hidden');
+            const btn = document.getElementById('genBtn');
+            if(btn.disabled) return;
+            btn.disabled = true;
+            const reqBody = { prompt, provider_id:provider, model:selectedModel, size:currentSize(), n:outputCount, reference_images:Object.values(refs).filter(Boolean) };
+            if(QUALITY_PROTOCOLS.has(providerProtocol(provider))) reqBody.quality = quality;
             try {
-                const reqBody = { prompt, provider_id:provider, model:selectedModel, size:currentSize(), n:outputCount, reference_images:Object.values(refs).filter(Boolean) };
-                if(QUALITY_PROTOCOLS.has(providerProtocol(provider))) reqBody.quality = quality;
-                const result = await fetch('/api/online-image', {
+                const response = await fetch('/api/canvas-image-tasks', {
                     method:'POST', headers:{'Content-Type':'application/json'},
                     body:JSON.stringify(reqBody)
-                }).then(async r => { if(!r.ok) throw new Error((await r.json()).detail || '生成失败'); return r.json(); });
-                currentResult = result; out.src = result.images[0]; out.classList.remove('hidden'); dl.href = result.images[0]; dl.classList.remove('hidden'); renderImageCard(result, true);
+                });
+                const task = await response.json().catch(() => ({}));
+                if(!response.ok || !task.task_id) throw new Error(task.detail || '创建生图任务失败');
+                renderPendingTaskCard(task.task_id, reqBody);
+                pollOnlineImageTask(task.task_id, reqBody);
             } catch(err) {
-                alert(err.message || 'Generation failed'); placeholder.classList.remove('hidden');
+                alert(err.message || 'Generation failed');
             } finally {
-                loader.classList.add('hidden'); btn.disabled = false;
+                btn.disabled = false;
             }
         }
 
