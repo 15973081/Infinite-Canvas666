@@ -331,38 +331,15 @@
         function providerModels(id){
             return uniqueModels(providerById(id)?.image_models || [models.gpt]);
         }
-         * 与智能画布一致：value=app:ID / workflow:ID，后端 generate_ai_image 走 RH 工作流运行路径。 */
-            if(!entry || typeof entry !== 'object') return '';
-            const raw = kind === 'workflow' ? (entry.workflowId || entry.id) : (entry.appId || entry.webappId || entry.id);
-            return String(raw || '').trim();
-        }
-            const p = providerById(id) || {};
-            const collect = (list, kind) => (list || [])
-                .filter(e => e && e.enabled !== false && e.hidden !== true)
-                .filter(e => e.id);
-            return [...collect(p.rh_workflows, 'workflow'), ...collect(p.rh_apps, 'app')];
-        }
         function renderProviderControls(){
             const providerSelect = document.getElementById('providerSelect');
             const modelSelect = document.getElementById('modelSelect');
             const providers = imageProviders();
             if(!providers.some(p => p.id === provider)) provider = providers[0]?.id || 'comfly';
             providerSelect.innerHTML = providers.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === provider ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
-                const keys = entries.map(e => `${e.kind}:${e.id}`);
-                if(!keys.includes(selectedModel)) selectedModel = keys[0] || '';
-                modelSelect.innerHTML = entries.length
-                    ? entries.map(e => {
-                        const key = `${e.kind}:${e.id}`;
-                        const tag = e.kind === 'workflow' ? tr('online.rhWorkflow') : tr('online.rhApp');
-                        const label = e.title || e.id;
-                        return `<option value="${escapeHtml(key)}" ${key === selectedModel ? 'selected' : ''}>${escapeHtml(`[${tag}] ${label}`)}</option>`;
-                    }).join('')
-                    : `<option value="">${escapeHtml(tr('online.rhNoEntries'))}</option>`;
-            } else {
-                const modelsForProvider = providerModels(provider);
-                if(!modelsForProvider.includes(selectedModel)) selectedModel = modelsForProvider[0] || models.gpt;
-                modelSelect.innerHTML = modelsForProvider.map(m => `<option value="${escapeHtml(m)}" ${m === selectedModel ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('');
-            }
+            const modelsForProvider = providerModels(provider);
+            if(!modelsForProvider.includes(selectedModel)) selectedModel = modelsForProvider[0] || models.gpt;
+            modelSelect.innerHTML = modelsForProvider.map(m => `<option value="${escapeHtml(m)}" ${m === selectedModel ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('');
             updateAdaptivePanel();
         }
 
