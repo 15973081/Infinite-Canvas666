@@ -1123,7 +1123,8 @@ async def acquire_canvas_lock(canvas_id: str, payload: CanvasLockRequest, reques
             "message": "画布正在被其他人编辑中",
             "holder": result.get("holder"),
         })
-    await manager.broadcast_canvas_locked(canvas_id, result.get("holder"))
+    if not result.get("renewed"):
+        await manager.broadcast_canvas_locked(canvas_id, result.get("holder"))
     return result
 
 

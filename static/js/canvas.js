@@ -1013,7 +1013,18 @@ let imageEditBaseW = 0; // zoom=1 时图片显示宽度
 let imageEditBaseH = 0;
 let textSelectionGuard = null;
 const PROMPT_TEXT_MAX_LENGTH = 20000;
-const CLIENT_ID = 'canvas_' + Math.random().toString(36).slice(2);
+const CLIENT_ID = (() => {
+    const key = 'canvasClientId';
+    try {
+        const existing = sessionStorage.getItem(key);
+        if(existing) return existing;
+        const created = 'canvas_' + Math.random().toString(36).slice(2);
+        sessionStorage.setItem(key, created);
+        return created;
+    } catch(e){
+        return 'canvas_' + Math.random().toString(36).slice(2);
+    }
+})();
 const CANVAS_USER_NAME_KEY = 'canvasUserName';
 const CANVAS_LOCK_POLL_MS = 5000;
 let canvasLockHolder = null; // {client_id, username, ip, acquired_at} | null (null = no lock)
@@ -2940,6 +2951,10 @@ async function checkCanvasLock(){
         canvasLockHolder = data.holder || null;
         canvasLockedByOther = !!(canvasLockHolder && canvasLockHolder.client_id !== CLIENT_ID);
         updateCanvasLockBadge();
+        if(canvasLockHolder?.client_id === CLIENT_ID){
+            await acquireCanvasLock();
+            return;
+        }
         if(canvasLockedByOther){
             const name = canvasLockHolderName(canvasLockHolder);
             showCanvasLockOverlay(`${name} 正在编辑此画布`);
@@ -3043,7 +3058,7 @@ function startCanvasLockPolling(){
     stopCanvasLockPolling();
     if(!canvas) return;
     canvasLockPollTimer = setInterval(async () => {
-        if(!canvas || document.hidden) return;
+        if(!canvas) return;
         await checkCanvasLock();
     }, CANVAS_LOCK_POLL_MS);
 }

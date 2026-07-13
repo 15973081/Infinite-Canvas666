@@ -138,6 +138,9 @@ class ConnectionManager:
 
 # ── Canvas Lock Manager ──
 
+CANVAS_LOCK_TTL_MS = 90_000
+
+
 class CanvasLockManager:
     """Per-canvas editing lock. Only the lock holder can edit; others get read-only view.
     
@@ -148,20 +151,34 @@ class CanvasLockManager:
         self._locks: Dict[str, dict] = {}
         self._lock = Lock()
 
+    @staticmethod
+    def _expired(holder: dict, timestamp: int) -> bool:
+        return timestamp >= int(holder.get("expires_at") or 0)
+
     def acquire(self, canvas_id: str, client_id: str, username: str = "", ip: str = "") -> dict:
         """Try to acquire the lock. Returns {ok: True} or {ok: False, holder: {...}}."""
         with self._lock:
+            timestamp = now_ms()
             existing = self._locks.get(canvas_id)
+            if existing and self._expired(existing, timestamp):
+                existing = None
+                self._locks.pop(canvas_id, None)
             if existing and existing.get("client_id") != client_id:
                 return {"ok": False, "holder": dict(existing)}
-            self._locks[canvas_id] = {
+            renewed = existing is not None
+            holder = existing or {
                 "client_id": client_id,
-                "username": username or "",
-                "ip": ip or "",
-                "acquired_at": now_ms(),
+                "acquired_at": timestamp,
                 "canvas_id": canvas_id,
             }
-            return {"ok": True, "holder": dict(self._locks[canvas_id])}
+            holder.update({
+                "username": username or "",
+                "ip": ip or "",
+                "renewed_at": timestamp,
+                "expires_at": timestamp + CANVAS_LOCK_TTL_MS,
+            })
+            self._locks[canvas_id] = holder
+            return {"ok": True, "holder": dict(holder), "renewed": renewed}
 
     def release(self, canvas_id: str, client_id: str) -> bool:
         """Release the lock if held by this client. Returns True if released."""
@@ -176,6 +193,9 @@ class CanvasLockManager:
         """Get current lock info, or None if not locked."""
         with self._lock:
             existing = self._locks.get(canvas_id)
+            if existing and self._expired(existing, now_ms()):
+                self._locks.pop(canvas_id, None)
+                return None
             return dict(existing) if existing else None
 
     def release_all_for_client(self, client_id: str) -> list:

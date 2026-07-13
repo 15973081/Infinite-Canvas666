@@ -98,7 +98,7 @@
                         <i data-lucide="images" class="w-3.5 h-3.5"></i>
                         <span class="text-[10px] font-black uppercase tracking-widest">参考图片</span>
                     </div>
-                    <div class="grid grid-cols-3 gap-4">
+                    <div class="grid grid-cols-4 gap-4">
                         <div id="drop-zone-1" onclick="document.getElementById('file1').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
                             <input type="file" id="file1" accept="image/*" class="hidden" onchange="handleFile(this.files[0],1)">
                             <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Main</span>
@@ -113,6 +113,11 @@
                             <input type="file" id="file3" accept="image/*" class="hidden" onchange="handleFile(this.files[0],3)">
                             <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Aux B</span>
                             <img id="prev3" class="preview-img hidden"><button id="del3" onclick="clearSlot(3,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
+                        </div>
+                        <div id="drop-zone-4" onclick="document.getElementById('file4').click()" class="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer">
+                            <input type="file" id="file4" accept="image/*" class="hidden" onchange="handleFile(this.files[0],4)">
+                            <i data-lucide="plus" class="w-5 h-5 text-gray-300 group-hover:text-black"></i><span class="text-[9px] mt-2 font-bold text-gray-400 uppercase">Aux C</span>
+                            <img id="prev4" class="preview-img hidden"><button id="del4" onclick="clearSlot(4,event)" class="hidden absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10">×</button>
                         </div>
                     </div>
                 </section>
@@ -259,8 +264,8 @@
             document.title = tr('online.title');
             updateAdaptivePanel();
         });
-        let refs = {1:null,2:null,3:null};
-        let refDims = {1:null,2:null,3:null};
+        let refs = {1:null,2:null,3:null,4:null};
+        let refDims = {1:null,2:null,3:null,4:null};
         let provider = 'comfly';
         let selectedModel = 'gpt-image-2';
         let apiProviders = [];
@@ -449,7 +454,7 @@
             });
         }
         function firstReferenceDimension(){
-            return [1,2,3].map(id => refDims[id]).find(dim => dim?.width && dim?.height) || null;
+            return [1,2,3,4].map(id => refDims[id]).find(dim => dim?.width && dim?.height) || null;
         }
 
         function setRatio(next, preferredSize = ''){
@@ -546,7 +551,7 @@
             return match[0];
         }
 
-        [1,2,3].forEach(id => {
+        [1,2,3,4].forEach(id => {
             const zone = document.getElementById(`drop-zone-${id}`);
             zone.ondragover = e => { e.preventDefault(); zone.classList.add('drag-over'); };
             zone.ondragleave = () => zone.classList.remove('drag-over');
@@ -556,7 +561,7 @@
             const item = [...(e.clipboardData?.items || [])].find(x => x.kind === 'file' && x.type.startsWith('image/'));
             if (item) handleFile(item.getAsFile(), firstEmptySlot());
         });
-        function firstEmptySlot(){ return [1,2,3].find(id => !refs[id]) || 1; }
+        function firstEmptySlot(){ return [1,2,3,4].find(id => !refs[id]) || 1; }
 
         async function handleFile(file, index){
             if(!file) return;
@@ -676,8 +681,8 @@
         function applySameStyle(){
             if(!currentLightboxData) return;
             document.getElementById('promptInput').value = currentLightboxData.prompt || '';
-            [1,2,3].forEach(id => clearSlot(id));
-            (currentLightboxData.params?.reference_images || []).slice(0,3).forEach((ref,i) => {
+            [1,2,3,4].forEach(id => clearSlot(id));
+            (currentLightboxData.params?.reference_images || []).slice(0,4).forEach((ref,i) => {
                 refs[i+1] = ref; const prev = document.getElementById(`prev${i+1}`);
                 prev.src = ref.url; prev.classList.remove('hidden'); document.getElementById(`del${i+1}`).classList.remove('hidden');
                 getImageDimensions(ref.url).then(dim => {
