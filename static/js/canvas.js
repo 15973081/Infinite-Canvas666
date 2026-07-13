@@ -6701,7 +6701,9 @@ function renderNode(node){
     const size = defaultNodeSize(node.type);
     const hasFixedSize = Boolean(node.h || size.h);
     const faceVerified = node.type === 'image' && canvasAssetUrisFaceVerified(node.asset_uris);
-    el.className = `node ${node.type}-node ${node.url ? 'has-image' : ''} ${faceVerified ? 'face-verified' : ''} ${hasFixedSize ? 'sized' : ''} ${selected.has(node.id) ? 'selected' : ''}`;
+    const faceVerifying = node.type === 'image' && !faceVerified && node.face_auth_status === 'Processing';
+    el.className = `node ${node.type}-node ${node.url ? 'has-image' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${hasFixedSize ? 'sized' : ''} ${selected.has(node.id) ? 'selected' : ''}`;
+    if(faceVerifying) el.title = '人脸认证审核中';
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
     el.style.width = `${node.w || size.w}px`;
@@ -7661,6 +7663,7 @@ async function ensureImageNodeAsset(node, target=null){
     node.asset_item_id = data.item?.id || '';
     node.asset_library_id = libraryId;
     node.asset_uris = canvasAssetRegisteredUris(data.item);
+    node.face_auth_status = '';
     renderCanvasAssetLibrary();
     scheduleSave();
     return {item:data.item, libraryId, categoryId};
@@ -7700,12 +7703,16 @@ function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
             canvasAssetLibrary = data.library || canvasAssetLibrary;
             const registration = data.item?.registrations?.[canvasAvatarPlatform(provider)] || {};
             if(registration.status === 'Active') {
+                node.face_auth_status = 'Active';
                 node.asset_uris = canvasAssetRegisteredUris(data.item);
                 render();
                 scheduleSave();
                 if(canvasAssetLibraryOpen) renderCanvasAssetLibrary();
                 setStatus('人脸认证已通过，可直接用于视频生成');
             } else if(registration.status === 'Failed') {
+                node.face_auth_status = 'Failed';
+                render();
+                scheduleSave();
                 setStatus(registration.detail || '人脸认证未通过');
             } else pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt + 1);
         } catch(err) {
@@ -7725,6 +7732,7 @@ async function quickFaceAuthImageNode(nodeId, target=null){
         const platform = canvasAvatarPlatform(provider);
         const registration = item?.registrations?.[platform] || {};
         if(registration.status === 'Active') {
+            node.face_auth_status = 'Active';
             node.asset_uris = canvasAssetRegisteredUris(item);
             render();
             scheduleSave();
@@ -7732,15 +7740,24 @@ async function quickFaceAuthImageNode(nodeId, target=null){
             return;
         }
         if(registration.status === 'Processing') {
+            node.face_auth_status = 'Processing';
+            render();
+            scheduleSave();
             setStatus('该图片正在审核，稍后自动更新');
             pollImageNodeFaceAuth(nodeId, item.id, libraryId, provider);
             return;
         }
+        node.face_auth_status = 'Processing';
+        render();
+        scheduleSave();
         const data = await canvasAvatarRequest(`/api/asset-library/items/${encodeURIComponent(item.id)}/register-avatar`, libraryId, provider.id);
         canvasAssetLibrary = data.library || canvasAssetLibrary;
         setStatus(`已提交 ${provider.name || provider.id} 审核，稍后自动更新`);
         pollImageNodeFaceAuth(nodeId, item.id, libraryId, provider);
     } catch(err) {
+        node.face_auth_status = 'Failed';
+        render();
+        scheduleSave();
         showErrorModal(err.message || '人脸认证提交失败', '快速人脸认证');
     }
 }
