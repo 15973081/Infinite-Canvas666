@@ -4101,7 +4101,7 @@ function renderAssetLibrary(){
     if(assetAddCategoryBtn) assetAddCategoryBtn.disabled = localMode;
     if(assetRenameCategoryBtn) assetRenameCategoryBtn.disabled = !cat || localMode;
     assetGrid.innerHTML = items.length ? items.map(item => `
-        <div class="asset-item ${workflowMode ? 'workflow-asset-item' : ''}" draggable="${workflowMode ? 'false' : 'true'}" data-asset-id="${escapeHtml(item.id)}" data-url="${escapeHtml(item.url)}" data-name="${escapeHtml(item.name || 'asset')}" data-kind="${escapeHtml(assetMediaKind(item))}">
+        <div class="asset-item ${workflowMode ? 'workflow-asset-item' : ''}" draggable="${workflowMode ? 'false' : 'true'}" data-asset-id="${escapeHtml(item.id)}" data-url="${escapeHtml(item.url)}" data-name="${escapeHtml(item.name || 'asset')}" data-kind="${escapeHtml(assetMediaKind(item))}" data-asset-uris="${escapeHtml(JSON.stringify(assetRegisteredUris(item)))}">
             ${assetThumbHtml(item)}
             <div class="asset-meta">
                 <span class="asset-name" title="${escapeHtml(item.name || '')}">${escapeHtml(item.name || 'asset')}</span>
@@ -4270,7 +4270,9 @@ function bindAssetItemEvents(){
         el.addEventListener('dragstart', e => {
             hideAssetHoverPreview();
             e.dataTransfer.effectAllowed = 'copy';
-            e.dataTransfer.setData('application/x-smart-asset', JSON.stringify({url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind}));
+            let assetUris = {};
+            try { assetUris = JSON.parse(el.dataset.assetUris || '{}') || {}; } catch(e) {}
+            e.dataTransfer.setData('application/x-smart-asset', JSON.stringify({url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind, asset_uris:assetUris}));
             e.dataTransfer.setData('text/plain', el.dataset.url || '');
         });
     });
@@ -9348,6 +9350,13 @@ function smartImageNameFromUrl(url){
     }
 }
 function smartImageDropPayload(dataTransfer){
+    const assetRaw = readSmartDropData(dataTransfer, 'application/x-smart-asset');
+    if(assetRaw){
+        try {
+            const asset = JSON.parse(assetRaw);
+            if(asset?.url) return {type:'url', ...asset, asset_uris:asset.asset_uris || {}};
+        } catch(_) {}
+    }
     const files = smartImageFilesFromDataTransfer(dataTransfer);
     if(files.length) return {type:'files', files};
     const localPaths = smartLocalImagePathsFromDataTransfer(dataTransfer);
@@ -9452,7 +9461,7 @@ async function handleSmartImageDropPayload(payload, targetId='', opts={}){
             appendImagesToSmartNode(await importSmartLocalImages(payload.localPaths), targetId, opts);
         } else if(payload.type === 'url') {
             if(!opts.skipUndo) pushUndo();
-            appendImagesToSmartNode([{url:payload.url, name:smartImageNameFromUrl(payload.url), kind:'image'}], targetId, opts);
+            appendImagesToSmartNode([{url:payload.url, name:payload.name || smartImageNameFromUrl(payload.url), kind:payload.kind || 'image', asset_uris:payload.asset_uris || {}}], targetId, opts);
         }
     } catch(e) {
         toast(e.message || tr('smart.toastUploadFail'));
@@ -10004,15 +10013,11 @@ function inputMentionCandidateImages(node){
         alias:img.name || `图片${index + 1}`
     }));
 }
-// 一个素材可注册到多个平台：收集所有「已通过」的 asset:// 地址，按平台映射。
+// SmartCanvas 只消费已通过审核的火山 asset:// 地址。
 function assetRegisteredUris(item){
     const regs = (item && item.registrations && typeof item.registrations === 'object') ? item.registrations : {};
-    const out = {};
-    Object.keys(regs).forEach(platform => {
-        const reg = regs[platform];
-        if(reg && reg.status === 'Active' && reg.asset_uri) out[platform] = reg.asset_uri;
-    });
-    return out;
+    const reg = regs.volcengine;
+    return reg?.status === 'Active' && reg.asset_uri ? {volcengine:reg.asset_uri} : {};
 }
 function assetMentionCandidateImages(categoryId=''){
     const cats = assetCategories('image');
@@ -12858,17 +12863,6 @@ shell.ondrop = async e => {
     e.preventDefault();
     if(e.target.closest('.image-node')) return;
     const p = screenToWorld(e);
-    const assetRaw = e.dataTransfer.getData('application/x-smart-asset');
-    if(assetRaw){
-        try {
-            const asset = JSON.parse(assetRaw);
-            if(asset?.url) {
-                pushUndo();
-                createImageNodeAt(p, [{url:asset.url, name:asset.name || 'asset', kind:asset.kind || assetMediaKind(asset)}], {skipUndo:true});
-            }
-            return;
-        } catch {}
-    }
     const payload = await resolveSmartImageDropPayload(e.dataTransfer);
     if(payload.type === 'none') return;
     await handleSmartImageDropPayload(payload, '', {point:p, forceNew:true});
