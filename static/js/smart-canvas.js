@@ -10520,6 +10520,7 @@ function finalizePendingNode(pendingNode, urls, meta, kind='image'){
     }).filter(img => img.url);
     pendingNode.images = imgs;
     pendingNode.pending = 0;
+    pendingNode.running = false;
     pendingNode.runFinishedAt = nowMs();
     if(!pendingNode.runStartedAt) pendingNode.runStartedAt = meta?.createdAt || pendingNode.runFinishedAt;
     pendingNode.runElapsedMs = Math.max(0, pendingNode.runFinishedAt - Number(pendingNode.runStartedAt || pendingNode.runFinishedAt));
