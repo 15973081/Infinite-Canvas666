@@ -4373,6 +4373,75 @@ async function loadCanvas(){
         startCanvasMetaPoll();
     } catch(e) { toast(tr('smart.toastCanvasFail')); }
 }
+async function createSmartCanvasBackup(){
+    if(!canvasId) return;
+    const button = document.getElementById('smartBackupToggle');
+    if(button) button.disabled = true;
+    try {
+        const data = await window.CanvasApi.createCanvasBackup(canvasId);
+        toast(`备份已保存 (${new Date(data.updated_at).toLocaleTimeString()})`);
+        if(document.getElementById('smartBackupModal')) await showSmartCanvasBackups();
+    } catch(e) {
+        toast(e.message || '备份失败');
+    } finally {
+        if(button) button.disabled = false;
+    }
+}
+async function showSmartCanvasBackups(){
+    if(!canvasId) return;
+    const button = document.getElementById('smartBackupToggle');
+    if(button) button.disabled = true;
+    try {
+        const data = await window.CanvasApi.listCanvasBackups(canvasId, {backups:[]});
+        renderSmartCanvasBackups(data.backups || []);
+    } catch(e) {
+        toast(e.message || '读取备份失败');
+    } finally {
+        if(button) button.disabled = false;
+    }
+}
+function renderSmartCanvasBackups(backups){
+    closeSmartCanvasBackups();
+    const rows = backups.length ? backups.map(backup => `<div class="log-item">
+        <div class="log-main">
+            <div class="log-meta"><span class="log-chip">${escapeHtml(backup.title || '未命名画布')}</span></div>
+            <div class="log-subline"><span>${new Date(backup.timestamp).toLocaleString()}</span><span>${backup.node_count || 0} 个节点</span><span>${backup.size > 1024 ? `${(backup.size / 1024).toFixed(1)} KB` : `${backup.size || 0} B`}</span></div>
+        </div>
+        <div class="backup-row-actions">
+            <button class="preview-icon-btn" type="button" data-backup-restore="${escapeAttr(backup.filename)}" title="恢复"><i data-lucide="rotate-ccw"></i></button>
+            <button class="preview-icon-btn" type="button" data-backup-delete="${escapeAttr(backup.filename)}" title="删除"><i data-lucide="trash-2"></i></button>
+        </div>
+    </div>`).join('') : '<div class="log-empty">暂无备份</div>';
+    shell.insertAdjacentHTML('beforeend', `<div id="smartBackupModal" class="log-modal open" onclick="if(event.target===this) closeSmartCanvasBackups()">
+        <div class="log-panel backup-panel">
+            <div class="log-head"><div class="log-title">画布备份</div><button class="preview-icon-btn" type="button" onclick="closeSmartCanvasBackups()" title="关闭"><i data-lucide="x"></i></button></div>
+            <button class="run-btn backup-create" type="button" onclick="createSmartCanvasBackup()"><i data-lucide="hard-drive"></i><span>立即备份</span></button>
+            <div class="log-list">${rows}</div>
+        </div>
+    </div>`);
+    const modal = document.getElementById('smartBackupModal');
+    modal.querySelectorAll('[data-backup-restore]').forEach(button => button.onclick = async () => {
+        if(!confirm('恢复此备份？当前画布将被覆盖。')) return;
+        try {
+            const response = await window.CanvasApi.restoreCanvasBackup(canvasId, button.dataset.backupRestore);
+            if(!response.ok) return toast('恢复失败');
+            closeSmartCanvasBackups();
+            selectedId = '';
+            selectedIds = [];
+            await loadCanvas();
+            toast('备份已恢复');
+        } catch(e) { toast(e.message || '恢复失败'); }
+    });
+    modal.querySelectorAll('[data-backup-delete]').forEach(button => button.onclick = async () => {
+        try {
+            const response = await window.CanvasApi.deleteCanvasBackup(canvasId, button.dataset.backupDelete);
+            if(!response.ok) return toast('删除失败');
+            await showSmartCanvasBackups();
+        } catch(e) { toast(e.message || '删除失败'); }
+    });
+    refreshIcons();
+}
+function closeSmartCanvasBackups(){ document.getElementById('smartBackupModal')?.remove(); }
 function scheduleSave(){
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveCanvas, 450);
