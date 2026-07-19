@@ -27,6 +27,19 @@ button { border:0; cursor:pointer; }
 .smart-back:hover { transform:translateY(-1px); }
 .smart-back i { width:16px; height:16px; }
 .smart-title { position:absolute; left:22px; top:72px; z-index:10; max-width:min(420px, calc(100vw - 44px)); color:var(--muted); font-size:12px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
+.smart-lock-status { position:absolute; left:22px; top:94px; z-index:56; display:flex; gap:6px; align-items:center; }
+.smart-lock-badge,.smart-identity-btn { min-height:28px; padding:0 10px; border-radius:999px; display:flex; align-items:center; gap:6px; border:1px solid var(--line); background:var(--panel); color:var(--muted); font-size:10.5px; font-weight:800; }
+.smart-lock-badge[hidden] { display:none; }
+.smart-lock-badge.mine { color:#166534; background:#dcfce7; border-color:#86efac; }
+.smart-lock-badge.other { color:#92400e; background:#fef3c7; border-color:#fcd34d; }
+.smart-lock-badge i,.smart-lock-badge svg,.smart-identity-btn i,.smart-identity-btn svg { width:14px; height:14px; }
+.smart-lock-overlay { position:fixed; inset:0; z-index:200; padding-top:86px; display:flex; justify-content:center; align-items:flex-start; pointer-events:none; }
+.smart-lock-overlay[hidden] { display:none; }
+.smart-lock-card { width:min(360px, calc(100vw - 32px)); padding:16px 18px; border-radius:16px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; color:var(--text); background:var(--card); border:1px solid var(--line); box-shadow:0 24px 64px var(--shadow); pointer-events:auto; }
+.smart-lock-card > i,.smart-lock-card > svg { color:#f59e0b; width:24px; height:24px; }
+.smart-lock-card span,.smart-lock-card small { color:var(--muted); line-height:1.5; }
+.smart-lock-card button { height:36px; padding:0 16px; border-radius:999px; display:flex; align-items:center; gap:7px; color:var(--text); background:var(--soft); border:1px solid var(--line); font-size:12px; font-weight:800; }
+body.smart-canvas-readonly .image-node,body.smart-canvas-readonly .composer,body.smart-canvas-readonly .create-menu { pointer-events:none; }
 .smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle { position:absolute; top:22px; z-index:56; width:96px; height:40px; padding:0 15px; border-radius:999px; background:var(--panel); color:var(--text); border:1px solid var(--line); box-shadow:0 14px 34px var(--shadow); backdrop-filter:blur(16px); display:flex; align-items:center; justify-content:center; gap:8px; font-size:12px; font-weight:750; white-space:nowrap; transition:transform .14s ease, border-color .14s ease; }
 .smart-backup-toggle { right:130px; }
 .smart-log-toggle { right:238px; }

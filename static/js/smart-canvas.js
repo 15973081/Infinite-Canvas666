@@ -1493,7 +1493,7 @@ function persistActiveSmartSettings(){
     subject.runSettings = settingsForStorage(settings);
     rememberRecentSmartSettings(settings, subject);
 }
-function backToCanvasList(){ savePromptDraftForCurrent(); window.location.href = '/static/canvas.html?v=2026.05.22.1'; }
+function backToCanvasList(){ savePromptDraftForCurrent(); releaseSmartCanvasLockOnExit(); window.location.href = '/static/canvas.html?v=2026.05.22.1'; }
 function promptPlainText(){
     return promptInput.innerText.replace(/\u00a0/g, ' ').trim();
 }
@@ -3867,6 +3867,97 @@ const smartClientId = `canvas_smart_${Math.random().toString(36).slice(2, 10)}${
 let canvasSyncInFlight = false;
 let canvasSyncTimer = null;
 let canvasMetaPollTimer = null;
+let smartCanvasLockHolder = null;
+let smartCanvasLockPollTimer = null;
+function isSmartCanvasLocked(){ return Boolean(smartCanvasLockHolder && smartCanvasLockHolder.client_id !== smartClientId); }
+function smartCanvasUserName(){
+    try { return (localStorage.getItem('canvasUserName') || '').trim(); } catch(e) { return ''; }
+}
+function smartCanvasLockDisplay(holder=smartCanvasLockHolder){
+    const name = String(holder?.username || '').trim() || '未命名用户';
+    return holder?.ip ? `${name} · ${holder.ip}` : name;
+}
+function smartCanvasLockTitle(holder=smartCanvasLockHolder){
+    if(!holder) return '';
+    const lockedAt = Number(holder.acquired_at || 0);
+    return [`用户：${String(holder.username || '').trim() || '未命名用户'}`, `IP：${holder.ip || '未知'}`, `客户端：${holder.client_id || '未知'}`, lockedAt ? `锁定时间：${new Date(lockedAt).toLocaleString()}` : ''].filter(Boolean).join('\n');
+}
+function updateSmartCanvasLockUi(){
+    const locked = isSmartCanvasLocked();
+    const badge = document.getElementById('smartLockBadge');
+    const label = document.getElementById('smartLockLabel');
+    const overlay = document.getElementById('smartLockOverlay');
+    const message = document.getElementById('smartLockMessage');
+    document.body.classList.toggle('smart-canvas-readonly', locked);
+    if(locked) clearTimeout(saveTimer);
+    if(badge && label){
+        badge.hidden = !smartCanvasLockHolder;
+        badge.className = `smart-lock-badge ${locked ? 'other' : 'mine'}`;
+        label.textContent = locked ? `${smartCanvasLockDisplay()} 编辑中` : `你正在编辑${smartCanvasLockHolder?.ip ? ` · ${smartCanvasLockHolder.ip}` : ''}`;
+        badge.title = smartCanvasLockTitle();
+    }
+    if(overlay) overlay.hidden = !locked;
+    if(message && locked) message.textContent = `${smartCanvasLockDisplay()} 正在编辑此画布`;
+    if(runBtn) runBtn.disabled = locked || smartCascadeAnyRunning();
+    if(cascadeRunBtn) cascadeRunBtn.disabled = locked;
+    refreshIcons();
+}
+function editSmartCanvasUserName(){
+    const next = prompt('设置我的名称，用于别人看到画布锁是谁占用', smartCanvasUserName());
+    if(next === null) return;
+    const name = String(next || '').trim().replace(/\s+/g, ' ').slice(0, 32);
+    try { if(name) localStorage.setItem('canvasUserName', name); else localStorage.removeItem('canvasUserName'); } catch(e) {}
+    document.getElementById('smartIdentityLabel').textContent = name || '未命名用户';
+    if(smartCanvasLockHolder?.client_id === smartClientId) acquireSmartCanvasLock();
+}
+async function acquireSmartCanvasLock(){
+    if(!canvasId) return false;
+    try {
+        const response = await window.CanvasApi.acquireCanvasLock(canvasId, {client_id:smartClientId, username:smartCanvasUserName()});
+        const data = await response.json().catch(() => ({}));
+        smartCanvasLockHolder = response.ok ? data.holder || null : data.detail?.holder || null;
+        updateSmartCanvasLockUi();
+        return response.ok;
+    } catch(e) { return false; }
+}
+async function checkSmartCanvasLock(){
+    if(!canvasId) return;
+    const data = await window.CanvasApi.checkCanvasLock(canvasId);
+    if(!data) return;
+    smartCanvasLockHolder = data.holder || null;
+    if(!smartCanvasLockHolder || smartCanvasLockHolder.client_id === smartClientId) await acquireSmartCanvasLock();
+    else updateSmartCanvasLockUi();
+}
+async function tryAcquireSmartCanvasLock(){
+    const button = document.getElementById('smartLockRetryBtn');
+    if(button) button.disabled = true;
+    await checkSmartCanvasLock();
+    if(button) button.disabled = false;
+    toast(isSmartCanvasLocked() ? '画布仍在被其他人编辑中' : '已获得编辑权限');
+}
+function startSmartCanvasLockPolling(){
+    clearInterval(smartCanvasLockPollTimer);
+    smartCanvasLockPollTimer = setInterval(checkSmartCanvasLock, 5000);
+}
+function releaseSmartCanvasLockOnExit(){
+    if(!canvasId || smartCanvasLockHolder?.client_id !== smartClientId) return;
+    const payload = {client_id:smartClientId, username:smartCanvasUserName()};
+    try {
+        if(navigator.sendBeacon?.(`/api/canvases/${encodeURIComponent(canvasId)}/lock/release`, new Blob([JSON.stringify(payload)], {type:'application/json'}))) return;
+    } catch(e) {}
+    window.CanvasApi.releaseCanvasLockKeepalive(canvasId, payload);
+}
+function handleSmartCanvasLocked(data){
+    if(data?.canvas_id !== canvasId || data.holder?.client_id === smartClientId) return;
+    smartCanvasLockHolder = data.holder || null;
+    updateSmartCanvasLockUi();
+}
+function handleSmartCanvasUnlocked(data){
+    if(data?.canvas_id !== canvasId || data.released_by === smartClientId) return;
+    smartCanvasLockHolder = null;
+    updateSmartCanvasLockUi();
+    setTimeout(acquireSmartCanvasLock, 120);
+}
 function mergeSmartImageLists(localImgs, remoteImgs){
     const out = [];
     const seen = new Set();
@@ -3999,6 +4090,8 @@ function connectAssetLibrarySyncSocket(){
                 const data = JSON.parse(event.data);
                 if(data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(data);
                 if(data?.type === 'canvas_updated') handleCanvasUpdatedMessage(data);
+                if(data?.type === 'canvas_locked') handleSmartCanvasLocked(data);
+                if(data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(data);
             } catch(e) {}
         };
         socket.onclose = () => {
@@ -4371,6 +4464,9 @@ async function loadCanvas(){
         if(cleanedDetachedInputs) scheduleSave();
         resumeSmartPendingTasks();
         startCanvasMetaPoll();
+        document.getElementById('smartIdentityLabel').textContent = smartCanvasUserName() || '未命名用户';
+        await checkSmartCanvasLock();
+        startSmartCanvasLockPolling();
     } catch(e) { toast(tr('smart.toastCanvasFail')); }
 }
 async function createSmartCanvasBackup(){
@@ -4421,6 +4517,7 @@ function renderSmartCanvasBackups(backups){
     </div>`);
     const modal = document.getElementById('smartBackupModal');
     modal.querySelectorAll('[data-backup-restore]').forEach(button => button.onclick = async () => {
+        if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法恢复备份');
         if(!confirm('恢复此备份？当前画布将被覆盖。')) return;
         try {
             const response = await window.CanvasApi.restoreCanvasBackup(canvasId, button.dataset.backupRestore);
@@ -4443,11 +4540,12 @@ function renderSmartCanvasBackups(backups){
 }
 function closeSmartCanvasBackups(){ document.getElementById('smartBackupModal')?.remove(); }
 function scheduleSave(){
+    if(isSmartCanvasLocked()) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveCanvas, 450);
 }
 async function saveCanvas(){
-    if(!canvasId || !canvas) return;
+    if(!canvasId || !canvas || isSmartCanvasLocked()) return;
     savePromptDraftForCurrent();
     nodes.forEach(node => {
         node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
@@ -6215,7 +6313,7 @@ function handlePortDrop(drag, e){
         return;
     }
     if(!drag.moved){ discardPendingUndo(); render(); return; }
-    if(hit?.closest?.('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-minimap')){
+    if(hit?.closest?.('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-minimap')){
         discardPendingUndo(); render(); return;
     }
     const p = screenToWorld(e);
@@ -11571,6 +11669,7 @@ async function runSmartCascadeRoundsWithLimit(roundIndexes, limit, runner, runSt
     await Promise.all(workers);
 }
 async function runSmartCascade(targetNode=null){
+    if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const tail = targetNode || selectedNode();
     if(!canRunSmartCascade(tail)){ toast('请选择链路结尾图片节点'); return; }
     savePromptDraftForCurrent();
@@ -11788,6 +11887,7 @@ function runSmartCascadeFromLoop(loopId){
     runSmartCascade(tail);
 }
 async function runGeneration(){
+    if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();
     const request = buildPromptRequest(node, null, true, smartLoopContext);
     const prompt = request.prompt.trim();
@@ -12488,7 +12588,7 @@ function closeCreateMenu(){
     createMenu?.classList.remove('open');
 }
 function openCreateMenu(event){
-    if(!createMenu) return;
+    if(!createMenu || isSmartCanvasLocked()) return;
     createMenuPoint = screenToWorld(event);
     const w = 420;
     const h = 286;
@@ -12509,14 +12609,14 @@ function createNodeFromMenu(type){
 shell.addEventListener('mousedown', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
 }, true);
 shell.addEventListener('click', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
     const nodeEl = e.target.closest('.image-node');
@@ -12524,8 +12624,8 @@ shell.addEventListener('click', e => {
     else exitZoomPreview(screenToWorld(e));
 }, true);
 shell.onmousedown = e => {
-    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
-    if(e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.create-menu,.smart-minimap')) return;
+    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.create-menu,.smart-minimap')) return;
     closeCreateMenu();
     if(e.button === 0 && isRKeyDown){
         e.preventDefault();
@@ -12555,14 +12655,14 @@ shell.oncontextmenu = e => {
     }
 };
 shell.ondblclick = e => {
-    if(didPan || e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     e.preventDefault();
     openCreateMenu(e);
 };
 shell.onclick = e => {
     if(selectionJustFinished) return;
-    if(didPan || e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     closeCreateMenu();
     clearSelection();
@@ -12922,7 +13022,7 @@ window.onmouseup = e => {
     }
 };
 shell.addEventListener('wheel', e => {
-    if(e.target.closest('.composer,.smart-back,.image-edit-modal,.asset-panel,.asset-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
+    if(e.target.closest('.composer,.smart-back,.image-edit-modal,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
     e.preventDefault();
     const rect = shell.getBoundingClientRect();
     const sx = e.clientX - rect.left;
@@ -12938,6 +13038,7 @@ shell.addEventListener('wheel', e => {
 shell.ondragover = e => setSmartDropCopyEffect(e, true);
 shell.ondrop = async e => {
     e.preventDefault();
+    if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法操作');
     if(e.target.closest('.image-node')) return;
     const p = screenToWorld(e);
     const payload = await resolveSmartImageDropPayload(e.dataTransfer);
@@ -12945,6 +13046,7 @@ shell.ondrop = async e => {
     await handleSmartImageDropPayload(payload, '', {point:p, forceNew:true});
 };
 window.addEventListener('paste', e => {
+    if(isSmartCanvasLocked()) return;
     const files = [...(e.clipboardData?.files || [])].filter(isSupportedUploadFile);
     if(files.length){
         lastImagePasteAt = Date.now();
@@ -12963,6 +13065,7 @@ window.addEventListener('paste', e => {
 });
 window.addEventListener('keydown', e => {
     const key = String(e.key || '').toLowerCase();
+    if(isSmartCanvasLocked() && (((e.ctrlKey || e.metaKey) && ['v','z','g'].includes(key)) || ['delete','backspace'].includes(key))) return;
     if(key === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
     if(imageEditModal.classList.contains('open') && imageEditMode === 'preview' && !isEditableTarget(e.target)){
         if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){
@@ -13720,6 +13823,8 @@ try {
         }
         if(event.data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(event.data);
         if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
+        if(event.data?.type === 'canvas_locked') handleSmartCanvasLocked(event.data);
+        if(event.data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(event.data);
     };
 } catch(e) {}
 window.addEventListener('focus', () => {
@@ -13731,6 +13836,8 @@ window.addEventListener('message', event => {
     if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed') refreshSmartConfigFromSettings();
     if(event.data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(event.data);
     if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
+    if(event.data?.type === 'canvas_locked') handleSmartCanvasLocked(event.data);
+    if(event.data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(event.data);
     if(event.data?.type === 'studio-lang') {
         renderDynamicParams();
         renderInputThumbsRow(selectedNode());
@@ -13756,6 +13863,8 @@ window.onload = async () => {
     syncApiKindToggleVisibility();
     render();
 };
+window.addEventListener('beforeunload', releaseSmartCanvasLockOnExit);
+document.addEventListener('visibilitychange', () => { if(!document.hidden && canvasId) checkSmartCanvasLock(); });
 
 function renderSmartNodePlaceholderHtml(node){
     const layout = imageLayout(node.images || [], nodeScale(node), node);
