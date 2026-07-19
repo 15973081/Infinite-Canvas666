@@ -18,7 +18,7 @@
     </script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
-    <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.07.20.2">
+    <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.07.20.3">
 </head>
 <body>
     <div id="shell" class="shell">
@@ -59,9 +59,12 @@
                 </div>
             </div>
         </div>
-        <button class="smart-back" type="button" onclick="backToCanvasList()"><i data-lucide="arrow-left"></i><span>返回画布列表</span></button>
-        <div id="smartTitle" class="smart-title">智能画布</div>
-        <div class="smart-lock-status">
+        <div class="smart-nav">
+            <button class="smart-nav-back" type="button" onclick="backToCanvasList()" title="返回画布管理" aria-label="返回画布管理"><i data-lucide="arrow-left"></i></button>
+            <div class="smart-nav-meta">
+                <div id="smartTitle" class="smart-title">智能画布</div>
+                <div id="smartCanvasTime" class="smart-canvas-time">--</div>
+            </div>
             <div id="smartLockBadge" class="smart-lock-badge" hidden><i data-lucide="lock"></i><span id="smartLockLabel"></span></div>
             <button id="smartIdentityBtn" class="smart-identity-btn" type="button" onclick="editSmartCanvasUserName()" title="设置我的名称"><i data-lucide="user-pen"></i><span id="smartIdentityLabel">我的名称</span></button>
         </div>
@@ -413,6 +416,6 @@
     </div>
     <script src="/static/js/canvas-core.js?v=2026.07.06.1"></script>
     <script src="/static/js/canvas-api.js?v=2026.07.06.1"></script>
-    <script src="/static/js/smart-canvas.js?v=2026.07.20.2"></script>
+    <script src="/static/js/smart-canvas.js?v=2026.07.20.3"></script>
 </body>
 </html>

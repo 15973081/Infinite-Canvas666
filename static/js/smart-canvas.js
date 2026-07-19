@@ -3882,6 +3882,13 @@ function smartCanvasLockTitle(holder=smartCanvasLockHolder){
     const lockedAt = Number(holder.acquired_at || 0);
     return [`用户：${String(holder.username || '').trim() || '未命名用户'}`, `IP：${holder.ip || '未知'}`, `客户端：${holder.client_id || '未知'}`, lockedAt ? `锁定时间：${new Date(lockedAt).toLocaleString()}` : ''].filter(Boolean).join('\n');
 }
+function updateSmartCanvasNav(){
+    const title = canvas?.title || tr('canvas.smartCanvas');
+    const value = Number(canvas?.updated_at || canvas?.created_at || 0);
+    const date = new Date(value && value < 10000000000 ? value * 1000 : value);
+    document.getElementById('smartTitle').textContent = title;
+    document.getElementById('smartCanvasTime').textContent = value && !Number.isNaN(date.getTime()) ? date.toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '--';
+}
 function updateSmartCanvasLockUi(){
     const locked = isSmartCanvasLocked();
     const badge = document.getElementById('smartLockBadge');
@@ -4023,9 +4030,8 @@ function applyMergedServerCanvas(serverCanvas){
     canvas.updated_at = Number(serverCanvas.updated_at || canvas.updated_at || 0);
     if(canvas.title !== serverCanvas.title && serverCanvas.title){
         canvas.title = serverCanvas.title;
-        const titleEl = document.getElementById('smartTitle');
-        if(titleEl) titleEl.textContent = canvas.title;
     }
+    updateSmartCanvasNav();
     render();
     if(typeof refreshConnectionLayer === 'function') refreshConnectionLayer();
     resumeSmartPendingTasks();
@@ -4437,7 +4443,7 @@ async function loadCanvas(){
         canvas = data.canvas;
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
-        document.getElementById('smartTitle').textContent = canvas.title || tr('canvas.smartCanvas');
+        updateSmartCanvasNav();
         nodes = (Array.isArray(canvas.nodes) ? canvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
         nodes.forEach(n => {
             const pendingTasks = smartPendingTasks(n);
@@ -4570,7 +4576,10 @@ async function saveCanvas(){
         });
         if(res.ok){
             const data = await res.json();
-            if(data.canvas && data.canvas.updated_at) canvas.updated_at = data.canvas.updated_at;
+            if(data.canvas && data.canvas.updated_at){
+                canvas.updated_at = data.canvas.updated_at;
+                updateSmartCanvasNav();
+            }
         } else if(res.status === 409) {
             // 冲突：别人先保存了。合并对方的状态（节点 id 合并、图片取并集，谁都不丢），
             // 然后用对方最新的 updated_at 作为基底重存，把合并结果落盘——而不是直接覆盖对方。
@@ -6313,7 +6322,7 @@ function handlePortDrop(drag, e){
         return;
     }
     if(!drag.moved){ discardPendingUndo(); render(); return; }
-    if(hit?.closest?.('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-minimap')){
+    if(hit?.closest?.('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-minimap')){
         discardPendingUndo(); render(); return;
     }
     const p = screenToWorld(e);
@@ -12609,14 +12618,14 @@ function createNodeFromMenu(type){
 shell.addEventListener('mousedown', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
 }, true);
 shell.addEventListener('click', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
     const nodeEl = e.target.closest('.image-node');
@@ -12624,8 +12633,8 @@ shell.addEventListener('click', e => {
     else exitZoomPreview(screenToWorld(e));
 }, true);
 shell.onmousedown = e => {
-    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
-    if(e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.create-menu,.smart-minimap')) return;
+    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.create-menu,.smart-minimap')) return;
     closeCreateMenu();
     if(e.button === 0 && isRKeyDown){
         e.preventDefault();
@@ -12655,14 +12664,14 @@ shell.oncontextmenu = e => {
     }
 };
 shell.ondblclick = e => {
-    if(didPan || e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     e.preventDefault();
     openCreateMenu(e);
 };
 shell.onclick = e => {
     if(selectionJustFinished) return;
-    if(didPan || e.target.closest('.image-node,.composer,.smart-back,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     closeCreateMenu();
     clearSelection();
@@ -13022,7 +13031,7 @@ window.onmouseup = e => {
     }
 };
 shell.addEventListener('wheel', e => {
-    if(e.target.closest('.composer,.smart-back,.image-edit-modal,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-status,.smart-lock-overlay,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
+    if(e.target.closest('.composer,.smart-nav,.image-edit-modal,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
     e.preventDefault();
     const rect = shell.getBoundingClientRect();
     const sx = e.clientX - rect.left;
