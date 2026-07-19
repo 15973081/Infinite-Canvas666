@@ -42,6 +42,7 @@ const assetRenameCategoryBtn = document.getElementById('assetRenameCategoryBtn')
 const assetDialogBackdrop = document.getElementById('assetDialogBackdrop');
 const assetDialogTitle = document.getElementById('assetDialogTitle');
 const assetDialogInput = document.getElementById('assetDialogInput');
+const assetDialogTarget = document.getElementById('assetDialogTarget');
 const assetDialogCancel = document.getElementById('assetDialogCancel');
 const assetDialogOk = document.getElementById('assetDialogOk');
 const assetHoverPreview = document.getElementById('assetHoverPreview');
@@ -1872,11 +1873,12 @@ function renderSmartNodeHtml(node){
     const isHistory = isHistoryGroupNode(node);
     const isGroup = isImageNode && imgs.length > 1;
     const faceVerified = isImageNode && imgs.some(img => smartVolcengineFaceVerified(img?.asset_uris));
+    const faceVerifying = isImageNode && !faceVerified && imgs.some(img => img?.face_auth_status === 'Processing');
     const isPending = ((node.pending || isQueued) && imgs.length === 0);
     const body = nodeBodyHtml(node, layout);
     const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
     const hint = isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')));
-    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
         ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
         ${smartNodeToolbarHtml(node)}
@@ -4222,6 +4224,8 @@ function renderAssetLibrary(){
 function openAssetNameDialog({title='', value='', placeholder='', cancelValue='', multiline=false }={}){
     if(!assetDialogBackdrop || !assetDialogInput || !assetDialogOk || !assetDialogCancel) return Promise.resolve(cancelValue);
     return new Promise(resolve => {
+        if(assetDialogTarget) assetDialogTarget.hidden = true;
+        assetDialogInput.hidden = false;
         assetDialogTitle.textContent = title || tr('smart.assetRename');
         assetDialogInput.value = value || '';
         assetDialogInput.placeholder = placeholder || '';
@@ -4429,6 +4433,128 @@ async function addUrlToAssetLibrary(url, name=''){
     const data = await window.CanvasApi.createAssetItem({library_id:activeAssetLibraryId, category_id:cat.id, url, name}, {errorFallback:tr('smart.assetAddFail')});
     setAssetLibraryFromResponse(data);
     toast(tr('smart.assetSaved'));
+}
+async function chooseSmartAssetTarget(){
+    await loadAssetLibrary();
+    const targets = assetLibraries().flatMap(library => library.readonly ? [] : (library.categories || [])
+        .filter(category => ['image','media'].includes(String(category.type || 'image').toLowerCase()) && !category.readonly)
+        .map(category => ({libraryId:library.id, categoryId:category.id, label:`${library.name || '素材库'} / ${category.name || '分组'}`})));
+    if(!targets.length){ toast('请先创建可编辑的素材库和图片分组'); return null; }
+    return new Promise(resolve => {
+        assetDialogTitle.textContent = '选择素材库 / 分组';
+        assetDialogInput.hidden = true;
+        assetDialogTarget.hidden = false;
+        assetDialogTarget.innerHTML = targets.map((target, index) => `<option value="${index}" ${target.libraryId === activeAssetLibraryId && target.categoryId === activeAssetCategoryId ? 'selected' : ''}>${escapeHtml(target.label)}</option>`).join('');
+        assetDialogBackdrop.hidden = false;
+        assetDialogBackdrop.classList.add('open');
+        assetDialogTarget.focus();
+        const cleanup = result => {
+            assetDialogBackdrop.classList.remove('open');
+            assetDialogBackdrop.hidden = true;
+            assetDialogTarget.hidden = true;
+            assetDialogInput.hidden = false;
+            assetDialogOk.onclick = assetDialogCancel.onclick = assetDialogBackdrop.onmousedown = null;
+            resolve(result);
+        };
+        assetDialogOk.onclick = () => cleanup(targets[Number(assetDialogTarget.value || 0)] || targets[0]);
+        assetDialogCancel.onclick = () => cleanup(null);
+        assetDialogBackdrop.onmousedown = event => { if(event.target === assetDialogBackdrop) cleanup(null); };
+    });
+}
+function smartAssetItemLocation(itemId){
+    for(const library of assetLibraries()) for(const category of library.categories || []) {
+        const item = (category.items || []).find(entry => entry.id === itemId);
+        if(item) return {item, libraryId:library.id, categoryId:category.id};
+    }
+    return null;
+}
+function smartAuthenticatedUris(item){
+    return Object.fromEntries(Object.entries(item?.registrations || {}).flatMap(([platform, registration]) => registration?.status === 'Active' && registration.asset_uri ? [[platform, registration.asset_uri]] : []));
+}
+async function ensureSmartImageAsset(node, index, target){
+    const image = node?.images?.[index];
+    const linked = image?.asset_item_id && smartAssetItemLocation(image.asset_item_id);
+    if(linked && linked.libraryId === target.libraryId && linked.categoryId === target.categoryId) return linked;
+    const data = await window.CanvasApi.createAssetItem({library_id:target.libraryId, category_id:target.categoryId, url:image.url, name:image.name || smartImageNameFromUrl(image.url)}, {errorFallback:'上传素材库失败'});
+    setAssetLibraryFromResponse(data);
+    image.asset_item_id = data.item?.id || '';
+    image.asset_library_id = target.libraryId;
+    image.asset_uris = smartAuthenticatedUris(data.item);
+    image.face_auth_status = '';
+    scheduleSave();
+    return {item:data.item, libraryId:target.libraryId, categoryId:target.categoryId};
+}
+async function saveSmartImageToAssetLibrary(nodeId, index){
+    const node = nodes.find(entry => entry.id === nodeId);
+    const image = node?.images?.[index];
+    if(!image?.url) return;
+    const target = await chooseSmartAssetTarget();
+    if(!target) return;
+    try {
+        const linked = image.asset_item_id && smartAssetItemLocation(image.asset_item_id);
+        await ensureSmartImageAsset(node, index, target);
+        toast(linked?.libraryId === target.libraryId && linked?.categoryId === target.categoryId ? '该素材已在素材库中' : '已上传到素材库');
+    } catch(e) { toast(e.message || '上传素材库失败'); }
+}
+function smartAvatarPlatform(provider){
+    const protocol = String(provider?.protocol || '').toLowerCase();
+    if(protocol === 'apimart' || String(provider?.base_url || '').toLowerCase().includes('apimart.ai')) return 'apimart';
+    return protocol === 'volcengine' || provider?.id === 'volcengine' ? 'volcengine' : '';
+}
+function quickSmartAvatarProvider(){
+    return apiProviders.find(provider => provider?.id === 'volcengine' && provider.enabled !== false && provider.has_key !== false)
+        || apiProviders.find(provider => provider?.enabled !== false && provider?.has_key !== false && smartAvatarPlatform(provider));
+}
+async function smartAvatarRequest(path, libraryId, providerId){
+    const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
+    if(!response.ok) throw new Error(await responseErrorMessage(response, '人脸认证失败'));
+    return response.json();
+}
+function pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt=0){
+    if(attempt >= 100) return;
+    setTimeout(async () => {
+        const image = nodes.find(node => node.id === nodeId)?.images?.[index];
+        if(!image) return;
+        try {
+            const data = await smartAvatarRequest(`/api/asset-library/items/${encodeURIComponent(itemId)}/avatar-status`, libraryId, provider.id);
+            setAssetLibraryFromResponse(data);
+            const registration = data.item?.registrations?.[smartAvatarPlatform(provider)] || {};
+            if(registration.status === 'Active'){
+                image.face_auth_status = 'Active';
+                image.asset_uris = smartAuthenticatedUris(data.item);
+                render(); scheduleSave(); toast('人脸认证已通过');
+            } else if(registration.status === 'Failed'){
+                image.face_auth_status = 'Failed';
+                render(); scheduleSave(); toast(registration.detail || '人脸认证未通过');
+            } else pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt + 1);
+        } catch(e) {
+            if(attempt < 2) pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt + 1);
+            else toast(e.message || '认证状态查询失败');
+        }
+    }, 6000);
+}
+async function quickFaceAuthSmartImage(nodeId, index){
+    const node = nodes.find(entry => entry.id === nodeId);
+    const image = node?.images?.[index];
+    if(!image?.url) return;
+    const provider = quickSmartAvatarProvider();
+    if(!provider) return toast('请先在 API 平台管理中配置 APIMart 或火山引擎');
+    const target = await chooseSmartAssetTarget();
+    if(!target) return;
+    try {
+        toast('正在上传素材并提交人脸认证…');
+        const {item, libraryId} = await ensureSmartImageAsset(node, index, target);
+        const registration = item?.registrations?.[smartAvatarPlatform(provider)] || {};
+        if(registration.status === 'Active'){
+            image.face_auth_status = 'Active'; image.asset_uris = smartAuthenticatedUris(item); render(); scheduleSave(); return toast('该素材已通过人脸认证');
+        }
+        image.face_auth_status = 'Processing'; render(); scheduleSave();
+        if(registration.status !== 'Processing') await smartAvatarRequest(`/api/asset-library/items/${encodeURIComponent(item.id)}/register-avatar`, libraryId, provider.id);
+        toast('已提交审核，稍后自动更新');
+        pollSmartImageFaceAuth(nodeId, index, item.id, libraryId, provider);
+    } catch(e) {
+        image.face_auth_status = 'Failed'; render(); scheduleSave(); toast(e.message || '人脸认证提交失败');
+    }
 }
 function canvasImageDragPayload(node, index=0){
     const img = node?.images?.[index];
@@ -5645,9 +5771,9 @@ function nodeBodyHtml(node, layout){
     if(imgs.length > 1){
         const visibleRows = Math.max(1, Math.min(MEDIA_GROUP_MAX_VISIBLE_ROWS, Number(layout.visibleRows || layout.rows || 1)));
         const maxHeight = visibleRows * Number(layout.thumb || 96) + Math.max(0, visibleRows - 1) * 8;
-        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris) ? 'face-verified' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
+        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
     }
-    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris) ? 'face-verified' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true)}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`;
+    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true)}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`;
     return `<div class="node-drop" data-upload-action="files">
         <span class="upload-node-main"><i data-lucide="upload-cloud"></i></span>
         <span class="upload-node-title">${escapeHtml(tr('smart.createImportNode'))}</span>
@@ -5746,6 +5872,14 @@ function runSmartNodeToolbarAction(nodeId, action){
     }
     if(action === 'canvas'){
         duplicateSmartNodeMediaToCanvas(node, index);
+        return;
+    }
+    if(action === 'asset'){
+        saveSmartImageToAssetLibrary(nodeId, index);
+        return;
+    }
+    if(action === 'auth'){
+        quickFaceAuthSmartImage(nodeId, index);
         return;
     }
     if(kind !== 'image' && action !== 'preview'){
@@ -10198,10 +10332,10 @@ function assetRegisteredUris(item){
     return reg?.status === 'Active' && reg.asset_uri ? {volcengine:reg.asset_uri} : {};
 }
 function smartVolcengineFaceVerified(assetUris){
-    return String(assetUris?.volcengine || '').startsWith('asset://');
+    return Object.values(assetUris || {}).some(uri => String(uri || '').startsWith('asset://'));
 }
 function smartFaceVerifiedBadgeHtml(assetUris, onNode=false){
-    return smartVolcengineFaceVerified(assetUris) ? `<span class="smart-face-verified-badge ${onNode ? 'node-face-badge' : ''}" title="已通过火山人脸认证" aria-label="已通过火山人脸认证"><i data-lucide="shield-check"></i></span>` : '';
+    return smartVolcengineFaceVerified(assetUris) ? `<span class="smart-face-verified-badge ${onNode ? 'node-face-badge' : ''}" title="已通过人脸认证" aria-label="已通过人脸认证"><i data-lucide="shield-check"></i></span>` : '';
 }
 function assetMentionCandidateImages(categoryId=''){
     const cats = assetCategories('image');
@@ -13902,6 +14036,8 @@ function smartNodeToolbarHtml(node){
         {key:'mask', icon:'brush', label:'遮罩', enabled:canEditImage},
         {key:'brush', icon:'paintbrush', label:'画笔', enabled:canEditImage},
         {key:'grid', icon:'grid-3x3', label:gridLabel, enabled:canEditImage},
+        {key:'asset', icon:'library-big', label:'素材库', enabled:kind === 'image' || kind === 'video'},
+        {key:'auth', icon:'shield-check', label:'认证', enabled:kind === 'image' || kind === 'video'},
         {key:'download', icon:'download', label:'下载', enabled:true}
     ];
     return `<div class="smart-node-floating-menu" data-smart-node-menu="1">${actions.map(action => `
