@@ -726,7 +726,13 @@ function normalizeCanvasAssetState(){
     if(!selectedCanvasAssetId && items.length) selectedCanvasAssetId = items[0].id;
     selectedCanvasAssetIds = new Set([...selectedCanvasAssetIds].filter(id => findCanvasAssetItem(id)));
 }
-async function loadAll(){
+async function loadAll({reset=false}={}){
+    const scrollState = reset ? null : Object.fromEntries(
+        ['.nav-scroll', '.content-scroll', '.detail-scroll'].map(selector => {
+            const el = root.querySelector(selector);
+            return [selector, {top:el?.scrollTop || 0, left:el?.scrollLeft || 0}];
+        })
+    );
     setStatus('加载中...');
     const [assetData, promptData, providerData, canvasAssetData] = await Promise.all([
         apiJson('/api/asset-library'),
@@ -744,19 +750,24 @@ async function loadAll(){
         canvases:Array.isArray(canvasAssetData.canvases) ? canvasAssetData.canvases : [],
         items:Array.isArray(canvasAssetData.items) ? canvasAssetData.items : []
     };
-    // 刷新时默认回到「默认资产库」
-    const libs = assetLibraries();
-    activeAssetLibraryId = (libs.find(lib => lib.id === 'default') || libs[0])?.id || '';
-    activeWorkflowLibraryId = (libs.find(lib => lib.id === 'default') || libs[0])?.id || '';
-    activeAssetCategoryId = '';
-    activeWorkflowCategoryId = '';
-    selectedAssetId = '';
-    selectedWorkflowId = '';
-    selectedAssetIds.clear();
-    selectedWorkflowIds.clear();
-    selectedPromptIds.clear();
-    selectedCanvasAssetIds.clear();
+    if(reset){
+        const libs = assetLibraries();
+        activeAssetLibraryId = (libs.find(lib => lib.id === 'default') || libs[0])?.id || '';
+        activeWorkflowLibraryId = (libs.find(lib => lib.id === 'default') || libs[0])?.id || '';
+        activeAssetCategoryId = '';
+        activeWorkflowCategoryId = '';
+        selectedAssetId = '';
+        selectedWorkflowId = '';
+        selectedAssetIds.clear();
+        selectedWorkflowIds.clear();
+        selectedPromptIds.clear();
+        selectedCanvasAssetIds.clear();
+    }
     render();
+    if(scrollState) Object.entries(scrollState).forEach(([selector, position]) => {
+        const el = root.querySelector(selector);
+        if(el){ el.scrollTop = position.top; el.scrollLeft = position.left; }
+    });
     setStatus('准备就绪');
 }
 function render(){
@@ -3571,4 +3582,4 @@ refreshBtn?.addEventListener('click', () => loadAll().catch(err => setStatus(err
 window.addEventListener('message', event => {
     if(event.data?.type === 'studio-theme') window.StudioTheme?.apply?.(event.data.theme);
 });
-document.addEventListener('DOMContentLoaded', () => loadAll().catch(err => setStatus(err.message || '加载失败')));
+document.addEventListener('DOMContentLoaded', () => loadAll({reset:true}).catch(err => setStatus(err.message || '加载失败')));
