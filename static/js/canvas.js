@@ -832,6 +832,8 @@ const canvasAssetDropZone = document.getElementById('canvasAssetDropZone');
 const canvasAssetGrid = document.getElementById('canvasAssetGrid');
 const canvasAssetHoverPreview = document.getElementById('canvasAssetHoverPreview');
 const workflowTransferToggle = document.getElementById('workflowTransferToggle');
+const canvasCostToggle = document.getElementById('canvasCostToggle');
+const canvasCostToggleLabel = document.getElementById('canvasCostToggleLabel');
 const canvasLogToggle = document.getElementById('canvasLogToggle');
 const workflowTransferModal = document.getElementById('workflowTransferModal');
 const workflowTransferSub = document.getElementById('workflowTransferSub');
@@ -6527,6 +6529,7 @@ function render(){
     refreshIcons();
     bindCanvasPreviewImageFallbacks(nodesEl);
     refreshOutputTimer();
+    updateCanvasCostButton();
 }
 function refreshNodes(ids=[]){
     const uniqueIds = [...new Set((ids || []).filter(Boolean))];
@@ -11838,6 +11841,22 @@ function generationLogCost(log){
 function formatCostMicros(value){
     return `¥${new Intl.NumberFormat('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:6}).format(Number(value || 0) / 1000000)}`;
 }
+function canvasCostTotals(logs=canvas?.logs || []){
+    return logs.reduce((sum, log) => {
+        const cost = generationLogCost(log);
+        if(cost?.status === 'priced'){
+            sum.total += Number(cost.amount_micros || 0);
+            sum[cost.kind] = (sum[cost.kind] || 0) + Number(cost.amount_micros || 0);
+            sum.calls += 1;
+            if(cost.source === 'estimated') sum.estimated += Number(cost.amount_micros || 0);
+        } else if(cost?.status === 'unknown') sum.unknown += 1;
+        return sum;
+    }, {total:0, image:0, video:0, estimated:0, unknown:0, calls:0});
+}
+function updateCanvasCostButton(totals=canvasCostTotals()){
+    if(canvasCostToggleLabel) canvasCostToggleLabel.textContent = `费用 ${formatCostMicros(totals.total)}`;
+    if(canvasCostToggle) canvasCostToggle.title = totals.unknown ? `费用仪表盘 · ${totals.unknown} 笔待定价` : '费用仪表盘';
+}
 function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
     if(!canvas) return;
     canvas.logs = canvas.logs || [];
@@ -11863,20 +11882,14 @@ function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
     };
     entry.cost = calculateGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
     canvas.logs = [entry, ...canvas.logs].slice(0, 500);
+    updateCanvasCostButton();
 }
 function renderCanvasLog(){
     const list = document.getElementById('logList') || (typeof logList !== 'undefined' ? logList : null);
     const logs = (typeof canvas !== 'undefined' && Array.isArray(canvas?.logs)) ? canvas.logs : [];
     if(!list) return;
-    const totals = logs.reduce((sum, log) => {
-        const cost = generationLogCost(log);
-        if(cost?.status === 'priced'){
-            sum.total += Number(cost.amount_micros || 0);
-            sum[cost.kind] = (sum[cost.kind] || 0) + Number(cost.amount_micros || 0);
-            if(cost.source === 'estimated') sum.estimated += Number(cost.amount_micros || 0);
-        } else if(cost?.status === 'unknown') sum.unknown += 1;
-        return sum;
-    }, {total:0, image:0, video:0, estimated:0, unknown:0});
+    const totals = canvasCostTotals(logs);
+    updateCanvasCostButton(totals);
     const summary = document.getElementById('canvasCostSummary');
     if(summary) summary.textContent = [
         `总计 ${formatCostMicros(totals.total)}`,
@@ -11885,6 +11898,18 @@ function renderCanvasLog(){
         totals.estimated ? `含预估 ${formatCostMicros(totals.estimated)}` : '',
         totals.unknown ? `${totals.unknown} 笔待定价` : '',
     ].filter(Boolean).join(' · ');
+    const dashboardValues = {
+        costDashboardTotal:formatCostMicros(totals.total),
+        costDashboardImage:formatCostMicros(totals.image),
+        costDashboardVideo:formatCostMicros(totals.video),
+        costDashboardCalls:String(totals.calls),
+        costDashboardMeta:totals.estimated ? `含历史预估 ${formatCostMicros(totals.estimated)}` : (totals.calls ? '按调用时价格统计' : '暂无计费调用'),
+        costDashboardUnknown:totals.unknown ? `${totals.unknown} 笔待定价` : '',
+    };
+    Object.entries(dashboardValues).forEach(([id, value]) => {
+        const target = document.getElementById(id);
+        if(target) target.textContent = value;
+    });
     list.innerHTML = logs.length ? logs.map(log => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = outputUrlValue(item);
@@ -11964,12 +11989,15 @@ async function importWorkflowAssetUrl(url, name='workflow'){
         showErrorModal(err.message || '导入工作流资产失败', '导入工作流');
     }
 }
-function openCanvasLog(event){
+function openCanvasLog(event, mode='logs'){
     event?.preventDefault?.();
     event?.stopPropagation?.();
     event?.stopImmediatePropagation?.();
     const modal = document.getElementById('logModal') || (typeof logModal !== 'undefined' ? logModal : null);
     const list = document.getElementById('logList') || (typeof logList !== 'undefined' ? logList : null);
+    modal?.querySelector('.log-panel')?.classList.toggle('cost-mode', mode === 'cost');
+    const title = document.getElementById('canvasLogTitle');
+    if(title) title.textContent = mode === 'cost' ? '费用仪表盘' : '生成日志';
     modal?.classList.add('open');
     if(list && !list.innerHTML) list.innerHTML = `<div class="log-empty">${tr('canvas.noLogs')}</div>`;
     try {
@@ -11979,11 +12007,13 @@ function openCanvasLog(event){
         if(list) list.innerHTML = `<div class="log-empty">${escapeHtml(err?.message || String(err))}</div>`;
     }
 }
+function openCanvasCost(event){ openCanvasLog(event, 'cost'); }
 function closeCanvasLog(){
     const modal = document.getElementById('logModal') || (typeof logModal !== 'undefined' ? logModal : null);
     modal?.classList.remove('open');
 }
 window.openCanvasLog = openCanvasLog;
+window.openCanvasCost = openCanvasCost;
 window.closeCanvasLog = closeCanvasLog;
 
 // --- 画布备份 ---

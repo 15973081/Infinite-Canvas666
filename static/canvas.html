@@ -19,7 +19,7 @@
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/js/theme.js?v=2026.06.10.1.1781494198"></script>
-    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.07.20.1">
+    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.07.21.1">
     <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
 </head>
 <body>
@@ -59,6 +59,7 @@
                 <div class="toolbar-fixed">
                     <button id="workflowTransferToggle" class="tool-btn toolbar-workflow" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open" class="w-4 h-4"></i><span>工作流</span></button>
                     <button id="canvasAssetToggle" class="tool-btn toolbar-asset canvas-asset-toggle" type="button" title="资产库" aria-label="资产库"><i data-lucide="library" class="w-4 h-4"></i><span>资产库</span></button>
+                    <button id="canvasCostToggle" class="tool-btn toolbar-cost" type="button" onclick="openCanvasCost(event)" title="费用仪表盘" aria-label="费用仪表盘"><i data-lucide="circle-dollar-sign" class="w-4 h-4"></i><span id="canvasCostToggleLabel">费用 ¥0.00</span></button>
                     <button id="canvasLogToggle" class="tool-btn toolbar-log" type="button" onclick="openCanvasLog(event)" title="日志" aria-label="日志"><i data-lucide="list-todo" class="w-4 h-4"></i><span>日志</span></button>
                     <button id="canvasBackupToggle" class="tool-btn toolbar-backup" type="button" onclick="showBackupList(event)" title="备份" aria-label="备份"><i data-lucide="hard-drive" class="w-4 h-4"></i><span>备份</span></button>
                 </div>
@@ -253,10 +254,16 @@
             <div class="log-panel" onclick="event.stopPropagation()">
                 <div class="log-head">
                     <div>
-                        <div class="log-title">生成日志</div>
+                        <div id="canvasLogTitle" class="log-title">生成日志</div>
                         <div id="canvasCostSummary" class="log-cost-summary">画布费用 ¥0.00</div>
                     </div>
                     <button class="preview-icon-btn" type="button" onclick="closeCanvasLog()" title="关闭"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+                <div id="canvasCostDashboard" class="cost-dashboard" aria-live="polite">
+                    <div class="cost-card cost-card-total"><span>预估总费用</span><strong id="costDashboardTotal">¥0.00</strong><small id="costDashboardMeta">暂无计费调用</small></div>
+                    <div class="cost-card"><span>图片费用</span><strong id="costDashboardImage">¥0.00</strong></div>
+                    <div class="cost-card"><span>视频费用</span><strong id="costDashboardVideo">¥0.00</strong></div>
+                    <div class="cost-card"><span>计费调用</span><strong id="costDashboardCalls">0</strong><small id="costDashboardUnknown"></small></div>
                 </div>
                 <div id="logList" class="log-list"></div>
             </div>

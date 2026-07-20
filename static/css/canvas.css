@@ -138,6 +138,7 @@ body.studio-theme-dark .canvas-meta-pop .emoji-option:hover { background:#263449
 .toolbar.collapsed .toolbar-toggle i { transform:rotate(180deg); }
 .toolbar .toolbar-toggle { width:24px; height:25px; min-width:24px; padding:0; border-radius:10px; }
 .toolbar .toolbar-log,
+.toolbar .toolbar-cost,
 .toolbar .toolbar-asset { width:auto; height:38px; min-width:38px; padding:0 12px; }
 .toolbar.collapsed { padding:5px; }
 .tool-btn { height:38px; min-width:38px; padding:0 12px; border-radius:999px; display:flex; align-items:center; justify-content:center; gap:7px; color:var(--muted); background:var(--card-solid); border:1px solid var(--line); font-size:11px; font-weight:700; transition:all .2s var(--ease); pointer-events:auto; }
@@ -878,6 +879,13 @@ body.theme-dark .minimap-viewport { border-color:#f8fafc; background:rgba(248,25
 .log-head { height:58px; padding:0 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
 .log-title { font-size:14px; font-weight:900; color:var(--text); }
 .log-cost-summary { margin-top:2px; color:var(--muted); font-size:10.5px; font-weight:800; }
+.cost-dashboard { display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:12px 12px 0; }
+.log-panel.cost-mode .cost-dashboard { display:grid; }
+.cost-card { min-width:0; padding:11px 12px; border:1px solid var(--line); border-radius:12px; background:var(--soft); }
+.cost-card span,.cost-card small { display:block; color:var(--muted); font-size:10px; font-weight:800; }
+.cost-card strong { display:block; margin:4px 0 2px; color:var(--text); font-size:18px; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cost-card-total strong { color:#047857; }
+@media(max-width:640px){ .cost-dashboard { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .log-list { flex:1; min-height:0; padding:12px; overflow:auto; display:flex; flex-direction:column; gap:10px; }
 .log-empty { padding:28px; text-align:center; color:var(--muted); font-size:12px; font-weight:700; }
 .log-item { border:1px solid var(--line); border-radius:14px; background:var(--soft); padding:9px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; }
