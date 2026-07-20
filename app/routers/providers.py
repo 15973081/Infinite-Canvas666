@@ -48,10 +48,17 @@ async def api_providers():
 async def save_providers(payload: List[ApiProviderPayload]):
     providers = []
     env_updates = {}
+    existing_providers = {item["id"]: item for item in load_api_providers()}
     # 收集每个 item 的 primary 字段
     raw_primary_flags = [bool(getattr(item, "primary", False)) for item in payload]
     for item in payload:
         provider = normalize_provider(item.dict(exclude={"api_key"}))
+        existing = existing_providers.get(provider["id"], {})
+        provider["model_prices"] = (
+            list(existing.get("model_prices") or [])
+            if item.model_prices is None
+            else merge_model_price_history(existing.get("model_prices"), item.model_prices)
+        )
         if any(existing["id"] == provider["id"] for existing in providers):
             raise HTTPException(status_code=400, detail=f"API 平台 ID 重复：{provider['id']}")
         providers.append(provider)

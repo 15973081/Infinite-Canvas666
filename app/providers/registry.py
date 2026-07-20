@@ -7,6 +7,7 @@ import re
 import os
 import urllib.parse
 import urllib.request
+from decimal import Decimal, InvalidOperation
 
 from fastapi import HTTPException
 
@@ -31,6 +32,64 @@ from app.utils import model_list_from_values, mask_secret, strip_auth_scheme, be
 from app.models import ApiProviderPayload
 
 REMOVED_PROVIDER_IDS = {"runninghub"}
+MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call"}
+
+
+def normalize_model_prices(rows):
+    normalized = []
+    for raw in rows or []:
+        if not isinstance(raw, dict):
+            continue
+        kind = str(raw.get("kind") or "").strip().lower()
+        model = str(raw.get("model") or "").strip()[:180]
+        billing_type = str(raw.get("billing_type") or "").strip().lower()
+        if kind not in {"image", "video"} or not model or billing_type not in MODEL_PRICE_BILLING_TYPES:
+            continue
+        try:
+            price = Decimal(str(raw.get("unit_price") or "0"))
+        except (InvalidOperation, ValueError):
+            continue
+        if not price.is_finite() or price <= 0:
+            continue
+        normalized.append({
+            "kind": kind,
+            "model": model,
+            "billing_type": billing_type,
+            "unit_price": format(price.normalize(), "f"),
+            "currency": "CNY",
+            "effective_from": max(0, int(raw.get("effective_from") or 0)),
+            "effective_to": max(0, int(raw.get("effective_to") or 0)),
+        })
+    return normalized
+
+
+def merge_model_price_history(existing_rows, desired_rows, effective_at=None):
+    now = int(effective_at or now_ms())
+    existing = normalize_model_prices(existing_rows)
+    desired = {
+        (row["kind"], row["model"]): row
+        for row in normalize_model_prices(desired_rows)
+        if not row["effective_to"]
+    }
+    active = {(row["kind"], row["model"]): row for row in existing if not row["effective_to"]}
+    history = [row for row in existing if row["effective_to"]]
+
+    for key, old in active.items():
+        new = desired.get(key)
+        comparable = ("billing_type", "unit_price", "currency")
+        if new and all(old[field] == new[field] for field in comparable):
+            history.append(old)
+        else:
+            history.append({**old, "effective_to": now})
+
+    for key, new in desired.items():
+        old = active.get(key)
+        comparable = ("billing_type", "unit_price", "currency")
+        if old and all(old[field] == new[field] for field in comparable):
+            continue
+        had_history = any((row["kind"], row["model"]) == key for row in existing)
+        history.append({**new, "effective_from": now if had_history else 0, "effective_to": 0})
+    return history
 
 
 def provider_key_env(provider_id):
@@ -281,6 +340,7 @@ def normalize_provider(item):
         "image_models": model_list_from_values(item.get("image_models") or []),
         "chat_models": model_list_from_values(item.get("chat_models") or []),
         "video_models": model_list_from_values(item.get("video_models") or []),
+        "model_prices": normalize_model_prices(item.get("model_prices") or []),
         "model_protocols": normalize_model_protocols(item.get("model_protocols")),
         "ms_loras": normalize_ms_loras(item.get("ms_loras") or []),
         "ms_defaults_version": int(item.get("ms_defaults_version") or 0),

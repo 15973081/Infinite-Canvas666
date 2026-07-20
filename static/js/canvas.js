@@ -3835,6 +3835,8 @@ async function runMsGenNode(nodeId, opts={}){
     let out = outputForNode(node, 460);
     const pendingIds = Array.from({length:count}, () => uid('p'));
     const run = runSnapshot(node, prompt, refs);
+    run.providerId = 'modelscope';
+    run.billingModel = msModelId;
     const size = apiImageSize(node.msRatio ?? 'square', node.msResolution || '1k', node.msCustomRatio || '', node.msCustomSize || '');
     const parsed = parseSizeValue(size);
     let width = Number(parsed?.width) || 1024;
@@ -10090,6 +10092,8 @@ async function runGenerator(genId, opts={}){
         size:await generatorSizeForRun(gen, refs),
         reference_images:refs
     };
+    run.providerId = payload.provider_id;
+    run.billingModel = payload.model;
     const quality = normalizedImageQuality(gen.quality);
     if(quality) payload.quality = quality;
     let pendingIds = [];
@@ -10186,6 +10190,8 @@ async function runGeneratorLegacy(genId, opts={}){
             size:requestSize,
             reference_images:refs
         };
+        run.providerId = payload.provider_id;
+        run.billingModel = payload.model;
         const quality = normalizedImageQuality(gen.quality);
         if(quality) payload.quality = quality;
         const results = await Promise.all(Array.from({length:count}, () => window.CanvasApi.onlineImage(payload, {errorFallback:tr('canvas.generationFailed')})));
@@ -10247,6 +10253,8 @@ async function runVideoNode(nodeId, opts={}){
         multimodal:Boolean(node.multimodal),
         trusted_asset:usesTrustedVolcengineAssets
     };
+    run.providerId = payload.provider_id;
+    run.billingModel = payload.model;
     if(!opts.cascade){ node.running = true; refreshRunNodes(node, out); }
     else refreshRunNodes(node, out);
     let handledTaskFailure = false;
@@ -11767,16 +11775,75 @@ function logTaskLabel(log){
     }
     return log?.model || '-';
 }
+function modelPriceAt(providerId, kind, model, createdAt){
+    const provider = apiProviders.find(item => item.id === providerId);
+    const at = Number(createdAt || Date.now());
+    return (provider?.model_prices || [])
+        .filter(price => price.kind === kind && price.model === model
+            && Number(price.effective_from || 0) <= at
+            && (!Number(price.effective_to || 0) || at < Number(price.effective_to)))
+        .sort((a, b) => Number(b.effective_from || 0) - Number(a.effective_from || 0))[0] || null;
+}
+function billingIdentity(run, log={}){
+    const node = run?.node || {};
+    const nodeType = run?.nodeType || log.nodeType || '';
+    const kind = log.billingKind || (['generator','msgen'].includes(nodeType) ? 'image' : nodeType === 'video' ? 'video' : '');
+    let providerId = log.providerId || run?.providerId || node.apiProvider || run?.request?.provider_id || log.request?.provider_id || '';
+    if(!providerId && nodeType === 'msgen') providerId = 'modelscope';
+    if(!providerId && log.platform) providerId = apiProviders.find(item => item.name === log.platform || item.id === log.platform)?.id || '';
+    let model = log.billingModel || run?.billingModel || node.model || log.model || '';
+    if(nodeType === 'msgen') model = run?.billingModel || log.billingModel || node.msCustomModel || MS_GEN_MODELS[node.msgenModel]?.modelId || model;
+    return {kind, providerId, model};
+}
+function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
+    if(log.status === 'failed') return null;
+    const identity = billingIdentity(run, log);
+    if(!identity.kind || !identity.providerId || !identity.model) return {status:'unknown', source, ...identity};
+    const price = modelPriceAt(identity.providerId, identity.kind, identity.model, createdAt);
+    if(!price) return {status:'unknown', source, ...identity};
+    let quantity = 1;
+    if(price.billing_type === 'per_image') quantity = Math.max(1, (outputs || []).length);
+    if(price.billing_type === 'per_second'){
+        quantity = Number(log.durationSeconds || run?.node?.duration || run?.request?.duration || log.request?.duration || 0);
+        if(quantity <= 0) return {status:'unknown', source, ...identity};
+    }
+    const unitPriceMicros = Math.round(Number(price.unit_price || 0) * 1000000);
+    return {
+        status:'priced',
+        source,
+        ...identity,
+        billing_type:price.billing_type,
+        quantity,
+        unit_price:String(price.unit_price),
+        currency:price.currency || 'CNY',
+        amount_micros:Math.round(unitPriceMicros * quantity),
+        price_effective_from:Number(price.effective_from || 0),
+    };
+}
+function generationLogCost(log){
+    if(log?.status === 'failed') return null;
+    if(log?.cost?.status === 'priced') return log.cost;
+    return calculateGenerationCost({log, outputs:log.outputs || [], createdAt:log.createdAt, source:'estimated'});
+}
+function formatCostMicros(value){
+    return `¥${new Intl.NumberFormat('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:6}).format(Number(value || 0) / 1000000)}`;
+}
 function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
     if(!canvas) return;
     canvas.logs = canvas.logs || [];
+    const createdAt = Date.now();
+    const identity = billingIdentity(run);
     const entry = {
         id:uid('log'),
-        createdAt:Date.now(),
+        createdAt,
         status:error ? 'failed' : 'success',
         platform:runPlatformLabel(run),
         nodeType:run?.nodeType || '',
         model:run?.taskLabel || runTaskLabel(run),
+        providerId:identity.providerId,
+        billingKind:identity.kind,
+        billingModel:identity.model,
+        durationSeconds:Number(run?.node?.duration || 0),
         request:run?.request || {},
         prompt:run?.prompt || '',
         outputs:(outputs || []).filter(Boolean),
@@ -11784,12 +11851,30 @@ function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
         runMs:Number(runMs || 0),
         error:error ? String(error) : '',
     };
+    entry.cost = calculateGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
     canvas.logs = [entry, ...canvas.logs].slice(0, 500);
 }
 function renderCanvasLog(){
     const list = document.getElementById('logList') || (typeof logList !== 'undefined' ? logList : null);
     const logs = (typeof canvas !== 'undefined' && Array.isArray(canvas?.logs)) ? canvas.logs : [];
     if(!list) return;
+    const totals = logs.reduce((sum, log) => {
+        const cost = generationLogCost(log);
+        if(cost?.status === 'priced'){
+            sum.total += Number(cost.amount_micros || 0);
+            sum[cost.kind] = (sum[cost.kind] || 0) + Number(cost.amount_micros || 0);
+            if(cost.source === 'estimated') sum.estimated += Number(cost.amount_micros || 0);
+        } else if(cost?.status === 'unknown') sum.unknown += 1;
+        return sum;
+    }, {total:0, image:0, video:0, estimated:0, unknown:0});
+    const summary = document.getElementById('canvasCostSummary');
+    if(summary) summary.textContent = [
+        `总计 ${formatCostMicros(totals.total)}`,
+        `图片 ${formatCostMicros(totals.image)}`,
+        `视频 ${formatCostMicros(totals.video)}`,
+        totals.estimated ? `含预估 ${formatCostMicros(totals.estimated)}` : '',
+        totals.unknown ? `${totals.unknown} 笔待定价` : '',
+    ].filter(Boolean).join(' · ');
     list.innerHTML = logs.length ? logs.map(log => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = outputUrlValue(item);
@@ -11806,6 +11891,10 @@ function renderCanvasLog(){
         const backend = req.backend || req.provider_id || req.providerId || '';
         const workflow = req.workflow_json || req.workflow || '';
         const taskLabel = logTaskLabel(log);
+        const cost = generationLogCost(log);
+        const costChip = cost?.status === 'priced'
+            ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${formatCostMicros(cost.amount_micros)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
+            : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">待定价</span>` : '';
         const idText = taskId || requestId || '';
         const backendText = workflow || backend || '';
         const subParts = [
@@ -11820,6 +11909,7 @@ function renderCanvasLog(){
                     <span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
                     ${taskLabel ? `<span class="log-chip">${escapeHtml(taskLabel)}</span>` : ''}
+                    ${costChip}
                     <span class="log-chip">${escapeHtml(formatRunDuration(log.runMs || 0))}</span>
                 </div>
                 <div class="log-subline">${subParts.map(part => `<span title="${escapeAttr(part)}">${escapeHtml(part)}</span>`).join('')}</div>

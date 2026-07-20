@@ -2786,6 +2786,22 @@ function modelProtocolSelectHtml(kind, index, model, item){
         ${opt('gemini', 'Gemini')}
     </select>`;
 }
+function currentModelPrice(item, kind, model){
+    return (item?.model_prices || []).find(price =>
+        price.kind === kind && price.model === String(model || '').trim() && !Number(price.effective_to || 0)
+    );
+}
+function modelPriceHtml(kind, index, model, item){
+    if(kind === 'chat') return '';
+    const price = currentModelPrice(item, kind, model) || {};
+    const billingType = price.billing_type || (kind === 'video' ? 'per_second' : 'per_image');
+    const typeSelect = kind === 'video' ? `<select class="model-price-type" title="计费方式" onchange="updateModelPrice('${kind}', ${index}, null, this.value)">
+        <option value="per_second" ${billingType === 'per_second' ? 'selected' : ''}>每秒</option>
+        <option value="per_call" ${billingType === 'per_call' ? 'selected' : ''}>每次</option>
+    </select>` : '';
+    const suffix = kind === 'image' ? '张' : billingType === 'per_call' ? '次' : '秒';
+    return `${typeSelect}<input class="model-price-input" type="number" min="0" step="0.000001" value="${escapeAttr(price.unit_price || '')}" placeholder="¥/${suffix}" title="人民币单价；留空表示待定价" onchange="updateModelPrice('${kind}', ${index}, this.value)">`;
+}
 function renderModels(kind){
     const item = provider();
     const key = kind === 'image' ? 'image_models' : kind === 'video' ? 'video_models' : 'chat_models';
@@ -2796,10 +2812,12 @@ function renderModels(kind){
         return;
     }
     const showProtocol = kind !== 'video' && providerSupportsModelProtocol(item);
+    const showPrice = kind !== 'chat';
     list.innerHTML = models.map((model, index) => `
-        <div class="model-row${showProtocol ? ' has-protocol' : ''}">
+        <div class="model-row${showProtocol ? ' has-protocol' : ''}${showPrice ? ' has-price' : ''}">
             <input value="${escapeAttr(model)}" oninput="updateModel('${kind}', ${index}, this.value)">
             ${modelProtocolSelectHtml(kind, index, model, item)}
+            ${modelPriceHtml(kind, index, model, item)}
             <button class="icon-btn" type="button" onclick="removeModel('${kind}', ${index})" title="删除"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
         </div>
     `).join('');
@@ -2972,6 +2990,9 @@ function updateModel(kind, index, value){
     const oldName = String(item[key][index] || '').trim();
     const newName = String(value || '').trim();
     item[key][index] = value;
+    (item.model_prices || []).forEach(price => {
+        if(!Number(price.effective_to || 0) && price.kind === kind && price.model === oldName) price.model = newName;
+    });
     // 重命名时迁移该模型的协议覆盖
     if(item.model_protocols && typeof item.model_protocols === 'object' && oldName && oldName !== newName){
         if(Object.prototype.hasOwnProperty.call(item.model_protocols, oldName)){
@@ -2986,6 +3007,27 @@ function updateModel(kind, index, value){
         }
     }
     if(kind === 'image') renderMsLoras();
+}
+function updateModelPrice(kind, index, unitPrice, billingType){
+    const item = provider();
+    const key = kind === 'image' ? 'image_models' : 'video_models';
+    const model = String(item?.[key]?.[index] || '').trim();
+    if(!model) return;
+    item.model_prices = Array.isArray(item.model_prices) ? item.model_prices : [];
+    let price = currentModelPrice(item, kind, model);
+    const nextValue = unitPrice === null ? String(price?.unit_price || '') : String(unitPrice || '').trim();
+    if(!Number(nextValue)){
+        item.model_prices = item.model_prices.filter(row => row !== price);
+        renderModels(kind);
+        return;
+    }
+    if(!price){
+        price = {kind, model, currency:'CNY', effective_from:0, effective_to:0};
+        item.model_prices.push(price);
+    }
+    price.unit_price = nextValue;
+    price.billing_type = billingType || price.billing_type || (kind === 'video' ? 'per_second' : 'per_image');
+    renderModels(kind);
 }
 function updateModelProtocol(kind, index, value){
     const item = provider();
@@ -3005,6 +3047,9 @@ function removeModel(kind, index){
     const key = kind === 'image' ? 'image_models' : kind === 'video' ? 'video_models' : 'chat_models';
     const removed = String(item[key][index] || '').trim();
     item[key].splice(index, 1);
+    item.model_prices = (item.model_prices || []).filter(price =>
+        Number(price.effective_to || 0) || price.kind !== kind || price.model !== removed
+    );
     // 清理不再使用的协议覆盖
     if(removed && item.model_protocols && typeof item.model_protocols === 'object' && !modelProtocolStillUsed(item, removed)){
         delete item.model_protocols[removed];
@@ -3078,6 +3123,7 @@ async function saveProviders(){
                 image_models:item.image_models || [],
                 chat_models:item.chat_models || [],
                 video_models:item.video_models || [],
+                model_prices:(item.model_prices || []).filter(price => !Number(price.effective_to || 0)),
                 model_protocols:(item.model_protocols && typeof item.model_protocols === 'object') ? item.model_protocols : {},
                 ms_loras:item.id === 'modelscope' ? (item.ms_loras || []) : [],
                 ms_defaults_version:item.id === 'modelscope' ? (item.ms_defaults_version || 1) : 0,

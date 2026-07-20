@@ -19,7 +19,7 @@
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/js/theme.js?v=2026.06.10.1.1781494198"></script>
-    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.06.10.1.1781603543">
+    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.07.20.1">
     <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
 </head>
 <body>
@@ -252,7 +252,10 @@
         <div id="logModal" class="log-modal" onclick="closeCanvasLog()">
             <div class="log-panel" onclick="event.stopPropagation()">
                 <div class="log-head">
-                    <div class="log-title">生成日志</div>
+                    <div>
+                        <div class="log-title">生成日志</div>
+                        <div id="canvasCostSummary" class="log-cost-summary">画布费用 ¥0.00</div>
+                    </div>
                     <button class="preview-icon-btn" type="button" onclick="closeCanvasLog()" title="关闭"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
                 <div id="logList" class="log-list"></div>
@@ -395,6 +398,6 @@
     <script src="/static/js/canvas-core.js?v=2026.07.06.1"></script>
     <script src="/static/js/canvas-api.js?v=2026.07.06.1"></script>
     <script src="/static/js/ltx-director-timeline.js?v=2026.06.10.1.1781494198"></script>
-    <script src="/static/js/canvas.js?v=2026.07.13.1"></script>
+    <script src="/static/js/canvas.js?v=2026.07.20.1"></script>
 </body>
 </html>
