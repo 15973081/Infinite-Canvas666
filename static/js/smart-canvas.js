@@ -12260,6 +12260,9 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
             if(targetPlatform !== 'volcengine') return ref?.url;
             return smartVolcengineAssetUrisForRef(ref).volcengine || ref?.url;
         };
+        const unreadyVolcengineAsset = targetPlatform === 'volcengine' && imageRefsOnly(uploadedRefs)
+            .find(ref => ref.face_auth_status && !smartVolcengineAssetUrisForRef(ref).volcengine);
+        if(unreadyVolcengineAsset) throw new Error(unreadyVolcengineAsset.face_auth_status === 'Failed' ? '火山素材认证未通过，请重新认证后再生成。' : '火山素材仍在认证中，请等待认证通过后再生成。');
         const useFrameRoles = targetPlatform !== 'volcengine' && runSettings.videoUseFrameRoles;
         const refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
             const item = {url:effUrl(ref), name:ref.name || `图${i + 1}`};

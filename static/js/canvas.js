@@ -7176,12 +7176,12 @@ function renderLoopPrompt(node, ctx=loopContext){
 }
 function imageRefsFromNode(node){
     if(!node) return [];
-    if(node.type === 'image' && node.url && mediaKindForNode(node) === 'image') return [{url:node.url, name:node.name || 'image', role:node.role || '', kind:'image', asset_uris:canvasAssetUrisForNode(node)}];
+    if(node.type === 'image' && node.url && mediaKindForNode(node) === 'image') return [{url:node.url, name:node.name || 'image', role:node.role || '', kind:'image', asset_uris:canvasAssetUrisForNode(node), asset_item_id:node.asset_item_id || '', asset_library_id:node.asset_library_id || '', face_auth_status:node.face_auth_status || ''}];
     if(node.type === 'group'){
         return (node.items || [])
             .map(id => nodes.find(x => x.id === id))
             .filter(x => x?.type === 'image' && x?.url && mediaKindForNode(x) === 'image')
-            .map(img => ({url:img.url, name:img.name || 'image', role:img.role || '', kind:'image', asset_uris:canvasAssetUrisForNode(img)}));
+            .map(img => ({url:img.url, name:img.name || 'image', role:img.role || '', kind:'image', asset_uris:canvasAssetUrisForNode(img), asset_item_id:img.asset_item_id || '', asset_library_id:img.asset_library_id || '', face_auth_status:img.face_auth_status || ''}));
     }
     if(node.type === 'output'){
         return (node.images || [])
@@ -9975,7 +9975,8 @@ function generatorSources(gen){
         }
         if(n.type === 'image' && n.url) {
             const kind = mediaKindForNode(n);
-            return {id:n.id, type:kind, label:n.name || kind, preview:n.url, refs:[{url:n.url, name:n.name || kind, role:n.role || '', kind}], prompt:''};
+            const refs = kind === 'image' ? imageRefsFromNode(n) : videoRefsFromNode(n);
+            return {id:n.id, type:kind, label:n.name || kind, preview:n.url, refs, prompt:''};
         }
         if(n.type === 'group') {
             const items = (n.items || []).map(id => nodes.find(x => x.id === id)).filter(Boolean);
@@ -9986,7 +9987,7 @@ function generatorSources(gen){
                 imageId:img.id,
                 label:img.name || mediaKindForNode(img),
                 preview:img.url,
-                refs:[{url:img.url, name:img.name || mediaKindForNode(img), role:img.role || '', kind:mediaKindForNode(img)}],
+                refs:mediaKindForNode(img) === 'image' ? imageRefsFromNode(img) : videoRefsFromNode(img),
                 prompt:''
             }));
             const prompts = items.filter(x => x.type === 'prompt').map(p => p.text || '').filter(Boolean);
@@ -10231,6 +10232,11 @@ async function runVideoNode(nodeId, opts={}){
         const uris = (ref && ref.asset_uris && typeof ref.asset_uris === 'object') ? ref.asset_uris : {};
         return isVolcengineVideo && uris.volcengine ? {...ref, url:uris.volcengine, originalLocalUrl:ref.originalLocalUrl || ref.url} : ref;
     });
+    const unreadyVolcengineAsset = isVolcengineVideo && refs.find(ref => ref.face_auth_status && !String(ref.url || '').startsWith('asset://'));
+    if(unreadyVolcengineAsset){
+        showErrorModal(unreadyVolcengineAsset.face_auth_status === 'Failed' ? '火山素材认证未通过，请重新认证后再生成。' : '火山素材仍在认证中，请等待认证通过后再生成。', '火山素材认证');
+        return;
+    }
     const usesTrustedVolcengineAssets = isVolcengineVideo && refs.some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     const videoRefs = applyUploadedUrlToRefs(videoRefsOnly(allRefs), node);
     if(!isVolcengineVideo && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
