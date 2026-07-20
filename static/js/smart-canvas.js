@@ -2097,8 +2097,6 @@ function apiProviderById(providerId){
 function videoProviderPlatform(providerId){
     const p = (apiProviders || []).find(x => x.id === providerId);
     const proto = String(p?.protocol || '').toLowerCase();
-    const base = String(p?.base_url || '').toLowerCase();
-    if(proto === 'apimart' || base.includes('apimart.ai')) return 'apimart';
     if(proto === 'volcengine' || providerId === 'volcengine') return 'volcengine';
     return '';
 }
@@ -4469,7 +4467,14 @@ function smartAssetItemLocation(itemId){
     return null;
 }
 function smartAuthenticatedUris(item){
-    return Object.fromEntries(Object.entries(item?.registrations || {}).flatMap(([platform, registration]) => registration?.status === 'Active' && registration.asset_uri ? [[platform, registration.asset_uri]] : []));
+    const registration = item?.registrations?.volcengine;
+    return registration?.status === 'Active' && registration.asset_uri ? {volcengine:registration.asset_uri} : {};
+}
+function smartVolcengineAssetUrisForRef(ref){
+    const cached = String(ref?.asset_uris?.volcengine || '');
+    if(cached.startsWith('asset://')) return {volcengine:cached};
+    const linked = ref?.asset_item_id && smartAssetItemLocation(ref.asset_item_id);
+    return smartAuthenticatedUris(linked?.item);
 }
 async function ensureSmartImageAsset(node, index, target){
     const image = node?.images?.[index];
@@ -4498,12 +4503,10 @@ async function saveSmartImageToAssetLibrary(nodeId, index){
 }
 function smartAvatarPlatform(provider){
     const protocol = String(provider?.protocol || '').toLowerCase();
-    if(protocol === 'apimart' || String(provider?.base_url || '').toLowerCase().includes('apimart.ai')) return 'apimart';
     return protocol === 'volcengine' || provider?.id === 'volcengine' ? 'volcengine' : '';
 }
 function quickSmartAvatarProvider(){
-    return apiProviders.find(provider => provider?.id === 'volcengine' && provider.enabled !== false && provider.has_key !== false)
-        || apiProviders.find(provider => provider?.enabled !== false && provider?.has_key !== false && smartAvatarPlatform(provider));
+    return apiProviders.find(provider => provider?.id === 'volcengine' && provider.enabled !== false && provider.has_key !== false);
 }
 async function smartAvatarRequest(path, libraryId, providerId){
     const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
@@ -4538,7 +4541,7 @@ async function quickFaceAuthSmartImage(nodeId, index){
     const image = node?.images?.[index];
     if(!image?.url) return;
     const provider = quickSmartAvatarProvider();
-    if(!provider) return toast('请先在 API 平台管理中配置 APIMart 或火山引擎');
+    if(!provider) return toast('请先在 API 平台管理中配置火山引擎');
     const target = await chooseSmartAssetTarget();
     if(!target) return;
     try {
@@ -10332,7 +10335,7 @@ function assetRegisteredUris(item){
     return reg?.status === 'Active' && reg.asset_uri ? {volcengine:reg.asset_uri} : {};
 }
 function smartVolcengineFaceVerified(assetUris){
-    return Object.values(assetUris || {}).some(uri => String(uri || '').startsWith('asset://'));
+    return String(assetUris?.volcengine || '').startsWith('asset://');
 }
 function smartFaceVerifiedBadgeHtml(assetUris, onNode=false){
     return smartVolcengineFaceVerified(assetUris) ? `<span class="smart-face-verified-badge ${onNode ? 'node-face-badge' : ''}" title="已通过人脸认证" aria-label="已通过人脸认证"><i data-lucide="shield-check"></i></span>` : '';
@@ -12252,22 +12255,12 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
     if(!runSettings.videoModel) throw new Error(tr('smart.errNoVideoModel'));
     try {
         const uploadedRefs = applyUploadedUrlsToSmartRefs(refs, runSettings);
-        const trustedMode = Boolean(runSettings.videoTrustedAsset);
-        const trustedSource = trustedMode ? (['library','cloud','manual'].includes(runSettings.videoTrustedSource) ? runSettings.videoTrustedSource : 'library') : 'none';
-        // 仅「素材库链接」来源才走 asset:// 认证地址 + 后端可信素材路由；上传云端/手动网址走普通直链。
-        const useAssetUris = trustedSource === 'library';
         const targetPlatform = videoProviderPlatform(runSettings.videoProvider || 'comfly');
-        let mismatchedAsset = false;
         const effUrl = ref => {
-            const uris = (ref && ref.asset_uris && typeof ref.asset_uris === 'object') ? ref.asset_uris : null;
-            if(useAssetUris && uris && Object.keys(uris).length){
-                // asset:// 与平台绑定：取当前视频平台对应的认证地址；该素材没注册到这个平台就回退本地 url
-                if(targetPlatform && uris[targetPlatform]) return uris[targetPlatform];
-                mismatchedAsset = true;
-            }
-            return ref?.url;
+            if(targetPlatform !== 'volcengine') return ref?.url;
+            return smartVolcengineAssetUrisForRef(ref).volcengine || ref?.url;
         };
-        const useFrameRoles = runSettings.videoProvider !== 'volcengine' && runSettings.videoUseFrameRoles;
+        const useFrameRoles = targetPlatform !== 'volcengine' && runSettings.videoUseFrameRoles;
         const refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
             const item = {url:effUrl(ref), name:ref.name || `图${i + 1}`};
             if(useFrameRoles){
@@ -12279,7 +12272,8 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
         const manualVideo = manualSmartVideoLink(runSettings)?.url || '';
         const refVideos = manualVideo ? manualSmartMediaLinks(runSettings).map(item => item.url).filter(Boolean) : videoRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
         const refAudios = audioRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean).slice(0, 3);
-        if(mismatchedAsset) toast('部分认证素材属于其它平台，已回退为普通素材。切换到对应平台的视频接口才能用 asset:// 认证地址。');
+        const usesTrustedVolcengineAssets = [...refImages.map(item => item.url), ...refVideos, ...refAudios]
+            .some(url => String(url || '').startsWith('asset://'));
         const payload = {
             prompt,
             provider_id: runSettings.videoProvider || 'comfly',
@@ -12296,7 +12290,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
             camerafixed: Boolean(runSettings.videoCameraFixed),
             generate_audio: Boolean(runSettings.videoGenerateAudio),
             multimodal: Boolean(runSettings.videoMultimodal),
-            trusted_asset: useAssetUris
+            trusted_asset: usesTrustedVolcengineAssets
         };
         const result = await fetch('/api/canvas-video', {
             method:'POST',

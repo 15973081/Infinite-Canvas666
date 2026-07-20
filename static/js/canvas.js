@@ -7176,12 +7176,12 @@ function renderLoopPrompt(node, ctx=loopContext){
 }
 function imageRefsFromNode(node){
     if(!node) return [];
-    if(node.type === 'image' && node.url && mediaKindForNode(node) === 'image') return [{url:node.url, name:node.name || 'image', role:node.role || '', kind:'image', asset_uris:node.asset_uris || canvasAssetUrisForUrl(node.url)}];
+    if(node.type === 'image' && node.url && mediaKindForNode(node) === 'image') return [{url:node.url, name:node.name || 'image', role:node.role || '', kind:'image', asset_uris:canvasAssetUrisForNode(node)}];
     if(node.type === 'group'){
         return (node.items || [])
             .map(id => nodes.find(x => x.id === id))
             .filter(x => x?.type === 'image' && x?.url && mediaKindForNode(x) === 'image')
-            .map(img => ({url:img.url, name:img.name || 'image', role:img.role || '', kind:'image', asset_uris:img.asset_uris || canvasAssetUrisForUrl(img.url)}));
+            .map(img => ({url:img.url, name:img.name || 'image', role:img.role || '', kind:'image', asset_uris:canvasAssetUrisForNode(img)}));
     }
     if(node.type === 'output'){
         return (node.images || [])
@@ -7384,15 +7384,11 @@ function currentCanvasAssetItem(itemId){
 }
 function canvasAssetRegisteredUris(item){
     const regs = (item && item.registrations && typeof item.registrations === 'object') ? item.registrations : {};
-    const out = {};
-    Object.keys(regs).forEach(platform => {
-        const reg = regs[platform];
-        if(reg && reg.status === 'Active' && reg.asset_uri) out[platform] = reg.asset_uri;
-    });
-    return out;
+    const reg = regs.volcengine;
+    return reg?.status === 'Active' && reg.asset_uri ? {volcengine:reg.asset_uri} : {};
 }
 function canvasAssetUrisFaceVerified(assetUris){
-    return Boolean(assetUris && typeof assetUris === 'object' && Object.values(assetUris).some(Boolean));
+    return String(assetUris?.volcengine || '').startsWith('asset://');
 }
 function canvasAssetFaceVerified(item){
     return canvasAssetUrisFaceVerified(canvasAssetRegisteredUris(item));
@@ -7405,7 +7401,7 @@ function canvasNodeAssetDragPayload(node){
         url: node.url,
         name: node.name || outputImageName(node.url),
         kind,
-        asset_uris: node.asset_uris || canvasAssetUrisForUrl(node.url) || {}
+        asset_uris: canvasAssetUrisForNode(node)
     };
 }
 function hasCanvasNodeAssetDrag(dataTransfer){
@@ -7425,11 +7421,19 @@ function canvasAssetUrisForUrl(url){
     for(const lib of canvasAssetLibraries()){
         for(const cat of (lib.categories || [])){
             for(const item of (cat.items || [])){
-                if(item?.url === target) return canvasAssetRegisteredUris(item);
+                const uris = item?.url === target ? canvasAssetRegisteredUris(item) : {};
+                if(uris.volcengine) return uris;
             }
         }
     }
     return {};
+}
+function canvasAssetUrisForNode(node){
+    const cached = String(node?.asset_uris?.volcengine || '');
+    if(cached.startsWith('asset://')) return {volcengine:cached};
+    const linked = node?.asset_item_id && canvasAssetItemLocation(node.asset_item_id);
+    const linkedUris = canvasAssetRegisteredUris(linked?.item);
+    return linkedUris.volcengine ? linkedUris : canvasAssetUrisForUrl(node?.url);
 }
 function canvasAssetItemKind(item){
     const explicit = String(item?.kind || item?.mediaKind || '').toLowerCase();
@@ -7685,11 +7689,10 @@ async function saveImageNodeToAssetLibrary(nodeId, target=null){
 }
 function canvasAvatarPlatform(provider){
     const protocol = String(provider?.protocol || '').toLowerCase();
-    if(protocol === 'apimart' || String(provider?.base_url || '').toLowerCase().includes('apimart.ai')) return 'apimart';
-    return protocol === 'volcengine' ? 'volcengine' : '';
+    return protocol === 'volcengine' || provider?.id === 'volcengine' ? 'volcengine' : '';
 }
 function quickCanvasAvatarProvider(){
-    return apiProviders.find(provider => provider?.enabled !== false && provider?.has_key !== false && canvasAvatarPlatform(provider));
+    return apiProviders.find(provider => provider?.id === 'volcengine' && provider.enabled !== false && provider.has_key !== false);
 }
 async function canvasAvatarRequest(path, libraryId, providerId){
     const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
@@ -7728,7 +7731,7 @@ async function quickFaceAuthImageNode(nodeId, target=null){
     const node = nodes.find(entry => entry.id === nodeId);
     if(!node?.url || !['image','video'].includes(mediaKindForNode(node))) return;
     const provider = quickCanvasAvatarProvider();
-    if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置 APIMart 或火山引擎。', '快速人脸认证'); return; }
+    if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置火山引擎。', '快速人脸认证'); return; }
     try {
         setStatus('正在上传素材并提交人脸认证…');
         const {item, libraryId} = await ensureImageNodeAsset(node, target);
@@ -10223,14 +10226,15 @@ async function runVideoNode(nodeId, opts={}){
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const allRefs = sources.flatMap(s => s.refs || []);
     const providerId = resolveVideoProviderId(node.apiProvider || 'comfly');
+    const isVolcengineVideo = canvasAvatarPlatform(apiProviders.find(provider => provider.id === providerId)) === 'volcengine';
     const refs = applyUploadedUrlToRefs(imageRefsOnly(allRefs), node).map(ref => {
         const uris = (ref && ref.asset_uris && typeof ref.asset_uris === 'object') ? ref.asset_uris : {};
-        return providerId === 'volcengine' && uris.volcengine ? {...ref, url:uris.volcengine, originalLocalUrl:ref.originalLocalUrl || ref.url} : ref;
+        return isVolcengineVideo && uris.volcengine ? {...ref, url:uris.volcengine, originalLocalUrl:ref.originalLocalUrl || ref.url} : ref;
     });
-    const usesTrustedVolcengineAssets = providerId === 'volcengine' && refs.some(ref => String(ref?.url || '').trim().startsWith('asset://'));
+    const usesTrustedVolcengineAssets = isVolcengineVideo && refs.some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     const videoRefs = applyUploadedUrlToRefs(videoRefsOnly(allRefs), node);
-    if(providerId !== 'volcengine' && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
-    if(providerId !== 'volcengine' && node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
+    if(!isVolcengineVideo && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
+    if(!isVolcengineVideo && node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
     if(!prompt){ alert(tr('canvas.videoNeedsPrompt')); return; }
     let out = outputForNode(node, 460);
     const run = runSnapshot(node, prompt, refs);
