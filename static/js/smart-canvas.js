@@ -3112,6 +3112,7 @@ async function loadConfig(){
     try {
         const cfg = await window.CanvasApi.getConfig();
         apiProviders = Array.isArray(cfg.api_providers) ? cfg.api_providers : [];
+        updateSmartCanvasCostButton();
         comfyInstanceCount = Math.max(1, (Array.isArray(cfg.comfy_instances) ? cfg.comfy_instances : []).filter(Boolean).length || 1);
         sanitizeSmartApiSelection(settings);
         updateProviderModels();
@@ -3126,6 +3127,7 @@ async function loadConfig(){
 }
 async function refreshSmartConfigFromSettings(){
     await loadConfig();
+    updateSmartCanvasCostButton();
     renderDynamicParams();
     const node = selectedNode();
     if(node?.type === 'smart-prompt') {
@@ -4573,6 +4575,7 @@ async function loadCanvas(){
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
         updateSmartCanvasNav();
+        updateSmartCanvasCostButton();
         nodes = (Array.isArray(canvas.nodes) ? canvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
         nodes.forEach(n => {
             const pendingTasks = smartPendingTasks(n);
@@ -5491,16 +5494,90 @@ function smartRunSnapshot(node, prompt, refs=[], kind='image'){
         size: kind === 'image' && isApiLikeEngine(settingsSnapshot.engine) ? sizeForRun(settingsSnapshot) : ''
     };
 }
+function smartModelPriceAt(providerId, kind, model, createdAt){
+    const provider = apiProviders.find(item => item.id === providerId);
+    const at = Number(createdAt || Date.now());
+    return (provider?.model_prices || [])
+        .filter(price => price.kind === kind && price.model === model
+            && Number(price.effective_from || 0) <= at
+            && (!Number(price.effective_to || 0) || at < Number(price.effective_to)))
+        .sort((a, b) => Number(b.effective_from || 0) - Number(a.effective_from || 0))[0] || null;
+}
+function smartBillingIdentity(run={}, log={}){
+    const s = run.settings || {};
+    const kind = log.billingKind || run.kind || '';
+    let providerId = log.providerId || log.request?.provider_id || '';
+    let model = log.billingModel || log.request?.model || '';
+    if(!run.settings && String(log.platform || '').toLowerCase() === 'modelscope'){
+        providerId = providerId || 'modelscope';
+        model = MS_GEN_MODELS[model]?.modelId || log.request?.custom_model || model;
+    }
+    if(!providerId && s.engine === 'modelscope') providerId = 'modelscope';
+    if(!model && s.engine === 'modelscope') model = s.msgenModel === 'custom' ? s.msCustomModel : MS_GEN_MODELS[s.msgenModel]?.modelId;
+    if(!providerId && kind === 'video') providerId = s.videoProvider || '';
+    if(!model && kind === 'video') model = s.videoModel || '';
+    if(!providerId) providerId = s.provider_id || '';
+    if(!model) model = s.model || log.model || '';
+    if(!providerId && log.platform) providerId = apiProviders.find(item => item.name === log.platform || item.id === log.platform)?.id || '';
+    return {kind, providerId, model};
+}
+function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
+    if(log.status === 'failed') return null;
+    const identity = smartBillingIdentity(run, log);
+    if(!identity.kind || !identity.providerId || !identity.model) return {status:'unknown', source, ...identity};
+    const price = smartModelPriceAt(identity.providerId, identity.kind, identity.model, createdAt);
+    if(!price) return {status:'unknown', source, ...identity};
+    let quantity = 1;
+    if(price.billing_type === 'per_image') quantity = Math.max(1, outputs.length);
+    if(price.billing_type === 'per_second'){
+        quantity = Number(log.durationSeconds || run.settings?.videoDuration || log.request?.duration || 0);
+        if(quantity <= 0) return {status:'unknown', source, ...identity};
+    }
+    const unitPriceMicros = Math.round(Number(price.unit_price || 0) * 1000000);
+    return {status:'priced', source, ...identity, billing_type:price.billing_type, quantity, unit_price:String(price.unit_price), currency:price.currency || 'CNY', amount_micros:Math.round(unitPriceMicros * quantity), price_effective_from:Number(price.effective_from || 0)};
+}
+function smartGenerationLogCost(log){
+    if(log?.status === 'failed') return null;
+    if(log?.cost?.status === 'priced') return log.cost;
+    return calculateSmartGenerationCost({log, outputs:log.outputs || [], createdAt:log.createdAt, source:'estimated'});
+}
+function formatSmartCost(value){
+    return `¥${new Intl.NumberFormat('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:6}).format(Number(value || 0) / 1000000)}`;
+}
+function smartCanvasCostTotals(logs=canvas?.logs || []){
+    return logs.reduce((sum, log) => {
+        const cost = smartGenerationLogCost(log);
+        if(cost?.status === 'priced'){
+            sum.total += Number(cost.amount_micros || 0);
+            sum[cost.kind] = (sum[cost.kind] || 0) + Number(cost.amount_micros || 0);
+            sum.calls += 1;
+            if(cost.source === 'estimated') sum.estimated += Number(cost.amount_micros || 0);
+        } else if(cost?.status === 'unknown') sum.unknown += 1;
+        return sum;
+    }, {total:0, image:0, video:0, estimated:0, unknown:0, calls:0});
+}
+function updateSmartCanvasCostButton(totals=smartCanvasCostTotals()){
+    const label = document.getElementById('smartCostToggleLabel');
+    const button = document.getElementById('smartCostToggle');
+    if(label) label.textContent = `费用 ${formatSmartCost(totals.total)}`;
+    if(button) button.title = totals.unknown ? `费用仪表盘 · ${totals.unknown} 笔待定价` : '费用仪表盘';
+}
 function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
     if(!canvas) return;
     canvas.logs = canvas.logs || [];
+    const createdAt = Date.now();
+    const identity = smartBillingIdentity(run);
     const entry = {
         id:uid('log'),
-        createdAt:Date.now(),
+        createdAt,
         status:error ? 'failed' : 'success',
         platform:smartRunPlatformLabel(run),
         nodeType:run?.nodeType || 'smart-image',
         model:smartRunTaskLabel(run),
+        providerId:identity.providerId,
+        billingKind:identity.kind,
+        billingModel:identity.model,
+        durationSeconds:Number(run?.settings?.videoDuration || 0),
         request:smartRunRequestMeta(run),
         prompt:run?.prompt || '',
         outputs:(outputs || []).filter(Boolean),
@@ -5508,7 +5585,9 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
         runMs:Number(runMs || 0),
         error:error ? String(error) : ''
     };
+    entry.cost = calculateSmartGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
     canvas.logs = [entry, ...canvas.logs].slice(0, 500);
+    updateSmartCanvasCostButton();
     scheduleSave();
 }
 function smartLogPreviewNode(url, kind='image'){
@@ -5529,6 +5608,14 @@ function smartLogPreviewNode(url, kind='image'){
 }
 function renderSmartCanvasLog(){
     const logs = canvas?.logs || [];
+    const totals = smartCanvasCostTotals(logs);
+    updateSmartCanvasCostButton(totals);
+    const summary = document.getElementById('smartCostSummary');
+    if(summary) summary.textContent = `总计 ${formatSmartCost(totals.total)} · 已计费 ${totals.calls} 次${totals.unknown ? ` · 待定价 ${totals.unknown} 笔` : ''}`;
+    [['smartCostTotal', formatSmartCost(totals.total)], ['smartCostImage', formatSmartCost(totals.image)], ['smartCostVideo', formatSmartCost(totals.video)], ['smartCostCalls', String(totals.calls)], ['smartCostMeta', totals.estimated ? `含历史预估 ${formatSmartCost(totals.estimated)}` : '按调用时价格快照'], ['smartCostUnknown', `待定价 ${totals.unknown} 笔`]].forEach(([id, value]) => {
+        const target = document.getElementById(id);
+        if(target) target.textContent = value;
+    });
     smartLogList.innerHTML = logs.length ? logs.map(log => {
         const thumbs = (log.outputs || []).slice(0, 8).map(url => {
             const safe = escapeAttr(url);
@@ -5539,6 +5626,10 @@ function renderSmartCanvasLog(){
         const req = log.request || {};
         const taskId = req.task_id || req.taskId || req.prompt_id || req.promptId || '';
         const backend = req.workflow_json || req.workflow || req.provider_id || req.providerId || req.backend || '';
+        const cost = smartGenerationLogCost(log);
+        const costChip = cost?.status === 'priced'
+            ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${formatSmartCost(cost.amount_micros)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
+            : cost?.status === 'unknown' ? '<span class="log-chip cost-unknown">待定价</span>' : '';
         const subParts = [
             date,
             `${'输出'} ${(log.outputs || []).length}`,
@@ -5551,6 +5642,7 @@ function renderSmartCanvasLog(){
                     <span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
                     ${log.model ? `<span class="log-chip">${escapeHtml(log.model)}</span>` : ''}
+                    ${costChip}
                     <span class="log-chip">${escapeHtml(formatRunDuration(log.runMs || 0))}</span>
                 </div>
                 <div class="log-subline">${subParts.map(part => `<span title="${escapeAttr(part)}">${escapeHtml(part)}</span>`).join('')}</div>
@@ -5583,10 +5675,18 @@ function renderSmartCanvasLog(){
     });
     refreshIcons();
 }
-function openSmartCanvasLog(){
+function openSmartCanvasLog(mode='logs'){
     if(!canvas) return;
+    document.getElementById('smartLogPanel')?.classList.toggle('cost-mode', mode === 'cost');
+    const title = document.getElementById('smartLogTitle');
+    if(title) title.textContent = mode === 'cost' ? '费用仪表盘' : '生成日志';
     renderSmartCanvasLog();
     smartLogModal.classList.add('open');
+}
+function openSmartCanvasCost(event){
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    openSmartCanvasLog('cost');
 }
 function closeSmartCanvasLog(){
     smartLogModal.classList.remove('open');
@@ -6459,7 +6559,7 @@ function handlePortDrop(drag, e){
         return;
     }
     if(!drag.moved){ discardPendingUndo(); render(); return; }
-    if(hit?.closest?.('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-minimap')){
+    if(hit?.closest?.('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-minimap')){
         discardPendingUndo(); render(); return;
     }
     const p = screenToWorld(e);
@@ -12749,14 +12849,14 @@ function createNodeFromMenu(type){
 shell.addEventListener('mousedown', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
 }, true);
 shell.addEventListener('click', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
     const nodeEl = e.target.closest('.image-node');
@@ -12764,8 +12864,8 @@ shell.addEventListener('click', e => {
     else exitZoomPreview(screenToWorld(e));
 }, true);
 shell.onmousedown = e => {
-    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
-    if(e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.create-menu,.smart-minimap')) return;
+    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.create-menu,.smart-minimap')) return;
     closeCreateMenu();
     if(e.button === 0 && isRKeyDown){
         e.preventDefault();
@@ -12795,14 +12895,14 @@ shell.oncontextmenu = e => {
     }
 };
 shell.ondblclick = e => {
-    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     e.preventDefault();
     openCreateMenu(e);
 };
 shell.onclick = e => {
     if(selectionJustFinished) return;
-    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     closeCreateMenu();
     clearSelection();
@@ -13162,7 +13262,7 @@ window.onmouseup = e => {
     }
 };
 shell.addEventListener('wheel', e => {
-    if(e.target.closest('.composer,.smart-nav,.image-edit-modal,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
+    if(e.target.closest('.composer,.smart-nav,.image-edit-modal,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
     e.preventDefault();
     const rect = shell.getBoundingClientRect();
     const sx = e.clientX - rect.left;
