@@ -5521,6 +5521,17 @@ function smartBillingIdentity(run={}, log={}){
     if(!providerId && log.platform) providerId = apiProviders.find(item => item.name === log.platform || item.id === log.platform)?.id || '';
     return {kind, providerId, model};
 }
+function historicalSmartVideoDuration(log){
+    const urls = new Set((log.outputs || []).map(item => typeof item === 'string' ? item : item?.url || '').filter(Boolean));
+    // ponytail: linear history scan; index by output URL only if very large canvases make this slow.
+    for(const node of nodes || []) for(const item of node.images || []){
+        const url = typeof item === 'string' ? item : item?.url || '';
+        if(!urls.has(url)) continue;
+        const duration = Number(node.runSettings?.videoDuration || node.settings?.videoDuration || 0);
+        if(duration > 0) return duration;
+    }
+    return 0;
+}
 function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
     if(log.status === 'failed') return null;
     const identity = smartBillingIdentity(run, log);
@@ -5530,7 +5541,7 @@ function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Dat
     let quantity = 1;
     if(price.billing_type === 'per_image') quantity = Math.max(1, outputs.length);
     if(price.billing_type === 'per_second'){
-        quantity = Number(log.durationSeconds || run.settings?.videoDuration || log.request?.duration || 0);
+        quantity = Number(log.durationSeconds || run.settings?.videoDuration || log.request?.duration || historicalSmartVideoDuration(log));
         if(quantity <= 0) return {status:'unknown', source, ...identity};
     }
     const unitPriceMicros = Math.round(Number(price.unit_price || 0) * 1000000);

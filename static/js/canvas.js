@@ -2518,7 +2518,7 @@ async function createSmartCanvas(){
 }
 function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.06.23.1`;
+    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.07.21.3`;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();
@@ -11808,6 +11808,16 @@ function billingIdentity(run, log={}){
     if(nodeType === 'msgen') model = run?.billingModel || log.billingModel || node.msCustomModel || MS_GEN_MODELS[node.msgenModel]?.modelId || model;
     return {kind, providerId, model};
 }
+function historicalVideoDuration(log){
+    const urls = new Set((log.outputs || []).map(outputUrlValue).filter(Boolean));
+    // ponytail: linear history scan; index by output URL only if very large canvases make this slow.
+    for(const node of nodes || []) for(const item of node.images || []){
+        if(!urls.has(outputUrlValue(item))) continue;
+        const duration = Number(item.run?.node?.duration || item.run?.request?.duration || 0);
+        if(duration > 0) return duration;
+    }
+    return 0;
+}
 function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
     if(log.status === 'failed') return null;
     const identity = billingIdentity(run, log);
@@ -11817,7 +11827,7 @@ function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now
     let quantity = 1;
     if(price.billing_type === 'per_image') quantity = Math.max(1, (outputs || []).length);
     if(price.billing_type === 'per_second'){
-        quantity = Number(log.durationSeconds || run?.node?.duration || run?.request?.duration || log.request?.duration || 0);
+        quantity = Number(log.durationSeconds || run?.node?.duration || run?.request?.duration || log.request?.duration || historicalVideoDuration(log));
         if(quantity <= 0) return {status:'unknown', source, ...identity};
     }
     const unitPriceMicros = Math.round(Number(price.unit_price || 0) * 1000000);
