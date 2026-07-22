@@ -712,7 +712,9 @@ function bindCanvasPreviewImageFallbacks(root=document){
             if(img.dataset.previewKind === 'video'){
                 const video = document.createElement('template');
                 video.innerHTML = canvasVideoFallbackHtml(original, img.dataset.videoFallbackAttrs || '');
-                img.replaceWith(video.content.firstElementChild);
+                const fallback = video.content.firstElementChild;
+                fallback.onclick = img.onclick;
+                img.replaceWith(fallback);
                 return;
             }
             if(original && img.getAttribute('src') !== original) img.src = original;
@@ -2518,7 +2520,7 @@ async function createSmartCanvas(){
 }
 function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.07.23.1`;
+    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.07.23.3`;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();

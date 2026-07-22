@@ -1073,7 +1073,9 @@ function bindSmartPreviewImageFallbacks(root=document){
             if(img.dataset.previewKind === 'video'){
                 const tpl = document.createElement('template');
                 tpl.innerHTML = smartVideoFallbackHtml(original, img.dataset.videoFallbackAttrs || '');
-                img.replaceWith(tpl.content.firstElementChild);
+                const fallback = tpl.content.firstElementChild;
+                fallback.onclick = img.onclick;
+                img.replaceWith(fallback);
                 return;
             }
             if(original && img.getAttribute('src') !== original) img.src = original;
@@ -5637,10 +5639,6 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
     scheduleSave();
 }
 function smartLogPreviewNode(url, kind='image'){
-    if(kind === 'video' || outputUrlLooksVideo(url)){
-        window.open(url, '_blank');
-        return;
-    }
     const node = {id:'__smart_log_preview__', type:'smart-image', images:[{url, name:'log-preview', kind}], title:kind === 'video' ? 'Video' : 'Image'};
     const prevSelectedId = selectedId;
     const prevSelectedImage = {...selectedImage};
