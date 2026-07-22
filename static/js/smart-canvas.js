@@ -5532,6 +5532,41 @@ function historicalSmartVideoDuration(log){
     }
     return 0;
 }
+function smartVideoDurationSeconds(url){
+    return new Promise(resolve => {
+        if(!url) return resolve(0);
+        const video = document.createElement('video');
+        let settled = false;
+        const done = value => { if(settled) return; settled = true; clearTimeout(timer); video.removeAttribute('src'); video.load(); resolve(value); };
+        const timer = setTimeout(() => done(0), 8000);
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => done(Number.isFinite(video.duration) ? Math.max(1, Math.round(video.duration)) : 0);
+        video.onerror = () => done(0);
+        video.src = url;
+    });
+}
+let smartVideoCostBackfillRunning = false;
+async function backfillSmartHistoricalVideoCosts(){
+    if(smartVideoCostBackfillRunning || !canvas) return;
+    const logs = (canvas.logs || []).filter(log => log.status !== 'failed' && smartBillingIdentity({}, log).kind === 'video' && !Number(log.durationSeconds || 0));
+    if(!logs.length) return;
+    smartVideoCostBackfillRunning = true;
+    let changed = false;
+    try {
+        for(const log of logs){
+            const stored = Number(log.request?.duration || historicalSmartVideoDuration(log));
+            const output = (log.outputs || []).map(item => typeof item === 'string' ? item : item?.url || '').find(Boolean);
+            const duration = stored > 0 ? stored : await smartVideoDurationSeconds(output);
+            if(duration <= 0) continue;
+            log.durationSeconds = duration;
+            log.cost = calculateSmartGenerationCost({log, outputs:log.outputs || [], createdAt:log.createdAt, source:'estimated'});
+            changed = true;
+        }
+        if(changed){ scheduleSave(); renderSmartCanvasLog(); }
+    } finally {
+        smartVideoCostBackfillRunning = false;
+    }
+}
 function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
     if(log.status === 'failed') return null;
     const identity = smartBillingIdentity(run, log);
@@ -5685,6 +5720,7 @@ function renderSmartCanvasLog(){
         };
     });
     refreshIcons();
+    void backfillSmartHistoricalVideoCosts();
 }
 function openSmartCanvasLog(mode='logs'){
     if(!canvas) return;

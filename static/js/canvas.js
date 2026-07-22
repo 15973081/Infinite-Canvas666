@@ -2518,7 +2518,7 @@ async function createSmartCanvas(){
 }
 function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.07.21.3`;
+    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.07.23.1`;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();
@@ -11818,6 +11818,40 @@ function historicalVideoDuration(log){
     }
     return 0;
 }
+function videoDurationSeconds(url){
+    return new Promise(resolve => {
+        if(!url) return resolve(0);
+        const video = document.createElement('video');
+        let settled = false;
+        const done = value => { if(settled) return; settled = true; clearTimeout(timer); video.removeAttribute('src'); video.load(); resolve(value); };
+        const timer = setTimeout(() => done(0), 8000);
+        video.preload = 'metadata';
+        video.onloadedmetadata = () => done(Number.isFinite(video.duration) ? Math.max(1, Math.round(video.duration)) : 0);
+        video.onerror = () => done(0);
+        video.src = url;
+    });
+}
+let videoCostBackfillRunning = false;
+async function backfillHistoricalVideoCosts(){
+    if(videoCostBackfillRunning || !canvas) return;
+    const logs = (canvas.logs || []).filter(log => log.status !== 'failed' && billingIdentity({}, log).kind === 'video' && !Number(log.durationSeconds || 0));
+    if(!logs.length) return;
+    videoCostBackfillRunning = true;
+    let changed = false;
+    try {
+        for(const log of logs){
+            const stored = Number(log.request?.duration || historicalVideoDuration(log));
+            const duration = stored > 0 ? stored : await videoDurationSeconds((log.outputs || []).map(outputUrlValue).find(Boolean));
+            if(duration <= 0) continue;
+            log.durationSeconds = duration;
+            log.cost = calculateGenerationCost({log, outputs:log.outputs || [], createdAt:log.createdAt, source:'estimated'});
+            changed = true;
+        }
+        if(changed){ scheduleSave(); renderCanvasLog(); }
+    } finally {
+        videoCostBackfillRunning = false;
+    }
+}
 function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
     if(log.status === 'failed') return null;
     const identity = billingIdentity(run, log);
@@ -11986,6 +12020,7 @@ function renderCanvasLog(){
         };
     });
     refreshIcons();
+    void backfillHistoricalVideoCosts();
 }
 async function importWorkflowAssetUrl(url, name='workflow'){
     if(!canvas || !url) return;
