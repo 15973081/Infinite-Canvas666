@@ -162,6 +162,7 @@ def load_canvas(canvas_id):
         raise HTTPException(status_code=404, detail="画布不存在")
     with open(path, 'r', encoding='utf-8') as f:
         canvas = json.load(f)
+    canvas = recover_canvas_logs(canvas_id, canvas)
     if canvas.get("deleted_at"):
         raise HTTPException(status_code=404, detail="画布已在回收站")
     return canvas
@@ -481,3 +482,34 @@ def _backup_dir(canvas_id: str) -> str:
 
 def _backup_path(canvas_id: str, filename: str) -> str:
     return os.path.join(_backup_dir(canvas_id), filename)
+
+
+def recover_canvas_logs(canvas_id, canvas):
+    if canvas.get("logs"):
+        return canvas
+    backup_dir = _backup_dir(canvas_id)
+    if not os.path.isdir(backup_dir):
+        return canvas
+    recovered = []
+    for name in sorted(os.listdir(backup_dir), reverse=True):
+        if not name.endswith(".json"):
+            continue
+        try:
+            with open(_backup_path(canvas_id, name), "r", encoding="utf-8") as f:
+                recovered = json.load(f).get("logs") or []
+        except Exception:
+            continue
+        if recovered:
+            break
+    if not recovered:
+        return canvas
+    path = canvas_path(canvas_id)
+    with CANVAS_LOCK:
+        with open(path, "r", encoding="utf-8") as f:
+            current = json.load(f)
+        if current.get("logs"):
+            return current
+        current["logs"] = recovered[-500:]
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(current, f, ensure_ascii=False, indent=2)
+    return current

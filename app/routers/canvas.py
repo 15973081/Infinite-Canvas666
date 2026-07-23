@@ -985,6 +985,7 @@ async def export_smart_canvas_group(payload: SmartCanvasGroupExportRequest):
 @router.put("/api/canvases/{canvas_id}")
 async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
     canvas = load_canvas(canvas_id)
+    fields_set = getattr(payload, "model_fields_set", getattr(payload, "__fields_set__", set()))
     current_updated_at = int(canvas.get("updated_at") or 0)
     if payload.base_updated_at and current_updated_at and int(payload.base_updated_at) < current_updated_at:
         raise HTTPException(status_code=409, detail={
@@ -1001,8 +1002,10 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
         canvas["viewport"] = payload.viewport
     else:
         canvas["viewport"] = canvas.get("viewport") or {"x": 0, "y": 0, "scale": 1}
-    canvas["logs"] = payload.logs[-500:]
-    canvas["settings"] = payload.settings or {}
+    if "logs" in fields_set:
+        canvas["logs"] = payload.logs[-500:]
+    if "settings" in fields_set:
+        canvas["settings"] = payload.settings or {}
     save_canvas(canvas)
     await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
     return {"canvas": canvas}

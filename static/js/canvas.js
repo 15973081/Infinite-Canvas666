@@ -2535,29 +2535,18 @@ async function setCanvasIcon(id, icon, event){
     event?.preventDefault();
     event?.stopPropagation();
     const item = canvases.find(c => c.id === id);
-    if(item) item.icon = icon || 'layers';
+    const nextIcon = icon || 'layers';
+    if(item) item.icon = nextIcon;
+    if(canvas?.id === id) canvas.icon = nextIcon;
     closeCanvasMetaPopover();
     renderCanvasList();
     try {
-        let target = canvas?.id === id ? canvas : null;
-        if(!target) {
-            const data = await window.CanvasApi.getCanvas(id);
-            target = data.canvas;
-        }
-        target.icon = icon || 'layers';
-        const res = await window.CanvasApi.saveCanvas(id, {
-            title:target.title,
-            icon:target.icon,
-            nodes:target.nodes || [],
-            connections:target.connections || [],
-            viewport:target.viewport || {x:0, y:0, scale:1}
-        });
-        if(!res.ok) throw new Error('图标保存失败');
-        if(canvas?.id === id) canvas.icon = target.icon;
-        await loadCanvasList(false);
+        const data = await window.CanvasApi.patchCanvasMeta(id, {icon:nextIcon});
+        if(data.canvas) updateCanvasListRecord(data.canvas);
     } catch(e) {
         setStatus('图标保存失败');
         console.error(e);
+        await loadCanvasList(false);
     }
 }
 function startTitleEdit(id, titleEl){
@@ -2599,25 +2588,13 @@ async function setCanvasTitle(id, title){
     if(canvas?.id === id) canvas.title = title;
     renderCanvasList();
     try {
-        let target = canvas?.id === id ? canvas : null;
-        if(!target){
-            const data = await window.CanvasApi.getCanvas(id);
-            target = data.canvas;
-        }
-        target.title = title;
-        const res = await window.CanvasApi.saveCanvas(id, {
-            title:target.title,
-            icon:target.icon,
-            nodes:target.nodes || [],
-            connections:target.connections || [],
-            viewport:target.viewport || {x:0, y:0, scale:1}
-        });
-        if(!res.ok) throw new Error('重命名失败');
+        const data = await window.CanvasApi.patchCanvasMeta(id, {title});
+        if(data.canvas) updateCanvasListRecord(data.canvas);
         if(currentCanvasTitle && canvas?.id === id) currentCanvasTitle.textContent = title;
-        await loadCanvasList(false);
     } catch(e){
         setStatus('重命名失败');
         console.error(e);
+        await loadCanvasList(false);
     }
 }
 async function openCanvas(id){
