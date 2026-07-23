@@ -485,31 +485,44 @@ def _backup_path(canvas_id: str, filename: str) -> str:
 
 
 def recover_canvas_logs(canvas_id, canvas):
-    if canvas.get("logs"):
+    if canvas.get("_logs_history_recovered"):
         return canvas
     backup_dir = _backup_dir(canvas_id)
     if not os.path.isdir(backup_dir):
         return canvas
     recovered = []
+    seen = set()
+
+    def add_logs(logs):
+        for log in logs or []:
+            log_id = str(log.get("id") or "") if isinstance(log, dict) else ""
+            key = f"id:{log_id}" if log_id else f"data:{json.dumps(log, ensure_ascii=False, sort_keys=True)}"
+            if key not in seen:
+                seen.add(key)
+                recovered.append(log)
+
+    add_logs(canvas.get("logs"))
     for name in sorted(os.listdir(backup_dir), reverse=True):
         if not name.endswith(".json"):
             continue
         try:
             with open(_backup_path(canvas_id, name), "r", encoding="utf-8") as f:
-                recovered = json.load(f).get("logs") or []
+                add_logs(json.load(f).get("logs"))
         except Exception:
             continue
-        if recovered:
-            break
-    if not recovered:
-        return canvas
     path = canvas_path(canvas_id)
     with CANVAS_LOCK:
         with open(path, "r", encoding="utf-8") as f:
             current = json.load(f)
-        if current.get("logs"):
+        if current.get("_logs_history_recovered"):
             return current
-        current["logs"] = recovered[-500:]
+        add_logs(current.get("logs"))
+        current["logs"] = sorted(
+            recovered,
+            key=lambda log: int(log.get("createdAt") or log.get("created_at") or 0) if isinstance(log, dict) else 0,
+            reverse=True,
+        )[:500]
+        current["_logs_history_recovered"] = True
         with open(path, "w", encoding="utf-8") as f:
             json.dump(current, f, ensure_ascii=False, indent=2)
     return current
