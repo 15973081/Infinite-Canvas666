@@ -183,7 +183,7 @@ async def upload_asset_library_workflows(
 
 @router.get("/api/asset-library")
 async def get_asset_library():
-    return {"library": load_asset_library()}
+    return {"library": await asyncio.to_thread(load_asset_library)}
 
 @router.post("/api/asset-library/libraries")
 async def create_asset_library(payload: AssetLibraryRequest):

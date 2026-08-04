@@ -79,6 +79,37 @@ def generate_video_preview_image(path: str, width: int) -> Image.Image:
             pass
 
 
+def generate_media_preview_file(path: str, width: int, webp_path: str, png_path: str) -> Tuple[str, str]:
+    """Decode, resize, and encode a preview entirely off the async event loop."""
+    if is_video_preview_file(path):
+        img = generate_video_preview_image(path, width)
+    else:
+        with Image.open(path) as source:
+            img = ImageOps.exif_transpose(source).copy()
+            img.thumbnail((width, width), Image.LANCZOS)
+            img = img.convert("RGBA" if image_has_alpha(img) else "RGB")
+
+    os.makedirs(MEDIA_PREVIEW_DIR, exist_ok=True)
+    webp_tmp = f"{webp_path}.{uuid.uuid4().hex}.tmp"
+    png_tmp = f"{png_path}.{uuid.uuid4().hex}.tmp"
+    try:
+        try:
+            img.save(webp_tmp, format="WEBP", quality=82, method=4)
+            os.replace(webp_tmp, webp_path)
+            return webp_path, "image/webp"
+        except Exception:
+            img.save(png_tmp, format="PNG", optimize=True)
+            os.replace(png_tmp, png_path)
+            return png_path, "image/png"
+    finally:
+        img.close()
+        for tmp_path in (webp_tmp, png_tmp):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
 def local_media_file_by_basename(name: str):
     safe = os.path.basename(urllib.parse.unquote(str(name or "")))
     if not safe:

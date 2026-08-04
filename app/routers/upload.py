@@ -20,6 +20,7 @@ from app.services.workflow import *
 from PIL import Image, ImageOps
 
 router = APIRouter()
+_media_preview_semaphore = asyncio.Semaphore(max(2, min(4, os.cpu_count() or 2)))
 
 @router.get("/api/media-preview")
 async def media_preview(url: str, w: int = 512):
@@ -36,21 +37,15 @@ async def media_preview(url: str, w: int = 512):
         return FileResponse(png_path, media_type="image/png")
 
     try:
-        os.makedirs(MEDIA_PREVIEW_DIR, exist_ok=True)
-        if is_video_preview_file(path):
-            img = await asyncio.to_thread(generate_video_preview_image, path, width)
-        else:
-            with Image.open(path) as source:
-                img = ImageOps.exif_transpose(source)
-                img.thumbnail((width, width), Image.LANCZOS)
-                img = img.convert("RGBA" if image_has_alpha(img) else "RGB")
-
-        try:
-            img.save(webp_path, format="WEBP", quality=82, method=4)
-            return FileResponse(webp_path, media_type="image/webp")
-        except Exception:
-            img.save(png_path, format="PNG", optimize=True)
-            return FileResponse(png_path, media_type="image/png")
+        async with _media_preview_semaphore:
+            if os.path.exists(webp_path):
+                return FileResponse(webp_path, media_type="image/webp")
+            if os.path.exists(png_path):
+                return FileResponse(png_path, media_type="image/png")
+            preview_path, media_type = await asyncio.to_thread(
+                generate_media_preview_file, path, width, webp_path, png_path
+            )
+        return FileResponse(preview_path, media_type=media_type)
     except Exception as exc:
         raise HTTPException(status_code=415, detail=f"无法生成预览图：{exc}") from exc
 

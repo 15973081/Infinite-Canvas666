@@ -1,4 +1,4 @@
-const root = document.getElementById('assetManagerRoot');
+ const root = document.getElementById('assetManagerRoot');
 const statusEl = document.getElementById('assetStatus');
 const refreshBtn = document.getElementById('refreshBtn');
 const uploadInput = document.getElementById('assetUploadInput');
@@ -80,8 +80,12 @@ let canvasAssetQuery = '';
 let canvasAssetSort = 'canvas_asc';
 let canvasAssetManageMode = false;
 let searchRenderTimer = 0;
+let assetGridKey = '';
+let assetRenderedCount = 0;
+let marqueeRenderFrame = 0;
 
 const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|webp|gif|bmp|avif|svg|mp4|webm|mov|m4v|mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/i;
+const ASSET_BATCH_SIZE = 80;
 
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 function setStatus(text='准备就绪'){ if(statusEl) statusEl.textContent = text || '准备就绪'; }
@@ -251,12 +255,23 @@ function assetKindLabel(item){
     if(kind === 'text') return '文本';
     return '图片';
 }
+function assetMediaPreviewUrl(url, size=384){
+    const raw = String(url || '');
+    if(!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+    if(!raw.startsWith('/output/') && !raw.startsWith('/assets/')) return raw;
+    if(!/\.(png|jpe?g|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return raw;
+    const width = Math.max(64, Math.min(2048, Math.round(Number(size) || 384)));
+    return `/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`;
+}
 function assetThumb(item){
     const kind = assetKind(item);
-    if(kind === 'video') return `<video src="${escapeAttr(item.url)}" muted preload="metadata" playsinline></video>`;
+    const original = String(item?.url || '');
+    const preview = assetMediaPreviewUrl(original, 384);
+    if(kind === 'video' && preview !== original) return `<img src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" alt="${escapeAttr(item.name || 'video')}" loading="lazy" decoding="async" fetchpriority="low">`;
+    if(kind === 'video') return `<video src="${escapeAttr(original)}" muted preload="none" playsinline></video>`;
     if(kind === 'audio') return `<div class="asset-file-icon"><i data-lucide="file-audio"></i><span>音频</span></div>`;
     if(kind === 'text') return `<div class="asset-file-icon"><i data-lucide="file-text"></i><span>文本</span></div>`;
-    return `<img src="${escapeAttr(item.url)}" alt="${escapeAttr(item.name || 'asset')}" loading="lazy">`;
+    return `<img src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" alt="${escapeAttr(item.name || 'asset')}" loading="lazy" decoding="async" fetchpriority="low">`;
 }
 function workflowThumb(item){
     return `<div class="asset-file-icon workflow-file-icon"><i data-lucide="workflow"></i><span>${escapeHtml(workflowKindLabel(item))}</span></div>`;
@@ -763,6 +778,8 @@ async function loadAll({reset=false}={}){
         selectedPromptIds.clear();
         selectedCanvasAssetIds.clear();
     }
+    assetGridKey = '';
+    assetRenderedCount = 0;
     render();
     if(scrollState) Object.entries(scrollState).forEach(([selector, position]) => {
         const el = root.querySelector(selector);
@@ -1190,6 +1207,36 @@ function renderLocalDetail(item){
         </div>
     `;
 }
+function currentAssetGridKey(){
+    return `${activeAssetLibraryId}\u0000${activeAssetCategoryId}\u0000${assetQuery.trim().toLowerCase()}`;
+}
+function prepareAssetRenderWindow(items){
+    const key = currentAssetGridKey();
+    if(key !== assetGridKey){
+        assetGridKey = key;
+        assetRenderedCount = Math.min(ASSET_BATCH_SIZE, items.length);
+    } else if(!assetRenderedCount && items.length) {
+        assetRenderedCount = Math.min(ASSET_BATCH_SIZE, items.length);
+    }
+    assetRenderedCount = Math.min(assetRenderedCount, items.length);
+    return items.slice(0, assetRenderedCount);
+}
+function renderAssetLoadMore(total){
+    if(assetRenderedCount >= total) return '';
+    const remaining = total - assetRenderedCount;
+    return `<button class="asset-load-more" type="button" data-asset-load-more>继续加载（剩余 ${remaining} 个）</button>`;
+}
+function appendNextAssetBatch(){
+    if(activeTab !== 'assets') return;
+    const grid = root.querySelector('.asset-grid');
+    if(!grid) return;
+    const items = currentAssetItems();
+    if(assetRenderedCount >= items.length) return;
+    const start = assetRenderedCount;
+    assetRenderedCount = Math.min(items.length, start + ASSET_BATCH_SIZE);
+    grid.querySelector('[data-asset-load-more]')?.remove();
+    grid.insertAdjacentHTML('beforeend', `${items.slice(start, assetRenderedCount).map(item => renderAssetCard(item)).join('')}${renderAssetLoadMore(items.length)}`);
+}
 function renderAssetManager(){
     normalizeAssetState();
     const libs = assetLibraries();
@@ -1197,6 +1244,7 @@ function renderAssetManager(){
     const lib = activeAssetLibrary();
     const cat = activeAssetCategory();
     const items = currentAssetItems();
+    const visibleItems = prepareAssetRenderWindow(items);
     const detail = selectedAsset();
     root.innerHTML = `
         <aside class="asset-panel asset-nav">
@@ -1242,7 +1290,8 @@ function renderAssetManager(){
             <div class="content-scroll">
                 <div class="asset-grid">
                     ${renderUploadCard(cat)}
-                    ${items.map(item => renderAssetCard(item)).join('')}
+                    ${visibleItems.map(item => renderAssetCard(item)).join('')}
+                    ${renderAssetLoadMore(items.length)}
                     ${items.length ? '' : '<div class="empty-state">当前分组还没有素材，可以上传，或从智能画布输出保存到素材库。</div>'}
                 </div>
             </div>
@@ -1591,6 +1640,35 @@ function renderAssetDetail(item){
             </div>
         </div>
     `;
+}
+function refreshAssetSelectionOnly({detail=true}={}){
+    root.querySelectorAll('[data-asset-card]').forEach(card => {
+        card.classList.toggle('active', card.dataset.assetCard === selectedAssetId);
+    });
+    root.querySelectorAll('[data-asset-check]').forEach(input => {
+        input.checked = selectedAssetIds.has(input.dataset.assetCheck);
+    });
+    const manageTools = root.querySelector('.asset-content .manage-tools');
+    const count = selectedAssetIds.size;
+    const summary = manageTools?.querySelector(':scope > span');
+    if(summary) summary.textContent = `已选择 ${count} 个素材，支持拖拽框选或逐个勾选。`;
+    const needsSelection = [
+        '[data-asset-clear-selection]', '[data-asset-cut-selected]', '[data-asset-copy-selected]',
+        '[data-asset-download-selected]', '[data-asset-copy-to-canvas]', '[data-asset-delete-selected]'
+    ];
+    needsSelection.forEach(selector => {
+        const button = manageTools?.querySelector(selector);
+        if(button) button.disabled = !count;
+    });
+    const avatarButton = manageTools?.querySelector('[data-avatar-register-selected]');
+    if(avatarButton) avatarButton.disabled = !count || Boolean(avatarBusyId);
+    if(detail){
+        const detailPanel = root.querySelector('.asset-detail');
+        if(detailPanel){
+            detailPanel.innerHTML = renderAssetDetail(selectedAsset());
+            refreshIcons();
+        }
+    }
 }
 function renderPromptManager(){
     normalizePromptState();
@@ -2340,8 +2418,8 @@ async function handleClick(event){
         render();
         return;
     }
-    if(target.closest?.('[data-asset-select-all]')){ currentAssetItems().forEach(item => selectedAssetIds.add(item.id)); pendingBatchDelete = ''; render(); return; }
-    if(target.closest?.('[data-asset-clear-selection]')){ selectedAssetIds.clear(); pendingBatchDelete = ''; render(); return; }
+    if(target.closest?.('[data-asset-select-all]')){ currentAssetItems().forEach(item => selectedAssetIds.add(item.id)); pendingBatchDelete = ''; refreshAssetSelectionOnly({detail:false}); return; }
+    if(target.closest?.('[data-asset-clear-selection]')){ selectedAssetIds.clear(); pendingBatchDelete = ''; refreshAssetSelectionOnly({detail:false}); return; }
     if(target.closest?.('[data-asset-cut-selected]')){ setAssetClipboard('cut'); return; }
     if(target.closest?.('[data-asset-copy-selected]')){ setAssetClipboard('copy'); return; }
     if(target.closest?.('[data-asset-paste-clipboard]')){ await pasteAssetClipboard(); return; }
@@ -2429,8 +2507,9 @@ async function handleClick(event){
     }
     const assetCat = target.closest?.('[data-asset-cat]');
     if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; collapsedAssetLibraryIds.delete(activeAssetLibraryId); activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); render(); return; }
+    if(target.closest?.('[data-asset-load-more]')){ appendNextAssetBatch(); return; }
     const assetCard = target.closest?.('[data-asset-card]');
-    if(assetCard){
+    if(assetCard && !target.closest?.('[data-asset-check]')){
         const id = assetCard.dataset.assetCard || '';
         selectedAssetId = id;
         assetEditMode = false;
@@ -2439,7 +2518,7 @@ async function handleClick(event){
             if(selectedAssetIds.has(id)) selectedAssetIds.delete(id); else selectedAssetIds.add(id);
             pendingBatchDelete = '';
         }
-        render();
+        refreshAssetSelectionOnly();
         return;
     }
 
@@ -2664,16 +2743,30 @@ function beginMarqueeSelection(event){
 }
 function updateMarqueeSelection(event){
     if(!marqueeState) return;
+    marqueeState.pointer = {clientX:event.clientX, clientY:event.clientY};
+    if(marqueeRenderFrame) return;
+    marqueeRenderFrame = requestAnimationFrame(() => {
+        marqueeRenderFrame = 0;
+        const point = marqueeState?.pointer;
+        if(point) performMarqueeSelection(point.clientX, point.clientY);
+    });
+}
+function performMarqueeSelection(clientX, clientY){
+    if(!marqueeState) return;
     if(!marqueeState.active){
-        const dx = Math.abs(event.clientX - marqueeState.startX);
-        const dy = Math.abs(event.clientY - marqueeState.startY);
+        const dx = Math.abs(clientX - marqueeState.startX);
+        const dy = Math.abs(clientY - marqueeState.startY);
         if(Math.max(dx, dy) < 4) return;
         marqueeState.active = true;
+        marqueeState.targets = [...document.querySelectorAll(marqueeState.selector)].map(el => ({
+            el,
+            rect:el.getBoundingClientRect()
+        }));
     }
-    const left = Math.min(marqueeState.startX, event.clientX);
-    const top = Math.min(marqueeState.startY, event.clientY);
-    const right = Math.max(marqueeState.startX, event.clientX);
-    const bottom = Math.max(marqueeState.startY, event.clientY);
+    const left = Math.min(marqueeState.startX, clientX);
+    const top = Math.min(marqueeState.startY, clientY);
+    const right = Math.max(marqueeState.startX, clientX);
+    const bottom = Math.max(marqueeState.startY, clientY);
     const areaRect = marqueeState.area.getBoundingClientRect();
     const boxLeft = left - areaRect.left + marqueeState.area.scrollLeft;
     const boxTop = top - areaRect.top + marqueeState.area.scrollTop;
@@ -2686,23 +2779,23 @@ function updateMarqueeSelection(event){
     const rect = {left, top, right, bottom};
     if(activeTab === 'assets'){
         selectedAssetIds = new Set(marqueeState.baseAsset);
-        document.querySelectorAll(marqueeState.selector).forEach(el => {
-            if(rectsIntersect(rect, el.getBoundingClientRect())) selectedAssetIds.add(el.dataset.assetCard);
+        marqueeState.targets.forEach(({el, rect:targetRect}) => {
+            if(rectsIntersect(rect, targetRect)) selectedAssetIds.add(el.dataset.assetCard);
         });
     } else if(activeTab === 'prompts') {
         selectedPromptIds = new Set(marqueeState.basePrompt);
-        document.querySelectorAll(marqueeState.selector).forEach(el => {
-            if(rectsIntersect(rect, el.getBoundingClientRect())) selectedPromptIds.add(el.dataset.promptRow);
+        marqueeState.targets.forEach(({el, rect:targetRect}) => {
+            if(rectsIntersect(rect, targetRect)) selectedPromptIds.add(el.dataset.promptRow);
         });
     } else if(activeTab === 'local') {
         selectedLocalIds = new Set(marqueeState.baseLocal);
-        document.querySelectorAll(marqueeState.selector).forEach(el => {
-            if(rectsIntersect(rect, el.getBoundingClientRect())) selectedLocalIds.add(el.dataset.localCard);
+        marqueeState.targets.forEach(({el, rect:targetRect}) => {
+            if(rectsIntersect(rect, targetRect)) selectedLocalIds.add(el.dataset.localCard);
         });
     } else if(activeTab === 'canvas-assets') {
         selectedCanvasAssetIds = new Set(marqueeState.baseCanvasAsset);
-        document.querySelectorAll(marqueeState.selector).forEach(el => {
-            if(rectsIntersect(rect, el.getBoundingClientRect())) selectedCanvasAssetIds.add(el.dataset.canvasAssetCard);
+        marqueeState.targets.forEach(({el, rect:targetRect}) => {
+            if(rectsIntersect(rect, targetRect)) selectedCanvasAssetIds.add(el.dataset.canvasAssetCard);
         });
     }
     document.querySelectorAll('[data-asset-check]').forEach(input => { input.checked = selectedAssetIds.has(input.dataset.assetCheck); });
@@ -2712,13 +2805,21 @@ function updateMarqueeSelection(event){
 }
 function endMarqueeSelection(){
     if(!marqueeState) return;
+    if(marqueeRenderFrame){
+        cancelAnimationFrame(marqueeRenderFrame);
+        marqueeRenderFrame = 0;
+        const point = marqueeState.pointer;
+        if(point) performMarqueeSelection(point.clientX, point.clientY);
+    }
     const shouldRender = marqueeState.active;
+    const selectionKind = activeTab;
     marqueeState.box.remove();
     marqueeState = null;
     pendingBatchDelete = '';
     if(shouldRender){
         suppressClickAfterMarquee = true;
-        render();
+        if(selectionKind === 'assets') refreshAssetSelectionOnly({detail:false});
+        else render();
     }
 }
 async function createAssetLibrary(){
@@ -3409,6 +3510,19 @@ document.addEventListener('pointercancel', endLightboxPan);
 root.addEventListener('pointerdown', beginMarqueeSelection);
 document.addEventListener('pointermove', event => updateMarqueeSelection(event));
 document.addEventListener('pointerup', endMarqueeSelection);
+root.addEventListener('scroll', event => {
+    if(activeTab !== 'assets' || !event.target?.classList?.contains('content-scroll')) return;
+    const scroller = event.target;
+    if(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 500) appendNextAssetBatch();
+}, true);
+root.addEventListener('error', event => {
+    const img = event.target;
+    if(!(img instanceof HTMLImageElement)) return;
+    const original = img.dataset.originalSrc || '';
+    if(!original || img.src.endsWith(original)) return;
+    delete img.dataset.originalSrc;
+    img.src = original;
+}, true);
 root.addEventListener('input', event => {
     if(event.target?.id === 'assetSearch'){
         const pos = event.target.selectionStart || 0;
@@ -3476,7 +3590,8 @@ root.addEventListener('change', event => {
             selectedAssetIds.add(assetCheck.dataset.assetCheck);
             selectedAssetId = assetCheck.dataset.assetCheck;
         } else selectedAssetIds.delete(assetCheck.dataset.assetCheck);
-        render();
+        refreshAssetSelectionOnly();
+        return;
     }
     const workflowCheck = event.target.closest?.('[data-workflow-check]');
     if(workflowCheck){
