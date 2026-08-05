@@ -87,6 +87,10 @@ let panState = null;
 let didPan = false;
 let portDragState = null;
 let saveTimer = null;
+let smartSaveInFlight = null;
+let smartSaveAgain = false;
+let smartCanvasDirty = false;
+let smartSaveErrorNotified = false;
 let apiProviders = [];
 let comfyWorkflows = [];
 let comfyInstanceCount = 1;
@@ -138,6 +142,7 @@ let transientSmartCloudLinks = [];
 let runBtnCooldownToken = 0;
 let smartRunStateToken = 0;
 const activeSmartTaskPolls = new Map();
+const activeSmartNodeResumes = new WeakMap();
 const smartNodeRunTokens = new Map();
 let lastImagePasteAt = 0;
 let lastNodePasteAt = 0;
@@ -1496,7 +1501,21 @@ function persistActiveSmartSettings(){
     subject.runSettings = settingsForStorage(settings);
     rememberRecentSmartSettings(settings, subject);
 }
-function backToCanvasList(){ savePromptDraftForCurrent(); releaseSmartCanvasLockOnExit(); window.location.href = '/static/canvas.html?v=2026.05.22.1'; }
+async function backToCanvasList(){
+    savePromptDraftForCurrent();
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if(canvas && !isSmartCanvasLocked()){
+        smartCanvasDirty = true;
+        const saved = await saveCanvas({force:true});
+        if(!saved && smartCanvasDirty){
+            toast('画布保存失败，请稍后重试');
+            return;
+        }
+    }
+    releaseSmartCanvasLockOnExit();
+    window.location.href = '/static/canvas.html?v=2026.05.22.1';
+}
 function promptPlainText(){
     return promptInput.innerText.replace(/\u00a0/g, ' ').trim();
 }
@@ -3871,6 +3890,8 @@ const smartClientId = `canvas_smart_${Math.random().toString(36).slice(2, 10)}${
 let canvasSyncInFlight = false;
 let canvasSyncTimer = null;
 let canvasMetaPollTimer = null;
+let smartServerNodeIds = new Set();
+let smartServerConnectionKeys = new Set();
 let smartCanvasLockHolder = null;
 let smartCanvasLockPollTimer = null;
 function isSmartCanvasLocked(){ return Boolean(smartCanvasLockHolder && smartCanvasLockHolder.client_id !== smartClientId); }
@@ -3894,13 +3915,17 @@ function updateSmartCanvasNav(){
     document.getElementById('smartCanvasTime').textContent = value && !Number.isNaN(date.getTime()) ? date.toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '--';
 }
 function updateSmartCanvasLockUi(){
+    const wasLocked = document.body.classList.contains('smart-canvas-readonly');
     const locked = isSmartCanvasLocked();
     const badge = document.getElementById('smartLockBadge');
     const label = document.getElementById('smartLockLabel');
     const overlay = document.getElementById('smartLockOverlay');
     const message = document.getElementById('smartLockMessage');
     document.body.classList.toggle('smart-canvas-readonly', locked);
-    if(locked) clearTimeout(saveTimer);
+    if(locked){
+        clearTimeout(saveTimer);
+        saveTimer = null;
+    }
     if(badge && label){
         badge.hidden = !smartCanvasLockHolder;
         badge.className = `smart-lock-badge ${locked ? 'other' : 'mine'}`;
@@ -3912,6 +3937,7 @@ function updateSmartCanvasLockUi(){
     if(runBtn) runBtn.disabled = locked || smartCascadeAnyRunning();
     if(cascadeRunBtn) cascadeRunBtn.disabled = locked;
     refreshIcons();
+    if(wasLocked && !locked && smartCanvasDirty) scheduleSave();
 }
 function editSmartCanvasUserName(){
     const next = prompt('设置我的名称，用于别人看到画布锁是谁占用', smartCanvasUserName());
@@ -4007,17 +4033,36 @@ function mergeSmartNodeLists(localNodes, remoteNodes){
     return order.map(id => {
         const local = localById.get(id);
         const remote = remoteById.get(id);
-        if(local && !remote) return local;     // 仅本地存在：保留（我新建的节点；对方删了也宁可复活也不丢结果）
-        if(remote && !local) return remote;     // 仅对方存在：加入对方新建的节点
+        if(local && !remote){
+            // 服务器曾经有该节点、但这次远端快照已删除：尊重远端删除。
+            // 未出现在服务器基线中的节点仍视为本地新建，保留并在后续保存时上传。
+            return smartServerNodeIds.has(id) ? null : local;
+        }
+        if(remote && !local){
+            // 本地已经删除、但远端仍带着旧节点时，保留本地删除意图；
+            // 仅远端新建（不在服务器基线中）的节点才加入本地。
+            return smartServerNodeIds.has(id) ? null : remote;
+        }
         return mergeSmartNode(local, remote);
     }).filter(Boolean);
 }
 function mergeSmartConnections(localConns, remoteConns, nodeIds){
     const out = [];
     const seen = new Set();
-    [...(localConns || []), ...(remoteConns || [])].forEach(c => {
+    const localKeys = new Set((localConns || []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
+    const remoteKeys = new Set((remoteConns || []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
+    (localConns || []).forEach(c => {
         if(!c || !nodeIds.has(c.from) || !nodeIds.has(c.to)) return;
         const key = `${c.from}->${c.to}:${c.kind || 'flow'}`;
+        if(smartServerConnectionKeys.has(key) && !remoteKeys.has(key)) return;
+        if(seen.has(key)) return;
+        seen.add(key);
+        out.push(c);
+    });
+    (remoteConns || []).forEach(c => {
+        if(!c || !nodeIds.has(c.from) || !nodeIds.has(c.to)) return;
+        const key = `${c.from}->${c.to}:${c.kind || 'flow'}`;
+        if(smartServerConnectionKeys.has(key) && !localKeys.has(key)) return;
         if(seen.has(key)) return;
         seen.add(key);
         out.push(c);
@@ -4031,6 +4076,8 @@ function applyMergedServerCanvas(serverCanvas){
     const nodeIds = new Set(mergedNodes.map(n => n.id));
     nodes = mergedNodes;
     canvas.connections = mergeSmartConnections(canvas.connections, serverCanvas.connections, nodeIds);
+    smartServerNodeIds = new Set(remoteNodes.map(n => n.id));
+    smartServerConnectionKeys = new Set((Array.isArray(serverCanvas.connections) ? serverCanvas.connections : []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
     canvas.updated_at = Number(serverCanvas.updated_at || canvas.updated_at || 0);
     if(canvas.title !== serverCanvas.title && serverCanvas.title){
         canvas.title = serverCanvas.title;
@@ -4038,6 +4085,9 @@ function applyMergedServerCanvas(serverCanvas){
     updateSmartCanvasNav();
     render();
     if(typeof refreshConnectionLayer === 'function') refreshConnectionLayer();
+    // 远端合并后，旧撤销快照可能覆盖刚合并的服务器状态。
+    undoStack.length = 0;
+    pendingUndoSnapshot = null;
     resumeSmartPendingTasks();
     return true;
 }
@@ -4571,9 +4621,18 @@ function canvasImageDragPayload(node, index=0){
 async function loadCanvas(){
     if(!canvasId) return;
     try {
-        const data = await window.CanvasApi.getCanvas(canvasId, {fallback:null});
-        if(!data) return;
+        const data = await window.CanvasApi.getCanvas(canvasId, {errorFallback:'读取画布失败'});
+        if(!data?.canvas) throw new Error('画布数据为空');
         canvas = data.canvas;
+        smartServerNodeIds = new Set((Array.isArray(canvas.nodes) ? canvas.nodes : []).map(node => node?.id).filter(Boolean));
+        smartServerConnectionKeys = new Set((Array.isArray(canvas.connections) ? canvas.connections : []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
+        smartCanvasDirty = false;
+        smartSaveAgain = false;
+        smartSaveErrorNotified = false;
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        undoStack.length = 0;
+        pendingUndoSnapshot = null;
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
         updateSmartCanvasNav();
@@ -4607,7 +4666,7 @@ async function loadCanvas(){
         document.getElementById('smartIdentityLabel').textContent = smartCanvasUserName() || '未命名用户';
         await checkSmartCanvasLock();
         startSmartCanvasLockPolling();
-    } catch(e) { toast(tr('smart.toastCanvasFail')); }
+    } catch(e) { toast(e?.message || tr('smart.toastCanvasFail')); }
 }
 async function createSmartCanvasBackup(){
     if(!canvasId) return;
@@ -4660,8 +4719,17 @@ function renderSmartCanvasBackups(backups){
         if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法恢复备份');
         if(!confirm('恢复此备份？当前画布将被覆盖。')) return;
         try {
+            // 先让已经发出的保存请求结束，避免旧请求在恢复后又把当前状态写回服务器。
+            if(smartSaveInFlight) await smartSaveInFlight;
+            clearTimeout(saveTimer);
+            saveTimer = null;
+            smartSaveAgain = false;
             const response = await window.CanvasApi.restoreCanvasBackup(canvasId, button.dataset.backupRestore);
-            if(!response.ok) return toast('恢复失败');
+            if(!response.ok){
+                if(smartCanvasDirty) scheduleSave();
+                return toast('恢复失败');
+            }
+            smartCanvasDirty = false;
             closeSmartCanvasBackups();
             selectedId = '';
             selectedIds = [];
@@ -4681,59 +4749,113 @@ function renderSmartCanvasBackups(backups){
 function closeSmartCanvasBackups(){ document.getElementById('smartBackupModal')?.remove(); }
 function scheduleSave(){
     if(isSmartCanvasLocked()) return;
+    smartCanvasDirty = true;
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveCanvas, 450);
+    if(smartSaveInFlight){
+        smartSaveAgain = true;
+        return;
+    }
+    saveTimer = setTimeout(() => {
+        saveTimer = null;
+        saveCanvas();
+    }, 450);
 }
-async function saveCanvas(){
-    if(!canvasId || !canvas || isSmartCanvasLocked()) return;
-    savePromptDraftForCurrent();
-    nodes.forEach(node => {
-        node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
-        if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
-    });
-    canvas.nodes = nodes;
-    canvas.settings = settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings);
-    canvas.viewport = {...viewport};
-    const storageCanvas = canvasForStorage();
-    canvasSyncInFlight = true;
-    try {
-        const res = await window.CanvasApi.saveCanvas(canvasId, {
-            title:storageCanvas.title || tr('smart.title'),
-            icon:storageCanvas.icon || 'sparkles',
-            nodes:storageCanvas.nodes || [],
-            connections:storageCanvas.connections || [],
-            viewport:storageCanvas.viewport || {x:0,y:0,scale:1},
-            logs:storageCanvas.logs || [],
-            settings:storageCanvas.settings,
-            base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
-            client_id:smartClientId
+async function saveCanvas(options={}){
+    const force = options.force === true;
+    if(!canvasId || !canvas || isSmartCanvasLocked()) return false;
+    if(smartSaveInFlight){
+        smartSaveAgain = true;
+        const result = await smartSaveInFlight;
+        if(force && smartCanvasDirty && !isSmartCanvasLocked()) return saveCanvas(options);
+        return result;
+    }
+    if(!force && !smartCanvasDirty) return true;
+
+    const operation = (async () => {
+        savePromptDraftForCurrent();
+        nodes.forEach(node => {
+            node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
+            if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
         });
-        if(res.ok){
-            const data = await res.json();
-            if(data.canvas && data.canvas.updated_at){
-                canvas.updated_at = data.canvas.updated_at;
-                updateSmartCanvasNav();
+        canvas.nodes = nodes;
+        canvas.settings = settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings);
+        canvas.viewport = {...viewport};
+        const storageCanvas = canvasForStorage();
+        const savedNodeIds = new Set((storageCanvas.nodes || []).map(node => node?.id).filter(Boolean));
+        const savedConnectionKeys = new Set((storageCanvas.connections || []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
+        canvasSyncInFlight = true;
+        try {
+            const res = await window.CanvasApi.saveCanvas(canvasId, {
+                title:storageCanvas.title || tr('smart.title'),
+                icon:storageCanvas.icon || 'sparkles',
+                nodes:storageCanvas.nodes || [],
+                connections:storageCanvas.connections || [],
+                viewport:storageCanvas.viewport || {x:0,y:0,scale:1},
+                logs:storageCanvas.logs || [],
+                settings:storageCanvas.settings,
+                base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
+                client_id:smartClientId
+            });
+            if(res.ok){
+                const data = await res.json().catch(() => ({}));
+                if(data.canvas && data.canvas.updated_at){
+                    canvas.updated_at = data.canvas.updated_at;
+                    updateSmartCanvasNav();
+                }
+                if(!smartSaveAgain){
+                    smartCanvasDirty = false;
+                    smartServerNodeIds = savedNodeIds;
+                    smartServerConnectionKeys = savedConnectionKeys;
+                } else {
+                    smartCanvasDirty = true;
+                }
+                smartSaveErrorNotified = false;
+                return true;
             }
-        } else if(res.status === 409) {
-            // 冲突：别人先保存了。合并对方的状态（节点 id 合并、图片取并集，谁都不丢），
-            // 然后用对方最新的 updated_at 作为基底重存，把合并结果落盘——而不是直接覆盖对方。
-            const data = await res.json().catch(() => ({}));
-            const serverCanvas = data.detail?.canvas;
-            if(serverCanvas){
-                applyMergedServerCanvas(serverCanvas);
-                nodes.forEach(node => {
-                    node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
-                    if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
-                });
-                canvas.nodes = nodes;
-            } else if(data.detail?.updated_at) {
-                canvas.updated_at = data.detail.updated_at;
+            if(res.status === 409) {
+                // 冲突：别人先保存了。合并对方的状态，再以最新 updated_at 重试。
+                const data = await res.json().catch(() => ({}));
+                const serverCanvas = data.detail?.canvas;
+                if(serverCanvas){
+                    applyMergedServerCanvas(serverCanvas);
+                    nodes.forEach(node => {
+                        node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
+                        if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
+                    });
+                    canvas.nodes = nodes;
+                } else if(data.detail?.updated_at) {
+                    canvas.updated_at = data.detail.updated_at;
+                }
+                smartCanvasDirty = true;
+                smartSaveAgain = true;
+                return false;
             }
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveCanvas, 300);
+            throw new Error(await responseErrorMessage(res, '画布保存失败'));
+        } catch(e) {
+            smartCanvasDirty = true;
+            smartSaveAgain = true;
+            if(!smartSaveErrorNotified){
+                smartSaveErrorNotified = true;
+                toast(e?.message || '画布保存失败，将自动重试');
+            }
+            return false;
+        } finally {
+            canvasSyncInFlight = false;
         }
-    } catch(e) {} finally {
-        canvasSyncInFlight = false;
+    })();
+    smartSaveInFlight = operation;
+    try {
+        return await operation;
+    } finally {
+        if(smartSaveInFlight === operation) smartSaveInFlight = null;
+        if((smartSaveAgain || smartCanvasDirty) && !isSmartCanvasLocked()){
+            clearTimeout(saveTimer);
+            smartSaveAgain = false;
+            saveTimer = setTimeout(() => {
+                saveTimer = null;
+                saveCanvas();
+            }, 300);
+        }
     }
 }
 function imageMetaFromNode(node){
@@ -12694,51 +12816,62 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image'){
     }
 }
 async function resumeSmartPendingNode(node){
-    const tasks = smartPendingTasks(node);
-    if(!node || !tasks.length) return;
-    node.pending = Math.max(tasks.length, Number(node.pending || 0) || tasks.length);
-    node.running = false;
-    render();
-    const failures = [];
-    await Promise.all(tasks.map(async task => {
-        if(task.failed && task.recoverTaskId) return;
-        try {
-            const result = await pollSmartCanvasTask(task.taskId);
-            finalizeSmartPendingTask(node, task.taskId, result?.images || [], task.kind || 'image');
-            render();
-            scheduleSave();
-        } catch(e) {
-            if(e && e.imageTaskRecover && e.recoverTaskId){
-                task.failed = true;
-                task.querying = false;
-                task.recoverTaskId = e.recoverTaskId;
-                task.providerId = e.providerId || task.providerId || providerIdForSmartTask(node, task);
-                task.error = e.message || tr('smart.errRunFailed');
-                node.running = false;
-                node.pending = Math.max(1, smartPendingTasks(node).length);
-                toast('任务未丢失，可稍后手动查询结果');
+    if(!node) return;
+    const existing = activeSmartNodeResumes.get(node);
+    if(existing) return existing;
+    const promise = (async () => {
+        const tasks = smartPendingTasks(node);
+        if(!tasks.length) return;
+        node.pending = Math.max(tasks.length, Number(node.pending || 0) || tasks.length);
+        node.running = false;
+        render();
+        const failures = [];
+        await Promise.all(tasks.map(async task => {
+            if(task.failed && task.recoverTaskId) return;
+            try {
+                const result = await pollSmartCanvasTask(task.taskId);
+                finalizeSmartPendingTask(node, task.taskId, result?.images || [], task.kind || 'image');
                 render();
                 scheduleSave();
-                return;
-            }
-            node.pendingTasks = smartPendingTasks(node).filter(item => item.taskId !== task.taskId);
-            node.pending = Math.max(0, Number(node.pending || 0) - 1);
-            if(!node.pending && smartPendingTasks(node).length === 0){
-                delete node.pendingTasks;
-                node.running = false;
-                if(!(node.images || []).length){
-                    delete node.w;
-                    delete node.h;
+            } catch(e) {
+                if(e && e.imageTaskRecover && e.recoverTaskId){
+                    task.failed = true;
+                    task.querying = false;
+                    task.recoverTaskId = e.recoverTaskId;
+                    task.providerId = e.providerId || task.providerId || providerIdForSmartTask(node, task);
+                    task.error = e.message || tr('smart.errRunFailed');
+                    node.running = false;
+                    node.pending = Math.max(1, smartPendingTasks(node).length);
+                    toast('任务未丢失，可稍后手动查询结果');
+                    render();
+                    scheduleSave();
+                    return;
                 }
+                node.pendingTasks = smartPendingTasks(node).filter(item => item.taskId !== task.taskId);
+                node.pending = Math.max(0, Number(node.pending || 0) - 1);
+                if(!node.pending && smartPendingTasks(node).length === 0){
+                    delete node.pendingTasks;
+                    node.running = false;
+                    if(!(node.images || []).length){
+                        delete node.w;
+                        delete node.h;
+                    }
+                }
+                failures.push(e);
+                toast((e.message || tr('smart.errRunFailed')).slice(0, 160));
+                render();
+                scheduleSave();
             }
-            failures.push(e);
-            toast((e.message || tr('smart.errRunFailed')).slice(0, 160));
-            render();
-            scheduleSave();
+        }));
+        if(failures.length && !(node.images || []).length){
+            throw failures[0];
         }
-    }));
-    if(failures.length && !(node.images || []).length){
-        throw failures[0];
+    })();
+    activeSmartNodeResumes.set(node, promise);
+    try {
+        return await promise;
+    } finally {
+        if(activeSmartNodeResumes.get(node) === promise) activeSmartNodeResumes.delete(node);
     }
 }
 function resumeSmartPendingTasks(){
@@ -14148,7 +14281,13 @@ window.onload = async () => {
     syncApiKindToggleVisibility();
     render();
 };
-window.addEventListener('beforeunload', releaseSmartCanvasLockOnExit);
+window.addEventListener('beforeunload', event => {
+    if(smartCanvasDirty || smartSaveInFlight || saveTimer){
+        event.preventDefault();
+        event.returnValue = '';
+    }
+    releaseSmartCanvasLockOnExit();
+});
 document.addEventListener('visibilitychange', () => { if(!document.hidden && canvasId) checkSmartCanvasLock(); });
 
 function renderSmartNodePlaceholderHtml(node){
