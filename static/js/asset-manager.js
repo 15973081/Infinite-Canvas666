@@ -89,6 +89,21 @@ const ASSET_BATCH_SIZE = 80;
 
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 function setStatus(text='准备就绪'){ if(statusEl) statusEl.textContent = text || '准备就绪'; }
+function renderPreservingScroll(selectors=['.nav-scroll']){
+    const scrollState = Object.fromEntries(selectors.map(selector => {
+        const el = root.querySelector(selector);
+        return [selector, {top:el?.scrollTop || 0, left:el?.scrollLeft || 0}];
+    }));
+    render();
+    const restore = () => Object.entries(scrollState).forEach(([selector, position]) => {
+        const el = root.querySelector(selector);
+        if(el){ el.scrollTop = position.top; el.scrollLeft = position.left; }
+    });
+    requestAnimationFrame(() => {
+        restore();
+        requestAnimationFrame(restore);
+    });
+}
 function scheduleSearchRender(inputId, position){
     clearTimeout(searchRenderTimer);
     searchRenderTimer = setTimeout(() => {
@@ -2502,11 +2517,11 @@ async function handleClick(event){
             selectedAssetIds.clear();
         }
         assetTreeFocus = 'library';
-        render();
+        renderPreservingScroll();
         return;
     }
     const assetCat = target.closest?.('[data-asset-cat]');
-    if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; collapsedAssetLibraryIds.delete(activeAssetLibraryId); activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); render(); return; }
+    if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; collapsedAssetLibraryIds.delete(activeAssetLibraryId); activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); renderPreservingScroll(); return; }
     if(target.closest?.('[data-asset-load-more]')){ appendNextAssetBatch(); return; }
     const assetCard = target.closest?.('[data-asset-card]');
     if(assetCard && !target.closest?.('[data-asset-check]')){
