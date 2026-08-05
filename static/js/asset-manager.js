@@ -83,9 +83,11 @@ let searchRenderTimer = 0;
 let assetGridKey = '';
 let assetRenderedCount = 0;
 let marqueeRenderFrame = 0;
+let assetVirtualRenderFrame = 0;
 
 const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|webp|gif|bmp|avif|svg|mp4|webm|mov|m4v|mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/i;
 const ASSET_BATCH_SIZE = 80;
+const ASSET_VIRTUAL_OVERSCAN_ROWS = 3;
 
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 function setStatus(text='准备就绪'){ if(statusEl) statusEl.textContent = text || '准备就绪'; }
@@ -1237,20 +1239,49 @@ function prepareAssetRenderWindow(items){
     return items.slice(0, assetRenderedCount);
 }
 function renderAssetLoadMore(total){
-    if(assetRenderedCount >= total) return '';
-    const remaining = total - assetRenderedCount;
-    return `<button class="asset-load-more" type="button" data-asset-load-more>继续加载（剩余 ${remaining} 个）</button>`;
+    return '';
 }
 function appendNextAssetBatch(){
-    if(activeTab !== 'assets') return;
-    const grid = root.querySelector('.asset-grid');
-    if(!grid) return;
+    scheduleAssetVirtualRender();
+}
+function scheduleAssetVirtualRender(){
+    if(activeTab !== 'assets' || assetVirtualRenderFrame) return;
+    assetVirtualRenderFrame = requestAnimationFrame(() => {
+        assetVirtualRenderFrame = 0;
+        renderAssetVirtualWindow();
+    });
+}
+function renderAssetVirtualWindow(){
+    const grid = root.querySelector('[data-asset-virtual-grid]');
+    const scroller = root.querySelector('.asset-content .content-scroll');
     const items = currentAssetItems();
-    if(assetRenderedCount >= items.length) return;
-    const start = assetRenderedCount;
-    assetRenderedCount = Math.min(items.length, start + ASSET_BATCH_SIZE);
-    grid.querySelector('[data-asset-load-more]')?.remove();
-    grid.insertAdjacentHTML('beforeend', `${items.slice(start, assetRenderedCount).map(item => renderAssetCard(item)).join('')}${renderAssetLoadMore(items.length)}`);
+    if(!grid || !scroller || !items.length) return;
+    const sample = grid.querySelector('[data-asset-card]') || grid.querySelector('.upload-grid-card');
+    if(!sample) return;
+    const style = getComputedStyle(grid);
+    const gap = Number.parseFloat(style.rowGap || style.gap) || 10;
+    const sampleRect = sample.getBoundingClientRect();
+    if(sampleRect.width <= 0 || sampleRect.height <= 0) return;
+    const columns = Math.max(1, Math.round((grid.clientWidth + gap) / (sampleRect.width + gap)));
+    const rowStride = sampleRect.height + gap;
+    const gridTop = grid.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    const scrollTop = Math.max(0, scroller.scrollTop - gridTop);
+    const total = items.length + 1; // 上传卡也占一个网格位置
+    const totalRows = Math.ceil(total / columns);
+    const visibleRows = Math.ceil(scroller.clientHeight / rowStride);
+    const startRow = Math.max(0, Math.floor(scrollTop / rowStride) - ASSET_VIRTUAL_OVERSCAN_ROWS);
+    const endRow = Math.min(totalRows, startRow + visibleRows + ASSET_VIRTUAL_OVERSCAN_ROWS * 2);
+    const start = startRow * columns;
+    const end = Math.min(total, endRow * columns);
+    const topHeight = startRow ? Math.max(0, startRow * rowStride - gap) : 0;
+    const trailingRows = totalRows - endRow;
+    const bottomHeight = trailingRows ? Math.max(0, trailingRows * rowStride - gap) : 0;
+    const cells = [];
+    for(let index = start; index < end; index++){
+        cells.push(index === 0 ? renderUploadCard(activeAssetCategory()) : renderAssetCard(items[index - 1]));
+    }
+    grid.innerHTML = `${topHeight ? `<div class="asset-virtual-spacer" style="height:${topHeight}px"></div>` : ''}${cells.join('')}${bottomHeight ? `<div class="asset-virtual-spacer" style="height:${bottomHeight}px"></div>` : ''}`;
+    if(grid.querySelector('[data-lucide]')) refreshIcons();
 }
 function renderAssetManager(){
     normalizeAssetState();
@@ -1303,7 +1334,7 @@ function renderAssetManager(){
                 </div>
             </div>
             <div class="content-scroll">
-                <div class="asset-grid">
+                <div class="asset-grid" data-asset-virtual-grid>
                     ${renderUploadCard(cat)}
                     ${visibleItems.map(item => renderAssetCard(item)).join('')}
                     ${renderAssetLoadMore(items.length)}
@@ -1315,6 +1346,7 @@ function renderAssetManager(){
             ${renderAssetDetail(detail)}
         </aside>
     `;
+    scheduleAssetVirtualRender();
 }
 function renderWorkflowManager(){
     normalizeWorkflowState();
@@ -3527,9 +3559,9 @@ document.addEventListener('pointermove', event => updateMarqueeSelection(event))
 document.addEventListener('pointerup', endMarqueeSelection);
 root.addEventListener('scroll', event => {
     if(activeTab !== 'assets' || !event.target?.classList?.contains('content-scroll')) return;
-    const scroller = event.target;
-    if(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 500) appendNextAssetBatch();
+    scheduleAssetVirtualRender();
 }, true);
+window.addEventListener('resize', scheduleAssetVirtualRender);
 root.addEventListener('error', event => {
     const img = event.target;
     if(!(img instanceof HTMLImageElement)) return;
