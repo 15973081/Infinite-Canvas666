@@ -117,6 +117,7 @@ class CanvasVideoRequest(BaseModel):
     generate_audio: bool = False
     multimodal: bool = False
     trusted_asset: bool = False
+    task_mode: str = "auto"
 
 
 class TempShUploadRequest(BaseModel):

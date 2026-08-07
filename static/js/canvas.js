@@ -3390,6 +3390,7 @@ function addVideoNode(point){
         watermark:false,
         cameraFixed:false,
         generateAudio:false,
+        taskMode:'auto',
         useFrameRoles:false,
         multimodal:false,
         tempShLinks:[],
@@ -4447,6 +4448,9 @@ function imageRefsOnly(refs){
 }
 function videoRefsOnly(refs){
     return (refs || []).filter(ref => ref?.url && mediaKindForRef(ref) === 'video');
+}
+function isSeedance25VideoModel(model){
+    return String(model || '').toLowerCase().replaceAll('_','-').replaceAll('.','-').includes('seedance-2-5');
 }
 function videoNodeMediaRefs(refs){
     return (refs || []).filter(ref => ref?.url && ['image','video'].includes(mediaKindForRef(ref)));
@@ -9278,6 +9282,7 @@ function renderVideoBody(node){
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
     sanitizeVideoNodeProviderModel(node);
     const isVolcengineVideoNode = resolveVideoProviderId(node.apiProvider || 'comfly') === 'volcengine';
+    const isSeedance25 = isVolcengineVideoNode && isSeedance25VideoModel(node.model);
     if(isVolcengineVideoNode) node.useFrameRoles = false;
     node.model = node.model || 'veo3-fast';
     wrap.innerHTML = `
@@ -9294,11 +9299,15 @@ function renderVideoBody(node){
             <div class="gen-settings-row">
                 <select class="select-lite video-provider" style="flex:1">${videoProviderOptions(node.apiProvider)}</select>
                 <select class="select-lite video-model" style="flex:2">${videoModelOptions(node.model, node.apiProvider)}</select>
+                ${isSeedance25 ? `<select class="select-lite video-task-mode" style="flex:1">
+                    <option value="auto">自动判断</option><option value="edit">视频编辑</option>
+                    <option value="extend_backward">向后延长</option><option value="extend_forward">向前延长</option>
+                </select>` : ''}
             </div>
             <div class="gen-settings-row">
                 <label class="field" style="flex:1">
                     <div class="setting-title">${tr('canvas.videoDuration')}</div>
-                    <input class="setting-input video-duration" type="number" min="1" max="60" step="1" value="${Number(node.duration || 5)}">
+                    <input class="setting-input video-duration" type="number" min="${isSeedance25 ? -1 : 1}" max="${isSeedance25 ? 30 : 60}" step="1" value="${Number(node.duration ?? 5)}">
                 </label>
                 <label class="field" style="flex:1">
                     <div class="setting-title">${tr('canvas.videoAspect')}</div>
@@ -9309,8 +9318,7 @@ function renderVideoBody(node){
                         <option value="4:3">4:3</option>
                         <option value="3:4">3:4</option>
                         <option value="21:9">21:9</option>
-                        <option value="9:21">9:21</option>
-                        <option value="keep_ratio">keep</option>
+                        ${isSeedance25 ? '' : '<option value="9:21">9:21</option><option value="keep_ratio">keep</option>'}
                         <option value="adaptive">adapt</option>
                     </select>
                 </label>
@@ -9320,8 +9328,7 @@ function renderVideoBody(node){
                         <option value="">Auto</option>
                         <option value="480p">480p</option>
                         <option value="720p">720p</option>
-                        <option value="1080p">1080p</option>
-                        <option value="780P">780P</option>
+                        ${isSeedance25 ? '' : '<option value="1080p">1080p</option><option value="780P">780P</option>'}
                     </select>
                 </label>
             </div>
@@ -9346,11 +9353,13 @@ function renderVideoBody(node){
     const durationSelect = wrap.querySelector('.video-duration');
     const aspectSelect = wrap.querySelector('.video-aspect');
     const resolutionSelect = wrap.querySelector('.video-resolution');
+    const taskModeSelect = wrap.querySelector('.video-task-mode');
     providerSelect.value = node.apiProvider;
     durationSelect.value = String(node.duration || 5);
     aspectSelect.value = node.aspectRatio || '16:9';
     resolutionSelect.value = node.resolution || '';
-    [providerSelect, modelSelect, durationSelect, aspectSelect, resolutionSelect].forEach(input => {
+    if(taskModeSelect) taskModeSelect.value = node.taskMode || 'auto';
+    [providerSelect, modelSelect, durationSelect, aspectSelect, resolutionSelect, taskModeSelect].filter(Boolean).forEach(input => {
         input.onmousedown = e => e.stopPropagation();
         input.onclick = e => e.stopPropagation();
     });
@@ -9362,11 +9371,29 @@ function renderVideoBody(node){
         modelSelect.innerHTML = videoModelOptions(node.model, node.apiProvider);
         scheduleSave();
     };
-    modelSelect.onchange = e => { e.stopPropagation(); node.model = e.target.value; scheduleSave(); };
-    durationSelect.oninput = e => { e.stopPropagation(); node.duration = Math.max(1, Math.min(60, Number(e.target.value || 5))); scheduleSave(); };
-    durationSelect.onblur = e => { e.target.value = String(Math.max(1, Math.min(60, Number(node.duration || 5)))); };
+    modelSelect.onchange = e => {
+        e.stopPropagation();
+        node.model = e.target.value;
+        if(isSeedance25VideoModel(node.model)){
+            if(Number(node.duration) !== -1) node.duration = Math.max(4, Math.min(30, Number(node.duration) || 5));
+            if(!['', '480p', '720p'].includes(node.resolution)) node.resolution = '';
+            if(['9:21', 'keep_ratio'].includes(node.aspectRatio)) node.aspectRatio = 'adaptive';
+        }
+        render();
+        scheduleSave();
+    };
+    durationSelect.oninput = e => { e.stopPropagation(); const seedance25 = isSeedance25VideoModel(node.model), value = Number(e.target.value || 5); node.duration = seedance25 && value === -1 ? -1 : Math.max(seedance25 ? 4 : 1, Math.min(seedance25 ? 30 : 60, value)); scheduleSave(); };
+    durationSelect.onblur = e => { e.target.value = String(node.duration || 5); };
     aspectSelect.onchange = e => { e.stopPropagation(); node.aspectRatio = e.target.value; scheduleSave(); };
     resolutionSelect.onchange = e => { e.stopPropagation(); node.resolution = e.target.value; scheduleSave(); };
+    if(taskModeSelect) taskModeSelect.onchange = e => {
+        e.stopPropagation();
+        node.taskMode = e.target.value;
+        if(node.taskMode !== 'auto') node.aspectRatio = 'adaptive';
+        if(node.taskMode === 'edit') node.duration = -1;
+        render();
+        scheduleSave();
+    };
     wrap.querySelectorAll('[data-video-toggle]').forEach(btn => {
         btn.onmousedown = e => e.stopPropagation();
         btn.onclick = e => {
@@ -10219,8 +10246,10 @@ async function runVideoNode(nodeId, opts={}){
         showErrorModal(unreadyVolcengineAsset.face_auth_status === 'Failed' ? '火山素材认证未通过，请重新认证后再生成。' : '火山素材仍在认证中，请等待认证通过后再生成。', '火山素材认证');
         return;
     }
-    const usesTrustedVolcengineAssets = isVolcengineVideo && refs.some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     const videoRefs = applyUploadedUrlToRefs(videoRefsOnly(allRefs), node);
+    const audioRefs = applyUploadedUrlToRefs(audioRefsOnly(allRefs), node);
+    const usesTrustedVolcengineAssets = isVolcengineVideo && [...refs, ...videoRefs, ...audioRefs]
+        .some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     if(!isVolcengineVideo && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
     if(!isVolcengineVideo && node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
     if(!prompt){ alert(tr('canvas.videoNeedsPrompt')); return; }
@@ -10237,13 +10266,15 @@ async function runVideoNode(nodeId, opts={}){
         videos:manualVideoUrlForNode(node)
             ? [manualVideoUrlForNode(node)]
             : videoRefs.map(ref => tempShUploadedUrlForNode(node, ref.url)),
+        audios:audioRefs.map(ref => tempShUploadedUrlForNode(node, ref.url)),
         enhance_prompt:Boolean(node.enhancePrompt),
         enable_upsample:Boolean(node.enableUpsample),
         watermark:Boolean(node.watermark),
         camerafixed:Boolean(node.cameraFixed),
         generate_audio:Boolean(node.generateAudio),
         multimodal:Boolean(node.multimodal),
-        trusted_asset:usesTrustedVolcengineAssets
+        trusted_asset:usesTrustedVolcengineAssets,
+        task_mode:node.taskMode || 'auto'
     };
     run.providerId = payload.provider_id;
     run.billingModel = payload.model;

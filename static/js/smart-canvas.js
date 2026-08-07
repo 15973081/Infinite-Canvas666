@@ -314,6 +314,7 @@ let settings = {
     videoCameraFixed:false,
     videoGenerateAudio:false,
     videoMultimodal:false,
+    videoTaskMode:'auto',
     videoUseFrameRoles:false,
     videoTrustedAsset:false,
     videoTrustedSource:'library',
@@ -2199,28 +2200,48 @@ function renderVideoModelControl(models){
         </div>
     </div>`;
 }
+function isSeedance25VideoModel(model=settings.videoModel){
+    return String(model || '').toLowerCase().replaceAll('_','-').replaceAll('.','-').includes('seedance-2-5');
+}
+function renderSeedance25TaskModeControl(){
+    if(!isSeedance25VideoModel()) return '';
+    const options = [['auto','自动判断'], ['edit','视频编辑'], ['extend_backward','向后延长'], ['extend_forward','向前延长']];
+    const value = settings.videoTaskMode || 'auto';
+    return `<div class="smart-control model-control">
+        <button class="smart-pill" type="button"><i data-lucide="route"></i><span class="sub">${escapeHtml(Object.fromEntries(options)[value] || '自动判断')}</span></button>
+        <div class="smart-popover compact-popover">
+            <div class="smart-popover-title">任务类型</div>
+            <div class="model-list">${options.map(([v,l]) => `<button type="button" class="direct-option ${v === value ? 'active' : ''}" data-smart-param="videoTaskMode" data-smart-value="${v}"><span>${l}</span></button>`).join('')}</div>
+        </div>
+    </div>`;
+}
 function renderVideoDurationControl(){
-    const v = Math.max(1, Math.min(60, Number(settings.videoDuration) || 5));
-    const quick = [3, 4, 5, 6, 8, 10, 12, 15];
+    const seedance25 = isSeedance25VideoModel();
+    const min = seedance25 ? 4 : 1;
+    const max = seedance25 ? 30 : 60;
+    const raw = Number(settings.videoDuration);
+    const v = seedance25 && raw === -1 ? -1 : Math.max(min, Math.min(max, raw || 5));
+    const quick = seedance25 ? [-1, 4, 5, 6, 8, 10, 12, 15, 20, 30] : [3, 4, 5, 6, 8, 10, 12, 15];
     return `<div class="smart-control duration-control" title="${escapeHtml(tr('smart.videoDurationTip'))}">
-        <button class="smart-pill" type="button"><i data-lucide="timer"></i><span>${v}s</span></button>
+        <button class="smart-pill" type="button"><i data-lucide="timer"></i><span>${v === -1 ? '自动' : `${v}s`}</span></button>
         <div class="smart-popover compact-popover">
             <div class="smart-popover-title">${escapeHtml(tr('smart.videoDuration'))}</div>
             <div class="duration-grid">
-                ${quick.map(n => `<button type="button" class="duration-option ${n === v ? 'active' : ''}" data-smart-param="videoDuration" data-smart-value="${n}">${n}s</button>`).join('')}
+                ${quick.map(n => `<button type="button" class="duration-option ${n === v ? 'active' : ''}" data-smart-param="videoDuration" data-smart-value="${n}">${n === -1 ? '自动' : `${n}s`}</button>`).join('')}
             </div>
             <label class="duration-custom">
                 <span>${escapeHtml(tr('smart.custom'))}</span>
-                <input type="number" min="1" max="60" step="1" data-param="videoDuration" value="${v}">
+                <input type="number" min="${seedance25 ? -1 : min}" max="${max}" step="1" data-param="videoDuration" value="${v}">
             </label>
         </div>
     </div>`;
 }
 function renderVideoAspectControl(){
-    const options = [
+    let options = [
         ['16:9','16:9'], ['9:16','9:16'], ['1:1','1:1'], ['4:3','4:3'], ['3:4','3:4'],
         ['21:9','21:9'], ['9:21','9:21'], ['keep_ratio', tr('smart.videoAspectKeep')], ['adaptive', tr('smart.videoAspectAdaptive')]
     ];
+    if(isSeedance25VideoModel()) options = options.filter(([v]) => !['9:21','keep_ratio'].includes(v));
     const value = settings.videoAspect || '16:9';
     const labelMap = Object.fromEntries(options);
     return `<div class="smart-control aspect-control">
@@ -2234,7 +2255,7 @@ function renderVideoAspectControl(){
     </div>`;
 }
 function renderVideoResolutionControl(){
-    const options = [['', tr('smart.videoResAuto')], ['480p','480P'], ['720p','720P'], ['1080p','1080P']];
+    const options = [['', tr('smart.videoResAuto')], ['480p','480P'], ['720p','720P'], ...(!isSeedance25VideoModel() ? [['1080p','1080P']] : [])];
     const value = settings.videoResolution || '';
     const labelMap = Object.fromEntries(options);
     return `<div class="smart-control resolution-control">
@@ -2370,6 +2391,7 @@ function renderApiVideoParams(){
     dynamicParams.innerHTML = `
         ${renderVideoProviderControl(providers)}
         ${renderVideoModelControl(models)}
+        ${renderSeedance25TaskModeControl()}
         ${renderVideoResolutionControl()}
         ${renderVideoAspectControl()}
         ${renderVideoDurationControl()}
@@ -2412,6 +2434,7 @@ function renderVolcengineVideoParams(){
     dynamicParams.innerHTML = `
         ${renderVideoProviderControl(providers)}
         ${renderVideoModelControl(models)}
+        ${renderSeedance25TaskModeControl()}
         ${renderVideoResolutionControl()}
         ${renderVideoAspectControl()}
         ${renderVideoDurationControl()}
@@ -2980,10 +3003,19 @@ function smartComfyRandomValue(field){
 }
 function setDynamicSetting(key, value){
     const numericKeys = new Set(['count','width','height','videoDuration','enhanceStrength','enhanceUpscaleRes','editUpscaleRes','customRatioWidth','customRatioHeight','customWidth','customHeight','msCustomRatioWidth','msCustomRatioHeight','msCustomWidth','msCustomHeight']);
-    const layoutKeys = new Set(['provider_id','model','resolution','ratio','msgenModel','msCustomModel','msResolution','msRatio','videoProvider','videoModel','videoAspect','videoResolution','comfyMode','comfyWorkflow','quality','count','enhanceUpscaleRes','editUpscaleRes']);
+    const layoutKeys = new Set(['provider_id','model','resolution','ratio','msgenModel','msCustomModel','msResolution','msRatio','videoProvider','videoModel','videoTaskMode','videoAspect','videoResolution','comfyMode','comfyWorkflow','quality','count','enhanceUpscaleRes','editUpscaleRes']);
     settings[key] = numericKeys.has(key) && value !== '' ? Number(value) : value;
     if(key === 'provider_id') settings.model = '';
     if(key === 'videoProvider') settings.videoModel = '';
+    if(key === 'videoModel' && isSeedance25VideoModel()){
+        if(Number(settings.videoDuration) !== -1) settings.videoDuration = Math.max(4, Math.min(30, Number(settings.videoDuration) || 5));
+        if(!['', '480p', '720p'].includes(settings.videoResolution)) settings.videoResolution = '';
+        if(['9:21', 'keep_ratio'].includes(settings.videoAspect)) settings.videoAspect = 'adaptive';
+    }
+    if(key === 'videoTaskMode' && settings.videoTaskMode !== 'auto'){
+        settings.videoAspect = 'adaptive';
+        if(settings.videoTaskMode === 'edit') settings.videoDuration = -1;
+    }
     if(key === 'videoMultimodal' && settings.videoMultimodal) settings.videoUseFrameRoles = false;
     if(key === 'videoUseFrameRoles' && settings.videoUseFrameRoles) settings.videoMultimodal = false;
     if(key === 'comfyMode') applyRecentSmartSettingsForCurrentMode();
@@ -12541,14 +12573,16 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
         });
         const manualVideo = manualSmartVideoLink(runSettings)?.url || '';
         const refVideos = manualVideo ? manualSmartMediaLinks(runSettings).map(item => item.url).filter(Boolean) : videoRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
-        const refAudios = audioRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean).slice(0, 3);
+        const refAudios = audioRefsOnly(uploadedRefs).map(ref => effUrl(ref)).filter(Boolean);
         const usesTrustedVolcengineAssets = [...refImages.map(item => item.url), ...refVideos, ...refAudios]
             .some(url => String(url || '').startsWith('asset://'));
         const payload = {
             prompt,
             provider_id: runSettings.videoProvider || 'comfly',
             model: runSettings.videoModel || 'veo3-fast',
-            duration: Math.max(1, Math.min(60, Number(runSettings.videoDuration) || 5)),
+            duration: isSeedance25VideoModel(runSettings.videoModel) && Number(runSettings.videoDuration) === -1
+                ? -1
+                : Math.max(isSeedance25VideoModel(runSettings.videoModel) ? 4 : 1, Math.min(isSeedance25VideoModel(runSettings.videoModel) ? 30 : 60, Number(runSettings.videoDuration) || 5)),
             aspect_ratio: runSettings.videoAspect || '16:9',
             resolution: runSettings.videoResolution || '',
             images: refImages,
@@ -12560,7 +12594,8 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
             camerafixed: Boolean(runSettings.videoCameraFixed),
             generate_audio: Boolean(runSettings.videoGenerateAudio),
             multimodal: Boolean(runSettings.videoMultimodal),
-            trusted_asset: usesTrustedVolcengineAssets
+            trusted_asset: usesTrustedVolcengineAssets,
+            task_mode: runSettings.videoTaskMode || 'auto'
         };
         const result = await fetch('/api/canvas-video', {
             method:'POST',
