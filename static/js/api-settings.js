@@ -53,8 +53,10 @@ const VOLCENGINE_DEFAULT_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const VOLCENGINE_DEFAULT_PROJECT_NAME = 'default';
 const VOLCENGINE_DEFAULT_REGION = 'cn-beijing';
 const VOLCENGINE_DEFAULT_VIDEO_MODELS = [
+    'doubao-seedance-2-5-260628',
     'doubao-seedance-2-0-260128',
     'doubao-seedance-2-0-fast-260128',
+    'doubao-seedance-2-0-mini-260615',
     'doubao-seedance-1-5-pro-251215',
     'doubao-seedance-1-0-pro-250528',
     'doubao-seedance-1-0-lite-t2v-250428',

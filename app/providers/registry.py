@@ -429,6 +429,7 @@ def merge_default_api_providers(providers):
             if not current.get("base_url"):
                 current["base_url"] = volc_default["base_url"]
             current["protocol"] = "volcengine"
+            current["video_models"] = model_list_from_values([*(current.get("video_models") or []), *(volc_default.get("video_models") or [])])
             current["volcengine_project_name"] = str(current.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
             current["volcengine_region"] = str(current.get("volcengine_region") or VOLCENGINE_DEFAULT_REGION).strip() or VOLCENGINE_DEFAULT_REGION
     return merged

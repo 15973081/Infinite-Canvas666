@@ -71,8 +71,10 @@ VOLCENGINE_DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 VOLCENGINE_DEFAULT_PROJECT_NAME = "default"
 VOLCENGINE_DEFAULT_REGION = "cn-beijing"
 VOLCENGINE_DEFAULT_VIDEO_MODELS = [
+    "doubao-seedance-2-5-260628",
     "doubao-seedance-2-0-260128",
     "doubao-seedance-2-0-fast-260128",
+    "doubao-seedance-2-0-mini-260615",
     "doubao-seedance-1-5-pro-251215",
     "doubao-seedance-1-0-pro-250528",
     "doubao-seedance-1-0-lite-t2v-250428",
@@ -164,8 +166,10 @@ def reload_env_globals():
         "wan2.6-t2v", "wan2.6-i2v",
         "wan2.5-t2v-preview", "wan2.5-i2v-preview",
         "wan2.2-t2v-plus", "wan2.2-i2v-plus", "wan2.2-i2v-flash",
+        "doubao-seedance-2-5-260628",
         "doubao-seedance-2-0-260128",
         "doubao-seedance-2-0-fast-260128",
+        "doubao-seedance-2-0-mini-260615",
         "doubao-seedance-1-5-pro-251215",
         "doubao-seedance-1-0-pro-250528",
         "doubao-seedance-1-0-lite-t2v-250428",
@@ -185,8 +189,10 @@ VIDEO_MODELS = model_list("VIDEO_MODELS", "veo3-fast", [
     "wan2.6-t2v", "wan2.6-i2v",
     "wan2.5-t2v-preview", "wan2.5-i2v-preview",
     "wan2.2-t2v-plus", "wan2.2-i2v-plus", "wan2.2-i2v-flash",
+    "doubao-seedance-2-5-260628",
     "doubao-seedance-2-0-260128",
     "doubao-seedance-2-0-fast-260128",
+    "doubao-seedance-2-0-mini-260615",
     "doubao-seedance-1-5-pro-251215",
     "doubao-seedance-1-0-pro-250528",
     "doubao-seedance-1-0-lite-t2v-250428",

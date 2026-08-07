@@ -743,6 +743,40 @@ def volcengine_video_duration(duration) -> int:
         value = 5
     return max(1, min(60, value))
 
+def is_volcengine_seedance25_model(model: str) -> bool:
+    value = str(model or "").strip().lower().replace("_", "-").replace(".", "-")
+    return "seedance-2-5" in value
+
+def volcengine_seedance25_task_type(prompt: str, video_count: int = 0) -> str:
+    if not video_count:
+        return "reference"
+    text = str(prompt or "").lower()
+    if any(word in text for word in ("向前延长", "向后延长", "延长", "延续", "续写")):
+        return "extend"
+    if any(word in text for word in ("编辑视频", "编辑", "增加", "加上", "删除", "去掉", "修改", "替换", "改成")):
+        return "edit"
+    return "reference"
+
+def volcengine_seedance25_options(prompt: str, duration, ratio: str, resolution: str, video_count: int = 0, task_type: str = ""):
+    task_type = task_type if task_type in {"edit", "extend"} else volcengine_seedance25_task_type(prompt, video_count)
+    if task_type == "edit":
+        duration = -1
+    else:
+        try:
+            duration = int(duration)
+        except Exception:
+            duration = 5
+        if duration != -1 and not 4 <= duration <= 30:
+            raise HTTPException(status_code=400, detail="Seedance 2.5 视频时长仅支持 4-30 秒或 -1。")
+    ratio = "adaptive" if task_type in {"edit", "extend"} else str(ratio or "adaptive").strip()
+    if ratio not in {"16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"}:
+        raise HTTPException(status_code=400, detail="Seedance 2.5 不支持当前视频比例。")
+    resolution = str(resolution or "").strip().lower()
+    resolution = {"auto": "", "480": "480p", "720": "720p"}.get(resolution, resolution)
+    if resolution not in {"", "480p", "720p"}:
+        raise HTTPException(status_code=400, detail="Seedance 2.5 分辨率仅支持 480p、720p 或自动。")
+    return task_type, duration, ratio, resolution
+
 def volcengine_video_resolution(value: str) -> str:
     text = str(value or "").strip().lower()
     aliases = {"": "", "auto": "", "480": "480p", "720": "720p", "1080": "1080p"}
@@ -753,16 +787,18 @@ def is_volcengine_seedance2_model(model: str) -> bool:
     value = str(model or "").strip().lower().replace("_", "-").replace(".", "-")
     return "seedance-2-0" in value
 
-async def volcengine_video_reference_content_items(value, max_frames=4, max_size=768):
+async def volcengine_video_reference_content_items(value, max_frames=4, max_size=768, direct_video=False):
     text = str(value or "").strip()
     if not text:
         return []
-    if is_private_asset_url(text):
+    if is_private_asset_url(text) or (direct_video and text.startswith(("http://", "https://"))):
         return [{
             "type": "video_url",
             "video_url": {"url": text},
             "role": "reference_video",
         }]
+    if direct_video:
+        raise HTTPException(status_code=400, detail="Seedance 2.5 参考视频需要公网视频 URL 或 asset:// 素材，请先点击“上传云端”。")
     frame_urls = await video_reference_to_frame_data_urls(text, max_frames=max_frames, max_size=max_size)
     return [
         {
