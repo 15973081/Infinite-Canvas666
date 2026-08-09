@@ -2053,6 +2053,7 @@ async def generate_volcengine_provider_image(prompt, size, model, reference_imag
         "prompt": prompt,
         "size": size,
         "response_format": "url",
+        "watermark": False,
     }
     images = [volcengine_image_payload(ref) for ref in (reference_images or [])[:10]]
     images = [value for value in images if value]
