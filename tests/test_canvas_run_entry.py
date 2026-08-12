@@ -71,6 +71,13 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("while(!failed && next < rounds.length)", scheduler)
         self.assertLess(scheduler.index("failed = true"), scheduler.index("throw err"))
 
+    def test_output_connections_cannot_bypass_cycle_detection(self):
+        source = CANVAS_JS.read_text(encoding="utf-8")
+        can_connect = _function_source(source, "canConnect")
+
+        self.assertIn("if(to.type === 'output') return !wouldCreateGeneratorCycle(fromId, toId)", can_connect)
+        self.assertIn("from.type !== 'output' || !wouldCreateGeneratorCycle(fromId, toId)", can_connect)
+
 
 if __name__ == "__main__":
     unittest.main()

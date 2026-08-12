@@ -13930,7 +13930,7 @@ function canConnect(fromId, toId){
     const to = nodes.find(n => n.id === toId);
     if(!from || !to) return false;
     if(CANVAS_GENERATOR_TYPES.includes(from.type)){
-        if(to.type === 'output') return true;
+        if(to.type === 'output') return !wouldCreateGeneratorCycle(fromId, toId);
         if(CANVAS_MEDIA_OUTPUT_TYPES.includes(from.type) && CANVAS_GENERATOR_TYPES.includes(to.type)){
             return !wouldCreateGeneratorCycle(fromId, toId);
         }
@@ -13943,7 +13943,8 @@ function canConnect(fromId, toId){
     }
     if(to.type === 'llm') return ['prompt','loop','promptGroup','llm','image','group','output'].includes(from.type);
     if(from.type === 'llm') return CANVAS_GENERATOR_TYPES.includes(to.type);
-    return CANVAS_GENERATOR_TYPES.includes(to.type) && ['image','prompt','loop','group','promptGroup','output','llm'].includes(from.type);
+    const allowed = CANVAS_GENERATOR_TYPES.includes(to.type) && ['image','prompt','loop','group','promptGroup','output','llm'].includes(from.type);
+    return allowed && (from.type !== 'output' || !wouldCreateGeneratorCycle(fromId, toId));
 }
 function sanitizeConnections(){
     connections = (connections || []).filter(c => canConnect(c.from, c.to));
