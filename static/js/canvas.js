@@ -10172,8 +10172,8 @@ async function runGenerator(genId, opts={}){
         gen.running = false;
         refreshRunNodes(gen, out);
         scheduleSave();
-        if(remainingPending.some(p => p.failed && p.recoverTaskId) && !removableIds.length) return;
         if(opts.cascade) throw err;
+        if(remainingPending.some(p => p.failed && p.recoverTaskId) && !removableIds.length) return;
         showErrorModal(err.message || tr('canvas.generationFailed'), tr('canvas.apiFailed'));
     }
 }

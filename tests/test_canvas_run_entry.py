@@ -55,6 +55,14 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("pollCanvasImageTask(pending.canvasTaskId)", resume_pending)
         self.assertIn("pollCanvasVideoTask(pending.canvasTaskId)", resume_pending)
 
+    def test_recoverable_failure_stops_cascade_before_downstream(self):
+        source = CANVAS_JS.read_text(encoding="utf-8")
+        image_run = _source_between(source, "async function runGenerator(", "async function runGeneratorLegacy(")
+
+        cascade_throw = image_run.index("if(opts.cascade) throw err", image_run.index("const removableIds"))
+        recoverable_return = image_run.index("recoverTaskId) && !removableIds.length) return")
+        self.assertLess(cascade_throw, recoverable_return)
+
 
 if __name__ == "__main__":
     unittest.main()
