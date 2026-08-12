@@ -78,6 +78,24 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("if(to.type === 'output') return !wouldCreateGeneratorCycle(fromId, toId)", can_connect)
         self.assertIn("from.type !== 'output' || !wouldCreateGeneratorCycle(fromId, toId)", can_connect)
 
+    def test_cascade_reserves_every_node_in_workflow(self):
+        source = CANVAS_JS.read_text(encoding="utf-8")
+        reset = _function_source(source, "resetCascadeRuntimeState")
+        begin = _source_between(source, "function beginCascade(", "function queueCascadeCleanup(")
+        finalize = _source_between(source, "function finalizeCascade(", "function cascadeTargetIdFromOptions(")
+        regular_run = _function_source(source, "runCanvasGenerate")
+        busy_node = _function_source(source, "cascadeBusyNodeId")
+        cascade_run = _source_between(source, "async function runNodeCascade(", "async function runOneCascadePass(")
+        retry_run = _source_between(source, "async function retryNodeAndDownstream(", "function cancelCascade(")
+
+        self.assertIn("cascadeRunningNodeIds.clear()", reset)
+        self.assertIn("ctx.order.forEach(id => cascadeRunningNodeIds.add(id))", begin)
+        self.assertIn("cascadeRunningNodeIds.delete(id)", finalize)
+        self.assertIn("cascadeRunningNodeIds.has(nodeId)", regular_run)
+        self.assertIn("?.running", busy_node)
+        self.assertIn("cascadeBusyNodeId(order)", cascade_run)
+        self.assertIn("cascadeBusyNodeId(remain)", retry_run)
+
 
 if __name__ == "__main__":
     unittest.main()

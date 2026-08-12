@@ -989,6 +989,7 @@ let lastMouseBoard = {x: 0, y: 0};
 let undoStack = [];
 const UNDO_MAX = 30;
 const cascadeRunningIds = new Set();
+const cascadeRunningNodeIds = new Set();
 const cascadeStopIds = new Set();
 const cascadeSerialIds = new Set(); // 记录以串行循环模式启动的运行，用于停止按钮
 const cascadeContexts = new Map();
@@ -10650,11 +10651,12 @@ function ltxDirectorTimelineSegments(node){
 }
 function clearStuckGeneratorRunning(node){
     if(!node || !node.running) return;
-    if(cascadeRunningIds.has(node.id) || cascadeSerialIds.has(node.id)) return;
+    if(cascadeRunningNodeIds.has(node.id) || cascadeSerialIds.has(node.id)) return;
     node.running = false;
 }
 function resetCascadeRuntimeState(){
     cascadeRunningIds.clear();
+    cascadeRunningNodeIds.clear();
     cascadeStopIds.clear();
     cascadeSerialIds.clear();
     cascadeContexts.forEach(ctx => clearCascadeCleanupTimer(ctx));
@@ -10667,6 +10669,9 @@ function cascadeContextFor(targetId){
 function isCascadeActive(targetId){
     const ctx = cascadeContextFor(targetId);
     return Boolean(ctx && (ctx.status === 'running' || ctx.status === 'stopping'));
+}
+function cascadeBusyNodeId(order=[]){
+    return order.find(id => cascadeRunningNodeIds.has(id) || nodes.find(node => node.id === id)?.running) || '';
 }
 function isCascadeStopping(targetId){
     return cascadeContextFor(targetId)?.status === 'stopping';
@@ -10736,6 +10741,7 @@ function beginCascade(targetId, order, options={}){
     }
     const ctx = createCascadeContext(targetId, order, options);
     cascadeRunningIds.add(targetId);
+    ctx.order.forEach(id => cascadeRunningNodeIds.add(id));
     if(options.serial) cascadeSerialIds.add(targetId);
     if(options.mode) ctx.mode = options.mode;
     return ctx;
@@ -10780,6 +10786,7 @@ function finalizeCascade(targetId, state, options={}){
     const uiIds = cascadeUiNodeIds(targetId, order);
     clearCascadeCleanupTimer(ctx);
     cascadeRunningIds.delete(targetId);
+    (ctx?.order || order || []).forEach(id => cascadeRunningNodeIds.delete(id));
     cascadeStopIds.delete(targetId);
     cascadeSerialIds.delete(targetId);
     if(ctx) ctx.status = state;
@@ -11329,7 +11336,7 @@ function canvasRunTypes(){
 }
 async function runCanvasGenerate(nodeId){
     const node = nodes.find(n => n.id === nodeId);
-    if(!node || node.running || cascadeRunningIds.has(nodeId)) return;
+    if(!node || node.running || cascadeRunningNodeIds.has(nodeId)) return;
     return runCascadeNodeByType(node, {cascade:false});
 }
 function computeCascadeOrder(targetId){
@@ -11391,6 +11398,7 @@ async function runNodeCascade(nodeId){
     if(target.running){ alert('当前节点正在运行'); return; }
     const order = computeCascadeOrder(nodeId);
     if(!order.length){ alert('没有可运行的生成节点'); return; }
+    if(cascadeBusyNodeId(order)){ alert('工作流中的节点正在运行'); return; }
     const loop = resolveCascadeLoop(nodeId);
     const totalRounds = loop?.count || 1;
     const startIdx = Math.max(1, Number(loop?.node?.loopStart) || 1);
@@ -11542,6 +11550,7 @@ async function retryNodeAndDownstream(nodeId){
     // 只重跑从该节点开始的剩余链
     const idx = order.indexOf(nodeId);
     const remain = idx >= 0 ? order.slice(idx) : [nodeId];
+    if(cascadeBusyNodeId(remain)) return;
     beginCascade(nodeId, remain, {serial:true, mode:'retry'});
     try {
         await runOneCascadePass(remain, {cascadeTargetId:nodeId});
