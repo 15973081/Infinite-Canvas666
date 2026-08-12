@@ -11317,79 +11317,9 @@ async function runLimitedCascadeRounds(rounds, limit, runner){
 function canvasRunTypes(){
     return ['generator','msgen','comfy','ltxDirector','llm','video'];
 }
-function canvasWorkflowEdges(){
-    const runTypes = canvasRunTypes();
-    const direct = [];
-    connections.forEach(c => {
-        const from = nodes.find(n => n.id === c.from);
-        const to = nodes.find(n => n.id === c.to);
-        if(!from || !to || !runTypes.includes(from.type)) return;
-        if(runTypes.includes(to.type)){
-            direct.push([from.id, to.id]);
-            return;
-        }
-        if(to.type === 'output'){
-            connections.filter(cc => cc.from === to.id).forEach(cc => {
-                const next = nodes.find(n => n.id === cc.to);
-                if(next && runTypes.includes(next.type)) direct.push([from.id, next.id]);
-            });
-        }
-    });
-    return direct;
-}
-function computeConnectedWorkflowOrder(anchorId){
-    const anchor = nodes.find(n => n.id === anchorId);
-    const runTypes = canvasRunTypes();
-    if(!anchor || !runTypes.includes(anchor.type)) return [];
-    const edges = canvasWorkflowEdges();
-    const connected = new Set([anchorId]);
-    let changed = true;
-    while(changed){
-        changed = false;
-        edges.forEach(([from, to]) => {
-            if(connected.has(from) && !connected.has(to)){ connected.add(to); changed = true; }
-            if(connected.has(to) && !connected.has(from)){ connected.add(from); changed = true; }
-        });
-    }
-    const order = [];
-    const seen = new Set();
-    const visit = id => {
-        if(seen.has(id)) return;
-        seen.add(id);
-        edges.filter(([, to]) => to === id).forEach(([from]) => {
-            if(connected.has(from)) visit(from);
-        });
-        if(connected.has(id)) order.push(id);
-    };
-    nodes.filter(n => connected.has(n.id) && runTypes.includes(n.type)).forEach(n => visit(n.id));
-    return order;
-}
 async function runCanvasGenerate(nodeId){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || node.running || cascadeRunningIds.has(nodeId)) return;
-    const order = computeConnectedWorkflowOrder(nodeId);
-    if(order.length > 1){
-        const ctx = beginCascade(nodeId, order, {serial:true, mode:'connected'});
-        refreshNodes(cascadeUiNodeIds(nodeId, order));
-        try {
-            await runOneCascadePass(order, {cascadeTargetId:nodeId});
-            finalizeCascade(nodeId, 'done', {order});
-        } catch(err) {
-            if(isCascadeAbortError(err)){
-                finalizeCascade(nodeId, 'stopped', {order});
-                return;
-            }
-            const failedNodeId = ctx.currentNodeId || order.find(id => nodes.find(n => n.id === id)?.runStatus === 'failed') || nodeId;
-            const failedNode = nodes.find(n => n.id === failedNodeId) || node;
-            failedNode.runStatus = 'failed';
-            failedNode.runError = err.message || String(err);
-            failedNode._cascadeFailed = true;
-            finalizeCascade(nodeId, 'failed', {order});
-        } finally {
-            loopContext = null;
-        }
-        return;
-    }
     return runCascadeNodeByType(node, {cascade:false});
 }
 function computeCascadeOrder(targetId){
