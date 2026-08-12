@@ -955,7 +955,6 @@ let currentOutputLightboxOutId = '';
 let currentOutputLightboxUrl = '';
 const missingAssetUrls = new Set();
 let outputTimer = null;
-let loopContext = null;
 let clipboard = null;
 let lastImagePasteAt = 0;
 let promptTemplateNodeId = '';
@@ -1995,7 +1994,6 @@ function serializableCanvasNode(node){
     delete copy.runError;
     delete copy._cascadeIdx;
     delete copy._cascadeFailed;
-    delete copy._activeLoopCtx;
     return copy;
 }
 function serializableCanvasNodes(list=nodes){
@@ -3804,7 +3802,7 @@ async function runMsGenNode(nodeId, opts={}){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || (node.running && !opts.cascade)) return;
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
-    const sources = orderedSources(node, generatorSources(node));
+    const sources = orderedSources(node, generatorSources(node, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const refs = imageRefsOnly(sources.flatMap(s => s.refs || []));
     const modelKey = node.msgenModel || 'zimage';
@@ -7105,7 +7103,7 @@ function splitPromptIntoItems(text){
     return [trimmed];
 }
 const loopPromptVisiting = new Set();
-function loopInputPromptItems(node){
+function loopInputPromptItems(node, ctx=null){
     if(!node?.showPrompt) return [];
     if(loopPromptVisiting.has(node.id)) return [];
     loopPromptVisiting.add(node.id);
@@ -7128,7 +7126,7 @@ function loopInputPromptItems(node){
                     });
                     return;
                 }
-                else if(n.type === 'loop') text = renderLoopPrompt(n);
+                else if(n.type === 'loop') text = renderLoopPrompt(n, ctx);
                 else if(n.type === 'llm') text = n.outputText || '';
                 if(String(text || '').trim()) items.push(String(text || '').trim());
             });
@@ -7137,14 +7135,14 @@ function loopInputPromptItems(node){
         loopPromptVisiting.delete(node.id);
     }
 }
-function loopInputPrompt(node, ctx=loopContext){
-    const items = loopInputPromptItems(node);
+function loopInputPrompt(node, ctx=null){
+    const items = loopInputPromptItems(node, ctx);
     if(!items.length) return '';
     const startBase = Math.max(1, Number(node?.loopStart) || 1);
     const currentIndex = Math.max(1, Number(ctx?.index || startBase) || startBase);
     return items[(currentIndex - 1) % items.length];
 }
-function renderLoopPrompt(node, ctx=loopContext){
+function renderLoopPrompt(node, ctx=null){
     if(!node?.showPrompt) return '';
     const variable = String(node?.variablePrompt || '').trim();
     const count = loopCount(node);
@@ -7179,7 +7177,7 @@ function imageRefsFromNode(node){
     if(CANVAS_IMAGE_OUTPUT_TYPES.includes(node.type)) return generatedImageRefs(node).filter(ref => ref.kind === 'image');
     return [];
 }
-function loopInputImageRefs(node, ctx=loopContext){
+function loopInputImageRefs(node, ctx=null){
     if(!node?.imageInput) return [];
     const allRefs = connections
         .filter(c => c.to === node.id)
@@ -7215,7 +7213,7 @@ function videoRefsFromNode(node){
     if(CANVAS_MEDIA_OUTPUT_TYPES.includes(node.type)) return generatedImageRefs(node).filter(ref => ref.kind === 'video');
     return [];
 }
-function loopInputVideoRefs(node, ctx=loopContext){
+function loopInputVideoRefs(node, ctx=null){
     if(!node?.videoInput) return [];
     const allRefs = connections
         .filter(c => c.to === node.id)
@@ -8940,10 +8938,10 @@ function onLLMPaneResize(e){
         }
     }
 }
-function llmInputText(node){
+function llmInputText(node, ctx=null){
     return connections.filter(c => c.to === node.id).map(c => nodes.find(n => n.id === c.from)).filter(Boolean).map(n => {
         if(n.type === 'prompt') return n.text || '';
-        if(n.type === 'loop') return renderLoopPrompt(n);
+        if(n.type === 'loop') return renderLoopPrompt(n, ctx);
         if(n.type === 'promptGroup') return (n.items || []).map(id => nodes.find(x => x.id === id)).filter(Boolean).map(p => p.text || '').filter(Boolean).join('\n\n');
         if(n.type === 'llm') return n.outputText || '';
         return '';
@@ -9958,7 +9956,7 @@ function mediaRefsFromNode(node){
     if(CANVAS_MEDIA_OUTPUT_TYPES.includes(node.type)) return generatedImageRefs(node);
     return [];
 }
-function generatorSources(gen){
+function generatorSources(gen, loopCtx=null){
     return connections.filter(c => c.to === gen.id).map(c => nodes.find(n => n.id === c.from)).filter(Boolean).map(n => {
         if(n.type === 'output' && (n.images||[]).length){
             // 从 output 节点取最新一张图当作 reference 给下游
@@ -10016,7 +10014,7 @@ function generatorSources(gen){
         }
         if(n.type === 'prompt') return {id:n.id, type:'prompt', label:(n.text || '提示词').slice(0, 32), refs:[], prompt:n.text || ''};
         if(n.type === 'loop') {
-            const ctx = gen?._activeLoopCtx || loopContext || null;
+            const ctx = loopCtx;
             const prompt = renderLoopPrompt(n, ctx);
             const imageRefs = loopInputImageRefs(n, ctx);
             const out = [];
@@ -10092,7 +10090,7 @@ async function runGenerator(genId, opts={}){
     const gen = nodes.find(n => n.id === genId);
     if(!gen || (gen.running && !opts.cascade)) return;
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
-    const sources = orderedSources(gen, generatorSources(gen));
+    const sources = orderedSources(gen, generatorSources(gen, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const refs = imageRefsOnly(sources.flatMap(s => s.refs || []));
     if(!prompt && !refs.length){ alert(tr('canvas.needPromptOrImage')); return; }
@@ -10181,7 +10179,7 @@ async function runGenerator(genId, opts={}){
 async function runGeneratorLegacy(genId, opts={}){
     const gen = nodes.find(n => n.id === genId);
     if(!gen || (gen.running && !opts.cascade)) return;
-    const sources = orderedSources(gen, generatorSources(gen));
+    const sources = orderedSources(gen, generatorSources(gen, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const refs = imageRefsOnly(sources.flatMap(s => s.refs || []));
     if(!prompt && !refs.length){ alert(tr('canvas.needPromptOrImage')); return; }
@@ -10234,7 +10232,7 @@ async function runVideoNode(nodeId, opts={}){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || (node.running && !opts.cascade)) return;
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
-    const sources = orderedSources(node, generatorSources(node));
+    const sources = orderedSources(node, generatorSources(node, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const allRefs = sources.flatMap(s => s.refs || []);
     const providerId = resolveVideoProviderId(node.apiProvider || 'comfly');
@@ -10661,7 +10659,6 @@ function resetCascadeRuntimeState(){
     cascadeSerialIds.clear();
     cascadeContexts.forEach(ctx => clearCascadeCleanupTimer(ctx));
     cascadeContexts.clear();
-    loopContext = null;
 }
 function cascadeContextFor(targetId){
     return targetId ? cascadeContexts.get(targetId) || null : null;
@@ -10920,7 +10917,7 @@ async function runLTXDirectorNode(nodeId, opts={}){
     clearStuckGeneratorRunning(node);
     if(node.running && !opts.cascade) return;
     ltxFlushTimelineToNode(node);
-    const sources = orderedSources(node, generatorSources(node));
+    const sources = orderedSources(node, generatorSources(node, opts.loopContext));
     const upstreamPrompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const globalPrompt = [node.globalPrompt, upstreamPrompt].filter(Boolean).join('\n\n').trim();
     const segments = ltxDirectorTimelineSegments(node);
@@ -11005,7 +11002,7 @@ async function runComfyNode(nodeId, opts={}){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || (node.running && !opts.cascade)) return;
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
-    const sources = orderedSources(node, generatorSources(node));
+    const sources = orderedSources(node, generatorSources(node, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const allRefs = sources.flatMap(s => s.refs || []);
     const refs = imageRefsOnly(allRefs);
@@ -11187,7 +11184,7 @@ async function runLLMNode(nodeId, opts={}){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || (node.running && !opts.cascade)) return;
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
-    const input = llmInputText(node) || node.userInput || '';
+    const input = llmInputText(node, opts.loopContext) || node.userInput || '';
     if(!input){
         if(opts.cascade) throw new Error('LLM 缺少提示词输入');
         alert(tr('canvas.needPromptToLLM')); return;
@@ -11295,20 +11292,8 @@ function runCascadeNodeByType(node, opts={}){
     if(node.type === 'video') return runVideoNode(node.id, runOpts);
     return Promise.resolve();
 }
-async function runCascadeNodeWithLoopContext(node, ctx, opts={}){
-    const previous = loopContext;
-    const previousNodeCtx = node ? node._activeLoopCtx : null;
-    loopContext = ctx || null;
-    if(node) node._activeLoopCtx = ctx || null;
-    try {
-        return await runCascadeNodeByType(node, opts);
-    } finally {
-        loopContext = previous;
-        if(node){
-            if(previousNodeCtx) node._activeLoopCtx = previousNodeCtx;
-            else delete node._activeLoopCtx;
-        }
-    }
+function runCascadeNodeWithLoopContext(node, ctx, opts={}){
+    return runCascadeNodeByType(node, {...opts, loopContext:ctx || null});
 }
 function cascadeParallelLimit(order, totalRounds){
     const hasComfy = order.some(id => nodes.find(n => n.id === id)?.type === 'comfy');
@@ -11471,7 +11456,6 @@ async function runNodeCascade(nodeId){
             });
             refreshNodes(order);
         });
-        loopContext = null;
         const failed = results.find(r => r.status === 'rejected');
         if(failed){
             const err = failed.reason || new Error('parallel loop failed');
@@ -11493,7 +11477,7 @@ async function runNodeCascade(nodeId){
     for(let round = 1; round <= totalRounds; round++){
         ensureCascadeActive(nodeId, ctx.message);
         const loopIndex = startIdx + (round - 1) * loopBatchSize;
-        loopContext = loop ? {index:loopIndex, total:endIdx, nodeId:loop.node.id} : null;
+        const loopCtx = loop ? {index:loopIndex, total:endIdx, nodeId:loop.node.id} : null;
         order.forEach(id => {
             const n = nodes.find(x => x.id === id);
             if(n){ n.runStatus = 'queued'; n.runError = ''; n._cascadeFailed = false; n._cascadeIdx = `${order.indexOf(id)+1}/${order.length}${totalRounds > 1 ? ` · ${loopIndex}/${endIdx}` : ''}`; }
@@ -11508,12 +11492,11 @@ async function runNodeCascade(nodeId){
             node.runStatus = 'running';
             refreshNodes([id]);
             try {
-                await runCascadeNodeWithLoopContext(node, loopContext, {cascadeTargetId:nodeId});
+                await runCascadeNodeWithLoopContext(node, loopCtx, {cascadeTargetId:nodeId});
                 ensureCascadeActive(nodeId, ctx.message);
                 node.runStatus = 'done';
                 refreshNodes([id]);
             } catch(err){
-                loopContext = null;
                 if(isCascadeAbortError(err)){
                     finalizeCascade(nodeId, 'stopped', {order});
                     return;
@@ -11530,7 +11513,6 @@ async function runNodeCascade(nodeId){
             }
         }
     }
-    loopContext = null;
     finalizeCascade(nodeId, 'done', {order});
 }
 async function runOneCascadePass(order, options={}){

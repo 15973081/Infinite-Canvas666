@@ -108,6 +108,25 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("const remain = computeRetryCascadeOrder(nodeId)", retry_run)
         self.assertNotIn("computeCascadeOrder(nodeId)", retry_run)
 
+    def test_parallel_loop_context_is_passed_per_run(self):
+        source = CANVAS_JS.read_text(encoding="utf-8")
+        generator_sources = _function_source(source, "generatorSources")
+        loop_prompt_items = _function_source(source, "loopInputPromptItems")
+        context_run = _source_between(source, "function runCascadeNodeWithLoopContext(", "function cascadeParallelLimit(")
+        cascade_run = _source_between(source, "async function runNodeCascade(", "async function runOneCascadePass(")
+
+        self.assertNotIn("let loopContext =", source)
+        self.assertNotIn("_activeLoopCtx", source)
+        self.assertIn("function generatorSources(gen, loopCtx=null)", generator_sources)
+        self.assertIn("const ctx = loopCtx", generator_sources)
+        self.assertIn("renderLoopPrompt(n, ctx)", loop_prompt_items)
+        self.assertIn("{...opts, loopContext:ctx || null}", context_run)
+        self.assertIn("generatorSources(node, opts.loopContext)", source)
+        self.assertIn("generatorSources(gen, opts.loopContext)", source)
+        self.assertIn("llmInputText(node, opts.loopContext)", source)
+        self.assertIn("const loopCtx = loop ?", cascade_run)
+        self.assertEqual(2, cascade_run.count("runCascadeNodeWithLoopContext(node, loopCtx"))
+
 
 if __name__ == "__main__":
     unittest.main()
