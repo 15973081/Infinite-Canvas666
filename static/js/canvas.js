@@ -11367,6 +11367,32 @@ function computeCascadeOrder(targetId){
     dfs(targetId);
     return order;
 }
+function computeRetryCascadeOrder(nodeId){
+    const runTypes = canvasRunTypes();
+    const visited = new Set();
+    const downstream = new Set();
+    const walk = id => {
+        if(visited.has(id)) return;
+        visited.add(id);
+        const node = nodes.find(n => n.id === id);
+        if(!node) return;
+        if(runTypes.includes(node.type)) downstream.add(id);
+        connections.filter(c => c.from === id).forEach(c => {
+            const next = nodes.find(n => n.id === c.to);
+            if(next && (runTypes.includes(next.type) || next.type === 'output')) walk(next.id);
+        });
+    };
+    walk(nodeId);
+    const order = [];
+    const added = new Set();
+    downstream.forEach(id => computeCascadeOrder(id).forEach(candidate => {
+        if(downstream.has(candidate) && !added.has(candidate)){
+            added.add(candidate);
+            order.push(candidate);
+        }
+    }));
+    return order;
+}
 function upstreamNodeIds(targetId){
     const found = new Set();
     const walk = id => {
@@ -11546,10 +11572,8 @@ async function retryNodeAndDownstream(nodeId){
     const target = nodes.find(n => n.id === nodeId);
     if(!target) return;
     if(isCascadeActive(nodeId)) return;
-    const order = computeCascadeOrder(nodeId);
-    // 只重跑从该节点开始的剩余链
-    const idx = order.indexOf(nodeId);
-    const remain = idx >= 0 ? order.slice(idx) : [nodeId];
+    const remain = computeRetryCascadeOrder(nodeId);
+    if(!remain.length) return;
     if(cascadeBusyNodeId(remain)) return;
     beginCascade(nodeId, remain, {serial:true, mode:'retry'});
     try {
