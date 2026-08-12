@@ -11310,10 +11310,16 @@ function cascadeParallelLimit(order, totalRounds){
 }
 async function runLimitedCascadeRounds(rounds, limit, runner){
     let next = 0;
+    let failed = false;
     const workers = Array.from({length:Math.max(1, Math.min(limit, rounds.length))}, async () => {
-        while(next < rounds.length){
+        while(!failed && next < rounds.length){
             const round = rounds[next++];
-            await runner(round);
+            try {
+                await runner(round);
+            } catch(err) {
+                failed = true;
+                throw err;
+            }
         }
     });
     return Promise.allSettled(workers);

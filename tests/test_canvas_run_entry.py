@@ -63,6 +63,14 @@ class CanvasRunEntryTest(unittest.TestCase):
         recoverable_return = image_run.index("recoverTaskId) && !removableIds.length) return")
         self.assertLess(cascade_throw, recoverable_return)
 
+    def test_parallel_cascade_stops_scheduling_after_first_failure(self):
+        source = CANVAS_JS.read_text(encoding="utf-8")
+        scheduler = _function_source(source, "runLimitedCascadeRounds")
+
+        self.assertIn("let failed = false", scheduler)
+        self.assertIn("while(!failed && next < rounds.length)", scheduler)
+        self.assertLess(scheduler.index("failed = true"), scheduler.index("throw err"))
+
 
 if __name__ == "__main__":
     unittest.main()
