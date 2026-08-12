@@ -10155,17 +10155,18 @@ async function runGenerator(genId, opts={}){
         if(statuses.includes('failed')) throw new Error(gen.runError || tr('canvas.generationFailed'));
     } catch(err) {
         const remainingPending = pendingIds.map(id => pendingById(out, id)).filter(Boolean);
+        if(isCascadeAbortError(err)){
+            remainingPending.forEach(resumePendingAfterCascadeStop);
+            gen.running = false;
+            refreshRunNodes(gen, out);
+            scheduleSave();
+            throw err;
+        }
         const removableIds = remainingPending.filter(p => !(p.failed && p.recoverTaskId)).map(p => p.id);
         if(removableIds.length){
             const metas = collectRunMetas(out, removableIds);
             addGenerationLog({run, outputs:[], runMs:Math.max(...metas.map(m => m.runMs || 0), 0), error:err.message || String(err)});
             if(out) out._pending = (out._pending||[]).filter(p => !removableIds.includes(p.id));
-        }
-        if(isCascadeAbortError(err)){
-            gen.running = false;
-            refreshRunNodes(gen, out);
-            scheduleSave();
-            throw err;
         }
         gen.runStatus = 'failed'; gen.runError = err.message || String(err);
         gen.running = false;
@@ -10281,6 +10282,7 @@ async function runVideoNode(nodeId, opts={}){
     if(!opts.cascade){ node.running = true; refreshRunNodes(node, out); }
     else refreshRunNodes(node, out);
     let handledTaskFailure = false;
+    let pendingId = '';
     try {
         const task = await createCanvasVideoTask(payload, {cascadeTargetId});
         if(!out){
@@ -10297,7 +10299,7 @@ async function runVideoNode(nodeId, opts={}){
             scheduleSave();
             return;
         }
-        const pendingId = uid('p');
+        pendingId = uid('p');
         out._pending = [...(out._pending || []), makePendingForRun(pendingId, run, node, {refs, cascadeTargetId}, {
             canvasTaskId:task.task_id,
             canvasTaskType:'video',
@@ -10317,13 +10319,15 @@ async function runVideoNode(nodeId, opts={}){
     } catch(err) {
         const currentNode = nodes.find(n => n.id === nodeId) || node;
         const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
-        const pendingForRun = (currentOut?._pending || []).find(p => p.run?.node?.id === nodeId && p.canvasTaskType === 'video');
+        const pendingForRun = (currentOut?._pending || []).find(p => p.id === pendingId);
         const meta = pendingForRun ? collectRunMeta(currentOut, pendingForRun.id) : {runMs:0};
-        if(currentOut && pendingForRun && !handledTaskFailure) currentOut._pending = (currentOut._pending || []).filter(p => p.id !== pendingForRun.id);
         if(isCascadeAbortError(err)){
+            if(pendingForRun) resumePendingAfterCascadeStop(pendingForRun);
+            scheduleSave();
             if(opts.cascade) throw err;
             return;
         }
+        if(currentOut && pendingForRun && !handledTaskFailure) currentOut._pending = (currentOut._pending || []).filter(p => p.id !== pendingForRun.id);
         if(!handledTaskFailure) addGenerationLog({run, outputs:[], runMs:meta.runMs || 0, error:err.message || String(err)});
         currentNode.runStatus = 'failed'; currentNode.runError = err.message || String(err);
         refreshRunNodes(currentNode, currentOut);
@@ -12476,6 +12480,12 @@ function resumeCanvasImageTasks(){
             if(p.canvasTaskType === 'video' && p.canvasTaskId && !p.failed) pollCanvasVideoTask(p.canvasTaskId, {cascadeTargetId:p.cascadeTargetId || ''});
         });
     });
+}
+function resumePendingAfterCascadeStop(pending){
+    if(!pending?.canvasTaskId) return;
+    pending.cascadeTargetId = '';
+    if(pending.canvasTaskType === 'online-image') pollCanvasImageTask(pending.canvasTaskId);
+    if(pending.canvasTaskType === 'video') pollCanvasVideoTask(pending.canvasTaskId);
 }
 function renderOutputMedia(item, useGridLayout=false){
     const url = outputUrlValue(item);
