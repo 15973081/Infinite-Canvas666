@@ -18,7 +18,21 @@ let activeWorkflowCategoryId = '';
 let activePromptLibraryId = '';
 let activePromptCategory = 'all';
 let assetTreeFocus = 'category';
-let collapsedAssetLibraryIds = new Set();
+const ASSET_TREE_COLLAPSED_STORAGE_KEY = 'asset_manager_collapsed_libraries_v1';
+function loadCollapsedAssetLibraryIds(){
+    try {
+        const ids = JSON.parse(localStorage.getItem(ASSET_TREE_COLLAPSED_STORAGE_KEY) || '[]');
+        return new Set(Array.isArray(ids) ? ids.map(String).filter(Boolean) : []);
+    } catch(_) {
+        return new Set();
+    }
+}
+function saveCollapsedAssetLibraryIds(){
+    try {
+        localStorage.setItem(ASSET_TREE_COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsedAssetLibraryIds]));
+    } catch(_) {}
+}
+let collapsedAssetLibraryIds = loadCollapsedAssetLibraryIds();
 let promptTreeFocus = 'category';
 let selectedAssetId = '';
 let selectedWorkflowId = '';
@@ -775,6 +789,12 @@ async function loadAll({reset=false}={}){
         loadLocalAssets()
     ]);
     assetLibrary = assetData.library || {libraries:[], categories:[]};
+    const validAssetLibraryIds = new Set(assetLibraries().map(lib => String(lib.id || '')).filter(Boolean));
+    const restoredCollapsedIds = new Set([...collapsedAssetLibraryIds].filter(id => validAssetLibraryIds.has(id)));
+    if(restoredCollapsedIds.size !== collapsedAssetLibraryIds.size){
+        collapsedAssetLibraryIds = restoredCollapsedIds;
+        saveCollapsedAssetLibraryIds();
+    }
     promptLibrary = promptData.library || {libraries:[]};
     apiProviders = Array.isArray(providerData.providers) ? providerData.providers : [];
     canvasAssetsData = {
@@ -2548,12 +2568,13 @@ async function handleClick(event){
             selectedAssetId = '';
             selectedAssetIds.clear();
         }
+        saveCollapsedAssetLibraryIds();
         assetTreeFocus = 'library';
         renderPreservingScroll();
         return;
     }
     const assetCat = target.closest?.('[data-asset-cat]');
-    if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; collapsedAssetLibraryIds.delete(activeAssetLibraryId); activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); renderPreservingScroll(); return; }
+    if(assetCat){ activeAssetLibraryId = assetCat.dataset.assetCatLib || activeAssetLibraryId; collapsedAssetLibraryIds.delete(activeAssetLibraryId); saveCollapsedAssetLibraryIds(); activeAssetCategoryId = assetCat.dataset.assetCat || ''; assetTreeFocus = 'category'; selectedAssetId = ''; selectedAssetIds.clear(); renderPreservingScroll(); return; }
     if(target.closest?.('[data-asset-load-more]')){ appendNextAssetBatch(); return; }
     const assetCard = target.closest?.('[data-asset-card]');
     if(assetCard && !target.closest?.('[data-asset-check]')){
