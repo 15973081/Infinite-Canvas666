@@ -481,6 +481,11 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         name = (provider or {}).get("name") or (provider or {}).get("id") or "该平台"
         raise HTTPException(status_code=400, detail=f"「{name}」暂不支持数字人/真人认证（目前仅 APIMart 可用，火山等平台待接入官方资产 API）。")
+    existing_regs = target_item.get("registrations") if isinstance(target_item.get("registrations"), dict) else {}
+    existing_reg = existing_regs.get(platform) if isinstance(existing_regs.get(platform), dict) else {}
+    existing_status = str(existing_reg.get("status") or "")
+    if existing_status == "Active" or (existing_status == "Processing" and existing_reg.get("task_id")):
+        return {"library": lib, "item": target_item, "skipped": True, "status": existing_status}
     kind = str(target_item.get("kind") or "image").lower()
     if kind not in ("image", "video", "audio"):
         kind = "image"
@@ -554,10 +559,24 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
         elif str(item.get("kind") or "image").lower() not in ("image", "video", "audio"):
             results[index] = {"item_id": item_id, "ok": False, "status": "Failed", "detail": "Unsupported asset type"}
         else:
-            indexed_items.append((index, item))
+            regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
+            reg = regs.get(platform) if isinstance(regs.get(platform), dict) else {}
+            status = str(reg.get("status") or "")
+            if status == "Active" or (status == "Processing" and reg.get("task_id")):
+                results[index] = {
+                    "item_id": item_id, "ok": True, "skipped": True, "status": status,
+                    "task_id": reg.get("task_id") or "", "detail": "Already registered" if status == "Active" else "Already processing",
+                }
+            else:
+                indexed_items.append((index, item))
 
     if not indexed_items:
-        return {"library": lib, "items": [], "results": [r for r in results if r], "submitted": 0, "failed": len(ids)}
+        final_results = [r for r in results if r]
+        return {
+            "library": lib, "items": [], "results": final_results, "submitted": 0,
+            "skipped": sum(1 for result in final_results if result.get("skipped")),
+            "failed": sum(1 for result in final_results if not result.get("ok")),
+        }
 
     concurrency = max(1, min(int(payload.concurrency or 8), 8))
     semaphore = asyncio.Semaphore(concurrency)
@@ -625,7 +644,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
     submitted = 0
     for index, result in completed:
         results[index] = result
-    successful = [result for result in results if result and result.get("ok")]
+    successful = [result for result in results if result and result.get("ok") and not result.get("skipped")]
     if successful:
         async with avatar_status_lock:
             lib = load_asset_library()
@@ -655,7 +674,8 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
         "items": [find_asset_item_in_library(lib, item.get("id") or "", payload.library_id) for _, item in indexed_items],
         "results": final_results,
         "submitted": submitted,
-        "failed": len(final_results) - submitted,
+        "skipped": sum(1 for result in final_results if result.get("skipped")),
+        "failed": sum(1 for result in final_results if not result.get("ok")),
     }
 @router.post("/api/asset-library/items/{item_id}/avatar-status")
 async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterRequest):
