@@ -5653,7 +5653,7 @@ function smartRunRequestMeta(run){
     const s = run?.settings || {};
     if(s.engine === 'comfy') return {workflow_json:s.comfyWorkflow || '', mode:s.comfyMode || 'text'};
     if(s.engine === 'modelscope') return {backend:'Modelscope', model:s.msgenModel || '', custom_model:s.msCustomModel || ''};
-    if(run?.kind === 'video') return {provider_id:s.videoProvider || '', model:s.videoModel || '', duration:s.videoDuration || '', aspect_ratio:s.videoAspect || '', resolution:s.videoResolution || ''};
+    if(run?.kind === 'video') return {provider_id:s.videoProvider || 'comfly', model:s.videoModel || '', duration:s.videoDuration || '', aspect_ratio:s.videoAspect || '', resolution:s.videoResolution || ''};
     return {provider_id:s.provider_id || '', model:s.model || '', size:run?.size || '', quality:s.quality || '', n:s.count || 1};
 }
 function smartRunSnapshot(node, prompt, refs=[], kind='image'){
@@ -5688,7 +5688,7 @@ function smartBillingIdentity(run={}, log={}){
     }
     if(!providerId && s.engine === 'modelscope') providerId = 'modelscope';
     if(!model && s.engine === 'modelscope') model = s.msgenModel === 'custom' ? s.msCustomModel : MS_GEN_MODELS[s.msgenModel]?.modelId;
-    if(!providerId && kind === 'video') providerId = s.videoProvider || '';
+    if(!providerId && kind === 'video') providerId = s.videoProvider || 'comfly';
     if(!model && kind === 'video') model = s.videoModel || '';
     if(!providerId) providerId = s.provider_id || '';
     if(!model) model = s.model || log.model || '';
@@ -12018,7 +12018,14 @@ async function runLoopRoundIntoSlot(loopNode, rootNode, outputSlot, loopIndex, c
                 delete history.h;
                 outputSlot.images = [];
             }
-            outputSlot.pendingTasks = taskIds.map(taskId => ({taskId, kind:'image', providerId:taskResult.providerId, model:taskResult.model}));
+            outputSlot.pendingTasks = taskIds.map(taskId => ({
+                taskId,
+                kind:'image',
+                providerId:taskResult.providerId,
+                model:taskResult.model,
+                startedAt:runLogStart,
+                run:{...runLog, kind:'image', settings:cloneSmartSettings(runLog.settings)}
+            }));
             outputSlot.pending = Math.max(taskIds.length, Number(outputSlot.pending || 0) || taskIds.length);
             outputSlot.running = false;
             render();
@@ -12050,7 +12057,9 @@ async function runLoopRoundIntoSlot(loopNode, rootNode, outputSlot, loopIndex, c
             runPath.states[edgeKey] = 'done';
             refreshConnectionLayer();
         }
-        addSmartGenerationLog({run:{...runLog, kind:result.kind || logKind}, outputs:result.urls, runMs:nowMs() - runLogStart});
+        if(!(isApiLikeEngine(runSettings.engine) && runSettings.apiKind !== 'video')){
+            addSmartGenerationLog({run:{...runLog, kind:result.kind || logKind}, outputs:result.urls, runMs:nowMs() - runLogStart});
+        }
         return additions;
     } catch(e) {
         outputSlot.queued = false;
@@ -12449,7 +12458,14 @@ async function runGeneration(){
         if(isApiLikeEngine(settings.engine)){
             const taskIds = Array.isArray(outImages?.taskIds) ? outImages.taskIds : [];
             if(!taskIds.length) throw new Error(tr('smart.errRunFailed'));
-            pendingNode.pendingTasks = taskIds.map(taskId => ({taskId, kind:'image', providerId:outImages.providerId, model:outImages.model}));
+            pendingNode.pendingTasks = taskIds.map(taskId => ({
+                taskId,
+                kind:'image',
+                providerId:outImages.providerId,
+                model:outImages.model,
+                startedAt:runLogStart,
+                run:{...runLog, kind:'image', settings:cloneSmartSettings(runLog.settings)}
+            }));
             pendingNode.pending = Math.max(taskIds.length, Number(pendingNode.pending || 0) || taskIds.length);
             pendingNode.runStartedAt = nowMs();
             pendingNode.runTimerHidden = false;
@@ -12468,7 +12484,6 @@ async function runGeneration(){
             if(!(pendingNode.images || []).length) throw new Error(tr('smart.errNoOutImages'));
             if(outpaintSize) delete node.outpaintSize;
             if(sourceVisualState) restoreSourceVisualState(node, sourceVisualState);
-            addSmartGenerationLog({run:runLog, outputs:(pendingNode.images || []).map(img => img.url).filter(Boolean), runMs:nowMs() - runLogStart});
             clearPromptInput({preserveDraft:true});
             settings = previousSettings;
             scheduleSave();
@@ -12802,6 +12817,18 @@ function smartPendingTasks(node){
     if(!node || !Array.isArray(node.pendingTasks)) return [];
     return node.pendingTasks.filter(task => task && task.taskId);
 }
+function smartPendingTaskRun(node, task, kind='image'){
+    if(task?.run) return task.run;
+    if(!node?.runSettings) return null;
+    return {
+        nodeId:node.id || '',
+        nodeType:node.type || 'smart-image',
+        kind:task?.kind || kind,
+        settings:cloneSmartSettings(node.runSettings),
+        prompt:node.runModelPrompt || node.runPrompt || '',
+        refs:(node.runInputRefs || node.runPromptRefs || []).map(ref => ({...ref}))
+    };
+}
 class ImageTaskRecoverSignal extends Error {
     constructor(info){
         const data = info || {};
@@ -12845,6 +12872,7 @@ async function pollSmartCanvasTask(taskId){
 }
 function finalizeSmartPendingTask(node, taskId, images, kind='image'){
     if(!node || !taskId) return;
+    const task = smartPendingTasks(node).find(item => item.taskId === taskId) || null;
     node.pendingTasks = smartPendingTasks(node).filter(task => task.taskId !== taskId);
     node.pending = Math.max(0, Number(node.pending || 0) - 1);
     const ext = kind === 'video' ? 'mp4' : kind === 'audio' ? 'mp3' : kind === 'text' ? 'txt' : 'png';
@@ -12854,6 +12882,17 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image'){
         return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:itemKind, generatedResult:true}));
     }).filter(item => item.url);
     node.images = [...(node.images || []).map(img => stripImageGenerationMeta(img)), ...additions];
+    const pendingRun = smartPendingTaskRun(node, task, kind);
+    if(additions.length && pendingRun){
+        const runSettings = cloneSmartSettings(pendingRun.settings || {});
+        if(task?.providerId) runSettings.provider_id = task.providerId;
+        if(task?.model) runSettings.model = task.model;
+        addSmartGenerationLog({
+            run:{...pendingRun, kind:task?.kind || kind, settings:runSettings},
+            outputs:additions,
+            runMs:nowMs() - Number(task?.startedAt || node.runStartedAt || nowMs())
+        });
+    }
     if(additions.length) node.outputKind = kind;
     if(!node.pending && smartPendingTasks(node).length === 0){
         delete node.pendingTasks;
