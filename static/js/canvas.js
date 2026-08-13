@@ -830,6 +830,7 @@ const canvasAssetCloseBtn = document.getElementById('canvasAssetCloseBtn');
 const canvasAssetLibrarySelect = document.getElementById('canvasAssetLibrarySelect');
 const canvasAssetCategorySelect = document.getElementById('canvasAssetCategorySelect');
 const canvasAssetAddCategoryBtn = document.getElementById('canvasAssetAddCategoryBtn');
+const canvasAssetSearch = document.getElementById('canvasAssetSearch');
 const canvasAssetDropZone = document.getElementById('canvasAssetDropZone');
 const canvasAssetGrid = document.getElementById('canvasAssetGrid');
 const canvasAssetHoverPreview = document.getElementById('canvasAssetHoverPreview');
@@ -975,6 +976,7 @@ let canvasAssetLibrary = {categories:[]};
 let canvasAssetLibraryOpen = false;
 let activeCanvasAssetLibraryId = '';
 let activeCanvasAssetCategoryId = '';
+let canvasAssetSearchQuery = '';
 const LOCAL_CANVAS_ASSET_LIBRARY_ID = '__local_assets__';
 let localCanvasAssetLibrary = {items:[], tree:null};
 let assetManagerTab = 'assets';
@@ -7559,7 +7561,9 @@ function renderCanvasAssetLibrary(){
         canvasAssetDropZone.style.display = localMode ? 'none' : 'flex';
         canvasAssetDropZone.textContent = catType === 'workflow' ? '工作流分组支持上传/导出工作流，双击卡片导入画布' : '拖入图片或输出保存到当前分组';
     }
-    const items = cat?.items || [];
+    const query = canvasAssetSearchQuery.trim().toLowerCase();
+    const allItems = cat?.items || [];
+    const items = query ? allItems.filter(item => String(item?.name || '').toLowerCase().includes(query)) : allItems;
     canvasAssetGrid.innerHTML = items.length ? items.map(item => `
         <div class="canvas-asset-item" draggable="true" data-asset-id="${escapeAttr(item.id || '')}" data-url="${escapeAttr(item.url)}" data-name="${escapeAttr(item.name || 'asset')}" data-kind="${escapeAttr(canvasAssetItemKind(item))}" data-asset-uris="${escapeAttr(JSON.stringify(canvasAssetRegisteredUris(item)))}">
             ${canvasAssetThumbHtml(item)}
@@ -7571,7 +7575,7 @@ function renderCanvasAssetLibrary(){
                        <button class="canvas-asset-action danger" type="button" data-canvas-asset-delete="${escapeAttr(item.id || '')}" title="删除" aria-label="删除"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
             </div>
         </div>
-    `).join('') : `<div class="canvas-asset-empty">${escapeHtml(localMode ? '暂无本地素材，请在素材库管理中上传' : '当前分组还没有资产')}</div>`;
+    `).join('') : `<div class="canvas-asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : '当前分组还没有资产'))}</div>`;
     bindCanvasPreviewImageFallbacks(canvasAssetGrid);
     canvasAssetGrid.querySelectorAll('.canvas-asset-item').forEach(card => {
         card.addEventListener('dragstart', event => {
@@ -12821,6 +12825,10 @@ canvasAssetLibrarySelect?.addEventListener('change', () => {
 });
 canvasAssetCategorySelect?.addEventListener('change', () => {
     activeCanvasAssetCategoryId = canvasAssetCategorySelect.value || '';
+    renderCanvasAssetLibrary();
+});
+canvasAssetSearch?.addEventListener('input', () => {
+    canvasAssetSearchQuery = canvasAssetSearch.value || '';
     renderCanvasAssetLibrary();
 });
 canvasAssetAddCategoryBtn?.addEventListener('click', async () => {

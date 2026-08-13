@@ -34,6 +34,7 @@ const assetCloseBtn = document.getElementById('assetCloseBtn');
 const assetLibrarySelect = document.getElementById('assetLibrarySelect');
 const assetCategorySelect = document.getElementById('assetCategorySelect');
 const assetGrid = document.getElementById('assetGrid');
+const assetNameSearch = document.getElementById('assetNameSearch');
 const assetDropZone = document.getElementById('assetDropZone');
 const workflowEmpty = document.getElementById('workflowEmpty');
 const assetImageControls = document.getElementById('assetImageControls');
@@ -100,6 +101,7 @@ let assetTab = 'image';
 let activeAssetCategoryId = '';
 let activeAssetLibraryId = '';
 let activeWorkflowAssetCategoryId = '';
+let assetNameSearchQuery = '';
 const LOCAL_ASSET_LIBRARY_ID = '__local_assets__';
 let localAssetLibrary = {items:[], tree:null};
 let activeLocalAssetFolderId = '__root__';
@@ -4284,7 +4286,9 @@ function renderAssetLibrary(){
     if(imageMode && !cats.some(cat => cat.id === activeAssetCategoryId)) activeAssetCategoryId = cats[0]?.id || '';
     assetCategorySelect.innerHTML = cats.map(cat => `<option value="${escapeHtml(cat.id)}" ${cat.id === (workflowMode ? activeWorkflowAssetCategoryId : activeAssetCategoryId) ? 'selected' : ''}>${escapeHtml(cat.name || (workflowMode ? '工作流' : tr('smart.assetFolder')))}</option>`).join('');
     const cat = workflowMode ? activeWorkflowAssetCategory() : activeAssetCategory();
-    const items = cat?.items || [];
+    const query = assetNameSearchQuery.trim().toLowerCase();
+    const allItems = cat?.items || [];
+    const items = query ? allItems.filter(item => String(item?.name || '').toLowerCase().includes(query)) : allItems;
     if(assetAddCategoryBtn) assetAddCategoryBtn.disabled = localMode;
     if(assetRenameCategoryBtn) assetRenameCategoryBtn.disabled = !cat || localMode;
     assetGrid.innerHTML = items.length ? items.map(item => `
@@ -4299,7 +4303,7 @@ function renderAssetLibrary(){
                        <button class="asset-mini-btn" type="button" data-delete-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>`}
             </div>
         </div>
-    `).join('') : `<div class="asset-empty">${escapeHtml(localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : tr('smart.assetEmpty')))}</div>`;
+    `).join('') : `<div class="asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : tr('smart.assetEmpty'))))}</div>`;
     if(workflowMode) bindWorkflowAssetItemEvents();
     else bindAssetItemEvents();
     bindSmartPreviewImageFallbacks(assetGrid);
@@ -13891,6 +13895,10 @@ if(assetLibrarySelect) assetLibrarySelect.onchange = () => {
 if(assetCategorySelect) assetCategorySelect.onchange = () => {
     if(assetTab === 'workflow') activeWorkflowAssetCategoryId = assetCategorySelect.value;
     else activeAssetCategoryId = assetCategorySelect.value;
+    renderAssetLibrary();
+};
+if(assetNameSearch) assetNameSearch.oninput = () => {
+    assetNameSearchQuery = assetNameSearch.value || '';
     renderAssetLibrary();
 };
 if(assetAddCategoryBtn) assetAddCategoryBtn.onclick = async () => {
