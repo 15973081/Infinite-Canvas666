@@ -391,7 +391,7 @@ class AssetAvatarRegisterRequest(BaseModel):
 
 class AssetAvatarBatchRegisterRequest(AssetAvatarRegisterRequest):
     ids: List[str] = []
-    concurrency: int = 4
+    concurrency: int = 8
 
 
 # ── Prompt Library ──

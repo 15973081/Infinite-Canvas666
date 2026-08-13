@@ -559,7 +559,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
     if not indexed_items:
         return {"library": lib, "items": [], "results": [r for r in results if r], "submitted": 0, "failed": len(ids)}
 
-    concurrency = max(1, min(int(payload.concurrency or 4), 8))
+    concurrency = max(1, min(int(payload.concurrency or 8), 8))
     semaphore = asyncio.Semaphore(concurrency)
 
     def avatar_kind(item):

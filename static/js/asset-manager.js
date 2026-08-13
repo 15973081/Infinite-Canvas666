@@ -3112,7 +3112,7 @@ async function registerSelectedAssetAvatars(providerId=''){
             const data = await apiJson('/api/asset-library/items/batch-register-avatar', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({library_id:activeAssetLibraryId, provider_id:provider.id, ids:chunk, concurrency:4})
+                body:JSON.stringify({library_id:activeAssetLibraryId, provider_id:provider.id, ids:chunk, concurrency:8})
             });
             assetLibrary = data.library || assetLibrary;
             const results = Array.isArray(data.results) ? data.results : [];
