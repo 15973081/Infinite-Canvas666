@@ -9,6 +9,8 @@ let promptLibrary = {libraries:[]};
 let apiProviders = [];
 let avatarRegisterProvider = '';
 let avatarBusyId = '';
+const avatarSubmittingItems = new Map();
+const avatarCancelRequested = new Set();
 const avatarPollTimers = new Map();
 const avatarPollAttempts = new Map();
 const avatarPollQueue = [];
@@ -1614,14 +1616,19 @@ function renderAvatarRegistrationCard(item, platform, reg, busy){
             </div>
         </div>`;
     }
-    if(status === 'Processing'){
+    if(['Queued','Uploading','Processing'].includes(status)){
+        const statusLabel = status === 'Queued' ? '排队中' : status === 'Uploading' ? '上传提交中' : '审核中';
         return `<div class="avatar-card processing">
-            <div class="avatar-head"><i data-lucide="loader"></i><span>审核中</span>${tag}</div>
-            <div class="avatar-hint">已提交到 ${escapeHtml(avatarPlatformLabel(platform))} 审核（任务 ${escapeHtml(reg.task_id || '')}），通过后会自动生成 asset:// 地址。审核通常需要几十秒到几分钟。</div>
+            <div class="avatar-head"><i data-lucide="loader"></i><span>${statusLabel}</span>${tag}</div>
+            <div class="avatar-hint">${status === 'Processing' ? `已提交审核（任务 ${escapeHtml(reg.task_id || '')}），通过后会自动生成 asset:// 地址。` : escapeHtml(reg.detail || statusLabel)}</div>
             <div class="asset-tools">
-                <button class="asset-btn primary" type="button" data-avatar-check="${escapeAttr(item.id)}" ${provAttr} ${busy ? 'disabled' : ''}><i data-lucide="refresh-cw"></i><span>${busy ? '查询中…' : '刷新审核状态'}</span></button>
+                ${status === 'Processing' ? `<button class="asset-btn primary" type="button" data-avatar-check="${escapeAttr(item.id)}" ${provAttr} ${busy ? 'disabled' : ''}><i data-lucide="refresh-cw"></i><span>${busy ? '查询中…' : '刷新审核状态'}</span></button>` : ''}
+                <button class="asset-btn danger" type="button" data-avatar-cancel="${escapeAttr(item.id)}" ${provAttr}><i data-lucide="x"></i><span>取消认证</span></button>
             </div>
         </div>`;
+    }
+    if(status === 'Cancelled'){
+        return `<div class="avatar-card failed"><div class="avatar-head"><i data-lucide="circle-slash"></i><span>已取消</span>${tag}</div><div class="avatar-hint">${escapeHtml(reg.detail || '已停止本地认证和审核跟踪')}</div></div>`;
     }
     return `<div class="avatar-card failed">
         <div class="avatar-head"><i data-lucide="x-circle"></i><span>审核未通过</span>${tag}</div>
@@ -1635,9 +1642,13 @@ function renderAvatarSection(item){
     const busy = avatarBusyId === item.id || avatarBusyId === '__batch__';
     const regs = (item.registrations && typeof item.registrations === 'object') ? item.registrations : {};
     const cards = Object.keys(regs)
-        .filter(platform => regs[platform] && regs[platform].task_id)
+        .filter(platform => regs[platform] && (regs[platform].task_id || ['Queued','Uploading','Cancelled'].includes(regs[platform].status)))
         .map(platform => renderAvatarRegistrationCard(item, platform, regs[platform], busy))
         .join('');
+    const submitting = avatarSubmittingItems.get(item.id);
+    const submittingCard = submitting && !Object.values(regs).some(reg => ['Queued','Uploading','Processing'].includes(reg?.status))
+        ? `<div class="avatar-card processing"><div class="avatar-head"><i data-lucide="loader"></i><span>排队或提交中</span></div><div class="asset-tools"><button class="asset-btn danger" type="button" data-avatar-cancel="${escapeAttr(item.id)}" data-avatar-prov="${escapeAttr(submitting.providerId)}"><i data-lucide="x"></i><span>取消认证</span></button></div></div>`
+        : '';
     const providers = avatarCandidateProviders();
     if(!providers.length){
         return `<div class="avatar-section">
@@ -1664,7 +1675,7 @@ function renderAvatarSection(item){
             <button class="asset-btn primary" type="button" data-avatar-register="${escapeAttr(item.id)}" data-avatar-prov="${escapeAttr(selected?.id || '')}" ${busy || noKey ? 'disabled' : ''}><i data-lucide="user-round-plus"></i><span>${busy ? '注册中，请稍候…' : (alreadyRegistered ? '重新注册到该平台' : '注册并等待审核')}</span></button>`;
     }
     return `<div class="avatar-section">
-        ${cards}
+        ${submittingCard}${cards}
         <div class="avatar-head"><i data-lucide="user-round-cog"></i><span>注册到平台</span></div>
         ${registerUI}
     </div>`;
@@ -2518,6 +2529,8 @@ async function handleClick(event){
     }
     const avatarRegisterSelected = target.closest?.('[data-avatar-register-selected]');
     if(avatarRegisterSelected){ await registerSelectedAssetAvatars(); return; }
+    const avatarCancel = target.closest?.('[data-avatar-cancel]');
+    if(avatarCancel){ await cancelAssetAvatar(avatarCancel.dataset.avatarCancel || '', avatarCancel.dataset.avatarProv || ''); return; }
     const avatarRegister = target.closest?.('[data-avatar-register]');
     if(avatarRegister){ await registerAssetAvatar(avatarRegister.dataset.avatarRegister || '', avatarRegister.dataset.avatarProv || ''); return; }
     const avatarCheck = target.closest?.('[data-avatar-check]');
@@ -3112,6 +3125,7 @@ async function registerSelectedAssetAvatars(providerId=''){
     if(!providerAvatarSupported(provider)){ setStatus(`「${avatarPlatformLabel(providerAvatarPlatform(provider))}」的资产认证 API 尚未接入`); return; }
     if(avatarBusyId) return;
     const batchLibraryId = activeAssetLibraryId;
+    ids.forEach(id => avatarSubmittingItems.set(id, {providerId:provider.id, libraryId:batchLibraryId}));
     avatarBusyId = '__batch__';
     render();
     setStatus(`正在批量提交 ${ids.length} 个素材到 ${avatarPlatformLabel(providerAvatarPlatform(provider))} 审核…`);
@@ -3120,25 +3134,47 @@ async function registerSelectedAssetAvatars(providerId=''){
         let skipped = 0;
         let recovered = 0;
         let uncertain = 0;
+        let cancelled = 0;
         let failed = unsupported;
         let completed = 0;
         let nextIndex = 0;
         const submitOne = async (id, index) => {
+            const cancelKey = `${provider.id}:${id}`;
             try {
+                if(avatarCancelRequested.has(cancelKey)){
+                    cancelled += 1;
+                    avatarCancelRequested.delete(cancelKey);
+                    return;
+                }
                 const data = await apiJson(`/api/asset-library/items/${encodeURIComponent(id)}/register-avatar`, {
                     method:'POST', headers:{'Content-Type':'application/json'},
                     body:JSON.stringify({library_id:batchLibraryId, provider_id:provider.id})
                 });
+                if(avatarCancelRequested.has(cancelKey)){
+                    cancelled += 1;
+                    avatarCancelRequested.delete(cancelKey);
+                    return;
+                }
                 if(data.item) mergeAssetItem(data.item);
+                if(data.cancelled || data.status === 'Cancelled'){
+                    cancelled += 1;
+                    return;
+                }
                 if(data.skipped) skipped += 1;
                 else ok += 1;
                 if(data.status !== 'Active') scheduleAvatarPoll(id, provider.id, true, batchLibraryId, index * 100);
             } catch(err) {
-                const confirmed = await reconcileAvatarBatch([id], provider, batchLibraryId);
-                if(confirmed) recovered += 1;
-                else if(Number(err?.status) >= 400 && Number(err?.status) < 500) failed += 1;
-                else uncertain += 1;
+                if(avatarCancelRequested.has(cancelKey)){
+                    cancelled += 1;
+                    avatarCancelRequested.delete(cancelKey);
+                } else {
+                    const confirmed = await reconcileAvatarBatch([id], provider, batchLibraryId);
+                    if(confirmed) recovered += 1;
+                    else if(Number(err?.status) >= 400 && Number(err?.status) < 500) failed += 1;
+                    else uncertain += 1;
+                }
             } finally {
+                avatarSubmittingItems.delete(id);
                 completed += 1;
                 setStatus(`姝ｅ湪鎵归噺鎻愪氦 ${completed}/${ids.length}锛堝苟鍙?8锛夆€?`);
             }
@@ -3154,11 +3190,13 @@ async function registerSelectedAssetAvatars(providerId=''){
         if(skipped) parts.push(`跳过 ${skipped} 个`);
         if(recovered) parts.push(`恢复确认 ${recovered} 个`);
         if(uncertain) parts.push(`${uncertain} 个状态待确认`);
+        if(cancelled) parts.push(`取消 ${cancelled} 个`);
         if(failed) parts.push(`${failed} 个失败`);
         setStatus(`${parts.join('，')}${ok || recovered ? '，正在等待审核…' : ''}`);
     } catch(err) {
         setStatus(err.message || '批量认证提交失败');
     } finally {
+        ids.forEach(id => avatarSubmittingItems.delete(id));
         avatarBusyId = '';
         render();
     }
@@ -3190,6 +3228,8 @@ async function registerAssetAvatar(id, providerId=''){
     if(!provider){ setStatus('请先在 API 平台管理中添加并启用 API 平台'); return; }
     if(!providerAvatarSupported(provider)){ setStatus(`「${avatarPlatformLabel(providerAvatarPlatform(provider))}」的资产认证 API 尚未接入`); return; }
     if(avatarBusyId) return;
+    const cancelKey = `${provider.id}:${id}`;
+    avatarSubmittingItems.set(id, {providerId:provider.id, libraryId:activeAssetLibraryId});
     avatarBusyId = id;
     selectedAssetId = id;
     render();
@@ -3200,7 +3240,16 @@ async function registerAssetAvatar(id, providerId=''){
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({library_id:activeAssetLibraryId, provider_id:provider.id})
         });
+        if(avatarCancelRequested.has(cancelKey)){
+            avatarCancelRequested.delete(cancelKey);
+            setStatus('认证已取消');
+            return;
+        }
         assetLibrary = data.library || assetLibrary;
+        if(data.cancelled || data.status === 'Cancelled'){
+            setStatus('认证已取消');
+            return;
+        }
         if(data.skipped){
             setStatus(data.status === 'Active' ? '该素材已经审核通过，无需重复提交' : '该素材已在审核中，无需重复提交');
         } else {
@@ -3208,9 +3257,36 @@ async function registerAssetAvatar(id, providerId=''){
         }
         if(data.status !== 'Active') scheduleAvatarPoll(id, provider.id, true);
     } catch(err) {
-        setStatus(err.message || '数字人提交失败');
+        setStatus(avatarCancelRequested.has(cancelKey) ? '认证已取消' : (err.message || '数字人提交失败'));
+        avatarCancelRequested.delete(cancelKey);
     } finally {
+        avatarSubmittingItems.delete(id);
         avatarBusyId = '';
+        render();
+    }
+}
+async function cancelAssetAvatar(id, providerId=''){
+    const item = findAssetItem(id);
+    const submitting = avatarSubmittingItems.get(id);
+    const provider = (providerId && (apiProviders || []).find(p => p.id === providerId))
+        || (submitting?.providerId && (apiProviders || []).find(p => p.id === submitting.providerId))
+        || activeAvatarProvider();
+    if(!item || !provider) return;
+    const libraryId = submitting?.libraryId || activeAssetLibraryId;
+    avatarCancelRequested.add(`${provider.id}:${id}`);
+    clearAvatarPoll(id, provider.id);
+    setStatus('正在取消认证…');
+    try {
+        const data = await apiJson(`/api/asset-library/items/${encodeURIComponent(id)}/cancel-avatar`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({library_id:libraryId, provider_id:provider.id})
+        });
+        if(data.item) mergeAssetItem(data.item);
+        setStatus(data.cancelled ? '认证已取消，队列将继续处理其他素材' : '已认证完成，无法取消');
+    } catch(err) {
+        setStatus(err.message || '取消认证失败');
+    } finally {
+        if(!avatarSubmittingItems.has(id)) avatarCancelRequested.delete(`${provider.id}:${id}`);
         render();
     }
 }

@@ -21,6 +21,26 @@ from app.services.workflow import *
 router = APIRouter()
 avatar_status_lock = asyncio.Lock()
 avatar_registration_semaphore = asyncio.Semaphore(8)
+avatar_registration_tasks = {}
+
+def avatar_registration_key(library_id: str, item_id: str, platform: str) -> str:
+    return f"{library_id or 'default'}:{item_id}:{platform}"
+
+async def save_avatar_registration_state(library_id: str, item_id: str, platform: str, values: dict, preserve_cancelled: bool = False):
+    async with avatar_status_lock:
+        lib = load_asset_library()
+        item = find_asset_item_in_library(lib, item_id, library_id)
+        if not item:
+            return lib, None
+        regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
+        reg = regs.get(platform) if isinstance(regs.get(platform), dict) else {}
+        if preserve_cancelled and str(reg.get("status") or "") == "Cancelled":
+            return lib, item
+        reg.update(values)
+        regs[platform] = reg
+        item["registrations"] = regs
+        save_asset_library(lib)
+        return lib, item
 
 @router.post("/api/local-assets/upload")
 async def upload_local_assets(files: List[UploadFile] = File(...), folder: str = Form("")):
@@ -487,46 +507,72 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     existing_status = str(existing_reg.get("status") or "")
     if existing_status == "Active" or (existing_status == "Processing" and existing_reg.get("task_id")):
         return {"library": lib, "item": target_item, "skipped": True, "status": existing_status}
-    kind = str(target_item.get("kind") or "image").lower()
-    if kind not in ("image", "video", "audio"):
-        kind = "image"
-    async with avatar_registration_semaphore:
-        if platform == "apimart":
-            project_name = str(payload.project_name or "default").strip() or "default"
-            async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
-                public_url = await upload_media_for_apimart(client, provider, target_item.get("url") or "", kind)
-            if not valid_apimart_video_image_input(public_url):
-                reason = public_url[4:] if isinstance(public_url, str) and public_url.startswith("ERR:") else "无法获取公网可访问地址"
-                raise HTTPException(status_code=400, detail=f"素材无法提交到 APIMart：{reason}\n请配置 PUBLIC_BASE_URL，或确认本地文件存在。")
-            task_id = await submit_apimart_avatar_asset(
-                provider, public_url, target_item.get("name") or "asset", kind,
-                project_name=project_name, group_name=payload.group_name,
-            )
-        elif platform == "volcengine":
-            project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
-            public_url = volcengine_public_asset_url(target_item.get("url") or "")
-            if public_url.startswith("ERR:"):
-                raise HTTPException(status_code=400, detail=public_url[4:])
-            task_id = await submit_volcengine_avatar_asset(
-                public_url, target_item.get("name") or "asset", kind,
-                project_name=project_name, group_name=payload.group_name or "",
-            )
-        else:
-            raise HTTPException(status_code=400, detail="该平台的认证后端尚未接入。")
-    async with avatar_status_lock:
-        latest_lib = load_asset_library()
-        latest_item = find_asset_item_in_library(latest_lib, item_id, payload.library_id)
-        if not latest_item:
+    job_key = avatar_registration_key(payload.library_id, item_id, platform)
+    running_task = avatar_registration_tasks.get(job_key)
+    if running_task and not running_task.done():
+        return {"library": lib, "item": target_item, "skipped": True, "status": "Queued"}
+    current_task = asyncio.current_task()
+    avatar_registration_tasks[job_key] = current_task
+    try:
+        lib, target_item = await save_avatar_registration_state(payload.library_id, item_id, platform, {
+            "provider_id": provider["id"], "status": "Queued", "detail": "排队等待认证", "task_id": "",
+            "asset_uri": "", "asset_id": "", "registered_at": now_ms(),
+        })
+        if not target_item:
             raise HTTPException(status_code=404, detail="资产不存在")
-        regs = latest_item.get("registrations") if isinstance(latest_item.get("registrations"), dict) else {}
-        regs[platform] = {
+        kind = str(target_item.get("kind") or "image").lower()
+        if kind not in ("image", "video", "audio"):
+            kind = "image"
+        async with avatar_registration_semaphore:
+            await save_avatar_registration_state(payload.library_id, item_id, platform, {"status": "Uploading", "detail": "正在上传并提交认证"})
+            if platform == "apimart":
+                project_name = str(payload.project_name or "default").strip() or "default"
+                async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
+                    public_url = await upload_media_for_apimart(client, provider, target_item.get("url") or "", kind)
+                if not valid_apimart_video_image_input(public_url):
+                    reason = public_url[4:] if isinstance(public_url, str) and public_url.startswith("ERR:") else "无法获取公网可访问地址"
+                    raise HTTPException(status_code=400, detail=f"素材无法提交到 APIMart：{reason}\n请配置 PUBLIC_BASE_URL，或确认本地文件存在。")
+                task_id = await submit_apimart_avatar_asset(
+                    provider, public_url, target_item.get("name") or "asset", kind,
+                    project_name=project_name, group_name=payload.group_name,
+                )
+            elif platform == "volcengine":
+                project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
+                public_url = volcengine_public_asset_url(target_item.get("url") or "")
+                if public_url.startswith("ERR:"):
+                    raise HTTPException(status_code=400, detail=public_url[4:])
+                task_id = await submit_volcengine_avatar_asset(
+                    public_url, target_item.get("name") or "asset", kind,
+                    project_name=project_name, group_name=payload.group_name or "",
+                )
+            else:
+                raise HTTPException(status_code=400, detail="该平台的认证后端尚未接入。")
+        latest_lib, latest_item = await save_avatar_registration_state(payload.library_id, item_id, platform, {
             "provider_id": provider["id"], "project_name": project_name, "task_id": task_id,
             "status": "Processing", "detail": "已提交，审核中", "asset_uri": "", "asset_id": "",
             "registered_at": now_ms(),
-        }
-        latest_item["registrations"] = regs
-        save_asset_library(latest_lib)
+        }, preserve_cancelled=True)
+        if not latest_item:
+            raise HTTPException(status_code=404, detail="资产不存在")
+        latest_regs = latest_item.get("registrations") if isinstance(latest_item.get("registrations"), dict) else {}
+        latest_reg = latest_regs.get(platform) if isinstance(latest_regs.get(platform), dict) else {}
+        if str(latest_reg.get("status") or "") == "Cancelled":
+            return {"library": latest_lib, "item": latest_item, "status": "Cancelled", "cancelled": True}
         return {"library": latest_lib, "item": latest_item, "status": "Processing"}
+    except asyncio.CancelledError:
+        await asyncio.shield(save_avatar_registration_state(payload.library_id, item_id, platform, {
+            "status": "Cancelled", "detail": "已手动取消认证", "cancelled_at": now_ms(),
+        }))
+        raise
+    except Exception as exc:
+        detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
+        await save_avatar_registration_state(payload.library_id, item_id, platform, {
+            "status": "Failed", "detail": str(detail or "认证提交失败"),
+        }, preserve_cancelled=True)
+        raise
+    finally:
+        if avatar_registration_tasks.get(job_key) is current_task:
+            avatar_registration_tasks.pop(job_key, None)
 
 @router.post("/api/asset-library/items/batch-register-avatar")
 async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterRequest):
@@ -673,6 +719,31 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
         "skipped": sum(1 for result in final_results if result.get("skipped")),
         "failed": sum(1 for result in final_results if not result.get("ok")),
     }
+
+@router.post("/api/asset-library/items/{item_id}/cancel-avatar")
+async def cancel_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterRequest):
+    provider = get_api_provider_exact(payload.provider_id)
+    platform = avatar_platform_for_provider(provider)
+    if platform not in AVATAR_SUPPORTED_PLATFORMS:
+        raise HTTPException(status_code=400, detail="该平台暂不支持认证取消")
+    lib = load_asset_library()
+    item = find_asset_item_in_library(lib, item_id, payload.library_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="资产不存在")
+    regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
+    reg = regs.get(platform) if isinstance(regs.get(platform), dict) else {}
+    if str(reg.get("status") or "") == "Active":
+        return {"library": lib, "item": item, "status": "Active", "cancelled": False}
+    job_key = avatar_registration_key(payload.library_id, item_id, platform)
+    task = avatar_registration_tasks.get(job_key)
+    if task and not task.done():
+        task.cancel()
+    latest_lib, latest_item = await save_avatar_registration_state(payload.library_id, item_id, platform, {
+        "provider_id": provider["id"], "status": "Cancelled", "detail": "已手动取消本地认证或审核跟踪",
+        "cancelled_at": now_ms(),
+    })
+    return {"library": latest_lib, "item": latest_item, "status": "Cancelled", "cancelled": True}
+
 @router.post("/api/asset-library/items/{item_id}/avatar-status")
 async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterRequest):
     lib = load_asset_library()
