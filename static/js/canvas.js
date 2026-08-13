@@ -977,6 +977,10 @@ let canvasAssetLibraryOpen = false;
 let activeCanvasAssetLibraryId = '';
 let activeCanvasAssetCategoryId = '';
 let canvasAssetSearchQuery = '';
+const CANVAS_ASSET_BATCH_SIZE = 60;
+let canvasAssetRenderKey = '';
+let canvasAssetRenderedCount = CANVAS_ASSET_BATCH_SIZE;
+let canvasAssetFilteredCount = 0;
 const LOCAL_CANVAS_ASSET_LIBRARY_ID = '__local_assets__';
 let localCanvasAssetLibrary = {items:[], tree:null};
 let assetManagerTab = 'assets';
@@ -7536,8 +7540,9 @@ async function loadCanvasAssetLibrary({renderPanel=true}={}){
         return null;
     }
 }
-function renderCanvasAssetLibrary(){
+function renderCanvasAssetLibrary({preserveScroll=false}={}){
     if(!canvasAssetPanel || !canvasAssetGrid) return;
+    const scrollTop = preserveScroll ? canvasAssetGrid.scrollTop : 0;
     hideCanvasAssetHoverPreview();
     const libs = canvasAssetSourceLibraries();
     if(!activeCanvasAssetLibraryId || !libs.some(lib => lib.id === activeCanvasAssetLibraryId)) activeCanvasAssetLibraryId = canvasAssetLibrary.active_library_id || canvasAssetLibraries()[0]?.id || LOCAL_CANVAS_ASSET_LIBRARY_ID;
@@ -7564,7 +7569,15 @@ function renderCanvasAssetLibrary(){
     const query = canvasAssetSearchQuery.trim().toLowerCase();
     const allItems = cat?.items || [];
     const items = query ? allItems.filter(item => String(item?.name || '').toLowerCase().includes(query)) : allItems;
-    canvasAssetGrid.innerHTML = items.length ? items.map(item => `
+    const renderKey = `${activeCanvasAssetLibraryId}\u0000${activeCanvasAssetCategoryId}\u0000${query}`;
+    if(renderKey !== canvasAssetRenderKey){
+        canvasAssetRenderKey = renderKey;
+        canvasAssetRenderedCount = CANVAS_ASSET_BATCH_SIZE;
+    }
+    canvasAssetFilteredCount = items.length;
+    canvasAssetRenderedCount = Math.min(Math.max(CANVAS_ASSET_BATCH_SIZE, canvasAssetRenderedCount), items.length);
+    const visibleItems = items.slice(0, canvasAssetRenderedCount);
+    canvasAssetGrid.innerHTML = visibleItems.length ? visibleItems.map(item => `
         <div class="canvas-asset-item" draggable="true" data-asset-id="${escapeAttr(item.id || '')}" data-url="${escapeAttr(item.url)}" data-name="${escapeAttr(item.name || 'asset')}" data-kind="${escapeAttr(canvasAssetItemKind(item))}" data-asset-uris="${escapeAttr(JSON.stringify(canvasAssetRegisteredUris(item)))}">
             ${canvasAssetThumbHtml(item)}
             <div class="canvas-asset-meta">
@@ -7575,7 +7588,7 @@ function renderCanvasAssetLibrary(){
                        <button class="canvas-asset-action danger" type="button" data-canvas-asset-delete="${escapeAttr(item.id || '')}" title="删除" aria-label="删除"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
             </div>
         </div>
-    `).join('') : `<div class="canvas-asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : '当前分组还没有资产'))}</div>`;
+    `).join('') + (visibleItems.length < items.length ? '<div class="canvas-asset-more">继续向下滚动加载更多</div>' : '') : `<div class="canvas-asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : '当前分组还没有资产'))}</div>`;
     bindCanvasPreviewImageFallbacks(canvasAssetGrid);
     canvasAssetGrid.querySelectorAll('.canvas-asset-item').forEach(card => {
         card.addEventListener('dragstart', event => {
@@ -7593,7 +7606,7 @@ function renderCanvasAssetLibrary(){
                 createImageCardFromUrl(card.dataset.url, defaultPoint(0, 0), card.dataset.name || 'asset', {asset_uris:assetUris, asset_item_id:card.dataset.assetId, asset_library_id:activeCanvasAssetLibraryId});
             }
         });
-        const item = items.find(entry => entry.id === card.dataset.assetId);
+        const item = visibleItems.find(entry => entry.id === card.dataset.assetId);
         card.addEventListener('mouseenter', event => showCanvasAssetHoverPreview(event, item));
         card.addEventListener('mousemove', positionCanvasAssetHoverPreview);
         card.addEventListener('mouseleave', hideCanvasAssetHoverPreview);
@@ -7613,6 +7626,7 @@ function renderCanvasAssetLibrary(){
             await deleteCanvasAssetItem(event.currentTarget.dataset.canvasAssetDelete || '');
         });
     });
+    canvasAssetGrid.scrollTop = preserveScroll ? scrollTop : 0;
     refreshIcons();
 }
 function toggleCanvasAssetLibrary(open=!canvasAssetLibraryOpen){
@@ -12850,6 +12864,12 @@ canvasAssetPanel?.addEventListener('wheel', event => {
     scroller.scrollTop += event.deltaY;
     scroller.scrollLeft += event.deltaX;
 }, {passive:false, capture:true});
+canvasAssetGrid?.addEventListener('scroll', () => {
+    if(canvasAssetRenderedCount >= canvasAssetFilteredCount) return;
+    if(canvasAssetGrid.scrollHeight - canvasAssetGrid.scrollTop - canvasAssetGrid.clientHeight > 180) return;
+    canvasAssetRenderedCount += CANVAS_ASSET_BATCH_SIZE;
+    renderCanvasAssetLibrary({preserveScroll:true});
+});
 workflowTransferModal?.addEventListener('wheel', event => {
     event.stopPropagation();
 }, {passive:true, capture:true});

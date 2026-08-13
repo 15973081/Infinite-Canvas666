@@ -771,6 +771,7 @@ input[type=range].canvas-range::-webkit-slider-runnable-track { height:3px; bord
 .canvas-asset-hover-preview img,.canvas-asset-hover-preview video { width:100%; max-height:286px; display:block; object-fit:contain; background:var(--soft-2); }
 .canvas-asset-hover-name { padding:8px 10px; color:var(--text); font-size:11px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-top:1px solid var(--line); }
 .canvas-asset-empty { grid-column:1/-1; min-height:160px; border:1px dashed var(--line-2); border-radius:12px; color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; text-align:center; }
+.canvas-asset-more { grid-column:1/-1; padding:8px; color:var(--muted); font-size:11px; font-weight:700; text-align:center; }
 .asset-manager-modal { position:absolute; inset:0; z-index:90; display:none; align-items:center; justify-content:center; padding:28px; background:rgba(248,250,252,.62); backdrop-filter:blur(18px); }
 .asset-manager-modal.open { display:flex; }
 .asset-manager-panel { width:min(1120px, calc(100vw - 56px)); height:min(780px, calc(100vh - 56px)); margin:auto; border-radius:18px; border:1px solid var(--line); background:var(--card-solid); color:var(--text); box-shadow:0 28px 80px rgba(15,23,42,.18); padding:14px; display:flex; flex-direction:column; gap:12px; }

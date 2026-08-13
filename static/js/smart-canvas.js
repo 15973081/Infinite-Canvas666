@@ -102,6 +102,10 @@ let activeAssetCategoryId = '';
 let activeAssetLibraryId = '';
 let activeWorkflowAssetCategoryId = '';
 let assetNameSearchQuery = '';
+const ASSET_SIDEBAR_BATCH_SIZE = 60;
+let assetSidebarRenderKey = '';
+let assetSidebarRenderedCount = ASSET_SIDEBAR_BATCH_SIZE;
+let assetSidebarFilteredCount = 0;
 const LOCAL_ASSET_LIBRARY_ID = '__local_assets__';
 let localAssetLibrary = {items:[], tree:null};
 let activeLocalAssetFolderId = '__root__';
@@ -4264,8 +4268,9 @@ function assetThumbHtml(item){
     }
     return `<div class="asset-thumb-wrap">${smartPreviewImgHtml({...item, url:thumb}, 512, 'class="asset-thumb" alt=""')}${faceBadge}</div>`;
 }
-function renderAssetLibrary(){
+function renderAssetLibrary({preserveScroll=false}={}){
     if(!assetPanel || !assetGrid || !assetCategorySelect) return;
+    const scrollTop = preserveScroll ? assetGrid.scrollTop : 0;
     document.querySelectorAll('[data-asset-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.assetTab === assetTab));
     const libs = currentAssetSourceLibraries();
     if(!activeAssetLibraryId || !libs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = assetLibrary.active_library_id || assetLibraries()[0]?.id || LOCAL_ASSET_LIBRARY_ID;
@@ -4289,9 +4294,17 @@ function renderAssetLibrary(){
     const query = assetNameSearchQuery.trim().toLowerCase();
     const allItems = cat?.items || [];
     const items = query ? allItems.filter(item => String(item?.name || '').toLowerCase().includes(query)) : allItems;
+    const renderKey = `${activeAssetLibraryId}\u0000${assetTab}\u0000${cat?.id || ''}\u0000${query}`;
+    if(renderKey !== assetSidebarRenderKey){
+        assetSidebarRenderKey = renderKey;
+        assetSidebarRenderedCount = ASSET_SIDEBAR_BATCH_SIZE;
+    }
+    assetSidebarFilteredCount = items.length;
+    assetSidebarRenderedCount = Math.min(Math.max(ASSET_SIDEBAR_BATCH_SIZE, assetSidebarRenderedCount), items.length);
+    const visibleItems = items.slice(0, assetSidebarRenderedCount);
     if(assetAddCategoryBtn) assetAddCategoryBtn.disabled = localMode;
     if(assetRenameCategoryBtn) assetRenameCategoryBtn.disabled = !cat || localMode;
-    assetGrid.innerHTML = items.length ? items.map(item => `
+    assetGrid.innerHTML = visibleItems.length ? visibleItems.map(item => `
         <div class="asset-item ${workflowMode ? 'workflow-asset-item' : ''}" draggable="${workflowMode ? 'false' : 'true'}" data-asset-id="${escapeHtml(item.id)}" data-url="${escapeHtml(item.url)}" data-name="${escapeHtml(item.name || 'asset')}" data-kind="${escapeHtml(assetMediaKind(item))}" data-asset-uris="${escapeHtml(JSON.stringify(assetRegisteredUris(item)))}">
             ${assetThumbHtml(item)}
             <div class="asset-meta">
@@ -4303,10 +4316,11 @@ function renderAssetLibrary(){
                        <button class="asset-mini-btn" type="button" data-delete-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>`}
             </div>
         </div>
-    `).join('') : `<div class="asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : tr('smart.assetEmpty'))))}</div>`;
+    `).join('') + (visibleItems.length < items.length ? '<div class="asset-load-more">继续向下滚动加载更多</div>' : '') : `<div class="asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : tr('smart.assetEmpty'))))}</div>`;
     if(workflowMode) bindWorkflowAssetItemEvents();
     else bindAssetItemEvents();
     bindSmartPreviewImageFallbacks(assetGrid);
+    assetGrid.scrollTop = preserveScroll ? scrollTop : 0;
     refreshIcons();
 }
 function openAssetNameDialog({title='', value='', placeholder='', cancelValue='', multiline=false }={}){
@@ -13738,6 +13752,12 @@ assetPanel?.addEventListener('wheel', e => {
     scroller.scrollTop += e.deltaY;
     scroller.scrollLeft += e.deltaX;
 }, {passive:false, capture:true});
+assetGrid?.addEventListener('scroll', () => {
+    if(assetSidebarRenderedCount >= assetSidebarFilteredCount) return;
+    if(assetGrid.scrollHeight - assetGrid.scrollTop - assetGrid.clientHeight > 180) return;
+    assetSidebarRenderedCount += ASSET_SIDEBAR_BATCH_SIZE;
+    renderAssetLibrary({preserveScroll:true});
+});
 assetDialogBackdrop?.addEventListener('pointerdown', e => e.stopPropagation());
 assetDialogBackdrop?.addEventListener('mousedown', e => e.stopPropagation());
 assetDialogBackdrop?.addEventListener('click', e => e.stopPropagation());
