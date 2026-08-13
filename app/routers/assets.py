@@ -20,6 +20,7 @@ from app.services.workflow import *
 
 router = APIRouter()
 avatar_status_lock = asyncio.Lock()
+avatar_registration_semaphore = asyncio.Semaphore(8)
 
 @router.post("/api/local-assets/upload")
 async def upload_local_assets(files: List[UploadFile] = File(...), folder: str = Form("")):
@@ -489,45 +490,43 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     kind = str(target_item.get("kind") or "image").lower()
     if kind not in ("image", "video", "audio"):
         kind = "image"
-    if platform == "apimart":
-        project_name = str(payload.project_name or "default").strip() or "default"
-        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
-            public_url = await upload_media_for_apimart(client, provider, target_item.get("url") or "", kind)
-        if not valid_apimart_video_image_input(public_url):
-            reason = public_url[4:] if isinstance(public_url, str) and public_url.startswith("ERR:") else "无法获取公网可访问地址"
-            raise HTTPException(status_code=400, detail=f"素材无法提交到 APIMart：{reason}\n请配置 PUBLIC_BASE_URL，或确认本地文件存在。")
-        task_id = await submit_apimart_avatar_asset(
-            provider, public_url, target_item.get("name") or "asset", kind,
-            project_name=project_name, group_name=payload.group_name,
-        )
-    elif platform == "volcengine":
-        # 火山以 API 设置里配置的 ProjectName 为准（必须与视频生成 key 的项目一致）
-        project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
-        public_url = volcengine_public_asset_url(target_item.get("url") or "")
-        if public_url.startswith("ERR:"):
-            raise HTTPException(status_code=400, detail=public_url[4:])
-        task_id = await submit_volcengine_avatar_asset(
-            public_url, target_item.get("name") or "asset", kind,
-            project_name=project_name, group_name=payload.group_name or "",
-        )
-    else:
-        raise HTTPException(status_code=400, detail="该平台的认证后端尚未接入。")
-    regs = target_item.get("registrations")
-    if not isinstance(regs, dict):
-        regs = {}
-    regs[platform] = {
-        "provider_id": provider["id"],
-        "project_name": project_name,
-        "task_id": task_id,
-        "status": "Processing",
-        "detail": "已提交，审核中",
-        "asset_uri": "",
-        "asset_id": "",
-        "registered_at": now_ms(),
-    }
-    target_item["registrations"] = regs
-    save_asset_library(lib)
-    return {"library": lib, "item": target_item}
+    async with avatar_registration_semaphore:
+        if platform == "apimart":
+            project_name = str(payload.project_name or "default").strip() or "default"
+            async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
+                public_url = await upload_media_for_apimart(client, provider, target_item.get("url") or "", kind)
+            if not valid_apimart_video_image_input(public_url):
+                reason = public_url[4:] if isinstance(public_url, str) and public_url.startswith("ERR:") else "无法获取公网可访问地址"
+                raise HTTPException(status_code=400, detail=f"素材无法提交到 APIMart：{reason}\n请配置 PUBLIC_BASE_URL，或确认本地文件存在。")
+            task_id = await submit_apimart_avatar_asset(
+                provider, public_url, target_item.get("name") or "asset", kind,
+                project_name=project_name, group_name=payload.group_name,
+            )
+        elif platform == "volcengine":
+            project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
+            public_url = volcengine_public_asset_url(target_item.get("url") or "")
+            if public_url.startswith("ERR:"):
+                raise HTTPException(status_code=400, detail=public_url[4:])
+            task_id = await submit_volcengine_avatar_asset(
+                public_url, target_item.get("name") or "asset", kind,
+                project_name=project_name, group_name=payload.group_name or "",
+            )
+        else:
+            raise HTTPException(status_code=400, detail="该平台的认证后端尚未接入。")
+    async with avatar_status_lock:
+        latest_lib = load_asset_library()
+        latest_item = find_asset_item_in_library(latest_lib, item_id, payload.library_id)
+        if not latest_item:
+            raise HTTPException(status_code=404, detail="资产不存在")
+        regs = latest_item.get("registrations") if isinstance(latest_item.get("registrations"), dict) else {}
+        regs[platform] = {
+            "provider_id": provider["id"], "project_name": project_name, "task_id": task_id,
+            "status": "Processing", "detail": "已提交，审核中", "asset_uri": "", "asset_id": "",
+            "registered_at": now_ms(),
+        }
+        latest_item["registrations"] = regs
+        save_asset_library(latest_lib)
+        return {"library": latest_lib, "item": latest_item, "status": "Processing"}
 
 @router.post("/api/asset-library/items/batch-register-avatar")
 async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterRequest):
@@ -578,9 +577,6 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
             "failed": sum(1 for result in final_results if not result.get("ok")),
         }
 
-    concurrency = max(1, min(int(payload.concurrency or 8), 8))
-    semaphore = asyncio.Semaphore(concurrency)
-
     def avatar_kind(item):
         kind = str(item.get("kind") or "image").lower()
         return kind
@@ -594,7 +590,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
 
         async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as upload_client:
             async def register_one(index, item):
-                async with semaphore:
+                async with avatar_registration_semaphore:
                     kind = avatar_kind(item)
                     try:
                         public_url = await upload_media_for_apimart(upload_client, provider, item.get("url") or "", kind)
@@ -617,7 +613,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
             group_id = await volcengine_ensure_asset_group(client, project_name, payload.group_name or "")
 
             async def register_one(index, item):
-                async with semaphore:
+                async with avatar_registration_semaphore:
                     kind = avatar_kind(item)
                     try:
                         public_url = volcengine_public_asset_url(item.get("url") or "")

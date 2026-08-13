@@ -3121,28 +3121,35 @@ async function registerSelectedAssetAvatars(providerId=''){
         let recovered = 0;
         let uncertain = 0;
         let failed = unsupported;
-        for(let offset = 0; offset < ids.length; offset += 100){
-            const chunk = ids.slice(offset, offset + 100);
+        let completed = 0;
+        let nextIndex = 0;
+        const submitOne = async (id, index) => {
             try {
-                const data = await apiJson('/api/asset-library/items/batch-register-avatar', {
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({library_id:batchLibraryId, provider_id:provider.id, ids:chunk, concurrency:8})
+                const data = await apiJson(`/api/asset-library/items/${encodeURIComponent(id)}/register-avatar`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({library_id:batchLibraryId, provider_id:provider.id})
                 });
-                assetLibrary = data.library || assetLibrary;
-                const results = Array.isArray(data.results) ? data.results : [];
-                ok += Number.isFinite(Number(data.submitted)) ? Number(data.submitted) : results.filter(r => r && r.ok && !r.skipped).length;
-                skipped += Number.isFinite(Number(data.skipped)) ? Number(data.skipped) : results.filter(r => r && r.skipped).length;
-                failed += Number.isFinite(Number(data.failed)) ? Number(data.failed) : results.filter(r => r && !r.ok).length;
-                results.filter(r => r && r.ok && r.status === 'Processing' && r.item_id).forEach((r, index) => scheduleAvatarPoll(r.item_id, provider.id, true, batchLibraryId, index * 250));
+                if(data.item) mergeAssetItem(data.item);
+                if(data.skipped) skipped += 1;
+                else ok += 1;
+                if(data.status !== 'Active') scheduleAvatarPoll(id, provider.id, true, batchLibraryId, index * 100);
             } catch(err) {
-                const confirmed = await reconcileAvatarBatch(chunk, provider, batchLibraryId);
-                recovered += confirmed;
-                const unresolved = chunk.length - confirmed;
-                if(Number(err?.status) >= 400 && Number(err?.status) < 500) failed += unresolved;
-                else uncertain += unresolved;
+                const confirmed = await reconcileAvatarBatch([id], provider, batchLibraryId);
+                if(confirmed) recovered += 1;
+                else if(Number(err?.status) >= 400 && Number(err?.status) < 500) failed += 1;
+                else uncertain += 1;
+            } finally {
+                completed += 1;
+                setStatus(`姝ｅ湪鎵归噺鎻愪氦 ${completed}/${ids.length}锛堝苟鍙?8锛夆€?`);
             }
-        }
+        };
+        const worker = async () => {
+            while(nextIndex < ids.length){
+                const index = nextIndex++;
+                await submitOne(ids[index], index);
+            }
+        };
+        await Promise.all(Array.from({length:Math.min(8, ids.length)}, () => worker()));
         const parts = [`已提交 ${ok} 个`];
         if(skipped) parts.push(`跳过 ${skipped} 个`);
         if(recovered) parts.push(`恢复确认 ${recovered} 个`);
