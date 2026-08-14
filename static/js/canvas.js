@@ -2050,6 +2050,23 @@ window.CanvasLegacyBridge = Object.freeze({
         return [...computeLegacyRetryCascadeOrder(nodeId)];
     }
 });
+function modernCanvasRepository(){
+    const core = window.CanvasModernCore;
+    return core?.canvasRepositoryEnabled ? core.canvasRepository : null;
+}
+async function getCanvasEnvelope(id, options={}){
+    const repository = modernCanvasRepository();
+    if(repository) return {canvas:await repository.get(id, {signal:options.signal})};
+    return window.CanvasApi.getCanvas(id, options);
+}
+function reportCanvasSaveConflict(){
+    saveCanvasAgain = false;
+    localCanvasDirty = true;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    setStatus('Save conflict');
+    showErrorModal('检测到其他人已更新此画布。为避免覆盖对方修改，当前更改尚未保存，请刷新画布后重试。', '保存冲突');
+}
 async function saveCanvas(){
     if(!canvas || applyingRemoteCanvas) return;
     if(savingCanvasNow){
@@ -2068,18 +2085,26 @@ async function saveCanvas(){
     savingCanvasNow = true;
     saveCanvasAgain = false;
     try {
-        const res = await window.CanvasApi.saveCanvas(canvas.id, payload);
-        if(res.status === 409){
-            saveCanvasAgain = false;
-            localCanvasDirty = true;
-            clearTimeout(saveTimer);
-            saveTimer = null;
-            setStatus('Save conflict');
-            showErrorModal('检测到其他人已更新此画布。为避免覆盖对方修改，当前更改尚未保存，请刷新画布后重试。', '保存冲突');
-            return;
+        let data = {};
+        const repository = modernCanvasRepository();
+        if(repository){
+            try { data = {canvas:await repository.save(canvas.id, payload)}; }
+            catch(err) {
+                if(err?.code === 'conflict'){
+                    reportCanvasSaveConflict();
+                    return;
+                }
+                throw err;
+            }
+        } else {
+            const res = await window.CanvasApi.saveCanvas(canvas.id, payload);
+            if(res.status === 409){
+                reportCanvasSaveConflict();
+                return;
+            }
+            if(!res.ok) throw new Error('save failed');
+            data = await res.json().catch(() => ({}));
         }
-        if(!res.ok) throw new Error('save failed');
-        const data = await res.json().catch(() => ({}));
         const localViewport = {...viewport};
         if(data.canvas) canvas = {...canvas, ...data.canvas, viewport:localViewport};
         viewport = localViewport;
@@ -2623,7 +2648,7 @@ async function openCanvas(id){
     const openSeq = ++openCanvasRequestSeq;
     setStatus('Opening...');
     try {
-        const data = await window.CanvasApi.getCanvas(id, {errorFallback:tr('canvas.openFailed')});
+        const data = await getCanvasEnvelope(id, {errorFallback:tr('canvas.openFailed')});
         if(openSeq !== openCanvasRequestSeq) return;
         resetCascadeRuntimeState();
         const nextCanvas = data.canvas;
@@ -2753,7 +2778,7 @@ async function refreshMissingCanvasAssets(){
 async function syncRemoteCanvasNow(){
     if(!canvas) return;
     try {
-        const data = await window.CanvasApi.getCanvas(canvas.id, {errorFallback:tr('canvas.openFailed')});
+        const data = await getCanvasEnvelope(canvas.id, {errorFallback:tr('canvas.openFailed')});
         const remote = data.canvas;
         if(Number(remote?.updated_at || 0) >= Number(lastCanvasUpdatedAt || 0)){
             applyRemoteCanvasData(remote);
@@ -10755,6 +10780,7 @@ function createCascadeContext(targetId, order, options={}){
         currentRoundLabel:'',
         mode:options.mode || 'serial',
         cleanupTimer:null,
+        engineController:new AbortController(),
         controllers:new Set()
     };
     cascadeContexts.set(targetId, ctx);
@@ -10804,6 +10830,7 @@ function requestCascadeStop(targetId, reason=''){
         [...(ctx.controllers || [])].forEach(controller => {
             try { controller.abort(); } catch(_) {}
         });
+        try { ctx.engineController?.abort(); } catch(_) {}
         window.CanvasModernCore?.observeExecution?.({phase:'stop', targetId});
     }
     refreshNodes(cascadeUiNodeIds(targetId));
@@ -11492,30 +11519,56 @@ async function runNodeCascade(nodeId){
         let done = 0;
         const rounds = Array.from({length:totalRounds}, (_, idx) => ({idx, index:startIdx + idx * loopBatchSize}));
         const limit = cascadeParallelLimit(order, totalRounds);
-        const results = await runLimitedCascadeRounds(rounds, limit, async ({index}) => {
+        const executeParallelNode = async (id, {index}) => {
             ensureCascadeActive(nodeId, ctx.message);
             const loopCtx = {index, total:endIdx, nodeId:loop.node.id};
-            for(let i = 0; i < order.length; i++){
-                ensureCascadeActive(nodeId, ctx.message);
-                const id = order[i];
-                const node = nodes.find(n => n.id === id);
-                if(!node) continue;
-                ctx.currentNodeId = id;
-                ctx.currentRoundLabel = `${index}/${endIdx}`;
-                node.runStatus = 'running';
-                node._cascadeIdx = `${order.indexOf(id)+1}/${order.length} · ${index}/${endIdx}`;
-                refreshNodes([id]);
+            const node = nodes.find(n => n.id === id);
+            if(!node) return;
+            ctx.currentNodeId = id;
+            ctx.currentRoundLabel = `${index}/${endIdx}`;
+            node.runStatus = 'running';
+            node._cascadeIdx = `${order.indexOf(id)+1}/${order.length} · ${index}/${endIdx}`;
+            refreshNodes([id]);
+            try {
                 await runCascadeNodeWithLoopContext(node, loopCtx, {cascadeTargetId:nodeId});
                 ensureCascadeActive(nodeId, ctx.message);
                 node.runStatus = 'done';
                 refreshNodes([id]);
+            } catch(err) {
+                if(!isCascadeAbortError(err)){
+                    node.runStatus = 'failed';
+                    node.runError = err.message || String(err);
+                    node._cascadeFailed = true;
+                }
+                throw err;
             }
-            done += 1;
-            order.forEach(id => {
-                const n = nodes.find(x => x.id === id);
-                if(n) n._cascadeIdx = `${done}/${totalRounds}`;
+            if(id === order[order.length - 1]){
+                done += 1;
+                order.forEach(nodeId => {
+                    const n = nodes.find(x => x.id === nodeId);
+                    if(n) n._cascadeIdx = `${done}/${totalRounds}`;
+                });
+                refreshNodes(order);
+            }
+        };
+        const modern = window.CanvasModernCore;
+        if(modern?.executionEngineEnabled){
+            const state = await modern.runParallel({
+                targetId:nodeId,
+                order:[...order],
+                rounds,
+                limit,
+                signal:ctx.engineController.signal,
+                roundId:round => String(round.index),
+                execute:executeParallelNode
             });
-            refreshNodes(order);
+            if(state.status === 'stopped') finalizeCascade(nodeId, 'stopped', {order});
+            else if(state.status === 'failed') finalizeCascade(nodeId, 'failed', {order, error:state.error});
+            else finalizeCascade(nodeId, 'done', {order});
+            return;
+        }
+        const results = await runLimitedCascadeRounds(rounds, limit, async round => {
+            for(const id of order) await executeParallelNode(id, round);
         });
         const failed = results.find(r => r.status === 'rejected');
         if(failed){
@@ -11539,61 +11592,46 @@ async function runNodeCascade(nodeId){
         ensureCascadeActive(nodeId, ctx.message);
         const loopIndex = startIdx + (round - 1) * loopBatchSize;
         const loopCtx = loop ? {index:loopIndex, total:endIdx, nodeId:loop.node.id} : null;
-        order.forEach(id => {
-            const n = nodes.find(x => x.id === id);
-            if(n){ n.runStatus = 'queued'; n.runError = ''; n._cascadeFailed = false; n._cascadeIdx = `${order.indexOf(id)+1}/${order.length}${totalRounds > 1 ? ` · ${loopIndex}/${endIdx}` : ''}`; }
-        });
-        refreshNodes(cascadeUiNodeIds(nodeId, order));
-        for(let i = 0; i < order.length; i++){
-            const id = order[i];
-            const node = nodes.find(n => n.id === id);
-            if(!node) continue;
-            ctx.currentNodeId = id;
-            ctx.currentRoundLabel = totalRounds > 1 ? `${loopIndex}/${endIdx}` : '';
-            node.runStatus = 'running';
-            refreshNodes([id]);
-            try {
-                await runCascadeNodeWithLoopContext(node, loopCtx, {cascadeTargetId:nodeId});
-                ensureCascadeActive(nodeId, ctx.message);
-                node.runStatus = 'done';
-                refreshNodes([id]);
-            } catch(err){
-                if(isCascadeAbortError(err)){
-                    finalizeCascade(nodeId, 'stopped', {order});
-                    return;
-                }
-                node.runStatus = 'failed';
-                node.runError = `${totalRounds > 1 ? `${tr('canvas.loopRound')} ${round}/${totalRounds}: ` : ''}${err.message || String(err)}`;
-                node._cascadeFailed = true;
-                for(let j = i + 1; j < order.length; j++){
-                    const n2 = nodes.find(x => x.id === order[j]);
-                    if(n2){ n2.runStatus = ''; n2._cascadeIdx = ''; }
-                }
-                finalizeCascade(nodeId, 'failed', {order});
+        try {
+            await runOneCascadePass(order, {
+                cascadeTargetId:nodeId,
+                loopContext:loopCtx,
+                roundLabel:totalRounds > 1 ? `${loopIndex}/${endIdx}` : ''
+            });
+        } catch(err){
+            if(isCascadeAbortError(err)){
+                finalizeCascade(nodeId, 'stopped', {order});
                 return;
             }
+            const failedNode = order.map(id => nodes.find(n => n.id === id)).find(n => n?._cascadeFailed);
+            if(failedNode && totalRounds > 1){
+                failedNode.runError = `${tr('canvas.loopRound')} ${round}/${totalRounds}: ${failedNode.runError || err.message || String(err)}`;
+            }
+            finalizeCascade(nodeId, 'failed', {order, error:err.message || String(err)});
+            return;
         }
     }
     finalizeCascade(nodeId, 'done', {order});
 }
 async function runOneCascadePass(order, options={}){
     const targetId = cascadeTargetIdFromOptions(options);
+    const roundLabel = String(options.roundLabel || '');
     order.forEach(id => {
         const n = nodes.find(x => x.id === id);
-        if(n){ n.runStatus = 'queued'; n.runError = ''; n._cascadeFailed = false; n._cascadeIdx = ''; }
+        if(n){ n.runStatus = 'queued'; n.runError = ''; n._cascadeFailed = false; n._cascadeIdx = `${order.indexOf(id)+1}/${order.length}${roundLabel ? ` · ${roundLabel}` : ''}`; }
     });
     refreshNodes(order);
-    for(let i = 0; i < order.length; i++){
+    const executeNode = async id => {
         if(targetId) ensureCascadeActive(targetId);
-        const id = order[i];
         const node = nodes.find(n => n.id === id);
-        if(!node) continue;
+        if(!node) return;
         const ctx = cascadeContextFor(targetId);
-        if(ctx) ctx.currentNodeId = id;
+        if(ctx){ ctx.currentNodeId = id; ctx.currentRoundLabel = roundLabel; }
         node.runStatus = 'running';
         refreshNodes([id]);
         try {
-            await runCascadeNodeByType(node, {cascade:true, cascadeTargetId:targetId});
+            if(options.loopContext) await runCascadeNodeWithLoopContext(node, options.loopContext, {cascadeTargetId:targetId});
+            else await runCascadeNodeByType(node, {cascade:true, cascadeTargetId:targetId});
             if(targetId) ensureCascadeActive(targetId);
             node.runStatus = 'done';
             refreshNodes([id]);
@@ -11603,6 +11641,23 @@ async function runOneCascadePass(order, options={}){
             node._cascadeFailed = true;
             throw err;
         }
+    };
+    const modern = window.CanvasModernCore;
+    if(modern?.executionEngineEnabled){
+        const ctx = cascadeContextFor(targetId);
+        const state = await modern.runOrdered({
+            targetId,
+            order:[...order],
+            mode:ctx?.mode === 'retry' ? 'retry' : 'serial',
+            signal:ctx?.engineController?.signal,
+            execute:executeNode
+        });
+        if(state.status === 'stopped') throw cascadeAbortError(cascadeStopMessage(ctx?.message));
+        if(state.status === 'failed') throw new Error(state.error || tr('canvas.generationFailed'));
+        return;
+    }
+    for(const id of order){
+        await executeNode(id);
     }
 }
 // 失败重试：从该节点继续往下游跑
@@ -12090,7 +12145,10 @@ async function createCanvasBackup(){
     const btn = document.getElementById('canvasBackupToggle');
     if(btn) btn.disabled = true;
     try {
-        const data = await window.CanvasApi.createCanvasBackup(canvas.id);
+        const repository = modernCanvasRepository();
+        const data = repository
+            ? await repository.createBackup(canvas.id)
+            : await window.CanvasApi.createCanvasBackup(canvas.id);
         setStatus(langIsEn() ? `Backup saved (${new Date(data.updated_at).toLocaleTimeString()})` : `备份已保存 (${new Date(data.updated_at).toLocaleTimeString()})`);
     } catch(e) {
         setStatus(langIsEn() ? 'Backup failed' : '备份失败');
@@ -12108,8 +12166,12 @@ async function showBackupList(event){
     if(btn) btn.disabled = true;
     let backups = [];
     try {
-        const data = await window.CanvasApi.listCanvasBackups(canvas.id, {backups:[]});
-        backups = data.backups || [];
+        const repository = modernCanvasRepository();
+        if(repository) backups = await repository.listBackups(canvas.id);
+        else {
+            const data = await window.CanvasApi.listCanvasBackups(canvas.id, {backups:[]});
+            backups = data.backups || [];
+        }
     } catch(e) { console.error(e); }
     if(btn) btn.disabled = false;
     renderBackupModal(backups);
@@ -12163,8 +12225,12 @@ function renderBackupModal(backups){
             if(!fn) return;
             if(!confirm(isEn ? `Restore this backup? Current canvas will be overwritten.` : `恢复此备份？当前画布将被覆盖。`)) return;
             try {
-                const res = await window.CanvasApi.restoreCanvasBackup(canvas.id, fn);
-                if(!res.ok) throw new Error('restore failed');
+                const repository = modernCanvasRepository();
+                if(repository) await repository.restoreBackup(canvas.id, fn);
+                else {
+                    const res = await window.CanvasApi.restoreCanvasBackup(canvas.id, fn);
+                    if(!res.ok) throw new Error('restore failed');
+                }
                 syncRemoteCanvasNow();
                 closeBackupModal();
                 setStatus(isEn ? 'Backup restored' : '备份已恢复');
@@ -12256,13 +12322,48 @@ function findPendingTask(taskId){
     return null;
 }
 async function createCanvasImageTask(payload, options={}){
+    const client = window.CanvasModernCore?.taskClientEnabled ? window.CanvasModernCore.taskClient : null;
+    if(client){
+        const ctx = cascadeContextFromOptions(options);
+        try { return await client.submit('image', payload, {signal:ctx?.engineController?.signal}); }
+        catch(err) { throw modernTaskClientError(err, ctx); }
+    }
     const res = await window.CanvasApi.createCanvasImageTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
     return res.json();
 }
 async function createCanvasVideoTask(payload, options={}){
+    const client = window.CanvasModernCore?.taskClientEnabled ? window.CanvasModernCore.taskClient : null;
+    if(client){
+        const ctx = cascadeContextFromOptions(options);
+        try { return await client.submit('video', payload, {signal:ctx?.engineController?.signal}); }
+        catch(err) { throw modernTaskClientError(err, ctx); }
+    }
     const res = await window.CanvasApi.createCanvasVideoTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
+    return res.json();
+}
+function modernTaskClientError(err, ctx){
+    if(err?.code === 'aborted' && ctx) return cascadeAbortError(cascadeStopMessage(ctx.message));
+    if(err?.code === 'not-found') return new Error(cascadeBackendRestartMessage());
+    return err instanceof Error ? err : new Error(String(err || tr('canvas.generationFailed')));
+}
+async function getCanvasTaskRecord(kind, taskId, options={}){
+    const cascadeTargetId = cascadeTargetIdFromOptions(options);
+    const ctx = cascadeContextFor(cascadeTargetId);
+    const client = window.CanvasModernCore?.taskClientEnabled ? window.CanvasModernCore.taskClient : null;
+    if(client){
+        try { return await client.get(kind, taskId, {signal:ctx?.engineController?.signal}); }
+        catch(err) { throw modernTaskClientError(err, ctx); }
+    }
+    const request = kind === 'video'
+        ? window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}})
+        : window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
+    const res = await request;
+    if(!res.ok){
+        if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
+        throw new Error(await responseErrorMessage(res, kind === 'video' ? tr('canvas.videoFailed') : tr('canvas.generationFailed')));
+    }
     return res.json();
 }
 function extractUpstreamTaskId(text){
@@ -12346,12 +12447,7 @@ async function pollCanvasImageTask(taskId, options={}){
             if(!found) return 'missing';
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-            const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
-            if(!res.ok){
-                if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-                throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
-            }
-            const data = await res.json();
+            const data = await getCanvasTaskRecord('image', taskId, {cascadeTargetId});
             if(data.status === 'succeeded'){
                 completeCanvasImageTask(taskId, data.result || {});
                 return 'succeeded';
@@ -12376,12 +12472,7 @@ async function waitCanvasImageTaskResult(taskId, options={}){
     while(true){
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
         if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-        const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
-        if(!res.ok){
-            if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-            throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
-        }
-        const data = await res.json();
+        const data = await getCanvasTaskRecord('image', taskId, {cascadeTargetId});
         if(data.status === 'succeeded') return data.result || {};
         if(data.status === 'failed') throw new Error(data.error || tr('canvas.generationFailed'));
         await sleep(1800);
@@ -12506,12 +12597,7 @@ async function pollCanvasVideoTask(taskId, options={}){
             if(!found) return 'missing';
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-            const res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
-            if(!res.ok){
-                if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-                throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
-            }
-            const data = await res.json();
+            const data = await getCanvasTaskRecord('video', taskId, {cascadeTargetId});
             if(data.status === 'succeeded'){
                 const result = data.result || {};
                 if(!videoOutputsFromResult(result).length){
@@ -12540,12 +12626,7 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
     while(true){
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
         if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-        const res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
-        if(!res.ok){
-            if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-            throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
-        }
-        const data = await res.json();
+        const data = await getCanvasTaskRecord('video', taskId, {cascadeTargetId});
         if(data.status === 'succeeded') return data.result || {};
         if(data.status === 'failed') throw new Error(data.error || tr('canvas.videoFailed'));
         await sleep(2500);

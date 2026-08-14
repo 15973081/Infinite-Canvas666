@@ -1,12 +1,20 @@
 import { decodeCanvasDocument } from './canvas/domain/document-codec';
 import {
   createExecutionState,
+  runOrderedExecution,
+  runParallelExecution,
   transitionExecution,
+  type ExecutionEvent,
   type ExecutionMode,
+  type NodeExecutor,
+  type OrderedExecutionMode,
+  type ParallelNodeExecutor,
   type ExecutionState,
   type ExecutionTerminalStatus,
 } from './canvas/domain/execution';
 import { createGraphModel } from './canvas/domain/graph';
+import { createCanvasRepository, type CanvasRepository } from './canvas/infrastructure/canvas-repository';
+import { createTaskClient, type TaskClient } from './canvas/infrastructure/task-client';
 
 interface LegacyBridge {
   computeCascadeOrder(targetId: string): string[];
@@ -45,25 +53,56 @@ interface ExecutionShadowReport {
   runs: ExecutionState[];
 }
 
+interface OrderedExecutionRequest {
+  execute: NodeExecutor;
+  mode: OrderedExecutionMode;
+  order: string[];
+  signal?: AbortSignal;
+  targetId: string;
+}
+
+interface ParallelExecutionRequest {
+  execute: ParallelNodeExecutor<unknown>;
+  limit: number;
+  order: string[];
+  roundId?: (round: unknown, index: number) => string;
+  rounds: unknown[];
+  signal?: AbortSignal;
+  targetId: string;
+}
+
 declare global {
   interface Window {
     CanvasLegacyBridge?: LegacyBridge;
     CanvasModernCore?: {
       activeOrder(kind: OrderKind, targetId: string): string[] | null;
+      canvasRepository: CanvasRepository;
+      canvasRepositoryEnabled: boolean;
       compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[]): OrderComparison | null;
+      executionEngineEnabled: boolean;
       getExecutionShadowReport(): ExecutionShadowReport;
       getShadowReport(): ShadowReport;
       observeExecution(observation: ExecutionObservation): void;
       observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void;
-      version: 7;
+      runOrdered(request: OrderedExecutionRequest): Promise<ExecutionState>;
+      runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
+      taskClient: TaskClient;
+      taskClientEnabled: boolean;
+      version: 9;
     };
   }
 }
 
-const modernCoreMode = new URLSearchParams(window.location.search).get('canvas_modern_core');
+const searchParams = new URLSearchParams(window.location.search);
+const modernCoreMode = searchParams.get('canvas_modern_core');
 const executionShadowEnabled = modernCoreMode === 'execution-shadow';
 const graphOrderEnabled = modernCoreMode === 'graph-order';
 const shadowEnabled = modernCoreMode === 'shadow';
+const executionEngineEnabled = searchParams.get('canvas_execution_engine') === '1';
+const taskClientEnabled = searchParams.get('canvas_task_client') === '1';
+const canvasRepositoryEnabled = searchParams.get('canvas_repository') === '1';
+const taskClient = createTaskClient();
+const canvasRepository = createCanvasRepository();
 const executionRuns = new Map<string, ExecutionState>();
 let executionEvents = 0;
 let executionErrors = 0;
@@ -90,7 +129,12 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 7 as const,
+  version: 9 as const,
+  canvasRepository,
+  canvasRepositoryEnabled,
+  executionEngineEnabled,
+  taskClient,
+  taskClientEnabled,
   activeOrder(kind: OrderKind, targetId: string): string[] | null {
     if (!graphOrderEnabled) return null;
     try {
@@ -104,6 +148,23 @@ window.CanvasModernCore = Object.freeze({
     }
   },
   compareOrder,
+  runOrdered(request: OrderedExecutionRequest): Promise<ExecutionState> {
+    if (!executionEngineEnabled) return Promise.reject(new Error('Modern execution engine is disabled'));
+    return runOrderedExecution(request.targetId, request.order, request.execute, {
+      mode: request.mode,
+      signal: request.signal,
+      onTransition: emitExecutionTransition,
+    });
+  },
+  runParallel(request: ParallelExecutionRequest): Promise<ExecutionState> {
+    if (!executionEngineEnabled) return Promise.reject(new Error('Modern execution engine is disabled'));
+    return runParallelExecution(request.targetId, request.order, request.rounds, request.execute, {
+      limit: request.limit,
+      roundId: request.roundId,
+      signal: request.signal,
+      onTransition: emitExecutionTransition,
+    });
+  },
   observeExecution(observation: ExecutionObservation): void {
     if (!executionShadowEnabled) return;
     try {
@@ -189,9 +250,16 @@ window.CanvasModernCore = Object.freeze({
   },
 });
 
-document.documentElement.dataset.canvasModernCore = '8';
+function emitExecutionTransition(state: Readonly<ExecutionState>, event: ExecutionEvent): void {
+  window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
+}
+
+document.documentElement.dataset.canvasModernCore = '9';
+document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
 document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasModernRepository = canvasRepositoryEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernShadow = shadowEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasModernTaskClient = taskClientEnabled ? 'enabled' : 'disabled';
 window.dispatchEvent(new CustomEvent('canvas-modern-core-ready'));

@@ -9,7 +9,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.14.8'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.14.9'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
@@ -54,6 +54,20 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("runOpts.loopContext?.index", source)
         self.assertEqual(1, source.count("observeExecution?.({phase:'stop'"))
         self.assertEqual(1, source.count("observeExecution?.({phase:'finish'"))
+
+    def test_stage_four_and_five_features_are_independently_opt_in(self):
+        source = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
+
+        self.assertIn("canvas_execution_engine", source)
+        self.assertIn("canvas_task_client", source)
+        self.assertIn("canvas_repository", source)
+        self.assertIn("executionEngineEnabled", source)
+        self.assertIn("taskClientEnabled", source)
+        self.assertIn("canvasRepositoryEnabled", source)
+        self.assertIn("runOrderedExecution", source)
+        self.assertIn("runParallelExecution", source)
+        self.assertIn("createTaskClient()", source)
+        self.assertIn("createCanvasRepository()", source)
 
 
 if __name__ == "__main__":

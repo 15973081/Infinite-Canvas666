@@ -128,7 +128,40 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("generatorSources(gen, opts.loopContext)", source)
         self.assertIn("llmInputText(node, opts.loopContext)", source)
         self.assertIn("const loopCtx = loop ?", cascade_run)
-        self.assertEqual(2, cascade_run.count("runCascadeNodeWithLoopContext(node, loopCtx"))
+        self.assertEqual(1, cascade_run.count("runCascadeNodeWithLoopContext(node, loopCtx"))
+        self.assertIn("runCascadeNodeWithLoopContext(node, options.loopContext", source)
+
+    def test_modern_execution_switch_keeps_one_scheduler_active(self):
+        source = CANVAS_JS.read_text(encoding="utf-8")
+        context = _source_between(source, "function createCascadeContext(", "function clearCascadeCleanupTimer(")
+        stop = _source_between(source, "function requestCascadeStop(", "function ensureCascadeActive(")
+        ordered = _source_between(source, "async function runOneCascadePass(", "// 失败重试")
+        parallel = _source_between(source, "async function runNodeCascade(", "async function runOneCascadePass(")
+
+        self.assertIn("engineController:new AbortController()", context)
+        self.assertIn("ctx.engineController?.abort()", stop)
+        self.assertIn("if(modern?.executionEngineEnabled)", ordered)
+        self.assertIn("await modern.runOrdered({", ordered)
+        self.assertLess(ordered.index("return;", ordered.index("await modern.runOrdered({")), ordered.index("for(const id of order)"))
+        self.assertIn("await modern.runParallel({", parallel)
+        self.assertIn("const results = await runLimitedCascadeRounds", parallel)
+
+    def test_task_and_repository_switches_preserve_legacy_fallbacks(self):
+        source = CANVAS_JS.read_text(encoding="utf-8")
+        task_get = _source_between(source, "async function getCanvasTaskRecord(", "function extractUpstreamTaskId(")
+        repository = _function_source(source, "modernCanvasRepository")
+        canvas_get = _source_between(source, "async function getCanvasEnvelope(", "function reportCanvasSaveConflict(")
+        save = _function_source(source, "saveCanvas")
+
+        self.assertIn("taskClientEnabled", task_get)
+        self.assertIn("client.get(kind, taskId", task_get)
+        self.assertIn("window.CanvasApi.getCanvasVideoTaskRequest", task_get)
+        self.assertIn("window.CanvasApi.getCanvasImageTaskRequest", task_get)
+        self.assertIn("canvasRepositoryEnabled", repository)
+        self.assertIn("repository.get(id", canvas_get)
+        self.assertIn("window.CanvasApi.getCanvas(id, options)", canvas_get)
+        self.assertIn("repository.save(canvas.id, payload)", save)
+        self.assertIn("window.CanvasApi.saveCanvas(canvas.id, payload)", save)
 
 
 if __name__ == "__main__":

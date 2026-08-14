@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createExecutionState,
   runLimitedExecutionRounds,
+  runParallelExecution,
   runReservedExecution,
   runRetryExecution,
   runReservedSerialExecution,
@@ -233,6 +234,60 @@ describe('execution state', () => {
 
     expect(calls).toEqual([]);
     expect(result.stopped).toBe(true);
+  });
+
+  it('runs parallel workflow rounds with bounded concurrency and isolated progress', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const state = await runParallelExecution('target', ['a', 'target'], [10, 20, 30], async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active -= 1;
+    }, { limit: 2, roundId: (round) => String(round) });
+
+    expect(maxActive).toBe(2);
+    expect(state).toMatchObject({ status: 'done', completedRounds: 3 });
+    expect(Object.fromEntries(Object.entries(state.rounds).map(([id, round]) => [id, round.completedNodeIds]))).toEqual({
+      '10': ['a', 'target'],
+      '20': ['a', 'target'],
+      '30': ['a', 'target'],
+    });
+  });
+
+  it('stops parallel scheduling after failure while draining in-flight nodes', async () => {
+    const calls: string[] = [];
+    let releaseRoundOne!: () => void;
+    const roundOne = new Promise<void>((resolve) => { releaseRoundOne = resolve; });
+    const pending = runParallelExecution('target', ['a', 'target'], [1, 2, 3], async (nodeId, round) => {
+      calls.push(`${round}:${nodeId}`);
+      if (round === 1 && nodeId === 'a') await roundOne;
+      if (round === 2 && nodeId === 'a') throw new Error('round 2 failed');
+    }, { limit: 2 });
+
+    await Promise.resolve();
+    releaseRoundOne();
+    const state = await pending;
+
+    expect(calls).toEqual(['1:a', '2:a']);
+    expect(state).toMatchObject({ status: 'failed', error: 'round 2 failed' });
+    expect(state.rounds['1'].completedNodeIds).toEqual(['a']);
+    expect(state.rounds['2'].currentNodeId).toBe('a');
+    expect(state.rounds['3']).toBeUndefined();
+  });
+
+  it('stops a parallel run through AbortSignal without starting downstream nodes', async () => {
+    const controller = new AbortController();
+    const calls: string[] = [];
+    const state = await runParallelExecution('target', ['a', 'target'], [1, 2], async (nodeId, round) => {
+      calls.push(`${round}:${nodeId}`);
+      controller.abort();
+    }, { limit: 2, signal: controller.signal });
+
+    expect(calls).toEqual(['1:a']);
+    expect(state).toMatchObject({ status: 'stopped', completedRounds: 0 });
+    expect(state.rounds['1'].completedNodeIds).toEqual(['a']);
+    expect(state.rounds['2']).toBeUndefined();
   });
 
   it('prevents concurrent workflows from executing a shared node', async () => {

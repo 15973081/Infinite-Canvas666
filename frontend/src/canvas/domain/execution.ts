@@ -30,10 +30,18 @@ export type ExecutionEvent =
 
 export type NodeExecutor = (nodeId: string, signal?: AbortSignal) => Promise<void>;
 export type ExecutionObserver = (state: Readonly<ExecutionState>, event: ExecutionEvent) => void;
+export type ParallelNodeExecutor<T> = (nodeId: string, round: T, signal?: AbortSignal) => Promise<void>;
 
 export interface OrderedExecutionOptions {
   mode?: OrderedExecutionMode;
   onTransition?: ExecutionObserver;
+  signal?: AbortSignal;
+}
+
+export interface ParallelExecutionOptions<T> {
+  limit?: number;
+  onTransition?: ExecutionObserver;
+  roundId?: (round: T, index: number) => string;
   signal?: AbortSignal;
 }
 
@@ -253,6 +261,71 @@ export async function runReservedExecution(
   } finally {
     releaseExecutionNodes(reservations, targetId);
   }
+}
+
+export async function runParallelExecution<T>(
+  targetId: string,
+  order: readonly string[],
+  rounds: readonly T[],
+  execute: ParallelNodeExecutor<T>,
+  options: ParallelExecutionOptions<T> = {},
+): Promise<ExecutionState> {
+  const { onTransition, signal } = options;
+  const scheduled = rounds.map((round, index) => ({
+    id: options.roundId?.(round, index) || String(index + 1),
+    round,
+  }));
+  if (new Set(scheduled.map(({ id }) => id)).size !== scheduled.length) {
+    throw new Error('Parallel execution round IDs must be unique');
+  }
+
+  let state = applyExecutionEvent(
+    createExecutionState(),
+    { type: 'queue', targetId, order: [...order], mode: 'parallel' },
+    onTransition,
+  );
+  state = applyExecutionEvent(state, { type: 'start' }, onTransition);
+
+  let failure: unknown = null;
+  let next = 0;
+  const requestStop = () => {
+    if (state.status === 'running') {
+      state = applyExecutionEvent(state, { type: 'request-stop' }, onTransition);
+    }
+  };
+  const workerCount = Math.max(1, Math.min(Math.floor(options.limit || 1), scheduled.length || 1));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (!failure && !signal?.aborted && next < scheduled.length) {
+      const { id: roundId, round } = scheduled[next++];
+      for (const nodeId of order) {
+        if (failure || signal?.aborted) break;
+        state = applyExecutionEvent(state, { type: 'node-start', nodeId, roundId }, onTransition);
+        try {
+          await execute(nodeId, round, signal);
+        } catch (error) {
+          if (signal?.aborted) requestStop();
+          else if (!failure) failure = error;
+          break;
+        }
+        if (signal?.aborted) requestStop();
+        state = applyExecutionEvent(state, { type: 'node-done', nodeId, roundId }, onTransition);
+      }
+    }
+  });
+
+  await Promise.all(workers);
+  if (signal?.aborted) {
+    requestStop();
+    return applyExecutionEvent(state, { type: 'finish', status: 'stopped' }, onTransition);
+  }
+  if (failure) {
+    return applyExecutionEvent(state, {
+      type: 'finish',
+      status: 'failed',
+      error: failure instanceof Error ? failure.message : String(failure),
+    }, onTransition);
+  }
+  return applyExecutionEvent(state, { type: 'finish', status: 'done' }, onTransition);
 }
 
 export async function runLimitedExecutionRounds<T>(
