@@ -98,12 +98,12 @@ class CanvasRunEntryTest(unittest.TestCase):
 
     def test_retry_runs_failed_node_and_reachable_downstream_in_order(self):
         source = CANVAS_JS.read_text(encoding="utf-8")
-        retry_order = _function_source(source, "computeRetryCascadeOrder")
+        retry_order = _function_source(source, "computeLegacyRetryCascadeOrder")
         retry_run = _source_between(source, "async function retryNodeAndDownstream(", "function cancelCascade(")
 
         self.assertIn("connections.filter(c => c.from === id)", retry_order)
         self.assertIn("next.type === 'output'", retry_order)
-        self.assertIn("computeCascadeOrder(id)", retry_order)
+        self.assertIn("computeLegacyCascadeOrder(id)", retry_order)
         self.assertIn("downstream.has(candidate)", retry_order)
         self.assertIn("const remain = computeRetryCascadeOrder(nodeId)", retry_run)
         self.assertNotIn("computeCascadeOrder(nodeId)", retry_run)

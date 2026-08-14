@@ -30,3 +30,7 @@
 ## Graph 影子模式
 
 直接打开 `/static/canvas.html?canvas_modern_core=shadow` 可在真实级联运行和失败重试开始前比较新旧图顺序。比较不替换调度、不发送数据，结果可通过 `CanvasModernCore.getShadowReport()` 查看；最多保留 50 条差异。
+
+## Graph 顺序灰度启用
+
+直接打开 `/static/canvas.html?canvas_modern_core=graph-order` 时，级联和失败重试改用 GraphModel 计算顺序。默认地址继续使用旧实现；快照缺失、解码失败或现代模块异常时自动回退旧顺序，执行器和保存链路保持不变。

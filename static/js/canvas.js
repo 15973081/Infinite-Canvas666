@@ -2044,10 +2044,10 @@ window.CanvasLegacyBridge = Object.freeze({
         }));
     },
     computeCascadeOrder(targetId){
-        return [...computeCascadeOrder(targetId)];
+        return [...computeLegacyCascadeOrder(targetId)];
     },
     computeRetryCascadeOrder(nodeId){
-        return [...computeRetryCascadeOrder(nodeId)];
+        return [...computeLegacyRetryCascadeOrder(nodeId)];
     }
 });
 async function saveCanvas(){
@@ -11359,7 +11359,7 @@ async function runCanvasGenerate(nodeId){
     if(!node || node.running || cascadeRunningNodeIds.has(nodeId)) return;
     return runCascadeNodeByType(node, {cascade:false});
 }
-function computeCascadeOrder(targetId){
+function computeLegacyCascadeOrder(targetId){
     const visited = new Set();
     const order = [];
     const GEN_TYPES = canvasRunTypes();
@@ -11387,7 +11387,7 @@ function computeCascadeOrder(targetId){
     dfs(targetId);
     return order;
 }
-function computeRetryCascadeOrder(nodeId){
+function computeLegacyRetryCascadeOrder(nodeId){
     const runTypes = canvasRunTypes();
     const visited = new Set();
     const downstream = new Set();
@@ -11405,13 +11405,28 @@ function computeRetryCascadeOrder(nodeId){
     walk(nodeId);
     const order = [];
     const added = new Set();
-    downstream.forEach(id => computeCascadeOrder(id).forEach(candidate => {
+    downstream.forEach(id => computeLegacyCascadeOrder(id).forEach(candidate => {
         if(downstream.has(candidate) && !added.has(candidate)){
             added.add(candidate);
             order.push(candidate);
         }
     }));
     return order;
+}
+function computeModernGraphOrder(kind, targetId){
+    try {
+        const order = window.CanvasModernCore?.activeOrder?.(kind, targetId);
+        return Array.isArray(order) ? order : null;
+    } catch(error) {
+        console.warn('[canvas-modern-core] active graph order unavailable; using legacy order', error);
+        return null;
+    }
+}
+function computeCascadeOrder(targetId){
+    return computeModernGraphOrder('cascade', targetId) ?? computeLegacyCascadeOrder(targetId);
+}
+function computeRetryCascadeOrder(nodeId){
+    return computeModernGraphOrder('retry', nodeId) ?? computeLegacyRetryCascadeOrder(nodeId);
 }
 function upstreamNodeIds(targetId){
     const found = new Set();

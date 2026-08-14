@@ -28,15 +28,18 @@ declare global {
   interface Window {
     CanvasLegacyBridge?: LegacyBridge;
     CanvasModernCore?: {
+      activeOrder(kind: OrderKind, targetId: string): string[] | null;
       compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[]): OrderComparison | null;
       getShadowReport(): ShadowReport;
       observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void;
-      version: 2;
+      version: 3;
     };
   }
 }
 
-const shadowEnabled = new URLSearchParams(window.location.search).get('canvas_modern_core') === 'shadow';
+const modernCoreMode = new URLSearchParams(window.location.search).get('canvas_modern_core');
+const graphOrderEnabled = modernCoreMode === 'graph-order';
+const shadowEnabled = modernCoreMode === 'shadow';
 const mismatches: OrderComparison[] = [];
 let shadowChecks = 0;
 let shadowErrors = 0;
@@ -60,7 +63,19 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 2 as const,
+  version: 3 as const,
+  activeOrder(kind: OrderKind, targetId: string): string[] | null {
+    if (!graphOrderEnabled) return null;
+    try {
+      const snapshot = window.CanvasLegacyBridge?.getDocumentSnapshot();
+      if (!snapshot) return null;
+      const graph = createGraphModel(decodeCanvasDocument(snapshot));
+      return kind === 'cascade' ? graph.cascadeOrder(targetId) : graph.retryCascadeOrder(targetId);
+    } catch (error) {
+      console.warn('[canvas-modern-core] active graph order failed; using legacy order', error);
+      return null;
+    }
+  },
   compareOrder,
   observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void {
     if (!shadowEnabled) return;
@@ -91,7 +106,8 @@ window.CanvasModernCore = Object.freeze({
   },
 });
 
-document.documentElement.dataset.canvasModernCore = '2';
+document.documentElement.dataset.canvasModernCore = '3';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
+document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernShadow = shadowEnabled ? 'enabled' : 'disabled';
 window.dispatchEvent(new CustomEvent('canvas-modern-core-ready'));
