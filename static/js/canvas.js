@@ -10776,6 +10776,7 @@ function beginCascade(targetId, order, options={}){
     ctx.order.forEach(id => cascadeRunningNodeIds.add(id));
     if(options.serial) cascadeSerialIds.add(targetId);
     if(options.mode) ctx.mode = options.mode;
+    window.CanvasModernCore?.observeExecution?.({phase:'begin', targetId, order:[...ctx.order], mode:ctx.mode});
     return ctx;
 }
 function queueCascadeCleanup(ctx, ids){
@@ -10803,6 +10804,7 @@ function requestCascadeStop(targetId, reason=''){
         [...(ctx.controllers || [])].forEach(controller => {
             try { controller.abort(); } catch(_) {}
         });
+        window.CanvasModernCore?.observeExecution?.({phase:'stop', targetId});
     }
     refreshNodes(cascadeUiNodeIds(targetId));
 }
@@ -10821,7 +10823,10 @@ function finalizeCascade(targetId, state, options={}){
     (ctx?.order || order || []).forEach(id => cascadeRunningNodeIds.delete(id));
     cascadeStopIds.delete(targetId);
     cascadeSerialIds.delete(targetId);
-    if(ctx) ctx.status = state;
+    if(ctx){
+        ctx.status = state;
+        window.CanvasModernCore?.observeExecution?.({phase:'finish', targetId, status:state, error:options.error || ''});
+    }
     if(state === 'done'){
         queueCascadeCleanup(ctx, uiIds);
         refreshNodes(uiIds);

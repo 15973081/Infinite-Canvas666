@@ -34,3 +34,7 @@
 ## Graph 顺序灰度启用
 
 直接打开 `/static/canvas.html?canvas_modern_core=graph-order` 时，级联和失败重试改用 GraphModel 计算顺序。默认地址继续使用旧实现；快照缺失、解码失败或现代模块异常时自动回退旧顺序，执行器和保存链路保持不变。
+
+## Execution 生命周期影子模式
+
+直接打开 `/static/canvas.html?canvas_modern_core=execution-shadow` 时，现代内核只观察旧调度器的开始、停止请求和结束事件，并用纯状态机校验转换。它不调用节点执行器、不发送请求、不修改旧运行状态；结果可通过 `CanvasModernCore.getExecutionShadowReport()` 查看。
