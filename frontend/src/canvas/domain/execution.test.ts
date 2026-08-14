@@ -33,6 +33,41 @@ describe('execution state', () => {
     );
   });
 
+  it('drains an in-flight serial node after stopping without starting the next node', () => {
+    let state = transitionExecution(runningState(), { type: 'node-start', nodeId: 'a' });
+    state = transitionExecution(state, { type: 'request-stop' });
+    state = transitionExecution(state, { type: 'node-done', nodeId: 'a' });
+
+    expect(state).toMatchObject({ status: 'stopping', completedNodeIds: ['a'], currentNodeId: '' });
+    expect(() => transitionExecution(state, { type: 'node-start', nodeId: 'target' })).toThrow(
+      'Invalid execution transition',
+    );
+  });
+
+  it('drains in-flight parallel rounds after stopping without starting more nodes', () => {
+    let state = transitionExecution(createExecutionState(), {
+      type: 'queue',
+      targetId: 'target',
+      order: ['a', 'target'],
+      mode: 'parallel',
+    });
+    state = transitionExecution(state, { type: 'start' });
+    state = transitionExecution(state, { type: 'node-start', nodeId: 'a', roundId: '1' });
+    state = transitionExecution(state, { type: 'node-start', nodeId: 'a', roundId: '2' });
+    state = transitionExecution(state, { type: 'request-stop' });
+    state = transitionExecution(state, { type: 'node-done', nodeId: 'a', roundId: '2' });
+    state = transitionExecution(state, { type: 'node-done', nodeId: 'a', roundId: '1' });
+
+    expect(state.status).toBe('stopping');
+    expect(state.rounds['1'].completedNodeIds).toEqual(['a']);
+    expect(state.rounds['2'].completedNodeIds).toEqual(['a']);
+    expect(() => transitionExecution(state, {
+      type: 'node-start',
+      nodeId: 'target',
+      roundId: '1',
+    })).toThrow('Invalid execution transition');
+  });
+
   it('tracks repeated serial loop rounds', () => {
     let state = runningState();
     for (const nodeId of ['a', 'target', 'a', 'target']) {

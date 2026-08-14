@@ -93,7 +93,9 @@ export function transitionExecution(state: ExecutionState, event: ExecutionEvent
 
   if (event.type === 'node-done') {
     if (state.mode === 'parallel') return transitionParallelNode(state, event);
-    if (state.status !== 'running' || state.currentNodeId !== event.nodeId) invalidTransition(state, event);
+    if (!['running', 'stopping'].includes(state.status) || state.currentNodeId !== event.nodeId) {
+      invalidTransition(state, event);
+    }
     const completedNodeIds = [...state.completedNodeIds, event.nodeId];
     return {
       ...state,
@@ -112,9 +114,10 @@ function transitionParallelNode(
   state: ExecutionState,
   event: Extract<ExecutionEvent, { type: 'node-start' | 'node-done' }>,
 ): ExecutionState {
-  if (state.status !== 'running' || !event.roundId) invalidTransition(state, event);
+  if (!event.roundId) invalidTransition(state, event);
   const round = state.rounds[event.roundId] ?? { completedNodeIds: [], currentNodeId: '' };
   if (event.type === 'node-start') {
+    if (state.status !== 'running') invalidTransition(state, event);
     if (round.currentNodeId) invalidTransition(state, event);
     const expected = state.order[round.completedNodeIds.length];
     if (event.nodeId !== expected) throw new Error(`Expected execution node ${expected || '<none>'}`);
@@ -124,6 +127,7 @@ function transitionParallelNode(
     };
   }
 
+  if (!['running', 'stopping'].includes(state.status)) invalidTransition(state, event);
   if (round.currentNodeId !== event.nodeId) invalidTransition(state, event);
   const completedNodeIds = [...round.completedNodeIds, event.nodeId];
   return {

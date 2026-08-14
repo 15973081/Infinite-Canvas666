@@ -189,7 +189,7 @@ window.CanvasModernCore = Object.freeze({
   },
 });
 
-document.documentElement.dataset.canvasModernCore = '7';
+document.documentElement.dataset.canvasModernCore = '8';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
 document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';

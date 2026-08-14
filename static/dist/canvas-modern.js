@@ -87,7 +87,7 @@ function o(e, t) {
 	}
 	if (t.type === "node-done") {
 		if (e.mode === "parallel") return s(e, t);
-		(e.status !== "running" || e.currentNodeId !== t.nodeId) && c(e, t);
+		(!["running", "stopping"].includes(e.status) || e.currentNodeId !== t.nodeId) && c(e, t);
 		let n = [...e.completedNodeIds, t.nodeId];
 		return {
 			...e,
@@ -103,13 +103,13 @@ function o(e, t) {
 	};
 }
 function s(e, t) {
-	(e.status !== "running" || !t.roundId) && c(e, t);
+	t.roundId || c(e, t);
 	let n = e.rounds[t.roundId] ?? {
 		completedNodeIds: [],
 		currentNodeId: ""
 	};
 	if (t.type === "node-start") {
-		n.currentNodeId && c(e, t);
+		e.status !== "running" && c(e, t), n.currentNodeId && c(e, t);
 		let r = e.order[n.completedNodeIds.length];
 		if (t.nodeId !== r) throw Error(`Expected execution node ${r || "<none>"}`);
 		return {
@@ -123,7 +123,7 @@ function s(e, t) {
 			}
 		};
 	}
-	n.currentNodeId !== t.nodeId && c(e, t);
+	["running", "stopping"].includes(e.status) || c(e, t), n.currentNodeId !== t.nodeId && c(e, t);
 	let r = [...n.completedNodeIds, t.nodeId];
 	return {
 		...e,
@@ -313,5 +313,5 @@ window.CanvasModernCore = Object.freeze({
 			}))
 		};
 	}
-}), document.documentElement.dataset.canvasModernCore = "7", document.documentElement.dataset.canvasModernExecutionShadow = p ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = m ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = h ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+}), document.documentElement.dataset.canvasModernCore = "8", document.documentElement.dataset.canvasModernExecutionShadow = p ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = m ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = h ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion
