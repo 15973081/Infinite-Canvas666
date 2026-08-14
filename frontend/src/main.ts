@@ -53,7 +53,7 @@ declare global {
       getShadowReport(): ShadowReport;
       observeExecution(observation: ExecutionObservation): void;
       observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void;
-      version: 4;
+      version: 5;
     };
   }
 }
@@ -88,7 +88,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 4 as const,
+  version: 5 as const,
   activeOrder(kind: OrderKind, targetId: string): string[] | null {
     if (!graphOrderEnabled) return null;
     try {
@@ -162,12 +162,16 @@ window.CanvasModernCore = Object.freeze({
       enabled: executionShadowEnabled,
       errors: executionErrors,
       events: executionEvents,
-      runs: [...executionRuns.values()].map((state) => ({ ...state, order: [...state.order] })),
+      runs: [...executionRuns.values()].map((state) => ({
+        ...state,
+        completedNodeIds: [...state.completedNodeIds],
+        order: [...state.order],
+      })),
     };
   },
 });
 
-document.documentElement.dataset.canvasModernCore = '4';
+document.documentElement.dataset.canvasModernCore = '5';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
 document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';

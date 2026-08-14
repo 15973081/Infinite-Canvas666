@@ -35,6 +35,8 @@ function i(i) {
 //#region src/canvas/domain/execution.ts
 function a() {
 	return {
+		completedNodeIds: [],
+		currentNodeId: "",
 		error: "",
 		mode: "serial",
 		order: [],
@@ -51,6 +53,8 @@ function o(e, t) {
 			"stopped"
 		].includes(e.status) || s(e, t), !t.targetId || !t.order.length) throw Error("Execution queue requires a target and order");
 		return {
+			completedNodeIds: [],
+			currentNodeId: "",
 			error: "",
 			mode: t.mode,
 			order: [...t.order],
@@ -58,12 +62,27 @@ function o(e, t) {
 			targetId: t.targetId
 		};
 	}
-	return t.type === "start" ? (e.status !== "queued" && s(e, t), {
+	if (t.type === "start") return e.status !== "queued" && s(e, t), {
 		...e,
 		status: "running"
-	}) : t.type === "request-stop" ? e.status === "stopping" ? e : (e.status !== "running" && s(e, t), {
+	};
+	if (t.type === "request-stop") return e.status === "stopping" ? e : (e.status !== "running" && s(e, t), {
 		...e,
 		status: "stopping"
+	});
+	if (t.type === "node-start") {
+		(e.status !== "running" || e.currentNodeId) && s(e, t);
+		let n = e.order[e.completedNodeIds.length];
+		if (t.nodeId !== n) throw Error(`Expected execution node ${n || "<none>"}`);
+		return {
+			...e,
+			currentNodeId: t.nodeId
+		};
+	}
+	return t.type === "node-done" ? ((e.status !== "running" || e.currentNodeId !== t.nodeId) && s(e, t), {
+		...e,
+		completedNodeIds: [...e.completedNodeIds, t.nodeId],
+		currentNodeId: ""
 	}) : (e.status !== "running" && e.status !== "stopping" && s(e, t), e.status === "stopping" && t.status === "done" && s(e, t), {
 		...e,
 		error: t.error || "",
@@ -171,7 +190,7 @@ function x(e, t, n) {
 	};
 }
 window.CanvasModernCore = Object.freeze({
-	version: 4,
+	version: 5,
 	activeOrder(e, t) {
 		if (!p) return null;
 		try {
@@ -229,9 +248,10 @@ window.CanvasModernCore = Object.freeze({
 			events: g,
 			runs: [...h.values()].map((e) => ({
 				...e,
+				completedNodeIds: [...e.completedNodeIds],
 				order: [...e.order]
 			}))
 		};
 	}
-}), document.documentElement.dataset.canvasModernCore = "4", document.documentElement.dataset.canvasModernExecutionShadow = f ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = p ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = m ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+}), document.documentElement.dataset.canvasModernCore = "5", document.documentElement.dataset.canvasModernExecutionShadow = f ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = p ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = m ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createExecutionState, transitionExecution } from './execution';
+import { createExecutionState, runSerialExecution, transitionExecution } from './execution';
 
 function runningState() {
   const queued = transitionExecution(createExecutionState(), {
@@ -31,5 +31,43 @@ describe('execution state', () => {
     expect(() => transitionExecution(createExecutionState(), { type: 'start' })).toThrow(
       'Invalid execution transition',
     );
+  });
+
+  it('executes nodes serially in order', async () => {
+    const calls: string[] = [];
+    const state = await runSerialExecution('target', ['a', 'b'], async (nodeId) => {
+      calls.push(nodeId);
+    });
+
+    expect(calls).toEqual(['a', 'b']);
+    expect(state).toMatchObject({ status: 'done', completedNodeIds: ['a', 'b'], currentNodeId: '' });
+  });
+
+  it('stops at the failed node without calling downstream', async () => {
+    const calls: string[] = [];
+    const state = await runSerialExecution('target', ['a', 'b', 'c'], async (nodeId) => {
+      calls.push(nodeId);
+      if (nodeId === 'b') throw new Error('failed b');
+    });
+
+    expect(calls).toEqual(['a', 'b']);
+    expect(state).toMatchObject({
+      status: 'failed',
+      completedNodeIds: ['a'],
+      currentNodeId: 'b',
+      error: 'failed b',
+    });
+  });
+
+  it('does not schedule nodes after cancellation', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const calls: string[] = [];
+    const state = await runSerialExecution('target', ['a', 'b'], async (nodeId) => {
+      calls.push(nodeId);
+    }, controller.signal);
+
+    expect(calls).toEqual([]);
+    expect(state.status).toBe('stopped');
   });
 });
