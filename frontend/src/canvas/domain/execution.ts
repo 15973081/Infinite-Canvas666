@@ -28,6 +28,11 @@ export interface LimitedExecutionResult<T> {
   stopped: boolean;
 }
 
+export interface ReservedExecutionResult {
+  conflictNodeId: string | null;
+  state: ExecutionState | null;
+}
+
 export function createExecutionState(): ExecutionState {
   return {
     completedNodeIds: [],
@@ -114,6 +119,40 @@ export async function runSerialExecution(
   }
 
   return transitionExecution(state, { type: 'finish', status: 'done' });
+}
+
+export function reserveExecutionNodes(
+  reservations: Map<string, string>,
+  targetId: string,
+  order: readonly string[],
+): string | null {
+  const nodeIds = [...new Set(order)];
+  const conflictNodeId = nodeIds.find((nodeId) => reservations.has(nodeId)) ?? null;
+  if (conflictNodeId) return conflictNodeId;
+  for (const nodeId of nodeIds) reservations.set(nodeId, targetId);
+  return null;
+}
+
+export function releaseExecutionNodes(reservations: Map<string, string>, targetId: string): void {
+  for (const [nodeId, ownerId] of reservations) {
+    if (ownerId === targetId) reservations.delete(nodeId);
+  }
+}
+
+export async function runReservedSerialExecution(
+  reservations: Map<string, string>,
+  targetId: string,
+  order: string[],
+  execute: NodeExecutor,
+  signal?: AbortSignal,
+): Promise<ReservedExecutionResult> {
+  const conflictNodeId = reserveExecutionNodes(reservations, targetId, order);
+  if (conflictNodeId) return { conflictNodeId, state: null };
+  try {
+    return { conflictNodeId: null, state: await runSerialExecution(targetId, order, execute, signal) };
+  } finally {
+    releaseExecutionNodes(reservations, targetId);
+  }
 }
 
 export async function runLimitedExecutionRounds<T>(

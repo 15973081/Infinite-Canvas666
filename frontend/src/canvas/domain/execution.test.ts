@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createExecutionState,
   runLimitedExecutionRounds,
+  runReservedSerialExecution,
   runSerialExecution,
   transitionExecution,
 } from './execution';
@@ -120,5 +121,34 @@ describe('execution state', () => {
 
     expect(calls).toEqual([]);
     expect(result.stopped).toBe(true);
+  });
+
+  it('prevents concurrent workflows from executing a shared node', async () => {
+    const reservations = new Map<string, string>();
+    let releaseShared!: () => void;
+    const sharedRun = new Promise<void>((resolve) => { releaseShared = resolve; });
+    const first = runReservedSerialExecution(reservations, 'run-1', ['shared', 'a'], async (nodeId) => {
+      if (nodeId === 'shared') await sharedRun;
+    });
+    const secondCalls: string[] = [];
+    const second = await runReservedSerialExecution(reservations, 'run-2', ['shared', 'b'], async (nodeId) => {
+      secondCalls.push(nodeId);
+    });
+
+    expect(second).toEqual({ conflictNodeId: 'shared', state: null });
+    expect(secondCalls).toEqual([]);
+    releaseShared();
+    expect((await first).state?.status).toBe('done');
+    expect(reservations.size).toBe(0);
+  });
+
+  it('releases node reservations after executor failure', async () => {
+    const reservations = new Map<string, string>();
+    const result = await runReservedSerialExecution(reservations, 'run-1', ['a'], async () => {
+      throw new Error('failed');
+    });
+
+    expect(result.state?.status).toBe('failed');
+    expect(reservations.size).toBe(0);
   });
 });
