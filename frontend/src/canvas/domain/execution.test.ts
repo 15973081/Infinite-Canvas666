@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createExecutionState, runSerialExecution, transitionExecution } from './execution';
+import {
+  createExecutionState,
+  runLimitedExecutionRounds,
+  runSerialExecution,
+  transitionExecution,
+} from './execution';
 
 function runningState() {
   const queued = transitionExecution(createExecutionState(), {
@@ -69,5 +74,51 @@ describe('execution state', () => {
 
     expect(calls).toEqual([]);
     expect(state.status).toBe('stopped');
+  });
+
+  it('limits parallel round concurrency', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const result = await runLimitedExecutionRounds([1, 2, 3, 4], 2, async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await Promise.resolve();
+      active -= 1;
+    });
+
+    expect(maxActive).toBe(2);
+    expect([...result.completed].sort()).toEqual([1, 2, 3, 4]);
+    expect(result.failure).toBeNull();
+  });
+
+  it('does not schedule new rounds after the first failure', async () => {
+    const calls: number[] = [];
+    let releaseFirst!: () => void;
+    const firstRound = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    const pending = runLimitedExecutionRounds([1, 2, 3, 4], 2, async (round) => {
+      calls.push(round);
+      if (round === 1) await firstRound;
+      if (round === 2) throw new Error('failed round 2');
+    });
+
+    await Promise.resolve();
+    releaseFirst();
+    const result = await pending;
+
+    expect(calls).toEqual([1, 2]);
+    expect(result.completed).toEqual([1]);
+    expect(result.failure?.round).toBe(2);
+  });
+
+  it('does not schedule parallel rounds when already cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const calls: number[] = [];
+    const result = await runLimitedExecutionRounds([1, 2], 2, async (round) => {
+      calls.push(round);
+    }, controller.signal);
+
+    expect(calls).toEqual([]);
+    expect(result.stopped).toBe(true);
   });
 });

@@ -22,6 +22,12 @@ export type ExecutionEvent =
 
 export type NodeExecutor = (nodeId: string, signal?: AbortSignal) => Promise<void>;
 
+export interface LimitedExecutionResult<T> {
+  completed: T[];
+  failure: { round: T; error: unknown } | null;
+  stopped: boolean;
+}
+
 export function createExecutionState(): ExecutionState {
   return {
     completedNodeIds: [],
@@ -108,6 +114,35 @@ export async function runSerialExecution(
   }
 
   return transitionExecution(state, { type: 'finish', status: 'done' });
+}
+
+export async function runLimitedExecutionRounds<T>(
+  rounds: readonly T[],
+  limit: number,
+  execute: (round: T, signal?: AbortSignal) => Promise<void>,
+  signal?: AbortSignal,
+): Promise<LimitedExecutionResult<T>> {
+  if (!rounds.length) return { completed: [], failure: null, stopped: Boolean(signal?.aborted) };
+
+  const completed: T[] = [];
+  let failure: LimitedExecutionResult<T>['failure'] = null;
+  let next = 0;
+  const workerCount = Math.max(1, Math.min(Math.floor(limit) || 1, rounds.length));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (!failure && !signal?.aborted && next < rounds.length) {
+      const round = rounds[next++];
+      try {
+        await execute(round, signal);
+      } catch (error) {
+        if (!signal?.aborted && !failure) failure = { round, error };
+        return;
+      }
+      if (!signal?.aborted) completed.push(round);
+    }
+  });
+
+  await Promise.all(workers);
+  return { completed, failure, stopped: Boolean(signal?.aborted) };
 }
 
 function invalidTransition(state: ExecutionState, event: ExecutionEvent): never {
