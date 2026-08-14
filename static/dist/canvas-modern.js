@@ -382,26 +382,43 @@ var b = class extends h {
 	}
 };
 function x(e = fetch) {
-	let t = (e) => `/api/canvases/${encodeURIComponent(e)}`;
+	let t = (e) => `/api/canvases/${encodeURIComponent(e)}`, n = {
+		backupsCreated: 0,
+		backupsListed: 0,
+		backupsRestored: 0,
+		conflicts: 0,
+		errors: 0,
+		loads: 0,
+		saves: 0
+	}, r = async (e, ...t) => {
+		try {
+			let r = await g(...t);
+			return n[e] += 1, r;
+		} catch (e) {
+			throw (!(e instanceof h) || e.code !== "conflict") && (n.errors += 1), e;
+		}
+	};
 	return {
-		createBackup: (n, r) => g(e, `${t(n)}/backup`, { method: "POST" }, r),
-		get: async (n, r) => i((await g(e, t(n), {}, r)).canvas),
-		listBackups: async (n, r) => {
-			let i = await g(e, `${t(n)}/backups`, {}, r);
-			return Array.isArray(i.backups) ? i.backups : [];
+		createBackup: (n, i) => r("backupsCreated", e, `${t(n)}/backup`, { method: "POST" }, i),
+		get: async (n, a) => i((await r("loads", e, t(n), {}, a)).canvas),
+		getDiagnostics: () => ({ ...n }),
+		listBackups: async (n, i) => {
+			let a = await r("backupsListed", e, `${t(n)}/backups`, {}, i);
+			return Array.isArray(a.backups) ? a.backups : [];
 		},
-		restoreBackup: async (n, r, a) => i((await g(e, `${t(n)}/backups/${encodeURIComponent(r)}/restore`, { method: "POST" }, a)).canvas),
-		save: async (n, r, a) => {
+		restoreBackup: async (n, a, o) => i((await r("backupsRestored", e, `${t(n)}/backups/${encodeURIComponent(a)}/restore`, { method: "POST" }, o)).canvas),
+		save: async (a, o, s) => {
 			try {
-				return i((await g(e, t(n), {
+				return i((await r("saves", e, t(a), {
 					method: "PUT",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(r)
-				}, a)).canvas);
+					body: JSON.stringify(o)
+				}, s)).canvas);
 			} catch (e) {
 				if (!(e instanceof h) || e.code !== "conflict") throw e;
-				let t = S(e.details), n = t.canvas ? i(t.canvas) : null;
-				throw new b(e.message, n, Number(t.updated_at || 0), e.details);
+				n.conflicts += 1;
+				let t = S(e.details), r = t.canvas ? i(t.canvas) : null;
+				throw new b(e.message, r, Number(t.updated_at || 0), e.details);
 			}
 		}
 	};
@@ -418,59 +435,70 @@ var C = {
 	video: "/api/canvas-video-tasks"
 };
 function w(e = fetch) {
-	let t = /* @__PURE__ */ new Map(), n = async (t, n, r) => {
-		let i = await g(e, C[t], {
+	let t = /* @__PURE__ */ new Map(), n = {
+		cancelledWatches: 0,
+		deduplicatedWatches: 0,
+		pollErrors: 0,
+		polls: 0,
+		submissions: 0
+	}, r = async (t, r, i) => {
+		let a = await g(e, C[t], {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(n ?? {})
-		}, r);
-		return T(i), i;
-	}, r = (t, n, r) => n ? g(e, `${C[t]}/${encodeURIComponent(n)}`, {}, r) : Promise.reject(/* @__PURE__ */ TypeError("Task ID is required")), i = async (e, t, n = {}) => {
-		let { intervalMs: i = e === "video" ? 2500 : 1800, maxPollErrors: a = 3, requestTimeoutMs: o = 3e4 } = n, s = Date.now(), c = 0;
+			body: JSON.stringify(r ?? {})
+		}, i);
+		return T(a), n.submissions += 1, a;
+	}, i = (t, n, r) => n ? g(e, `${C[t]}/${encodeURIComponent(n)}`, {}, r) : Promise.reject(/* @__PURE__ */ TypeError("Task ID is required")), a = async (e, t, r = {}) => {
+		let { intervalMs: a = e === "video" ? 2500 : 1800, maxPollErrors: o = 3, requestTimeoutMs: s = 3e4 } = r, c = Date.now(), l = 0;
 		for (;;) {
-			E(n.signal, s, n.timeoutMs);
+			E(r.signal, c, r.timeoutMs);
 			try {
-				let i = await r(e, t, {
-					signal: n.signal,
-					timeoutMs: o
+				n.polls += 1;
+				let a = await i(e, t, {
+					signal: r.signal,
+					timeoutMs: s
 				});
-				if (c = 0, i.status === "succeeded" || i.status === "failed" || i.status === "cancelled") return i;
+				if (l = 0, a.status === "succeeded" || a.status === "failed" || a.status === "cancelled") return a;
 			} catch (e) {
-				if (!(e instanceof h) || !e.retryable || c++ >= a) throw e;
+				if (n.pollErrors += 1, !(e instanceof h) || !e.retryable || l++ >= o) throw e;
 			}
-			await D(i, n.signal, s, n.timeoutMs);
+			await D(a, r.signal, c, r.timeoutMs);
 		}
-	}, a = (e, n, r = {}) => {
-		let a = `${e}:${n}`, o = t.get(a);
-		if (o) return o.promise;
-		let s = new AbortController(), c = () => s.abort(r.signal?.reason);
-		r.signal?.aborted ? c() : r.signal?.addEventListener("abort", c, { once: !0 });
-		let l = i(e, n, {
-			...r,
-			signal: s.signal
+	}, o = (e, r, i = {}) => {
+		let o = `${e}:${r}`, s = t.get(o);
+		if (s) return n.deduplicatedWatches += 1, s.promise;
+		let c = new AbortController(), l = () => c.abort(i.signal?.reason);
+		i.signal?.aborted ? l() : i.signal?.addEventListener("abort", l, { once: !0 });
+		let u = a(e, r, {
+			...i,
+			signal: c.signal
 		}).finally(() => {
-			r.signal?.removeEventListener("abort", c), t.delete(a);
+			i.signal?.removeEventListener("abort", l), t.delete(o);
 		});
-		return t.set(a, {
-			controller: s,
-			promise: l
-		}), l;
+		return t.set(o, {
+			controller: c,
+			promise: u
+		}), u;
 	};
 	return {
-		cancel: (e, n) => {
-			let r = t.get(`${e}:${n}`);
-			return r ? (r.controller.abort(), !0) : !1;
+		cancel: (e, r) => {
+			let i = t.get(`${e}:${r}`);
+			return i ? (i.controller.abort(), n.cancelledWatches += 1, !0) : !1;
 		},
-		get: r,
-		resume: (e, t) => Promise.allSettled(e.map(({ kind: e, id: n }) => a(e, n, t))),
-		submit: n,
-		wait: i,
+		get: i,
+		getDiagnostics: () => ({
+			activeWatches: t.size,
+			...n
+		}),
+		resume: (e, t) => Promise.allSettled(e.map(({ kind: e, id: n }) => o(e, n, t))),
+		submit: r,
+		wait: a,
 		waitForResult: async (e, t, n) => {
-			let r = await i(e, t, n);
+			let r = await a(e, t, n);
 			if (r.status !== "succeeded") throw new h(r.error || "Task failed", "task-failed", 0, r);
 			return r.result;
 		},
-		watch: a
+		watch: o
 	};
 }
 function T(e) {
@@ -514,7 +542,7 @@ function Y(e, t, n) {
 	};
 }
 window.CanvasModernCore = Object.freeze({
-	version: 10,
+	version: 11,
 	canvasRepository: z,
 	canvasRepositoryEnabled: I,
 	executionEngineEnabled: P,
@@ -626,7 +654,9 @@ window.CanvasModernCore = Object.freeze({
 				executionEngine: P,
 				repository: I,
 				taskClient: F
-			}
+			},
+			repository: z.getDiagnostics(),
+			tasks: R.getDiagnostics()
 		};
 	}
 });
@@ -636,5 +666,5 @@ function X(e, t) {
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "10", document.documentElement.dataset.canvasModernExecutionEngine = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = A ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = F ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "11", document.documentElement.dataset.canvasModernExecutionEngine = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = A ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = F ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

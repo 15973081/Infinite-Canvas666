@@ -33,6 +33,14 @@ describe('task client', () => {
       { method: 'GET', url: '/api/canvas-image-tasks/image%2F1' },
       { method: 'GET', url: '/api/canvas-image-tasks/image%2F1' },
     ]);
+    expect(client.getDiagnostics()).toEqual({
+      activeWatches: 0,
+      cancelledWatches: 0,
+      deduplicatedWatches: 0,
+      pollErrors: 0,
+      polls: 3,
+      submissions: 1,
+    });
   });
 
   it('retries transient polling failures but keeps missing tasks terminal', async () => {
@@ -59,11 +67,19 @@ describe('task client', () => {
       return jsonResponse({ id: 'image-1', status: 'running' });
     });
     const pending = client.watch('image', 'image-1', { intervalMs: 10_000 });
+    const duplicate = client.watch('image', 'image-1', { intervalMs: 10_000 });
     await Promise.resolve();
 
+    expect(duplicate).toBe(pending);
     expect(client.cancel('image', 'image-1')).toBe(true);
     await expect(pending).rejects.toMatchObject({ code: 'aborted' });
     expect(methods).toEqual(['GET']);
+    expect(client.getDiagnostics()).toMatchObject({
+      activeWatches: 0,
+      cancelledWatches: 1,
+      deduplicatedWatches: 1,
+      polls: 1,
+    });
   });
 
   it('resumes persisted image and video task references', async () => {
@@ -108,6 +124,7 @@ describe('canvas repository', () => {
       { method: 'PUT', url: '/api/canvases/canvas%2F1' },
     ]);
     expect(JSON.parse(requests[1].body || '{}').custom).toEqual({ preserved: true });
+    expect(repository.getDiagnostics()).toMatchObject({ loads: 1, saves: 1, conflicts: 0, errors: 0 });
   });
 
   it('returns the server document and timestamp on a 409 conflict', async () => {
@@ -124,6 +141,7 @@ describe('canvas repository', () => {
     expect(error).toBeInstanceOf(CanvasConflictError);
     expect(error).toMatchObject({ code: 'conflict', updatedAt: 20 });
     expect((error as CanvasConflictError).serverCanvas?.custom).toEqual({ preserved: true });
+    expect(repository.getDiagnostics()).toMatchObject({ conflicts: 1, errors: 0, saves: 0 });
   });
 
   it('encodes backup paths and decodes restored documents', async () => {
@@ -144,6 +162,11 @@ describe('canvas repository', () => {
       '/api/canvases/canvas%2F1/backups',
       '/api/canvases/canvas%2F1/backups/one%20copy.json/restore',
     ]);
+    expect(repository.getDiagnostics()).toMatchObject({
+      backupsCreated: 1,
+      backupsListed: 1,
+      backupsRestored: 1,
+    });
   });
 });
 

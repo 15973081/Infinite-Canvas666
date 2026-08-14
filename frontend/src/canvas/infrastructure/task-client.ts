@@ -24,9 +24,19 @@ export interface TaskReference {
   kind: CanvasTaskKind;
 }
 
+export interface TaskClientDiagnostics {
+  activeWatches: number;
+  cancelledWatches: number;
+  deduplicatedWatches: number;
+  pollErrors: number;
+  polls: number;
+  submissions: number;
+}
+
 export interface TaskClient {
   cancel(kind: CanvasTaskKind, taskId: string): boolean;
   get(kind: CanvasTaskKind, taskId: string, options?: RequestOptions): Promise<CanvasTaskRecord>;
+  getDiagnostics(): TaskClientDiagnostics;
   resume(tasks: readonly TaskReference[], options?: TaskWaitOptions): Promise<PromiseSettledResult<CanvasTaskRecord>[]>;
   submit(kind: CanvasTaskKind, payload: unknown, options?: RequestOptions): Promise<CanvasTaskRecord>;
   wait(kind: CanvasTaskKind, taskId: string, options?: TaskWaitOptions): Promise<CanvasTaskRecord>;
@@ -41,6 +51,7 @@ const taskPaths: Record<CanvasTaskKind, string> = {
 
 export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
   const active = new Map<string, { controller: AbortController; promise: Promise<CanvasTaskRecord> }>();
+  const diagnostics = { cancelledWatches: 0, deduplicatedWatches: 0, pollErrors: 0, polls: 0, submissions: 0 };
 
   const submit: TaskClient['submit'] = async (kind, payload, options) => {
     const task = await requestJson<CanvasTaskRecord>(fetcher, taskPaths[kind], {
@@ -49,6 +60,7 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
       body: JSON.stringify(payload ?? {}),
     }, options);
     requireTaskId(task);
+    diagnostics.submissions += 1;
     return task;
   };
 
@@ -64,10 +76,12 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
     while (true) {
       throwIfStopped(options.signal, startedAt, options.timeoutMs);
       try {
+        diagnostics.polls += 1;
         const task = await get(kind, taskId, { signal: options.signal, timeoutMs: requestTimeoutMs });
         pollErrors = 0;
         if (task.status === 'succeeded' || task.status === 'failed' || task.status === 'cancelled') return task;
       } catch (error) {
+        diagnostics.pollErrors += 1;
         if (!(error instanceof ApiError) || !error.retryable || pollErrors++ >= maxPollErrors) throw error;
       }
       await delay(intervalMs, options.signal, startedAt, options.timeoutMs);
@@ -77,7 +91,10 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
   const watch: TaskClient['watch'] = (kind, taskId, options = {}) => {
     const key = `${kind}:${taskId}`;
     const existing = active.get(key);
-    if (existing) return existing.promise;
+    if (existing) {
+      diagnostics.deduplicatedWatches += 1;
+      return existing.promise;
+    }
     const controller = new AbortController();
     const abort = () => controller.abort(options.signal?.reason);
     if (options.signal?.aborted) abort();
@@ -94,6 +111,7 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
     const tracked = active.get(`${kind}:${taskId}`);
     if (!tracked) return false;
     tracked.controller.abort();
+    diagnostics.cancelledWatches += 1;
     return true;
   };
 
@@ -109,7 +127,9 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
     tasks.map(({ kind, id }) => watch(kind, id, options)),
   );
 
-  return { cancel, get, resume, submit, wait, waitForResult, watch };
+  const getDiagnostics = (): TaskClientDiagnostics => ({ activeWatches: active.size, ...diagnostics });
+
+  return { cancel, get, getDiagnostics, resume, submit, wait, waitForResult, watch };
 }
 
 function requireTaskId(task: CanvasTaskRecord): string {

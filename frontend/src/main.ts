@@ -13,8 +13,12 @@ import {
   type ExecutionTerminalStatus,
 } from './canvas/domain/execution';
 import { createGraphModel } from './canvas/domain/graph';
-import { createCanvasRepository, type CanvasRepository } from './canvas/infrastructure/canvas-repository';
-import { createTaskClient, type TaskClient } from './canvas/infrastructure/task-client';
+import {
+  createCanvasRepository,
+  type CanvasRepository,
+  type CanvasRepositoryDiagnostics,
+} from './canvas/infrastructure/canvas-repository';
+import { createTaskClient, type TaskClient, type TaskClientDiagnostics } from './canvas/infrastructure/task-client';
 
 interface LegacyBridge {
   computeCascadeOrder(targetId: string): string[];
@@ -67,6 +71,8 @@ interface M2Report {
     repository: boolean;
     taskClient: boolean;
   };
+  repository: CanvasRepositoryDiagnostics;
+  tasks: TaskClientDiagnostics;
 }
 
 interface OrderedExecutionRequest {
@@ -106,7 +112,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 10;
+      version: 11;
     };
   }
 }
@@ -152,7 +158,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 10 as const,
+  version: 11 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -284,6 +290,8 @@ window.CanvasModernCore = Object.freeze({
         repository: canvasRepositoryEnabled,
         taskClient: taskClientEnabled,
       },
+      repository: canvasRepository.getDiagnostics(),
+      tasks: taskClient.getDiagnostics(),
     };
   },
 });
@@ -295,7 +303,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '10';
+document.documentElement.dataset.canvasModernCore = '11';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';

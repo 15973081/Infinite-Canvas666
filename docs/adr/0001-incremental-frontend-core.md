@@ -61,4 +61,4 @@
 
 阶段 4 和阶段 5 的代码、回退开关、领域/契约测试及 mock 网络的 Playwright 主链已经齐备，可以在内部同时开启三个 M2 开关收集真实差异、错误和性能数据。默认地址继续使用旧路径；在内部样本无重复任务、无孤儿轮询、无字段损失，并经历两个稳定发布周期前，不默认启用新边界，也不启动 React 状态所有权迁移。
 
-内部灰度可使用 `/static/canvas.html?canvas_m2=1` 一次启用 ExecutionEngine、TaskClient 和 CanvasRepository；三个原有独立开关仍保留，便于单项回退。`CanvasModernCore.getM2Report()` 返回当前开关和现代执行的活动数、终态计数及转换数，供灰度验收采样；默认地址不受影响。
+内部灰度可使用 `/static/canvas.html?canvas_m2=1` 一次启用 ExecutionEngine、TaskClient 和 CanvasRepository；三个原有独立开关仍保留，便于单项回退。`CanvasModernCore.getM2Report()` 返回当前开关、现代执行状态、任务提交/轮询/活动观察器计数，以及画布读取/保存/冲突/备份计数，供灰度验收采样；默认地址不受影响。
