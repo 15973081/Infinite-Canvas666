@@ -33,6 +33,16 @@ describe('execution state', () => {
     );
   });
 
+  it('tracks repeated serial loop rounds', () => {
+    let state = runningState();
+    for (const nodeId of ['a', 'target', 'a', 'target']) {
+      state = transitionExecution(state, { type: 'node-start', nodeId });
+      state = transitionExecution(state, { type: 'node-done', nodeId });
+    }
+
+    expect(state).toMatchObject({ completedRounds: 2, completedNodeIds: ['a', 'target'] });
+  });
+
   it('rejects starting an idle run', () => {
     expect(() => transitionExecution(createExecutionState(), { type: 'start' })).toThrow(
       'Invalid execution transition',

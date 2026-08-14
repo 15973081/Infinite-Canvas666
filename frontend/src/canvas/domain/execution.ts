@@ -4,6 +4,7 @@ export type ExecutionTerminalStatus = Extract<ExecutionStatus, 'done' | 'failed'
 
 export interface ExecutionState {
   completedNodeIds: string[];
+  completedRounds: number;
   currentNodeId: string;
   error: string;
   mode: ExecutionMode;
@@ -36,6 +37,7 @@ export interface ReservedExecutionResult {
 export function createExecutionState(): ExecutionState {
   return {
     completedNodeIds: [],
+    completedRounds: 0,
     currentNodeId: '',
     error: '',
     mode: 'serial',
@@ -51,6 +53,7 @@ export function transitionExecution(state: ExecutionState, event: ExecutionEvent
     if (!event.targetId || !event.order.length) throw new Error('Execution queue requires a target and order');
     return {
       completedNodeIds: [],
+      completedRounds: 0,
       currentNodeId: '',
       error: '',
       mode: event.mode,
@@ -73,16 +76,19 @@ export function transitionExecution(state: ExecutionState, event: ExecutionEvent
 
   if (event.type === 'node-start') {
     if (state.status !== 'running' || state.currentNodeId) invalidTransition(state, event);
-    const expected = state.order[state.completedNodeIds.length];
+    const completedNodeIds = state.completedNodeIds.length === state.order.length ? [] : state.completedNodeIds;
+    const expected = state.order[completedNodeIds.length];
     if (event.nodeId !== expected) throw new Error(`Expected execution node ${expected || '<none>'}`);
-    return { ...state, currentNodeId: event.nodeId };
+    return { ...state, completedNodeIds, currentNodeId: event.nodeId };
   }
 
   if (event.type === 'node-done') {
     if (state.status !== 'running' || state.currentNodeId !== event.nodeId) invalidTransition(state, event);
+    const completedNodeIds = [...state.completedNodeIds, event.nodeId];
     return {
       ...state,
-      completedNodeIds: [...state.completedNodeIds, event.nodeId],
+      completedNodeIds,
+      completedRounds: state.completedRounds + (completedNodeIds.length === state.order.length ? 1 : 0),
       currentNodeId: '',
     };
   }

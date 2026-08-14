@@ -33,6 +33,8 @@ interface ShadowReport {
 
 type ExecutionObservation =
   | { phase: 'begin'; targetId: string; order: string[]; mode: ExecutionMode }
+  | { phase: 'node-start'; targetId: string; nodeId: string }
+  | { phase: 'node-done'; targetId: string; nodeId: string }
   | { phase: 'stop'; targetId: string }
   | { phase: 'finish'; targetId: string; status: ExecutionTerminalStatus; error?: string };
 
@@ -53,7 +55,7 @@ declare global {
       getShadowReport(): ShadowReport;
       observeExecution(observation: ExecutionObservation): void;
       observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void;
-      version: 5;
+      version: 6;
     };
   }
 }
@@ -88,7 +90,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 5 as const,
+  version: 6 as const,
   activeOrder(kind: OrderKind, targetId: string): string[] | null {
     if (!graphOrderEnabled) return null;
     try {
@@ -114,6 +116,10 @@ window.CanvasModernCore = Object.freeze({
           mode: observation.mode,
         });
         state = transitionExecution(state, { type: 'start' });
+      } else if (observation.phase === 'node-start') {
+        state = transitionExecution(state, { type: 'node-start', nodeId: observation.nodeId });
+      } else if (observation.phase === 'node-done') {
+        state = transitionExecution(state, { type: 'node-done', nodeId: observation.nodeId });
       } else if (observation.phase === 'stop') {
         state = transitionExecution(state, { type: 'request-stop' });
       } else {
@@ -171,7 +177,7 @@ window.CanvasModernCore = Object.freeze({
   },
 });
 
-document.documentElement.dataset.canvasModernCore = '5';
+document.documentElement.dataset.canvasModernCore = '6';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
 document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';

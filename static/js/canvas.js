@@ -11318,19 +11318,22 @@ function bindCascadeButtons(wrap, nodeId){
     });
 }
 // —— 一键运行：从目标节点反向追溯到所有上游生成节点，按拓扑顺序串行执行 ——
-function runCascadeNodeByType(node, opts={}){
+async function runCascadeNodeByType(node, opts={}){
     if(isCanvasLockedByOther()){
         setStatus('画布正被其他人编辑中，无法执行');
-        return Promise.resolve();
+        return;
     }
     const runOpts = {cascade:true, ...opts};
-    if(node.type === 'generator') return runGenerator(node.id, runOpts);
-    if(node.type === 'msgen') return runMsGenNode(node.id, runOpts);
-    if(node.type === 'comfy') return runComfyNode(node.id, runOpts);
-    if(node.type === 'ltxDirector') return runLTXDirectorNode(node.id, runOpts);
-    if(node.type === 'llm') return runLLMNode(node.id, runOpts);
-    if(node.type === 'video') return runVideoNode(node.id, runOpts);
-    return Promise.resolve();
+    const targetId = cascadeTargetIdFromOptions(runOpts);
+    const observeNode = targetId && cascadeContextFor(targetId)?.mode !== 'parallel';
+    if(observeNode) window.CanvasModernCore?.observeExecution?.({phase:'node-start', targetId, nodeId:node.id});
+    if(node.type === 'generator') await runGenerator(node.id, runOpts);
+    else if(node.type === 'msgen') await runMsGenNode(node.id, runOpts);
+    else if(node.type === 'comfy') await runComfyNode(node.id, runOpts);
+    else if(node.type === 'ltxDirector') await runLTXDirectorNode(node.id, runOpts);
+    else if(node.type === 'llm') await runLLMNode(node.id, runOpts);
+    else if(node.type === 'video') await runVideoNode(node.id, runOpts);
+    if(observeNode) window.CanvasModernCore?.observeExecution?.({phase:'node-done', targetId, nodeId:node.id});
 }
 function runCascadeNodeWithLoopContext(node, ctx, opts={}){
     return runCascadeNodeByType(node, {...opts, loopContext:ctx || null});
@@ -11588,12 +11591,7 @@ async function runOneCascadePass(order, options={}){
         node.runStatus = 'running';
         refreshNodes([id]);
         try {
-            if(node.type === 'generator') await runGenerator(id, {cascade:true, cascadeTargetId:targetId});
-            else if(node.type === 'msgen') await runMsGenNode(id, {cascade:true, cascadeTargetId:targetId});
-            else if(node.type === 'comfy') await runComfyNode(id, {cascade:true, cascadeTargetId:targetId});
-            else if(node.type === 'ltxDirector') await runLTXDirectorNode(id, {cascade:true, cascadeTargetId:targetId});
-            else if(node.type === 'llm') await runLLMNode(id, {cascade:true, cascadeTargetId:targetId});
-            else if(node.type === 'video') await runVideoNode(id, {cascade:true, cascadeTargetId:targetId});
+            await runCascadeNodeByType(node, {cascade:true, cascadeTargetId:targetId});
             if(targetId) ensureCascadeActive(targetId);
             node.runStatus = 'done';
             refreshNodes([id]);

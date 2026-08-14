@@ -99,6 +99,7 @@ class CanvasRunEntryTest(unittest.TestCase):
     def test_retry_runs_failed_node_and_reachable_downstream_in_order(self):
         source = CANVAS_JS.read_text(encoding="utf-8")
         retry_order = _function_source(source, "computeLegacyRetryCascadeOrder")
+        retry_pass = _source_between(source, "async function runOneCascadePass(", "// 失败重试")
         retry_run = _source_between(source, "async function retryNodeAndDownstream(", "function cancelCascade(")
 
         self.assertIn("connections.filter(c => c.from === id)", retry_order)
@@ -107,6 +108,8 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("downstream.has(candidate)", retry_order)
         self.assertIn("const remain = computeRetryCascadeOrder(nodeId)", retry_run)
         self.assertNotIn("computeCascadeOrder(nodeId)", retry_run)
+        self.assertIn("await runCascadeNodeByType(node", retry_pass)
+        self.assertNotIn("await runGenerator(", retry_pass)
 
     def test_parallel_loop_context_is_passed_per_run(self):
         source = CANVAS_JS.read_text(encoding="utf-8")
