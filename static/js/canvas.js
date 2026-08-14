@@ -2045,6 +2045,9 @@ window.CanvasLegacyBridge = Object.freeze({
     },
     computeCascadeOrder(targetId){
         return [...computeCascadeOrder(targetId)];
+    },
+    computeRetryCascadeOrder(nodeId){
+        return [...computeRetryCascadeOrder(nodeId)];
     }
 });
 async function saveCanvas(){
@@ -11440,6 +11443,7 @@ async function runNodeCascade(nodeId){
     if(!target) return;
     if(target.running){ alert('当前节点正在运行'); return; }
     const order = computeCascadeOrder(nodeId);
+    window.CanvasModernCore?.observeOrder?.('cascade', nodeId, order);
     if(!order.length){ alert('没有可运行的生成节点'); return; }
     if(cascadeBusyNodeId(order)){ alert('工作流中的节点正在运行'); return; }
     const loop = resolveCascadeLoop(nodeId);
@@ -11587,6 +11591,7 @@ async function retryNodeAndDownstream(nodeId){
     if(!target) return;
     if(isCascadeActive(nodeId)) return;
     const remain = computeRetryCascadeOrder(nodeId);
+    window.CanvasModernCore?.observeOrder?.('retry', nodeId, remain);
     if(!remain.length) return;
     if(cascadeBusyNodeId(remain)) return;
     beginCascade(nodeId, remain, {serial:true, mode:'retry'});

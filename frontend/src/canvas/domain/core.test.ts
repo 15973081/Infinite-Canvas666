@@ -92,4 +92,24 @@ describe('graph model', () => {
     };
     expect(createGraphModel(graph).cascadeOrder('b')).toEqual(['a', 'b']);
   });
+
+  it('retries the failed node and reachable downstream without rerunning upstream', () => {
+    const graph = createGraphModel(
+      document(
+        [['a', 'generator'], ['b', 'llm'], ['out', 'output'], ['c', 'video'], ['other', 'comfy']],
+        [['a', 'b'], ['b', 'out'], ['out', 'c'], ['a', 'other']],
+      ),
+    );
+    expect(graph.retryCascadeOrder('b')).toEqual(['b', 'c']);
+  });
+
+  it('keeps retry order topological across downstream branches and merges', () => {
+    const graph = createGraphModel(
+      document(
+        [['a', 'generator'], ['b', 'llm'], ['c', 'comfy'], ['d', 'video']],
+        [['a', 'b'], ['a', 'c'], ['b', 'd'], ['c', 'd']],
+      ),
+    );
+    expect(graph.retryCascadeOrder('a')).toEqual(['a', 'b', 'c', 'd']);
+  });
 });

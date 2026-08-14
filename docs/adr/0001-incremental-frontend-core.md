@@ -26,3 +26,7 @@
 ## 后续决策门
 
 完成 Graph、Execution、Persistence 和浏览器回归后，再决定是否继续 React Board。可靠性指标达标时，允许停止 UI 框架迁移。
+
+## Graph 影子模式
+
+直接打开 `/static/canvas.html?canvas_modern_core=shadow` 可在真实级联运行和失败重试开始前比较新旧图顺序。比较不替换调度、不发送数据，结果可通过 `CanvasModernCore.getShadowReport()` 查看；最多保留 50 条差异。

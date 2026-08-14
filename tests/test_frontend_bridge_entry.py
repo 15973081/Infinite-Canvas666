@@ -9,7 +9,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.14.1'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.14.2'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
@@ -22,7 +22,13 @@ class FrontendBridgeEntryTest(unittest.TestCase):
 
         self.assertIn("getDocumentSnapshot()", bridge)
         self.assertIn("JSON.parse(JSON.stringify", bridge)
+        self.assertIn("computeRetryCascadeOrder(nodeId)", bridge)
         self.assertNotIn("scheduleSave(", bridge)
+
+    def test_shadow_observers_run_only_at_execution_entries(self):
+        source = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
+        self.assertEqual(1, source.count("observeOrder?.('cascade'"))
+        self.assertEqual(1, source.count("observeOrder?.('retry'"))
 
 
 if __name__ == "__main__":

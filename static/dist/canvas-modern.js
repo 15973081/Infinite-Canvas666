@@ -80,8 +80,28 @@ function o(e, t = a) {
 		}
 		return !1;
 	}
+	function l(e) {
+		let r = /* @__PURE__ */ new Set(), a = /* @__PURE__ */ new Set();
+		function s(e) {
+			if (r.has(e)) return;
+			r.add(e);
+			let o = n.get(e);
+			if (o) {
+				t.has(o.type) && a.add(e);
+				for (let r of i.get(e) ?? []) {
+					let e = n.get(r.to);
+					e && (t.has(e.type) || e.type === "output") && s(e.id);
+				}
+			}
+		}
+		s(e);
+		let c = [], l = /* @__PURE__ */ new Set();
+		for (let e of a) for (let t of o(e)) a.has(t) && !l.has(t) && (l.add(t), c.push(t));
+		return c;
+	}
 	return {
 		cascadeOrder: o,
+		retryCascadeOrder: l,
 		wouldCreateCycle: c
 	};
 }
@@ -93,17 +113,44 @@ function s(e, t) {
 	}
 	return n;
 }
+//#endregion
+//#region src/main.ts
+var c = new URLSearchParams(window.location.search).get("canvas_modern_core") === "shadow", l = [], u = 0, d = 0;
+function f(e, t, n) {
+	let r = window.CanvasLegacyBridge, a = r?.getDocumentSnapshot();
+	if (!r || !a) return null;
+	let s = o(i(a)), c = e === "cascade" ? s.cascadeOrder(t) : s.retryCascadeOrder(t), l = n ?? (e === "cascade" ? r.computeCascadeOrder(t) : r.computeRetryCascadeOrder(t));
+	return {
+		kind: e,
+		legacy: [...l],
+		modern: c,
+		targetId: t,
+		matches: l.length === c.length && l.every((e, t) => e === c[t])
+	};
+}
 window.CanvasModernCore = Object.freeze({
-	version: 1,
-	compareCascadeOrder(e) {
-		let t = window.CanvasLegacyBridge, n = t?.getDocumentSnapshot();
-		if (!t || !n) return null;
-		let r = o(i(n)).cascadeOrder(e), a = t.computeCascadeOrder(e);
+	version: 2,
+	compareOrder: f,
+	observeOrder(e, t, n) {
+		if (c) try {
+			let r = f(e, t, n);
+			if (!r) return;
+			u += 1, r.matches || (l.length < 50 && l.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+		} catch (e) {
+			d += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+		}
+	},
+	getShadowReport() {
 		return {
-			legacy: a,
-			modern: r,
-			matches: a.length === r.length && a.every((e, t) => e === r[t])
+			enabled: c,
+			checks: u,
+			errors: d,
+			mismatches: l.map((e) => ({
+				...e,
+				legacy: [...e.legacy],
+				modern: [...e.modern]
+			}))
 		};
 	}
-}), document.documentElement.dataset.canvasModernCore = "1", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+}), document.documentElement.dataset.canvasModernCore = "2", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernShadow = c ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

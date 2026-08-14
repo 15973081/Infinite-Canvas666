@@ -11,6 +11,7 @@ export const DEFAULT_RUN_NODE_TYPES = new Set([
 
 export interface GraphModel {
   cascadeOrder(targetId: string): string[];
+  retryCascadeOrder(nodeId: string): string[];
   wouldCreateCycle(fromId: string, toId: string): boolean;
 }
 
@@ -70,7 +71,37 @@ export function createGraphModel(
     return false;
   }
 
-  return { cascadeOrder, wouldCreateCycle };
+  function retryCascadeOrder(nodeId: string): string[] {
+    const visited = new Set<string>();
+    const downstream = new Set<string>();
+
+    function walk(id: string): void {
+      if (visited.has(id)) return;
+      visited.add(id);
+      const current = nodes.get(id);
+      if (!current) return;
+      if (runNodeTypes.has(current.type)) downstream.add(id);
+      for (const edge of outgoing.get(id) ?? []) {
+        const next = nodes.get(edge.to);
+        if (next && (runNodeTypes.has(next.type) || next.type === 'output')) walk(next.id);
+      }
+    }
+
+    walk(nodeId);
+    const order: string[] = [];
+    const added = new Set<string>();
+    for (const id of downstream) {
+      for (const candidate of cascadeOrder(id)) {
+        if (downstream.has(candidate) && !added.has(candidate)) {
+          added.add(candidate);
+          order.push(candidate);
+        }
+      }
+    }
+    return order;
+  }
+
+  return { cascadeOrder, retryCascadeOrder, wouldCreateCycle };
 }
 
 function indexEdges(edges: CanvasEdge[], key: 'from' | 'to'): Map<string, CanvasEdge[]> {
