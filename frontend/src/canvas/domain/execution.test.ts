@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   createExecutionState,
   runLimitedExecutionRounds,
+  runReservedExecution,
+  runRetryExecution,
   runReservedSerialExecution,
   runSerialExecution,
   transitionExecution,
@@ -116,6 +118,49 @@ describe('execution state', () => {
     expect(state).toMatchObject({ status: 'done', completedNodeIds: ['a', 'b'], currentNodeId: '' });
   });
 
+  it('runs downstream retry order and reports every transition', async () => {
+    const calls: string[] = [];
+    const transitions: string[] = [];
+    const state = await runRetryExecution('failed', ['failed', 'child'], async (nodeId) => {
+      calls.push(nodeId);
+    }, {
+      onTransition: (snapshot, event) => transitions.push(`${event.type}:${snapshot.status}`),
+    });
+
+    expect(calls).toEqual(['failed', 'child']);
+    expect(state).toMatchObject({ mode: 'retry', status: 'done', completedNodeIds: ['failed', 'child'] });
+    expect(transitions).toEqual([
+      'queue:queued',
+      'start:running',
+      'node-start:running',
+      'node-done:running',
+      'node-start:running',
+      'node-done:running',
+      'finish:done',
+    ]);
+  });
+
+  it('reports stopping and drains a node that completed during cancellation', async () => {
+    const controller = new AbortController();
+    const calls: string[] = [];
+    const transitions: string[] = [];
+    const state = await runRetryExecution('a', ['a', 'b'], async (nodeId) => {
+      calls.push(nodeId);
+      controller.abort();
+    }, {
+      signal: controller.signal,
+      onTransition: (snapshot, event) => transitions.push(`${event.type}:${snapshot.status}`),
+    });
+
+    expect(calls).toEqual(['a']);
+    expect(state).toMatchObject({ status: 'stopped', completedNodeIds: ['a'], currentNodeId: '' });
+    expect(transitions.slice(-3)).toEqual([
+      'request-stop:stopping',
+      'node-done:stopping',
+      'finish:stopped',
+    ]);
+  });
+
   it('stops at the failed node without calling downstream', async () => {
     const calls: string[] = [];
     const state = await runSerialExecution('target', ['a', 'b', 'c'], async (nodeId) => {
@@ -206,6 +251,25 @@ describe('execution state', () => {
     expect(secondCalls).toEqual([]);
     releaseShared();
     expect((await first).state?.status).toBe('done');
+    expect(reservations.size).toBe(0);
+  });
+
+  it('preserves retry mode and events through shared node reservations', async () => {
+    const reservations = new Map<string, string>();
+    const transitions: string[] = [];
+    const result = await runReservedExecution(reservations, 'retry-run', ['failed'], async () => {}, {
+      mode: 'retry',
+      onTransition: (snapshot, event) => transitions.push(`${event.type}:${snapshot.status}`),
+    });
+
+    expect(result.state).toMatchObject({ mode: 'retry', status: 'done' });
+    expect(transitions).toEqual([
+      'queue:queued',
+      'start:running',
+      'node-start:running',
+      'node-done:running',
+      'finish:done',
+    ]);
     expect(reservations.size).toBe(0);
   });
 

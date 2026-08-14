@@ -38,3 +38,7 @@
 ## Execution 生命周期影子模式
 
 直接打开 `/static/canvas.html?canvas_modern_core=execution-shadow` 时，现代内核只观察旧调度器的开始、停止请求和结束事件，并对串行级联、重试及并行循环追加逐节点状态校验；并行轮次按 loop index 隔离，停止后允许已在途节点完成回报但禁止启动新节点。影子模式不调用节点执行器、不发送请求、不修改旧运行状态；结果可通过 `CanvasModernCore.getExecutionShadowReport()` 查看。
+
+## Execution 有序运行内核
+
+串行级联和失败重试共用 `runOrderedExecution`，通过 `mode` 区分运行语义，并按状态转换同步发出观察事件。兼容入口和共享节点保留执行均委托给同一实现；AbortSignal 会产生显式的 `stopping`、在途节点排空和 `stopped` 序列。该内核尚未切换生产调度，旧执行器仍是唯一副作用来源。

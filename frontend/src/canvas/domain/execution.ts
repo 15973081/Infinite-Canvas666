@@ -1,4 +1,5 @@
 export type ExecutionMode = 'parallel' | 'retry' | 'serial';
+export type OrderedExecutionMode = Exclude<ExecutionMode, 'parallel'>;
 export type ExecutionStatus = 'idle' | 'queued' | 'running' | 'stopping' | 'done' | 'failed' | 'stopped';
 export type ExecutionTerminalStatus = Extract<ExecutionStatus, 'done' | 'failed' | 'stopped'>;
 
@@ -28,6 +29,13 @@ export type ExecutionEvent =
   | { type: 'finish'; status: ExecutionTerminalStatus; error?: string };
 
 export type NodeExecutor = (nodeId: string, signal?: AbortSignal) => Promise<void>;
+export type ExecutionObserver = (state: Readonly<ExecutionState>, event: ExecutionEvent) => void;
+
+export interface OrderedExecutionOptions {
+  mode?: OrderedExecutionMode;
+  onTransition?: ExecutionObserver;
+  signal?: AbortSignal;
+}
 
 export interface LimitedExecutionResult<T> {
   completed: T[];
@@ -146,27 +154,61 @@ export async function runSerialExecution(
   execute: NodeExecutor,
   signal?: AbortSignal,
 ): Promise<ExecutionState> {
-  let state = transitionExecution(createExecutionState(), { type: 'queue', targetId, order, mode: 'serial' });
-  state = transitionExecution(state, { type: 'start' });
+  return runOrderedExecution(targetId, order, execute, { signal });
+}
+
+export async function runRetryExecution(
+  targetId: string,
+  order: readonly string[],
+  execute: NodeExecutor,
+  options: Omit<OrderedExecutionOptions, 'mode'> = {},
+): Promise<ExecutionState> {
+  return runOrderedExecution(targetId, order, execute, { ...options, mode: 'retry' });
+}
+
+export async function runOrderedExecution(
+  targetId: string,
+  order: readonly string[],
+  execute: NodeExecutor,
+  options: OrderedExecutionOptions = {},
+): Promise<ExecutionState> {
+  const { mode = 'serial', onTransition, signal } = options;
+  let state = applyExecutionEvent(
+    createExecutionState(),
+    { type: 'queue', targetId, order: [...order], mode },
+    onTransition,
+  );
+  state = applyExecutionEvent(state, { type: 'start' }, onTransition);
+
+  const stop = () => {
+    if (state.status === 'running') {
+      state = applyExecutionEvent(state, { type: 'request-stop' }, onTransition);
+    }
+    return applyExecutionEvent(state, { type: 'finish', status: 'stopped' }, onTransition);
+  };
 
   for (const nodeId of order) {
-    if (signal?.aborted) return transitionExecution(state, { type: 'finish', status: 'stopped' });
-    state = transitionExecution(state, { type: 'node-start', nodeId });
+    if (signal?.aborted) return stop();
+    state = applyExecutionEvent(state, { type: 'node-start', nodeId }, onTransition);
     try {
       await execute(nodeId, signal);
     } catch (error) {
-      if (signal?.aborted) return transitionExecution(state, { type: 'finish', status: 'stopped' });
-      return transitionExecution(state, {
+      if (signal?.aborted) return stop();
+      return applyExecutionEvent(state, {
         type: 'finish',
         status: 'failed',
         error: error instanceof Error ? error.message : String(error),
-      });
+      }, onTransition);
     }
-    if (signal?.aborted) return transitionExecution(state, { type: 'finish', status: 'stopped' });
-    state = transitionExecution(state, { type: 'node-done', nodeId });
+    if (signal?.aborted) {
+      state = applyExecutionEvent(state, { type: 'request-stop' }, onTransition);
+      state = applyExecutionEvent(state, { type: 'node-done', nodeId }, onTransition);
+      return stop();
+    }
+    state = applyExecutionEvent(state, { type: 'node-done', nodeId }, onTransition);
   }
 
-  return transitionExecution(state, { type: 'finish', status: 'done' });
+  return applyExecutionEvent(state, { type: 'finish', status: 'done' }, onTransition);
 }
 
 export function reserveExecutionNodes(
@@ -194,10 +236,20 @@ export async function runReservedSerialExecution(
   execute: NodeExecutor,
   signal?: AbortSignal,
 ): Promise<ReservedExecutionResult> {
+  return runReservedExecution(reservations, targetId, order, execute, { signal });
+}
+
+export async function runReservedExecution(
+  reservations: Map<string, string>,
+  targetId: string,
+  order: readonly string[],
+  execute: NodeExecutor,
+  options: OrderedExecutionOptions = {},
+): Promise<ReservedExecutionResult> {
   const conflictNodeId = reserveExecutionNodes(reservations, targetId, order);
   if (conflictNodeId) return { conflictNodeId, state: null };
   try {
-    return { conflictNodeId: null, state: await runSerialExecution(targetId, order, execute, signal) };
+    return { conflictNodeId: null, state: await runOrderedExecution(targetId, order, execute, options) };
   } finally {
     releaseExecutionNodes(reservations, targetId);
   }
@@ -234,4 +286,14 @@ export async function runLimitedExecutionRounds<T>(
 
 function invalidTransition(state: ExecutionState, event: ExecutionEvent): never {
   throw new Error(`Invalid execution transition: ${state.status} -> ${event.type}`);
+}
+
+function applyExecutionEvent(
+  state: ExecutionState,
+  event: ExecutionEvent,
+  observer?: ExecutionObserver,
+): ExecutionState {
+  const next = transitionExecution(state, event);
+  observer?.(next, event);
+  return next;
 }
