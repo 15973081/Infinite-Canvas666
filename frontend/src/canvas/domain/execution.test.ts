@@ -43,6 +43,28 @@ describe('execution state', () => {
     expect(state).toMatchObject({ completedRounds: 2, completedNodeIds: ['a', 'target'] });
   });
 
+  it('tracks interleaved parallel rounds independently', () => {
+    let state = transitionExecution(createExecutionState(), {
+      type: 'queue',
+      targetId: 'target',
+      order: ['a', 'target'],
+      mode: 'parallel',
+    });
+    state = transitionExecution(state, { type: 'start' });
+    state = transitionExecution(state, { type: 'node-start', nodeId: 'a', roundId: '1' });
+    state = transitionExecution(state, { type: 'node-start', nodeId: 'a', roundId: '2' });
+    state = transitionExecution(state, { type: 'node-done', nodeId: 'a', roundId: '2' });
+    state = transitionExecution(state, { type: 'node-done', nodeId: 'a', roundId: '1' });
+    state = transitionExecution(state, { type: 'node-start', nodeId: 'target', roundId: '1' });
+    state = transitionExecution(state, { type: 'node-done', nodeId: 'target', roundId: '1' });
+    state = transitionExecution(state, { type: 'node-start', nodeId: 'target', roundId: '2' });
+    state = transitionExecution(state, { type: 'node-done', nodeId: 'target', roundId: '2' });
+
+    expect(state.completedRounds).toBe(2);
+    expect(state.rounds['1'].completedNodeIds).toEqual(['a', 'target']);
+    expect(state.rounds['2'].completedNodeIds).toEqual(['a', 'target']);
+  });
+
   it('rejects starting an idle run', () => {
     expect(() => transitionExecution(createExecutionState(), { type: 'start' })).toThrow(
       'Invalid execution transition',

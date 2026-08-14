@@ -9,7 +9,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.14.6'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.14.7'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
@@ -50,6 +50,8 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertEqual(1, source.count("observeExecution?.({phase:'begin'"))
         self.assertEqual(1, source.count("observeExecution?.({phase:'node-start'"))
         self.assertEqual(1, source.count("observeExecution?.({phase:'node-done'"))
+        self.assertIn("ctx?.mode === 'parallel'", source)
+        self.assertIn("runOpts.loopContext?.index", source)
         self.assertEqual(1, source.count("observeExecution?.({phase:'stop'"))
         self.assertEqual(1, source.count("observeExecution?.({phase:'finish'"))
 

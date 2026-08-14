@@ -41,6 +41,7 @@ function a() {
 		error: "",
 		mode: "serial",
 		order: [],
+		rounds: {},
 		status: "idle",
 		targetId: ""
 	};
@@ -52,7 +53,7 @@ function o(e, t) {
 			"done",
 			"failed",
 			"stopped"
-		].includes(e.status) || s(e, t), !t.targetId || !t.order.length) throw Error("Execution queue requires a target and order");
+		].includes(e.status) || c(e, t), !t.targetId || !t.order.length) throw Error("Execution queue requires a target and order");
 		return {
 			completedNodeIds: [],
 			completedRounds: 0,
@@ -60,20 +61,22 @@ function o(e, t) {
 			error: "",
 			mode: t.mode,
 			order: [...t.order],
+			rounds: {},
 			status: "queued",
 			targetId: t.targetId
 		};
 	}
-	if (t.type === "start") return e.status !== "queued" && s(e, t), {
+	if (t.type === "start") return e.status !== "queued" && c(e, t), {
 		...e,
 		status: "running"
 	};
-	if (t.type === "request-stop") return e.status === "stopping" ? e : (e.status !== "running" && s(e, t), {
+	if (t.type === "request-stop") return e.status === "stopping" ? e : (e.status !== "running" && c(e, t), {
 		...e,
 		status: "stopping"
 	});
 	if (t.type === "node-start") {
-		(e.status !== "running" || e.currentNodeId) && s(e, t);
+		if (e.mode === "parallel") return s(e, t);
+		(e.status !== "running" || e.currentNodeId) && c(e, t);
 		let n = e.completedNodeIds.length === e.order.length ? [] : e.completedNodeIds, r = e.order[n.length];
 		if (t.nodeId !== r) throw Error(`Expected execution node ${r || "<none>"}`);
 		return {
@@ -83,7 +86,8 @@ function o(e, t) {
 		};
 	}
 	if (t.type === "node-done") {
-		(e.status !== "running" || e.currentNodeId !== t.nodeId) && s(e, t);
+		if (e.mode === "parallel") return s(e, t);
+		(e.status !== "running" || e.currentNodeId !== t.nodeId) && c(e, t);
 		let n = [...e.completedNodeIds, t.nodeId];
 		return {
 			...e,
@@ -92,18 +96,53 @@ function o(e, t) {
 			currentNodeId: ""
 		};
 	}
-	return e.status !== "running" && e.status !== "stopping" && s(e, t), e.status === "stopping" && t.status === "done" && s(e, t), {
+	return e.status !== "running" && e.status !== "stopping" && c(e, t), e.status === "stopping" && t.status === "done" && c(e, t), {
 		...e,
 		error: t.error || "",
 		status: t.status
 	};
 }
 function s(e, t) {
+	(e.status !== "running" || !t.roundId) && c(e, t);
+	let n = e.rounds[t.roundId] ?? {
+		completedNodeIds: [],
+		currentNodeId: ""
+	};
+	if (t.type === "node-start") {
+		n.currentNodeId && c(e, t);
+		let r = e.order[n.completedNodeIds.length];
+		if (t.nodeId !== r) throw Error(`Expected execution node ${r || "<none>"}`);
+		return {
+			...e,
+			rounds: {
+				...e.rounds,
+				[t.roundId]: {
+					...n,
+					currentNodeId: t.nodeId
+				}
+			}
+		};
+	}
+	n.currentNodeId !== t.nodeId && c(e, t);
+	let r = [...n.completedNodeIds, t.nodeId];
+	return {
+		...e,
+		completedRounds: e.completedRounds + +(r.length === e.order.length),
+		rounds: {
+			...e.rounds,
+			[t.roundId]: {
+				completedNodeIds: r,
+				currentNodeId: ""
+			}
+		}
+	};
+}
+function c(e, t) {
 	throw Error(`Invalid execution transition: ${e.status} -> ${t.type}`);
 }
 //#endregion
 //#region src/canvas/domain/graph.ts
-var c = /* @__PURE__ */ new Set([
+var l = /* @__PURE__ */ new Set([
 	"generator",
 	"msgen",
 	"comfy",
@@ -111,10 +150,10 @@ var c = /* @__PURE__ */ new Set([
 	"llm",
 	"video"
 ]);
-function l(e, t = c) {
+function u(e, t = l) {
 	let n = /* @__PURE__ */ new Map();
 	for (let t of e.nodes) n.has(t.id) || n.set(t.id, t);
-	let r = u(e.connections, "to"), i = u(e.connections, "from");
+	let r = d(e.connections, "to"), i = d(e.connections, "from");
 	function a(e) {
 		let i = /* @__PURE__ */ new Set(), a = [];
 		function o(e) {
@@ -175,7 +214,7 @@ function l(e, t = c) {
 		wouldCreateCycle: o
 	};
 }
-function u(e, t) {
+function d(e, t) {
 	let n = /* @__PURE__ */ new Map();
 	for (let r of e) {
 		let e = n.get(r[t]);
@@ -185,11 +224,11 @@ function u(e, t) {
 }
 //#endregion
 //#region src/main.ts
-var d = new URLSearchParams(window.location.search).get("canvas_modern_core"), f = d === "execution-shadow", p = d === "graph-order", m = d === "shadow", h = /* @__PURE__ */ new Map(), g = 0, _ = 0, v = [], y = 0, b = 0;
-function x(e, t, n) {
+var f = new URLSearchParams(window.location.search).get("canvas_modern_core"), p = f === "execution-shadow", m = f === "graph-order", h = f === "shadow", g = /* @__PURE__ */ new Map(), _ = 0, v = 0, y = [], b = 0, x = 0;
+function S(e, t, n) {
 	let r = window.CanvasLegacyBridge, a = r?.getDocumentSnapshot();
 	if (!r || !a) return null;
-	let o = l(i(a)), s = e === "cascade" ? o.cascadeOrder(t) : o.retryCascadeOrder(t), c = n ?? (e === "cascade" ? r.computeCascadeOrder(t) : r.computeRetryCascadeOrder(t));
+	let o = u(i(a)), s = e === "cascade" ? o.cascadeOrder(t) : o.retryCascadeOrder(t), c = n ?? (e === "cascade" ? r.computeCascadeOrder(t) : r.computeRetryCascadeOrder(t));
 	return {
 		kind: e,
 		legacy: [...c],
@@ -199,22 +238,22 @@ function x(e, t, n) {
 	};
 }
 window.CanvasModernCore = Object.freeze({
-	version: 6,
+	version: 7,
 	activeOrder(e, t) {
-		if (!p) return null;
+		if (!m) return null;
 		try {
 			let n = window.CanvasLegacyBridge?.getDocumentSnapshot();
 			if (!n) return null;
-			let r = l(i(n));
+			let r = u(i(n));
 			return e === "cascade" ? r.cascadeOrder(t) : r.retryCascadeOrder(t);
 		} catch (e) {
 			return console.warn("[canvas-modern-core] active graph order failed; using legacy order", e), null;
 		}
 	},
-	compareOrder: x,
+	compareOrder: S,
 	observeExecution(e) {
-		if (f) try {
-			let t = h.get(e.targetId) ?? a();
+		if (p) try {
+			let t = g.get(e.targetId) ?? a();
 			e.phase === "begin" ? (t = o(t, {
 				type: "queue",
 				targetId: e.targetId,
@@ -222,34 +261,36 @@ window.CanvasModernCore = Object.freeze({
 				mode: e.mode
 			}), t = o(t, { type: "start" })) : t = e.phase === "node-start" ? o(t, {
 				type: "node-start",
-				nodeId: e.nodeId
+				nodeId: e.nodeId,
+				roundId: e.roundId
 			}) : e.phase === "node-done" ? o(t, {
 				type: "node-done",
-				nodeId: e.nodeId
+				nodeId: e.nodeId,
+				roundId: e.roundId
 			}) : e.phase === "stop" ? o(t, { type: "request-stop" }) : o(t, {
 				type: "finish",
 				status: e.status,
 				error: e.error
-			}), h.set(e.targetId, t), g += 1;
+			}), g.set(e.targetId, t), _ += 1;
 		} catch (t) {
-			_ += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
+			v += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
 		}
 	},
 	observeOrder(e, t, n) {
-		if (m) try {
-			let r = x(e, t, n);
+		if (h) try {
+			let r = S(e, t, n);
 			if (!r) return;
-			y += 1, r.matches || (v.length < 50 && v.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+			b += 1, r.matches || (y.length < 50 && y.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
 		} catch (e) {
-			b += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+			x += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
 		}
 	},
 	getShadowReport() {
 		return {
-			enabled: m,
-			checks: y,
-			errors: b,
-			mismatches: v.map((e) => ({
+			enabled: h,
+			checks: b,
+			errors: x,
+			mismatches: y.map((e) => ({
 				...e,
 				legacy: [...e.legacy],
 				modern: [...e.modern]
@@ -258,15 +299,19 @@ window.CanvasModernCore = Object.freeze({
 	},
 	getExecutionShadowReport() {
 		return {
-			enabled: f,
-			errors: _,
-			events: g,
-			runs: [...h.values()].map((e) => ({
+			enabled: p,
+			errors: v,
+			events: _,
+			runs: [...g.values()].map((e) => ({
 				...e,
 				completedNodeIds: [...e.completedNodeIds],
-				order: [...e.order]
+				order: [...e.order],
+				rounds: Object.fromEntries(Object.entries(e.rounds).map(([e, t]) => [e, {
+					...t,
+					completedNodeIds: [...t.completedNodeIds]
+				}]))
 			}))
 		};
 	}
-}), document.documentElement.dataset.canvasModernCore = "6", document.documentElement.dataset.canvasModernExecutionShadow = f ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = p ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = m ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+}), document.documentElement.dataset.canvasModernCore = "7", document.documentElement.dataset.canvasModernExecutionShadow = p ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = m ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = h ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

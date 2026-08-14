@@ -37,4 +37,4 @@
 
 ## Execution 生命周期影子模式
 
-直接打开 `/static/canvas.html?canvas_modern_core=execution-shadow` 时，现代内核只观察旧调度器的开始、停止请求和结束事件，并对串行级联与重试追加逐节点状态校验。并行循环暂只校验生命周期。影子模式不调用节点执行器、不发送请求、不修改旧运行状态；结果可通过 `CanvasModernCore.getExecutionShadowReport()` 查看。
+直接打开 `/static/canvas.html?canvas_modern_core=execution-shadow` 时，现代内核只观察旧调度器的开始、停止请求和结束事件，并对串行级联、重试及并行循环追加逐节点状态校验；并行轮次按 loop index 隔离。影子模式不调用节点执行器、不发送请求、不修改旧运行状态；结果可通过 `CanvasModernCore.getExecutionShadowReport()` 查看。

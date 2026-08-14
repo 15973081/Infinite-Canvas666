@@ -11325,15 +11325,17 @@ async function runCascadeNodeByType(node, opts={}){
     }
     const runOpts = {cascade:true, ...opts};
     const targetId = cascadeTargetIdFromOptions(runOpts);
-    const observeNode = targetId && cascadeContextFor(targetId)?.mode !== 'parallel';
-    if(observeNode) window.CanvasModernCore?.observeExecution?.({phase:'node-start', targetId, nodeId:node.id});
+    const ctx = cascadeContextFor(targetId);
+    const roundId = ctx?.mode === 'parallel' ? String(runOpts.loopContext?.index ?? '') : '';
+    const observeNode = targetId && (ctx?.mode !== 'parallel' || roundId);
+    if(observeNode) window.CanvasModernCore?.observeExecution?.({phase:'node-start', targetId, nodeId:node.id, roundId});
     if(node.type === 'generator') await runGenerator(node.id, runOpts);
     else if(node.type === 'msgen') await runMsGenNode(node.id, runOpts);
     else if(node.type === 'comfy') await runComfyNode(node.id, runOpts);
     else if(node.type === 'ltxDirector') await runLTXDirectorNode(node.id, runOpts);
     else if(node.type === 'llm') await runLLMNode(node.id, runOpts);
     else if(node.type === 'video') await runVideoNode(node.id, runOpts);
-    if(observeNode) window.CanvasModernCore?.observeExecution?.({phase:'node-done', targetId, nodeId:node.id});
+    if(observeNode) window.CanvasModernCore?.observeExecution?.({phase:'node-done', targetId, nodeId:node.id, roundId});
 }
 function runCascadeNodeWithLoopContext(node, ctx, opts={}){
     return runCascadeNodeByType(node, {...opts, loopContext:ctx || null});

@@ -33,8 +33,8 @@ interface ShadowReport {
 
 type ExecutionObservation =
   | { phase: 'begin'; targetId: string; order: string[]; mode: ExecutionMode }
-  | { phase: 'node-start'; targetId: string; nodeId: string }
-  | { phase: 'node-done'; targetId: string; nodeId: string }
+  | { phase: 'node-start'; targetId: string; nodeId: string; roundId?: string }
+  | { phase: 'node-done'; targetId: string; nodeId: string; roundId?: string }
   | { phase: 'stop'; targetId: string }
   | { phase: 'finish'; targetId: string; status: ExecutionTerminalStatus; error?: string };
 
@@ -55,7 +55,7 @@ declare global {
       getShadowReport(): ShadowReport;
       observeExecution(observation: ExecutionObservation): void;
       observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void;
-      version: 6;
+      version: 7;
     };
   }
 }
@@ -90,7 +90,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 6 as const,
+  version: 7 as const,
   activeOrder(kind: OrderKind, targetId: string): string[] | null {
     if (!graphOrderEnabled) return null;
     try {
@@ -117,9 +117,17 @@ window.CanvasModernCore = Object.freeze({
         });
         state = transitionExecution(state, { type: 'start' });
       } else if (observation.phase === 'node-start') {
-        state = transitionExecution(state, { type: 'node-start', nodeId: observation.nodeId });
+        state = transitionExecution(state, {
+          type: 'node-start',
+          nodeId: observation.nodeId,
+          roundId: observation.roundId,
+        });
       } else if (observation.phase === 'node-done') {
-        state = transitionExecution(state, { type: 'node-done', nodeId: observation.nodeId });
+        state = transitionExecution(state, {
+          type: 'node-done',
+          nodeId: observation.nodeId,
+          roundId: observation.roundId,
+        });
       } else if (observation.phase === 'stop') {
         state = transitionExecution(state, { type: 'request-stop' });
       } else {
@@ -172,12 +180,16 @@ window.CanvasModernCore = Object.freeze({
         ...state,
         completedNodeIds: [...state.completedNodeIds],
         order: [...state.order],
+        rounds: Object.fromEntries(Object.entries(state.rounds).map(([roundId, round]) => [
+          roundId,
+          { ...round, completedNodeIds: [...round.completedNodeIds] },
+        ])),
       })),
     };
   },
 });
 
-document.documentElement.dataset.canvasModernCore = '6';
+document.documentElement.dataset.canvasModernCore = '7';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
 document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';
