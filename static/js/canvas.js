@@ -2033,6 +2033,20 @@ function resetCanvasSaveSnapshot(){
     }
     lastSavedCanvasSnapshot = canvasSaveSnapshot(canvasSavePayload());
 }
+window.CanvasLegacyBridge = Object.freeze({
+    getDocumentSnapshot(){
+        if(!canvas) return null;
+        return JSON.parse(JSON.stringify({
+            ...canvas,
+            nodes:serializableCanvasNodes(),
+            connections:(connections || []).map(connection => ({...connection})),
+            viewport:{...viewport}
+        }));
+    },
+    computeCascadeOrder(targetId){
+        return [...computeCascadeOrder(targetId)];
+    }
+});
 async function saveCanvas(){
     if(!canvas || applyingRemoteCanvas) return;
     if(savingCanvasNow){

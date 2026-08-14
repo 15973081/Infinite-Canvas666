@@ -1,4 +1,11 @@
 import asyncio
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from fastapi import HTTPException
 
@@ -46,5 +53,10 @@ def test_seedance25_rules():
     }]
 
 
+class Seedance25Test(unittest.TestCase):
+    def test_rules(self):
+        test_seedance25_rules()
+
+
 if __name__ == "__main__":
-    test_seedance25_rules()
+    unittest.main()

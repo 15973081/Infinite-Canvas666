@@ -1,0 +1,17 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  base: '/static/dist/',
+  build: {
+    emptyOutDir: true,
+    lib: {
+      entry: 'src/main.ts',
+      formats: ['es'],
+      fileName: () => 'canvas-modern.js',
+    },
+    outDir: '../static/dist',
+  },
+  test: {
+    include: ['src/**/*.test.ts'],
+  },
+});
