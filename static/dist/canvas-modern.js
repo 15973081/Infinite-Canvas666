@@ -496,8 +496,12 @@ function D(e, t, n, r = 0) {
 }
 //#endregion
 //#region src/main.ts
-var O = new URLSearchParams(window.location.search), k = O.get("canvas_modern_core"), A = k === "execution-shadow", j = k === "graph-order", M = k === "shadow", N = O.get("canvas_execution_engine") === "1", P = O.get("canvas_task_client") === "1", F = O.get("canvas_repository") === "1", I = w(), L = x(), R = /* @__PURE__ */ new Map(), z = 0, B = 0, V = [], H = 0, U = 0;
-function W(e, t, n) {
+var O = new URLSearchParams(window.location.search), k = O.get("canvas_modern_core"), A = k === "execution-shadow", j = k === "graph-order", M = k === "shadow", N = O.get("canvas_m2") === "1", P = N || O.get("canvas_execution_engine") === "1", F = N || O.get("canvas_task_client") === "1", I = N || O.get("canvas_repository") === "1", L = P && F && I, R = w(), z = x(), B = /* @__PURE__ */ new Map(), V = 0, H = 0, U = [], W = 0, G = 0, K = /* @__PURE__ */ new Map(), q = {
+	done: 0,
+	failed: 0,
+	stopped: 0
+}, J = 0;
+function Y(e, t, n) {
 	let r = window.CanvasLegacyBridge, a = r?.getDocumentSnapshot();
 	if (!r || !a) return null;
 	let o = p(i(a)), s = e === "cascade" ? o.cascadeOrder(t) : o.retryCascadeOrder(t), c = n ?? (e === "cascade" ? r.computeCascadeOrder(t) : r.computeRetryCascadeOrder(t));
@@ -510,12 +514,13 @@ function W(e, t, n) {
 	};
 }
 window.CanvasModernCore = Object.freeze({
-	version: 9,
-	canvasRepository: L,
-	canvasRepositoryEnabled: F,
-	executionEngineEnabled: N,
-	taskClient: I,
-	taskClientEnabled: P,
+	version: 10,
+	canvasRepository: z,
+	canvasRepositoryEnabled: I,
+	executionEngineEnabled: P,
+	m2Enabled: L,
+	taskClient: R,
+	taskClientEnabled: F,
 	activeOrder(e, t) {
 		if (!j) return null;
 		try {
@@ -527,25 +532,25 @@ window.CanvasModernCore = Object.freeze({
 			return console.warn("[canvas-modern-core] active graph order failed; using legacy order", e), null;
 		}
 	},
-	compareOrder: W,
+	compareOrder: Y,
 	runOrdered(e) {
-		return N ? c(e.targetId, e.order, e.execute, {
+		return P ? c(e.targetId, e.order, e.execute, {
 			mode: e.mode,
 			signal: e.signal,
-			onTransition: G
+			onTransition: X
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	runParallel(e) {
-		return N ? l(e.targetId, e.order, e.rounds, e.execute, {
+		return P ? l(e.targetId, e.order, e.rounds, e.execute, {
 			limit: e.limit,
 			roundId: e.roundId,
 			signal: e.signal,
-			onTransition: G
+			onTransition: X
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	observeExecution(e) {
 		if (A) try {
-			let t = R.get(e.targetId) ?? a();
+			let t = B.get(e.targetId) ?? a();
 			e.phase === "begin" ? (t = o(t, {
 				type: "queue",
 				targetId: e.targetId,
@@ -563,26 +568,26 @@ window.CanvasModernCore = Object.freeze({
 				type: "finish",
 				status: e.status,
 				error: e.error
-			}), R.set(e.targetId, t), z += 1;
+			}), B.set(e.targetId, t), V += 1;
 		} catch (t) {
-			B += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
+			H += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
 		}
 	},
 	observeOrder(e, t, n) {
 		if (M) try {
-			let r = W(e, t, n);
+			let r = Y(e, t, n);
 			if (!r) return;
-			H += 1, r.matches || (V.length < 50 && V.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+			W += 1, r.matches || (U.length < 50 && U.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
 		} catch (e) {
-			U += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+			G += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
 		}
 	},
 	getShadowReport() {
 		return {
 			enabled: M,
-			checks: H,
-			errors: U,
-			mismatches: V.map((e) => ({
+			checks: W,
+			errors: G,
+			mismatches: U.map((e) => ({
 				...e,
 				legacy: [...e.legacy],
 				modern: [...e.modern]
@@ -592,9 +597,9 @@ window.CanvasModernCore = Object.freeze({
 	getExecutionShadowReport() {
 		return {
 			enabled: A,
-			errors: B,
-			events: z,
-			runs: [...R.values()].map((e) => ({
+			errors: H,
+			events: V,
+			runs: [...B.values()].map((e) => ({
 				...e,
 				completedNodeIds: [...e.completedNodeIds],
 				order: [...e.order],
@@ -604,13 +609,32 @@ window.CanvasModernCore = Object.freeze({
 				}]))
 			}))
 		};
+	},
+	getM2Report() {
+		return {
+			enabled: L,
+			execution: {
+				active: [...K.values()].filter(({ status: e }) => ![
+					"done",
+					"failed",
+					"stopped"
+				].includes(e)).length,
+				...q,
+				transitions: J
+			},
+			flags: {
+				executionEngine: P,
+				repository: I,
+				taskClient: F
+			}
+		};
 	}
 });
-function G(e, t) {
-	window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
+function X(e, t) {
+	J += 1, K.set(e.targetId, e), t.type === "finish" && (q[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
 		event: t,
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "9", document.documentElement.dataset.canvasModernExecutionEngine = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = A ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = P ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "10", document.documentElement.dataset.canvasModernExecutionEngine = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = A ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = F ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

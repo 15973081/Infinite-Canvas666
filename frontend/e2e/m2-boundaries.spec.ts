@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '9');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '10');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-repository', 'disabled');
@@ -44,7 +45,8 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
     });
   });
 
-  await page.goto('/static/canvas.html?canvas_execution_engine=1&canvas_task_client=1&canvas_repository=1');
+  await page.goto('/static/canvas.html?canvas_m2=1');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-repository', 'enabled');
@@ -76,6 +78,7 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
       events,
       executionMode: execution.mode,
       executionStatus: execution.status,
+      m2: core.getM2Report(),
       taskStatus: task.status,
     };
   });
@@ -87,6 +90,11 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
     events: 7,
     executionMode: 'retry',
     executionStatus: 'done',
+    m2: {
+      enabled: true,
+      execution: { active: 0, done: 1, failed: 0, stopped: 0, transitions: 7 },
+      flags: { executionEngine: true, repository: true, taskClient: true },
+    },
     taskStatus: 'succeeded',
   });
   expect(taskPolls).toBe(2);

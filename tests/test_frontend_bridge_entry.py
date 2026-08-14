@@ -9,7 +9,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.14.9'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.14.10'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
@@ -61,6 +61,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("canvas_execution_engine", source)
         self.assertIn("canvas_task_client", source)
         self.assertIn("canvas_repository", source)
+        self.assertIn("canvas_m2", source)
         self.assertIn("executionEngineEnabled", source)
         self.assertIn("taskClientEnabled", source)
         self.assertIn("canvasRepositoryEnabled", source)
@@ -68,6 +69,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("runParallelExecution", source)
         self.assertIn("createTaskClient()", source)
         self.assertIn("createCanvasRepository()", source)
+        self.assertIn("getM2Report", source)
 
 
 if __name__ == "__main__":

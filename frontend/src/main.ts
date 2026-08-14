@@ -53,6 +53,22 @@ interface ExecutionShadowReport {
   runs: ExecutionState[];
 }
 
+interface M2Report {
+  enabled: boolean;
+  execution: {
+    active: number;
+    done: number;
+    failed: number;
+    stopped: number;
+    transitions: number;
+  };
+  flags: {
+    executionEngine: boolean;
+    repository: boolean;
+    taskClient: boolean;
+  };
+}
+
 interface OrderedExecutionRequest {
   execute: NodeExecutor;
   mode: OrderedExecutionMode;
@@ -81,14 +97,16 @@ declare global {
       compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[]): OrderComparison | null;
       executionEngineEnabled: boolean;
       getExecutionShadowReport(): ExecutionShadowReport;
+      getM2Report(): M2Report;
       getShadowReport(): ShadowReport;
+      m2Enabled: boolean;
       observeExecution(observation: ExecutionObservation): void;
       observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void;
       runOrdered(request: OrderedExecutionRequest): Promise<ExecutionState>;
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 9;
+      version: 10;
     };
   }
 }
@@ -98,9 +116,11 @@ const modernCoreMode = searchParams.get('canvas_modern_core');
 const executionShadowEnabled = modernCoreMode === 'execution-shadow';
 const graphOrderEnabled = modernCoreMode === 'graph-order';
 const shadowEnabled = modernCoreMode === 'shadow';
-const executionEngineEnabled = searchParams.get('canvas_execution_engine') === '1';
-const taskClientEnabled = searchParams.get('canvas_task_client') === '1';
-const canvasRepositoryEnabled = searchParams.get('canvas_repository') === '1';
+const m2Requested = searchParams.get('canvas_m2') === '1';
+const executionEngineEnabled = m2Requested || searchParams.get('canvas_execution_engine') === '1';
+const taskClientEnabled = m2Requested || searchParams.get('canvas_task_client') === '1';
+const canvasRepositoryEnabled = m2Requested || searchParams.get('canvas_repository') === '1';
+const m2Enabled = executionEngineEnabled && taskClientEnabled && canvasRepositoryEnabled;
 const taskClient = createTaskClient();
 const canvasRepository = createCanvasRepository();
 const executionRuns = new Map<string, ExecutionState>();
@@ -109,6 +129,9 @@ let executionErrors = 0;
 const mismatches: OrderComparison[] = [];
 let shadowChecks = 0;
 let shadowErrors = 0;
+const modernExecutionRuns = new Map<string, Readonly<ExecutionState>>();
+const modernExecutionTerminalCounts = { done: 0, failed: 0, stopped: 0 };
+let modernExecutionTransitions = 0;
 
 function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[]): OrderComparison | null {
   const bridge = window.CanvasLegacyBridge;
@@ -129,10 +152,11 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 9 as const,
+  version: 10 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
+  m2Enabled,
   taskClient,
   taskClientEnabled,
   activeOrder(kind: OrderKind, targetId: string): string[] | null {
@@ -248,17 +272,35 @@ window.CanvasModernCore = Object.freeze({
       })),
     };
   },
+  getM2Report(): M2Report {
+    const active = [...modernExecutionRuns.values()].filter(({ status }) =>
+      !['done', 'failed', 'stopped'].includes(status)
+    ).length;
+    return {
+      enabled: m2Enabled,
+      execution: { active, ...modernExecutionTerminalCounts, transitions: modernExecutionTransitions },
+      flags: {
+        executionEngine: executionEngineEnabled,
+        repository: canvasRepositoryEnabled,
+        taskClient: taskClientEnabled,
+      },
+    };
+  },
 });
 
 function emitExecutionTransition(state: Readonly<ExecutionState>, event: ExecutionEvent): void {
+  modernExecutionTransitions += 1;
+  modernExecutionRuns.set(state.targetId, state);
+  if (event.type === 'finish') modernExecutionTerminalCounts[event.status] += 1;
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '9';
+document.documentElement.dataset.canvasModernCore = '10';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
 document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasModernM2 = m2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernRepository = canvasRepositoryEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernShadow = shadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernTaskClient = taskClientEnabled ? 'enabled' : 'disabled';
