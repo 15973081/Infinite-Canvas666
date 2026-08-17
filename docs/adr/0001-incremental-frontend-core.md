@@ -66,3 +66,7 @@
 ## 阶段 6 开发切片（默认关闭）
 
 M2 默认切换门禁尚未通过，生产默认仍不进入阶段 6。为提前验证只读 UI 投影，可用 `canvas_react_execution=1` 挂载首个 React 运行状态岛；它只订阅 `canvas-modern-execution`，不写画布文档、不启动执行，也不替换旧节点状态。关闭开关时挂载容器保持隐藏，页面离开时解除唯一事件监听并卸载 root。该开发切片不代表 M2 已通过两个稳定发布周期。
+
+保存及通用页面提示由旧脚本唯一的 `setStatus()` 继续写入，同时发送 `canvas-legacy-status` 只读事件。`canvas_react_status=1` 挂载 Session Store 驱动的状态岛；它只投影事件和桥接快照，不发保存命令、不修改旧状态。该岛拥有独立隐藏 fallback 和卸载清理，默认关闭。
+
+`canvas_react_toolbar=1` 迁移费用、日志和备份三个低风险工具栏入口。React 只发送白名单 bridge command，实际副作用继续由旧函数唯一执行；新 root 成功挂载后才隐藏对应旧按钮，卸载时恢复，避免同一动作存在两套监听。资产库与工作流入口暂不迁移。

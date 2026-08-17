@@ -1538,9 +1538,19 @@ function formatCanvasTime(value){
     if(Number.isNaN(date.getTime())) return '--';
     return date.toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
 }
+let canvasStatusSnapshot = {kind:'info', text:''};
+function canvasStatusKind(text){
+    const value = String(text || '').toLowerCase();
+    if(/fail|conflict|失败|无法/.test(value)) return 'error';
+    if(/saving|creating|opening|syncing|restoring|deleting|importing|正在|提交/.test(value)) return 'pending';
+    if(/saved|ready|synced|restored|已保存|已恢复|已获得|已解锁/.test(value)) return 'success';
+    return 'info';
+}
 function setStatus(text){
-    document.getElementById('saveState').textContent = text;
-    if(gateStatus) gateStatus.textContent = text;
+    canvasStatusSnapshot = {kind:canvasStatusKind(text), text:String(text || '')};
+    document.getElementById('saveState').textContent = canvasStatusSnapshot.text;
+    if(gateStatus) gateStatus.textContent = canvasStatusSnapshot.text;
+    window.dispatchEvent(new CustomEvent('canvas-legacy-status', {detail:{...canvasStatusSnapshot}}));
 }
 function normalizeCanvasFolderId(value){
     return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -2034,6 +2044,13 @@ function resetCanvasSaveSnapshot(){
     lastSavedCanvasSnapshot = canvasSaveSnapshot(canvasSavePayload());
 }
 window.CanvasLegacyBridge = Object.freeze({
+    runCommand(command){
+        if(command === 'open-cost') return openCanvasCost();
+        if(command === 'open-log') return openCanvasLog();
+        if(command === 'open-backups') return showBackupList();
+        throw new Error(`Unknown canvas bridge command: ${command}`);
+    },
+    getStatusSnapshot(){ return {...canvasStatusSnapshot}; },
     getDocumentSnapshot(){
         if(!canvas) return null;
         return JSON.parse(JSON.stringify({

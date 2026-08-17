@@ -9,7 +9,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.17.12'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.17.14'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
@@ -24,6 +24,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         bridge = source[start:end]
 
         self.assertIn("getDocumentSnapshot()", bridge)
+        self.assertIn("getStatusSnapshot()", bridge)
         self.assertIn("JSON.parse(JSON.stringify", bridge)
         self.assertIn("computeLegacyCascadeOrder(targetId)", bridge)
         self.assertIn("computeLegacyRetryCascadeOrder(nodeId)", bridge)
@@ -83,6 +84,30 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn('hidden', html[html.index('id="canvasExecutionIsland"'):][:100])
         self.assertIn("reactExecutionIslandEnabled", source)
         self.assertIn("import('./canvas/ui/react-execution-entry')", source)
+
+    def test_react_status_island_has_one_legacy_event_source_and_fallback(self):
+        html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
+        legacy = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
+        source = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
+
+        self.assertEqual(1, legacy.count("new CustomEvent('canvas-legacy-status'"))
+        self.assertIn("canvasStatusSnapshot = {kind:canvasStatusKind(text)", legacy)
+        self.assertIn('id="canvasStatusIsland" hidden', html)
+        self.assertIn("canvas_react_status", source)
+        self.assertIn("mountReactStatusIsland", source)
+
+    def test_react_toolbar_uses_bridge_commands_and_keeps_legacy_fallback(self):
+        html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
+        legacy = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
+        source = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
+
+        self.assertIn('id="canvasToolbarIsland" hidden', html)
+        self.assertIn("runCommand(command)", legacy)
+        self.assertIn("command === 'open-cost'", legacy)
+        self.assertIn("command === 'open-log'", legacy)
+        self.assertIn("command === 'open-backups'", legacy)
+        self.assertIn("canvas_react_toolbar", source)
+        self.assertIn("mountReactToolbarIsland", source)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,8 @@ interface LegacyBridge {
   computeCascadeOrder(targetId: string): string[];
   computeRetryCascadeOrder(nodeId: string): string[];
   getDocumentSnapshot(): unknown | null;
+  getStatusSnapshot(): { kind: 'error' | 'info' | 'pending' | 'success'; text: string };
+  runCommand(command: 'open-backups' | 'open-cost' | 'open-log'): void | Promise<void>;
 }
 
 type OrderKind = 'cascade' | 'retry';
@@ -112,7 +114,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 12;
+      version: 14;
     };
   }
 }
@@ -128,6 +130,8 @@ const taskClientEnabled = m2Requested || searchParams.get('canvas_task_client') 
 const canvasRepositoryEnabled = m2Requested || searchParams.get('canvas_repository') === '1';
 const m2Enabled = executionEngineEnabled && taskClientEnabled && canvasRepositoryEnabled;
 const reactExecutionIslandEnabled = searchParams.get('canvas_react_execution') === '1';
+const reactStatusIslandEnabled = searchParams.get('canvas_react_status') === '1';
+const reactToolbarIslandEnabled = searchParams.get('canvas_react_toolbar') === '1';
 const taskClient = createTaskClient();
 const canvasRepository = createCanvasRepository();
 const executionRuns = new Map<string, ExecutionState>();
@@ -159,7 +163,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 12 as const,
+  version: 14 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -307,6 +311,26 @@ if (reactExecutionIslandEnabled) {
   }
 }
 
+if (reactStatusIslandEnabled) {
+  const element = document.getElementById('canvasStatusIsland');
+  if (element) {
+    void import('./canvas/ui/react-execution-entry').then(({ mountReactStatusIsland }) => {
+      const cleanup = mountReactStatusIsland(element);
+      window.addEventListener('pagehide', cleanup, { once: true });
+    }).catch((error) => console.warn('[canvas-modern-core] React status island failed to load', error));
+  }
+}
+
+if (reactToolbarIslandEnabled) {
+  const element = document.getElementById('canvasToolbarIsland');
+  if (element) {
+    void import('./canvas/ui/react-execution-entry').then(({ mountReactToolbarIsland }) => {
+      const cleanup = mountReactToolbarIsland(element);
+      window.addEventListener('pagehide', cleanup, { once: true });
+    }).catch((error) => console.warn('[canvas-modern-core] React toolbar island failed to load', error));
+  }
+}
+
 function emitExecutionTransition(state: Readonly<ExecutionState>, event: ExecutionEvent): void {
   modernExecutionTransitions += 1;
   modernExecutionRuns.set(state.targetId, state);
@@ -314,7 +338,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '12';
+document.documentElement.dataset.canvasModernCore = '14';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
@@ -322,6 +346,8 @@ document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'e
 document.documentElement.dataset.canvasModernM2 = m2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernRepository = canvasRepositoryEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernReactExecution = reactExecutionIslandEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasModernReactStatus = reactStatusIslandEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasModernReactToolbar = reactToolbarIslandEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernShadow = shadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernTaskClient = taskClientEnabled ? 'enabled' : 'disabled';
 window.dispatchEvent(new CustomEvent('canvas-modern-core-ready'));

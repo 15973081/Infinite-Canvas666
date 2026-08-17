@@ -40,6 +40,7 @@
                     <span id="canvasIdentityLabel">我的名称</span>
                 </button>
                 <p id="saveState" style="display:none">请选择或新建画布</p>
+                <div id="canvasStatusIsland" hidden></div>
             </div>
             <div id="canvasExecutionIsland" class="editor-only" hidden></div>
             <div id="quickToolbar" class="panel toolbar editor-only">
@@ -58,6 +59,7 @@
                     <button class="tool-btn" onclick="groupSelectedImages()"><i data-lucide="group" class="w-4 h-4"></i><span>分组</span></button>
                 </div>
                 <div class="toolbar-fixed">
+                    <div id="canvasToolbarIsland" hidden></div>
                     <button id="workflowTransferToggle" class="tool-btn toolbar-workflow" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open" class="w-4 h-4"></i><span>工作流</span></button>
                     <button id="canvasAssetToggle" class="tool-btn toolbar-asset canvas-asset-toggle" type="button" title="资产库" aria-label="资产库"><i data-lucide="library" class="w-4 h-4"></i><span>资产库</span></button>
                     <button id="canvasCostToggle" class="tool-btn toolbar-cost" type="button" onclick="openCanvasCost(event)" title="费用仪表盘" aria-label="费用仪表盘"><i data-lucide="circle-dollar-sign" class="w-4 h-4"></i><span id="canvasCostToggleLabel">费用 ¥0.00</span></button>
@@ -411,6 +413,6 @@
     <script src="/static/js/canvas-api.js?v=2026.07.06.1"></script>
     <script src="/static/js/ltx-director-timeline.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/js/canvas.js?v=2026.07.23.4"></script>
-    <script type="module" src="/static/dist/canvas-modern.js?v=2026.08.17.12"></script>
+    <script type="module" src="/static/dist/canvas-modern.js?v=2026.08.17.14"></script>
 </body>
 </html>
