@@ -9,10 +9,13 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.14.11'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.17.12'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
+        react_chunks = list((ROOT / "static" / "dist").glob("react-execution-entry-*.js"))
+        self.assertEqual(1, len(react_chunks))
+        self.assertGreater(react_chunks[0].stat().st_size, 0)
 
     def test_legacy_bridge_is_read_only(self):
         source = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
@@ -62,6 +65,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("canvas_task_client", source)
         self.assertIn("canvas_repository", source)
         self.assertIn("canvas_m2", source)
+        self.assertIn("canvas_react_execution", source)
         self.assertIn("executionEngineEnabled", source)
         self.assertIn("taskClientEnabled", source)
         self.assertIn("canvasRepositoryEnabled", source)
@@ -70,6 +74,15 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("createTaskClient()", source)
         self.assertIn("createCanvasRepository()", source)
         self.assertIn("getM2Report", source)
+
+    def test_react_execution_island_has_an_independent_fallback(self):
+        html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
+        source = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
+
+        self.assertIn('id="canvasExecutionIsland"', html)
+        self.assertIn('hidden', html[html.index('id="canvasExecutionIsland"'):][:100])
+        self.assertIn("reactExecutionIslandEnabled", source)
+        self.assertIn("import('./canvas/ui/react-execution-entry')", source)
 
 
 if __name__ == "__main__":
