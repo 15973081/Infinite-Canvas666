@@ -27,6 +27,7 @@ export interface CanvasRuntime {
 
 interface ProviderConfig extends Record<string, unknown> {
   chat_models?: string[];
+  enabled?: boolean;
   id?: string;
   image_models?: string[];
   ms_loras?: Array<{ id?: string; model?: string; model_id?: string; name?: string; strength?: number }>;
@@ -113,7 +114,7 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
 
   const providersFor = (type: string) => (config.api_providers ?? []).filter((provider) => {
     const models = type === 'video' ? provider.video_models : type === 'llm' ? provider.chat_models : provider.image_models;
-    return Array.isArray(models) && models.length > 0;
+    return provider.enabled !== false && Array.isArray(models) && models.length > 0;
   });
 
   const uploadMedia: CanvasRuntime['uploadMedia'] = async (files) => {
@@ -203,9 +204,10 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     for (const output of document.nodes.filter((node) => node.type === 'output')) {
       for (const pending of Array.isArray(output._pending) ? output._pending as Array<Record<string, unknown>> : []) {
         const taskId = String(pending.canvasTaskId || '');
-        const kind = pending.canvasTaskType === 'video' ? 'video' : pending.canvasTaskType === 'image' ? 'image' : null;
+        const kind = pending.canvasTaskType === 'video' ? 'video' : ['image', 'online-image'].includes(String(pending.canvasTaskType || '')) ? 'image' : null;
         if (!taskId || !kind) continue;
         pending.recoveryStatus = 'recovering';
+        pending.failed = false;
         recoveries.push(taskClient.watch(kind, taskId).then(async (record) => {
           const generator = document.nodes.find((node) => node.id === String(pending.nodeId || ''));
           if (record.status === 'succeeded') {
@@ -221,12 +223,14 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
           } else {
             pending.recoveryStatus = record.status;
             pending.recoveryError = record.error || `任务状态：${record.status}`;
+            pending.failed = true;
             if (generator) { generator.runStatus = 'failed'; generator.runError = String(pending.recoveryError); }
           }
           await emit(document, onUpdate);
         }).catch(async (error) => {
           pending.recoveryStatus = 'interrupted';
           pending.recoveryError = error instanceof Error ? error.message : String(error);
+          pending.failed = true;
           await emit(document, onUpdate);
         }));
       }
@@ -249,6 +253,7 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     let pending: Record<string, unknown> | null = null;
     let output: CanvasNode | null = null;
     let outputs: unknown[] = [];
+    let completed = false;
     const startedAt = Date.now();
     const evidenceKey = `${String(document.id || '')}:${nodeId}`;
     taskEvidence.delete(evidenceKey);
@@ -266,15 +271,23 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
       }
       node.runStatus = 'done';
       node.runError = '';
+      completed = true;
       appendLog(document, { id: uniqueId('log'), nodeId, nodeType: node.type, status: 'done', startedAt, finishedAt: Date.now(), outputs: outputs.map(outputUrl), ...taskEvidence.get(evidenceKey) });
     } catch (error) {
       node.runStatus = 'failed';
       node.runError = error instanceof Error ? error.message : String(error);
+      if (pending?.canvasTaskId) {
+        pending.failed = true;
+        pending.recoveryStatus ||= 'interrupted';
+        pending.recoveryError ||= node.runError;
+      }
       appendLog(document, { id: uniqueId('log'), nodeId, nodeType: node.type, status: 'failed', startedAt, finishedAt: Date.now(), error: node.runError, ...taskEvidence.get(evidenceKey) });
       throw error;
     } finally {
       node.running = false;
-      if (output && pending) output._pending = (Array.isArray(output._pending) ? output._pending : []).filter((item) => (item as Record<string, unknown>).id !== pending?.id);
+      if (output && pending && (completed || !pending.canvasTaskId)) {
+        output._pending = (Array.isArray(output._pending) ? output._pending : []).filter((item) => (item as Record<string, unknown>).id !== pending?.id);
+      }
       taskEvidence.delete(evidenceKey);
       await emit(document, onUpdate);
     }
@@ -311,7 +324,7 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
       }
       return [];
     }
-    if (!prompt && node.type !== 'comfy') throw new Error('缺少提示词输入');
+    if (!prompt && node.type !== 'comfy' && !(node.type === 'generator' && input.media.some((item) => item.kind === 'image'))) throw new Error('缺少提示词输入');
     if (node.type === 'video') {
       const payload = {
         prompt,
@@ -326,10 +339,16 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
       return runTask('video', document, node, payload, signal, pending, onUpdate);
     }
     if (node.type === 'generator') {
+      const selection = resolveGeneratorSelection(node, config.api_providers ?? []);
+      const references = input.media.filter((item) => item.kind === 'image');
+      const requestPrompt = prompt || 'Edit the reference images.';
+      const size = await generatorImageSize(node, references);
+      validateGeneratorRequest(selection.providerId, selection.model, size, references.length);
+      Object.assign(node, { apiProvider: selection.providerId, model: selection.model });
       const payload = {
-        prompt, provider_id: node.apiProvider || '', model: node.model || '',
-        size: imageSize(node.ratio, node.resolution, node.customSize, node.width, node.height),
-        reference_images: input.media.filter((item) => item.kind === 'image'), quality: node.quality || undefined,
+        prompt: requestPrompt, provider_id: selection.providerId, model: selection.model,
+        size,
+        reference_images: references, quality: normalizeImageQuality(node.quality),
         n: Math.max(1, Math.min(8, Number(node.count || 1))),
       };
       return runTask('image', document, node, payload, signal, pending, onUpdate);
@@ -480,7 +499,10 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     await emit(document, onUpdate);
     const record = await taskClient.wait(kind, taskId, { signal });
     taskEvidence.set(evidenceKey, taskLogEvidence(record, { canvasTaskId: taskId, idempotencyKey }));
-    if (record.status !== 'succeeded') throw new Error(record.error || `${kind} task failed`);
+    if (record.status !== 'succeeded') {
+      if (pending) Object.assign(pending, { failed: true, recoveryStatus: record.status, recoveryError: record.error || `${kind} task failed` });
+      throw new Error(record.error || `${kind} task failed`);
+    }
     return extractOutputs(record.result);
   };
 
@@ -638,14 +660,92 @@ function comfyFieldKind(field: Record<string, unknown>): string {
   return 'setting';
 }
 
-function imageSize(ratio: unknown, resolution: unknown, custom: unknown, width: unknown, height: unknown): string {
-  if (custom) return String(custom);
-  if (Number(width) > 0 && Number(height) > 0) return `${Number(width)}x${Number(height)}`;
-  const side = String(resolution || '1k').toLowerCase() === '2k' ? 2048 : 1024;
-  const value = String(ratio || 'square');
-  if (value === 'landscape' || value === '16:9') return `${side}x${Math.round(side * 9 / 16)}`;
-  if (value === 'portrait' || value === '9:16') return `${Math.round(side * 9 / 16)}x${side}`;
-  return `${side}x${side}`;
+function imageSize(ratio: unknown, resolution: unknown, custom: unknown, width: unknown, height: unknown, customRatio: unknown = ''): string {
+  const resolutionKey = ['1k', '2k', '4k'].includes(String(resolution || '').toLowerCase()) ? String(resolution).toLowerCase() : '1k';
+  if (String(resolution || '') === 'custom' && custom) return String(custom).trim();
+  if (String(resolution || '') === 'custom' && Number(width) > 0 && Number(height) > 0) return `${Math.round(Number(width))}x${Math.round(Number(height))}`;
+  const sizes: Record<string, Record<string, string>> = {
+    square: { '1k': '1024x1024', '2k': '2048x2048', '4k': '4096x4096' },
+    landscape: { '1k': '1536x1024', '2k': '2048x1360', '4k': '3520x2336' },
+    portrait: { '1k': '1024x1536', '2k': '1360x2048', '4k': '2336x3520' },
+    landscape43: { '1k': '1024x768', '2k': '2048x1536', '4k': '3312x2480' },
+    portrait43: { '1k': '768x1024', '2k': '1536x2048', '4k': '2480x3312' },
+    wide: { '1k': '1536x864', '2k': '2048x1152', '4k': '3840x2160' },
+    story: { '1k': '864x1536', '2k': '1152x2048', '4k': '2160x3840' },
+    ultrawide: { '1k': '1536x656', '2k': '2048x880', '4k': '3840x1648' },
+    ultratall: { '1k': '656x1536', '2k': '880x2048', '4k': '1648x3840' },
+  };
+  const aliases: Record<string, string> = { '1:1': 'square', '2:3': 'portrait', '3:2': 'landscape', '3:4': 'portrait43', '4:3': 'landscape43', '9:16': 'story', '16:9': 'wide', '21:9': 'ultrawide', '9:21': 'ultratall' };
+  const ratioKey = aliases[String(ratio || '')] || String(ratio || 'square');
+  if ((ratioKey === 'custom' || ratioKey === 'source') && parseRatio(customRatio)) {
+    const parsed = parseRatio(customRatio)!;
+    const longSides: Record<string, number> = { '1k': 1024, '2k': 2048, '4k': 3840 };
+    const pixelLimits: Record<string, number> = { '1k': 2_359_296, '2k': 4_194_304, '4k': 8_294_400 };
+    const longSide = longSides[resolutionKey] ?? 1024;
+    const pixelLimit = pixelLimits[resolutionKey] ?? 1_048_576;
+    const rawWidth = parsed >= 1 ? longSide : Math.min(longSide * parsed, Math.sqrt(pixelLimit * parsed));
+    const rawHeight = parsed >= 1 ? Math.min(longSide / parsed, Math.sqrt(pixelLimit / parsed)) : longSide;
+    return `${Math.max(64, Math.floor(rawWidth / 16) * 16)}x${Math.max(64, Math.floor(rawHeight / 16) * 16)}`;
+  }
+  return sizes[ratioKey]?.[resolutionKey] || sizes.square[resolutionKey];
+}
+
+async function generatorImageSize(node: CanvasNode, references: MediaRef[]): Promise<string> {
+  let customRatio = node.customRatio;
+  if (String(node.ratio || '') === 'source' && !parseRatio(customRatio)) {
+    const reference = references[0];
+    if (!reference) throw new Error('自适应比例需要至少一张参考图');
+    if (typeof Image === 'undefined') throw new Error('当前环境无法读取参考图尺寸，请改用自定义比例');
+    const dimensions = await new Promise<{ height: number; width: number }>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve({ height: image.naturalHeight, width: image.naturalWidth });
+      image.onerror = () => reject(new Error('无法读取参考图尺寸，请改用自定义比例'));
+      image.src = reference.url;
+    });
+    customRatio = `${dimensions.width}:${dimensions.height}`;
+    node.customRatio = customRatio;
+    node.customRatioWidth = dimensions.width;
+    node.customRatioHeight = dimensions.height;
+  }
+  return imageSize(node.ratio, node.resolution, node.customSize, node.width, node.height, customRatio);
+}
+
+function parseRatio(value: unknown): number | null {
+  const match = String(value || '').trim().match(/^(\d+(?:\.\d+)?)\s*[:x*]\s*(\d+(?:\.\d+)?)$/i);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return width > 0 && height > 0 ? width / height : null;
+}
+
+function resolveGeneratorSelection(node: CanvasNode, providers: ProviderConfig[]): { model: string; providerId: string } {
+  const available = providers.filter((provider) => provider.enabled !== false && Array.isArray(provider.image_models) && provider.image_models.length > 0);
+  const provider = available.find((item) => item.id === node.apiProvider) ?? available[0];
+  if (!provider?.id) throw new Error('没有可用的图片生成平台，请先完成 API 设置');
+  const models = [...new Set((provider.image_models ?? []).map(String).filter(Boolean))];
+  const requested = String(node.model || '');
+  const model = models.includes(requested) ? requested : models[0];
+  if (!model) throw new Error(`图片生成平台 ${provider.name || provider.id} 没有可用模型`);
+  return { providerId: String(provider.id), model };
+}
+
+function validateGeneratorRequest(providerId: string, model: string, size: string, referenceCount: number): void {
+  const normalizedModel = model.toLowerCase();
+  const maxReferences = providerId === 'modelscope' ? 4 : /seedream|doubao/.test(normalizedModel) || providerId === 'volcengine' ? 10 : 16;
+  if (referenceCount > maxReferences) throw new Error(`${model} 最多支持 ${maxReferences} 张参考图，当前连接了 ${referenceCount} 张`);
+  const dimensions = String(size || '').match(/^(\d+)x(\d+)$/i);
+  if (!dimensions) throw new Error('图片尺寸无效，请选择预设尺寸或填写完整的自定义宽高');
+  const width = Number(dimensions[1]);
+  const height = Number(dimensions[2]);
+  if (width < 64 || height < 64 || width % 16 || height % 16) throw new Error('图片宽高必须不小于 64，且为 16 的倍数');
+  if (/gpt[^a-z0-9]*image[^a-z0-9]*2/i.test(model) && (Math.max(width, height) > 3840 || width * height > 8_294_400)) {
+    throw new Error(`GPT-Image-2 不支持尺寸 ${size}：最长边不能超过 3840，且总像素不能超过 8294400`);
+  }
+}
+
+function normalizeImageQuality(value: unknown): 'high' | 'low' | 'medium' | undefined {
+  const quality = String(value || '').trim().toLowerCase();
+  return quality === 'low' || quality === 'medium' || quality === 'high' ? quality : undefined;
 }
 
 function mediaRef(url: unknown, kind: unknown, name: unknown): MediaRef {

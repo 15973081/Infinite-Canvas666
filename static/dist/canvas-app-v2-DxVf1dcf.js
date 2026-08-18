@@ -1,7 +1,7 @@
 import { c as e, o as t, s as n, t as r } from "./jsx-runtime-DnrZ1XIK.js";
 import { n as i } from "./http-F-lX8WKW.js";
 import { r as a } from "./document-merge-DziDwlrU.js";
-import { t as o } from "./canvas-board-v2-DvtgmQ65.js";
+import { t as o } from "./canvas-board-v2-BFnnf-mm.js";
 //#region src/canvas/infrastructure/canvas-management.ts
 var s = /* @__PURE__ */ e(n(), 1), c = t();
 function l(e = fetch) {

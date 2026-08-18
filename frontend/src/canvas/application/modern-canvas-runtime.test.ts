@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasDocument } from '../domain/types';
-import { createTaskClient } from '../infrastructure/task-client';
+import { createTaskClient, type TaskClient } from '../infrastructure/task-client';
 import { createModernCanvasRuntime } from './modern-canvas-runtime';
 
 function document(nodes: CanvasDocument['nodes'], connections: CanvasDocument['connections'] = []): CanvasDocument {
@@ -36,7 +36,7 @@ describe('modern Canvas runtime', () => {
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
       calls.push(`${init?.method || 'GET'} ${path}`);
-      if (path === '/api/config') return json({});
+      if (path === '/api/config') return json({ api_providers: [{ id: 'provider', name: 'Provider', image_models: ['image-v1'] }] });
       if (path === '/api/workflows') return json({ workflows: [] });
       if (path === '/api/canvas-image-tasks') { submitted = JSON.parse(String(init?.body)); return json({ task_id: 'image-task', status: 'queued' }); }
       if (path === '/api/canvas-image-tasks/image-task') return json({
@@ -85,6 +85,51 @@ describe('modern Canvas runtime', () => {
 
     expect(submitted.params['46']).toMatchObject({ duration_frames: 48, frame_rate: 24, local_prompts: 'first | second', segment_lengths: '36,12', timeline_data: expect.any(String) });
     expect(result.nodes.find((node) => node.id === 'ltx')).toMatchObject({ generatedOutputs: [{ kind: 'video', url: '/output/ltx.mp4' }], ltxLocalPrompts: 'first | second' });
+  });
+
+  it('normalizes Generator provider/model selections and preserves the complete ratio matrix', async () => {
+    let submitted: Record<string, unknown> = {};
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/config') return json({ api_providers: [{ id: 'image-provider', name: 'Image Provider', image_models: ['image-v2'] }] });
+      if (path === '/api/workflows') return json({ workflows: [] });
+      if (path === '/api/canvas-image-tasks') { submitted = JSON.parse(String(init?.body)); return json({ task_id: 'generator-task', status: 'queued' }); }
+      if (path === '/api/canvas-image-tasks/generator-task') return json({ task_id: 'generator-task', status: 'succeeded', result: { images: ['/output/reference-edit.png'] } });
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
+    await runtime.initialize();
+
+    const result = await runtime.runNode('generator', document([
+      { id: 'reference', type: 'image', url: '/input/reference.png' },
+      { id: 'generator', type: 'generator', apiProvider: 'removed-provider', model: 'removed-model', ratio: 'portrait', resolution: '2k', quality: 'auto' },
+    ], [{ from: 'reference', to: 'generator' }]));
+
+    expect(submitted).toMatchObject({
+      provider_id: 'image-provider', model: 'image-v2', prompt: 'Edit the reference images.', size: '1360x2048',
+      reference_images: [{ kind: 'image', url: '/input/reference.png' }],
+    });
+    expect(submitted).not.toHaveProperty('quality');
+    expect(result.nodes.find((node) => node.id === 'generator')).toMatchObject({ apiProvider: 'image-provider', model: 'image-v2' });
+  });
+
+  it('blocks unsupported GPT-Image-2 dimensions before a paid task is submitted', async () => {
+    let submissions = 0;
+    const fetcher = async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/config') return json({ api_providers: [{ id: 'openai', image_models: ['gpt-image-2'] }] });
+      if (path === '/api/workflows') return json({ workflows: [] });
+      if (path === '/api/canvas-image-tasks') { submissions += 1; return json({}); }
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
+    await runtime.initialize();
+
+    await expect(runtime.runNode('generator', document([
+      { id: 'prompt', type: 'prompt', text: 'large square' },
+      { id: 'generator', type: 'generator', apiProvider: 'openai', model: 'gpt-image-2', ratio: 'square', resolution: '4k' },
+    ], [{ from: 'prompt', to: 'generator' }]))).rejects.toThrow('GPT-Image-2 不支持尺寸 4096x4096');
+    expect(submissions).toBe(0);
   });
 
   it('runs LLM chat and preserves the conversation in the document', async () => {
@@ -242,5 +287,39 @@ describe('modern Canvas runtime', () => {
     expect(recovered.nodes[0]).toMatchObject({ runStatus: 'done', generatedOutputs: ['/output/recovered.png'] });
     expect(recovered.nodes[1]).toMatchObject({ _pending: [], images: [{ url: '/output/recovered.png', kind: 'image' }] });
     expect((recovered.logs as Array<Record<string, unknown>>)[0]).toMatchObject({ canvasTaskId: 'recovered-task', upstreamTaskId: 'provider-recovered', recovered: true });
+  });
+
+  it('persists interrupted Video tasks and resumes them after refresh', async () => {
+    const taskClient = {
+      cancel: () => false,
+      get: async () => ({ task_id: 'video-task', status: 'running' as const }),
+      getDiagnostics: () => ({}),
+      resume: async () => [],
+      submit: async () => ({ task_id: 'video-task', status: 'queued' as const }),
+      wait: async () => { throw new Error('video polling connection lost'); },
+      waitForResult: async () => ({}),
+      watch: async () => ({ task_id: 'video-task', upstream_task_id: 'provider-video', recovered_after_restart: true, status: 'succeeded' as const, result: { videos: ['/output/recovered-video.mp4'] } }),
+    } as unknown as TaskClient;
+    const fetcher = async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/config') return json({ api_providers: [{ id: 'video-provider', video_models: ['video-v1'] }] });
+      if (path === '/api/workflows') return json({ workflows: [] });
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(taskClient, fetcher);
+    await runtime.initialize();
+    let interrupted: CanvasDocument | undefined;
+
+    await expect(runtime.runNode('video', document([
+      { id: 'prompt', type: 'prompt', text: 'animate this' },
+      { id: 'video', type: 'video', apiProvider: 'video-provider', model: 'video-v1' },
+    ], [{ from: 'prompt', to: 'video' }]), 'node', (next) => { interrupted = next; })).rejects.toThrow('video polling connection lost');
+
+    const pending = interrupted?.nodes.find((node) => node.type === 'output')?._pending as Array<Record<string, unknown>>;
+    expect(pending).toMatchObject([{ canvasTaskId: 'video-task', canvasTaskType: 'video', failed: true, recoveryStatus: 'interrupted' }]);
+
+    const recovered = await runtime.recoverDocument(interrupted!);
+    expect(recovered.nodes.find((node) => node.id === 'video')).toMatchObject({ runStatus: 'done', generatedOutputs: [{ kind: 'video', url: '/output/recovered-video.mp4' }] });
+    expect(recovered.nodes.find((node) => node.type === 'output')).toMatchObject({ _pending: [], images: [{ kind: 'video', url: '/output/recovered-video.mp4' }] });
   });
 });

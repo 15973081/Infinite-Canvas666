@@ -805,7 +805,7 @@ function N({ commit: e, node: t, store: n }) {
 	let r = Array.isArray(t.images) ? t.images : [], i = Array.isArray(t._pending) ? t._pending : [], a = (e) => typeof e == "string" ? e : String(e?.url || ""), o = (i) => {
 		n.getState().updateNode(t.id, { images: r.filter((e) => a(e) !== i) }), e();
 	}, s = (e) => window.CanvasBoardV2?.openOutputLightbox(t, e), c = (r) => {
-		let a = String(r.run?.node?.id || "");
+		let a = String(r.run?.node?.id || r.nodeId || "");
 		n.getState().updateNode(t.id, { _pending: i.filter((e) => e !== r) }), e(), a && window.CanvasBoardV2?.runNode(a);
 	};
 	return /* @__PURE__ */ (0, d.jsxs)("div", {
@@ -856,24 +856,31 @@ function N({ commit: e, node: t, store: n }) {
 					})
 				]
 			}, `${n}-${t}`);
-		}), i.map((e, t) => /* @__PURE__ */ (0, d.jsxs)("div", {
-			className: `output-pending ${e.failed ? "failed" : ""}`,
-			"data-pending-id": String(e.id || ""),
-			children: [
-				/* @__PURE__ */ (0, d.jsx)("span", { className: "pending-spinner" }),
-				/* @__PURE__ */ (0, d.jsx)("span", { children: e.recoveryStatus === "interrupted" ? "任务追踪已中断" : String(e.label || e.status || "正在生成…") }),
-				e.canvasTaskId ? /* @__PURE__ */ (0, d.jsx)("small", { children: String(e.canvasTaskId) }) : null,
-				e.recoveryStatus === "interrupted" ? /* @__PURE__ */ (0, d.jsx)("button", {
-					onClick: () => c(e),
-					type: "button",
-					children: "重新生成"
-				}) : null
-			]
-		}, String(e.id || t)))]
+		}), i.map((e, t) => {
+			let n = String(e.recoveryStatus || ""), r = !!e.failed || [
+				"interrupted",
+				"failed",
+				"cancelled"
+			].includes(n), i = n === "recovering" ? "正在恢复任务…" : n === "interrupted" ? "任务追踪已中断" : n === "cancelled" ? "任务已取消" : String(n === "failed" ? e.recoveryError || "任务失败" : e.label || e.status || "正在生成…");
+			return /* @__PURE__ */ (0, d.jsxs)("div", {
+				className: `output-pending ${r ? "failed" : ""}`,
+				"data-pending-id": String(e.id || ""),
+				children: [
+					/* @__PURE__ */ (0, d.jsx)("span", { className: "pending-spinner" }),
+					/* @__PURE__ */ (0, d.jsx)("span", { children: i }),
+					e.canvasTaskId ? /* @__PURE__ */ (0, d.jsx)("small", { children: String(e.canvasTaskId) }) : null,
+					r ? /* @__PURE__ */ (0, d.jsx)("button", {
+						onClick: () => c(e),
+						type: "button",
+						children: "重新生成"
+					}) : null
+				]
+			}, String(e.id || t));
+		})]
 	});
 }
 function P({ commit: e, document: t, node: n, store: r }) {
-	let [i, a] = (0, l.useState)(String((Array.isArray(n.manualVideoUrls) ? n.manualVideoUrls[0] : "") || "")), [o, s] = (0, l.useState)(!1), c = (t) => {
+	let [i, a] = (0, l.useState)(String(n.manualVideoUrl || (Array.isArray(n.manualVideoUrls) ? n.manualVideoUrls[0] : "") || "")), [o, s] = (0, l.useState)(!1), c = (t) => {
 		r.getState().updateNode(n.id, t), e();
 	}, u = (p()?.getNodeOptions("video", "provider", n) ?? []).map((e) => [e.value, e.label]), f = (p()?.getNodeOptions("video", "model", n) ?? []).map((e) => [e.value, e.label]);
 	return /* @__PURE__ */ (0, d.jsxs)("div", {
