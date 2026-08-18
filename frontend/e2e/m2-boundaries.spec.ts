@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '16');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '17');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -25,20 +25,32 @@ test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
 });
 
 test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on cleanup', async ({ page }) => {
+  const saves: Array<Record<string, any>> = [];
+  let updatedAt = 1;
+  await page.route('**/api/canvases/v2-e2e', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    saves.push(body);
+    updatedAt += 1;
+    await route.fulfill({ json: { canvas: { ...body, id: 'v2-e2e', updated_at: updatedAt } } });
+  });
   await page.goto('/static/canvas.html?canvas_board_v2=1');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'enabled');
   await expect(page.locator('#board')).toBeHidden();
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
+  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
 
   await page.evaluate(() => {
     document.getElementById('shell')?.classList.remove('no-canvas');
     window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
       id: 'v2-e2e',
+      custom: 'preserved',
       nodes: [
         { id: 'prompt-1', type: 'prompt', title: 'Prompt', x: 80, y: 180 },
-        { id: 'output-1', type: 'output', title: 'Output', x: 420, y: 330 },
+        { id: 'generator-1', type: 'generator', title: 'Generator', x: 420, y: 330 },
+        { id: 'output-1', type: 'output', title: 'Output', x: 760, y: 330 },
       ],
-      connections: [{ from: 'prompt-1', to: 'output-1' }],
+      connections: [{ from: 'prompt-1', to: 'generator-1' }],
+      updated_at: 1,
     } }));
   });
 
@@ -55,6 +67,30 @@ test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on c
   await page.mouse.move(box.x + 80, box.y + 60);
   await page.mouse.up();
   await expect.poll(() => node.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))).not.toEqual(originalPosition);
+  await expect.poll(() => saves.length).toBe(1);
+  await expect(page.getByTestId('canvas-board-v2-save-status')).toHaveText('已保存');
+  expect(saves[0]).toMatchObject({ base_updated_at: 1, custom: 'preserved' });
+  expect(saves[0].nodes.find((item: any) => item.id === 'prompt-1')).toMatchObject({ x: 140, y: 220 });
+
+  await page.getByRole('button', { name: '从 generator-1 连线' }).click();
+  await page.getByRole('button', { name: '连接到 output-1' }).click();
+  await expect(page.locator('[data-edge-index]')).toHaveCount(2);
+  await expect.poll(() => saves.length).toBe(2);
+  await page.locator('[data-edge-index="1"]').click({ force: true });
+  await expect(page.locator('[data-edge-index="1"]')).toHaveAttribute('data-selected', 'true');
+  await page.keyboard.press('Delete');
+  await expect(page.locator('[data-edge-index]')).toHaveCount(1);
+  await expect.poll(() => saves.length).toBe(3);
+
+  await page.getByRole('button', { name: '从 generator-1 连线' }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '连接到 output-1' }).click();
+  await expect(page.locator('[data-edge-index]')).toHaveCount(1);
+
+  await page.locator('[data-node-id="output-1"]').click();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('[data-node-id="output-1"]')).toHaveCount(0);
+  await expect.poll(() => saves.length).toBe(4);
 
   const originalViewport = await board.getAttribute('data-viewport');
   await board.hover();
@@ -68,6 +104,13 @@ test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on c
   await page.mouse.move(boardBox.x + boardBox.width - 40, boardBox.y + boardBox.height - 40);
   await page.mouse.up();
   await expect.poll(() => board.getAttribute('data-viewport')).not.toBe(zoomedViewport);
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+    id: 'v2-e2e',
+    nodes: [],
+    connections: [],
+  } })));
+  await expect(node).toHaveCount(1);
 
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
     id: 'v2-e2e-next',

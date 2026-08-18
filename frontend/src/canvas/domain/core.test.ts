@@ -77,6 +77,17 @@ describe('graph model', () => {
     expect(graph.wouldCreateCycle('a', 'b')).toBe(false);
   });
 
+  it('applies legacy connection compatibility, duplicate and cycle gates', () => {
+    const graph = createGraphModel(document(
+      [['prompt', 'prompt'], ['a', 'generator'], ['out', 'output'], ['b', 'video']],
+      [['prompt', 'a'], ['a', 'out'], ['out', 'b']],
+    ));
+    expect(graph.canConnect('prompt', 'b')).toBe(true);
+    expect(graph.canConnect('prompt', 'a')).toBe(false);
+    expect(graph.canConnect('b', 'a')).toBe(false);
+    expect(graph.canConnect('a', 'prompt')).toBe(false);
+  });
+
   it('matches legacy first-node behavior for duplicate ids and ignores missing nodes', () => {
     const graph: CanvasDocument = {
       schemaVersion: 1,

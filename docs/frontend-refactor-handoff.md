@@ -151,7 +151,9 @@ Spike 只实现：
 
 ### 7.2 Board V2 实施顺序
 
-第一批已完成：新增独立 `canvas_board_v2=1` root；开关关闭时只走 Legacy Board，开启后隐藏 Legacy Board 并挂载 V2。V2 当前只读取 Document Store 投影，支持节点/连线外壳、选择、拖动、画布平移与缩放；节点位置修改仅保存在 V2 本地视图，不写回 Legacy 文档。页面离开或挂载失败时恢复完整 Legacy Board。
+第一批已完成：新增独立 `canvas_board_v2=1` root；开关关闭时只走 Legacy Board，开启后隐藏 Legacy Board 并挂载 V2。Board 支持节点/连线外壳、选择、拖动、画布平移与缩放；页面离开或挂载失败时恢复完整 Legacy Board。
+
+第二批已完成：V2 Document Store 成为开关路径内节点位置和连线的唯一写入者；同画布的 Legacy 投影不会覆盖 V2 修改。节点移动、创建/选择/删除连线和删除节点通过 Store action 更新，并由 CanvasRepository 串行保存最新状态；保存失败时保留本地修改并显示错误。GraphModel 统一执行类型兼容、重复连线和环检测门禁，Delete/Backspace/Escape 与基础节点注册表已接入。
 
 1. 新增独立的 `canvas_board_v2=1` 开关和完整 Board root；默认仍渲染 Legacy Board。
 2. 实现视口、选择、拖动、连线、快捷键和节点类型注册表。

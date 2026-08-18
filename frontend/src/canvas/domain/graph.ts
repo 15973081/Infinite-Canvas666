@@ -9,7 +9,10 @@ export const DEFAULT_RUN_NODE_TYPES = new Set([
   'video',
 ]);
 
+const MEDIA_OUTPUT_NODE_TYPES = new Set(['generator', 'msgen', 'comfy', 'ltxDirector', 'video']);
+
 export interface GraphModel {
+  canConnect(fromId: string, toId: string): boolean;
   cascadeOrder(targetId: string): string[];
   retryCascadeOrder(nodeId: string): string[];
   wouldCreateCycle(fromId: string, toId: string): boolean;
@@ -71,6 +74,27 @@ export function createGraphModel(
     return false;
   }
 
+  function canConnect(fromId: string, toId: string): boolean {
+    if (!fromId || !toId || fromId === toId) return false;
+    const from = nodes.get(fromId);
+    const to = nodes.get(toId);
+    if (!from || !to || document.connections.some((edge) => edge.from === fromId && edge.to === toId)) return false;
+    if (MEDIA_OUTPUT_NODE_TYPES.has(from.type)) {
+      if (to.type === 'output') return !wouldCreateCycle(fromId, toId);
+      if (MEDIA_OUTPUT_NODE_TYPES.has(to.type)) return !wouldCreateCycle(fromId, toId);
+      return false;
+    }
+    if (to.type === 'loop') {
+      return (Boolean(to.imageInput) && ['image', 'group', 'output'].includes(from.type))
+        || (Boolean(to.showPrompt) && ['prompt', 'promptGroup', 'loop', 'llm'].includes(from.type));
+    }
+    if (to.type === 'llm') return ['prompt', 'loop', 'promptGroup', 'llm', 'image', 'group', 'output'].includes(from.type);
+    if (from.type === 'llm') return MEDIA_OUTPUT_NODE_TYPES.has(to.type);
+    return MEDIA_OUTPUT_NODE_TYPES.has(to.type)
+      && ['image', 'prompt', 'loop', 'group', 'promptGroup', 'output', 'llm'].includes(from.type)
+      && (from.type !== 'output' || !wouldCreateCycle(fromId, toId));
+  }
+
   function retryCascadeOrder(nodeId: string): string[] {
     const visited = new Set<string>();
     const downstream = new Set<string>();
@@ -101,7 +125,7 @@ export function createGraphModel(
     return order;
   }
 
-  return { cascadeOrder, retryCascadeOrder, wouldCreateCycle };
+  return { canConnect, cascadeOrder, retryCascadeOrder, wouldCreateCycle };
 }
 
 function indexEdges(edges: CanvasEdge[], key: 'from' | 'to'): Map<string, CanvasEdge[]> {

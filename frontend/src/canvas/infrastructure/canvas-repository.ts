@@ -123,7 +123,10 @@ export function createCanvasRepository(fetcher: Fetcher = fetch): CanvasReposito
 }
 
 export function canvasDocumentSavePayload(document: CanvasDocument): CanvasSavePayload {
-  return encodeCanvasDocument(document) as CanvasSavePayload;
+  return {
+    ...encodeCanvasDocument(document),
+    base_updated_at: Number(document.updated_at || 0),
+  } as CanvasSavePayload;
 }
 
 function conflictDetail(value: unknown): Record<string, unknown> {

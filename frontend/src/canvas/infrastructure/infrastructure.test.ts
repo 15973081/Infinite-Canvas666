@@ -124,6 +124,7 @@ describe('canvas repository', () => {
       { method: 'PUT', url: '/api/canvases/canvas%2F1' },
     ]);
     expect(JSON.parse(requests[1].body || '{}').custom).toEqual({ preserved: true });
+    expect(JSON.parse(requests[1].body || '{}').base_updated_at).toBe(20);
     expect(repository.getDiagnostics()).toMatchObject({ loads: 1, saves: 1, conflicts: 0, errors: 0 });
   });
 
