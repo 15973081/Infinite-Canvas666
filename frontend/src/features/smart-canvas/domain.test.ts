@@ -44,4 +44,34 @@ describe('migrateLegacySmartDocument', () => {
     const document = { id: 'v2', kind: 'smart', schemaVersion: 1, connections: [], nodes: [{ id: 'p', type: 'prompt' }] };
     expect(migrateLegacySmartDocument(document)).toBe(document);
   });
+
+  it('preserves unfinished legacy tasks as recoverable V2 output work', () => {
+    const migrated = migrateLegacySmartDocument({
+      id: 'pending-smart', kind: 'smart', schemaVersion: 1,
+      settings: { engine: 'api', provider_id: 'provider', model: 'image-v1' },
+      connections: [],
+      nodes: [{
+        id: 'target', type: 'smart-image', images: [], runStartedAt: 123,
+        pendingTasks: [{ taskId: 'task-42', kind: 'image', providerId: 'provider' }],
+      }],
+    });
+
+    expect(migrated.nodes.find((node) => node.id === 'target__generator')).toMatchObject({
+      type: 'generator', runStatus: 'recovering', legacySmartNodeId: 'target',
+    });
+    expect(migrated.nodes.find((node) => node.id === 'target')).toMatchObject({
+      type: 'output', running: false,
+      _pending: [{ canvasTaskId: 'task-42', canvasTaskType: 'image', nodeId: 'target__generator', recoveryStatus: 'interrupted', startedAt: 123 }],
+    });
+  });
+
+  it('keeps legacy history groups as output-only nodes', () => {
+    const migrated = migrateLegacySmartDocument({
+      id: 'history-smart', kind: 'smart', schemaVersion: 1, connections: [],
+      nodes: [{ id: 'history', type: 'smart-image', historyFor: 'source', runSettings: { engine: 'api' }, images: [{ url: '/old.png' }] }],
+    });
+
+    expect(migrated.nodes).toHaveLength(1);
+    expect(migrated.nodes[0]).toMatchObject({ id: 'history', type: 'output', historyFor: 'source' });
+  });
 });

@@ -81,3 +81,49 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
   await expect(page.locator('[data-node-id="output-direct__generator"]')).toHaveAttribute('data-node-type', 'generator');
   await expect(page.locator('[data-node-id="output-direct"] img[src="/output/legacy.png"]')).toHaveCount(1);
 });
+
+test('creates and runs a generation chain from the React Smart Canvas composer', async ({ page }) => {
+  let saves = 0;
+  let submitted: Record<string, unknown> = {};
+  let canvasDocument = {
+    id: 'smart-composer-e2e', kind: 'smart', schemaVersion: 1, title: 'Composer Smart', updated_at: 1,
+    connections: [] as Array<Record<string, unknown>>, nodes: [] as Array<Record<string, unknown>>,
+  };
+  await page.route('**/api/config', async (route) => route.fulfill({ json: {
+    api_providers: [{ id: 'mock', name: 'Mock Provider', enabled: true, image_models: ['mock-image'], video_models: ['mock-video'] }],
+  } }));
+  await page.route('**/api/workflows', async (route) => route.fulfill({ json: { workflows: [] } }));
+  await page.route('**/api/canvas-folders', async (route) => route.fulfill({ json: { folders: [] } }));
+  await page.route('**/api/canvases/trash', async (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvases/smart-composer-e2e/lock', async (route) => route.fulfill({ json: { ok: true } }));
+  await page.route('**/api/canvases/smart-composer-e2e', async (route) => {
+    if (route.request().method() === 'PUT') {
+      saves += 1;
+      canvasDocument = { ...canvasDocument, ...JSON.parse(route.request().postData() || '{}'), updated_at: saves + 1 };
+    }
+    await route.fulfill({ json: { canvas: canvasDocument } });
+  });
+  await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvas-image-tasks**', async (route) => {
+    if (route.request().method() === 'POST') {
+      submitted = JSON.parse(route.request().postData() || '{}');
+      await route.fulfill({ json: { task_id: 'composer-task', status: 'queued' } });
+    } else {
+      await route.fulfill({ json: { id: 'composer-task', status: 'succeeded', result: { images: ['/output/composer.png'] } } });
+    }
+  });
+
+  await page.goto('/static/smart-canvas.html?id=smart-composer-e2e');
+  await expect(page.getByTestId('smart-canvas-composer')).toBeVisible();
+  await page.getByLabel('智能画布提示词').fill('a city made of glass');
+  await expect(page.getByLabel('智能生成平台')).toHaveValue('mock');
+  await expect(page.getByLabel('智能生成模型')).toHaveValue('mock-image');
+  await page.getByRole('button', { name: '创建并生成' }).click();
+
+  await expect(page.getByRole('status')).toContainText('生成完成');
+  await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="output"] img[src="/output/composer.png"]')).toHaveCount(1);
+  expect(submitted).toMatchObject({ prompt: 'a city made of glass', provider_id: 'mock', model: 'mock-image' });
+  await expect.poll(() => saves).toBeGreaterThan(0);
+});

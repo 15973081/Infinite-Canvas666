@@ -3,6 +3,7 @@ import { createCanvasRepository } from '../canvas/infrastructure/canvas-reposito
 import { createTaskClient } from '../canvas/infrastructure/task-client';
 import { mountCanvasAppV2 } from '../canvas/ui/canvas-app-v2';
 import { migrateLegacySmartDocument } from '../features/smart-canvas/domain';
+import { SmartCanvasComposer } from '../features/smart-canvas/composer';
 import { mountStudioTheme } from '../shared/theme';
 
 mountStudioTheme();
@@ -19,6 +20,7 @@ mountCanvasAppV2(root, {
     assetInboxKey: 'smart_canvas_asset_inbox',
     createLabel: '新建智能画布',
     defaultTitle: '智能画布',
+    editorAddon: <SmartCanvasComposer runtime={runtime} />,
     heading: '智能画布',
     initialCanvasId: new URLSearchParams(window.location.search).get('id') || '',
     kind: 'smart',

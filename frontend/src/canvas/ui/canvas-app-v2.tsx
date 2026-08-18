@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { CanvasDocument } from '../domain/types';
 import { canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
@@ -16,6 +16,7 @@ export interface CanvasAppConfiguration {
   assetInboxKey?: string;
   createLabel?: string;
   defaultTitle?: string;
+  editorAddon?: ReactNode;
   heading?: string;
   initialCanvasId?: string;
   kind?: 'classic' | 'smart';
@@ -260,6 +261,7 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       </div>
     </header>
     <div className="canvas-modern-board" ref={boardRef} />
+    {configuration.editorAddon}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
     {promptTarget ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>提示词模板</strong><button onClick={() => setPromptTarget('')} type="button">关闭</button></header>{templates.length ? templates.map((item) => <button key={item.id} onClick={() => { window.CanvasBoardV2?.updateNode(promptTarget, { text: item.text }); setPromptTarget(''); }} type="button"><strong>{item.name}</strong><small>{item.text.slice(0, 100)}</small></button>) : <p>暂无模板</p>}</section></div> : null}
     {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；未选中时导出整张画布。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}

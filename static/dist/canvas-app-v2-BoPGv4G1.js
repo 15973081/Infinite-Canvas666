@@ -495,6 +495,7 @@ function v({ configuration: e = {}, management: t = l(), repository: n, runtime:
 				className: "canvas-modern-board",
 				ref: U
 			}),
+			e.editorAddon,
 			M ? /* @__PURE__ */ (0, g.jsx)("div", {
 				className: "modal open canvas-modern-backups",
 				children: /* @__PURE__ */ (0, g.jsxs)("section", {
