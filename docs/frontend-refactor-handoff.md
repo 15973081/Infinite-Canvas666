@@ -122,7 +122,9 @@ Set-Location ..
 
 ## 7. 下一步：阶段 7 CanvasBoard V2
 
-### 7.1 先做 3～5 天渲染层 Spike
+### 7.1 渲染层 Spike（已完成）
+
+结论：CanvasBoard V2 采用自研 React Board，`@xyflow/react` 仅保留在决策原型中，不进入正式路径。200/300 基准、交互与媒体生命周期结果见 `docs/canvas-board-v2-renderer-spike.md`，决策见 `docs/adr/0002-canvas-board-v2-renderer.md`。下一实施项为 7.2 的独立 `canvas_board_v2=1` Board root。
 
 在进入正式节点迁移前，比较以下两条路径：
 
