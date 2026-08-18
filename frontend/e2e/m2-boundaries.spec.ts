@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '28');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '29');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -59,6 +59,8 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-percentage', '100');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
+  await expect(page.locator('.canvas-modern-manager')).toBeVisible();
+  await expect(page.locator('#shell')).toBeHidden();
   const report = await page.evaluate(() => (window as typeof window & { CanvasModernCore: any }).CanvasModernCore.getM2Report());
   expect(report.rollout).toMatchObject({ enabled: true, forced: false, percentage: 100, source: 'query' });
 
@@ -66,6 +68,49 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
+  await expect(page.locator('#shell')).toBeVisible();
+});
+
+test('runs the standalone React Canvas without loading the legacy Canvas runtime', async ({ page }) => {
+  let saves = 0;
+  await page.route('**/api/canvases/trash', async (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvases/standalone-e2e/lock', async (route) => route.fulfill({ json: { ok: true } }));
+  await page.route('**/api/canvases/standalone-e2e', async (route) => {
+    const document = {
+      id: 'standalone-e2e', schemaVersion: 1, title: 'Standalone E2E', updated_at: 1,
+      connections: [{ from: 'prompt-1', to: 'generator-1' }],
+      nodes: [
+        { id: 'prompt-1', type: 'prompt', text: 'modern canvas', x: 30, y: 80 },
+        { id: 'generator-1', type: 'generator', apiProvider: 'mock', model: 'mock-image', x: 380, y: 80 },
+      ],
+    };
+    if (route.request().method() === 'PUT') {
+      saves += 1;
+      await route.fulfill({ json: { canvas: { ...document, ...JSON.parse(route.request().postData() || '{}'), updated_at: saves + 1 } } });
+      return;
+    }
+    await route.fulfill({ json: { canvas: document } });
+  });
+  await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [{ id: 'standalone-e2e', title: 'Standalone E2E', updated_at: 1 }] } }));
+  await page.route('**/api/canvas-image-tasks**', async (route) => {
+    if (route.request().method() === 'POST') await route.fulfill({ json: { task_id: 'standalone-task', status: 'queued' } });
+    else await route.fulfill({ json: { id: 'standalone-task', status: 'succeeded', result: { images: ['/output/standalone.png'] } } });
+  });
+
+  await page.goto('/static/canvas.html?canvas_v2_rollout=100');
+  await page.getByRole('button', { name: /Standalone E2E/ }).click();
+  await expect(page.locator('.canvas-modern-editor')).toBeVisible();
+  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(1);
+  const isolation = await page.evaluate(() => ({
+    api: typeof (window as typeof window & { CanvasApi?: unknown }).CanvasApi,
+    bridge: typeof (window as typeof window & { CanvasLegacyBridge?: unknown }).CanvasLegacyBridge,
+    legacyScript: [...document.scripts].some((script) => /\/static\/js\/canvas\.js/.test(script.src)),
+  }));
+  expect(isolation).toEqual({ api: 'undefined', bridge: 'undefined', legacyScript: false });
+
+  await page.locator('[data-node-type="generator"]').getByRole('button', { name: '运行', exact: true }).click();
+  await expect.poll(() => saves).toBeGreaterThan(0);
+  await expect(page.locator('[data-node-type="output"] img[src="/output/standalone.png"]')).toHaveCount(1);
 });
 
 test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async ({ page }) => {
@@ -263,6 +308,7 @@ test('edits and groups low-risk V2 nodes through the persisted document', async 
   });
   await page.goto('/static/canvas.html?canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
     document.getElementById('shell')?.classList.remove('no-canvas');
     window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
@@ -323,6 +369,7 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   });
   await page.goto('/static/canvas.html?canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
     document.getElementById('shell')?.classList.remove('no-canvas');
     window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
@@ -399,6 +446,7 @@ test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
   });
   await page.goto('/static/canvas.html?canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
     document.getElementById('shell')?.classList.remove('no-canvas');
     window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
@@ -454,23 +502,22 @@ test('persists production parity controls for Video and custom Comfy workflows',
   });
   await page.goto('/static/canvas.html?canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
     const target = window as any;
-    const legacy = target.CanvasLegacyBridge;
-    target.CanvasLegacyBridge = {
-      ...legacy,
-      async getComfyFields() {
+    const runtime = target.CanvasModernCore.canvasRuntime;
+    const originalOptions = runtime.getNodeOptions.bind(runtime);
+    runtime.getComfyFields = async () => {
         return [
           { id: 'seed', input: 'seed', name: 'Seed', node: '1', type: 'number', default: 7, min: 1, max: 999999, random_enabled: true },
           { id: 'sampler', input: 'sampler', name: 'Sampler', node: '1', type: 'dropdown', default: 'euler', options: ['euler', 'dpm'] },
           { id: 'image', input: 'image', name: 'Image', node: '2', type: 'image' },
           { id: 'positive', input: 'positive', name: 'Positive Prompt', node: '3', type: 'textarea' },
         ];
-      },
-      getNodeOptions(type: string, field: string, node: Record<string, unknown>) {
-        if (type === 'comfy' && field === 'workflow') return [{ value: 'fixture.json', label: 'Fixture Workflow' }];
-        return legacy.getNodeOptions(type, field, node);
-      },
+    };
+    runtime.getNodeOptions = (type: string, field: string, node: Record<string, unknown>) => {
+      if (type === 'comfy' && field === 'workflow') return [{ value: 'fixture.json', label: 'Fixture Workflow' }];
+      return originalOptions(type, field, node);
     };
     document.getElementById('shell')?.classList.remove('no-canvas');
     window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
@@ -511,6 +558,7 @@ test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page 
   });
   await page.goto('/static/canvas.html?canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
     document.getElementById('shell')?.classList.remove('no-canvas');
     window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {

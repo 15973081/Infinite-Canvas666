@@ -1,4 +1,5 @@
 import { decodeCanvasDocument } from './canvas/domain/document-codec';
+import { createModernCanvasRuntime, type CanvasRuntime } from './canvas/application/modern-canvas-runtime';
 import { mergeCanvasDocuments, type CanvasMergeResult } from './canvas/domain/document-merge';
 import {
   createExecutionState,
@@ -131,8 +132,10 @@ declare global {
     };
     CanvasBoardV2?: {
       addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
+      exportSelection(): { connections: unknown[]; nodes: unknown[] };
       groupSelected(): void;
       importFiles(files: File[], point?: { x: number; y: number }): Promise<void>;
+      importWorkflow(payload: { connections?: unknown[]; nodes?: unknown[] }): string[];
       controlExecution(command: 'retry-execution' | 'stop-execution', nodeId: string): Promise<void>;
       openOutputLightbox(node: Record<string, unknown>, url: string): void;
       openPromptTemplates(nodeId: string): void;
@@ -142,11 +145,14 @@ declare global {
       updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
     };
     CanvasLegacyBridge?: LegacyBridge;
+    __CanvasBootstrapRolloutPolicy?: import('./canvas/infrastructure/rollout').CanvasRolloutPolicy | null;
+    __loadCanvasLegacyFallback?: () => Promise<void>;
     openPromptTemplateModal?: (nodeId: string) => void;
     CanvasModernCore?: {
       activeOrder(kind: OrderKind, targetId: string): string[] | null;
       canvasRepository: CanvasRepository;
       canvasRepositoryEnabled: boolean;
+      canvasRuntime: CanvasRuntime;
       compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[]): OrderComparison | null;
       executionEngineEnabled: boolean;
       getExecutionShadowReport(): ExecutionShadowReport;
@@ -161,13 +167,15 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 28;
+      version: 29;
     };
   }
 }
 
 const searchParams = new URLSearchParams(window.location.search);
-const rolloutPolicy = await loadCanvasRolloutPolicy();
+const rolloutPolicy = '__CanvasBootstrapRolloutPolicy' in window
+  ? window.__CanvasBootstrapRolloutPolicy ?? null
+  : await loadCanvasRolloutPolicy();
 const rolloutDecision = resolveCanvasV2Rollout(
   window.location.search,
   window.localStorage,
@@ -198,6 +206,8 @@ const reactToolbarIslandEnabled = reactIslandsEnabled || searchParams.get('canva
 const boardV2Enabled = searchParams.get('canvas_board_v2') === '1'
   || (searchParams.get('canvas_board_v2') === null && rolloutDecision.enabled);
 const taskClient = createTaskClient();
+const canvasRuntime = createModernCanvasRuntime(taskClient);
+await canvasRuntime.initialize();
 const canvasRepository = createCanvasRepository();
 const executionRuns = new Map<string, ExecutionState>();
 let executionEvents = 0;
@@ -228,9 +238,10 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 28 as const,
+  version: 29 as const,
   canvasRepository,
   canvasRepositoryEnabled,
+  canvasRuntime,
   executionEngineEnabled,
   m2Enabled,
   taskClient,
@@ -413,7 +424,7 @@ if (reactActivityIslandEnabled) {
   }
 }
 
-if (boardV2Enabled) {
+if (boardV2Enabled && !rolloutDecision.enabled) {
   const element = document.getElementById('canvasBoardV2');
   const legacyBoard = document.getElementById('board');
   if (element && legacyBoard) {
@@ -434,6 +445,30 @@ if (boardV2Enabled) {
   }
 }
 
+if (rolloutDecision.enabled) {
+  const element = document.getElementById('canvasModernApp');
+  const legacyShell = document.getElementById('shell');
+  if (element) {
+    if (legacyShell) legacyShell.hidden = true;
+    element.hidden = false;
+    void import('./canvas/ui/canvas-app-v2').then(({ mountCanvasAppV2 }) => {
+      const cleanup = mountCanvasAppV2(element, { runtime: canvasRuntime, repository: canvasRepository });
+      window.CanvasModernCore?.recordRolloutEvent('board-mounted', { dimensions: { reason: 'none' } });
+      window.addEventListener('pagehide', cleanup, { once: true });
+    }).catch(async (error) => {
+      element.hidden = true;
+      try {
+        await window.__loadCanvasLegacyFallback?.();
+        if (legacyShell) legacyShell.hidden = false;
+      } catch (fallbackError) {
+        console.error('[canvas-modern-core] Legacy Canvas fallback failed to load', fallbackError);
+      }
+      window.CanvasModernCore?.recordRolloutEvent('board-mount-failed', { dimensions: { reason: 'import-failed' } });
+      console.warn('[canvas-modern-core] standalone Canvas V2 failed to load; restored Legacy Canvas', error);
+    });
+  }
+}
+
 function emitExecutionTransition(state: Readonly<ExecutionState>, event: ExecutionEvent): void {
   modernExecutionTransitions += 1;
   modernExecutionRuns.set(state.targetId, state);
@@ -441,7 +476,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '28';
+document.documentElement.dataset.canvasModernCore = '29';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';

@@ -6,12 +6,15 @@ ROOT = Path(__file__).parents[1]
 
 
 class FrontendBridgeEntryTest(unittest.TestCase):
-    def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
+    def test_canvas_bootstrap_owns_the_legacy_fallback(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
-        legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.19.28'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.19.29'
+        bootstrap = (ROOT / "frontend" / "src" / "bootstrap.ts").read_text(encoding="utf-8")
 
-        self.assertLess(html.index(legacy), html.index(modern))
+        self.assertNotIn('/static/js/canvas.js', html)
+        self.assertIn(modern, html)
+        self.assertIn("'/static/js/canvas.js?v=2026.07.23.4'", bootstrap)
+        self.assertIn("if (!decision.enabled)", bootstrap)
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
         react_chunks = list((ROOT / "static" / "dist").glob("react-execution-entry-*.js"))
         self.assertEqual(1, len(react_chunks))
@@ -49,7 +52,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("prepareVideoMedia(nodeId, snapshot, action", bridge)
         self.assertIn("openOutputLightbox(node, url)", bridge)
         self.assertIn("field === 'lora'", bridge)
-        self.assertIn("bridge.runNode(nodeId, snapshot, mode)", board)
+        self.assertIn("modernRuntime.runNode(nodeId, snapshot, mode", board)
         self.assertIn("store.getState().projectDocument(result)", board)
         self.assertIn("controlExecution(command", board)
         self.assertIn("application/x-canvas-output-image", board)

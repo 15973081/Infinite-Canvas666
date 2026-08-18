@@ -1,10 +1,10 @@
 # Infinite Canvas 前端重构交接文档
 
-> 更新时间：2026-08-18
+> 更新时间：2026-08-19
 > 当前分支：`two-code`
 > 远端：`origin/two-code`
 > 当前功能基线提交：`f35cc16 feat(canvas): complete v2 node migration`
-> 当前进度：阶段 0～6 完成；阶段 7 第一版实现已提交、生产级验收进行中；阶段 8 待执行
+> 当前进度：阶段 0～7 的代码迁移完成；阶段 8 灰度发布与两个稳定周期待执行
 
 ## 1. 交接目标
 
@@ -338,3 +338,30 @@ Invoke-RestMethod http://localhost:6003/api/canvas-rollout/metrics
 中期目标：阶段 7 退出后开始阶段 8 灰度；V2 保持整板回退，在稳定周期达标后切换默认入口。
 最终目标：阶段 8 默认切换并稳定两个发布周期，确认零使用后删除 Legacy 路径。
 安全底线：不重复提交外部任务、不丢画布字段、不覆盖保存冲突、不触碰 `6003` 生产/开发服务进程。
+
+## 15. 2026-08-19 Canvas 完整代码迁移结果（覆盖前文旧状态）
+
+本节是当前有效结论；前文“第一版骨架”“继续复用 Legacy executor”“阶段 7 尚未退出”等描述仅保留为迁移历史，不再代表代码现状。
+
+- `/static/canvas.html` 由 `frontend/src/bootstrap.ts` 先读取灰度策略。V2 命中时不下载 `canvas-core.js`、`canvas-api.js`、`ltx-director-timeline.js` 或 `canvas.js`；未命中或 kill switch 生效时才动态加载完整 Legacy 路径。
+- V2 使用独立 React 管理器、Document Store、CanvasRepository、CanvasManagementClient 和 ModernCanvasRuntime；列表、新建、回收站、锁、保存冲突合并、备份、费用、日志、提示词模板、资产库及工作流导入/导出均不依赖 Legacy DOM。
+- Generator、ModelScope、Video、Comfy、LLM、LTX Director 由 TypeScript runtime 直接执行；包含参考媒体、生成数量、LoRA、视频手动 URL/云链、Comfy 动态字段/随机参数/媒体上传、LLM 聊天与视觉输入、LTX 图片/音频时间线、级联、停止、重试、pending 和任务结果投影。
+- Image、Prompt、PromptGroup、Loop、Group、Output 以及所有 Board 交互由 React/Store 单独拥有。V2 页面不会创建 `CanvasApi` 或 `CanvasLegacyBridge`。
+- Playwright 已增加独立路径门禁：打开真实 V2 管理器和画布、断言旧脚本与全局桥不存在，并通过 mock 后端完成 Generator 任务和持久化。
+- Legacy 代码仍作为阶段 8 的整页回滚制品保留；它不再是 V2 的运行依赖。未经两个稳定发布周期和生产指标确认，不删除该回滚路径。
+
+阶段划分现在是：
+
+1. 阶段 7“代码迁移”完成。
+2. 阶段 8“发布验证”未完成：真实供应商凭据链路、历史生产数据全量审计、小流量灰度、重复计费核对和两个稳定发布周期必须在实际环境执行。
+3. 只有阶段 8 达标后，才能把服务端默认百分比提高到 100%，并另行删除 Legacy 制品。
+
+推荐验收命令：
+
+```powershell
+Set-Location frontend
+npm run check
+Set-Location ..
+& '.\python\python.exe' -m unittest discover -s tests -v
+& '.\python\python.exe' app/services/canvas_audit.py --directory data/canvases --summary-only
+```

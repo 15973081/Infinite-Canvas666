@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
 import { mergeCanvasDocuments } from '../domain/document-merge';
+import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import type { CanvasEdge, CanvasNode } from '../domain/types';
-import { CanvasConflictError, canvasDocumentSavePayload } from '../infrastructure/canvas-repository';
+import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
 
 type Point = { x: number; y: number };
@@ -13,6 +14,10 @@ const nodeRegistry: Record<string, string> = {
   comfy: 'ComfyUI', generator: 'API 生成', group: '分组', image: '上传', llm: 'LLM', loop: '循环',
   ltxDirector: 'LTX Director', msgen: 'ModelScope', output: 'Output', prompt: '提示词', promptGroup: '提示词组', video: '视频',
 };
+
+function runtime(): CanvasRuntime | null {
+  return window.CanvasModernCore?.canvasRuntime ?? null;
+}
 
 function nodePoint(node: CanvasNode): Point {
   return { x: Number(node.x || 0), y: Number(node.y || 0) };
@@ -172,9 +177,8 @@ function InputSummary({ document, node }: { document: { connections: CanvasEdge[
 
 function GeneratorBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const bridge = window.CanvasLegacyBridge;
-  const providerOptions = (bridge?.getNodeOptions('generator', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
-  const modelOptions = (bridge?.getNodeOptions('generator', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const providerOptions = (runtime()?.getNodeOptions('generator', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
+  const modelOptions = (runtime()?.getNodeOptions('generator', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
   const provider = String(node.apiProvider || providerOptions[0]?.[0] || '');
   const fitReference = async () => {
     const reference = connectedMedia(document, node).find((item) => item.kind !== 'video' && item.kind !== 'audio');
@@ -186,7 +190,7 @@ function GeneratorBody({ commit, document, node, store }: { commit: () => void; 
     <InputSummary document={document} node={node} />
     <div className="gen-settings"><div className="gen-settings-row">
       <SelectField ariaLabel="图片平台" onChange={(apiProvider) => {
-        const models = bridge?.getNodeOptions('generator', 'model', { ...node, apiProvider }) ?? [];
+        const models = runtime()?.getNodeOptions('generator', 'model', { ...node, apiProvider }) ?? [];
         update({ apiProvider, model: models[0]?.value || '' });
       }} options={providerOptions} value={provider} />
       <SelectField ariaLabel="图片模型" onChange={(model) => update({ model })} options={modelOptions} value={String(node.model || '')} />
@@ -204,10 +208,9 @@ function GeneratorBody({ commit, document, node, store }: { commit: () => void; 
 
 function MsGenBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const bridge = window.CanvasLegacyBridge;
-  const models = (bridge?.getNodeOptions('msgen', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
-  const customModels = (bridge?.getNodeOptions('msgen', 'custom-model', node) ?? []).map((item) => [item.value, item.label] as const);
-  const loras = bridge?.getNodeOptions('msgen', 'lora', node) ?? [];
+  const models = (runtime()?.getNodeOptions('msgen', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const customModels = (runtime()?.getNodeOptions('msgen', 'custom-model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const loras = runtime()?.getNodeOptions('msgen', 'lora', node) ?? [];
   const selectedLora = loras.find((item) => item.value === node.msLoraId) ?? loras[0];
   const fitReference = async () => {
     const reference = connectedMedia(document, node).find((item) => item.kind !== 'video' && item.kind !== 'audio');
@@ -257,16 +260,15 @@ function VideoBody({ commit, document, node, store }: { commit: () => void; docu
   const [manualUrl, setManualUrl] = useState(String((Array.isArray(node.manualVideoUrls) ? node.manualVideoUrls[0] : '') || ''));
   const [preparing, setPreparing] = useState(false);
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const bridge = window.CanvasLegacyBridge;
-  const providers = (bridge?.getNodeOptions('video', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
-  const models = (bridge?.getNodeOptions('video', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const providers = (runtime()?.getNodeOptions('video', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
+  const models = (runtime()?.getNodeOptions('video', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
   const toggles = [['enhancePrompt', '增强提示词'], ['enableUpsample', '超分辨率'], ['watermark', '水印'], ['cameraFixed', '固定镜头'], ['generateAudio', '生成音频'], ['multimodal', '多模态'], ['useFrameRoles', '首尾帧']] as const;
   return <div className="generator-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <InputSummary document={document} node={node} />
     <div className="video-input-actions"><input aria-label="视频手动 URL" className="setting-input" onChange={(event) => setManualUrl(event.target.value)} placeholder="https://… 或 asset://…" value={manualUrl} /><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await window.CanvasBoardV2?.prepareVideoMedia(node.id, 'manual', manualUrl); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">应用网址</button><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await window.CanvasBoardV2?.prepareVideoMedia(node.id, 'cloud'); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">{preparing ? '处理中…' : '上传云端'}</button></div>
     <div className="gen-settings"><div className="gen-settings-row">
       <SelectField ariaLabel="视频平台" onChange={(apiProvider) => {
-        const next = bridge?.getNodeOptions('video', 'model', { ...node, apiProvider }) ?? [];
+        const next = runtime()?.getNodeOptions('video', 'model', { ...node, apiProvider }) ?? [];
         update({ apiProvider, model: next[0]?.value || '' });
       }} options={providers} value={String(node.apiProvider || providers[0]?.[0] || '')} />
       <SelectField ariaLabel="视频模型" onChange={(model) => update({ model })} options={models} value={String(node.model || '')} />
@@ -282,13 +284,12 @@ function VideoBody({ commit, document, node, store }: { commit: () => void; docu
 
 function LLMBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const bridge = window.CanvasLegacyBridge;
-  const providers = (bridge?.getNodeOptions('llm', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
-  const models = (bridge?.getNodeOptions('llm', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const providers = (runtime()?.getNodeOptions('llm', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
+  const models = (runtime()?.getNodeOptions('llm', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
   const messages = Array.isArray(node.messages) ? node.messages as Array<{ content?: string; role?: string }> : [];
   return <div className="llm-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <div className="llm-row"><SelectField ariaLabel="LLM 平台" onChange={(llmProvider) => {
-      const next = bridge?.getNodeOptions('llm', 'model', { ...node, llmProvider }) ?? [];
+      const next = runtime()?.getNodeOptions('llm', 'model', { ...node, llmProvider }) ?? [];
       update({ llmProvider, model: next[0]?.value || '' });
     }} options={providers} value={String(node.llmProvider || providers[0]?.[0] || '')} /><SelectField ariaLabel="LLM 模型" onChange={(model) => update({ model, ...(node.llmProvider === 'modelscope' ? { llmMsModel: model } : {}) })} options={models} value={String(node.model || '')} />
       <div className="llm-mode"><button className={node.mode !== 'chat' ? 'active' : ''} onClick={() => update({ mode: 'node' })} type="button">节点</button><button className={node.mode === 'chat' ? 'active' : ''} onClick={() => update({ mode: 'chat' })} type="button">聊天</button></div>
@@ -313,7 +314,7 @@ function ComfyBody({ commit, document, node, store }: { commit: () => void; docu
   useEffect(() => {
     let active = true;
     if (node.mode !== 'custom' || !workflow) { setFields([]); return; }
-    void window.CanvasLegacyBridge?.getComfyFields(workflow).then((items) => { if (active) setFields(items as ComfyField[]); });
+    void (runtime()?.getComfyFields(workflow) ?? Promise.resolve([])).then((items) => { if (active) setFields(items as ComfyField[]); });
     return () => { active = false; };
   }, [node.mode, workflow]);
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
@@ -321,7 +322,7 @@ function ComfyBody({ commit, document, node, store }: { commit: () => void; docu
   const randomActive = node.comfyRandomActive && typeof node.comfyRandomActive === 'object' ? node.comfyRandomActive as Record<string, unknown> : {};
   const settingFields = fields.filter((field) => comfyFieldKind(field) === 'setting');
   const mediaFields = fields.filter((field) => ['audio', 'image', 'video'].includes(comfyFieldKind(field)));
-  const workflows = (window.CanvasLegacyBridge?.getNodeOptions('comfy', 'workflow', node) ?? []).map((item) => [item.value, item.label] as const);
+  const workflows = (runtime()?.getNodeOptions('comfy', 'workflow', node) ?? []).map((item) => [item.value, item.label] as const);
   const setParam = (field: ComfyField, value: unknown, save = true) => {
     store.getState().updateNode(node.id, { comfyParams: { ...params, [String(field.id)]: value } });
     if (save) commit();
@@ -349,7 +350,7 @@ function ImageBody({ commit, node, store }: { commit: () => void; node: CanvasNo
   useEffect(() => () => { mediaRef.current?.pause(); mediaRef.current?.removeAttribute('src'); mediaRef.current?.load(); }, []);
   const upload = async (files: File[]) => {
     if (!files.length) return;
-    const uploaded = await window.CanvasLegacyBridge?.uploadMedia(files);
+    const uploaded = await runtime()?.uploadMedia(files);
     const items = uploaded?.files ?? [];
     if (!items.length) return;
     store.getState().updateNode(node.id, { url: items[0].url || '', name: items[0].name || 'media', mediaKind: items[0].kind || 'image' });
@@ -378,43 +379,66 @@ function GroupBody({ node, nodesById }: { node: CanvasNode; nodesById: Map<strin
 }
 
 function LTXBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const draftRef = useRef<Record<string, unknown> | null>(null);
-  if (!draftRef.current || draftRef.current.id !== node.id) draftRef.current = window.CanvasLegacyBridge?.normalizeLtxNode(node) ?? structuredClone(node);
-  useEffect(() => {
-    const host = hostRef.current;
-    const Editor = window.CanvasLTXTimelineEditor;
-    const draft = draftRef.current;
-    if (!host || !Editor || !draft) return;
-    store.getState().updateNode(node.id, draft);
-    const editor = new Editor(draft, host, null);
-    const sync = () => { store.getState().updateNode(node.id, structuredClone(draft)); commit(); };
-    editor._onCanvasCommit = sync;
-    editor._onCanvasResize = sync;
-    return () => editor.destroy();
-  }, [commit, node.id, store]);
   const update = (patch: Record<string, unknown>) => {
-    Object.assign(draftRef.current ?? {}, patch);
     store.getState().updateNode(node.id, patch);
     commit();
   };
+  const normalized = runtime()?.normalizeLtxNode(node) ?? node;
   return <div className="ltx-director-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <InputSummary document={document} node={node} />
-    <textarea aria-label="LTX 全局提示词" className="setting-input" onBlur={commit} onChange={(event) => { Object.assign(draftRef.current ?? {}, { globalPrompt: event.target.value }); store.getState().updateNode(node.id, { globalPrompt: event.target.value }); }} placeholder="全局提示词" value={String(node.globalPrompt || '')} />
+    <textarea aria-label="LTX 全局提示词" className="setting-input" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { globalPrompt: event.target.value })} placeholder="全局提示词" value={String(node.globalPrompt || '')} />
     <div className="ltx-params-row"><input aria-label="LTX 秒数" className="setting-input" min="0.1" onChange={(event) => update({ durationSeconds: Math.max(0.1, Number(event.target.value) || 5), durationFrames: Math.max(1, Math.round((Number(event.target.value) || 5) * Number(node.frameRate || 24))) })} step="0.01" type="number" value={Number(node.durationSeconds || 5)} /><input aria-label="LTX 帧数" className="setting-input" min="1" onChange={(event) => update({ durationFrames: Math.max(1, Number(event.target.value) || 120), durationSeconds: (Math.max(1, Number(event.target.value) || 120) / Number(node.frameRate || 24)) })} type="number" value={Number(node.durationFrames || 120)} /><input aria-label="LTX FPS" className="setting-input" min="1" onChange={(event) => update({ frameRate: Math.max(1, Number(event.target.value) || 24) })} type="number" value={Number(node.frameRate || 24)} /><input aria-label="LTX 宽度" className="setting-input" min="0" onChange={(event) => update({ customWidth: Math.max(0, Number(event.target.value) || 0) })} step="32" type="number" value={Number(node.customWidth || 0)} /><input aria-label="LTX 高度" className="setting-input" min="0" onChange={(event) => update({ customHeight: Math.max(0, Number(event.target.value) || 0) })} step="32" type="number" value={Number(node.customHeight || 0)} /></div>
     <div className="ltx-params-row"><SelectField ariaLabel="LTX 时间显示" onChange={(displayMode) => update({ displayMode })} options={[['seconds', '秒'], ['frames', '帧']]} value={String(node.displayMode || 'seconds')} /><button className={`setting-check ${node.useCustomAudio ? 'active' : ''}`} onClick={() => update({ useCustomAudio: !node.useCustomAudio })} type="button">自定义音频</button><input aria-label="LTX 图片压缩" className="setting-input" max="100" min="0" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { imgCompression: Number(event.target.value) })} type="number" value={Number(node.imgCompression ?? 18)} /><input aria-label="LTX Epsilon" className="setting-input" min="0" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { epsilon: Number(event.target.value) })} step="0.0001" type="number" value={Number(node.epsilon ?? 0.001)} /><input aria-label="LTX Divisible By" className="setting-input" min="1" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { divisibleBy: Math.max(1, Number(event.target.value) || 32) })} type="number" value={Number(node.divisibleBy || 32)} /><input aria-label="LTX Noise Seed" className="setting-input" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { noiseSeed: Number(event.target.value) })} type="number" value={Number(node.noiseSeed ?? 12)} /></div>
-    <div className="ltx-director-timeline-host" ref={hostRef}>{window.CanvasLTXTimelineEditor ? null : 'LTX 时间线脚本未加载'}</div>
+    <LtxTimelineEditor commit={commit} node={normalized} store={store} />
     <ExecutionControls document={document} node={node} />
   </div>;
 }
 
-function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentStore }) {
+type LtxSegment = { guideStrength?: number; id: string; imageB64?: string; imageFile?: string; length: number; prompt: string; start: number; type: 'image' | 'text' };
+type LtxAudioSegment = { id: string; length: number; name?: string; start: number; url: string };
+
+function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  let timeline: { audioSegments: LtxAudioSegment[]; segments: LtxSegment[] };
+  try {
+    const parsed = JSON.parse(String(node.ltxTimelineData || '{}')) as Partial<typeof timeline>;
+    timeline = { audioSegments: Array.isArray(parsed.audioSegments) ? parsed.audioSegments as LtxAudioSegment[] : [], segments: Array.isArray(parsed.segments) ? parsed.segments as LtxSegment[] : [] };
+  } catch { timeline = { audioSegments: [], segments: [] }; }
+  const save = (next: typeof timeline) => { store.getState().updateNode(node.id, { ltxTimelineData: JSON.stringify(next) }); commit(); };
+  const updateSegment = (index: number, patch: Partial<LtxSegment>) => save({ ...timeline, segments: timeline.segments.map((segment, itemIndex) => itemIndex === index ? { ...segment, ...patch } : segment) });
+  const updateAudio = (index: number, patch: Partial<LtxAudioSegment>) => save({ ...timeline, audioSegments: timeline.audioSegments.map((segment, itemIndex) => itemIndex === index ? { ...segment, ...patch } : segment) });
+  const upload = async (file: File, apply: (media: { name?: string; url?: string }) => void) => {
+    const media = (await runtime()?.uploadMedia([file]))?.files?.[0];
+    if (media?.url) apply(media);
+  };
+  return <div className="ltx-director-timeline-host canvas-modern-timeline" data-testid="ltx-timeline-editor">
+    <header><strong>时间线</strong><button onClick={() => save({ ...timeline, segments: [...timeline.segments, { id: `segment_${crypto.randomUUID?.() || Date.now()}`, start: timeline.segments.reduce((max, item) => Math.max(max, Number(item.start) + Number(item.length)), 0), length: 24, prompt: '', type: 'text' }] })} type="button">添加片段</button></header>
+    {timeline.segments.map((segment, index) => <div className="canvas-modern-segment" key={segment.id || index}>
+      <select aria-label={`片段 ${index + 1} 类型`} onChange={(event) => updateSegment(index, { type: event.target.value as LtxSegment['type'] })} value={segment.type || 'text'}><option value="text">文本</option><option value="image">图片</option></select>
+      <input aria-label={`片段 ${index + 1} 起始帧`} min="0" onChange={(event) => updateSegment(index, { start: Math.max(0, Number(event.target.value) || 0) })} type="number" value={Number(segment.start || 0)} />
+      <input aria-label={`片段 ${index + 1} 长度`} min="1" onChange={(event) => updateSegment(index, { length: Math.max(1, Number(event.target.value) || 1) })} type="number" value={Number(segment.length || 1)} />
+      <input aria-label={`片段 ${index + 1} 提示词`} onChange={(event) => updateSegment(index, { prompt: event.target.value })} placeholder="片段提示词" value={segment.prompt || ''} />
+      {segment.type === 'image' ? <><input aria-label={`片段 ${index + 1} 图片`} onChange={(event) => updateSegment(index, { imageB64: event.target.value, imageFile: '' })} placeholder="图片 URL" value={segment.imageB64 || segment.imageFile || ''} /><label className="tool-btn">上传<input accept="image/*" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file, (media) => updateSegment(index, { imageB64: media.url, imageFile: '' })); }} type="file" /></label><input aria-label={`片段 ${index + 1} 引导强度`} max="2" min="0" onChange={(event) => updateSegment(index, { guideStrength: Number(event.target.value) })} step="0.05" type="number" value={Number(segment.guideStrength ?? 1)} /></> : null}
+      <button aria-label={`删除片段 ${index + 1}`} onClick={() => save({ ...timeline, segments: timeline.segments.filter((_, itemIndex) => itemIndex !== index) })} type="button">×</button>
+    </div>)}
+    <div className="canvas-modern-audio-row"><span>音频片段 {timeline.audioSegments.length}</span><button onClick={() => save({ ...timeline, audioSegments: [...timeline.audioSegments, { id: `audio_${crypto.randomUUID?.() || Date.now()}`, start: 0, length: 24, url: '' }] })} type="button">添加音频</button></div>
+    {timeline.audioSegments.map((segment, index) => <div className="canvas-modern-segment canvas-modern-audio-segment" key={segment.id || index}>
+      <input aria-label={`音频 ${index + 1} 起始帧`} min="0" onChange={(event) => updateAudio(index, { start: Math.max(0, Number(event.target.value) || 0) })} type="number" value={Number(segment.start || 0)} />
+      <input aria-label={`音频 ${index + 1} 长度`} min="1" onChange={(event) => updateAudio(index, { length: Math.max(1, Number(event.target.value) || 1) })} type="number" value={Number(segment.length || 1)} />
+      <input aria-label={`音频 ${index + 1} URL`} onChange={(event) => updateAudio(index, { url: event.target.value })} placeholder="音频 URL" value={segment.url || ''} />
+      <label className="tool-btn">上传<input accept="audio/*" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file, (media) => updateAudio(index, { name: media.name, url: String(media.url || '') })); }} type="file" /></label>
+      <button aria-label={`删除音频 ${index + 1}`} onClick={() => save({ ...timeline, audioSegments: timeline.audioSegments.filter((_, itemIndex) => itemIndex !== index) })} type="button">×</button>
+    </div>)}
+  </div>;
+}
+
+function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => void; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState('');
   const [selectedEdge, setSelectedEdge] = useState(-1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState('ready');
+  const [lightbox, setLightbox] = useState<{ nodeId: string; url: string } | null>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const documentId = String(document?.id || '');
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
@@ -492,11 +516,19 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
     return () => window.removeEventListener('canvas-board-v2-save-state', listener);
   }, []);
 
+  useEffect(() => {
+    const listener = (event: Event) => setLightbox((event as CustomEvent<{ nodeId: string; url: string }>).detail);
+    window.addEventListener('canvas-v2-open-lightbox', listener);
+    return () => window.removeEventListener('canvas-v2-open-lightbox', listener);
+  }, []);
+
   const connect = (toId: string) => {
     if (connectingFrom && store.getState().connectNodes(connectingFrom, toId)) commit();
     setConnectingFrom('');
   };
 
+  const lightboxNode = lightbox ? nodesById.get(lightbox.nodeId) : null;
+  useEffect(() => { onSelectionChange?.(selectedIds); }, [onSelectionChange, selectedIds]);
   return <div
     aria-label="CanvasBoard V2"
     data-testid="canvas-board-v2"
@@ -651,14 +683,38 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
         </article>;
       })}
     </div>
+    {lightbox && lightboxNode ? <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} /> : null}
   </div>;
 }
 
-export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElement): () => void {
+function OutputLightbox({ node, onClose, url }: { node: CanvasNode; onClose: () => void; url: string }) {
+  const [compare, setCompare] = useState(50);
+  const comparison = (node.imageComparisons as Record<string, { url?: string }> | undefined)?.[url]?.url || '';
+  const video = /\.(mp4|webm|mov)(\?|$)/i.test(url);
+  return <div className="output-lightbox open canvas-v2-lightbox" onClick={onClose} role="dialog">
+    <div className="output-lightbox-shell" onClick={(event) => event.stopPropagation()}>
+      <button aria-label="关闭预览" className="output-lightbox-close" onClick={onClose} type="button">×</button>
+      {video ? <video autoPlay controls src={url} /> : <div className="output-compare"> <img alt="生成结果" src={url} />{comparison ? <div className="output-compare-original-wrap" style={{ width: `${compare}%` }}><img alt="原始参考" src={comparison} /></div> : null}</div>}
+      {comparison && !video ? <input aria-label="对比滑块" max="100" min="0" onChange={(event) => setCompare(Number(event.target.value))} type="range" value={compare} /> : null}
+      <a download href={url}>下载</a>
+    </div>
+  </div>;
+}
+
+export interface CanvasBoardMountOptions {
+  initialDocument?: unknown;
+  repository?: CanvasRepository;
+  runtime?: CanvasRuntime;
+}
+
+export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElement | null, options: CanvasBoardMountOptions = {}): () => void {
   const bridge = window.CanvasLegacyBridge;
-  const repository = window.CanvasModernCore?.canvasRepository;
-  if (!bridge || !repository) throw new Error('Canvas V2 dependencies are unavailable');
-  const store = createDocumentStore(bridge.getDocumentSnapshot());
+  const repository = options.repository ?? window.CanvasModernCore?.canvasRepository;
+  const modernRuntime = options.runtime ?? runtime();
+  const standalone = options.initialDocument !== undefined;
+  const initialDocument = options.initialDocument ?? bridge?.getDocumentSnapshot();
+  if (!repository || !modernRuntime || (standalone && !initialDocument) || (!standalone && !bridge)) throw new Error('Canvas V2 dependencies are unavailable');
+  const store = createDocumentStore(initialDocument);
   let baseDocument = store.getState().document;
   const adopt = (event: Event) => {
     const previousId = store.getState().document?.id;
@@ -667,10 +723,12 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     if (current?.id !== previousId) baseDocument = current;
   };
   const projectExecution = (event: Event) => store.getState().projectExecutionDocument((event as CustomEvent<unknown>).detail);
-  window.addEventListener('canvas-legacy-document', adopt);
-  window.addEventListener('canvas-legacy-execution-document', projectExecution);
+  if (!standalone) {
+    window.addEventListener('canvas-legacy-document', adopt);
+    window.addEventListener('canvas-legacy-execution-document', projectExecution);
+  }
   const root = createRoot(element);
-  const legacyHidden = legacyBoard.hidden;
+  const legacyHidden = legacyBoard?.hidden ?? true;
   let disposed = false;
   let pending = false;
   let saving = false;
@@ -734,6 +792,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       saving = false;
     })();
   };
+  let externalSelection = new Set<string>();
   const previousBoardApi = window.CanvasBoardV2;
   window.CanvasBoardV2 = {
     addNode(type, point) {
@@ -744,15 +803,58 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     groupSelected() {
       window.dispatchEvent(new Event('canvas-board-v2-group-selected'));
     },
+    exportSelection() {
+      const snapshot = store.getState().document;
+      if (!snapshot) return { connections: [], nodes: [] };
+      const selected = externalSelection.size ? externalSelection : new Set(snapshot.nodes.map((node) => node.id));
+      return {
+        connections: structuredClone(snapshot.connections.filter((edge) => selected.has(edge.from) && selected.has(edge.to))),
+        nodes: structuredClone(snapshot.nodes.filter((node) => selected.has(node.id))),
+      };
+    },
+    importWorkflow(payload) {
+      const nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+      const connections = Array.isArray(payload.connections) ? payload.connections : [];
+      const importableTypes = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'video'] as const;
+      const idMap = new Map<string, string>();
+      nodes.forEach((raw, index) => {
+        if (!raw || typeof raw !== 'object') return;
+        const node = raw as Record<string, unknown>;
+        const type = String(node.type || '');
+        if (!importableTypes.includes(type as typeof importableTypes[number])) return;
+        const id = store.getState().addNode(type as typeof importableTypes[number], {
+          x: Number(node.x || 0) + 48 + (index % 3) * 12,
+          y: Number(node.y || 0) + 48 + (index % 3) * 12,
+        });
+        if (!id) return;
+        const sourceId = String(node.id || '');
+        if (sourceId) idMap.set(sourceId, id);
+        const { id: _id, type: _type, x: _x, y: _y, ...settings } = node;
+        store.getState().updateNode(id, structuredClone(settings));
+      });
+      connections.forEach((raw) => {
+        if (!raw || typeof raw !== 'object') return;
+        const edge = raw as Record<string, unknown>;
+        const from = idMap.get(String(edge.from || ''));
+        const to = idMap.get(String(edge.to || ''));
+        if (from && to) store.getState().connectNodes(from, to);
+      });
+      if (idMap.size) commit();
+      return [...idMap.values()];
+    },
     async controlExecution(command, nodeId) {
-      await bridge.runCommand(command, { targetId: nodeId });
-      const result = bridge.getDocumentSnapshot();
-      if (result) store.getState().projectDocument(result);
+      const snapshot = store.getState().document;
+      if (!snapshot) return;
+      const result = await modernRuntime.runCommand(command, nodeId, snapshot, async (next) => {
+        store.getState().projectExecutionDocument(next);
+        commit();
+      });
+      store.getState().projectDocument(result);
       commit();
     },
     async importFiles(files, point) {
       if (!files.length) return;
-      const uploaded = await bridge.uploadMedia(files);
+      const uploaded = await modernRuntime.uploadMedia(files);
       const ids = (uploaded.files ?? []).map((file, index) => {
         const id = store.getState().addNode('image', point ? { x: point.x + index * 36, y: point.y + index * 36 } : undefined);
         if (id) store.getState().updateNode(id, { url: file.url || '', name: file.name || 'media', mediaKind: file.kind || 'image' });
@@ -771,12 +873,13 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       }) : [];
       store.getState().updateNode(String(node.id || ''), { images });
       commit();
-      bridge.openOutputLightbox(node, url);
+      if (options.initialDocument) window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
+      else if (bridge) bridge.openOutputLightbox(node, url);
     },
     async prepareVideoMedia(nodeId, action, value) {
       const snapshot = store.getState().document;
       if (!snapshot) return;
-      const result = await bridge.prepareVideoMedia(nodeId, snapshot, action, value);
+      const result = await modernRuntime.prepareVideoMedia(nodeId, snapshot, action, value);
       store.getState().projectDocument(result);
       commit();
     },
@@ -812,8 +915,12 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     async runNode(nodeId, mode) {
       const snapshot = store.getState().document;
       if (!snapshot) return;
-      const result = await bridge.runNode(nodeId, snapshot, mode);
+      const result = await modernRuntime.runNode(nodeId, snapshot, mode, async (next) => {
+        store.getState().projectExecutionDocument(next);
+        commit();
+      });
       store.getState().projectDocument(result);
+      commit();
     },
     updateNode(nodeId, patch) {
       if (!store.getState().document?.nodes.some((node) => node.id === nodeId)) return false;
@@ -822,17 +929,19 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       return true;
     },
   };
-  root.render(<CanvasBoardV2 commit={commit} store={store} />);
-  legacyBoard.hidden = true;
+  root.render(<CanvasBoardV2 commit={commit} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
+  if (legacyBoard) legacyBoard.hidden = true;
   element.hidden = false;
   return () => {
     disposed = true;
     if (previousBoardApi) window.CanvasBoardV2 = previousBoardApi;
     else delete window.CanvasBoardV2;
-    window.removeEventListener('canvas-legacy-document', adopt);
-    window.removeEventListener('canvas-legacy-execution-document', projectExecution);
+    if (!standalone) {
+      window.removeEventListener('canvas-legacy-document', adopt);
+      window.removeEventListener('canvas-legacy-execution-document', projectExecution);
+    }
     root.unmount();
     element.hidden = true;
-    legacyBoard.hidden = legacyHidden;
+    if (legacyBoard) legacyBoard.hidden = legacyHidden;
   };
 }

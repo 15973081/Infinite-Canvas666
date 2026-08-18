@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     emptyOutDir: true,
     lib: {
-      entry: 'src/main.ts',
+      entry: 'src/bootstrap.ts',
       formats: ['es'],
       fileName: () => 'canvas-modern.js',
     },
