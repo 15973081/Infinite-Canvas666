@@ -397,3 +397,11 @@ Enhance、Klein、Angle 已由同一个 `frontend/src/features/image-studio/` �
 API Settings 已由 `frontend/src/features/provider-studio/` 接管，覆盖当前后端实际支持的 Provider、密钥、火山凭据、连接检测、模型拉取、价格、单模型协议和 ModelScope LoRA。正常入口不再执行 `static/js/api-settings.js`。旧 RunningHub UI 因服务端已经移除 Provider 和全部对应路由而不迁移；该部分是不可执行死代码，不属于有效功能回归。
 
 最新自动化结果：83 个 Vitest、23 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 8。
+
+## 20. 2026-08-19 AssetStudio 与 Asset Manager
+
+`/static/asset-manager.html` 已改为独立 React + TypeScript + Vite 入口，正常路径不再加载 `static/js/asset-manager.js`。`frontend/src/features/asset-studio/` 现在集中承载素材库、工作流、提示词、本地素材、共享目录和 Canvas 素材的类型、领域函数、HTTP 客户端与 UI，后续页面可以复用媒体网格、选择、搜索和批量操作语义。
+
+当前已接通现有后端的库/分组/条目 CRUD、批量移动与删除、工作流上传、本地上传和描述保存、共享目录导入、Canvas ZIP 下载及 Smart Canvas 收件箱。Playwright 断言页面不执行 Legacy 脚本，并覆盖真实请求 payload。
+
+最新自动化结果：85 个 Vitest、24 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 9。数字人认证、裁剪和自动反推描述仍列为高级功能补齐项，不能据此宣称完整生产功能等价；下一批优先迁移 GPT Chat。

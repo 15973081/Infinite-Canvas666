@@ -35,12 +35,12 @@ Canvas 尚未完成的是阶段 8 发布验收：默认 100% 切换、真实供�
 | `klein.html` | React/TS 代码迁移完成 | ImageStudio 多参考图、本地工作流与云端 LoRA 适配器 |
 | `angle.html` | React/TS 代码迁移完成 | ImageStudio 视角 schema、本地/云端及长任务恢复适配器 |
 | `api-settings.html` | React/TS 代码迁移完成 | `ProviderStudio` 平台、凭据、模型、价格、协议、LoRA 与连接检测 |
-| `asset-manager.html` | Legacy | 独立迁移资产、提示词、共享目录与批量操作域 |
+| `asset-manager.html` | React/TS 代码迁移完成 | `frontend/src/pages/asset-manager.tsx`，复用 `AssetStudio` |
 | `gpt-chat.html` | Legacy | 迁移会话、流式消息、视觉输入和附件域 |
 | `smart-canvas.html` | Legacy | 最后复用 Canvas V2 domain/runtime，避免重复画布实现 |
 | `index.html` | Legacy | 在子页面稳定后迁移外壳、导航、iframe 生命周期与主题 |
 
-当前生产页面完成 8 个，另有 1 个 React 性能测试入口。页面数量只是进度参考；资产管理和 Smart Canvas 的工作量远高于普通生成页。
+当前生产页面完成 9 个，另有 1 个 React 性能测试入口。页面数量只是进度参考；Smart Canvas 的工作量远高于普通生成页。
 
 ## 已形成的共享层
 
@@ -52,8 +52,8 @@ Online 与 Z-Image 的业务入口均小于 1KB，共享图片工作台约 12KB�
 
 ## 下一批顺序
 
-1. Asset Manager：按资产、提示词、共享目录三个子域拆分提交。
-2. GPT Chat、首页外壳、Smart Canvas。
+1. GPT Chat：优先抽取会话、流式消息、视觉输入和附件领域层。
+2. 首页外壳、Smart Canvas。
 
 每批允许包含多个同构页面，但必须共享领域层或组件层；禁止用 React 外壳继续运行旧全局脚本冒充迁移。
 
@@ -76,3 +76,16 @@ API Settings 已切换到 `frontend/src/features/provider-studio/`。新产品�
 - `api-settings.html` 不再加载 Tailwind CDN、Lucide、旧主题脚本或 `static/js/api-settings.js`。
 - ProviderStudio E2E 覆盖临时 Key 验证、上游模型拉取、模型协议、价格、LoRA 和保存 payload。
 - 自动化结果：83 个 Vitest、23 个 Playwright、41 个 Python unittest 全部通过。
+
+## 2026-08-19 AssetStudio 结果
+
+Asset Manager 已切换到 `frontend/src/features/asset-studio/` 与独立 TSX 入口，正常路径不再下载或执行 `static/js/asset-manager.js`。新领域层统一管理素材库、工作流、提示词、本地上传、共享目录和 Canvas 素材，直接调用现有服务端契约。
+
+- 素材库支持库/分组 CRUD、URL 入库、重命名、批量删除、批量移动和发送到 Smart Canvas。
+- 工作流支持真实 JSON/ZIP 上传、分组与批量操作。
+- 提示词支持库读取、分组、新建/编辑、搜索与批量删除。
+- 本地素材支持目录浏览、新建目录、上传、删除、描述编辑；共享目录支持注册、目录树浏览与批量导入。
+- Canvas 素材支持分类检索、发送到 Smart Canvas 与 ZIP 下载。
+- 自动化结果：85 个 Vitest、24 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 9。
+
+旧脚本继续作为整页回滚制品保留，但不是生产入口依赖。数字人素材认证、裁剪和本地图片自动反推描述属于 AssetStudio 后续增强项；它们不阻塞当前核心管理路径，但在补齐并完成真实平台验收前，不宣称 Asset Manager 已达到所有历史高级功能的生产等价。
