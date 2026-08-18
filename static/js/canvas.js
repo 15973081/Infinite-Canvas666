@@ -2036,30 +2036,41 @@ function canvasSaveSnapshot(payload){
         logs:payload.logs || []
     });
 }
+function legacyDocumentSnapshot(){
+    if(!canvas) return null;
+    return JSON.parse(JSON.stringify({
+        ...canvas,
+        nodes:serializableCanvasNodes(),
+        connections:(connections || []).map(connection => ({...connection})),
+        viewport:{...viewport}
+    }));
+}
+function publishLegacyDocument(){
+    const snapshot = legacyDocumentSnapshot();
+    if(snapshot) window.dispatchEvent(new CustomEvent('canvas-legacy-document', {detail:snapshot}));
+}
 function resetCanvasSaveSnapshot(){
     if(!canvas) {
         lastSavedCanvasSnapshot = '';
         return;
     }
     lastSavedCanvasSnapshot = canvasSaveSnapshot(canvasSavePayload());
+    publishLegacyDocument();
 }
 window.CanvasLegacyBridge = Object.freeze({
-    runCommand(command){
+    runCommand(command, payload={}){
         if(command === 'open-cost') return openCanvasCost();
         if(command === 'open-log') return openCanvasLog();
+        if(command === 'close-log') return closeCanvasLog();
         if(command === 'open-backups') return showBackupList();
+        const targetId = String(payload?.targetId || '');
+        if(command === 'stop-execution' && targetId) return requestCascadeStop(targetId);
+        if(command === 'retry-execution' && targetId) return retryNodeAndDownstream(targetId);
         throw new Error(`Unknown canvas bridge command: ${command}`);
     },
+    getActivitySnapshot(){ return canvasActivitySnapshot(); },
     getStatusSnapshot(){ return {...canvasStatusSnapshot}; },
-    getDocumentSnapshot(){
-        if(!canvas) return null;
-        return JSON.parse(JSON.stringify({
-            ...canvas,
-            nodes:serializableCanvasNodes(),
-            connections:(connections || []).map(connection => ({...connection})),
-            viewport:{...viewport}
-        }));
-    },
+    getDocumentSnapshot(){ return legacyDocumentSnapshot(); },
     computeCascadeOrder(targetId){
         return [...computeLegacyCascadeOrder(targetId)];
     },
@@ -2131,6 +2142,7 @@ async function saveCanvas(){
         lastSavedCanvasSnapshot = snapshot;
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at);
         setStatus('Saved');
+        publishLegacyDocument();
         if(data.canvas) {
             updateCanvasListRecord(data.canvas);
             refreshGateViewControls();
@@ -2655,6 +2667,7 @@ async function setCanvasTitle(id, title){
         const data = await window.CanvasApi.patchCanvasMeta(id, {title});
         if(data.canvas) updateCanvasListRecord(data.canvas);
         if(currentCanvasTitle && canvas?.id === id) currentCanvasTitle.textContent = title;
+        if(canvas?.id === id) publishLegacyDocument();
     } catch(e){
         setStatus('重命名失败');
         console.error(e);
@@ -11994,6 +12007,34 @@ function canvasCostTotals(logs=canvas?.logs || []){
 function updateCanvasCostButton(totals=canvasCostTotals()){
     if(canvasCostToggleLabel) canvasCostToggleLabel.textContent = `费用 ${formatCostMicros(totals.total)}`;
     if(canvasCostToggle) canvasCostToggle.title = totals.unknown ? `费用仪表盘 · ${totals.unknown} 笔待定价` : '费用仪表盘';
+    publishCanvasActivity(totals);
+}
+let canvasActivityMode = 'logs';
+function canvasActivitySnapshot(totals=canvasCostTotals()){
+    const logs = Array.isArray(canvas?.logs) ? canvas.logs : [];
+    return {
+        mode:canvasActivityMode,
+        costs:{...totals},
+        logs:logs.slice(0, 100).map(log => {
+            const cost = generationLogCost(log);
+            return {
+                id:String(log.id || ''),
+                createdAt:Number(log.createdAt || Date.now()),
+                status:log.status === 'failed' ? 'failed' : 'success',
+                platform:String(log.platform || ''),
+                model:String(logTaskLabel(log) || ''),
+                prompt:String(log.prompt || ''),
+                error:String(log.error || ''),
+                outputCount:Array.isArray(log.outputs) ? log.outputs.length : 0,
+                runMs:Number(log.runMs || 0),
+                costMicros:cost?.status === 'priced' ? Number(cost.amount_micros || 0) : null,
+                costSource:String(cost?.source || '')
+            };
+        })
+    };
+}
+function publishCanvasActivity(totals){
+    window.dispatchEvent(new CustomEvent('canvas-legacy-activity', {detail:canvasActivitySnapshot(totals)}));
 }
 function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
     if(!canvas) return;
@@ -12132,6 +12173,7 @@ function openCanvasLog(event, mode='logs'){
     event?.preventDefault?.();
     event?.stopPropagation?.();
     event?.stopImmediatePropagation?.();
+    canvasActivityMode = mode === 'cost' ? 'cost' : 'logs';
     const modal = document.getElementById('logModal') || (typeof logModal !== 'undefined' ? logModal : null);
     const list = document.getElementById('logList') || (typeof logList !== 'undefined' ? logList : null);
     modal?.querySelector('.log-panel')?.classList.toggle('cost-mode', mode === 'cost');

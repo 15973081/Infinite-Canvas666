@@ -9,7 +9,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.17.14'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.18.15'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
@@ -17,17 +17,22 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertEqual(1, len(react_chunks))
         self.assertGreater(react_chunks[0].stat().st_size, 0)
 
-    def test_legacy_bridge_is_read_only(self):
+    def test_legacy_bridge_exposes_detached_snapshots_and_whitelisted_commands(self):
         source = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
+        snapshot_start = source.index("function legacyDocumentSnapshot(){")
         start = source.index("window.CanvasLegacyBridge = Object.freeze({")
         end = source.index("async function saveCanvas()", start)
         bridge = source[start:end]
+        snapshot = source[snapshot_start:start]
 
         self.assertIn("getDocumentSnapshot()", bridge)
+        self.assertIn("getActivitySnapshot()", bridge)
         self.assertIn("getStatusSnapshot()", bridge)
-        self.assertIn("JSON.parse(JSON.stringify", bridge)
+        self.assertIn("JSON.parse(JSON.stringify", snapshot)
         self.assertIn("computeLegacyCascadeOrder(targetId)", bridge)
         self.assertIn("computeLegacyRetryCascadeOrder(nodeId)", bridge)
+        self.assertIn("command === 'stop-execution'", bridge)
+        self.assertIn("command === 'retry-execution'", bridge)
         self.assertNotIn("scheduleSave(", bridge)
 
     def test_graph_order_activation_falls_back_to_legacy_functions(self):
@@ -67,6 +72,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("canvas_repository", source)
         self.assertIn("canvas_m2", source)
         self.assertIn("canvas_react_execution", source)
+        self.assertIn("canvas_react_islands", source)
         self.assertIn("executionEngineEnabled", source)
         self.assertIn("taskClientEnabled", source)
         self.assertIn("canvasRepositoryEnabled", source)
@@ -102,12 +108,24 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         source = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
 
         self.assertIn('id="canvasToolbarIsland" hidden', html)
-        self.assertIn("runCommand(command)", legacy)
+        self.assertIn("runCommand(command, payload={})", legacy)
         self.assertIn("command === 'open-cost'", legacy)
         self.assertIn("command === 'open-log'", legacy)
         self.assertIn("command === 'open-backups'", legacy)
         self.assertIn("canvas_react_toolbar", source)
         self.assertIn("mountReactToolbarIsland", source)
+
+    def test_document_and_activity_stores_have_single_legacy_event_sources(self):
+        html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
+        legacy = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
+        source = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
+
+        self.assertEqual(1, legacy.count("new CustomEvent('canvas-legacy-document'"))
+        self.assertEqual(1, legacy.count("new CustomEvent('canvas-legacy-activity'"))
+        self.assertIn('id="canvasActivityIsland" hidden', html)
+        self.assertIn("canvas_react_activity", source)
+        self.assertIn("canvas_react_islands", source)
+        self.assertIn("mountReactActivityIsland", source)
 
 
 if __name__ == "__main__":

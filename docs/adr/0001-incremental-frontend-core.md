@@ -63,10 +63,17 @@
 
 内部灰度可使用 `/static/canvas.html?canvas_m2=1` 一次启用 ExecutionEngine、TaskClient 和 CanvasRepository；三个原有独立开关仍保留，便于单项回退。`CanvasModernCore.getM2Report()` 返回当前开关、现代执行状态、任务提交/轮询/活动观察器计数，以及画布读取/保存/冲突/备份计数，供灰度验收采样；默认地址不受影响。
 
-## 阶段 6 开发切片（默认关闭）
+## 阶段 6：Store 与 React 岛（开发完成、默认关闭）
 
-M2 默认切换门禁尚未通过，生产默认仍不进入阶段 6。为提前验证只读 UI 投影，可用 `canvas_react_execution=1` 挂载首个 React 运行状态岛；它只订阅 `canvas-modern-execution`，不写画布文档、不启动执行，也不替换旧节点状态。关闭开关时挂载容器保持隐藏，页面离开时解除唯一事件监听并卸载 root。该开发切片不代表 M2 已通过两个稳定发布周期。
+M2 默认切换门禁尚未通过，因此生产默认仍不进入阶段 6；本节的“完成”只表示开发范围和自动化验收已经闭环，不代表 M2 已通过两个稳定发布周期。
 
-保存及通用页面提示由旧脚本唯一的 `setStatus()` 继续写入，同时发送 `canvas-legacy-status` 只读事件。`canvas_react_status=1` 挂载 Session Store 驱动的状态岛；它只投影事件和桥接快照，不发保存命令、不修改旧状态。该岛拥有独立隐藏 fallback 和卸载清理，默认关闭。
+- Document、Session、Execution 三类 Zustand Store 已建立。Document Store 只接收 `canvas-legacy-document` 的深拷贝快照，在 Board V2 切换前不拥有写权限；Session Store 只投影 `setStatus()` 的唯一事件源；Execution Store 只投影 `canvas-modern-execution`，运行状态不从 DOM 反推。
+- `canvas_react_execution=1` 挂载运行状态、进度、错误、停止和重试栏。React 的停止/重试只发送带 `targetId` 的白名单 command，现有级联调度器仍是唯一副作用执行者。
+- `canvas_react_status=1` 挂载保存及通用页面状态；不发保存命令、不修改旧状态。
+- `canvas_react_toolbar=1` 迁移费用、日志和备份三个低风险顶部入口。资产、工作流和节点创建入口仍由旧 DOM 拥有，避免文档写入双轨。
+- `canvas_react_activity=1` 挂载日志/成本面板。旧脚本只发布经过裁剪和规范化的只读活动快照；React root 成功挂载后隐藏旧面板，卸载时恢复。
+- `canvas_react_islands=1` 是上述四个岛的内部总开关；各独立开关继续保留，便于单岛回退。所有开关默认关闭，页面离开时解除对应监听并卸载 root。
 
-`canvas_react_toolbar=1` 迁移费用、日志和备份三个低风险工具栏入口。React 只发送白名单 bridge command，实际副作用继续由旧函数唯一执行；新 root 成功挂载后才隐藏对应旧按钮，卸载时恢复，避免同一动作存在两套监听。资产库与工作流入口暂不迁移。
+经典画布没有与节点 DOM 分离的属性面板；字段编辑器直接嵌在节点渲染结果中。在阶段 6 单独迁移这些字段会让 React 和旧渲染器共同拥有同一节点 DOM，违反本 ADR 的单一所有权约束，因此它们随阶段 7 CanvasBoard V2 整体迁移，不作为阶段 6 的未完成项。
+
+阶段 6 的自动化覆盖 Store 的深拷贝/事件解绑、默认回退、总开关挂载、旧控件隐藏与恢复边界、日志/成本投影，以及停止/重试 command 路由。关闭 React 后旧 UI 保持原路径；开启后每类状态只有一个事件源和一个副作用执行者。

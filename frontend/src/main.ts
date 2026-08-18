@@ -23,9 +23,13 @@ import { createTaskClient, type TaskClient, type TaskClientDiagnostics } from '.
 interface LegacyBridge {
   computeCascadeOrder(targetId: string): string[];
   computeRetryCascadeOrder(nodeId: string): string[];
+  getActivitySnapshot(): unknown;
   getDocumentSnapshot(): unknown | null;
   getStatusSnapshot(): { kind: 'error' | 'info' | 'pending' | 'success'; text: string };
-  runCommand(command: 'open-backups' | 'open-cost' | 'open-log'): void | Promise<void>;
+  runCommand(
+    command: 'close-log' | 'open-backups' | 'open-cost' | 'open-log' | 'retry-execution' | 'stop-execution',
+    payload?: { targetId?: string },
+  ): void | Promise<void>;
 }
 
 type OrderKind = 'cascade' | 'retry';
@@ -114,7 +118,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 14;
+      version: 15;
     };
   }
 }
@@ -129,9 +133,11 @@ const executionEngineEnabled = m2Requested || searchParams.get('canvas_execution
 const taskClientEnabled = m2Requested || searchParams.get('canvas_task_client') === '1';
 const canvasRepositoryEnabled = m2Requested || searchParams.get('canvas_repository') === '1';
 const m2Enabled = executionEngineEnabled && taskClientEnabled && canvasRepositoryEnabled;
-const reactExecutionIslandEnabled = searchParams.get('canvas_react_execution') === '1';
-const reactStatusIslandEnabled = searchParams.get('canvas_react_status') === '1';
-const reactToolbarIslandEnabled = searchParams.get('canvas_react_toolbar') === '1';
+const reactIslandsEnabled = searchParams.get('canvas_react_islands') === '1';
+const reactActivityIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_activity') === '1';
+const reactExecutionIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_execution') === '1';
+const reactStatusIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_status') === '1';
+const reactToolbarIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_toolbar') === '1';
 const taskClient = createTaskClient();
 const canvasRepository = createCanvasRepository();
 const executionRuns = new Map<string, ExecutionState>();
@@ -163,7 +169,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 14 as const,
+  version: 15 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -331,6 +337,16 @@ if (reactToolbarIslandEnabled) {
   }
 }
 
+if (reactActivityIslandEnabled) {
+  const element = document.getElementById('canvasActivityIsland');
+  if (element) {
+    void import('./canvas/ui/react-execution-entry').then(({ mountReactActivityIsland }) => {
+      const cleanup = mountReactActivityIsland(element);
+      window.addEventListener('pagehide', cleanup, { once: true });
+    }).catch((error) => console.warn('[canvas-modern-core] React activity island failed to load', error));
+  }
+}
+
 function emitExecutionTransition(state: Readonly<ExecutionState>, event: ExecutionEvent): void {
   modernExecutionTransitions += 1;
   modernExecutionRuns.set(state.targetId, state);
@@ -338,14 +354,16 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '14';
+document.documentElement.dataset.canvasModernCore = '15';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
 document.documentElement.dataset.canvasModernGraphOrder = graphOrderEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernM2 = m2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernRepository = canvasRepositoryEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasModernReactActivity = reactActivityIslandEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernReactExecution = reactExecutionIslandEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasModernReactIslands = reactIslandsEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernReactStatus = reactStatusIslandEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernReactToolbar = reactToolbarIslandEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernShadow = shadowEnabled ? 'enabled' : 'disabled';

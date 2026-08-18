@@ -13,13 +13,25 @@ const statusLabels: Record<ExecutionState['status'], string> = {
   stopped: '已停止',
 };
 
-export function mountExecutionStatusIsland(element: HTMLElement, store: ExecutionStore): Root {
+type ExecutionCommand = 'retry-execution' | 'stop-execution';
+
+export function mountExecutionStatusIsland(
+  element: HTMLElement,
+  store: ExecutionStore,
+  runCommand: (command: ExecutionCommand, payload: { targetId: string }) => void,
+): Root {
   const root = createRoot(element);
-  root.render(<ExecutionStatusIsland store={store} />);
+  root.render(<ExecutionStatusIsland runCommand={runCommand} store={store} />);
   return root;
 }
 
-function ExecutionStatusIsland({ store }: { store: ExecutionStore }) {
+function ExecutionStatusIsland({
+  runCommand,
+  store,
+}: {
+  runCommand: (command: ExecutionCommand, payload: { targetId: string }) => void;
+  store: ExecutionStore;
+}) {
   const runs = useStore(store, ({ runs }) => runs);
   const values = Object.values(runs);
   const active = values.filter(({ status }) => ['queued', 'running', 'stopping'].includes(status));
@@ -41,7 +53,27 @@ function ExecutionStatusIsland({ store }: { store: ExecutionStore }) {
         <small style={{ color: '#64748b', fontSize: 10 }}>
           {current ? `${active.length || 1} 个工作流 · ${progress}` : '等待运行事件'}
         </small>
+        {current?.error ? <small style={{ color: '#dc2626', fontSize: 10 }}>{current.error}</small> : null}
       </span>
+      {current && ['queued', 'running', 'stopping'].includes(current.status) ? (
+        <button
+          className="tool-btn"
+          disabled={current.status === 'stopping'}
+          onClick={() => runCommand('stop-execution', { targetId: current.targetId })}
+          type="button"
+        >
+          停止
+        </button>
+      ) : null}
+      {current?.status === 'failed' ? (
+        <button
+          className="tool-btn"
+          onClick={() => runCommand('retry-execution', { targetId: current.targetId })}
+          type="button"
+        >
+          重试
+        </button>
+      ) : null}
     </section>
   );
 }
