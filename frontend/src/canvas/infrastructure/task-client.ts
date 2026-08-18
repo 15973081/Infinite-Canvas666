@@ -19,18 +19,26 @@ export interface TaskWaitOptions extends RequestOptions {
   requestTimeoutMs?: number;
 }
 
+export interface TaskSubmitOptions extends RequestOptions {
+  idempotencyKey?: string;
+  retryCount?: number;
+}
+
 export interface TaskReference {
   id: string;
   kind: CanvasTaskKind;
 }
 
 export interface TaskClientDiagnostics {
+  activeSubmissions: number;
   activeWatches: number;
   cancelledWatches: number;
+  deduplicatedSubmissions: number;
   deduplicatedWatches: number;
   pollErrors: number;
   polls: number;
   submissions: number;
+  submissionRetries: number;
 }
 
 export interface TaskClient {
@@ -38,7 +46,7 @@ export interface TaskClient {
   get(kind: CanvasTaskKind, taskId: string, options?: RequestOptions): Promise<CanvasTaskRecord>;
   getDiagnostics(): TaskClientDiagnostics;
   resume(tasks: readonly TaskReference[], options?: TaskWaitOptions): Promise<PromiseSettledResult<CanvasTaskRecord>[]>;
-  submit(kind: CanvasTaskKind, payload: unknown, options?: RequestOptions): Promise<CanvasTaskRecord>;
+  submit(kind: CanvasTaskKind, payload: unknown, options?: TaskSubmitOptions): Promise<CanvasTaskRecord>;
   wait(kind: CanvasTaskKind, taskId: string, options?: TaskWaitOptions): Promise<CanvasTaskRecord>;
   waitForResult(kind: CanvasTaskKind, taskId: string, options?: TaskWaitOptions): Promise<unknown>;
   watch(kind: CanvasTaskKind, taskId: string, options?: TaskWaitOptions): Promise<CanvasTaskRecord>;
@@ -51,17 +59,43 @@ const taskPaths: Record<CanvasTaskKind, string> = {
 
 export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
   const active = new Map<string, { controller: AbortController; promise: Promise<CanvasTaskRecord> }>();
-  const diagnostics = { cancelledWatches: 0, deduplicatedWatches: 0, pollErrors: 0, polls: 0, submissions: 0 };
+  const activeSubmissions = new Map<string, Promise<CanvasTaskRecord>>();
+  const diagnostics = {
+    cancelledWatches: 0, deduplicatedSubmissions: 0, deduplicatedWatches: 0,
+    pollErrors: 0, polls: 0, submissions: 0, submissionRetries: 0,
+  };
 
-  const submit: TaskClient['submit'] = async (kind, payload, options) => {
-    const task = await requestJson<CanvasTaskRecord>(fetcher, taskPaths[kind], {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload ?? {}),
-    }, options);
-    requireTaskId(task);
-    diagnostics.submissions += 1;
-    return task;
+  const submit: TaskClient['submit'] = (kind, payload, options = {}) => {
+    const idempotencyKey = String(options.idempotencyKey || '').trim();
+    const activeKey = idempotencyKey ? `${kind}:${idempotencyKey}` : '';
+    const existing = activeKey ? activeSubmissions.get(activeKey) : undefined;
+    if (existing) {
+      diagnostics.deduplicatedSubmissions += 1;
+      return existing;
+    }
+    const body = payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? { ...(payload as Record<string, unknown>), ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}) }
+      : payload ?? {};
+    const request = async () => {
+      const retryCount = Math.max(0, Math.min(2, Number(options.retryCount ?? (idempotencyKey ? 1 : 0))));
+      let attempt = 0;
+      while (true) {
+        try {
+          diagnostics.submissions += 1;
+          const task = await requestJson<CanvasTaskRecord>(fetcher, taskPaths[kind], {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          }, options);
+          requireTaskId(task);
+          return task;
+        } catch (error) {
+          if (!(error instanceof ApiError) || !error.retryable || attempt++ >= retryCount) throw error;
+          diagnostics.submissionRetries += 1;
+        }
+      }
+    };
+    const promise = request().finally(() => { if (activeKey) activeSubmissions.delete(activeKey); });
+    if (activeKey) activeSubmissions.set(activeKey, promise);
+    return promise;
   };
 
   const get: TaskClient['get'] = (kind, taskId, options) => {
@@ -127,7 +161,7 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
     tasks.map(({ kind, id }) => watch(kind, id, options)),
   );
 
-  const getDiagnostics = (): TaskClientDiagnostics => ({ activeWatches: active.size, ...diagnostics });
+  const getDiagnostics = (): TaskClientDiagnostics => ({ activeSubmissions: activeSubmissions.size, activeWatches: active.size, ...diagnostics });
 
   return { cancel, get, getDiagnostics, resume, submit, wait, waitForResult, watch };
 }

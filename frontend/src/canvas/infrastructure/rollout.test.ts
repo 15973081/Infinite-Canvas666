@@ -1,0 +1,24 @@
+import { describe, expect, it } from 'vitest';
+import { resolveCanvasV2Rollout } from './rollout';
+
+describe('Canvas V2 rollout', () => {
+  it('stays disabled by default and honors explicit overrides', () => {
+    expect(resolveCanvasV2Rollout('', null, 'client-a')).toMatchObject({ enabled: false, percentage: 0, source: 'default' });
+    expect(resolveCanvasV2Rollout('?canvas_v2=1', null, 'client-a')).toMatchObject({ enabled: true, forced: true });
+    expect(resolveCanvasV2Rollout('?canvas_v2=0&canvas_v2_rollout=100', null, 'client-a')).toMatchObject({ enabled: false, forced: true });
+  });
+
+  it('makes a stable percentage decision and accepts operator storage configuration', () => {
+    const storage = { getItem: () => '37' };
+    const first = resolveCanvasV2Rollout('', storage, 'stable-client');
+    const second = resolveCanvasV2Rollout('', storage, 'stable-client');
+    expect(second).toEqual(first);
+    expect(first).toMatchObject({ percentage: 37, source: 'storage' });
+    expect(first.enabled).toBe(first.bucket < 37);
+  });
+
+  it('clamps rollout percentages', () => {
+    expect(resolveCanvasV2Rollout('?canvas_v2_rollout=999', null, 'client')).toMatchObject({ enabled: true, percentage: 100 });
+    expect(resolveCanvasV2Rollout('?canvas_v2_rollout=-1', null, 'client')).toMatchObject({ enabled: false, percentage: 0 });
+  });
+});

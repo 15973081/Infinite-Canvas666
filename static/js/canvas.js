@@ -925,6 +925,7 @@ const REMOTE_SYNC_POLL_MS = 10000;
 const REMOTE_SYNC_WS_QUIET_MS = 30000;
 let lastCanvasUpdatedAt = 0;
 let lastSavedCanvasSnapshot = '';
+let lastSavedCanvasDocument = null;
 let openCanvasRequestSeq = 0;
 let models = {gpt:'gpt-image-2', nano:'nano-banana-pro'};
 let imageModels = ['gpt-image-2', 'nano-banana-pro'];
@@ -2056,9 +2057,11 @@ function publishLegacyExecutionDocument(){
 function resetCanvasSaveSnapshot(){
     if(!canvas) {
         lastSavedCanvasSnapshot = '';
+        lastSavedCanvasDocument = null;
         return;
     }
     lastSavedCanvasSnapshot = canvasSaveSnapshot(canvasSavePayload());
+    lastSavedCanvasDocument = legacyDocumentSnapshot();
     publishLegacyDocument();
 }
 function adoptCanvasBridgeSnapshot(snapshot){
@@ -2183,6 +2186,25 @@ function reportCanvasSaveConflict(){
     setStatus('Save conflict');
     showErrorModal('检测到其他人已更新此画布。为避免覆盖对方修改，当前更改尚未保存，请刷新画布后重试。', '保存冲突');
 }
+function rebaseCanvasSaveConflict(error, localDocument){
+    const remote = error?.serverCanvas;
+    const merge = window.CanvasModernCore?.mergeConflict;
+    if(!merge || !lastSavedCanvasDocument || !localDocument || !remote) return null;
+    try {
+        const result = merge(lastSavedCanvasDocument, localDocument, remote);
+        if(result.conflicts?.length){
+            console.warn('[canvas-modern-core] save conflict requires manual resolution', result.conflicts);
+            return null;
+        }
+        adoptCanvasBridgeSnapshot(result.document);
+        lastCanvasUpdatedAt = Number(error.updatedAt || remote.updated_at || lastCanvasUpdatedAt || 0);
+        setStatus('Merging changes...');
+        return canvasSavePayload();
+    } catch(mergeError) {
+        console.warn('[canvas-modern-core] save conflict merge failed', mergeError);
+        return null;
+    }
+}
 async function saveCanvas(){
     if(!canvas || applyingRemoteCanvas) return;
     if(savingCanvasNow){
@@ -2190,8 +2212,9 @@ async function saveCanvas(){
         return;
     }
     sanitizeConnections();
-    const payload = canvasSavePayload();
-    const snapshot = canvasSaveSnapshot(payload);
+    let payload = canvasSavePayload();
+    let snapshot = canvasSaveSnapshot(payload);
+    const localDocument = legacyDocumentSnapshot();
     if(snapshot && snapshot === lastSavedCanvasSnapshot){
         localCanvasDirty = false;
         saveCanvasAgain = false;
@@ -2207,10 +2230,17 @@ async function saveCanvas(){
             try { data = {canvas:await repository.save(canvas.id, payload)}; }
             catch(err) {
                 if(err?.code === 'conflict'){
-                    reportCanvasSaveConflict();
-                    return;
+                    const rebasedPayload = rebaseCanvasSaveConflict(err, localDocument);
+                    if(!rebasedPayload){
+                        reportCanvasSaveConflict();
+                        return;
+                    }
+                    payload = rebasedPayload;
+                    snapshot = canvasSaveSnapshot(payload);
+                    data = {canvas:await repository.save(canvas.id, payload)};
+                } else {
+                    throw err;
                 }
-                throw err;
             }
         } else {
             const res = await window.CanvasApi.saveCanvas(canvas.id, payload);
@@ -2228,6 +2258,7 @@ async function saveCanvas(){
         lastCanvasUpdatedAt = canvas.updated_at;
         localCanvasDirty = Boolean(saveCanvasAgain);
         lastSavedCanvasSnapshot = snapshot;
+        lastSavedCanvasDocument = legacyDocumentSnapshot();
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at);
         setStatus('Saved');
         publishLegacyDocument();
@@ -10312,7 +10343,11 @@ async function runGenerator(genId, opts={}){
         setTimeout(() => { gen.running = false; refreshRunNodes(gen, out); }, 2000);
     }
     try {
-        const taskInfos = await Promise.all(Array.from({length:count}, () => createCanvasImageTask(payload, {cascadeTargetId})));
+        const submissionId = uid('submit');
+        const taskInfos = await Promise.all(Array.from({length:count}, (_, index) => createCanvasImageTask(payload, {
+            cascadeTargetId,
+            idempotencyKey:`${canvas.id}:${gen.id}:${submissionId}:${index}`
+        })));
         if(!out){
             let outputs = [];
             for(const task of taskInfos){
@@ -10478,7 +10513,10 @@ async function runVideoNode(nodeId, opts={}){
     let handledTaskFailure = false;
     let pendingId = '';
     try {
-        const task = await createCanvasVideoTask(payload, {cascadeTargetId});
+        const task = await createCanvasVideoTask(payload, {
+            cascadeTargetId,
+            idempotencyKey:`${canvas.id}:${node.id}:${uid('submit')}:0`
+        });
         if(!out){
             const result = await waitCanvasVideoTaskResult(task.task_id, {cascadeTargetId});
             const outputUrls = videoOutputsFromResult(result);
@@ -12489,10 +12527,11 @@ async function createCanvasImageTask(payload, options={}){
     const client = window.CanvasModernCore?.taskClientEnabled ? window.CanvasModernCore.taskClient : null;
     if(client){
         const ctx = cascadeContextFromOptions(options);
-        try { return await client.submit('image', payload, {signal:ctx?.engineController?.signal}); }
+        try { return await client.submit('image', payload, {idempotencyKey:options.idempotencyKey, signal:ctx?.engineController?.signal}); }
         catch(err) { throw modernTaskClientError(err, ctx); }
     }
-    const res = await window.CanvasApi.createCanvasImageTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
+    const requestPayload = options.idempotencyKey ? {...payload, idempotency_key:options.idempotencyKey} : payload;
+    const res = await window.CanvasApi.createCanvasImageTaskRequest(requestPayload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
     return res.json();
 }
@@ -12500,10 +12539,11 @@ async function createCanvasVideoTask(payload, options={}){
     const client = window.CanvasModernCore?.taskClientEnabled ? window.CanvasModernCore.taskClient : null;
     if(client){
         const ctx = cascadeContextFromOptions(options);
-        try { return await client.submit('video', payload, {signal:ctx?.engineController?.signal}); }
+        try { return await client.submit('video', payload, {idempotencyKey:options.idempotencyKey, signal:ctx?.engineController?.signal}); }
         catch(err) { throw modernTaskClientError(err, ctx); }
     }
-    const res = await window.CanvasApi.createCanvasVideoTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
+    const requestPayload = options.idempotencyKey ? {...payload, idempotency_key:options.idempotencyKey} : payload;
+    const res = await window.CanvasApi.createCanvasVideoTaskRequest(requestPayload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
     return res.json();
 }

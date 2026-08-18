@@ -88,6 +88,7 @@ class OnlineImageRequest(BaseModel):
     quality: str = "auto"
     n: int = 1
     reference_images: List[AIReference] = []
+    idempotency_key: str = Field(default="", max_length=160)
 
 
 class ImageTaskQueryRequest(BaseModel):
@@ -118,6 +119,7 @@ class CanvasVideoRequest(BaseModel):
     multimodal: bool = False
     trusted_asset: bool = False
     task_mode: str = "auto"
+    idempotency_key: str = Field(default="", max_length=160)
 
 
 class TempShUploadRequest(BaseModel):

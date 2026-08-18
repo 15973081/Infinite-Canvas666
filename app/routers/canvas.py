@@ -18,10 +18,20 @@ from app.services.comfyui import *
 from app.services.workflow import *
 router = APIRouter()
 
+def _existing_canvas_task(task_type: str, idempotency_key: str):
+    key = (idempotency_key or "").strip()
+    if not key:
+        return None
+    return next((task for task in CANVAS_TASKS.values()
+                 if task.get("type") == task_type and task.get("idempotency_key") == key), None)
+
 @router.post("/api/canvas-image-tasks")
 async def create_canvas_image_task(payload: OnlineImageRequest):
-    task_id = f"canvas_img_{uuid.uuid4().hex}"
     with CANVAS_TASK_LOCK:
+        existing = _existing_canvas_task("online-image", payload.idempotency_key)
+        if existing:
+            return {"task_id": existing["id"], "status": existing["status"], "deduplicated": True}
+        task_id = f"canvas_img_{uuid.uuid4().hex}"
         CANVAS_TASKS[task_id] = {
             "id": task_id,
             "type": "online-image",
@@ -32,6 +42,7 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
             "error": "",
             "provider_id": payload.provider_id,
             "model": payload.model,
+            "idempotency_key": (payload.idempotency_key or "").strip(),
         }
     asyncio.create_task(run_canvas_image_task(task_id, payload))
     return {"task_id": task_id, "status": "queued"}
@@ -46,8 +57,11 @@ async def get_canvas_image_task(task_id: str):
 
 @router.post("/api/canvas-video-tasks")
 async def create_canvas_video_task(payload: CanvasVideoRequest):
-    task_id = f"canvas_vid_{uuid.uuid4().hex}"
     with CANVAS_TASK_LOCK:
+        existing = _existing_canvas_task("video", payload.idempotency_key)
+        if existing:
+            return {"task_id": existing["id"], "status": existing["status"], "deduplicated": True}
+        task_id = f"canvas_vid_{uuid.uuid4().hex}"
         CANVAS_TASKS[task_id] = {
             "id": task_id,
             "type": "video",
@@ -58,6 +72,7 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
             "error": "",
             "provider_id": payload.provider_id,
             "model": payload.model,
+            "idempotency_key": (payload.idempotency_key or "").strip(),
         }
     asyncio.create_task(run_canvas_video_task(task_id, payload))
     return {"task_id": task_id, "status": "queued"}

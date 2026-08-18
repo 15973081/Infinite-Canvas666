@@ -1,4 +1,5 @@
 import { decodeCanvasDocument } from './canvas/domain/document-codec';
+import { mergeCanvasDocuments, type CanvasMergeResult } from './canvas/domain/document-merge';
 import {
   createExecutionState,
   runOrderedExecution,
@@ -19,6 +20,7 @@ import {
   type CanvasRepositoryDiagnostics,
 } from './canvas/infrastructure/canvas-repository';
 import { createTaskClient, type TaskClient, type TaskClientDiagnostics } from './canvas/infrastructure/task-client';
+import { resolveCanvasV2Rollout, type CanvasRolloutDecision } from './canvas/infrastructure/rollout';
 
 interface LegacyNodeOption {
   label: string;
@@ -78,6 +80,7 @@ interface ExecutionShadowReport {
 
 interface M2Report {
   enabled: boolean;
+  rollout: CanvasRolloutDecision;
   execution: {
     active: number;
     done: number;
@@ -141,6 +144,7 @@ declare global {
       executionEngineEnabled: boolean;
       getExecutionShadowReport(): ExecutionShadowReport;
       getM2Report(): M2Report;
+      mergeConflict(base: unknown, local: unknown, remote: unknown): CanvasMergeResult;
       getShadowReport(): ShadowReport;
       m2Enabled: boolean;
       observeExecution(observation: ExecutionObservation): void;
@@ -149,17 +153,22 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 22;
+      version: 23;
     };
   }
 }
 
 const searchParams = new URLSearchParams(window.location.search);
+const rolloutDecision = resolveCanvasV2Rollout(
+  window.location.search,
+  window.localStorage,
+  window.sessionStorage.getItem('canvasClientId') || window.location.pathname,
+);
 const modernCoreMode = searchParams.get('canvas_modern_core');
 const executionShadowEnabled = modernCoreMode === 'execution-shadow';
 const graphOrderEnabled = modernCoreMode === 'graph-order';
 const shadowEnabled = modernCoreMode === 'shadow';
-const m2Requested = searchParams.get('canvas_m2') === '1';
+const m2Requested = searchParams.get('canvas_m2') === '1' || (searchParams.get('canvas_m2') === null && rolloutDecision.enabled);
 const executionEngineEnabled = m2Requested || searchParams.get('canvas_execution_engine') === '1';
 const taskClientEnabled = m2Requested || searchParams.get('canvas_task_client') === '1';
 const canvasRepositoryEnabled = m2Requested || searchParams.get('canvas_repository') === '1';
@@ -169,7 +178,8 @@ const reactActivityIslandEnabled = reactIslandsEnabled || searchParams.get('canv
 const reactExecutionIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_execution') === '1';
 const reactStatusIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_status') === '1';
 const reactToolbarIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_toolbar') === '1';
-const boardV2Enabled = searchParams.get('canvas_board_v2') === '1';
+const boardV2Enabled = searchParams.get('canvas_board_v2') === '1'
+  || (searchParams.get('canvas_board_v2') === null && rolloutDecision.enabled);
 const taskClient = createTaskClient();
 const canvasRepository = createCanvasRepository();
 const executionRuns = new Map<string, ExecutionState>();
@@ -201,7 +211,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 22 as const,
+  version: 23 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -327,6 +337,7 @@ window.CanvasModernCore = Object.freeze({
     ).length;
     return {
       enabled: m2Enabled,
+      rollout: rolloutDecision,
       execution: { active, ...modernExecutionTerminalCounts, transitions: modernExecutionTransitions },
       flags: {
         executionEngine: executionEngineEnabled,
@@ -336,6 +347,9 @@ window.CanvasModernCore = Object.freeze({
       repository: canvasRepository.getDiagnostics(),
       tasks: taskClient.getDiagnostics(),
     };
+  },
+  mergeConflict(base, local, remote) {
+    return mergeCanvasDocuments(base, local, remote);
   },
 });
 
@@ -397,7 +411,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '22';
+document.documentElement.dataset.canvasModernCore = '23';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
@@ -412,4 +426,7 @@ document.documentElement.dataset.canvasModernReactStatus = reactStatusIslandEnab
 document.documentElement.dataset.canvasModernReactToolbar = reactToolbarIslandEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernShadow = shadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernTaskClient = taskClientEnabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasV2Rollout = rolloutDecision.enabled ? 'enabled' : 'disabled';
+document.documentElement.dataset.canvasV2RolloutBucket = String(rolloutDecision.bucket);
+document.documentElement.dataset.canvasV2RolloutPercentage = String(rolloutDecision.percentage);
 window.dispatchEvent(new CustomEvent('canvas-modern-core-ready'));

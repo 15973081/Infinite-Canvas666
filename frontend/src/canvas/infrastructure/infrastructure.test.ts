@@ -34,12 +34,39 @@ describe('task client', () => {
       { method: 'GET', url: '/api/canvas-image-tasks/image%2F1' },
     ]);
     expect(client.getDiagnostics()).toEqual({
+      activeSubmissions: 0,
       activeWatches: 0,
       cancelledWatches: 0,
+      deduplicatedSubmissions: 0,
       deduplicatedWatches: 0,
       pollErrors: 0,
       polls: 3,
       submissions: 1,
+      submissionRetries: 0,
+    });
+  });
+
+  it('deduplicates concurrent submissions and safely retries with one idempotency key', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    let calls = 0;
+    const client = createTaskClient(async (_input, init) => {
+      calls += 1;
+      bodies.push(JSON.parse(String(init?.body || '{}')) as Record<string, unknown>);
+      if (calls === 1) throw new TypeError('connection lost after submit');
+      return jsonResponse({ task_id: 'same-task', status: 'queued', deduplicated: true });
+    });
+
+    const first = client.submit('image', { prompt: 'same' }, { idempotencyKey: 'canvas:node:run' });
+    const duplicate = client.submit('image', { prompt: 'same' }, { idempotencyKey: 'canvas:node:run' });
+
+    expect(duplicate).toBe(first);
+    await expect(first).resolves.toMatchObject({ task_id: 'same-task' });
+    expect(bodies).toEqual([
+      { prompt: 'same', idempotency_key: 'canvas:node:run' },
+      { prompt: 'same', idempotency_key: 'canvas:node:run' },
+    ]);
+    expect(client.getDiagnostics()).toMatchObject({
+      activeSubmissions: 0, deduplicatedSubmissions: 1, submissions: 2, submissionRetries: 1,
     });
   });
 

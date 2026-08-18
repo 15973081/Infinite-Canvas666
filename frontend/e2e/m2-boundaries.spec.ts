@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '22');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '23');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -22,6 +22,22 @@ test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.evaluate(() => (window as typeof window & { openCanvasLog(): void }).openCanvasLog());
   await expect(page.locator('#logModal > .log-panel')).toBeVisible();
   await expect(page.locator('#canvasActivityIsland')).toBeHidden();
+});
+
+test('activates the cohesive V2 stack through deterministic rollout controls', async ({ page }) => {
+  await page.goto('/static/canvas.html?canvas_v2_rollout=100');
+
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'enabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-percentage', '100');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'enabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
+  const report = await page.evaluate(() => (window as typeof window & { CanvasModernCore: any }).CanvasModernCore.getM2Report());
+  expect(report.rollout).toMatchObject({ enabled: true, forced: false, percentage: 100, source: 'query' });
+
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_v2_rollout=100');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
 });
 
 test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on cleanup', async ({ page }) => {
@@ -428,9 +444,11 @@ test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page 
 
 test('runs fake execution and mocked task/repository contracts with all M2 switches enabled', async ({ page }) => {
   let taskPolls = 0;
+  let taskPosts = 0;
   await page.route('**/api/canvas-image-tasks**', async (route) => {
     const request = route.request();
     if (request.method() === 'POST') {
+      taskPosts += 1;
       await route.fulfill({ json: { task_id: 'e2e-task', status: 'queued' } });
       return;
     }
@@ -522,7 +540,10 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
       mode: 'retry',
       execute: async (nodeId: string) => { calls.push(nodeId); },
     });
-    const submitted = await core.taskClient.submit('image', { prompt: 'mock only' });
+    const submission = core.taskClient.submit('image', { prompt: 'mock only' }, { idempotencyKey: 'e2e:one' });
+    const duplicateSubmission = core.taskClient.submit('image', { prompt: 'mock only' }, { idempotencyKey: 'e2e:one' });
+    const sameSubmission = submission === duplicateSubmission;
+    const submitted = await submission;
     const task = await core.taskClient.wait('image', submitted.task_id, { intervalMs: 0, timeoutMs: 1_000 });
     const document = await core.canvasRepository.get('e2e-canvas');
     let conflict: unknown = null;
@@ -539,6 +560,7 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
       executionMode: execution.mode,
       executionStatus: execution.status,
       m2: core.getM2Report(),
+      sameSubmission,
       taskStatus: task.status,
     };
   });
@@ -552,6 +574,7 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
     executionStatus: 'done',
     m2: {
       enabled: true,
+      rollout: { bucket: expect.any(Number), enabled: false, forced: false, percentage: 0, source: 'default' },
       execution: { active: 0, done: 1, failed: 0, stopped: 0, transitions: 7 },
       flags: { executionEngine: true, repository: true, taskClient: true },
       repository: {
@@ -564,16 +587,21 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
         saves: 0,
       },
       tasks: {
+        activeSubmissions: 0,
         activeWatches: 0,
         cancelledWatches: 0,
+        deduplicatedSubmissions: 1,
         deduplicatedWatches: 0,
         pollErrors: 0,
         polls: 2,
         submissions: 1,
+        submissionRetries: 0,
       },
     },
+    sameSubmission: true,
     taskStatus: 'succeeded',
   });
+  expect(taskPosts).toBe(1);
   expect(taskPolls).toBe(2);
   await expect(page.getByTestId('execution-status-island')).toContainText('已完成');
   await expect(page.getByTestId('execution-status-island')).toContainText('2/2 节点');

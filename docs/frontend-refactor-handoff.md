@@ -44,9 +44,9 @@ Set-Location ..
 
 当前验收基线：
 
-- Vitest：51 个测试通过。
-- Playwright：11 个端到端测试通过。
-- Python unittest：22 个测试通过。
+- Vitest：58 个测试通过。
+- Playwright：12 个端到端测试通过。
+- Python unittest：24 个测试通过。
 - `npm run check` 包含 typecheck、Vitest、生产构建和 Playwright。
 
 ## 3. 端口与进程安全
@@ -178,6 +178,9 @@ Spike 只实现：
 - 本轮已补齐：参考媒体预览与尺寸适配、MsGen 自定义模型/尺寸/LoRA、Output 灯箱/对比/pending 展示/拖拽、Video 手动 URL/云链入口、Comfy 动态字段分类与随机参数、LLM 视觉媒体输入与消息操作、LTX 高级参数、级联/重试/停止控制。
 - 本轮已补齐：后台任务使用独立 `canvas-legacy-execution-document` 投影，只合并运行字段，避免恢复结果覆盖 V2 并发编辑。
 - 本轮已补齐：历史生产画布 fixture 往返测试，覆盖未知节点/字段、LoRA、云链、Comfy 随机参数、LTX 音频段和 pending 任务。
+- 本轮已补齐：经典画布保存冲突接入 TypeScript 三方合并器；不同节点或字段的并发修改自动 rebase 并重试，同字段冲突继续阻止覆盖并要求人工处理。
+- 本轮已补齐：图像/视频任务使用端到端幂等键，服务端复用已创建任务，现代任务客户端对并发提交去重并对丢失响应执行一次安全重试。
+- 本轮已补齐：`canvas_v2_rollout` 百分比分桶、`canvas_v2=0/1` 强制覆盖和诊断数据，可成组灰度 Board V2、执行引擎、任务客户端与 Repository；默认仍为 0%。
 - 仍待真实环境验收：各平台完整模型约束、ModelScope LoRA 真实生成、视频云链和任务恢复、Comfy 真实工作流、LLM 真实聊天/视觉失败重试、LTX 长时间线与长任务。
 - 仍待真实环境验收：保存冲突人工演练、外部请求数与重复计费核对、刷新恢复抽样以及历史业务画布批量验证。
 
