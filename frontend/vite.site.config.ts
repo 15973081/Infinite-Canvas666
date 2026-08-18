@@ -7,6 +7,7 @@ export default defineConfig({
     emptyOutDir: false,
     rollupOptions: {
       input: {
+        'asset-manager-modern': 'src/pages/asset-manager.tsx',
         'api-settings-modern': 'src/pages/api-settings.tsx',
         'comfyui-settings-modern': 'src/pages/comfyui-settings.tsx',
         'enhance-modern': 'src/pages/enhance.tsx',
