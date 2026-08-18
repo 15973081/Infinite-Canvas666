@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { comfyClient } from './client';
 import { configurableInputs, extractRunAssets, FIELD_TYPES, graphLayers, makeField, randomValue } from './domain';
 import type { FieldType, RunAsset, WorkflowConfig, WorkflowDetail, WorkflowField, WorkflowGraph, WorkflowSummary } from './types';
+import { publishStudioEvent } from '../../shared/studio-events';
 
 const emptyConfig = (): WorkflowConfig => ({ title: '', fields: [], mini_cards: {} });
 
 function announce(type: 'workflows-changed' | 'comfy-instances-changed') {
-  try { const channel = new BroadcastChannel('studio-api'); channel.postMessage({ type }); channel.close(); } catch { /* unsupported browser */ }
+  publishStudioEvent(type);
 }
 
 function message(error: unknown) {
