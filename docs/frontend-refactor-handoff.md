@@ -421,3 +421,13 @@ API Settings 已由 `frontend/src/features/provider-studio/` 接管，覆盖当�
 SiteShell 会保留已访问 iframe，切换页面不会重建编辑状态；页面 ID 同步到 Hash 和 localStorage。在线人数、队列状态、云端任务和画布/素材事件继续由 WebSocket 与受限消息白名单转发。更新中心直接调用现有应用信息、版本检测、双源网络检测、更新、备份和回滚接口，所有写操作保持用户确认。
 
 最新自动化结果：90 个 Vitest、27 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 11；全站代码迁移只剩 Smart Canvas，下一批应直接复用 Canvas V2 domain/runtime，禁止重写第二套画布核心。
+
+## 23. 2026-08-19 Smart Canvas 与全站代码迁移收口
+
+`/static/smart-canvas.html` 已切换到独立 Vite TSX 入口，正常路径不再加载约 731KB 的 `static/js/smart-canvas.js`。Smart Canvas 复用 CanvasAppV2、CanvasBoardV2、Document Store、Repository、Management Client 和 ModernCanvasRuntime，不维护第二套节点、执行或持久化实现。
+
+Smart 管理器按 `kind: smart` 隔离列表和新建请求，支持 `?id=` 直开及素材库收件箱导入。历史 `smart-image`、`smart-prompt`、`smart-loop` 会转换为 V2 Output/Prompt/Loop；带输入或运行设置的旧图片目标会补出对应 Generator、ModelScope、Video 或 Comfy 节点并重连到 Output。
+
+最终入口审计：`static/` 共 13 个 HTML，其中 12 个生产页面和 1 个性能测试页面均由 Vite 模块拥有；非 Canvas 页面正常入口的 Legacy 业务脚本引用为 0。Canvas 仍保留阶段 8 动态回滚制品。
+
+最新自动化结果：95 个 Vitest、29 个 Playwright、41 个 Python unittest 全部通过。至此“全站 React + TypeScript + Vite 代码迁移”完成；下一阶段只做生产功能等价、真实供应商/历史数据验收、Canvas 灰度、计费核对与两个稳定发布周期。不得把代码迁移完成表述为生产发布完成。

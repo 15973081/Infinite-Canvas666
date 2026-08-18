@@ -10,8 +10,21 @@ import {
 } from '../infrastructure/canvas-management';
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import { mountCanvasBoardV2 } from './canvas-board-v2';
+import { readCanvasAssetInbox } from './canvas-app-domain';
 
-interface CanvasAppDependencies {
+export interface CanvasAppConfiguration {
+  assetInboxKey?: string;
+  createLabel?: string;
+  defaultTitle?: string;
+  heading?: string;
+  initialCanvasId?: string;
+  kind?: 'classic' | 'smart';
+  managerBackHref?: string;
+  subtitle?: string;
+}
+
+export interface CanvasAppDependencies {
+  configuration?: CanvasAppConfiguration;
   management?: CanvasManagementClient;
   repository: CanvasRepository;
   runtime: CanvasRuntime;
@@ -22,7 +35,8 @@ const nodeButtons = [
   ['msgen', 'ModelScope'], ['video', '视频'], ['comfy', 'ComfyUI'], ['ltxDirector', 'LTX Director'], ['output', 'Output'],
 ] as const;
 
-function CanvasAppV2({ management = createCanvasManagementClient(), repository, runtime }: CanvasAppDependencies) {
+function CanvasAppV2({ configuration = {}, management = createCanvasManagementClient(), repository, runtime }: CanvasAppDependencies) {
+  const canvasKind = configuration.kind ?? 'classic';
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
   const [trash, setTrash] = useState<CanvasSummary[]>([]);
   const [folders, setFolders] = useState<CanvasFolder[]>([]);
@@ -39,11 +53,15 @@ function CanvasAppV2({ management = createCanvasManagementClient(), repository, 
   const [assets, setAssets] = useState<Array<{ id: string; kind: string; name: string; url: string }> | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clientId = useRef(canvasClientId());
+  const initialCanvasAttempted = useRef(false);
 
   const refresh = useCallback(async () => {
     setStatus('正在加载画布列表…');
     try {
-      const [active, deleted, folderList] = await Promise.all([management.list(), management.listTrash(), management.listFolders()]);
+      const [allActive, allDeleted, folderList] = await Promise.all([management.list(), management.listTrash(), management.listFolders()]);
+      const matchesKind = (item: CanvasSummary) => String(item.kind || 'classic') === canvasKind;
+      const active = allActive.filter(matchesKind);
+      const deleted = allDeleted.filter(matchesKind);
       setCanvases(active.sort((a, b) => Number(b.updated_at || 0) - Number(a.updated_at || 0)));
       setTrash(deleted);
       setFolders(folderList);
@@ -51,7 +69,7 @@ function CanvasAppV2({ management = createCanvasManagementClient(), repository, 
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     }
-  }, [management]);
+  }, [canvasKind, management]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -97,6 +115,13 @@ function CanvasAppV2({ management = createCanvasManagementClient(), repository, 
     }
   };
 
+  useEffect(() => {
+    const canvasId = String(configuration.initialCanvasId || '').trim();
+    if (!canvasId || current || initialCanvasAttempted.current) return;
+    initialCanvasAttempted.current = true;
+    void openCanvas(canvases.find((item) => item.id === canvasId) ?? { id: canvasId, kind: canvasKind });
+  }, [canvases, canvasKind, configuration.initialCanvasId, current]);
+
   const closeCanvas = async () => {
     if (current?.id) await management.releaseLock(String(current.id), clientId.current).catch(() => undefined);
     setCurrent(null);
@@ -106,7 +131,10 @@ function CanvasAppV2({ management = createCanvasManagementClient(), repository, 
 
   const create = async () => {
     try {
-      const created = await management.create(createTitle);
+      const created = await management.create(createTitle || configuration.defaultTitle || '', {
+        icon: canvasKind === 'smart' ? 'sparkles' : undefined,
+        kind: canvasKind,
+      });
       setCreateTitle('');
       await refresh();
       await openCanvas(created);
@@ -160,14 +188,46 @@ function CanvasAppV2({ management = createCanvasManagementClient(), repository, 
       setAssets(assetItems(await response.json()));
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
   };
+  const importAssetInbox = () => {
+    const key = configuration.assetInboxKey || '';
+    const items = readCanvasAssetInbox(key);
+    if (!items.length) { setStatus('素材收件箱为空或已过期'); return 0; }
+    const columns = Math.max(1, Math.min(items.length, Math.ceil(Math.sqrt(items.length))));
+    const ids = items.map((item, index) => {
+      const id = window.CanvasBoardV2?.addNode('image', {
+        x: 100 + (index % columns) * 280,
+        y: 100 + Math.floor(index / columns) * 220,
+      });
+      if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
+      return id;
+    }).filter(Boolean);
+    localStorage.removeItem(key);
+    setStatus(`已从素材库导入 ${ids.length} 个素材`);
+    return ids.length;
+  };
+
+  useEffect(() => {
+    if (!current || !configuration.assetInboxKey) return;
+    const paste = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable || ['INPUT', 'TEXTAREA'].includes(target?.tagName || '')) return;
+      if (!readCanvasAssetInbox(configuration.assetInboxKey || '').length) return;
+      event.preventDefault();
+      importAssetInbox();
+    };
+    window.addEventListener('keydown', paste, true);
+    return () => window.removeEventListener('keydown', paste, true);
+  }, [configuration.assetInboxKey, current]);
 
   if (!current) {
     const list = showTrash ? trash : activeFolder === 'all' ? canvases : activeFolder === 'root' ? canvases.filter((item) => !item.folder_id) : canvases.filter((item) => item.folder_id === activeFolder);
     return <main className="canvas-modern-manager">
       <section className="gate-panel canvas-modern-gate">
         <header className="gate-head">
-          <div className="gate-head-text"><h1 className="gate-title">{showTrash ? '回收站' : '经典画布 V2'}</h1><p className="gate-subtitle">React + TypeScript 独立文档与执行路径</p></div>
+          <div className="gate-head-text"><h1 className="gate-title">{showTrash ? '回收站' : configuration.heading || '经典画布 V2'}</h1><p className="gate-subtitle">{configuration.subtitle || 'React + TypeScript 独立文档与执行路径'}</p></div>
           <div className="gate-head-actions">
+            {configuration.managerBackHref ? <a className="gate-icon-btn" href={configuration.managerBackHref}>返回首页</a> : null}
             {!showTrash ? <><select aria-label="画布文件夹" onChange={(event) => setActiveFolder(event.target.value)} value={activeFolder}><option value="all">全部画布</option><option value="root">未分类</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{String(folder.name || '未命名文件夹')}</option>)}</select><button className="gate-icon-btn" onClick={async () => { const name = window.prompt('文件夹名称')?.trim(); if (name) { await management.createFolder(name); await refresh(); } }} type="button">新建文件夹</button>{!['all', 'root'].includes(activeFolder) ? <button className="gate-icon-btn" onClick={async () => { if (window.confirm('删除此文件夹？文件夹内画布不会被永久删除。')) { await management.deleteFolder(activeFolder); setActiveFolder('all'); await refresh(); } }} type="button">删除文件夹</button> : null}</> : null}
             <button className="gate-icon-btn" onClick={() => void refresh()} type="button">刷新</button>
             <button className="gate-icon-btn" onClick={() => setShowTrash((value) => !value)} type="button">{showTrash ? '返回画布' : `回收站 ${trash.length}`}</button>
@@ -175,7 +235,7 @@ function CanvasAppV2({ management = createCanvasManagementClient(), repository, 
         </header>
         {!showTrash ? <div className="gate-create-row canvas-modern-create">
           <input className="gate-name-input" maxLength={80} onChange={(event) => setCreateTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void create(); }} placeholder="新画布名称" value={createTitle} />
-          <button className="primary-btn" onClick={() => void create()} type="button">新建画布</button>
+          <button className="primary-btn" onClick={() => void create()} type="button">{configuration.createLabel || '新建画布'}</button>
         </div> : null}
         {status ? <div className="gate-status">{status}</div> : null}
         <div className="gate-list canvas-modern-list">
@@ -196,7 +256,7 @@ function CanvasAppV2({ management = createCanvasManagementClient(), repository, 
       <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{formatTime(current.updated_at)}</small></div></div>
       <div className="panel toolbar canvas-modern-toolbar">
         <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
-        <div className="toolbar-fixed"><button className="tool-btn" onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={() => void showAssets()} type="button">资产库</button><button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" onClick={() => void showBackups()} type="button">备份</button></div>
+        <div className="toolbar-fixed"><button className="tool-btn" onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={() => void showAssets()} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" onClick={() => void showBackups()} type="button">备份</button></div>
       </div>
     </header>
     <div className="canvas-modern-board" ref={boardRef} />

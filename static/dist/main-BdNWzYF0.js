@@ -1104,7 +1104,7 @@ if (me && !I.enabled) {
 }
 if (I.enabled) {
 	let e = document.getElementById("canvasModernApp"), t = document.getElementById("shell");
-	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-BspqV8ui.js").then(({ mountCanvasAppV2: t }) => {
+	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-DcmDRYvH.js").then(({ mountCanvasAppV2: t }) => {
 		let n = t(e, {
 			runtime: J,
 			repository: Y

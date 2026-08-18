@@ -37,10 +37,10 @@ Canvas 尚未完成的是阶段 8 发布验收：默认 100% 切换、真实供�
 | `api-settings.html` | React/TS 代码迁移完成 | `ProviderStudio` 平台、凭据、模型、价格、协议、LoRA 与连接检测 |
 | `asset-manager.html` | React/TS 代码迁移完成 | `frontend/src/pages/asset-manager.tsx`，复用 `AssetStudio` |
 | `gpt-chat.html` | React/TS 代码迁移完成 | `frontend/src/pages/gpt-chat.tsx`，复用 `ChatStudio` |
-| `smart-canvas.html` | Legacy | 最后复用 Canvas V2 domain/runtime，避免重复画布实现 |
+| `smart-canvas.html` | React/TS 代码迁移完成 | `frontend/src/pages/smart-canvas.tsx`，复用 Canvas V2 domain/runtime |
 | `index.html` | React/TS 代码迁移完成 | `frontend/src/pages/index.tsx`，复用 `SiteShell` |
 
-当前生产页面完成 11 个，另有 1 个 React 性能测试入口。全站代码迁移只剩 Smart Canvas；页面数量只是进度参考，Smart Canvas 的工作量远高于普通页面。
+当前 12 个生产页面均已完成 React/TS/Vite 代码迁移，另有 1 个 React 性能测试入口。入口审计确认 13 个 HTML 均使用 Vite 模块，除 Canvas 阶段 8 的动态回滚机制外，正常生产入口不再加载页面 Legacy 业务脚本。
 
 ## 已形成的共享层
 
@@ -50,10 +50,11 @@ Canvas 尚未完成的是阶段 8 发布验收：默认 100% 切换、真实供�
 
 Online 与 Z-Image 的业务入口均小于 1KB，共享图片工作台约 12KB；React 运行时由所有站点入口共享。
 
-## 下一批顺序
+## 后续发布顺序
 
-1. Smart Canvas：复用 Canvas V2 domain/runtime，迁移智能画布专属交互与生成链路。
-2. 完成全站代码迁移总审计，再分别处理各页面真实环境验收和 Canvas 阶段 8。
+1. 使用历史生产画布 fixture 和真实供应商凭据完成跨页面功能等价验收。
+2. 执行 Canvas 阶段 8 小流量灰度、重复计费核对与两个稳定发布周期。
+3. 稳定期达标后再删除 Legacy 回滚制品；当前不得把“全站代码迁移完成”等同于“生产发布验收完成”。
 
 每批允许包含多个同构页面，但必须共享领域层或组件层；禁止用 React 外壳继续运行旧全局脚本冒充迁移。
 
@@ -113,4 +114,16 @@ GPT Chat 已切换到 `frontend/src/features/chat-studio/` 与独立 TSX 入口�
 - 响应式导航在移动端保留全部页面入口，不通过隐藏侧栏牺牲功能。
 - 自动化结果：90 个 Vitest、27 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 11。
 
-全站代码迁移现在只剩 `smart-canvas.html`。Canvas V2 的生产灰度与各外部服务真实链路验收仍是独立发布工作，不能因页面入口迁移完成而视为结束。
+该批次完成时全站代码迁移只剩 `smart-canvas.html`；最终结果见下节。Canvas V2 的生产灰度与各外部服务真实链路验收仍是独立发布工作。
+
+## 2026-08-19 Smart Canvas 与全站代码迁移结果
+
+Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口只加载 `smart-canvas-modern.js`，不再下载或执行约 731KB 的 `static/js/smart-canvas.js`。页面没有建立第二套画布核心，而是复用 `CanvasAppV2`、`CanvasBoardV2`、Document Store、CanvasRepository、CanvasManagementClient 与 ModernCanvasRuntime。
+
+- 管理器只展示和创建 `kind: smart` 的画布，支持 `?id=` 直接打开、锁、冲突安全保存、回收站、备份、费用、日志、资产库和工作流导入/导出。
+- Generator、ModelScope、Video、Comfy、LLM、LTX、Output、Prompt、Loop 与媒体节点继续走同一套 TypeScript 运行时；Smart 专属入口增加素材收件箱按钮及 `Ctrl/Cmd+V` 导入。
+- 历史 `smart-image`、`smart-prompt`、`smart-loop` 文档在读取时转换到 V2；旧媒体结果、连线和运行设置保留，旧生成目标转换为相应生成节点加 Output。
+- Playwright 覆盖 Smart 新建 payload、经典/智能列表隔离、素材收件箱、保存、URL 直开、历史节点转换及旧脚本/全局隔离。
+- 最终自动化结果：95 个 Vitest、29 个 Playwright、41 个 Python unittest 全部通过。
+
+结论：12 个生产页面的 React + TypeScript + Vite 代码迁移全部完成。尚未完成的是生产级功能等价与发布验证，包括真实供应商链路、历史生产数据全量审计、灰度、计费核对和两个稳定发布周期。

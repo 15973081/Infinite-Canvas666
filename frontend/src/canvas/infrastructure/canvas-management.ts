@@ -4,8 +4,15 @@ export interface CanvasSummary extends Record<string, unknown> {
   deleted_at?: number;
   folder_id?: string;
   id: string;
+  kind?: 'classic' | 'smart';
   title?: string;
   updated_at?: number;
+}
+
+export interface CanvasCreateOptions {
+  folderId?: string;
+  icon?: string;
+  kind?: 'classic' | 'smart';
 }
 
 export interface CanvasFolder extends Record<string, unknown> {
@@ -21,7 +28,7 @@ export interface CanvasLockResult extends Record<string, unknown> {
 
 export interface CanvasManagementClient {
   acquireLock(canvasId: string, clientId: string, username?: string): Promise<CanvasLockResult>;
-  create(title?: string): Promise<CanvasSummary>;
+  create(title?: string, options?: CanvasCreateOptions): Promise<CanvasSummary>;
   createFolder(name: string, parentId?: string): Promise<CanvasFolder>;
   delete(canvasId: string): Promise<void>;
   deleteBackup(canvasId: string, filename: string): Promise<void>;
@@ -45,8 +52,13 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
     const values = Array.isArray(payload) ? payload : record.folders;
     return (Array.isArray(values) ? values : []).map(object).filter((item) => item.id).map((item) => item as CanvasFolder);
   };
-  const create = async (title = '') => {
-    const payload = await jsonRequest<unknown>(fetcher, '/api/canvases', 'POST', { title: title.trim() || undefined });
+  const create = async (title = '', options: CanvasCreateOptions = {}) => {
+    const payload = await jsonRequest<unknown>(fetcher, '/api/canvases', 'POST', {
+      title: title.trim() || undefined,
+      folder_id: options.folderId || undefined,
+      icon: options.icon || undefined,
+      kind: options.kind || undefined,
+    });
     return (object(payload).canvas ? object(object(payload).canvas) : object(payload)) as CanvasSummary;
   };
   const createFolder = async (name: string, parentId = '') => object(await jsonRequest(fetcher, '/api/canvas-folders', 'POST', { name, parent_id: parentId })) as CanvasFolder;

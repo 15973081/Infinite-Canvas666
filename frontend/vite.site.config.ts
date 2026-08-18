@@ -17,6 +17,7 @@ export default defineConfig({
         'angle-modern': 'src/pages/angle.tsx',
         'online-modern': 'src/pages/online.tsx',
         'zimage-modern': 'src/pages/zimage.tsx',
+        'smart-canvas-modern': 'src/pages/smart-canvas.tsx',
       },
       output: {
         entryFileNames: '[name].js',
