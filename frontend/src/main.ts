@@ -151,6 +151,10 @@ declare global {
     __loadCanvasLegacyFallback?: () => Promise<void>;
     openPromptTemplateModal?: (nodeId: string) => void;
     openCanvasPromptLibrary?: (request: { initialText?: string; onApply(text: string): void }) => void;
+    openCanvasAssetLibrary?: (request: {
+      onInsert?(item: { id: string; kind: 'audio' | 'image' | 'video' | 'workflow'; name: string; url: string }): void;
+      saveItem?: { kind?: string; name?: string; url: string };
+    }) => void;
     CanvasModernCore?: {
       activeOrder(kind: OrderKind, targetId: string): string[] | null;
       canvasRepository: CanvasRepository;

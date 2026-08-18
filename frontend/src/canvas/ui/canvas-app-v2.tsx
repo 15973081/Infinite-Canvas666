@@ -11,6 +11,7 @@ import {
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import { mountCanvasBoardV2 } from './canvas-board-v2';
 import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
+import { AssetLibraryDialog, type CanvasAssetLibraryRequest } from './asset-library-dialog';
 import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
 
 export interface CanvasAppConfiguration {
@@ -51,7 +52,7 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   const [promptRequest, setPromptRequest] = useState<PromptLibraryRequest | null>(null);
   const [inspector, setInspector] = useState<{ document: CanvasDocument; mode: 'cost' | 'logs' } | null>(null);
   const [workflowOpen, setWorkflowOpen] = useState(false);
-  const [assets, setAssets] = useState<Array<{ id: string; kind: string; name: string; url: string }> | null>(null);
+  const [assetRequest, setAssetRequest] = useState<CanvasAssetLibraryRequest | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clientId = useRef(canvasClientId());
   const initialCanvasAttempted = useRef(false);
@@ -92,13 +93,16 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   useEffect(() => {
     const previous = window.openPromptTemplateModal;
     const previousLibrary = window.openCanvasPromptLibrary;
+    const previousAssetLibrary = window.openCanvasAssetLibrary;
     window.openPromptTemplateModal = (nodeId) => {
       setPromptRequest({ onApply: (text) => { window.CanvasBoardV2?.updateNode(nodeId, { text }); } });
     };
     window.openCanvasPromptLibrary = (request) => setPromptRequest(request);
+    window.openCanvasAssetLibrary = (request) => setAssetRequest(request);
     return () => {
       if (previous) window.openPromptTemplateModal = previous; else delete window.openPromptTemplateModal;
       if (previousLibrary) window.openCanvasPromptLibrary = previousLibrary; else delete window.openCanvasPromptLibrary;
+      if (previousAssetLibrary) window.openCanvasAssetLibrary = previousAssetLibrary; else delete window.openCanvasAssetLibrary;
     };
   }, []);
 
@@ -170,6 +174,25 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
     URL.revokeObjectURL(url);
     setWorkflowOpen(false);
   };
+  const exportWorkflowArchive = async () => {
+    const workflow = window.CanvasBoardV2?.exportSelection();
+    if (!workflow?.nodes.length) { setStatus('没有可导出的节点'); return; }
+    try {
+      setStatus('正在收集工作流资源…');
+      const filename = `${String(current?.title || 'canvas')}-workflow.zip`;
+      const response = await fetch('/api/canvas-workflows/export', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...workflow, filename, include_resources: true }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { detail?: string };
+        throw new Error(payload.detail || '导出工作流失败');
+      }
+      downloadBlob(await response.blob(), response.headers.get('Content-Disposition'), filename);
+      setStatus('已导出含本地资源的工作流 ZIP');
+      setWorkflowOpen(false);
+    } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
+  };
   const importWorkflow = async (file: File) => {
     try {
       let payload: unknown;
@@ -186,13 +209,10 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       setWorkflowOpen(false);
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
   };
-  const showAssets = async () => {
-    try {
-      const response = await fetch('/api/asset-library');
-      if (!response.ok) throw new Error('加载资产库失败');
-      setAssets(assetItems(await response.json()));
-    } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
-  };
+  const showAssets = () => setAssetRequest({ onInsert: (item) => {
+    const id = window.CanvasBoardV2?.addNode('image', { x: 100, y: 100 });
+    if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
+  } });
   const importAssetInbox = () => {
     const key = configuration.assetInboxKey || '';
     const items = readCanvasAssetInbox(key);
@@ -261,15 +281,15 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{formatTime(current.updated_at)}</small></div></div>
       <div className="panel toolbar canvas-modern-toolbar">
         <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
-        <div className="toolbar-fixed"><button className="tool-btn" onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={() => void showAssets()} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" onClick={() => void showBackups()} type="button">备份</button></div>
+        <div className="toolbar-fixed"><button className="tool-btn" onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" onClick={() => void showBackups()} type="button">备份</button></div>
       </div>
     </header>
     <div className="canvas-modern-board" ref={boardRef} />
     {configuration.editorAddon}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
     {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
-    {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；未选中时导出整张画布。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
-    {assets ? <div className="modal open canvas-modern-backups canvas-modern-assets"><section className="modal-panel"><header><strong>资产库</strong><button onClick={() => setAssets(null)} type="button">关闭</button></header><div className="canvas-modern-asset-grid">{assets.map((item) => <button key={item.id} onClick={() => { const id = window.CanvasBoardV2?.addNode('image'); if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url }); setAssets(null); }} type="button">{item.kind === 'image' ? <img alt={item.name} src={item.url} /> : <span>{item.kind === 'video' ? '视频' : item.kind === 'audio' ? '音频' : '文件'}</span>}<small>{item.name}</small></button>)}</div>{!assets.length ? <p>资产库暂无可用媒体。</p> : null}</section></div> : null}
+    {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；未选中时导出整张画布。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
+    {assetRequest ? <AssetLibraryDialog onClose={() => setAssetRequest(null)} request={assetRequest} /> : null}
     {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
   </main>;
 }
@@ -299,17 +319,12 @@ function normalizeWorkflow(payload: unknown): { connections: unknown[]; nodes: u
   return { connections: Array.isArray(workflow.connections) ? workflow.connections : [], nodes: Array.isArray(workflow.nodes) ? workflow.nodes : [] };
 }
 
-function assetItems(payload: unknown): Array<{ id: string; kind: string; name: string; url: string }> {
-  const result: Array<{ id: string; kind: string; name: string; url: string }> = [];
-  const visit = (value: unknown, categoryKind = '') => {
-    if (Array.isArray(value)) { value.forEach((item) => visit(item, categoryKind)); return; }
-    if (!value || typeof value !== 'object') return;
-    const record = value as Record<string, unknown>;
-    const kind = String(record.kind || record.type || categoryKind || 'image').toLowerCase();
-    const url = String(record.url || record.uri || record.asset_url || '');
-    if (url && kind !== 'workflow') result.push({ id: String(record.id || url), kind: /video/.test(kind) ? 'video' : /audio/.test(kind) ? 'audio' : 'image', name: String(record.name || record.title || '素材'), url });
-    Object.entries(record).forEach(([key, item]) => { if (!['url', 'uri', 'asset_url'].includes(key)) visit(item, key === 'items' ? kind : categoryKind); });
-  };
-  visit(payload);
-  return [...new Map(result.map((item) => [item.id, item])).values()];
+function downloadBlob(blob: Blob, disposition: string | null, fallback: string) {
+  const encoded = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const quoted = disposition?.match(/filename="?([^";]+)"?/i)?.[1];
+  const filename = encoded ? decodeURIComponent(encoded) : quoted || fallback;
+  const url = URL.createObjectURL(blob);
+  const anchor = Object.assign(document.createElement('a'), { download: filename, href: url });
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

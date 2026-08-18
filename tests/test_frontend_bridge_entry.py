@@ -8,7 +8,7 @@ ROOT = Path(__file__).parents[1]
 class FrontendBridgeEntryTest(unittest.TestCase):
     def test_canvas_bootstrap_owns_the_legacy_fallback(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
-        modern = '/static/dist/canvas-modern.js?v=2026.08.19.29'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.19.31'
         bootstrap = (ROOT / "frontend" / "src" / "bootstrap.ts").read_text(encoding="utf-8")
 
         self.assertNotIn('/static/js/canvas.js', html)

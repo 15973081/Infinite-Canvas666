@@ -235,3 +235,99 @@ test('manages and applies the shared prompt library from Smart Canvas', async ({
   await page.getByRole('button', { name: '删除库' }).click();
   await expect.poll(() => libraryChanges).toBe(3);
 });
+
+test('manages canvas assets, saves outputs, and exports resource-complete workflows', async ({ page }) => {
+  let assetState: any = {
+    active_library_id: 'default',
+    libraries: [{ id: 'default', name: '默认素材库', categories: [
+      { id: 'images', name: '图片', type: 'image', items: [{ id: 'hero', name: 'Hero', kind: 'image', url: '/assets/hero.png' }] },
+      { id: 'workflows', name: '工作流', type: 'workflow', items: [] },
+    ] }],
+  };
+  let added = 0;
+  let renamed = 0;
+  let deleted = 0;
+  let exportPayload: Record<string, unknown> = {};
+  let canvasDocument: any = {
+    id: 'smart-assets', kind: 'smart', schemaVersion: 1, title: 'Asset Smart', updated_at: 1, connections: [],
+    nodes: [{ id: 'output-assets', type: 'output', x: 500, y: 100, images: [{ url: '/output/generated.png', name: 'generated.png', kind: 'image' }] }],
+  };
+  await page.route('**/api/config', (route) => route.fulfill({ json: { api_providers: [] } }));
+  await page.route('**/api/workflows', (route) => route.fulfill({ json: { workflows: [] } }));
+  await page.route('**/api/canvas-folders', (route) => route.fulfill({ json: { folders: [] } }));
+  await page.route('**/api/canvases/trash', (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvases/smart-assets/lock', (route) => route.fulfill({ json: { ok: true } }));
+  await page.route('**/api/canvases/smart-assets', async (route) => {
+    if (route.request().method() === 'PUT') canvasDocument = { ...canvasDocument, ...route.request().postDataJSON(), updated_at: canvasDocument.updated_at + 1 };
+    await route.fulfill({ json: { canvas: canvasDocument } });
+  });
+  await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvas-workflows/export', async (route) => {
+    exportPayload = route.request().postDataJSON();
+    await route.fulfill({ status: 200, contentType: 'application/zip', headers: { 'Content-Disposition': "attachment; filename*=UTF-8''smart-assets.zip" }, body: Buffer.from('PK mock zip') });
+  });
+  await page.route('**/api/asset-library**', async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const body = request.postDataJSON?.() as Record<string, any> | null;
+    const category = assetState.libraries[0].categories[0];
+    if (request.method() === 'POST' && pathname.endsWith('/items')) {
+      added += 1;
+      const item = { id: `added-${added}`, name: body?.name || '', kind: 'image', url: body?.url || '' };
+      category.items.push(item);
+      await route.fulfill({ json: { library: assetState, item } });
+      return;
+    }
+    if (request.method() === 'PATCH' && pathname.includes('/items/')) {
+      renamed += 1;
+      const item = category.items.find((candidate: any) => candidate.id === pathname.split('/').pop());
+      if (item) item.name = body?.name || item.name;
+      await route.fulfill({ json: { library: assetState, item } });
+      return;
+    }
+    if (request.method() === 'POST' && pathname.endsWith('/items/delete')) {
+      deleted += 1;
+      category.items = category.items.filter((item: any) => !body?.ids?.includes(item.id));
+      await route.fulfill({ json: { library: assetState, removed: 1 } });
+      return;
+    }
+    if (request.method() === 'POST' && pathname.endsWith('/categories')) {
+      const next = { id: 'created-category', name: body?.name || '', type: 'image', items: [] };
+      assetState.libraries[0].categories.push(next);
+      await route.fulfill({ json: { library: assetState, category: next } });
+      return;
+    }
+    await route.fulfill({ json: { library: assetState } });
+  });
+
+  await page.goto('/static/smart-canvas.html?id=smart-assets');
+  await page.getByRole('button', { name: '资产库', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('图片');
+  await page.locator('.canvas-asset-preview').filter({ hasText: 'Hero' }).click();
+  await expect(page.locator('[data-node-type="image"]')).toContainText('Hero');
+
+  await page.getByRole('button', { name: '资产库', exact: true }).click();
+  await page.getByLabel('素材地址').fill('/output/new.png');
+  await page.getByLabel('素材名称').fill('New asset');
+  await page.getByRole('button', { name: '添加地址' }).click();
+  await expect.poll(() => added).toBe(1);
+  page.once('dialog', (dialog) => dialog.accept('Renamed asset'));
+  await page.locator('.canvas-modern-asset-grid article').filter({ hasText: 'New asset' }).getByRole('button', { name: '重命名' }).click();
+  await expect.poll(() => renamed).toBe(1);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('.canvas-modern-asset-grid article').filter({ hasText: 'Renamed asset' }).getByRole('button', { name: '删除' }).click();
+  await expect.poll(() => deleted).toBe(1);
+  await page.getByRole('button', { name: '关闭' }).click();
+
+  await page.locator('[data-node-id="output-assets"]').getByRole('button', { name: '保存到资产库' }).click();
+  await expect(page.getByLabel('素材地址')).toHaveValue('/output/generated.png');
+  await page.getByRole('button', { name: '保存输出' }).click();
+  await expect.poll(() => added).toBe(2);
+
+  await page.getByRole('button', { name: '工作流', exact: true }).click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出 ZIP（含资源）' }).click();
+  await download;
+  expect(exportPayload).toMatchObject({ filename: 'Asset Smart-workflow.zip', include_resources: true });
+  expect(Array.isArray(exportPayload.nodes)).toBe(true);
+});

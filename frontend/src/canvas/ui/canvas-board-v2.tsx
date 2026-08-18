@@ -249,9 +249,10 @@ function OutputBody({ commit, node, store }: { commit: () => void; node: CanvasN
   return <div className="output-grid" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>{images.map((item, index) => {
     const url = urlOf(item);
     const kind = String((item as { kind?: unknown })?.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : /\.(mp3|wav|m4a)(\?|$)/i.test(url) ? 'audio' : 'image'));
+    const name = String((item as Record<string, unknown>).name || url.split(/[?#]/, 1)[0].split('/').pop() || `生成结果 ${index + 1}`);
     return <div className="output-img-wrap" data-output-url={url} key={`${url}-${index}`}>
-      {kind === 'video' ? <video controls onDoubleClick={() => open(url)} preload="metadata" src={url} /> : kind === 'audio' ? <audio controls preload="metadata" src={url} /> : <img alt="generated output" draggable onClick={() => open(url)} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('application/x-canvas-output-image', JSON.stringify({ kind, name: String((item as Record<string, unknown>).name || ''), url })); event.dataTransfer.setData('text/uri-list', url); }} src={url} />}
-      <a className="output-download" download href={url} onClick={(event) => event.stopPropagation()}>↓</a><button aria-label="删除输出" className="output-del" onClick={() => remove(url)} type="button">×</button>
+      {kind === 'video' ? <video controls onDoubleClick={() => open(url)} preload="metadata" src={url} /> : kind === 'audio' ? <audio controls preload="metadata" src={url} /> : <img alt="generated output" draggable onClick={() => open(url)} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('application/x-canvas-output-image', JSON.stringify({ kind, name, url })); event.dataTransfer.setData('text/uri-list', url); }} src={url} />}
+      <button aria-label="保存到资产库" className="output-save" onClick={() => window.openCanvasAssetLibrary?.({ saveItem: { kind, name, url } })} type="button">存</button><a className="output-download" download href={url} onClick={(event) => event.stopPropagation()}>↓</a><button aria-label="删除输出" className="output-del" onClick={() => remove(url)} type="button">×</button>
     </div>;
   })}{pending.map((item, index) => {
     const recoveryStatus = String(item.recoveryStatus || '');

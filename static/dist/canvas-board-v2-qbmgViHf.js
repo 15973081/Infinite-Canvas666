@@ -813,7 +813,7 @@ function N({ commit: e, node: t, store: n }) {
 		onClick: (e) => e.stopPropagation(),
 		onPointerDown: (e) => e.stopPropagation(),
 		children: [r.map((e, t) => {
-			let n = a(e), r = String(e?.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(n) ? "video" : /\.(mp3|wav|m4a)(\?|$)/i.test(n) ? "audio" : "image"));
+			let n = a(e), r = String(e?.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(n) ? "video" : /\.(mp3|wav|m4a)(\?|$)/i.test(n) ? "audio" : "image")), i = String(e.name || n.split(/[?#]/, 1)[0].split("/").pop() || `生成结果 ${t + 1}`);
 			return /* @__PURE__ */ (0, d.jsxs)("div", {
 				className: "output-img-wrap",
 				"data-output-url": n,
@@ -831,14 +831,25 @@ function N({ commit: e, node: t, store: n }) {
 						alt: "generated output",
 						draggable: !0,
 						onClick: () => s(n),
-						onDragStart: (t) => {
-							t.dataTransfer.effectAllowed = "copy", t.dataTransfer.setData("application/x-canvas-output-image", JSON.stringify({
+						onDragStart: (e) => {
+							e.dataTransfer.effectAllowed = "copy", e.dataTransfer.setData("application/x-canvas-output-image", JSON.stringify({
 								kind: r,
-								name: String(e.name || ""),
+								name: i,
 								url: n
-							})), t.dataTransfer.setData("text/uri-list", n);
+							})), e.dataTransfer.setData("text/uri-list", n);
 						},
 						src: n
+					}),
+					/* @__PURE__ */ (0, d.jsx)("button", {
+						"aria-label": "保存到资产库",
+						className: "output-save",
+						onClick: () => window.openCanvasAssetLibrary?.({ saveItem: {
+							kind: r,
+							name: i,
+							url: n
+						} }),
+						type: "button",
+						children: "存"
 					}),
 					/* @__PURE__ */ (0, d.jsx)("a", {
 						className: "output-download",
