@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
+import { decodeCanvasDocument } from '../domain/document-codec';
 import { mergeCanvasDocuments } from '../domain/document-merge';
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
@@ -736,6 +737,7 @@ function OutputLightbox({ node, onClose, url }: { node: CanvasNode; onClose: () 
 }
 
 export interface CanvasBoardMountOptions {
+  clientId?: string;
   initialDocument?: unknown;
   readOnly?: boolean;
   repository?: CanvasRepository;
@@ -770,6 +772,10 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
   let disposed = false;
   let pending = false;
   let saving = false;
+  const savePayload = (document: CanvasDocument) => ({
+    ...canvasDocumentSavePayload(document),
+    ...(options.clientId ? { client_id: options.clientId } : {}),
+  });
   const reportSaveState = (state: string) => {
     element.dataset.saveState = state;
     window.dispatchEvent(new CustomEvent('canvas-board-v2-save-state', { detail: state }));
@@ -795,9 +801,10 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
         if (!submitted || typeof submitted.id !== 'string') continue;
         reportSaveState('saving');
         try {
-          const saved = await repository.save(submitted.id, canvasDocumentSavePayload(submitted));
+          const saved = await repository.save(submitted.id, savePayload(submitted));
           baseDocument = saved;
           if (!disposed) store.getState().acceptSavedDocument(saved, submitted);
+          window.dispatchEvent(new CustomEvent('canvas-board-v2-document-saved', { detail: structuredClone(saved) }));
           reportSaveState('saved');
           window.CanvasModernCore?.recordRolloutEvent('save-succeeded', {
             dimensions: { reason: 'none' },
@@ -817,9 +824,10 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
                 store.setState({ document: merged.document });
                 historyPresent = structuredClone(merged.document);
                 try {
-                  const saved = await repository.save(submitted.id, canvasDocumentSavePayload(merged.document));
+                  const saved = await repository.save(submitted.id, savePayload(merged.document));
                   baseDocument = saved;
                   if (!disposed) store.getState().acceptSavedDocument(saved, merged.document);
+                  window.dispatchEvent(new CustomEvent('canvas-board-v2-document-saved', { detail: structuredClone(saved) }));
                   reportSaveState('saved');
                   window.CanvasModernCore?.recordRolloutEvent('save-rebased', {
                     dimensions: { reason: 'none' },
@@ -869,6 +877,33 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
   };
   let externalSelection = new Set<string>();
   let readOnlyMode = Boolean(options.readOnly);
+  const synchronizeRemote = (snapshot: unknown) => {
+    const remote = decodeCanvasDocument(snapshot);
+    const current = store.getState().document;
+    if (!current || current.id !== remote.id) return { conflicts: ['document.id'], merged: false, updated: false };
+    if (saving && !readOnlyMode) return { conflicts: ['save-in-progress'], merged: false, updated: false };
+    const localChanged = Boolean(baseDocument && documentHistoryKey(current) !== documentHistoryKey(baseDocument));
+    let next = remote;
+    let merged = false;
+    if (!readOnlyMode && baseDocument && localChanged) {
+      const result = mergeCanvasDocuments(baseDocument, current, remote);
+      if (result.conflicts.length) {
+        reportSaveState('conflict');
+        return { conflicts: result.conflicts, merged: false, updated: false };
+      }
+      next = result.document;
+      merged = true;
+    }
+    baseDocument = remote;
+    store.getState().projectDocument(next);
+    historyPresent = structuredClone(next);
+    historyPast.length = 0;
+    historyFuture.length = 0;
+    window.dispatchEvent(new CustomEvent('canvas-board-v2-history-state', { detail: { canRedo: false, canUndo: false } }));
+    reportSaveState(merged ? 'merging' : 'saved');
+    if (merged) commit(false);
+    return { conflicts: [], merged, updated: true };
+  };
   const previousBoardApi = window.CanvasBoardV2;
   window.CanvasBoardV2 = {
     addNode(type, point) {
@@ -1027,6 +1062,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       readOnlyMode = Boolean(value);
       window.dispatchEvent(new CustomEvent('canvas-board-v2-readonly', { detail: readOnlyMode }));
     },
+    syncRemote(snapshot) { return synchronizeRemote(snapshot); },
     undo() { return readOnlyMode ? false : undo(); },
     updateNode(nodeId, patch) {
       if (readOnlyMode) return false;

@@ -26,6 +26,11 @@ export interface CanvasLockResult extends Record<string, unknown> {
   ok: boolean;
 }
 
+export interface CanvasMeta extends Record<string, unknown> {
+  id: string;
+  updated_at: number;
+}
+
 export interface CanvasManagementClient {
   acquireLock(canvasId: string, clientId: string, username?: string): Promise<CanvasLockResult>;
   create(title?: string, options?: CanvasCreateOptions): Promise<CanvasSummary>;
@@ -33,6 +38,7 @@ export interface CanvasManagementClient {
   delete(canvasId: string): Promise<void>;
   deleteBackup(canvasId: string, filename: string): Promise<void>;
   deleteFolder(folderId: string): Promise<void>;
+  getMeta(canvasId: string): Promise<CanvasMeta>;
   list(): Promise<CanvasSummary[]>;
   listFolders(): Promise<CanvasFolder[]>;
   listTrash(): Promise<CanvasSummary[]>;
@@ -69,6 +75,7 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
   const purge = (canvasId: string) => emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/purge`, 'DELETE');
   const moveToFolder = (canvasId: string, folderId: string) => jsonRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/folder`, 'PATCH', { folder_id: folderId }).then(() => undefined);
   const deleteBackup = (canvasId: string, filename: string) => emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/backups/${encodeURIComponent(filename)}`, 'DELETE');
+  const getMeta = async (canvasId: string) => object(await requestJson(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/meta`)) as CanvasMeta;
   const acquireLock = async (canvasId: string, clientId: string, username = '') => {
     try {
       return await jsonRequest<CanvasLockResult>(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock`, 'POST', { client_id: clientId, username });
@@ -86,7 +93,7 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
     }
     await emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock?client_id=${encodeURIComponent(clientId)}`, 'DELETE');
   };
-  return { acquireLock, create, createFolder, delete: remove, deleteBackup, deleteFolder, list, listFolders, listTrash, moveToFolder, purge, releaseLock, restore, updateFolder };
+  return { acquireLock, create, createFolder, delete: remove, deleteBackup, deleteFolder, getMeta, list, listFolders, listTrash, moveToFolder, purge, releaseLock, restore, updateFolder };
 }
 
 function listFrom(payload: unknown): CanvasSummary[] {

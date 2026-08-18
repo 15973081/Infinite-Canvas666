@@ -83,10 +83,11 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
 
 test('opens a remotely locked canvas read-only and takes over after release', async ({ page }) => {
   let lockRequests = 0;
-  const canvasDocument = {
+  let canvasDocument = {
     id: 'smart-locked', kind: 'smart', schemaVersion: 1, title: 'Locked Smart', updated_at: 1, connections: [],
     nodes: [{ id: 'locked-prompt', type: 'prompt', text: 'read only prompt', x: 40, y: 80 }],
   };
+  let remoteUpdatedAt = 1;
   await page.route('**/api/config', (route) => route.fulfill({ json: { api_providers: [] } }));
   await page.route('**/api/workflows', (route) => route.fulfill({ json: { workflows: [] } }));
   await page.route('**/api/canvas-folders', (route) => route.fulfill({ json: { folders: [] } }));
@@ -103,6 +104,7 @@ test('opens a remotely locked canvas read-only and takes over after release', as
     }
     await route.fulfill({ json: { ok: true, renewed: false, holder: { client_id: 'mine', username: 'Bob' } } });
   });
+  await page.route('**/api/canvases/smart-locked/meta', (route) => route.fulfill({ json: { id: 'smart-locked', updated_at: remoteUpdatedAt } }));
   await page.route('**/api/canvases/smart-locked', (route) => route.fulfill({ json: { canvas: canvasDocument } }));
   await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
 
@@ -113,6 +115,16 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
   await expect(page.getByRole('button', { name: 'API生成' })).toBeDisabled();
   expect(await page.evaluate(() => window.CanvasBoardV2?.addNode('prompt'))).toBeNull();
+
+  canvasDocument = { ...canvasDocument, updated_at: 2, nodes: [{ ...canvasDocument.nodes[0], text: 'remote saved prompt' }] };
+  remoteUpdatedAt = 2;
+  await page.evaluate(() => window.postMessage({ type: 'canvas_updated', canvas_id: 'smart-locked', updated_at: 2, client_id: 'other' }, '*'));
+  await expect(page.locator('[data-node-id="locked-prompt"]')).toContainText('remote saved prompt');
+
+  canvasDocument = { ...canvasDocument, updated_at: 3, nodes: [{ ...canvasDocument.nodes[0], text: 'remote polled prompt' }] };
+  remoteUpdatedAt = 3;
+  await page.clock.fastForward(5_100);
+  await expect(page.locator('[data-node-id="locked-prompt"]')).toContainText('remote polled prompt');
 
   await page.getByRole('button', { name: '尝试取得编辑锁' }).click();
   await expect(page.getByText('Alice 正在编辑此画布')).toHaveCount(0);
@@ -129,6 +141,7 @@ test('opens a remotely locked canvas read-only and takes over after release', as
 
 test('creates and runs a generation chain from the React Smart Canvas composer', async ({ page }) => {
   let saves = 0;
+  let savedCanvasPayload: Record<string, unknown> = {};
   let submitted: Record<string, unknown> = {};
   let canvasDocument = {
     id: 'smart-composer-e2e', kind: 'smart', schemaVersion: 1, title: 'Composer Smart', updated_at: 1,
@@ -144,7 +157,8 @@ test('creates and runs a generation chain from the React Smart Canvas composer',
   await page.route('**/api/canvases/smart-composer-e2e', async (route) => {
     if (route.request().method() === 'PUT') {
       saves += 1;
-      canvasDocument = { ...canvasDocument, ...JSON.parse(route.request().postData() || '{}'), updated_at: saves + 1 };
+      savedCanvasPayload = JSON.parse(route.request().postData() || '{}');
+      canvasDocument = { ...canvasDocument, ...savedCanvasPayload, updated_at: saves + 1 };
     }
     await route.fulfill({ json: { canvas: canvasDocument } });
   });
@@ -181,6 +195,7 @@ test('creates and runs a generation chain from the React Smart Canvas composer',
     reference_images: [{ kind: 'image', name: 'reference.png', url: '/uploads/reference.png' }],
   });
   await expect.poll(() => saves).toBeGreaterThan(0);
+  expect(savedCanvasPayload.client_id).toMatch(/^canvas_/);
   await page.getByRole('button', { name: '撤销' }).click();
   await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(0);
   await page.getByRole('button', { name: '重做' }).click();

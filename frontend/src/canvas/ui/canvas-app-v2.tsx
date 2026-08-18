@@ -55,10 +55,13 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   const [assetRequest, setAssetRequest] = useState<CanvasAssetLibraryRequest | null>(null);
   const [lockHolder, setLockHolder] = useState<Record<string, unknown> | null>(null);
   const [lockIssue, setLockIssue] = useState('');
+  const [syncIssue, setSyncIssue] = useState('');
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clientId = useRef(canvasClientId());
   const initialCanvasAttempted = useRef(false);
+  const lastKnownUpdatedAt = useRef(0);
   const ownsLock = useRef(false);
+  const remoteSyncInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
     setStatus('正在加载画布列表…');
@@ -81,12 +84,24 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   useEffect(() => {
     const host = boardRef.current;
     if (!host || !current) return;
-    const cleanup = mountCanvasBoardV2(host, null, { initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
+    const cleanup = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
     window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder));
     return cleanup;
   }, [current, repository, runtime]);
 
   useEffect(() => { window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder)); }, [lockHolder]);
+
+  useEffect(() => {
+    const listener = (event: Event) => {
+      const saved = (event as CustomEvent<CanvasDocument>).detail;
+      if (saved?.id === current?.id) {
+        lastKnownUpdatedAt.current = Math.max(lastKnownUpdatedAt.current, Number(saved.updated_at || 0));
+        setSyncIssue('');
+      }
+    };
+    window.addEventListener('canvas-board-v2-document-saved', listener);
+    return () => window.removeEventListener('canvas-board-v2-document-saved', listener);
+  }, [current?.id]);
 
   useEffect(() => {
     const release = () => {
@@ -120,6 +135,8 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       ownsLock.current = lock.ok;
       setLockHolder(lock.ok ? null : lock.holder || {});
       setLockIssue('');
+      setSyncIssue('');
+      lastKnownUpdatedAt.current = Number(loaded.updated_at || 0);
       setCurrent(loaded);
       if (!lock.ok) {
         setStatus(`只读模式：画布正由 ${lockHolderName(lock.holder)} 编辑`);
@@ -128,7 +145,8 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       setStatus('');
       void runtime.recoverDocument(loaded).then(async (recovered) => {
         if (JSON.stringify(recovered) === JSON.stringify(loaded)) return;
-        const saved = await repository.save(summary.id, canvasDocumentSavePayload(recovered));
+        const saved = await repository.save(summary.id, { ...canvasDocumentSavePayload(recovered), client_id: clientId.current });
+        lastKnownUpdatedAt.current = Number(saved.updated_at || 0);
         setCurrent((active) => active?.id === saved.id ? saved : active);
       }).catch((error) => setStatus(`任务恢复失败：${error instanceof Error ? error.message : String(error)}`));
     } catch (error) {
@@ -153,6 +171,7 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       setLockIssue('');
       if (!wasOwner) {
         const latest = await repository.get(String(current.id));
+        lastKnownUpdatedAt.current = Number(latest.updated_at || 0);
         setCurrent(latest);
         setStatus('已取得编辑锁，并同步到最新画布');
       }
@@ -166,6 +185,44 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       return false;
     }
   }, [current?.id, management, repository]);
+
+  const syncRemoteVersion = useCallback(async (hintedUpdatedAt = 0) => {
+    if (!current?.id || remoteSyncInFlight.current) return;
+    remoteSyncInFlight.current = true;
+    try {
+      const updatedAt = hintedUpdatedAt || Number((await management.getMeta(String(current.id))).updated_at || 0);
+      if (!updatedAt || updatedAt <= lastKnownUpdatedAt.current) return;
+      const remote = await repository.get(String(current.id));
+      const result = window.CanvasBoardV2?.syncRemote(remote);
+      if (!result?.updated) {
+        if (result?.conflicts.includes('save-in-progress')) setSyncIssue('检测到远端更新，等待当前保存完成后同步');
+        else setSyncIssue(`远端更新与本地修改冲突：${result?.conflicts.join('、') || '无法自动合并'}`);
+        return;
+      }
+      lastKnownUpdatedAt.current = Math.max(updatedAt, Number(remote.updated_at || 0));
+      setSyncIssue(result.merged ? '已合并远端更新，正在保存' : '');
+    } catch (error) {
+      console.warn('[canvas-modern] remote canvas synchronization failed', error);
+    } finally {
+      remoteSyncInFlight.current = false;
+    }
+  }, [current?.id, management, repository]);
+
+  useEffect(() => {
+    if (!current?.id) return;
+    const timer = window.setInterval(() => { void syncRemoteVersion(); }, 5_000);
+    const message = (event: MessageEvent) => {
+      const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : {};
+      if (data.type !== 'canvas_updated' || String(data.canvas_id || '') !== String(current.id)) return;
+      if (String(data.client_id || '') === clientId.current) return;
+      void syncRemoteVersion(Number(data.updated_at || 0));
+    };
+    window.addEventListener('message', message);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('message', message);
+    };
+  }, [current?.id, syncRemoteVersion]);
 
   useEffect(() => {
     if (!current?.id) return;
@@ -185,6 +242,8 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
     ownsLock.current = false;
     setLockHolder(null);
     setLockIssue('');
+    setSyncIssue('');
+    lastKnownUpdatedAt.current = 0;
     setCurrent(null);
     setBackups(null);
     await refresh();
@@ -369,7 +428,7 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
 
   return <main className="canvas-modern-editor">
     <header className="topbar canvas-modern-topbar">
-      <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{lockHolder ? `只读 · ${lockHolderName(lockHolder)} 编辑中` : formatTime(current.updated_at)}</small></div><button className="tool-btn" onClick={() => void editIdentity()} type="button">编辑身份</button></div>
+      <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{lockHolder ? `只读 · ${lockHolderName(lockHolder)} 编辑中` : syncIssue || formatTime(current.updated_at)}</small></div><button className="tool-btn" onClick={() => void editIdentity()} type="button">编辑身份</button></div>
       <div className="panel toolbar canvas-modern-toolbar">
         <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" disabled={Boolean(lockHolder)} key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
         <div className="toolbar-fixed"><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} type="button">备份</button></div>

@@ -12,6 +12,7 @@ describe('Canvas management client', () => {
       if (path === '/api/canvases' && init?.method === 'POST') return response({ id: 'created', title: 'New' });
       if (path === '/api/canvases') return response({ canvases: [{ id: 'active' }] });
       if (path === '/api/canvases/trash') return response({ canvases: [{ id: 'deleted', deleted_at: 1 }] });
+      if (path === '/api/canvases/active/meta') return response({ id: 'active', updated_at: 42 });
       if (path.endsWith('/lock') && init?.method === 'POST') return response({ ok: true });
       return response({ ok: true });
     };
@@ -20,6 +21,7 @@ describe('Canvas management client', () => {
     expect(await client.list()).toEqual([{ id: 'active' }]);
     expect(await client.listTrash()).toMatchObject([{ id: 'deleted' }]);
     expect(await client.create('New')).toMatchObject({ id: 'created', title: 'New' });
+    expect(await client.getMeta('active')).toEqual({ id: 'active', updated_at: 42 });
     expect(await client.acquireLock('active', 'client', 'User')).toEqual({ ok: true });
     await client.releaseLock('active', 'client', true);
 

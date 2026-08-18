@@ -1309,7 +1309,7 @@ if (ye) {
 }
 if (Ce && !I.enabled) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-BWC3ZHIH.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-B8eA7QiB.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
 		window.CanvasModernCore?.recordRolloutEvent("board-mounted", { dimensions: { reason: "none" } }), window.addEventListener("pagehide", r, { once: !0 });
 	}).catch((e) => {
@@ -1318,7 +1318,7 @@ if (Ce && !I.enabled) {
 }
 if (I.enabled) {
 	let e = document.getElementById("canvasModernApp"), t = document.getElementById("shell");
-	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-eIrSq6Gl.js").then(({ mountCanvasAppV2: t }) => {
+	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-m183uScz.js").then(({ mountCanvasAppV2: t }) => {
 		let n = t(e, {
 			runtime: q,
 			repository: J

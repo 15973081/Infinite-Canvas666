@@ -144,6 +144,7 @@ declare global {
       rerunFromOutputMeta(meta: Record<string, unknown>): void;
       runNode(nodeId: string, mode?: 'cascade' | 'chat' | 'node'): Promise<void>;
       setReadOnly(value: boolean): void;
+      syncRemote(snapshot: unknown): { conflicts: string[]; merged: boolean; updated: boolean };
       undo(): boolean;
       updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
     };
