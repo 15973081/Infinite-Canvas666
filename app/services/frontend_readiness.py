@@ -9,12 +9,13 @@ from typing import Any, Dict, Iterable, List, Optional
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).parents[2]))
 
-from app.config import BASE_DIR, CANVAS_DIR, CANVAS_ROLLOUT_FILE, CANVAS_ROLLOUT_METRICS_FILE
+from app.config import BASE_DIR, CANVAS_DIR, CANVAS_ROLLOUT_FILE, CANVAS_ROLLOUT_METRICS_FILE, STAGE8_RELEASE_EVIDENCE_FILE
 from app.services.canvas_audit import audit_canvas_directory
 from app.services.canvas_billing_audit import audit_canvas_billing
 from app.services.canvas_rollout import get_canvas_rollout_policy
 from app.services.canvas_rollout_metrics import get_canvas_rollout_metrics
 from app.services.provider_readiness import build_provider_readiness_report
+from app.services.stage8_release_evidence import RELEASE_GATES, build_stage8_evidence_report
 
 
 PRODUCTION_ENTRIES = {
@@ -27,12 +28,7 @@ LEGACY_BUSINESS_SCRIPTS = {
     "canvas.js", "comfyui-settings.js", "enhance.js", "gpt-chat.js", "klein.js",
     "online.js", "smart-canvas.js", "zimage.js",
 }
-MANUAL_RELEASE_GATES = [
-    "real-provider-validation",
-    "historical-production-fixtures",
-    "billing-reconciliation",
-    "two-stable-release-cycles",
-]
+MANUAL_RELEASE_GATES = list(RELEASE_GATES)
 
 
 def build_frontend_readiness_report(
@@ -44,6 +40,8 @@ def build_frontend_readiness_report(
     policy: Optional[Dict[str, Any]] = None,
     metrics: Optional[Dict[str, Any]] = None,
     provider_report: Optional[Dict[str, Any]] = None,
+    evidence_path: str = STAGE8_RELEASE_EVIDENCE_FILE,
+    evidence_report: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     root = Path(repo_root).resolve()
     static = root / "static"
@@ -105,7 +103,8 @@ def build_frontend_readiness_report(
     active_provider_report = provider_report if provider_report is not None else build_provider_readiness_report()
     for capability in active_provider_report.get("missing_capabilities", []):
         release_blockers.append(f"provider-capability-missing:{capability}")
-    release_blockers.extend(MANUAL_RELEASE_GATES)
+    active_evidence_report = evidence_report if evidence_report is not None else build_stage8_evidence_report(evidence_path)
+    release_blockers.extend(active_evidence_report.get("pending_gates", MANUAL_RELEASE_GATES))
 
     return {
         "version": 1,
@@ -122,6 +121,7 @@ def build_frontend_readiness_report(
         "canvas_audit": audit_summary,
         "billing_audit": billing_audit,
         "provider_readiness": active_provider_report,
+        "release_evidence": active_evidence_report,
         "rollout": active_policy,
         "telemetry": active_metrics,
         "manual_release_gates": MANUAL_RELEASE_GATES,
@@ -134,10 +134,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--canvas-directory", default=CANVAS_DIR)
     parser.add_argument("--rollout-file", default=CANVAS_ROLLOUT_FILE)
     parser.add_argument("--metrics-file", default=CANVAS_ROLLOUT_METRICS_FILE)
+    parser.add_argument("--evidence-file", default=STAGE8_RELEASE_EVIDENCE_FILE)
     parser.add_argument("--strict", action="store_true", help="Also fail while any production release gate is open")
     args = parser.parse_args(argv)
     report = build_frontend_readiness_report(
         args.repo_root, args.canvas_directory, args.rollout_file, args.metrics_file,
+        evidence_path=args.evidence_file,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     if report["code_blockers"]:

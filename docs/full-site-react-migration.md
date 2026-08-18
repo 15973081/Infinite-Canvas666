@@ -138,6 +138,10 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 
 当前本机静态预检：6/6 Comfy 工作流有效、声明 1 个 Comfy 实例；图片、视频、聊天和 ModelScope 尚无“启用平台 + 端点 + 模型 + 凭证”的完整组合，因此严格预检返回 `2`。本批全量结果：97 个 Vitest、29 个 Playwright、51 个 Python unittest 全部通过。
 
+四个人工发布门禁现在由 `python app/services/stage8_release_evidence.py --strict` 校验。可复制 `docs/stage8-release-evidence.example.json` 为 `data/stage8_release_evidence.json` 后填写真实验收证据；缺失、损坏、未来时间、无审核人或无证据引用都会保持门禁关闭。真实供应商门禁要求 image、video、chat、ModelScope、Comfy 五项分别通过，稳定周期门禁要求两个不同发布版本。报告只输出状态、数量和问题代码，不回显审核人或证据引用内容。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、56 个 Python unittest 全部通过。
+
 发布前总检及历史 Smart 无类型节点兼容修复后的全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
 
 ## 计费与复杂 fixture 验收

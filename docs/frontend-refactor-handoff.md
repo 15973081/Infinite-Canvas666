@@ -475,3 +475,18 @@ ModernCanvasRuntime 现在把 `canvasTaskId`、`upstreamTaskId`、`idempotencyKe
 输出严格限制为平台 ID、布尔状态、数量和缺失工作流名；不会输出 Key、Token、AK/SK、URL、环境变量值、代理或原始配置。`frontend_readiness.py` 已合并该静态证据，能力缺失会形成 `provider-capability-missing:*` 发布阻断，但不会改变“代码迁移完成”的判定。即使全部静态能力通过，也必须保留 `real-provider-validation`，直到在实际发布环境完成人工生成、聊天、视频长任务和恢复验收。
 
 当前本机结果：6/6 Comfy 工作流有效、声明 1 个实例；图片、视频、聊天和 ModelScope 静态能力缺失，严格预检按设计返回 `2`。总检仍为 `code_migration_ready=true`、`production_release_ready=false`。本批全量结果：97 个 Vitest、29 个 Playwright、51 个 Python unittest 全部通过。
+
+## 27. 2026-08-19 阶段 8 验收证据门禁
+
+新增只读校验器 `app/services/stage8_release_evidence.py` 和模板 `docs/stage8-release-evidence.example.json`。正式验收时将模板复制到 `data/stage8_release_evidence.json`，填写真实证据后运行：
+
+```powershell
+& '.\python\python.exe' app/services/stage8_release_evidence.py --strict
+& '.\python\python.exe' app/services/frontend_readiness.py --strict
+```
+
+四个门禁不再是无法追踪的固定字符串：真实供应商验证必须分别具备 image、video、chat、ModelScope、Comfy 的通过状态和证据引用；历史生产数据必须记录抽样数量；账单对账必须记录已比较任务且重复扣费为 0；稳定发布必须提供两个不同版本的有效周期。所有门禁还要求有效完成时间、审核人和证据引用。缺文件、JSON 损坏、版本错误、未来时间或字段不完整均采用 fail-closed，继续阻断发布。
+
+发布总检只输出通过状态、计数和问题代码，不输出审核人、工单链接、上游任务 ID 或其他证据值。当前仓库没有伪造或自动生成本机验收文件，因此四个门禁仍全部待完成，灰度状态没有变化。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、56 个 Python unittest 全部通过。

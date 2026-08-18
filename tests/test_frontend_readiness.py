@@ -7,7 +7,7 @@ import unittest
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.services.frontend_readiness import build_frontend_readiness_report
+from app.services.frontend_readiness import MANUAL_RELEASE_GATES, build_frontend_readiness_report
 
 
 class FrontendReadinessTest(unittest.TestCase):
@@ -42,6 +42,7 @@ class FrontendReadinessTest(unittest.TestCase):
             policy={"effective_percentage": 5, "blocked_reasons": []},
             metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
             provider_report=provider_report,
+            evidence_report={"pending_gates": MANUAL_RELEASE_GATES},
         )
 
     def test_passes_code_migration_but_keeps_manual_release_gates_explicit(self):
@@ -72,11 +73,25 @@ class FrontendReadinessTest(unittest.TestCase):
             policy={"effective_percentage": 5, "blocked_reasons": []},
             metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
             provider_report={"ready": False, "missing_capabilities": ["video", "comfy"]},
+            evidence_report={"pending_gates": MANUAL_RELEASE_GATES},
         )
 
         self.assertTrue(report["code_migration_ready"])
         self.assertIn("provider-capability-missing:video", report["release_blockers"])
         self.assertIn("provider-capability-missing:comfy", report["release_blockers"])
+
+    def test_complete_evidence_can_close_only_the_manual_release_gates(self):
+        self.write_entry()
+        report = build_frontend_readiness_report(
+            str(self.root), str(self.canvas_dir), expected_entries={"index.html"},
+            policy={"effective_percentage": 5, "blocked_reasons": []},
+            metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
+            provider_report={"ready": True, "missing_capabilities": []},
+            evidence_report={"ready": True, "pending_gates": []},
+        )
+
+        self.assertTrue(report["production_release_ready"])
+        self.assertEqual([], report["release_blockers"])
 
 
 if __name__ == "__main__":

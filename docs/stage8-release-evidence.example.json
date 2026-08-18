@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "gates": {
+    "real-provider-validation": {
+      "status": "pending",
+      "completed_at": "",
+      "reviewer": "",
+      "evidence_refs": [],
+      "checks": {
+        "image": {"status": "pending", "evidence_ref": ""},
+        "video": {"status": "pending", "evidence_ref": ""},
+        "chat": {"status": "pending", "evidence_ref": ""},
+        "modelscope": {"status": "pending", "evidence_ref": ""},
+        "comfy": {"status": "pending", "evidence_ref": ""}
+      }
+    },
+    "historical-production-fixtures": {
+      "status": "pending",
+      "completed_at": "",
+      "reviewer": "",
+      "evidence_refs": [],
+      "sample_count": 0
+    },
+    "billing-reconciliation": {
+      "status": "pending",
+      "completed_at": "",
+      "reviewer": "",
+      "evidence_refs": [],
+      "compared_task_count": 0,
+      "duplicate_charge_count": 0
+    },
+    "two-stable-release-cycles": {
+      "status": "pending",
+      "completed_at": "",
+      "reviewer": "",
+      "evidence_refs": [],
+      "cycles": []
+    }
+  }
+}
