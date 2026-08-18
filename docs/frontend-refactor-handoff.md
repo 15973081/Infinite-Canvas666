@@ -45,7 +45,7 @@ Set-Location ..
 当前验收基线：
 
 - Vitest：58 个测试通过。
-- Playwright：12 个端到端测试通过。
+- Playwright：13 个端到端测试通过。
 - Python unittest：24 个测试通过。
 - `npm run check` 包含 typecheck、Vitest、生产构建和 Playwright。
 

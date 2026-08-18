@@ -1,63 +1,7 @@
 import { n as e, t } from "./graph-j9GyzERh.js";
-import { i as n, n as r, r as i } from "./canvas-repository-qZo_3rR8.js";
-//#region src/canvas/domain/document-merge.ts
-var a = Symbol("missing");
-function o(t, n, r) {
-	let i = e(t), a = e(n), o = e(r);
-	if (String(i.id || "") !== String(a.id || "") || String(a.id || "") !== String(o.id || "")) throw TypeError("Cannot merge different canvas documents");
-	let l = [], f = s(i, a, o, "", l);
-	return f.nodes = c(i.nodes, a.nodes, o.nodes, "nodes", l, u), f.connections = c(i.connections, a.connections, o.connections, "connections", l, d), f.updated_at = o.updated_at, {
-		conflicts: [...new Set(l)],
-		document: e(f)
-	};
-}
-function s(e, t, n, r, i, o = /* @__PURE__ */ new Set([
-	"connections",
-	"nodes",
-	"updated_at"
-])) {
-	let s = {};
-	return (/* @__PURE__ */ new Set([
-		...Object.keys(e),
-		...Object.keys(t),
-		...Object.keys(n)
-	])).forEach((c) => {
-		if (o.has(c)) return;
-		let u = l(c in e ? e[c] : a, c in t ? t[c] : a, c in n ? n[c] : a, r ? `${r}.${c}` : c, i);
-		u !== a && (s[c] = h(u));
-	}), s;
-}
-function c(e, t, n, r, i, o) {
-	let s = new Map(e.map((e) => [o(e), e])), c = new Map(t.map((e) => [o(e), e])), u = new Map(n.map((e) => [o(e), e]));
-	return [...n.map(o), ...t.map(o)].filter((e, t, n) => n.indexOf(e) === t).flatMap((e) => {
-		let t = l(s.get(e) ?? a, c.get(e) ?? a, u.get(e) ?? a, `${r}.${e}`, i);
-		return t === a ? [] : [h(t)];
-	});
-}
-function l(e, t, n, r, i) {
-	return p(t, e) ? n : p(n, e) || p(t, n) ? t : f(e) && f(t) && f(n) ? s(e, t, n, r, i, /* @__PURE__ */ new Set()) : (i.push(r), t);
-}
-function u(e) {
-	return e.id;
-}
-function d(e) {
-	return String(e.id || `${e.from}->${e.to}:${e.kind || "flow"}`);
-}
-function f(e) {
-	return e !== a && !!e && typeof e == "object" && !Array.isArray(e);
-}
-function p(e, t) {
-	return e === a || t === a ? e === t : m(e) === m(t);
-}
-function m(e) {
-	return Array.isArray(e) ? `[${e.map(m).join(",")}]` : e && typeof e == "object" ? `{${Object.entries(e).sort(([e], [t]) => e.localeCompare(t)).map(([e, t]) => `${JSON.stringify(e)}:${m(t)}`).join(",")}}` : JSON.stringify(e);
-}
-function h(e) {
-	return JSON.parse(JSON.stringify(e));
-}
-//#endregion
+import { a as n, i as r, o as i, r as a } from "./canvas-repository-H8iEsEgy.js";
 //#region src/canvas/domain/execution.ts
-function g() {
+function o() {
 	return {
 		completedNodeIds: [],
 		completedRounds: 0,
@@ -70,14 +14,14 @@ function g() {
 		targetId: ""
 	};
 }
-function _(e, t) {
+function s(e, t) {
 	if (t.type === "queue") {
 		if ([
 			"idle",
 			"done",
 			"failed",
 			"stopped"
-		].includes(e.status) || y(e, t), !t.targetId || !t.order.length) throw Error("Execution queue requires a target and order");
+		].includes(e.status) || d(e, t), !t.targetId || !t.order.length) throw Error("Execution queue requires a target and order");
 		return {
 			completedNodeIds: [],
 			completedRounds: 0,
@@ -90,17 +34,17 @@ function _(e, t) {
 			targetId: t.targetId
 		};
 	}
-	if (t.type === "start") return e.status !== "queued" && y(e, t), {
+	if (t.type === "start") return e.status !== "queued" && d(e, t), {
 		...e,
 		status: "running"
 	};
-	if (t.type === "request-stop") return e.status === "stopping" ? e : (e.status !== "running" && y(e, t), {
+	if (t.type === "request-stop") return e.status === "stopping" ? e : (e.status !== "running" && d(e, t), {
 		...e,
 		status: "stopping"
 	});
 	if (t.type === "node-start") {
-		if (e.mode === "parallel") return v(e, t);
-		(e.status !== "running" || e.currentNodeId) && y(e, t);
+		if (e.mode === "parallel") return c(e, t);
+		(e.status !== "running" || e.currentNodeId) && d(e, t);
 		let n = e.completedNodeIds.length === e.order.length ? [] : e.completedNodeIds, r = e.order[n.length];
 		if (t.nodeId !== r) throw Error(`Expected execution node ${r || "<none>"}`);
 		return {
@@ -110,8 +54,8 @@ function _(e, t) {
 		};
 	}
 	if (t.type === "node-done") {
-		if (e.mode === "parallel") return v(e, t);
-		(!["running", "stopping"].includes(e.status) || e.currentNodeId !== t.nodeId) && y(e, t);
+		if (e.mode === "parallel") return c(e, t);
+		(!["running", "stopping"].includes(e.status) || e.currentNodeId !== t.nodeId) && d(e, t);
 		let n = [...e.completedNodeIds, t.nodeId];
 		return {
 			...e,
@@ -120,20 +64,20 @@ function _(e, t) {
 			currentNodeId: ""
 		};
 	}
-	return e.status !== "running" && e.status !== "stopping" && y(e, t), e.status === "stopping" && t.status === "done" && y(e, t), {
+	return e.status !== "running" && e.status !== "stopping" && d(e, t), e.status === "stopping" && t.status === "done" && d(e, t), {
 		...e,
 		error: t.error || "",
 		status: t.status
 	};
 }
-function v(e, t) {
-	t.roundId || y(e, t);
+function c(e, t) {
+	t.roundId || d(e, t);
 	let n = e.rounds[t.roundId] ?? {
 		completedNodeIds: [],
 		currentNodeId: ""
 	};
 	if (t.type === "node-start") {
-		e.status !== "running" && y(e, t), n.currentNodeId && y(e, t);
+		e.status !== "running" && d(e, t), n.currentNodeId && d(e, t);
 		let r = e.order[n.completedNodeIds.length];
 		if (t.nodeId !== r) throw Error(`Expected execution node ${r || "<none>"}`);
 		return {
@@ -147,7 +91,7 @@ function v(e, t) {
 			}
 		};
 	}
-	["running", "stopping"].includes(e.status) || y(e, t), n.currentNodeId !== t.nodeId && y(e, t);
+	["running", "stopping"].includes(e.status) || d(e, t), n.currentNodeId !== t.nodeId && d(e, t);
 	let r = [...n.completedNodeIds, t.nodeId];
 	return {
 		...e,
@@ -161,79 +105,79 @@ function v(e, t) {
 		}
 	};
 }
-async function ee(e, t, n, r = {}) {
-	let { mode: i = "serial", onTransition: a, signal: o } = r, s = b(g(), {
+async function l(e, t, n, r = {}) {
+	let { mode: i = "serial", onTransition: a, signal: s } = r, c = f(o(), {
 		type: "queue",
 		targetId: e,
 		order: [...t],
 		mode: i
 	}, a);
-	s = b(s, { type: "start" }, a);
-	let c = () => (s.status === "running" && (s = b(s, { type: "request-stop" }, a)), b(s, {
+	c = f(c, { type: "start" }, a);
+	let l = () => (c.status === "running" && (c = f(c, { type: "request-stop" }, a)), f(c, {
 		type: "finish",
 		status: "stopped"
 	}, a));
 	for (let e of t) {
-		if (o?.aborted) return c();
-		s = b(s, {
+		if (s?.aborted) return l();
+		c = f(c, {
 			type: "node-start",
 			nodeId: e
 		}, a);
 		try {
-			await n(e, o);
+			await n(e, s);
 		} catch (e) {
-			return o?.aborted ? c() : b(s, {
+			return s?.aborted ? l() : f(c, {
 				type: "finish",
 				status: "failed",
 				error: e instanceof Error ? e.message : String(e)
 			}, a);
 		}
-		if (o?.aborted) return s = b(s, { type: "request-stop" }, a), s = b(s, {
+		if (s?.aborted) return c = f(c, { type: "request-stop" }, a), c = f(c, {
 			type: "node-done",
 			nodeId: e
-		}, a), c();
-		s = b(s, {
+		}, a), l();
+		c = f(c, {
 			type: "node-done",
 			nodeId: e
 		}, a);
 	}
-	return b(s, {
+	return f(c, {
 		type: "finish",
 		status: "done"
 	}, a);
 }
-async function te(e, t, n, r, i = {}) {
-	let { onTransition: a, signal: o } = i, s = n.map((e, t) => ({
+async function u(e, t, n, r, i = {}) {
+	let { onTransition: a, signal: s } = i, c = n.map((e, t) => ({
 		id: i.roundId?.(e, t) || String(t + 1),
 		round: e
 	}));
-	if (new Set(s.map(({ id: e }) => e)).size !== s.length) throw Error("Parallel execution round IDs must be unique");
-	let c = b(g(), {
+	if (new Set(c.map(({ id: e }) => e)).size !== c.length) throw Error("Parallel execution round IDs must be unique");
+	let l = f(o(), {
 		type: "queue",
 		targetId: e,
 		order: [...t],
 		mode: "parallel"
 	}, a);
-	c = b(c, { type: "start" }, a);
-	let l = null, u = 0, d = () => {
-		c.status === "running" && (c = b(c, { type: "request-stop" }, a));
-	}, f = Math.max(1, Math.min(Math.floor(i.limit || 1), s.length || 1)), p = Array.from({ length: f }, async () => {
-		for (; !l && !o?.aborted && u < s.length;) {
-			let { id: e, round: n } = s[u++];
+	l = f(l, { type: "start" }, a);
+	let u = null, d = 0, p = () => {
+		l.status === "running" && (l = f(l, { type: "request-stop" }, a));
+	}, m = Math.max(1, Math.min(Math.floor(i.limit || 1), c.length || 1)), h = Array.from({ length: m }, async () => {
+		for (; !u && !s?.aborted && d < c.length;) {
+			let { id: e, round: n } = c[d++];
 			for (let i of t) {
-				if (l || o?.aborted) break;
-				c = b(c, {
+				if (u || s?.aborted) break;
+				l = f(l, {
 					type: "node-start",
 					nodeId: i,
 					roundId: e
 				}, a);
 				try {
-					await r(i, n, o);
+					await r(i, n, s);
 				} catch (e) {
-					o?.aborted ? d() : l ||= e;
+					s?.aborted ? p() : u ||= e;
 					break;
 				}
-				o?.aborted && d(), c = b(c, {
+				s?.aborted && p(), l = f(l, {
 					type: "node-done",
 					nodeId: i,
 					roundId: e
@@ -241,33 +185,33 @@ async function te(e, t, n, r, i = {}) {
 			}
 		}
 	});
-	return await Promise.all(p), o?.aborted ? (d(), b(c, {
+	return await Promise.all(h), s?.aborted ? (p(), f(l, {
 		type: "finish",
 		status: "stopped"
-	}, a)) : l ? b(c, {
+	}, a)) : u ? f(l, {
 		type: "finish",
 		status: "failed",
-		error: l instanceof Error ? l.message : String(l)
-	}, a) : b(c, {
+		error: u instanceof Error ? u.message : String(u)
+	}, a) : f(l, {
 		type: "finish",
 		status: "done"
 	}, a);
 }
-function y(e, t) {
+function d(e, t) {
 	throw Error(`Invalid execution transition: ${e.status} -> ${t.type}`);
 }
-function b(e, t, n) {
-	let r = _(e, t);
+function f(e, t, n) {
+	let r = s(e, t);
 	return n?.(r, t), r;
 }
 //#endregion
 //#region src/canvas/infrastructure/task-client.ts
-var x = {
+var p = {
 	image: "/api/canvas-image-tasks",
 	video: "/api/canvas-video-tasks"
 };
-function ne(e = fetch) {
-	let t = /* @__PURE__ */ new Map(), r = /* @__PURE__ */ new Map(), a = {
+function m(e = fetch) {
+	let t = /* @__PURE__ */ new Map(), i = /* @__PURE__ */ new Map(), a = {
 		cancelledWatches: 0,
 		deduplicatedSubmissions: 0,
 		deduplicatedWatches: 0,
@@ -276,33 +220,33 @@ function ne(e = fetch) {
 		submissions: 0,
 		submissionRetries: 0
 	}, o = (t, o, s = {}) => {
-		let c = String(s.idempotencyKey || "").trim(), l = c ? `${t}:${c}` : "", u = l ? r.get(l) : void 0;
+		let c = String(s.idempotencyKey || "").trim(), l = c ? `${t}:${c}` : "", u = l ? i.get(l) : void 0;
 		if (u) return a.deduplicatedSubmissions += 1, u;
 		let d = o && typeof o == "object" && !Array.isArray(o) ? {
 			...o,
 			...c ? { idempotency_key: c } : {}
 		} : o ?? {}, f = (async () => {
-			let r = Math.max(0, Math.min(2, Number(s.retryCount ?? +!!c))), o = 0;
+			let i = Math.max(0, Math.min(2, Number(s.retryCount ?? +!!c))), o = 0;
 			for (;;) try {
 				a.submissions += 1;
-				let r = await n(e, x[t], {
+				let r = await n(e, p[t], {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(d)
 				}, s);
-				return re(r), r;
+				return h(r), r;
 			} catch (e) {
-				if (!(e instanceof i) || !e.retryable || o++ >= r) throw e;
+				if (!(e instanceof r) || !e.retryable || o++ >= i) throw e;
 				a.submissionRetries += 1;
 			}
 		})().finally(() => {
-			l && r.delete(l);
+			l && i.delete(l);
 		});
-		return l && r.set(l, f), f;
-	}, s = (t, r, i) => r ? n(e, `${x[t]}/${encodeURIComponent(r)}`, {}, i) : Promise.reject(/* @__PURE__ */ TypeError("Task ID is required")), c = async (e, t, n = {}) => {
-		let { intervalMs: r = e === "video" ? 2500 : 1800, maxPollErrors: o = 3, requestTimeoutMs: c = 3e4 } = n, l = Date.now(), u = 0;
+		return l && i.set(l, f), f;
+	}, s = (t, r, i) => r ? n(e, `${p[t]}/${encodeURIComponent(r)}`, {}, i) : Promise.reject(/* @__PURE__ */ TypeError("Task ID is required")), c = async (e, t, n = {}) => {
+		let { intervalMs: i = e === "video" ? 2500 : 1800, maxPollErrors: o = 3, requestTimeoutMs: c = 3e4 } = n, l = Date.now(), u = 0;
 		for (;;) {
-			S(n.signal, l, n.timeoutMs);
+			g(n.signal, l, n.timeoutMs);
 			try {
 				a.polls += 1;
 				let r = await s(e, t, {
@@ -311,9 +255,9 @@ function ne(e = fetch) {
 				});
 				if (u = 0, r.status === "succeeded" || r.status === "failed" || r.status === "cancelled") return r;
 			} catch (e) {
-				if (a.pollErrors += 1, !(e instanceof i) || !e.retryable || u++ >= o) throw e;
+				if (a.pollErrors += 1, !(e instanceof r) || !e.retryable || u++ >= o) throw e;
 			}
-			await ie(r, n.signal, l, n.timeoutMs);
+			await _(i, n.signal, l, n.timeoutMs);
 		}
 	}, l = (e, n, r = {}) => {
 		let i = `${e}:${n}`, o = t.get(i);
@@ -338,7 +282,7 @@ function ne(e = fetch) {
 		},
 		get: s,
 		getDiagnostics: () => ({
-			activeSubmissions: r.size,
+			activeSubmissions: i.size,
 			activeWatches: t.size,
 			...a
 		}),
@@ -346,38 +290,38 @@ function ne(e = fetch) {
 		submit: o,
 		wait: c,
 		waitForResult: async (e, t, n) => {
-			let r = await c(e, t, n);
-			if (r.status !== "succeeded") throw new i(r.error || "Task failed", "task-failed", 0, r);
-			return r.result;
+			let i = await c(e, t, n);
+			if (i.status !== "succeeded") throw new r(i.error || "Task failed", "task-failed", 0, i);
+			return i.result;
 		},
 		watch: l
 	};
 }
-function re(e) {
+function h(e) {
 	let t = String(e.task_id || e.id || "");
-	if (!t) throw new i("Task response did not include an ID", "validation", 200, e);
+	if (!t) throw new r("Task response did not include an ID", "validation", 200, e);
 	return t;
 }
-function S(e, t, n = 0) {
-	if (e?.aborted) throw new i("Task polling aborted", "aborted");
-	if (n > 0 && Date.now() - t >= n) throw new i("Task polling timed out", "timeout");
+function g(e, t, n = 0) {
+	if (e?.aborted) throw new r("Task polling aborted", "aborted");
+	if (n > 0 && Date.now() - t >= n) throw new r("Task polling timed out", "timeout");
 }
-function ie(e, t, n, r = 0) {
-	S(t, n, r);
-	let a = r > 0 ? Math.max(0, r - (Date.now() - n)) : e, o = Math.min(Math.max(0, e), a || e);
+function _(e, t, n, i = 0) {
+	g(t, n, i);
+	let a = i > 0 ? Math.max(0, i - (Date.now() - n)) : e, o = Math.min(Math.max(0, e), a || e);
 	return new Promise((e, n) => {
-		let r = () => t?.removeEventListener("abort", s), a = setTimeout(() => {
-			r(), e();
+		let i = () => t?.removeEventListener("abort", s), a = setTimeout(() => {
+			i(), e();
 		}, o), s = () => {
-			clearTimeout(a), r(), n(new i("Task polling aborted", "aborted"));
+			clearTimeout(a), i(), n(new r("Task polling aborted", "aborted"));
 		};
 		t?.addEventListener("abort", s, { once: !0 });
 	});
 }
 //#endregion
 //#region src/canvas/infrastructure/rollout.ts
-function ae(e, t, n) {
-	let r = new URLSearchParams(e), i = r.get("canvas_v2"), a = C(r.get("canvas_v2_rollout")), o = C(se(t, "canvasV2RolloutPercentage")), s = a ?? o ?? 0, c = a === null ? o === null ? "default" : "storage" : "query", l = oe(n || "anonymous");
+function v(e, t, n) {
+	let r = new URLSearchParams(e), i = r.get("canvas_v2"), a = y(r.get("canvas_v2_rollout")), o = y(x(t, "canvasV2RolloutPercentage")), s = a ?? o ?? 0, c = a === null ? o === null ? "default" : "storage" : "query", l = b(n || "anonymous");
 	return i === "1" || i === "0" ? {
 		bucket: l,
 		enabled: i === "1",
@@ -392,17 +336,17 @@ function ae(e, t, n) {
 		source: c
 	};
 }
-function C(e) {
+function y(e) {
 	if (e === null || e.trim() === "") return null;
 	let t = Number(e);
 	return Number.isFinite(t) ? Math.max(0, Math.min(100, Math.floor(t))) : null;
 }
-function oe(e) {
+function b(e) {
 	let t = 2166136261;
 	for (let n = 0; n < e.length; n += 1) t ^= e.charCodeAt(n), t = Math.imul(t, 16777619);
 	return (t >>> 0) % 100;
 }
-function se(e, t) {
+function x(e, t) {
 	try {
 		return e?.getItem(t) ?? null;
 	} catch {
@@ -411,12 +355,12 @@ function se(e, t) {
 }
 //#endregion
 //#region src/main.ts
-var w = new URLSearchParams(window.location.search), T = ae(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname), E = w.get("canvas_modern_core"), D = E === "execution-shadow", O = E === "graph-order", k = E === "shadow", A = w.get("canvas_m2") === "1" || w.get("canvas_m2") === null && T.enabled, j = A || w.get("canvas_execution_engine") === "1", M = A || w.get("canvas_task_client") === "1", N = A || w.get("canvas_repository") === "1", P = j && M && N, F = w.get("canvas_react_islands") === "1", I = F || w.get("canvas_react_activity") === "1", L = F || w.get("canvas_react_execution") === "1", R = F || w.get("canvas_react_status") === "1", z = F || w.get("canvas_react_toolbar") === "1", B = w.get("canvas_board_v2") === "1" || w.get("canvas_board_v2") === null && T.enabled, V = ne(), H = r(), U = /* @__PURE__ */ new Map(), W = 0, G = 0, K = [], q = 0, J = 0, Y = /* @__PURE__ */ new Map(), X = {
+var S = new URLSearchParams(window.location.search), C = v(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname), w = S.get("canvas_modern_core"), T = w === "execution-shadow", E = w === "graph-order", D = w === "shadow", O = S.get("canvas_m2") === "1" || S.get("canvas_m2") === null && C.enabled, k = O || S.get("canvas_execution_engine") === "1", A = O || S.get("canvas_task_client") === "1", j = O || S.get("canvas_repository") === "1", M = k && A && j, N = S.get("canvas_react_islands") === "1", P = N || S.get("canvas_react_activity") === "1", F = N || S.get("canvas_react_execution") === "1", I = N || S.get("canvas_react_status") === "1", L = N || S.get("canvas_react_toolbar") === "1", R = S.get("canvas_board_v2") === "1" || S.get("canvas_board_v2") === null && C.enabled, z = m(), B = a(), V = /* @__PURE__ */ new Map(), H = 0, U = 0, W = [], G = 0, K = 0, q = /* @__PURE__ */ new Map(), J = {
 	done: 0,
 	failed: 0,
 	stopped: 0
-}, Z = 0;
-function Q(n, r, i) {
+}, Y = 0;
+function X(n, r, i) {
 	let a = window.CanvasLegacyBridge, o = a?.getDocumentSnapshot();
 	if (!a || !o) return null;
 	let s = t(e(o)), c = n === "cascade" ? s.cascadeOrder(r) : s.retryCascadeOrder(r), l = i ?? (n === "cascade" ? a.computeCascadeOrder(r) : a.computeRetryCascadeOrder(r));
@@ -429,15 +373,15 @@ function Q(n, r, i) {
 	};
 }
 if (window.CanvasModernCore = Object.freeze({
-	version: 23,
-	canvasRepository: H,
-	canvasRepositoryEnabled: N,
-	executionEngineEnabled: j,
-	m2Enabled: P,
-	taskClient: V,
-	taskClientEnabled: M,
+	version: 24,
+	canvasRepository: B,
+	canvasRepositoryEnabled: j,
+	executionEngineEnabled: k,
+	m2Enabled: M,
+	taskClient: z,
+	taskClientEnabled: A,
 	activeOrder(n, r) {
-		if (!O) return null;
+		if (!E) return null;
 		try {
 			let i = window.CanvasLegacyBridge?.getDocumentSnapshot();
 			if (!i) return null;
@@ -447,62 +391,62 @@ if (window.CanvasModernCore = Object.freeze({
 			return console.warn("[canvas-modern-core] active graph order failed; using legacy order", e), null;
 		}
 	},
-	compareOrder: Q,
+	compareOrder: X,
 	runOrdered(e) {
-		return j ? ee(e.targetId, e.order, e.execute, {
+		return k ? l(e.targetId, e.order, e.execute, {
 			mode: e.mode,
 			signal: e.signal,
-			onTransition: $
+			onTransition: Z
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	runParallel(e) {
-		return j ? te(e.targetId, e.order, e.rounds, e.execute, {
+		return k ? u(e.targetId, e.order, e.rounds, e.execute, {
 			limit: e.limit,
 			roundId: e.roundId,
 			signal: e.signal,
-			onTransition: $
+			onTransition: Z
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	observeExecution(e) {
-		if (D) try {
-			let t = U.get(e.targetId) ?? g();
-			e.phase === "begin" ? (t = _(t, {
+		if (T) try {
+			let t = V.get(e.targetId) ?? o();
+			e.phase === "begin" ? (t = s(t, {
 				type: "queue",
 				targetId: e.targetId,
 				order: e.order,
 				mode: e.mode
-			}), t = _(t, { type: "start" })) : t = e.phase === "node-start" ? _(t, {
+			}), t = s(t, { type: "start" })) : t = e.phase === "node-start" ? s(t, {
 				type: "node-start",
 				nodeId: e.nodeId,
 				roundId: e.roundId
-			}) : e.phase === "node-done" ? _(t, {
+			}) : e.phase === "node-done" ? s(t, {
 				type: "node-done",
 				nodeId: e.nodeId,
 				roundId: e.roundId
-			}) : e.phase === "stop" ? _(t, { type: "request-stop" }) : _(t, {
+			}) : e.phase === "stop" ? s(t, { type: "request-stop" }) : s(t, {
 				type: "finish",
 				status: e.status,
 				error: e.error
-			}), U.set(e.targetId, t), W += 1;
+			}), V.set(e.targetId, t), H += 1;
 		} catch (t) {
-			G += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
+			U += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
 		}
 	},
 	observeOrder(e, t, n) {
-		if (k) try {
-			let r = Q(e, t, n);
+		if (D) try {
+			let r = X(e, t, n);
 			if (!r) return;
-			q += 1, r.matches || (K.length < 50 && K.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+			G += 1, r.matches || (W.length < 50 && W.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
 		} catch (e) {
-			J += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+			K += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
 		}
 	},
 	getShadowReport() {
 		return {
-			enabled: k,
-			checks: q,
-			errors: J,
-			mismatches: K.map((e) => ({
+			enabled: D,
+			checks: G,
+			errors: K,
+			mismatches: W.map((e) => ({
 				...e,
 				legacy: [...e.legacy],
 				modern: [...e.modern]
@@ -511,10 +455,10 @@ if (window.CanvasModernCore = Object.freeze({
 	},
 	getExecutionShadowReport() {
 		return {
-			enabled: D,
-			errors: G,
-			events: W,
-			runs: [...U.values()].map((e) => ({
+			enabled: T,
+			errors: U,
+			events: H,
+			runs: [...V.values()].map((e) => ({
 				...e,
 				completedNodeIds: [...e.completedNodeIds],
 				order: [...e.order],
@@ -527,69 +471,69 @@ if (window.CanvasModernCore = Object.freeze({
 	},
 	getM2Report() {
 		return {
-			enabled: P,
-			rollout: T,
+			enabled: M,
+			rollout: C,
 			execution: {
-				active: [...Y.values()].filter(({ status: e }) => ![
+				active: [...q.values()].filter(({ status: e }) => ![
 					"done",
 					"failed",
 					"stopped"
 				].includes(e)).length,
-				...X,
-				transitions: Z
+				...J,
+				transitions: Y
 			},
 			flags: {
-				executionEngine: j,
-				repository: N,
-				taskClient: M
+				executionEngine: k,
+				repository: j,
+				taskClient: A
 			},
-			repository: H.getDiagnostics(),
-			tasks: V.getDiagnostics()
+			repository: B.getDiagnostics(),
+			tasks: z.getDiagnostics()
 		};
 	},
 	mergeConflict(e, t, n) {
-		return o(e, t, n);
+		return i(e, t, n);
 	}
-}), L) {
+}), F) {
 	let e = document.getElementById("canvasExecutionIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactExecutionIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React execution island failed to load", e));
 }
-if (R) {
+if (I) {
 	let e = document.getElementById("canvasStatusIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactStatusIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React status island failed to load", e));
 }
-if (z) {
+if (L) {
 	let e = document.getElementById("canvasToolbarIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactToolbarIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React toolbar island failed to load", e));
 }
-if (I) {
+if (P) {
 	let e = document.getElementById("canvasActivityIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactActivityIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React activity island failed to load", e));
 }
-if (B) {
+if (R) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-MKB4bx64.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-B4sufmf6.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
 		window.addEventListener("pagehide", r, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e));
 }
-function $(e, t) {
-	Z += 1, Y.set(e.targetId, e), t.type === "finish" && (X[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
+function Z(e, t) {
+	Y += 1, q.set(e.targetId, e), t.type === "finish" && (J[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
 		event: t,
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "23", document.documentElement.dataset.canvasBoardV2 = B ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = M ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = T.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(T.bucket), document.documentElement.dataset.canvasV2RolloutPercentage = String(T.percentage), window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "24", document.documentElement.dataset.canvasBoardV2 = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = T ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = E ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = A ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = C.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(C.bucket), document.documentElement.dataset.canvasV2RolloutPercentage = String(C.percentage), window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

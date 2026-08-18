@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '23');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '24');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -38,6 +38,50 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
+});
+
+test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async ({ page }) => {
+  const saves: Array<Record<string, any>> = [];
+  await page.route('**/api/canvases/v2-conflict', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    saves.push(body);
+    if (saves.length === 1) {
+      await route.fulfill({ status: 409, json: { detail: {
+        message: 'conflict', updated_at: 2,
+        canvas: {
+          id: 'v2-conflict', updated_at: 2, connections: [],
+          nodes: [
+            { id: 'prompt', type: 'prompt', text: 'base', x: 40, y: 120 },
+            { id: 'generator', type: 'generator', model: 'remote-model', x: 420, y: 120 },
+          ],
+        },
+      } } });
+      return;
+    }
+    await route.fulfill({ json: { canvas: { ...body, id: 'v2-conflict', updated_at: 3 } } });
+  });
+  await page.goto('/static/canvas.html?canvas_board_v2=1&canvas_repository=1');
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
+  await page.evaluate(() => {
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'v2-conflict', updated_at: 1, connections: [],
+      nodes: [
+        { id: 'prompt', type: 'prompt', text: 'base', x: 40, y: 120 },
+        { id: 'generator', type: 'generator', model: 'base-model', x: 420, y: 120 },
+      ],
+    } }));
+  });
+
+  const editor = page.locator('[data-node-id="prompt"] textarea[data-field="text"]');
+  await editor.fill('local edit');
+  await editor.blur();
+
+  await expect.poll(() => saves.length).toBe(2);
+  expect(saves[1]).toMatchObject({ base_updated_at: 2 });
+  expect(saves[1].nodes.find((node: any) => node.id === 'prompt')).toMatchObject({ text: 'local edit' });
+  expect(saves[1].nodes.find((node: any) => node.id === 'generator')).toMatchObject({ model: 'remote-model' });
+  await expect(page.locator('#canvasBoardV2')).toHaveAttribute('data-save-state', 'saved');
 });
 
 test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on cleanup', async ({ page }) => {

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
+import { mergeCanvasDocuments } from '../domain/document-merge';
 import type { CanvasEdge, CanvasNode } from '../domain/types';
-import { canvasDocumentSavePayload } from '../infrastructure/canvas-repository';
+import { CanvasConflictError, canvasDocumentSavePayload } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
 
 type Point = { x: number; y: number };
@@ -652,7 +653,13 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
   const repository = window.CanvasModernCore?.canvasRepository;
   if (!bridge || !repository) throw new Error('Canvas V2 dependencies are unavailable');
   const store = createDocumentStore(bridge.getDocumentSnapshot());
-  const adopt = (event: Event) => store.getState().adoptDocument((event as CustomEvent<unknown>).detail);
+  let baseDocument = store.getState().document;
+  const adopt = (event: Event) => {
+    const previousId = store.getState().document?.id;
+    store.getState().adoptDocument((event as CustomEvent<unknown>).detail);
+    const current = store.getState().document;
+    if (current?.id !== previousId) baseDocument = current;
+  };
   const projectExecution = (event: Event) => store.getState().projectExecutionDocument((event as CustomEvent<unknown>).detail);
   window.addEventListener('canvas-legacy-document', adopt);
   window.addEventListener('canvas-legacy-execution-document', projectExecution);
@@ -677,9 +684,31 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
         reportSaveState('saving');
         try {
           const saved = await repository.save(submitted.id, canvasDocumentSavePayload(submitted));
+          baseDocument = saved;
           if (!disposed) store.getState().acceptSavedDocument(saved, submitted);
           reportSaveState('saved');
         } catch (error) {
+          if (error instanceof CanvasConflictError && error.serverCanvas && baseDocument) {
+            const current = store.getState().document;
+            if (current?.id === submitted.id) {
+              const merged = mergeCanvasDocuments(baseDocument, current, error.serverCanvas);
+              if (!merged.conflicts.length) {
+                reportSaveState('merging');
+                store.setState({ document: merged.document });
+                try {
+                  const saved = await repository.save(submitted.id, canvasDocumentSavePayload(merged.document));
+                  baseDocument = saved;
+                  if (!disposed) store.getState().acceptSavedDocument(saved, merged.document);
+                  reportSaveState('saved');
+                  continue;
+                } catch (retryError) {
+                  console.warn('[canvas-modern-core] CanvasBoard V2 rebased save failed', retryError);
+                }
+              } else {
+                console.warn('[canvas-modern-core] CanvasBoard V2 save conflict requires resolution', merged.conflicts);
+              }
+            }
+          }
           reportSaveState('error');
           console.warn('[canvas-modern-core] CanvasBoard V2 save failed', error);
           break;
