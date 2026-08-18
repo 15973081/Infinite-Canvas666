@@ -8,6 +8,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         'comfyui-settings-modern': 'src/pages/comfyui-settings.tsx',
+        'online-modern': 'src/pages/online.tsx',
+        'zimage-modern': 'src/pages/zimage.tsx',
       },
       output: {
         entryFileNames: '[name].js',
