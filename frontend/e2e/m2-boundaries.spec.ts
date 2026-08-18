@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '24');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '25');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -82,6 +82,38 @@ test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async 
   expect(saves[1].nodes.find((node: any) => node.id === 'prompt')).toMatchObject({ text: 'local edit' });
   expect(saves[1].nodes.find((node: any) => node.id === 'generator')).toMatchObject({ model: 'remote-model' });
   await expect(page.locator('#canvasBoardV2')).toHaveAttribute('data-save-state', 'saved');
+});
+
+test('keeps interrupted persisted tasks actionable after a backend restart', async ({ page }) => {
+  await page.route('**/api/canvases/recovery-e2e', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    await route.fulfill({ json: { canvas: { ...body, id: 'recovery-e2e', updated_at: 2 } } });
+  });
+  await page.goto('/static/canvas.html?canvas_board_v2=1&canvas_repository=1');
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
+  await page.evaluate(() => {
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'recovery-e2e', updated_at: 1, connections: [],
+      nodes: [
+        { id: 'generator', type: 'generator', x: 40, y: 120 },
+        { id: 'output', type: 'output', x: 420, y: 120, _pending: [{
+          id: 'pending-restart', canvasTaskId: 'canvas_img_old', failed: true,
+          recoveryStatus: 'interrupted', run: { node: { id: 'generator', type: 'generator' } },
+        }] },
+      ],
+    } }));
+    const board = (window as typeof window & { CanvasBoardV2: any; __retriedNode?: string }).CanvasBoardV2;
+    board.runNode = async (nodeId: string) => {
+      (window as typeof window & { __retriedNode?: string }).__retriedNode = nodeId;
+    };
+  });
+
+  const pending = page.locator('[data-pending-id="pending-restart"]');
+  await expect(pending).toContainText('任务追踪已中断');
+  await pending.getByRole('button', { name: '重新生成' }).click();
+  await expect(pending).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __retriedNode?: string }).__retriedNode)).toBe('generator');
 });
 
 test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on cleanup', async ({ page }) => {
@@ -638,6 +670,9 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
         deduplicatedWatches: 0,
         pollErrors: 0,
         polls: 2,
+        recoveredTasks: 0,
+        resumeRequests: 0,
+        resumedTasks: 0,
         submissions: 1,
         submissionRetries: 0,
       },

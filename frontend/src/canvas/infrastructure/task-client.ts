@@ -10,6 +10,9 @@ export interface CanvasTaskRecord {
   status: CanvasTaskStatus;
   task_id?: string;
   upstream_task_id?: string;
+  recoverable?: boolean;
+  recovered_after_restart?: boolean;
+  recovery_status?: string;
   [key: string]: unknown;
 }
 
@@ -37,6 +40,9 @@ export interface TaskClientDiagnostics {
   deduplicatedWatches: number;
   pollErrors: number;
   polls: number;
+  recoveredTasks: number;
+  resumeRequests: number;
+  resumedTasks: number;
   submissions: number;
   submissionRetries: number;
 }
@@ -62,7 +68,8 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
   const activeSubmissions = new Map<string, Promise<CanvasTaskRecord>>();
   const diagnostics = {
     cancelledWatches: 0, deduplicatedSubmissions: 0, deduplicatedWatches: 0,
-    pollErrors: 0, polls: 0, submissions: 0, submissionRetries: 0,
+    pollErrors: 0, polls: 0, recoveredTasks: 0, resumeRequests: 0, resumedTasks: 0,
+    submissions: 0, submissionRetries: 0,
   };
 
   const submit: TaskClient['submit'] = (kind, payload, options = {}) => {
@@ -157,9 +164,15 @@ export function createTaskClient(fetcher: Fetcher = fetch): TaskClient {
     return task.result;
   };
 
-  const resume: TaskClient['resume'] = (tasks, options) => Promise.allSettled(
-    tasks.map(({ kind, id }) => watch(kind, id, options)),
-  );
+  const resume: TaskClient['resume'] = async (tasks, options) => {
+    diagnostics.resumeRequests += 1;
+    diagnostics.resumedTasks += tasks.length;
+    const results = await Promise.allSettled(tasks.map(({ kind, id }) => watch(kind, id, options)));
+    diagnostics.recoveredTasks += results.filter((result) =>
+      result.status === 'fulfilled' && result.value.recovered_after_restart
+    ).length;
+    return results;
+  };
 
   const getDiagnostics = (): TaskClientDiagnostics => ({ activeSubmissions: activeSubmissions.size, activeWatches: active.size, ...diagnostics });
 

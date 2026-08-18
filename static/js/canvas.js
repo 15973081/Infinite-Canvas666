@@ -6812,16 +6812,19 @@ function pendingOutputStyle(pending){
 function renderPendingOutput(pending){
     if(pending?.failed){
         const taskId = pending.recoverTaskId || '';
+        const interrupted = pending.recoveryStatus === 'interrupted';
         const querying = Boolean(pending.querying);
         const msg = pending.error || tr('canvas.generationFailed');
-        const sub = taskId ? `任务 ID：${escapeHtml(taskId)}` : '没有任务 ID，无法查询';
+        const sub = interrupted ? '服务重启中断了本地追踪，可安全重新提交' : taskId ? `任务 ID：${escapeHtml(taskId)}` : '没有任务 ID，无法查询';
         return `<div class="output-img-wrap loading-wrap recoverable" data-pending-id="${escapeAttr(pending.id)}"${pendingOutputStyle(pending)}>
             <span class="output-time-pill failed">失败</span>
             <div class="output-recover-state">
                 <i data-lucide="refresh-cw" class="${querying ? 'spinning' : ''}"></i>
-                <div class="output-recover-title">${querying ? '查询中' : '任务未丢失'}</div>
+                <div class="output-recover-title">${interrupted ? '任务追踪已中断' : querying ? '查询中' : '任务未丢失'}</div>
                 <div class="output-recover-sub" title="${escapeAttr(msg)}">${sub}</div>
-                <button class="output-recover-query" type="button" ${taskId && !querying ? '' : 'disabled'}>${querying ? '查询中...' : '查询结果'}</button>
+                ${interrupted
+                    ? '<button class="output-recover-retry" type="button">重新生成</button>'
+                    : `<button class="output-recover-query" type="button" ${taskId && !querying ? '' : 'disabled'}>${querying ? '查询中...' : '查询结果'}</button>`}
             </div>
             <button class="output-del" title="${tr('common.delete')}">×</button>
         </div>`;
@@ -7133,6 +7136,7 @@ function bindOutputWrap(wrap, node){
     const download = wrap.querySelector('.output-download');
     const del = wrap.querySelector('.output-del');
     const recoverQuery = wrap.querySelector('.output-recover-query');
+    const recoverRetry = wrap.querySelector('.output-recover-retry');
     if(img){
         img.draggable = true;
         img.ondragstart = e => {
@@ -7225,6 +7229,22 @@ function bindOutputWrap(wrap, node){
             e.stopPropagation();
             const pid = wrap.dataset.pendingId;
             if(pid) queryRecoverPendingOutput(pid);
+        };
+    }
+    if(recoverRetry){
+        recoverRetry.onmousedown = e => e.stopPropagation();
+        recoverRetry.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const pending = (node._pending || []).find(item => item.id === wrap.dataset.pendingId);
+            const sourceId = String(pending?.run?.node?.id || '');
+            node._pending = (node._pending || []).filter(item => item !== pending);
+            refreshNodes([node.id]);
+            scheduleSave();
+            if(sourceId){
+                if(window.CanvasBoardV2) window.CanvasBoardV2.runNode(sourceId);
+                else runCanvasGenerate(sourceId);
+            }
         };
     }
 }
@@ -12716,6 +12736,18 @@ function failCanvasImageTask(taskId, message, taskData={}){
     const runMs = nowMs() - Number(pending.startedAt || nowMs());
     const recoverTaskId = taskData?.upstream_task_id || taskData?.task_id || extractUpstreamTaskId(message);
     const gen = nodes.find(n => n.id === run?.node?.id);
+    if(taskData?.recovery_status === 'interrupted'){
+        pending.failed = true;
+        pending.querying = false;
+        pending.error = message || tr('canvas.generationFailed');
+        pending.recoveryStatus = 'interrupted';
+        pending.canvasTaskStatus = 'failed';
+        if(gen){ gen.runStatus = 'failed'; gen.runError = pending.error; gen.running = false; }
+        refreshRunNodes(gen, out);
+        publishLegacyExecutionDocument();
+        scheduleSave();
+        return;
+    }
     if(recoverTaskId){
         pending.failed = true;
         pending.querying = false;
@@ -12785,6 +12817,18 @@ function failCanvasVideoTask(taskId, message, taskData={}){
     const run = pending.run || {};
     const runMs = nowMs() - Number(pending.startedAt || nowMs());
     const gen = nodes.find(n => n.id === run?.node?.id);
+    if(taskData?.recovery_status === 'interrupted'){
+        pending.failed = true;
+        pending.querying = false;
+        pending.error = message || tr('canvas.videoFailed');
+        pending.recoveryStatus = 'interrupted';
+        pending.canvasTaskStatus = 'failed';
+        if(gen){ gen.runStatus = 'failed'; gen.runError = pending.error; gen.running = false; }
+        refreshRunNodes(gen, out);
+        publishLegacyExecutionDocument();
+        scheduleSave();
+        return;
+    }
     out._pending = (out._pending || []).filter(p => p.id !== pending.id);
     if(gen){
         gen.runStatus = 'failed';

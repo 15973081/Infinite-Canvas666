@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
+from app.services.canvas_tasks import load_canvas_tasks
 # Routers — extracted to app/routers/
 from app.routers import (
     angle, assets, canvas, chat, comfyui, conversation,
@@ -79,6 +80,9 @@ app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 ensure_runtime_config_files()
 load_env_file()
+canvas_task_recovery = load_canvas_tasks()
+if canvas_task_recovery["loaded"] or canvas_task_recovery["pruned"]:
+    print(f"画布任务恢复: {canvas_task_recovery}")
 
 
 def friendly_validation_error(errors):

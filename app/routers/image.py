@@ -83,32 +83,20 @@ async def query_image_task(payload: ImageTaskQueryRequest):
     }
 
 async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
-    with CANVAS_TASK_LOCK:
-        if task_id in CANVAS_TASKS:
-            CANVAS_TASKS[task_id]["status"] = "running"
-            CANVAS_TASKS[task_id]["updated_at"] = time.time()
+    update_canvas_task(task_id, status="running")
     try:
         result = await build_online_image_result(payload)
-        with CANVAS_TASK_LOCK:
-            CANVAS_TASKS[task_id].update({
-                "status": "succeeded",
-                "result": result,
-                "error": "",
-                "updated_at": time.time(),
-            })
+        update_canvas_task(task_id, status="succeeded", result=result, error="")
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
         status_code = getattr(exc, "status_code", 500)
         upstream_task_id = getattr(exc, "upstream_task_id", "") or extract_task_id_from_text(detail)
-        with CANVAS_TASK_LOCK:
-            CANVAS_TASKS[task_id].update({
-                "status": "failed",
-                "error": str(detail),
-                "status_code": status_code,
-                "upstream_task_id": upstream_task_id,
-                "updated_at": time.time(),
-            })
+        update_canvas_task(
+            task_id, status="failed", error=str(detail), status_code=status_code,
+            upstream_task_id=upstream_task_id, recoverable=bool(upstream_task_id)
+        )
 
 # ── Cross-router imports (at bottom to avoid circular imports) ──
 from app.routers.providers import build_online_image_result
+from app.services.canvas_tasks import update_canvas_task
 

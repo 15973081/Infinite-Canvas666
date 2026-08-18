@@ -801,7 +801,10 @@ function j({ commit: e, document: t, node: n, store: r }) {
 function M({ commit: e, node: t, store: n }) {
 	let r = Array.isArray(t.images) ? t.images : [], i = Array.isArray(t._pending) ? t._pending : [], a = (e) => typeof e == "string" ? e : String(e?.url || ""), o = (i) => {
 		n.getState().updateNode(t.id, { images: r.filter((e) => a(e) !== i) }), e();
-	}, s = (e) => window.CanvasBoardV2?.openOutputLightbox(t, e);
+	}, s = (e) => window.CanvasBoardV2?.openOutputLightbox(t, e), c = (r) => {
+		let a = String(r.run?.node?.id || "");
+		n.getState().updateNode(t.id, { _pending: i.filter((e) => e !== r) }), e(), a && window.CanvasBoardV2?.runNode(a);
+	};
 	return /* @__PURE__ */ (0, d.jsxs)("div", {
 		className: "output-grid",
 		onClick: (e) => e.stopPropagation(),
@@ -851,12 +854,17 @@ function M({ commit: e, node: t, store: n }) {
 				]
 			}, `${n}-${t}`);
 		}), i.map((e, t) => /* @__PURE__ */ (0, d.jsxs)("div", {
-			className: "output-pending",
+			className: `output-pending ${e.failed ? "failed" : ""}`,
 			"data-pending-id": String(e.id || ""),
 			children: [
 				/* @__PURE__ */ (0, d.jsx)("span", { className: "pending-spinner" }),
-				/* @__PURE__ */ (0, d.jsx)("span", { children: String(e.label || e.status || "正在生成…") }),
-				e.taskId ? /* @__PURE__ */ (0, d.jsx)("small", { children: String(e.taskId) }) : null
+				/* @__PURE__ */ (0, d.jsx)("span", { children: e.recoveryStatus === "interrupted" ? "任务追踪已中断" : String(e.label || e.status || "正在生成…") }),
+				e.canvasTaskId ? /* @__PURE__ */ (0, d.jsx)("small", { children: String(e.canvasTaskId) }) : null,
+				e.recoveryStatus === "interrupted" ? /* @__PURE__ */ (0, d.jsx)("button", {
+					onClick: () => c(e),
+					type: "button",
+					children: "重新生成"
+				}) : null
 			]
 		}, String(e.id || t)))]
 	});

@@ -237,6 +237,12 @@ function OutputBody({ commit, node, store }: { commit: () => void; node: CanvasN
   const urlOf = (item: unknown) => typeof item === 'string' ? item : String((item as { url?: unknown })?.url || '');
   const remove = (url: string) => { store.getState().updateNode(node.id, { images: images.filter((item) => urlOf(item) !== url) }); commit(); };
   const open = (url: string) => window.CanvasBoardV2?.openOutputLightbox(node, url);
+  const retry = (item: Record<string, unknown>) => {
+    const sourceId = String((item.run as Record<string, any> | undefined)?.node?.id || '');
+    store.getState().updateNode(node.id, { _pending: pending.filter((candidate) => candidate !== item) });
+    commit();
+    if (sourceId) void window.CanvasBoardV2?.runNode(sourceId);
+  };
   return <div className="output-grid" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>{images.map((item, index) => {
     const url = urlOf(item);
     const kind = String((item as { kind?: unknown })?.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : /\.(mp3|wav|m4a)(\?|$)/i.test(url) ? 'audio' : 'image'));
@@ -244,7 +250,7 @@ function OutputBody({ commit, node, store }: { commit: () => void; node: CanvasN
       {kind === 'video' ? <video controls onDoubleClick={() => open(url)} preload="metadata" src={url} /> : kind === 'audio' ? <audio controls preload="metadata" src={url} /> : <img alt="generated output" draggable onClick={() => open(url)} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('application/x-canvas-output-image', JSON.stringify({ kind, name: String((item as Record<string, unknown>).name || ''), url })); event.dataTransfer.setData('text/uri-list', url); }} src={url} />}
       <a className="output-download" download href={url} onClick={(event) => event.stopPropagation()}>↓</a><button aria-label="删除输出" className="output-del" onClick={() => remove(url)} type="button">×</button>
     </div>;
-  })}{pending.map((item, index) => <div className="output-pending" data-pending-id={String(item.id || '')} key={String(item.id || index)}><span className="pending-spinner" /><span>{String(item.label || item.status || '正在生成…')}</span>{item.taskId ? <small>{String(item.taskId)}</small> : null}</div>)}</div>;
+  })}{pending.map((item, index) => <div className={`output-pending ${item.failed ? 'failed' : ''}`} data-pending-id={String(item.id || '')} key={String(item.id || index)}><span className="pending-spinner" /><span>{item.recoveryStatus === 'interrupted' ? '任务追踪已中断' : String(item.label || item.status || '正在生成…')}</span>{item.canvasTaskId ? <small>{String(item.canvasTaskId)}</small> : null}{item.recoveryStatus === 'interrupted' ? <button onClick={() => retry(item)} type="button">重新生成</button> : null}</div>)}</div>;
 }
 
 function VideoBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {

@@ -41,6 +41,9 @@ describe('task client', () => {
       deduplicatedWatches: 0,
       pollErrors: 0,
       polls: 3,
+      recoveredTasks: 0,
+      resumeRequests: 0,
+      resumedTasks: 0,
       submissions: 1,
       submissionRetries: 0,
     });
@@ -112,6 +115,7 @@ describe('task client', () => {
   it('resumes persisted image and video task references', async () => {
     const client = createTaskClient(async (input) => jsonResponse({
       id: String(input).split('/').pop(),
+      recovered_after_restart: String(input).includes('/i1'),
       status: 'succeeded',
       result: {},
     }));
@@ -121,6 +125,7 @@ describe('task client', () => {
     ], { intervalMs: 0 });
 
     expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled']);
+    expect(client.getDiagnostics()).toMatchObject({ recoveredTasks: 1, resumeRequests: 1, resumedTasks: 2 });
   });
 });
 

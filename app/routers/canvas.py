@@ -16,105 +16,61 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
+from app.services.canvas_tasks import create_canvas_task, get_canvas_task, update_canvas_task
 router = APIRouter()
-
-def _existing_canvas_task(task_type: str, idempotency_key: str):
-    key = (idempotency_key or "").strip()
-    if not key:
-        return None
-    return next((task for task in CANVAS_TASKS.values()
-                 if task.get("type") == task_type and task.get("idempotency_key") == key), None)
 
 @router.post("/api/canvas-image-tasks")
 async def create_canvas_image_task(payload: OnlineImageRequest):
-    with CANVAS_TASK_LOCK:
-        existing = _existing_canvas_task("online-image", payload.idempotency_key)
-        if existing:
-            return {"task_id": existing["id"], "status": existing["status"], "deduplicated": True}
-        task_id = f"canvas_img_{uuid.uuid4().hex}"
-        CANVAS_TASKS[task_id] = {
-            "id": task_id,
-            "type": "online-image",
-            "status": "queued",
-            "created_at": time.time(),
-            "updated_at": time.time(),
-            "result": None,
-            "error": "",
-            "provider_id": payload.provider_id,
-            "model": payload.model,
-            "idempotency_key": (payload.idempotency_key or "").strip(),
-        }
+    task, deduplicated = create_canvas_task(
+        "online-image", payload.idempotency_key, provider_id=payload.provider_id, model=payload.model
+    )
+    if deduplicated:
+        return {"task_id": task["id"], "status": task["status"], "deduplicated": True}
+    task_id = task["id"]
     asyncio.create_task(run_canvas_image_task(task_id, payload))
     return {"task_id": task_id, "status": "queued"}
 
 @router.get("/api/canvas-image-tasks/{task_id}")
 async def get_canvas_image_task(task_id: str):
-    with CANVAS_TASK_LOCK:
-        task = dict(CANVAS_TASKS.get(task_id) or {})
+    task = get_canvas_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="画布任务不存在，可能服务已重启或任务已过期")
     return task
 
 @router.post("/api/canvas-video-tasks")
 async def create_canvas_video_task(payload: CanvasVideoRequest):
-    with CANVAS_TASK_LOCK:
-        existing = _existing_canvas_task("video", payload.idempotency_key)
-        if existing:
-            return {"task_id": existing["id"], "status": existing["status"], "deduplicated": True}
-        task_id = f"canvas_vid_{uuid.uuid4().hex}"
-        CANVAS_TASKS[task_id] = {
-            "id": task_id,
-            "type": "video",
-            "status": "queued",
-            "created_at": time.time(),
-            "updated_at": time.time(),
-            "result": None,
-            "error": "",
-            "provider_id": payload.provider_id,
-            "model": payload.model,
-            "idempotency_key": (payload.idempotency_key or "").strip(),
-        }
+    task, deduplicated = create_canvas_task(
+        "video", payload.idempotency_key, provider_id=payload.provider_id, model=payload.model
+    )
+    if deduplicated:
+        return {"task_id": task["id"], "status": task["status"], "deduplicated": True}
+    task_id = task["id"]
     asyncio.create_task(run_canvas_video_task(task_id, payload))
     return {"task_id": task_id, "status": "queued"}
 
 @router.get("/api/canvas-video-tasks/{task_id}")
 async def get_canvas_video_task(task_id: str):
-    with CANVAS_TASK_LOCK:
-        task = dict(CANVAS_TASKS.get(task_id) or {})
+    task = get_canvas_task(task_id)
     if not task or task.get("type") != "video":
         raise HTTPException(status_code=404, detail="视频任务不存在，可能服务已重启或任务已过期")
     return task
 
 async def run_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
-    with CANVAS_TASK_LOCK:
-        if task_id in CANVAS_TASKS:
-            CANVAS_TASKS[task_id]["status"] = "running"
-            CANVAS_TASKS[task_id]["updated_at"] = time.time()
+    update_canvas_task(task_id, status="running")
     try:
         result = await canvas_video_impl(payload)
         upstream_task_id = result.get("task_id") if isinstance(result, dict) else ""
-        with CANVAS_TASK_LOCK:
-            if task_id in CANVAS_TASKS:
-                CANVAS_TASKS[task_id].update({
-                    "status": "succeeded",
-                    "result": result,
-                    "error": "",
-                    "upstream_task_id": upstream_task_id or "",
-                    "updated_at": time.time(),
-                })
+        update_canvas_task(
+            task_id, status="succeeded", result=result, error="", upstream_task_id=upstream_task_id or ""
+        )
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
         status_code = getattr(exc, "status_code", 500)
         upstream_task_id = getattr(exc, "upstream_task_id", "") or extract_task_id_from_text(detail)
-        with CANVAS_TASK_LOCK:
-            if task_id in CANVAS_TASKS:
-                CANVAS_TASKS[task_id].update({
-                    "status": "failed",
-                    "error": str(detail),
-                    "status_code": status_code,
-                    "upstream_task_id": upstream_task_id,
-                    "updated_at": time.time(),
-                })
+        update_canvas_task(
+            task_id, status="failed", error=str(detail), status_code=status_code,
+            upstream_task_id=upstream_task_id, recoverable=bool(upstream_task_id)
+        )
 
 @router.post("/api/canvas-video")
 async def canvas_video(payload: CanvasVideoRequest):
