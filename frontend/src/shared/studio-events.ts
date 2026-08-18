@@ -1,4 +1,4 @@
-export type StudioEventType = 'providers-changed' | 'workflows-changed' | 'comfy-instances-changed' | 'assets-changed';
+export type StudioEventType = 'providers-changed' | 'workflows-changed' | 'comfy-instances-changed' | 'assets-changed' | 'chat-changed';
 
 export function publishStudioEvent(type: StudioEventType): void {
   try {
