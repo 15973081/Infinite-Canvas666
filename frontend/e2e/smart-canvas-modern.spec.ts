@@ -66,7 +66,7 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
     connections: [{ from: 'prompt-direct', to: 'output-direct' }],
     nodes: [
       { id: 'prompt-direct', type: 'smart-prompt', text: 'direct', x: 40, y: 80 },
-      { id: 'output-direct', type: 'smart-image', images: [{ url: '/output/legacy.png', name: 'Legacy' }], x: 800, y: 80 },
+      { id: 'output-direct', images: [{ url: '/output/legacy.png', name: 'Legacy' }], x: 800, y: 80 },
     ],
   };
   await page.route('**/api/canvas-folders', async (route) => route.fulfill({ json: { folders: [] } }));

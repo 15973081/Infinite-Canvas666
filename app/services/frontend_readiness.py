@@ -1,0 +1,138 @@
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import sys
+from typing import Any, Dict, Iterable, List, Optional
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).parents[2]))
+
+from app.config import BASE_DIR, CANVAS_DIR, CANVAS_ROLLOUT_FILE, CANVAS_ROLLOUT_METRICS_FILE
+from app.services.canvas_audit import audit_canvas_directory
+from app.services.canvas_rollout import get_canvas_rollout_policy
+from app.services.canvas_rollout_metrics import get_canvas_rollout_metrics
+
+
+PRODUCTION_ENTRIES = {
+    "angle.html", "api-settings.html", "asset-manager.html", "canvas.html",
+    "comfyui-settings.html", "enhance.html", "gpt-chat.html", "index.html",
+    "klein.html", "online.html", "smart-canvas.html", "zimage.html",
+}
+LEGACY_BUSINESS_SCRIPTS = {
+    "angle.js", "api-settings.js", "asset-manager.js", "canvas-api.js", "canvas-core.js",
+    "canvas.js", "comfyui-settings.js", "enhance.js", "gpt-chat.js", "klein.js",
+    "online.js", "smart-canvas.js", "zimage.js",
+}
+MANUAL_RELEASE_GATES = [
+    "real-provider-validation",
+    "historical-production-fixtures",
+    "billing-reconciliation",
+    "two-stable-release-cycles",
+]
+
+
+def build_frontend_readiness_report(
+    repo_root: str = BASE_DIR,
+    canvas_directory: str = CANVAS_DIR,
+    rollout_path: str = CANVAS_ROLLOUT_FILE,
+    metrics_path: str = CANVAS_ROLLOUT_METRICS_FILE,
+    expected_entries: Optional[Iterable[str]] = None,
+    policy: Optional[Dict[str, Any]] = None,
+    metrics: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    root = Path(repo_root).resolve()
+    static = root / "static"
+    expected = set(expected_entries or PRODUCTION_ENTRIES)
+    entry_reports = []
+    code_blockers: List[str] = []
+
+    for name in sorted(expected):
+        path = static / name
+        issues = []
+        if not path.is_file():
+            issues.append("entry-missing")
+            source = ""
+        else:
+            source = path.read_text(encoding="utf-8-sig")
+        script_sources = re.findall(r'<script\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', source, flags=re.I)
+        dist_modules = [value for value in script_sources if "/static/dist/" in value]
+        if not re.search(r'<script\b[^>]*\btype=["\']module["\'][^>]*>', source, flags=re.I) or not dist_modules:
+            issues.append("vite-module-missing")
+        legacy = sorted({Path(value.split("?", 1)[0]).name for value in script_sources} & LEGACY_BUSINESS_SCRIPTS)
+        if legacy:
+            issues.append("legacy-business-script")
+        missing_assets = []
+        for value in dist_modules:
+            relative = value.split("?", 1)[0].removeprefix("/static/")
+            if relative and not (static / relative).is_file():
+                missing_assets.append(relative)
+        if missing_assets:
+            issues.append("dist-asset-missing")
+        entry_reports.append({
+            "entry": name,
+            "dist_modules": dist_modules,
+            "legacy_business_scripts": legacy,
+            "missing_assets": missing_assets,
+            "ok": not issues,
+            "issues": issues,
+        })
+        code_blockers.extend(f"entry:{name}:{issue}" for issue in issues)
+
+    canvas_audit = audit_canvas_directory(canvas_directory, include_details=False, max_files=20000)
+    audit_summary = canvas_audit["summary"]
+    if not audit_summary.get("complete"):
+        code_blockers.append("canvas-audit-incomplete")
+    if int(audit_summary.get("incompatible") or 0):
+        code_blockers.append("canvas-audit-incompatible")
+
+    active_policy = policy if policy is not None else get_canvas_rollout_policy(rollout_path)
+    active_metrics = metrics if metrics is not None else get_canvas_rollout_metrics(metrics_path)
+    release_blockers = list(dict.fromkeys(str(item) for item in active_policy.get("blocked_reasons", []) if item))
+    if int(active_policy.get("effective_percentage") or 0) <= 0:
+        release_blockers.append("rollout-percentage-zero")
+    if not any(int(value or 0) > 0 for value in active_metrics.get("events", {}).values()):
+        release_blockers.append("telemetry-empty")
+    release_blockers.extend(MANUAL_RELEASE_GATES)
+
+    return {
+        "version": 1,
+        "repo_root": str(root),
+        "code_migration_ready": not code_blockers,
+        "production_release_ready": not code_blockers and not release_blockers,
+        "code_blockers": code_blockers,
+        "release_blockers": list(dict.fromkeys(release_blockers)),
+        "entries": {
+            "expected": len(expected),
+            "passed": sum(1 for item in entry_reports if item["ok"]),
+            "items": entry_reports,
+        },
+        "canvas_audit": audit_summary,
+        "rollout": active_policy,
+        "telemetry": active_metrics,
+        "manual_release_gates": MANUAL_RELEASE_GATES,
+    }
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = argparse.ArgumentParser(description="Read-only full-site React migration and stage 8 readiness report")
+    parser.add_argument("--repo-root", default=BASE_DIR)
+    parser.add_argument("--canvas-directory", default=CANVAS_DIR)
+    parser.add_argument("--rollout-file", default=CANVAS_ROLLOUT_FILE)
+    parser.add_argument("--metrics-file", default=CANVAS_ROLLOUT_METRICS_FILE)
+    parser.add_argument("--strict", action="store_true", help="Also fail while any production release gate is open")
+    args = parser.parse_args(argv)
+    report = build_frontend_readiness_report(
+        args.repo_root, args.canvas_directory, args.rollout_file, args.metrics_file,
+    )
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    if report["code_blockers"]:
+        return 1
+    if args.strict and report["release_blockers"]:
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

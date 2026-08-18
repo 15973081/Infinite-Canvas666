@@ -431,3 +431,18 @@ Smart 管理器按 `kind: smart` 隔离列表和新建请求，支持 `?id=` 直
 最终入口审计：`static/` 共 13 个 HTML，其中 12 个生产页面和 1 个性能测试页面均由 Vite 模块拥有；非 Canvas 页面正常入口的 Legacy 业务脚本引用为 0。Canvas 仍保留阶段 8 动态回滚制品。
 
 最新自动化结果：95 个 Vitest、29 个 Playwright、41 个 Python unittest 全部通过。至此“全站 React + TypeScript + Vite 代码迁移”完成；下一阶段只做生产功能等价、真实供应商/历史数据验收、Canvas 灰度、计费核对与两个稳定发布周期。不得把代码迁移完成表述为生产发布完成。
+
+## 24. 2026-08-19 阶段 8 发布前总检
+
+新增只读命令 `app/services/frontend_readiness.py`，一次汇总 12 个生产 HTML 的 Vite 入口与构建产物、Legacy 业务脚本隔离、历史画布兼容审计、Smart 旧节点转换数量、服务端灰度策略、灰度遥测和人工发布门禁：
+
+```powershell
+& '.\python\python.exe' app/services/frontend_readiness.py
+& '.\python\python.exe' app/services/frontend_readiness.py --strict
+```
+
+普通模式只在代码/数据存在硬阻断时返回非零；`--strict` 会在任一生产发布门禁未关闭时返回 `2`，适合正式放量前的 CI 门禁。当前报告为 `code_migration_ready=true`、`production_release_ready=false`：12/12 入口通过，历史目录 1/1 兼容；灰度仍关闭、遥测为空，真实供应商、历史生产 fixture、计费核对和两个稳定周期仍待人工完成。
+
+同时修正了一个历史 Smart Canvas 边界：旧实现允许图片节点缺少 `type`，Document Codec 现在仅对 `kind: smart` 将其规范为 `smart-image`，随后交给 Smart V2 迁移器处理；经典画布仍严格拒绝缺失类型。Canvas audit 会把 `smart-image`、`smart-prompt`、`smart-loop` 及无类型 Smart 图片计为“可转换 Legacy Smart 节点”，不再误报未知节点，但仍保留可追踪 warning。
+
+本批全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。

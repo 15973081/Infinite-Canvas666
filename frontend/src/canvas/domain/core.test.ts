@@ -77,6 +77,12 @@ describe('graph model', () => {
     expect(graph.wouldCreateCycle('a', 'b')).toBe(false);
   });
 
+  it('normalizes typeless legacy Smart Canvas media nodes before migration', () => {
+    expect(decodeCanvasDocument({
+      id: 'legacy-smart', kind: 'smart', nodes: [{ id: 'media', images: [{ url: '/old.png' }] }], connections: [],
+    }).nodes[0]).toMatchObject({ id: 'media', type: 'smart-image' });
+  });
+
   it('applies legacy connection compatibility, duplicate and cycle gates', () => {
     const graph = createGraphModel(document(
       [['prompt', 'prompt'], ['a', 'generator'], ['out', 'output'], ['b', 'video']],

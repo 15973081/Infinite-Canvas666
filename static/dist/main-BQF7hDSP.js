@@ -1,7 +1,7 @@
 import { n as e, t } from "./http-F-lX8WKW.js";
 import { n, r, t as i } from "./rollout-BcgAkMGv.js";
-import { n as a, t as o } from "./graph-j9GyzERh.js";
-import { i as s, t as c } from "./document-merge-cCXbjNpR.js";
+import { n as a, t as o } from "./graph-DUr4u9Sb.js";
+import { i as s, t as c } from "./document-merge-DziDwlrU.js";
 //#region src/canvas/application/modern-canvas-runtime.ts
 var l = /* @__PURE__ */ new Set([
 	"generator",
@@ -1067,35 +1067,35 @@ if (window.CanvasModernCore = Object.freeze({
 	}
 }), de) {
 	let e = document.getElementById("canvasExecutionIsland");
-	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactExecutionIsland: t }) => {
+	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactExecutionIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React execution island failed to load", e));
 }
 if (fe) {
 	let e = document.getElementById("canvasStatusIsland");
-	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactStatusIsland: t }) => {
+	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactStatusIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React status island failed to load", e));
 }
 if (pe) {
 	let e = document.getElementById("canvasToolbarIsland");
-	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactToolbarIsland: t }) => {
+	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactToolbarIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React toolbar island failed to load", e));
 }
 if (K) {
 	let e = document.getElementById("canvasActivityIsland");
-	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactActivityIsland: t }) => {
+	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactActivityIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React activity island failed to load", e));
 }
 if (me && !I.enabled) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-C3g8ymB3.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-CrKAQSJT.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
 		window.CanvasModernCore?.recordRolloutEvent("board-mounted", { dimensions: { reason: "none" } }), window.addEventListener("pagehide", r, { once: !0 });
 	}).catch((e) => {
@@ -1104,7 +1104,7 @@ if (me && !I.enabled) {
 }
 if (I.enabled) {
 	let e = document.getElementById("canvasModernApp"), t = document.getElementById("shell");
-	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-DcmDRYvH.js").then(({ mountCanvasAppV2: t }) => {
+	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-C5Ndn9Y-.js").then(({ mountCanvasAppV2: t }) => {
 		let n = t(e, {
 			runtime: J,
 			repository: Y

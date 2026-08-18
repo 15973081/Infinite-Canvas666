@@ -3,11 +3,11 @@ function e(e, t) {
 	if (!e || typeof e != "object" || Array.isArray(e)) throw TypeError(`${t} must be an object`);
 	return e;
 }
-function t(t, n) {
-	let r = e(t, `nodes[${n}]`);
-	if (typeof r.id != "string" || !r.id) throw TypeError(`nodes[${n}].id must be a non-empty string`);
-	if (typeof r.type != "string" || !r.type) throw TypeError(`nodes[${n}].type must be a non-empty string`);
-	return r;
+function t(t, n, r = !1) {
+	let i = e(t, `nodes[${n}]`);
+	if (typeof i.id != "string" || !i.id) throw TypeError(`nodes[${n}].id must be a non-empty string`);
+	if (r && (i.type === void 0 || i.type === null || i.type === "") && (i.type = "smart-image"), typeof i.type != "string" || !i.type) throw TypeError(`nodes[${n}].type must be a non-empty string`);
+	return i;
 }
 function n(t, n) {
 	let r = e(t, `connections[${n}]`);
@@ -27,7 +27,7 @@ function i(i) {
 	return {
 		...a,
 		schemaVersion: c,
-		nodes: o.map(t),
+		nodes: o.map((e, n) => t(e, n, String(a.kind || "").toLowerCase() === "smart")),
 		connections: s.map(n)
 	};
 }

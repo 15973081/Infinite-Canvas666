@@ -17,6 +17,7 @@ KNOWN_NODE_TYPES = {
     "comfy", "generator", "group", "image", "llm", "loop", "ltxDirector",
     "msgen", "output", "prompt", "promptGroup", "video",
 }
+LEGACY_SMART_NODE_TYPES = {"smart-image", "smart-loop", "smart-prompt"}
 TRANSIENT_NODE_FIELDS = {"_cascadeFailed", "_cascadeIdx", "running"}
 SUPPORTED_SCHEMA_VERSION = 1
 
@@ -29,6 +30,7 @@ def audit_canvas_directory(
     reports: List[Dict[str, Any]] = []
     node_types: Counter[str] = Counter()
     unknown_types: Counter[str] = Counter()
+    legacy_smart_types: Counter[str] = Counter()
     filenames = []
     discovered_files = 0
     try:
@@ -45,6 +47,7 @@ def audit_canvas_directory(
         reports.append(report)
         node_types.update(report.pop("_node_types", {}))
         unknown_types.update(report.get("unknown_node_types", {}))
+        legacy_smart_types.update(report.get("legacy_smart_node_types", {}))
 
     errors = sum(report["error_count"] for report in reports)
     warnings = sum(report["warning_count"] for report in reports)
@@ -61,6 +64,7 @@ def audit_canvas_directory(
             "files": len(reports),
             "incompatible": len(reports) - compatible,
             "node_types": dict(sorted(node_types.items())),
+            "legacy_smart_node_types": dict(sorted(legacy_smart_types.items())),
             "truncated": discovered_files > max_files,
             "unknown_node_types": dict(sorted(unknown_types.items())),
             "warnings": warnings,
@@ -83,6 +87,7 @@ def audit_canvas_file(path: str) -> Dict[str, Any]:
         "id": "",
         "issues": issues,
         "kind": "classic",
+        "legacy_smart_node_types": {},
         "node_count": 0,
         "schema_version": 1,
         "size_bytes": os.path.getsize(path) if os.path.exists(path) else 0,
@@ -132,6 +137,7 @@ def audit_canvas_file(path: str) -> Dict[str, Any]:
     node_ids = set()
     node_types: Counter[str] = Counter()
     unknown_types: Counter[str] = Counter()
+    legacy_smart_types: Counter[str] = Counter()
     for index, node in enumerate(nodes):
         path_prefix = f"nodes[{index}]"
         if not isinstance(node, dict):
@@ -139,6 +145,12 @@ def audit_canvas_file(path: str) -> Dict[str, Any]:
             continue
         node_id = str(node.get("id") or "")
         node_type = str(node.get("type") or "")
+        normalized_missing_type = False
+        if not node_type and report["kind"] == "smart":
+            node_type = "smart-image"
+            normalized_missing_type = True
+            legacy_smart_types[node_type] += 1
+            _issue(issues, "warning", "legacy-smart-node-type", f"{path_prefix}.type", "missing type -> smart-image")
         if not node_id:
             _issue(issues, "error", "missing-node-id", f"{path_prefix}.id", "Node ID is required")
         elif node_id in node_ids:
@@ -149,7 +161,11 @@ def audit_canvas_file(path: str) -> Dict[str, Any]:
             _issue(issues, "error", "missing-node-type", f"{path_prefix}.type", "Node type is required")
         else:
             node_types[node_type] += 1
-            if node_type not in KNOWN_NODE_TYPES:
+            if report["kind"] == "smart" and node_type in LEGACY_SMART_NODE_TYPES:
+                if not normalized_missing_type:
+                    legacy_smart_types[node_type] += 1
+                    _issue(issues, "warning", "legacy-smart-node-type", f"{path_prefix}.type", node_type)
+            elif node_type not in KNOWN_NODE_TYPES:
                 unknown_types[node_type] += 1
                 _issue(issues, "warning", "unknown-node-type", f"{path_prefix}.type", node_type)
         for field in TRANSIENT_NODE_FIELDS.intersection(node):
@@ -184,6 +200,7 @@ def audit_canvas_file(path: str) -> Dict[str, Any]:
         _issue(issues, "error", "not-json-roundtrippable", "$", str(exc))
 
     report["_node_types"] = dict(node_types)
+    report["legacy_smart_node_types"] = dict(legacy_smart_types)
     report["unknown_node_types"] = dict(unknown_types)
     return _finish(report)
 

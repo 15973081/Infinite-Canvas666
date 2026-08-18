@@ -7,9 +7,10 @@ function record(value: unknown, path: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function node(value: unknown, index: number): CanvasNode {
+function node(value: unknown, index: number, smartLegacy = false): CanvasNode {
   const input = record(value, `nodes[${index}]`);
   if (typeof input.id !== 'string' || !input.id) throw new TypeError(`nodes[${index}].id must be a non-empty string`);
+  if (smartLegacy && (input.type === undefined || input.type === null || input.type === '')) input.type = 'smart-image';
   if (typeof input.type !== 'string' || !input.type) throw new TypeError(`nodes[${index}].type must be a non-empty string`);
   return input as CanvasNode;
 }
@@ -40,7 +41,7 @@ export function decodeCanvasDocument(value: unknown): CanvasDocument {
   return {
     ...input,
     schemaVersion,
-    nodes: nodes.map(node),
+    nodes: nodes.map((value, index) => node(value, index, String(input.kind || '').toLowerCase() === 'smart')),
     connections: connections.map(edge),
   } as CanvasDocument;
 }

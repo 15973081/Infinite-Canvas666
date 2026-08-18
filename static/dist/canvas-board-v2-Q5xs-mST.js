@@ -1,5 +1,5 @@
-import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-D6NhhM0V.js";
-import { n as o, r as s, t as c } from "./document-merge-cCXbjNpR.js";
+import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-DnrZ1XIK.js";
+import { n as o, r as s, t as c } from "./document-merge-DziDwlrU.js";
 //#region src/canvas/ui/canvas-board-v2.tsx
 var l = /* @__PURE__ */ e(i(), 1), u = n(), d = a(), f = {
 	comfy: "ComfyUI",

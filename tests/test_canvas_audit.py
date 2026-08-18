@@ -57,6 +57,25 @@ class CanvasAuditTest(unittest.TestCase):
         self.assertFalse(report["compatible"])
         self.assertTrue({"duplicate-node-id", "invalid-node-inputs", "orphan-connection"}.issubset(codes))
 
+    def test_legacy_smart_nodes_are_reported_as_convertible(self):
+        path = self.write_canvas("smart", {
+            "id": "smart", "kind": "smart",
+            "nodes": [
+                {"id": "prompt", "type": "smart-prompt", "text": "hello"},
+                {"id": "loop", "type": "smart-loop", "count": 2},
+                {"id": "typed", "type": "smart-image", "images": [{"url": "/a.png"}]},
+                {"id": "typeless", "images": [{"url": "/b.png"}]},
+            ],
+            "connections": [{"from": "prompt", "to": "typed"}],
+        })
+
+        report = audit_canvas_file(str(path))
+
+        self.assertTrue(report["compatible"])
+        self.assertEqual({"smart-image": 2, "smart-loop": 1, "smart-prompt": 1}, report["legacy_smart_node_types"])
+        self.assertEqual({}, report["unknown_node_types"])
+        self.assertEqual(4, report["warning_count"])
+
     def test_directory_summary_includes_corruption_and_skips_deleted_by_default(self):
         self.write_canvas("valid", {"id": "valid", "nodes": [], "connections": []})
         self.write_canvas("deleted", {"id": "deleted", "deleted_at": 1, "nodes": [], "connections": []})

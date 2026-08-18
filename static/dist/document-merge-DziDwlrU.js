@@ -1,5 +1,5 @@
 import { n as e, t } from "./http-F-lX8WKW.js";
-import { n, r } from "./graph-j9GyzERh.js";
+import { n, r } from "./graph-DUr4u9Sb.js";
 //#region src/canvas/infrastructure/canvas-repository.ts
 var i = class extends t {
 	serverCanvas;

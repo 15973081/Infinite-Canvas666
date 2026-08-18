@@ -127,3 +127,11 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 - 最终自动化结果：95 个 Vitest、29 个 Playwright、41 个 Python unittest 全部通过。
 
 结论：12 个生产页面的 React + TypeScript + Vite 代码迁移全部完成。尚未完成的是生产级功能等价与发布验证，包括真实供应商链路、历史生产数据全量审计、灰度、计费核对和两个稳定发布周期。
+
+## 阶段 8 发布前总检
+
+运行 `python app/services/frontend_readiness.py` 可生成机器可读的全站发布准备报告；加 `--strict` 后，灰度关闭、遥测缺失或任一人工发布门禁未完成都会返回退出码 `2`。报告不会写入画布、灰度配置或遥测数据，也不会调用付费外部服务。
+
+当前本机结果：`code_migration_ready=true`、12/12 生产入口通过、历史画布 1/1 兼容；`production_release_ready=false`，阻断项为灰度未启用、有效比例为 0、遥测为空，以及真实供应商验证、生产历史 fixture、计费核对和两个稳定发布周期。该结论是预期的安全状态。
+
+发布前总检及历史 Smart 无类型节点兼容修复后的全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
