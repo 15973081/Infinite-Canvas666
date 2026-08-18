@@ -83,6 +83,7 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
 
 test('opens a remotely locked canvas read-only and takes over after release', async ({ page }) => {
   let lockRequests = 0;
+  let canvasLoads = 0;
   let canvasDocument = {
     id: 'smart-locked', kind: 'smart', schemaVersion: 1, title: 'Locked Smart', updated_at: 1, connections: [],
     nodes: [{ id: 'locked-prompt', type: 'prompt', text: 'read only prompt', x: 40, y: 80 }],
@@ -105,7 +106,10 @@ test('opens a remotely locked canvas read-only and takes over after release', as
     await route.fulfill({ json: { ok: true, renewed: false, holder: { client_id: 'mine', username: 'Bob' } } });
   });
   await page.route('**/api/canvases/smart-locked/meta', (route) => route.fulfill({ json: { id: 'smart-locked', updated_at: remoteUpdatedAt } }));
-  await page.route('**/api/canvases/smart-locked', (route) => route.fulfill({ json: { canvas: canvasDocument } }));
+  await page.route('**/api/canvases/smart-locked', (route) => {
+    canvasLoads += 1;
+    return route.fulfill({ json: { canvas: canvasDocument } });
+  });
   await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
 
   await page.clock.install();
@@ -130,13 +134,14 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await expect(page.getByText('Alice 正在编辑此画布')).toHaveCount(0);
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'false');
   await expect(page.getByRole('button', { name: 'API生成' })).toBeEnabled();
+  await expect.poll(() => canvasLoads).toBe(4);
   expect(lockRequests).toBe(2);
 
   await page.clock.fastForward(25_100);
+  await expect.poll(() => lockRequests).toBe(3);
   await expect(page.getByText('锁状态未知 正在编辑此画布')).toBeVisible();
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
   await expect(page.getByText(/编辑锁续期失败，已切换只读并将自动重试/)).toBeVisible();
-  expect(lockRequests).toBe(3);
 });
 
 test('creates and runs a generation chain from the React Smart Canvas composer', async ({ page }) => {
@@ -200,6 +205,65 @@ test('creates and runs a generation chain from the React Smart Canvas composer',
   await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(0);
   await page.getByRole('button', { name: '重做' }).click();
   await expect(page.locator('[data-node-type="output"] img[src="/output/composer.png"]')).toHaveCount(1);
+});
+
+test('crops, outpaints and restores image node revisions', async ({ page }) => {
+  const originalUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+  let uploads = 0;
+  let saves = 0;
+  let canvasDocument = {
+    id: 'image-edit-e2e', kind: 'smart', schemaVersion: 1, title: 'Image Edit Smart', updated_at: 1, connections: [],
+    nodes: [{ id: 'editable-image', type: 'image', x: 80, y: 80, name: 'source.gif', mediaKind: 'image', url: originalUrl }] as Array<Record<string, unknown>>,
+  };
+  await page.route('**/api/config', (route) => route.fulfill({ json: { api_providers: [] } }));
+  await page.route('**/api/workflows', (route) => route.fulfill({ json: { workflows: [] } }));
+  await page.route('**/api/canvas-folders', (route) => route.fulfill({ json: { folders: [] } }));
+  await page.route('**/api/canvases/trash', (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvases/image-edit-e2e/lock', (route) => route.fulfill({ json: { ok: true } }));
+  await page.route('**/api/canvases/image-edit-e2e/meta', (route) => route.fulfill({ json: { id: 'image-edit-e2e', updated_at: canvasDocument.updated_at } }));
+  await page.route('**/api/canvases/image-edit-e2e', async (route) => {
+    if (route.request().method() === 'PUT') {
+      saves += 1;
+      canvasDocument = { ...canvasDocument, ...JSON.parse(route.request().postData() || '{}'), updated_at: saves + 1 };
+    }
+    await route.fulfill({ json: { canvas: canvasDocument } });
+  });
+  await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/ai/upload', (route) => {
+    uploads += 1;
+    const suffix = uploads === 1 ? 'crop' : 'outpaint';
+    return route.fulfill({ json: { files: [{ kind: 'image', name: `source_${suffix}.png`, url: `/uploads/source_${suffix}.png` }] } });
+  });
+
+  await page.goto('/static/smart-canvas.html?id=image-edit-e2e');
+  const imageNode = page.locator('[data-node-id="editable-image"]');
+  await imageNode.getByRole('button', { name: '编辑图片' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('button', { name: '应用裁剪' })).toBeEnabled();
+  await page.getByRole('button', { name: '应用裁剪' }).click();
+  await expect.poll(() => uploads).toBe(1);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(imageNode.locator('img[src="/uploads/source_crop.png"]')).toHaveCount(1);
+  await expect(imageNode.getByRole('button', { name: '恢复上版' })).toBeVisible();
+
+  await imageNode.getByRole('button', { name: '恢复上版' }).click();
+  await expect(imageNode.locator(`img[src="${originalUrl}"]`)).toHaveCount(1);
+  await imageNode.getByRole('button', { name: '编辑图片' }).click();
+  await page.getByRole('button', { name: '扩图', exact: true }).click();
+  await page.getByLabel('扩图宽度').fill('2');
+  await page.getByLabel('扩图高度').fill('2');
+  await page.getByLabel('原图 X 偏移').fill('1');
+  await page.getByLabel('原图 Y 偏移').fill('1');
+  await page.getByRole('button', { name: '应用扩图' }).click();
+  await expect(imageNode.locator('img[src="/uploads/source_outpaint.png"]')).toHaveCount(1);
+  await expect.poll(() => saves).toBeGreaterThan(2);
+  const savedImage = canvasDocument.nodes.find((node) => node.id === 'editable-image');
+  expect(savedImage).toMatchObject({
+    lastImageEdit: { height: 2, mode: 'outpaint', width: 2 },
+    outpaintSize: { height: 2, width: 2 },
+    url: '/uploads/source_outpaint.png',
+  });
+  expect(uploads).toBe(2);
 });
 
 test('manages and applies the shared prompt library from Smart Canvas', async ({ page }) => {

@@ -1,9 +1,9 @@
-import { c as e, o as t, s as n, t as r } from "./jsx-runtime-Ckg77XP3.js";
+import { c as e, l as t, o as n, t as r } from "./jsx-runtime-B18keJCK.js";
 import { n as i, t as a } from "./http-F-lX8WKW.js";
 import { r as o } from "./document-merge-DziDwlrU.js";
-import { t as s } from "./canvas-board-v2-BYDw58b8.js";
+import { t as s } from "./canvas-board-v2-DddvPiak.js";
 //#region src/canvas/infrastructure/canvas-management.ts
-var c = /* @__PURE__ */ e(n(), 1), l = t();
+var c = /* @__PURE__ */ t(e(), 1), l = n();
 function u(e = fetch) {
 	return {
 		acquireLock: async (t, n, r = "") => {

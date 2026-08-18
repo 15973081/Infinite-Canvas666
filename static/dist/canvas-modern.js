@@ -11,7 +11,7 @@ window.__loadCanvasLegacyFallback = () => (i ??= (async () => {
 		"/static/js/canvas.js?v=2026.07.23.4"
 	]) await a(e);
 	document.readyState === "complete" && await o();
-})(), i), r.enabled || await window.__loadCanvasLegacyFallback(), await import("./main-DFnGu35n.js"), r.enabled || await o();
+})(), i), r.enabled || await window.__loadCanvasLegacyFallback(), await import("./main-DTDG6Otb.js"), r.enabled || await o();
 function a(e) {
 	return new Promise((t, n) => {
 		let r = document.createElement("script");

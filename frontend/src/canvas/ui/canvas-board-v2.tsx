@@ -7,6 +7,7 @@ import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
+import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -356,13 +357,13 @@ function ComfyBody({ commit, document, node, store }: { commit: () => void; docu
   </div>;
 }
 
-function ImageBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+function ImageBody({ canvasRuntime, commit, node, onEdit, store }: { canvasRuntime: CanvasRuntime; commit: () => void; node: CanvasNode; onEdit(): void; store: DocumentStore }) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   useEffect(() => () => { mediaRef.current?.pause(); mediaRef.current?.removeAttribute('src'); mediaRef.current?.load(); }, []);
   const upload = async (files: File[]) => {
     if (!files.length) return;
-    const uploaded = await runtime()?.uploadMedia(files);
-    const items = uploaded?.files ?? [];
+    const uploaded = await canvasRuntime.uploadMedia(files);
+    const items = uploaded.files ?? [];
     if (!items.length) return;
     store.getState().updateNode(node.id, { url: items[0].url || '', name: items[0].name || 'media', mediaKind: items[0].kind || 'image' });
     const ids = [node.id];
@@ -374,11 +375,23 @@ function ImageBody({ commit, node, store }: { commit: () => void; node: CanvasNo
     commit();
   };
   const url = String(node.url || '');
+  const history = Array.isArray(node.imageEditHistory) ? node.imageEditHistory as Array<Record<string, unknown>> : [];
   const kind = String(node.mediaKind || (/\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : /\.(mp3|wav|m4a)(\?|$)/i.test(url) ? 'audio' : 'image'));
   if (!url) return <label className="blank-image" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>选择或拖入媒体<input accept="image/*,video/*,audio/*" hidden multiple onChange={(event) => void upload([...(event.target.files ?? [])])} type="file" /></label>;
   return <div className="image-preview-wrap" onClick={(event) => event.stopPropagation()} onDoubleClick={() => window.open(url, '_blank', 'noopener')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload([...event.dataTransfer.files]); }} onPointerDown={(event) => event.stopPropagation()}>
     {kind === 'video' ? <video controls preload="metadata" ref={(element) => { mediaRef.current = element; }} src={url} /> : kind === 'audio' ? <audio controls preload="metadata" ref={(element) => { mediaRef.current = element; }} src={url} /> : <img alt={String(node.name || 'image')} draggable src={url} />}
     <div className="image-caption text-[11px] text-gray-400 truncate">{String(node.name || kind)}</div>
+    {kind === 'image' ? <div className="image-edit-actions"><button className="tool-btn" onClick={onEdit} type="button">编辑图片</button>{history.length ? <button className="tool-btn" onClick={() => {
+      const previous = history[history.length - 1];
+      store.getState().updateNode(node.id, {
+        imageEditHistory: history.slice(0, -1),
+        mediaKind: previous.kind || 'image',
+        name: previous.name || 'image',
+        url: previous.url || '',
+        ...(previous.outpaintSize ? { outpaintSize: previous.outpaintSize } : { outpaintSize: undefined }),
+      });
+      commit();
+    }} type="button">恢复上版</button> : null}{node.editOriginalUrl ? <a href={String(node.editOriginalUrl)} rel="noreferrer" target="_blank">查看原图</a> : null}</div> : null}
     <button aria-label="清空媒体" className="output-del" onClick={() => { store.getState().updateNode(node.id, { url: '', name: '空白图片', mediaKind: 'image' }); commit(); }} type="button">×</button>
   </div>;
 }
@@ -442,7 +455,7 @@ function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: 
   </div>;
 }
 
-function CanvasBoardV2({ commit, initialReadOnly = false, onSelectionChange, store }: { commit: () => void; initialReadOnly?: boolean; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
+function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelectionChange, store }: { canvasRuntime: CanvasRuntime; commit: () => void; initialReadOnly?: boolean; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState('');
@@ -450,6 +463,7 @@ function CanvasBoardV2({ commit, initialReadOnly = false, onSelectionChange, sto
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState('ready');
   const [lightbox, setLightbox] = useState<{ nodeId: string; url: string } | null>(null);
+  const [imageEditorNodeId, setImageEditorNodeId] = useState('');
   const [readOnly, setReadOnly] = useState(initialReadOnly);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const documentId = String(document?.id || '');
@@ -467,6 +481,7 @@ function CanvasBoardV2({ commit, initialReadOnly = false, onSelectionChange, sto
     window.addEventListener('canvas-board-v2-readonly', listener);
     return () => window.removeEventListener('canvas-board-v2-readonly', listener);
   }, []);
+  useEffect(() => { if (readOnly) setImageEditorNodeId(''); }, [readOnly]);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -559,6 +574,7 @@ function CanvasBoardV2({ commit, initialReadOnly = false, onSelectionChange, sto
   };
 
   const lightboxNode = lightbox ? nodesById.get(lightbox.nodeId) : null;
+  const imageEditorNode = imageEditorNodeId ? nodesById.get(imageEditorNodeId) : null;
   useEffect(() => { onSelectionChange?.(selectedIds); }, [onSelectionChange, selectedIds]);
   return <div
     aria-label="CanvasBoard V2"
@@ -702,7 +718,7 @@ function CanvasBoardV2({ commit, initialReadOnly = false, onSelectionChange, sto
           {canOutput(node) ? <button aria-label={`从 ${node.id} 连线`} className="port out" data-port="out" onClick={() => setConnectingFrom(node.id)} onPointerDown={(event) => { event.stopPropagation(); setConnectingFrom(node.id); }} type="button" /> : null}
           <header className="node-head"><strong className="node-title">{nodeRegistry[node.type] ?? node.type}</strong></header>
           <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} store={store} />
-            : node.type === 'image' ? <ImageBody commit={commit} node={node} store={store} />
+            : node.type === 'image' ? <ImageBody canvasRuntime={canvasRuntime} commit={commit} node={node} onEdit={() => setImageEditorNodeId(node.id)} store={store} />
               : node.type === 'group' ? <GroupBody node={node} nodesById={nodesById} />
             : node.type === 'promptGroup' ? <PromptGroupBody node={node} nodesById={nodesById} />
               : node.type === 'loop' ? <LoopBody commit={commit} node={node} store={store} />
@@ -718,6 +734,28 @@ function CanvasBoardV2({ commit, initialReadOnly = false, onSelectionChange, sto
       })}
     </div>
     {lightbox && lightboxNode ? <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} /> : null}
+    {imageEditorNode?.url ? <ImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: ImageTransformResult) => {
+      if (readOnly) throw new Error('只读模式不能编辑图片');
+      const uploaded = await canvasRuntime.uploadMedia([new File([result.blob], result.name, { type: 'image/png' })]);
+      const file = uploaded.files?.[0];
+      if (!file?.url) throw new Error('图片上传失败');
+      const active = store.getState().document?.nodes.find((item) => item.id === imageEditorNode.id);
+      if (!active?.url) throw new Error('图片节点已经被移除');
+      const history = Array.isArray(active.imageEditHistory) ? active.imageEditHistory as Array<Record<string, unknown>> : [];
+      const previous = { kind: active.mediaKind || 'image', name: active.name || 'image', outpaintSize: active.outpaintSize, url: active.url };
+      store.getState().updateNode(active.id, {
+        editOriginalUrl: active.editOriginalUrl || active.url,
+        imageEditHistory: [...history, previous].slice(-10),
+        lastImageEdit: { height: result.height, mode: result.mode, width: result.width },
+        mediaKind: file.kind || 'image',
+        name: file.name || result.name,
+        natural_h: result.height,
+        natural_w: result.width,
+        outpaintSize: result.mode === 'outpaint' ? { height: result.height, width: result.width } : undefined,
+        url: file.url,
+      });
+      commit();
+    }} onClose={() => setImageEditorNodeId('')} url={String(imageEditorNode.url)} /> : null}
     {readOnly ? <div className="canvas-board-readonly-shield" data-testid="canvas-board-readonly-shield" /> : null}
   </div>;
 }
@@ -1072,7 +1110,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       return true;
     },
   };
-  root.render(<CanvasBoardV2 commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
+  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
   if (legacyBoard) legacyBoard.hidden = true;
   element.hidden = false;
   return () => {
