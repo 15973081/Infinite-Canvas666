@@ -441,7 +441,7 @@ function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: 
   </div>;
 }
 
-function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => void; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
+function CanvasBoardV2({ commit, initialReadOnly = false, onSelectionChange, store }: { commit: () => void; initialReadOnly?: boolean; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState('');
@@ -449,6 +449,7 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState('ready');
   const [lightbox, setLightbox] = useState<{ nodeId: string; url: string } | null>(null);
+  const [readOnly, setReadOnly] = useState(initialReadOnly);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const documentId = String(document?.id || '');
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
@@ -461,6 +462,12 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
   }, [documentId]);
 
   useEffect(() => {
+    const listener = (event: Event) => setReadOnly(Boolean((event as CustomEvent<boolean>).detail));
+    window.addEventListener('canvas-board-v2-readonly', listener);
+    return () => window.removeEventListener('canvas-board-v2-readonly', listener);
+  }, []);
+
+  useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const editable = target?.isContentEditable || target?.matches('input, textarea, select');
@@ -470,6 +477,7 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
         setSelectedIds(new Set());
         return;
       }
+      if (readOnly) return;
       if (editable) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
@@ -516,10 +524,11 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [commit, selectedEdge, selectedIds, store]);
+  }, [commit, readOnly, selectedEdge, selectedIds, store]);
 
   useEffect(() => {
     const group = () => {
+      if (readOnly) return;
       const selected = store.getState().document?.nodes.filter((node) => selectedIds.has(node.id)) ?? [];
       const id = selected.some((node) => node.type === 'image') ? store.getState().groupNodes([...selectedIds]) : store.getState().groupPromptNodes([...selectedIds]);
       if (id) {
@@ -529,7 +538,7 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
     };
     window.addEventListener('canvas-board-v2-group-selected', group);
     return () => window.removeEventListener('canvas-board-v2-group-selected', group);
-  }, [commit, selectedIds, store]);
+  }, [commit, readOnly, selectedIds, store]);
 
   useEffect(() => {
     const listener = (event: Event) => setSaveState(String((event as CustomEvent<string>).detail || 'ready'));
@@ -552,12 +561,15 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
   useEffect(() => { onSelectionChange?.(selectedIds); }, [onSelectionChange, selectedIds]);
   return <div
     aria-label="CanvasBoard V2"
+    aria-readonly={readOnly}
+    className={readOnly ? 'canvas-board-v2-readonly' : undefined}
     data-testid="canvas-board-v2"
     data-viewport={`${viewport.x},${viewport.y},${viewport.zoom.toFixed(2)}`}
     onDragOver={(event) => event.preventDefault()}
     onDrop={(event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (readOnly) return;
       const rect = event.currentTarget.getBoundingClientRect();
       const point = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
       const outputPayload = event.dataTransfer.getData('application/x-canvas-output-image');
@@ -705,6 +717,7 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
       })}
     </div>
     {lightbox && lightboxNode ? <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} /> : null}
+    {readOnly ? <div className="canvas-board-readonly-shield" data-testid="canvas-board-readonly-shield" /> : null}
   </div>;
 }
 
@@ -724,6 +737,7 @@ function OutputLightbox({ node, onClose, url }: { node: CanvasNode; onClose: () 
 
 export interface CanvasBoardMountOptions {
   initialDocument?: unknown;
+  readOnly?: boolean;
   repository?: CanvasRepository;
   runtime?: CanvasRuntime;
 }
@@ -854,14 +868,17 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     return true;
   };
   let externalSelection = new Set<string>();
+  let readOnlyMode = Boolean(options.readOnly);
   const previousBoardApi = window.CanvasBoardV2;
   window.CanvasBoardV2 = {
     addNode(type, point) {
+      if (readOnlyMode) return null;
       const id = store.getState().addNode(type, point);
       if (id) commit();
       return id;
     },
     groupSelected() {
+      if (readOnlyMode) return;
       window.dispatchEvent(new Event('canvas-board-v2-group-selected'));
     },
     exportSelection() {
@@ -885,6 +902,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       };
     },
     importWorkflow(payload) {
+      if (readOnlyMode) return [];
       const nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
       const connections = Array.isArray(payload.connections) ? payload.connections : [];
       const importableTypes = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'promptGroup', 'video'] as const;
@@ -915,6 +933,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       return [...idMap.values()];
     },
     async controlExecution(command, nodeId) {
+      if (readOnlyMode) return;
       const snapshot = store.getState().document;
       if (!snapshot) return;
       const result = await modernRuntime.runCommand(command, nodeId, snapshot, async (next) => {
@@ -925,6 +944,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       commit(false);
     },
     async importFiles(files, point) {
+      if (readOnlyMode) return;
       if (!files.length) return;
       const uploaded = await modernRuntime.uploadMedia(files);
       const ids = (uploaded.files ?? []).map((file, index) => {
@@ -939,6 +959,11 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       window.openPromptTemplateModal?.(nodeId);
     },
     openOutputLightbox(node, url) {
+      if (readOnlyMode) {
+        if (options.initialDocument) window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
+        else if (bridge) bridge.openOutputLightbox(node, url);
+        return;
+      }
       const images = Array.isArray(node.images) ? node.images.map((item) => {
         if (typeof item === 'string') return item;
         return String((item as Record<string, unknown>).url || '') === url ? { ...item as Record<string, unknown>, viewed: true } : item;
@@ -949,6 +974,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       else if (bridge) bridge.openOutputLightbox(node, url);
     },
     async prepareVideoMedia(nodeId, action, value) {
+      if (readOnlyMode) return;
       const snapshot = store.getState().document;
       if (!snapshot) return;
       const result = await modernRuntime.prepareVideoMedia(nodeId, snapshot, action, value);
@@ -956,6 +982,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       commit();
     },
     rerunFromOutputMeta(meta) {
+      if (readOnlyMode) return;
       const run = meta.run && typeof meta.run === 'object' ? meta.run as Record<string, unknown> : {};
       const base = run.node && typeof run.node === 'object' ? structuredClone(run.node as Record<string, unknown>) : {};
       const type = String(base.type || run.nodeType || '');
@@ -984,8 +1011,9 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       });
       commit();
     },
-    redo,
+    redo() { return readOnlyMode ? false : redo(); },
     async runNode(nodeId, mode) {
+      if (readOnlyMode) return;
       const snapshot = store.getState().document;
       if (!snapshot) return;
       const result = await modernRuntime.runNode(nodeId, snapshot, mode, async (next) => {
@@ -995,15 +1023,20 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       store.getState().projectDocument(result);
       commit(false);
     },
-    undo,
+    setReadOnly(value) {
+      readOnlyMode = Boolean(value);
+      window.dispatchEvent(new CustomEvent('canvas-board-v2-readonly', { detail: readOnlyMode }));
+    },
+    undo() { return readOnlyMode ? false : undo(); },
     updateNode(nodeId, patch) {
+      if (readOnlyMode) return false;
       if (!store.getState().document?.nodes.some((node) => node.id === nodeId)) return false;
       store.getState().updateNode(nodeId, patch);
       commit();
       return true;
     },
   };
-  root.render(<CanvasBoardV2 commit={commit} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
+  root.render(<CanvasBoardV2 commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
   if (legacyBoard) legacyBoard.hidden = true;
   element.hidden = false;
   return () => {

@@ -1814,25 +1814,28 @@ function V({ commit: e, node: t, store: n }) {
 		]
 	});
 }
-function H({ commit: e, onSelectionChange: n, store: r }) {
-	let i = t(r, ({ document: e }) => e), a = (0, l.useRef)(null), [o, s] = (0, l.useState)(""), [c, u] = (0, l.useState)(-1), [p, x] = (0, l.useState)(/* @__PURE__ */ new Set()), [S, C] = (0, l.useState)("ready"), [w, T] = (0, l.useState)(null), [E, D] = (0, l.useState)({
+function H({ commit: e, initialReadOnly: n = !1, onSelectionChange: r, store: i }) {
+	let a = t(i, ({ document: e }) => e), o = (0, l.useRef)(null), [s, c] = (0, l.useState)(""), [u, p] = (0, l.useState)(-1), [x, S] = (0, l.useState)(/* @__PURE__ */ new Set()), [C, w] = (0, l.useState)("ready"), [T, E] = (0, l.useState)(null), [D, O] = (0, l.useState)(n), [k, A] = (0, l.useState)({
 		x: 0,
 		y: 0,
 		zoom: 1
-	}), O = String(i?.id || ""), k = new Map((i?.nodes ?? []).map((e) => [e.id, e])), A = {
-		connections: i?.connections ?? [],
-		nodes: i?.nodes ?? []
+	}), I = String(a?.id || ""), V = new Map((a?.nodes ?? []).map((e) => [e.id, e])), H = {
+		connections: a?.connections ?? [],
+		nodes: a?.nodes ?? []
 	};
 	(0, l.useEffect)(() => {
-		s(""), u(-1), x(/* @__PURE__ */ new Set());
-	}, [O]), (0, l.useEffect)(() => {
+		c(""), p(-1), S(/* @__PURE__ */ new Set());
+	}, [I]), (0, l.useEffect)(() => {
+		let e = (e) => O(!!e.detail);
+		return window.addEventListener("canvas-board-v2-readonly", e), () => window.removeEventListener("canvas-board-v2-readonly", e);
+	}, []), (0, l.useEffect)(() => {
 		let t = (t) => {
-			let n = t.target, i = n?.isContentEditable || n?.matches("input, textarea, select");
+			let n = t.target, r = n?.isContentEditable || n?.matches("input, textarea, select");
 			if (t.key === "Escape") {
-				s(""), u(-1), x(/* @__PURE__ */ new Set());
+				c(""), p(-1), S(/* @__PURE__ */ new Set());
 				return;
 			}
-			if (!i) {
+			if (!D && !r) {
 				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "z") {
 					t.preventDefault(), t.shiftKey ? window.CanvasBoardV2?.redo() : window.CanvasBoardV2?.undo();
 					return;
@@ -1842,73 +1845,78 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 					return;
 				}
 				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "c") {
-					a.current = r.getState().copyNodes([...p]);
+					o.current = i.getState().copyNodes([...x]);
 					return;
 				}
-				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "v" && a.current) {
+				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "v" && o.current) {
 					t.preventDefault();
-					let n = r.getState().pasteNodes(a.current);
-					n.length && (x(new Set(n)), e());
+					let n = i.getState().pasteNodes(o.current);
+					n.length && (S(new Set(n)), e());
 					return;
 				}
 				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "g") {
 					t.preventDefault();
-					let n = (r.getState().document?.nodes.filter((e) => p.has(e.id)) ?? []).some((e) => e.type === "image") ? r.getState().groupNodes([...p]) : r.getState().groupPromptNodes([...p]);
-					n && (x(/* @__PURE__ */ new Set([n])), e());
+					let n = (i.getState().document?.nodes.filter((e) => x.has(e.id)) ?? []).some((e) => e.type === "image") ? i.getState().groupNodes([...x]) : i.getState().groupPromptNodes([...x]);
+					n && (S(/* @__PURE__ */ new Set([n])), e());
 					return;
 				}
 				if (t.key === "Delete" || t.key === "Backspace") {
-					if (p.size) p.forEach((e) => r.getState().deleteNode(e));
-					else if (c >= 0) r.getState().deleteConnection(c);
+					if (x.size) x.forEach((e) => i.getState().deleteNode(e));
+					else if (u >= 0) i.getState().deleteConnection(u);
 					else return;
-					t.preventDefault(), x(/* @__PURE__ */ new Set()), u(-1), e();
+					t.preventDefault(), S(/* @__PURE__ */ new Set()), p(-1), e();
 				}
 			}
 		};
 		return window.addEventListener("keydown", t), () => window.removeEventListener("keydown", t);
 	}, [
 		e,
-		c,
-		p,
-		r
+		D,
+		u,
+		x,
+		i
 	]), (0, l.useEffect)(() => {
 		let t = () => {
-			let t = (r.getState().document?.nodes.filter((e) => p.has(e.id)) ?? []).some((e) => e.type === "image") ? r.getState().groupNodes([...p]) : r.getState().groupPromptNodes([...p]);
-			t && (x(/* @__PURE__ */ new Set([t])), e());
+			if (D) return;
+			let t = (i.getState().document?.nodes.filter((e) => x.has(e.id)) ?? []).some((e) => e.type === "image") ? i.getState().groupNodes([...x]) : i.getState().groupPromptNodes([...x]);
+			t && (S(/* @__PURE__ */ new Set([t])), e());
 		};
 		return window.addEventListener("canvas-board-v2-group-selected", t), () => window.removeEventListener("canvas-board-v2-group-selected", t);
 	}, [
 		e,
-		p,
-		r
+		D,
+		x,
+		i
 	]), (0, l.useEffect)(() => {
-		let e = (e) => C(String(e.detail || "ready"));
+		let e = (e) => w(String(e.detail || "ready"));
 		return window.addEventListener("canvas-board-v2-save-state", e), () => window.removeEventListener("canvas-board-v2-save-state", e);
 	}, []), (0, l.useEffect)(() => {
-		let e = (e) => T(e.detail);
+		let e = (e) => E(e.detail);
 		return window.addEventListener("canvas-v2-open-lightbox", e), () => window.removeEventListener("canvas-v2-open-lightbox", e);
 	}, []);
-	let I = (t) => {
-		o && r.getState().connectNodes(o, t) && e(), s("");
-	}, V = w ? k.get(w.nodeId) : null;
+	let W = (t) => {
+		s && i.getState().connectNodes(s, t) && e(), c("");
+	}, G = T ? V.get(T.nodeId) : null;
 	return (0, l.useEffect)(() => {
-		n?.(p);
-	}, [n, p]), /* @__PURE__ */ (0, d.jsxs)("div", {
+		r?.(x);
+	}, [r, x]), /* @__PURE__ */ (0, d.jsxs)("div", {
 		"aria-label": "CanvasBoard V2",
+		"aria-readonly": D,
+		className: D ? "canvas-board-v2-readonly" : void 0,
 		"data-testid": "canvas-board-v2",
-		"data-viewport": `${E.x},${E.y},${E.zoom.toFixed(2)}`,
+		"data-viewport": `${k.x},${k.y},${k.zoom.toFixed(2)}`,
 		onDragOver: (e) => e.preventDefault(),
 		onDrop: (t) => {
-			t.preventDefault(), t.stopPropagation();
-			let n = t.currentTarget.getBoundingClientRect(), i = {
-				x: (t.clientX - n.left - E.x) / E.zoom,
-				y: (t.clientY - n.top - E.y) / E.zoom
+			if (t.preventDefault(), t.stopPropagation(), D) return;
+			let n = t.currentTarget.getBoundingClientRect(), r = {
+				x: (t.clientX - n.left - k.x) / k.zoom,
+				y: (t.clientY - n.top - k.y) / k.zoom
 			}, a = t.dataTransfer.getData("application/x-canvas-output-image");
 			if (a) try {
 				let t = JSON.parse(a);
 				if (t.url) {
-					let n = r.getState().addNode("image", i);
-					n && (r.getState().updateNode(n, {
+					let n = i.getState().addNode("image", r);
+					n && (i.getState().updateNode(n, {
 						mediaKind: t.kind || "image",
 						name: t.name || "output",
 						url: t.url
@@ -1919,17 +1927,17 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 				console.warn("[canvas-modern-core] invalid output drag payload", e);
 			}
 			let o = [...t.dataTransfer.files].filter((e) => /^(image|video|audio)\//.test(e.type));
-			o.length && window.CanvasBoardV2?.importFiles(o, i);
+			o.length && window.CanvasBoardV2?.importFiles(o, r);
 		},
 		onPointerDown: (e) => {
 			if (e.button !== 0) return;
 			let t = e.currentTarget, n = {
 				x: e.clientX,
 				y: e.clientY,
-				viewport: E
+				viewport: k
 			};
-			t.setPointerCapture(e.pointerId), x(/* @__PURE__ */ new Set()), u(-1);
-			let r = (e) => D((t) => ({
+			t.setPointerCapture(e.pointerId), S(/* @__PURE__ */ new Set()), p(-1);
+			let r = (e) => A((t) => ({
 				...t,
 				x: n.viewport.x + e.clientX - n.x,
 				y: n.viewport.y + e.clientY - n.y
@@ -1937,7 +1945,7 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 			t.addEventListener("pointermove", r), t.addEventListener("pointerup", () => t.removeEventListener("pointermove", r), { once: !0 });
 		},
 		onWheel: (e) => {
-			e.preventDefault(), D((t) => ({
+			e.preventDefault(), A((t) => ({
 				...t,
 				zoom: Math.min(1.5, Math.max(.25, t.zoom * (e.deltaY < 0 ? 1.1 : .9)))
 			}));
@@ -1961,13 +1969,13 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 					top: 74,
 					zIndex: 20
 				},
-				children: S === "saving" ? "正在保存" : S === "error" ? "保存失败，本地修改仍保留" : S === "saved" ? "已保存" : ""
+				children: C === "saving" ? "正在保存" : C === "error" ? "保存失败，本地修改仍保留" : C === "saved" ? "已保存" : ""
 			}),
 			/* @__PURE__ */ (0, d.jsxs)("div", {
 				style: {
 					height: 4e3,
 					position: "absolute",
-					transform: `translate(${E.x}px, ${E.y}px) scale(${E.zoom})`,
+					transform: `translate(${k.x}px, ${k.y}px) scale(${k.zoom})`,
 					transformOrigin: "0 0",
 					width: 6e3
 				},
@@ -1979,25 +1987,25 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 						position: "absolute"
 					},
 					width: "6000",
-					children: (i?.connections ?? []).map((e, t) => {
-						let n = k.get(e.from), r = k.get(e.to);
+					children: (a?.connections ?? []).map((e, t) => {
+						let n = V.get(e.from), r = V.get(e.to);
 						if (!n || !r) return null;
-						let i = m(n), a = m(r), o = h(n), s = h(r), l = {
+						let i = m(n), a = m(r), o = h(n), s = h(r), c = {
 							x1: i.x + o.width,
 							x2: a.x,
 							y1: i.y + o.height / 2,
 							y2: a.y + s.height / 2
 						};
 						return /* @__PURE__ */ (0, d.jsxs)("g", { children: [/* @__PURE__ */ (0, d.jsx)("line", {
-							...l,
-							stroke: c === t ? "var(--strong)" : "var(--line-2)",
+							...c,
+							stroke: u === t ? "var(--strong)" : "var(--line-2)",
 							strokeWidth: "2"
 						}), /* @__PURE__ */ (0, d.jsx)("line", {
-							...l,
+							...c,
 							"data-edge-index": t,
-							"data-selected": c === t ? "true" : "false",
+							"data-selected": u === t ? "true" : "false",
 							onClick: (e) => {
-								e.stopPropagation(), u(t), x(/* @__PURE__ */ new Set());
+								e.stopPropagation(), p(t), S(/* @__PURE__ */ new Set());
 							},
 							onPointerDown: (e) => e.stopPropagation(),
 							pointerEvents: "stroke",
@@ -2005,33 +2013,33 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 							strokeWidth: "16"
 						})] }, `${e.from}-${e.to}-${t}`);
 					})
-				}), (i?.nodes ?? []).map((t) => {
-					let n = m(t), i = h(t);
+				}), (a?.nodes ?? []).map((t) => {
+					let n = m(t), r = h(t);
 					return /* @__PURE__ */ (0, d.jsxs)("article", {
 						"aria-label": `${t.type} ${t.id}`,
-						className: `node ${t.type}-node sized ${t.url ? "has-image" : ""} ${p.has(t.id) ? "selected" : ""}`,
+						className: `node ${t.type}-node sized ${t.url ? "has-image" : ""} ${x.has(t.id) ? "selected" : ""}`,
 						"data-node-id": t.id,
 						"data-node-type": t.type,
 						onClick: (e) => {
-							e.stopPropagation(), u(-1), x((n) => {
+							e.stopPropagation(), p(-1), S((n) => {
 								if (!e.ctrlKey && !e.metaKey) return /* @__PURE__ */ new Set([t.id]);
 								let r = new Set(n);
 								return r.has(t.id) ? r.delete(t.id) : r.add(t.id), r;
 							});
 						},
 						onKeyDown: (e) => {
-							(e.key === "Enter" || e.key === " ") && x(/* @__PURE__ */ new Set([t.id]));
+							(e.key === "Enter" || e.key === " ") && S(/* @__PURE__ */ new Set([t.id]));
 						},
-						onPointerDown: (i) => {
-							if (i.button !== 0 || (i.stopPropagation(), i.ctrlKey || i.metaKey)) return;
-							let a = i.currentTarget, o = {
-								clientX: i.clientX,
-								clientY: i.clientY,
+						onPointerDown: (r) => {
+							if (r.button !== 0 || (r.stopPropagation(), r.ctrlKey || r.metaKey)) return;
+							let a = r.currentTarget, o = {
+								clientX: r.clientX,
+								clientY: r.clientY,
 								point: n
 							}, s = !1;
-							a.setPointerCapture(i.pointerId), u(-1), p.has(t.id) || x(/* @__PURE__ */ new Set([t.id]));
+							a.setPointerCapture(r.pointerId), p(-1), x.has(t.id) || S(/* @__PURE__ */ new Set([t.id]));
 							let c = (e) => {
-								s = !0, r.getState().moveNode(t.id, o.point.x + (e.clientX - o.clientX) / E.zoom, o.point.y + (e.clientY - o.clientY) / E.zoom);
+								s = !0, i.getState().moveNode(t.id, o.point.x + (e.clientX - o.clientX) / k.zoom, o.point.y + (e.clientY - o.clientY) / k.zoom);
 							};
 							a.addEventListener("pointermove", c), a.addEventListener("pointerup", () => {
 								a.removeEventListener("pointermove", c), s && e();
@@ -2039,12 +2047,12 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 						},
 						role: "button",
 						style: {
-							height: i.height,
+							height: r.height,
 							left: n.x,
-							minHeight: i.height,
-							minWidth: i.width,
+							minHeight: r.height,
+							minWidth: r.width,
 							top: n.y,
-							width: i.width
+							width: r.width
 						},
 						tabIndex: 0,
 						children: [
@@ -2052,18 +2060,18 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 								"aria-label": `连接到 ${t.id}`,
 								className: "port in",
 								"data-port": "in",
-								onClick: () => I(t.id),
+								onClick: () => W(t.id),
 								onPointerDown: (e) => e.stopPropagation(),
-								onPointerUp: () => I(t.id),
+								onPointerUp: () => W(t.id),
 								type: "button"
 							}) : null,
 							_(t) ? /* @__PURE__ */ (0, d.jsx)("button", {
 								"aria-label": `从 ${t.id} 连线`,
 								className: "port out",
 								"data-port": "out",
-								onClick: () => s(t.id),
+								onClick: () => c(t.id),
 								onPointerDown: (e) => {
-									e.stopPropagation(), s(t.id);
+									e.stopPropagation(), c(t.id);
 								},
 								type: "button"
 							}) : null,
@@ -2079,65 +2087,69 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 								children: t.type === "prompt" ? /* @__PURE__ */ (0, d.jsx)(v, {
 									commit: e,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "image" ? /* @__PURE__ */ (0, d.jsx)(R, {
 									commit: e,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "group" ? /* @__PURE__ */ (0, d.jsx)(z, {
 									node: t,
-									nodesById: k
+									nodesById: V
 								}) : t.type === "promptGroup" ? /* @__PURE__ */ (0, d.jsx)(y, {
 									node: t,
-									nodesById: k
+									nodesById: V
 								}) : t.type === "loop" ? /* @__PURE__ */ (0, d.jsx)(b, {
 									commit: e,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "generator" ? /* @__PURE__ */ (0, d.jsx)(j, {
 									commit: e,
-									document: A,
+									document: H,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "msgen" ? /* @__PURE__ */ (0, d.jsx)(M, {
 									commit: e,
-									document: A,
+									document: H,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "output" ? /* @__PURE__ */ (0, d.jsx)(N, {
 									commit: e,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "video" ? /* @__PURE__ */ (0, d.jsx)(P, {
 									commit: e,
-									document: A,
+									document: H,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "llm" ? /* @__PURE__ */ (0, d.jsx)(F, {
 									commit: e,
-									document: A,
+									document: H,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "comfy" ? /* @__PURE__ */ (0, d.jsx)(L, {
 									commit: e,
-									document: A,
+									document: H,
 									node: t,
-									store: r
+									store: i
 								}) : t.type === "ltxDirector" ? /* @__PURE__ */ (0, d.jsx)(B, {
 									commit: e,
-									document: A,
+									document: H,
 									node: t,
-									store: r
+									store: i
 								}) : String(t.title || t.name || t.id)
 							})
 						]
 					}, t.id);
 				})]
 			}),
-			w && V ? /* @__PURE__ */ (0, d.jsx)(U, {
-				node: V,
-				onClose: () => T(null),
-				url: w.url
+			T && G ? /* @__PURE__ */ (0, d.jsx)(U, {
+				node: G,
+				onClose: () => E(null),
+				url: T.url
+			}) : null,
+			D ? /* @__PURE__ */ (0, d.jsx)("div", {
+				className: "canvas-board-readonly-shield",
+				"data-testid": "canvas-board-readonly-shield"
 			}) : null
 		]
 	});
@@ -2255,14 +2267,15 @@ function W(e, t, n = {}) {
 	}, A = () => {
 		let e = h.getState().document, t = y.pop();
 		return !e || !t ? !1 : (v.push(structuredClone(e)), h.getState().projectDocument(t), _ = structuredClone(t), O(!1), !0);
-	}, j = /* @__PURE__ */ new Set(), M = window.CanvasBoardV2;
+	}, j = /* @__PURE__ */ new Set(), M = !!n.readOnly, N = window.CanvasBoardV2;
 	return window.CanvasBoardV2 = {
 		addNode(e, t) {
+			if (M) return null;
 			let n = h.getState().addNode(e, t);
 			return n && O(), n;
 		},
 		groupSelected() {
-			window.dispatchEvent(new Event("canvas-board-v2-group-selected"));
+			M || window.dispatchEvent(new Event("canvas-board-v2-group-selected"));
 		},
 		exportSelection() {
 			let e = h.getState().document;
@@ -2283,6 +2296,7 @@ function W(e, t, n = {}) {
 			};
 		},
 		importWorkflow(e) {
+			if (M) return [];
 			let t = Array.isArray(e.nodes) ? e.nodes : [], n = Array.isArray(e.connections) ? e.connections : [], r = [
 				"comfy",
 				"generator",
@@ -2317,6 +2331,7 @@ function W(e, t, n = {}) {
 			}), i.size && O(), [...i.values()];
 		},
 		async controlExecution(e, t) {
+			if (M) return;
 			let n = h.getState().document;
 			if (!n) return;
 			let r = await l.runCommand(e, t, n, async (e) => {
@@ -2325,7 +2340,7 @@ function W(e, t, n = {}) {
 			h.getState().projectDocument(r), O(!1);
 		},
 		async importFiles(e, t) {
-			if (!e.length) return;
+			if (M || !e.length) return;
 			let n = ((await l.uploadMedia(e)).files ?? []).map((e, n) => {
 				let r = h.getState().addNode("image", t ? {
 					x: t.x + n * 36,
@@ -2343,6 +2358,13 @@ function W(e, t, n = {}) {
 			window.openPromptTemplateModal?.(e);
 		},
 		openOutputLightbox(e, t) {
+			if (M) {
+				n.initialDocument ? window.dispatchEvent(new CustomEvent("canvas-v2-open-lightbox", { detail: {
+					nodeId: String(e.id || ""),
+					url: t
+				} })) : i && i.openOutputLightbox(e, t);
+				return;
+			}
 			let r = Array.isArray(e.images) ? e.images.map((e) => typeof e == "string" ? e : String(e.url || "") === t ? {
 				...e,
 				viewed: !0
@@ -2353,12 +2375,14 @@ function W(e, t, n = {}) {
 			} })) : i && i.openOutputLightbox(e, t);
 		},
 		async prepareVideoMedia(e, t, n) {
+			if (M) return;
 			let r = h.getState().document;
 			if (!r) return;
 			let i = await l.prepareVideoMedia(e, r, t, n);
 			h.getState().projectDocument(i), O();
 		},
 		rerunFromOutputMeta(e) {
+			if (M) return;
 			let t = e.run && typeof e.run == "object" ? e.run : {}, n = t.node && typeof t.node == "object" ? structuredClone(t.node) : {}, r = String(n.type || t.nodeType || "");
 			if (![
 				"comfy",
@@ -2397,8 +2421,11 @@ function W(e, t, n = {}) {
 				}), h.getState().connectNodes(n, i));
 			}), O();
 		},
-		redo: A,
+		redo() {
+			return !M && A();
+		},
 		async runNode(e, t) {
+			if (M) return;
 			let n = h.getState().document;
 			if (!n) return;
 			let r = await l.runNode(e, n, t, async (e) => {
@@ -2406,18 +2433,24 @@ function W(e, t, n = {}) {
 			});
 			h.getState().projectDocument(r), O(!1);
 		},
-		undo: k,
+		setReadOnly(e) {
+			M = !!e, window.dispatchEvent(new CustomEvent("canvas-board-v2-readonly", { detail: M }));
+		},
+		undo() {
+			return !M && k();
+		},
 		updateNode(e, t) {
-			return h.getState().document?.nodes.some((t) => t.id === e) ? (h.getState().updateNode(e, t), O(), !0) : !1;
+			return M || !h.getState().document?.nodes.some((t) => t.id === e) ? !1 : (h.getState().updateNode(e, t), O(), !0);
 		}
 	}, S.render(/* @__PURE__ */ (0, d.jsx)(H, {
 		commit: O,
+		initialReadOnly: M,
 		onSelectionChange: (e) => {
 			j = new Set(e);
 		},
 		store: h
 	})), t && (t.hidden = !0), e.hidden = !1, () => {
-		w = !0, M ? window.CanvasBoardV2 = M : delete window.CanvasBoardV2, f || (window.removeEventListener("canvas-legacy-document", b), window.removeEventListener("canvas-legacy-execution-document", x)), S.unmount(), e.hidden = !0, t && (t.hidden = C);
+		w = !0, N ? window.CanvasBoardV2 = N : delete window.CanvasBoardV2, f || (window.removeEventListener("canvas-legacy-document", b), window.removeEventListener("canvas-legacy-execution-document", x)), S.unmount(), e.hidden = !0, t && (t.hidden = C);
 	};
 }
 function G(e) {

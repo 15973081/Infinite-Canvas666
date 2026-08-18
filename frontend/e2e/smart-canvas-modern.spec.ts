@@ -81,6 +81,52 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
   await expect(page.locator('[data-node-id="output-direct"] img[src="/output/legacy.png"]')).toHaveCount(1);
 });
 
+test('opens a remotely locked canvas read-only and takes over after release', async ({ page }) => {
+  let lockRequests = 0;
+  const canvasDocument = {
+    id: 'smart-locked', kind: 'smart', schemaVersion: 1, title: 'Locked Smart', updated_at: 1, connections: [],
+    nodes: [{ id: 'locked-prompt', type: 'prompt', text: 'read only prompt', x: 40, y: 80 }],
+  };
+  await page.route('**/api/config', (route) => route.fulfill({ json: { api_providers: [] } }));
+  await page.route('**/api/workflows', (route) => route.fulfill({ json: { workflows: [] } }));
+  await page.route('**/api/canvas-folders', (route) => route.fulfill({ json: { folders: [] } }));
+  await page.route('**/api/canvases/trash', (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvases/smart-locked/lock', async (route) => {
+    lockRequests += 1;
+    if (lockRequests === 1) {
+      await route.fulfill({ status: 409, json: { detail: { message: 'locked', holder: { client_id: 'other', username: 'Alice', ip: '10.0.0.2' } } } });
+      return;
+    }
+    if (lockRequests === 3) {
+      await route.fulfill({ status: 503, json: { detail: 'lock service unavailable' } });
+      return;
+    }
+    await route.fulfill({ json: { ok: true, renewed: false, holder: { client_id: 'mine', username: 'Bob' } } });
+  });
+  await page.route('**/api/canvases/smart-locked', (route) => route.fulfill({ json: { canvas: canvasDocument } }));
+  await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
+
+  await page.clock.install();
+  await page.goto('/static/smart-canvas.html?id=smart-locked');
+  await expect(page.locator('.canvas-modern-editor')).toBeVisible();
+  await expect(page.getByText('Alice 正在编辑此画布')).toBeVisible();
+  await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
+  await expect(page.getByRole('button', { name: 'API生成' })).toBeDisabled();
+  expect(await page.evaluate(() => window.CanvasBoardV2?.addNode('prompt'))).toBeNull();
+
+  await page.getByRole('button', { name: '尝试取得编辑锁' }).click();
+  await expect(page.getByText('Alice 正在编辑此画布')).toHaveCount(0);
+  await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'false');
+  await expect(page.getByRole('button', { name: 'API生成' })).toBeEnabled();
+  expect(lockRequests).toBe(2);
+
+  await page.clock.fastForward(25_100);
+  await expect(page.getByText('锁状态未知 正在编辑此画布')).toBeVisible();
+  await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
+  await expect(page.getByText(/编辑锁续期失败，已切换只读并将自动重试/)).toBeVisible();
+  expect(lockRequests).toBe(3);
+});
+
 test('creates and runs a generation chain from the React Smart Canvas composer', async ({ page }) => {
   let saves = 0;
   let submitted: Record<string, unknown> = {};

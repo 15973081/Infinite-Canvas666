@@ -26,4 +26,15 @@ describe('Canvas management client', () => {
     expect(requests).toContainEqual({ path: '/api/canvases/active/lock', method: 'POST', body: { client_id: 'client', username: 'User' } });
     expect(requests).toContainEqual({ path: '/api/canvases/active/lock/release', method: 'POST', body: { client_id: 'client' } });
   });
+
+  it('returns the remote holder when the editing lock is already owned', async () => {
+    const fetcher = async () => new Response(JSON.stringify({ detail: { message: 'locked', holder: { client_id: 'other', username: 'Alice' } } }), {
+      status: 409, headers: { 'content-type': 'application/json' },
+    });
+    const client = createCanvasManagementClient(fetcher);
+
+    await expect(client.acquireLock('active', 'client', 'Bob')).resolves.toEqual({
+      ok: false, holder: { client_id: 'other', username: 'Alice' },
+    });
+  });
 });

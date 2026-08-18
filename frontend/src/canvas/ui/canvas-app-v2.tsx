@@ -53,9 +53,12 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   const [inspector, setInspector] = useState<{ document: CanvasDocument; mode: 'cost' | 'logs' } | null>(null);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [assetRequest, setAssetRequest] = useState<CanvasAssetLibraryRequest | null>(null);
+  const [lockHolder, setLockHolder] = useState<Record<string, unknown> | null>(null);
+  const [lockIssue, setLockIssue] = useState('');
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clientId = useRef(canvasClientId());
   const initialCanvasAttempted = useRef(false);
+  const ownsLock = useRef(false);
 
   const refresh = useCallback(async () => {
     setStatus('正在加载画布列表…');
@@ -78,13 +81,16 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   useEffect(() => {
     const host = boardRef.current;
     if (!host || !current) return;
-    const cleanup = mountCanvasBoardV2(host, null, { initialDocument: current, repository, runtime });
+    const cleanup = mountCanvasBoardV2(host, null, { initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
+    window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder));
     return cleanup;
   }, [current, repository, runtime]);
 
+  useEffect(() => { window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder)); }, [lockHolder]);
+
   useEffect(() => {
     const release = () => {
-      if (current?.id) void management.releaseLock(String(current.id), clientId.current, true);
+      if (current?.id && ownsLock.current) void management.releaseLock(String(current.id), clientId.current, true);
     };
     window.addEventListener('pagehide', release, { once: true });
     return () => window.removeEventListener('pagehide', release);
@@ -110,9 +116,15 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
     setStatus('正在打开画布…');
     try {
       const lock = await management.acquireLock(summary.id, clientId.current, localStorage.getItem('canvasUserName') || '');
-      if (!lock.ok) throw new Error(`画布正由 ${String(lock.holder?.username || '其他用户')} 编辑`);
       const loaded = await repository.get(summary.id);
+      ownsLock.current = lock.ok;
+      setLockHolder(lock.ok ? null : lock.holder || {});
+      setLockIssue('');
       setCurrent(loaded);
+      if (!lock.ok) {
+        setStatus(`只读模式：画布正由 ${lockHolderName(lock.holder)} 编辑`);
+        return;
+      }
       setStatus('');
       void runtime.recoverDocument(loaded).then(async (recovered) => {
         if (JSON.stringify(recovered) === JSON.stringify(loaded)) return;
@@ -124,6 +136,43 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
     }
   };
 
+  const acquireCurrentLock = useCallback(async () => {
+    if (!current?.id) return false;
+    try {
+      const wasOwner = ownsLock.current;
+      const lock = await management.acquireLock(String(current.id), clientId.current, localStorage.getItem('canvasUserName') || '');
+      if (!lock.ok) {
+        ownsLock.current = false;
+        setLockHolder(lock.holder || {});
+        setLockIssue('');
+        setStatus(`只读模式：画布正由 ${lockHolderName(lock.holder)} 编辑`);
+        return false;
+      }
+      ownsLock.current = true;
+      setLockHolder(null);
+      setLockIssue('');
+      if (!wasOwner) {
+        const latest = await repository.get(String(current.id));
+        setCurrent(latest);
+        setStatus('已取得编辑锁，并同步到最新画布');
+      }
+      return true;
+    } catch (error) {
+      ownsLock.current = false;
+      setLockHolder({ username: '锁状态未知' });
+      const message = `编辑锁续期失败，已切换只读并将自动重试：${error instanceof Error ? error.message : String(error)}`;
+      setLockIssue(message);
+      setStatus(message);
+      return false;
+    }
+  }, [current?.id, management, repository]);
+
+  useEffect(() => {
+    if (!current?.id) return;
+    const timer = window.setInterval(() => { void acquireCurrentLock(); }, 25_000);
+    return () => window.clearInterval(timer);
+  }, [acquireCurrentLock, current?.id]);
+
   useEffect(() => {
     const canvasId = String(configuration.initialCanvasId || '').trim();
     if (!canvasId || current || initialCanvasAttempted.current) return;
@@ -132,7 +181,10 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   }, [canvases, canvasKind, configuration.initialCanvasId, current]);
 
   const closeCanvas = async () => {
-    if (current?.id) await management.releaseLock(String(current.id), clientId.current).catch(() => undefined);
+    if (current?.id && ownsLock.current) await management.releaseLock(String(current.id), clientId.current).catch(() => undefined);
+    ownsLock.current = false;
+    setLockHolder(null);
+    setLockIssue('');
     setCurrent(null);
     setBackups(null);
     await refresh();
@@ -148,6 +200,13 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       await refresh();
       await openCanvas(created);
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
+  };
+  const editIdentity = async () => {
+    const currentName = localStorage.getItem('canvasUserName') || '';
+    const name = window.prompt('编辑身份名称', currentName);
+    if (name === null) return;
+    localStorage.setItem('canvasUserName', name.trim());
+    if (current?.id) await acquireCurrentLock();
   };
 
   const remove = async (id: string) => {
@@ -310,14 +369,15 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
 
   return <main className="canvas-modern-editor">
     <header className="topbar canvas-modern-topbar">
-      <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{formatTime(current.updated_at)}</small></div></div>
+      <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{lockHolder ? `只读 · ${lockHolderName(lockHolder)} 编辑中` : formatTime(current.updated_at)}</small></div><button className="tool-btn" onClick={() => void editIdentity()} type="button">编辑身份</button></div>
       <div className="panel toolbar canvas-modern-toolbar">
-        <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
-        <div className="toolbar-fixed"><button className="tool-btn" onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" onClick={() => void showBackups()} type="button">备份</button></div>
+        <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" disabled={Boolean(lockHolder)} key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
+        <div className="toolbar-fixed"><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} type="button">备份</button></div>
       </div>
     </header>
     <div className="canvas-modern-board" ref={boardRef} />
     {configuration.editorAddon}
+    {lockHolder ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
     {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
     {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><button onClick={saveWorkflowToLibrary} type="button">保存到工作流库</button><button onClick={() => void exportSelectedResults()} type="button">批量导出选区结果</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
@@ -343,6 +403,10 @@ function canvasClientId(): string {
 function formatTime(value: unknown): string {
   const timestamp = Number(value || 0);
   return timestamp ? new Date(timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp).toLocaleString() : '--';
+}
+
+function lockHolderName(holder: Record<string, unknown> | undefined): string {
+  return String(holder?.username || holder?.ip || '其他用户');
 }
 
 function normalizeWorkflow(payload: unknown): { connections: unknown[]; nodes: unknown[] } {

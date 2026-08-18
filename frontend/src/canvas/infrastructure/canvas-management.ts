@@ -1,4 +1,4 @@
-import { requestJson, type Fetcher } from './http';
+import { ApiError, requestJson, type Fetcher } from './http';
 
 export interface CanvasSummary extends Record<string, unknown> {
   deleted_at?: number;
@@ -69,7 +69,16 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
   const purge = (canvasId: string) => emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/purge`, 'DELETE');
   const moveToFolder = (canvasId: string, folderId: string) => jsonRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/folder`, 'PATCH', { folder_id: folderId }).then(() => undefined);
   const deleteBackup = (canvasId: string, filename: string) => emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/backups/${encodeURIComponent(filename)}`, 'DELETE');
-  const acquireLock = (canvasId: string, clientId: string, username = '') => jsonRequest<CanvasLockResult>(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock`, 'POST', { client_id: clientId, username });
+  const acquireLock = async (canvasId: string, clientId: string, username = '') => {
+    try {
+      return await jsonRequest<CanvasLockResult>(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock`, 'POST', { client_id: clientId, username });
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 409) throw error;
+      const details = object(error.details);
+      const detail = object(details.detail);
+      return { ok: false, holder: object(detail.holder || details.holder) };
+    }
+  };
   const releaseLock = async (canvasId: string, clientId: string, keepalive = false) => {
     if (keepalive) {
       await jsonRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock/release`, 'POST', { client_id: clientId }, true);
