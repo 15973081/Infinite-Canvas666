@@ -1940,7 +1940,7 @@ function V(e, t) {
 						let t = await i.save(e.id, o(e));
 						l = t, g || a.getState().acceptSavedDocument(t, e), y("saved");
 					} catch (t) {
-						if (t instanceof c && t.serverCanvas && l) {
+						if (t instanceof c && window.CanvasModernCore?.recordRolloutEvent("save-conflict", { dimensions: { reason: "save-conflict" } }), t instanceof c && t.serverCanvas && l) {
 							let n = a.getState().document;
 							if (n?.id === e.id) {
 								let r = s(l, n, t.serverCanvas);
@@ -1949,7 +1949,7 @@ function V(e, t) {
 									y("merging"), a.setState({ document: r.document });
 									try {
 										let t = await i.save(e.id, o(r.document));
-										l = t, g || a.getState().acceptSavedDocument(t, r.document), y("saved");
+										l = t, g || a.getState().acceptSavedDocument(t, r.document), y("saved"), window.CanvasModernCore?.recordRolloutEvent("save-rebased", { dimensions: { reason: "none" } });
 										continue;
 									} catch (e) {
 										console.warn("[canvas-modern-core] CanvasBoard V2 rebased save failed", e);
@@ -1957,7 +1957,7 @@ function V(e, t) {
 								}
 							}
 						}
-						y("error"), console.warn("[canvas-modern-core] CanvasBoard V2 save failed", t);
+						window.CanvasModernCore?.recordRolloutEvent("save-failed", { dimensions: { reason: "save-request-failed" } }), y("error"), console.warn("[canvas-modern-core] CanvasBoard V2 save failed", t);
 						break;
 					}
 				}

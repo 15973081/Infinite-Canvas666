@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { loadCanvasRolloutPolicy, resolveCanvasV2Rollout, type CanvasRolloutPolicy } from './rollout';
+import {
+  loadCanvasRolloutPolicy,
+  recordCanvasRolloutEvent,
+  resolveCanvasV2Rollout,
+  type CanvasRolloutPolicy,
+} from './rollout';
 
 const serverPolicy: CanvasRolloutPolicy = {
   blocked_reasons: [],
@@ -60,5 +65,27 @@ describe('Canvas V2 rollout', () => {
     expect(await loadCanvasRolloutPolicy(fetcher)).toEqual(serverPolicy);
     expect(await loadCanvasRolloutPolicy(async () => { throw new Error('offline'); })).toBeNull();
     expect(await loadCanvasRolloutPolicy(async () => new Response('{}'))).toBeNull();
+  });
+
+  it('reports aggregate telemetry without allowing failures to affect the caller', async () => {
+    let request: { body: unknown; input: string; keepalive: boolean } | null = null;
+    await recordCanvasRolloutEvent('save-conflict', {
+      dimensions: { reason: 'save-conflict', source: 'server' },
+    }, async (input, init) => {
+      request = {
+        body: JSON.parse(String(init?.body)),
+        input: String(input),
+        keepalive: Boolean(init?.keepalive),
+      };
+      return new Response('{"accepted":true}');
+    });
+    expect(request).toEqual({
+      body: { event: 'save-conflict', dimensions: { reason: 'save-conflict', source: 'server' } },
+      input: '/api/canvas-rollout/events',
+      keepalive: true,
+    });
+    await expect(recordCanvasRolloutEvent('save-failed', {}, async () => {
+      throw new Error('offline');
+    })).resolves.toBeUndefined();
   });
 });

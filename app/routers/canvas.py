@@ -19,6 +19,7 @@ from app.services.workflow import *
 from app.services.canvas_tasks import create_canvas_task, get_canvas_task, update_canvas_task
 from app.services.canvas_audit import audit_canvas_directory
 from app.services.canvas_rollout import get_canvas_rollout_policy
+from app.services.canvas_rollout_metrics import get_canvas_rollout_metrics, record_canvas_rollout_event
 router = APIRouter()
 
 @router.post("/api/canvas-image-tasks")
@@ -647,6 +648,17 @@ async def canvas_audit(include_deleted: bool = False, include_details: bool = Tr
 @router.get("/api/canvas-rollout")
 def canvas_rollout():
     return get_canvas_rollout_policy()
+
+@router.post("/api/canvas-rollout/events")
+def canvas_rollout_event(payload: Dict[str, Any]):
+    try:
+        return record_canvas_rollout_event(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+@router.get("/api/canvas-rollout/metrics")
+def canvas_rollout_metrics():
+    return get_canvas_rollout_metrics()
 
 @router.get("/api/canvases/trash")
 async def trashed_canvases():

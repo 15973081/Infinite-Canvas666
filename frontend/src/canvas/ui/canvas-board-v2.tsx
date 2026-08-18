@@ -694,6 +694,11 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
           if (!disposed) store.getState().acceptSavedDocument(saved, submitted);
           reportSaveState('saved');
         } catch (error) {
+          if (error instanceof CanvasConflictError) {
+            window.CanvasModernCore?.recordRolloutEvent('save-conflict', {
+              dimensions: { reason: 'save-conflict' },
+            });
+          }
           if (error instanceof CanvasConflictError && error.serverCanvas && baseDocument) {
             const current = store.getState().document;
             if (current?.id === submitted.id) {
@@ -706,6 +711,9 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
                   baseDocument = saved;
                   if (!disposed) store.getState().acceptSavedDocument(saved, merged.document);
                   reportSaveState('saved');
+                  window.CanvasModernCore?.recordRolloutEvent('save-rebased', {
+                    dimensions: { reason: 'none' },
+                  });
                   continue;
                 } catch (retryError) {
                   console.warn('[canvas-modern-core] CanvasBoard V2 rebased save failed', retryError);
@@ -715,6 +723,9 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
               }
             }
           }
+          window.CanvasModernCore?.recordRolloutEvent('save-failed', {
+            dimensions: { reason: 'save-request-failed' },
+          });
           reportSaveState('error');
           console.warn('[canvas-modern-core] CanvasBoard V2 save failed', error);
           break;

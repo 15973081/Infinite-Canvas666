@@ -327,7 +327,7 @@ function _(e, t, n, i = 0) {
 }
 //#endregion
 //#region src/canvas/infrastructure/rollout.ts
-async function v(e = fetch) {
+async function ee(e = fetch) {
 	try {
 		let t = await n(e, "/api/canvas-rollout", {}, { timeoutMs: 1500 });
 		if (!t || typeof t != "object") return null;
@@ -346,8 +346,21 @@ async function v(e = fetch) {
 		return null;
 	}
 }
+async function v(e, t = {}, r = fetch) {
+	try {
+		await n(r, "/api/canvas-rollout/events", {
+			body: JSON.stringify({
+				event: e,
+				...t
+			}),
+			headers: { "Content-Type": "application/json" },
+			keepalive: !0,
+			method: "POST"
+		}, { timeoutMs: 1500 });
+	} catch {}
+}
 function y(e, t, n, r = null) {
-	let i = new URLSearchParams(e), a = i.get("canvas_v2"), o = S(i.get("canvas_v2_rollout")), s = S(C(t, "canvasV2RolloutPercentage")), c = r !== null, l = r?.blocked_reasons ?? [], u = ee(n || "anonymous");
+	let i = new URLSearchParams(e), a = i.get("canvas_v2"), o = S(i.get("canvas_v2_rollout")), s = S(te(t, "canvasV2RolloutPercentage")), c = r !== null, l = r?.blocked_reasons ?? [], u = C(n || "anonymous");
 	if (r?.kill_switch) return b(u, !1, !1, 0, "server", !0, l, !0);
 	let d = r?.effective_percentage ?? s ?? 0, f = r ? "server" : s === null ? "default" : "storage", p = o ?? d;
 	return a === "1" || a === "0" ? b(u, a === "1", !0, p, "query", c, l, !1) : b(u, u < p, !1, p, o === null ? f : "query", c, l, !1);
@@ -372,12 +385,12 @@ function S(e) {
 	let t = Number(e);
 	return Number.isFinite(t) ? Math.max(0, Math.min(100, Math.floor(t))) : null;
 }
-function ee(e) {
+function C(e) {
 	let t = 2166136261;
 	for (let n = 0; n < e.length; n += 1) t ^= e.charCodeAt(n), t = Math.imul(t, 16777619);
 	return (t >>> 0) % 100;
 }
-function C(e, t) {
+function te(e, t) {
 	try {
 		return e?.getItem(t) ?? null;
 	} catch {
@@ -386,7 +399,13 @@ function C(e, t) {
 }
 //#endregion
 //#region src/main.ts
-var w = new URLSearchParams(window.location.search), te = await v(), T = y(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname, te), E = w.get("canvas_modern_core"), D = E === "execution-shadow", O = E === "graph-order", k = E === "shadow", A = w.get("canvas_m2") === "1" || w.get("canvas_m2") === null && T.enabled, j = A || w.get("canvas_execution_engine") === "1", M = A || w.get("canvas_task_client") === "1", N = A || w.get("canvas_repository") === "1", P = j && M && N, F = w.get("canvas_react_islands") === "1", I = F || w.get("canvas_react_activity") === "1", L = F || w.get("canvas_react_execution") === "1", R = F || w.get("canvas_react_status") === "1", z = F || w.get("canvas_react_toolbar") === "1", B = w.get("canvas_board_v2") === "1" || w.get("canvas_board_v2") === null && T.enabled, V = m(), H = a(), U = /* @__PURE__ */ new Map(), W = 0, G = 0, K = [], q = 0, J = 0, Y = /* @__PURE__ */ new Map(), X = {
+var w = new URLSearchParams(window.location.search), ne = await ee(), T = y(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname, ne);
+v("rollout-decision", { dimensions: {
+	mode: T.enabled ? "enabled" : "disabled",
+	reason: T.blockedReasons[0] || (T.policyLoaded ? "none" : "policy-unavailable"),
+	source: T.source
+} });
+var E = w.get("canvas_modern_core"), D = E === "execution-shadow", O = E === "graph-order", k = E === "shadow", A = w.get("canvas_m2") === "1" || w.get("canvas_m2") === null && T.enabled, j = A || w.get("canvas_execution_engine") === "1", M = A || w.get("canvas_task_client") === "1", N = A || w.get("canvas_repository") === "1", P = j && M && N, F = w.get("canvas_react_islands") === "1", I = F || w.get("canvas_react_activity") === "1", L = F || w.get("canvas_react_execution") === "1", R = F || w.get("canvas_react_status") === "1", z = F || w.get("canvas_react_toolbar") === "1", B = w.get("canvas_board_v2") === "1" || w.get("canvas_board_v2") === null && T.enabled, V = m(), H = a(), U = /* @__PURE__ */ new Map(), W = 0, G = 0, K = [], q = 0, J = 0, Y = /* @__PURE__ */ new Map(), X = {
 	done: 0,
 	failed: 0,
 	stopped: 0
@@ -404,7 +423,7 @@ function Q(n, r, i) {
 	};
 }
 if (window.CanvasModernCore = Object.freeze({
-	version: 27,
+	version: 28,
 	canvasRepository: H,
 	canvasRepositoryEnabled: N,
 	executionEngineEnabled: j,
@@ -423,6 +442,9 @@ if (window.CanvasModernCore = Object.freeze({
 		}
 	},
 	compareOrder: Q,
+	recordRolloutEvent(e, t) {
+		v(e, t);
+	},
 	runOrdered(e) {
 		return j ? l(e.targetId, e.order, e.execute, {
 			mode: e.mode,
@@ -555,10 +577,12 @@ if (I) {
 }
 if (B) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-3yonz2t4.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-B5G3OXKx.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
-		window.addEventListener("pagehide", r, { once: !0 });
-	}).catch((e) => console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e));
+		window.CanvasModernCore?.recordRolloutEvent("board-mounted", { dimensions: { reason: "none" } }), window.addEventListener("pagehide", r, { once: !0 });
+	}).catch((e) => {
+		window.CanvasModernCore?.recordRolloutEvent("board-mount-failed", { dimensions: { reason: e instanceof Error && e.message.includes("dependencies") ? "dependency-unavailable" : "import-failed" } }), console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e);
+	});
 }
 function $(e, t) {
 	Z += 1, Y.set(e.targetId, e), t.type === "finish" && (X[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
@@ -566,5 +590,22 @@ function $(e, t) {
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "27", document.documentElement.dataset.canvasBoardV2 = B ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = M ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = T.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(T.bucket), document.documentElement.dataset.canvasV2RolloutBlocked = T.blockedReasons.join(",") || "none", document.documentElement.dataset.canvasV2RolloutPercentage = String(T.percentage), document.documentElement.dataset.canvasV2RolloutPolicy = T.policyLoaded ? "loaded" : "fallback", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "28", document.documentElement.dataset.canvasBoardV2 = B ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = M ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = T.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(T.bucket), document.documentElement.dataset.canvasV2RolloutBlocked = T.blockedReasons.join(",") || "none", document.documentElement.dataset.canvasV2RolloutPercentage = String(T.percentage), document.documentElement.dataset.canvasV2RolloutPolicy = T.policyLoaded ? "loaded" : "fallback", window.addEventListener("pagehide", () => {
+	let e = H.getDiagnostics(), t = V.getDiagnostics();
+	v("page-summary", {
+		counters: {
+			execution_errors: G,
+			repository_conflicts: e.conflicts,
+			repository_errors: e.errors,
+			shadow_errors: J,
+			task_poll_errors: t.pollErrors,
+			task_recoveries: t.recoveredTasks
+		},
+		dimensions: {
+			mode: P ? "enabled" : "disabled",
+			reason: "none",
+			source: T.source
+		}
+	});
+}, { once: !0 }), window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

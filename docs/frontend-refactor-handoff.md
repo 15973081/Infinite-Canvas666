@@ -246,6 +246,14 @@ Invoke-RestMethod http://localhost:6003/api/canvas-rollout
 
 响应中的 `effective_percentage` 必须符合计划，且 `blocked_reasons` 必须为空。该门禁只提供安全发布能力，不代表阶段 7 的真实外部链路验收已经完成。
 
+灰度遥测已接入 `POST /api/canvas-rollout/events`，只聚合固定事件、启用模式、策略来源、标准原因和诊断计数，不上传画布 ID、提示词或供应商响应。当前覆盖灰度决策、Board 挂载/失败、保存冲突、自动 rebase、保存失败及页面退出汇总。聚合结果原子保存到 `data/canvas_rollout_metrics.json`，可通过下列接口检查：
+
+```powershell
+Invoke-RestMethod http://localhost:6003/api/canvas-rollout/metrics
+```
+
+放量时重点观察 `board-mount-failed`、`save-failed`、`repository_errors`、`task_poll_errors` 与 `execution_errors`；指标上升时应先触发 kill switch，再保留现场排查。当前接口提供本机聚合证据，后续生产部署仍需把这些指标接入正式监控与告警系统。自动化或只读环境可设置 `CANVAS_ROLLOUT_METRICS_DISABLED=true`，事件仍返回已接收但不会写入指标文件。
+
 ## 8. 阶段 8：默认切换、清理和稳定
 
 执行顺序：
@@ -288,7 +296,7 @@ Invoke-RestMethod http://localhost:6003/api/canvas-rollout
 ## 10. 已知限制与暂不处理范围
 
 - 当前后端没有真正取消外部生成任务的端点。“停止”只停止前端轮询和级联调度。
-- 后端重启后，内存中的任务状态可能丢失；持久任务存储需另行设计。
+- 本地任务注册表已经持久化；后端重启时未完成任务会转为可操作的 `interrupted` 状态，但尚不能自动续接所有供应商的上游轮询，仍需真实平台恢复能力或重新生成。
 - M2 和阶段 6 尚未通过真实环境的两个稳定发布周期，不能直接改为默认开启。
 - 智能画布暂时只考虑复用 Types、Graph、Repository、TaskClient 和稳定执行能力，不与经典画布同步迁移 UI。
 - 不在阶段 7 顺带进行大规模视觉改版、新节点研发、后端 API 重写或不可逆 schema 迁移。

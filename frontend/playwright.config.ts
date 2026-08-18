@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: {
     command: '.\\python\\python.exe main.py',
     cwd: '..',
-    env: { SERVER_PORT: '6005' },
+    env: { CANVAS_ROLLOUT_METRICS_DISABLED: 'true', SERVER_PORT: '6005' },
     reuseExistingServer: false,
     timeout: 30_000,
     url: 'http://127.0.0.1:6005/static/canvas.html',

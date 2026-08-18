@@ -1,9 +1,13 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/canvas-rollout/events', async (route) => route.fulfill({ json: { accepted: true } }));
+});
+
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '27');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '28');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -66,6 +70,11 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
 
 test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
+  const telemetry: string[] = [];
+  await page.route('**/api/canvas-rollout/events', async (route) => {
+    telemetry.push(JSON.parse(route.request().postData() || '{}').event);
+    await route.fulfill({ json: { accepted: true } });
+  });
   await page.route('**/api/canvases/v2-conflict', async (route) => {
     const body = JSON.parse(route.request().postData() || '{}');
     saves.push(body);
@@ -102,6 +111,10 @@ test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async 
   await editor.blur();
 
   await expect.poll(() => saves.length).toBe(2);
+  await expect.poll(() => telemetry.filter((event) => event.startsWith('save-'))).toEqual([
+    'save-conflict',
+    'save-rebased',
+  ]);
   expect(saves[1]).toMatchObject({ base_updated_at: 2 });
   expect(saves[1].nodes.find((node: any) => node.id === 'prompt')).toMatchObject({ text: 'local edit' });
   expect(saves[1].nodes.find((node: any) => node.id === 'generator')).toMatchObject({ model: 'remote-model' });

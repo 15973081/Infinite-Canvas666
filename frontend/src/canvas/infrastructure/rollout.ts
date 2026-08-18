@@ -20,6 +20,24 @@ export interface CanvasRolloutDecision {
   source: 'default' | 'query' | 'server' | 'storage';
 }
 
+export type CanvasRolloutEvent =
+  | 'board-mount-failed'
+  | 'board-mounted'
+  | 'page-summary'
+  | 'rollout-decision'
+  | 'save-conflict'
+  | 'save-failed'
+  | 'save-rebased';
+
+export interface CanvasRolloutEventPayload {
+  counters?: Record<string, number>;
+  dimensions?: {
+    mode?: 'disabled' | 'enabled';
+    reason?: string;
+    source?: CanvasRolloutDecision['source'];
+  };
+}
+
 export async function loadCanvasRolloutPolicy(fetcher: Fetcher = fetch): Promise<CanvasRolloutPolicy | null> {
   try {
     const payload = await requestJson<unknown>(fetcher, '/api/canvas-rollout', {}, { timeoutMs: 1_500 });
@@ -41,6 +59,23 @@ export async function loadCanvasRolloutPolicy(fetcher: Fetcher = fetch): Promise
     };
   } catch {
     return null;
+  }
+}
+
+export async function recordCanvasRolloutEvent(
+  event: CanvasRolloutEvent,
+  payload: CanvasRolloutEventPayload = {},
+  fetcher: Fetcher = fetch,
+): Promise<void> {
+  try {
+    await requestJson(fetcher, '/api/canvas-rollout/events', {
+      body: JSON.stringify({ event, ...payload }),
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      method: 'POST',
+    }, { timeoutMs: 1_500 });
+  } catch {
+    // Telemetry must never delay startup, saving, or Legacy fallback.
   }
 }
 

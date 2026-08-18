@@ -22,8 +22,11 @@ import {
 import { createTaskClient, type TaskClient, type TaskClientDiagnostics } from './canvas/infrastructure/task-client';
 import {
   loadCanvasRolloutPolicy,
+  recordCanvasRolloutEvent,
   resolveCanvasV2Rollout,
   type CanvasRolloutDecision,
+  type CanvasRolloutEvent,
+  type CanvasRolloutEventPayload,
 } from './canvas/infrastructure/rollout';
 
 interface LegacyNodeOption {
@@ -153,11 +156,12 @@ declare global {
       m2Enabled: boolean;
       observeExecution(observation: ExecutionObservation): void;
       observeOrder(kind: OrderKind, targetId: string, legacyOrder: string[]): void;
+      recordRolloutEvent(event: CanvasRolloutEvent, payload?: CanvasRolloutEventPayload): void;
       runOrdered(request: OrderedExecutionRequest): Promise<ExecutionState>;
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 27;
+      version: 28;
     };
   }
 }
@@ -170,6 +174,13 @@ const rolloutDecision = resolveCanvasV2Rollout(
   window.sessionStorage.getItem('canvasClientId') || window.location.pathname,
   rolloutPolicy,
 );
+void recordCanvasRolloutEvent('rollout-decision', {
+  dimensions: {
+    mode: rolloutDecision.enabled ? 'enabled' : 'disabled',
+    reason: rolloutDecision.blockedReasons[0] || (rolloutDecision.policyLoaded ? 'none' : 'policy-unavailable'),
+    source: rolloutDecision.source,
+  },
+});
 const modernCoreMode = searchParams.get('canvas_modern_core');
 const executionShadowEnabled = modernCoreMode === 'execution-shadow';
 const graphOrderEnabled = modernCoreMode === 'graph-order';
@@ -217,7 +228,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 27 as const,
+  version: 28 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -237,6 +248,9 @@ window.CanvasModernCore = Object.freeze({
     }
   },
   compareOrder,
+  recordRolloutEvent(event, payload): void {
+    void recordCanvasRolloutEvent(event, payload);
+  },
   runOrdered(request: OrderedExecutionRequest): Promise<ExecutionState> {
     if (!executionEngineEnabled) return Promise.reject(new Error('Modern execution engine is disabled'));
     return runOrderedExecution(request.targetId, request.order, request.execute, {
@@ -405,8 +419,18 @@ if (boardV2Enabled) {
   if (element && legacyBoard) {
     void import('./canvas/ui/canvas-board-v2').then(({ mountCanvasBoardV2 }) => {
       const cleanup = mountCanvasBoardV2(element, legacyBoard);
+      window.CanvasModernCore?.recordRolloutEvent('board-mounted', { dimensions: { reason: 'none' } });
       window.addEventListener('pagehide', cleanup, { once: true });
-    }).catch((error) => console.warn('[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board', error));
+    }).catch((error) => {
+      window.CanvasModernCore?.recordRolloutEvent('board-mount-failed', {
+        dimensions: {
+          reason: error instanceof Error && error.message.includes('dependencies')
+            ? 'dependency-unavailable'
+            : 'import-failed',
+        },
+      });
+      console.warn('[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board', error);
+    });
   }
 }
 
@@ -417,7 +441,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '27';
+document.documentElement.dataset.canvasModernCore = '28';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
@@ -437,4 +461,23 @@ document.documentElement.dataset.canvasV2RolloutBucket = String(rolloutDecision.
 document.documentElement.dataset.canvasV2RolloutBlocked = rolloutDecision.blockedReasons.join(',') || 'none';
 document.documentElement.dataset.canvasV2RolloutPercentage = String(rolloutDecision.percentage);
 document.documentElement.dataset.canvasV2RolloutPolicy = rolloutDecision.policyLoaded ? 'loaded' : 'fallback';
+window.addEventListener('pagehide', () => {
+  const repository = canvasRepository.getDiagnostics();
+  const tasks = taskClient.getDiagnostics();
+  void recordCanvasRolloutEvent('page-summary', {
+    counters: {
+      execution_errors: executionErrors,
+      repository_conflicts: repository.conflicts,
+      repository_errors: repository.errors,
+      shadow_errors: shadowErrors,
+      task_poll_errors: tasks.pollErrors,
+      task_recoveries: tasks.recoveredTasks,
+    },
+    dimensions: {
+      mode: m2Enabled ? 'enabled' : 'disabled',
+      reason: 'none',
+      source: rolloutDecision.source,
+    },
+  });
+}, { once: true });
 window.dispatchEvent(new CustomEvent('canvas-modern-core-ready'));
