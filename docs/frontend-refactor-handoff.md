@@ -391,3 +391,9 @@ Canvas 已正式判定为“代码迁移完成，阶段 8 生产发布验收待�
 Enhance、Klein、Angle 已由同一个 `frontend/src/features/image-studio/` 产品能力层接管，页面入口只负责选择 adapter。共享层新增 schema 字段、Comfy 上传、本地/云端模式、原图比较、两阶段增强、LoRA 和 Angle 长任务恢复。三个页面不再加载原 Tailwind CDN、Lucide、Three.js、HistoryBulkManager 或内联业务脚本。
 
 最新自动化结果：80 个 Vitest、22 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 7：Canvas、ComfyUI Settings、Online、Z-Image、Enhance、Klein、Angle。
+
+## 19. 2026-08-19 ProviderStudio 与 API Settings
+
+API Settings 已由 `frontend/src/features/provider-studio/` 接管，覆盖当前后端实际支持的 Provider、密钥、火山凭据、连接检测、模型拉取、价格、单模型协议和 ModelScope LoRA。正常入口不再执行 `static/js/api-settings.js`。旧 RunningHub UI 因服务端已经移除 Provider 和全部对应路由而不迁移；该部分是不可执行死代码，不属于有效功能回归。
+
+最新自动化结果：83 个 Vitest、23 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 8。
