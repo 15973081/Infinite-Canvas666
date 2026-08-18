@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { boundedDimension, normalizeImageResult, normalizeProviders, outputSize } from './domain';
+import { anglePrompt } from './workflow-adapters';
 
 describe('image studio domain', () => {
   it('normalizes provider model catalogs', () => {
@@ -14,5 +15,8 @@ describe('image studio domain', () => {
   it('bounds dimensions on a 16 pixel grid', () => {
     expect(boundedDimension(1023)).toBe(1024);
     expect(outputSize(1, 9000)).toBe('64x8192');
+  });
+  it('builds a stable angle instruction from reusable controls', () => {
+    expect(anglePrompt('保留人物', 35, -10, 2)).toBe('保留人物\n将相机向右旋转35度，仰视10度，使用特写镜头并靠近主体');
   });
 });

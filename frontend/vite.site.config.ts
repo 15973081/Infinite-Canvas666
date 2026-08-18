@@ -8,6 +8,9 @@ export default defineConfig({
     rollupOptions: {
       input: {
         'comfyui-settings-modern': 'src/pages/comfyui-settings.tsx',
+        'enhance-modern': 'src/pages/enhance.tsx',
+        'klein-modern': 'src/pages/klein.tsx',
+        'angle-modern': 'src/pages/angle.tsx',
         'online-modern': 'src/pages/online.tsx',
         'zimage-modern': 'src/pages/zimage.tsx',
       },

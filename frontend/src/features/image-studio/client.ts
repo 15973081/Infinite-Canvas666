@@ -24,6 +24,31 @@ export async function uploadReference(file: File): Promise<StudioReference> {
   return uploaded;
 }
 
+function fileDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || '')); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadWorkflowReference(file: File): Promise<StudioReference> {
+  const data_url = await fileDataUrl(file);
+  const form = new FormData(); form.append('files', file);
+  try {
+    const result = await requestJson<{ files?: Array<{ comfy_name?: string }> }>('/api/upload', { method: 'POST', body: form });
+    return { name: file.name, kind: 'image', data_url, comfy_name: result.files?.[0]?.comfy_name };
+  } catch {
+    return { name: file.name, kind: 'image', data_url };
+  }
+}
+
+export async function uploadWorkflowBlob(blob: Blob, name: string): Promise<string> {
+  const form = new FormData(); form.append('files', blob, name);
+  const result = await requestJson<{ files?: Array<{ comfy_name?: string }> }>('/api/upload', { method: 'POST', body: form });
+  const uploaded = result.files?.[0]?.comfy_name;
+  if (!uploaded) throw new Error('中间图片上传失败');
+  return uploaded;
+}
+
 export async function generateOnline(input: StudioGenerateInput, onStatus: (status: string) => void): Promise<StudioImageItem> {
   const body = {
     prompt: input.prompt, provider_id: input.providerId, model: input.model, size: outputSize(input.width, input.height),

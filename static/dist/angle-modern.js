@@ -1,0 +1,1 @@
+import{c as e,n as t,s as n,t as r}from"./site-theme-65mDxl17.js";import{t as i}from"./site-app-BvDbnBvw.js";import{t as a}from"./site-workflow-adapters-D_GqRsGA.js";var o=e(),s=n(),c=t();r();var l=document.getElementById(`angleApp`);if(!l)throw Error(`Missing #angleApp`);(0,s.createRoot)(l).render((0,c.jsx)(o.StrictMode,{children:(0,c.jsx)(i,{adapter:a})}));

@@ -18,6 +18,7 @@ export function ImageStudioApp({ adapter }: { adapter: ImageStudioAdapter }) {
   const [height, setHeight] = useState(1024);
   const [quality, setQuality] = useState('auto');
   const [count, setCount] = useState(1);
+  const [extras, setExtras] = useState<Record<string, string | number | boolean>>(() => Object.fromEntries((adapter.fields ?? []).map(field => [field.id, field.default])));
   const [references, setReferences] = useState<ReferenceState[]>([]);
   const [items, setItems] = useState<StudioImageItem[]>([]);
   const [selected, setSelected] = useState<StudioImageItem | null>(null);
@@ -57,7 +58,7 @@ export function ImageStudioApp({ adapter }: { adapter: ImageStudioAdapter }) {
     if (!selectedFiles.length) return;
     setStatus('正在上传参考图…');
     try {
-      const uploaded = await Promise.all(selectedFiles.map(async file => ({ data: await uploadReference(file), preview: URL.createObjectURL(file), name: file.name })));
+      const uploaded = await Promise.all(selectedFiles.map(async file => ({ data: await (adapter.uploadReference?.(file, mode) ?? uploadReference(file)), preview: URL.createObjectURL(file), name: file.name })));
       setReferences(current => [...current, ...uploaded]); setStatus('参考图已上传');
     } catch (error) { setStatus(errorMessage(error)); }
   };
@@ -69,12 +70,13 @@ export function ImageStudioApp({ adapter }: { adapter: ImageStudioAdapter }) {
 
   const generate = async () => {
     const value = prompt.trim(); if (!value) { setStatus('请输入提示词'); return; }
+    if (references.length < (adapter.minReferences ?? 0)) { setStatus(`请至少上传 ${adapter.minReferences} 张参考图`); return; }
     if (adapter.supportsProviders && (!providerId || !model)) { setStatus('请先在 API 设置中配置可用的图片模型'); return; }
     setBusy(true); setStatus('正在创建生成任务…');
     try {
       const result = await adapter.generate({
         prompt: value, mode, providerId, model, width: boundedDimension(width), height: boundedDimension(height), quality, count,
-        references: references.map(reference => reference.data),
+        references: references.map(reference => reference.data), extras,
       }, setStatus);
       setItems(current => [result, ...current.filter(item => String(item.timestamp) !== String(result.timestamp))]);
       setSelected(result); setStatus(`生成完成，共 ${result.images.length} 张`);
@@ -102,10 +104,11 @@ export function ImageStudioApp({ adapter }: { adapter: ImageStudioAdapter }) {
         {providerControls}
         <div className="dimension-grid"><label className="studio-label">宽度<input className="studio-input" aria-label="宽度" type="number" min="64" max="8192" step="16" value={width} onChange={event => setWidth(Number(event.target.value))} /></label><label className="studio-label">高度<input className="studio-input" aria-label="高度" type="number" min="64" max="8192" step="16" value={height} onChange={event => setHeight(Number(event.target.value))} /></label></div>
         {(adapter.supportsQuality || adapter.supportsCount) && <div className="dimension-grid">{adapter.supportsQuality && <label className="studio-label">质量<select className="studio-input" aria-label="质量" value={quality} onChange={event => setQuality(event.target.value)}><option value="auto">自动</option><option value="low">快速</option><option value="medium">标准</option><option value="high">高质量</option></select></label>}{adapter.supportsCount && <label className="studio-label">数量<select className="studio-input" aria-label="数量" value={count} onChange={event => setCount(Number(event.target.value))}>{[1,2,3,4].map(value => <option key={value}>{value}</option>)}</select></label>}</div>}
+        {(adapter.fields ?? []).filter(field => !field.modes || field.modes.includes(mode)).map(field => <label className={`studio-label studio-field-${field.type}`} key={field.id}>{field.type === 'toggle' ? <span className="studio-toggle"><input aria-label={field.label} type="checkbox" checked={Boolean(extras[field.id])} onChange={event => setExtras(current => ({ ...current, [field.id]: event.target.checked }))} />{field.label}</span> : <>{field.label}{field.type === 'select' ? <select className="studio-input" aria-label={field.label} value={String(extras[field.id] ?? '')} onChange={event => setExtras(current => ({ ...current, [field.id]: event.target.value }))}>{field.options?.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</select> : <div className={field.type === 'range' ? 'studio-range' : ''}><input className="studio-input" aria-label={field.label} type={field.type === 'text' ? 'text' : field.type} min={field.min} max={field.max} step={field.step} value={String(extras[field.id] ?? '')} onChange={event => setExtras(current => ({ ...current, [field.id]: field.type === 'text' ? event.target.value : Number(event.target.value) }))} />{field.type === 'range' && <output>{String(extras[field.id])}</output>}</div>}</>}</label>)}
         <button className="studio-button primary image-generate" type="button" disabled={busy} onClick={generate}>{busy ? '生成中…' : mode === 'cloud' ? '云端生成' : '开始生成'}</button>
       </aside>
       <main className="image-studio-main">
-        <section className="studio-card image-output">{currentImage ? <>{selected.images.length > 1 && <div className="image-output-strip">{selected.images.map(image => <button type="button" key={image} onClick={() => setSelected({ ...selected, images: [image, ...selected.images.filter(value => value !== image)] })}><img src={image} alt="输出缩略图" /></button>)}</div>}<img className="image-output-main" src={currentImage} alt="生成结果" /><div className="image-output-actions"><a className="studio-button primary" href={`/api/download-output?url=${encodeURIComponent(currentImage)}`} download>下载</a><button className="studio-button" type="button" onClick={() => setPrompt(selected.prompt)}>复用提示词</button></div></> : <EmptyState title={busy ? '图片生成中' : '等待生成'}>结果会显示在这里，并自动加入下方历史记录。</EmptyState>}</section>
+        <section className="studio-card image-output">{currentImage ? <>{selected.images.length > 1 && <div className="image-output-strip">{selected.images.map(image => <button type="button" key={image} onClick={() => setSelected({ ...selected, images: [image, ...selected.images.filter(value => value !== image)] })}><img src={image} alt="输出缩略图" /></button>)}</div>}{typeof selected.original_url === 'string' && selected.original_url ? <div className="image-compare"><figure><img src={selected.original_url} alt="原图" /><figcaption>原图</figcaption></figure><figure><img src={currentImage} alt="生成结果" /><figcaption>结果</figcaption></figure></div> : <img className="image-output-main" src={currentImage} alt="生成结果" />}<div className="image-output-actions"><a className="studio-button primary" href={`/api/download-output?url=${encodeURIComponent(currentImage)}`} download>下载</a><button className="studio-button" type="button" onClick={() => setPrompt(selected.prompt)}>复用提示词</button></div></> : <EmptyState title={busy ? '图片生成中' : '等待生成'}>结果会显示在这里，并自动加入下方历史记录。</EmptyState>}</section>
         <section><div className="image-history-title"><h2>生成历史</h2><span>{items.length} 条</span></div>{items.length ? <div className="image-history-grid">{items.map(item => <article className="history-card" key={String(item.timestamp)}><button type="button" className="history-open" onClick={() => setSelected(item)}><img src={item.images[0]} alt={item.prompt || '历史图片'} /><span>{item.prompt || '未命名生成'}</span></button><button type="button" className="history-delete" aria-label="删除历史记录" onClick={() => void removeHistory(item)}>×</button></article>)}</div> : <EmptyState title="暂无历史记录" />}</section>
       </main>
     </div>
