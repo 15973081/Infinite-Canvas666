@@ -3,12 +3,12 @@
 > 更新时间：2026-08-18
 > 当前分支：`two-code`
 > 远端：`origin/two-code`
-> 当前基线提交：`9208d8c feat: complete stage 6 React islands`
-> 当前进度：阶段 0～6 开发完成；阶段 7、8 待执行
+> 当前功能基线提交：`f35cc16 feat(canvas): complete v2 node migration`
+> 当前进度：阶段 0～7 开发完成；阶段 8 待执行
 
 ## 1. 交接目标
 
-本文件用于在另一台电脑上无上下文续接经典画布前端重构。接手者应从远端 `two-code` 分支开始，不重新实现阶段 0～6，也不要把 React 岛直接设为生产默认。
+本文件用于在另一台电脑上无上下文续接经典画布前端重构。接手者应从远端 `two-code` 分支开始，不重新实现阶段 0～7，也不要把 React 岛或 CanvasBoard V2 直接设为生产默认。
 
 最终目标：在保持旧画布数据、后端协议和回滚能力的前提下，让纯 TypeScript 内核、Store 和 React UI 成为经典画布默认路径；完成稳定观察后，再删除确认无调用的旧路径。
 
@@ -18,13 +18,13 @@
 git fetch origin
 git switch two-code
 git pull --ff-only origin two-code
-git log -1 --oneline
+git log -2 --oneline
 ```
 
-最后一条命令应至少显示：
+最后一条命令的输出应包含当前功能基线：
 
 ```text
-9208d8c feat: complete stage 6 React islands
+f35cc16 feat(canvas): complete v2 node migration
 ```
 
 安装和验证前端：
@@ -44,8 +44,8 @@ Set-Location ..
 
 当前验收基线：
 
-- Vitest：42 个测试通过。
-- Playwright：2 个端到端测试通过。
+- Vitest：48 个测试通过。
+- Playwright：10 个端到端测试通过。
 - Python unittest：21 个测试通过。
 - `npm run check` 包含 typecheck、Vitest、生产构建和 Playwright。
 
@@ -116,10 +116,10 @@ Set-Location ..
 内部完整验证地址：
 
 ```text
-/static/canvas.html?canvas_m2=1&canvas_react_islands=1
+/static/canvas.html?canvas_m2=1&canvas_react_islands=1&canvas_board_v2=1
 ```
 
-注意：阶段 4～6 已“开发完成”，不等于已经满足生产默认门禁。默认地址仍必须走旧路径，直到真实灰度数据和稳定周期达标。
+注意：阶段 4～7 已“开发完成”，不等于已经满足生产默认门禁。默认地址仍必须走旧路径，直到真实灰度数据和稳定周期达标。
 
 ## 7. 阶段 7 CanvasBoard V2（节点迁移已完成）
 

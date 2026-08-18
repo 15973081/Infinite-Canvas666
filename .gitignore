@@ -1,4 +1,8 @@
 __pycache__/
 *.py[cod]
+.codegraph/
+.idea/
+python/Lib/
+python/Scripts/
 frontend/playwright-report/
 frontend/test-results/
