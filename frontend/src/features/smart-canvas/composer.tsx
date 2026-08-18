@@ -113,6 +113,7 @@ export function SmartCanvasComposer({ runtime }: { runtime: CanvasRuntime }) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); void create(true); }
       }} placeholder="描述你想生成的内容，Ctrl/⌘ + Enter 直接生成" value={prompt} />
       <div className="smart-composer-actions">
+        <button disabled={busy} onClick={() => window.openCanvasPromptLibrary?.({ initialText: prompt, onApply: setPrompt })} type="button">提示词库</button>
         <label className="tool-btn smart-composer-upload">添加参考<input accept="image/*,video/*,audio/*" disabled={busy} hidden multiple onChange={(event) => {
           void uploadReferences([...(event.target.files || [])]); event.target.value = '';
         }} type="file" /></label>

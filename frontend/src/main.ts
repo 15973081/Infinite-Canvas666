@@ -140,14 +140,17 @@ declare global {
       openOutputLightbox(node: Record<string, unknown>, url: string): void;
       openPromptTemplates(nodeId: string): void;
       prepareVideoMedia(nodeId: string, action: 'cloud' | 'manual', value?: string): Promise<void>;
+      redo(): boolean;
       rerunFromOutputMeta(meta: Record<string, unknown>): void;
       runNode(nodeId: string, mode?: 'cascade' | 'chat' | 'node'): Promise<void>;
+      undo(): boolean;
       updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
     };
     CanvasLegacyBridge?: LegacyBridge;
     __CanvasBootstrapRolloutPolicy?: import('./canvas/infrastructure/rollout').CanvasRolloutPolicy | null;
     __loadCanvasLegacyFallback?: () => Promise<void>;
     openPromptTemplateModal?: (nodeId: string) => void;
+    openCanvasPromptLibrary?: (request: { initialText?: string; onApply(text: string): void }) => void;
     CanvasModernCore?: {
       activeOrder(kind: OrderKind, targetId: string): string[] | null;
       canvasRepository: CanvasRepository;

@@ -11,6 +11,7 @@ import {
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import { mountCanvasBoardV2 } from './canvas-board-v2';
 import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
+import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
 
 export interface CanvasAppConfiguration {
   assetInboxKey?: string;
@@ -47,8 +48,7 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
   const [createTitle, setCreateTitle] = useState('');
   const [status, setStatus] = useState('正在加载画布列表…');
   const [backups, setBackups] = useState<Array<Record<string, unknown>> | null>(null);
-  const [promptTarget, setPromptTarget] = useState('');
-  const [templates, setTemplates] = useState<Array<{ id: string; name: string; text: string }>>([]);
+  const [promptRequest, setPromptRequest] = useState<PromptLibraryRequest | null>(null);
   const [inspector, setInspector] = useState<{ document: CanvasDocument; mode: 'cost' | 'logs' } | null>(null);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [assets, setAssets] = useState<Array<{ id: string; kind: string; name: string; url: string }> | null>(null);
@@ -91,11 +91,15 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
 
   useEffect(() => {
     const previous = window.openPromptTemplateModal;
+    const previousLibrary = window.openCanvasPromptLibrary;
     window.openPromptTemplateModal = (nodeId) => {
-      setPromptTarget(nodeId);
-      void fetch('/api/prompt-libraries').then((response) => response.json()).then((payload) => setTemplates(promptItems(payload))).catch(() => setTemplates([]));
+      setPromptRequest({ onApply: (text) => { window.CanvasBoardV2?.updateNode(nodeId, { text }); } });
     };
-    return () => { if (previous) window.openPromptTemplateModal = previous; else delete window.openPromptTemplateModal; };
+    window.openCanvasPromptLibrary = (request) => setPromptRequest(request);
+    return () => {
+      if (previous) window.openPromptTemplateModal = previous; else delete window.openPromptTemplateModal;
+      if (previousLibrary) window.openCanvasPromptLibrary = previousLibrary; else delete window.openCanvasPromptLibrary;
+    };
   }, []);
 
   const openCanvas = async (summary: CanvasSummary) => {
@@ -257,13 +261,13 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{formatTime(current.updated_at)}</small></div></div>
       <div className="panel toolbar canvas-modern-toolbar">
         <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
-        <div className="toolbar-fixed"><button className="tool-btn" onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={() => void showAssets()} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" onClick={() => void showBackups()} type="button">备份</button></div>
+        <div className="toolbar-fixed"><button className="tool-btn" onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={() => void showAssets()} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" onClick={() => void showBackups()} type="button">备份</button></div>
       </div>
     </header>
     <div className="canvas-modern-board" ref={boardRef} />
     {configuration.editorAddon}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
-    {promptTarget ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>提示词模板</strong><button onClick={() => setPromptTarget('')} type="button">关闭</button></header>{templates.length ? templates.map((item) => <button key={item.id} onClick={() => { window.CanvasBoardV2?.updateNode(promptTarget, { text: item.text }); setPromptTarget(''); }} type="button"><strong>{item.name}</strong><small>{item.text.slice(0, 100)}</small></button>) : <p>暂无模板</p>}</section></div> : null}
+    {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
     {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；未选中时导出整张画布。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
     {assets ? <div className="modal open canvas-modern-backups canvas-modern-assets"><section className="modal-panel"><header><strong>资产库</strong><button onClick={() => setAssets(null)} type="button">关闭</button></header><div className="canvas-modern-asset-grid">{assets.map((item) => <button key={item.id} onClick={() => { const id = window.CanvasBoardV2?.addNode('image'); if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url }); setAssets(null); }} type="button">{item.kind === 'image' ? <img alt={item.name} src={item.url} /> : <span>{item.kind === 'video' ? '视频' : item.kind === 'audio' ? '音频' : '文件'}</span>}<small>{item.name}</small></button>)}</div>{!assets.length ? <p>资产库暂无可用媒体。</p> : null}</section></div> : null}
     {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
@@ -287,20 +291,6 @@ function canvasClientId(): string {
 function formatTime(value: unknown): string {
   const timestamp = Number(value || 0);
   return timestamp ? new Date(timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp).toLocaleString() : '--';
-}
-
-function promptItems(payload: unknown): Array<{ id: string; name: string; text: string }> {
-  const result: Array<{ id: string; name: string; text: string }> = [];
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) { value.forEach(visit); return; }
-    if (!value || typeof value !== 'object') return;
-    const record = value as Record<string, unknown>;
-    const text = String(record.text || record.prompt || record.content || '');
-    if (text) result.push({ id: String(record.id || `${result.length}`), name: String(record.name || record.title || '模板'), text });
-    Object.values(record).forEach((item) => { if (item !== record.text && item !== record.prompt && item !== record.content) visit(item); });
-  };
-  visit(payload);
-  return result;
 }
 
 function normalizeWorkflow(payload: unknown): { connections: unknown[]; nodes: unknown[] } {

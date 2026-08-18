@@ -1822,6 +1822,14 @@ function H({ commit: e, onSelectionChange: n, store: r }) {
 				return;
 			}
 			if (!i) {
+				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "z") {
+					t.preventDefault(), t.shiftKey ? window.CanvasBoardV2?.redo() : window.CanvasBoardV2?.undo();
+					return;
+				}
+				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "y") {
+					t.preventDefault(), window.CanvasBoardV2?.redo();
+					return;
+				}
 				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "c") {
 					a.current = r.getState().copyNodes([...p]);
 					return;
@@ -2182,25 +2190,29 @@ function U({ node: e, onClose: t, url: n }) {
 function W(e, t, n = {}) {
 	let i = window.CanvasLegacyBridge, a = n.repository ?? window.CanvasModernCore?.canvasRepository, l = n.runtime ?? p(), f = n.initialDocument !== void 0, m = n.initialDocument ?? i?.getDocumentSnapshot();
 	if (!a || !l || f && !m || !f && !i) throw Error("Canvas V2 dependencies are unavailable");
-	let h = r(m), g = h.getState().document, _ = (e) => {
+	let h = r(m), g = h.getState().document, _ = G(h.getState().document), v = [], y = [], b = (e) => {
 		let t = h.getState().document?.id;
 		h.getState().adoptDocument(e.detail);
 		let n = h.getState().document;
 		n?.id !== t && (g = n);
-	}, v = (e) => h.getState().projectExecutionDocument(e.detail);
-	f || (window.addEventListener("canvas-legacy-document", _), window.addEventListener("canvas-legacy-execution-document", v));
-	let y = (0, u.createRoot)(e), b = t?.hidden ?? !0, x = !1, S = !1, C = !1, w = (t) => {
+	}, x = (e) => h.getState().projectExecutionDocument(e.detail);
+	f || (window.addEventListener("canvas-legacy-document", b), window.addEventListener("canvas-legacy-execution-document", x));
+	let S = (0, u.createRoot)(e), C = t?.hidden ?? !0, w = !1, T = !1, E = !1, D = (t) => {
 		e.dataset.saveState = t, window.dispatchEvent(new CustomEvent("canvas-board-v2-save-state", { detail: t }));
-	}, T = () => {
-		S = !0, !C && (C = !0, (async () => {
-			for (; S && !x;) {
-				S = !1;
+	}, O = (e = !0) => {
+		let t = h.getState().document;
+		t && (e && _ && K(t) !== K(_) && (v.push(structuredClone(_)), v.length > 60 && v.shift(), y.length = 0), _ = structuredClone(t), window.dispatchEvent(new CustomEvent("canvas-board-v2-history-state", { detail: {
+			canRedo: y.length > 0,
+			canUndo: v.length > 0
+		} }))), T = !0, !E && (E = !0, (async () => {
+			for (; T && !w;) {
+				T = !1;
 				let e = h.getState().document;
 				if (!(!e || typeof e.id != "string")) {
-					w("saving");
+					D("saving");
 					try {
 						let t = await a.save(e.id, s(e));
-						g = t, x || h.getState().acceptSavedDocument(t, e), w("saved"), window.CanvasModernCore?.recordRolloutEvent("save-succeeded", { dimensions: { reason: "none" } });
+						g = t, w || h.getState().acceptSavedDocument(t, e), D("saved"), window.CanvasModernCore?.recordRolloutEvent("save-succeeded", { dimensions: { reason: "none" } });
 					} catch (t) {
 						if (t instanceof o && window.CanvasModernCore?.recordRolloutEvent("save-conflict", { dimensions: { reason: "save-conflict" } }), t instanceof o && t.serverCanvas && g) {
 							let n = h.getState().document;
@@ -2208,10 +2220,10 @@ function W(e, t, n = {}) {
 								let r = c(g, n, t.serverCanvas);
 								if (r.conflicts.length) console.warn("[canvas-modern-core] CanvasBoard V2 save conflict requires resolution", r.conflicts);
 								else {
-									w("merging"), h.setState({ document: r.document });
+									D("merging"), h.setState({ document: r.document }), _ = structuredClone(r.document);
 									try {
 										let t = await a.save(e.id, s(r.document));
-										g = t, x || h.getState().acceptSavedDocument(t, r.document), w("saved"), window.CanvasModernCore?.recordRolloutEvent("save-rebased", { dimensions: { reason: "none" } }), window.CanvasModernCore?.recordRolloutEvent("save-succeeded", { dimensions: { reason: "none" } });
+										g = t, w || h.getState().acceptSavedDocument(t, r.document), D("saved"), window.CanvasModernCore?.recordRolloutEvent("save-rebased", { dimensions: { reason: "none" } }), window.CanvasModernCore?.recordRolloutEvent("save-succeeded", { dimensions: { reason: "none" } });
 										continue;
 									} catch (e) {
 										console.warn("[canvas-modern-core] CanvasBoard V2 rebased save failed", e);
@@ -2219,18 +2231,24 @@ function W(e, t, n = {}) {
 								}
 							}
 						}
-						window.CanvasModernCore?.recordRolloutEvent("save-failed", { dimensions: { reason: "save-request-failed" } }), w("error"), console.warn("[canvas-modern-core] CanvasBoard V2 save failed", t);
+						window.CanvasModernCore?.recordRolloutEvent("save-failed", { dimensions: { reason: "save-request-failed" } }), D("error"), console.warn("[canvas-modern-core] CanvasBoard V2 save failed", t);
 						break;
 					}
 				}
 			}
-			C = !1;
+			E = !1;
 		})());
-	}, E = /* @__PURE__ */ new Set(), D = window.CanvasBoardV2;
+	}, k = () => {
+		let e = h.getState().document, t = v.pop();
+		return !e || !t ? !1 : (y.push(structuredClone(e)), h.getState().projectDocument(t), _ = structuredClone(t), O(!1), !0);
+	}, A = () => {
+		let e = h.getState().document, t = y.pop();
+		return !e || !t ? !1 : (v.push(structuredClone(e)), h.getState().projectDocument(t), _ = structuredClone(t), O(!1), !0);
+	}, j = /* @__PURE__ */ new Set(), M = window.CanvasBoardV2;
 	return window.CanvasBoardV2 = {
 		addNode(e, t) {
 			let n = h.getState().addNode(e, t);
-			return n && T(), n;
+			return n && O(), n;
 		},
 		groupSelected() {
 			window.dispatchEvent(new Event("canvas-board-v2-group-selected"));
@@ -2241,7 +2259,7 @@ function W(e, t, n = {}) {
 				connections: [],
 				nodes: []
 			};
-			let t = E.size ? E : new Set(e.nodes.map((e) => e.id));
+			let t = j.size ? j : new Set(e.nodes.map((e) => e.id));
 			return {
 				connections: structuredClone(e.connections.filter((e) => t.has(e.from) && t.has(e.to))),
 				nodes: structuredClone(e.nodes.filter((e) => t.has(e.id)))
@@ -2278,15 +2296,15 @@ function W(e, t, n = {}) {
 				if (!e || typeof e != "object") return;
 				let t = e, n = i.get(String(t.from || "")), r = i.get(String(t.to || ""));
 				n && r && h.getState().connectNodes(n, r);
-			}), i.size && T(), [...i.values()];
+			}), i.size && O(), [...i.values()];
 		},
 		async controlExecution(e, t) {
 			let n = h.getState().document;
 			if (!n) return;
 			let r = await l.runCommand(e, t, n, async (e) => {
-				h.getState().projectExecutionDocument(e), T();
+				h.getState().projectExecutionDocument(e), O(!1);
 			});
-			h.getState().projectDocument(r), T();
+			h.getState().projectDocument(r), O(!1);
 		},
 		async importFiles(e, t) {
 			if (!e.length) return;
@@ -2301,7 +2319,7 @@ function W(e, t, n = {}) {
 					mediaKind: e.kind || "image"
 				}), r;
 			}).filter(Boolean);
-			n.length > 1 && h.getState().groupNodes(n), n.length && T();
+			n.length > 1 && h.getState().groupNodes(n), n.length && O();
 		},
 		openPromptTemplates(e) {
 			window.openPromptTemplateModal?.(e);
@@ -2311,7 +2329,7 @@ function W(e, t, n = {}) {
 				...e,
 				viewed: !0
 			} : e) : [];
-			h.getState().updateNode(String(e.id || ""), { images: r }), T(), n.initialDocument ? window.dispatchEvent(new CustomEvent("canvas-v2-open-lightbox", { detail: {
+			h.getState().updateNode(String(e.id || ""), { images: r }), O(!1), n.initialDocument ? window.dispatchEvent(new CustomEvent("canvas-v2-open-lightbox", { detail: {
 				nodeId: String(e.id || ""),
 				url: t
 			} })) : i && i.openOutputLightbox(e, t);
@@ -2320,7 +2338,7 @@ function W(e, t, n = {}) {
 			let r = h.getState().document;
 			if (!r) return;
 			let i = await l.prepareVideoMedia(e, r, t, n);
-			h.getState().projectDocument(i), T();
+			h.getState().projectDocument(i), O();
 		},
 		rerunFromOutputMeta(e) {
 			let t = e.run && typeof e.run == "object" ? e.run : {}, n = t.node && typeof t.node == "object" ? structuredClone(t.node) : {}, r = String(n.type || t.nodeType || "");
@@ -2359,28 +2377,37 @@ function W(e, t, n = {}) {
 					name: e.name || "image",
 					url: e.url
 				}), h.getState().connectNodes(n, i));
-			}), T();
+			}), O();
 		},
+		redo: A,
 		async runNode(e, t) {
 			let n = h.getState().document;
 			if (!n) return;
 			let r = await l.runNode(e, n, t, async (e) => {
-				h.getState().projectExecutionDocument(e), T();
+				h.getState().projectExecutionDocument(e), O(!1);
 			});
-			h.getState().projectDocument(r), T();
+			h.getState().projectDocument(r), O(!1);
 		},
+		undo: k,
 		updateNode(e, t) {
-			return h.getState().document?.nodes.some((t) => t.id === e) ? (h.getState().updateNode(e, t), T(), !0) : !1;
+			return h.getState().document?.nodes.some((t) => t.id === e) ? (h.getState().updateNode(e, t), O(), !0) : !1;
 		}
-	}, y.render(/* @__PURE__ */ (0, d.jsx)(H, {
-		commit: T,
+	}, S.render(/* @__PURE__ */ (0, d.jsx)(H, {
+		commit: O,
 		onSelectionChange: (e) => {
-			E = new Set(e);
+			j = new Set(e);
 		},
 		store: h
 	})), t && (t.hidden = !0), e.hidden = !1, () => {
-		x = !0, D ? window.CanvasBoardV2 = D : delete window.CanvasBoardV2, f || (window.removeEventListener("canvas-legacy-document", _), window.removeEventListener("canvas-legacy-execution-document", v)), y.unmount(), e.hidden = !0, t && (t.hidden = b);
+		w = !0, M ? window.CanvasBoardV2 = M : delete window.CanvasBoardV2, f || (window.removeEventListener("canvas-legacy-document", b), window.removeEventListener("canvas-legacy-execution-document", x)), S.unmount(), e.hidden = !0, t && (t.hidden = C);
 	};
+}
+function G(e) {
+	return e ? structuredClone(e) : null;
+}
+function K(e) {
+	let t = structuredClone(e);
+	return delete t.updated_at, JSON.stringify(t);
 }
 //#endregion
 export { W as t };

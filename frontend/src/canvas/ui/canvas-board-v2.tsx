@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
 import { mergeCanvasDocuments } from '../domain/document-merge';
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
-import type { CanvasEdge, CanvasNode } from '../domain/types';
+import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
 
@@ -470,6 +470,17 @@ function CanvasBoardV2({ commit, onSelectionChange, store }: { commit: () => voi
         return;
       }
       if (editable) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) window.CanvasBoardV2?.redo();
+        else window.CanvasBoardV2?.undo();
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        window.CanvasBoardV2?.redo();
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
         clipboard.current = store.getState().copyNodes([...selectedIds]);
         return;
@@ -725,6 +736,9 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
   if (!repository || !modernRuntime || (standalone && !initialDocument) || (!standalone && !bridge)) throw new Error('Canvas V2 dependencies are unavailable');
   const store = createDocumentStore(initialDocument);
   let baseDocument = store.getState().document;
+  let historyPresent = cloneDocument(store.getState().document);
+  const historyPast: CanvasDocument[] = [];
+  const historyFuture: CanvasDocument[] = [];
   const adopt = (event: Event) => {
     const previousId = store.getState().document?.id;
     store.getState().adoptDocument((event as CustomEvent<unknown>).detail);
@@ -745,7 +759,17 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     element.dataset.saveState = state;
     window.dispatchEvent(new CustomEvent('canvas-board-v2-save-state', { detail: state }));
   };
-  const commit = () => {
+  const commit = (recordHistory = true) => {
+    const active = store.getState().document;
+    if (active) {
+      if (recordHistory && historyPresent && documentHistoryKey(active) !== documentHistoryKey(historyPresent)) {
+        historyPast.push(structuredClone(historyPresent));
+        if (historyPast.length > 60) historyPast.shift();
+        historyFuture.length = 0;
+      }
+      historyPresent = structuredClone(active);
+      window.dispatchEvent(new CustomEvent('canvas-board-v2-history-state', { detail: { canRedo: historyFuture.length > 0, canUndo: historyPast.length > 0 } }));
+    }
     pending = true;
     if (saving) return;
     saving = true;
@@ -776,6 +800,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
               if (!merged.conflicts.length) {
                 reportSaveState('merging');
                 store.setState({ document: merged.document });
+                historyPresent = structuredClone(merged.document);
                 try {
                   const saved = await repository.save(submitted.id, canvasDocumentSavePayload(merged.document));
                   baseDocument = saved;
@@ -806,6 +831,26 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       }
       saving = false;
     })();
+  };
+  const undo = () => {
+    const current = store.getState().document;
+    const previous = historyPast.pop();
+    if (!current || !previous) return false;
+    historyFuture.push(structuredClone(current));
+    store.getState().projectDocument(previous);
+    historyPresent = structuredClone(previous);
+    commit(false);
+    return true;
+  };
+  const redo = () => {
+    const current = store.getState().document;
+    const next = historyFuture.pop();
+    if (!current || !next) return false;
+    historyPast.push(structuredClone(current));
+    store.getState().projectDocument(next);
+    historyPresent = structuredClone(next);
+    commit(false);
+    return true;
   };
   let externalSelection = new Set<string>();
   const previousBoardApi = window.CanvasBoardV2;
@@ -862,10 +907,10 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       if (!snapshot) return;
       const result = await modernRuntime.runCommand(command, nodeId, snapshot, async (next) => {
         store.getState().projectExecutionDocument(next);
-        commit();
+        commit(false);
       });
       store.getState().projectDocument(result);
-      commit();
+      commit(false);
     },
     async importFiles(files, point) {
       if (!files.length) return;
@@ -887,7 +932,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
         return String((item as Record<string, unknown>).url || '') === url ? { ...item as Record<string, unknown>, viewed: true } : item;
       }) : [];
       store.getState().updateNode(String(node.id || ''), { images });
-      commit();
+      commit(false);
       if (options.initialDocument) window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
       else if (bridge) bridge.openOutputLightbox(node, url);
     },
@@ -927,16 +972,18 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       });
       commit();
     },
+    redo,
     async runNode(nodeId, mode) {
       const snapshot = store.getState().document;
       if (!snapshot) return;
       const result = await modernRuntime.runNode(nodeId, snapshot, mode, async (next) => {
         store.getState().projectExecutionDocument(next);
-        commit();
+        commit(false);
       });
       store.getState().projectDocument(result);
-      commit();
+      commit(false);
     },
+    undo,
     updateNode(nodeId, patch) {
       if (!store.getState().document?.nodes.some((node) => node.id === nodeId)) return false;
       store.getState().updateNode(nodeId, patch);
@@ -959,4 +1006,14 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     element.hidden = true;
     if (legacyBoard) legacyBoard.hidden = legacyHidden;
   };
+}
+
+function cloneDocument(document: CanvasDocument | null): CanvasDocument | null {
+  return document ? structuredClone(document) : null;
+}
+
+function documentHistoryKey(document: CanvasDocument): string {
+  const snapshot = structuredClone(document) as CanvasDocument & { updated_at?: unknown };
+  delete snapshot.updated_at;
+  return JSON.stringify(snapshot);
 }
