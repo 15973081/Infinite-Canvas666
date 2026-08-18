@@ -31,16 +31,16 @@ Canvas 尚未完成的是阶段 8 发布验收：默认 100% 切换、真实供�
 | `online.html` | React/TS 代码迁移完成 | `frontend/src/pages/online.tsx`，复用 ImageStudio |
 | `zimage.html` | React/TS 代码迁移完成 | `frontend/src/pages/zimage.tsx`，复用 ImageStudio |
 | `canvas-board-spike.html` | React/TS 测试工具 | 性能基线，不计生产页面 |
-| `enhance.html` | Legacy | 扩展 ImageStudio 的增强/放大适配器 |
-| `klein.html` | Legacy | 扩展 ImageStudio 的多参考图/LoRA 适配器 |
-| `angle.html` | Legacy | 复用 ImageStudio 媒体、历史和输出，增加视角控制域 |
+| `enhance.html` | React/TS 代码迁移完成 | ImageStudio 本地两阶段增强与 ModelScope 适配器 |
+| `klein.html` | React/TS 代码迁移完成 | ImageStudio 多参考图、本地工作流与云端 LoRA 适配器 |
+| `angle.html` | React/TS 代码迁移完成 | ImageStudio 视角 schema、本地/云端及长任务恢复适配器 |
 | `api-settings.html` | Legacy | 独立迁移 Provider/Model/RunningHub 配置域 |
 | `asset-manager.html` | Legacy | 独立迁移资产、提示词、共享目录与批量操作域 |
 | `gpt-chat.html` | Legacy | 迁移会话、流式消息、视觉输入和附件域 |
 | `smart-canvas.html` | Legacy | 最后复用 Canvas V2 domain/runtime，避免重复画布实现 |
 | `index.html` | Legacy | 在子页面稳定后迁移外壳、导航、iframe 生命周期与主题 |
 
-当前生产页面完成 4 个，另有 1 个 React 性能测试入口。页面数量只是进度参考；Canvas、API 设置、资产管理和 Smart Canvas 的工作量远高于普通生成页。
+当前生产页面完成 7 个，另有 1 个 React 性能测试入口。页面数量只是进度参考；API 设置、资产管理和 Smart Canvas 的工作量远高于普通生成页。
 
 ## 已形成的共享层
 
@@ -52,10 +52,18 @@ Online 与 Z-Image 的业务入口均小于 1KB，共享图片工作台约 12KB�
 
 ## 下一批顺序
 
-1. Enhance + Klein：复用 ImageStudio，增加增强链、LoRA 和多参考图规则。
-2. Angle：复用上传、输出和历史，单独抽视角控制组件。
-3. API Settings：先抽 Provider/Model schema 和 RunningHub client，再迁移 UI。
-4. Asset Manager：按资产、提示词、共享目录三个子域拆分提交。
-5. GPT Chat、首页外壳、Smart Canvas。
+1. API Settings：先抽 Provider/Model schema 和 RunningHub client，再迁移 UI。
+2. Asset Manager：按资产、提示词、共享目录三个子域拆分提交。
+3. GPT Chat、首页外壳、Smart Canvas。
 
 每批允许包含多个同构页面，但必须共享领域层或组件层；禁止用 React 外壳继续运行旧全局脚本冒充迁移。
+
+## 2026-08-19 ImageStudio 第二批结果
+
+Enhance、Klein、Angle 已在一个批次内完成迁移，三个业务入口各约 0.36KB，共享工作流 adapter chunk 约 6KB。ImageStudio 新增 schema 动态控件、按模式字段、最低参考图数量、Comfy 工作流上传、原图对比及长任务恢复。
+
+- Enhance：本地增强工作流、可选第二阶段 2K/4K 放大、ModelScope Klein Enhance LoRA。
+- Klein：最多三张参考图、本地 `Flux2-Klein.json`、ModelScope FLUX.2 Klein 和可调 LoRA。
+- Angle：水平/垂直/景别控件、本地 `2511.json`、Qwen Image Edit 云端和超时续轮询。
+- 自动化结果：80 个 Vitest、22 个 Playwright、41 个 Python unittest 全部通过。
+- 三个旧页面共删除约 3200 行内联业务实现，正常路径只加载 Vite 模块。

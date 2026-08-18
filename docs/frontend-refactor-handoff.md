@@ -385,3 +385,9 @@ Canvas 已正式判定为“代码迁移完成，阶段 8 生产发布验收待�
 本批新增 `frontend/src/shared/` 统一主题、跨页面事件和页面壳，并新增 `frontend/src/features/image-studio/` 统一图片生成页的提示词、参考图、平台/模型、尺寸、异步任务、刷新恢复、结果、下载和历史逻辑。`online.html` 与 `zimage.html` 已切换到独立 TSX 入口，不再执行原页面的大段内联脚本或旧 UI 依赖。
 
 最新自动化结果：79 个 Vitest、19 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数为 4：Canvas、ComfyUI Settings、Online、Z-Image；Canvas Board Spike 是 React 性能测试工具，不计生产页面。
+
+## 18. 2026-08-19 ImageStudio 三页面批量迁移
+
+Enhance、Klein、Angle 已由同一个 `frontend/src/features/image-studio/` 产品能力层接管，页面入口只负责选择 adapter。共享层新增 schema 字段、Comfy 上传、本地/云端模式、原图比较、两阶段增强、LoRA 和 Angle 长任务恢复。三个页面不再加载原 Tailwind CDN、Lucide、Three.js、HistoryBulkManager 或内联业务脚本。
+
+最新自动化结果：80 个 Vitest、22 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 7：Canvas、ComfyUI Settings、Online、Z-Image、Enhance、Klein、Angle。
