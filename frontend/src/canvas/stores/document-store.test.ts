@@ -81,4 +81,14 @@ describe('document store', () => {
       { id: ids[2], type: 'output', images: [] },
     ]);
   });
+
+  it('creates video, Comfy and LLM nodes with legacy-compatible fields', () => {
+    const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [] });
+    const ids = ['video', 'comfy', 'llm'].map((type, index) => store.getState().addNode(type as 'video' | 'comfy' | 'llm', { x: index * 100, y: 0 }));
+    expect(store.getState().document?.nodes).toMatchObject([
+      { id: ids[0], type: 'video', duration: 5, aspectRatio: '16:9', taskMode: 'auto' },
+      { id: ids[1], type: 'comfy', mode: 'text', width: 1024, height: 1024, comfyParams: {} },
+      { id: ids[2], type: 'llm', mode: 'node', messages: [], outputText: '' },
+    ]);
+  });
 });

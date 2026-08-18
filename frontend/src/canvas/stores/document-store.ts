@@ -5,7 +5,7 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 
 export interface DocumentStoreState {
   acceptSavedDocument(saved: CanvasDocument, submitted: CanvasDocument): void;
-  addNode(type: 'generator' | 'loop' | 'msgen' | 'output' | 'prompt', point?: { x: number; y: number }): string | null;
+  addNode(type: 'comfy' | 'generator' | 'llm' | 'loop' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
   adoptDocument(snapshot: unknown): void;
   connectNodes(fromId: string, toId: string): boolean;
   copyNodes(nodeIds: string[]): { connections: CanvasEdge[]; nodes: CanvasNode[] };
@@ -41,11 +41,14 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       const id = `${type}_${crypto.randomUUID()}`;
       const position = point ?? { x: 80 + (index % 4) * 360, y: 160 + Math.floor(index / 4) * 280 };
       const defaults: Record<string, Record<string, unknown>> = {
+        comfy: { w: 420, h: 460, mode: 'text', width: 1024, height: 1024, enhanceStrength: 0.5, enhanceUpscale: false, enhanceUpscaleRes: 2048, editUpscale: false, editUpscaleRes: 2048, comfyWorkflow: '', comfyParams: {}, count: 1, inputs: [] },
         generator: { apiProvider: '', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1, customRatio: '', customSize: '', customRatioWidth: '', customRatioHeight: '', customWidth: '', customHeight: '', inputs: [] },
+        llm: { llmProvider: 'comfly', model: '', mode: 'node', systemPrompt: 'You are a helpful assistant. Rewrite the input into a concise image prompt.', chatInput: '', messages: [], outputText: '', llmInputHeight: 110, llmOutputHeight: 150 },
         loop: { count: 3, mode: 'serial', showPrompt: false, imageInput: false, videoInput: false, loopStart: 1, imageBatchSize: 1, videoBatchSize: 1, variablePrompt: '', fixedPrompt: '' },
         msgen: { msgenModel: 'zimage', msWidth: 1024, msHeight: 1024, msCustomModel: 'Tongyi-MAI/Z-Image-Turbo', msRatio: 'square', msResolution: '1k', count: 1, fitImage: false, inputs: [] },
         output: { images: [] },
         prompt: { text: '' },
+        video: { apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', enhancePrompt: false, enableUpsample: false, watermark: false, cameraFixed: false, generateAudio: false, taskMode: 'auto', useFrameRoles: false, multimodal: false, tempShLinks: [], inputs: [] },
       };
       const node: CanvasNode = { id, type, ...position, ...defaults[type] };
       set({ document: { ...current, nodes: [...current.nodes, node] } });

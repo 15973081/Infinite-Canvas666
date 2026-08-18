@@ -159,6 +159,8 @@ Spike 只实现：
 
 第四批已完成：Generator、MsGen、Output 已迁移到 V2。两类生成节点保留平台/模型、尺寸比例、质量、数量与自定义参数，并通过桥接调用唯一的 Legacy executor；Output 使用原生图片、视频、音频元素展示并支持下载和删除。工具栏新增入口、Store 默认值、未知字段和保存恢复均有回归覆盖。
 
+第五批已完成：Video、Comfy、LLM 已迁移到 V2。Video 保留平台/模型、时长、比例、分辨率、任务模式和互斥媒体开关；Comfy 保留四种模式、基础参数及后端工作流动态字段；LLM 保留节点/聊天模式、System、消息、输入输出和复制。三类节点共用 Legacy executor 桥接，未复制网络请求与调度逻辑。
+
 1. 新增独立的 `canvas_board_v2=1` 开关和完整 Board root；默认仍渲染 Legacy Board。
 2. 实现视口、选择、拖动、连线、快捷键和节点类型注册表。
 3. 让 Document Store 在 V2 路径中成为节点和连线的唯一所有者；Legacy 路径仍由 `canvas.js` 唯一拥有。

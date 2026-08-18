@@ -2058,8 +2058,13 @@ function resetCanvasSaveSnapshot(){
     publishLegacyDocument();
 }
 window.CanvasLegacyBridge = Object.freeze({
+    async getComfyFields(workflow){
+        const data = await ensureComfyWorkflow(String(workflow || ''));
+        return JSON.parse(JSON.stringify(data?.config?.fields || []));
+    },
     getNodeOptions(type, field, node={}){
         if(type === 'msgen' && field === 'model') return Object.entries(MS_GEN_MODELS).map(([value, item]) => ({value, label:item.labelKey ? tr(item.labelKey) : item.label}));
+        if(type === 'comfy' && field === 'workflow') return comfyWorkflows.map(item => ({value:String(item.name || ''), label:String(item.title || item.name || '')}));
         if(field === 'provider'){
             const providers = type === 'video' ? videoApiProviders() : type === 'llm' ? chatApiProviders() : imageApiProviders();
             return providers.map(item => ({value:String(item.id || ''), label:String(item.name || item.id || '')}));
@@ -2070,14 +2075,15 @@ window.CanvasLegacyBridge = Object.freeze({
         }
         return [];
     },
-    async runNode(nodeId, snapshot){
+    async runNode(nodeId, snapshot, mode='node'){
         const next = JSON.parse(JSON.stringify(snapshot || null));
         if(!canvas || !next || String(next.id || '') !== String(canvas.id || '')) throw new Error('Canvas execution snapshot does not match the active canvas');
         nodes = Array.isArray(next.nodes) ? next.nodes : [];
         connections = Array.isArray(next.connections) ? next.connections : [];
         canvas = {...canvas, ...next};
         lastCanvasUpdatedAt = Number(next.updated_at || lastCanvasUpdatedAt || 0);
-        await runCanvasGenerate(String(nodeId || ''));
+        if(mode === 'chat') await runLLMChat(String(nodeId || ''));
+        else await runCanvasGenerate(String(nodeId || ''));
         clearTimeout(saveTimer);
         saveTimer = null;
         await saveCanvas();
@@ -3426,6 +3432,7 @@ function pickMediaForNode(nodeId){
     input.click();
 }
 function addLLMNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('llm', point);
     const p = point || defaultPoint(80, 0);
     const providerId = chatApiProviders()[0]?.id || 'comfly';
     return addNode({
@@ -3478,6 +3485,7 @@ function addMsGenNode(point){
     });
 }
 function addVideoNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('video', point);
     const p = point || defaultPoint(160, 0);
     const providerId = videoApiProviders()[0]?.id || 'comfly';
     const models = providerVideoModels(providerId);
@@ -4009,6 +4017,7 @@ async function runMsGenNode(nodeId, opts={}){
     }
 }
 function addComfyNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('comfy', point);
     const p = point || defaultPoint(160, 0);
     return addNode({
         id:uid('comfy'),

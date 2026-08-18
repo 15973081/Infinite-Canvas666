@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '19');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '20');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -238,6 +238,61 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   await expect(page.locator('[data-node-type="generator"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="msgen"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="output"]')).toHaveCount(2);
+});
+
+test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
+  const saves: Array<Record<string, any>> = [];
+  await page.route('**/api/canvases/v2-media', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    saves.push(body);
+    await route.fulfill({ json: { canvas: { ...body, id: 'v2-media', updated_at: saves.length + 1 } } });
+  });
+  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await page.evaluate(() => {
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'v2-media', updated_at: 1, extension: 'kept', connections: [],
+      nodes: [
+        { id: 'video-v2', type: 'video', x: 0, y: 120, apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', taskMode: 'auto' },
+        { id: 'comfy-v2', type: 'comfy', x: 420, y: 120, w: 420, h: 460, mode: 'text', width: 1024, height: 1024, comfyParams: {} },
+        { id: 'llm-v2', type: 'llm', x: 850, y: 120, mode: 'node', llmProvider: 'comfly', model: '', systemPrompt: 'old', userInput: '', outputText: 'ready', messages: [{ role: 'assistant', content: 'hello' }] },
+      ],
+    } }));
+  });
+
+  const video = page.locator('[data-node-id="video-v2"]');
+  await video.getByLabel('视频时长').fill('8');
+  await video.getByLabel('视频时长').blur();
+  await video.getByLabel('视频比例').selectOption('9:16');
+  await video.getByRole('button', { name: '生成音频' }).click();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'video-v2')).toMatchObject({ duration: 8, aspectRatio: '9:16', generateAudio: true });
+
+  const comfy = page.locator('[data-node-id="comfy-v2"]');
+  await comfy.getByLabel('Comfy 宽度').fill('1536');
+  await comfy.getByLabel('Comfy 宽度').blur();
+  await comfy.getByRole('button', { name: '增强' }).click();
+  await comfy.getByRole('button', { name: '超分辨率' }).click();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'comfy-v2')).toMatchObject({ mode: 'enhance', width: 1536, enhanceUpscale: true });
+
+  const llm = page.locator('[data-node-id="llm-v2"]');
+  await llm.getByRole('button', { name: 'System' }).click();
+  await llm.getByLabel('系统提示词').fill('new system');
+  await llm.getByLabel('系统提示词').blur();
+  await llm.getByRole('button', { name: '聊天' }).click();
+  await expect(llm).toContainText('hello');
+  await llm.getByLabel('聊天输入').fill('next message');
+  await llm.getByLabel('聊天输入').blur();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'llm-v2')).toMatchObject({ mode: 'chat', showSystem: true, systemPrompt: 'new system', chatInput: 'next message' });
+  expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
+
+  await page.evaluate(() => {
+    const target = window as typeof window & { addVideoNode(): void; addComfyNode(): void; addLLMNode(): void };
+    target.addVideoNode(); target.addComfyNode(); target.addLLMNode();
+  });
+  await expect(page.locator('[data-node-type="video"]')).toHaveCount(2);
+  await expect(page.locator('[data-node-type="comfy"]')).toHaveCount(2);
+  await expect(page.locator('[data-node-type="llm"]')).toHaveCount(2);
 });
 
 test('runs fake execution and mocked task/repository contracts with all M2 switches enabled', async ({ page }) => {

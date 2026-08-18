@@ -8083,6 +8083,22 @@ function C(e) {
 				x: 80 + a % 4 * 360,
 				y: 160 + Math.floor(a / 4) * 280
 			}, c = {
+				comfy: {
+					w: 420,
+					h: 460,
+					mode: "text",
+					width: 1024,
+					height: 1024,
+					enhanceStrength: .5,
+					enhanceUpscale: !1,
+					enhanceUpscaleRes: 2048,
+					editUpscale: !1,
+					editUpscaleRes: 2048,
+					comfyWorkflow: "",
+					comfyParams: {},
+					count: 1,
+					inputs: []
+				},
 				generator: {
 					apiProvider: "",
 					model: "",
@@ -8097,6 +8113,17 @@ function C(e) {
 					customWidth: "",
 					customHeight: "",
 					inputs: []
+				},
+				llm: {
+					llmProvider: "comfly",
+					model: "",
+					mode: "node",
+					systemPrompt: "You are a helpful assistant. Rewrite the input into a concise image prompt.",
+					chatInput: "",
+					messages: [],
+					outputText: "",
+					llmInputHeight: 110,
+					llmOutputHeight: 150
 				},
 				loop: {
 					count: 3,
@@ -8122,7 +8149,24 @@ function C(e) {
 					inputs: []
 				},
 				output: { images: [] },
-				prompt: { text: "" }
+				prompt: { text: "" },
+				video: {
+					apiProvider: "comfly",
+					model: "",
+					duration: 5,
+					aspectRatio: "16:9",
+					resolution: "",
+					enhancePrompt: !1,
+					enableUpsample: !1,
+					watermark: !1,
+					cameraFixed: !1,
+					generateAudio: !1,
+					taskMode: "auto",
+					useFrameRoles: !1,
+					multimodal: !1,
+					tempShLinks: [],
+					inputs: []
+				}
 			}, l = {
 				id: o,
 				type: t,
@@ -8273,8 +8317,8 @@ function re(e, t) {
 //#endregion
 //#region node_modules/react/cjs/react-jsx-runtime.production.js
 var w = /* @__PURE__ */ c(((e) => {
-	var t = Symbol.for("react.transitional.element");
-	function n(e, n, r) {
+	var t = Symbol.for("react.transitional.element"), n = Symbol.for("react.fragment");
+	function r(e, n, r) {
 		var i = null;
 		if (r !== void 0 && (i = "" + r), n.key !== void 0 && (i = "" + n.key), "key" in n) for (var a in r = {}, n) a !== "key" && (r[a] = n[a]);
 		else r = n;
@@ -8286,7 +8330,7 @@ var w = /* @__PURE__ */ c(((e) => {
 			props: r
 		};
 	}
-	e.jsx = n, e.jsxs = n;
+	e.Fragment = n, e.jsx = r, e.jsxs = r;
 })), ie = /* @__PURE__ */ c(((e, t) => {
 	t.exports = w();
 }));
