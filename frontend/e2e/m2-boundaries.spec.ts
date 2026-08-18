@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '15');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '16');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'disabled');
@@ -21,6 +22,64 @@ test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.evaluate(() => (window as typeof window & { openCanvasLog(): void }).openCanvasLog());
   await expect(page.locator('#logModal > .log-panel')).toBeVisible();
   await expect(page.locator('#canvasActivityIsland')).toBeHidden();
+});
+
+test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on cleanup', async ({ page }) => {
+  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'enabled');
+  await expect(page.locator('#board')).toBeHidden();
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
+
+  await page.evaluate(() => {
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'v2-e2e',
+      nodes: [
+        { id: 'prompt-1', type: 'prompt', title: 'Prompt', x: 80, y: 180 },
+        { id: 'output-1', type: 'output', title: 'Output', x: 420, y: 330 },
+      ],
+      connections: [{ from: 'prompt-1', to: 'output-1' }],
+    } }));
+  });
+
+  const board = page.getByTestId('canvas-board-v2');
+  const node = page.locator('[data-node-id="prompt-1"]');
+  await expect(node).toBeVisible();
+  await node.click();
+  await expect(node).toHaveClass(/selected/);
+  const originalPosition = await node.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }));
+  const box = await node.boundingBox();
+  if (!box) throw new Error('V2 node is not visible');
+  await page.mouse.move(box.x + 20, box.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 80, box.y + 60);
+  await page.mouse.up();
+  await expect.poll(() => node.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }))).not.toEqual(originalPosition);
+
+  const originalViewport = await board.getAttribute('data-viewport');
+  await board.hover();
+  await page.mouse.wheel(0, -100);
+  await expect.poll(() => board.getAttribute('data-viewport')).not.toBe(originalViewport);
+  const zoomedViewport = await board.getAttribute('data-viewport');
+  const boardBox = await board.boundingBox();
+  if (!boardBox) throw new Error('V2 board is not visible');
+  await page.mouse.move(boardBox.x + boardBox.width - 80, boardBox.y + boardBox.height - 80);
+  await page.mouse.down();
+  await page.mouse.move(boardBox.x + boardBox.width - 40, boardBox.y + boardBox.height - 40);
+  await page.mouse.up();
+  await expect.poll(() => board.getAttribute('data-viewport')).not.toBe(zoomedViewport);
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+    id: 'v2-e2e-next',
+    nodes: [{ id: 'prompt-1', type: 'prompt', x: 10, y: 200 }],
+    connections: [],
+  } })));
+  await expect(node).toHaveCSS('left', '10px');
+
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(0);
+  await expect(page.locator('#canvasBoardV2')).toBeHidden();
+  await expect(page.locator('#board')).not.toHaveAttribute('hidden', '');
 });
 
 test('runs fake execution and mocked task/repository contracts with all M2 switches enabled', async ({ page }) => {

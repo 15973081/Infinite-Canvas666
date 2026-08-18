@@ -498,12 +498,12 @@ function C(e, t, n, r = 0) {
 }
 //#endregion
 //#region src/main.ts
-var w = new URLSearchParams(window.location.search), T = w.get("canvas_modern_core"), E = T === "execution-shadow", D = T === "graph-order", O = T === "shadow", k = w.get("canvas_m2") === "1", A = k || w.get("canvas_execution_engine") === "1", j = k || w.get("canvas_task_client") === "1", M = k || w.get("canvas_repository") === "1", N = A && j && M, P = w.get("canvas_react_islands") === "1", F = P || w.get("canvas_react_activity") === "1", I = P || w.get("canvas_react_execution") === "1", L = P || w.get("canvas_react_status") === "1", R = P || w.get("canvas_react_toolbar") === "1", z = b(), B = _(), V = /* @__PURE__ */ new Map(), H = 0, U = 0, W = [], G = 0, K = 0, q = /* @__PURE__ */ new Map(), J = {
+var w = new URLSearchParams(window.location.search), T = w.get("canvas_modern_core"), E = T === "execution-shadow", D = T === "graph-order", O = T === "shadow", k = w.get("canvas_m2") === "1", A = k || w.get("canvas_execution_engine") === "1", j = k || w.get("canvas_task_client") === "1", M = k || w.get("canvas_repository") === "1", N = A && j && M, P = w.get("canvas_react_islands") === "1", F = P || w.get("canvas_react_activity") === "1", I = P || w.get("canvas_react_execution") === "1", L = P || w.get("canvas_react_status") === "1", R = P || w.get("canvas_react_toolbar") === "1", z = w.get("canvas_board_v2") === "1", B = b(), V = _(), H = /* @__PURE__ */ new Map(), U = 0, W = 0, G = [], K = 0, q = 0, J = /* @__PURE__ */ new Map(), Y = {
 	done: 0,
 	failed: 0,
 	stopped: 0
-}, Y = 0;
-function X(t, n, r) {
+}, X = 0;
+function Z(t, n, r) {
 	let i = window.CanvasLegacyBridge, a = i?.getDocumentSnapshot();
 	if (!i || !a) return null;
 	let o = l(e(a)), s = t === "cascade" ? o.cascadeOrder(n) : o.retryCascadeOrder(n), c = r ?? (t === "cascade" ? i.computeCascadeOrder(n) : i.computeRetryCascadeOrder(n));
@@ -516,12 +516,12 @@ function X(t, n, r) {
 	};
 }
 if (window.CanvasModernCore = Object.freeze({
-	version: 15,
-	canvasRepository: B,
+	version: 16,
+	canvasRepository: V,
 	canvasRepositoryEnabled: M,
 	executionEngineEnabled: A,
 	m2Enabled: N,
-	taskClient: z,
+	taskClient: B,
 	taskClientEnabled: j,
 	activeOrder(t, n) {
 		if (!D) return null;
@@ -534,12 +534,12 @@ if (window.CanvasModernCore = Object.freeze({
 			return console.warn("[canvas-modern-core] active graph order failed; using legacy order", e), null;
 		}
 	},
-	compareOrder: X,
+	compareOrder: Z,
 	runOrdered(e) {
 		return A ? i(e.targetId, e.order, e.execute, {
 			mode: e.mode,
 			signal: e.signal,
-			onTransition: Z
+			onTransition: Q
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	runParallel(e) {
@@ -547,12 +547,12 @@ if (window.CanvasModernCore = Object.freeze({
 			limit: e.limit,
 			roundId: e.roundId,
 			signal: e.signal,
-			onTransition: Z
+			onTransition: Q
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	observeExecution(e) {
 		if (E) try {
-			let r = V.get(e.targetId) ?? t();
+			let r = H.get(e.targetId) ?? t();
 			e.phase === "begin" ? (r = n(r, {
 				type: "queue",
 				targetId: e.targetId,
@@ -570,26 +570,26 @@ if (window.CanvasModernCore = Object.freeze({
 				type: "finish",
 				status: e.status,
 				error: e.error
-			}), V.set(e.targetId, r), H += 1;
+			}), H.set(e.targetId, r), U += 1;
 		} catch (t) {
-			U += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
+			W += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
 		}
 	},
 	observeOrder(e, t, n) {
 		if (O) try {
-			let r = X(e, t, n);
+			let r = Z(e, t, n);
 			if (!r) return;
-			G += 1, r.matches || (W.length < 50 && W.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+			K += 1, r.matches || (G.length < 50 && G.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
 		} catch (e) {
-			K += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+			q += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
 		}
 	},
 	getShadowReport() {
 		return {
 			enabled: O,
-			checks: G,
-			errors: K,
-			mismatches: W.map((e) => ({
+			checks: K,
+			errors: q,
+			mismatches: G.map((e) => ({
 				...e,
 				legacy: [...e.legacy],
 				modern: [...e.modern]
@@ -599,9 +599,9 @@ if (window.CanvasModernCore = Object.freeze({
 	getExecutionShadowReport() {
 		return {
 			enabled: E,
-			errors: U,
-			events: H,
-			runs: [...V.values()].map((e) => ({
+			errors: W,
+			events: U,
+			runs: [...H.values()].map((e) => ({
 				...e,
 				completedNodeIds: [...e.completedNodeIds],
 				order: [...e.order],
@@ -616,56 +616,63 @@ if (window.CanvasModernCore = Object.freeze({
 		return {
 			enabled: N,
 			execution: {
-				active: [...q.values()].filter(({ status: e }) => ![
+				active: [...J.values()].filter(({ status: e }) => ![
 					"done",
 					"failed",
 					"stopped"
 				].includes(e)).length,
-				...J,
-				transitions: Y
+				...Y,
+				transitions: X
 			},
 			flags: {
 				executionEngine: A,
 				repository: M,
 				taskClient: j
 			},
-			repository: B.getDiagnostics(),
-			tasks: z.getDiagnostics()
+			repository: V.getDiagnostics(),
+			tasks: B.getDiagnostics()
 		};
 	}
 }), I) {
 	let e = document.getElementById("canvasExecutionIsland");
-	e && import("./react-execution-entry-WfFtP5c9.js").then(({ mountReactExecutionIsland: t }) => {
+	e && import("./react-execution-entry-1p86ZWGb.js").then(({ mountReactExecutionIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React execution island failed to load", e));
 }
 if (L) {
 	let e = document.getElementById("canvasStatusIsland");
-	e && import("./react-execution-entry-WfFtP5c9.js").then(({ mountReactStatusIsland: t }) => {
+	e && import("./react-execution-entry-1p86ZWGb.js").then(({ mountReactStatusIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React status island failed to load", e));
 }
 if (R) {
 	let e = document.getElementById("canvasToolbarIsland");
-	e && import("./react-execution-entry-WfFtP5c9.js").then(({ mountReactToolbarIsland: t }) => {
+	e && import("./react-execution-entry-1p86ZWGb.js").then(({ mountReactToolbarIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React toolbar island failed to load", e));
 }
 if (F) {
 	let e = document.getElementById("canvasActivityIsland");
-	e && import("./react-execution-entry-WfFtP5c9.js").then(({ mountReactActivityIsland: t }) => {
+	e && import("./react-execution-entry-1p86ZWGb.js").then(({ mountReactActivityIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React activity island failed to load", e));
 }
-function Z(e, t) {
-	Y += 1, q.set(e.targetId, e), t.type === "finish" && (J[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
+if (z) {
+	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
+	e && t && import("./canvas-board-v2-fwQxTQIr.js").then(({ mountCanvasBoardV2: n }) => {
+		let r = n(e, t);
+		window.addEventListener("pagehide", r, { once: !0 });
+	}).catch((e) => console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e));
+}
+function Q(e, t) {
+	X += 1, J.set(e.targetId, e), t.type === "finish" && (Y[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
 		event: t,
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "15", document.documentElement.dataset.canvasModernExecutionEngine = A ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = E ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = j ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "16", document.documentElement.dataset.canvasBoardV2 = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = A ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = E ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = j ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

@@ -111,6 +111,7 @@ Set-Location ..
 | `canvas_react_toolbar=1` | 费用、日志、备份工具栏岛 | 关闭 |
 | `canvas_react_activity=1` | 日志/成本 React 面板 | 关闭 |
 | `canvas_react_islands=1` | 同时启用阶段 6 的四个 React 岛 | 关闭 |
+| `canvas_board_v2=1` | 独立 CanvasBoard V2 root | 关闭 |
 
 内部完整验证地址：
 
@@ -149,6 +150,8 @@ Spike 只实现：
 不满足则保留自研交互。Spike 的目标是做出决策，不是强行引入新依赖。
 
 ### 7.2 Board V2 实施顺序
+
+第一批已完成：新增独立 `canvas_board_v2=1` root；开关关闭时只走 Legacy Board，开启后隐藏 Legacy Board 并挂载 V2。V2 当前只读取 Document Store 投影，支持节点/连线外壳、选择、拖动、画布平移与缩放；节点位置修改仅保存在 V2 本地视图，不写回 Legacy 文档。页面离开或挂载失败时恢复完整 Legacy Board。
 
 1. 新增独立的 `canvas_board_v2=1` 开关和完整 Board root；默认仍渲染 Legacy Board。
 2. 实现视口、选择、拖动、连线、快捷键和节点类型注册表。

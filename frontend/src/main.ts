@@ -118,7 +118,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 15;
+      version: 16;
     };
   }
 }
@@ -138,6 +138,7 @@ const reactActivityIslandEnabled = reactIslandsEnabled || searchParams.get('canv
 const reactExecutionIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_execution') === '1';
 const reactStatusIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_status') === '1';
 const reactToolbarIslandEnabled = reactIslandsEnabled || searchParams.get('canvas_react_toolbar') === '1';
+const boardV2Enabled = searchParams.get('canvas_board_v2') === '1';
 const taskClient = createTaskClient();
 const canvasRepository = createCanvasRepository();
 const executionRuns = new Map<string, ExecutionState>();
@@ -169,7 +170,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 15 as const,
+  version: 16 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -347,6 +348,17 @@ if (reactActivityIslandEnabled) {
   }
 }
 
+if (boardV2Enabled) {
+  const element = document.getElementById('canvasBoardV2');
+  const legacyBoard = document.getElementById('board');
+  if (element && legacyBoard) {
+    void import('./canvas/ui/canvas-board-v2').then(({ mountCanvasBoardV2 }) => {
+      const cleanup = mountCanvasBoardV2(element, legacyBoard);
+      window.addEventListener('pagehide', cleanup, { once: true });
+    }).catch((error) => console.warn('[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board', error));
+  }
+}
+
 function emitExecutionTransition(state: Readonly<ExecutionState>, event: ExecutionEvent): void {
   modernExecutionTransitions += 1;
   modernExecutionRuns.set(state.targetId, state);
@@ -354,7 +366,8 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '15';
+document.documentElement.dataset.canvasModernCore = '16';
+document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? 'ready' : 'missing';
