@@ -44,6 +44,7 @@ class FrontendReadinessTest(unittest.TestCase):
             provider_report=provider_report,
             evidence_report={"pending_gates": MANUAL_RELEASE_GATES},
             rollout_health_report={"status": "healthy", "ready_for_promotion": True},
+            historical_coverage_report={"ready": True},
         )
 
     def test_passes_code_migration_but_keeps_manual_release_gates_explicit(self):
@@ -76,6 +77,7 @@ class FrontendReadinessTest(unittest.TestCase):
             provider_report={"ready": False, "missing_capabilities": ["video", "comfy"]},
             evidence_report={"pending_gates": MANUAL_RELEASE_GATES},
             rollout_health_report={"status": "healthy", "ready_for_promotion": True},
+            historical_coverage_report={"ready": True},
         )
 
         self.assertTrue(report["code_migration_ready"])
@@ -91,6 +93,7 @@ class FrontendReadinessTest(unittest.TestCase):
             provider_report={"ready": True, "missing_capabilities": []},
             evidence_report={"ready": True, "pending_gates": []},
             rollout_health_report={"status": "healthy", "ready_for_promotion": True},
+            historical_coverage_report={"ready": True},
         )
 
         self.assertTrue(report["production_release_ready"])
@@ -105,10 +108,26 @@ class FrontendReadinessTest(unittest.TestCase):
             provider_report={"ready": True, "missing_capabilities": []},
             evidence_report={"ready": True, "pending_gates": []},
             rollout_health_report={"status": "insufficient", "ready_for_promotion": False},
+            historical_coverage_report={"ready": True},
         )
 
         self.assertIn("rollout-health-insufficient", report["release_blockers"])
         self.assertFalse(report["production_release_ready"])
+
+    def test_missing_historical_feature_coverage_blocks_release_not_code_migration(self):
+        self.write_entry()
+        report = build_frontend_readiness_report(
+            str(self.root), str(self.canvas_dir), expected_entries={"index.html"},
+            policy={"effective_percentage": 5, "blocked_reasons": []},
+            metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
+            provider_report={"ready": True, "missing_capabilities": []},
+            evidence_report={"ready": True, "pending_gates": []},
+            rollout_health_report={"status": "healthy", "ready_for_promotion": True},
+            historical_coverage_report={"ready": False, "missing_features": ["video-path"]},
+        )
+
+        self.assertTrue(report["code_migration_ready"])
+        self.assertIn("historical-production-coverage-insufficient", report["release_blockers"])
 
 
 if __name__ == "__main__":

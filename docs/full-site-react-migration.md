@@ -146,6 +146,10 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 
 本批全量结果：97 个 Vitest、29 个 Playwright、63 个 Python unittest 全部通过。
 
+历史生产数据现在可通过 `python app/services/canvas_production_coverage.py --strict` 生成匿名覆盖矩阵。报告只包含固定能力名称与数量，不包含目录、文件名、画布 ID、标题、提示词、URL 或未知节点类型文本。发布要求至少两份有效历史画布，并覆盖 Classic、Smart、连线图、Generator、ModelScope、Video、Comfy、LLM、LTX、Output、pending/recovery、计费与失败日志共 13 项核心路径；自动覆盖通过后仍保留人工历史样本证据门禁。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、67 个 Python unittest 全部通过。
+
 发布前总检及历史 Smart 无类型节点兼容修复后的全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
 
 ## 计费与复杂 fixture 验收

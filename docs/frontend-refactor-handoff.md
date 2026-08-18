@@ -509,3 +509,18 @@ React Canvas 新增 `save-succeeded`、`execution-succeeded`、`execution-failed
 当前本机灰度仍为 0%，健康状态为 `inactive`，联合遥测没有真实样本；没有自动开启或修改灰度配置。
 
 本批全量结果：97 个 Vitest、29 个 Playwright、63 个 Python unittest 全部通过。
+
+## 29. 2026-08-19 历史生产画布匿名覆盖矩阵
+
+新增只读命令：
+
+```powershell
+& '.\python\python.exe' app/services/canvas_production_coverage.py
+& '.\python\python.exe' app/services/canvas_production_coverage.py --strict
+```
+
+扫描器不返回目录、文件名、画布 ID、标题、提示词、媒体 URL、任务 ID 或未知节点类型，仅统计固定白名单能力和数量。最小生产样本为两份，要求覆盖 Classic、Smart、连线图、Generator、ModelScope、Video、Comfy、LLM、LTX 时间线、Output、pending/recovery、已定价日志和失败日志共 13 项；无效 JSON、扫描截断、样本不足或任一能力缺失都会 fail-closed。
+
+仓库的两份复杂合成 fixture 已覆盖 13/13，用于证明兼容与扫描逻辑；它们不会被当作真实生产证据。当前本机 `data/canvases` 只有 1 份有效 Classic 画布，仅覆盖 1/13，因此发布总检新增 `historical-production-coverage-insufficient`，原 `historical-production-fixtures` 人工证据门禁仍保留。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、67 个 Python unittest 全部通过。

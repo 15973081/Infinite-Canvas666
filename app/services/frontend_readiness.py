@@ -12,6 +12,7 @@ if __package__ in {None, ""}:
 from app.config import BASE_DIR, CANVAS_DIR, CANVAS_ROLLOUT_FILE, CANVAS_ROLLOUT_METRICS_FILE, STAGE8_RELEASE_EVIDENCE_FILE
 from app.services.canvas_audit import audit_canvas_directory
 from app.services.canvas_billing_audit import audit_canvas_billing
+from app.services.canvas_production_coverage import build_canvas_production_coverage_report
 from app.services.canvas_rollout import get_canvas_rollout_policy
 from app.services.canvas_rollout_metrics import get_canvas_rollout_metrics
 from app.services.canvas_rollout_health import build_canvas_rollout_health_report
@@ -44,6 +45,7 @@ def build_frontend_readiness_report(
     evidence_path: str = STAGE8_RELEASE_EVIDENCE_FILE,
     evidence_report: Optional[Dict[str, Any]] = None,
     rollout_health_report: Optional[Dict[str, Any]] = None,
+    historical_coverage_report: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     root = Path(repo_root).resolve()
     static = root / "static"
@@ -90,6 +92,7 @@ def build_frontend_readiness_report(
     if int(audit_summary.get("incompatible") or 0):
         code_blockers.append("canvas-audit-incompatible")
     billing_audit = audit_canvas_billing(canvas_directory, max_files=20000)
+    active_historical_coverage = historical_coverage_report if historical_coverage_report is not None else build_canvas_production_coverage_report(canvas_directory, max_files=20000)
 
     active_policy = policy if policy is not None else get_canvas_rollout_policy(rollout_path)
     active_metrics = metrics if metrics is not None else get_canvas_rollout_metrics(metrics_path)
@@ -105,6 +108,8 @@ def build_frontend_readiness_report(
         release_blockers.append("billing-audit-invalid-files")
     if billing_audit["duplicate_logs"]:
         release_blockers.append("billing-duplicate-records")
+    if not active_historical_coverage.get("ready"):
+        release_blockers.append("historical-production-coverage-insufficient")
     active_provider_report = provider_report if provider_report is not None else build_provider_readiness_report()
     for capability in active_provider_report.get("missing_capabilities", []):
         release_blockers.append(f"provider-capability-missing:{capability}")
@@ -125,6 +130,7 @@ def build_frontend_readiness_report(
         },
         "canvas_audit": audit_summary,
         "billing_audit": billing_audit,
+        "historical_production_coverage": active_historical_coverage,
         "provider_readiness": active_provider_report,
         "release_evidence": active_evidence_report,
         "rollout": active_policy,
