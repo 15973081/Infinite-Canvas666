@@ -20,7 +20,11 @@ import {
   type CanvasRepositoryDiagnostics,
 } from './canvas/infrastructure/canvas-repository';
 import { createTaskClient, type TaskClient, type TaskClientDiagnostics } from './canvas/infrastructure/task-client';
-import { resolveCanvasV2Rollout, type CanvasRolloutDecision } from './canvas/infrastructure/rollout';
+import {
+  loadCanvasRolloutPolicy,
+  resolveCanvasV2Rollout,
+  type CanvasRolloutDecision,
+} from './canvas/infrastructure/rollout';
 
 interface LegacyNodeOption {
   label: string;
@@ -153,16 +157,18 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 26;
+      version: 27;
     };
   }
 }
 
 const searchParams = new URLSearchParams(window.location.search);
+const rolloutPolicy = await loadCanvasRolloutPolicy();
 const rolloutDecision = resolveCanvasV2Rollout(
   window.location.search,
   window.localStorage,
   window.sessionStorage.getItem('canvasClientId') || window.location.pathname,
+  rolloutPolicy,
 );
 const modernCoreMode = searchParams.get('canvas_modern_core');
 const executionShadowEnabled = modernCoreMode === 'execution-shadow';
@@ -211,7 +217,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 26 as const,
+  version: 27 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -411,7 +417,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '26';
+document.documentElement.dataset.canvasModernCore = '27';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
@@ -428,5 +434,7 @@ document.documentElement.dataset.canvasModernShadow = shadowEnabled ? 'enabled' 
 document.documentElement.dataset.canvasModernTaskClient = taskClientEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasV2Rollout = rolloutDecision.enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasV2RolloutBucket = String(rolloutDecision.bucket);
+document.documentElement.dataset.canvasV2RolloutBlocked = rolloutDecision.blockedReasons.join(',') || 'none';
 document.documentElement.dataset.canvasV2RolloutPercentage = String(rolloutDecision.percentage);
+document.documentElement.dataset.canvasV2RolloutPolicy = rolloutDecision.policyLoaded ? 'loaded' : 'fallback';
 window.dispatchEvent(new CustomEvent('canvas-modern-core-ready'));

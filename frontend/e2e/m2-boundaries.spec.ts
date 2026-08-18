@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '26');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '27');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -14,6 +14,8 @@ test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-islands', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-status', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-toolbar', 'disabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-policy', 'loaded');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'rollout-disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-legacy-bridge', 'ready');
   await expect(page.locator('#canvasExecutionIsland')).toBeHidden();
   await expect(page.locator('#canvasStatusIsland')).toBeHidden();
@@ -22,6 +24,28 @@ test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.evaluate(() => (window as typeof window & { openCanvasLog(): void }).openCanvasLog());
   await expect(page.locator('#logModal > .log-panel')).toBeVisible();
   await expect(page.locator('#canvasActivityIsland')).toBeHidden();
+});
+
+test('keeps the server kill switch above every local rollout override', async ({ page }) => {
+  await page.route('**/api/canvas-rollout', async (route) => route.fulfill({ json: {
+    version: 1,
+    configured_percentage: 100,
+    effective_percentage: 0,
+    enabled: true,
+    kill_switch: true,
+    blocked_reasons: ['kill-switch'],
+  } }));
+
+  await page.goto('/static/canvas.html?canvas_v2=1&canvas_v2_rollout=100');
+
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'kill-switch');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
+  const rollout = await page.evaluate(() => (
+    window as typeof window & { CanvasModernCore: any }
+  ).CanvasModernCore.getM2Report().rollout);
+  expect(rollout).toMatchObject({ enabled: false, forced: false, killSwitch: true, source: 'server' });
 });
 
 test('activates the cohesive V2 stack through deterministic rollout controls', async ({ page }) => {
@@ -650,7 +674,16 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
     executionStatus: 'done',
     m2: {
       enabled: true,
-      rollout: { bucket: expect.any(Number), enabled: false, forced: false, percentage: 0, source: 'default' },
+      rollout: {
+        blockedReasons: ['rollout-disabled'],
+        bucket: expect.any(Number),
+        enabled: false,
+        forced: false,
+        killSwitch: false,
+        percentage: 0,
+        policyLoaded: true,
+        source: 'server',
+      },
       execution: { active: 0, done: 1, failed: 0, stopped: 0, transitions: 7 },
       flags: { executionEngine: true, repository: true, taskClient: true },
       repository: {

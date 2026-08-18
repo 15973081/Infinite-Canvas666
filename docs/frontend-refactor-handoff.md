@@ -219,6 +219,33 @@ Spike 只实现：
 - Legacy Board 与 V2 Board 不在同一页面同时写文档。
 - 默认仍可一键回退完整 Legacy Board。
 
+### 7.6 服务端灰度发布门禁
+
+阶段 9 的发布门禁已落地，但默认保持关闭。`GET /api/canvas-rollout` 会合并发布配置、环境变量与历史画布审计结果；前端启动时读取该策略，只有门禁放行后才按稳定客户端桶启用 V2。策略读取失败时继续安全回退，不影响 Legacy Board 启动。
+
+可在 `data/canvas_rollout.json` 写入：
+
+```json
+{
+  "enabled": true,
+  "percentage": 5,
+  "kill_switch": false,
+  "require_audit": true,
+  "max_audit_files": 20000
+}
+```
+
+发布控制优先级为：服务端 `kill_switch` > URL `canvas_v2=0/1` > URL `canvas_v2_rollout` > 服务端有效百分比 > 浏览器本地回退值。审计未完成、存在不兼容历史画布、配置无效或发布未启用时，服务端把有效百分比强制降为 `0`。紧急回滚可设置 `CANVAS_V2_KILL_SWITCH=true`，无需重新构建前端；另可用 `CANVAS_V2_ROLLOUT_ENABLED` 和 `CANVAS_V2_ROLLOUT_PERCENTAGE` 临时覆盖文件配置。
+
+灰度前至少确认：
+
+```powershell
+Invoke-RestMethod http://localhost:6003/api/canvas-rollout
+.\python\python.exe app/services/canvas_audit.py --directory data/canvases --summary-only
+```
+
+响应中的 `effective_percentage` 必须符合计划，且 `blocked_reasons` 必须为空。该门禁只提供安全发布能力，不代表阶段 7 的真实外部链路验收已经完成。
+
 ## 8. 阶段 8：默认切换、清理和稳定
 
 执行顺序：

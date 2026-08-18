@@ -18,6 +18,7 @@ from app.services.comfyui import *
 from app.services.workflow import *
 from app.services.canvas_tasks import create_canvas_task, get_canvas_task, update_canvas_task
 from app.services.canvas_audit import audit_canvas_directory
+from app.services.canvas_rollout import get_canvas_rollout_policy
 router = APIRouter()
 
 @router.post("/api/canvas-image-tasks")
@@ -642,6 +643,10 @@ async def canvas_audit(include_deleted: bool = False, include_details: bool = Tr
         include_details=include_details,
         max_files=max(1, min(20000, max_files)),
     )
+
+@router.get("/api/canvas-rollout")
+def canvas_rollout():
+    return get_canvas_rollout_policy()
 
 @router.get("/api/canvases/trash")
 async def trashed_canvases():

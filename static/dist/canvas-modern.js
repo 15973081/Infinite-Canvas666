@@ -327,33 +327,57 @@ function _(e, t, n, i = 0) {
 }
 //#endregion
 //#region src/canvas/infrastructure/rollout.ts
-function v(e, t, n) {
-	let r = new URLSearchParams(e), i = r.get("canvas_v2"), a = y(r.get("canvas_v2_rollout")), o = y(x(t, "canvasV2RolloutPercentage")), s = a ?? o ?? 0, c = a === null ? o === null ? "default" : "storage" : "query", l = b(n || "anonymous");
-	return i === "1" || i === "0" ? {
-		bucket: l,
-		enabled: i === "1",
-		forced: !0,
-		percentage: s,
-		source: "query"
-	} : {
-		bucket: l,
-		enabled: l < s,
-		forced: !1,
-		percentage: s,
-		source: c
+async function v(e = fetch) {
+	try {
+		let t = await n(e, "/api/canvas-rollout", {}, { timeoutMs: 1500 });
+		if (!t || typeof t != "object") return null;
+		let r = t;
+		if (typeof r.enabled != "boolean" || typeof r.kill_switch != "boolean") return null;
+		let i = x(r.effective_percentage), a = x(r.configured_percentage);
+		return i === null || a === null ? null : {
+			blocked_reasons: Array.isArray(r.blocked_reasons) ? r.blocked_reasons.filter((e) => typeof e == "string") : [],
+			configured_percentage: a,
+			effective_percentage: i,
+			enabled: r.enabled,
+			kill_switch: r.kill_switch,
+			version: typeof r.version == "number" ? r.version : 1
+		};
+	} catch {
+		return null;
+	}
+}
+function y(e, t, n, r = null) {
+	let i = new URLSearchParams(e), a = i.get("canvas_v2"), o = S(i.get("canvas_v2_rollout")), s = S(C(t, "canvasV2RolloutPercentage")), c = r !== null, l = r?.blocked_reasons ?? [], u = ee(n || "anonymous");
+	if (r?.kill_switch) return b(u, !1, !1, 0, "server", !0, l, !0);
+	let d = r?.effective_percentage ?? s ?? 0, f = r ? "server" : s === null ? "default" : "storage", p = o ?? d;
+	return a === "1" || a === "0" ? b(u, a === "1", !0, p, "query", c, l, !1) : b(u, u < p, !1, p, o === null ? f : "query", c, l, !1);
+}
+function b(e, t, n, r, i, a, o, s) {
+	return {
+		blockedReasons: [...o],
+		bucket: e,
+		enabled: t,
+		forced: n,
+		killSwitch: s,
+		percentage: r,
+		policyLoaded: a,
+		source: i
 	};
 }
-function y(e) {
+function x(e) {
+	return typeof e == "number" && Number.isFinite(e) ? Math.max(0, Math.min(100, Math.floor(e))) : null;
+}
+function S(e) {
 	if (e === null || e.trim() === "") return null;
 	let t = Number(e);
 	return Number.isFinite(t) ? Math.max(0, Math.min(100, Math.floor(t))) : null;
 }
-function b(e) {
+function ee(e) {
 	let t = 2166136261;
 	for (let n = 0; n < e.length; n += 1) t ^= e.charCodeAt(n), t = Math.imul(t, 16777619);
 	return (t >>> 0) % 100;
 }
-function x(e, t) {
+function C(e, t) {
 	try {
 		return e?.getItem(t) ?? null;
 	} catch {
@@ -362,12 +386,12 @@ function x(e, t) {
 }
 //#endregion
 //#region src/main.ts
-var S = new URLSearchParams(window.location.search), C = v(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname), w = S.get("canvas_modern_core"), T = w === "execution-shadow", E = w === "graph-order", D = w === "shadow", O = S.get("canvas_m2") === "1" || S.get("canvas_m2") === null && C.enabled, k = O || S.get("canvas_execution_engine") === "1", A = O || S.get("canvas_task_client") === "1", j = O || S.get("canvas_repository") === "1", M = k && A && j, N = S.get("canvas_react_islands") === "1", P = N || S.get("canvas_react_activity") === "1", F = N || S.get("canvas_react_execution") === "1", I = N || S.get("canvas_react_status") === "1", L = N || S.get("canvas_react_toolbar") === "1", R = S.get("canvas_board_v2") === "1" || S.get("canvas_board_v2") === null && C.enabled, z = m(), B = a(), V = /* @__PURE__ */ new Map(), H = 0, U = 0, W = [], G = 0, K = 0, q = /* @__PURE__ */ new Map(), J = {
+var w = new URLSearchParams(window.location.search), te = await v(), T = y(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname, te), E = w.get("canvas_modern_core"), D = E === "execution-shadow", O = E === "graph-order", k = E === "shadow", A = w.get("canvas_m2") === "1" || w.get("canvas_m2") === null && T.enabled, j = A || w.get("canvas_execution_engine") === "1", M = A || w.get("canvas_task_client") === "1", N = A || w.get("canvas_repository") === "1", P = j && M && N, F = w.get("canvas_react_islands") === "1", I = F || w.get("canvas_react_activity") === "1", L = F || w.get("canvas_react_execution") === "1", R = F || w.get("canvas_react_status") === "1", z = F || w.get("canvas_react_toolbar") === "1", B = w.get("canvas_board_v2") === "1" || w.get("canvas_board_v2") === null && T.enabled, V = m(), H = a(), U = /* @__PURE__ */ new Map(), W = 0, G = 0, K = [], q = 0, J = 0, Y = /* @__PURE__ */ new Map(), X = {
 	done: 0,
 	failed: 0,
 	stopped: 0
-}, Y = 0;
-function X(n, r, i) {
+}, Z = 0;
+function Q(n, r, i) {
 	let a = window.CanvasLegacyBridge, o = a?.getDocumentSnapshot();
 	if (!a || !o) return null;
 	let s = t(e(o)), c = n === "cascade" ? s.cascadeOrder(r) : s.retryCascadeOrder(r), l = i ?? (n === "cascade" ? a.computeCascadeOrder(r) : a.computeRetryCascadeOrder(r));
@@ -380,15 +404,15 @@ function X(n, r, i) {
 	};
 }
 if (window.CanvasModernCore = Object.freeze({
-	version: 26,
-	canvasRepository: B,
-	canvasRepositoryEnabled: j,
-	executionEngineEnabled: k,
-	m2Enabled: M,
-	taskClient: z,
-	taskClientEnabled: A,
+	version: 27,
+	canvasRepository: H,
+	canvasRepositoryEnabled: N,
+	executionEngineEnabled: j,
+	m2Enabled: P,
+	taskClient: V,
+	taskClientEnabled: M,
 	activeOrder(n, r) {
-		if (!E) return null;
+		if (!O) return null;
 		try {
 			let i = window.CanvasLegacyBridge?.getDocumentSnapshot();
 			if (!i) return null;
@@ -398,25 +422,25 @@ if (window.CanvasModernCore = Object.freeze({
 			return console.warn("[canvas-modern-core] active graph order failed; using legacy order", e), null;
 		}
 	},
-	compareOrder: X,
+	compareOrder: Q,
 	runOrdered(e) {
-		return k ? l(e.targetId, e.order, e.execute, {
+		return j ? l(e.targetId, e.order, e.execute, {
 			mode: e.mode,
 			signal: e.signal,
-			onTransition: Z
+			onTransition: $
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	runParallel(e) {
-		return k ? u(e.targetId, e.order, e.rounds, e.execute, {
+		return j ? u(e.targetId, e.order, e.rounds, e.execute, {
 			limit: e.limit,
 			roundId: e.roundId,
 			signal: e.signal,
-			onTransition: Z
+			onTransition: $
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	observeExecution(e) {
-		if (T) try {
-			let t = V.get(e.targetId) ?? o();
+		if (D) try {
+			let t = U.get(e.targetId) ?? o();
 			e.phase === "begin" ? (t = s(t, {
 				type: "queue",
 				targetId: e.targetId,
@@ -434,26 +458,26 @@ if (window.CanvasModernCore = Object.freeze({
 				type: "finish",
 				status: e.status,
 				error: e.error
-			}), V.set(e.targetId, t), H += 1;
+			}), U.set(e.targetId, t), W += 1;
 		} catch (t) {
-			U += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
+			G += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
 		}
 	},
 	observeOrder(e, t, n) {
-		if (D) try {
-			let r = X(e, t, n);
+		if (k) try {
+			let r = Q(e, t, n);
 			if (!r) return;
-			G += 1, r.matches || (W.length < 50 && W.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+			q += 1, r.matches || (K.length < 50 && K.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
 		} catch (e) {
-			K += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+			J += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
 		}
 	},
 	getShadowReport() {
 		return {
-			enabled: D,
-			checks: G,
-			errors: K,
-			mismatches: W.map((e) => ({
+			enabled: k,
+			checks: q,
+			errors: J,
+			mismatches: K.map((e) => ({
 				...e,
 				legacy: [...e.legacy],
 				modern: [...e.modern]
@@ -462,10 +486,10 @@ if (window.CanvasModernCore = Object.freeze({
 	},
 	getExecutionShadowReport() {
 		return {
-			enabled: T,
-			errors: U,
-			events: H,
-			runs: [...V.values()].map((e) => ({
+			enabled: D,
+			errors: G,
+			events: W,
+			runs: [...U.values()].map((e) => ({
 				...e,
 				completedNodeIds: [...e.completedNodeIds],
 				order: [...e.order],
@@ -478,69 +502,69 @@ if (window.CanvasModernCore = Object.freeze({
 	},
 	getM2Report() {
 		return {
-			enabled: M,
-			rollout: C,
+			enabled: P,
+			rollout: T,
 			execution: {
-				active: [...q.values()].filter(({ status: e }) => ![
+				active: [...Y.values()].filter(({ status: e }) => ![
 					"done",
 					"failed",
 					"stopped"
 				].includes(e)).length,
-				...J,
-				transitions: Y
+				...X,
+				transitions: Z
 			},
 			flags: {
-				executionEngine: k,
-				repository: j,
-				taskClient: A
+				executionEngine: j,
+				repository: N,
+				taskClient: M
 			},
-			repository: B.getDiagnostics(),
-			tasks: z.getDiagnostics()
+			repository: H.getDiagnostics(),
+			tasks: V.getDiagnostics()
 		};
 	},
 	mergeConflict(e, t, n) {
 		return i(e, t, n);
 	}
-}), F) {
+}), L) {
 	let e = document.getElementById("canvasExecutionIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactExecutionIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React execution island failed to load", e));
 }
-if (I) {
+if (R) {
 	let e = document.getElementById("canvasStatusIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactStatusIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React status island failed to load", e));
 }
-if (L) {
+if (z) {
 	let e = document.getElementById("canvasToolbarIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactToolbarIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React toolbar island failed to load", e));
 }
-if (P) {
+if (I) {
 	let e = document.getElementById("canvasActivityIsland");
 	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactActivityIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React activity island failed to load", e));
 }
-if (R) {
+if (B) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
 	e && t && import("./canvas-board-v2-3yonz2t4.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
 		window.addEventListener("pagehide", r, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e));
 }
-function Z(e, t) {
-	Y += 1, q.set(e.targetId, e), t.type === "finish" && (J[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
+function $(e, t) {
+	Z += 1, Y.set(e.targetId, e), t.type === "finish" && (X[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
 		event: t,
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "26", document.documentElement.dataset.canvasBoardV2 = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = T ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = E ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = A ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = C.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(C.bucket), document.documentElement.dataset.canvasV2RolloutPercentage = String(C.percentage), window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "27", document.documentElement.dataset.canvasBoardV2 = B ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = M ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = T.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(T.bucket), document.documentElement.dataset.canvasV2RolloutBlocked = T.blockedReasons.join(",") || "none", document.documentElement.dataset.canvasV2RolloutPercentage = String(T.percentage), document.documentElement.dataset.canvasV2RolloutPolicy = T.policyLoaded ? "loaded" : "fallback", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion
