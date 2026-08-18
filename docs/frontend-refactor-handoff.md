@@ -405,3 +405,11 @@ API Settings 已由 `frontend/src/features/provider-studio/` 接管，覆盖当�
 当前已接通现有后端的库/分组/条目 CRUD、批量移动与删除、工作流上传、本地上传和描述保存、共享目录导入、Canvas ZIP 下载及 Smart Canvas 收件箱。Playwright 断言页面不执行 Legacy 脚本，并覆盖真实请求 payload。
 
 最新自动化结果：85 个 Vitest、24 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 9。数字人认证、裁剪和自动反推描述仍列为高级功能补齐项，不能据此宣称完整生产功能等价；下一批优先迁移 GPT Chat。
+
+## 21. 2026-08-19 ChatStudio 与 GPT Chat
+
+`/static/gpt-chat.html` 已改为独立 React + TypeScript + Vite 入口，旧页面约 83KB 的内联实现不再进入正常路径。`frontend/src/features/chat-studio/` 统一承载会话、平台模型、附件、SSE 解析、流式状态、停止、失败和重试。
+
+当前接通会话列表/创建/读取/删除、`/api/config`、`/api/ai/upload` 和 `/api/chat/stream`。视觉与文档输入直接进入 `reference_images`，SSE parser 保留跨网络分片的半帧数据，失败后重新读取服务端会话并保留可重试草稿。旧页面未真正接通的生图/Agent 模式没有迁移；独立图片生成继续由 ImageStudio 负责。
+
+最新自动化结果：88 个 Vitest、26 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 10。下一批迁移首页外壳与导航，随后处理 Smart Canvas。

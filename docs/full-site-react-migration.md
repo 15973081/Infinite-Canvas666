@@ -36,11 +36,11 @@ Canvas 尚未完成的是阶段 8 发布验收：默认 100% 切换、真实供�
 | `angle.html` | React/TS 代码迁移完成 | ImageStudio 视角 schema、本地/云端及长任务恢复适配器 |
 | `api-settings.html` | React/TS 代码迁移完成 | `ProviderStudio` 平台、凭据、模型、价格、协议、LoRA 与连接检测 |
 | `asset-manager.html` | React/TS 代码迁移完成 | `frontend/src/pages/asset-manager.tsx`，复用 `AssetStudio` |
-| `gpt-chat.html` | Legacy | 迁移会话、流式消息、视觉输入和附件域 |
+| `gpt-chat.html` | React/TS 代码迁移完成 | `frontend/src/pages/gpt-chat.tsx`，复用 `ChatStudio` |
 | `smart-canvas.html` | Legacy | 最后复用 Canvas V2 domain/runtime，避免重复画布实现 |
 | `index.html` | Legacy | 在子页面稳定后迁移外壳、导航、iframe 生命周期与主题 |
 
-当前生产页面完成 9 个，另有 1 个 React 性能测试入口。页面数量只是进度参考；Smart Canvas 的工作量远高于普通生成页。
+当前生产页面完成 10 个，另有 1 个 React 性能测试入口。页面数量只是进度参考；Smart Canvas 的工作量远高于普通生成页。
 
 ## 已形成的共享层
 
@@ -52,8 +52,8 @@ Online 与 Z-Image 的业务入口均小于 1KB，共享图片工作台约 12KB�
 
 ## 下一批顺序
 
-1. GPT Chat：优先抽取会话、流式消息、视觉输入和附件领域层。
-2. 首页外壳、Smart Canvas。
+1. 首页外壳：迁移导航、主题、嵌入页面生命周期与路由状态。
+2. Smart Canvas：最后复用 Canvas V2 domain/runtime，避免重复画布实现。
 
 每批允许包含多个同构页面，但必须共享领域层或组件层；禁止用 React 外壳继续运行旧全局脚本冒充迁移。
 
@@ -89,3 +89,15 @@ Asset Manager 已切换到 `frontend/src/features/asset-studio/` 与独立 TSX �
 - 自动化结果：85 个 Vitest、24 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 9。
 
 旧脚本继续作为整页回滚制品保留，但不是生产入口依赖。数字人素材认证、裁剪和本地图片自动反推描述属于 AssetStudio 后续增强项；它们不阻塞当前核心管理路径，但在补齐并完成真实平台验收前，不宣称 Asset Manager 已达到所有历史高级功能的生产等价。
+
+## 2026-08-19 ChatStudio 结果
+
+GPT Chat 已切换到 `frontend/src/features/chat-studio/` 与独立 TSX 入口；原页面约 83KB 的样式和内联全局脚本已退出生产路径。新领域层直接使用会话、配置、附件上传和 SSE 流式聊天接口。
+
+- 支持会话列表、搜索、新建、切换、删除与上次会话恢复。
+- 支持平台/模型选择、SSE 增量回复、停止接收、消息复制、失败状态和显式重试。
+- 支持最多 4 个图片、文档、音频或视频附件，覆盖选择、粘贴、拖放、预览和视觉输入 payload。
+- `gpt-chat.html` 只保留 React root 与 Vite 模块，不再声明或执行 `sendMessage` 等旧全局函数。
+- 自动化结果：88 个 Vitest、26 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 10。
+
+旧页面的“生图/Agent”选择最终仍强制提交 `mode: chat`，没有对应可执行生产链路，因此本次没有把该未接通 UI 搬入新页面。独立生图能力继续由 ImageStudio 页面提供；未来若增加正式 Agent 后端契约，应作为 ChatStudio 的显式 adapter 接入。
