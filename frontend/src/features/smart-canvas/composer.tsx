@@ -16,6 +16,12 @@ interface SmartComposerSettings {
   resolution: string;
 }
 
+interface SmartComposerMedia {
+  kind: string;
+  name: string;
+  url: string;
+}
+
 const storageKey = 'smart_canvas_v2_composer';
 const defaults: SmartComposerSettings = {
   comfyWorkflow: '', count: 1, duration: 5, engine: 'generator', model: '', msCustomModel: 'Tongyi-MAI/Z-Image-Turbo',
@@ -31,6 +37,7 @@ export function SmartCanvasComposer({ runtime }: { runtime: CanvasRuntime }) {
   const [settings, setSettings] = useState<SmartComposerSettings>(readSettings);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [references, setReferences] = useState<SmartComposerMedia[]>([]);
   const type = settings.engine;
   const providerOptions = useMemo(() => runtime.getNodeOptions(type, 'provider'), [runtime, type]);
   const modelOptions = useMemo(() => runtime.getNodeOptions(type, 'model', {
@@ -63,11 +70,12 @@ export function SmartCanvasComposer({ runtime }: { runtime: CanvasRuntime }) {
     setBusy(true);
     setStatus('正在创建智能工作流…');
     try {
-      const flow = smartComposerWorkflow(text, settings);
+      const flow = smartComposerWorkflow(text, settings, references);
       const ids = window.CanvasBoardV2.importWorkflow(flow);
       const generatorId = ids[1];
       if (!generatorId) throw new Error('未能创建生成节点');
       setPrompt('');
+      setReferences([]);
       if (run) {
         setStatus('工作流已创建，正在生成…');
         await window.CanvasBoardV2.runNode(generatorId);
@@ -81,6 +89,23 @@ export function SmartCanvasComposer({ runtime }: { runtime: CanvasRuntime }) {
       setBusy(false);
     }
   };
+  const uploadReferences = async (files: File[]) => {
+    if (!files.length) return;
+    setBusy(true);
+    setStatus('正在上传参考媒体…');
+    try {
+      const uploaded = await runtime.uploadMedia(files);
+      const items = (uploaded.files || []).flatMap((file) => file.url ? [{
+        kind: String(file.kind || mediaKind(String(file.url))), name: String(file.name || '参考媒体'), url: String(file.url),
+      }] : []);
+      setReferences((current) => dedupeReferences([...current, ...items]).slice(0, 8));
+      setStatus(items.length ? `已添加 ${items.length} 个参考媒体` : '没有上传成功的媒体');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return <section className="smart-canvas-composer" data-testid="smart-canvas-composer">
     <div className="smart-composer-main">
@@ -88,10 +113,14 @@ export function SmartCanvasComposer({ runtime }: { runtime: CanvasRuntime }) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); void create(true); }
       }} placeholder="描述你想生成的内容，Ctrl/⌘ + Enter 直接生成" value={prompt} />
       <div className="smart-composer-actions">
+        <label className="tool-btn smart-composer-upload">添加参考<input accept="image/*,video/*,audio/*" disabled={busy} hidden multiple onChange={(event) => {
+          void uploadReferences([...(event.target.files || [])]); event.target.value = '';
+        }} type="file" /></label>
         <button disabled={busy} onClick={() => void create(false)} type="button">仅创建工作流</button>
         <button className="primary-btn" disabled={busy} onClick={() => void create(true)} type="button">{busy ? '处理中…' : '创建并生成'}</button>
       </div>
     </div>
+    {references.length ? <div className="smart-composer-references">{references.map((item) => <span key={item.url} title={item.url}>{item.kind === 'video' ? '视频' : item.kind === 'audio' ? '音频' : '图片'} · {item.name}<button aria-label={`移除参考 ${item.name}`} disabled={busy} onClick={() => setReferences((current) => current.filter((candidate) => candidate.url !== item.url))} type="button">×</button></span>)}</div> : null}
     <div className="smart-composer-settings">
       <label>模式<select aria-label="智能生成模式" disabled={busy} onChange={(event) => update({ engine: event.target.value as SmartEngine, model: '', provider: '' })} value={settings.engine}>
         {(Object.keys(engineLabels) as SmartEngine[]).map((engine) => <option key={engine} value={engine}>{engineLabels[engine]}</option>)}
@@ -121,14 +150,19 @@ function OptionSelect({ label, onChange, options, value }: { label: string; onCh
     : <option value="">暂无可用项</option>}</select></label>;
 }
 
-export function smartComposerWorkflow(prompt: string, settings: SmartComposerSettings) {
+export function smartComposerWorkflow(prompt: string, settings: SmartComposerSettings, references: SmartComposerMedia[] = []) {
   const generator = generatorSettings(settings);
   return {
-    connections: [{ from: 'smart_prompt', to: 'smart_generator' }, { from: 'smart_generator', to: 'smart_output' }],
+    connections: [
+      { from: 'smart_prompt', to: 'smart_generator' },
+      ...references.map((_, index) => ({ from: `smart_reference_${index}`, to: 'smart_generator' })),
+      { from: 'smart_generator', to: 'smart_output' },
+    ],
     nodes: [
       { id: 'smart_prompt', type: 'prompt', x: 0, y: 0, text: prompt },
       { id: 'smart_generator', type: settings.engine, x: 380, y: 0, ...generator },
       { id: 'smart_output', type: 'output', x: 860, y: 0, images: [], imageComparisons: {} },
+      ...references.map((item, index) => ({ id: `smart_reference_${index}`, type: 'image', x: 0, y: 140 + index * 120, mediaKind: item.kind, name: item.name, url: item.url })),
     ],
   };
 }
@@ -162,4 +196,14 @@ function readSettings(): SmartComposerSettings {
   } catch {
     return { ...defaults };
   }
+}
+
+function dedupeReferences(items: SmartComposerMedia[]): SmartComposerMedia[] {
+  return [...new Map(items.filter((item) => item.url).map((item) => [item.url, item])).values()];
+}
+
+function mediaKind(url: string): string {
+  if (/\.(mp4|webm|mov)(\?|$)/i.test(url)) return 'video';
+  if (/\.(mp3|wav|m4a|ogg)(\?|$)/i.test(url)) return 'audio';
+  return 'image';
 }

@@ -28,4 +28,21 @@ describe('smartComposerWorkflow', () => {
       type: 'comfy', mode: 'custom', comfyWorkflow: 'custom.json', width: 1024, height: 1024,
     });
   });
+
+  it('adds reference media nodes and connects them to the generated workflow', () => {
+    const workflow = smartComposerWorkflow('edit this', {
+      comfyWorkflow: '', count: 1, duration: 5, engine: 'generator', model: 'image-v1', msCustomModel: '',
+      msgenModel: 'zimage', provider: 'provider', ratio: 'square', resolution: '1k',
+    }, [
+      { kind: 'image', name: 'reference.png', url: '/uploads/reference.png' },
+      { kind: 'video', name: 'motion.mp4', url: '/uploads/motion.mp4' },
+    ]);
+
+    expect(workflow.nodes.slice(3)).toMatchObject([
+      { id: 'smart_reference_0', type: 'image', mediaKind: 'image', url: '/uploads/reference.png' },
+      { id: 'smart_reference_1', type: 'image', mediaKind: 'video', url: '/uploads/motion.mp4' },
+    ]);
+    expect(workflow.connections).toContainEqual({ from: 'smart_reference_0', to: 'smart_generator' });
+    expect(workflow.connections).toContainEqual({ from: 'smart_reference_1', to: 'smart_generator' });
+  });
 });

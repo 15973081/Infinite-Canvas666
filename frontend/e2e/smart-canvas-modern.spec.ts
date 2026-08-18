@@ -74,7 +74,6 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
   await page.route('**/api/canvases/smart-direct/lock', async (route) => route.fulfill({ json: { ok: true } }));
   await page.route('**/api/canvases/smart-direct', async (route) => route.fulfill({ json: { canvas: canvasDocument } }));
   await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [] } }));
-
   await page.goto('/static/smart-canvas.html?id=smart-direct');
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.locator('[data-node-id="prompt-direct"]')).toContainText('direct');
@@ -104,6 +103,9 @@ test('creates and runs a generation chain from the React Smart Canvas composer',
     await route.fulfill({ json: { canvas: canvasDocument } });
   });
   await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/ai/upload', async (route) => route.fulfill({ json: {
+    files: [{ kind: 'image', name: 'reference.png', url: '/uploads/reference.png' }],
+  } }));
   await page.route('**/api/canvas-image-tasks**', async (route) => {
     if (route.request().method() === 'POST') {
       submitted = JSON.parse(route.request().postData() || '{}');
@@ -116,6 +118,10 @@ test('creates and runs a generation chain from the React Smart Canvas composer',
   await page.goto('/static/smart-canvas.html?id=smart-composer-e2e');
   await expect(page.getByTestId('smart-canvas-composer')).toBeVisible();
   await page.getByLabel('智能画布提示词').fill('a city made of glass');
+  await page.getByTestId('smart-canvas-composer').locator('input[type="file"]').setInputFiles({
+    name: 'reference.png', mimeType: 'image/png', buffer: Buffer.from('reference'),
+  });
+  await expect(page.getByTestId('smart-canvas-composer')).toContainText('reference.png');
   await expect(page.getByLabel('智能生成平台')).toHaveValue('mock');
   await expect(page.getByLabel('智能生成模型')).toHaveValue('mock-image');
   await page.getByRole('button', { name: '创建并生成' }).click();
@@ -124,6 +130,9 @@ test('creates and runs a generation chain from the React Smart Canvas composer',
   await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(1);
   await expect(page.locator('[data-node-type="generator"]')).toHaveCount(1);
   await expect(page.locator('[data-node-type="output"] img[src="/output/composer.png"]')).toHaveCount(1);
-  expect(submitted).toMatchObject({ prompt: 'a city made of glass', provider_id: 'mock', model: 'mock-image' });
+  expect(submitted).toMatchObject({
+    prompt: 'a city made of glass', provider_id: 'mock', model: 'mock-image',
+    reference_images: [{ kind: 'image', name: 'reference.png', url: '/uploads/reference.png' }],
+  });
   await expect.poll(() => saves).toBeGreaterThan(0);
 });
