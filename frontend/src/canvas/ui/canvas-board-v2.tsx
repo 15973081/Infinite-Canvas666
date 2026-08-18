@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
-import type { CanvasNode } from '../domain/types';
+import type { CanvasEdge, CanvasNode } from '../domain/types';
 import { canvasDocumentSavePayload } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
 
-const nodeSize = { height: 110, width: 240 };
 const nodeRegistry: Record<string, string> = {
   comfy: 'ComfyUI', generator: 'API 生成', group: '分组', image: '上传', llm: 'LLM', loop: '循环',
   ltxDirector: 'LTX Director', msgen: 'ModelScope', output: 'Output', prompt: '提示词', promptGroup: '提示词组', video: '视频',
@@ -18,11 +17,85 @@ function nodePoint(node: CanvasNode): Point {
   return { x: Number(node.x || 0), y: Number(node.y || 0) };
 }
 
+function nodeSize(node: CanvasNode): { height: number; width: number } {
+  const defaults = node.type === 'prompt' ? { height: 230, width: 310 }
+    : node.type === 'loop' ? { height: node.showPrompt || node.imageInput ? 390 : 180, width: 336 }
+      : node.type === 'promptGroup' ? { height: 220, width: 260 }
+        : { height: 110, width: 240 };
+  return { height: Number(node.h || defaults.height), width: Number(node.w || defaults.width) };
+}
+
+function canInput(node: CanvasNode): boolean {
+  return ['generator', 'comfy', 'ltxDirector', 'output', 'llm', 'msgen', 'video'].includes(node.type)
+    || (node.type === 'loop' && (Boolean(node.imageInput) || Boolean(node.showPrompt)));
+}
+
+function canOutput(node: CanvasNode): boolean {
+  return ['image', 'prompt', 'loop', 'group', 'promptGroup', 'generator', 'comfy', 'ltxDirector', 'llm', 'msgen', 'video', 'output'].includes(node.type);
+}
+
+function PromptBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  const text = String(node.text || '');
+  return <div className="prompt-editor" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+    <div className="prompt-toolbar">
+      <button className="prompt-template-btn" onClick={() => window.CanvasBoardV2?.openPromptTemplates(node.id)} type="button">模板</button>
+      <div className={`prompt-counter ${text.length > 20_000 ? 'over' : ''}`}><span>{text.length.toLocaleString()}</span><span>/ 20,000</span></div>
+    </div>
+    <textarea data-field="text" maxLength={20_000} onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { text: event.target.value })} placeholder="输入提示词" value={text} />
+  </div>;
+}
+
+function PromptGroupBody({ node, nodesById }: { node: CanvasNode; nodesById: Map<string, CanvasNode> }) {
+  const prompts = Array.isArray(node.items) ? node.items.map((id) => nodesById.get(String(id))).filter((item) => item?.type === 'prompt') : [];
+  return <div className="text-[11px] text-gray-400" data-prompt-count={prompts.length}>{prompts.length} 个提示词已分组</div>;
+}
+
+function LoopBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  const count = Math.max(1, Math.min(100, Number(node.count || 1)));
+  const loopStart = Math.max(1, Number(node.loopStart || 1));
+  const batchSize = Math.max(1, Math.min(100, Number(node.imageBatchSize || 1)));
+  const update = (patch: Record<string, unknown>, save = false) => {
+    store.getState().updateNode(node.id, patch);
+    if (save) commit();
+  };
+  const toggle = (field: 'imageInput' | 'showPrompt') => {
+    const showPrompt = field === 'showPrompt' ? !node.showPrompt : Boolean(node.showPrompt);
+    const imageInput = field === 'imageInput' ? !node.imageInput : Boolean(node.imageInput);
+    const panels = Number(showPrompt) + Number(imageInput);
+    update({ [field]: field === 'showPrompt' ? showPrompt : imageInput, w: Math.max(336, Number(node.w || 0)), h: panels === 0 ? undefined : panels === 1 ? (showPrompt ? 330 : 320) : 390 }, true);
+  };
+  return <div className="loop-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+    <div className="loop-count-row">
+      <div className="loop-run-row">
+        <div className="loop-count-group"><span className="loop-count-label">循环次数</span><input aria-label="循环次数" className="loop-count-input" max="100" min="1" onBlur={commit} onChange={(event) => update({ count: Math.max(1, Math.min(100, Number(event.target.value) || 1)) })} type="number" value={count} /></div>
+        <div className="seg loop-mode">
+          <button className={node.mode !== 'parallel' ? 'active' : ''} onClick={() => update({ mode: 'serial' }, true)} type="button">串行</button>
+          <button className={node.mode === 'parallel' ? 'active' : ''} onClick={() => update({ mode: 'parallel' }, true)} type="button">并行</button>
+        </div>
+      </div>
+      <div className="loop-toggle-row">
+        <button className={`loop-toggle loop-image-toggle ${node.imageInput ? 'active' : ''}`} onClick={() => toggle('imageInput')} type="button">图片输入</button>
+        <button className={`loop-toggle loop-prompt-toggle ${node.showPrompt ? 'active' : ''}`} onClick={() => toggle('showPrompt')} type="button">提示词输入</button>
+      </div>
+    </div>
+    {node.imageInput ? <div className="loop-image-panel"><div className="loop-image-row">
+      <span className="loop-count-label">起始</span><input aria-label="图片起始序号" className="loop-count-input" min="1" onBlur={commit} onChange={(event) => update({ loopStart: Math.max(1, Number(event.target.value) || 1) })} type="number" value={loopStart} />
+      <span className="loop-count-label">批量</span><input aria-label="图片批量大小" className="loop-count-input" max="100" min="1" onBlur={commit} onChange={(event) => update({ imageBatchSize: Math.max(1, Math.min(100, Number(event.target.value) || 1)) })} type="number" value={batchSize} />
+    </div></div> : null}
+    {node.showPrompt ? <div className="loop-prompt-panel"><div className="loop-field">
+      <textarea aria-label="循环变量提示词" onBlur={commit} onChange={(event) => update({ variablePrompt: event.target.value })} placeholder="每轮变化的提示词" value={String(node.variablePrompt || '')} />
+    </div><div className="loop-start-row"><button className="loop-token-btn loop-counter-token-btn" onClick={() => update({ variablePrompt: `${String(node.variablePrompt || '')}《计数》` }, true)} type="button">计数</button>
+      <span className="loop-count-label">起始</span><input aria-label="提示词起始序号" className="loop-count-input" min="1" onBlur={commit} onChange={(event) => update({ loopStart: Math.max(1, Number(event.target.value) || 1) })} type="number" value={loopStart} />
+    </div></div> : null}
+  </div>;
+}
+
 function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
+  const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState('');
   const [selectedEdge, setSelectedEdge] = useState(-1);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState('ready');
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const documentId = String(document?.id || '');
@@ -31,29 +104,66 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
   useEffect(() => {
     setConnectingFrom('');
     setSelectedEdge(-1);
-    setSelectedId('');
+    setSelectedIds(new Set());
   }, [documentId]);
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const editable = target?.isContentEditable || target?.matches('input, textarea, select');
       if (event.key === 'Escape') {
         setConnectingFrom('');
         setSelectedEdge(-1);
-        setSelectedId('');
+        setSelectedIds(new Set());
+        return;
+      }
+      if (editable) return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+        clipboard.current = store.getState().copyNodes([...selectedIds]);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v' && clipboard.current) {
+        event.preventDefault();
+        const ids = store.getState().pasteNodes(clipboard.current);
+        if (ids.length) {
+          setSelectedIds(new Set(ids));
+          commit();
+        }
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        const id = store.getState().groupPromptNodes([...selectedIds]);
+        if (id) {
+          setSelectedIds(new Set([id]));
+          commit();
+        }
         return;
       }
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-      if (selectedId) store.getState().deleteNode(selectedId);
+      if (selectedIds.size) selectedIds.forEach((id) => store.getState().deleteNode(id));
       else if (selectedEdge >= 0) store.getState().deleteConnection(selectedEdge);
       else return;
       event.preventDefault();
-      setSelectedId('');
+      setSelectedIds(new Set());
       setSelectedEdge(-1);
       commit();
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [commit, selectedEdge, selectedId, store]);
+  }, [commit, selectedEdge, selectedIds, store]);
+
+  useEffect(() => {
+    const group = () => {
+      const id = store.getState().groupPromptNodes([...selectedIds]);
+      if (id) {
+        setSelectedIds(new Set([id]));
+        commit();
+      }
+    };
+    window.addEventListener('canvas-board-v2-group-selected', group);
+    return () => window.removeEventListener('canvas-board-v2-group-selected', group);
+  }, [commit, selectedIds, store]);
 
   useEffect(() => {
     const listener = (event: Event) => setSaveState(String((event as CustomEvent<string>).detail || 'ready'));
@@ -75,7 +185,7 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
       const board = event.currentTarget;
       const start = { x: event.clientX, y: event.clientY, viewport };
       board.setPointerCapture(event.pointerId);
-      setSelectedId('');
+      setSelectedIds(new Set());
       setSelectedEdge(-1);
       const move = (next: PointerEvent) => setViewport((value) => ({
         ...value,
@@ -114,35 +224,49 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
           if (!source || !target) return null;
           const from = nodePoint(source);
           const to = nodePoint(target);
-          const line = { x1: from.x + nodeSize.width, x2: to.x, y1: from.y + nodeSize.height / 2, y2: to.y + nodeSize.height / 2 };
+          const fromSize = nodeSize(source);
+          const toSize = nodeSize(target);
+          const line = { x1: from.x + fromSize.width, x2: to.x, y1: from.y + fromSize.height / 2, y2: to.y + toSize.height / 2 };
           return <g key={`${edge.from}-${edge.to}-${index}`}>
             <line {...line} stroke={selectedEdge === index ? 'var(--strong)' : 'var(--line-2)'} strokeWidth="2" />
             <line {...line} data-edge-index={index} data-selected={selectedEdge === index ? 'true' : 'false'} onClick={(event) => {
               event.stopPropagation();
               setSelectedEdge(index);
-              setSelectedId('');
+              setSelectedIds(new Set());
             }} onPointerDown={(event) => event.stopPropagation()} pointerEvents="stroke" stroke="rgba(0,0,0,.001)" strokeWidth="16" />
           </g>;
         })}
       </svg>
       {(document?.nodes ?? []).map((node) => {
         const point = nodePoint(node);
+        const size = nodeSize(node);
         return <article
           aria-label={`${node.type} ${node.id}`}
-          className={`node ${selectedId === node.id ? 'selected' : ''}`}
+          className={`node ${node.type}-node sized ${selectedIds.has(node.id) ? 'selected' : ''}`}
           data-node-id={node.id}
+          data-node-type={node.type}
           key={node.id}
-          onClick={(event) => { event.stopPropagation(); setSelectedEdge(-1); setSelectedId(node.id); }}
-          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedId(node.id); }}
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelectedEdge(-1);
+            setSelectedIds((current) => {
+              if (!event.ctrlKey && !event.metaKey) return new Set([node.id]);
+              const next = new Set(current);
+              if (next.has(node.id)) next.delete(node.id); else next.add(node.id);
+              return next;
+            });
+          }}
+          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setSelectedIds(new Set([node.id])); }}
           onPointerDown={(event) => {
             if (event.button !== 0) return;
             event.stopPropagation();
+            if (event.ctrlKey || event.metaKey) return;
             const element = event.currentTarget;
             const start = { clientX: event.clientX, clientY: event.clientY, point };
             let moved = false;
             element.setPointerCapture(event.pointerId);
             setSelectedEdge(-1);
-            setSelectedId(node.id);
+            if (!selectedIds.has(node.id)) setSelectedIds(new Set([node.id]));
             const move = (next: PointerEvent) => {
               moved = true;
               store.getState().moveNode(
@@ -159,13 +283,16 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
             element.addEventListener('pointerup', up, { once: true });
           }}
           role="button"
-          style={{ height: nodeSize.height, left: point.x, minHeight: nodeSize.height, minWidth: nodeSize.width, top: point.y, width: nodeSize.width }}
+          style={{ height: size.height, left: point.x, minHeight: size.height, minWidth: size.width, top: point.y, width: size.width }}
           tabIndex={0}
         >
-          <button aria-label={`连接到 ${node.id}`} className="port in" data-port="in" onClick={() => connect(node.id)} onPointerDown={(event) => event.stopPropagation()} onPointerUp={() => connect(node.id)} type="button" />
-          <button aria-label={`从 ${node.id} 连线`} className="port out" data-port="out" onClick={() => setConnectingFrom(node.id)} onPointerDown={(event) => { event.stopPropagation(); setConnectingFrom(node.id); }} type="button" />
+          {canInput(node) ? <button aria-label={`连接到 ${node.id}`} className="port in" data-port="in" onClick={() => connect(node.id)} onPointerDown={(event) => event.stopPropagation()} onPointerUp={() => connect(node.id)} type="button" /> : null}
+          {canOutput(node) ? <button aria-label={`从 ${node.id} 连线`} className="port out" data-port="out" onClick={() => setConnectingFrom(node.id)} onPointerDown={(event) => { event.stopPropagation(); setConnectingFrom(node.id); }} type="button" /> : null}
           <header className="node-head"><strong className="node-title">{nodeRegistry[node.type] ?? node.type}</strong></header>
-          <div className="node-body">{String(node.title || node.name || node.id)}</div>
+          <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} store={store} />
+            : node.type === 'promptGroup' ? <PromptGroupBody node={node} nodesById={nodesById} />
+              : node.type === 'loop' ? <LoopBody commit={commit} node={node} store={store} />
+                : String(node.title || node.name || node.id)}</div>
         </article>;
       })}
     </div>
@@ -211,11 +338,33 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       saving = false;
     })();
   };
+  const previousBoardApi = window.CanvasBoardV2;
+  window.CanvasBoardV2 = {
+    addNode(type, point) {
+      const id = store.getState().addNode(type, point);
+      if (id) commit();
+      return id;
+    },
+    groupSelected() {
+      window.dispatchEvent(new Event('canvas-board-v2-group-selected'));
+    },
+    openPromptTemplates(nodeId) {
+      window.openPromptTemplateModal?.(nodeId);
+    },
+    updateNode(nodeId, patch) {
+      if (!store.getState().document?.nodes.some((node) => node.id === nodeId)) return false;
+      store.getState().updateNode(nodeId, patch);
+      commit();
+      return true;
+    },
+  };
   root.render(<CanvasBoardV2 commit={commit} store={store} />);
   legacyBoard.hidden = true;
   element.hidden = false;
   return () => {
     disposed = true;
+    if (previousBoardApi) window.CanvasBoardV2 = previousBoardApi;
+    else delete window.CanvasBoardV2;
     window.removeEventListener('canvas-legacy-document', adopt);
     root.unmount();
     element.hidden = true;

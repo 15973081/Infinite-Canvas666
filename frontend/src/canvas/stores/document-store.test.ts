@@ -45,4 +45,30 @@ describe('document store', () => {
     store.getState().deleteNode('generator');
     expect(store.getState().document).toMatchObject({ nodes: [{ id: 'prompt' }], connections: [] });
   });
+
+  it('creates and edits low-risk nodes while preserving group membership', () => {
+    const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [], updated_at: 1 });
+    const promptId = store.getState().addNode('prompt', { x: 10, y: 20 })!;
+    const loopId = store.getState().addNode('loop', { x: 400, y: 20 })!;
+    store.getState().updateNode(promptId, { text: 'first prompt', future: 7 });
+    store.getState().updateNode(loopId, { showPrompt: true, count: 5, variablePrompt: 'shot 《计数》' });
+    expect(store.getState().connectNodes(promptId, loopId)).toBe(true);
+    store.getState().updateNode(loopId, { showPrompt: false });
+    expect(store.getState().document?.connections).toEqual([]);
+
+    const secondPromptId = store.getState().addNode('prompt', { x: 40, y: 260 })!;
+    const groupId = store.getState().groupPromptNodes([promptId, secondPromptId])!;
+    const before = store.getState().document?.nodes.find((node) => node.id === secondPromptId);
+    store.getState().moveNode(groupId, 100, 100);
+    const after = store.getState().document?.nodes.find((node) => node.id === secondPromptId);
+    expect(Number(after?.x) - Number(before?.x)).toBe(114);
+    expect(Number(after?.y) - Number(before?.y)).toBe(138);
+
+    const clipboard = store.getState().copyNodes([groupId]);
+    const pasted = store.getState().pasteNodes(clipboard);
+    expect(pasted).toHaveLength(3);
+    store.getState().deleteNode(groupId);
+    expect(store.getState().document?.nodes.some((node) => [groupId, promptId, secondPromptId].includes(node.id))).toBe(false);
+    expect(store.getState().document?.nodes.find((node) => node.id === pasted[0])).toBeTruthy();
+  });
 });

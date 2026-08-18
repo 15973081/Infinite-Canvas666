@@ -101,7 +101,14 @@ interface ParallelExecutionRequest {
 
 declare global {
   interface Window {
+    CanvasBoardV2?: {
+      addNode(type: 'loop' | 'prompt', point?: { x: number; y: number }): string | null;
+      groupSelected(): void;
+      openPromptTemplates(nodeId: string): void;
+      updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
+    };
     CanvasLegacyBridge?: LegacyBridge;
+    openPromptTemplateModal?: (nodeId: string) => void;
     CanvasModernCore?: {
       activeOrder(kind: OrderKind, targetId: string): string[] | null;
       canvasRepository: CanvasRepository;
@@ -118,7 +125,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 17;
+      version: 18;
     };
   }
 }
@@ -170,7 +177,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 17 as const,
+  version: 18 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -366,7 +373,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '17';
+document.documentElement.dataset.canvasModernCore = '18';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '17');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '18');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -57,7 +57,7 @@ test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on c
   const board = page.getByTestId('canvas-board-v2');
   const node = page.locator('[data-node-id="prompt-1"]');
   await expect(node).toBeVisible();
-  await node.click();
+  await node.locator('.node-head').click();
   await expect(node).toHaveClass(/selected/);
   const originalPosition = await node.evaluate((element) => ({ left: (element as HTMLElement).style.left, top: (element as HTMLElement).style.top }));
   const box = await node.boundingBox();
@@ -123,6 +123,66 @@ test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on c
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(0);
   await expect(page.locator('#canvasBoardV2')).toBeHidden();
   await expect(page.locator('#board')).not.toHaveAttribute('hidden', '');
+});
+
+test('edits and groups low-risk V2 nodes through the persisted document', async ({ page }) => {
+  const saves: Array<Record<string, any>> = [];
+  await page.route('**/api/canvases/v2-low-risk', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    saves.push(body);
+    await route.fulfill({ json: { canvas: { ...body, id: 'v2-low-risk', updated_at: saves.length + 1 } } });
+  });
+  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await page.evaluate(() => {
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'v2-low-risk', future: 'preserved', updated_at: 1,
+      nodes: [
+        { id: 'prompt-a', type: 'prompt', x: 80, y: 160, text: '', future: 'node-preserved' },
+        { id: 'prompt-b', type: 'prompt', x: 80, y: 430, text: 'second' },
+        { id: 'loop-a', type: 'loop', x: 480, y: 160, count: 3, mode: 'serial', showPrompt: false, imageInput: false },
+      ],
+      connections: [],
+    } }));
+  });
+
+  const prompt = page.locator('[data-node-id="prompt-a"]');
+  await prompt.locator('textarea').fill('cinematic prompt');
+  await prompt.locator('textarea').blur();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'prompt-a')?.text).toBe('cinematic prompt');
+  expect(saves.at(-1)).toMatchObject({ future: 'preserved' });
+  expect(saves.at(-1)?.nodes.find((node: any) => node.id === 'prompt-a')).toMatchObject({ future: 'node-preserved' });
+  await prompt.getByRole('button', { name: '模板' }).click();
+  await expect(page.locator('#promptTemplateModal')).toHaveClass(/open/);
+  await page.evaluate(() => (window as typeof window & { closePromptTemplateModal(): void }).closePromptTemplateModal());
+
+  const loop = page.locator('[data-node-id="loop-a"]');
+  await loop.getByLabel('循环次数').fill('5');
+  await loop.getByLabel('循环次数').blur();
+  await loop.getByRole('button', { name: '并行' }).click();
+  await loop.getByRole('button', { name: '提示词输入' }).click();
+  await loop.getByLabel('循环变量提示词').fill('shot');
+  await loop.getByRole('button', { name: '计数' }).click();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'loop-a')).toMatchObject({
+    count: 5, mode: 'parallel', showPrompt: true, variablePrompt: 'shot《计数》',
+  });
+  await expect(loop.getByRole('button', { name: '连接到 loop-a' })).toHaveCount(1);
+
+  await page.locator('[data-node-id="prompt-a"] .node-head').click();
+  await page.locator('[data-node-id="prompt-b"] .node-head').click({ modifiers: ['Control'] });
+  await page.evaluate(() => (window as typeof window & { groupSelectedImages(): void }).groupSelectedImages());
+  const group = page.locator('[data-node-type="promptGroup"]');
+  await expect(group).toHaveCount(1);
+  await expect(group.locator('[data-prompt-count="2"]')).toHaveCount(1);
+  await group.focus();
+  await page.keyboard.press('Control+C');
+  await page.keyboard.press('Control+V');
+  await expect(page.locator('[data-node-type="promptGroup"]')).toHaveCount(2);
+  await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(4);
+  await page.keyboard.press('Delete');
+  await expect(page.locator('[data-node-type="promptGroup"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(2);
 });
 
 test('runs fake execution and mocked task/repository contracts with all M2 switches enabled', async ({ page }) => {

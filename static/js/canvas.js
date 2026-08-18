@@ -3362,10 +3362,12 @@ function addImageNode(point){
     return addNode({id:uid('img'), type:'image', x:p.x, y:p.y, url:'', name:'空白图片'});
 }
 function addPromptNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('prompt', point);
     const p = point || defaultPoint(0, 0);
     return addNode({id:uid('prompt'), type:'prompt', x:p.x, y:p.y, text:''});
 }
 function addLoopNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('loop', point);
     const p = point || defaultPoint(40, 0);
     return addNode({
         id:uid('loop'),
@@ -8536,9 +8538,15 @@ function closePromptTemplateModal(){
 }
 function applyPromptTemplateToPromptNode(mode='positive'){
     const template = canvasPromptTemplates.find(item => item.id === promptTemplateSelectedId);
+    if(!template) return;
+    const text = canvasPromptTemplateText(template, mode);
+    if(window.CanvasBoardV2?.updateNode(promptTemplateNodeId, {text})) {
+        closePromptTemplateModal();
+        return;
+    }
     const node = nodes.find(n => n.id === promptTemplateNodeId && n.type === 'prompt');
-    if(!template || !node) return;
-    node.text = canvasPromptTemplateText(template, mode);
+    if(!node) return;
+    node.text = text;
     closePromptTemplateModal();
     scheduleSave();
     syncGeneratorInputs();
@@ -13567,6 +13575,10 @@ function closeOutputLightbox(){
     setupOutputPromptPanel(null);
 }
 function groupSelectedImages(){
+    if(window.CanvasBoardV2){
+        window.CanvasBoardV2.groupSelected();
+        return;
+    }
     if(!ensureCanvas()) return;
     const targets = [...selected].map(id => nodes.find(n => n.id === id)).filter(n => n?.type === 'image' || n?.type === 'prompt');
     let group;
@@ -14692,6 +14704,7 @@ window.addEventListener('paste', e => {
 });
 window.addEventListener('keydown', e => {
     if(!canvas) return;
+    if(window.CanvasBoardV2 && e.key !== 'Escape') return;
     if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
     if(e.key === 'Shift' && !isEditableTarget(document.activeElement)) setKnifeMode(true);
     if(e.key === 'Escape' && document.getElementById('imageEditModal').classList.contains('open')) { closeImageEditor(); return; }

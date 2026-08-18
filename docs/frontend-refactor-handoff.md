@@ -155,6 +155,8 @@ Spike 只实现：
 
 第二批已完成：V2 Document Store 成为开关路径内节点位置和连线的唯一写入者；同画布的 Legacy 投影不会覆盖 V2 修改。节点移动、创建/选择/删除连线和删除节点通过 Store action 更新，并由 CanvasRepository 串行保存最新状态；保存失败时保留本地修改并显示错误。GraphModel 统一执行类型兼容、重复连线和环检测门禁，Delete/Backspace/Escape 与基础节点注册表已接入。
 
+第三批已完成：Prompt、PromptGroup、Loop 已迁移到 V2。Prompt 支持 20,000 字编辑与既有模板库；Loop 保留次数、串并行、图片/提示词输入、起始序号、批量和计数变量字段，并按输入开关动态清理无效连线；PromptGroup 支持多选分组、成员联动移动、复制粘贴和递归删除。旧工具栏的新增 Prompt/Loop、分组和模板回填在 V2 开启时转发到 Document Store，未知扩展字段继续保留。Vitest 覆盖 Store 行为，Playwright 覆盖真实编辑、模板弹窗、分组、复制、删除与保存载荷。
+
 1. 新增独立的 `canvas_board_v2=1` 开关和完整 Board root；默认仍渲染 Legacy Board。
 2. 实现视口、选择、拖动、连线、快捷键和节点类型注册表。
 3. 让 Document Store 在 V2 路径中成为节点和连线的唯一所有者；Legacy 路径仍由 `canvas.js` 唯一拥有。

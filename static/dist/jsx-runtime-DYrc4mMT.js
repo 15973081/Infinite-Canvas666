@@ -1,4 +1,4 @@
-import { n as e, t } from "./graph-YnXwoyDQ.js";
+import { n as e, t } from "./graph-j9GyzERh.js";
 //#region \0rolldown/runtime.js
 var n = Object.create, r = Object.defineProperty, i = Object.getOwnPropertyDescriptor, a = Object.getOwnPropertyNames, o = Object.getPrototypeOf, s = Object.prototype.hasOwnProperty, c = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t.exports), l = (e, t, n, o) => {
 	if (t && typeof t == "object" || typeof t == "function") for (var c = a(t), l = 0, u = c.length, d; l < u; l++) d = c[l], !s.call(e, d) && d !== n && r(e, d, {
@@ -8076,6 +8076,37 @@ function C(e) {
 			let n = ne(t);
 			n && r().document?.id !== n.id && e({ document: n });
 		},
+		addNode: (t, n) => {
+			let i = r().document;
+			if (!i) return null;
+			let a = i.nodes.length, o = `${t}_${crypto.randomUUID()}`, s = n ?? {
+				x: 80 + a % 4 * 360,
+				y: 160 + Math.floor(a / 4) * 280
+			}, c = t === "prompt" ? {
+				id: o,
+				type: t,
+				...s,
+				text: ""
+			} : {
+				id: o,
+				type: t,
+				...s,
+				count: 3,
+				mode: "serial",
+				showPrompt: !1,
+				imageInput: !1,
+				videoInput: !1,
+				loopStart: 1,
+				imageBatchSize: 1,
+				videoBatchSize: 1,
+				variablePrompt: "",
+				fixedPrompt: ""
+			};
+			return e({ document: {
+				...i,
+				nodes: [...i.nodes, c]
+			} }), o;
+		},
 		connectNodes: (n, i) => {
 			let a = r().document;
 			return !a || !t(a).canConnect(n, i) ? !1 : (e({ document: {
@@ -8086,27 +8117,107 @@ function C(e) {
 				}]
 			} }), !0);
 		},
+		copyNodes: (e) => {
+			let t = r().document;
+			if (!t) return {
+				connections: [],
+				nodes: []
+			};
+			let n = re(t.nodes, e);
+			return structuredClone({
+				connections: t.connections.filter((e) => n.has(e.from) && n.has(e.to)),
+				nodes: t.nodes.filter((e) => n.has(e.id))
+			});
+		},
 		deleteConnection: (t) => e(({ document: e }) => e && t >= 0 && t < e.connections.length ? { document: {
 			...e,
 			connections: e.connections.filter((e, n) => n !== t)
 		} } : {}),
-		deleteNode: (t) => e(({ document: e }) => e?.nodes.some((e) => e.id === t) ? { document: {
-			...e,
-			connections: e.connections.filter((e) => e.from !== t && e.to !== t),
-			nodes: e.nodes.filter((e) => e.id !== t)
-		} } : {}),
-		moveNode: (t, n, r) => e(({ document: e }) => e?.nodes.some((e) => e.id === t) ? { document: {
-			...e,
-			nodes: e.nodes.map((e) => e.id === t ? {
+		deleteNode: (t) => e(({ document: e }) => {
+			if (!e?.nodes.some((e) => e.id === t)) return {};
+			let n = re(e.nodes, [t]);
+			return { document: {
 				...e,
-				x: n,
-				y: r
-			} : e)
-		} } : {}),
+				connections: e.connections.filter((e) => !n.has(e.from) && !n.has(e.to)),
+				nodes: e.nodes.filter((e) => !n.has(e.id))
+			} };
+		}),
+		groupPromptNodes: (t) => {
+			let n = r().document;
+			if (!n) return null;
+			let i = n.nodes.filter((e) => t.includes(e.id) && e.type === "prompt");
+			if (!i.length) return null;
+			let a = `promptGroup_${crypto.randomUUID()}`, o = Math.min(...i.map((e) => Number(e.x || 0))), s = Math.min(...i.map((e) => Number(e.y || 0))), c = Math.max(...i.map((e) => Number(e.x || 0) + Number(e.w || 310))), l = Math.max(...i.map((e) => Number(e.y || 0) + Number(e.h || 230))), u = n.connections.filter((e) => i.some((t) => t.id === e.from) && !t.includes(e.to)), d = n.connections.filter((e) => !i.some((t) => t.id === e.from)).concat([...new Set(u.map((e) => e.to))].map((e) => ({
+				from: a,
+				to: e
+			})));
+			return e({ document: {
+				...n,
+				connections: d,
+				nodes: [...n.nodes, {
+					id: a,
+					type: "promptGroup",
+					x: o - 24,
+					y: s - 58,
+					w: c - o + 48,
+					h: l - s + 90,
+					items: i.map((e) => e.id)
+				}]
+			} }), a;
+		},
+		moveNode: (t, n, r) => e(({ document: e }) => {
+			let i = e?.nodes.find((e) => e.id === t);
+			if (!e || !i) return {};
+			let a = re(e.nodes, [t]), o = n - Number(i.x || 0), s = r - Number(i.y || 0);
+			return { document: {
+				...e,
+				nodes: e.nodes.map((e) => a.has(e.id) ? {
+					...e,
+					x: Number(e.x || 0) + o,
+					y: Number(e.y || 0) + s
+				} : e)
+			} };
+		}),
+		pasteNodes: (t) => {
+			let n = r().document;
+			if (!n || !t.nodes.length) return [];
+			let i = new Map(t.nodes.map((e) => [e.id, `${e.type}_${crypto.randomUUID()}`])), a = structuredClone(t.nodes).map((e) => ({
+				...e,
+				id: i.get(e.id),
+				x: Number(e.x || 0) + 32,
+				y: Number(e.y || 0) + 32,
+				...Array.isArray(e.items) ? { items: e.items.map((e) => i.get(String(e)) ?? e) } : {}
+			})), o = structuredClone(t.connections).map((e) => ({
+				...e,
+				from: i.get(e.from),
+				to: i.get(e.to)
+			})).filter((e) => e.from && e.to);
+			return e({ document: {
+				...n,
+				connections: [...n.connections, ...o],
+				nodes: [...n.nodes, ...a]
+			} }), a.map((e) => e.id);
+		},
 		projectDocument: (t) => {
 			let n = ne(t);
 			n && e({ document: n });
-		}
+		},
+		updateNode: (n, r) => e(({ document: e }) => {
+			if (!e?.nodes.some((e) => e.id === n)) return {};
+			let i = {
+				...e,
+				nodes: e.nodes.map((e) => e.id === n ? {
+					...e,
+					...r,
+					id: e.id,
+					type: e.type
+				} : e)
+			}, a = t(i);
+			return { document: {
+				...i,
+				connections: i.connections.filter((e) => a.canConnect(e.from, e.to, !0))
+			} };
+		})
 	}));
 }
 function te(e, t) {
@@ -8123,9 +8234,18 @@ function ne(t) {
 		return null;
 	}
 }
+function re(e, t) {
+	let n = /* @__PURE__ */ new Set(), r = (t) => {
+		if (n.has(t)) return;
+		n.add(t);
+		let i = e.find((e) => e.id === t);
+		(i?.type === "group" || i?.type === "promptGroup") && Array.isArray(i.items) && i.items.forEach((e) => r(String(e)));
+	};
+	return t.forEach(r), n;
+}
 //#endregion
 //#region node_modules/react/cjs/react-jsx-runtime.production.js
-var re = /* @__PURE__ */ c(((e) => {
+var w = /* @__PURE__ */ c(((e) => {
 	var t = Symbol.for("react.transitional.element");
 	function n(e, n, r) {
 		var i = null;
@@ -8140,8 +8260,8 @@ var re = /* @__PURE__ */ c(((e) => {
 		};
 	}
 	e.jsx = n, e.jsxs = n;
-})), w = /* @__PURE__ */ c(((e, t) => {
-	t.exports = re();
+})), ie = /* @__PURE__ */ c(((e, t) => {
+	t.exports = w();
 }));
 //#endregion
-export { x as a, u as c, S as i, te as n, v as o, C as r, f as s, w as t };
+export { x as a, u as c, S as i, te as n, v as o, C as r, f as s, ie as t };

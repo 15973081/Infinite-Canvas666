@@ -12,7 +12,7 @@ export const DEFAULT_RUN_NODE_TYPES = new Set([
 const MEDIA_OUTPUT_NODE_TYPES = new Set(['generator', 'msgen', 'comfy', 'ltxDirector', 'video']);
 
 export interface GraphModel {
-  canConnect(fromId: string, toId: string): boolean;
+  canConnect(fromId: string, toId: string, allowExisting?: boolean): boolean;
   cascadeOrder(targetId: string): string[];
   retryCascadeOrder(nodeId: string): string[];
   wouldCreateCycle(fromId: string, toId: string): boolean;
@@ -74,11 +74,11 @@ export function createGraphModel(
     return false;
   }
 
-  function canConnect(fromId: string, toId: string): boolean {
+  function canConnect(fromId: string, toId: string, allowExisting = false): boolean {
     if (!fromId || !toId || fromId === toId) return false;
     const from = nodes.get(fromId);
     const to = nodes.get(toId);
-    if (!from || !to || document.connections.some((edge) => edge.from === fromId && edge.to === toId)) return false;
+    if (!from || !to || (!allowExisting && document.connections.some((edge) => edge.from === fromId && edge.to === toId))) return false;
     if (MEDIA_OUTPUT_NODE_TYPES.has(from.type)) {
       if (to.type === 'output') return !wouldCreateCycle(fromId, toId);
       if (MEDIA_OUTPUT_NODE_TYPES.has(to.type)) return !wouldCreateCycle(fromId, toId);
