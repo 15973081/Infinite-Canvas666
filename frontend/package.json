@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build --config vite.spike.config.ts",
+    "build": "vite build && vite build --config vite.spike.config.ts && vite build --config vite.site.config.ts",
     "check": "npm run typecheck && npm run test && npm run build && npm run e2e",
     "e2e": "playwright test",
     "test": "vitest run",

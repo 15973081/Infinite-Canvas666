@@ -365,3 +365,15 @@ Set-Location ..
 & '.\python\python.exe' -m unittest discover -s tests -v
 & '.\python\python.exe' app/services/canvas_audit.py --directory data/canvases --summary-only
 ```
+
+## 16. 2026-08-19 全站迁移启动：ComfyUI 设置页
+
+最终目标已经从 Canvas 单页扩展为全站 React + TypeScript + Vite。当前静态页面清单共 13 个；Canvas 已完成独立 V2 代码路径，本批次完成了第二个生产页面 `/static/comfyui-settings.html` 的迁移。
+
+- 新入口为 `frontend/src/pages/comfyui-settings.tsx`，页面不再加载 `static/js/comfyui-settings.js`、Tailwind CDN、Lucide 或旧 `theme.js`。
+- React 页面直接拥有 ComfyUI 后端实例管理、工作流上传/删除、工作流图浏览、动态字段暴露、字段类型与范围配置、媒体上传、随机参数、配置保存和真实运行测试。
+- `frontend/vite.site.config.ts` 建立了可继续增加页面入口的站点多入口构建；新增页面应放在 `frontend/src/pages/`，共享基础设施放在 `frontend/src/shared/`。
+- Legacy `static/js/comfyui-settings.js` 暂时只作为回滚制品保留，正常页面路径不再下载或执行它。
+- 自动化结果：75 个 Vitest、17 个 Playwright、41 个 Python unittest 全部通过。Comfy 页面 E2E 明确断言旧全局函数和旧脚本不存在，并覆盖后端保存、字段暴露、配置保存和运行结果展示。
+
+全站剩余页面按风险和复用价值建议依次迁移：API 设置与资产管理、GPT Chat、图片增强与各生成页、首页外壳/路由、Smart Canvas。每个页面切换时必须保持独立 E2E，且不得以 React 外壳继续执行原页面全局脚本冒充迁移完成。
