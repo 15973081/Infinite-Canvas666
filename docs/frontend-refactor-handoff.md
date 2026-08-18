@@ -413,3 +413,11 @@ API Settings 已由 `frontend/src/features/provider-studio/` 接管，覆盖当�
 当前接通会话列表/创建/读取/删除、`/api/config`、`/api/ai/upload` 和 `/api/chat/stream`。视觉与文档输入直接进入 `reference_images`，SSE parser 保留跨网络分片的半帧数据，失败后重新读取服务端会话并保留可重试草稿。旧页面未真正接通的生图/Agent 模式没有迁移；独立图片生成继续由 ImageStudio 负责。
 
 最新自动化结果：88 个 Vitest、26 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 10。下一批迁移首页外壳与导航，随后处理 Smart Canvas。
+
+## 22. 2026-08-19 SiteShell 与首页外壳
+
+`/static/index.html` 已改为独立 React + TypeScript + Vite 入口，旧页面约 126KB 的内联外壳不再执行。`frontend/src/features/site-shell/` 统一管理 10 个子页面入口、Hash 路由、懒加载 iframe、主题和语言同步、跨页事件、Canvas focus、WebSocket 状态与更新中心。
+
+SiteShell 会保留已访问 iframe，切换页面不会重建编辑状态；页面 ID 同步到 Hash 和 localStorage。在线人数、队列状态、云端任务和画布/素材事件继续由 WebSocket 与受限消息白名单转发。更新中心直接调用现有应用信息、版本检测、双源网络检测、更新、备份和回滚接口，所有写操作保持用户确认。
+
+最新自动化结果：90 个 Vitest、27 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 11；全站代码迁移只剩 Smart Canvas，下一批应直接复用 Canvas V2 domain/runtime，禁止重写第二套画布核心。
