@@ -17,6 +17,7 @@ from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
 from app.services.canvas_tasks import create_canvas_task, get_canvas_task, update_canvas_task
+from app.services.canvas_audit import audit_canvas_directory
 router = APIRouter()
 
 @router.post("/api/canvas-image-tasks")
@@ -632,6 +633,15 @@ async def canvas_llm(payload: CanvasLLMRequest):
 @router.get("/api/canvases")
 async def canvases():
     return {"canvases": list_canvases()}
+
+@router.get("/api/canvas-audit")
+async def canvas_audit(include_deleted: bool = False, include_details: bool = True, max_files: int = 5000):
+    return audit_canvas_directory(
+        CANVAS_DIR,
+        include_deleted=include_deleted,
+        include_details=include_details,
+        max_files=max(1, min(20000, max_files)),
+    )
 
 @router.get("/api/canvases/trash")
 async def trashed_canvases():

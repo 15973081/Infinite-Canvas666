@@ -1,5 +1,5 @@
 import { n as e, t } from "./graph-j9GyzERh.js";
-import { a as n, i as r, o as i, r as a } from "./canvas-repository-H8iEsEgy.js";
+import { a as n, i as r, o as i, r as a } from "./canvas-repository-fzURdXqR.js";
 //#region src/canvas/domain/execution.ts
 function o() {
 	return {
@@ -380,7 +380,7 @@ function X(n, r, i) {
 	};
 }
 if (window.CanvasModernCore = Object.freeze({
-	version: 25,
+	version: 26,
 	canvasRepository: B,
 	canvasRepositoryEnabled: j,
 	executionEngineEnabled: k,
@@ -531,7 +531,7 @@ if (P) {
 }
 if (R) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-DIdra_3t.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-3yonz2t4.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
 		window.addEventListener("pagehide", r, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e));
@@ -542,5 +542,5 @@ function Z(e, t) {
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "25", document.documentElement.dataset.canvasBoardV2 = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = T ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = E ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = A ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = C.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(C.bucket), document.documentElement.dataset.canvasV2RolloutPercentage = String(C.percentage), window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "26", document.documentElement.dataset.canvasBoardV2 = R ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = T ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = E ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = P ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = F ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = N ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = I ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = L ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = A ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = C.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(C.bucket), document.documentElement.dataset.canvasV2RolloutPercentage = String(C.percentage), window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

@@ -119,6 +119,7 @@ var v = class extends p {
 };
 function y(t = fetch) {
 	let n = (e) => `/api/canvases/${encodeURIComponent(e)}`, r = {
+		audits: 0,
 		backupsCreated: 0,
 		backupsListed: 0,
 		backupsRestored: 0,
@@ -135,6 +136,14 @@ function y(t = fetch) {
 		}
 	};
 	return {
+		audit: (e = {}, n) => {
+			let r = new URLSearchParams({
+				include_deleted: String(!!e.includeDeleted),
+				include_details: String(e.includeDetails !== !1),
+				max_files: String(Math.max(1, Math.min(2e4, Number(e.maxFiles || 5e3))))
+			});
+			return i("audits", t, `/api/canvas-audit?${r}`, {}, n);
+		},
 		createBackup: (e, r) => i("backupsCreated", t, `${n(e)}/backup`, { method: "POST" }, r),
 		get: async (r, a) => {
 			let o = await i("loads", t, n(r), {}, a);

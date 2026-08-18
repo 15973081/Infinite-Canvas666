@@ -44,9 +44,9 @@ Set-Location ..
 
 当前验收基线：
 
-- Vitest：58 个测试通过。
+- Vitest：59 个测试通过。
 - Playwright：14 个端到端测试通过。
-- Python unittest：26 个测试通过。
+- Python unittest：31 个测试通过。
 - `npm run check` 包含 typecheck、Vitest、生产构建和 Playwright。
 
 ## 3. 端口与进程安全
@@ -182,6 +182,15 @@ Spike 只实现：
 - 本轮已补齐：图像/视频任务使用端到端幂等键，服务端复用已创建任务，现代任务客户端对并发提交去重并对丢失响应执行一次安全重试。
 - 本轮已补齐：`canvas_v2_rollout` 百分比分桶、`canvas_v2=0/1` 强制覆盖和诊断数据，可成组灰度 Board V2、执行引擎、任务客户端与 Repository；默认仍为 0%。
 - 本轮已补齐：画布图像/视频任务注册表原子落盘、启动恢复和七天 TTL 清理；服务重启时未完成任务会恢复为可操作的 interrupted 状态，Classic/V2 均提供重新生成入口，不再直接退化为 404。
+- 本轮已补齐：历史画布只读批量审计服务、`/api/canvas-audit` 诊断接口和 CLI。未知节点/字段按兼容告警保留，损坏 JSON、重复节点 ID、断裂连线和非法结构会阻断灰度。
+
+灰度前可执行真实目录审计：
+
+```powershell
+.\python\python.exe app/services/canvas_audit.py --directory data/canvases --summary-only
+```
+
+退出码 `0` 表示完整扫描且全部结构兼容，退出码 `1` 表示至少存在一个阻断项，退出码 `2` 表示达到文件上限、扫描不完整；审计过程不会修改画布文件。
 - 仍待真实环境验收：各平台完整模型约束、ModelScope LoRA 真实生成、视频云链和任务恢复、Comfy 真实工作流、LLM 真实聊天/视觉失败重试、LTX 长时间线与长任务。
 - 仍待真实环境验收：保存冲突人工演练、外部请求数与重复计费核对、刷新恢复抽样以及历史业务画布批量验证。
 

@@ -15,6 +15,7 @@ export interface CanvasBackup {
 }
 
 export interface CanvasRepositoryDiagnostics {
+  audits: number;
   backupsCreated: number;
   backupsListed: number;
   backupsRestored: number;
@@ -22,6 +23,23 @@ export interface CanvasRepositoryDiagnostics {
   errors: number;
   loads: number;
   saves: number;
+}
+
+export interface CanvasAuditOptions {
+  includeDeleted?: boolean;
+  includeDetails?: boolean;
+  maxFiles?: number;
+}
+
+export interface CanvasAuditReport extends Record<string, unknown> {
+  summary: {
+    compatible: number;
+    errors: number;
+    files: number;
+    incompatible: number;
+    warnings: number;
+    [key: string]: unknown;
+  };
 }
 
 type CanvasRepositorySuccessCounter = Exclude<keyof CanvasRepositoryDiagnostics, 'conflicts' | 'errors'>;
@@ -39,6 +57,7 @@ export class CanvasConflictError extends ApiError {
 }
 
 export interface CanvasRepository {
+  audit(options?: CanvasAuditOptions, requestOptions?: RequestOptions): Promise<CanvasAuditReport>;
   createBackup(canvasId: string, options?: RequestOptions): Promise<Record<string, unknown>>;
   get(canvasId: string, options?: RequestOptions): Promise<CanvasDocument>;
   getDiagnostics(): CanvasRepositoryDiagnostics;
@@ -50,6 +69,7 @@ export interface CanvasRepository {
 export function createCanvasRepository(fetcher: Fetcher = fetch): CanvasRepository {
   const path = (canvasId: string) => `/api/canvases/${encodeURIComponent(canvasId)}`;
   const diagnostics: CanvasRepositoryDiagnostics = {
+    audits: 0,
     backupsCreated: 0,
     backupsListed: 0,
     backupsRestored: 0,
@@ -72,6 +92,15 @@ export function createCanvasRepository(fetcher: Fetcher = fetch): CanvasReposito
   const get: CanvasRepository['get'] = async (canvasId, options) => {
     const response = await request<{ canvas: unknown }>('loads', fetcher, path(canvasId), {}, options);
     return decodeCanvasDocument(response.canvas);
+  };
+
+  const audit: CanvasRepository['audit'] = (options = {}, requestOptions) => {
+    const query = new URLSearchParams({
+      include_deleted: String(Boolean(options.includeDeleted)),
+      include_details: String(options.includeDetails !== false),
+      max_files: String(Math.max(1, Math.min(20_000, Number(options.maxFiles || 5000)))),
+    });
+    return request('audits', fetcher, `/api/canvas-audit?${query}`, {}, requestOptions);
   };
 
   const save: CanvasRepository['save'] = async (canvasId, payload, options) => {
@@ -119,7 +148,7 @@ export function createCanvasRepository(fetcher: Fetcher = fetch): CanvasReposito
 
   const getDiagnostics = (): CanvasRepositoryDiagnostics => ({ ...diagnostics });
 
-  return { createBackup, get, getDiagnostics, listBackups, restoreBackup, save };
+  return { audit, createBackup, get, getDiagnostics, listBackups, restoreBackup, save };
 }
 
 export function canvasDocumentSavePayload(document: CanvasDocument): CanvasSavePayload {

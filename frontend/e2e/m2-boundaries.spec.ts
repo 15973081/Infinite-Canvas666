@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '25');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '26');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -654,6 +654,7 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
       execution: { active: 0, done: 1, failed: 0, stopped: 0, transitions: 7 },
       flags: { executionEngine: true, repository: true, taskClient: true },
       repository: {
+        audits: 0,
         backupsCreated: 0,
         backupsListed: 0,
         backupsRestored: 0,

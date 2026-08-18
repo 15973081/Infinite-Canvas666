@@ -160,6 +160,20 @@ describe('canvas repository', () => {
     expect(repository.getDiagnostics()).toMatchObject({ loads: 1, saves: 1, conflicts: 0, errors: 0 });
   });
 
+  it('runs a bounded read-only historical canvas audit', async () => {
+    const urls: string[] = [];
+    const repository = createCanvasRepository(async (input) => {
+      urls.push(String(input));
+      return jsonResponse({ summary: { files: 4, compatible: 3, incompatible: 1, errors: 2, warnings: 5 } });
+    });
+
+    const report = await repository.audit({ includeDeleted: true, includeDetails: false, maxFiles: 12 });
+
+    expect(report.summary).toMatchObject({ files: 4, incompatible: 1 });
+    expect(urls).toEqual(['/api/canvas-audit?include_deleted=true&include_details=false&max_files=12']);
+    expect(repository.getDiagnostics()).toMatchObject({ audits: 1, errors: 0 });
+  });
+
   it('returns the server document and timestamp on a 409 conflict', async () => {
     const repository = createCanvasRepository(async () => jsonResponse({
       detail: { message: 'conflict', canvas: serverCanvas, updated_at: 20 },
