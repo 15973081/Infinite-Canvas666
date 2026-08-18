@@ -2193,7 +2193,7 @@ function W(e, t, n = {}) {
 					w("saving");
 					try {
 						let t = await a.save(e.id, s(e));
-						g = t, x || h.getState().acceptSavedDocument(t, e), w("saved");
+						g = t, x || h.getState().acceptSavedDocument(t, e), w("saved"), window.CanvasModernCore?.recordRolloutEvent("save-succeeded", { dimensions: { reason: "none" } });
 					} catch (t) {
 						if (t instanceof o && window.CanvasModernCore?.recordRolloutEvent("save-conflict", { dimensions: { reason: "save-conflict" } }), t instanceof o && t.serverCanvas && g) {
 							let n = h.getState().document;
@@ -2204,7 +2204,7 @@ function W(e, t, n = {}) {
 									w("merging"), h.setState({ document: r.document });
 									try {
 										let t = await a.save(e.id, s(r.document));
-										g = t, x || h.getState().acceptSavedDocument(t, r.document), w("saved"), window.CanvasModernCore?.recordRolloutEvent("save-rebased", { dimensions: { reason: "none" } });
+										g = t, x || h.getState().acceptSavedDocument(t, r.document), w("saved"), window.CanvasModernCore?.recordRolloutEvent("save-rebased", { dimensions: { reason: "none" } }), window.CanvasModernCore?.recordRolloutEvent("save-succeeded", { dimensions: { reason: "none" } });
 										continue;
 									} catch (e) {
 										console.warn("[canvas-modern-core] CanvasBoard V2 rebased save failed", e);

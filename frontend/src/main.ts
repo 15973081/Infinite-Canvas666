@@ -167,7 +167,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 29;
+      version: 30;
     };
   }
 }
@@ -238,7 +238,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 29 as const,
+  version: 30 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   canvasRuntime,
@@ -260,7 +260,14 @@ window.CanvasModernCore = Object.freeze({
   },
   compareOrder,
   recordRolloutEvent(event, payload): void {
-    void recordCanvasRolloutEvent(event, payload);
+    void recordCanvasRolloutEvent(event, {
+      ...payload,
+      dimensions: {
+        ...payload?.dimensions,
+        mode: m2Enabled ? 'enabled' : 'disabled',
+        source: rolloutDecision.source,
+      },
+    });
   },
   runOrdered(request: OrderedExecutionRequest): Promise<ExecutionState> {
     if (!executionEngineEnabled) return Promise.reject(new Error('Modern execution engine is disabled'));
@@ -472,11 +479,17 @@ if (rolloutDecision.enabled) {
 function emitExecutionTransition(state: Readonly<ExecutionState>, event: ExecutionEvent): void {
   modernExecutionTransitions += 1;
   modernExecutionRuns.set(state.targetId, state);
-  if (event.type === 'finish') modernExecutionTerminalCounts[event.status] += 1;
+  if (event.type === 'finish') {
+    modernExecutionTerminalCounts[event.status] += 1;
+    window.CanvasModernCore?.recordRolloutEvent(
+      event.status === 'done' ? 'execution-succeeded' : event.status === 'failed' ? 'execution-failed' : 'execution-stopped',
+      { dimensions: { reason: event.status === 'failed' ? 'execution-failed' : event.status === 'stopped' ? 'execution-stopped' : 'none' } },
+    );
+  }
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '29';
+document.documentElement.dataset.canvasModernCore = '30';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';
@@ -502,11 +515,17 @@ window.addEventListener('pagehide', () => {
   void recordCanvasRolloutEvent('page-summary', {
     counters: {
       execution_errors: executionErrors,
+      execution_failed: modernExecutionTerminalCounts.failed,
+      execution_runs: modernExecutionTerminalCounts.done + modernExecutionTerminalCounts.failed + modernExecutionTerminalCounts.stopped,
       repository_conflicts: repository.conflicts,
       repository_errors: repository.errors,
+      repository_saves: repository.saves,
       shadow_errors: shadowErrors,
       task_poll_errors: tasks.pollErrors,
+      task_polls: tasks.polls,
       task_recoveries: tasks.recoveredTasks,
+      task_resumed: tasks.resumedTasks,
+      task_submissions: tasks.submissions,
     },
     dimensions: {
       mode: m2Enabled ? 'enabled' : 'disabled',

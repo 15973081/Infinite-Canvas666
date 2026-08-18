@@ -23,11 +23,15 @@ export interface CanvasRolloutDecision {
 export type CanvasRolloutEvent =
   | 'board-mount-failed'
   | 'board-mounted'
+  | 'execution-failed'
+  | 'execution-stopped'
+  | 'execution-succeeded'
   | 'page-summary'
   | 'rollout-decision'
   | 'save-conflict'
   | 'save-failed'
-  | 'save-rebased';
+  | 'save-rebased'
+  | 'save-succeeded';
 
 export interface CanvasRolloutEventPayload {
   counters?: Record<string, number>;

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '29');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '30');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -159,6 +159,7 @@ test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async 
   await expect.poll(() => telemetry.filter((event) => event.startsWith('save-'))).toEqual([
     'save-conflict',
     'save-rebased',
+    'save-succeeded',
   ]);
   expect(saves[1]).toMatchObject({ base_updated_at: 2 });
   expect(saves[1].nodes.find((node: any) => node.id === 'prompt')).toMatchObject({ text: 'local edit' });

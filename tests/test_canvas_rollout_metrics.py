@@ -24,7 +24,7 @@ class CanvasRolloutMetricsTest(unittest.TestCase):
         payload = {
             "event": "page-summary",
             "dimensions": {"mode": "enabled", "reason": "none", "source": "server"},
-            "counters": {"repository_conflicts": 2, "task_recoveries": 1},
+            "counters": {"repository_conflicts": 2, "task_recoveries": 1, "task_polls": 5},
         }
         record_canvas_rollout_event(payload, self.path)
         record_canvas_rollout_event(payload, self.path)
@@ -35,6 +35,8 @@ class CanvasRolloutMetricsTest(unittest.TestCase):
         self.assertEqual(2, metrics["dimensions"]["mode"]["enabled"])
         self.assertEqual(4, metrics["counters"]["repository_conflicts"])
         self.assertEqual(2, metrics["counters"]["task_recoveries"])
+        self.assertEqual(2, metrics["event_dimensions"]["page-summary"]["mode"]["enabled"])
+        self.assertEqual(10, metrics["event_counters"]["page-summary"]["enabled"]["task_polls"])
 
     def test_unknown_reason_is_collapsed_and_unknown_fields_are_discarded(self):
         record_canvas_rollout_event({
@@ -48,6 +50,32 @@ class CanvasRolloutMetricsTest(unittest.TestCase):
         self.assertEqual({"other": 1}, metrics["dimensions"]["reason"])
         self.assertEqual({"repository_errors": 10000}, metrics["counters"])
         self.assertNotIn("private", json.dumps(metrics))
+
+    def test_joint_telemetry_keeps_enabled_and_disabled_events_separate(self):
+        record_canvas_rollout_event({
+            "event": "save-succeeded", "dimensions": {"mode": "enabled", "reason": "none"},
+        }, self.path)
+        record_canvas_rollout_event({
+            "event": "save-succeeded", "dimensions": {"mode": "disabled", "reason": "none"},
+        }, self.path)
+        record_canvas_rollout_event({
+            "event": "save-failed", "dimensions": {"mode": "enabled", "reason": "save-request-failed"},
+        }, self.path)
+
+        metrics = get_canvas_rollout_metrics(self.path)
+        self.assertEqual({"enabled": 1, "disabled": 1}, metrics["event_dimensions"]["save-succeeded"]["mode"])
+        self.assertEqual({"enabled": 1}, metrics["event_dimensions"]["save-failed"]["mode"])
+
+    def test_accepts_execution_outcome_denominators(self):
+        for event in ("execution-succeeded", "execution-failed", "execution-stopped"):
+            record_canvas_rollout_event({
+                "event": event, "dimensions": {"mode": "enabled", "reason": "none"},
+            }, self.path)
+
+        metrics = get_canvas_rollout_metrics(self.path)
+        self.assertEqual(1, metrics["event_dimensions"]["execution-succeeded"]["mode"]["enabled"])
+        self.assertEqual(1, metrics["event_dimensions"]["execution-failed"]["mode"]["enabled"])
+        self.assertEqual(1, metrics["event_dimensions"]["execution-stopped"]["mode"]["enabled"])
 
     def test_rejects_unsupported_events(self):
         with self.assertRaisesRegex(ValueError, "unsupported"):

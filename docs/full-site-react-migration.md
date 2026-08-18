@@ -142,6 +142,10 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 
 本批全量结果：97 个 Vitest、29 个 Playwright、56 个 Python unittest 全部通过。
 
+灰度遥测现在按“事件 × enabled/disabled 模式”联合聚合，避免 Legacy 事件污染 V2 失败率；新增保存成功、执行成功/失败/停止分母，以及页面级保存、执行、任务轮询与恢复计数。`python app/services/canvas_rollout_health.py --strict` 会评估挂载、保存、执行和任务轮询四类指标。默认晋级门槛分别为至少 20/20/10/50 个样本，最大失败率为 1%/2%/5%/5%；小样本为 `insufficient`，超阈值为 `unhealthy`，两者在灰度启用后都会阻止继续放量。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、63 个 Python unittest 全部通过。
+
 发布前总检及历史 Smart 无类型节点兼容修复后的全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
 
 ## 计费与复杂 fixture 验收

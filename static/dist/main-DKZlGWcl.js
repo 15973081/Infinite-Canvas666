@@ -942,7 +942,7 @@ n("rollout-decision", { dimensions: {
 } });
 var L = F.get("canvas_modern_core"), R = L === "execution-shadow", de = L === "graph-order", z = L === "shadow", B = F.get("canvas_m2") === "1" || F.get("canvas_m2") === null && I.enabled, V = B || F.get("canvas_execution_engine") === "1", H = B || F.get("canvas_task_client") === "1", U = B || F.get("canvas_repository") === "1", W = V && H && U, G = F.get("canvas_react_islands") === "1", fe = G || F.get("canvas_react_activity") === "1", pe = G || F.get("canvas_react_execution") === "1", me = G || F.get("canvas_react_status") === "1", he = G || F.get("canvas_react_toolbar") === "1", ge = F.get("canvas_board_v2") === "1" || F.get("canvas_board_v2") === null && I.enabled, K = N(), q = d(K);
 await q.initialize();
-var J = s(), Y = /* @__PURE__ */ new Map(), _e = 0, X = 0, Z = [], Q = 0, $ = 0, ve = /* @__PURE__ */ new Map(), ye = {
+var J = s(), Y = /* @__PURE__ */ new Map(), _e = 0, X = 0, Z = [], ve = 0, Q = 0, ye = /* @__PURE__ */ new Map(), $ = {
 	done: 0,
 	failed: 0,
 	stopped: 0
@@ -960,7 +960,7 @@ function xe(e, t, n) {
 	};
 }
 if (window.CanvasModernCore = Object.freeze({
-	version: 29,
+	version: 30,
 	canvasRepository: J,
 	canvasRepositoryEnabled: U,
 	canvasRuntime: q,
@@ -981,7 +981,14 @@ if (window.CanvasModernCore = Object.freeze({
 	},
 	compareOrder: xe,
 	recordRolloutEvent(e, t) {
-		n(e, t);
+		n(e, {
+			...t,
+			dimensions: {
+				...t?.dimensions,
+				mode: W ? "enabled" : "disabled",
+				source: I.source
+			}
+		});
 	},
 	runOrdered(e) {
 		return V ? se(e.targetId, e.order, e.execute, {
@@ -1027,16 +1034,16 @@ if (window.CanvasModernCore = Object.freeze({
 		if (z) try {
 			let r = xe(e, t, n);
 			if (!r) return;
-			Q += 1, r.matches || (Z.length < 50 && Z.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+			ve += 1, r.matches || (Z.length < 50 && Z.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
 		} catch (e) {
-			$ += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+			Q += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
 		}
 	},
 	getShadowReport() {
 		return {
 			enabled: z,
-			checks: Q,
-			errors: $,
+			checks: ve,
+			errors: Q,
 			mismatches: Z.map((e) => ({
 				...e,
 				legacy: [...e.legacy],
@@ -1065,12 +1072,12 @@ if (window.CanvasModernCore = Object.freeze({
 			enabled: W,
 			rollout: I,
 			execution: {
-				active: [...ve.values()].filter(({ status: e }) => ![
+				active: [...ye.values()].filter(({ status: e }) => ![
 					"done",
 					"failed",
 					"stopped"
 				].includes(e)).length,
-				...ye,
+				...$,
 				transitions: be
 			},
 			flags: {
@@ -1115,7 +1122,7 @@ if (fe) {
 }
 if (ge && !I.enabled) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-CrKAQSJT.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-717BDbiR.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
 		window.CanvasModernCore?.recordRolloutEvent("board-mounted", { dimensions: { reason: "none" } }), window.addEventListener("pagehide", r, { once: !0 });
 	}).catch((e) => {
@@ -1124,7 +1131,7 @@ if (ge && !I.enabled) {
 }
 if (I.enabled) {
 	let e = document.getElementById("canvasModernApp"), t = document.getElementById("shell");
-	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-DltCzK07.js").then(({ mountCanvasAppV2: t }) => {
+	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-B-6yma_j.js").then(({ mountCanvasAppV2: t }) => {
 		let n = t(e, {
 			runtime: q,
 			repository: J
@@ -1141,21 +1148,27 @@ if (I.enabled) {
 	}));
 }
 function Se(e, t) {
-	be += 1, ve.set(e.targetId, e), t.type === "finish" && (ye[t.status] += 1), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
+	be += 1, ye.set(e.targetId, e), t.type === "finish" && ($[t.status] += 1, window.CanvasModernCore?.recordRolloutEvent(t.status === "done" ? "execution-succeeded" : t.status === "failed" ? "execution-failed" : "execution-stopped", { dimensions: { reason: t.status === "failed" ? "execution-failed" : t.status === "stopped" ? "execution-stopped" : "none" } })), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
 		event: t,
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "29", document.documentElement.dataset.canvasBoardV2 = ge ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = V ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = R ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = de ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = W ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = U ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = fe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = pe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = G ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = me ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = he ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = H ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = I.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(I.bucket), document.documentElement.dataset.canvasV2RolloutBlocked = I.blockedReasons.join(",") || "none", document.documentElement.dataset.canvasV2RolloutPercentage = String(I.percentage), document.documentElement.dataset.canvasV2RolloutPolicy = I.policyLoaded ? "loaded" : "fallback", window.addEventListener("pagehide", () => {
+document.documentElement.dataset.canvasModernCore = "30", document.documentElement.dataset.canvasBoardV2 = ge ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = V ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = R ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = de ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = W ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = U ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = fe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = pe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = G ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = me ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = he ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = H ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = I.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(I.bucket), document.documentElement.dataset.canvasV2RolloutBlocked = I.blockedReasons.join(",") || "none", document.documentElement.dataset.canvasV2RolloutPercentage = String(I.percentage), document.documentElement.dataset.canvasV2RolloutPolicy = I.policyLoaded ? "loaded" : "fallback", window.addEventListener("pagehide", () => {
 	let e = J.getDiagnostics(), t = K.getDiagnostics();
 	n("page-summary", {
 		counters: {
 			execution_errors: X,
+			execution_failed: $.failed,
+			execution_runs: $.done + $.failed + $.stopped,
 			repository_conflicts: e.conflicts,
 			repository_errors: e.errors,
-			shadow_errors: $,
+			repository_saves: e.saves,
+			shadow_errors: Q,
 			task_poll_errors: t.pollErrors,
-			task_recoveries: t.recoveredTasks
+			task_polls: t.polls,
+			task_recoveries: t.recoveredTasks,
+			task_resumed: t.resumedTasks,
+			task_submissions: t.submissions
 		},
 		dimensions: {
 			mode: W ? "enabled" : "disabled",

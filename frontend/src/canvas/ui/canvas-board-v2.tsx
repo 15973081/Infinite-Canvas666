@@ -751,6 +751,9 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
           baseDocument = saved;
           if (!disposed) store.getState().acceptSavedDocument(saved, submitted);
           reportSaveState('saved');
+          window.CanvasModernCore?.recordRolloutEvent('save-succeeded', {
+            dimensions: { reason: 'none' },
+          });
         } catch (error) {
           if (error instanceof CanvasConflictError) {
             window.CanvasModernCore?.recordRolloutEvent('save-conflict', {
@@ -770,6 +773,9 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
                   if (!disposed) store.getState().acceptSavedDocument(saved, merged.document);
                   reportSaveState('saved');
                   window.CanvasModernCore?.recordRolloutEvent('save-rebased', {
+                    dimensions: { reason: 'none' },
+                  });
+                  window.CanvasModernCore?.recordRolloutEvent('save-succeeded', {
                     dimensions: { reason: 'none' },
                   });
                   continue;

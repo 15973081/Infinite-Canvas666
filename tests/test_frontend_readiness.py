@@ -43,6 +43,7 @@ class FrontendReadinessTest(unittest.TestCase):
             metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
             provider_report=provider_report,
             evidence_report={"pending_gates": MANUAL_RELEASE_GATES},
+            rollout_health_report={"status": "healthy", "ready_for_promotion": True},
         )
 
     def test_passes_code_migration_but_keeps_manual_release_gates_explicit(self):
@@ -74,6 +75,7 @@ class FrontendReadinessTest(unittest.TestCase):
             metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
             provider_report={"ready": False, "missing_capabilities": ["video", "comfy"]},
             evidence_report={"pending_gates": MANUAL_RELEASE_GATES},
+            rollout_health_report={"status": "healthy", "ready_for_promotion": True},
         )
 
         self.assertTrue(report["code_migration_ready"])
@@ -88,10 +90,25 @@ class FrontendReadinessTest(unittest.TestCase):
             metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
             provider_report={"ready": True, "missing_capabilities": []},
             evidence_report={"ready": True, "pending_gates": []},
+            rollout_health_report={"status": "healthy", "ready_for_promotion": True},
         )
 
         self.assertTrue(report["production_release_ready"])
         self.assertEqual([], report["release_blockers"])
+
+    def test_active_rollout_requires_healthy_joint_telemetry(self):
+        self.write_entry()
+        report = build_frontend_readiness_report(
+            str(self.root), str(self.canvas_dir), expected_entries={"index.html"},
+            policy={"effective_percentage": 5, "blocked_reasons": []},
+            metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
+            provider_report={"ready": True, "missing_capabilities": []},
+            evidence_report={"ready": True, "pending_gates": []},
+            rollout_health_report={"status": "insufficient", "ready_for_promotion": False},
+        )
+
+        self.assertIn("rollout-health-insufficient", report["release_blockers"])
+        self.assertFalse(report["production_release_ready"])
 
 
 if __name__ == "__main__":

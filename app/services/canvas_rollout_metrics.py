@@ -12,11 +12,15 @@ ROLLOUT_METRICS_VERSION = 1
 ALLOWED_EVENTS = {
     "board-mount-failed",
     "board-mounted",
+    "execution-failed",
+    "execution-stopped",
+    "execution-succeeded",
     "page-summary",
     "rollout-decision",
     "save-conflict",
     "save-failed",
     "save-rebased",
+    "save-succeeded",
 }
 ALLOWED_SOURCES = {"default", "query", "server", "storage"}
 ALLOWED_MODES = {"disabled", "enabled"}
@@ -25,6 +29,8 @@ ALLOWED_REASONS = {
     "audit-incomplete",
     "config-invalid",
     "dependency-unavailable",
+    "execution-failed",
+    "execution-stopped",
     "import-failed",
     "kill-switch",
     "none",
@@ -35,12 +41,18 @@ ALLOWED_REASONS = {
     "save-request-failed",
 }
 ALLOWED_COUNTERS = {
+    "execution_failed",
+    "execution_runs",
     "execution_errors",
     "repository_conflicts",
     "repository_errors",
+    "repository_saves",
     "shadow_errors",
     "task_poll_errors",
+    "task_polls",
     "task_recoveries",
+    "task_resumed",
+    "task_submissions",
 }
 _LOCK = Lock()
 
@@ -62,6 +74,15 @@ def record_canvas_rollout_event(payload: Dict[str, Any], path: Optional[str] = N
             bucket[value] = int(bucket.get(value) or 0) + 1
         for name, value in counters.items():
             metrics["counters"][name] = int(metrics["counters"].get(name) or 0) + value
+        event_dimensions = metrics["event_dimensions"].setdefault(event, {})
+        for name, value in dimensions.items():
+            bucket = event_dimensions.setdefault(name, {})
+            bucket[value] = int(bucket.get(value) or 0) + 1
+        mode = dimensions.get("mode")
+        if mode and counters:
+            event_counters = metrics["event_counters"].setdefault(event, {}).setdefault(mode, {})
+            for name, value in counters.items():
+                event_counters[name] = int(event_counters.get(name) or 0) + value
         metrics["updated_at"] = int(time.time() * 1000)
         _persist_metrics(metrics, store_path)
         return {"accepted": True, "event": event, "persisted": True}
@@ -77,6 +98,8 @@ def _empty_metrics() -> Dict[str, Any]:
         "version": ROLLOUT_METRICS_VERSION,
         "updated_at": 0,
         "events": {},
+        "event_dimensions": {},
+        "event_counters": {},
         "dimensions": {"mode": {}, "reason": {}, "source": {}},
         "counters": {},
     }
@@ -101,6 +124,44 @@ def _read_metrics(path: str) -> Dict[str, Any]:
                     result["dimensions"][name].update(
                         {str(value): max(0, int(count)) for value, count in values.items()}
                     )
+        event_dimensions = payload.get("event_dimensions")
+        if isinstance(event_dimensions, dict):
+            for event, raw_dimensions in event_dimensions.items():
+                if event not in ALLOWED_EVENTS or not isinstance(raw_dimensions, dict):
+                    continue
+                clean_dimensions = {}
+                for name in result["dimensions"]:
+                    values = raw_dimensions.get(name)
+                    if not isinstance(values, dict):
+                        continue
+                    allowed = ALLOWED_MODES if name == "mode" else ALLOWED_SOURCES if name == "source" else ALLOWED_REASONS
+                    clean = {
+                        str(value): max(0, int(count))
+                        for value, count in values.items()
+                        if str(value) in allowed
+                    }
+                    if clean:
+                        clean_dimensions[name] = clean
+                if clean_dimensions:
+                    result["event_dimensions"][event] = clean_dimensions
+        event_counters = payload.get("event_counters")
+        if isinstance(event_counters, dict):
+            for event, modes in event_counters.items():
+                if event not in ALLOWED_EVENTS or not isinstance(modes, dict):
+                    continue
+                clean_modes = {}
+                for mode, values in modes.items():
+                    if mode not in ALLOWED_MODES or not isinstance(values, dict):
+                        continue
+                    clean = {
+                        str(name): max(0, int(value))
+                        for name, value in values.items()
+                        if str(name) in ALLOWED_COUNTERS
+                    }
+                    if clean:
+                        clean_modes[mode] = clean
+                if clean_modes:
+                    result["event_counters"][event] = clean_modes
         return result
     except (FileNotFoundError, TypeError, ValueError, json.JSONDecodeError):
         return _empty_metrics()

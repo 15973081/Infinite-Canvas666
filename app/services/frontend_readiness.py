@@ -14,6 +14,7 @@ from app.services.canvas_audit import audit_canvas_directory
 from app.services.canvas_billing_audit import audit_canvas_billing
 from app.services.canvas_rollout import get_canvas_rollout_policy
 from app.services.canvas_rollout_metrics import get_canvas_rollout_metrics
+from app.services.canvas_rollout_health import build_canvas_rollout_health_report
 from app.services.provider_readiness import build_provider_readiness_report
 from app.services.stage8_release_evidence import RELEASE_GATES, build_stage8_evidence_report
 
@@ -42,6 +43,7 @@ def build_frontend_readiness_report(
     provider_report: Optional[Dict[str, Any]] = None,
     evidence_path: str = STAGE8_RELEASE_EVIDENCE_FILE,
     evidence_report: Optional[Dict[str, Any]] = None,
+    rollout_health_report: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     root = Path(repo_root).resolve()
     static = root / "static"
@@ -96,6 +98,9 @@ def build_frontend_readiness_report(
         release_blockers.append("rollout-percentage-zero")
     if not any(int(value or 0) > 0 for value in active_metrics.get("events", {}).values()):
         release_blockers.append("telemetry-empty")
+    active_rollout_health = rollout_health_report if rollout_health_report is not None else build_canvas_rollout_health_report(active_metrics, active_policy)
+    if int(active_policy.get("effective_percentage") or 0) > 0 and active_rollout_health.get("status") != "healthy":
+        release_blockers.append(f"rollout-health-{active_rollout_health.get('status') or 'unknown'}")
     if billing_audit["invalid_files"]:
         release_blockers.append("billing-audit-invalid-files")
     if billing_audit["duplicate_logs"]:
@@ -123,6 +128,7 @@ def build_frontend_readiness_report(
         "provider_readiness": active_provider_report,
         "release_evidence": active_evidence_report,
         "rollout": active_policy,
+        "rollout_health": active_rollout_health,
         "telemetry": active_metrics,
         "manual_release_gates": MANUAL_RELEASE_GATES,
     }

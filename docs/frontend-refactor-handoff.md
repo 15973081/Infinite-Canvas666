@@ -490,3 +490,22 @@ ModernCanvasRuntime 现在把 `canvasTaskId`、`upstreamTaskId`、`idempotencyKe
 发布总检只输出通过状态、计数和问题代码，不输出审核人、工单链接、上游任务 ID 或其他证据值。当前仓库没有伪造或自动生成本机验收文件，因此四个门禁仍全部待完成，灰度状态没有变化。
 
 本批全量结果：97 个 Vitest、29 个 Playwright、56 个 Python unittest 全部通过。
+
+## 28. 2026-08-19 灰度健康门禁
+
+原灰度指标只分别聚合事件和模式，无法判断失败来自 V2 还是 Legacy。本批在保持低基数和不采集画布内容的前提下，新增 `event_dimensions` 与 `event_counters`，按事件和 `enabled/disabled` 联合统计；旧指标文件继续兼容读取，新字段会在后续事件到达时自然补齐。
+
+React Canvas 新增 `save-succeeded`、`execution-succeeded`、`execution-failed`、`execution-stopped` 事件；页面退出汇总新增执行总数/失败数、成功保存、任务提交、轮询和恢复数。所有内部事件的模式与策略来源由 Modern Core 强制填写，调用方不能覆盖模式归属。
+
+只读健康检查命令：
+
+```powershell
+& '.\python\python.exe' app/services/canvas_rollout_health.py
+& '.\python\python.exe' app/services/canvas_rollout_health.py --strict
+```
+
+默认检查四类指标：Board 挂载至少 20 次且失败率不高于 1%；保存至少 20 次且失败率不高于 2%；执行至少 10 次且失败率不高于 5%；任务轮询至少 50 次且错误率不高于 5%。灰度未启用时状态为 `inactive`，不重复增加阻断；灰度启用后，`insufficient` 或 `unhealthy` 会由总检产生对应发布阻断，只有 `healthy` 可进入下一档放量。
+
+当前本机灰度仍为 0%，健康状态为 `inactive`，联合遥测没有真实样本；没有自动开启或修改灰度配置。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、63 个 Python unittest 全部通过。
