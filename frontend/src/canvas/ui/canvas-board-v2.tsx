@@ -867,7 +867,18 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     exportSelection() {
       const snapshot = store.getState().document;
       if (!snapshot) return { connections: [], nodes: [] };
-      const selected = externalSelection.size ? externalSelection : new Set(snapshot.nodes.map((node) => node.id));
+      const selected = externalSelection.size ? new Set(externalSelection) : new Set(snapshot.nodes.map((node) => node.id));
+      let expanded = true;
+      while (expanded) {
+        expanded = false;
+        snapshot.nodes.forEach((node) => {
+          if (!selected.has(node.id) || !['group', 'promptGroup'].includes(node.type) || !Array.isArray(node.items)) return;
+          node.items.forEach((id) => {
+            const childId = String(id || '');
+            if (childId && !selected.has(childId)) { selected.add(childId); expanded = true; }
+          });
+        });
+      }
       return {
         connections: structuredClone(snapshot.connections.filter((edge) => selected.has(edge.from) && selected.has(edge.to))),
         nodes: structuredClone(snapshot.nodes.filter((node) => selected.has(node.id))),
@@ -876,7 +887,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     importWorkflow(payload) {
       const nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
       const connections = Array.isArray(payload.connections) ? payload.connections : [];
-      const importableTypes = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'video'] as const;
+      const importableTypes = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'promptGroup', 'video'] as const;
       const idMap = new Map<string, string>();
       nodes.forEach((raw, index) => {
         if (!raw || typeof raw !== 'object') return;

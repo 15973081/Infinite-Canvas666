@@ -131,7 +131,7 @@ declare global {
       destroy(): void;
     };
     CanvasBoardV2?: {
-      addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
+      addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'promptGroup' | 'video', point?: { x: number; y: number }): string | null;
       exportSelection(): { connections: unknown[]; nodes: unknown[] };
       groupSelected(): void;
       importFiles(files: File[], point?: { x: number; y: number }): Promise<void>;

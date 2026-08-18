@@ -241,13 +241,15 @@ test('manages canvas assets, saves outputs, and exports resource-complete workfl
     active_library_id: 'default',
     libraries: [{ id: 'default', name: '默认素材库', categories: [
       { id: 'images', name: '图片', type: 'image', items: [{ id: 'hero', name: 'Hero', kind: 'image', url: '/assets/hero.png' }] },
-      { id: 'workflows', name: '工作流', type: 'workflow', items: [] },
+      { id: 'workflows', name: '工作流', type: 'workflow', items: [{ id: 'saved-flow', name: 'Saved workflow', kind: 'workflow', url: '/assets/library/saved-flow.zip' }] },
     ] }],
   };
   let added = 0;
   let renamed = 0;
   let deleted = 0;
   let exportPayload: Record<string, unknown> = {};
+  let libraryExportPayload: Record<string, unknown> = {};
+  let groupExportPayload: Record<string, unknown> = {};
   let canvasDocument: any = {
     id: 'smart-assets', kind: 'smart', schemaVersion: 1, title: 'Asset Smart', updated_at: 1, connections: [],
     nodes: [{ id: 'output-assets', type: 'output', x: 500, y: 100, images: [{ url: '/output/generated.png', name: 'generated.png', kind: 'image' }] }],
@@ -265,6 +267,20 @@ test('manages canvas assets, saves outputs, and exports resource-complete workfl
   await page.route('**/api/canvas-workflows/export', async (route) => {
     exportPayload = route.request().postDataJSON();
     await route.fulfill({ status: 200, contentType: 'application/zip', headers: { 'Content-Disposition': "attachment; filename*=UTF-8''smart-assets.zip" }, body: Buffer.from('PK mock zip') });
+  });
+  await page.route('**/api/canvas-workflows/export-to-library', async (route) => {
+    libraryExportPayload = route.request().postDataJSON();
+    const item = { id: 'exported-flow', name: 'Asset Smart', kind: 'workflow', url: '/assets/library/exported-flow.zip' };
+    assetState.libraries[0].categories[1].items.push(item);
+    await route.fulfill({ json: { library: assetState, item } });
+  });
+  await page.route('**/assets/library/saved-flow.zip', (route) => route.fulfill({ contentType: 'application/zip', body: Buffer.from('PK mock stored workflow') }));
+  await page.route('**/api/canvas-workflows/import', (route) => route.fulfill({ json: { workflow: {
+    nodes: [{ id: 'asset-prompt', type: 'prompt', x: 20, y: 20, text: 'imported from asset library' }], connections: [],
+  } } }));
+  await page.route('**/api/smart-canvas/group-export', async (route) => {
+    groupExportPayload = route.request().postDataJSON();
+    await route.fulfill({ json: { ok: true, count: (groupExportPayload.items as unknown[])?.length || 0, folder: 'D:/exports/Asset Smart' } });
   });
   await page.route('**/api/asset-library**', async (route) => {
     const request = route.request();
@@ -330,4 +346,25 @@ test('manages canvas assets, saves outputs, and exports resource-complete workfl
   await download;
   expect(exportPayload).toMatchObject({ filename: 'Asset Smart-workflow.zip', include_resources: true });
   expect(Array.isArray(exportPayload.nodes)).toBe(true);
+
+  await page.getByRole('button', { name: '工作流', exact: true }).click();
+  await page.getByRole('button', { name: '保存到工作流库' }).click();
+  await expect(page.getByRole('dialog')).toContainText('保存工作流到资产库');
+  await expect(page.getByRole('button', { name: '保存工作流' })).toBeEnabled();
+  await page.getByRole('button', { name: '保存工作流' }).click();
+  await expect.poll(() => libraryExportPayload).toMatchObject({ library_id: 'default', category_id: 'workflows', include_resources: true, name: 'Asset Smart' });
+
+  await page.getByRole('button', { name: '资产库', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /工作流/ }).click();
+  await page.locator('.canvas-asset-preview').filter({ hasText: 'Saved workflow' }).click();
+  await expect(page.locator('[data-node-type="prompt"]')).toContainText('imported from asset library');
+
+  await page.getByRole('button', { name: '工作流', exact: true }).click();
+  page.once('dialog', (dialog) => dialog.accept('D:/exports'));
+  await page.getByRole('button', { name: '批量导出选区结果' }).click();
+  await expect.poll(() => groupExportPayload).toMatchObject({ folder: 'D:/exports', group_name: 'Asset Smart' });
+  expect(groupExportPayload.items).toEqual(expect.arrayContaining([
+    expect.objectContaining({ kind: 'image', url: '/output/generated.png' }),
+    expect.objectContaining({ kind: 'text', text: 'imported from asset library' }),
+  ]));
 });

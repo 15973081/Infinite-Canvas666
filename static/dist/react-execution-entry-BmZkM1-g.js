@@ -1,4 +1,4 @@
-import { a as e, i as t, n, o as r, r as i, t as a } from "./jsx-runtime-DnrZ1XIK.js";
+import { a as e, i as t, n, o as r, r as i, t as a } from "./jsx-runtime-Ckg77XP3.js";
 //#region src/canvas/stores/activity-store.ts
 var o = {
 	costs: {

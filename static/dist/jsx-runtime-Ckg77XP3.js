@@ -8198,6 +8198,11 @@ function C(e) {
 					imageComparisons: {}
 				},
 				prompt: { text: "" },
+				promptGroup: {
+					w: 300,
+					h: 220,
+					items: []
+				},
 				video: {
 					apiProvider: "comfly",
 					model: "",

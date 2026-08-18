@@ -26,6 +26,12 @@ export interface CanvasAssetLibraryState {
 }
 
 type AssetResponse = { category?: CanvasAssetCategory; item?: CanvasAssetItem; library: CanvasAssetLibraryState; removed?: number };
+export interface CanvasWorkflowLibraryPayload {
+  connections: unknown[];
+  filename: string;
+  name: string;
+  nodes: unknown[];
+}
 
 export const canvasAssetLibraryClient = {
   list: () => request<AssetResponse>('/api/asset-library'),
@@ -38,6 +44,9 @@ export const canvasAssetLibraryClient = {
   addUrl: (libraryId: string, categoryId: string, url: string, name: string) => request<AssetResponse>('/api/asset-library/items', json('POST', { category_id: categoryId, library_id: libraryId, name, url })),
   renameItem: (id: string, name: string) => request<AssetResponse>(`/api/asset-library/items/${encodeURIComponent(id)}`, json('PATCH', { name })),
   deleteItem: (libraryId: string, id: string) => request<AssetResponse>('/api/asset-library/items/delete', json('POST', { ids: [id], library_id: libraryId })),
+  saveWorkflow: (libraryId: string, categoryId: string, workflow: CanvasWorkflowLibraryPayload) => request<AssetResponse>('/api/canvas-workflows/export-to-library', json('POST', {
+    ...workflow, category_id: categoryId, include_resources: true, library_id: libraryId,
+  })),
 };
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {

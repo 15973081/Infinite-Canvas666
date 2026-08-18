@@ -1,4 +1,4 @@
-import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-DnrZ1XIK.js";
+import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-Ckg77XP3.js";
 import { n as o, r as s, t as c } from "./document-merge-DziDwlrU.js";
 //#region src/canvas/ui/canvas-board-v2.tsx
 var l = /* @__PURE__ */ e(i(), 1), u = n(), d = a(), f = {
@@ -2270,7 +2270,13 @@ function W(e, t, n = {}) {
 				connections: [],
 				nodes: []
 			};
-			let t = j.size ? j : new Set(e.nodes.map((e) => e.id));
+			let t = j.size ? new Set(j) : new Set(e.nodes.map((e) => e.id)), n = !0;
+			for (; n;) n = !1, e.nodes.forEach((e) => {
+				!t.has(e.id) || !["group", "promptGroup"].includes(e.type) || !Array.isArray(e.items) || e.items.forEach((e) => {
+					let r = String(e || "");
+					r && !t.has(r) && (t.add(r), n = !0);
+				});
+			});
 			return {
 				connections: structuredClone(e.connections.filter((e) => t.has(e.from) && t.has(e.to))),
 				nodes: structuredClone(e.nodes.filter((e) => t.has(e.id)))
@@ -2288,6 +2294,7 @@ function W(e, t, n = {}) {
 				"msgen",
 				"output",
 				"prompt",
+				"promptGroup",
 				"video"
 			], i = /* @__PURE__ */ new Map();
 			return t.forEach((e, t) => {

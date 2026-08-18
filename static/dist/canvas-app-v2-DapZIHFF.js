@@ -1,7 +1,7 @@
-import { c as e, o as t, s as n, t as r } from "./jsx-runtime-DnrZ1XIK.js";
+import { c as e, o as t, s as n, t as r } from "./jsx-runtime-Ckg77XP3.js";
 import { n as i } from "./http-F-lX8WKW.js";
 import { r as a } from "./document-merge-DziDwlrU.js";
-import { t as o } from "./canvas-board-v2-qbmgViHf.js";
+import { t as o } from "./canvas-board-v2-_w3eb9xD.js";
 //#region src/canvas/infrastructure/canvas-management.ts
 var s = /* @__PURE__ */ e(n(), 1), c = t();
 function l(e = fetch) {
@@ -127,6 +127,12 @@ var g = {
 	deleteItem: (e, t) => _("/api/asset-library/items/delete", v("POST", {
 		ids: [t],
 		library_id: e
+	})),
+	saveWorkflow: (e, t, n) => _("/api/canvas-workflows/export-to-library", v("POST", {
+		...n,
+		category_id: t,
+		include_resources: !0,
+		library_id: e
 	}))
 };
 async function _(e, t) {
@@ -154,10 +160,10 @@ function x({ onClose: e, request: t }) {
 	let [n, r] = (0, s.useState)(b), [i, a] = (0, s.useState)(""), [o, c] = (0, s.useState)(""), [l, u] = (0, s.useState)(""), [d, f] = (0, s.useState)(t.saveItem?.url || ""), [p, m] = (0, s.useState)(t.saveItem?.name || C(t.saveItem?.url || "")), [h, _] = (0, s.useState)("正在加载资产库…"), v = n.libraries.find((e) => e.id === i) ?? n.libraries[0], x = v?.categories || [], T = x.find((e) => e.id === o) ?? x[0], E = (0, s.useMemo)(() => (T?.items || []).filter((e) => {
 		let t = l.trim().toLocaleLowerCase();
 		return !t || e.name.toLocaleLowerCase().includes(t) || e.url.toLocaleLowerCase().includes(t);
-	}), [T, l]), D = (e, t = i, n = o) => {
+	}), [T, l]), D = (e, n = i, s = o) => {
 		r(e);
-		let s = e.libraries.find((e) => e.id === t) ?? e.libraries.find((t) => t.id === e.active_library_id) ?? e.libraries[0], l = s?.categories.find((e) => e.id === n) ?? s?.categories.find((e) => e.type === "image") ?? s?.categories[0];
-		a(s?.id || ""), c(l?.id || "");
+		let l = e.libraries.find((e) => e.id === n) ?? e.libraries.find((t) => t.id === e.active_library_id) ?? e.libraries[0], u = t.saveWorkflow ? "workflow" : "image", d = l?.categories.find((e) => e.id === s) ?? l?.categories.find((e) => e.type === u) ?? l?.categories[0];
+		a(l?.id || ""), c(d?.id || "");
 	};
 	(0, s.useEffect)(() => {
 		let e = !0;
@@ -168,8 +174,10 @@ function x({ onClose: e, request: t }) {
 		};
 	}, []);
 	let O = (e) => {
-		let t = n.libraries.find((t) => t.id === e);
-		a(e), c(t?.categories.find((e) => e.type === "image")?.id || t?.categories[0]?.id || "");
+		let r = n.libraries.find((t) => t.id === e);
+		a(e);
+		let i = t.saveWorkflow ? "workflow" : "image";
+		c(r?.categories.find((e) => e.type === i)?.id || r?.categories[0]?.id || "");
 	}, k = async (e, t, n = T?.id || "") => {
 		try {
 			let r = await e();
@@ -194,8 +202,8 @@ function x({ onClose: e, request: t }) {
 		if (!v) return;
 		let e = window.prompt("新分组名称")?.trim();
 		if (!e) return;
-		let t = await k(() => g.createCategory(v.id, e), "分组已创建");
-		t?.category && D(t.library, v.id, t.category.id);
+		let n = t.saveWorkflow || T?.type === "workflow" ? "workflow" : "image", r = await k(() => g.createCategory(v.id, e, n), "分组已创建");
+		r?.category && D(r.library, v.id, r.category.id);
 	}, P = async () => {
 		if (!v || !T) return;
 		let e = window.prompt("分组名称", T.name)?.trim();
@@ -221,6 +229,20 @@ function x({ onClose: e, request: t }) {
 		t && await k(() => g.renameItem(e.id, t), "素材已重命名");
 	}, R = async (e) => {
 		!v || !window.confirm(`删除素材“${e.name}”？本地文件副本也会被删除。`) || await k(() => g.deleteItem(v.id, e.id), "素材已删除");
+	}, z = async () => {
+		if (!(!v || !T || !t.saveWorkflow)) {
+			if (T.type !== "workflow") {
+				_("请选择工作流分组");
+				return;
+			}
+			(await k(() => g.saveWorkflow(v.id, T.id, t.saveWorkflow), "工作流已保存到资产库"))?.item && e();
+		}
+	}, B = async (n) => {
+		try {
+			n.kind === "workflow" ? await t.onImportWorkflow?.(n) : t.onInsert?.(n), e();
+		} catch (e) {
+			_(w(e));
+		}
 	};
 	return /* @__PURE__ */ (0, y.jsx)("div", {
 		"aria-modal": "true",
@@ -229,7 +251,7 @@ function x({ onClose: e, request: t }) {
 		children: /* @__PURE__ */ (0, y.jsxs)("section", {
 			className: "modal-panel",
 			children: [
-				/* @__PURE__ */ (0, y.jsxs)("header", { children: [/* @__PURE__ */ (0, y.jsx)("strong", { children: t.saveItem ? "保存到资产库" : "资产库" }), /* @__PURE__ */ (0, y.jsx)("button", {
+				/* @__PURE__ */ (0, y.jsxs)("header", { children: [/* @__PURE__ */ (0, y.jsx)("strong", { children: t.saveWorkflow ? "保存工作流到资产库" : t.saveItem ? "保存到资产库" : "资产库" }), /* @__PURE__ */ (0, y.jsx)("button", {
 					onClick: e,
 					type: "button",
 					children: "关闭"
@@ -322,25 +344,37 @@ function x({ onClose: e, request: t }) {
 									})
 								]
 							}) : null,
+							t.saveWorkflow ? /* @__PURE__ */ (0, y.jsxs)("div", {
+								className: "canvas-asset-workflow-save",
+								children: [/* @__PURE__ */ (0, y.jsxs)("span", { children: [
+									"将“",
+									t.saveWorkflow.name,
+									"”及可找到的本地资源保存到当前工作流分组。"
+								] }), /* @__PURE__ */ (0, y.jsx)("button", {
+									className: "primary-btn",
+									disabled: T?.type !== "workflow",
+									onClick: () => void z(),
+									type: "button",
+									children: "保存工作流"
+								})]
+							}) : null,
 							/* @__PURE__ */ (0, y.jsx)("div", {
 								className: "canvas-modern-asset-grid",
-								children: E.map((n) => /* @__PURE__ */ (0, y.jsxs)("article", { children: [/* @__PURE__ */ (0, y.jsxs)("button", {
+								children: E.map((e) => /* @__PURE__ */ (0, y.jsxs)("article", { children: [/* @__PURE__ */ (0, y.jsxs)("button", {
 									className: "canvas-asset-preview",
-									disabled: !t.onInsert || n.kind === "workflow",
-									onClick: () => {
-										t.onInsert?.(n), e();
-									},
+									disabled: e.kind === "workflow" ? !t.onImportWorkflow : !t.onInsert,
+									onClick: () => void B(e),
 									type: "button",
-									children: [S(n), /* @__PURE__ */ (0, y.jsx)("small", { children: n.name })]
+									children: [S(e), /* @__PURE__ */ (0, y.jsx)("small", { children: e.name })]
 								}), /* @__PURE__ */ (0, y.jsxs)("div", { children: [/* @__PURE__ */ (0, y.jsx)("button", {
-									onClick: () => void L(n),
+									onClick: () => void L(e),
 									type: "button",
 									children: "重命名"
 								}), /* @__PURE__ */ (0, y.jsx)("button", {
-									onClick: () => void R(n),
+									onClick: () => void R(e),
 									type: "button",
 									children: "删除"
-								})] })] }, n.id))
+								})] })] }, e.id))
 							}),
 							E.length ? null : /* @__PURE__ */ (0, y.jsx)("p", { children: "当前分组暂无匹配内容" })
 						]
@@ -706,7 +740,7 @@ var j = [
 	["output", "Output"]
 ];
 function M({ configuration: e = {}, management: t = l(), repository: n, runtime: r }) {
-	let i = e.kind ?? "classic", [c, u] = (0, s.useState)([]), [d, f] = (0, s.useState)([]), [p, g] = (0, s.useState)([]), [_, v] = (0, s.useState)("all"), [b, S] = (0, s.useState)(!1), [C, w] = (0, s.useState)(null), [T, E] = (0, s.useState)(""), [D, k] = (0, s.useState)("正在加载画布列表…"), [A, M] = (0, s.useState)(null), [N, R] = (0, s.useState)(null), [z, B] = (0, s.useState)(null), [V, H] = (0, s.useState)(!1), [U, W] = (0, s.useState)(null), G = (0, s.useRef)(null), K = (0, s.useRef)(P()), q = (0, s.useRef)(!1), J = (0, s.useCallback)(async () => {
+	let i = e.kind ?? "classic", [c, u] = (0, s.useState)([]), [d, f] = (0, s.useState)([]), [p, g] = (0, s.useState)([]), [_, v] = (0, s.useState)("all"), [b, S] = (0, s.useState)(!1), [C, w] = (0, s.useState)(null), [T, E] = (0, s.useState)(""), [D, k] = (0, s.useState)("正在加载画布列表…"), [A, M] = (0, s.useState)(null), [N, z] = (0, s.useState)(null), [B, V] = (0, s.useState)(null), [ee, H] = (0, s.useState)(!1), [U, W] = (0, s.useState)(null), G = (0, s.useRef)(null), K = (0, s.useRef)(P()), q = (0, s.useRef)(!1), J = (0, s.useCallback)(async () => {
 		k("正在加载画布列表…");
 		try {
 			let [e, n, r] = await Promise.all([
@@ -740,10 +774,10 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 	}, [C?.id, t]), (0, s.useEffect)(() => {
 		let e = window.openPromptTemplateModal, t = window.openCanvasPromptLibrary, n = window.openCanvasAssetLibrary;
 		return window.openPromptTemplateModal = (e) => {
-			R({ onApply: (t) => {
+			z({ onApply: (t) => {
 				window.CanvasBoardV2?.updateNode(e, { text: t });
 			} });
-		}, window.openCanvasPromptLibrary = (e) => R(e), window.openCanvasAssetLibrary = (e) => W(e), () => {
+		}, window.openCanvasPromptLibrary = (e) => z(e), window.openCanvasAssetLibrary = (e) => W(e), () => {
 			e ? window.openPromptTemplateModal = e : delete window.openPromptTemplateModal, t ? window.openCanvasPromptLibrary = t : delete window.openCanvasPromptLibrary, n ? window.openCanvasAssetLibrary = n : delete window.openCanvasAssetLibrary;
 		};
 	}, []);
@@ -774,7 +808,7 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 		e.initialCanvasId,
 		C
 	]);
-	let ee = async () => {
+	let te = async () => {
 		C?.id && await t.releaseLock(String(C.id), K.current).catch(() => void 0), w(null), M(null), await J();
 	}, X = async () => {
 		try {
@@ -786,16 +820,16 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 		} catch (e) {
 			k(e instanceof Error ? e.message : String(e));
 		}
-	}, te = async (e) => {
+	}, ne = async (e) => {
 		window.confirm("将此画布移入回收站？") && (await t.delete(e), await J());
 	}, Z = async () => {
 		C?.id && M(await n.listBackups(String(C.id)));
 	}, Q = async (e) => {
-		C?.id && B({
+		C?.id && V({
 			mode: e,
 			document: await n.get(String(C.id))
 		});
-	}, ne = () => {
+	}, re = () => {
 		let e = window.CanvasBoardV2?.exportSelection();
 		if (!e?.nodes.length) {
 			k("没有可导出的节点");
@@ -809,7 +843,7 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 			download: `${String(C?.title || "canvas")}-workflow.json`,
 			href: n
 		}).click(), URL.revokeObjectURL(n), H(!1);
-	}, re = async () => {
+	}, ie = async () => {
 		let e = window.CanvasBoardV2?.exportSelection();
 		if (!e?.nodes.length) {
 			k("没有可导出的节点");
@@ -834,7 +868,41 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 		} catch (e) {
 			k(e instanceof Error ? e.message : String(e));
 		}
-	}, ie = async (e) => {
+	}, ae = () => {
+		let e = window.CanvasBoardV2?.exportSelection();
+		if (!e?.nodes.length) {
+			k("没有可保存的节点");
+			return;
+		}
+		let t = String(C?.title || "canvas");
+		H(!1), W({ saveWorkflow: {
+			...e,
+			filename: `${t}-workflow.zip`,
+			name: t
+		} });
+	}, oe = async () => {
+		let e = window.CanvasBoardV2?.exportSelection(), t = R(e?.nodes || []);
+		if (!t.length) {
+			k("选区中没有可批量导出的媒体或文本");
+			return;
+		}
+		let n = window.prompt("导出到服务器文件夹（留空使用默认导出目录）", "");
+		if (n !== null) try {
+			let e = await fetch("/api/smart-canvas/group-export", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					folder: n.trim(),
+					group_name: String(C?.title || "canvas"),
+					items: t
+				})
+			}), r = await e.json().catch(() => ({}));
+			if (!e.ok) throw Error(r.detail || "批量导出失败");
+			k(`已导出 ${Number(r.count || t.length)} 项到 ${String(r.folder || "默认导出目录")}`), H(!1);
+		} catch (e) {
+			k(e instanceof Error ? e.message : String(e));
+		}
+	}, $ = async (e) => {
 		try {
 			let t;
 			if (/\.json$/i.test(e.name)) t = JSON.parse(await e.text());
@@ -853,17 +921,25 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 		} catch (e) {
 			k(e instanceof Error ? e.message : String(e));
 		}
-	}, ae = () => W({ onInsert: (e) => {
-		let t = window.CanvasBoardV2?.addNode("image", {
-			x: 100,
-			y: 100
-		});
-		t && window.CanvasBoardV2?.updateNode(t, {
-			mediaKind: e.kind,
-			name: e.name,
-			url: e.url
-		});
-	} }), $ = () => {
+	}, se = () => W({
+		onInsert: (e) => {
+			let t = window.CanvasBoardV2?.addNode("image", {
+				x: 100,
+				y: 100
+			});
+			t && window.CanvasBoardV2?.updateNode(t, {
+				mediaKind: e.kind,
+				name: e.name,
+				url: e.url
+			});
+		},
+		onImportWorkflow: async (e) => {
+			let t = await fetch(e.url);
+			if (!t.ok) throw Error("读取资产库工作流失败");
+			let n = /\.json(?:[?#]|$)/i.test(e.url) ? ".json" : ".zip";
+			await $(new File([await t.blob()], `${e.name || "workflow"}${n}`));
+		}
+	}), ce = () => {
 		let t = e.assetInboxKey || "", n = h(t);
 		if (!n.length) return k("素材收件箱为空或已过期"), 0;
 		let r = Math.max(1, Math.min(n.length, Math.ceil(Math.sqrt(n.length)))), i = n.map((e, t) => {
@@ -884,7 +960,7 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 		let t = (t) => {
 			if (!(t.ctrlKey || t.metaKey) || t.key.toLowerCase() !== "v") return;
 			let n = t.target;
-			n?.isContentEditable || ["INPUT", "TEXTAREA"].includes(n?.tagName || "") || h(e.assetInboxKey || "").length && (t.preventDefault(), $());
+			n?.isContentEditable || ["INPUT", "TEXTAREA"].includes(n?.tagName || "") || h(e.assetInboxKey || "").length && (t.preventDefault(), ce());
 		};
 		return window.addEventListener("keydown", t, !0), () => window.removeEventListener("keydown", t, !0);
 	}, [e.assetInboxKey, C]), !C) {
@@ -1026,7 +1102,7 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 								}, e.id))]
 							}), /* @__PURE__ */ (0, y.jsx)("button", {
 								"aria-label": "移入回收站",
-								onClick: () => void te(e.id),
+								onClick: () => void ne(e.id),
 								type: "button",
 								children: "删除"
 							})] })]
@@ -1045,7 +1121,7 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 					className: "panel canvas-nav",
 					children: [/* @__PURE__ */ (0, y.jsx)("button", {
 						className: "tool-btn",
-						onClick: () => void ee(),
+						onClick: () => void te(),
 						type: "button",
 						children: "← 返回"
 					}), /* @__PURE__ */ (0, y.jsxs)("div", {
@@ -1093,13 +1169,13 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 							}),
 							/* @__PURE__ */ (0, y.jsx)("button", {
 								className: "tool-btn",
-								onClick: ae,
+								onClick: se,
 								type: "button",
 								children: "资产库"
 							}),
 							e.assetInboxKey ? /* @__PURE__ */ (0, y.jsx)("button", {
 								className: "tool-btn",
-								onClick: $,
+								onClick: ce,
 								type: "button",
 								children: "导入素材"
 							}) : null,
@@ -1172,10 +1248,10 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 				})
 			}) : null,
 			N ? /* @__PURE__ */ (0, y.jsx)(O, {
-				onClose: () => R(null),
+				onClose: () => z(null),
 				request: N
 			}) : null,
-			V ? /* @__PURE__ */ (0, y.jsx)("div", {
+			ee ? /* @__PURE__ */ (0, y.jsx)("div", {
 				className: "modal open canvas-modern-backups",
 				children: /* @__PURE__ */ (0, y.jsxs)("section", {
 					className: "modal-panel",
@@ -1185,17 +1261,27 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 							type: "button",
 							children: "关闭"
 						})] }),
-						/* @__PURE__ */ (0, y.jsx)("p", { children: "有选中节点时仅导出选区；未选中时导出整张画布。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。" }),
+						/* @__PURE__ */ (0, y.jsx)("p", { children: "有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。" }),
 						/* @__PURE__ */ (0, y.jsx)("button", {
-							onClick: ne,
+							onClick: re,
 							type: "button",
 							children: "导出 JSON"
 						}),
 						/* @__PURE__ */ (0, y.jsx)("button", {
 							className: "primary-btn",
-							onClick: () => void re(),
+							onClick: () => void ie(),
 							type: "button",
 							children: "导出 ZIP（含资源）"
+						}),
+						/* @__PURE__ */ (0, y.jsx)("button", {
+							onClick: ae,
+							type: "button",
+							children: "保存到工作流库"
+						}),
+						/* @__PURE__ */ (0, y.jsx)("button", {
+							onClick: () => void oe(),
+							type: "button",
+							children: "批量导出选区结果"
 						}),
 						/* @__PURE__ */ (0, y.jsxs)("label", {
 							className: "primary-btn",
@@ -1204,7 +1290,7 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 								hidden: !0,
 								onChange: (e) => {
 									let t = e.target.files?.[0];
-									t && ie(t);
+									t && $(t);
 								},
 								type: "file"
 							})]
@@ -1216,15 +1302,15 @@ function M({ configuration: e = {}, management: t = l(), repository: n, runtime:
 				onClose: () => W(null),
 				request: U
 			}) : null,
-			z ? /* @__PURE__ */ (0, y.jsx)("div", {
+			B ? /* @__PURE__ */ (0, y.jsx)("div", {
 				className: "modal open canvas-modern-backups",
 				children: /* @__PURE__ */ (0, y.jsxs)("section", {
 					className: "modal-panel",
-					children: [/* @__PURE__ */ (0, y.jsxs)("header", { children: [/* @__PURE__ */ (0, y.jsx)("strong", { children: z.mode === "logs" ? "生成日志" : "费用汇总" }), /* @__PURE__ */ (0, y.jsx)("button", {
-						onClick: () => B(null),
+					children: [/* @__PURE__ */ (0, y.jsxs)("header", { children: [/* @__PURE__ */ (0, y.jsx)("strong", { children: B.mode === "logs" ? "生成日志" : "费用汇总" }), /* @__PURE__ */ (0, y.jsx)("button", {
+						onClick: () => V(null),
 						type: "button",
 						children: "关闭"
-					})] }), z.mode === "logs" ? /* @__PURE__ */ (0, y.jsx)(y.Fragment, { children: (Array.isArray(z.document.logs) ? z.document.logs : []).slice().reverse().map((e, t) => /* @__PURE__ */ (0, y.jsx)("pre", { children: JSON.stringify(e, null, 2) }, String(e.id || t))) }) : /* @__PURE__ */ (0, y.jsxs)(y.Fragment, { children: [/* @__PURE__ */ (0, y.jsxs)("h2", { children: ["¥ ", m(z.document).toFixed(4)] }), /* @__PURE__ */ (0, y.jsx)("p", { children: "仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。" })] })]
+					})] }), B.mode === "logs" ? /* @__PURE__ */ (0, y.jsx)(y.Fragment, { children: (Array.isArray(B.document.logs) ? B.document.logs : []).slice().reverse().map((e, t) => /* @__PURE__ */ (0, y.jsx)("pre", { children: JSON.stringify(e, null, 2) }, String(e.id || t))) }) : /* @__PURE__ */ (0, y.jsxs)(y.Fragment, { children: [/* @__PURE__ */ (0, y.jsxs)("h2", { children: ["¥ ", m(B.document).toFixed(4)] }), /* @__PURE__ */ (0, y.jsx)("p", { children: "仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。" })] })]
 				})
 			}) : null
 		]
@@ -1257,6 +1343,30 @@ function L(e, t, n) {
 		download: a,
 		href: o
 	}).click(), URL.revokeObjectURL(o);
+}
+function R(e) {
+	let t = [], n = /* @__PURE__ */ new Set(), r = (e, r) => {
+		let i = e && typeof e == "object" ? e : {}, a = typeof e == "string" ? e : String(i.url || "");
+		if (!a || n.has(a)) return;
+		n.add(a);
+		let o = String(i.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(a) ? "video" : /\.(mp3|wav|m4a)(\?|$)/i.test(a) ? "audio" : "image"));
+		t.push({
+			kind: o,
+			name: String(i.name || r),
+			url: a
+		});
+	};
+	return e.forEach((e, n) => {
+		if (!e || typeof e != "object") return;
+		let i = e, a = String(i.title || i.name || `${String(i.type || "node")}-${n + 1}`);
+		i.url && r(i, a), Array.isArray(i.images) && i.images.forEach((e, t) => r(e, `${a}-${t + 1}`));
+		let o = String(i.outputText || i.type === "prompt" && i.text || "").trim();
+		o && t.push({
+			kind: "text",
+			name: `${a}.txt`,
+			text: o
+		});
+	}), t;
 }
 //#endregion
 export { N as mountCanvasAppV2 };

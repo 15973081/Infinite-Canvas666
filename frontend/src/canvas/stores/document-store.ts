@@ -5,7 +5,7 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 
 export interface DocumentStoreState {
   acceptSavedDocument(saved: CanvasDocument, submitted: CanvasDocument): void;
-  addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
+  addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'promptGroup' | 'video', point?: { x: number; y: number }): string | null;
   adoptDocument(snapshot: unknown): void;
   connectNodes(fromId: string, toId: string): boolean;
   copyNodes(nodeIds: string[]): { connections: CanvasEdge[]; nodes: CanvasNode[] };
@@ -53,6 +53,7 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
         msgen: { msgenModel: 'zimage', msWidth: 1024, msHeight: 1024, msCustomModel: 'Tongyi-MAI/Z-Image-Turbo', msRatio: 'square', msResolution: '1k', msCustomRatio: '', msCustomSize: '', msCustomRatioWidth: '', msCustomRatioHeight: '', msCustomWidth: '', msCustomHeight: '', msLoraEnabled: false, msLoraId: '', msLoraStrength: 0.8, count: 1, fitImage: false, inputs: [] },
         output: { images: [], imageComparisons: {} },
         prompt: { text: '' },
+        promptGroup: { w: 300, h: 220, items: [] },
         video: { apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', enhancePrompt: false, enableUpsample: false, watermark: false, cameraFixed: false, generateAudio: false, taskMode: 'auto', useFrameRoles: false, multimodal: false, manualVideoUrls: [], tempShLinks: [], inputs: [] },
       };
       const node: CanvasNode = { id, type, ...position, ...defaults[type] };

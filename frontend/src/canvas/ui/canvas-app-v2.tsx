@@ -193,6 +193,30 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       setWorkflowOpen(false);
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
   };
+  const saveWorkflowToLibrary = () => {
+    const workflow = window.CanvasBoardV2?.exportSelection();
+    if (!workflow?.nodes.length) { setStatus('没有可保存的节点'); return; }
+    const name = String(current?.title || 'canvas');
+    setWorkflowOpen(false);
+    setAssetRequest({ saveWorkflow: { ...workflow, filename: `${name}-workflow.zip`, name } });
+  };
+  const exportSelectedResults = async () => {
+    const workflow = window.CanvasBoardV2?.exportSelection();
+    const items = canvasGroupExportItems(workflow?.nodes || []);
+    if (!items.length) { setStatus('选区中没有可批量导出的媒体或文本'); return; }
+    const folder = window.prompt('导出到服务器文件夹（留空使用默认导出目录）', '');
+    if (folder === null) return;
+    try {
+      const response = await fetch('/api/smart-canvas/group-export', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: folder.trim(), group_name: String(current?.title || 'canvas'), items }),
+      });
+      const payload = await response.json().catch(() => ({})) as { count?: number; detail?: string; folder?: string };
+      if (!response.ok) throw new Error(payload.detail || '批量导出失败');
+      setStatus(`已导出 ${Number(payload.count || items.length)} 项到 ${String(payload.folder || '默认导出目录')}`);
+      setWorkflowOpen(false);
+    } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
+  };
   const importWorkflow = async (file: File) => {
     try {
       let payload: unknown;
@@ -209,10 +233,18 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
       setWorkflowOpen(false);
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
   };
-  const showAssets = () => setAssetRequest({ onInsert: (item) => {
-    const id = window.CanvasBoardV2?.addNode('image', { x: 100, y: 100 });
-    if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
-  } });
+  const showAssets = () => setAssetRequest({
+    onInsert: (item) => {
+      const id = window.CanvasBoardV2?.addNode('image', { x: 100, y: 100 });
+      if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
+    },
+    onImportWorkflow: async (item) => {
+      const response = await fetch(item.url);
+      if (!response.ok) throw new Error('读取资产库工作流失败');
+      const extension = /\.json(?:[?#]|$)/i.test(item.url) ? '.json' : '.zip';
+      await importWorkflow(new File([await response.blob()], `${item.name || 'workflow'}${extension}`));
+    },
+  });
   const importAssetInbox = () => {
     const key = configuration.assetInboxKey || '';
     const items = readCanvasAssetInbox(key);
@@ -288,7 +320,7 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
     {configuration.editorAddon}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
     {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
-    {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；未选中时导出整张画布。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
+    {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><button onClick={saveWorkflowToLibrary} type="button">保存到工作流库</button><button onClick={() => void exportSelectedResults()} type="button">批量导出选区结果</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
     {assetRequest ? <AssetLibraryDialog onClose={() => setAssetRequest(null)} request={assetRequest} /> : null}
     {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
   </main>;
@@ -327,4 +359,27 @@ function downloadBlob(blob: Blob, disposition: string | null, fallback: string) 
   const anchor = Object.assign(document.createElement('a'), { download: filename, href: url });
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function canvasGroupExportItems(nodes: unknown[]): Array<{ kind: string; name: string; text?: string; url?: string }> {
+  const result: Array<{ kind: string; name: string; text?: string; url?: string }> = [];
+  const urls = new Set<string>();
+  const addMedia = (value: unknown, fallback: string) => {
+    const record = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const url = typeof value === 'string' ? value : String(record.url || '');
+    if (!url || urls.has(url)) return;
+    urls.add(url);
+    const kind = String(record.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : /\.(mp3|wav|m4a)(\?|$)/i.test(url) ? 'audio' : 'image'));
+    result.push({ kind, name: String(record.name || fallback), url });
+  };
+  nodes.forEach((value, index) => {
+    if (!value || typeof value !== 'object') return;
+    const node = value as Record<string, unknown>;
+    const title = String(node.title || node.name || `${String(node.type || 'node')}-${index + 1}`);
+    if (node.url) addMedia(node, title);
+    if (Array.isArray(node.images)) node.images.forEach((item, itemIndex) => addMedia(item, `${title}-${itemIndex + 1}`));
+    const text = String(node.outputText || (node.type === 'prompt' ? node.text || '' : '')).trim();
+    if (text) result.push({ kind: 'text', name: `${title}.txt`, text });
+  });
+  return result;
 }
