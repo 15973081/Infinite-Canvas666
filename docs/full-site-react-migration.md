@@ -150,6 +150,10 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 
 本批全量结果：97 个 Vitest、29 个 Playwright、67 个 Python unittest 全部通过。
 
+ComfyUI 可通过 `python app/services/comfy_connectivity.py --network --strict` 执行只读真实实例预检。命令仅 GET `/queue`、`/system_stats`、`/object_info`，不会调用 `/prompt` 或提交工作流；它会核对 6 个生产工作流的全部 `class_type` 是否在每个已配置实例安装。报告仅包含实例序号、布尔状态、耗时和节点数量，不包含地址或异常详情。调度器可能使用任一实例，因此所有实例都通过才算就绪。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、71 个 Python unittest 全部通过。
+
 发布前总检及历史 Smart 无类型节点兼容修复后的全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
 
 ## 计费与复杂 fixture 验收

@@ -524,3 +524,18 @@ React Canvas 新增 `save-succeeded`、`execution-succeeded`、`execution-failed
 仓库的两份复杂合成 fixture 已覆盖 13/13，用于证明兼容与扫描逻辑；它们不会被当作真实生产证据。当前本机 `data/canvases` 只有 1 份有效 Classic 画布，仅覆盖 1/13，因此发布总检新增 `historical-production-coverage-insufficient`，原 `historical-production-fixtures` 人工证据门禁仍保留。
 
 本批全量结果：97 个 Vitest、29 个 Playwright、67 个 Python unittest 全部通过。
+
+## 30. 2026-08-19 ComfyUI 只读真实实例预检
+
+新增命令：
+
+```powershell
+& '.\python\python.exe' app/services/comfy_connectivity.py
+& '.\python\python.exe' app/services/comfy_connectivity.py --network --strict
+```
+
+默认模式不联网；`--network` 仅向每个已配置实例发送 `/queue`、`/system_stats`、`/object_info` 三个 GET 请求，不访问 `/prompt`、不排队工作流、不上传媒体。检查器从 6 个生产工作流提取 `class_type` 依赖，要求每个实例均可达且节点类型完整，避免负载均衡把任务分配到缺少插件的实例。
+
+输出不会包含实例地址、异常详情、工作流内容或节点类型名称，只显示实例序号、端点状态、耗时及可用/缺失节点数量。本机实际只读探测结果：6/6 工作流 JSON 有效；1 个已配置实例当前不可达，错误归类为 `probe-failed`，因此 Comfy 真实链路仍未通过。未写入人工验收证据，也未修改实例配置或灰度状态。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、71 个 Python unittest 全部通过。
