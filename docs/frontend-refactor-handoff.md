@@ -446,3 +446,19 @@ Smart 管理器按 `kind: smart` 隔离列表和新建请求，支持 `?id=` 直
 同时修正了一个历史 Smart Canvas 边界：旧实现允许图片节点缺少 `type`，Document Codec 现在仅对 `kind: smart` 将其规范为 `smart-image`，随后交给 Smart V2 迁移器处理；经典画布仍严格拒绝缺失类型。Canvas audit 会把 `smart-image`、`smart-prompt`、`smart-loop` 及无类型 Smart 图片计为“可转换 Legacy Smart 节点”，不再误报未知节点，但仍保留可追踪 warning。
 
 本批全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
+
+## 25. 2026-08-19 计费证据链与复杂历史 fixture
+
+新增只读命令 `app/services/canvas_billing_audit.py`，按上游任务 ID、Canvas 任务 ID、幂等键、请求 ID 的稳定优先级扫描画布日志，报告成功日志、未识别日志、未定价日志、重复计费组及可能重复金额。失败/取消日志不会被计入账单：
+
+```powershell
+& '.\python\python.exe' app/services/canvas_billing_audit.py
+```
+
+ModernCanvasRuntime 现在把 `canvasTaskId`、`upstreamTaskId`、`idempotencyKey` 和任务返回的费用快照写入成功、失败及恢复日志；React Canvas 的费用面板同时支持 Legacy `cost.amount_micros` 与 V2 `cost_cny`。`frontend_readiness.py` 已合并计费审计，发现无效文件或重复计费记录时会新增发布阻断原因。
+
+`tests/fixtures/canvases/` 新增经典与 Legacy Smart 两份复杂回归文档，覆盖 Generator、Video、Comfy、LLM、LTX 时间线、Output pending、费用日志、无类型 Smart 媒体、Prompt、Loop、历史生成目标和连线转换。它们用于稳定回归，不能替代真实生产数据抽样。
+
+当前本机 `data/canvases` 计费审计结果：1 个文件、0 条成功计费日志、0 个重复组；因此只能证明当前样本没有重复记录，不能替代供应商账单对账。完成真实供应商调用后必须重新运行，并与供应商账单按上游任务 ID 核对。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、47 个 Python unittest 全部通过。

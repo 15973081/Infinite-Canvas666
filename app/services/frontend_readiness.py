@@ -11,6 +11,7 @@ if __package__ in {None, ""}:
 
 from app.config import BASE_DIR, CANVAS_DIR, CANVAS_ROLLOUT_FILE, CANVAS_ROLLOUT_METRICS_FILE
 from app.services.canvas_audit import audit_canvas_directory
+from app.services.canvas_billing_audit import audit_canvas_billing
 from app.services.canvas_rollout import get_canvas_rollout_policy
 from app.services.canvas_rollout_metrics import get_canvas_rollout_metrics
 
@@ -86,6 +87,7 @@ def build_frontend_readiness_report(
         code_blockers.append("canvas-audit-incomplete")
     if int(audit_summary.get("incompatible") or 0):
         code_blockers.append("canvas-audit-incompatible")
+    billing_audit = audit_canvas_billing(canvas_directory, max_files=20000)
 
     active_policy = policy if policy is not None else get_canvas_rollout_policy(rollout_path)
     active_metrics = metrics if metrics is not None else get_canvas_rollout_metrics(metrics_path)
@@ -94,6 +96,10 @@ def build_frontend_readiness_report(
         release_blockers.append("rollout-percentage-zero")
     if not any(int(value or 0) > 0 for value in active_metrics.get("events", {}).values()):
         release_blockers.append("telemetry-empty")
+    if billing_audit["invalid_files"]:
+        release_blockers.append("billing-audit-invalid-files")
+    if billing_audit["duplicate_logs"]:
+        release_blockers.append("billing-duplicate-records")
     release_blockers.extend(MANUAL_RELEASE_GATES)
 
     return {
@@ -109,6 +115,7 @@ def build_frontend_readiness_report(
             "items": entry_reports,
         },
         "canvas_audit": audit_summary,
+        "billing_audit": billing_audit,
         "rollout": active_policy,
         "telemetry": active_metrics,
         "manual_release_gates": MANUAL_RELEASE_GATES,

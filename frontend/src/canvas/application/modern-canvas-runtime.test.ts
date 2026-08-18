@@ -39,7 +39,10 @@ describe('modern Canvas runtime', () => {
       if (path === '/api/config') return json({});
       if (path === '/api/workflows') return json({ workflows: [] });
       if (path === '/api/canvas-image-tasks') { submitted = JSON.parse(String(init?.body)); return json({ task_id: 'image-task', status: 'queued' }); }
-      if (path === '/api/canvas-image-tasks/image-task') return json({ task_id: 'image-task', status: 'succeeded', result: { images: ['/output/generated.png'] } });
+      if (path === '/api/canvas-image-tasks/image-task') return json({
+        task_id: 'image-task', upstream_task_id: 'provider-task', idempotency_key: submitted.idempotency_key,
+        status: 'succeeded', cost: { status: 'priced', amount_micros: 1_500_000 }, result: { images: ['/output/generated.png'] },
+      });
       throw new Error(`unexpected ${path}`);
     };
     const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
@@ -56,6 +59,10 @@ describe('modern Canvas runtime', () => {
     expect(updates.some((item) => item.nodes.some((node) => node.type === 'output' && Array.isArray(node._pending) && node._pending.length === 1))).toBe(true);
     expect(result.nodes.find((node) => node.id === 'generator')).toMatchObject({ runStatus: 'done', generatedOutputs: ['/output/generated.png'] });
     expect(result.nodes.find((node) => node.type === 'output')?.images).toMatchObject([{ url: '/output/generated.png', kind: 'image' }]);
+    expect((result.logs as Array<Record<string, unknown>>)[0]).toMatchObject({
+      canvasTaskId: 'image-task', upstreamTaskId: 'provider-task', idempotencyKey: submitted.idempotency_key,
+      cost: { status: 'priced', amount_micros: 1_500_000 }, status: 'done',
+    });
   });
 
   it('builds the production LTX relay payload without the legacy timeline script', async () => {
@@ -130,7 +137,7 @@ describe('modern Canvas runtime', () => {
       const path = String(input);
       if (path === '/api/config') return json({});
       if (path === '/api/workflows') return json({ workflows: [] });
-      if (path === '/api/canvas-image-tasks/recovered-task') return json({ id: 'recovered-task', status: 'succeeded', recovered_after_restart: true, result: { images: ['/output/recovered.png'] } });
+      if (path === '/api/canvas-image-tasks/recovered-task') return json({ id: 'recovered-task', upstream_task_id: 'provider-recovered', status: 'succeeded', recovered_after_restart: true, result: { images: ['/output/recovered.png'] } });
       if (path === '/api/canvas-image-tasks' && init?.method === 'POST') { submissions += 1; return json({}); }
       throw new Error(`unexpected ${path}`);
     };
@@ -146,5 +153,6 @@ describe('modern Canvas runtime', () => {
     expect(submissions).toBe(0);
     expect(recovered.nodes[0]).toMatchObject({ runStatus: 'done', generatedOutputs: ['/output/recovered.png'] });
     expect(recovered.nodes[1]).toMatchObject({ _pending: [], images: [{ url: '/output/recovered.png', kind: 'image' }] });
+    expect((recovered.logs as Array<Record<string, unknown>>)[0]).toMatchObject({ canvasTaskId: 'recovered-task', upstreamTaskId: 'provider-recovered', recovered: true });
   });
 });

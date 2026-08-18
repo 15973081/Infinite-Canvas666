@@ -56,6 +56,7 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
   let workflows: WorkflowRecord[] = [];
   const workflowDetails = new Map<string, WorkflowRecord>();
   const controllers = new Map<string, AbortController>();
+  const taskEvidence = new Map<string, Record<string, unknown>>();
 
   const initialize = async () => {
     const [nextConfig, workflowEnvelope] = await Promise.all([
@@ -212,7 +213,11 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
             if (generator) { mergeGenerated(generator, outputs); generator.runStatus = 'done'; generator.runError = ''; }
             if (outputs.length) appendOutput(output, outputs);
             output._pending = (output._pending as Array<Record<string, unknown>>).filter((item) => item.id !== pending.id);
-            appendLog(document, { id: uniqueId('log'), nodeId: generator?.id || pending.nodeId, nodeType: generator?.type || pending.type, recovered: true, status: 'done', outputs: outputs.map(outputUrl) });
+            appendLog(document, {
+              id: uniqueId('log'), nodeId: generator?.id || pending.nodeId, nodeType: generator?.type || pending.type,
+              recovered: true, status: 'done', outputs: outputs.map(outputUrl),
+              ...taskLogEvidence(record, pending),
+            });
           } else {
             pending.recoveryStatus = record.status;
             pending.recoveryError = record.error || `任务状态：${record.status}`;
@@ -245,6 +250,8 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     let output: CanvasNode | null = null;
     let outputs: unknown[] = [];
     const startedAt = Date.now();
+    const evidenceKey = `${String(document.id || '')}:${nodeId}`;
+    taskEvidence.delete(evidenceKey);
     try {
       if (node.type !== 'llm') {
         output = ensureOutput(document, node);
@@ -259,15 +266,16 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
       }
       node.runStatus = 'done';
       node.runError = '';
-      appendLog(document, { id: uniqueId('log'), nodeId, nodeType: node.type, status: 'done', startedAt, finishedAt: Date.now(), outputs: outputs.map(outputUrl) });
+      appendLog(document, { id: uniqueId('log'), nodeId, nodeType: node.type, status: 'done', startedAt, finishedAt: Date.now(), outputs: outputs.map(outputUrl), ...taskEvidence.get(evidenceKey) });
     } catch (error) {
       node.runStatus = 'failed';
       node.runError = error instanceof Error ? error.message : String(error);
-      appendLog(document, { id: uniqueId('log'), nodeId, nodeType: node.type, status: 'failed', startedAt, finishedAt: Date.now(), error: node.runError });
+      appendLog(document, { id: uniqueId('log'), nodeId, nodeType: node.type, status: 'failed', startedAt, finishedAt: Date.now(), error: node.runError, ...taskEvidence.get(evidenceKey) });
       throw error;
     } finally {
       node.running = false;
       if (output && pending) output._pending = (Array.isArray(output._pending) ? output._pending : []).filter((item) => (item as Record<string, unknown>).id !== pending?.id);
+      taskEvidence.delete(evidenceKey);
       await emit(document, onUpdate);
     }
   };
@@ -408,11 +416,15 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     kind: 'image' | 'video', document: CanvasDocument, node: CanvasNode, payload: unknown, signal: AbortSignal,
     pending: Record<string, unknown> | null, onUpdate?: RuntimeUpdate,
   ) => {
-    const task = await taskClient.submit(kind, payload, { idempotencyKey: `${document.id}:${node.id}:${uniqueId('submit')}`, signal });
+    const idempotencyKey = `${document.id}:${node.id}:${uniqueId('submit')}`;
+    const task = await taskClient.submit(kind, payload, { idempotencyKey, signal });
     const taskId = String(task.task_id || task.id || '');
-    if (pending) Object.assign(pending, { canvasTaskId: taskId, canvasTaskType: kind });
+    const evidenceKey = `${String(document.id || '')}:${node.id}`;
+    taskEvidence.set(evidenceKey, taskLogEvidence(task, { canvasTaskId: taskId, idempotencyKey }));
+    if (pending) Object.assign(pending, { canvasTaskId: taskId, canvasTaskType: kind, idempotencyKey });
     await emit(document, onUpdate);
     const record = await taskClient.wait(kind, taskId, { signal });
+    taskEvidence.set(evidenceKey, taskLogEvidence(record, { canvasTaskId: taskId, idempotencyKey }));
     if (record.status !== 'succeeded') throw new Error(record.error || `${kind} task failed`);
     return extractOutputs(record.result);
   };
@@ -596,4 +608,15 @@ async function safeRequest<T>(fetcher: Fetcher, path: string, fallback: T): Prom
 function appendLog(document: CanvasDocument, entry: Record<string, unknown>) {
   const logs = Array.isArray(document.logs) ? document.logs : [];
   document.logs = [...logs, entry].slice(-500);
+}
+
+function taskLogEvidence(task: Record<string, unknown>, fallback: Record<string, unknown> = {}): Record<string, unknown> {
+  const result = task.result && typeof task.result === 'object' ? task.result as Record<string, unknown> : {};
+  const cost = task.cost ?? result.cost;
+  return {
+    canvasTaskId: String(task.task_id || task.id || fallback.canvasTaskId || ''),
+    upstreamTaskId: String(task.upstream_task_id || result.upstream_task_id || fallback.upstreamTaskId || ''),
+    idempotencyKey: String(task.idempotency_key || fallback.idempotencyKey || ''),
+    ...(cost !== undefined ? { cost: structuredClone(cost) } : {}),
+  };
 }

@@ -1,0 +1,26 @@
+{
+  "id": "classic-production",
+  "kind": "classic",
+  "schemaVersion": 1,
+  "title": "Classic production regression",
+  "updated_at": 1787079000000,
+  "nodes": [
+    { "id": "prompt", "type": "prompt", "text": "cinematic city" },
+    { "id": "reference", "type": "image", "url": "/uploads/reference.png", "mediaKind": "image", "asset_uri": "asset://reference" },
+    { "id": "generator", "type": "generator", "apiProvider": "fixture", "model": "fixture-image", "count": 2, "runStatus": "done" },
+    { "id": "video", "type": "video", "apiProvider": "fixture", "model": "fixture-video", "manualVideoUrls": ["https://cdn.example/input.mp4"] },
+    { "id": "comfy", "type": "comfy", "mode": "custom", "comfyWorkflow": "fixture.json", "comfyParams": { "seed": 42 }, "comfyRandomActive": { "seed": false } },
+    { "id": "llm", "type": "llm", "mode": "chat", "messages": [{ "role": "user", "content": "hello" }], "outputText": "world" },
+    { "id": "ltx", "type": "ltxDirector", "durationFrames": 120, "frameRate": 24, "ltxTimelineData": "{\"segments\":[{\"id\":\"s1\",\"type\":\"image\",\"start\":0,\"length\":120,\"imageRef\":{\"url\":\"/frame.png\"}}],\"audioSegments\":[{\"id\":\"a1\",\"start\":0,\"length\":120,\"url\":\"/audio.wav\"}]}" },
+    { "id": "output", "type": "output", "images": [{ "url": "/output/result.png", "kind": "image" }], "_pending": [{ "id": "pending-video", "nodeId": "video", "canvasTaskId": "canvas_vid_fixture", "canvasTaskType": "video", "recoveryStatus": "interrupted" }] }
+  ],
+  "connections": [
+    { "from": "prompt", "to": "generator" },
+    { "from": "reference", "to": "generator" },
+    { "from": "generator", "to": "output" }
+  ],
+  "logs": [
+    { "id": "log-image", "status": "done", "canvasTaskId": "canvas_img_fixture", "upstreamTaskId": "provider_img_fixture", "idempotencyKey": "classic-production:generator:fixture", "cost": { "status": "priced", "currency": "CNY", "amount_micros": 1500000 }, "outputs": ["/output/result.png"] },
+    { "id": "log-failed", "status": "failed", "canvasTaskId": "canvas_vid_failed", "error": "fixture failure" }
+  ]
+}

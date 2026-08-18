@@ -10,7 +10,7 @@ import {
 } from '../infrastructure/canvas-management';
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import { mountCanvasBoardV2 } from './canvas-board-v2';
-import { readCanvasAssetInbox } from './canvas-app-domain';
+import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
 
 export interface CanvasAppConfiguration {
   assetInboxKey?: string;
@@ -264,7 +264,7 @@ function CanvasAppV2({ configuration = {}, management = createCanvasManagementCl
     {promptTarget ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>提示词模板</strong><button onClick={() => setPromptTarget('')} type="button">关闭</button></header>{templates.length ? templates.map((item) => <button key={item.id} onClick={() => { window.CanvasBoardV2?.updateNode(promptTarget, { text: item.text }); setPromptTarget(''); }} type="button"><strong>{item.name}</strong><small>{item.text.slice(0, 100)}</small></button>) : <p>暂无模板</p>}</section></div> : null}
     {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；未选中时导出整张画布。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
     {assets ? <div className="modal open canvas-modern-backups canvas-modern-assets"><section className="modal-panel"><header><strong>资产库</strong><button onClick={() => setAssets(null)} type="button">关闭</button></header><div className="canvas-modern-asset-grid">{assets.map((item) => <button key={item.id} onClick={() => { const id = window.CanvasBoardV2?.addNode('image'); if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url }); setAssets(null); }} type="button">{item.kind === 'image' ? <img alt={item.name} src={item.url} /> : <span>{item.kind === 'video' ? '视频' : item.kind === 'audio' ? '音频' : '文件'}</span>}<small>{item.name}</small></button>)}</div>{!assets.length ? <p>资产库暂无可用媒体。</p> : null}</section></div> : null}
-    {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
+    {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
   </main>;
 }
 
@@ -299,13 +299,6 @@ function promptItems(payload: unknown): Array<{ id: string; name: string; text: 
   };
   visit(payload);
   return result;
-}
-
-function canvasCost(document: CanvasDocument): number {
-  return (Array.isArray(document.logs) ? document.logs : []).reduce((sum, item) => {
-    const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
-    return sum + Math.max(0, Number(record.cost || record.cost_cny || 0));
-  }, 0);
 }
 
 function normalizeWorkflow(payload: unknown): { connections: unknown[]; nodes: unknown[] } {

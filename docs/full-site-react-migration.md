@@ -135,3 +135,11 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 当前本机结果：`code_migration_ready=true`、12/12 生产入口通过、历史画布 1/1 兼容；`production_release_ready=false`，阻断项为灰度未启用、有效比例为 0、遥测为空，以及真实供应商验证、生产历史 fixture、计费核对和两个稳定发布周期。该结论是预期的安全状态。
 
 发布前总检及历史 Smart 无类型节点兼容修复后的全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
+
+## 计费与复杂 fixture 验收
+
+`python app/services/canvas_billing_audit.py` 会只读扫描 Canvas 日志，以任务 ID、上游任务 ID、幂等键和请求 ID 检出重复成功记录，并分别汇总 Legacy 微元费用快照与 V2 CNY 字段。V2 执行及恢复日志已补齐上述标识；React 费用面板也已能正确显示 `cost.amount_micros`。
+
+仓库新增两份复杂回归 fixture，覆盖经典多节点/pending/LTX 和 Legacy Smart 无类型媒体/生成目标转换。真实生产 fixture 与供应商账单仍是人工发布门禁，不能由合成数据自动关闭。
+
+本批全量结果：97 个 Vitest、29 个 Playwright、47 个 Python unittest 全部通过。

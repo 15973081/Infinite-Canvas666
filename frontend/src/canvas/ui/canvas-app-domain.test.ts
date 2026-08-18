@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { readCanvasAssetInbox } from './canvas-app-domain';
+import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
 
 const storage = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -27,5 +27,16 @@ describe('readCanvasAssetInbox', () => {
     expect(readCanvasAssetInbox('inbox', 1_000 + 30 * 60 * 1_000 + 1)).toEqual([]);
     storage.set('inbox', '{');
     expect(readCanvasAssetInbox('inbox')).toEqual([]);
+  });
+});
+
+describe('canvasDocumentCost', () => {
+  it('combines Legacy micro-unit snapshots and V2 CNY fields without failed runs', () => {
+    expect(canvasDocumentCost({ logs: [
+      { status: 'success', cost: { status: 'priced', amount_micros: 1_250_000 } },
+      { status: 'done', cost_cny: 2.5 },
+      { status: 'failed', cost_cny: 10 },
+      { status: 'done', cost: { status: 'unknown' } },
+    ] })).toBe(3.75);
   });
 });

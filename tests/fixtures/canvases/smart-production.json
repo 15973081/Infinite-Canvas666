@@ -1,0 +1,27 @@
+{
+  "id": "smart-production",
+  "kind": "smart",
+  "schemaVersion": 1,
+  "title": "Legacy Smart production regression",
+  "settings": {
+    "engine": "modelscope",
+    "msModel": "custom",
+    "model": "fixture/model",
+    "width": 768,
+    "height": 1024,
+    "count": 1
+  },
+  "nodes": [
+    { "id": "smart-prompt", "type": "smart-prompt", "text": "portrait lighting" },
+    { "id": "smart-loop", "type": "smart-loop", "count": 3, "showPrompt": true, "variablePrompt": "take 《计数》" },
+    { "id": "smart-reference", "images": [{ "url": "/uploads/smart-reference.png", "name": "Reference" }] },
+    { "id": "smart-target", "type": "smart-image", "images": [{ "url": "/output/smart-result.png", "name": "Result", "kind": "image" }], "runSettings": { "engine": "modelscope", "model": "fixture/model" } }
+  ],
+  "connections": [
+    { "from": "smart-prompt", "to": "smart-target", "kind": "input" },
+    { "from": "smart-reference", "to": "smart-target", "kind": "input" }
+  ],
+  "logs": [
+    { "id": "smart-log", "status": "success", "request": { "task_id": "smart-provider-fixture" }, "cost_cny": 0.75, "outputs": ["/output/smart-result.png"] }
+  ]
+}

@@ -47,6 +47,7 @@ class FrontendReadinessTest(unittest.TestCase):
         self.assertFalse(report["production_release_ready"])
         self.assertEqual(1, report["entries"]["passed"])
         self.assertEqual({"smart-image": 1}, report["canvas_audit"]["legacy_smart_node_types"])
+        self.assertEqual(0, report["billing_audit"]["duplicate_logs"])
         self.assertEqual(report["manual_release_gates"], report["release_blockers"])
 
     def test_blocks_missing_bundles_and_legacy_business_scripts(self):
