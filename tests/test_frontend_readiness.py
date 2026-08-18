@@ -33,10 +33,15 @@ class FrontendReadinessTest(unittest.TestCase):
         asset.write_text("export {};", encoding="utf-8")
 
     def report(self):
+        provider_report = {
+            "ready": True, "missing_capabilities": [],
+            "readiness": {"image": True, "video": True, "chat": True, "modelscope": True, "comfy": True},
+        }
         return build_frontend_readiness_report(
             str(self.root), str(self.canvas_dir), expected_entries={"index.html"},
             policy={"effective_percentage": 5, "blocked_reasons": []},
             metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
+            provider_report=provider_report,
         )
 
     def test_passes_code_migration_but_keeps_manual_release_gates_explicit(self):
@@ -59,6 +64,19 @@ class FrontendReadinessTest(unittest.TestCase):
         self.assertFalse(report["code_migration_ready"])
         self.assertIn("entry:index.html:vite-module-missing", report["code_blockers"])
         self.assertIn("entry:index.html:legacy-business-script", report["code_blockers"])
+
+    def test_keeps_missing_provider_capabilities_out_of_code_migration_status(self):
+        self.write_entry()
+        report = build_frontend_readiness_report(
+            str(self.root), str(self.canvas_dir), expected_entries={"index.html"},
+            policy={"effective_percentage": 5, "blocked_reasons": []},
+            metrics={"events": {"board-mounted": 1}, "dimensions": {}, "counters": {}},
+            provider_report={"ready": False, "missing_capabilities": ["video", "comfy"]},
+        )
+
+        self.assertTrue(report["code_migration_ready"])
+        self.assertIn("provider-capability-missing:video", report["release_blockers"])
+        self.assertIn("provider-capability-missing:comfy", report["release_blockers"])
 
 
 if __name__ == "__main__":

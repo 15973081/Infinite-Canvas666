@@ -14,6 +14,7 @@ from app.services.canvas_audit import audit_canvas_directory
 from app.services.canvas_billing_audit import audit_canvas_billing
 from app.services.canvas_rollout import get_canvas_rollout_policy
 from app.services.canvas_rollout_metrics import get_canvas_rollout_metrics
+from app.services.provider_readiness import build_provider_readiness_report
 
 
 PRODUCTION_ENTRIES = {
@@ -42,6 +43,7 @@ def build_frontend_readiness_report(
     expected_entries: Optional[Iterable[str]] = None,
     policy: Optional[Dict[str, Any]] = None,
     metrics: Optional[Dict[str, Any]] = None,
+    provider_report: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     root = Path(repo_root).resolve()
     static = root / "static"
@@ -100,6 +102,9 @@ def build_frontend_readiness_report(
         release_blockers.append("billing-audit-invalid-files")
     if billing_audit["duplicate_logs"]:
         release_blockers.append("billing-duplicate-records")
+    active_provider_report = provider_report if provider_report is not None else build_provider_readiness_report()
+    for capability in active_provider_report.get("missing_capabilities", []):
+        release_blockers.append(f"provider-capability-missing:{capability}")
     release_blockers.extend(MANUAL_RELEASE_GATES)
 
     return {
@@ -116,6 +121,7 @@ def build_frontend_readiness_report(
         },
         "canvas_audit": audit_summary,
         "billing_audit": billing_audit,
+        "provider_readiness": active_provider_report,
         "rollout": active_policy,
         "telemetry": active_metrics,
         "manual_release_gates": MANUAL_RELEASE_GATES,

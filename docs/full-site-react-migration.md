@@ -134,6 +134,10 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 
 当前本机结果：`code_migration_ready=true`、12/12 生产入口通过、历史画布 1/1 兼容；`production_release_ready=false`，阻断项为灰度未启用、有效比例为 0、遥测为空，以及真实供应商验证、生产历史 fixture、计费核对和两个稳定发布周期。该结论是预期的安全状态。
 
+供应商静态预检可单独运行 `python app/services/provider_readiness.py`；`--strict` 会在图片、视频、聊天、ModelScope 或 Comfy 工作流任一静态能力缺失时返回退出码 `2`。报告只包含平台 ID、布尔值、模型/实例/节点数量和缺失工作流名，不包含密钥、Token、URL、环境变量值或原始配置，并且不发起网络请求。总检已合并该报告，但静态配置齐全不能关闭 `real-provider-validation` 人工门禁。
+
+当前本机静态预检：6/6 Comfy 工作流有效、声明 1 个 Comfy 实例；图片、视频、聊天和 ModelScope 尚无“启用平台 + 端点 + 模型 + 凭证”的完整组合，因此严格预检返回 `2`。本批全量结果：97 个 Vitest、29 个 Playwright、51 个 Python unittest 全部通过。
+
 发布前总检及历史 Smart 无类型节点兼容修复后的全量结果：96 个 Vitest、29 个 Playwright、44 个 Python unittest 全部通过。
 
 ## 计费与复杂 fixture 验收

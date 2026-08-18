@@ -462,3 +462,16 @@ ModernCanvasRuntime 现在把 `canvasTaskId`、`upstreamTaskId`、`idempotencyKe
 当前本机 `data/canvases` 计费审计结果：1 个文件、0 条成功计费日志、0 个重复组；因此只能证明当前样本没有重复记录，不能替代供应商账单对账。完成真实供应商调用后必须重新运行，并与供应商账单按上游任务 ID 核对。
 
 本批全量结果：97 个 Vitest、29 个 Playwright、47 个 Python unittest 全部通过。
+
+## 26. 2026-08-19 供应商与工作流静态预检
+
+新增只读命令 `app/services/provider_readiness.py`，在不联网、不调用付费服务的前提下检查图片、视频、聊天、ModelScope 凭证/端点/模型声明，以及 Comfy 实例和六个生产工作流：
+
+```powershell
+& '.\python\python.exe' app/services/provider_readiness.py
+& '.\python\python.exe' app/services/provider_readiness.py --strict
+```
+
+输出严格限制为平台 ID、布尔状态、数量和缺失工作流名；不会输出 Key、Token、AK/SK、URL、环境变量值、代理或原始配置。`frontend_readiness.py` 已合并该静态证据，能力缺失会形成 `provider-capability-missing:*` 发布阻断，但不会改变“代码迁移完成”的判定。即使全部静态能力通过，也必须保留 `real-provider-validation`，直到在实际发布环境完成人工生成、聊天、视频长任务和恢复验收。
+
+当前本机结果：6/6 Comfy 工作流有效、声明 1 个实例；图片、视频、聊天和 ModelScope 静态能力缺失，严格预检按设计返回 `2`。总检仍为 `code_migration_ready=true`、`production_release_ready=false`。本批全量结果：97 个 Vitest、29 个 Playwright、51 个 Python unittest 全部通过。
