@@ -131,6 +131,94 @@ describe('modern Canvas runtime', () => {
     expect(cloud.nodes[1].uploadedMediaUrls).toEqual({ '/local/video.mp4': 'https://cloud.example/video.mp4' });
   });
 
+  it('runs Comfy enhancement and optional upscale with the production workflows', async () => {
+    const generated: Array<Record<string, any>> = [];
+    let uploads = 0;
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/config') return json({});
+      if (path === '/api/workflows') return json({ workflows: [] });
+      if (path === '/input/source.png' || path === '/output/enhanced.png') return new Response(new Blob(['image'], { type: 'image/png' }));
+      if (path === '/api/upload') return json({ files: [{ comfy_name: `uploaded-${++uploads}.png` }] });
+      if (path === '/api/generate') {
+        const payload = JSON.parse(String(init?.body));
+        generated.push(payload);
+        return json(payload.workflow_json === 'upscale.json' ? { images: ['/output/upscaled.png'] } : { images: ['/output/enhanced.png'] });
+      }
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
+    await runtime.initialize();
+
+    const result = await runtime.runNode('comfy', document([
+      { id: 'source', type: 'image', url: '/input/source.png', name: 'source.png' },
+      { id: 'comfy', type: 'comfy', mode: 'enhance', enhanceStrength: 0.65, enhanceUpscale: true, enhanceUpscaleRes: 3072 },
+    ], [{ from: 'source', to: 'comfy' }]));
+
+    expect(generated).toHaveLength(2);
+    expect(generated[0]).toMatchObject({ workflow_json: 'Z-Image-Enhance.json', params: { '15': { image: 'uploaded-1.png' }, '204': { value: 0.65 } } });
+    expect(generated[1]).toMatchObject({ workflow_json: 'upscale.json', params: { '15': { image: 'uploaded-2.png' }, '172': { resolution: 3072 } } });
+    expect(result.nodes.find((node) => node.id === 'comfy')?.generatedOutputs).toEqual(['/output/upscaled.png']);
+  });
+
+  it('maps up to three connected images into the Comfy edit workflow', async () => {
+    let submitted: Record<string, any> = {};
+    let uploads = 0;
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/config') return json({});
+      if (path === '/api/workflows') return json({ workflows: [] });
+      if (path.startsWith('/input/')) return new Response(new Blob(['image'], { type: 'image/png' }));
+      if (path === '/api/upload') return json({ files: [{ comfy_name: `edit-${++uploads}.png` }] });
+      if (path === '/api/generate') { submitted = JSON.parse(String(init?.body)); return json({ images: ['/output/edited.png'] }); }
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
+    await runtime.initialize();
+    const sourceNodes = [1, 2, 3].map((index) => ({ id: `image-${index}`, type: 'image', url: `/input/${index}.png` }));
+
+    await runtime.runNode('comfy', document([
+      ...sourceNodes,
+      { id: 'prompt', type: 'prompt', text: 'combine all references' },
+      { id: 'comfy', type: 'comfy', mode: 'edit' },
+    ], [...sourceNodes.map((node) => ({ from: node.id, to: 'comfy' })), { from: 'prompt', to: 'comfy' }]));
+
+    expect(submitted).toMatchObject({
+      prompt: 'combine all references',
+      workflow_json: 'Flux2-Klein.json',
+      params: {
+        '278': { image: 'edit-1.png' },
+        '270': { image: 'edit-2.png' },
+        '292': { image: 'edit-3.png' },
+        '313': { value: true },
+        '314': { value: true },
+      },
+    });
+  });
+
+  it('rejects custom Comfy runs before submission when configured media inputs are missing', async () => {
+    let generated = false;
+    const fetcher = async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/config') return json({});
+      if (path === '/api/workflows') return json({ workflows: [{ name: 'media.json' }] });
+      if (path.endsWith('media.json')) return json({ config: { fields: [
+        { id: 'image-a', type: 'image', node: '1', input: 'image' },
+        { id: 'image-b', type: 'image', node: '2', input: 'image' },
+      ] } });
+      if (path === '/api/generate') { generated = true; return json({}); }
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
+    await runtime.initialize();
+
+    await expect(runtime.runNode('comfy', document([
+      { id: 'source', type: 'image', url: '/input/only.png' },
+      { id: 'comfy', type: 'comfy', mode: 'custom', comfyWorkflow: 'media.json' },
+    ], [{ from: 'source', to: 'comfy' }]))).rejects.toThrow('需要连接 2 个图片输入');
+    expect(generated).toBe(false);
+  });
+
   it('recovers persisted pending tasks after refresh without resubmitting them', async () => {
     let submissions = 0;
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {

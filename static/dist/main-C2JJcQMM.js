@@ -19,7 +19,7 @@ var l = /* @__PURE__ */ new Set([
 ]);
 function d(t, n = fetch) {
 	let r = {}, i = [], a = /* @__PURE__ */ new Map(), s = /* @__PURE__ */ new Map(), c = /* @__PURE__ */ new Map(), u = async () => {
-		let [e, t] = await Promise.all([oe(n, "/api/config", {}), oe(n, "/api/workflows", { workflows: [] })]);
+		let [e, t] = await Promise.all([ce(n, "/api/config", {}), ce(n, "/api/workflows", { workflows: [] })]);
 		r = e, i = Array.isArray(t.workflows) ? t.workflows : [];
 	}, d = async (t) => {
 		let r = String(t || "").trim();
@@ -147,15 +147,15 @@ function d(t, n = fetch) {
 		} finally {
 			s.get(t) === c && s.delete(t);
 		}
-	}, se = async (e, n) => {
+	}, le = async (e, n) => {
 		let r = structuredClone(e), i = [];
 		for (let e of r.nodes.filter((e) => e.type === "output")) for (let a of Array.isArray(e._pending) ? e._pending : []) {
 			let o = String(a.canvasTaskId || ""), s = a.canvasTaskType === "video" ? "video" : a.canvasTaskType === "image" ? "image" : null;
 			!o || !s || (a.recoveryStatus = "recovering", i.push(t.watch(s, o).then(async (t) => {
 				let i = r.nodes.find((e) => e.id === String(a.nodeId || ""));
 				if (t.status === "succeeded") {
-					let n = m(t.result);
-					i && (te(i, n), i.runStatus = "done", i.runError = ""), n.length && ee(e, n), e._pending = e._pending.filter((e) => e.id !== a.id), w(r, {
+					let n = h(t.result);
+					i && (ne(i, n), i.runStatus = "done", i.runError = ""), n.length && te(e, n), e._pending = e._pending.filter((e) => e.id !== a.id), w(r, {
 						id: x("log"),
 						nodeId: i?.id || a.nodeId,
 						nodeType: i?.type || a.type,
@@ -175,23 +175,23 @@ function d(t, n = fetch) {
 		let a = e.nodes.find((e) => e.id === t);
 		if (!a || !l.has(a.type)) throw Error(`不支持执行节点：${a?.type || t}`);
 		a.running = !0, a.runStatus = "running", a.runError = "", await C(e, i);
-		let o = f(e, a), s = null, u = null, d = [], m = Date.now(), h = `${String(e.id || "")}:${t}`;
-		c.delete(h);
+		let o = f(e, a), s = null, u = null, d = [], p = Date.now(), m = `${String(e.id || "")}:${t}`;
+		c.delete(m);
 		try {
-			a.type !== "llm" && (u = p(e, a), s = {
+			a.type !== "llm" && (u = ee(e, a), s = {
 				id: x("pending"),
 				startedAt: Date.now(),
 				nodeId: t,
 				type: a.type
-			}, u._pending = [...Array.isArray(u._pending) ? u._pending : [], s], await C(e, i)), d = await A(e, a, o, n, r, s, i), d.length && (te(a, d), u && ee(u, d, o.media[0])), a.runStatus = "done", a.runError = "", w(e, {
+			}, u._pending = [...Array.isArray(u._pending) ? u._pending : [], s], await C(e, i)), d = await A(e, a, o, n, r, s, i), d.length && (ne(a, d), u && te(u, d, o.media[0])), a.runStatus = "done", a.runError = "", w(e, {
 				id: x("log"),
 				nodeId: t,
 				nodeType: a.type,
 				status: "done",
-				startedAt: m,
+				startedAt: p,
 				finishedAt: Date.now(),
 				outputs: d.map(_),
-				...c.get(h)
+				...c.get(m)
 			});
 		} catch (n) {
 			throw a.runStatus = "failed", a.runError = n instanceof Error ? n.message : String(n), w(e, {
@@ -199,20 +199,20 @@ function d(t, n = fetch) {
 				nodeId: t,
 				nodeType: a.type,
 				status: "failed",
-				startedAt: m,
+				startedAt: p,
 				finishedAt: Date.now(),
 				error: a.runError,
-				...c.get(h)
+				...c.get(m)
 			}), n;
 		} finally {
-			a.running = !1, u && s && (u._pending = (Array.isArray(u._pending) ? u._pending : []).filter((e) => e.id !== s?.id)), c.delete(h), await C(e, i);
+			a.running = !1, u && s && (u._pending = (Array.isArray(u._pending) ? u._pending : []).filter((e) => e.id !== s?.id)), c.delete(m), await C(e, i);
 		}
 	}, A = async (e, t, n, r, i, a, o) => {
 		let s = n.prompts.join("\n\n").trim() || String(t.userInput || t.globalPrompt || "");
 		if (t.type === "llm") {
 			let e = r ? String(t.chatInput || s) : s;
 			if (!e) throw Error("LLM 缺少提示词输入");
-			let a = Array.isArray(t.messages) ? t.messages : [], o = await N("/api/canvas-llm", {
+			let a = Array.isArray(t.messages) ? t.messages : [], o = await P("/api/canvas-llm", {
 				message: e,
 				model: t.model || t.llmMsModel || "",
 				ms_model: t.llmProvider === "modelscope" && (t.model || t.llmMsModel) || "",
@@ -244,8 +244,8 @@ function d(t, n = fetch) {
 				aspect_ratio: t.aspectRatio || "16:9",
 				resolution: t.resolution || "",
 				images: n.media.filter((e) => e.kind === "image"),
-				videos: [String(t.manualVideoUrl || ""), ...n.media.filter((e) => e.kind === "video").map((e) => ae(t, e.url))].filter(Boolean),
-				audios: n.media.filter((e) => e.kind === "audio").map((e) => ae(t, e.url)),
+				videos: [String(t.manualVideoUrl || ""), ...n.media.filter((e) => e.kind === "video").map((e) => se(t, e.url))].filter(Boolean),
+				audios: n.media.filter((e) => e.kind === "audio").map((e) => se(t, e.url)),
 				enhance_prompt: !!t.enhancePrompt,
 				enable_upsample: !!t.enableUpsample,
 				watermark: !!t.watermark,
@@ -254,35 +254,35 @@ function d(t, n = fetch) {
 				multimodal: !!t.multimodal,
 				task_mode: t.taskMode || "auto"
 			};
-			return M("video", e, t, r, i, a, o);
+			return N("video", e, t, r, i, a, o);
 		}
 		if (t.type === "generator") {
 			let r = {
 				prompt: s,
 				provider_id: t.apiProvider || "",
 				model: t.model || "",
-				size: re(t.ratio, t.resolution, t.customSize, t.width, t.height),
+				size: ae(t.ratio, t.resolution, t.customSize, t.width, t.height),
 				reference_images: n.media.filter((e) => e.kind === "image"),
 				quality: t.quality || void 0,
 				n: Math.max(1, Math.min(8, Number(t.count || 1)))
 			};
-			return M("image", e, t, r, i, a, o);
+			return N("image", e, t, r, i, a, o);
 		}
 		if (t.type === "msgen") {
-			let e = String(t.msgenModel || "zimage"), r = re(t.msRatio, t.msResolution, t.msCustomSize, t.msWidth, t.msHeight), a = e === "qwen_edit" ? "/api/angle/generate" : "/generate", o = {
+			let e = String(t.msgenModel || "zimage"), r = ae(t.msRatio, t.msResolution, t.msCustomSize, t.msWidth, t.msHeight), a = e === "qwen_edit" ? "/api/angle/generate" : "/generate", o = {
 				prompt: s,
 				resolution: r,
 				client_id: S()
 			};
 			e !== "zimage" && (o.image_urls = n.media.filter((e) => e.kind === "image").map((e) => e.url)), e === "custom" && (o.model = t.msCustomModel || ""), t.msLoraEnabled && t.msLoraId && (o.loras = { [String(t.msLoraId)]: Number(t.msLoraStrength ?? .8) });
 			let c = Math.max(1, Math.min(8, Number(t.count || 1)));
-			return (await Promise.all(Array.from({ length: c }, () => N(a, o, i)))).flatMap(m);
+			return (await Promise.all(Array.from({ length: c }, () => P(a, o, i)))).flatMap(h);
 		}
 		if (t.type === "ltxDirector") {
 			let e = b(t);
 			Object.assign(t, e);
-			let n = h(t, s), r = JSON.parse(String(n.timeline_data || "{}"));
-			for (let e of r.segments ?? []) e.type !== "image" || e.imageFile || !e.imageB64 || (e.imageFile = await P({
+			let n = re(t, s), r = JSON.parse(String(n.timeline_data || "{}"));
+			for (let e of r.segments ?? []) e.type !== "image" || e.imageFile || !e.imageB64 || (e.imageFile = await F({
 				kind: "image",
 				name: `ltx-${String(e.id || "segment")}.png`,
 				url: String(e.imageB64)
@@ -292,7 +292,7 @@ function d(t, n = fetch) {
 				46: n,
 				"94:28": { noise_seed: Number(t.noiseSeed ?? 12) }
 			};
-			return m(await N("/api/generate", {
+			return h(await P("/api/generate", {
 				prompt: s,
 				workflow_json: "LTXDirectorv2-API.json",
 				params: a,
@@ -311,17 +311,36 @@ function d(t, n = fetch) {
 			type: "zimage",
 			client_id: S()
 		};
-		else if (a === "custom") {
+		else if (a === "enhance") {
+			let n = p(t, "image", 1, "Comfy 增强")[0], i = m(await P("/api/generate", {
+				workflow_json: "Z-Image-Enhance.json",
+				params: {
+					15: { image: await F(n, r) },
+					204: { value: Number(e.enhanceStrength ?? .5) }
+				},
+				type: "enhance",
+				client_id: S()
+			}, r), "Comfy 增强");
+			return e.enhanceUpscale ? M(i[0], Number(e.enhanceUpscaleRes || 2048), r) : i;
+		} else if (a === "custom") {
 			let a = String(e.comfyWorkflow || i[0]?.name || ""), s = await d(a), c = {}, l = new Map([
 				"image",
 				"video",
 				"audio"
 			].map((e) => [e, t.media.filter((t) => t.kind === e)])), u = /* @__PURE__ */ new Map();
+			for (let e of [
+				"image",
+				"video",
+				"audio"
+			]) {
+				let n = s.filter((t) => ie(t) === e).length;
+				n && p(t, e, n, `Comfy 工作流 ${a || "未命名"}`);
+			}
 			for (let t of s) {
 				let i = String(t.node || ""), a = String(t.input || "");
 				if (!i || !a) continue;
 				c[i] ??= {};
-				let o = ne(t);
+				let o = ie(t);
 				if (o === "prompt") c[i][a] = n;
 				else if ([
 					"image",
@@ -329,10 +348,10 @@ function d(t, n = fetch) {
 					"audio"
 				].includes(o)) {
 					let e = u.get(o) ?? 0, t = l.get(o)?.[e];
-					u.set(o, e + 1), c[i][a] = t ? await P(t, r) : "";
+					u.set(o, e + 1), c[i][a] = t ? await F(t, r) : "";
 				} else {
 					let n = String(t.id || ""), r = (e.comfyParams ?? {})[n] ?? t.default, o = (e.comfyRandomActive ?? {})[n] !== !1;
-					c[i][a] = t.random_enabled && o ? ie(t) : r;
+					c[i][a] = t.random_enabled && o ? oe(t) : r;
 				}
 			}
 			o = {
@@ -343,21 +362,47 @@ function d(t, n = fetch) {
 				client_id: S()
 			};
 		} else {
-			let e = t.media.find((e) => e.kind === "image");
-			o = {
+			let i = p(t, "image", 1, "Comfy 编辑").slice(0, 3), a = [];
+			for (let e of i) a.push(await F(e, r));
+			let o = m(await P("/api/generate", {
 				prompt: n,
 				workflow_json: "Flux2-Klein.json",
 				type: "klein",
 				params: {
 					168: { text: n },
 					158: { noise_seed: Math.floor(Math.random() * 1e6) },
-					278: { image: e ? await P(e, r) : "" }
+					278: { image: a[0] || "" },
+					270: { image: a[1] || "" },
+					292: { image: a[2] || "" },
+					313: { value: !!a[1] },
+					314: { value: !!a[2] }
 				},
 				client_id: S()
-			};
+			}, r), "Comfy 编辑");
+			return e.editUpscale ? M(o[0], Number(e.editUpscaleRes || 2048), r) : o;
 		}
-		return m(await N("/api/generate", o, r));
-	}, M = async (e, n, r, i, a, o, s) => {
+		return h(await P("/api/generate", o, r));
+	}, M = async (e, t, n) => {
+		let r = _(e);
+		if (!r) throw Error("Comfy 超分辨率缺少输入图片");
+		let i = await F({
+			kind: "image",
+			name: "canvas-upscale.png",
+			url: r
+		}, n);
+		return m(await P("/api/generate", {
+			workflow_json: "upscale.json",
+			params: {
+				15: { image: i },
+				172: {
+					seed: Math.floor(Math.random() * 4294967295),
+					resolution: Math.max(64, t || 2048)
+				}
+			},
+			type: "enhance",
+			client_id: S()
+		}, n), "Comfy 超分辨率");
+	}, N = async (e, n, r, i, a, o, s) => {
 		let l = `${n.id}:${r.id}:${x("submit")}`, u = await t.submit(e, i, {
 			idempotencyKey: l,
 			signal: a
@@ -375,13 +420,13 @@ function d(t, n = fetch) {
 			canvasTaskId: d,
 			idempotencyKey: l
 		})), p.status !== "succeeded") throw Error(p.error || `${e} task failed`);
-		return m(p.result);
-	}, N = (t, r, i) => e(n, t, {
+		return h(p.result);
+	}, P = (t, r, i) => e(n, t, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(r),
 		signal: i
-	}), P = async (t, r) => {
+	}), F = async (t, r) => {
 		let i = await n(/^https?:\/\//i.test(t.url) ? `/api/download-output?inline=1&url=${encodeURIComponent(t.url)}&name=${encodeURIComponent(t.name || "media")}` : t.url, { signal: r });
 		if (!i.ok) throw Error(`读取 ComfyUI 输入媒体失败：${t.name || t.url}`);
 		let a = await i.blob(), o = new FormData();
@@ -400,7 +445,7 @@ function d(t, n = fetch) {
 		initialize: u,
 		normalizeLtxNode: b,
 		prepareVideoMedia: E,
-		recoverDocument: se,
+		recoverDocument: le,
 		runCommand: O,
 		runNode: D,
 		uploadMedia: y
@@ -415,7 +460,21 @@ function f(e, t) {
 		media: b(a)
 	};
 }
-function p(e, t) {
+function p(e, t, n, r) {
+	let i = e.media.filter((e) => e.kind === t);
+	if (i.length < n) throw Error(`${r}需要连接 ${n} 个${{
+		audio: "音频",
+		image: "图片",
+		video: "视频"
+	}[t]}输入，当前只有 ${i.length} 个`);
+	return i;
+}
+function m(e, t) {
+	let n = h(e);
+	if (!n.length) throw Error(`${t}未返回任何媒体`);
+	return n;
+}
+function ee(e, t) {
 	let n = new Map(e.nodes.map((e) => [e.id, e])), r = e.connections.filter((e) => e.from === t.id).map((e) => n.get(e.to)).find((e) => e?.type === "output");
 	return r || (r = {
 		id: x("out"),
@@ -429,7 +488,7 @@ function p(e, t) {
 		to: r.id
 	})), r;
 }
-function ee(e, t, n) {
+function te(e, t, n) {
 	let r = new Set((Array.isArray(e.images) ? e.images : []).map(_)), i = t.map((e) => ({
 		url: _(e),
 		kind: v(e),
@@ -445,13 +504,13 @@ function ee(e, t, n) {
 		}), e.imageComparisons = t;
 	}
 }
-function te(e, t) {
+function ne(e, t) {
 	e.generatedOutputs = t.map((e) => v(e) === "image" ? _(e) : {
 		url: _(e),
 		kind: v(e)
 	}).filter((e) => typeof e == "string" ? e : e.url);
 }
-function m(e) {
+function h(e) {
 	let t = [], n = (e) => {
 		if (!e) return;
 		if (typeof e == "string") {
@@ -486,7 +545,7 @@ function m(e) {
 		return !!(t && !r.has(t) && r.add(t));
 	});
 }
-function h(e, t) {
+function re(e, t) {
 	let n = {
 		audioSegments: [],
 		segments: []
@@ -537,11 +596,11 @@ function h(e, t) {
 		timeline_ui: ""
 	};
 }
-function ne(e) {
+function ie(e) {
 	let t = String(e.type || e.kind || e.input_type || "").toLowerCase();
 	return t.includes("image") ? "image" : t.includes("video") ? "video" : t.includes("audio") ? "audio" : t.includes("prompt") || t.includes("text") ? "prompt" : "setting";
 }
-function re(e, t, n, r, i) {
+function ae(e, t, n, r, i) {
 	if (n) return String(n);
 	if (Number(r) > 0 && Number(i) > 0) return `${Number(r)}x${Number(i)}`;
 	let a = String(t || "1k").toLowerCase() === "2k" ? 2048 : 1024, o = String(e || "square");
@@ -563,7 +622,7 @@ function v(e) {
 function y(e, t) {
 	return e === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(t) ? "video" : e === "audio" || /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(t) ? "audio" : "image";
 }
-function ie(e) {
+function oe(e) {
 	let t = Number.isFinite(Number(e.min)) ? Number(e.min) : 0, n = Number.isFinite(Number(e.max)) ? Number(e.max) : Math.max(t + 1, 1e6), r = Math.max(Number(e.step) || 1, 2 ** -52), i = Math.max(0, Math.floor((n - t) / r)), a = t + Math.floor(Math.random() * (i + 1)) * r;
 	return Number(a.toFixed(Math.min(12, Math.max(0, String(r).split(".")[1]?.length || 0))));
 }
@@ -571,7 +630,7 @@ function b(e) {
 	let t = /* @__PURE__ */ new Set();
 	return e.filter((e) => !!(e.url && !t.has(e.url) && t.add(e.url)));
 }
-function ae(e, t) {
+function se(e, t) {
 	return String((e.uploadedMediaUrls ?? {})[t] || t);
 }
 function x(e) {
@@ -587,7 +646,7 @@ function S() {
 async function C(e, t) {
 	t && await t(structuredClone(e));
 }
-async function oe(t, n, r) {
+async function ce(t, n, r) {
 	try {
 		return await e(t, n);
 	} catch {
@@ -712,7 +771,7 @@ function O(e, t) {
 		}
 	};
 }
-async function se(e, t, n, r = {}) {
+async function le(e, t, n, r = {}) {
 	let { mode: i = "serial", onTransition: a, signal: o } = r, s = j(E(), {
 		type: "queue",
 		targetId: e,
@@ -856,7 +915,7 @@ function N(n = fetch) {
 	}, s = (t, r, i) => r ? e(n, `${M[t]}/${encodeURIComponent(r)}`, {}, i) : Promise.reject(/* @__PURE__ */ TypeError("Task ID is required")), c = async (e, n, r = {}) => {
 		let { intervalMs: i = e === "video" ? 2500 : 1800, maxPollErrors: o = 3, requestTimeoutMs: c = 3e4 } = r, l = Date.now(), u = 0;
 		for (;;) {
-			ce(r.signal, l, r.timeoutMs);
+			F(r.signal, l, r.timeoutMs);
 			try {
 				a.polls += 1;
 				let t = await s(e, n, {
@@ -867,7 +926,7 @@ function N(n = fetch) {
 			} catch (e) {
 				if (a.pollErrors += 1, !(e instanceof t) || !e.retryable || u++ >= o) throw e;
 			}
-			await le(i, r.signal, l, r.timeoutMs);
+			await ue(i, r.signal, l, r.timeoutMs);
 		}
 	}, l = (e, t, n = {}) => {
 		let i = `${e}:${t}`, o = r.get(i);
@@ -916,12 +975,12 @@ function P(e) {
 	if (!n) throw new t("Task response did not include an ID", "validation", 200, e);
 	return n;
 }
-function ce(e, n, r = 0) {
+function F(e, n, r = 0) {
 	if (e?.aborted) throw new t("Task polling aborted", "aborted");
 	if (r > 0 && Date.now() - n >= r) throw new t("Task polling timed out", "timeout");
 }
-function le(e, n, r, i = 0) {
-	ce(n, r, i);
+function ue(e, n, r, i = 0) {
+	F(n, r, i);
 	let a = i > 0 ? Math.max(0, i - (Date.now() - r)) : e, o = Math.min(Math.max(0, e), a || e);
 	return new Promise((e, r) => {
 		let i = () => n?.removeEventListener("abort", s), a = setTimeout(() => {
@@ -934,20 +993,20 @@ function le(e, n, r, i = 0) {
 }
 //#endregion
 //#region src/main.ts
-var F = new URLSearchParams(window.location.search), ue = "__CanvasBootstrapRolloutPolicy" in window ? window.__CanvasBootstrapRolloutPolicy ?? null : await i(), I = r(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname, ue);
+var I = new URLSearchParams(window.location.search), de = "__CanvasBootstrapRolloutPolicy" in window ? window.__CanvasBootstrapRolloutPolicy ?? null : await i(), L = r(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname, de);
 n("rollout-decision", { dimensions: {
-	mode: I.enabled ? "enabled" : "disabled",
-	reason: I.blockedReasons[0] || (I.policyLoaded ? "none" : "policy-unavailable"),
-	source: I.source
+	mode: L.enabled ? "enabled" : "disabled",
+	reason: L.blockedReasons[0] || (L.policyLoaded ? "none" : "policy-unavailable"),
+	source: L.source
 } });
-var L = F.get("canvas_modern_core"), R = L === "execution-shadow", de = L === "graph-order", z = L === "shadow", B = F.get("canvas_m2") === "1" || F.get("canvas_m2") === null && I.enabled, V = B || F.get("canvas_execution_engine") === "1", H = B || F.get("canvas_task_client") === "1", U = B || F.get("canvas_repository") === "1", W = V && H && U, G = F.get("canvas_react_islands") === "1", fe = G || F.get("canvas_react_activity") === "1", pe = G || F.get("canvas_react_execution") === "1", me = G || F.get("canvas_react_status") === "1", he = G || F.get("canvas_react_toolbar") === "1", ge = F.get("canvas_board_v2") === "1" || F.get("canvas_board_v2") === null && I.enabled, K = N(), q = d(K);
-await q.initialize();
-var J = s(), Y = /* @__PURE__ */ new Map(), _e = 0, X = 0, Z = [], ve = 0, Q = 0, ye = /* @__PURE__ */ new Map(), $ = {
+var R = I.get("canvas_modern_core"), z = R === "execution-shadow", fe = R === "graph-order", B = R === "shadow", V = I.get("canvas_m2") === "1" || I.get("canvas_m2") === null && L.enabled, H = V || I.get("canvas_execution_engine") === "1", U = V || I.get("canvas_task_client") === "1", W = V || I.get("canvas_repository") === "1", G = H && U && W, K = I.get("canvas_react_islands") === "1", pe = K || I.get("canvas_react_activity") === "1", me = K || I.get("canvas_react_execution") === "1", he = K || I.get("canvas_react_status") === "1", ge = K || I.get("canvas_react_toolbar") === "1", _e = I.get("canvas_board_v2") === "1" || I.get("canvas_board_v2") === null && L.enabled, q = N(), J = d(q);
+await J.initialize();
+var Y = s(), X = /* @__PURE__ */ new Map(), ve = 0, Z = 0, Q = [], ye = 0, be = 0, xe = /* @__PURE__ */ new Map(), $ = {
 	done: 0,
 	failed: 0,
 	stopped: 0
-}, be = 0;
-function xe(e, t, n) {
+}, Se = 0;
+function Ce(e, t, n) {
 	let r = window.CanvasLegacyBridge, i = r?.getDocumentSnapshot();
 	if (!r || !i) return null;
 	let s = o(a(i)), c = e === "cascade" ? s.cascadeOrder(t) : s.retryCascadeOrder(t), l = n ?? (e === "cascade" ? r.computeCascadeOrder(t) : r.computeRetryCascadeOrder(t));
@@ -961,15 +1020,15 @@ function xe(e, t, n) {
 }
 if (window.CanvasModernCore = Object.freeze({
 	version: 30,
-	canvasRepository: J,
-	canvasRepositoryEnabled: U,
-	canvasRuntime: q,
-	executionEngineEnabled: V,
-	m2Enabled: W,
-	taskClient: K,
-	taskClientEnabled: H,
+	canvasRepository: Y,
+	canvasRepositoryEnabled: W,
+	canvasRuntime: J,
+	executionEngineEnabled: H,
+	m2Enabled: G,
+	taskClient: q,
+	taskClientEnabled: U,
 	activeOrder(e, t) {
-		if (!de) return null;
+		if (!fe) return null;
 		try {
 			let n = window.CanvasLegacyBridge?.getDocumentSnapshot();
 			if (!n) return null;
@@ -979,35 +1038,35 @@ if (window.CanvasModernCore = Object.freeze({
 			return console.warn("[canvas-modern-core] active graph order failed; using legacy order", e), null;
 		}
 	},
-	compareOrder: xe,
+	compareOrder: Ce,
 	recordRolloutEvent(e, t) {
 		n(e, {
 			...t,
 			dimensions: {
 				...t?.dimensions,
-				mode: W ? "enabled" : "disabled",
-				source: I.source
+				mode: G ? "enabled" : "disabled",
+				source: L.source
 			}
 		});
 	},
 	runOrdered(e) {
-		return V ? se(e.targetId, e.order, e.execute, {
+		return H ? le(e.targetId, e.order, e.execute, {
 			mode: e.mode,
 			signal: e.signal,
-			onTransition: Se
+			onTransition: we
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	runParallel(e) {
-		return V ? k(e.targetId, e.order, e.rounds, e.execute, {
+		return H ? k(e.targetId, e.order, e.rounds, e.execute, {
 			limit: e.limit,
 			roundId: e.roundId,
 			signal: e.signal,
-			onTransition: Se
+			onTransition: we
 		}) : Promise.reject(/* @__PURE__ */ Error("Modern execution engine is disabled"));
 	},
 	observeExecution(e) {
-		if (R) try {
-			let t = Y.get(e.targetId) ?? E();
+		if (z) try {
+			let t = X.get(e.targetId) ?? E();
 			e.phase === "begin" ? (t = D(t, {
 				type: "queue",
 				targetId: e.targetId,
@@ -1025,26 +1084,26 @@ if (window.CanvasModernCore = Object.freeze({
 				type: "finish",
 				status: e.status,
 				error: e.error
-			}), Y.set(e.targetId, t), _e += 1;
+			}), X.set(e.targetId, t), ve += 1;
 		} catch (t) {
-			X += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
+			Z += 1, console.warn("[canvas-modern-core] execution shadow transition failed", t, e);
 		}
 	},
 	observeOrder(e, t, n) {
-		if (z) try {
-			let r = xe(e, t, n);
+		if (B) try {
+			let r = Ce(e, t, n);
 			if (!r) return;
-			ve += 1, r.matches || (Z.length < 50 && Z.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
+			ye += 1, r.matches || (Q.length < 50 && Q.push(r), console.warn("[canvas-modern-core] graph order mismatch", r));
 		} catch (e) {
-			Q += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
+			be += 1, console.warn("[canvas-modern-core] graph shadow check failed", e);
 		}
 	},
 	getShadowReport() {
 		return {
-			enabled: z,
-			checks: ve,
-			errors: Q,
-			mismatches: Z.map((e) => ({
+			enabled: B,
+			checks: ye,
+			errors: be,
+			mismatches: Q.map((e) => ({
 				...e,
 				legacy: [...e.legacy],
 				modern: [...e.modern]
@@ -1053,10 +1112,10 @@ if (window.CanvasModernCore = Object.freeze({
 	},
 	getExecutionShadowReport() {
 		return {
-			enabled: R,
-			errors: X,
-			events: _e,
-			runs: [...Y.values()].map((e) => ({
+			enabled: z,
+			errors: Z,
+			events: ve,
+			runs: [...X.values()].map((e) => ({
 				...e,
 				completedNodeIds: [...e.completedNodeIds],
 				order: [...e.order],
@@ -1069,58 +1128,58 @@ if (window.CanvasModernCore = Object.freeze({
 	},
 	getM2Report() {
 		return {
-			enabled: W,
-			rollout: I,
+			enabled: G,
+			rollout: L,
 			execution: {
-				active: [...ye.values()].filter(({ status: e }) => ![
+				active: [...xe.values()].filter(({ status: e }) => ![
 					"done",
 					"failed",
 					"stopped"
 				].includes(e)).length,
 				...$,
-				transitions: be
+				transitions: Se
 			},
 			flags: {
-				executionEngine: V,
-				repository: U,
-				taskClient: H
+				executionEngine: H,
+				repository: W,
+				taskClient: U
 			},
-			repository: J.getDiagnostics(),
-			tasks: K.getDiagnostics()
+			repository: Y.getDiagnostics(),
+			tasks: q.getDiagnostics()
 		};
 	},
 	mergeConflict(e, t, n) {
 		return c(e, t, n);
 	}
-}), pe) {
+}), me) {
 	let e = document.getElementById("canvasExecutionIsland");
 	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactExecutionIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React execution island failed to load", e));
 }
-if (me) {
+if (he) {
 	let e = document.getElementById("canvasStatusIsland");
 	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactStatusIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React status island failed to load", e));
 }
-if (he) {
+if (ge) {
 	let e = document.getElementById("canvasToolbarIsland");
 	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactToolbarIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React toolbar island failed to load", e));
 }
-if (fe) {
+if (pe) {
 	let e = document.getElementById("canvasActivityIsland");
 	e && import("./react-execution-entry-Ct7IYLTd.js").then(({ mountReactActivityIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React activity island failed to load", e));
 }
-if (ge && !I.enabled) {
+if (_e && !L.enabled) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
 	e && t && import("./canvas-board-v2-717BDbiR.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
@@ -1129,12 +1188,12 @@ if (ge && !I.enabled) {
 		window.CanvasModernCore?.recordRolloutEvent("board-mount-failed", { dimensions: { reason: e instanceof Error && e.message.includes("dependencies") ? "dependency-unavailable" : "import-failed" } }), console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e);
 	});
 }
-if (I.enabled) {
+if (L.enabled) {
 	let e = document.getElementById("canvasModernApp"), t = document.getElementById("shell");
 	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-B-6yma_j.js").then(({ mountCanvasAppV2: t }) => {
 		let n = t(e, {
-			runtime: q,
-			repository: J
+			runtime: J,
+			repository: Y
 		});
 		window.CanvasModernCore?.recordRolloutEvent("board-mounted", { dimensions: { reason: "none" } }), window.addEventListener("pagehide", n, { once: !0 });
 	}).catch(async (n) => {
@@ -1147,23 +1206,23 @@ if (I.enabled) {
 		window.CanvasModernCore?.recordRolloutEvent("board-mount-failed", { dimensions: { reason: "import-failed" } }), console.warn("[canvas-modern-core] standalone Canvas V2 failed to load; restored Legacy Canvas", n);
 	}));
 }
-function Se(e, t) {
-	be += 1, ye.set(e.targetId, e), t.type === "finish" && ($[t.status] += 1, window.CanvasModernCore?.recordRolloutEvent(t.status === "done" ? "execution-succeeded" : t.status === "failed" ? "execution-failed" : "execution-stopped", { dimensions: { reason: t.status === "failed" ? "execution-failed" : t.status === "stopped" ? "execution-stopped" : "none" } })), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
+function we(e, t) {
+	Se += 1, xe.set(e.targetId, e), t.type === "finish" && ($[t.status] += 1, window.CanvasModernCore?.recordRolloutEvent(t.status === "done" ? "execution-succeeded" : t.status === "failed" ? "execution-failed" : "execution-stopped", { dimensions: { reason: t.status === "failed" ? "execution-failed" : t.status === "stopped" ? "execution-stopped" : "none" } })), window.dispatchEvent(new CustomEvent("canvas-modern-execution", { detail: {
 		event: t,
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "30", document.documentElement.dataset.canvasBoardV2 = ge ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = V ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = R ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = de ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = W ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = U ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = fe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = pe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = G ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = me ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = he ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = z ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = H ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = I.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(I.bucket), document.documentElement.dataset.canvasV2RolloutBlocked = I.blockedReasons.join(",") || "none", document.documentElement.dataset.canvasV2RolloutPercentage = String(I.percentage), document.documentElement.dataset.canvasV2RolloutPolicy = I.policyLoaded ? "loaded" : "fallback", window.addEventListener("pagehide", () => {
-	let e = J.getDiagnostics(), t = K.getDiagnostics();
+document.documentElement.dataset.canvasModernCore = "30", document.documentElement.dataset.canvasBoardV2 = _e ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = H ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = z ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = fe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = G ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = W ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = pe ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = me ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = K ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = he ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = ge ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = B ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = U ? "enabled" : "disabled", document.documentElement.dataset.canvasV2Rollout = L.enabled ? "enabled" : "disabled", document.documentElement.dataset.canvasV2RolloutBucket = String(L.bucket), document.documentElement.dataset.canvasV2RolloutBlocked = L.blockedReasons.join(",") || "none", document.documentElement.dataset.canvasV2RolloutPercentage = String(L.percentage), document.documentElement.dataset.canvasV2RolloutPolicy = L.policyLoaded ? "loaded" : "fallback", window.addEventListener("pagehide", () => {
+	let e = Y.getDiagnostics(), t = q.getDiagnostics();
 	n("page-summary", {
 		counters: {
-			execution_errors: X,
+			execution_errors: Z,
 			execution_failed: $.failed,
 			execution_runs: $.done + $.failed + $.stopped,
 			repository_conflicts: e.conflicts,
 			repository_errors: e.errors,
 			repository_saves: e.saves,
-			shadow_errors: Q,
+			shadow_errors: be,
 			task_poll_errors: t.pollErrors,
 			task_polls: t.polls,
 			task_recoveries: t.recoveredTasks,
@@ -1171,9 +1230,9 @@ document.documentElement.dataset.canvasModernCore = "30", document.documentEleme
 			task_submissions: t.submissions
 		},
 		dimensions: {
-			mode: W ? "enabled" : "disabled",
+			mode: G ? "enabled" : "disabled",
 			reason: "none",
-			source: I.source
+			source: L.source
 		}
 	});
 }, { once: !0 }), window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));

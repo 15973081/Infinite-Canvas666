@@ -378,12 +378,31 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     let payload: Record<string, unknown>;
     if (mode === 'text') {
       payload = { prompt, width: Number(node.width || 1024), height: Number(node.height || 1024), workflow_json: 'Z-Image.json', type: 'zimage', client_id: clientId() };
+    } else if (mode === 'enhance') {
+      const image = requireMedia(input, 'image', 1, 'Comfy 增强')[0];
+      const result = await post<Record<string, unknown>>('/api/generate', {
+        workflow_json: 'Z-Image-Enhance.json',
+        params: {
+          '15': { image: await uploadComfyRef(image, signal) },
+          '204': { value: Number(node.enhanceStrength ?? 0.5) },
+        },
+        type: 'enhance',
+        client_id: clientId(),
+      }, signal);
+      const outputs = requireOutputs(result, 'Comfy 增强');
+      return node.enhanceUpscale
+        ? upscaleComfyOutput(outputs[0], Number(node.enhanceUpscaleRes || 2048), signal)
+        : outputs;
     } else if (mode === 'custom') {
       const workflow = String(node.comfyWorkflow || workflows[0]?.name || '');
       const fields = await getComfyFields(workflow);
       const params: Record<string, Record<string, unknown>> = {};
       const mediaQueues = new Map(['image', 'video', 'audio'].map((kind) => [kind, input.media.filter((item) => item.kind === kind)]));
       const mediaOffsets = new Map<string, number>();
+      for (const kind of ['image', 'video', 'audio'] as const) {
+        const required = fields.filter((field) => comfyFieldKind(field) === kind).length;
+        if (required) requireMedia(input, kind, required, `Comfy 工作流 ${workflow || '未命名'}`);
+      }
       for (const field of fields) {
         const target = String(field.node || '');
         const key = String(field.input || '');
@@ -405,11 +424,47 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
       }
       payload = { prompt, workflow_json: workflow, params, type: 'workflow-custom', client_id: clientId() };
     } else {
-      const image = input.media.find((item) => item.kind === 'image');
-      payload = { prompt, workflow_json: 'Flux2-Klein.json', type: 'klein', params: { '168': { text: prompt }, '158': { noise_seed: Math.floor(Math.random() * 1_000_000) }, '278': { image: image ? await uploadComfyRef(image, signal) : '' } }, client_id: clientId() };
+      const images = requireMedia(input, 'image', 1, 'Comfy 编辑').slice(0, 3);
+      const names: string[] = [];
+      for (const image of images) names.push(await uploadComfyRef(image, signal));
+      const result = await post<Record<string, unknown>>('/api/generate', {
+        prompt,
+        workflow_json: 'Flux2-Klein.json',
+        type: 'klein',
+        params: {
+          '168': { text: prompt },
+          '158': { noise_seed: Math.floor(Math.random() * 1_000_000) },
+          '278': { image: names[0] || '' },
+          '270': { image: names[1] || '' },
+          '292': { image: names[2] || '' },
+          '313': { value: Boolean(names[1]) },
+          '314': { value: Boolean(names[2]) },
+        },
+        client_id: clientId(),
+      }, signal);
+      const outputs = requireOutputs(result, 'Comfy 编辑');
+      return node.editUpscale
+        ? upscaleComfyOutput(outputs[0], Number(node.editUpscaleRes || 2048), signal)
+        : outputs;
     }
     const result = await post<Record<string, unknown>>('/api/generate', payload, signal);
     return extractOutputs(result);
+  };
+
+  const upscaleComfyOutput = async (value: unknown, resolution: number, signal: AbortSignal): Promise<unknown[]> => {
+    const url = outputUrl(value);
+    if (!url) throw new Error('Comfy 超分辨率缺少输入图片');
+    const image = await uploadComfyRef({ kind: 'image', name: 'canvas-upscale.png', url }, signal);
+    const result = await post<Record<string, unknown>>('/api/generate', {
+      workflow_json: 'upscale.json',
+      params: {
+        '15': { image },
+        '172': { seed: Math.floor(Math.random() * 4_294_967_295), resolution: Math.max(64, resolution || 2048) },
+      },
+      type: 'enhance',
+      client_id: clientId(),
+    }, signal);
+    return requireOutputs(result, 'Comfy 超分辨率');
   };
 
   const runTask = async (
@@ -471,6 +526,21 @@ function collectInputs(document: CanvasDocument, target: CanvasNode): InputBundl
   };
   sources.forEach(addNode);
   return { prompts: prompts.filter(Boolean), media: dedupeMedia(media) };
+}
+
+function requireMedia(input: InputBundle, kind: MediaRef['kind'], count: number, operation: string): MediaRef[] {
+  const media = input.media.filter((item) => item.kind === kind);
+  if (media.length < count) {
+    const labels: Record<MediaRef['kind'], string> = { audio: '音频', image: '图片', video: '视频' };
+    throw new Error(`${operation}需要连接 ${count} 个${labels[kind]}输入，当前只有 ${media.length} 个`);
+  }
+  return media;
+}
+
+function requireOutputs(result: unknown, operation: string): unknown[] {
+  const outputs = extractOutputs(result);
+  if (!outputs.length) throw new Error(`${operation}未返回任何媒体`);
+  return outputs;
 }
 
 function ensureOutput(document: CanvasDocument, node: CanvasNode): CanvasNode {
