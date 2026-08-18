@@ -377,3 +377,11 @@ Set-Location ..
 - 自动化结果：75 个 Vitest、17 个 Playwright、41 个 Python unittest 全部通过。Comfy 页面 E2E 明确断言旧全局函数和旧脚本不存在，并覆盖后端保存、字段暴露、配置保存和运行结果展示。
 
 全站剩余页面按风险和复用价值建议依次迁移：API 设置与资产管理、GPT Chat、图片增强与各生成页、首页外壳/路由、Smart Canvas。每个页面切换时必须保持独立 E2E，且不得以 React 外壳继续执行原页面全局脚本冒充迁移完成。
+
+## 17. 2026-08-19 全站共享层与双页面迁移
+
+Canvas 已正式判定为“代码迁移完成，阶段 8 生产发布验收待完成”；详细口径和全站页面看板见 `docs/full-site-react-migration.md`。
+
+本批新增 `frontend/src/shared/` 统一主题、跨页面事件和页面壳，并新增 `frontend/src/features/image-studio/` 统一图片生成页的提示词、参考图、平台/模型、尺寸、异步任务、刷新恢复、结果、下载和历史逻辑。`online.html` 与 `zimage.html` 已切换到独立 TSX 入口，不再执行原页面的大段内联脚本或旧 UI 依赖。
+
+最新自动化结果：79 个 Vitest、19 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数为 4：Canvas、ComfyUI Settings、Online、Z-Image；Canvas Board Spike 是 React 性能测试工具，不计生产页面。
