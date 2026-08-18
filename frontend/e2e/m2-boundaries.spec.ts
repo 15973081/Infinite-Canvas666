@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '21');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '22');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -202,7 +202,7 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
         { id: 'prompt-gen', type: 'prompt', x: 20, y: 20, text: 'city' },
         { id: 'generator-v2', type: 'generator', x: 380, y: 20, apiProvider: 'comfly', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1 },
         { id: 'msgen-v2', type: 'msgen', x: 380, y: 410, msgenModel: 'zimage', msRatio: 'square', msResolution: '1k', count: 1 },
-        { id: 'output-v2', type: 'output', x: 820, y: 20, images: [{ url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', future: true }] },
+        { id: 'output-v2', type: 'output', x: 820, y: 20, images: [{ url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', future: true, run: { nodeType: 'generator', node: { type: 'generator', quality: 'medium' }, prompt: 'rerun prompt', refs: [] } }], imageComparisons: { 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==': { url: '/static/images/logo.png' } }, _pending: [{ id: 'pending-v2', taskId: 'task-v2', status: '正在恢复' }] },
       ],
       connections: [{ from: 'prompt-gen', to: 'generator-v2' }, { from: 'generator-v2', to: 'output-v2' }],
     } }));
@@ -218,15 +218,36 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   await generator.getByLabel('比例高').blur();
   await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'generator-v2')).toMatchObject({ quality: 'high', count: 4, ratio: 'custom', customRatio: '4:5' });
   expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-execution-document', { detail: {
+    id: 'v2-generation', updated_at: 9, connections: [],
+    nodes: [{ id: 'generator-v2', type: 'generator', quality: 'stale', runStatus: 'failed', runError: 'recoverable failure', _cascadeFailed: true }],
+  } })));
+  await expect(generator.getByLabel('质量')).toHaveValue('high');
+  await expect(generator.getByRole('button', { name: '重试' })).toBeVisible();
 
   const msgen = page.locator('[data-node-id="msgen-v2"]');
   await msgen.getByRole('button', { name: 'Qwen Edit' }).click();
   await msgen.getByLabel('ModelScope 生成数量').fill('3');
   await msgen.getByLabel('ModelScope 生成数量').blur();
-  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'msgen-v2')).toMatchObject({ msgenModel: 'qwen_edit', count: 3 });
+  await msgen.getByLabel('ModelScope 分辨率').selectOption('custom');
+  await msgen.getByLabel('ModelScope 自定义宽度').fill('768');
+  await msgen.getByLabel('ModelScope 自定义高度').fill('1024');
+  await msgen.getByLabel('ModelScope 自定义高度').blur();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'msgen-v2')).toMatchObject({ msgenModel: 'qwen_edit', count: 3, msResolution: 'custom', msCustomSize: '768x1024' });
 
   const output = page.locator('[data-node-id="output-v2"]');
   await expect(output.locator('img')).toHaveCount(1);
+  await expect(output.locator('[data-pending-id="pending-v2"]')).toContainText('正在恢复');
+  await output.locator('img').click();
+  await expect(page.locator('#outputLightbox')).toHaveClass(/open/);
+  await page.locator('#outputRerunBtn').click();
+  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(2);
+  await page.getByTestId('canvas-board-v2').evaluate((element) => {
+    const transfer = new DataTransfer();
+    transfer.setData('application/x-canvas-output-image', JSON.stringify({ kind: 'image', name: 'dragged.png', url: '/output/dragged.png' }));
+    element.dispatchEvent(new DragEvent('drop', { bubbles: true, clientX: 120, clientY: 120, dataTransfer: transfer }));
+  });
+  await expect(page.locator('[data-node-type="image"]')).toHaveCount(1);
   await output.getByRole('button', { name: '删除输出' }).click();
   await expect(output.locator('img')).toHaveCount(0);
   await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'output-v2')?.images).toEqual([]);
@@ -235,7 +256,7 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
     const target = window as typeof window & { addGeneratorNode(): void; addMsGenNode(): void; addOutputNode(): void };
     target.addGeneratorNode(); target.addMsGenNode(); target.addOutputNode();
   });
-  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(2);
+  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(3);
   await expect(page.locator('[data-node-type="msgen"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="output"]')).toHaveCount(2);
 });
@@ -295,6 +316,62 @@ test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
   await expect(page.locator('[data-node-type="llm"]')).toHaveCount(2);
 });
 
+test('persists production parity controls for Video and custom Comfy workflows', async ({ page }) => {
+  const saves: Array<Record<string, any>> = [];
+  await page.route('**/api/canvases/v2-parity', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    saves.push(body);
+    await route.fulfill({ json: { canvas: { ...body, id: 'v2-parity', updated_at: saves.length + 1 } } });
+  });
+  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await page.evaluate(() => {
+    const target = window as any;
+    const legacy = target.CanvasLegacyBridge;
+    target.CanvasLegacyBridge = {
+      ...legacy,
+      async getComfyFields() {
+        return [
+          { id: 'seed', input: 'seed', name: 'Seed', node: '1', type: 'number', default: 7, min: 1, max: 999999, random_enabled: true },
+          { id: 'sampler', input: 'sampler', name: 'Sampler', node: '1', type: 'dropdown', default: 'euler', options: ['euler', 'dpm'] },
+          { id: 'image', input: 'image', name: 'Image', node: '2', type: 'image' },
+          { id: 'positive', input: 'positive', name: 'Positive Prompt', node: '3', type: 'textarea' },
+        ];
+      },
+      getNodeOptions(type: string, field: string, node: Record<string, unknown>) {
+        if (type === 'comfy' && field === 'workflow') return [{ value: 'fixture.json', label: 'Fixture Workflow' }];
+        return legacy.getNodeOptions(type, field, node);
+      },
+    };
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'v2-parity', updated_at: 1, connections: [{ from: 'generator-upstream', to: 'video-parity' }],
+      nodes: [
+        { id: 'generator-upstream', type: 'generator', x: 0, y: 0 },
+        { id: 'video-parity', type: 'video', x: 380, y: 0, apiProvider: 'comfly', model: '', manualVideoUrls: [] },
+        { id: 'comfy-parity', type: 'comfy', x: 820, y: 0, mode: 'custom', comfyWorkflow: 'fixture.json', comfyParams: {}, comfyRandomActive: {} },
+      ],
+    } }));
+    target.CanvasBoardV2.prepareVideoMedia = async (nodeId: string, action: string, value?: string) => {
+      if (action === 'manual') target.CanvasBoardV2.updateNode(nodeId, { manualVideoUrls: value ? [value] : [] });
+    };
+  });
+
+  const video = page.locator('[data-node-id="video-parity"]');
+  await expect(video.getByRole('button', { name: '一键运行' })).toBeVisible();
+  await video.getByLabel('视频手动 URL').fill('https://cdn.example/reference.mp4');
+  await video.getByRole('button', { name: '应用网址' }).click();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'video-parity')).toMatchObject({ manualVideoUrls: ['https://cdn.example/reference.mp4'] });
+
+  const comfy = page.locator('[data-node-id="comfy-parity"]');
+  await expect(comfy).toContainText('动态媒体字段 1');
+  await comfy.getByLabel('Seed', { exact: true }).fill('42');
+  await comfy.getByLabel('Seed', { exact: true }).blur();
+  await comfy.getByRole('button', { name: 'Seed 随机' }).click();
+  await comfy.getByLabel('Sampler').selectOption('dpm');
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'comfy-parity')).toMatchObject({ comfyParams: { seed: 42, sampler: 'dpm' }, comfyRandomActive: { seed: false } });
+});
+
 test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
   await page.route('**/api/ai/upload', async (route) => route.fulfill({ json: { files: [{ url: '/uploads/replaced.png', name: 'replaced.png', kind: 'image' }] } }));
@@ -320,7 +397,12 @@ test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page 
   const ltx = page.locator('[data-node-id="ltx-v2"]');
   await expect.poll(() => ltx.locator('.ltx-director-timeline-host').evaluate((element) => element.childElementCount)).toBeGreaterThan(0);
   await ltx.getByLabel('LTX FPS').fill('30');
-  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'ltx-v2')?.frameRate).toBe(30);
+  await ltx.getByLabel('LTX 全局提示词').fill('cinematic sequence');
+  await ltx.getByLabel('LTX 全局提示词').blur();
+  await ltx.getByRole('button', { name: '自定义音频' }).click();
+  await ltx.getByLabel('LTX Noise Seed').fill('99');
+  await ltx.getByLabel('LTX Noise Seed').blur();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'ltx-v2')).toMatchObject({ frameRate: 30, globalPrompt: 'cinematic sequence', useCustomAudio: true, noiseSeed: 99 });
   expect(saves.at(-1)?.nodes.find((node: any) => node.id === 'ltx-v2')?.ltxTimelineData).toContain('segment-1');
 
   const first = page.locator('[data-node-id="image-a"]');

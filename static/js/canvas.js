@@ -2049,6 +2049,10 @@ function publishLegacyDocument(){
     const snapshot = legacyDocumentSnapshot();
     if(snapshot) window.dispatchEvent(new CustomEvent('canvas-legacy-document', {detail:snapshot}));
 }
+function publishLegacyExecutionDocument(){
+    const snapshot = legacyDocumentSnapshot();
+    if(snapshot) window.dispatchEvent(new CustomEvent('canvas-legacy-execution-document', {detail:snapshot}));
+}
 function resetCanvasSaveSnapshot(){
     if(!canvas) {
         lastSavedCanvasSnapshot = '';
@@ -2057,6 +2061,16 @@ function resetCanvasSaveSnapshot(){
     lastSavedCanvasSnapshot = canvasSaveSnapshot(canvasSavePayload());
     publishLegacyDocument();
 }
+function adoptCanvasBridgeSnapshot(snapshot){
+    const next = JSON.parse(JSON.stringify(snapshot || null));
+    if(!canvas || !next || String(next.id || '') !== String(canvas.id || '')) throw new Error('Canvas execution snapshot does not match the active canvas');
+    nodes = Array.isArray(next.nodes) ? next.nodes : [];
+    connections = Array.isArray(next.connections) ? next.connections : [];
+    canvas = {...canvas, ...next};
+    lastCanvasUpdatedAt = Number(next.updated_at || lastCanvasUpdatedAt || 0);
+    return next;
+}
+const legacyOpenOutputLightbox = openOutputLightbox;
 window.CanvasLegacyBridge = Object.freeze({
     async getComfyFields(workflow){
         const data = await ensureComfyWorkflow(String(workflow || ''));
@@ -2064,6 +2078,15 @@ window.CanvasLegacyBridge = Object.freeze({
     },
     getNodeOptions(type, field, node={}){
         if(type === 'msgen' && field === 'model') return Object.entries(MS_GEN_MODELS).map(([value, item]) => ({value, label:item.labelKey ? tr(item.labelKey) : item.label}));
+        if(type === 'msgen' && field === 'custom-model') return modelscopeImageModels(node.msCustomModel).map(value => ({value, label:value}));
+        if(type === 'msgen' && field === 'lora'){
+            const modelId = currentMsModelId(node.msgenModel || 'zimage', node);
+            return modelscopeLorasForModel(modelId).map(item => ({
+                value:String(item.id || '').trim(),
+                label:String(item.name || item.id || '').trim(),
+                meta:{strength:Number(item.strength ?? 0.8)}
+            }));
+        }
         if(type === 'comfy' && field === 'workflow') return comfyWorkflows.map(item => ({value:String(item.name || ''), label:String(item.title || item.name || '')}));
         if(field === 'provider'){
             const providers = type === 'video' ? videoApiProviders() : type === 'llm' ? chatApiProviders() : imageApiProviders();
@@ -2085,19 +2108,38 @@ window.CanvasLegacyBridge = Object.freeze({
         }
         return copy;
     },
+    openOutputLightbox(node, url){
+        legacyOpenOutputLightbox(String(url || ''), JSON.parse(JSON.stringify(node || {})));
+    },
+    async prepareVideoMedia(nodeId, snapshot, action, value=''){
+        adoptCanvasBridgeSnapshot(snapshot);
+        const node = nodes.find(item => item.id === String(nodeId || '') && item.type === 'video');
+        if(!node) throw new Error('Video node is missing from the active canvas');
+        if(action === 'cloud'){
+            await uploadCanvasVideosToCloud(node.id);
+        } else if(action === 'manual'){
+            const url = String(value || '').trim();
+            if(url && !isRemoteVideoReferenceUrl(url)) throw new Error('请输入 http/https 媒体网址或 asset:// 火山素材 URI');
+            const refs = orderedSources(node, generatorSources(node)).flatMap(src => src.refs || [])
+                .filter(ref => ref?.url && ['image','video'].includes(mediaKindForRef(ref)));
+            if(url) applyManualVideoUrlToCanvasRef(node, refs.find(ref => !isRemoteVideoReferenceUrl(ref.url)) || refs[0] || null, url);
+            else clearManualVideoUrlForNode(node);
+        } else {
+            throw new Error(`Unknown video media action: ${action}`);
+        }
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        return legacyDocumentSnapshot();
+    },
     async uploadMedia(files){
         const form = new FormData();
         [...(files || [])].forEach(file => form.append('files', file));
         return window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:'上传失败'});
     },
     async runNode(nodeId, snapshot, mode='node'){
-        const next = JSON.parse(JSON.stringify(snapshot || null));
-        if(!canvas || !next || String(next.id || '') !== String(canvas.id || '')) throw new Error('Canvas execution snapshot does not match the active canvas');
-        nodes = Array.isArray(next.nodes) ? next.nodes : [];
-        connections = Array.isArray(next.connections) ? next.connections : [];
-        canvas = {...canvas, ...next};
-        lastCanvasUpdatedAt = Number(next.updated_at || lastCanvasUpdatedAt || 0);
+        adoptCanvasBridgeSnapshot(snapshot);
         if(mode === 'chat') await runLLMChat(String(nodeId || ''));
+        else if(mode === 'cascade') await runNodeCascade(String(nodeId || ''));
         else await runCanvasGenerate(String(nodeId || ''));
         clearTimeout(saveTimer);
         saveTimer = null;
@@ -12519,6 +12561,7 @@ function completeRecoverPendingOutput(out, pending, result){
     }
     addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs || 0});
     refreshRunNodes(gen, out);
+    publishLegacyExecutionDocument();
     scheduleSave();
 }
 async function queryRecoverPendingOutput(pendingId){
@@ -12554,6 +12597,7 @@ async function queryRecoverPendingOutput(pendingId){
         if(latest){
             latest.querying = false;
             refreshNodes([out.id]);
+            publishLegacyExecutionDocument();
             scheduleSave();
         }
     }
@@ -12621,6 +12665,7 @@ function completeCanvasImageTask(taskId, result){
     }
     addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs || 0});
     refreshRunNodes(gen, out);
+    publishLegacyExecutionDocument();
     scheduleSave();
 }
 function failCanvasImageTask(taskId, message, taskData={}){
@@ -12646,6 +12691,7 @@ function failCanvasImageTask(taskId, message, taskData={}){
         }
         addGenerationLog({run, outputs:[], runMs, error:pending.error});
         refreshRunNodes(gen, out);
+        publishLegacyExecutionDocument();
         scheduleSave();
         return;
     }
@@ -12658,6 +12704,7 @@ function failCanvasImageTask(taskId, message, taskData={}){
     }
     addGenerationLog({run, outputs:[], runMs, error:message || tr('canvas.generationFailed')});
     refreshRunNodes(gen, out);
+    publishLegacyExecutionDocument();
     scheduleSave();
 }
 function videoOutputsFromResult(result){
@@ -12688,6 +12735,7 @@ function completeCanvasVideoTask(taskId, result){
     }
     addGenerationLog({run:meta.run, outputs, runMs:meta.runMs || 0, error:outputs.length ? '' : tr('canvas.videoFailed')});
     refreshRunNodes(gen, out);
+    publishLegacyExecutionDocument();
     scheduleSave();
 }
 function failCanvasVideoTask(taskId, message, taskData={}){
@@ -12706,6 +12754,7 @@ function failCanvasVideoTask(taskId, message, taskData={}){
     }
     addGenerationLog({run, outputs:[], runMs, error:message || tr('canvas.videoFailed')});
     refreshRunNodes(gen, out);
+    publishLegacyExecutionDocument();
     scheduleSave();
 }
 async function pollCanvasVideoTask(taskId, options={}){
@@ -13419,7 +13468,13 @@ assetManagerModal?.addEventListener('click', async event => {
     }
 }, true);
 function rerunFromOutputMeta(meta){
-    if(!ensureCanvas() || !meta?.run?.nodeType) return;
+    if(!meta?.run?.nodeType) return;
+    if(window.CanvasBoardV2){
+        window.CanvasBoardV2.rerunFromOutputMeta(JSON.parse(JSON.stringify(meta)));
+        closeOutputLightbox();
+        return;
+    }
+    if(!ensureCanvas()) return;
     const base = JSON.parse(JSON.stringify(meta.run.node || {}));
     const p = defaultPoint(180, 40);
     const node = {...base, id:uid(base.type || meta.run.nodeType), type:meta.run.nodeType, x:p.x, y:p.y, inputs:[], running:false};

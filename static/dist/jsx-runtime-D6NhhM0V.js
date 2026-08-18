@@ -8096,6 +8096,7 @@ function C(e) {
 					editUpscaleRes: 2048,
 					comfyWorkflow: "",
 					comfyParams: {},
+					comfyRandomActive: {},
 					count: 1,
 					inputs: []
 				},
@@ -8112,6 +8113,7 @@ function C(e) {
 					customRatioHeight: "",
 					customWidth: "",
 					customHeight: "",
+					fitImage: !1,
 					inputs: []
 				},
 				group: {
@@ -8128,6 +8130,7 @@ function C(e) {
 					llmProvider: "comfly",
 					model: "",
 					mode: "node",
+					showSystem: !1,
 					systemPrompt: "You are a helpful assistant. Rewrite the input into a concise image prompt.",
 					chatInput: "",
 					messages: [],
@@ -8177,11 +8180,23 @@ function C(e) {
 					msCustomModel: "Tongyi-MAI/Z-Image-Turbo",
 					msRatio: "square",
 					msResolution: "1k",
+					msCustomRatio: "",
+					msCustomSize: "",
+					msCustomRatioWidth: "",
+					msCustomRatioHeight: "",
+					msCustomWidth: "",
+					msCustomHeight: "",
+					msLoraEnabled: !1,
+					msLoraId: "",
+					msLoraStrength: .8,
 					count: 1,
 					fitImage: !1,
 					inputs: []
 				},
-				output: { images: [] },
+				output: {
+					images: [],
+					imageComparisons: {}
+				},
 				prompt: { text: "" },
 				video: {
 					apiProvider: "comfly",
@@ -8197,6 +8212,7 @@ function C(e) {
 					taskMode: "auto",
 					useFrameRoles: !1,
 					multimodal: !1,
+					manualVideoUrls: [],
 					tempShLinks: [],
 					inputs: []
 				}
@@ -8328,6 +8344,39 @@ function C(e) {
 		projectDocument: (t) => {
 			let n = ne(t);
 			n && e({ document: n });
+		},
+		projectExecutionDocument: (t) => {
+			let n = ne(t), i = r().document;
+			if (!i || !n || i.id !== n.id) return;
+			let a = new Map(n.nodes.map((e) => [e.id, e])), o = [
+				"_cascadeFailed",
+				"_pending",
+				"generatedOutputs",
+				"imageComparisons",
+				"images",
+				"messages",
+				"outputLayout",
+				"outputText",
+				"pendingTaskId",
+				"runError",
+				"running",
+				"runStatus"
+			], s = i.nodes.map((e) => {
+				let t = a.get(e.id);
+				if (!t) return e;
+				let n = {};
+				return o.forEach((r) => {
+					r in t ? n[r] = structuredClone(t[r]) : r in e && (n[r] = void 0);
+				}), {
+					...e,
+					...n
+				};
+			});
+			e({ document: {
+				...i,
+				nodes: s,
+				updated_at: n.updated_at ?? i.updated_at
+			} });
 		},
 		updateNode: (n, r) => e(({ document: e }) => {
 			if (!e?.nodes.some((e) => e.id === n)) return {};

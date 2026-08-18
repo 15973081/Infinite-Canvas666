@@ -44,9 +44,9 @@ Set-Location ..
 
 当前验收基线：
 
-- Vitest：48 个测试通过。
-- Playwright：10 个端到端测试通过。
-- Python unittest：21 个测试通过。
+- Vitest：51 个测试通过。
+- Playwright：11 个端到端测试通过。
+- Python unittest：22 个测试通过。
 - `npm run check` 包含 typecheck、Vitest、生产构建和 Playwright。
 
 ## 3. 端口与进程安全
@@ -157,11 +157,11 @@ Spike 只实现：
 
 第三批第一版已完成：Prompt、PromptGroup、Loop 已进入 V2 路径。Prompt 支持 20,000 字编辑与既有模板库；Loop 保留次数、串并行、图片/提示词输入、起始序号、批量和计数变量字段，并按输入开关动态清理无效连线；PromptGroup 支持多选分组、成员联动移动、复制粘贴和递归删除。旧工具栏的新增 Prompt/Loop、分组和模板回填在 V2 开启时转发到 Document Store，未知扩展字段继续保留。Vitest 和 Playwright 覆盖当前已实现行为，但不代表完整生产功能等价。
 
-第四批第一版已完成：Generator、MsGen、Output 已进入 V2 路径。两类生成节点保留部分主要字段，并通过桥接调用唯一的 Legacy executor；Output 使用原生图片、视频、音频元素展示并支持下载和删除。参考图、LoRA、模型特有参数、pending/recovery、灯箱/对比和拖拽输出等完整等价能力仍待补齐或验证。
+第四批已完成代码强化：Generator、MsGen、Output 已进入 V2 路径并继续通过唯一 Legacy executor 执行。本轮补入参考媒体预览与尺寸适配、MsGen 自定义模型/比例/尺寸/LoRA、Output pending、全局灯箱/对比和拖拽输出；平台真实生成与完整模型约束仍需环境验收。
 
-第五批第一版已完成：Video、Comfy、LLM 已进入 V2 路径。Video 保留主要配置字段，Comfy 保留四种模式和部分基础/动态字段，LLM 保留节点/聊天模式的主要字段。三类节点共用 Legacy executor 桥接；手动 URL、云端直链、完整动态字段、随机参数、真实聊天/视觉输入以及真实失败重试流程仍待补齐或验证。
+第五批已完成代码强化：Video、Comfy、LLM 已进入 V2 路径并共用唯一 Legacy executor。本轮补入手动 URL/云链准备、完整动态字段分类与随机参数、视觉媒体输入、消息复制/回车发送和级联失败控制；真实视频恢复、Comfy 工作流、聊天/视觉失败重试仍需环境验收。
 
-第六批第一版已完成：Image、Group、LTX Director 已进入 V2 路径。Image 和 Group 已覆盖主要交互；LTX Director 复用现有时间线编辑器并接入 Store。复杂时间线编辑、音频、图片段和长任务恢复仍待完整验证。至此计划内节点类型均已有 V2 第一版入口，但阶段 7 尚未达到生产级退出标准。
+第六批已完成代码强化：Image、Group、LTX Director 已进入 V2 路径。LTX Director 继续复用完整时间线编辑器，本轮补入全局提示词、显示模式、自定义音频、压缩、Epsilon、整除参数和 Noise Seed；复杂音频/图片段时间线及长任务恢复仍需环境验收。阶段 7 尚未达到生产级退出标准。
 
 1. 新增独立的 `canvas_board_v2=1` 开关和完整 Board root；默认仍渲染 Legacy Board。
 2. 实现视口、选择、拖动、连线、快捷键和节点类型注册表。
@@ -175,14 +175,11 @@ Spike 只实现：
 
 ### 7.3 已知功能等价与验收缺口
 
-- Generator：参考图适配、完整模型约束、级联/重试状态交互。
-- MsGen：LoRA、模型特有参数和真实生成链路。
-- Output：灯箱、对比、pending/recovery 和拖拽输出。
-- Video：手动 URL、云端直链和真实视频任务恢复。
-- Comfy：全部动态字段、随机参数和真实工作流执行。
-- LLM：真实聊天/视觉输入、失败和重试流程。
-- LTX Director：复杂时间线编辑、音频、图片段和长任务恢复。
-- 横向验收：历史画布 fixture、保存冲突、重复计费、真实外部任务和刷新恢复。
+- 本轮已补齐：参考媒体预览与尺寸适配、MsGen 自定义模型/尺寸/LoRA、Output 灯箱/对比/pending 展示/拖拽、Video 手动 URL/云链入口、Comfy 动态字段分类与随机参数、LLM 视觉媒体输入与消息操作、LTX 高级参数、级联/重试/停止控制。
+- 本轮已补齐：后台任务使用独立 `canvas-legacy-execution-document` 投影，只合并运行字段，避免恢复结果覆盖 V2 并发编辑。
+- 本轮已补齐：历史生产画布 fixture 往返测试，覆盖未知节点/字段、LoRA、云链、Comfy 随机参数、LTX 音频段和 pending 任务。
+- 仍待真实环境验收：各平台完整模型约束、ModelScope LoRA 真实生成、视频云链和任务恢复、Comfy 真实工作流、LLM 真实聊天/视觉失败重试、LTX 长时间线与长任务。
+- 仍待真实环境验收：保存冲突人工演练、外部请求数与重复计费核对、刷新恢复抽样以及历史业务画布批量验证。
 
 自动化测试通过只证明当前第一版实现和已有契约没有回归，不代表上述能力已经完成或达到生产功能等价。
 

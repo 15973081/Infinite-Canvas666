@@ -20,16 +20,24 @@ import {
 } from './canvas/infrastructure/canvas-repository';
 import { createTaskClient, type TaskClient, type TaskClientDiagnostics } from './canvas/infrastructure/task-client';
 
+interface LegacyNodeOption {
+  label: string;
+  meta?: Record<string, unknown>;
+  value: string;
+}
+
 interface LegacyBridge {
   computeCascadeOrder(targetId: string): string[];
   computeRetryCascadeOrder(nodeId: string): string[];
   getActivitySnapshot(): unknown;
   getComfyFields(workflow: string): Promise<Array<Record<string, unknown>>>;
   getDocumentSnapshot(): unknown | null;
-  getNodeOptions(type: string, field: string, node?: Record<string, unknown>): Array<{ label: string; value: string }>;
+  getNodeOptions(type: string, field: string, node?: Record<string, unknown>): LegacyNodeOption[];
   normalizeLtxNode(node: Record<string, unknown>): Record<string, unknown>;
+  openOutputLightbox(node: Record<string, unknown>, url: string): void;
+  prepareVideoMedia(nodeId: string, snapshot: unknown, action: 'cloud' | 'manual', value?: string): Promise<unknown>;
   getStatusSnapshot(): { kind: 'error' | 'info' | 'pending' | 'success'; text: string };
-  runNode(nodeId: string, snapshot: unknown, mode?: string): Promise<unknown>;
+  runNode(nodeId: string, snapshot: unknown, mode?: 'cascade' | 'chat' | 'node'): Promise<unknown>;
   uploadMedia(files: File[]): Promise<{ files?: Array<{ kind?: string; name?: string; url?: string }> }>;
   runCommand(
     command: 'close-log' | 'open-backups' | 'open-cost' | 'open-log' | 'retry-execution' | 'stop-execution',
@@ -115,8 +123,12 @@ declare global {
       addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
       groupSelected(): void;
       importFiles(files: File[], point?: { x: number; y: number }): Promise<void>;
+      controlExecution(command: 'retry-execution' | 'stop-execution', nodeId: string): Promise<void>;
+      openOutputLightbox(node: Record<string, unknown>, url: string): void;
       openPromptTemplates(nodeId: string): void;
-      runNode(nodeId: string, mode?: string): Promise<void>;
+      prepareVideoMedia(nodeId: string, action: 'cloud' | 'manual', value?: string): Promise<void>;
+      rerunFromOutputMeta(meta: Record<string, unknown>): void;
+      runNode(nodeId: string, mode?: 'cascade' | 'chat' | 'node'): Promise<void>;
       updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
     };
     CanvasLegacyBridge?: LegacyBridge;
@@ -137,7 +149,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 21;
+      version: 22;
     };
   }
 }
@@ -189,7 +201,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 21 as const,
+  version: 22 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -385,7 +397,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '21';
+document.documentElement.dataset.canvasModernCore = '22';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';

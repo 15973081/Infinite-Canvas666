@@ -318,7 +318,7 @@ function W(n, r, i) {
 	};
 }
 if (window.CanvasModernCore = Object.freeze({
-	version: 21,
+	version: 22,
 	canvasRepository: P,
 	canvasRepositoryEnabled: T,
 	executionEngineEnabled: C,
@@ -437,35 +437,35 @@ if (window.CanvasModernCore = Object.freeze({
 	}
 }), k) {
 	let e = document.getElementById("canvasExecutionIsland");
-	e && import("./react-execution-entry-Bl2WnZbQ.js").then(({ mountReactExecutionIsland: t }) => {
+	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactExecutionIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React execution island failed to load", e));
 }
 if (A) {
 	let e = document.getElementById("canvasStatusIsland");
-	e && import("./react-execution-entry-Bl2WnZbQ.js").then(({ mountReactStatusIsland: t }) => {
+	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactStatusIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React status island failed to load", e));
 }
 if (j) {
 	let e = document.getElementById("canvasToolbarIsland");
-	e && import("./react-execution-entry-Bl2WnZbQ.js").then(({ mountReactToolbarIsland: t }) => {
+	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactToolbarIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React toolbar island failed to load", e));
 }
 if (O) {
 	let e = document.getElementById("canvasActivityIsland");
-	e && import("./react-execution-entry-Bl2WnZbQ.js").then(({ mountReactActivityIsland: t }) => {
+	e && import("./react-execution-entry-BvXNr52W.js").then(({ mountReactActivityIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React activity island failed to load", e));
 }
 if (M) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-DmDEyce6.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-MKB4bx64.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
 		window.addEventListener("pagehide", r, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e));
@@ -476,5 +476,5 @@ function G(e, t) {
 		state: e
 	} }));
 }
-document.documentElement.dataset.canvasModernCore = "21", document.documentElement.dataset.canvasBoardV2 = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = C ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = y ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = b ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = E ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = T ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = A ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = x ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = w ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
+document.documentElement.dataset.canvasModernCore = "22", document.documentElement.dataset.canvasBoardV2 = M ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionEngine = C ? "enabled" : "disabled", document.documentElement.dataset.canvasModernExecutionShadow = y ? "enabled" : "disabled", document.documentElement.dataset.canvasLegacyBridge = window.CanvasLegacyBridge ? "ready" : "missing", document.documentElement.dataset.canvasModernGraphOrder = b ? "enabled" : "disabled", document.documentElement.dataset.canvasModernM2 = E ? "enabled" : "disabled", document.documentElement.dataset.canvasModernRepository = T ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactActivity = O ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactExecution = k ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactIslands = D ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactStatus = A ? "enabled" : "disabled", document.documentElement.dataset.canvasModernReactToolbar = j ? "enabled" : "disabled", document.documentElement.dataset.canvasModernShadow = x ? "enabled" : "disabled", document.documentElement.dataset.canvasModernTaskClient = w ? "enabled" : "disabled", window.dispatchEvent(new CustomEvent("canvas-modern-core-ready"));
 //#endregion

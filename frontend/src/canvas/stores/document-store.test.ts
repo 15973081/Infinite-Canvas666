@@ -46,6 +46,33 @@ describe('document store', () => {
     expect(store.getState().document).toMatchObject({ nodes: [{ id: 'prompt' }], connections: [] });
   });
 
+  it('merges background execution recovery without overwriting concurrent V2 edits', () => {
+    const store = createDocumentStore({
+      id: 'canvas-1', updated_at: 1,
+      nodes: [
+        { id: 'generator', type: 'generator', quality: 'low', runStatus: 'pending' },
+        { id: 'output', type: 'output', images: [], _pending: [{ id: 'pending-1' }] },
+      ],
+      connections: [],
+    });
+    store.getState().updateNode('generator', { quality: 'high', futureLocalEdit: true });
+    store.getState().projectExecutionDocument({
+      id: 'canvas-1', updated_at: 2,
+      nodes: [
+        { id: 'generator', type: 'generator', quality: 'stale', runStatus: 'done', runError: '', generatedOutputs: ['/output/result.png'] },
+        { id: 'output', type: 'output', images: [{ url: '/output/result.png', run: { taskId: 'task-1' } }], _pending: [] },
+      ],
+      connections: [],
+    });
+    expect(store.getState().document).toMatchObject({
+      updated_at: 2,
+      nodes: [
+        { id: 'generator', quality: 'high', futureLocalEdit: true, runStatus: 'done', generatedOutputs: ['/output/result.png'] },
+        { id: 'output', images: [{ url: '/output/result.png' }], _pending: [] },
+      ],
+    });
+  });
+
   it('creates and edits low-risk nodes while preserving group membership', () => {
     const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [], updated_at: 1 });
     const promptId = store.getState().addNode('prompt', { x: 10, y: 20 })!;
@@ -76,9 +103,9 @@ describe('document store', () => {
     const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [] });
     const ids = ['generator', 'msgen', 'output'].map((type, index) => store.getState().addNode(type as 'generator' | 'msgen' | 'output', { x: index * 100, y: 0 }));
     expect(store.getState().document?.nodes).toMatchObject([
-      { id: ids[0], type: 'generator', ratio: 'square', resolution: '1k', count: 1 },
-      { id: ids[1], type: 'msgen', msgenModel: 'zimage', msRatio: 'square', count: 1 },
-      { id: ids[2], type: 'output', images: [] },
+      { id: ids[0], type: 'generator', ratio: 'square', resolution: '1k', count: 1, fitImage: false },
+      { id: ids[1], type: 'msgen', msgenModel: 'zimage', msRatio: 'square', count: 1, msLoraEnabled: false, msCustomRatio: '' },
+      { id: ids[2], type: 'output', images: [], imageComparisons: {} },
     ]);
   });
 
@@ -86,9 +113,9 @@ describe('document store', () => {
     const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [] });
     const ids = ['video', 'comfy', 'llm'].map((type, index) => store.getState().addNode(type as 'video' | 'comfy' | 'llm', { x: index * 100, y: 0 }));
     expect(store.getState().document?.nodes).toMatchObject([
-      { id: ids[0], type: 'video', duration: 5, aspectRatio: '16:9', taskMode: 'auto' },
-      { id: ids[1], type: 'comfy', mode: 'text', width: 1024, height: 1024, comfyParams: {} },
-      { id: ids[2], type: 'llm', mode: 'node', messages: [], outputText: '' },
+      { id: ids[0], type: 'video', duration: 5, aspectRatio: '16:9', taskMode: 'auto', manualVideoUrls: [], tempShLinks: [] },
+      { id: ids[1], type: 'comfy', mode: 'text', width: 1024, height: 1024, comfyParams: {}, comfyRandomActive: {} },
+      { id: ids[2], type: 'llm', mode: 'node', showSystem: false, messages: [], outputText: '' },
     ]);
   });
 

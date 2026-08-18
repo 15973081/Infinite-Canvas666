@@ -9,7 +9,7 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_classic_canvas_loads_built_bridge_after_legacy_canvas(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         legacy = '/static/js/canvas.js?v=2026.07.23.4'
-        modern = '/static/dist/canvas-modern.js?v=2026.08.18.21'
+        modern = '/static/dist/canvas-modern.js?v=2026.08.18.22'
 
         self.assertLess(html.index(legacy), html.index(modern))
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
@@ -34,6 +34,26 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         self.assertIn("command === 'stop-execution'", bridge)
         self.assertIn("command === 'retry-execution'", bridge)
         self.assertNotIn("scheduleSave(", bridge)
+
+    def test_board_v2_parity_bridge_keeps_one_executor_and_projects_results(self):
+        legacy = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
+        board = (ROOT / "frontend" / "src" / "canvas" / "ui" / "canvas-board-v2.tsx").read_text(encoding="utf-8")
+        main = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
+        start = legacy.index("window.CanvasLegacyBridge = Object.freeze({")
+        end = legacy.index("async function saveCanvas()", start)
+        bridge = legacy[start:end]
+
+        self.assertIn("adoptCanvasBridgeSnapshot(snapshot)", bridge)
+        self.assertIn("else if(mode === 'cascade') await runNodeCascade", bridge)
+        self.assertEqual(1, bridge.count("else await runCanvasGenerate"))
+        self.assertIn("prepareVideoMedia(nodeId, snapshot, action", bridge)
+        self.assertIn("openOutputLightbox(node, url)", bridge)
+        self.assertIn("field === 'lora'", bridge)
+        self.assertIn("bridge.runNode(nodeId, snapshot, mode)", board)
+        self.assertIn("store.getState().projectDocument(result)", board)
+        self.assertIn("controlExecution(command", board)
+        self.assertIn("application/x-canvas-output-image", board)
+        self.assertIn("prepareVideoMedia", main)
 
     def test_graph_order_activation_falls_back_to_legacy_functions(self):
         source = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
@@ -121,11 +141,15 @@ class FrontendBridgeEntryTest(unittest.TestCase):
         source = (ROOT / "frontend" / "src" / "main.ts").read_text(encoding="utf-8")
 
         self.assertEqual(1, legacy.count("new CustomEvent('canvas-legacy-document'"))
+        self.assertEqual(1, legacy.count("new CustomEvent('canvas-legacy-execution-document'"))
         self.assertEqual(1, legacy.count("new CustomEvent('canvas-legacy-activity'"))
         self.assertIn('id="canvasActivityIsland" hidden', html)
         self.assertIn("canvas_react_activity", source)
         self.assertIn("canvas_react_islands", source)
         self.assertIn("mountReactActivityIsland", source)
+        board = (ROOT / "frontend" / "src" / "canvas" / "ui" / "canvas-board-v2.tsx").read_text(encoding="utf-8")
+        self.assertIn("projectExecutionDocument", board)
+        self.assertIn("canvas-legacy-execution-document", board)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ export interface DocumentStoreState {
   moveNode(nodeId: string, x: number, y: number): void;
   pasteNodes(clipboard: { connections: CanvasEdge[]; nodes: CanvasNode[] }): string[];
   projectDocument(snapshot: unknown): void;
+  projectExecutionDocument(snapshot: unknown): void;
   updateNode(nodeId: string, patch: Record<string, unknown>): void;
 }
 
@@ -42,17 +43,17 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       const id = `${type}_${crypto.randomUUID()}`;
       const position = point ?? { x: 80 + (index % 4) * 360, y: 160 + Math.floor(index / 4) * 280 };
       const defaults: Record<string, Record<string, unknown>> = {
-        comfy: { w: 420, h: 460, mode: 'text', width: 1024, height: 1024, enhanceStrength: 0.5, enhanceUpscale: false, enhanceUpscaleRes: 2048, editUpscale: false, editUpscaleRes: 2048, comfyWorkflow: '', comfyParams: {}, count: 1, inputs: [] },
-        generator: { apiProvider: '', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1, customRatio: '', customSize: '', customRatioWidth: '', customRatioHeight: '', customWidth: '', customHeight: '', inputs: [] },
+        comfy: { w: 420, h: 460, mode: 'text', width: 1024, height: 1024, enhanceStrength: 0.5, enhanceUpscale: false, enhanceUpscaleRes: 2048, editUpscale: false, editUpscaleRes: 2048, comfyWorkflow: '', comfyParams: {}, comfyRandomActive: {}, count: 1, inputs: [] },
+        generator: { apiProvider: '', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1, customRatio: '', customSize: '', customRatioWidth: '', customRatioHeight: '', customWidth: '', customHeight: '', fitImage: false, inputs: [] },
         group: { w: 300, h: 220, items: [] },
         image: { url: '', name: '空白图片', mediaKind: 'image' },
-        llm: { llmProvider: 'comfly', model: '', mode: 'node', systemPrompt: 'You are a helpful assistant. Rewrite the input into a concise image prompt.', chatInput: '', messages: [], outputText: '', llmInputHeight: 110, llmOutputHeight: 150 },
+        llm: { llmProvider: 'comfly', model: '', mode: 'node', showSystem: false, systemPrompt: 'You are a helpful assistant. Rewrite the input into a concise image prompt.', chatInput: '', messages: [], outputText: '', llmInputHeight: 110, llmOutputHeight: 150 },
         loop: { count: 3, mode: 'serial', showPrompt: false, imageInput: false, videoInput: false, loopStart: 1, imageBatchSize: 1, videoBatchSize: 1, variablePrompt: '', fixedPrompt: '' },
         ltxDirector: { w: 1000, h: 800, globalPrompt: '', durationFrames: 120, durationSeconds: 5, frameRate: 24, customWidth: 0, customHeight: 0, displayMode: 'seconds', useCustomAudio: false, imgCompression: 18, epsilon: 0.001, divisibleBy: 32, noiseSeed: 12, ltxTimelineData: '', ltxLocalPrompts: '', ltxSegmentLengths: '', ltxGuideStrength: '', ltxSegments: [], ltxSelectedSegId: '', inputs: [] },
-        msgen: { msgenModel: 'zimage', msWidth: 1024, msHeight: 1024, msCustomModel: 'Tongyi-MAI/Z-Image-Turbo', msRatio: 'square', msResolution: '1k', count: 1, fitImage: false, inputs: [] },
-        output: { images: [] },
+        msgen: { msgenModel: 'zimage', msWidth: 1024, msHeight: 1024, msCustomModel: 'Tongyi-MAI/Z-Image-Turbo', msRatio: 'square', msResolution: '1k', msCustomRatio: '', msCustomSize: '', msCustomRatioWidth: '', msCustomRatioHeight: '', msCustomWidth: '', msCustomHeight: '', msLoraEnabled: false, msLoraId: '', msLoraStrength: 0.8, count: 1, fitImage: false, inputs: [] },
+        output: { images: [], imageComparisons: {} },
         prompt: { text: '' },
-        video: { apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', enhancePrompt: false, enableUpsample: false, watermark: false, cameraFixed: false, generateAudio: false, taskMode: 'auto', useFrameRoles: false, multimodal: false, tempShLinks: [], inputs: [] },
+        video: { apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', enhancePrompt: false, enableUpsample: false, watermark: false, cameraFixed: false, generateAudio: false, taskMode: 'auto', useFrameRoles: false, multimodal: false, manualVideoUrls: [], tempShLinks: [], inputs: [] },
       };
       const node: CanvasNode = { id, type, ...position, ...defaults[type] };
       set({ document: { ...current, nodes: [...current.nodes, node] } });
@@ -153,6 +154,27 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
     projectDocument: (snapshot) => {
       const next = decodeSnapshot(snapshot);
       if (next) set({ document: next });
+    },
+    projectExecutionDocument: (snapshot) => {
+      const projected = decodeSnapshot(snapshot);
+      const current = get().document;
+      if (!current || !projected || current.id !== projected.id) return;
+      const projectedById = new Map(projected.nodes.map((node) => [node.id, node]));
+      const executionFields = [
+        '_cascadeFailed', '_pending', 'generatedOutputs', 'imageComparisons', 'images', 'messages',
+        'outputLayout', 'outputText', 'pendingTaskId', 'runError', 'running', 'runStatus',
+      ];
+      const nodes = current.nodes.map((node) => {
+        const next = projectedById.get(node.id);
+        if (!next) return node;
+        const patch: Record<string, unknown> = {};
+        executionFields.forEach((field) => {
+          if (field in next) patch[field] = structuredClone(next[field]);
+          else if (field in node) patch[field] = undefined;
+        });
+        return { ...node, ...patch };
+      });
+      set({ document: { ...current, nodes, updated_at: projected.updated_at ?? current.updated_at } });
     },
     updateNode: (nodeId, patch) => set(({ document }) => {
       if (!document?.nodes.some((node) => node.id === nodeId)) return {};
