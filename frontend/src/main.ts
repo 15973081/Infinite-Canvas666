@@ -25,7 +25,9 @@ interface LegacyBridge {
   computeRetryCascadeOrder(nodeId: string): string[];
   getActivitySnapshot(): unknown;
   getDocumentSnapshot(): unknown | null;
+  getNodeOptions(type: string, field: string, node?: Record<string, unknown>): Array<{ label: string; value: string }>;
   getStatusSnapshot(): { kind: 'error' | 'info' | 'pending' | 'success'; text: string };
+  runNode(nodeId: string, snapshot: unknown): Promise<unknown>;
   runCommand(
     command: 'close-log' | 'open-backups' | 'open-cost' | 'open-log' | 'retry-execution' | 'stop-execution',
     payload?: { targetId?: string },
@@ -102,9 +104,10 @@ interface ParallelExecutionRequest {
 declare global {
   interface Window {
     CanvasBoardV2?: {
-      addNode(type: 'loop' | 'prompt', point?: { x: number; y: number }): string | null;
+      addNode(type: 'generator' | 'loop' | 'msgen' | 'output' | 'prompt', point?: { x: number; y: number }): string | null;
       groupSelected(): void;
       openPromptTemplates(nodeId: string): void;
+      runNode(nodeId: string): Promise<void>;
       updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
     };
     CanvasLegacyBridge?: LegacyBridge;
@@ -125,7 +128,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 18;
+      version: 19;
     };
   }
 }
@@ -177,7 +180,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 18 as const,
+  version: 19 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -373,7 +376,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '18';
+document.documentElement.dataset.canvasModernCore = '19';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';

@@ -21,6 +21,8 @@ function nodeSize(node: CanvasNode): { height: number; width: number } {
   const defaults = node.type === 'prompt' ? { height: 230, width: 310 }
     : node.type === 'loop' ? { height: node.showPrompt || node.imageInput ? 390 : 180, width: 336 }
       : node.type === 'promptGroup' ? { height: 220, width: 260 }
+        : node.type === 'generator' || node.type === 'msgen' ? { height: 340, width: 380 }
+          : node.type === 'output' ? { height: 320, width: 460 }
         : { height: 110, width: 240 };
   return { height: Number(node.h || defaults.height), width: Number(node.w || defaults.width) };
 }
@@ -90,6 +92,88 @@ function LoopBody({ commit, node, store }: { commit: () => void; node: CanvasNod
   </div>;
 }
 
+const ratios = [['square', '1:1'], ['portrait', '2:3'], ['landscape', '3:2'], ['portrait43', '3:4'], ['landscape43', '4:3'], ['story', '9:16'], ['wide', '16:9'], ['ultrawide', '21:9'], ['ultratall', '9:21'], ['source', '自适应'], ['custom', '自定义']] as const;
+const resolutions = [['1k', '1K'], ['2k', '2K'], ['4k', '4K'], ['custom', '自定义']] as const;
+
+function SelectField({ ariaLabel, onChange, options, value }: { ariaLabel: string; onChange: (value: string) => void; options: ReadonlyArray<readonly [string, string]>; value: string }) {
+  return <select aria-label={ariaLabel} className="select-lite" onChange={(event) => onChange(event.target.value)} value={value}>
+    {!options.some(([key]) => key === value) && value ? <option value={value}>{value}</option> : null}
+    {options.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+  </select>;
+}
+
+function RunButton({ node }: { node: CanvasNode }) {
+  const [running, setRunning] = useState(false);
+  return <button className={`gen-btn ${running ? 'running' : ''}`} disabled={running} onClick={async () => {
+    setRunning(true);
+    try { await window.CanvasBoardV2?.runNode(node.id); }
+    catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
+    finally { setRunning(false); }
+  }} type="button">{running ? '运行中…' : '运行'}</button>;
+}
+
+function InputSummary({ document, node }: { document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode }) {
+  const sources = document.connections.filter((edge) => edge.to === node.id).map((edge) => document.nodes.find((item) => item.id === edge.from)).filter(Boolean) as CanvasNode[];
+  const prompts = sources.filter((item) => ['prompt', 'promptGroup', 'loop', 'llm'].includes(item.type)).length;
+  const images = sources.filter((item) => ['image', 'group', 'output'].includes(item.type)).length;
+  return <div className="text-[10px] text-gray-400">提示词 {prompts} · 图片/媒体 {images}</div>;
+}
+
+function GeneratorBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
+  const bridge = window.CanvasLegacyBridge;
+  const providerOptions = (bridge?.getNodeOptions('generator', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
+  const modelOptions = (bridge?.getNodeOptions('generator', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const provider = String(node.apiProvider || providerOptions[0]?.[0] || '');
+  return <div className="generator-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+    <InputSummary document={document} node={node} />
+    <div className="gen-settings"><div className="gen-settings-row">
+      <SelectField ariaLabel="图片平台" onChange={(apiProvider) => {
+        const models = bridge?.getNodeOptions('generator', 'model', { ...node, apiProvider }) ?? [];
+        update({ apiProvider, model: models[0]?.value || '' });
+      }} options={providerOptions} value={provider} />
+      <SelectField ariaLabel="图片模型" onChange={(model) => update({ model })} options={modelOptions} value={String(node.model || '')} />
+    </div><div className="gen-settings-row">
+      <SelectField ariaLabel="分辨率" onChange={(resolution) => update({ resolution, ...(resolution === 'custom' ? { ratio: '' } : {}) })} options={resolutions} value={String(node.resolution || '1k')} />
+      <SelectField ariaLabel="比例" onChange={(ratio) => update({ ratio })} options={ratios} value={String(node.ratio || 'square')} />
+      <SelectField ariaLabel="质量" onChange={(quality) => update({ quality })} options={['auto', 'low', 'medium', 'high'].map((value) => [value, `Q ${value}`] as const)} value={String(node.quality || 'auto')} />
+      <input aria-label="生成数量" className="gen-count-input" max="8" min="1" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { count: Math.max(1, Math.min(8, Number(event.target.value) || 1)) })} type="number" value={Math.max(1, Math.min(8, Number(node.count || 1)))} />
+    </div>
+    {node.ratio === 'custom' ? <div className="gen-settings-row"><input aria-label="比例宽" className="setting-input" min="1" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { customRatioWidth: event.target.value, customRatio: `${event.target.value}:${String(node.customRatioHeight || '')}` })} type="number" value={String(node.customRatioWidth || '')} /><input aria-label="比例高" className="setting-input" min="1" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { customRatioHeight: event.target.value, customRatio: `${String(node.customRatioWidth || '')}:${event.target.value}` })} type="number" value={String(node.customRatioHeight || '')} /></div> : null}
+    {node.resolution === 'custom' ? <div className="gen-settings-row"><input aria-label="自定义宽度" className="setting-input" min="64" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { customWidth: event.target.value, customSize: `${event.target.value}x${String(node.customHeight || '')}` })} step="64" type="number" value={String(node.customWidth || '')} /><input aria-label="自定义高度" className="setting-input" min="64" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { customHeight: event.target.value, customSize: `${String(node.customWidth || '')}x${event.target.value}` })} step="64" type="number" value={String(node.customHeight || '')} /></div> : null}
+    </div><div className="gen-run-row"><RunButton node={node} /></div>
+  </div>;
+}
+
+function MsGenBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
+  const models = (window.CanvasLegacyBridge?.getNodeOptions('msgen', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  return <div className="generator-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+    <InputSummary document={document} node={node} />
+    <div className="ms-model-tabs">{models.map(([value, label]) => <button className={node.msgenModel === value ? 'active' : ''} key={value} onClick={() => update({ msgenModel: value, msLoraEnabled: false, msLoraId: '' })} type="button">{label}</button>)}</div>
+    {node.msgenModel === 'custom' ? <input aria-label="ModelScope 模型" className="setting-input" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { msCustomModel: event.target.value })} value={String(node.msCustomModel || '')} /> : null}
+    <div className="gen-settings"><div className="gen-settings-row">
+      <SelectField ariaLabel="ModelScope 分辨率" onChange={(msResolution) => update({ msResolution, ...(msResolution === 'custom' ? { msRatio: '' } : {}) })} options={resolutions} value={String(node.msResolution || '1k')} />
+      <SelectField ariaLabel="ModelScope 比例" onChange={(msRatio) => update({ msRatio })} options={ratios.filter(([value]) => value !== 'source')} value={String(node.msRatio || 'square')} />
+      <input aria-label="ModelScope 生成数量" className="gen-count-input" max="8" min="1" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { count: Math.max(1, Math.min(8, Number(event.target.value) || 1)) })} type="number" value={Math.max(1, Math.min(8, Number(node.count || 1)))} />
+    </div></div><div className="gen-run-row"><RunButton node={node} /></div>
+  </div>;
+}
+
+function OutputBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  const images = Array.isArray(node.images) ? node.images : [];
+  const urlOf = (item: unknown) => typeof item === 'string' ? item : String((item as { url?: unknown })?.url || '');
+  const remove = (url: string) => { store.getState().updateNode(node.id, { images: images.filter((item) => urlOf(item) !== url) }); commit(); };
+  return <div className="output-grid" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>{images.map((item, index) => {
+    const url = urlOf(item);
+    const kind = String((item as { kind?: unknown })?.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : /\.(mp3|wav|m4a)(\?|$)/i.test(url) ? 'audio' : 'image'));
+    return <div className="output-img-wrap" data-output-url={url} key={`${url}-${index}`}>
+      {kind === 'video' ? <video controls onDoubleClick={() => window.open(url, '_blank', 'noopener')} preload="metadata" src={url} /> : kind === 'audio' ? <audio controls preload="metadata" src={url} /> : <img alt="generated output" draggable onClick={() => window.open(url, '_blank', 'noopener')} src={url} />}
+      <a className="output-download" download href={url} onClick={(event) => event.stopPropagation()}>↓</a><button aria-label="删除输出" className="output-del" onClick={() => remove(url)} type="button">×</button>
+    </div>;
+  })}</div>;
+}
+
 function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
@@ -100,6 +184,7 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const documentId = String(document?.id || '');
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
+  const boardDocument = { connections: document?.connections ?? [], nodes: document?.nodes ?? [] };
 
   useEffect(() => {
     setConnectingFrom('');
@@ -292,7 +377,10 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
           <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} store={store} />
             : node.type === 'promptGroup' ? <PromptGroupBody node={node} nodesById={nodesById} />
               : node.type === 'loop' ? <LoopBody commit={commit} node={node} store={store} />
-                : String(node.title || node.name || node.id)}</div>
+                : node.type === 'generator' ? <GeneratorBody commit={commit} document={boardDocument} node={node} store={store} />
+                  : node.type === 'msgen' ? <MsGenBody commit={commit} document={boardDocument} node={node} store={store} />
+                    : node.type === 'output' ? <OutputBody commit={commit} node={node} store={store} />
+                      : String(node.title || node.name || node.id)}</div>
         </article>;
       })}
     </div>
@@ -350,6 +438,12 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     },
     openPromptTemplates(nodeId) {
       window.openPromptTemplateModal?.(nodeId);
+    },
+    async runNode(nodeId) {
+      const snapshot = store.getState().document;
+      if (!snapshot) return;
+      const result = await bridge.runNode(nodeId, snapshot);
+      store.getState().projectDocument(result);
     },
     updateNode(nodeId, patch) {
       if (!store.getState().document?.nodes.some((node) => node.id === nodeId)) return false;

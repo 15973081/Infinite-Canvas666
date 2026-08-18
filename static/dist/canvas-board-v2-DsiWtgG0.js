@@ -1,4 +1,4 @@
-import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-DYrc4mMT.js";
+import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-aC5BX32R.js";
 import { t as o } from "./canvas-repository-qZo_3rR8.js";
 //#region src/canvas/ui/canvas-board-v2.tsx
 var s = /* @__PURE__ */ e(i(), 1), c = n(), l = a(), u = {
@@ -31,6 +31,12 @@ function f(e) {
 	} : e.type === "promptGroup" ? {
 		height: 220,
 		width: 260
+	} : e.type === "generator" || e.type === "msgen" ? {
+		height: 340,
+		width: 380
+	} : e.type === "output" ? {
+		height: 320,
+		width: 460
 	} : {
 		height: 110,
 		width: 240
@@ -240,15 +246,355 @@ function _({ commit: e, node: t, store: n }) {
 		]
 	});
 }
-function v({ commit: e, store: n }) {
-	let r = t(n, ({ document: e }) => e), i = (0, s.useRef)(null), [a, o] = (0, s.useState)(""), [c, v] = (0, s.useState)(-1), [y, b] = (0, s.useState)(/* @__PURE__ */ new Set()), [x, S] = (0, s.useState)("ready"), [C, w] = (0, s.useState)({
+var v = [
+	["square", "1:1"],
+	["portrait", "2:3"],
+	["landscape", "3:2"],
+	["portrait43", "3:4"],
+	["landscape43", "4:3"],
+	["story", "9:16"],
+	["wide", "16:9"],
+	["ultrawide", "21:9"],
+	["ultratall", "9:21"],
+	["source", "自适应"],
+	["custom", "自定义"]
+], y = [
+	["1k", "1K"],
+	["2k", "2K"],
+	["4k", "4K"],
+	["custom", "自定义"]
+];
+function b({ ariaLabel: e, onChange: t, options: n, value: r }) {
+	return /* @__PURE__ */ (0, l.jsxs)("select", {
+		"aria-label": e,
+		className: "select-lite",
+		onChange: (e) => t(e.target.value),
+		value: r,
+		children: [!n.some(([e]) => e === r) && r ? /* @__PURE__ */ (0, l.jsx)("option", {
+			value: r,
+			children: r
+		}) : null, n.map(([e, t]) => /* @__PURE__ */ (0, l.jsx)("option", {
+			value: e,
+			children: t
+		}, e))]
+	});
+}
+function x({ node: e }) {
+	let [t, n] = (0, s.useState)(!1);
+	return /* @__PURE__ */ (0, l.jsx)("button", {
+		className: `gen-btn ${t ? "running" : ""}`,
+		disabled: t,
+		onClick: async () => {
+			n(!0);
+			try {
+				await window.CanvasBoardV2?.runNode(e.id);
+			} catch (e) {
+				window.alert(e instanceof Error ? e.message : String(e));
+			} finally {
+				n(!1);
+			}
+		},
+		type: "button",
+		children: t ? "运行中…" : "运行"
+	});
+}
+function S({ document: e, node: t }) {
+	let n = e.connections.filter((e) => e.to === t.id).map((t) => e.nodes.find((e) => e.id === t.from)).filter(Boolean), r = n.filter((e) => [
+		"prompt",
+		"promptGroup",
+		"loop",
+		"llm"
+	].includes(e.type)).length, i = n.filter((e) => [
+		"image",
+		"group",
+		"output"
+	].includes(e.type)).length;
+	return /* @__PURE__ */ (0, l.jsxs)("div", {
+		className: "text-[10px] text-gray-400",
+		children: [
+			"提示词 ",
+			r,
+			" · 图片/媒体 ",
+			i
+		]
+	});
+}
+function C({ commit: e, document: t, node: n, store: r }) {
+	let i = (t) => {
+		r.getState().updateNode(n.id, t), e();
+	}, a = window.CanvasLegacyBridge, o = (a?.getNodeOptions("generator", "provider", n) ?? []).map((e) => [e.value, e.label]), s = (a?.getNodeOptions("generator", "model", n) ?? []).map((e) => [e.value, e.label]), c = String(n.apiProvider || o[0]?.[0] || "");
+	return /* @__PURE__ */ (0, l.jsxs)("div", {
+		className: "generator-body",
+		onClick: (e) => e.stopPropagation(),
+		onPointerDown: (e) => e.stopPropagation(),
+		children: [
+			/* @__PURE__ */ (0, l.jsx)(S, {
+				document: t,
+				node: n
+			}),
+			/* @__PURE__ */ (0, l.jsxs)("div", {
+				className: "gen-settings",
+				children: [
+					/* @__PURE__ */ (0, l.jsxs)("div", {
+						className: "gen-settings-row",
+						children: [/* @__PURE__ */ (0, l.jsx)(b, {
+							ariaLabel: "图片平台",
+							onChange: (e) => {
+								let t = a?.getNodeOptions("generator", "model", {
+									...n,
+									apiProvider: e
+								}) ?? [];
+								i({
+									apiProvider: e,
+									model: t[0]?.value || ""
+								});
+							},
+							options: o,
+							value: c
+						}), /* @__PURE__ */ (0, l.jsx)(b, {
+							ariaLabel: "图片模型",
+							onChange: (e) => i({ model: e }),
+							options: s,
+							value: String(n.model || "")
+						})]
+					}),
+					/* @__PURE__ */ (0, l.jsxs)("div", {
+						className: "gen-settings-row",
+						children: [
+							/* @__PURE__ */ (0, l.jsx)(b, {
+								ariaLabel: "分辨率",
+								onChange: (e) => i({
+									resolution: e,
+									...e === "custom" ? { ratio: "" } : {}
+								}),
+								options: y,
+								value: String(n.resolution || "1k")
+							}),
+							/* @__PURE__ */ (0, l.jsx)(b, {
+								ariaLabel: "比例",
+								onChange: (e) => i({ ratio: e }),
+								options: v,
+								value: String(n.ratio || "square")
+							}),
+							/* @__PURE__ */ (0, l.jsx)(b, {
+								ariaLabel: "质量",
+								onChange: (e) => i({ quality: e }),
+								options: [
+									"auto",
+									"low",
+									"medium",
+									"high"
+								].map((e) => [e, `Q ${e}`]),
+								value: String(n.quality || "auto")
+							}),
+							/* @__PURE__ */ (0, l.jsx)("input", {
+								"aria-label": "生成数量",
+								className: "gen-count-input",
+								max: "8",
+								min: "1",
+								onBlur: e,
+								onChange: (e) => r.getState().updateNode(n.id, { count: Math.max(1, Math.min(8, Number(e.target.value) || 1)) }),
+								type: "number",
+								value: Math.max(1, Math.min(8, Number(n.count || 1)))
+							})
+						]
+					}),
+					n.ratio === "custom" ? /* @__PURE__ */ (0, l.jsxs)("div", {
+						className: "gen-settings-row",
+						children: [/* @__PURE__ */ (0, l.jsx)("input", {
+							"aria-label": "比例宽",
+							className: "setting-input",
+							min: "1",
+							onBlur: e,
+							onChange: (e) => r.getState().updateNode(n.id, {
+								customRatioWidth: e.target.value,
+								customRatio: `${e.target.value}:${String(n.customRatioHeight || "")}`
+							}),
+							type: "number",
+							value: String(n.customRatioWidth || "")
+						}), /* @__PURE__ */ (0, l.jsx)("input", {
+							"aria-label": "比例高",
+							className: "setting-input",
+							min: "1",
+							onBlur: e,
+							onChange: (e) => r.getState().updateNode(n.id, {
+								customRatioHeight: e.target.value,
+								customRatio: `${String(n.customRatioWidth || "")}:${e.target.value}`
+							}),
+							type: "number",
+							value: String(n.customRatioHeight || "")
+						})]
+					}) : null,
+					n.resolution === "custom" ? /* @__PURE__ */ (0, l.jsxs)("div", {
+						className: "gen-settings-row",
+						children: [/* @__PURE__ */ (0, l.jsx)("input", {
+							"aria-label": "自定义宽度",
+							className: "setting-input",
+							min: "64",
+							onBlur: e,
+							onChange: (e) => r.getState().updateNode(n.id, {
+								customWidth: e.target.value,
+								customSize: `${e.target.value}x${String(n.customHeight || "")}`
+							}),
+							step: "64",
+							type: "number",
+							value: String(n.customWidth || "")
+						}), /* @__PURE__ */ (0, l.jsx)("input", {
+							"aria-label": "自定义高度",
+							className: "setting-input",
+							min: "64",
+							onBlur: e,
+							onChange: (e) => r.getState().updateNode(n.id, {
+								customHeight: e.target.value,
+								customSize: `${String(n.customWidth || "")}x${e.target.value}`
+							}),
+							step: "64",
+							type: "number",
+							value: String(n.customHeight || "")
+						})]
+					}) : null
+				]
+			}),
+			/* @__PURE__ */ (0, l.jsx)("div", {
+				className: "gen-run-row",
+				children: /* @__PURE__ */ (0, l.jsx)(x, { node: n })
+			})
+		]
+	});
+}
+function w({ commit: e, document: t, node: n, store: r }) {
+	let i = (t) => {
+		r.getState().updateNode(n.id, t), e();
+	}, a = (window.CanvasLegacyBridge?.getNodeOptions("msgen", "model", n) ?? []).map((e) => [e.value, e.label]);
+	return /* @__PURE__ */ (0, l.jsxs)("div", {
+		className: "generator-body",
+		onClick: (e) => e.stopPropagation(),
+		onPointerDown: (e) => e.stopPropagation(),
+		children: [
+			/* @__PURE__ */ (0, l.jsx)(S, {
+				document: t,
+				node: n
+			}),
+			/* @__PURE__ */ (0, l.jsx)("div", {
+				className: "ms-model-tabs",
+				children: a.map(([e, t]) => /* @__PURE__ */ (0, l.jsx)("button", {
+					className: n.msgenModel === e ? "active" : "",
+					onClick: () => i({
+						msgenModel: e,
+						msLoraEnabled: !1,
+						msLoraId: ""
+					}),
+					type: "button",
+					children: t
+				}, e))
+			}),
+			n.msgenModel === "custom" ? /* @__PURE__ */ (0, l.jsx)("input", {
+				"aria-label": "ModelScope 模型",
+				className: "setting-input",
+				onBlur: e,
+				onChange: (e) => r.getState().updateNode(n.id, { msCustomModel: e.target.value }),
+				value: String(n.msCustomModel || "")
+			}) : null,
+			/* @__PURE__ */ (0, l.jsx)("div", {
+				className: "gen-settings",
+				children: /* @__PURE__ */ (0, l.jsxs)("div", {
+					className: "gen-settings-row",
+					children: [
+						/* @__PURE__ */ (0, l.jsx)(b, {
+							ariaLabel: "ModelScope 分辨率",
+							onChange: (e) => i({
+								msResolution: e,
+								...e === "custom" ? { msRatio: "" } : {}
+							}),
+							options: y,
+							value: String(n.msResolution || "1k")
+						}),
+						/* @__PURE__ */ (0, l.jsx)(b, {
+							ariaLabel: "ModelScope 比例",
+							onChange: (e) => i({ msRatio: e }),
+							options: v.filter(([e]) => e !== "source"),
+							value: String(n.msRatio || "square")
+						}),
+						/* @__PURE__ */ (0, l.jsx)("input", {
+							"aria-label": "ModelScope 生成数量",
+							className: "gen-count-input",
+							max: "8",
+							min: "1",
+							onBlur: e,
+							onChange: (e) => r.getState().updateNode(n.id, { count: Math.max(1, Math.min(8, Number(e.target.value) || 1)) }),
+							type: "number",
+							value: Math.max(1, Math.min(8, Number(n.count || 1)))
+						})
+					]
+				})
+			}),
+			/* @__PURE__ */ (0, l.jsx)("div", {
+				className: "gen-run-row",
+				children: /* @__PURE__ */ (0, l.jsx)(x, { node: n })
+			})
+		]
+	});
+}
+function T({ commit: e, node: t, store: n }) {
+	let r = Array.isArray(t.images) ? t.images : [], i = (e) => typeof e == "string" ? e : String(e?.url || ""), a = (a) => {
+		n.getState().updateNode(t.id, { images: r.filter((e) => i(e) !== a) }), e();
+	};
+	return /* @__PURE__ */ (0, l.jsx)("div", {
+		className: "output-grid",
+		onClick: (e) => e.stopPropagation(),
+		onPointerDown: (e) => e.stopPropagation(),
+		children: r.map((e, t) => {
+			let n = i(e), r = String(e?.kind || (/\.(mp4|webm|mov)(\?|$)/i.test(n) ? "video" : /\.(mp3|wav|m4a)(\?|$)/i.test(n) ? "audio" : "image"));
+			return /* @__PURE__ */ (0, l.jsxs)("div", {
+				className: "output-img-wrap",
+				"data-output-url": n,
+				children: [
+					r === "video" ? /* @__PURE__ */ (0, l.jsx)("video", {
+						controls: !0,
+						onDoubleClick: () => window.open(n, "_blank", "noopener"),
+						preload: "metadata",
+						src: n
+					}) : r === "audio" ? /* @__PURE__ */ (0, l.jsx)("audio", {
+						controls: !0,
+						preload: "metadata",
+						src: n
+					}) : /* @__PURE__ */ (0, l.jsx)("img", {
+						alt: "generated output",
+						draggable: !0,
+						onClick: () => window.open(n, "_blank", "noopener"),
+						src: n
+					}),
+					/* @__PURE__ */ (0, l.jsx)("a", {
+						className: "output-download",
+						download: !0,
+						href: n,
+						onClick: (e) => e.stopPropagation(),
+						children: "↓"
+					}),
+					/* @__PURE__ */ (0, l.jsx)("button", {
+						"aria-label": "删除输出",
+						className: "output-del",
+						onClick: () => a(n),
+						type: "button",
+						children: "×"
+					})
+				]
+			}, `${n}-${t}`);
+		})
+	});
+}
+function E({ commit: e, store: n }) {
+	let r = t(n, ({ document: e }) => e), i = (0, s.useRef)(null), [a, o] = (0, s.useState)(""), [c, v] = (0, s.useState)(-1), [y, b] = (0, s.useState)(/* @__PURE__ */ new Set()), [x, S] = (0, s.useState)("ready"), [E, D] = (0, s.useState)({
 		x: 0,
 		y: 0,
 		zoom: 1
-	}), T = String(r?.id || ""), E = new Map((r?.nodes ?? []).map((e) => [e.id, e]));
+	}), O = String(r?.id || ""), k = new Map((r?.nodes ?? []).map((e) => [e.id, e])), A = {
+		connections: r?.connections ?? [],
+		nodes: r?.nodes ?? []
+	};
 	(0, s.useEffect)(() => {
 		o(""), v(-1), b(/* @__PURE__ */ new Set());
-	}, [T]), (0, s.useEffect)(() => {
+	}, [O]), (0, s.useEffect)(() => {
 		let t = (t) => {
 			let r = t.target, a = r?.isContentEditable || r?.matches("input, textarea, select");
 			if (t.key === "Escape") {
@@ -300,22 +646,22 @@ function v({ commit: e, store: n }) {
 		let e = (e) => S(String(e.detail || "ready"));
 		return window.addEventListener("canvas-board-v2-save-state", e), () => window.removeEventListener("canvas-board-v2-save-state", e);
 	}, []);
-	let D = (t) => {
+	let j = (t) => {
 		a && n.getState().connectNodes(a, t) && e(), o("");
 	};
 	return /* @__PURE__ */ (0, l.jsxs)("div", {
 		"aria-label": "CanvasBoard V2",
 		"data-testid": "canvas-board-v2",
-		"data-viewport": `${C.x},${C.y},${C.zoom.toFixed(2)}`,
+		"data-viewport": `${E.x},${E.y},${E.zoom.toFixed(2)}`,
 		onPointerDown: (e) => {
 			if (e.button !== 0) return;
 			let t = e.currentTarget, n = {
 				x: e.clientX,
 				y: e.clientY,
-				viewport: C
+				viewport: E
 			};
 			t.setPointerCapture(e.pointerId), b(/* @__PURE__ */ new Set()), v(-1);
-			let r = (e) => w((t) => ({
+			let r = (e) => D((t) => ({
 				...t,
 				x: n.viewport.x + e.clientX - n.x,
 				y: n.viewport.y + e.clientY - n.y
@@ -323,7 +669,7 @@ function v({ commit: e, store: n }) {
 			t.addEventListener("pointermove", r), t.addEventListener("pointerup", () => t.removeEventListener("pointermove", r), { once: !0 });
 		},
 		onWheel: (e) => {
-			e.preventDefault(), w((t) => ({
+			e.preventDefault(), D((t) => ({
 				...t,
 				zoom: Math.min(1.5, Math.max(.25, t.zoom * (e.deltaY < 0 ? 1.1 : .9)))
 			}));
@@ -351,7 +697,7 @@ function v({ commit: e, store: n }) {
 			style: {
 				height: 4e3,
 				position: "absolute",
-				transform: `translate(${C.x}px, ${C.y}px) scale(${C.zoom})`,
+				transform: `translate(${E.x}px, ${E.y}px) scale(${E.zoom})`,
 				transformOrigin: "0 0",
 				width: 6e3
 			},
@@ -364,7 +710,7 @@ function v({ commit: e, store: n }) {
 				},
 				width: "6000",
 				children: (r?.connections ?? []).map((e, t) => {
-					let n = E.get(e.from), r = E.get(e.to);
+					let n = k.get(e.from), r = k.get(e.to);
 					if (!n || !r) return null;
 					let i = d(n), a = d(r), o = f(n), s = f(r), u = {
 						x1: i.x + o.width,
@@ -415,7 +761,7 @@ function v({ commit: e, store: n }) {
 						}, s = !1;
 						a.setPointerCapture(i.pointerId), v(-1), y.has(t.id) || b(/* @__PURE__ */ new Set([t.id]));
 						let c = (e) => {
-							s = !0, n.getState().moveNode(t.id, o.point.x + (e.clientX - o.clientX) / C.zoom, o.point.y + (e.clientY - o.clientY) / C.zoom);
+							s = !0, n.getState().moveNode(t.id, o.point.x + (e.clientX - o.clientX) / E.zoom, o.point.y + (e.clientY - o.clientY) / E.zoom);
 						};
 						a.addEventListener("pointermove", c), a.addEventListener("pointerup", () => {
 							a.removeEventListener("pointermove", c), s && e();
@@ -436,9 +782,9 @@ function v({ commit: e, store: n }) {
 							"aria-label": `连接到 ${t.id}`,
 							className: "port in",
 							"data-port": "in",
-							onClick: () => D(t.id),
+							onClick: () => j(t.id),
 							onPointerDown: (e) => e.stopPropagation(),
-							onPointerUp: () => D(t.id),
+							onPointerUp: () => j(t.id),
 							type: "button"
 						}) : null,
 						m(t) ? /* @__PURE__ */ (0, l.jsx)("button", {
@@ -466,8 +812,22 @@ function v({ commit: e, store: n }) {
 								store: n
 							}) : t.type === "promptGroup" ? /* @__PURE__ */ (0, l.jsx)(g, {
 								node: t,
-								nodesById: E
+								nodesById: k
 							}) : t.type === "loop" ? /* @__PURE__ */ (0, l.jsx)(_, {
+								commit: e,
+								node: t,
+								store: n
+							}) : t.type === "generator" ? /* @__PURE__ */ (0, l.jsx)(C, {
+								commit: e,
+								document: A,
+								node: t,
+								store: n
+							}) : t.type === "msgen" ? /* @__PURE__ */ (0, l.jsx)(w, {
+								commit: e,
+								document: A,
+								node: t,
+								store: n
+							}) : t.type === "output" ? /* @__PURE__ */ (0, l.jsx)(T, {
 								commit: e,
 								node: t,
 								store: n
@@ -479,7 +839,7 @@ function v({ commit: e, store: n }) {
 		})]
 	});
 }
-function y(e, t) {
+function D(e, t) {
 	let n = window.CanvasLegacyBridge, i = window.CanvasModernCore?.canvasRepository;
 	if (!n || !i) throw Error("Canvas V2 dependencies are unavailable");
 	let a = r(n.getDocumentSnapshot()), s = (e) => a.getState().adoptDocument(e.detail);
@@ -516,10 +876,16 @@ function y(e, t) {
 		openPromptTemplates(e) {
 			window.openPromptTemplateModal?.(e);
 		},
+		async runNode(e) {
+			let t = a.getState().document;
+			if (!t) return;
+			let r = await n.runNode(e, t);
+			a.getState().projectDocument(r);
+		},
 		updateNode(e, t) {
 			return a.getState().document?.nodes.some((t) => t.id === e) ? (a.getState().updateNode(e, t), g(), !0) : !1;
 		}
-	}, u.render(/* @__PURE__ */ (0, l.jsx)(v, {
+	}, u.render(/* @__PURE__ */ (0, l.jsx)(E, {
 		commit: g,
 		store: a
 	})), t.hidden = !0, e.hidden = !1, () => {
@@ -527,4 +893,4 @@ function y(e, t) {
 	};
 }
 //#endregion
-export { y as mountCanvasBoardV2 };
+export { D as mountCanvasBoardV2 };

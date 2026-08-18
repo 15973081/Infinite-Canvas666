@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '18');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '19');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -47,7 +47,7 @@ test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on c
       nodes: [
         { id: 'prompt-1', type: 'prompt', title: 'Prompt', x: 80, y: 180 },
         { id: 'generator-1', type: 'generator', title: 'Generator', x: 420, y: 330 },
-        { id: 'output-1', type: 'output', title: 'Output', x: 760, y: 330 },
+        { id: 'output-1', type: 'output', title: 'Output', x: 900, y: 330 },
       ],
       connections: [{ from: 'prompt-1', to: 'generator-1' }],
       updated_at: 1,
@@ -183,6 +183,61 @@ test('edits and groups low-risk V2 nodes through the persisted document', async 
   await page.keyboard.press('Delete');
   await expect(page.locator('[data-node-type="promptGroup"]')).toHaveCount(1);
   await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(2);
+});
+
+test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
+  const saves: Array<Record<string, any>> = [];
+  await page.route('**/api/canvases/v2-generation', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    saves.push(body);
+    await route.fulfill({ json: { canvas: { ...body, id: 'v2-generation', updated_at: saves.length + 1 } } });
+  });
+  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await page.evaluate(() => {
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'v2-generation', updated_at: 1, extension: 'kept',
+      nodes: [
+        { id: 'prompt-gen', type: 'prompt', x: 20, y: 20, text: 'city' },
+        { id: 'generator-v2', type: 'generator', x: 380, y: 20, apiProvider: 'comfly', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1 },
+        { id: 'msgen-v2', type: 'msgen', x: 380, y: 410, msgenModel: 'zimage', msRatio: 'square', msResolution: '1k', count: 1 },
+        { id: 'output-v2', type: 'output', x: 820, y: 20, images: [{ url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', future: true }] },
+      ],
+      connections: [{ from: 'prompt-gen', to: 'generator-v2' }, { from: 'generator-v2', to: 'output-v2' }],
+    } }));
+  });
+
+  const generator = page.locator('[data-node-id="generator-v2"]');
+  await generator.getByLabel('质量').selectOption('high');
+  await generator.getByLabel('生成数量').fill('4');
+  await generator.getByLabel('生成数量').blur();
+  await generator.getByLabel('比例').selectOption('custom');
+  await generator.getByLabel('比例宽').fill('4');
+  await generator.getByLabel('比例高').fill('5');
+  await generator.getByLabel('比例高').blur();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'generator-v2')).toMatchObject({ quality: 'high', count: 4, ratio: 'custom', customRatio: '4:5' });
+  expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
+
+  const msgen = page.locator('[data-node-id="msgen-v2"]');
+  await msgen.getByRole('button', { name: 'Qwen Edit' }).click();
+  await msgen.getByLabel('ModelScope 生成数量').fill('3');
+  await msgen.getByLabel('ModelScope 生成数量').blur();
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'msgen-v2')).toMatchObject({ msgenModel: 'qwen_edit', count: 3 });
+
+  const output = page.locator('[data-node-id="output-v2"]');
+  await expect(output.locator('img')).toHaveCount(1);
+  await output.getByRole('button', { name: '删除输出' }).click();
+  await expect(output.locator('img')).toHaveCount(0);
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'output-v2')?.images).toEqual([]);
+
+  await page.evaluate(() => {
+    const target = window as typeof window & { addGeneratorNode(): void; addMsGenNode(): void; addOutputNode(): void };
+    target.addGeneratorNode(); target.addMsGenNode(); target.addOutputNode();
+  });
+  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(2);
+  await expect(page.locator('[data-node-type="msgen"]')).toHaveCount(2);
+  await expect(page.locator('[data-node-type="output"]')).toHaveCount(2);
 });
 
 test('runs fake execution and mocked task/repository contracts with all M2 switches enabled', async ({ page }) => {

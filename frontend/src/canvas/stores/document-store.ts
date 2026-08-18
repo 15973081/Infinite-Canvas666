@@ -5,7 +5,7 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 
 export interface DocumentStoreState {
   acceptSavedDocument(saved: CanvasDocument, submitted: CanvasDocument): void;
-  addNode(type: 'loop' | 'prompt', point?: { x: number; y: number }): string | null;
+  addNode(type: 'generator' | 'loop' | 'msgen' | 'output' | 'prompt', point?: { x: number; y: number }): string | null;
   adoptDocument(snapshot: unknown): void;
   connectNodes(fromId: string, toId: string): boolean;
   copyNodes(nodeIds: string[]): { connections: CanvasEdge[]; nodes: CanvasNode[] };
@@ -40,9 +40,14 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       const index = current.nodes.length;
       const id = `${type}_${crypto.randomUUID()}`;
       const position = point ?? { x: 80 + (index % 4) * 360, y: 160 + Math.floor(index / 4) * 280 };
-      const node: CanvasNode = type === 'prompt'
-        ? { id, type, ...position, text: '' }
-        : { id, type, ...position, count: 3, mode: 'serial', showPrompt: false, imageInput: false, videoInput: false, loopStart: 1, imageBatchSize: 1, videoBatchSize: 1, variablePrompt: '', fixedPrompt: '' };
+      const defaults: Record<string, Record<string, unknown>> = {
+        generator: { apiProvider: '', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1, customRatio: '', customSize: '', customRatioWidth: '', customRatioHeight: '', customWidth: '', customHeight: '', inputs: [] },
+        loop: { count: 3, mode: 'serial', showPrompt: false, imageInput: false, videoInput: false, loopStart: 1, imageBatchSize: 1, videoBatchSize: 1, variablePrompt: '', fixedPrompt: '' },
+        msgen: { msgenModel: 'zimage', msWidth: 1024, msHeight: 1024, msCustomModel: 'Tongyi-MAI/Z-Image-Turbo', msRatio: 'square', msResolution: '1k', count: 1, fitImage: false, inputs: [] },
+        output: { images: [] },
+        prompt: { text: '' },
+      };
+      const node: CanvasNode = { id, type, ...position, ...defaults[type] };
       set({ document: { ...current, nodes: [...current.nodes, node] } });
       return id;
     },

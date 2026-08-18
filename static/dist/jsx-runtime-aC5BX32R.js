@@ -8082,29 +8082,56 @@ function C(e) {
 			let a = i.nodes.length, o = `${t}_${crypto.randomUUID()}`, s = n ?? {
 				x: 80 + a % 4 * 360,
 				y: 160 + Math.floor(a / 4) * 280
-			}, c = t === "prompt" ? {
+			}, c = {
+				generator: {
+					apiProvider: "",
+					model: "",
+					ratio: "square",
+					resolution: "1k",
+					quality: "auto",
+					count: 1,
+					customRatio: "",
+					customSize: "",
+					customRatioWidth: "",
+					customRatioHeight: "",
+					customWidth: "",
+					customHeight: "",
+					inputs: []
+				},
+				loop: {
+					count: 3,
+					mode: "serial",
+					showPrompt: !1,
+					imageInput: !1,
+					videoInput: !1,
+					loopStart: 1,
+					imageBatchSize: 1,
+					videoBatchSize: 1,
+					variablePrompt: "",
+					fixedPrompt: ""
+				},
+				msgen: {
+					msgenModel: "zimage",
+					msWidth: 1024,
+					msHeight: 1024,
+					msCustomModel: "Tongyi-MAI/Z-Image-Turbo",
+					msRatio: "square",
+					msResolution: "1k",
+					count: 1,
+					fitImage: !1,
+					inputs: []
+				},
+				output: { images: [] },
+				prompt: { text: "" }
+			}, l = {
 				id: o,
 				type: t,
 				...s,
-				text: ""
-			} : {
-				id: o,
-				type: t,
-				...s,
-				count: 3,
-				mode: "serial",
-				showPrompt: !1,
-				imageInput: !1,
-				videoInput: !1,
-				loopStart: 1,
-				imageBatchSize: 1,
-				videoBatchSize: 1,
-				variablePrompt: "",
-				fixedPrompt: ""
+				...c[t]
 			};
 			return e({ document: {
 				...i,
-				nodes: [...i.nodes, c]
+				nodes: [...i.nodes, l]
 			} }), o;
 		},
 		connectNodes: (n, i) => {

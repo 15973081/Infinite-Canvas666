@@ -71,4 +71,14 @@ describe('document store', () => {
     expect(store.getState().document?.nodes.some((node) => [groupId, promptId, secondPromptId].includes(node.id))).toBe(false);
     expect(store.getState().document?.nodes.find((node) => node.id === pasted[0])).toBeTruthy();
   });
+
+  it('creates generator, ModelScope and output nodes with executable defaults', () => {
+    const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [] });
+    const ids = ['generator', 'msgen', 'output'].map((type, index) => store.getState().addNode(type as 'generator' | 'msgen' | 'output', { x: index * 100, y: 0 }));
+    expect(store.getState().document?.nodes).toMatchObject([
+      { id: ids[0], type: 'generator', ratio: 'square', resolution: '1k', count: 1 },
+      { id: ids[1], type: 'msgen', msgenModel: 'zimage', msRatio: 'square', count: 1 },
+      { id: ids[2], type: 'output', images: [] },
+    ]);
+  });
 });

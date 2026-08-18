@@ -2058,6 +2058,31 @@ function resetCanvasSaveSnapshot(){
     publishLegacyDocument();
 }
 window.CanvasLegacyBridge = Object.freeze({
+    getNodeOptions(type, field, node={}){
+        if(type === 'msgen' && field === 'model') return Object.entries(MS_GEN_MODELS).map(([value, item]) => ({value, label:item.labelKey ? tr(item.labelKey) : item.label}));
+        if(field === 'provider'){
+            const providers = type === 'video' ? videoApiProviders() : type === 'llm' ? chatApiProviders() : imageApiProviders();
+            return providers.map(item => ({value:String(item.id || ''), label:String(item.name || item.id || '')}));
+        }
+        if(field === 'model'){
+            const values = type === 'video' ? providerVideoModels(node.apiProvider) : type === 'llm' ? providerChatModels(node.llmProvider) : providerImageModels(node.apiProvider);
+            return values.map(value => ({value, label:value}));
+        }
+        return [];
+    },
+    async runNode(nodeId, snapshot){
+        const next = JSON.parse(JSON.stringify(snapshot || null));
+        if(!canvas || !next || String(next.id || '') !== String(canvas.id || '')) throw new Error('Canvas execution snapshot does not match the active canvas');
+        nodes = Array.isArray(next.nodes) ? next.nodes : [];
+        connections = Array.isArray(next.connections) ? next.connections : [];
+        canvas = {...canvas, ...next};
+        lastCanvasUpdatedAt = Number(next.updated_at || lastCanvasUpdatedAt || 0);
+        await runCanvasGenerate(String(nodeId || ''));
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        await saveCanvas();
+        return legacyDocumentSnapshot();
+    },
     runCommand(command, payload={}){
         if(command === 'open-cost') return openCanvasCost();
         if(command === 'open-log') return openCanvasLog();
@@ -3421,11 +3446,13 @@ function addLLMNode(point){
     });
 }
 function addGeneratorNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('generator', point);
     const p = point || defaultPoint(120, 0);
     const providerId = imageApiProviders()[0]?.id || '';
     return addNode({id:uid('gen'), type:'generator', x:p.x, y:p.y, apiProvider:providerId, model:allImageModels(providerId)[0] || '', ratio:'square', resolution:'1k', customRatio:'', customSize:'', customRatioWidth:'', customRatioHeight:'', customWidth:'', customHeight:'', inputs:[]});
 }
 function addMsGenNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('msgen', point);
     const p = point || defaultPoint(140, 0);
     return addNode({
         id:uid('msgen'),
@@ -4014,6 +4041,7 @@ function addComfyNode(point){
     });
 }
 function addOutputNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('output', point);
     const p = point || defaultPoint(260, 0);
     return addNode({id:uid('out'), type:'output', x:p.x, y:p.y, images:[]});
 }

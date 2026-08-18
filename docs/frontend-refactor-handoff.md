@@ -157,6 +157,8 @@ Spike 只实现：
 
 第三批已完成：Prompt、PromptGroup、Loop 已迁移到 V2。Prompt 支持 20,000 字编辑与既有模板库；Loop 保留次数、串并行、图片/提示词输入、起始序号、批量和计数变量字段，并按输入开关动态清理无效连线；PromptGroup 支持多选分组、成员联动移动、复制粘贴和递归删除。旧工具栏的新增 Prompt/Loop、分组和模板回填在 V2 开启时转发到 Document Store，未知扩展字段继续保留。Vitest 覆盖 Store 行为，Playwright 覆盖真实编辑、模板弹窗、分组、复制、删除与保存载荷。
 
+第四批已完成：Generator、MsGen、Output 已迁移到 V2。两类生成节点保留平台/模型、尺寸比例、质量、数量与自定义参数，并通过桥接调用唯一的 Legacy executor；Output 使用原生图片、视频、音频元素展示并支持下载和删除。工具栏新增入口、Store 默认值、未知字段和保存恢复均有回归覆盖。
+
 1. 新增独立的 `canvas_board_v2=1` 开关和完整 Board root；默认仍渲染 Legacy Board。
 2. 实现视口、选择、拖动、连线、快捷键和节点类型注册表。
 3. 让 Document Store 在 V2 路径中成为节点和连线的唯一所有者；Legacy 路径仍由 `canvas.js` 唯一拥有。
