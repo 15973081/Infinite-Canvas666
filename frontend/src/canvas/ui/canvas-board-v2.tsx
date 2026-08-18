@@ -18,7 +18,8 @@ function nodePoint(node: CanvasNode): Point {
 }
 
 function nodeSize(node: CanvasNode): { height: number; width: number } {
-  const defaults = node.type === 'prompt' ? { height: 230, width: 310 }
+  const defaults = node.type === 'image' ? { height: 336, width: 260 }
+    : node.type === 'prompt' ? { height: 230, width: 310 }
     : node.type === 'loop' ? { height: node.showPrompt || node.imageInput ? 390 : 180, width: 336 }
       : node.type === 'promptGroup' ? { height: 220, width: 260 }
         : node.type === 'generator' || node.type === 'msgen' ? { height: 340, width: 380 }
@@ -26,6 +27,8 @@ function nodeSize(node: CanvasNode): { height: number; width: number } {
             : node.type === 'video' ? { height: 410, width: 400 }
               : node.type === 'comfy' ? { height: 460, width: 420 }
                 : node.type === 'llm' ? { height: 590, width: 420 }
+                  : node.type === 'ltxDirector' ? { height: 800, width: 1000 }
+                    : node.type === 'group' ? { height: 220, width: 300 }
         : { height: 110, width: 240 };
   return { height: Number(node.h || defaults.height), width: Number(node.w || defaults.width) };
 }
@@ -256,6 +259,68 @@ function ComfyBody({ commit, document, node, store }: { commit: () => void; docu
   </div>;
 }
 
+function ImageBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
+  useEffect(() => () => { mediaRef.current?.pause(); mediaRef.current?.removeAttribute('src'); mediaRef.current?.load(); }, []);
+  const upload = async (files: File[]) => {
+    if (!files.length) return;
+    const uploaded = await window.CanvasLegacyBridge?.uploadMedia(files);
+    const items = uploaded?.files ?? [];
+    if (!items.length) return;
+    store.getState().updateNode(node.id, { url: items[0].url || '', name: items[0].name || 'media', mediaKind: items[0].kind || 'image' });
+    const ids = [node.id];
+    items.slice(1).forEach((file, index) => {
+      const id = store.getState().addNode('image', { x: Number(node.x || 0) + (index + 1) * 36, y: Number(node.y || 0) + (index + 1) * 36 });
+      if (id) { store.getState().updateNode(id, { url: file.url || '', name: file.name || 'media', mediaKind: file.kind || 'image' }); ids.push(id); }
+    });
+    if (ids.length > 1) store.getState().groupNodes(ids);
+    commit();
+  };
+  const url = String(node.url || '');
+  const kind = String(node.mediaKind || (/\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : /\.(mp3|wav|m4a)(\?|$)/i.test(url) ? 'audio' : 'image'));
+  if (!url) return <label className="blank-image" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>选择或拖入媒体<input accept="image/*,video/*,audio/*" hidden multiple onChange={(event) => void upload([...(event.target.files ?? [])])} type="file" /></label>;
+  return <div className="image-preview-wrap" onClick={(event) => event.stopPropagation()} onDoubleClick={() => window.open(url, '_blank', 'noopener')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload([...event.dataTransfer.files]); }} onPointerDown={(event) => event.stopPropagation()}>
+    {kind === 'video' ? <video controls preload="metadata" ref={(element) => { mediaRef.current = element; }} src={url} /> : kind === 'audio' ? <audio controls preload="metadata" ref={(element) => { mediaRef.current = element; }} src={url} /> : <img alt={String(node.name || 'image')} draggable src={url} />}
+    <div className="image-caption text-[11px] text-gray-400 truncate">{String(node.name || kind)}</div>
+    <button aria-label="清空媒体" className="output-del" onClick={() => { store.getState().updateNode(node.id, { url: '', name: '空白图片', mediaKind: 'image' }); commit(); }} type="button">×</button>
+  </div>;
+}
+
+function GroupBody({ node, nodesById }: { node: CanvasNode; nodesById: Map<string, CanvasNode> }) {
+  const items = Array.isArray(node.items) ? node.items.map((id) => nodesById.get(String(id))).filter(Boolean) as CanvasNode[] : [];
+  const media = items.filter((item) => item.type === 'image' && item.url);
+  return <div><div className="text-[11px] text-gray-400">{media.length} 个媒体 · {items.filter((item) => item.type === 'prompt').length} 个提示词</div>{media.length ? <div className="output-grid">{media.slice(0, 6).map((item) => <img alt={String(item.name || 'media')} key={item.id} onDoubleClick={() => window.open(String(item.url), '_blank', 'noopener')} src={String(item.url)} />)}</div> : null}</div>;
+}
+
+function LTXBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const draftRef = useRef<Record<string, unknown> | null>(null);
+  if (!draftRef.current || draftRef.current.id !== node.id) draftRef.current = window.CanvasLegacyBridge?.normalizeLtxNode(node) ?? structuredClone(node);
+  useEffect(() => {
+    const host = hostRef.current;
+    const Editor = window.CanvasLTXTimelineEditor;
+    const draft = draftRef.current;
+    if (!host || !Editor || !draft) return;
+    store.getState().updateNode(node.id, draft);
+    const editor = new Editor(draft, host, null);
+    const sync = () => { store.getState().updateNode(node.id, structuredClone(draft)); commit(); };
+    editor._onCanvasCommit = sync;
+    editor._onCanvasResize = sync;
+    return () => editor.destroy();
+  }, [commit, node.id, store]);
+  const update = (patch: Record<string, unknown>) => {
+    Object.assign(draftRef.current ?? {}, patch);
+    store.getState().updateNode(node.id, patch);
+    commit();
+  };
+  return <div className="ltx-director-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+    <InputSummary document={document} node={node} />
+    <div className="ltx-params-row"><input aria-label="LTX 秒数" className="setting-input" min="0.1" onChange={(event) => update({ durationSeconds: Math.max(0.1, Number(event.target.value) || 5), durationFrames: Math.max(1, Math.round((Number(event.target.value) || 5) * Number(node.frameRate || 24))) })} step="0.01" type="number" value={Number(node.durationSeconds || 5)} /><input aria-label="LTX 帧数" className="setting-input" min="1" onChange={(event) => update({ durationFrames: Math.max(1, Number(event.target.value) || 120), durationSeconds: (Math.max(1, Number(event.target.value) || 120) / Number(node.frameRate || 24)) })} type="number" value={Number(node.durationFrames || 120)} /><input aria-label="LTX FPS" className="setting-input" min="1" onChange={(event) => update({ frameRate: Math.max(1, Number(event.target.value) || 24) })} type="number" value={Number(node.frameRate || 24)} /><input aria-label="LTX 宽度" className="setting-input" min="0" onChange={(event) => update({ customWidth: Math.max(0, Number(event.target.value) || 0) })} step="32" type="number" value={Number(node.customWidth || 0)} /><input aria-label="LTX 高度" className="setting-input" min="0" onChange={(event) => update({ customHeight: Math.max(0, Number(event.target.value) || 0) })} step="32" type="number" value={Number(node.customHeight || 0)} /></div>
+    <div className="ltx-director-timeline-host" ref={hostRef}>{window.CanvasLTXTimelineEditor ? null : 'LTX 时间线脚本未加载'}</div>
+    <div className="gen-run-row"><RunButton node={node} /></div>
+  </div>;
+}
+
 function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
@@ -300,7 +365,8 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
         event.preventDefault();
-        const id = store.getState().groupPromptNodes([...selectedIds]);
+        const selected = store.getState().document?.nodes.filter((node) => selectedIds.has(node.id)) ?? [];
+        const id = selected.some((node) => node.type === 'image') ? store.getState().groupNodes([...selectedIds]) : store.getState().groupPromptNodes([...selectedIds]);
         if (id) {
           setSelectedIds(new Set([id]));
           commit();
@@ -322,7 +388,8 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
 
   useEffect(() => {
     const group = () => {
-      const id = store.getState().groupPromptNodes([...selectedIds]);
+      const selected = store.getState().document?.nodes.filter((node) => selectedIds.has(node.id)) ?? [];
+      const id = selected.some((node) => node.type === 'image') ? store.getState().groupNodes([...selectedIds]) : store.getState().groupPromptNodes([...selectedIds]);
       if (id) {
         setSelectedIds(new Set([id]));
         commit();
@@ -347,6 +414,15 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
     aria-label="CanvasBoard V2"
     data-testid="canvas-board-v2"
     data-viewport={`${viewport.x},${viewport.y},${viewport.zoom.toFixed(2)}`}
+    onDragOver={(event) => event.preventDefault()}
+    onDrop={(event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const point = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
+      const files = [...event.dataTransfer.files].filter((file) => /^(image|video|audio)\//.test(file.type));
+      if (files.length) void window.CanvasBoardV2?.importFiles(files, point);
+    }}
     onPointerDown={(event) => {
       if (event.button !== 0) return;
       const board = event.currentTarget;
@@ -409,7 +485,7 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
         const size = nodeSize(node);
         return <article
           aria-label={`${node.type} ${node.id}`}
-          className={`node ${node.type}-node sized ${selectedIds.has(node.id) ? 'selected' : ''}`}
+          className={`node ${node.type}-node sized ${node.url ? 'has-image' : ''} ${selectedIds.has(node.id) ? 'selected' : ''}`}
           data-node-id={node.id}
           data-node-type={node.type}
           key={node.id}
@@ -457,6 +533,8 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
           {canOutput(node) ? <button aria-label={`从 ${node.id} 连线`} className="port out" data-port="out" onClick={() => setConnectingFrom(node.id)} onPointerDown={(event) => { event.stopPropagation(); setConnectingFrom(node.id); }} type="button" /> : null}
           <header className="node-head"><strong className="node-title">{nodeRegistry[node.type] ?? node.type}</strong></header>
           <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} store={store} />
+            : node.type === 'image' ? <ImageBody commit={commit} node={node} store={store} />
+              : node.type === 'group' ? <GroupBody node={node} nodesById={nodesById} />
             : node.type === 'promptGroup' ? <PromptGroupBody node={node} nodesById={nodesById} />
               : node.type === 'loop' ? <LoopBody commit={commit} node={node} store={store} />
                 : node.type === 'generator' ? <GeneratorBody commit={commit} document={boardDocument} node={node} store={store} />
@@ -465,7 +543,8 @@ function CanvasBoardV2({ commit, store }: { commit: () => void; store: DocumentS
                       : node.type === 'video' ? <VideoBody commit={commit} document={boardDocument} node={node} store={store} />
                         : node.type === 'llm' ? <LLMBody commit={commit} document={boardDocument} node={node} store={store} />
                           : node.type === 'comfy' ? <ComfyBody commit={commit} document={boardDocument} node={node} store={store} />
-                            : String(node.title || node.name || node.id)}</div>
+                            : node.type === 'ltxDirector' ? <LTXBody commit={commit} document={boardDocument} node={node} store={store} />
+                              : String(node.title || node.name || node.id)}</div>
         </article>;
       })}
     </div>
@@ -520,6 +599,17 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     },
     groupSelected() {
       window.dispatchEvent(new Event('canvas-board-v2-group-selected'));
+    },
+    async importFiles(files, point) {
+      if (!files.length) return;
+      const uploaded = await bridge.uploadMedia(files);
+      const ids = (uploaded.files ?? []).map((file, index) => {
+        const id = store.getState().addNode('image', point ? { x: point.x + index * 36, y: point.y + index * 36 } : undefined);
+        if (id) store.getState().updateNode(id, { url: file.url || '', name: file.name || 'media', mediaKind: file.kind || 'image' });
+        return id;
+      }).filter(Boolean) as string[];
+      if (ids.length > 1) store.getState().groupNodes(ids);
+      if (ids.length) commit();
     },
     openPromptTemplates(nodeId) {
       window.openPromptTemplateModal?.(nodeId);

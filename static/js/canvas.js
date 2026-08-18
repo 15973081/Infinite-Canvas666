@@ -2075,6 +2075,21 @@ window.CanvasLegacyBridge = Object.freeze({
         }
         return [];
     },
+    normalizeLtxNode(node){
+        const copy = JSON.parse(JSON.stringify(node || {}));
+        if(typeof window.ltxMigrateLegacySegments === 'function') window.ltxMigrateLegacySegments(copy);
+        ltxDirectorSyncSeconds(copy);
+        if(!copy.ltxTimelineData){
+            const length = Math.max(1, Number(copy.durationFrames) || 120);
+            copy.ltxTimelineData = JSON.stringify({segments:[{id:uid('ltxseg'), start:0, length, prompt:'', type:'text'}], audioSegments:[]});
+        }
+        return copy;
+    },
+    async uploadMedia(files){
+        const form = new FormData();
+        [...(files || [])].forEach(file => form.append('files', file));
+        return window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:'上传失败'});
+    },
     async runNode(nodeId, snapshot, mode='node'){
         const next = JSON.parse(JSON.stringify(snapshot || null));
         if(!canvas || !next || String(next.id || '') !== String(canvas.id || '')) throw new Error('Canvas execution snapshot does not match the active canvas');
@@ -3389,6 +3404,7 @@ function addNode(node){
 }
 function defaultPoint(dx=0, dy=0){ return screenToWorld(window.innerWidth / 2 + dx, window.innerHeight / 2 + dy); }
 function addImageNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('image', point);
     const p = point || defaultPoint(-120, 0);
     return addNode({id:uid('img'), type:'image', x:p.x, y:p.y, url:'', name:'空白图片'});
 }
@@ -3418,6 +3434,7 @@ function addLoopNode(point){
     });
 }
 function addGroupNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('group', point);
     const p = point || defaultPoint(40, 0);
     return addNode({id:uid('grp'), type:'group', x:p.x, y:p.y, w:300, h:220, items:[]});
 }
@@ -3525,6 +3542,7 @@ function defaultLTXSegment(start=0, length=120){
     };
 }
 function addLTXDirectorNode(point){
+    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('ltxDirector', point);
     const p = point || defaultPoint(200, 0);
     return addNode({
         id:uid('ltxdir'),
@@ -14732,6 +14750,11 @@ window.addEventListener('paste', e => {
     }
     const files = [...(e.clipboardData?.items || [])].filter(x => x.kind === 'file' && /^(image|video|audio)\//.test(String(x.type || ''))).map(x => x.getAsFile());
     if(!files.length) return;
+    if(window.CanvasBoardV2){
+        e.preventDefault();
+        window.CanvasBoardV2.importFiles(files.filter(Boolean));
+        return;
+    }
     e.preventDefault();
     lastImagePasteAt = Date.now();
     const blank = [...selected].map(id => nodes.find(n => n.id === id)).find(n => n?.type === 'image' && !n.url);

@@ -27,8 +27,10 @@ interface LegacyBridge {
   getComfyFields(workflow: string): Promise<Array<Record<string, unknown>>>;
   getDocumentSnapshot(): unknown | null;
   getNodeOptions(type: string, field: string, node?: Record<string, unknown>): Array<{ label: string; value: string }>;
+  normalizeLtxNode(node: Record<string, unknown>): Record<string, unknown>;
   getStatusSnapshot(): { kind: 'error' | 'info' | 'pending' | 'success'; text: string };
   runNode(nodeId: string, snapshot: unknown, mode?: string): Promise<unknown>;
+  uploadMedia(files: File[]): Promise<{ files?: Array<{ kind?: string; name?: string; url?: string }> }>;
   runCommand(
     command: 'close-log' | 'open-backups' | 'open-cost' | 'open-log' | 'retry-execution' | 'stop-execution',
     payload?: { targetId?: string },
@@ -104,9 +106,15 @@ interface ParallelExecutionRequest {
 
 declare global {
   interface Window {
+    CanvasLTXTimelineEditor?: new (node: Record<string, unknown>, container: HTMLElement, widget: null) => {
+      _onCanvasCommit: null | (() => void);
+      _onCanvasResize: null | (() => void);
+      destroy(): void;
+    };
     CanvasBoardV2?: {
-      addNode(type: 'comfy' | 'generator' | 'llm' | 'loop' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
+      addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
       groupSelected(): void;
+      importFiles(files: File[], point?: { x: number; y: number }): Promise<void>;
       openPromptTemplates(nodeId: string): void;
       runNode(nodeId: string, mode?: string): Promise<void>;
       updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
@@ -129,7 +137,7 @@ declare global {
       runParallel(request: ParallelExecutionRequest): Promise<ExecutionState>;
       taskClient: TaskClient;
       taskClientEnabled: boolean;
-      version: 20;
+      version: 21;
     };
   }
 }
@@ -181,7 +189,7 @@ function compareOrder(kind: OrderKind, targetId: string, legacyOrder?: string[])
 }
 
 window.CanvasModernCore = Object.freeze({
-  version: 20 as const,
+  version: 21 as const,
   canvasRepository,
   canvasRepositoryEnabled,
   executionEngineEnabled,
@@ -377,7 +385,7 @@ function emitExecutionTransition(state: Readonly<ExecutionState>, event: Executi
   window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { event, state } }));
 }
 
-document.documentElement.dataset.canvasModernCore = '20';
+document.documentElement.dataset.canvasModernCore = '21';
 document.documentElement.dataset.canvasBoardV2 = boardV2Enabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionEngine = executionEngineEnabled ? 'enabled' : 'disabled';
 document.documentElement.dataset.canvasModernExecutionShadow = executionShadowEnabled ? 'enabled' : 'disabled';

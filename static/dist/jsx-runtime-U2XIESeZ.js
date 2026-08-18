@@ -8114,6 +8114,16 @@ function C(e) {
 					customHeight: "",
 					inputs: []
 				},
+				group: {
+					w: 300,
+					h: 220,
+					items: []
+				},
+				image: {
+					url: "",
+					name: "空白图片",
+					mediaKind: "image"
+				},
 				llm: {
 					llmProvider: "comfly",
 					model: "",
@@ -8136,6 +8146,29 @@ function C(e) {
 					videoBatchSize: 1,
 					variablePrompt: "",
 					fixedPrompt: ""
+				},
+				ltxDirector: {
+					w: 1e3,
+					h: 800,
+					globalPrompt: "",
+					durationFrames: 120,
+					durationSeconds: 5,
+					frameRate: 24,
+					customWidth: 0,
+					customHeight: 0,
+					displayMode: "seconds",
+					useCustomAudio: !1,
+					imgCompression: 18,
+					epsilon: .001,
+					divisibleBy: 32,
+					noiseSeed: 12,
+					ltxTimelineData: "",
+					ltxLocalPrompts: "",
+					ltxSegmentLengths: "",
+					ltxGuideStrength: "",
+					ltxSegments: [],
+					ltxSelectedSegId: "",
+					inputs: []
 				},
 				msgen: {
 					msgenModel: "zimage",
@@ -8228,6 +8261,29 @@ function C(e) {
 				nodes: [...n.nodes, {
 					id: a,
 					type: "promptGroup",
+					x: o - 24,
+					y: s - 58,
+					w: c - o + 48,
+					h: l - s + 90,
+					items: i.map((e) => e.id)
+				}]
+			} }), a;
+		},
+		groupNodes: (t) => {
+			let n = r().document;
+			if (!n) return null;
+			let i = n.nodes.filter((e) => t.includes(e.id) && ["image", "prompt"].includes(e.type));
+			if (!i.length) return null;
+			let a = `group_${crypto.randomUUID()}`, o = Math.min(...i.map((e) => Number(e.x || 0))), s = Math.min(...i.map((e) => Number(e.y || 0))), c = Math.max(...i.map((e) => Number(e.x || 0) + Number(e.w || (e.type === "image" ? 260 : 310)))), l = Math.max(...i.map((e) => Number(e.y || 0) + Number(e.h || (e.type === "image" ? 336 : 230)))), u = n.connections.filter((e) => i.some((t) => t.id === e.from) && !t.includes(e.to)), d = n.connections.filter((e) => !i.some((t) => t.id === e.from)).concat([...new Set(u.map((e) => e.to))].map((e) => ({
+				from: a,
+				to: e
+			})));
+			return e({ document: {
+				...n,
+				connections: d,
+				nodes: [...n.nodes, {
+					id: a,
+					type: "group",
 					x: o - 24,
 					y: s - 58,
 					w: c - o + 48,

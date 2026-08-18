@@ -5,7 +5,7 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 
 export interface DocumentStoreState {
   acceptSavedDocument(saved: CanvasDocument, submitted: CanvasDocument): void;
-  addNode(type: 'comfy' | 'generator' | 'llm' | 'loop' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
+  addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'video', point?: { x: number; y: number }): string | null;
   adoptDocument(snapshot: unknown): void;
   connectNodes(fromId: string, toId: string): boolean;
   copyNodes(nodeIds: string[]): { connections: CanvasEdge[]; nodes: CanvasNode[] };
@@ -13,6 +13,7 @@ export interface DocumentStoreState {
   deleteNode(nodeId: string): void;
   document: CanvasDocument | null;
   groupPromptNodes(nodeIds: string[]): string | null;
+  groupNodes(nodeIds: string[]): string | null;
   moveNode(nodeId: string, x: number, y: number): void;
   pasteNodes(clipboard: { connections: CanvasEdge[]; nodes: CanvasNode[] }): string[];
   projectDocument(snapshot: unknown): void;
@@ -43,8 +44,11 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       const defaults: Record<string, Record<string, unknown>> = {
         comfy: { w: 420, h: 460, mode: 'text', width: 1024, height: 1024, enhanceStrength: 0.5, enhanceUpscale: false, enhanceUpscaleRes: 2048, editUpscale: false, editUpscaleRes: 2048, comfyWorkflow: '', comfyParams: {}, count: 1, inputs: [] },
         generator: { apiProvider: '', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1, customRatio: '', customSize: '', customRatioWidth: '', customRatioHeight: '', customWidth: '', customHeight: '', inputs: [] },
+        group: { w: 300, h: 220, items: [] },
+        image: { url: '', name: '空白图片', mediaKind: 'image' },
         llm: { llmProvider: 'comfly', model: '', mode: 'node', systemPrompt: 'You are a helpful assistant. Rewrite the input into a concise image prompt.', chatInput: '', messages: [], outputText: '', llmInputHeight: 110, llmOutputHeight: 150 },
         loop: { count: 3, mode: 'serial', showPrompt: false, imageInput: false, videoInput: false, loopStart: 1, imageBatchSize: 1, videoBatchSize: 1, variablePrompt: '', fixedPrompt: '' },
+        ltxDirector: { w: 1000, h: 800, globalPrompt: '', durationFrames: 120, durationSeconds: 5, frameRate: 24, customWidth: 0, customHeight: 0, displayMode: 'seconds', useCustomAudio: false, imgCompression: 18, epsilon: 0.001, divisibleBy: 32, noiseSeed: 12, ltxTimelineData: '', ltxLocalPrompts: '', ltxSegmentLengths: '', ltxGuideStrength: '', ltxSegments: [], ltxSelectedSegId: '', inputs: [] },
         msgen: { msgenModel: 'zimage', msWidth: 1024, msHeight: 1024, msCustomModel: 'Tongyi-MAI/Z-Image-Turbo', msRatio: 'square', msResolution: '1k', count: 1, fitImage: false, inputs: [] },
         output: { images: [] },
         prompt: { text: '' },
@@ -99,6 +103,22 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
         connections,
         nodes: [...current.nodes, { id, type: 'promptGroup', x: left - 24, y: top - 58, w: right - left + 48, h: bottom - top + 90, items: prompts.map((node) => node.id) }],
       } });
+      return id;
+    },
+    groupNodes: (nodeIds) => {
+      const current = get().document;
+      if (!current) return null;
+      const members = current.nodes.filter((node) => nodeIds.includes(node.id) && ['image', 'prompt'].includes(node.type));
+      if (!members.length) return null;
+      const id = `group_${crypto.randomUUID()}`;
+      const left = Math.min(...members.map((node) => Number(node.x || 0)));
+      const top = Math.min(...members.map((node) => Number(node.y || 0)));
+      const right = Math.max(...members.map((node) => Number(node.x || 0) + Number(node.w || (node.type === 'image' ? 260 : 310))));
+      const bottom = Math.max(...members.map((node) => Number(node.y || 0) + Number(node.h || (node.type === 'image' ? 336 : 230))));
+      const outgoing = current.connections.filter((edge) => members.some((node) => node.id === edge.from) && !nodeIds.includes(edge.to));
+      const connections = current.connections.filter((edge) => !members.some((node) => node.id === edge.from))
+        .concat([...new Set(outgoing.map((edge) => edge.to))].map((to) => ({ from: id, to })));
+      set({ document: { ...current, connections, nodes: [...current.nodes, { id, type: 'group', x: left - 24, y: top - 58, w: right - left + 48, h: bottom - top + 90, items: members.map((node) => node.id) }] } });
       return id;
     },
     moveNode: (nodeId, x, y) => set(({ document }) => {

@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await page.goto('/static/canvas.html');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '20');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '21');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
@@ -293,6 +293,55 @@ test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
   await expect(page.locator('[data-node-type="video"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="comfy"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="llm"]')).toHaveCount(2);
+});
+
+test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page }) => {
+  const saves: Array<Record<string, any>> = [];
+  await page.route('**/api/ai/upload', async (route) => route.fulfill({ json: { files: [{ url: '/uploads/replaced.png', name: 'replaced.png', kind: 'image' }] } }));
+  await page.route('**/api/canvases/v2-ltx-media', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    saves.push(body);
+    await route.fulfill({ json: { canvas: { ...body, id: 'v2-ltx-media', updated_at: saves.length + 1 } } });
+  });
+  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
+  await page.evaluate(() => {
+    document.getElementById('shell')?.classList.remove('no-canvas');
+    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
+      id: 'v2-ltx-media', updated_at: 1, extension: 'kept', connections: [],
+      nodes: [
+        { id: 'ltx-v2', type: 'ltxDirector', x: 20, y: 110, w: 800, h: 600, durationFrames: 120, durationSeconds: 5, frameRate: 24, customWidth: 0, customHeight: 0, ltxTimelineData: JSON.stringify({ segments: [{ id: 'segment-1', type: 'text', prompt: 'opening', start: 0, length: 120 }], audioSegments: [] }) },
+        { id: 'image-a', type: 'image', x: 850, y: 110, url: '', name: '空白图片', mediaKind: 'image' },
+        { id: 'image-b', type: 'image', x: 850, y: 470, url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', name: 'second.gif', mediaKind: 'image' },
+      ],
+    } }));
+  });
+
+  const ltx = page.locator('[data-node-id="ltx-v2"]');
+  await expect.poll(() => ltx.locator('.ltx-director-timeline-host').evaluate((element) => element.childElementCount)).toBeGreaterThan(0);
+  await ltx.getByLabel('LTX FPS').fill('30');
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'ltx-v2')?.frameRate).toBe(30);
+  expect(saves.at(-1)?.nodes.find((node: any) => node.id === 'ltx-v2')?.ltxTimelineData).toContain('segment-1');
+
+  const first = page.locator('[data-node-id="image-a"]');
+  await first.locator('input[type="file"]').setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: Buffer.from('png') });
+  await expect(first.locator('img')).toHaveAttribute('src', '/uploads/replaced.png');
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'image-a')).toMatchObject({ url: '/uploads/replaced.png', mediaKind: 'image' });
+
+  await first.locator('.node-head').click();
+  await page.locator('[data-node-id="image-b"] .node-head').click({ modifiers: ['Control'] });
+  await page.evaluate(() => (window as typeof window & { groupSelectedImages(): void }).groupSelectedImages());
+  const group = page.locator('[data-node-type="group"]');
+  await expect(group).toHaveCount(1);
+  await expect(group).toContainText('2 个媒体');
+  await group.locator('.node-head').click();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('[data-node-type="image"]')).toHaveCount(0);
+  await expect(page.locator('[data-node-type="ltxDirector"]')).toHaveCount(1);
+  expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
+
+  await page.evaluate(() => (window as typeof window & { addLTXDirectorNode(): void }).addLTXDirectorNode());
+  await expect(page.locator('[data-node-type="ltxDirector"]')).toHaveCount(2);
 });
 
 test('runs fake execution and mocked task/repository contracts with all M2 switches enabled', async ({ page }) => {

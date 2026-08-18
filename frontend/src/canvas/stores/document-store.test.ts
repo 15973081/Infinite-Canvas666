@@ -91,4 +91,18 @@ describe('document store', () => {
       { id: ids[2], type: 'llm', mode: 'node', messages: [], outputText: '' },
     ]);
   });
+
+  it('owns media groups and LTX timeline defaults', () => {
+    const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [] });
+    const first = store.getState().addNode('image', { x: 10, y: 20 })!;
+    const second = store.getState().addNode('image', { x: 300, y: 20 })!;
+    const ltx = store.getState().addNode('ltxDirector', { x: 10, y: 400 })!;
+    store.getState().updateNode(first, { url: '/first.png', mediaKind: 'image' });
+    store.getState().updateNode(second, { url: '/second.mp4', mediaKind: 'video' });
+    const group = store.getState().groupNodes([first, second])!;
+    expect(store.getState().document?.nodes.find((node) => node.id === group)).toMatchObject({ type: 'group', items: [first, second] });
+    expect(store.getState().document?.nodes.find((node) => node.id === ltx)).toMatchObject({ type: 'ltxDirector', durationFrames: 120, frameRate: 24, w: 1000, h: 800 });
+    store.getState().deleteNode(group);
+    expect(store.getState().document?.nodes.map((node) => node.id)).toEqual([ltx]);
+  });
 });

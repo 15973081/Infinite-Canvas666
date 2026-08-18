@@ -1,4 +1,4 @@
-import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-Dg9moU9Z.js";
+import { c as e, i as t, o as n, r, s as i, t as a } from "./jsx-runtime-U2XIESeZ.js";
 import { t as o } from "./canvas-repository-qZo_3rR8.js";
 //#region src/canvas/ui/canvas-board-v2.tsx
 var s = /* @__PURE__ */ e(i(), 1), c = n(), l = a(), u = {
@@ -22,7 +22,10 @@ function d(e) {
 	};
 }
 function f(e) {
-	let t = e.type === "prompt" ? {
+	let t = e.type === "image" ? {
+		height: 336,
+		width: 260
+	} : e.type === "prompt" ? {
 		height: 230,
 		width: 310
 	} : e.type === "loop" ? {
@@ -46,6 +49,12 @@ function f(e) {
 	} : e.type === "llm" ? {
 		height: 590,
 		width: 420
+	} : e.type === "ltxDirector" ? {
+		height: 800,
+		width: 1e3
+	} : e.type === "group" ? {
+		height: 220,
+		width: 300
 	} : {
 		height: 110,
 		width: 240
@@ -980,18 +989,217 @@ function O({ commit: e, document: t, node: n, store: r }) {
 		]
 	});
 }
-function k({ commit: e, store: n }) {
-	let r = t(n, ({ document: e }) => e), i = (0, s.useRef)(null), [a, o] = (0, s.useState)(""), [c, v] = (0, s.useState)(-1), [y, b] = (0, s.useState)(/* @__PURE__ */ new Set()), [x, S] = (0, s.useState)("ready"), [k, A] = (0, s.useState)({
+function k({ commit: e, node: t, store: n }) {
+	let r = (0, s.useRef)(null);
+	(0, s.useEffect)(() => () => {
+		r.current?.pause(), r.current?.removeAttribute("src"), r.current?.load();
+	}, []);
+	let i = async (r) => {
+		if (!r.length) return;
+		let i = (await window.CanvasLegacyBridge?.uploadMedia(r))?.files ?? [];
+		if (!i.length) return;
+		n.getState().updateNode(t.id, {
+			url: i[0].url || "",
+			name: i[0].name || "media",
+			mediaKind: i[0].kind || "image"
+		});
+		let a = [t.id];
+		i.slice(1).forEach((e, r) => {
+			let i = n.getState().addNode("image", {
+				x: Number(t.x || 0) + (r + 1) * 36,
+				y: Number(t.y || 0) + (r + 1) * 36
+			});
+			i && (n.getState().updateNode(i, {
+				url: e.url || "",
+				name: e.name || "media",
+				mediaKind: e.kind || "image"
+			}), a.push(i));
+		}), a.length > 1 && n.getState().groupNodes(a), e();
+	}, a = String(t.url || ""), o = String(t.mediaKind || (/\.(mp4|webm|mov)(\?|$)/i.test(a) ? "video" : /\.(mp3|wav|m4a)(\?|$)/i.test(a) ? "audio" : "image"));
+	return a ? /* @__PURE__ */ (0, l.jsxs)("div", {
+		className: "image-preview-wrap",
+		onClick: (e) => e.stopPropagation(),
+		onDoubleClick: () => window.open(a, "_blank", "noopener"),
+		onDragOver: (e) => e.preventDefault(),
+		onDrop: (e) => {
+			e.preventDefault(), i([...e.dataTransfer.files]);
+		},
+		onPointerDown: (e) => e.stopPropagation(),
+		children: [
+			o === "video" ? /* @__PURE__ */ (0, l.jsx)("video", {
+				controls: !0,
+				preload: "metadata",
+				ref: (e) => {
+					r.current = e;
+				},
+				src: a
+			}) : o === "audio" ? /* @__PURE__ */ (0, l.jsx)("audio", {
+				controls: !0,
+				preload: "metadata",
+				ref: (e) => {
+					r.current = e;
+				},
+				src: a
+			}) : /* @__PURE__ */ (0, l.jsx)("img", {
+				alt: String(t.name || "image"),
+				draggable: !0,
+				src: a
+			}),
+			/* @__PURE__ */ (0, l.jsx)("div", {
+				className: "image-caption text-[11px] text-gray-400 truncate",
+				children: String(t.name || o)
+			}),
+			/* @__PURE__ */ (0, l.jsx)("button", {
+				"aria-label": "清空媒体",
+				className: "output-del",
+				onClick: () => {
+					n.getState().updateNode(t.id, {
+						url: "",
+						name: "空白图片",
+						mediaKind: "image"
+					}), e();
+				},
+				type: "button",
+				children: "×"
+			})
+		]
+	}) : /* @__PURE__ */ (0, l.jsxs)("label", {
+		className: "blank-image",
+		onClick: (e) => e.stopPropagation(),
+		onPointerDown: (e) => e.stopPropagation(),
+		children: ["选择或拖入媒体", /* @__PURE__ */ (0, l.jsx)("input", {
+			accept: "image/*,video/*,audio/*",
+			hidden: !0,
+			multiple: !0,
+			onChange: (e) => void i([...e.target.files ?? []]),
+			type: "file"
+		})]
+	});
+}
+function A({ node: e, nodesById: t }) {
+	let n = Array.isArray(e.items) ? e.items.map((e) => t.get(String(e))).filter(Boolean) : [], r = n.filter((e) => e.type === "image" && e.url);
+	return /* @__PURE__ */ (0, l.jsxs)("div", { children: [/* @__PURE__ */ (0, l.jsxs)("div", {
+		className: "text-[11px] text-gray-400",
+		children: [
+			r.length,
+			" 个媒体 · ",
+			n.filter((e) => e.type === "prompt").length,
+			" 个提示词"
+		]
+	}), r.length ? /* @__PURE__ */ (0, l.jsx)("div", {
+		className: "output-grid",
+		children: r.slice(0, 6).map((e) => /* @__PURE__ */ (0, l.jsx)("img", {
+			alt: String(e.name || "media"),
+			onDoubleClick: () => window.open(String(e.url), "_blank", "noopener"),
+			src: String(e.url)
+		}, e.id))
+	}) : null] });
+}
+function j({ commit: e, document: t, node: n, store: r }) {
+	let i = (0, s.useRef)(null), a = (0, s.useRef)(null);
+	(!a.current || a.current.id !== n.id) && (a.current = window.CanvasLegacyBridge?.normalizeLtxNode(n) ?? structuredClone(n)), (0, s.useEffect)(() => {
+		let t = i.current, o = window.CanvasLTXTimelineEditor, s = a.current;
+		if (!t || !o || !s) return;
+		r.getState().updateNode(n.id, s);
+		let c = new o(s, t, null), l = () => {
+			r.getState().updateNode(n.id, structuredClone(s)), e();
+		};
+		return c._onCanvasCommit = l, c._onCanvasResize = l, () => c.destroy();
+	}, [
+		e,
+		n.id,
+		r
+	]);
+	let o = (t) => {
+		Object.assign(a.current ?? {}, t), r.getState().updateNode(n.id, t), e();
+	};
+	return /* @__PURE__ */ (0, l.jsxs)("div", {
+		className: "ltx-director-body",
+		onClick: (e) => e.stopPropagation(),
+		onPointerDown: (e) => e.stopPropagation(),
+		children: [
+			/* @__PURE__ */ (0, l.jsx)(S, {
+				document: t,
+				node: n
+			}),
+			/* @__PURE__ */ (0, l.jsxs)("div", {
+				className: "ltx-params-row",
+				children: [
+					/* @__PURE__ */ (0, l.jsx)("input", {
+						"aria-label": "LTX 秒数",
+						className: "setting-input",
+						min: "0.1",
+						onChange: (e) => o({
+							durationSeconds: Math.max(.1, Number(e.target.value) || 5),
+							durationFrames: Math.max(1, Math.round((Number(e.target.value) || 5) * Number(n.frameRate || 24)))
+						}),
+						step: "0.01",
+						type: "number",
+						value: Number(n.durationSeconds || 5)
+					}),
+					/* @__PURE__ */ (0, l.jsx)("input", {
+						"aria-label": "LTX 帧数",
+						className: "setting-input",
+						min: "1",
+						onChange: (e) => o({
+							durationFrames: Math.max(1, Number(e.target.value) || 120),
+							durationSeconds: Math.max(1, Number(e.target.value) || 120) / Number(n.frameRate || 24)
+						}),
+						type: "number",
+						value: Number(n.durationFrames || 120)
+					}),
+					/* @__PURE__ */ (0, l.jsx)("input", {
+						"aria-label": "LTX FPS",
+						className: "setting-input",
+						min: "1",
+						onChange: (e) => o({ frameRate: Math.max(1, Number(e.target.value) || 24) }),
+						type: "number",
+						value: Number(n.frameRate || 24)
+					}),
+					/* @__PURE__ */ (0, l.jsx)("input", {
+						"aria-label": "LTX 宽度",
+						className: "setting-input",
+						min: "0",
+						onChange: (e) => o({ customWidth: Math.max(0, Number(e.target.value) || 0) }),
+						step: "32",
+						type: "number",
+						value: Number(n.customWidth || 0)
+					}),
+					/* @__PURE__ */ (0, l.jsx)("input", {
+						"aria-label": "LTX 高度",
+						className: "setting-input",
+						min: "0",
+						onChange: (e) => o({ customHeight: Math.max(0, Number(e.target.value) || 0) }),
+						step: "32",
+						type: "number",
+						value: Number(n.customHeight || 0)
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, l.jsx)("div", {
+				className: "ltx-director-timeline-host",
+				ref: i,
+				children: window.CanvasLTXTimelineEditor ? null : "LTX 时间线脚本未加载"
+			}),
+			/* @__PURE__ */ (0, l.jsx)("div", {
+				className: "gen-run-row",
+				children: /* @__PURE__ */ (0, l.jsx)(x, { node: n })
+			})
+		]
+	});
+}
+function M({ commit: e, store: n }) {
+	let r = t(n, ({ document: e }) => e), i = (0, s.useRef)(null), [a, o] = (0, s.useState)(""), [c, v] = (0, s.useState)(-1), [y, b] = (0, s.useState)(/* @__PURE__ */ new Set()), [x, S] = (0, s.useState)("ready"), [M, N] = (0, s.useState)({
 		x: 0,
 		y: 0,
 		zoom: 1
-	}), j = String(r?.id || ""), M = new Map((r?.nodes ?? []).map((e) => [e.id, e])), N = {
+	}), P = String(r?.id || ""), F = new Map((r?.nodes ?? []).map((e) => [e.id, e])), I = {
 		connections: r?.connections ?? [],
 		nodes: r?.nodes ?? []
 	};
 	(0, s.useEffect)(() => {
 		o(""), v(-1), b(/* @__PURE__ */ new Set());
-	}, [j]), (0, s.useEffect)(() => {
+	}, [P]), (0, s.useEffect)(() => {
 		let t = (t) => {
 			let r = t.target, a = r?.isContentEditable || r?.matches("input, textarea, select");
 			if (t.key === "Escape") {
@@ -1011,7 +1219,7 @@ function k({ commit: e, store: n }) {
 				}
 				if ((t.ctrlKey || t.metaKey) && t.key.toLowerCase() === "g") {
 					t.preventDefault();
-					let r = n.getState().groupPromptNodes([...y]);
+					let r = (n.getState().document?.nodes.filter((e) => y.has(e.id)) ?? []).some((e) => e.type === "image") ? n.getState().groupNodes([...y]) : n.getState().groupPromptNodes([...y]);
 					r && (b(/* @__PURE__ */ new Set([r])), e());
 					return;
 				}
@@ -1031,7 +1239,7 @@ function k({ commit: e, store: n }) {
 		n
 	]), (0, s.useEffect)(() => {
 		let t = () => {
-			let t = n.getState().groupPromptNodes([...y]);
+			let t = (n.getState().document?.nodes.filter((e) => y.has(e.id)) ?? []).some((e) => e.type === "image") ? n.getState().groupNodes([...y]) : n.getState().groupPromptNodes([...y]);
 			t && (b(/* @__PURE__ */ new Set([t])), e());
 		};
 		return window.addEventListener("canvas-board-v2-group-selected", t), () => window.removeEventListener("canvas-board-v2-group-selected", t);
@@ -1043,22 +1251,31 @@ function k({ commit: e, store: n }) {
 		let e = (e) => S(String(e.detail || "ready"));
 		return window.addEventListener("canvas-board-v2-save-state", e), () => window.removeEventListener("canvas-board-v2-save-state", e);
 	}, []);
-	let P = (t) => {
+	let L = (t) => {
 		a && n.getState().connectNodes(a, t) && e(), o("");
 	};
 	return /* @__PURE__ */ (0, l.jsxs)("div", {
 		"aria-label": "CanvasBoard V2",
 		"data-testid": "canvas-board-v2",
-		"data-viewport": `${k.x},${k.y},${k.zoom.toFixed(2)}`,
+		"data-viewport": `${M.x},${M.y},${M.zoom.toFixed(2)}`,
+		onDragOver: (e) => e.preventDefault(),
+		onDrop: (e) => {
+			e.preventDefault(), e.stopPropagation();
+			let t = e.currentTarget.getBoundingClientRect(), n = {
+				x: (e.clientX - t.left - M.x) / M.zoom,
+				y: (e.clientY - t.top - M.y) / M.zoom
+			}, r = [...e.dataTransfer.files].filter((e) => /^(image|video|audio)\//.test(e.type));
+			r.length && window.CanvasBoardV2?.importFiles(r, n);
+		},
 		onPointerDown: (e) => {
 			if (e.button !== 0) return;
 			let t = e.currentTarget, n = {
 				x: e.clientX,
 				y: e.clientY,
-				viewport: k
+				viewport: M
 			};
 			t.setPointerCapture(e.pointerId), b(/* @__PURE__ */ new Set()), v(-1);
-			let r = (e) => A((t) => ({
+			let r = (e) => N((t) => ({
 				...t,
 				x: n.viewport.x + e.clientX - n.x,
 				y: n.viewport.y + e.clientY - n.y
@@ -1066,7 +1283,7 @@ function k({ commit: e, store: n }) {
 			t.addEventListener("pointermove", r), t.addEventListener("pointerup", () => t.removeEventListener("pointermove", r), { once: !0 });
 		},
 		onWheel: (e) => {
-			e.preventDefault(), A((t) => ({
+			e.preventDefault(), N((t) => ({
 				...t,
 				zoom: Math.min(1.5, Math.max(.25, t.zoom * (e.deltaY < 0 ? 1.1 : .9)))
 			}));
@@ -1094,7 +1311,7 @@ function k({ commit: e, store: n }) {
 			style: {
 				height: 4e3,
 				position: "absolute",
-				transform: `translate(${k.x}px, ${k.y}px) scale(${k.zoom})`,
+				transform: `translate(${M.x}px, ${M.y}px) scale(${M.zoom})`,
 				transformOrigin: "0 0",
 				width: 6e3
 			},
@@ -1107,7 +1324,7 @@ function k({ commit: e, store: n }) {
 				},
 				width: "6000",
 				children: (r?.connections ?? []).map((e, t) => {
-					let n = M.get(e.from), r = M.get(e.to);
+					let n = F.get(e.from), r = F.get(e.to);
 					if (!n || !r) return null;
 					let i = d(n), a = d(r), o = f(n), s = f(r), u = {
 						x1: i.x + o.width,
@@ -1136,7 +1353,7 @@ function k({ commit: e, store: n }) {
 				let r = d(t), i = f(t);
 				return /* @__PURE__ */ (0, l.jsxs)("article", {
 					"aria-label": `${t.type} ${t.id}`,
-					className: `node ${t.type}-node sized ${y.has(t.id) ? "selected" : ""}`,
+					className: `node ${t.type}-node sized ${t.url ? "has-image" : ""} ${y.has(t.id) ? "selected" : ""}`,
 					"data-node-id": t.id,
 					"data-node-type": t.type,
 					onClick: (e) => {
@@ -1158,7 +1375,7 @@ function k({ commit: e, store: n }) {
 						}, s = !1;
 						a.setPointerCapture(i.pointerId), v(-1), y.has(t.id) || b(/* @__PURE__ */ new Set([t.id]));
 						let c = (e) => {
-							s = !0, n.getState().moveNode(t.id, o.point.x + (e.clientX - o.clientX) / k.zoom, o.point.y + (e.clientY - o.clientY) / k.zoom);
+							s = !0, n.getState().moveNode(t.id, o.point.x + (e.clientX - o.clientX) / M.zoom, o.point.y + (e.clientY - o.clientY) / M.zoom);
 						};
 						a.addEventListener("pointermove", c), a.addEventListener("pointerup", () => {
 							a.removeEventListener("pointermove", c), s && e();
@@ -1179,9 +1396,9 @@ function k({ commit: e, store: n }) {
 							"aria-label": `连接到 ${t.id}`,
 							className: "port in",
 							"data-port": "in",
-							onClick: () => P(t.id),
+							onClick: () => L(t.id),
 							onPointerDown: (e) => e.stopPropagation(),
-							onPointerUp: () => P(t.id),
+							onPointerUp: () => L(t.id),
 							type: "button"
 						}) : null,
 						m(t) ? /* @__PURE__ */ (0, l.jsx)("button", {
@@ -1207,21 +1424,28 @@ function k({ commit: e, store: n }) {
 								commit: e,
 								node: t,
 								store: n
+							}) : t.type === "image" ? /* @__PURE__ */ (0, l.jsx)(k, {
+								commit: e,
+								node: t,
+								store: n
+							}) : t.type === "group" ? /* @__PURE__ */ (0, l.jsx)(A, {
+								node: t,
+								nodesById: F
 							}) : t.type === "promptGroup" ? /* @__PURE__ */ (0, l.jsx)(g, {
 								node: t,
-								nodesById: M
+								nodesById: F
 							}) : t.type === "loop" ? /* @__PURE__ */ (0, l.jsx)(_, {
 								commit: e,
 								node: t,
 								store: n
 							}) : t.type === "generator" ? /* @__PURE__ */ (0, l.jsx)(C, {
 								commit: e,
-								document: N,
+								document: I,
 								node: t,
 								store: n
 							}) : t.type === "msgen" ? /* @__PURE__ */ (0, l.jsx)(w, {
 								commit: e,
-								document: N,
+								document: I,
 								node: t,
 								store: n
 							}) : t.type === "output" ? /* @__PURE__ */ (0, l.jsx)(T, {
@@ -1230,17 +1454,22 @@ function k({ commit: e, store: n }) {
 								store: n
 							}) : t.type === "video" ? /* @__PURE__ */ (0, l.jsx)(E, {
 								commit: e,
-								document: N,
+								document: I,
 								node: t,
 								store: n
 							}) : t.type === "llm" ? /* @__PURE__ */ (0, l.jsx)(D, {
 								commit: e,
-								document: N,
+								document: I,
 								node: t,
 								store: n
 							}) : t.type === "comfy" ? /* @__PURE__ */ (0, l.jsx)(O, {
 								commit: e,
-								document: N,
+								document: I,
+								node: t,
+								store: n
+							}) : t.type === "ltxDirector" ? /* @__PURE__ */ (0, l.jsx)(j, {
+								commit: e,
+								document: I,
 								node: t,
 								store: n
 							}) : String(t.title || t.name || t.id)
@@ -1251,7 +1480,7 @@ function k({ commit: e, store: n }) {
 		})]
 	});
 }
-function A(e, t) {
+function N(e, t) {
 	let n = window.CanvasLegacyBridge, i = window.CanvasModernCore?.canvasRepository;
 	if (!n || !i) throw Error("Canvas V2 dependencies are unavailable");
 	let a = r(n.getDocumentSnapshot()), s = (e) => a.getState().adoptDocument(e.detail);
@@ -1285,6 +1514,21 @@ function A(e, t) {
 		groupSelected() {
 			window.dispatchEvent(new Event("canvas-board-v2-group-selected"));
 		},
+		async importFiles(e, t) {
+			if (!e.length) return;
+			let r = ((await n.uploadMedia(e)).files ?? []).map((e, n) => {
+				let r = a.getState().addNode("image", t ? {
+					x: t.x + n * 36,
+					y: t.y + n * 36
+				} : void 0);
+				return r && a.getState().updateNode(r, {
+					url: e.url || "",
+					name: e.name || "media",
+					mediaKind: e.kind || "image"
+				}), r;
+			}).filter(Boolean);
+			r.length > 1 && a.getState().groupNodes(r), r.length && g();
+		},
 		openPromptTemplates(e) {
 			window.openPromptTemplateModal?.(e);
 		},
@@ -1297,7 +1541,7 @@ function A(e, t) {
 		updateNode(e, t) {
 			return a.getState().document?.nodes.some((t) => t.id === e) ? (a.getState().updateNode(e, t), g(), !0) : !1;
 		}
-	}, u.render(/* @__PURE__ */ (0, l.jsx)(k, {
+	}, u.render(/* @__PURE__ */ (0, l.jsx)(M, {
 		commit: g,
 		store: a
 	})), t.hidden = !0, e.hidden = !1, () => {
@@ -1305,4 +1549,4 @@ function A(e, t) {
 	};
 }
 //#endregion
-export { A as mountCanvasBoardV2 };
+export { N as mountCanvasBoardV2 };
