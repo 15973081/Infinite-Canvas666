@@ -19,6 +19,19 @@ test('homepage runs as React SiteShell with lazy routes, broadcasts and updater 
   await expect(page.locator('.shell-content iframe')).toHaveCount(1);
   await expect(page.locator('.shell-content iframe')).toHaveAttribute('src', '/static/online.html');
 
+  const sidebar = page.locator('.shell-sidebar');
+  await expect(sidebar).toHaveCSS('width', '80px');
+  await sidebar.hover();
+  await expect(sidebar).toHaveCSS('width', '220px');
+  await expect(page.getByRole('button', { name: 'GPT 对话' }).locator('.nav-text')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.shell-logo')).toHaveCSS('border-radius', '50%');
+  await page.getByTitle('固定导航栏').click();
+  expect(await page.evaluate(() => localStorage.getItem('studio_sidebar_pinned'))).toBe('1');
+  await page.locator('.shell-content').hover({ position: { x: 300, y: 100 } });
+  await expect(sidebar).toHaveCSS('width', '220px');
+  await page.getByRole('button', { name: '更多设置' }).click();
+  await expect(page.getByRole('button', { name: '工作流设置' })).toBeVisible();
+
   await page.getByRole('button', { name: '无限画布' }).click();
   await expect(page).toHaveURL(/#\/canvas$/);
   await expect(page.locator('.shell-content iframe')).toHaveCount(2);
@@ -26,7 +39,7 @@ test('homepage runs as React SiteShell with lazy routes, broadcasts and updater 
   const canvasFrame = page.frameLocator('iframe[title="无限画布"]');
   await expect.poll(() => canvasFrame.locator('body').evaluate(() => (window as typeof window & { messages: Array<{ type?: string }> }).messages.some(message => message.type === 'canvas-focus'))).toBe(true);
 
-  await page.getByTitle('切换主题').click();
+  await page.getByRole('button', { name: '切换主题' }).click();
   await expect.poll(() => canvasFrame.locator('body').evaluate(() => (window as typeof window & { messages: Array<{ type?: string; theme?: string }> }).messages.some(message => message.type === 'studio-theme' && message.theme === 'dark'))).toBe(true);
   await page.evaluate(() => { const channel = new BroadcastChannel('studio-api'); channel.postMessage({ type: 'providers-changed' }); channel.close(); });
   await expect.poll(() => canvasFrame.locator('body').evaluate(() => (window as typeof window & { messages: Array<{ type?: string }> }).messages.some(message => message.type === 'providers-changed'))).toBe(true);
@@ -40,4 +53,3 @@ test('homepage runs as React SiteShell with lazy routes, broadcasts and updater 
   await expect.poll(() => updatePayload).toMatchObject({ source: 'modelscope', fallback: true, auto_restart: false });
   await expect(page.getByText(/12 个文件/)).toBeVisible();
 });
-

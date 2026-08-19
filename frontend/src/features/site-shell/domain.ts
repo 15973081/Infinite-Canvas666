@@ -6,16 +6,16 @@ export const UPDATE_SOURCE_KEY = 'studio_update_source';
 export const DEFAULT_PAGE: SitePageId = 'online';
 
 export const SITE_PAGES: SitePage[] = [
-  { id: 'zimage', label: '文生图', short: '✦', src: '/static/zimage.html', group: 'create' },
-  { id: 'enhance', label: '细节增强', short: '◌', src: '/static/enhance.html', group: 'create' },
-  { id: 'klein', label: '图片编辑', short: '◫', src: '/static/klein.html', group: 'create' },
-  { id: 'angle', label: '角度控制', short: '⌁', src: '/static/angle.html', group: 'create' },
-  { id: 'online', label: '在线生图', short: '◎', src: '/static/online.html', group: 'workspace' },
-  { id: 'gpt-chat', label: 'GPT 对话', short: '□', src: '/static/gpt-chat.html', group: 'workspace' },
-  { id: 'canvas', label: '无限画布', short: '▦', src: '/static/canvas.html', group: 'workspace' },
-  { id: 'asset-manager', label: '素材工作台', short: '▤', src: '/static/asset-manager.html', group: 'workspace' },
-  { id: 'api-settings', label: 'API 设置', short: '⌘', src: '/static/api-settings.html', group: 'settings' },
-  { id: 'comfyui-settings', label: '工作流设置', short: '◇', src: '/static/comfyui-settings.html', group: 'settings' },
+  { id: 'zimage', label: '文生图', src: '/static/zimage.html', group: 'create' },
+  { id: 'enhance', label: '细节增强', src: '/static/enhance.html', group: 'create' },
+  { id: 'klein', label: '图片编辑', src: '/static/klein.html', group: 'create' },
+  { id: 'angle', label: '角度控制', src: '/static/angle.html', group: 'create' },
+  { id: 'online', label: '在线生图', src: '/static/online.html', group: 'workspace' },
+  { id: 'gpt-chat', label: 'GPT 对话', src: '/static/gpt-chat.html', group: 'workspace' },
+  { id: 'canvas', label: '无限画布', src: '/static/canvas.html', group: 'workspace' },
+  { id: 'asset-manager', label: '素材库', src: '/static/asset-manager.html', group: 'workspace' },
+  { id: 'api-settings', label: 'API 设置', src: '/static/api-settings.html', group: 'settings' },
+  { id: 'comfyui-settings', label: '工作流设置', src: '/static/comfyui-settings.html', group: 'settings' },
 ];
 
 export function normalizePageId(value: string | null | undefined): SitePageId {
