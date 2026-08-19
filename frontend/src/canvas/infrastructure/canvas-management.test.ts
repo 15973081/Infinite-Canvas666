@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createCanvasManagementClient } from './canvas-management';
+import { createCanvasManagementClient, getDefaultCanvasManagementClient } from './canvas-management';
 
 const response = (payload: unknown = {}) => new Response(JSON.stringify(payload), { headers: { 'content-type': 'application/json' } });
 
 describe('Canvas management client', () => {
+  it('reuses the default client across React renders', () => {
+    expect(getDefaultCanvasManagementClient()).toBe(getDefaultCanvasManagementClient());
+  });
+
   it('owns list, create, trash and lock lifecycle without CanvasApi globals', async () => {
     const requests: Array<{ body: unknown; method: string; path: string }> = [];
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {

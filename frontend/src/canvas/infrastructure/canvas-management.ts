@@ -96,6 +96,12 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
   return { acquireLock, create, createFolder, delete: remove, deleteBackup, deleteFolder, getMeta, list, listFolders, listTrash, moveToFolder, purge, releaseLock, restore, updateFolder };
 }
 
+const defaultCanvasManagementClient = createCanvasManagementClient();
+
+export function getDefaultCanvasManagementClient(): CanvasManagementClient {
+  return defaultCanvasManagementClient;
+}
+
 function listFrom(payload: unknown): CanvasSummary[] {
   const record = object(payload);
   const values = Array.isArray(payload) ? payload : record.canvases;

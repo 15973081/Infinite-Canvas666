@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import type { CanvasDocument } from '../domain/types';
 import { canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
 import {
-  createCanvasManagementClient,
+  getDefaultCanvasManagementClient,
   type CanvasFolder,
   type CanvasManagementClient,
   type CanvasSummary,
@@ -38,7 +38,7 @@ const nodeButtons = [
   ['msgen', 'ModelScope'], ['video', '视频'], ['comfy', 'ComfyUI'], ['ltxDirector', 'LTX Director'], ['output', 'Output'],
 ] as const;
 
-function CanvasAppV2({ configuration = {}, management = createCanvasManagementClient(), repository, runtime }: CanvasAppDependencies) {
+function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManagementClient(), repository, runtime }: CanvasAppDependencies) {
   const canvasKind = configuration.kind ?? 'classic';
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
   const [trash, setTrash] = useState<CanvasSummary[]>([]);
