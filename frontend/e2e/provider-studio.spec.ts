@@ -25,6 +25,16 @@ test('API settings runs as an isolated React ProviderStudio with real provider c
   await expect(page.getByRole('heading', { name: 'API 设置' })).toBeVisible();
   await expect(page.locator('link[href*="/static/css/api-settings.css"]')).toHaveCount(1);
   await expect(page.locator('img[src="/static/images/modelscope.gif"]')).toBeVisible();
+  const customProvider = page.locator('.provider-card-sortable').first();
+  const providerNameBox = await customProvider.locator('.provider-name').boundingBox();
+  const providerMetaBox = await customProvider.locator('.provider-meta').boundingBox();
+  const providerSideBox = await customProvider.locator('.provider-side-meta').boundingBox();
+  expect(providerNameBox).not.toBeNull();
+  expect(providerMetaBox).not.toBeNull();
+  expect(providerSideBox).not.toBeNull();
+  expect(providerMetaBox!.y).toBeGreaterThan(providerNameBox!.y);
+  expect(providerMetaBox!.x).toBe(providerNameBox!.x);
+  expect(providerMetaBox!.x + providerMetaBox!.width).toBeLessThanOrEqual(providerSideBox!.x + 1);
   expect(await page.evaluate(() => ({
     addProvider: typeof (window as typeof window & { addProvider?: unknown }).addProvider,
     legacy: [...document.scripts].some(script => /api-settings\.js/.test(script.src)),

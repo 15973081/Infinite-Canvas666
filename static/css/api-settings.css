@@ -5325,4 +5325,17 @@ html.studio-theme-dark body .recommend-tag.recommend-free-tag svg {
 .onboarding-rh-row-field { display:flex; flex-direction:column; gap:4px; min-width:0; }
 .onboarding-rh-row-field span { color:var(--faint); font-size:9.5px; font-weight:850; text-transform:uppercase; }
 .onboarding-rh-row-field strong { min-width:0; color:var(--text); font-size:10.5px; font-weight:750; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* 历史脚本使用 div 承载名称与地址；React 改为 span 后需显式恢复两行块级布局。 */
+.provider-info > .provider-name,
+.provider-info > .provider-meta {
+    display:block;
+    width:100%;
+}
+
+.provider-info > .provider-name,
+.provider-info > .provider-meta,
+.provider-card-sortable .provider-side-meta {
+    min-width:0;
+}
 @media (max-width:1120px) { .api-react-lora-row { grid-template-columns:1fr 1fr; } }
