@@ -1,5 +1,26 @@
 import { expect, test } from '@playwright/test';
 
+const smartCanvasV2Entry = '/__e2e__/smart-canvas-v2.html';
+
+test.beforeEach(async ({ page }) => {
+  await page.route('**/__e2e__/smart-canvas-v2.html*', route => route.fulfill({
+    contentType: 'text/html',
+    body: `<!doctype html>
+      <html lang="zh-CN" data-studio-scale="off">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.19.7">
+          <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
+        </head>
+        <body>
+          <div id="smartCanvasApp"></div>
+          <script type="module" src="/static/dist/smart-canvas-modern.js?v=2026.08.19.8"></script>
+        </body>
+      </html>`,
+  }));
+});
+
 test('runs Smart Canvas on the shared React V2 stack and imports the asset inbox', async ({ page }) => {
   let created = false;
   let createPayload: Record<string, unknown> = {};
@@ -38,7 +59,7 @@ test('runs Smart Canvas on the shared React V2 stack and imports the asset inbox
     ] } });
   });
 
-  await page.goto('/static/smart-canvas-v2.html');
+  await page.goto(smartCanvasV2Entry);
   await expect(page.getByRole('heading', { name: '智能画布' })).toBeVisible();
   await expect(page.getByText('Classic hidden')).toHaveCount(0);
   await page.getByRole('button', { name: '新建智能画布' }).click();
@@ -74,7 +95,7 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
   await page.route('**/api/canvases/smart-direct/lock', async (route) => route.fulfill({ json: { ok: true } }));
   await page.route('**/api/canvases/smart-direct', async (route) => route.fulfill({ json: { canvas: canvasDocument } }));
   await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [] } }));
-  await page.goto('/static/smart-canvas-v2.html?id=smart-direct');
+  await page.goto(`${smartCanvasV2Entry}?id=smart-direct`);
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.locator('[data-node-id="prompt-direct"]')).toContainText('direct');
   await expect(page.locator('[data-node-id="output-direct__generator"]')).toHaveAttribute('data-node-type', 'generator');
@@ -113,7 +134,7 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
 
   await page.clock.install();
-  await page.goto('/static/smart-canvas-v2.html?id=smart-locked');
+  await page.goto(`${smartCanvasV2Entry}?id=smart-locked`);
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.getByText('Alice 正在编辑此画布')).toBeVisible();
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
@@ -151,7 +172,7 @@ test('keeps the removed React composer out of the isolated V2 entry', async ({ p
   await page.route('**/api/canvases/trash', (route) => route.fulfill({ json: { canvases: [] } }));
   await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
 
-  await page.goto('/static/smart-canvas-v2.html');
+  await page.goto(smartCanvasV2Entry);
   await expect(page.getByTestId('smart-canvas-composer')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '创建并生成' })).toHaveCount(0);
 });
@@ -183,7 +204,7 @@ test('crops, outpaints and restores image node revisions', async ({ page }) => {
     return route.fulfill({ json: { files: [{ kind: 'image', name: `source_${suffix}.png`, url: `/uploads/source_${suffix}.png` }] } });
   });
 
-  await page.goto('/static/smart-canvas-v2.html?id=image-edit-e2e');
+  await page.goto(`${smartCanvasV2Entry}?id=image-edit-e2e`);
   const imageNode = page.locator('[data-node-id="editable-image"]');
   await imageNode.getByRole('button', { name: '编辑图片' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -282,7 +303,7 @@ test('manages the shared prompt library from isolated Smart Canvas V2', async ({
     await route.fulfill({ json: { library: promptState } });
   });
 
-  await page.goto('/static/smart-canvas-v2.html?id=smart-prompts');
+  await page.goto(`${smartCanvasV2Entry}?id=smart-prompts`);
   const promptNode = page.locator('[data-node-id="prompt-target"]');
   await promptNode.getByRole('button', { name: '模板' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -388,7 +409,7 @@ test('manages canvas assets, saves outputs, and exports resource-complete workfl
     await route.fulfill({ json: { library: assetState } });
   });
 
-  await page.goto('/static/smart-canvas-v2.html?id=smart-assets');
+  await page.goto(`${smartCanvasV2Entry}?id=smart-assets`);
   await page.getByRole('button', { name: '资产库', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('图片');
   await page.locator('.canvas-asset-preview').filter({ hasText: 'Hero' }).click();

@@ -27,6 +27,16 @@ class SmartCanvasEntryTest(unittest.TestCase):
         self.assertNotIn('SmartCanvasComposer', experimental)
         self.assertNotIn('editorAddon:', experimental)
 
+    def test_experimental_smart_canvas_has_no_public_entry(self):
+        self.assertFalse((ROOT / "static" / "smart-canvas-v2.html").exists())
+
+    def test_site_shell_can_only_mount_at_the_top_level(self):
+        entry = (ROOT / "frontend" / "src" / "pages" / "index.tsx").read_text(encoding="utf-8")
+
+        self.assertIn("window.self !== window.top", entry)
+        self.assertIn("topLevelUrl.searchParams.set(topLevelMarker, '1')", entry)
+        self.assertIn("window.top?.location.replace(topLevelUrl.href)", entry)
+
 
 if __name__ == "__main__":
     unittest.main()
