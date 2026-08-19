@@ -15,7 +15,7 @@ test('online image page uses the shared React studio and async task contract', a
   } }));
 
   await page.goto('/static/online.html');
-  await expect(page.getByRole('heading', { name: '在线图片生成' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '在线生图' })).toBeVisible();
   expect(await page.evaluate(() => ({
     submitImage: typeof (window as typeof window & { submitImage?: unknown }).submitImage,
     legacyScripts: [...document.scripts].filter(script => !script.type.includes('module')).length,

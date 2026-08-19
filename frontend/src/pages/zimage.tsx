@@ -6,7 +6,7 @@ import type { ImageStudioAdapter } from '../features/image-studio/types';
 import { mountStudioTheme } from '../shared/theme';
 
 const adapter: ImageStudioAdapter = {
-  id: 'zimage', title: 'Z-Image 图像生成', subtitle: '在本地 ComfyUI 与 ModelScope 云端之间切换，统一管理尺寸、结果和历史记录。',
+  id: 'zimage', title: 'Z-Image 图像生成', subtitle: 'LOCAL / MODELSCOPE IMAGE STUDIO',
   historyType: 'zimage', maxReferences: 0, modes: [{ id: 'local', label: '本地生成' }, { id: 'cloud', label: 'ModelScope 云端' }], defaultMode: localStorage.getItem('zimage_engine') === 'cloud' ? 'cloud' : 'local',
   supportsProviders: false, supportsQuality: false, supportsCount: false, generate: generateZImage,
 };

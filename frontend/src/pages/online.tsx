@@ -6,7 +6,7 @@ import type { ImageStudioAdapter } from '../features/image-studio/types';
 import { mountStudioTheme } from '../shared/theme';
 
 const adapter: ImageStudioAdapter = {
-  id: 'online', title: '在线图片生成', subtitle: '统一使用 API 设置中的平台与模型，支持参考图、异步任务恢复和多图输出。',
+  id: 'online', title: '在线生图', subtitle: 'GPT / NANO BANANA IMAGE STUDIO',
   historyType: 'online', maxReferences: 4, modes: [{ id: 'online', label: '在线模型' }], defaultMode: 'online',
   supportsProviders: true, supportsQuality: true, supportsCount: true, loadProviders, resume: resumeOnline, generate: generateOnline,
 };

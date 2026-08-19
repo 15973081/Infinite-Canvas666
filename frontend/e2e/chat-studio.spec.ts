@@ -39,6 +39,7 @@ test('GPT Chat runs as isolated React ChatStudio with streaming vision input', a
   await expect.poll(() => streamPayload).toMatchObject({ conversation_id: 'conv-1', message: 'describe this', provider: 'demo', model: 'demo-chat', mode: 'chat', reference_images: [{ url: '/output/reference.png', kind: 'image' }] });
 
   page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: '历史' }).click();
   await page.getByLabel('删除 React migration').click();
   await expect.poll(() => deletedId).toBe('conv-1');
 });
