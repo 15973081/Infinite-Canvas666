@@ -5305,3 +5305,24 @@ html.studio-theme-dark body .recommend-tag.recommend-free-tag svg {
     color:#34d399 !important;
     stroke:#34d399 !important;
 }
+
+/* React 迁移补充：沿用旧版控件，只补齐原脚本动态生成的状态结构。 */
+.api-provider-flags { grid-column:1/-1; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.api-provider-flags label { min-height:36px; padding:0 12px; border:1px solid var(--line); border-radius:10px; background:var(--soft); color:var(--muted); display:inline-flex; align-items:center; gap:8px; font-size:11.5px; font-weight:800; }
+.api-provider-flags input { width:16px; height:16px; accent-color:var(--text); }
+.api-react-verify { grid-column:1/-1; min-height:42px; padding:9px 12px; border:1px solid var(--line); border-radius:11px; background:var(--soft); display:flex; flex-direction:column; gap:3px; }
+.api-react-verify strong { color:var(--text); font-size:11.5px; font-weight:900; }
+.api-react-verify span { color:var(--muted); font-size:11px; line-height:1.45; }
+.api-react-verify.failed { border-color:rgba(220,38,38,.28); background:rgba(220,38,38,.055); }
+.api-react-lora-row { grid-template-columns:minmax(140px,1fr) minmax(120px,.9fr) minmax(150px,1fr) 82px auto 36px; }
+.api-react-lora-toggle { height:34px; padding:0 8px; border:1px solid var(--line); border-radius:9px; background:var(--soft); color:var(--muted); display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:850; }
+.api-react-lora-toggle input { accent-color:var(--text); }
+.provider-card svg,.action-btn svg,.add-btn svg,.api-link-btn svg,.ghost-btn svg,.key-btn svg,.icon-btn svg,.picker-close svg,.picker-checkbox svg,.recommend-guide-key-btn svg { width:15px; height:15px; flex:0 0 auto; }
+.picker-model-cat { margin-left:auto; color:var(--faint); font-size:10px; font-weight:850; text-transform:uppercase; }
+.recommend-advantages { display:flex; flex-direction:column; gap:5px; color:var(--muted); }
+.recommend-advantages span::before { content:""; width:5px; height:5px; margin-right:7px; border-radius:999px; background:var(--muted); display:inline-block; vertical-align:middle; }
+.recommend-guide-key-btn,.onboarding-save-btn { border:1px solid var(--line-strong); text-decoration:none; cursor:pointer; }
+.onboarding-rh-row-field { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.onboarding-rh-row-field span { color:var(--faint); font-size:9.5px; font-weight:850; text-transform:uppercase; }
+.onboarding-rh-row-field strong { min-width:0; color:var(--text); font-size:10.5px; font-weight:750; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width:1120px) { .api-react-lora-row { grid-template-columns:1fr 1fr; } }

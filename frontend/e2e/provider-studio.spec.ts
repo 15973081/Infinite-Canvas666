@@ -23,6 +23,8 @@ test('API settings runs as an isolated React ProviderStudio with real provider c
 
   await page.goto('/static/api-settings.html');
   await expect(page.getByRole('heading', { name: 'API 设置' })).toBeVisible();
+  await expect(page.locator('link[href*="/static/css/api-settings.css"]')).toHaveCount(1);
+  await expect(page.locator('img[src="/static/images/modelscope.gif"]')).toBeVisible();
   expect(await page.evaluate(() => ({
     addProvider: typeof (window as typeof window & { addProvider?: unknown }).addProvider,
     legacy: [...document.scripts].some(script => /api-settings\.js/.test(script.src)),
@@ -47,4 +49,28 @@ test('API settings runs as an isolated React ProviderStudio with real provider c
   expect(savedProviders?.[0]).toMatchObject({ id: 'demo', image_request_mode: 'openai-json', image_models: ['new-image'], chat_models: ['new-chat'], video_models: ['new-video'], model_protocols: { 'new-image': 'gemini' }, api_key: 'sk-new-secret' });
   expect(savedProviders?.[0].model_prices).toContainEqual(expect.objectContaining({ kind: 'image', model: 'new-image', unit_price: '0.25', billing_type: 'per_image' }));
   expect(savedProviders?.[1].ms_loras).toContainEqual(expect.objectContaining({ id: 'org/enhance-lora', target_model: 'ms-image', strength: 0.9 }));
+
+  await page.getByRole('button', { name: '推荐API' }).click();
+  await expect(page.getByText('APIMART', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '填入配置' }).first().click();
+  await expect(page.getByRole('heading', { name: 'APIMART' })).toBeVisible();
+  await expect(page.getByLabel('Base URL')).toHaveValue('https://api.apimart.ai');
+});
+
+test('API settings restores Volcengine brand assets and separate Ark/asset credentials', async ({ page }) => {
+  let savedProviders: Array<Record<string, any>> | null = null;
+  const volcengine = [{ id: 'volcengine', name: '火山引擎', base_url: 'https://ark.cn-beijing.volces.com/api/v3', protocol: 'volcengine', image_request_mode: 'openai', proxy_url: '', enabled: true, primary: true, image_models: [], chat_models: [], video_models: ['seedance'], model_prices: [], model_protocols: {}, ms_loras: [], ms_defaults_version: 0, volcengine_project_name: 'default', volcengine_region: 'cn-beijing' }];
+  await page.route('**/api/providers', async route => {
+    if (route.request().method() === 'PUT') { savedProviders = route.request().postDataJSON(); await route.fulfill({ json: { providers: savedProviders } }); }
+    else await route.fulfill({ json: { providers: volcengine } });
+  });
+
+  await page.goto('/static/api-settings.html');
+  await expect(page.locator('img[src="/static/images/volcengine-theme-light.svg"]')).toBeVisible();
+  await page.getByLabel('API Key').fill('ark-secret');
+  await page.getByLabel('素材库 Access Key').fill('asset-ak');
+  await page.getByLabel('素材库 Secret Key').fill('asset-sk');
+  await page.getByTitle('保存火山素材库 AK/SK').click();
+  await expect.poll(() => savedProviders).not.toBeNull();
+  expect(savedProviders?.[0]).toMatchObject({ api_key: 'ark-secret', volcengine_access_key_id: 'asset-ak', volcengine_secret_access_key: 'asset-sk', volcengine_project_name: 'default', volcengine_region: 'cn-beijing' });
 });
