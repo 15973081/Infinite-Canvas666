@@ -16,7 +16,8 @@
     --ok:#059669;
     --shadow:rgba(15,23,42,.055);
 }
-.theme-dark {
+.theme-dark,
+html.studio-theme-dark {
     --page:#08090c;
     --panel:rgba(17,18,22,.94);
     --card:#11141a;
@@ -315,6 +316,15 @@ button { border:0; cursor:pointer; }
 .avatar-provider-select { width:100%; border:1px solid var(--line); border-radius:9px; background:var(--bg); color:var(--text); padding:7px 9px; font-size:12px; font-weight:700; }
 .empty-state { min-height:240px; border:1px dashed var(--line-2); border-radius:14px; background:var(--card); color:var(--muted); display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; font-size:12px; line-height:1.45; font-weight:800; }
 .asset-grid .empty-state { grid-column:1 / -1; min-height:160px; }
+.asset-thumb { border:0; padding:0; color:inherit; }
+.asset-shared-import { display:flex; justify-content:flex-start; }
+.asset-editor-backdrop { position:fixed; inset:0; z-index:10000; padding:24px; background:rgba(8,10,14,.64); backdrop-filter:blur(7px); display:flex; align-items:center; justify-content:center; }
+.asset-editor-dialog { width:min(620px, 94vw); max-height:92vh; overflow:auto; border:1px solid var(--line); border-radius:16px; background:var(--panel); color:var(--text); box-shadow:0 24px 80px rgba(0,0,0,.24); }
+.asset-editor-fields { padding:14px; display:flex; flex-direction:column; gap:11px; }
+.asset-editor-fields label { display:flex; flex-direction:column; gap:6px; color:var(--muted); font-size:11px; font-weight:850; }
+.asset-editor-fields input,.asset-editor-fields textarea,.asset-editor-fields select { width:100%; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--text); outline:none; padding:9px 10px; font-size:12px; }
+.asset-editor-fields textarea { min-height:96px; resize:vertical; }
+.asset-editor-fields input:focus,.asset-editor-fields textarea:focus,.asset-editor-fields select:focus { border-color:var(--line-2); box-shadow:0 0 0 3px rgba(148,163,184,.14); }
 @media (max-width: 1280px) {
     body { overflow:auto; }
     .asset-page { min-height:100vh; height:auto; }

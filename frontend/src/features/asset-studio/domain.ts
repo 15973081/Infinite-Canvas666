@@ -5,7 +5,7 @@ export const firstCategory = <T extends { id: string }>(items: T[], preferred = 
 
 export function mediaMatches(item: MediaItem, query: string) {
   const needle = query.trim().toLocaleLowerCase();
-  return !needle || [item.name, item.caption, item.folder, item.canvas_name].some(value => value?.toLocaleLowerCase().includes(needle));
+  return !needle || [item.name, item.caption, item.folder, item.canvas_name, item.canvas_title, item.node_title].some(value => value?.toLocaleLowerCase().includes(needle));
 }
 
 export function promptMatches(item: { name: string; positive: string; negative?: string; scene?: string }, query: string) {
@@ -32,7 +32,7 @@ export function promptCategoryName(library: PromptLibrary | undefined, id: strin
 
 export function copyItemsToCanvas(items: MediaItem[]) {
   const payload = items.filter(item => item.url).map(item => ({ url: item.url, name: item.name, kind: item.kind }));
-  localStorage.setItem('smart_canvas_asset_inbox', JSON.stringify({ items: payload, created_at: Date.now() }));
+  const ts = Date.now();
+  localStorage.setItem('smart_canvas_asset_inbox', JSON.stringify({ items: payload, ts, created_at: ts }));
   return payload.length;
 }
-
