@@ -16,6 +16,7 @@ export interface AssetProvider {
   id: string;
   name: string;
   enabled?: boolean;
+  has_key?: boolean;
   protocol?: string;
   base_url?: string;
   volcengine_project_name?: string;
