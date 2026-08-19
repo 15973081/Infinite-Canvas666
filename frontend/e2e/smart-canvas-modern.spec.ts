@@ -38,7 +38,7 @@ test('runs Smart Canvas on the shared React V2 stack and imports the asset inbox
     ] } });
   });
 
-  await page.goto('/static/smart-canvas.html');
+  await page.goto('/static/smart-canvas-v2.html');
   await expect(page.getByRole('heading', { name: '智能画布' })).toBeVisible();
   await expect(page.getByText('Classic hidden')).toHaveCount(0);
   await page.getByRole('button', { name: '新建智能画布' }).click();
@@ -74,7 +74,7 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
   await page.route('**/api/canvases/smart-direct/lock', async (route) => route.fulfill({ json: { ok: true } }));
   await page.route('**/api/canvases/smart-direct', async (route) => route.fulfill({ json: { canvas: canvasDocument } }));
   await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [] } }));
-  await page.goto('/static/smart-canvas.html?id=smart-direct');
+  await page.goto('/static/smart-canvas-v2.html?id=smart-direct');
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.locator('[data-node-id="prompt-direct"]')).toContainText('direct');
   await expect(page.locator('[data-node-id="output-direct__generator"]')).toHaveAttribute('data-node-type', 'generator');
@@ -113,7 +113,7 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
 
   await page.clock.install();
-  await page.goto('/static/smart-canvas.html?id=smart-locked');
+  await page.goto('/static/smart-canvas-v2.html?id=smart-locked');
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.getByText('Alice 正在编辑此画布')).toBeVisible();
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
@@ -144,69 +144,17 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await expect(page.getByText(/编辑锁续期失败，已切换只读并将自动重试/)).toBeVisible();
 });
 
-test('creates and runs a generation chain from the React Smart Canvas composer', async ({ page }) => {
-  let saves = 0;
-  let savedCanvasPayload: Record<string, unknown> = {};
-  let submitted: Record<string, unknown> = {};
-  let canvasDocument = {
-    id: 'smart-composer-e2e', kind: 'smart', schemaVersion: 1, title: 'Composer Smart', updated_at: 1,
-    connections: [] as Array<Record<string, unknown>>, nodes: [] as Array<Record<string, unknown>>,
-  };
-  await page.route('**/api/config', async (route) => route.fulfill({ json: {
-    api_providers: [{ id: 'mock', name: 'Mock Provider', enabled: true, image_models: ['mock-image'], video_models: ['mock-video'] }],
-  } }));
-  await page.route('**/api/workflows', async (route) => route.fulfill({ json: { workflows: [] } }));
-  await page.route('**/api/canvas-folders', async (route) => route.fulfill({ json: { folders: [] } }));
-  await page.route('**/api/canvases/trash', async (route) => route.fulfill({ json: { canvases: [] } }));
-  await page.route('**/api/canvases/smart-composer-e2e/lock', async (route) => route.fulfill({ json: { ok: true } }));
-  await page.route('**/api/canvases/smart-composer-e2e', async (route) => {
-    if (route.request().method() === 'PUT') {
-      saves += 1;
-      savedCanvasPayload = JSON.parse(route.request().postData() || '{}');
-      canvasDocument = { ...canvasDocument, ...savedCanvasPayload, updated_at: saves + 1 };
-    }
-    await route.fulfill({ json: { canvas: canvasDocument } });
-  });
-  await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [] } }));
-  await page.route('**/api/ai/upload', async (route) => route.fulfill({ json: {
-    files: [{ kind: 'image', name: 'reference.png', url: '/uploads/reference.png' }],
-  } }));
-  await page.route('**/api/canvas-image-tasks**', async (route) => {
-    if (route.request().method() === 'POST') {
-      submitted = JSON.parse(route.request().postData() || '{}');
-      await route.fulfill({ json: { task_id: 'composer-task', status: 'queued' } });
-    } else {
-      await route.fulfill({ json: { id: 'composer-task', status: 'succeeded', result: { images: ['/output/composer.png'] } } });
-    }
-  });
+test('keeps the removed React composer out of the isolated V2 entry', async ({ page }) => {
+  await page.route('**/api/config', (route) => route.fulfill({ json: { api_providers: [] } }));
+  await page.route('**/api/workflows', (route) => route.fulfill({ json: { workflows: [] } }));
+  await page.route('**/api/canvas-folders', (route) => route.fulfill({ json: { folders: [] } }));
+  await page.route('**/api/canvases/trash', (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route('**/api/canvases', (route) => route.fulfill({ json: { canvases: [] } }));
 
-  await page.goto('/static/smart-canvas.html?id=smart-composer-e2e');
-  await expect(page.getByTestId('smart-canvas-composer')).toBeVisible();
-  await page.getByLabel('智能画布提示词').fill('a city made of glass');
-  await page.getByTestId('smart-canvas-composer').locator('input[type="file"]').setInputFiles({
-    name: 'reference.png', mimeType: 'image/png', buffer: Buffer.from('reference'),
-  });
-  await expect(page.getByTestId('smart-canvas-composer')).toContainText('reference.png');
-  await expect(page.getByLabel('智能生成平台')).toHaveValue('mock');
-  await expect(page.getByLabel('智能生成模型')).toHaveValue('mock-image');
-  await page.getByRole('button', { name: '创建并生成' }).click();
-
-  await expect(page.getByRole('status')).toContainText('生成完成');
-  await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(1);
-  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(1);
-  await expect(page.locator('[data-node-type="output"] img[src="/output/composer.png"]')).toHaveCount(1);
-  expect(submitted).toMatchObject({
-    prompt: 'a city made of glass', provider_id: 'mock', model: 'mock-image',
-    reference_images: [{ kind: 'image', name: 'reference.png', url: '/uploads/reference.png' }],
-  });
-  await expect.poll(() => saves).toBeGreaterThan(0);
-  expect(savedCanvasPayload.client_id).toMatch(/^canvas_/);
-  await page.getByRole('button', { name: '撤销' }).click();
-  await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(0);
-  await page.getByRole('button', { name: '重做' }).click();
-  await expect(page.locator('[data-node-type="output"] img[src="/output/composer.png"]')).toHaveCount(1);
+  await page.goto('/static/smart-canvas-v2.html');
+  await expect(page.getByTestId('smart-canvas-composer')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '创建并生成' })).toHaveCount(0);
 });
-
 test('crops, outpaints and restores image node revisions', async ({ page }) => {
   const originalUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
   let uploads = 0;
@@ -235,7 +183,7 @@ test('crops, outpaints and restores image node revisions', async ({ page }) => {
     return route.fulfill({ json: { files: [{ kind: 'image', name: `source_${suffix}.png`, url: `/uploads/source_${suffix}.png` }] } });
   });
 
-  await page.goto('/static/smart-canvas.html?id=image-edit-e2e');
+  await page.goto('/static/smart-canvas-v2.html?id=image-edit-e2e');
   const imageNode = page.locator('[data-node-id="editable-image"]');
   await imageNode.getByRole('button', { name: '编辑图片' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -266,7 +214,7 @@ test('crops, outpaints and restores image node revisions', async ({ page }) => {
   expect(uploads).toBe(2);
 });
 
-test('manages and applies the shared prompt library from Smart Canvas', async ({ page }) => {
+test('manages the shared prompt library from isolated Smart Canvas V2', async ({ page }) => {
   let promptState = {
     active_library_id: 'mine',
     libraries: [{
@@ -278,7 +226,10 @@ test('manages and applies the shared prompt library from Smart Canvas', async ({
   let updated = 0;
   let deleted = 0;
   let libraryChanges = 0;
-  const canvasDocument = { id: 'smart-prompts', kind: 'smart', schemaVersion: 1, title: 'Prompt Smart', updated_at: 1, connections: [], nodes: [] };
+  const canvasDocument = {
+    id: 'smart-prompts', kind: 'smart', schemaVersion: 1, title: 'Prompt Smart', updated_at: 1, connections: [],
+    nodes: [{ id: 'prompt-target', type: 'prompt', text: '', x: 80, y: 80 }],
+  };
   await page.route('**/api/config', async (route) => route.fulfill({ json: { api_providers: [] } }));
   await page.route('**/api/workflows', async (route) => route.fulfill({ json: { workflows: [] } }));
   await page.route('**/api/canvas-folders', async (route) => route.fulfill({ json: { folders: [] } }));
@@ -331,14 +282,10 @@ test('manages and applies the shared prompt library from Smart Canvas', async ({
     await route.fulfill({ json: { library: promptState } });
   });
 
-  await page.goto('/static/smart-canvas.html?id=smart-prompts');
-  await page.getByRole('button', { name: '提示词库' }).click();
+  await page.goto('/static/smart-canvas-v2.html?id=smart-prompts');
+  const promptNode = page.locator('[data-node-id="prompt-target"]');
+  await promptNode.getByRole('button', { name: '模板' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('button', { name: /晨雾城市/ }).click();
-  await page.getByRole('button', { name: '应用正向' }).click();
-  await expect(page.getByLabel('智能画布提示词')).toHaveValue('city in morning fog');
-
-  await page.getByRole('button', { name: '提示词库' }).click();
   await page.getByRole('button', { name: '新建提示词' }).click();
   await page.getByLabel('提示词名称').fill('夜景');
   await page.getByLabel('正向提示词').fill('neon city at night');
@@ -441,7 +388,7 @@ test('manages canvas assets, saves outputs, and exports resource-complete workfl
     await route.fulfill({ json: { library: assetState } });
   });
 
-  await page.goto('/static/smart-canvas.html?id=smart-assets');
+  await page.goto('/static/smart-canvas-v2.html?id=smart-assets');
   await page.getByRole('button', { name: '资产库', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('图片');
   await page.locator('.canvas-asset-preview').filter({ hasText: 'Hero' }).click();

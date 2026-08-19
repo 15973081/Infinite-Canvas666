@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-studio-scale="off">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <link rel="icon" href="/static/images/logo.png" type="image/png">
+    <title>智能画布 V2 实验入口</title>
+    <script>
+        (function(){
+            try {
+                var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
+                if(theme === 'dark') {
+                    document.documentElement.classList.add('studio-theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.19.7">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
+</head>
+<body>
+    <div id="smartCanvasApp"></div>
+    <script type="module" src="/static/dist/smart-canvas-modern.js?v=2026.08.19.8"></script>
+</body>
+</html>
