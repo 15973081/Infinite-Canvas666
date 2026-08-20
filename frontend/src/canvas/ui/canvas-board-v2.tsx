@@ -7,6 +7,13 @@ import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
+import {
+  CanvasBoardApiProvider,
+  useCanvasBoardApi,
+  type CanvasBoardApi,
+  type CanvasBoardMount,
+  type CanvasBoardNodeType,
+} from './canvas-board-api';
 import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
 
 type Point = { x: number; y: number };
@@ -51,10 +58,11 @@ function canOutput(node: CanvasNode): boolean {
 }
 
 function PromptBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  const getBoardApi = useCanvasBoardApi();
   const text = String(node.text || '');
   return <div className="prompt-editor" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <div className="prompt-toolbar">
-      <button className="prompt-template-btn" onClick={() => window.CanvasBoardV2?.openPromptTemplates(node.id)} type="button">模板</button>
+      <button className="prompt-template-btn" onClick={() => getBoardApi()?.openPromptTemplates(node.id)} type="button">模板</button>
       <div className={`prompt-counter ${text.length > 20_000 ? 'over' : ''}`}><span>{text.length.toLocaleString()}</span><span>/ 20,000</span></div>
     </div>
     <textarea data-field="text" maxLength={20_000} onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { text: event.target.value })} placeholder="输入提示词" value={text} />
@@ -117,10 +125,11 @@ function SelectField({ ariaLabel, onChange, options, value }: { ariaLabel: strin
 }
 
 function RunButton({ label = '运行', mode, node }: { label?: string; mode?: 'cascade' | 'chat' | 'node'; node: CanvasNode }) {
+  const getBoardApi = useCanvasBoardApi();
   const [running, setRunning] = useState(false);
   return <button className={`gen-btn ${running || node.running ? 'running' : ''}`} disabled={running || Boolean(node.running)} onClick={async () => {
     setRunning(true);
-    try { await window.CanvasBoardV2?.runNode(node.id, mode); }
+    try { await getBoardApi()?.runNode(node.id, mode); }
     catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
     finally { setRunning(false); }
   }} type="button">{running || node.running ? '运行中…' : label}</button>;
@@ -143,10 +152,11 @@ function hasExecutableUpstream(document: { connections: CanvasEdge[]; nodes: Can
 }
 
 function ExecutionControls({ document, node }: { document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode }) {
+  const getBoardApi = useCanvasBoardApi();
   const cascade = hasExecutableUpstream(document, node.id);
   const failed = node.runStatus === 'failed' && Boolean(node._cascadeFailed);
-  return <><div className="gen-run-row"><RunButton node={node} />{cascade ? <RunButton label="一键运行" mode="cascade" node={node} /> : null}{node.running ? <button className="node-stop-btn" onClick={() => void window.CanvasBoardV2?.controlExecution('stop-execution', node.id)} type="button">停止</button> : null}</div>
-    {failed ? <div className="node-retry-bar"><span className="node-retry-msg" title={String(node.runError || '')}>{String(node.runError || '生成失败').slice(0, 60)}</span><button className="node-retry-btn" onClick={() => void window.CanvasBoardV2?.controlExecution('retry-execution', node.id)} type="button">重试</button><button className="node-stop-btn" onClick={() => void window.CanvasBoardV2?.controlExecution('stop-execution', node.id)} type="button">停止</button></div> : null}
+  return <><div className="gen-run-row"><RunButton node={node} />{cascade ? <RunButton label="一键运行" mode="cascade" node={node} /> : null}{node.running ? <button className="node-stop-btn" onClick={() => void getBoardApi()?.controlExecution('stop-execution', node.id)} type="button">停止</button> : null}</div>
+    {failed ? <div className="node-retry-bar"><span className="node-retry-msg" title={String(node.runError || '')}>{String(node.runError || '生成失败').slice(0, 60)}</span><button className="node-retry-btn" onClick={() => void getBoardApi()?.controlExecution('retry-execution', node.id)} type="button">重试</button><button className="node-stop-btn" onClick={() => void getBoardApi()?.controlExecution('stop-execution', node.id)} type="button">停止</button></div> : null}
   </>;
 }
 
@@ -237,16 +247,17 @@ function MsGenBody({ commit, document, node, store }: { commit: () => void; docu
 }
 
 function OutputBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  const getBoardApi = useCanvasBoardApi();
   const images = Array.isArray(node.images) ? node.images : [];
   const pending = Array.isArray(node._pending) ? node._pending as Array<Record<string, unknown>> : [];
   const urlOf = (item: unknown) => typeof item === 'string' ? item : String((item as { url?: unknown })?.url || '');
   const remove = (url: string) => { store.getState().updateNode(node.id, { images: images.filter((item) => urlOf(item) !== url) }); commit(); };
-  const open = (url: string) => window.CanvasBoardV2?.openOutputLightbox(node, url);
+  const open = (url: string) => getBoardApi()?.openOutputLightbox(node, url);
   const retry = (item: Record<string, unknown>) => {
     const sourceId = String((item.run as Record<string, any> | undefined)?.node?.id || item.nodeId || '');
     store.getState().updateNode(node.id, { _pending: pending.filter((candidate) => candidate !== item) });
     commit();
-    if (sourceId) void window.CanvasBoardV2?.runNode(sourceId);
+    if (sourceId) void getBoardApi()?.runNode(sourceId);
   };
   return <div className="output-grid" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>{images.map((item, index) => {
     const url = urlOf(item);
@@ -269,6 +280,7 @@ function OutputBody({ commit, node, store }: { commit: () => void; node: CanvasN
 }
 
 function VideoBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const getBoardApi = useCanvasBoardApi();
   const [manualUrl, setManualUrl] = useState(String(node.manualVideoUrl || (Array.isArray(node.manualVideoUrls) ? node.manualVideoUrls[0] : '') || ''));
   const [preparing, setPreparing] = useState(false);
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
@@ -277,7 +289,7 @@ function VideoBody({ commit, document, node, store }: { commit: () => void; docu
   const toggles = [['enhancePrompt', '增强提示词'], ['enableUpsample', '超分辨率'], ['watermark', '水印'], ['cameraFixed', '固定镜头'], ['generateAudio', '生成音频'], ['multimodal', '多模态'], ['useFrameRoles', '首尾帧']] as const;
   return <div className="generator-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <InputSummary document={document} node={node} />
-    <div className="video-input-actions"><input aria-label="视频手动 URL" className="setting-input" onChange={(event) => setManualUrl(event.target.value)} placeholder="https://… 或 asset://…" value={manualUrl} /><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await window.CanvasBoardV2?.prepareVideoMedia(node.id, 'manual', manualUrl); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">应用网址</button><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await window.CanvasBoardV2?.prepareVideoMedia(node.id, 'cloud'); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">{preparing ? '处理中…' : '上传云端'}</button></div>
+    <div className="video-input-actions"><input aria-label="视频手动 URL" className="setting-input" onChange={(event) => setManualUrl(event.target.value)} placeholder="https://… 或 asset://…" value={manualUrl} /><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await getBoardApi()?.prepareVideoMedia(node.id, 'manual', manualUrl); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">应用网址</button><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await getBoardApi()?.prepareVideoMedia(node.id, 'cloud'); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">{preparing ? '处理中…' : '上传云端'}</button></div>
     <div className="gen-settings"><div className="gen-settings-row">
       <SelectField ariaLabel="视频平台" onChange={(apiProvider) => {
         const next = runtime()?.getNodeOptions('video', 'model', { ...node, apiProvider }) ?? [];
@@ -295,6 +307,7 @@ function VideoBody({ commit, document, node, store }: { commit: () => void; docu
 }
 
 function LLMBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const getBoardApi = useCanvasBoardApi();
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
   const providers = (runtime()?.getNodeOptions('llm', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
   const models = (runtime()?.getNodeOptions('llm', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
@@ -308,7 +321,7 @@ function LLMBody({ commit, document, node, store }: { commit: () => void; docume
       <button className={`llm-sys-toggle ${node.showSystem ? 'active' : ''}`} onClick={() => update({ showSystem: !node.showSystem })} type="button">System</button>
     </div><InputSummary document={document} node={node} />
     {node.showSystem ? <textarea aria-label="系统提示词" className="llm-system" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { systemPrompt: event.target.value })} value={String(node.systemPrompt || '')} /> : null}
-    {node.mode === 'chat' ? <div className="llm-chat-pane"><div className="llm-chat-log">{messages.map((message, index) => <div className={`llm-bubble ${message.role === 'user' ? 'user' : 'assistant'}`} key={index}>{message.content}{message.role === 'assistant' ? <button aria-label={`复制消息 ${index + 1}`} className="llm-bubble-copy" onClick={() => void navigator.clipboard.writeText(String(message.content || ''))} type="button">复制</button> : null}</div>)}</div><textarea aria-label="聊天输入" className="llm-chat-input" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { chatInput: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void window.CanvasBoardV2?.runNode(node.id, 'chat'); } }} value={String(node.chatInput || '')} /><RunButton label="发送" mode="chat" node={node} /></div>
+    {node.mode === 'chat' ? <div className="llm-chat-pane"><div className="llm-chat-log">{messages.map((message, index) => <div className={`llm-bubble ${message.role === 'user' ? 'user' : 'assistant'}`} key={index}>{message.content}{message.role === 'assistant' ? <button aria-label={`复制消息 ${index + 1}`} className="llm-bubble-copy" onClick={() => void navigator.clipboard.writeText(String(message.content || ''))} type="button">复制</button> : null}</div>)}</div><textarea aria-label="聊天输入" className="llm-chat-input" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { chatInput: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void getBoardApi()?.runNode(node.id, 'chat'); } }} value={String(node.chatInput || '')} /><RunButton label="发送" mode="chat" node={node} /></div>
       : <div className="llm-node-pane"><div className="llm-pane-label">Input</div><textarea aria-label="LLM 输入" className="llm-input-area llm-input-output" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { userInput: event.target.value })} value={String(node.userInput || '')} /><div className="llm-pane-label">Output</div><div className="llm-output-wrap"><button aria-label="复制 LLM 输出" className="llm-copy-btn" onClick={() => navigator.clipboard.writeText(String(node.outputText || ''))} type="button">复制</button><div className="llm-output">{String(node.outputText || '暂无输出')}</div></div><ExecutionControls document={document} node={node} /></div>}
   </div>;
 }
@@ -456,6 +469,7 @@ function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: 
 }
 
 function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelectionChange, store }: { canvasRuntime: CanvasRuntime; commit: () => void; initialReadOnly?: boolean; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
+  const getBoardApi = useCanvasBoardApi();
   const document = useStore(store, ({ document }) => document);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState('');
@@ -497,13 +511,13 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
       if (editable) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
-        if (event.shiftKey) window.CanvasBoardV2?.redo();
-        else window.CanvasBoardV2?.undo();
+        if (event.shiftKey) getBoardApi()?.redo();
+        else getBoardApi()?.undo();
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
         event.preventDefault();
-        window.CanvasBoardV2?.redo();
+        getBoardApi()?.redo();
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
@@ -540,7 +554,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [commit, readOnly, selectedEdge, selectedIds, store]);
+  }, [commit, getBoardApi, readOnly, selectedEdge, selectedIds, store]);
 
   useEffect(() => {
     const group = () => {
@@ -606,7 +620,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
         }
       }
       const files = [...event.dataTransfer.files].filter((file) => /^(image|video|audio)\//.test(file.type));
-      if (files.length) void window.CanvasBoardV2?.importFiles(files, point);
+      if (files.length) void getBoardApi()?.importFiles(files, point);
     }}
     onPointerDown={(event) => {
       if (event.button !== 0) return;
@@ -782,7 +796,7 @@ export interface CanvasBoardMountOptions {
   runtime?: CanvasRuntime;
 }
 
-export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElement | null, options: CanvasBoardMountOptions = {}): () => void {
+export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElement | null, options: CanvasBoardMountOptions = {}): CanvasBoardMount {
   const bridge = window.CanvasLegacyBridge;
   const repository = options.repository ?? window.CanvasModernCore?.canvasRepository;
   const modernRuntime = options.runtime ?? runtime();
@@ -943,7 +957,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     return { conflicts: [], merged, updated: true };
   };
   const previousBoardApi = window.CanvasBoardV2;
-  window.CanvasBoardV2 = {
+  const api: CanvasBoardApi = {
     addNode(type, point) {
       if (readOnlyMode) return null;
       const id = store.getState().addNode(type, point);
@@ -978,14 +992,14 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       if (readOnlyMode) return [];
       const nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
       const connections = Array.isArray(payload.connections) ? payload.connections : [];
-      const importableTypes = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'promptGroup', 'video'] as const;
+      const importableTypes: CanvasBoardNodeType[] = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'promptGroup', 'video'];
       const idMap = new Map<string, string>();
       nodes.forEach((raw, index) => {
         if (!raw || typeof raw !== 'object') return;
         const node = raw as Record<string, unknown>;
         const type = String(node.type || '');
-        if (!importableTypes.includes(type as typeof importableTypes[number])) return;
-        const id = store.getState().addNode(type as typeof importableTypes[number], {
+        if (!importableTypes.includes(type as CanvasBoardNodeType)) return;
+        const id = store.getState().addNode(type as CanvasBoardNodeType, {
           x: Number(node.x || 0) + 48 + (index % 3) * 12,
           y: Number(node.y || 0) + 48 + (index % 3) * 12,
         });
@@ -1110,20 +1124,25 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       return true;
     },
   };
-  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
+  window.CanvasBoardV2 = api;
+  const getBoardApi = () => api;
+  root.render(<CanvasBoardApiProvider getApi={getBoardApi}><CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} /></CanvasBoardApiProvider>);
   if (legacyBoard) legacyBoard.hidden = true;
   element.hidden = false;
-  return () => {
-    disposed = true;
-    if (previousBoardApi) window.CanvasBoardV2 = previousBoardApi;
-    else delete window.CanvasBoardV2;
-    if (!standalone) {
-      window.removeEventListener('canvas-legacy-document', adopt);
-      window.removeEventListener('canvas-legacy-execution-document', projectExecution);
-    }
-    root.unmount();
-    element.hidden = true;
-    if (legacyBoard) legacyBoard.hidden = legacyHidden;
+  return {
+    api,
+    unmount() {
+      disposed = true;
+      if (previousBoardApi) window.CanvasBoardV2 = previousBoardApi;
+      else delete window.CanvasBoardV2;
+      if (!standalone) {
+        window.removeEventListener('canvas-legacy-document', adopt);
+        window.removeEventListener('canvas-legacy-execution-document', projectExecution);
+      }
+      root.unmount();
+      element.hidden = true;
+      if (legacyBoard) legacyBoard.hidden = legacyHidden;
+    },
   };
 }
 

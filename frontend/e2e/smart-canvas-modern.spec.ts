@@ -304,6 +304,10 @@ test('manages the shared prompt library from isolated Smart Canvas V2', async ({
   });
 
   await page.goto(`${smartCanvasV2Entry}?id=smart-prompts`);
+  await page.evaluate(() => {
+    delete (window as Window & { CanvasBoardV2?: unknown }).CanvasBoardV2;
+  });
+  expect(await page.evaluate(() => 'CanvasBoardV2' in window)).toBe(false);
   const promptNode = page.locator('[data-node-id="prompt-target"]');
   await promptNode.getByRole('button', { name: '模板' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();

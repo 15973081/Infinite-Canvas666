@@ -9,6 +9,7 @@ import {
   type CanvasSummary,
 } from '../infrastructure/canvas-management';
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
+import { CanvasBoardApiProvider, type CanvasBoardApi } from './canvas-board-api';
 import { mountCanvasBoardV2 } from './canvas-board-v2';
 import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
 import { AssetLibraryDialog, type CanvasAssetLibraryRequest } from './asset-library-dialog';
@@ -56,12 +57,14 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   const [lockHolder, setLockHolder] = useState<Record<string, unknown> | null>(null);
   const [lockIssue, setLockIssue] = useState('');
   const [syncIssue, setSyncIssue] = useState('');
+  const boardApiRef = useRef<CanvasBoardApi | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clientId = useRef(canvasClientId());
   const initialCanvasAttempted = useRef(false);
   const lastKnownUpdatedAt = useRef(0);
   const ownsLock = useRef(false);
   const remoteSyncInFlight = useRef(false);
+  const getBoardApi = useCallback(() => boardApiRef.current, []);
 
   const refresh = useCallback(async () => {
     setStatus('正在加载画布列表…');
@@ -84,12 +87,16 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   useEffect(() => {
     const host = boardRef.current;
     if (!host || !current) return;
-    const cleanup = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
-    window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder));
-    return cleanup;
+    const mounted = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
+    boardApiRef.current = mounted.api;
+    mounted.api.setReadOnly(Boolean(lockHolder));
+    return () => {
+      if (boardApiRef.current === mounted.api) boardApiRef.current = null;
+      mounted.unmount();
+    };
   }, [current, repository, runtime]);
 
-  useEffect(() => { window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder)); }, [lockHolder]);
+  useEffect(() => { boardApiRef.current?.setReadOnly(Boolean(lockHolder)); }, [lockHolder]);
 
   useEffect(() => {
     const listener = (event: Event) => {
@@ -116,7 +123,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     const previousLibrary = window.openCanvasPromptLibrary;
     const previousAssetLibrary = window.openCanvasAssetLibrary;
     window.openPromptTemplateModal = (nodeId) => {
-      setPromptRequest({ onApply: (text) => { window.CanvasBoardV2?.updateNode(nodeId, { text }); } });
+      setPromptRequest({ onApply: (text) => { boardApiRef.current?.updateNode(nodeId, { text }); } });
     };
     window.openCanvasPromptLibrary = (request) => setPromptRequest(request);
     window.openCanvasAssetLibrary = (request) => setAssetRequest(request);
@@ -193,7 +200,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       const updatedAt = hintedUpdatedAt || Number((await management.getMeta(String(current.id))).updated_at || 0);
       if (!updatedAt || updatedAt <= lastKnownUpdatedAt.current) return;
       const remote = await repository.get(String(current.id));
-      const result = window.CanvasBoardV2?.syncRemote(remote);
+      const result = boardApiRef.current?.syncRemote(remote);
       if (!result?.updated) {
         if (result?.conflicts.includes('save-in-progress')) setSyncIssue('检测到远端更新，等待当前保存完成后同步');
         else setSyncIssue(`远端更新与本地修改冲突：${result?.conflicts.join('、') || '无法自动合并'}`);
@@ -283,7 +290,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     setInspector({ mode, document: await repository.get(String(current.id)) });
   };
   const exportWorkflow = () => {
-    const workflow = window.CanvasBoardV2?.exportSelection();
+    const workflow = boardApiRef.current?.exportSelection();
     if (!workflow?.nodes.length) { setStatus('没有可导出的节点'); return; }
     const blob = new Blob([JSON.stringify({ version: 2, ...workflow }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -293,7 +300,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     setWorkflowOpen(false);
   };
   const exportWorkflowArchive = async () => {
-    const workflow = window.CanvasBoardV2?.exportSelection();
+    const workflow = boardApiRef.current?.exportSelection();
     if (!workflow?.nodes.length) { setStatus('没有可导出的节点'); return; }
     try {
       setStatus('正在收集工作流资源…');
@@ -312,14 +319,14 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
   };
   const saveWorkflowToLibrary = () => {
-    const workflow = window.CanvasBoardV2?.exportSelection();
+    const workflow = boardApiRef.current?.exportSelection();
     if (!workflow?.nodes.length) { setStatus('没有可保存的节点'); return; }
     const name = String(current?.title || 'canvas');
     setWorkflowOpen(false);
     setAssetRequest({ saveWorkflow: { ...workflow, filename: `${name}-workflow.zip`, name } });
   };
   const exportSelectedResults = async () => {
-    const workflow = window.CanvasBoardV2?.exportSelection();
+    const workflow = boardApiRef.current?.exportSelection();
     const items = canvasGroupExportItems(workflow?.nodes || []);
     if (!items.length) { setStatus('选区中没有可批量导出的媒体或文本'); return; }
     const folder = window.prompt('导出到服务器文件夹（留空使用默认导出目录）', '');
@@ -346,15 +353,15 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
         payload = await response.json();
       }
       const normalized = normalizeWorkflow(payload);
-      const ids = window.CanvasBoardV2?.importWorkflow(normalized) ?? [];
+      const ids = boardApiRef.current?.importWorkflow(normalized) ?? [];
       setStatus(ids.length ? `已导入 ${ids.length} 个节点` : '文件中没有可导入节点');
       setWorkflowOpen(false);
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
   };
   const showAssets = () => setAssetRequest({
     onInsert: (item) => {
-      const id = window.CanvasBoardV2?.addNode('image', { x: 100, y: 100 });
-      if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
+      const id = boardApiRef.current?.addNode('image', { x: 100, y: 100 });
+      if (id) boardApiRef.current?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
     },
     onImportWorkflow: async (item) => {
       const response = await fetch(item.url);
@@ -369,11 +376,11 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     if (!items.length) { setStatus('素材收件箱为空或已过期'); return 0; }
     const columns = Math.max(1, Math.min(items.length, Math.ceil(Math.sqrt(items.length))));
     const ids = items.map((item, index) => {
-      const id = window.CanvasBoardV2?.addNode('image', {
+      const id = boardApiRef.current?.addNode('image', {
         x: 100 + (index % columns) * 280,
         y: 100 + Math.floor(index / columns) * 220,
       });
-      if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
+      if (id) boardApiRef.current?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
       return id;
     }).filter(Boolean);
     localStorage.removeItem(key);
@@ -426,23 +433,25 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     </main>;
   }
 
-  return <main className="canvas-modern-editor">
-    <header className="topbar canvas-modern-topbar">
+  return <CanvasBoardApiProvider getApi={getBoardApi}>
+    <main className="canvas-modern-editor">
+      <header className="topbar canvas-modern-topbar">
       <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{lockHolder ? `只读 · ${lockHolderName(lockHolder)} 编辑中` : syncIssue || formatTime(current.updated_at)}</small></div><button className="tool-btn" onClick={() => void editIdentity()} type="button">编辑身份</button></div>
       <div className="panel toolbar canvas-modern-toolbar">
-        <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" disabled={Boolean(lockHolder)} key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
-        <div className="toolbar-fixed"><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} type="button">备份</button></div>
+        <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" disabled={Boolean(lockHolder)} key={type} onClick={() => boardApiRef.current?.addNode(type)} type="button">{label}</button>)}</div>
+        <div className="toolbar-fixed"><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => boardApiRef.current?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => boardApiRef.current?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => boardApiRef.current?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} type="button">备份</button></div>
       </div>
-    </header>
-    <div className="canvas-modern-board" ref={boardRef} />
-    {configuration.editorAddon}
-    {lockHolder ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
-    {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
-    {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
-    {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><button onClick={saveWorkflowToLibrary} type="button">保存到工作流库</button><button onClick={() => void exportSelectedResults()} type="button">批量导出选区结果</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
-    {assetRequest ? <AssetLibraryDialog onClose={() => setAssetRequest(null)} request={assetRequest} /> : null}
-    {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
-  </main>;
+      </header>
+      <div className="canvas-modern-board" ref={boardRef} />
+      {configuration.editorAddon}
+      {lockHolder ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
+      {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
+      {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
+      {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><button onClick={saveWorkflowToLibrary} type="button">保存到工作流库</button><button onClick={() => void exportSelectedResults()} type="button">批量导出选区结果</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
+      {assetRequest ? <AssetLibraryDialog onClose={() => setAssetRequest(null)} request={assetRequest} /> : null}
+      {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
+    </main>
+  </CanvasBoardApiProvider>;
 }
 
 export function mountCanvasAppV2(element: HTMLElement, dependencies: CanvasAppDependencies): () => void {

@@ -163,3 +163,7 @@ ComfyUI 可通过 `python app/services/comfy_connectivity.py --network --strict`
 仓库新增两份复杂回归 fixture，覆盖经典多节点/pending/LTX 和 Legacy Smart 无类型媒体/生成目标转换。真实生产 fixture 与供应商账单仍是人工发布门禁，不能由合成数据自动关闭。
 
 本批全量结果：97 个 Vitest、29 个 Playwright、47 个 Python unittest 全部通过。
+
+## 2026-08-20 搬运边界与 Canvas API 收口
+
+当前搬运范围明确暂不包含 LTX 完整功能和 LLM 视觉失败链路。Canvas 的 React 组件间调用已收口到强类型 `CanvasBoardApi`/Context；`window.CanvasBoardV2` 只保留为兼容输出，不再是 React 生产路径的输入依赖。隔离 Smart Canvas 回归会删除该全局对象后继续操作 Prompt 节点，以验证新路径可以独立工作。

@@ -1,4 +1,4 @@
-import { a as e, i as t, n, o as r, r as i, t as a } from "./jsx-runtime-B18keJCK.js";
+import { a as e, i as t, n, o as r, r as i, t as a } from "./document-store-mQFVQtyW.js";
 //#region src/canvas/stores/activity-store.ts
 var o = {
 	costs: {
@@ -12,9 +12,9 @@ var o = {
 	logs: [],
 	mode: "logs"
 };
-function s(t) {
-	let n = l(t) ? d(t) : d(o);
-	return e()((e) => ({
+function s(e) {
+	let n = l(e) ? d(e) : d(o);
+	return t()((e) => ({
 		snapshot: n,
 		projectActivity: (t) => e({ snapshot: d(t) })
 	}));
@@ -64,7 +64,7 @@ function d(e) {
 //#endregion
 //#region src/canvas/stores/execution-store.ts
 function f() {
-	return e()((e) => ({
+	return t()((e) => ({
 		runs: {},
 		project: (t) => e(({ runs: e }) => ({ runs: {
 			...e,
@@ -97,13 +97,13 @@ function h(e) {
 }
 //#endregion
 //#region src/canvas/stores/session-store.ts
-function g(t = {
+function g(e = {
 	kind: "info",
 	text: ""
 }) {
-	return e()((e) => ({
-		status: { ...t },
-		projectStatus: (t) => e({ status: { ...t } })
+	return t()((t) => ({
+		status: { ...e },
+		projectStatus: (e) => t({ status: { ...e } })
 	}));
 }
 function _(e, t) {
@@ -125,7 +125,7 @@ function v(e) {
 }
 //#endregion
 //#region src/canvas/ui/canvas-activity-island.tsx
-var y = r(), b = a();
+var y = r(), b = e();
 function x(e, t, n, r) {
 	let i = (0, y.createRoot)(e);
 	return i.render(/* @__PURE__ */ (0, b.jsx)(C, {
@@ -140,8 +140,8 @@ function S(e) {
 		minimumFractionDigits: 2
 	}).format(e / 1e6)}`;
 }
-function C({ activityStore: e, close: n, documentStore: r }) {
-	let { costs: i, logs: a, mode: o } = t(e, ({ snapshot: e }) => e), s = t(r, ({ document: e }) => String(e?.title || "当前画布"));
+function C({ activityStore: e, close: t, documentStore: n }) {
+	let { costs: r, logs: a, mode: o } = i(e, ({ snapshot: e }) => e), s = i(n, ({ document: e }) => String(e?.title || "当前画布"));
 	return /* @__PURE__ */ (0, b.jsxs)("section", {
 		className: `log-panel${o === "cost" ? " cost-mode" : ""}`,
 		"data-testid": "canvas-activity-island",
@@ -157,12 +157,12 @@ function C({ activityStore: e, close: n, documentStore: r }) {
 					children: [
 						s,
 						" · 总计 ",
-						S(i.total)
+						S(r.total)
 					]
 				})] }), /* @__PURE__ */ (0, b.jsx)("button", {
 					"aria-label": "关闭日志",
 					className: "preview-icon-btn",
-					onClick: n,
+					onClick: t,
 					type: "button",
 					children: "×"
 				})]
@@ -175,24 +175,24 @@ function C({ activityStore: e, close: n, documentStore: r }) {
 						className: "cost-card cost-card-total",
 						children: [
 							/* @__PURE__ */ (0, b.jsx)("span", { children: "预估总费用" }),
-							/* @__PURE__ */ (0, b.jsx)("strong", { children: S(i.total) }),
-							/* @__PURE__ */ (0, b.jsx)("small", { children: i.estimated ? `含预估 ${S(i.estimated)}` : "按调用时价格统计" })
+							/* @__PURE__ */ (0, b.jsx)("strong", { children: S(r.total) }),
+							/* @__PURE__ */ (0, b.jsx)("small", { children: r.estimated ? `含预估 ${S(r.estimated)}` : "按调用时价格统计" })
 						]
 					}),
 					/* @__PURE__ */ (0, b.jsxs)("div", {
 						className: "cost-card",
-						children: [/* @__PURE__ */ (0, b.jsx)("span", { children: "图片费用" }), /* @__PURE__ */ (0, b.jsx)("strong", { children: S(i.image) })]
+						children: [/* @__PURE__ */ (0, b.jsx)("span", { children: "图片费用" }), /* @__PURE__ */ (0, b.jsx)("strong", { children: S(r.image) })]
 					}),
 					/* @__PURE__ */ (0, b.jsxs)("div", {
 						className: "cost-card",
-						children: [/* @__PURE__ */ (0, b.jsx)("span", { children: "视频费用" }), /* @__PURE__ */ (0, b.jsx)("strong", { children: S(i.video) })]
+						children: [/* @__PURE__ */ (0, b.jsx)("span", { children: "视频费用" }), /* @__PURE__ */ (0, b.jsx)("strong", { children: S(r.video) })]
 					}),
 					/* @__PURE__ */ (0, b.jsxs)("div", {
 						className: "cost-card",
 						children: [
 							/* @__PURE__ */ (0, b.jsx)("span", { children: "计费调用" }),
-							/* @__PURE__ */ (0, b.jsx)("strong", { children: i.calls }),
-							/* @__PURE__ */ (0, b.jsx)("small", { children: i.unknown ? `${i.unknown} 笔待定价` : "" })
+							/* @__PURE__ */ (0, b.jsx)("strong", { children: r.calls }),
+							/* @__PURE__ */ (0, b.jsx)("small", { children: r.unknown ? `${r.unknown} 笔待定价` : "" })
 						]
 					})
 				]
@@ -268,14 +268,14 @@ function T(e, t) {
 	return n.render(/* @__PURE__ */ (0, b.jsx)(E, { store: t })), n;
 }
 function E({ store: e }) {
-	let n = t(e, ({ status: e }) => e);
+	let t = i(e, ({ status: e }) => e);
 	return /* @__PURE__ */ (0, b.jsxs)("span", {
 		"aria-live": "polite",
 		"data-testid": "canvas-status-island",
 		role: "status",
 		style: {
 			alignItems: "center",
-			color: w[n.kind],
+			color: w[t.kind],
 			display: "inline-flex",
 			fontSize: 11,
 			fontWeight: 700,
@@ -284,7 +284,7 @@ function E({ store: e }) {
 		children: [/* @__PURE__ */ (0, b.jsx)("span", {
 			"aria-hidden": "true",
 			children: "●"
-		}), n.text || "Ready"]
+		}), t.text || "Ready"]
 	});
 }
 //#endregion
@@ -331,12 +331,12 @@ function A(e, t, n) {
 		store: t
 	})), r;
 }
-function j({ runCommand: e, store: n }) {
-	let r = t(n, ({ runs: e }) => e), i = Object.values(r), a = i.filter(({ status: e }) => [
+function j({ runCommand: e, store: t }) {
+	let n = i(t, ({ runs: e }) => e), r = Object.values(n), a = r.filter(({ status: e }) => [
 		"queued",
 		"running",
 		"stopping"
-	].includes(e)), o = a.at(-1) ?? i.at(-1), s = o?.mode === "parallel" ? `${o.completedRounds} 轮完成` : `${o?.completedNodeIds.length ?? 0}/${o?.order.length ?? 0} 节点`;
+	].includes(e)), o = a.at(-1) ?? r.at(-1), s = o?.mode === "parallel" ? `${o.completedRounds} 轮完成` : `${o?.completedNodeIds.length ?? 0}/${o?.order.length ?? 0} 节点`;
 	return /* @__PURE__ */ (0, b.jsxs)("section", {
 		"aria-live": "polite",
 		className: "panel",
@@ -415,11 +415,11 @@ function M(e) {
 function N(e) {
 	let t = window.CanvasLegacyBridge;
 	if (!t) throw Error("Canvas legacy bridge is unavailable");
-	let r = s(t.getActivitySnapshot?.()), a = i(t.getDocumentSnapshot()), o = c(window, r), l = n(window, a), u = e.parentElement?.querySelector(":scope > .log-panel") ?? null, d = u?.style.display ?? "";
+	let r = s(t.getActivitySnapshot?.()), i = n(t.getDocumentSnapshot()), o = c(window, r), l = a(window, i), u = e.parentElement?.querySelector(":scope > .log-panel") ?? null, d = u?.style.display ?? "";
 	u && (u.style.display = "none");
 	let f = e.style.display;
 	e.style.display = "contents", e.hidden = !1;
-	let p = x(e, r, a, () => {
+	let p = x(e, r, i, () => {
 		t.runCommand("close-log");
 	});
 	return () => {

@@ -539,3 +539,9 @@ React Canvas 新增 `save-succeeded`、`execution-succeeded`、`execution-failed
 输出不会包含实例地址、异常详情、工作流内容或节点类型名称，只显示实例序号、端点状态、耗时及可用/缺失节点数量。本机实际只读探测结果：6/6 工作流 JSON 有效；1 个已配置实例当前不可达，错误归类为 `probe-failed`，因此 Comfy 真实链路仍未通过。未写入人工验收证据，也未修改实例配置或灰度状态。
 
 本批全量结果：97 个 Vitest、29 个 Playwright、71 个 Python unittest 全部通过。
+
+## 31. 2026-08-20 Canvas Board 强类型接口搬运
+
+本批按当前产品边界继续搬运，不包含 LTX 完整功能和 LLM 视觉失败链路。React CanvasApp、CanvasBoard 节点组件及预留的 Smart Composer 已改用统一的 `CanvasBoardApi` 与 React Context；正常 React 功能路径不再从 `window.CanvasBoardV2` 读取能力。旧全局对象仅作为 Legacy/外部脚本兼容输出保留，后续可在兼容窗口结束后删除。
+
+Smart Canvas Playwright 回归会在页面初始化后主动删除旧全局对象，再通过 Prompt 节点打开并管理共享提示词库，用于防止 React 路径重新暗中依赖全局桥。本批验证结果：113 个 Vitest、38 个全站 Playwright 全部通过。

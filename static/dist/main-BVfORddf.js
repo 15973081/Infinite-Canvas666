@@ -1281,44 +1281,44 @@ if (window.CanvasModernCore = Object.freeze({
 	}
 }), be) {
 	let e = document.getElementById("canvasExecutionIsland");
-	e && import("./react-execution-entry-cfkIDC5B.js").then(({ mountReactExecutionIsland: t }) => {
+	e && import("./react-execution-entry-DSXLWMuo.js").then(({ mountReactExecutionIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React execution island failed to load", e));
 }
 if (xe) {
 	let e = document.getElementById("canvasStatusIsland");
-	e && import("./react-execution-entry-cfkIDC5B.js").then(({ mountReactStatusIsland: t }) => {
+	e && import("./react-execution-entry-DSXLWMuo.js").then(({ mountReactStatusIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React status island failed to load", e));
 }
 if (Se) {
 	let e = document.getElementById("canvasToolbarIsland");
-	e && import("./react-execution-entry-cfkIDC5B.js").then(({ mountReactToolbarIsland: t }) => {
+	e && import("./react-execution-entry-DSXLWMuo.js").then(({ mountReactToolbarIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React toolbar island failed to load", e));
 }
 if (ye) {
 	let e = document.getElementById("canvasActivityIsland");
-	e && import("./react-execution-entry-cfkIDC5B.js").then(({ mountReactActivityIsland: t }) => {
+	e && import("./react-execution-entry-DSXLWMuo.js").then(({ mountReactActivityIsland: t }) => {
 		let n = t(e);
 		window.addEventListener("pagehide", n, { once: !0 });
 	}).catch((e) => console.warn("[canvas-modern-core] React activity island failed to load", e));
 }
 if (Ce && !I.enabled) {
 	let e = document.getElementById("canvasBoardV2"), t = document.getElementById("board");
-	e && t && import("./canvas-board-v2-Ccy2AzsH.js").then(({ mountCanvasBoardV2: n }) => {
+	e && t && import("./canvas-board-v2-6vTd_cn2.js").then(({ mountCanvasBoardV2: n }) => {
 		let r = n(e, t);
-		window.CanvasModernCore?.recordRolloutEvent("board-mounted", { dimensions: { reason: "none" } }), window.addEventListener("pagehide", r, { once: !0 });
+		window.CanvasModernCore?.recordRolloutEvent("board-mounted", { dimensions: { reason: "none" } }), window.addEventListener("pagehide", r.unmount, { once: !0 });
 	}).catch((e) => {
 		window.CanvasModernCore?.recordRolloutEvent("board-mount-failed", { dimensions: { reason: e instanceof Error && e.message.includes("dependencies") ? "dependency-unavailable" : "import-failed" } }), console.warn("[canvas-modern-core] CanvasBoard V2 failed to load; using Legacy Board", e);
 	});
 }
 if (I.enabled) {
 	let e = document.getElementById("canvasModernApp"), t = document.getElementById("shell");
-	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-C3gX2Xgs.js").then(({ mountCanvasAppV2: t }) => {
+	e && (t && (t.hidden = !0), e.hidden = !1, import("./canvas-app-v2-CQKs_3q-.js").then(({ mountCanvasAppV2: t }) => {
 		let n = t(e, {
 			runtime: q,
 			repository: J

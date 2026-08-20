@@ -73,6 +73,9 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
 
 test('runs the standalone React Canvas without loading the legacy Canvas runtime', async ({ page }) => {
   let saves = 0;
+  await page.route('**/api/config', async (route) => route.fulfill({ json: {
+    api_providers: [{ enabled: true, id: 'mock', image_models: ['mock-image'], name: 'Mock' }],
+  } }));
   await page.route('**/api/canvases/trash', async (route) => route.fulfill({ json: { canvases: [] } }));
   await page.route('**/api/canvases/standalone-e2e/lock', async (route) => route.fulfill({ json: { ok: true } }));
   await page.route('**/api/canvases/standalone-e2e', async (route) => {

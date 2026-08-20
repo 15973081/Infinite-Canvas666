@@ -130,24 +130,6 @@ declare global {
       _onCanvasResize: null | (() => void);
       destroy(): void;
     };
-    CanvasBoardV2?: {
-      addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'promptGroup' | 'video', point?: { x: number; y: number }): string | null;
-      exportSelection(): { connections: unknown[]; nodes: unknown[] };
-      groupSelected(): void;
-      importFiles(files: File[], point?: { x: number; y: number }): Promise<void>;
-      importWorkflow(payload: { connections?: unknown[]; nodes?: unknown[] }): string[];
-      controlExecution(command: 'retry-execution' | 'stop-execution', nodeId: string): Promise<void>;
-      openOutputLightbox(node: Record<string, unknown>, url: string): void;
-      openPromptTemplates(nodeId: string): void;
-      prepareVideoMedia(nodeId: string, action: 'cloud' | 'manual', value?: string): Promise<void>;
-      redo(): boolean;
-      rerunFromOutputMeta(meta: Record<string, unknown>): void;
-      runNode(nodeId: string, mode?: 'cascade' | 'chat' | 'node'): Promise<void>;
-      setReadOnly(value: boolean): void;
-      syncRemote(snapshot: unknown): { conflicts: string[]; merged: boolean; updated: boolean };
-      undo(): boolean;
-      updateNode(nodeId: string, patch: Record<string, unknown>): boolean;
-    };
     CanvasLegacyBridge?: LegacyBridge;
     __CanvasBootstrapRolloutPolicy?: import('./canvas/infrastructure/rollout').CanvasRolloutPolicy | null;
     __loadCanvasLegacyFallback?: () => Promise<void>;
@@ -445,9 +427,9 @@ if (boardV2Enabled && !rolloutDecision.enabled) {
   const legacyBoard = document.getElementById('board');
   if (element && legacyBoard) {
     void import('./canvas/ui/canvas-board-v2').then(({ mountCanvasBoardV2 }) => {
-      const cleanup = mountCanvasBoardV2(element, legacyBoard);
+      const mounted = mountCanvasBoardV2(element, legacyBoard);
       window.CanvasModernCore?.recordRolloutEvent('board-mounted', { dimensions: { reason: 'none' } });
-      window.addEventListener('pagehide', cleanup, { once: true });
+      window.addEventListener('pagehide', mounted.unmount, { once: true });
     }).catch((error) => {
       window.CanvasModernCore?.recordRolloutEvent('board-mount-failed', {
         dimensions: {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CanvasRuntime, RuntimeOption } from '../../canvas/application/modern-canvas-runtime';
+import { useCanvasBoardApi } from '../../canvas/ui/canvas-board-api';
 
 type SmartEngine = 'comfy' | 'generator' | 'msgen' | 'video';
 
@@ -33,6 +34,7 @@ const engineLabels: Record<SmartEngine, string> = {
 };
 
 export function SmartCanvasComposer({ runtime }: { runtime: CanvasRuntime }) {
+  const getBoardApi = useCanvasBoardApi();
   const [prompt, setPrompt] = useState('');
   const [settings, setSettings] = useState<SmartComposerSettings>(readSettings);
   const [status, setStatus] = useState('');
@@ -66,19 +68,20 @@ export function SmartCanvasComposer({ runtime }: { runtime: CanvasRuntime }) {
     if (!text) { setStatus('请先输入提示词'); return; }
     const validation = validateSettings(settings);
     if (validation) { setStatus(validation); return; }
-    if (!window.CanvasBoardV2) { setStatus('画布仍在初始化，请稍后重试'); return; }
+    const boardApi = getBoardApi();
+    if (!boardApi) { setStatus('画布仍在初始化，请稍后重试'); return; }
     setBusy(true);
     setStatus('正在创建智能工作流…');
     try {
       const flow = smartComposerWorkflow(text, settings, references);
-      const ids = window.CanvasBoardV2.importWorkflow(flow);
+      const ids = boardApi.importWorkflow(flow);
       const generatorId = ids[1];
       if (!generatorId) throw new Error('未能创建生成节点');
       setPrompt('');
       setReferences([]);
       if (run) {
         setStatus('工作流已创建，正在生成…');
-        await window.CanvasBoardV2.runNode(generatorId);
+        await boardApi.runNode(generatorId);
         setStatus('生成完成，结果已写入 Output');
       } else {
         setStatus('工作流已创建，可继续连接素材或调整参数');

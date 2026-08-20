@@ -8043,7 +8043,24 @@ var n = Object.create, r = Object.defineProperty, i = Object.getOwnPropertyDescr
 		}
 	}
 	n(), t.exports = _();
-})), y = /* @__PURE__ */ u(f(), 1), b = (e) => {
+})), y = /* @__PURE__ */ c(((e) => {
+	var t = Symbol.for("react.transitional.element"), n = Symbol.for("react.fragment");
+	function r(e, n, r) {
+		var i = null;
+		if (r !== void 0 && (i = "" + r), n.key !== void 0 && (i = "" + n.key), "key" in n) for (var a in r = {}, n) a !== "key" && (r[a] = n[a]);
+		else r = n;
+		return n = r.ref, {
+			$$typeof: t,
+			type: e,
+			key: i,
+			ref: n === void 0 ? null : n,
+			props: r
+		};
+	}
+	e.Fragment = n, e.jsx = r, e.jsxs = r;
+})), b = /* @__PURE__ */ c(((e, t) => {
+	t.exports = y();
+})), x = /* @__PURE__ */ u(f(), 1), ee = (e) => {
 	let t, n = /* @__PURE__ */ new Set(), r = (e, r) => {
 		let i = typeof e == "function" ? e(t) : e;
 		if (!Object.is(i, t)) {
@@ -8057,23 +8074,23 @@ var n = Object.create, r = Object.defineProperty, i = Object.getOwnPropertyDescr
 		subscribe: (e) => (n.add(e), () => n.delete(e))
 	}, o = t = e(r, i, a);
 	return a;
-}, x = ((e) => e ? b(e) : b), ee = (e) => e;
-function S(e, t = ee) {
-	let n = y.useSyncExternalStore(e.subscribe, y.useCallback(() => t(e.getState()), [e, t]), y.useCallback(() => t(e.getInitialState()), [e, t]));
-	return y.useDebugValue(n), n;
+}, S = ((e) => e ? ee(e) : ee), C = (e) => e;
+function te(e, t = C) {
+	let n = x.useSyncExternalStore(e.subscribe, x.useCallback(() => t(e.getState()), [e, t]), x.useCallback(() => t(e.getInitialState()), [e, t]));
+	return x.useDebugValue(n), n;
 }
 //#endregion
 //#region src/canvas/stores/document-store.ts
-function C(e) {
-	let n = ne(e);
-	return x()((e, r) => ({
+function ne(e) {
+	let n = w(e);
+	return S()((e, r) => ({
 		document: n,
 		acceptSavedDocument: (t, n) => e(({ document: e }) => !e || e.id !== t.id ? {} : e === n ? { document: t } : { document: {
 			...e,
 			updated_at: t.updated_at
 		} }),
 		adoptDocument: (t) => {
-			let n = ne(t);
+			let n = w(t);
 			n && r().document?.id !== n.id && e({ document: n });
 		},
 		addNode: (t, n) => {
@@ -8248,7 +8265,7 @@ function C(e) {
 				connections: [],
 				nodes: []
 			};
-			let n = re(t.nodes, e);
+			let n = ie(t.nodes, e);
 			return structuredClone({
 				connections: t.connections.filter((e) => n.has(e.from) && n.has(e.to)),
 				nodes: t.nodes.filter((e) => n.has(e.id))
@@ -8260,7 +8277,7 @@ function C(e) {
 		} } : {}),
 		deleteNode: (t) => e(({ document: e }) => {
 			if (!e?.nodes.some((e) => e.id === t)) return {};
-			let n = re(e.nodes, [t]);
+			let n = ie(e.nodes, [t]);
 			return { document: {
 				...e,
 				connections: e.connections.filter((e) => !n.has(e.from) && !n.has(e.to)),
@@ -8316,7 +8333,7 @@ function C(e) {
 		moveNode: (t, n, r) => e(({ document: e }) => {
 			let i = e?.nodes.find((e) => e.id === t);
 			if (!e || !i) return {};
-			let a = re(e.nodes, [t]), o = n - Number(i.x || 0), s = r - Number(i.y || 0);
+			let a = ie(e.nodes, [t]), o = n - Number(i.x || 0), s = r - Number(i.y || 0);
 			return { document: {
 				...e,
 				nodes: e.nodes.map((e) => a.has(e.id) ? {
@@ -8347,11 +8364,11 @@ function C(e) {
 			} }), a.map((e) => e.id);
 		},
 		projectDocument: (t) => {
-			let n = ne(t);
+			let n = w(t);
 			n && e({ document: n });
 		},
 		projectExecutionDocument: (t) => {
-			let n = ne(t), i = r().document;
+			let n = w(t), i = r().document;
 			if (!i || !n || i.id !== n.id) return;
 			let a = new Map(n.nodes.map((e) => [e.id, e])), o = [
 				"_cascadeFailed",
@@ -8401,13 +8418,13 @@ function C(e) {
 		})
 	}));
 }
-function te(e, t) {
+function re(e, t) {
 	let n = (e) => {
 		t.getState().projectDocument(e.detail);
 	};
 	return e.addEventListener("canvas-legacy-document", n), () => e.removeEventListener("canvas-legacy-document", n);
 }
-function ne(t) {
+function w(t) {
 	if (!t) return null;
 	try {
 		return e(t);
@@ -8415,7 +8432,7 @@ function ne(t) {
 		return null;
 	}
 }
-function re(e, t) {
+function ie(e, t) {
 	let n = /* @__PURE__ */ new Set(), r = (t) => {
 		if (n.has(t)) return;
 		n.add(t);
@@ -8425,24 +8442,4 @@ function re(e, t) {
 	return t.forEach(r), n;
 }
 //#endregion
-//#region node_modules/react/cjs/react-jsx-runtime.production.js
-var w = /* @__PURE__ */ c(((e) => {
-	var t = Symbol.for("react.transitional.element"), n = Symbol.for("react.fragment");
-	function r(e, n, r) {
-		var i = null;
-		if (r !== void 0 && (i = "" + r), n.key !== void 0 && (i = "" + n.key), "key" in n) for (var a in r = {}, n) a !== "key" && (r[a] = n[a]);
-		else r = n;
-		return n = r.ref, {
-			$$typeof: t,
-			type: e,
-			key: i,
-			ref: n === void 0 ? null : n,
-			props: r
-		};
-	}
-	e.Fragment = n, e.jsx = r, e.jsxs = r;
-})), ie = /* @__PURE__ */ c(((e, t) => {
-	t.exports = w();
-}));
-//#endregion
-export { x as a, f as c, S as i, u as l, te as n, v as o, C as r, g as s, ie as t };
+export { b as a, f as c, S as i, u as l, ne as n, v as o, te as r, g as s, re as t };
