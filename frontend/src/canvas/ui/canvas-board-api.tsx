@@ -50,9 +50,3 @@ export function CanvasBoardApiProvider({ children, getApi }: { children: ReactNo
 export function useCanvasBoardApi(): CanvasBoardApiAccessor {
   return useContext(CanvasBoardApiContext);
 }
-
-declare global {
-  interface Window {
-    CanvasBoardV2?: CanvasBoardApi;
-  }
-}

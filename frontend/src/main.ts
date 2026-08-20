@@ -23,6 +23,7 @@ import {
   type CanvasRolloutEvent,
   type CanvasRolloutEventPayload,
 } from './canvas/infrastructure/rollout';
+import { legacyCanvasUrl } from './canvas/infrastructure/legacy-fallback';
 
 interface M2Report {
   enabled: boolean;
@@ -69,7 +70,6 @@ declare global {
       destroy(): void;
     };
     __CanvasBootstrapRolloutPolicy?: import('./canvas/infrastructure/rollout').CanvasRolloutPolicy | null;
-    __loadCanvasLegacyFallback?: () => Promise<void>;
     openPromptTemplateModal?: (nodeId: string) => void;
     openCanvasPromptLibrary?: (request: { initialText?: string; onApply(text: string): void }) => void;
     openCanvasAssetLibrary?: (request: {
@@ -184,24 +184,16 @@ window.CanvasModernCore = Object.freeze({
 
 if (rolloutDecision.enabled) {
   const element = document.getElementById('canvasModernApp');
-  const legacyShell = document.getElementById('shell');
   if (element) {
-    if (legacyShell) legacyShell.hidden = true;
     element.hidden = false;
     void import('./canvas/ui/canvas-app-v2').then(({ mountCanvasAppV2 }) => {
       const cleanup = mountCanvasAppV2(element, { runtime: canvasRuntime, repository: canvasRepository });
       window.CanvasModernCore?.recordRolloutEvent('board-mounted', { dimensions: { reason: 'none' } });
       window.addEventListener('pagehide', cleanup, { once: true });
-    }).catch(async (error) => {
-      element.hidden = true;
-      try {
-        await window.__loadCanvasLegacyFallback?.();
-        if (legacyShell) legacyShell.hidden = false;
-      } catch (fallbackError) {
-        console.error('[canvas-modern-core] Legacy Canvas fallback failed to load', fallbackError);
-      }
+    }).catch((error) => {
       window.CanvasModernCore?.recordRolloutEvent('board-mount-failed', { dimensions: { reason: 'import-failed' } });
-      console.warn('[canvas-modern-core] standalone Canvas V2 failed to load; restored Legacy Canvas', error);
+      console.warn('[canvas-modern-core] standalone Canvas V2 failed to load; redirecting to Classic Canvas', error);
+      window.location.replace(legacyCanvasUrl());
     });
   }
 }

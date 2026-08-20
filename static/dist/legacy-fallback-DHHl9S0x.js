@@ -71,4 +71,10 @@ function c(e, t) {
 	}
 }
 //#endregion
-export { n, r, t };
+//#region src/canvas/infrastructure/legacy-fallback.ts
+function l(e = window.location.href) {
+	let t = typeof window > "u" ? "http://localhost/" : window.location.href, n = new URL(e, t), r = new URL("/static/canvas-legacy.html", n);
+	return r.search = n.search, r.hash = n.hash, r.searchParams.delete("canvas_v2"), r.searchParams.delete("canvas_v2_rollout"), `${r.pathname}${r.search}${r.hash}`;
+}
+//#endregion
+export { r as i, t as n, n as r, l as t };

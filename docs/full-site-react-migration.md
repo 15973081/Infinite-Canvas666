@@ -18,7 +18,7 @@
 
 Canvas 的代码迁移已经完成：V2 命中时由 `frontend/src/bootstrap.ts` 启动独立 React 管理器、画布、Store、Repository 和执行运行时；Playwright 明确断言该路径不存在 `CanvasApi`、`CanvasLegacyBridge`，且没有加载 `static/js/canvas.js`。Generator、ModelScope、Video、Comfy、LLM、LTX、Output 和基础节点均由 TypeScript 路径执行。
 
-2026-08-20 已进一步退休迁移期双轨层：`CanvasLegacyBridge`、四个 React 岛、旧页面内嵌 V2 Board 及 `canvas_react_*`/`canvas_board_v2`/`canvas_modern_core` 开关均已删除。旧版只允许作为 `canvas_v2=0` 整页回滚，不再与 React 共享状态、命令或 DOM。
+2026-08-20 已进一步退休迁移期双轨层：`CanvasLegacyBridge`、四个 React 岛、旧页面内嵌 V2 Board 及 `canvas_react_*`/`canvas_board_v2`/`canvas_modern_core` 开关均已删除。默认 `canvas.html` 只保留 React 根节点；旧版独占 `canvas-legacy.html`，只允许作为 `canvas_v2=0`/kill switch 整页回滚，不再与 React 共享状态、命令或 DOM。
 
 Canvas 尚未完成的是阶段 8 发布验收：默认 100% 切换、真实供应商与历史生产数据验证、重复计费核对及两个稳定发布周期。Legacy Canvas 仅作为整页回滚制品保留。
 
@@ -170,7 +170,7 @@ ComfyUI 可通过 `python app/services/comfy_connectivity.py --network --strict`
 
 ## 2026-08-20 搬运边界与 Canvas API 收口
 
-当前搬运范围明确暂不包含 LTX 完整功能和 LLM 视觉失败链路。Canvas 的 React 组件间调用已收口到强类型 `CanvasBoardApi`/Context；`window.CanvasBoardV2` 只保留为兼容输出，不再是 React 生产路径的输入依赖。隔离 Smart Canvas 回归会删除该全局对象后继续操作 Prompt 节点，以验证新路径可以独立工作。
+当前搬运范围明确暂不包含 LTX 完整功能和 LLM 视觉失败链路。Canvas 的 React 组件间调用已收口到强类型 `CanvasBoardApi`/Context；HTML 物理拆分后已删除 `window.CanvasBoardV2` 兼容输出及经典脚本中的死分支。Smart Canvas 回归明确断言该全局对象不存在，并继续通过 React 交互操作 Prompt 节点。
 
 ## 2026-08-20 Smart Canvas 生产入口校正
 
@@ -180,6 +180,8 @@ Canvas 的 159KB 样式源也已从 `static/css` 搬到 `frontend/src/canvas/ui/
 
 全站其余生产样式也已按 `styles`、`provider-studio`、`asset-studio`、`comfyui-settings` 与共享主题域迁入 `frontend/src`。所有生产 HTML 只引用 `/static/dist/*.css`；`frontend_readiness.py` 会把任何重新出现的 `/static/css/` 链接作为 `legacy-stylesheet` 代码阻断项。
 
-Canvas HTML 原先无条件加载的 Tailwind CDN、Lucide 与旧主题脚本也已移出 React 默认执行链，仅在 `bootstrap.ts` 判定进入 Legacy 回退时动态加载。正常 React 页面因此不再建立这些全局对象。
+Canvas HTML 原先无条件加载的 Tailwind CDN、Lucide 与旧主题脚本已移出 React 默认页面，集中到独立 `canvas-legacy.html`。`bootstrap.ts` 判定进入 Legacy 回退时直接重定向；正常 React 页面既不建立这些全局对象，也不解析经典 Canvas DOM。
 
 Canvas 默认策略现已切换为 React 100%；无参数访问直接进入 `CanvasAppV2`。Legacy 代码保留为 kill switch、历史画布审计失败及 `?canvas_v2=0` 的应急回退，不再是正常生产默认路径。本次默认切换不把 LTX 完整功能和 LLM 视觉失败链路计入范围。
+
+Canvas 回滚页拆分后，默认 HTML 已满足“单一 React 根、Vite JS、Vite CSS、无旧 DOM/内联业务事件”的完成口径。回滚 URL 构造由 TypeScript 单测覆盖，Playwright 同时验证显式回滚、服务端 kill switch、默认 React 入口和旧页面功能可用性。

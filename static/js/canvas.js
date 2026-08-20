@@ -3361,17 +3361,14 @@ function addNode(node){
 }
 function defaultPoint(dx=0, dy=0){ return screenToWorld(window.innerWidth / 2 + dx, window.innerHeight / 2 + dy); }
 function addImageNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('image', point);
     const p = point || defaultPoint(-120, 0);
     return addNode({id:uid('img'), type:'image', x:p.x, y:p.y, url:'', name:'空白图片'});
 }
 function addPromptNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('prompt', point);
     const p = point || defaultPoint(0, 0);
     return addNode({id:uid('prompt'), type:'prompt', x:p.x, y:p.y, text:''});
 }
 function addLoopNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('loop', point);
     const p = point || defaultPoint(40, 0);
     return addNode({
         id:uid('loop'),
@@ -3391,7 +3388,6 @@ function addLoopNode(point){
     });
 }
 function addGroupNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('group', point);
     const p = point || defaultPoint(40, 0);
     return addNode({id:uid('grp'), type:'group', x:p.x, y:p.y, w:300, h:220, items:[]});
 }
@@ -3406,7 +3402,6 @@ function pickMediaForNode(nodeId){
     input.click();
 }
 function addLLMNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('llm', point);
     const p = point || defaultPoint(80, 0);
     const providerId = chatApiProviders()[0]?.id || 'comfly';
     return addNode({
@@ -3427,13 +3422,11 @@ function addLLMNode(point){
     });
 }
 function addGeneratorNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('generator', point);
     const p = point || defaultPoint(120, 0);
     const providerId = imageApiProviders()[0]?.id || '';
     return addNode({id:uid('gen'), type:'generator', x:p.x, y:p.y, apiProvider:providerId, model:allImageModels(providerId)[0] || '', ratio:'square', resolution:'1k', customRatio:'', customSize:'', customRatioWidth:'', customRatioHeight:'', customWidth:'', customHeight:'', inputs:[]});
 }
 function addMsGenNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('msgen', point);
     const p = point || defaultPoint(140, 0);
     return addNode({
         id:uid('msgen'),
@@ -3459,7 +3452,6 @@ function addMsGenNode(point){
     });
 }
 function addVideoNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('video', point);
     const p = point || defaultPoint(160, 0);
     const providerId = videoApiProviders()[0]?.id || 'comfly';
     const models = providerVideoModels(providerId);
@@ -3499,7 +3491,6 @@ function defaultLTXSegment(start=0, length=120){
     };
 }
 function addLTXDirectorNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('ltxDirector', point);
     const p = point || defaultPoint(200, 0);
     return addNode({
         id:uid('ltxdir'),
@@ -3992,7 +3983,6 @@ async function runMsGenNode(nodeId, opts={}){
     }
 }
 function addComfyNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('comfy', point);
     const p = point || defaultPoint(160, 0);
     return addNode({
         id:uid('comfy'),
@@ -4025,7 +4015,6 @@ function addComfyNode(point){
     });
 }
 function addOutputNode(point){
-    if(window.CanvasBoardV2) return window.CanvasBoardV2.addNode('output', point);
     const p = point || defaultPoint(260, 0);
     return addNode({id:uid('out'), type:'output', x:p.x, y:p.y, images:[]});
 }
@@ -7125,10 +7114,7 @@ function bindOutputWrap(wrap, node){
             node._pending = (node._pending || []).filter(item => item !== pending);
             refreshNodes([node.id]);
             scheduleSave();
-            if(sourceId){
-                if(window.CanvasBoardV2) window.CanvasBoardV2.runNode(sourceId);
-                else runCanvasGenerate(sourceId);
-            }
+            if(sourceId) runCanvasGenerate(sourceId);
         };
     }
 }
@@ -8572,10 +8558,6 @@ function applyPromptTemplateToPromptNode(mode='positive'){
     const template = canvasPromptTemplates.find(item => item.id === promptTemplateSelectedId);
     if(!template) return;
     const text = canvasPromptTemplateText(template, mode);
-    if(window.CanvasBoardV2?.updateNode(promptTemplateNodeId, {text})) {
-        closePromptTemplateModal();
-        return;
-    }
     const node = nodes.find(n => n.id === promptTemplateNodeId && n.type === 'prompt');
     if(!node) return;
     node.text = text;
@@ -13399,11 +13381,6 @@ assetManagerModal?.addEventListener('click', async event => {
 }, true);
 function rerunFromOutputMeta(meta){
     if(!meta?.run?.nodeType) return;
-    if(window.CanvasBoardV2){
-        window.CanvasBoardV2.rerunFromOutputMeta(JSON.parse(JSON.stringify(meta)));
-        closeOutputLightbox();
-        return;
-    }
     if(!ensureCanvas()) return;
     const base = JSON.parse(JSON.stringify(meta.run.node || {}));
     const p = defaultPoint(180, 40);
@@ -13615,10 +13592,6 @@ function closeOutputLightbox(){
     setupOutputPromptPanel(null);
 }
 function groupSelectedImages(){
-    if(window.CanvasBoardV2){
-        window.CanvasBoardV2.groupSelected();
-        return;
-    }
     if(!ensureCanvas()) return;
     const targets = [...selected].map(id => nodes.find(n => n.id === id)).filter(n => n?.type === 'image' || n?.type === 'prompt');
     let group;
@@ -14735,11 +14708,6 @@ window.addEventListener('paste', e => {
     }
     const files = [...(e.clipboardData?.items || [])].filter(x => x.kind === 'file' && /^(image|video|audio)\//.test(String(x.type || ''))).map(x => x.getAsFile());
     if(!files.length) return;
-    if(window.CanvasBoardV2){
-        e.preventDefault();
-        window.CanvasBoardV2.importFiles(files.filter(Boolean));
-        return;
-    }
     e.preventDefault();
     lastImagePasteAt = Date.now();
     const blank = [...selected].map(id => nodes.find(n => n.id === id)).find(n => n?.type === 'image' && !n.url);
@@ -14749,7 +14717,6 @@ window.addEventListener('paste', e => {
 });
 window.addEventListener('keydown', e => {
     if(!canvas) return;
-    if(window.CanvasBoardV2 && e.key !== 'Escape') return;
     if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
     if(e.key === 'Shift' && !isEditableTarget(document.activeElement)) setKnifeMode(true);
     if(e.key === 'Escape' && document.getElementById('imageEditModal').classList.contains('open')) { closeImageEditor(); return; }

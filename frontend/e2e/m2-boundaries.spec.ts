@@ -8,11 +8,12 @@ async function openModernCanvasFixture(
   initial: CanvasFixture,
   options: {
     beforeOpen?: () => Promise<void>;
+    config?: Record<string, unknown>;
     onSave?: (body: Record<string, any>, current: CanvasFixture) => CanvasSaveResult | Promise<CanvasSaveResult>;
   } = {},
 ) {
   let current = structuredClone(initial);
-  await page.route('**/api/config', async (route) => route.fulfill({ json: { api_providers: [] } }));
+  await page.route('**/api/config', async (route) => route.fulfill({ json: options.config ?? { api_providers: [] } }));
   await page.route('**/api/canvas-folders', async (route) => route.fulfill({ json: { folders: [] } }));
   await page.route('**/api/canvases/trash', async (route) => route.fulfill({ json: { canvases: [] } }));
   await page.route(`**/api/canvases/${initial.id}/lock`, async (route) => route.fulfill({ json: { ok: true } }));
@@ -49,13 +50,9 @@ test.beforeEach(async ({ page }) => {
 test('keeps the Legacy Canvas available only through an explicit rollback', async ({ page }) => {
   await page.goto('/static/canvas.html?canvas_v2=0');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '30');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-repository', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-policy', 'loaded');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'none');
+  await expect(page).toHaveURL(/\/static\/canvas-legacy\.html$/);
+  await expect(page.locator('#shell')).toBeVisible();
+  await expect(page.locator('#canvasModernApp')).toHaveCount(0);
   expect(await page.evaluate(() => 'CanvasLegacyBridge' in window)).toBe(false);
   await expect(page.locator('#canvasExecutionIsland,#canvasStatusIsland,#canvasToolbarIsland,#canvasActivityIsland,#canvasBoardV2')).toHaveCount(0);
   await page.evaluate(() => (window as typeof window & { openCanvasLog(): void }).openCanvasLog());
@@ -74,13 +71,9 @@ test('keeps the server kill switch above every local rollout override', async ({
 
   await page.goto('/static/canvas.html?canvas_v2=1&canvas_v2_rollout=100');
 
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'kill-switch');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
-  const rollout = await page.evaluate(() => (
-    window as typeof window & { CanvasModernCore: any }
-  ).CanvasModernCore.getM2Report().rollout);
-  expect(rollout).toMatchObject({ enabled: false, forced: false, killSwitch: true, source: 'server' });
+  await expect(page).toHaveURL(/\/static\/canvas-legacy\.html$/);
+  await expect(page.locator('#shell')).toBeVisible();
+  expect(await page.evaluate(() => 'CanvasModernCore' in window)).toBe(false);
 });
 
 test('activates the cohesive V2 stack through deterministic rollout controls', async ({ page }) => {
@@ -90,13 +83,12 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-percentage', '100');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
   await expect(page.locator('.canvas-modern-manager')).toBeVisible();
-  await expect(page.locator('#shell')).toBeHidden();
+  await expect(page.locator('#shell')).toHaveCount(0);
   const report = await page.evaluate(() => (window as typeof window & { CanvasModernCore: any }).CanvasModernCore.getM2Report());
   expect(report.rollout).toMatchObject({ enabled: true, forced: false, percentage: 100, source: 'server' });
 
   await page.goto('/static/canvas.html?canvas_v2=0&canvas_v2_rollout=100');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
+  await expect(page).toHaveURL(/\/static\/canvas-legacy\.html$/);
   await expect(page.locator('#shell')).toBeVisible();
 });
 
@@ -191,28 +183,33 @@ test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async 
 });
 
 test('keeps interrupted persisted tasks actionable after a backend restart', async ({ page }) => {
+  let retrySubmissions = 0;
+  await page.route('**/api/canvas-image-tasks**', async (route) => {
+    if (route.request().method() === 'POST') {
+      retrySubmissions += 1;
+      await route.fulfill({ json: { task_id: 'retry-task', status: 'queued' } });
+      return;
+    }
+    await route.fulfill({ json: { task_id: 'retry-task', status: 'succeeded', result: { images: [] } } });
+  });
   await openModernCanvasFixture(page, {
     id: 'recovery-e2e', title: 'Recovery E2E', updated_at: 1, connections: [],
     nodes: [
-      { id: 'generator', type: 'generator', x: 40, y: 120 },
+      { id: 'generator', type: 'generator', x: 40, y: 120, apiProvider: 'mock', model: 'mock-image', userInput: 'retry prompt' },
       { id: 'output', type: 'output', x: 420, y: 120, _pending: [{
         id: 'pending-restart', canvasTaskId: 'canvas_img_old', failed: true,
         recoveryStatus: 'interrupted', run: { node: { id: 'generator', type: 'generator' } },
       }] },
     ],
-  });
-  await page.evaluate(() => {
-    const board = (window as typeof window & { CanvasBoardV2: any; __retriedNode?: string }).CanvasBoardV2;
-    board.runNode = async (nodeId: string) => {
-      (window as typeof window & { __retriedNode?: string }).__retriedNode = nodeId;
-    };
-  });
+  }, { config: {
+    api_providers: [{ enabled: true, id: 'mock', image_models: ['mock-image'], name: 'Mock' }],
+  } });
 
   const pending = page.locator('[data-pending-id="pending-restart"]');
   await expect(pending).toContainText('任务追踪已中断');
   await pending.getByRole('button', { name: '重新生成' }).click();
   await expect(pending).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => (window as typeof window & { __retriedNode?: string }).__retriedNode)).toBe('generator');
+  await expect.poll(() => retrySubmissions).toBe(1);
 });
 
 test('mounts CanvasBoard V2 exclusively inside the production React Canvas', async ({ page }) => {
@@ -347,7 +344,7 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
     id: 'v2-generation', title: 'V2 Generation', updated_at: 1, extension: 'kept',
     nodes: [
       { id: 'prompt-gen', type: 'prompt', x: 20, y: 20, text: 'city' },
-      { id: 'generator-v2', type: 'generator', x: 380, y: 20, apiProvider: 'comfly', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1 },
+      { id: 'generator-v2', type: 'generator', x: 380, y: 20, apiProvider: 'comfly', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1, runStatus: 'failed', runError: 'recoverable failure', _cascadeFailed: true },
       { id: 'msgen-v2', type: 'msgen', x: 380, y: 410, msgenModel: 'zimage', msRatio: 'square', msResolution: '1k', count: 1 },
       { id: 'output-v2', type: 'output', x: 820, y: 20, images: [{ url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', future: true, run: { nodeType: 'generator', node: { type: 'generator', quality: 'medium' }, prompt: 'rerun prompt', refs: [] } }], imageComparisons: { 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==': { url: '/static/images/logo.png' } }, _pending: [{ id: 'pending-v2', taskId: 'task-v2', status: '正在恢复' }] },
     ],
@@ -367,7 +364,6 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   await generator.getByLabel('比例高').blur();
   await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'generator-v2')).toMatchObject({ quality: 'high', count: 4, ratio: 'custom', customRatio: '4:5' });
   expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
-  await page.evaluate(() => (window as typeof window & { CanvasBoardV2: any }).CanvasBoardV2.updateNode('generator-v2', { runStatus: 'failed', runError: 'recoverable failure', _cascadeFailed: true }));
   await expect(generator.getByLabel('质量')).toHaveValue('high');
   await expect(generator.getByRole('button', { name: '重试' })).toBeVisible();
 
@@ -462,7 +458,7 @@ test('persists production parity controls for Video and custom Comfy workflows',
     id: 'v2-parity', title: 'V2 Parity', updated_at: 1, connections: [{ from: 'generator-upstream', to: 'video-parity' }],
     nodes: [
       { id: 'generator-upstream', type: 'generator', x: 0, y: 0 },
-      { id: 'video-parity', type: 'video', x: 380, y: 0, apiProvider: 'comfly', model: '', manualVideoUrls: [] },
+      { id: 'video-parity', type: 'video', x: 380, y: 0, apiProvider: 'comfly', model: '', manualVideoUrl: '' },
       { id: 'comfy-parity', type: 'comfy', x: 820, y: 0, mode: 'custom', comfyWorkflow: 'fixture.json', comfyParams: {}, comfyRandomActive: {} },
     ],
   }, { onSave: (body) => {
@@ -485,18 +481,11 @@ test('persists production parity controls for Video and custom Comfy workflows',
       return originalOptions(type, field, node);
     };
   }) });
-  await page.evaluate(() => {
-    const target = window as any;
-    target.CanvasBoardV2.prepareVideoMedia = async (nodeId: string, action: string, value?: string) => {
-      if (action === 'manual') target.CanvasBoardV2.updateNode(nodeId, { manualVideoUrls: value ? [value] : [] });
-    };
-  });
-
   const video = page.locator('[data-node-id="video-parity"]');
   await expect(video.getByRole('button', { name: '一键运行' })).toBeVisible();
   await video.getByLabel('视频手动 URL').fill('https://cdn.example/reference.mp4');
   await video.getByRole('button', { name: '应用网址' }).click();
-  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'video-parity')).toMatchObject({ manualVideoUrls: ['https://cdn.example/reference.mp4'] });
+  await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'video-parity')).toMatchObject({ manualVideoUrl: 'https://cdn.example/reference.mp4' });
 
   const comfy = page.locator('[data-node-id="comfy-parity"]');
   await expect(comfy).toContainText('动态媒体字段 1');
@@ -590,7 +579,7 @@ test('runs modern execution and mocked task/repository contracts without the ret
     });
   });
 
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_m2=1');
+  await page.goto('/static/canvas.html');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'enabled');
@@ -645,12 +634,12 @@ test('runs modern execution and mocked task/repository contracts without the ret
       rollout: {
         blockedReasons: [],
         bucket: expect.any(Number),
-        enabled: false,
-        forced: true,
+        enabled: true,
+        forced: false,
         killSwitch: false,
         percentage: 100,
         policyLoaded: true,
-        source: 'query',
+        source: 'server',
       },
       execution: { active: 0, done: 1, failed: 0, stopped: 0, transitions: 7 },
       flags: { executionEngine: true, repository: true, taskClient: true },

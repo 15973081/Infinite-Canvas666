@@ -984,7 +984,6 @@ export function mountCanvasBoardV2(element: HTMLElement, options: CanvasBoardMou
     if (merged) commit(false);
     return { conflicts: [], merged, updated: true };
   };
-  const previousBoardApi = window.CanvasBoardV2;
   const api: CanvasBoardApi = {
     addNode(type, point) {
       if (readOnlyMode) return null;
@@ -1123,7 +1122,6 @@ export function mountCanvasBoardV2(element: HTMLElement, options: CanvasBoardMou
       return true;
     },
   };
-  window.CanvasBoardV2 = api;
   const getBoardApi = () => api;
   root.render(<CanvasRuntimeContext.Provider value={modernRuntime}><CanvasBoardApiProvider getApi={getBoardApi}><CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} /></CanvasBoardApiProvider></CanvasRuntimeContext.Provider>);
   element.hidden = false;
@@ -1131,8 +1129,6 @@ export function mountCanvasBoardV2(element: HTMLElement, options: CanvasBoardMou
     api,
     unmount() {
       disposed = true;
-      if (previousBoardApi) window.CanvasBoardV2 = previousBoardApi;
-      else delete window.CanvasBoardV2;
       root.unmount();
       element.hidden = true;
     },

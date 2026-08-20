@@ -1,28 +1,5 @@
-import { r as e, t } from "./rollout-to3gaRar.js";
+import { i as e, n as t, t as n } from "./legacy-fallback-DHHl9S0x.js";
 //#region src/bootstrap.ts
-var n = await t();
-window.__CanvasBootstrapRolloutPolicy = n;
-var r = e(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname, n), i = null;
-window.__loadCanvasLegacyFallback = () => (i ??= (async () => {
-	for (let e of [
-		"/static/vendor/js/tailwindcss-cdn.js?v=2026.06.10.1.1781494198",
-		"/static/vendor/js/lucide.js?v=2026.06.10.1.1781494198",
-		"/static/js/theme.js?v=2026.06.10.1.1781494198",
-		"/static/js/canvas-core.js?v=2026.07.06.1",
-		"/static/js/canvas-api.js?v=2026.07.06.1",
-		"/static/js/ltx-director-timeline.js?v=2026.06.10.1.1781494198",
-		"/static/js/canvas.js?v=2026.07.23.4"
-	]) await a(e);
-	document.readyState === "complete" && await o();
-})(), i), r.enabled || await window.__loadCanvasLegacyFallback(), await import("./main-hoiocPDp.js"), r.enabled || await o();
-function a(e) {
-	return new Promise((t, n) => {
-		let r = document.createElement("script");
-		r.src = e, r.onload = () => t(), r.onerror = () => n(/* @__PURE__ */ Error(`Failed to load Classic Canvas dependency: ${e}`)), document.body.appendChild(r);
-	});
-}
-async function o() {
-	let e = window.onload;
-	typeof e == "function" && (window.onload = null, await e.call(window, new Event("load")));
-}
+var r = await t();
+window.__CanvasBootstrapRolloutPolicy = r, e(window.location.search, window.localStorage, window.sessionStorage.getItem("canvasClientId") || window.location.pathname, r).enabled ? await import("./main-B993T9Ps.js") : window.location.replace(n());
 //#endregion

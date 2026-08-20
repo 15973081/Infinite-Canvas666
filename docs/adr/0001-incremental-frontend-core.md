@@ -4,7 +4,7 @@
 - 日期：2026-08-14
 - 范围：经典画布
 
-> 2026-08-20 更新：本 ADR 描述的 `CanvasLegacyBridge`、Graph/Execution 影子模式和阶段 6 React 岛均已完成验证使命并删除。当前约束是两条整页入口物理隔离：默认 React + TypeScript + Vite，`canvas_v2=0` 仅保留纯旧版紧急回滚。以下内容仅用于解释迁移历史，不再是当前实现说明。
+> 2026-08-20 更新：本 ADR 描述的 `CanvasLegacyBridge`、Graph/Execution 影子模式和阶段 6 React 岛均已完成验证使命并删除。当前约束是两条 HTML 入口物理隔离：默认 `canvas.html` 只有 React + TypeScript + Vite 根节点，`canvas_v2=0`/kill switch 重定向到独立 `canvas-legacy.html` 紧急回滚。以下内容仅用于解释迁移历史，不再是当前实现说明。
 
 ## 决策
 

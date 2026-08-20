@@ -62,6 +62,13 @@ def build_frontend_readiness_report(
         else:
             source = path.read_text(encoding="utf-8-sig")
         script_sources = re.findall(r'<script\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', source, flags=re.I)
+        inline_scripts = re.findall(
+            r'<script\b(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)</script>', source, flags=re.I,
+        )
+        inline_business_scripts = [
+            body.strip() for attributes, body in inline_scripts
+            if body.strip() and not re.search(r'\bdata-theme-preload\b', attributes, flags=re.I)
+        ]
         style_sources = re.findall(r'<link\b[^>]*\bhref=["\']([^"\']+)["\'][^>]*>', source, flags=re.I)
         dist_modules = [value for value in script_sources if "/static/dist/" in value]
         dist_styles = [value for value in style_sources if "/static/dist/" in value]
@@ -71,6 +78,8 @@ def build_frontend_readiness_report(
         legacy = sorted({Path(value.split("?", 1)[0]).name for value in script_sources} & LEGACY_BUSINESS_SCRIPTS)
         if legacy:
             issues.append("legacy-business-script")
+        if inline_business_scripts:
+            issues.append("inline-business-script")
         if legacy_styles:
             issues.append("legacy-stylesheet")
         missing_assets = []
@@ -85,6 +94,7 @@ def build_frontend_readiness_report(
             "dist_modules": dist_modules,
             "dist_styles": dist_styles,
             "legacy_business_scripts": legacy,
+            "inline_business_scripts": len(inline_business_scripts),
             "legacy_stylesheets": legacy_styles,
             "missing_assets": missing_assets,
             "ok": not issues,

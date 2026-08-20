@@ -8,6 +8,7 @@ ROOT = Path(__file__).parents[1]
 class FrontendBoundaryEntryTest(unittest.TestCase):
     def test_canvas_bootstrap_owns_the_explicit_legacy_fallback(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
+        legacy_html = (ROOT / "static" / "canvas-legacy.html").read_text(encoding="utf-8")
         bootstrap = (ROOT / "frontend" / "src" / "bootstrap.ts").read_text(encoding="utf-8")
 
         self.assertNotIn("/static/js/canvas.js", html)
@@ -18,8 +19,11 @@ class FrontendBoundaryEntryTest(unittest.TestCase):
         self.assertIn('/static/dist/canvas-modern.js?v=2026.08.19.35', html)
         self.assertIn('/static/dist/canvas-modern.css?v=2026.08.20.1', html)
         self.assertIn("import './canvas/ui/canvas.css';", bootstrap)
-        self.assertIn("'/static/js/canvas.js?v=2026.07.23.4'", bootstrap)
-        self.assertIn("'/static/js/theme.js?v=2026.06.10.1.1781494198'", bootstrap)
+        self.assertIn('/static/js/canvas.js?v=2026.07.23.4', legacy_html)
+        self.assertIn('/static/js/theme.js?v=2026.06.10.1.1781494198', legacy_html)
+        self.assertNotIn('id="shell"', html)
+        self.assertIn('id="shell"', legacy_html)
+        self.assertIn("legacyCanvasUrl", bootstrap)
         self.assertIn("if (!decision.enabled)", bootstrap)
 
     def test_modern_and_legacy_canvas_no_longer_share_a_global_bridge(self):

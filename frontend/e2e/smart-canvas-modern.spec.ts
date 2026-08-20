@@ -120,7 +120,7 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await expect(page.getByText('Alice 正在编辑此画布')).toBeVisible();
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
   await expect(page.getByRole('button', { name: 'API生成' })).toBeDisabled();
-  expect(await page.evaluate(() => window.CanvasBoardV2?.addNode('prompt'))).toBeNull();
+  expect(await page.evaluate(() => 'CanvasBoardV2' in window)).toBe(false);
 
   canvasDocument = { ...canvasDocument, updated_at: 2, nodes: [{ ...canvasDocument.nodes[0], text: 'remote saved prompt' }] };
   remoteUpdatedAt = 2;
@@ -285,9 +285,6 @@ test('manages the shared prompt library from isolated Smart Canvas V2', async ({
   });
 
   await page.goto(`${smartCanvasV2Entry}?id=smart-prompts`);
-  await page.evaluate(() => {
-    delete (window as Window & { CanvasBoardV2?: unknown }).CanvasBoardV2;
-  });
   expect(await page.evaluate(() => 'CanvasBoardV2' in window)).toBe(false);
   const promptNode = page.locator('[data-node-id="prompt-target"]');
   await promptNode.getByRole('button', { name: '模板' }).click();

@@ -68,6 +68,29 @@ class FrontendReadinessTest(unittest.TestCase):
         self.assertIn("entry:index.html:vite-module-missing", report["code_blockers"])
         self.assertIn("entry:index.html:legacy-business-script", report["code_blockers"])
 
+    def test_blocks_inline_business_scripts_but_allows_the_theme_preload(self):
+        self.write_entry()
+        path = self.root / "static" / "index.html"
+        path.write_text(
+            path.read_text(encoding="utf-8") + '<script>window.runLegacyPage = () => {};</script>',
+            encoding="utf-8",
+        )
+
+        report = self.report()
+
+        self.assertFalse(report["code_migration_ready"])
+        self.assertIn("entry:index.html:inline-business-script", report["code_blockers"])
+        self.assertEqual(1, report["entries"]["items"][0]["inline_business_scripts"])
+
+        path.write_text(
+            '<script data-theme-preload>document.documentElement.classList.add("theme-dark")</script>'
+            '<script type="module" src="/static/dist/index-modern.js"></script>',
+            encoding="utf-8",
+        )
+        allowed = self.report()
+        self.assertTrue(allowed["code_migration_ready"])
+        self.assertEqual(0, allowed["entries"]["items"][0]["inline_business_scripts"])
+
     def test_blocks_missing_vite_stylesheets(self):
         self.write_entry()
         path = self.root / "static" / "index.html"

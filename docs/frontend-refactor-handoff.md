@@ -95,8 +95,8 @@ Set-Location ..
 ## 6. 当前回滚边界
 
 - 默认地址：独立 React Canvas。
-- `?canvas_v2=0`：显式加载完整旧版 Canvas，仅用于紧急回滚。
-- 服务端 kill switch：优先于客户端选择，并回退到完整旧版入口。
+- `?canvas_v2=0`：从最小 React 入口重定向到独立 `/static/canvas-legacy.html`，仅用于紧急回滚。
+- 服务端 kill switch：优先于客户端选择，并重定向到同一个完整旧版入口。
 
 ## 7. 阶段 7 CanvasBoard V2（第一版实现已提交，生产级验收进行中）
 
@@ -521,13 +521,13 @@ React Canvas 新增 `save-succeeded`、`execution-succeeded`、`execution-failed
 
 ## 31. 2026-08-20 Canvas Board 强类型接口搬运
 
-本批按当前产品边界继续搬运，不包含 LTX 完整功能和 LLM 视觉失败链路。React CanvasApp、CanvasBoard 节点组件及预留的 Smart Composer 已改用统一的 `CanvasBoardApi` 与 React Context；正常 React 功能路径不再从 `window.CanvasBoardV2` 读取能力。旧全局对象仅作为 Legacy/外部脚本兼容输出保留，后续可在兼容窗口结束后删除。
+本批按当前产品边界继续搬运，不包含 LTX 完整功能和 LLM 视觉失败链路。React CanvasApp、CanvasBoard 节点组件及预留的 Smart Composer 已改用统一的 `CanvasBoardApi` 与 React Context。Canvas HTML 物理拆分后，`window.CanvasBoardV2` 兼容输出及经典脚本中的对应分支已删除；现代和回滚页面都只使用各自内部接口。
 
 Smart Canvas Playwright 回归会在页面初始化后主动删除旧全局对象，再通过 Prompt 节点打开并管理共享提示词库，用于防止 React 路径重新暗中依赖全局桥。本批验证结果：113 个 Vitest、38 个全站 Playwright 全部通过。
 
 ## 32. 2026-08-20 Smart Canvas 真实生产入口切换
 
-`/static/smart-canvas.html` 现已真正切换为 `smart-canvas-modern.js` 生产入口，只保留 `#smartCanvasApp` 挂载点。生产页面不再加载 `smart-canvas.js`、`canvas-core.js`、`canvas-api.js` 或 `smart-canvas.css`；旧文件暂留在仓库中作为迁移核对与历史回退资产，不再进入默认浏览器执行链。
+`/static/smart-canvas.html` 现已真正切换为 `smart-canvas-modern.js` 生产入口，只保留 `#smartCanvasApp` 挂载点。生产页面不再加载 `smart-canvas.js`、`canvas-core.js`、`canvas-api.js` 或 `smart-canvas.css`；无消费者的旧 Smart Canvas JS/CSS 已删除，不再维护第二套实现。
 
 原先使用测试专用虚拟 HTML 的 Smart Canvas Playwright 已全部改为直接访问真实生产入口，并增加资源级反向断言，防止旧 JS/CSS 被重新接回。`frontend_readiness.py` 当前确认 12/12 生产入口均有 Vite module、无 Legacy business script、无缺失构建产物。
 
@@ -545,10 +545,16 @@ Smart Canvas Playwright 回归会在页面初始化后主动删除旧全局对�
 
 ## 35. 2026-08-20 Canvas 默认路径辅助脚本隔离
 
-`canvas.html` 不再无条件加载 Tailwind CDN、Lucide 和旧 `theme.js`。这些脚本仅由 `bootstrap.ts` 在明确进入 Legacy Canvas 回退时按顺序加载；React Canvas 正常路径只保留 Vite module 和 Vite CSS。独立 React Canvas 回归会统计相关经典脚本，要求加载数量严格为 0，同时既有 Legacy 回退测试继续验证旧路径可启动。
+`canvas.html` 不再无条件加载 Tailwind CDN、Lucide 和旧 `theme.js`。React Canvas 正常路径只保留 Vite module、Vite CSS 和 `#canvasModernApp`；经典依赖只存在于独立 `canvas-legacy.html`。独立 React Canvas 回归会统计相关经典脚本，要求加载数量严格为 0，同时 Legacy 回退测试继续验证旧页面可启动。
 
 ## 36. 2026-08-20 Canvas 默认切换为 React
 
 服务端缺省 Canvas 策略已从 `enabled=false / 0%` 调整为 `enabled=true / 100%`，前端在策略接口不可用时也默认进入 React Canvas。普通访问 `/static/canvas.html` 现在直接挂载完整 `CanvasAppV2`；Legacy Canvas 仅通过服务端 kill switch、审计不兼容或显式 `?canvas_v2=0` 进入。
 
 原先验证渐进式 React 岛的测试已全部明确声明 `canvas_v2=0`，避免把兼容模式与生产默认模式混为一谈。正常入口测试不再带灰度参数，并断言 React Canvas、Vite CSS 和零经典脚本。当前产品边界仍明确排除 LTX 完整功能及 LLM 视觉失败链路。
+
+## 37. 2026-08-20 Canvas HTML 物理拆分
+
+默认 `/static/canvas.html` 已缩减为主题预载、两份 Vite CSS、`#canvasModernApp` 和 `canvas-modern.js`，不再解析经典画布 DOM、内联事件或旧工具栏。完整旧 DOM 与经典依赖迁入 `/static/canvas-legacy.html`；`bootstrap.ts` 在显式回滚、kill switch 或审计阻断时重定向，React Board 动态导入失败时也跳转到同一回滚页。
+
+`legacyCanvasUrl()` 会保留画布 ID 等业务参数并移除 rollout 控制参数，避免旧页面再次参与灰度判断。原 `static/css/smart-canvas.css` 同时作为无消费者样式删除，当前所有可执行页面样式均来自 `frontend/src` 经 Vite 构建的 `/static/dist/*.css`。

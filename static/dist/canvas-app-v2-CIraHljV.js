@@ -11149,7 +11149,7 @@ function Ze(e, t) {
 			merged: s,
 			updated: !0
 		};
-	}, T = window.CanvasBoardV2, E = {
+	}, T = {
 		addNode(e, t) {
 			if (w) return null;
 			let n = l.getState().addNode(e, t);
@@ -11290,10 +11290,10 @@ function Ze(e, t) {
 			return w || !l.getState().document?.nodes.some((t) => t.id === e) ? !1 : (l.getState().updateNode(e, t), b(), !0);
 		}
 	};
-	return window.CanvasBoardV2 = E, m.render(/* @__PURE__ */ (0, k.jsx)(ve.Provider, {
+	return m.render(/* @__PURE__ */ (0, k.jsx)(ve.Provider, {
 		value: c,
 		children: /* @__PURE__ */ (0, k.jsx)(j, {
-			getApi: () => E,
+			getApi: () => T,
 			children: /* @__PURE__ */ (0, k.jsx)(Je, {
 				canvasRuntime: c,
 				commit: b,
@@ -11305,9 +11305,9 @@ function Ze(e, t) {
 			})
 		})
 	})), e.hidden = !1, {
-		api: E,
+		api: T,
 		unmount() {
-			h = !0, T ? window.CanvasBoardV2 = T : delete window.CanvasBoardV2, m.unmount(), e.hidden = !0;
+			h = !0, m.unmount(), e.hidden = !0;
 		}
 	};
 }
