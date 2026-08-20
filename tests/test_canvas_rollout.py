@@ -40,12 +40,12 @@ class CanvasRolloutPolicyTest(unittest.TestCase):
         with patch.object(canvas_rollout, "CANVAS_DIR", str(self.directory)), patch.dict(os.environ, {}, clear=True):
             return canvas_rollout.get_canvas_rollout_policy(str(self.policy_path))
 
-    def test_missing_configuration_is_safely_disabled(self):
+    def test_missing_configuration_defaults_to_the_audited_react_canvas(self):
         result = self.policy()
 
-        self.assertFalse(result["enabled"])
-        self.assertEqual(0, result["effective_percentage"])
-        self.assertEqual(["rollout-disabled"], result["blocked_reasons"])
+        self.assertTrue(result["enabled"])
+        self.assertEqual(100, result["effective_percentage"])
+        self.assertEqual([], result["blocked_reasons"])
         self.assertTrue(result["audit"]["complete"])
 
     def test_compatible_audit_allows_configured_percentage(self):

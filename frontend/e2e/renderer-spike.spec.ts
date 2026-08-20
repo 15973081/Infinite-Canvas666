@@ -139,7 +139,7 @@ test('legacy renderer establishes the 200-node/300-edge baseline', async ({ page
     if (path === '/api/canvases') return route.fulfill({ json: { canvases: [canvas] } });
     return route.fulfill({ json: { canvas } });
   });
-  await page.goto('/static/canvas.html');
+  await page.goto('/static/canvas.html?canvas_v2=0');
   await page.getByRole('button', { name: /^Renderer benchmark / }).click();
   await expect(page.locator('#nodes .node')).toHaveCount(200);
   await expect(page.locator('#links .link')).toHaveCount(300);

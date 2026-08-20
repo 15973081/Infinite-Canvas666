@@ -101,7 +101,7 @@ export function resolveCanvasV2Rollout(
     return decision(bucket, false, false, 0, 'server', true, blockedReasons, true);
   }
 
-  const fallbackPercentage = policy?.effective_percentage ?? storedPercentage ?? 0;
+  const fallbackPercentage = policy?.effective_percentage ?? storedPercentage ?? 100;
   const fallbackSource = policy ? 'server' : storedPercentage !== null ? 'storage' : 'default';
   const percentage = queryPercentage ?? fallbackPercentage;
   if (forced === '1' || forced === '0') {

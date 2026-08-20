@@ -4,8 +4,8 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/canvas-rollout/events', async (route) => route.fulfill({ json: { accepted: true } }));
 });
 
-test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
-  await page.goto('/static/canvas.html');
+test('keeps the Legacy Canvas available only through an explicit rollback', async ({ page }) => {
+  await page.goto('/static/canvas.html?canvas_v2=0');
 
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '30');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
@@ -19,7 +19,7 @@ test('keeps stage 4 and 5 boundaries disabled by default', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-status', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-toolbar', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-policy', 'loaded');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'rollout-disabled');
+  await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'none');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-legacy-bridge', 'ready');
   await expect(page.locator('#canvasExecutionIsland')).toBeHidden();
   await expect(page.locator('#canvasStatusIsland')).toBeHidden();
@@ -53,7 +53,7 @@ test('keeps the server kill switch above every local rollout override', async ({
 });
 
 test('activates the cohesive V2 stack through deterministic rollout controls', async ({ page }) => {
-  await page.goto('/static/canvas.html?canvas_v2_rollout=100');
+  await page.goto('/static/canvas.html');
 
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-percentage', '100');
@@ -62,7 +62,7 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
   await expect(page.locator('.canvas-modern-manager')).toBeVisible();
   await expect(page.locator('#shell')).toBeHidden();
   const report = await page.evaluate(() => (window as typeof window & { CanvasModernCore: any }).CanvasModernCore.getM2Report());
-  expect(report.rollout).toMatchObject({ enabled: true, forced: false, percentage: 100, source: 'query' });
+  expect(report.rollout).toMatchObject({ enabled: true, forced: false, percentage: 100, source: 'server' });
 
   await page.goto('/static/canvas.html?canvas_v2=0&canvas_v2_rollout=100');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
@@ -100,7 +100,7 @@ test('runs the standalone React Canvas without loading the legacy Canvas runtime
     else await route.fulfill({ json: { id: 'standalone-task', status: 'succeeded', result: { images: ['/output/standalone.png'] } } });
   });
 
-  await page.goto('/static/canvas.html?canvas_v2_rollout=100');
+  await page.goto('/static/canvas.html');
   await page.getByRole('button', { name: /Standalone E2E/ }).click();
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.locator('[data-node-type="generator"]')).toHaveCount(1);
@@ -141,7 +141,7 @@ test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async 
     }
     await route.fulfill({ json: { canvas: { ...body, id: 'v2-conflict', updated_at: 3 } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1&canvas_repository=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1&canvas_repository=1');
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
     document.getElementById('shell')?.classList.remove('no-canvas');
@@ -175,7 +175,7 @@ test('keeps interrupted persisted tasks actionable after a backend restart', asy
     const body = JSON.parse(route.request().postData() || '{}');
     await route.fulfill({ json: { canvas: { ...body, id: 'recovery-e2e', updated_at: 2 } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1&canvas_repository=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1&canvas_repository=1');
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
     document.getElementById('shell')?.classList.remove('no-canvas');
@@ -211,7 +211,7 @@ test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on c
     updatedAt += 1;
     await route.fulfill({ json: { canvas: { ...body, id: 'v2-e2e', updated_at: updatedAt } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'enabled');
   await expect(page.locator('#board')).toBeHidden();
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
@@ -310,7 +310,7 @@ test('edits and groups low-risk V2 nodes through the persisted document', async 
     saves.push(body);
     await route.fulfill({ json: { canvas: { ...body, id: 'v2-low-risk', updated_at: saves.length + 1 } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
@@ -371,7 +371,7 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
     saves.push(body);
     await route.fulfill({ json: { canvas: { ...body, id: 'v2-generation', updated_at: saves.length + 1 } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
@@ -448,7 +448,7 @@ test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
     saves.push(body);
     await route.fulfill({ json: { canvas: { ...body, id: 'v2-media', updated_at: saves.length + 1 } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
@@ -504,7 +504,7 @@ test('persists production parity controls for Video and custom Comfy workflows',
     saves.push(body);
     await route.fulfill({ json: { canvas: { ...body, id: 'v2-parity', updated_at: saves.length + 1 } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
@@ -560,7 +560,7 @@ test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page 
     saves.push(body);
     await route.fulfill({ json: { canvas: { ...body, id: 'v2-ltx-media', updated_at: saves.length + 1 } } });
   });
-  await page.goto('/static/canvas.html?canvas_board_v2=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
   await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
@@ -643,7 +643,7 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
     });
   });
 
-  await page.goto('/static/canvas.html?canvas_m2=1&canvas_react_islands=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_m2=1&canvas_react_islands=1');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'enabled');
@@ -740,14 +740,14 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
     m2: {
       enabled: true,
       rollout: {
-        blockedReasons: ['rollout-disabled'],
+        blockedReasons: [],
         bucket: expect.any(Number),
         enabled: false,
-        forced: false,
+        forced: true,
         killSwitch: false,
-        percentage: 0,
+        percentage: 100,
         policyLoaded: true,
-        source: 'server',
+        source: 'query',
       },
       execution: { active: 0, done: 1, failed: 0, stopped: 0, transitions: 7 },
       flags: { executionEngine: true, repository: true, taskClient: true },

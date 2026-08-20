@@ -16,8 +16,8 @@ const serverPolicy: CanvasRolloutPolicy = {
 };
 
 describe('Canvas V2 rollout', () => {
-  it('stays disabled by default and honors explicit overrides', () => {
-    expect(resolveCanvasV2Rollout('', null, 'client-a')).toMatchObject({ enabled: false, percentage: 0, source: 'default' });
+  it('defaults to the fully migrated React Canvas and honors explicit rollback', () => {
+    expect(resolveCanvasV2Rollout('', null, 'client-a')).toMatchObject({ enabled: true, percentage: 100, source: 'default' });
     expect(resolveCanvasV2Rollout('?canvas_v2=1', null, 'client-a')).toMatchObject({ enabled: true, forced: true });
     expect(resolveCanvasV2Rollout('?canvas_v2=0&canvas_v2_rollout=100', null, 'client-a')).toMatchObject({ enabled: false, forced: true });
   });

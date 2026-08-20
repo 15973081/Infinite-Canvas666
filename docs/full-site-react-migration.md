@@ -177,3 +177,5 @@ Canvas 的 159KB 样式源也已从 `static/css` 搬到 `frontend/src/canvas/ui/
 全站其余生产样式也已按 `styles`、`provider-studio`、`asset-studio`、`comfyui-settings` 与共享主题域迁入 `frontend/src`。所有生产 HTML 只引用 `/static/dist/*.css`；`frontend_readiness.py` 会把任何重新出现的 `/static/css/` 链接作为 `legacy-stylesheet` 代码阻断项。
 
 Canvas HTML 原先无条件加载的 Tailwind CDN、Lucide 与旧主题脚本也已移出 React 默认执行链，仅在 `bootstrap.ts` 判定进入 Legacy 回退时动态加载。正常 React 页面因此不再建立这些全局对象。
+
+Canvas 默认策略现已切换为 React 100%；无参数访问直接进入 `CanvasAppV2`。Legacy 代码保留为 kill switch、历史画布审计失败及 `?canvas_v2=0` 的应急回退，不再是正常生产默认路径。本次默认切换不把 LTX 完整功能和 LLM 视觉失败链路计入范围。

@@ -1,4 +1,4 @@
-import { r as e, t } from "./rollout-BcgAkMGv.js";
+import { r as e, t } from "./rollout-to3gaRar.js";
 //#region src/bootstrap.ts
 var n = await t();
 window.__CanvasBootstrapRolloutPolicy = n;
@@ -14,7 +14,7 @@ window.__loadCanvasLegacyFallback = () => (i ??= (async () => {
 		"/static/js/canvas.js?v=2026.07.23.4"
 	]) await a(e);
 	document.readyState === "complete" && await o();
-})(), i), r.enabled || await window.__loadCanvasLegacyFallback(), await import("./main-BVfORddf.js"), r.enabled || await o();
+})(), i), r.enabled || await window.__loadCanvasLegacyFallback(), await import("./main-BGhrRcVq.js"), r.enabled || await o();
 function a(e) {
 	return new Promise((t, n) => {
 		let r = document.createElement("script");

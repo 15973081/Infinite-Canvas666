@@ -9,8 +9,8 @@ from app.services.canvas_audit import audit_canvas_directory
 
 
 DEFAULT_CANVAS_ROLLOUT = {
-    "enabled": False,
-    "percentage": 0,
+    "enabled": True,
+    "percentage": 100,
     "kill_switch": False,
     "require_audit": True,
     "max_audit_files": 20000,

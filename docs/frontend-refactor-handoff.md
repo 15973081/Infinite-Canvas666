@@ -567,3 +567,9 @@ Smart Canvas Playwright 回归会在页面初始化后主动删除旧全局对�
 ## 35. 2026-08-20 Canvas 默认路径辅助脚本隔离
 
 `canvas.html` 不再无条件加载 Tailwind CDN、Lucide 和旧 `theme.js`。这些脚本仅由 `bootstrap.ts` 在明确进入 Legacy Canvas 回退时按顺序加载；React Canvas 正常路径只保留 Vite module 和 Vite CSS。独立 React Canvas 回归会统计相关经典脚本，要求加载数量严格为 0，同时既有 Legacy 回退测试继续验证旧路径可启动。
+
+## 36. 2026-08-20 Canvas 默认切换为 React
+
+服务端缺省 Canvas 策略已从 `enabled=false / 0%` 调整为 `enabled=true / 100%`，前端在策略接口不可用时也默认进入 React Canvas。普通访问 `/static/canvas.html` 现在直接挂载完整 `CanvasAppV2`；Legacy Canvas 仅通过服务端 kill switch、审计不兼容或显式 `?canvas_v2=0` 进入。
+
+原先验证渐进式 React 岛的测试已全部明确声明 `canvas_v2=0`，避免把兼容模式与生产默认模式混为一谈。正常入口测试不再带灰度参数，并断言 React Canvas、Vite CSS 和零经典脚本。当前产品边界仍明确排除 LTX 完整功能及 LLM 视觉失败链路。

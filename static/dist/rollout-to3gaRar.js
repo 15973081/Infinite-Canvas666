@@ -35,7 +35,7 @@ async function n(t, n = {}, r = fetch) {
 function r(e, t, n, r = null) {
 	let a = new URLSearchParams(e), l = a.get("canvas_v2"), u = o(a.get("canvas_v2_rollout")), d = o(c(t, "canvasV2RolloutPercentage")), f = r !== null, p = r?.blocked_reasons ?? [], m = s(n || "anonymous");
 	if (r?.kill_switch) return i(m, !1, !1, 0, "server", !0, p, !0);
-	let h = r?.effective_percentage ?? d ?? 0, g = r ? "server" : d === null ? "default" : "storage", _ = u ?? h;
+	let h = r?.effective_percentage ?? d ?? 100, g = r ? "server" : d === null ? "default" : "storage", _ = u ?? h;
 	return l === "1" || l === "0" ? i(m, l === "1", !0, _, "query", f, p, !1) : i(m, m < _, !1, _, u === null ? g : "query", f, p, !1);
 }
 function i(e, t, n, r, i, a, o, s) {
