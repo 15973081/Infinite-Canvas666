@@ -87,7 +87,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   useEffect(() => {
     const host = boardRef.current;
     if (!host || !current) return;
-    const mounted = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
+    const mounted = mountCanvasBoardV2(host, { clientId: clientId.current, initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
     boardApiRef.current = mounted.api;
     mounted.api.setReadOnly(Boolean(lockHolder));
     return () => {

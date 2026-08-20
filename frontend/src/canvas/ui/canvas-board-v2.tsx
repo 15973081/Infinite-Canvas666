@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
 import { decodeCanvasDocument } from '../domain/document-codec';
@@ -24,8 +24,12 @@ const nodeRegistry: Record<string, string> = {
   ltxDirector: 'LTX Director', msgen: 'ModelScope', output: 'Output', prompt: '提示词', promptGroup: '提示词组', video: '视频',
 };
 
-function runtime(): CanvasRuntime | null {
-  return window.CanvasModernCore?.canvasRuntime ?? null;
+const CanvasRuntimeContext = createContext<CanvasRuntime | null>(null);
+
+function useCanvasRuntime(): CanvasRuntime {
+  const canvasRuntime = useContext(CanvasRuntimeContext);
+  if (!canvasRuntime) throw new Error('Canvas runtime is unavailable');
+  return canvasRuntime;
 }
 
 function nodePoint(node: CanvasNode): Point {
@@ -188,9 +192,10 @@ function InputSummary({ document, node }: { document: { connections: CanvasEdge[
 }
 
 function GeneratorBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const canvasRuntime = useCanvasRuntime();
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const providerOptions = (runtime()?.getNodeOptions('generator', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
-  const modelOptions = (runtime()?.getNodeOptions('generator', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const providerOptions = canvasRuntime.getNodeOptions('generator', 'provider', node).map((item) => [item.value, item.label] as const);
+  const modelOptions = canvasRuntime.getNodeOptions('generator', 'model', node).map((item) => [item.value, item.label] as const);
   const provider = String(node.apiProvider || providerOptions[0]?.[0] || '');
   const fitReference = async () => {
     const reference = connectedMedia(document, node).find((item) => item.kind !== 'video' && item.kind !== 'audio');
@@ -202,7 +207,7 @@ function GeneratorBody({ commit, document, node, store }: { commit: () => void; 
     <InputSummary document={document} node={node} />
     <div className="gen-settings"><div className="gen-settings-row">
       <SelectField ariaLabel="图片平台" onChange={(apiProvider) => {
-        const models = runtime()?.getNodeOptions('generator', 'model', { ...node, apiProvider }) ?? [];
+        const models = canvasRuntime.getNodeOptions('generator', 'model', { ...node, apiProvider });
         update({ apiProvider, model: models[0]?.value || '' });
       }} options={providerOptions} value={provider} />
       <SelectField ariaLabel="图片模型" onChange={(model) => update({ model })} options={modelOptions} value={String(node.model || '')} />
@@ -219,10 +224,11 @@ function GeneratorBody({ commit, document, node, store }: { commit: () => void; 
 }
 
 function MsGenBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const canvasRuntime = useCanvasRuntime();
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const models = (runtime()?.getNodeOptions('msgen', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
-  const customModels = (runtime()?.getNodeOptions('msgen', 'custom-model', node) ?? []).map((item) => [item.value, item.label] as const);
-  const loras = runtime()?.getNodeOptions('msgen', 'lora', node) ?? [];
+  const models = canvasRuntime.getNodeOptions('msgen', 'model', node).map((item) => [item.value, item.label] as const);
+  const customModels = canvasRuntime.getNodeOptions('msgen', 'custom-model', node).map((item) => [item.value, item.label] as const);
+  const loras = canvasRuntime.getNodeOptions('msgen', 'lora', node);
   const selectedLora = loras.find((item) => item.value === node.msLoraId) ?? loras[0];
   const fitReference = async () => {
     const reference = connectedMedia(document, node).find((item) => item.kind !== 'video' && item.kind !== 'audio');
@@ -280,19 +286,20 @@ function OutputBody({ commit, node, store }: { commit: () => void; node: CanvasN
 }
 
 function VideoBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const canvasRuntime = useCanvasRuntime();
   const getBoardApi = useCanvasBoardApi();
   const [manualUrl, setManualUrl] = useState(String(node.manualVideoUrl || (Array.isArray(node.manualVideoUrls) ? node.manualVideoUrls[0] : '') || ''));
   const [preparing, setPreparing] = useState(false);
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const providers = (runtime()?.getNodeOptions('video', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
-  const models = (runtime()?.getNodeOptions('video', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const providers = canvasRuntime.getNodeOptions('video', 'provider', node).map((item) => [item.value, item.label] as const);
+  const models = canvasRuntime.getNodeOptions('video', 'model', node).map((item) => [item.value, item.label] as const);
   const toggles = [['enhancePrompt', '增强提示词'], ['enableUpsample', '超分辨率'], ['watermark', '水印'], ['cameraFixed', '固定镜头'], ['generateAudio', '生成音频'], ['multimodal', '多模态'], ['useFrameRoles', '首尾帧']] as const;
   return <div className="generator-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <InputSummary document={document} node={node} />
     <div className="video-input-actions"><input aria-label="视频手动 URL" className="setting-input" onChange={(event) => setManualUrl(event.target.value)} placeholder="https://… 或 asset://…" value={manualUrl} /><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await getBoardApi()?.prepareVideoMedia(node.id, 'manual', manualUrl); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">应用网址</button><button className="tool-btn" disabled={preparing} onClick={async () => { setPreparing(true); try { await getBoardApi()?.prepareVideoMedia(node.id, 'cloud'); } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); } finally { setPreparing(false); } }} type="button">{preparing ? '处理中…' : '上传云端'}</button></div>
     <div className="gen-settings"><div className="gen-settings-row">
       <SelectField ariaLabel="视频平台" onChange={(apiProvider) => {
-        const next = runtime()?.getNodeOptions('video', 'model', { ...node, apiProvider }) ?? [];
+        const next = canvasRuntime.getNodeOptions('video', 'model', { ...node, apiProvider });
         update({ apiProvider, model: next[0]?.value || '' });
       }} options={providers} value={String(node.apiProvider || providers[0]?.[0] || '')} />
       <SelectField ariaLabel="视频模型" onChange={(model) => update({ model })} options={models} value={String(node.model || '')} />
@@ -307,14 +314,15 @@ function VideoBody({ commit, document, node, store }: { commit: () => void; docu
 }
 
 function LLMBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const canvasRuntime = useCanvasRuntime();
   const getBoardApi = useCanvasBoardApi();
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
-  const providers = (runtime()?.getNodeOptions('llm', 'provider', node) ?? []).map((item) => [item.value, item.label] as const);
-  const models = (runtime()?.getNodeOptions('llm', 'model', node) ?? []).map((item) => [item.value, item.label] as const);
+  const providers = canvasRuntime.getNodeOptions('llm', 'provider', node).map((item) => [item.value, item.label] as const);
+  const models = canvasRuntime.getNodeOptions('llm', 'model', node).map((item) => [item.value, item.label] as const);
   const messages = Array.isArray(node.messages) ? node.messages as Array<{ content?: string; role?: string }> : [];
   return <div className="llm-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <div className="llm-row"><SelectField ariaLabel="LLM 平台" onChange={(llmProvider) => {
-      const next = runtime()?.getNodeOptions('llm', 'model', { ...node, llmProvider }) ?? [];
+      const next = canvasRuntime.getNodeOptions('llm', 'model', { ...node, llmProvider });
       update({ llmProvider, model: next[0]?.value || '' });
     }} options={providers} value={String(node.llmProvider || providers[0]?.[0] || '')} /><SelectField ariaLabel="LLM 模型" onChange={(model) => update({ model, ...(node.llmProvider === 'modelscope' ? { llmMsModel: model } : {}) })} options={models} value={String(node.model || '')} />
       <div className="llm-mode"><button className={node.mode !== 'chat' ? 'active' : ''} onClick={() => update({ mode: 'node' })} type="button">节点</button><button className={node.mode === 'chat' ? 'active' : ''} onClick={() => update({ mode: 'chat' })} type="button">聊天</button></div>
@@ -334,12 +342,13 @@ function comfyFieldKind(field: ComfyField): 'audio' | 'image' | 'prompt' | 'sett
 }
 
 function ComfyBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const canvasRuntime = useCanvasRuntime();
   const [fields, setFields] = useState<ComfyField[]>([]);
   const workflow = String(node.comfyWorkflow || '');
   useEffect(() => {
     let active = true;
     if (node.mode !== 'custom' || !workflow) { setFields([]); return; }
-    void (runtime()?.getComfyFields(workflow) ?? Promise.resolve([])).then((items) => { if (active) setFields(items as ComfyField[]); });
+    void canvasRuntime.getComfyFields(workflow).then((items) => { if (active) setFields(items as ComfyField[]); });
     return () => { active = false; };
   }, [node.mode, workflow]);
   const update = (patch: Record<string, unknown>) => { store.getState().updateNode(node.id, patch); commit(); };
@@ -347,7 +356,7 @@ function ComfyBody({ commit, document, node, store }: { commit: () => void; docu
   const randomActive = node.comfyRandomActive && typeof node.comfyRandomActive === 'object' ? node.comfyRandomActive as Record<string, unknown> : {};
   const settingFields = fields.filter((field) => comfyFieldKind(field) === 'setting');
   const mediaFields = fields.filter((field) => ['audio', 'image', 'video'].includes(comfyFieldKind(field)));
-  const workflows = (runtime()?.getNodeOptions('comfy', 'workflow', node) ?? []).map((item) => [item.value, item.label] as const);
+  const workflows = canvasRuntime.getNodeOptions('comfy', 'workflow', node).map((item) => [item.value, item.label] as const);
   const setParam = (field: ComfyField, value: unknown, save = true) => {
     store.getState().updateNode(node.id, { comfyParams: { ...params, [String(field.id)]: value } });
     if (save) commit();
@@ -416,11 +425,12 @@ function GroupBody({ node, nodesById }: { node: CanvasNode; nodesById: Map<strin
 }
 
 function LTXBody({ commit, document, node, store }: { commit: () => void; document: { connections: CanvasEdge[]; nodes: CanvasNode[] }; node: CanvasNode; store: DocumentStore }) {
+  const canvasRuntime = useCanvasRuntime();
   const update = (patch: Record<string, unknown>) => {
     store.getState().updateNode(node.id, patch);
     commit();
   };
-  const normalized = runtime()?.normalizeLtxNode(node) ?? node;
+  const normalized = canvasRuntime.normalizeLtxNode(node);
   return <div className="ltx-director-body" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <InputSummary document={document} node={node} />
     <textarea aria-label="LTX 全局提示词" className="setting-input" onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { globalPrompt: event.target.value })} placeholder="全局提示词" value={String(node.globalPrompt || '')} />
@@ -435,6 +445,7 @@ type LtxSegment = { guideStrength?: number; id: string; imageB64?: string; image
 type LtxAudioSegment = { id: string; length: number; name?: string; start: number; url: string };
 
 function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+  const canvasRuntime = useCanvasRuntime();
   let timeline: { audioSegments: LtxAudioSegment[]; segments: LtxSegment[] };
   try {
     const parsed = JSON.parse(String(node.ltxTimelineData || '{}')) as Partial<typeof timeline>;
@@ -444,7 +455,7 @@ function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: 
   const updateSegment = (index: number, patch: Partial<LtxSegment>) => save({ ...timeline, segments: timeline.segments.map((segment, itemIndex) => itemIndex === index ? { ...segment, ...patch } : segment) });
   const updateAudio = (index: number, patch: Partial<LtxAudioSegment>) => save({ ...timeline, audioSegments: timeline.audioSegments.map((segment, itemIndex) => itemIndex === index ? { ...segment, ...patch } : segment) });
   const upload = async (file: File, apply: (media: { name?: string; url?: string }) => void) => {
-    const media = (await runtime()?.uploadMedia([file]))?.files?.[0];
+    const media = (await canvasRuntime.uploadMedia([file])).files?.[0];
     if (media?.url) apply(media);
   };
   return <div className="ltx-director-timeline-host canvas-modern-timeline" data-testid="ltx-timeline-editor">
@@ -747,7 +758,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
         </article>;
       })}
     </div>
-    {lightbox && lightboxNode ? <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} /> : null}
+    {lightbox && lightboxNode ? <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} onRerun={(meta) => rerunOutput(store, commit, readOnly, meta)} url={lightbox.url} /> : null}
     {imageEditorNode?.url ? <ImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: ImageTransformResult) => {
       if (readOnly) throw new Error('只读模式不能编辑图片');
       const uploaded = await canvasRuntime.uploadMedia([new File([result.blob], result.name, { type: 'image/png' })]);
@@ -774,53 +785,70 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
   </div>;
 }
 
-function OutputLightbox({ node, onClose, url }: { node: CanvasNode; onClose: () => void; url: string }) {
+function OutputLightbox({ node, onClose, onRerun, url }: { node: CanvasNode; onClose: () => void; onRerun(meta: Record<string, unknown>): boolean; url: string }) {
   const [compare, setCompare] = useState(50);
   const comparison = (node.imageComparisons as Record<string, { url?: string }> | undefined)?.[url]?.url || '';
+  const output = (Array.isArray(node.images) ? node.images : []).find((item) => typeof item === 'object' && String((item as Record<string, unknown>).url || '') === url) as Record<string, unknown> | undefined;
   const video = /\.(mp4|webm|mov)(\?|$)/i.test(url);
-  return <div className="output-lightbox open canvas-v2-lightbox" onClick={onClose} role="dialog">
+  return <div className="output-lightbox open canvas-v2-lightbox" onClick={onClose} onPointerDown={(event) => event.stopPropagation()} role="dialog">
     <div className="output-lightbox-shell" onClick={(event) => event.stopPropagation()}>
       <button aria-label="关闭预览" className="output-lightbox-close" onClick={onClose} type="button">×</button>
       {video ? <video autoPlay controls src={url} /> : <div className="output-compare"> <img alt="生成结果" src={url} />{comparison ? <div className="output-compare-original-wrap" style={{ width: `${compare}%` }}><img alt="原始参考" src={comparison} /></div> : null}</div>}
       {comparison && !video ? <input aria-label="对比滑块" max="100" min="0" onChange={(event) => setCompare(Number(event.target.value))} type="range" value={compare} /> : null}
-      <a download href={url}>下载</a>
+      <a download href={url}>下载</a>{output?.run ? <button data-rerun-type={String(((output.run as Record<string, unknown>).node as Record<string, unknown> | undefined)?.type || (output.run as Record<string, unknown>).nodeType || '')} onClick={(event) => { event.stopPropagation(); if (onRerun(output)) onClose(); }} type="button">再次运行</button> : null}
     </div>
   </div>;
 }
 
-export interface CanvasBoardMountOptions {
-  clientId?: string;
-  initialDocument?: unknown;
-  readOnly?: boolean;
-  repository?: CanvasRepository;
-  runtime?: CanvasRuntime;
+function rerunOutput(store: DocumentStore, commit: () => void, readOnly: boolean, meta: Record<string, unknown>): boolean {
+  if (readOnly) return false;
+  const run = meta.run && typeof meta.run === 'object' ? meta.run as Record<string, unknown> : {};
+  const base = run.node && typeof run.node === 'object' ? structuredClone(run.node as Record<string, unknown>) : {};
+  const type = String(base.type || run.nodeType || '');
+  const allowed = ['comfy', 'generator', 'llm', 'ltxDirector', 'msgen', 'video'] as const;
+  if (!allowed.includes(type as typeof allowed[number])) return false;
+  const generatorId = store.getState().addNode(type as typeof allowed[number]);
+  if (!generatorId) return false;
+  const { id: _id, inputs: _inputs, running: _running, type: _type, x: _x, y: _y, ...settings } = base;
+  store.getState().updateNode(generatorId, { ...settings, runStatus: undefined, runError: '' });
+  const generator = store.getState().document?.nodes.find((node) => node.id === generatorId);
+  const prompt = String(run.prompt || '');
+  if (prompt) {
+    const promptId = store.getState().addNode('prompt', { x: Number(generator?.x || 0) - 340, y: Number(generator?.y || 0) });
+    if (promptId) {
+      store.getState().updateNode(promptId, { text: prompt });
+      store.getState().connectNodes(promptId, generatorId);
+    }
+  }
+  const refs = Array.isArray(run.refs) ? run.refs as Array<Record<string, unknown>> : [];
+  refs.slice(0, 8).forEach((ref, index) => {
+    if (!ref.url) return;
+    const imageId = store.getState().addNode('image', { x: Number(generator?.x || 0) - 340, y: Number(generator?.y || 0) + 110 + index * 86 });
+    if (!imageId) return;
+    store.getState().updateNode(imageId, { mediaKind: ref.kind || 'image', name: ref.name || 'image', url: ref.url });
+    store.getState().connectNodes(imageId, generatorId);
+  });
+  commit();
+  return true;
 }
 
-export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElement | null, options: CanvasBoardMountOptions = {}): CanvasBoardMount {
-  const bridge = window.CanvasLegacyBridge;
-  const repository = options.repository ?? window.CanvasModernCore?.canvasRepository;
-  const modernRuntime = options.runtime ?? runtime();
-  const standalone = options.initialDocument !== undefined;
-  const initialDocument = options.initialDocument ?? bridge?.getDocumentSnapshot();
-  if (!repository || !modernRuntime || (standalone && !initialDocument) || (!standalone && !bridge)) throw new Error('Canvas V2 dependencies are unavailable');
+export interface CanvasBoardMountOptions {
+  clientId?: string;
+  initialDocument: unknown;
+  readOnly?: boolean;
+  repository: CanvasRepository;
+  runtime: CanvasRuntime;
+}
+
+export function mountCanvasBoardV2(element: HTMLElement, options: CanvasBoardMountOptions): CanvasBoardMount {
+  const { initialDocument, repository, runtime: modernRuntime } = options;
+  if (!initialDocument) throw new Error('Canvas document is unavailable');
   const store = createDocumentStore(initialDocument);
   let baseDocument = store.getState().document;
   let historyPresent = cloneDocument(store.getState().document);
   const historyPast: CanvasDocument[] = [];
   const historyFuture: CanvasDocument[] = [];
-  const adopt = (event: Event) => {
-    const previousId = store.getState().document?.id;
-    store.getState().adoptDocument((event as CustomEvent<unknown>).detail);
-    const current = store.getState().document;
-    if (current?.id !== previousId) baseDocument = current;
-  };
-  const projectExecution = (event: Event) => store.getState().projectExecutionDocument((event as CustomEvent<unknown>).detail);
-  if (!standalone) {
-    window.addEventListener('canvas-legacy-document', adopt);
-    window.addEventListener('canvas-legacy-execution-document', projectExecution);
-  }
   const root = createRoot(element);
-  const legacyHidden = legacyBoard?.hidden ?? true;
   let disposed = false;
   let pending = false;
   let saving = false;
@@ -1047,8 +1075,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     },
     openOutputLightbox(node, url) {
       if (readOnlyMode) {
-        if (options.initialDocument) window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
-        else if (bridge) bridge.openOutputLightbox(node, url);
+        window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
         return;
       }
       const images = Array.isArray(node.images) ? node.images.map((item) => {
@@ -1057,8 +1084,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       }) : [];
       store.getState().updateNode(String(node.id || ''), { images });
       commit(false);
-      if (options.initialDocument) window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
-      else if (bridge) bridge.openOutputLightbox(node, url);
+      window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
     },
     async prepareVideoMedia(nodeId, action, value) {
       if (readOnlyMode) return;
@@ -1069,34 +1095,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       commit();
     },
     rerunFromOutputMeta(meta) {
-      if (readOnlyMode) return;
-      const run = meta.run && typeof meta.run === 'object' ? meta.run as Record<string, unknown> : {};
-      const base = run.node && typeof run.node === 'object' ? structuredClone(run.node as Record<string, unknown>) : {};
-      const type = String(base.type || run.nodeType || '');
-      const allowed = ['comfy', 'generator', 'llm', 'ltxDirector', 'msgen', 'video'] as const;
-      if (!allowed.includes(type as typeof allowed[number])) return;
-      const generatorId = store.getState().addNode(type as typeof allowed[number]);
-      if (!generatorId) return;
-      const { id: _id, inputs: _inputs, running: _running, type: _type, x: _x, y: _y, ...settings } = base;
-      store.getState().updateNode(generatorId, { ...settings, runStatus: undefined, runError: '' });
-      const generator = store.getState().document?.nodes.find((node) => node.id === generatorId);
-      const prompt = String(run.prompt || '');
-      if (prompt) {
-        const promptId = store.getState().addNode('prompt', { x: Number(generator?.x || 0) - 340, y: Number(generator?.y || 0) });
-        if (promptId) {
-          store.getState().updateNode(promptId, { text: prompt });
-          store.getState().connectNodes(promptId, generatorId);
-        }
-      }
-      const refs = Array.isArray(run.refs) ? run.refs as Array<Record<string, unknown>> : [];
-      refs.slice(0, 8).forEach((ref, index) => {
-        if (!ref.url) return;
-        const imageId = store.getState().addNode('image', { x: Number(generator?.x || 0) - 340, y: Number(generator?.y || 0) + 110 + index * 86 });
-        if (!imageId) return;
-        store.getState().updateNode(imageId, { mediaKind: ref.kind || 'image', name: ref.name || 'image', url: ref.url });
-        store.getState().connectNodes(imageId, generatorId);
-      });
-      commit();
+      rerunOutput(store, commit, readOnlyMode, meta);
     },
     redo() { return readOnlyMode ? false : redo(); },
     async runNode(nodeId, mode) {
@@ -1126,8 +1125,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
   };
   window.CanvasBoardV2 = api;
   const getBoardApi = () => api;
-  root.render(<CanvasBoardApiProvider getApi={getBoardApi}><CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} /></CanvasBoardApiProvider>);
-  if (legacyBoard) legacyBoard.hidden = true;
+  root.render(<CanvasRuntimeContext.Provider value={modernRuntime}><CanvasBoardApiProvider getApi={getBoardApi}><CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} /></CanvasBoardApiProvider></CanvasRuntimeContext.Provider>);
   element.hidden = false;
   return {
     api,
@@ -1135,13 +1133,8 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       disposed = true;
       if (previousBoardApi) window.CanvasBoardV2 = previousBoardApi;
       else delete window.CanvasBoardV2;
-      if (!standalone) {
-        window.removeEventListener('canvas-legacy-document', adopt);
-        window.removeEventListener('canvas-legacy-execution-document', projectExecution);
-      }
       root.unmount();
       element.hidden = true;
-      if (legacyBoard) legacyBoard.hidden = legacyHidden;
     },
   };
 }

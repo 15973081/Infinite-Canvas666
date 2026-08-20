@@ -6,7 +6,6 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 export interface DocumentStoreState {
   acceptSavedDocument(saved: CanvasDocument, submitted: CanvasDocument): void;
   addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'promptGroup' | 'video', point?: { x: number; y: number }): string | null;
-  adoptDocument(snapshot: unknown): void;
   connectNodes(fromId: string, toId: string): boolean;
   copyNodes(nodeIds: string[]): { connections: CanvasEdge[]; nodes: CanvasNode[] };
   deleteConnection(index: number): void;
@@ -32,10 +31,6 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       if (current === submitted) return { document: saved };
       return { document: { ...current, updated_at: saved.updated_at } };
     }),
-    adoptDocument: (snapshot) => {
-      const next = decodeSnapshot(snapshot);
-      if (next && get().document?.id !== next.id) set({ document: next });
-    },
     addNode: (type, point) => {
       const current = get().document;
       if (!current) return null;
@@ -187,14 +182,6 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       return { document: { ...next, connections: next.connections.filter((edge) => graph.canConnect(edge.from, edge.to, true)) } };
     }),
   }));
-}
-
-export function bindCanvasDocumentEvents(target: EventTarget, store: DocumentStore): () => void {
-  const listener = (event: Event) => {
-    store.getState().projectDocument((event as CustomEvent<unknown>).detail);
-  };
-  target.addEventListener('canvas-legacy-document', listener);
-  return () => target.removeEventListener('canvas-legacy-document', listener);
 }
 
 function decodeSnapshot(snapshot: unknown): CanvasDocument | null {

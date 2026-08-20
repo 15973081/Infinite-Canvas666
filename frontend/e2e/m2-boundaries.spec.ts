@@ -1,4 +1,46 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+type CanvasFixture = Record<string, any> & { id: string; nodes: Array<Record<string, any>>; connections: Array<Record<string, any>> };
+type CanvasSaveResult = { canvas?: CanvasFixture; detail?: unknown; status?: number };
+
+async function openModernCanvasFixture(
+  page: Page,
+  initial: CanvasFixture,
+  options: {
+    beforeOpen?: () => Promise<void>;
+    onSave?: (body: Record<string, any>, current: CanvasFixture) => CanvasSaveResult | Promise<CanvasSaveResult>;
+  } = {},
+) {
+  let current = structuredClone(initial);
+  await page.route('**/api/config', async (route) => route.fulfill({ json: { api_providers: [] } }));
+  await page.route('**/api/canvas-folders', async (route) => route.fulfill({ json: { folders: [] } }));
+  await page.route('**/api/canvases/trash', async (route) => route.fulfill({ json: { canvases: [] } }));
+  await page.route(`**/api/canvases/${initial.id}/lock`, async (route) => route.fulfill({ json: { ok: true } }));
+  await page.route(`**/api/canvases/${initial.id}/meta`, async (route) => route.fulfill({ json: { updated_at: current.updated_at || 1 } }));
+  await page.route(`**/api/canvases/${initial.id}`, async (route) => {
+    if (route.request().method() !== 'PUT') {
+      await route.fulfill({ json: { canvas: current } });
+      return;
+    }
+    const body = JSON.parse(route.request().postData() || '{}');
+    const result = options.onSave
+      ? await options.onSave(body, structuredClone(current))
+      : { canvas: { ...current, ...body, id: initial.id, updated_at: Number(current.updated_at || 1) + 1 } };
+    if (result.status && result.status >= 400) {
+      await route.fulfill({ status: result.status, json: { detail: result.detail } });
+      return;
+    }
+    current = structuredClone(result.canvas ?? { ...current, ...body, id: initial.id, updated_at: Number(current.updated_at || 1) + 1 });
+    await route.fulfill({ json: { canvas: current } });
+  });
+  await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [{ id: initial.id, title: initial.title || initial.id, updated_at: initial.updated_at || 1 }] } }));
+  await page.goto('/static/canvas.html');
+  await expect.poll(() => page.evaluate(() => typeof (window as typeof window & { CanvasModernCore?: unknown }).CanvasModernCore)).toBe('object');
+  await options.beforeOpen?.();
+  await page.getByRole('button', { name: new RegExp(String(initial.title || initial.id)) }).click();
+  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
+  return { current: () => structuredClone(current) };
+}
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/canvas-rollout/events', async (route) => route.fulfill({ json: { accepted: true } }));
@@ -8,26 +50,16 @@ test('keeps the Legacy Canvas available only through an explicit rollback', asyn
   await page.goto('/static/canvas.html?canvas_v2=0');
 
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-core', '30');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-repository', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-activity', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-execution', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-islands', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-status', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-toolbar', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-policy', 'loaded');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'none');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-legacy-bridge', 'ready');
-  await expect(page.locator('#canvasExecutionIsland')).toBeHidden();
-  await expect(page.locator('#canvasStatusIsland')).toBeHidden();
-  await expect(page.locator('#canvasToolbarIsland')).toBeHidden();
-  await expect(page.locator('#canvasActivityIsland')).toBeHidden();
+  expect(await page.evaluate(() => 'CanvasLegacyBridge' in window)).toBe(false);
+  await expect(page.locator('#canvasExecutionIsland,#canvasStatusIsland,#canvasToolbarIsland,#canvasActivityIsland,#canvasBoardV2')).toHaveCount(0);
   await page.evaluate(() => (window as typeof window & { openCanvasLog(): void }).openCanvasLog());
   await expect(page.locator('#logModal > .log-panel')).toBeVisible();
-  await expect(page.locator('#canvasActivityIsland')).toBeHidden();
 });
 
 test('keeps the server kill switch above every local rollout override', async ({ page }) => {
@@ -44,7 +76,6 @@ test('keeps the server kill switch above every local rollout override', async ({
 
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-blocked', 'kill-switch');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   const rollout = await page.evaluate(() => (
     window as typeof window & { CanvasModernCore: any }
@@ -57,7 +88,6 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
 
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-percentage', '100');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
   await expect(page.locator('.canvas-modern-manager')).toBeVisible();
   await expect(page.locator('#shell')).toBeHidden();
@@ -66,7 +96,6 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
 
   await page.goto('/static/canvas.html?canvas_v2=0&canvas_v2_rollout=100');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout', 'disabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'disabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'disabled');
   await expect(page.locator('#shell')).toBeVisible();
 });
@@ -119,15 +148,20 @@ test('runs the standalone React Canvas without loading the legacy Canvas runtime
 test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
   const telemetry: string[] = [];
+  const initial = {
+    id: 'v2-conflict', title: 'V2 Conflict', updated_at: 1, connections: [],
+    nodes: [
+      { id: 'prompt', type: 'prompt', text: 'base', x: 40, y: 120 },
+      { id: 'generator', type: 'generator', model: 'base-model', x: 420, y: 120 },
+    ],
+  };
   await page.route('**/api/canvas-rollout/events', async (route) => {
     telemetry.push(JSON.parse(route.request().postData() || '{}').event);
     await route.fulfill({ json: { accepted: true } });
   });
-  await page.route('**/api/canvases/v2-conflict', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
+  await openModernCanvasFixture(page, initial, { onSave: (body) => {
     saves.push(body);
-    if (saves.length === 1) {
-      await route.fulfill({ status: 409, json: { detail: {
+    if (saves.length === 1) return { status: 409, detail: {
         message: 'conflict', updated_at: 2,
         canvas: {
           id: 'v2-conflict', updated_at: 2, connections: [],
@@ -136,23 +170,9 @@ test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async 
             { id: 'generator', type: 'generator', model: 'remote-model', x: 420, y: 120 },
           ],
         },
-      } } });
-      return;
-    }
-    await route.fulfill({ json: { canvas: { ...body, id: 'v2-conflict', updated_at: 3 } } });
-  });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1&canvas_repository=1');
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
-  await page.evaluate(() => {
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'v2-conflict', updated_at: 1, connections: [],
-      nodes: [
-        { id: 'prompt', type: 'prompt', text: 'base', x: 40, y: 120 },
-        { id: 'generator', type: 'generator', model: 'base-model', x: 420, y: 120 },
-      ],
-    } }));
-  });
+      } };
+    return { canvas: { ...body, id: 'v2-conflict', updated_at: 3 } as CanvasFixture };
+  } });
 
   const editor = page.locator('[data-node-id="prompt"] textarea[data-field="text"]');
   await editor.fill('local edit');
@@ -167,28 +187,21 @@ test('rebases disjoint CanvasBoard V2 edits after a repository conflict', async 
   expect(saves[1]).toMatchObject({ base_updated_at: 2 });
   expect(saves[1].nodes.find((node: any) => node.id === 'prompt')).toMatchObject({ text: 'local edit' });
   expect(saves[1].nodes.find((node: any) => node.id === 'generator')).toMatchObject({ model: 'remote-model' });
-  await expect(page.locator('#canvasBoardV2')).toHaveAttribute('data-save-state', 'saved');
+  await expect(page.getByTestId('canvas-board-v2').locator('..')).toHaveAttribute('data-save-state', 'saved');
 });
 
 test('keeps interrupted persisted tasks actionable after a backend restart', async ({ page }) => {
-  await page.route('**/api/canvases/recovery-e2e', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
-    await route.fulfill({ json: { canvas: { ...body, id: 'recovery-e2e', updated_at: 2 } } });
+  await openModernCanvasFixture(page, {
+    id: 'recovery-e2e', title: 'Recovery E2E', updated_at: 1, connections: [],
+    nodes: [
+      { id: 'generator', type: 'generator', x: 40, y: 120 },
+      { id: 'output', type: 'output', x: 420, y: 120, _pending: [{
+        id: 'pending-restart', canvasTaskId: 'canvas_img_old', failed: true,
+        recoveryStatus: 'interrupted', run: { node: { id: 'generator', type: 'generator' } },
+      }] },
+    ],
   });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1&canvas_repository=1');
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
   await page.evaluate(() => {
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'recovery-e2e', updated_at: 1, connections: [],
-      nodes: [
-        { id: 'generator', type: 'generator', x: 40, y: 120 },
-        { id: 'output', type: 'output', x: 420, y: 120, _pending: [{
-          id: 'pending-restart', canvasTaskId: 'canvas_img_old', failed: true,
-          recoveryStatus: 'interrupted', run: { node: { id: 'generator', type: 'generator' } },
-        }] },
-      ],
-    } }));
     const board = (window as typeof window & { CanvasBoardV2: any; __retriedNode?: string }).CanvasBoardV2;
     board.runNode = async (nodeId: string) => {
       (window as typeof window & { __retriedNode?: string }).__retriedNode = nodeId;
@@ -202,35 +215,24 @@ test('keeps interrupted persisted tasks actionable after a backend restart', asy
   await expect.poll(() => page.evaluate(() => (window as typeof window & { __retriedNode?: string }).__retriedNode)).toBe('generator');
 });
 
-test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on cleanup', async ({ page }) => {
+test('mounts CanvasBoard V2 exclusively inside the production React Canvas', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
   let updatedAt = 1;
-  await page.route('**/api/canvases/v2-e2e', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
+  const initial = {
+    id: 'v2-e2e', title: 'V2 E2E', custom: 'preserved', updated_at: 1,
+    nodes: [
+      { id: 'prompt-1', type: 'prompt', title: 'Prompt', x: 80, y: 180 },
+      { id: 'generator-1', type: 'generator', title: 'Generator', x: 420, y: 330 },
+      { id: 'output-1', type: 'output', title: 'Output', x: 900, y: 330 },
+    ],
+    connections: [{ from: 'prompt-1', to: 'generator-1' }],
+  };
+  await openModernCanvasFixture(page, initial, { onSave: (body) => {
     saves.push(body);
     updatedAt += 1;
-    await route.fulfill({ json: { canvas: { ...body, id: 'v2-e2e', updated_at: updatedAt } } });
-  });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-board-v2', 'enabled');
-  await expect(page.locator('#board')).toBeHidden();
+    return { canvas: { ...body, id: 'v2-e2e', updated_at: updatedAt } as CanvasFixture };
+  } });
   await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
-  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
-
-  await page.evaluate(() => {
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'v2-e2e',
-      custom: 'preserved',
-      nodes: [
-        { id: 'prompt-1', type: 'prompt', title: 'Prompt', x: 80, y: 180 },
-        { id: 'generator-1', type: 'generator', title: 'Generator', x: 420, y: 330 },
-        { id: 'output-1', type: 'output', title: 'Output', x: 900, y: 330 },
-      ],
-      connections: [{ from: 'prompt-1', to: 'generator-1' }],
-      updated_at: 1,
-    } }));
-  });
 
   const board = page.getByTestId('canvas-board-v2');
   const node = page.locator('[data-node-id="prompt-1"]');
@@ -283,48 +285,23 @@ test('mounts CanvasBoard V2 exclusively behind its flag and restores Legacy on c
   await page.mouse.up();
   await expect.poll(() => board.getAttribute('data-viewport')).not.toBe(zoomedViewport);
 
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-    id: 'v2-e2e',
-    nodes: [],
-    connections: [],
-  } })));
-  await expect(node).toHaveCount(1);
-
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-    id: 'v2-e2e-next',
-    nodes: [{ id: 'prompt-1', type: 'prompt', x: 10, y: 200 }],
-    connections: [],
-  } })));
-  await expect(node).toHaveCSS('left', '10px');
-
-  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(0);
-  await expect(page.locator('#canvasBoardV2')).toBeHidden();
-  await expect(page.locator('#board')).not.toHaveAttribute('hidden', '');
+  expect(await page.evaluate(() => 'CanvasLegacyBridge' in window)).toBe(false);
 });
 
 test('edits and groups low-risk V2 nodes through the persisted document', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
-  await page.route('**/api/canvases/v2-low-risk', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
+  await openModernCanvasFixture(page, {
+    id: 'v2-low-risk', title: 'V2 Low Risk', future: 'preserved', updated_at: 1,
+    nodes: [
+      { id: 'prompt-a', type: 'prompt', x: 80, y: 160, text: '', future: 'node-preserved' },
+      { id: 'prompt-b', type: 'prompt', x: 80, y: 430, text: 'second' },
+      { id: 'loop-a', type: 'loop', x: 480, y: 160, count: 3, mode: 'serial', showPrompt: false, imageInput: false },
+    ],
+    connections: [],
+  }, { onSave: (body) => {
     saves.push(body);
-    await route.fulfill({ json: { canvas: { ...body, id: 'v2-low-risk', updated_at: saves.length + 1 } } });
-  });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
-  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
-  await page.evaluate(() => {
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'v2-low-risk', future: 'preserved', updated_at: 1,
-      nodes: [
-        { id: 'prompt-a', type: 'prompt', x: 80, y: 160, text: '', future: 'node-preserved' },
-        { id: 'prompt-b', type: 'prompt', x: 80, y: 430, text: 'second' },
-        { id: 'loop-a', type: 'loop', x: 480, y: 160, count: 3, mode: 'serial', showPrompt: false, imageInput: false },
-      ],
-      connections: [],
-    } }));
-  });
+    return { canvas: { ...body, id: 'v2-low-risk', updated_at: saves.length + 1 } as CanvasFixture };
+  } });
 
   const prompt = page.locator('[data-node-id="prompt-a"]');
   await prompt.locator('textarea').fill('cinematic prompt');
@@ -333,8 +310,8 @@ test('edits and groups low-risk V2 nodes through the persisted document', async 
   expect(saves.at(-1)).toMatchObject({ future: 'preserved' });
   expect(saves.at(-1)?.nodes.find((node: any) => node.id === 'prompt-a')).toMatchObject({ future: 'node-preserved' });
   await prompt.getByRole('button', { name: '模板' }).click();
-  await expect(page.locator('#promptTemplateModal')).toHaveClass(/open/);
-  await page.evaluate(() => (window as typeof window & { closePromptTemplateModal(): void }).closePromptTemplateModal());
+  await expect(page.getByRole('dialog').filter({ hasText: '提示词库' })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: '关闭' }).click();
 
   const loop = page.locator('[data-node-id="loop-a"]');
   await loop.getByLabel('循环次数').fill('5');
@@ -350,7 +327,7 @@ test('edits and groups low-risk V2 nodes through the persisted document', async 
 
   await page.locator('[data-node-id="prompt-a"] .node-head').click();
   await page.locator('[data-node-id="prompt-b"] .node-head').click({ modifiers: ['Control'] });
-  await page.evaluate(() => (window as typeof window & { groupSelectedImages(): void }).groupSelectedImages());
+  await page.getByRole('button', { name: '分组' }).click();
   const group = page.locator('[data-node-type="promptGroup"]');
   await expect(group).toHaveCount(1);
   await expect(group.locator('[data-prompt-count="2"]')).toHaveCount(1);
@@ -366,27 +343,19 @@ test('edits and groups low-risk V2 nodes through the persisted document', async 
 
 test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
-  await page.route('**/api/canvases/v2-generation', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
+  await openModernCanvasFixture(page, {
+    id: 'v2-generation', title: 'V2 Generation', updated_at: 1, extension: 'kept',
+    nodes: [
+      { id: 'prompt-gen', type: 'prompt', x: 20, y: 20, text: 'city' },
+      { id: 'generator-v2', type: 'generator', x: 380, y: 20, apiProvider: 'comfly', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1 },
+      { id: 'msgen-v2', type: 'msgen', x: 380, y: 410, msgenModel: 'zimage', msRatio: 'square', msResolution: '1k', count: 1 },
+      { id: 'output-v2', type: 'output', x: 820, y: 20, images: [{ url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', future: true, run: { nodeType: 'generator', node: { type: 'generator', quality: 'medium' }, prompt: 'rerun prompt', refs: [] } }], imageComparisons: { 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==': { url: '/static/images/logo.png' } }, _pending: [{ id: 'pending-v2', taskId: 'task-v2', status: '正在恢复' }] },
+    ],
+    connections: [{ from: 'prompt-gen', to: 'generator-v2' }, { from: 'generator-v2', to: 'output-v2' }],
+  }, { onSave: (body) => {
     saves.push(body);
-    await route.fulfill({ json: { canvas: { ...body, id: 'v2-generation', updated_at: saves.length + 1 } } });
-  });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
-  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
-  await page.evaluate(() => {
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'v2-generation', updated_at: 1, extension: 'kept',
-      nodes: [
-        { id: 'prompt-gen', type: 'prompt', x: 20, y: 20, text: 'city' },
-        { id: 'generator-v2', type: 'generator', x: 380, y: 20, apiProvider: 'comfly', model: '', ratio: 'square', resolution: '1k', quality: 'auto', count: 1 },
-        { id: 'msgen-v2', type: 'msgen', x: 380, y: 410, msgenModel: 'zimage', msRatio: 'square', msResolution: '1k', count: 1 },
-        { id: 'output-v2', type: 'output', x: 820, y: 20, images: [{ url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', future: true, run: { nodeType: 'generator', node: { type: 'generator', quality: 'medium' }, prompt: 'rerun prompt', refs: [] } }], imageComparisons: { 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==': { url: '/static/images/logo.png' } }, _pending: [{ id: 'pending-v2', taskId: 'task-v2', status: '正在恢复' }] },
-      ],
-      connections: [{ from: 'prompt-gen', to: 'generator-v2' }, { from: 'generator-v2', to: 'output-v2' }],
-    } }));
-  });
+    return { canvas: { ...body, id: 'v2-generation', updated_at: saves.length + 1 } as CanvasFixture };
+  } });
 
   const generator = page.locator('[data-node-id="generator-v2"]');
   await generator.getByLabel('质量').selectOption('high');
@@ -398,10 +367,7 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   await generator.getByLabel('比例高').blur();
   await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'generator-v2')).toMatchObject({ quality: 'high', count: 4, ratio: 'custom', customRatio: '4:5' });
   expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-execution-document', { detail: {
-    id: 'v2-generation', updated_at: 9, connections: [],
-    nodes: [{ id: 'generator-v2', type: 'generator', quality: 'stale', runStatus: 'failed', runError: 'recoverable failure', _cascadeFailed: true }],
-  } })));
+  await page.evaluate(() => (window as typeof window & { CanvasBoardV2: any }).CanvasBoardV2.updateNode('generator-v2', { runStatus: 'failed', runError: 'recoverable failure', _cascadeFailed: true }));
   await expect(generator.getByLabel('质量')).toHaveValue('high');
   await expect(generator.getByRole('button', { name: '重试' })).toBeVisible();
 
@@ -419,8 +385,11 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   await expect(output.locator('img')).toHaveCount(1);
   await expect(output.locator('[data-pending-id="pending-v2"]')).toContainText('正在恢复');
   await output.locator('img').click();
-  await expect(page.locator('#outputLightbox')).toHaveClass(/open/);
-  await page.locator('#outputRerunBtn').click();
+  await expect(page.locator('.canvas-v2-lightbox')).toBeVisible();
+  const rerun = page.getByRole('button', { name: '再次运行' });
+  await expect(rerun).toHaveAttribute('data-rerun-type', 'generator');
+  await rerun.click();
+  await expect.poll(() => saves.at(-1)?.nodes.filter((node: any) => node.type === 'generator').length).toBe(2);
   await expect(page.locator('[data-node-type="generator"]')).toHaveCount(2);
   await page.getByTestId('canvas-board-v2').evaluate((element) => {
     const transfer = new DataTransfer();
@@ -432,10 +401,9 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
   await expect(output.locator('img')).toHaveCount(0);
   await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'output-v2')?.images).toEqual([]);
 
-  await page.evaluate(() => {
-    const target = window as typeof window & { addGeneratorNode(): void; addMsGenNode(): void; addOutputNode(): void };
-    target.addGeneratorNode(); target.addMsGenNode(); target.addOutputNode();
-  });
+  await page.getByRole('button', { name: 'API生成' }).click();
+  await page.getByRole('button', { name: 'ModelScope', exact: true }).click();
+  await page.getByRole('button', { name: 'Output', exact: true }).click();
   await expect(page.locator('[data-node-type="generator"]')).toHaveCount(3);
   await expect(page.locator('[data-node-type="msgen"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="output"]')).toHaveCount(2);
@@ -443,25 +411,17 @@ test('edits Generator, ModelScope and Output nodes in V2', async ({ page }) => {
 
 test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
-  await page.route('**/api/canvases/v2-media', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
+  await openModernCanvasFixture(page, {
+    id: 'v2-media', title: 'V2 Media', updated_at: 1, extension: 'kept', connections: [],
+    nodes: [
+      { id: 'video-v2', type: 'video', x: 0, y: 120, apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', taskMode: 'auto' },
+      { id: 'comfy-v2', type: 'comfy', x: 420, y: 120, w: 420, h: 460, mode: 'text', width: 1024, height: 1024, comfyParams: {} },
+      { id: 'llm-v2', type: 'llm', x: 850, y: 120, mode: 'node', llmProvider: 'comfly', model: '', systemPrompt: 'old', userInput: '', outputText: 'ready', messages: [{ role: 'assistant', content: 'hello' }] },
+    ],
+  }, { onSave: (body) => {
     saves.push(body);
-    await route.fulfill({ json: { canvas: { ...body, id: 'v2-media', updated_at: saves.length + 1 } } });
-  });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
-  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
-  await page.evaluate(() => {
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'v2-media', updated_at: 1, extension: 'kept', connections: [],
-      nodes: [
-        { id: 'video-v2', type: 'video', x: 0, y: 120, apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', taskMode: 'auto' },
-        { id: 'comfy-v2', type: 'comfy', x: 420, y: 120, w: 420, h: 460, mode: 'text', width: 1024, height: 1024, comfyParams: {} },
-        { id: 'llm-v2', type: 'llm', x: 850, y: 120, mode: 'node', llmProvider: 'comfly', model: '', systemPrompt: 'old', userInput: '', outputText: 'ready', messages: [{ role: 'assistant', content: 'hello' }] },
-      ],
-    } }));
-  });
+    return { canvas: { ...body, id: 'v2-media', updated_at: saves.length + 1 } as CanvasFixture };
+  } });
 
   const video = page.locator('[data-node-id="video-v2"]');
   await video.getByLabel('视频时长').fill('8');
@@ -488,10 +448,9 @@ test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
   await expect.poll(() => saves.at(-1)?.nodes.find((node: any) => node.id === 'llm-v2')).toMatchObject({ mode: 'chat', showSystem: true, systemPrompt: 'new system', chatInput: 'next message' });
   expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
 
-  await page.evaluate(() => {
-    const target = window as typeof window & { addVideoNode(): void; addComfyNode(): void; addLLMNode(): void };
-    target.addVideoNode(); target.addComfyNode(); target.addLLMNode();
-  });
+  await page.getByRole('button', { name: '视频' }).click();
+  await page.getByRole('button', { name: 'ComfyUI' }).click();
+  await page.getByRole('button', { name: 'LLM', exact: true }).click();
   await expect(page.locator('[data-node-type="video"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="comfy"]')).toHaveCount(2);
   await expect(page.locator('[data-node-type="llm"]')).toHaveCount(2);
@@ -499,15 +458,17 @@ test('edits Video, Comfy and LLM nodes in V2', async ({ page }) => {
 
 test('persists production parity controls for Video and custom Comfy workflows', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
-  await page.route('**/api/canvases/v2-parity', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
+  await openModernCanvasFixture(page, {
+    id: 'v2-parity', title: 'V2 Parity', updated_at: 1, connections: [{ from: 'generator-upstream', to: 'video-parity' }],
+    nodes: [
+      { id: 'generator-upstream', type: 'generator', x: 0, y: 0 },
+      { id: 'video-parity', type: 'video', x: 380, y: 0, apiProvider: 'comfly', model: '', manualVideoUrls: [] },
+      { id: 'comfy-parity', type: 'comfy', x: 820, y: 0, mode: 'custom', comfyWorkflow: 'fixture.json', comfyParams: {}, comfyRandomActive: {} },
+    ],
+  }, { onSave: (body) => {
     saves.push(body);
-    await route.fulfill({ json: { canvas: { ...body, id: 'v2-parity', updated_at: saves.length + 1 } } });
-  });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
-  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
-  await page.evaluate(() => {
+    return { canvas: { ...body, id: 'v2-parity', updated_at: saves.length + 1 } as CanvasFixture };
+  }, beforeOpen: async () => page.evaluate(() => {
     const target = window as any;
     const runtime = target.CanvasModernCore.canvasRuntime;
     const originalOptions = runtime.getNodeOptions.bind(runtime);
@@ -523,15 +484,9 @@ test('persists production parity controls for Video and custom Comfy workflows',
       if (type === 'comfy' && field === 'workflow') return [{ value: 'fixture.json', label: 'Fixture Workflow' }];
       return originalOptions(type, field, node);
     };
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'v2-parity', updated_at: 1, connections: [{ from: 'generator-upstream', to: 'video-parity' }],
-      nodes: [
-        { id: 'generator-upstream', type: 'generator', x: 0, y: 0 },
-        { id: 'video-parity', type: 'video', x: 380, y: 0, apiProvider: 'comfly', model: '', manualVideoUrls: [] },
-        { id: 'comfy-parity', type: 'comfy', x: 820, y: 0, mode: 'custom', comfyWorkflow: 'fixture.json', comfyParams: {}, comfyRandomActive: {} },
-      ],
-    } }));
+  }) });
+  await page.evaluate(() => {
+    const target = window as any;
     target.CanvasBoardV2.prepareVideoMedia = async (nodeId: string, action: string, value?: string) => {
       if (action === 'manual') target.CanvasBoardV2.updateNode(nodeId, { manualVideoUrls: value ? [value] : [] });
     };
@@ -555,25 +510,17 @@ test('persists production parity controls for Video and custom Comfy workflows',
 test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page }) => {
   const saves: Array<Record<string, any>> = [];
   await page.route('**/api/ai/upload', async (route) => route.fulfill({ json: { files: [{ url: '/uploads/replaced.png', name: 'replaced.png', kind: 'image' }] } }));
-  await page.route('**/api/canvases/v2-ltx-media', async (route) => {
-    const body = JSON.parse(route.request().postData() || '{}');
+  await openModernCanvasFixture(page, {
+    id: 'v2-ltx-media', title: 'V2 LTX Media', updated_at: 1, extension: 'kept', connections: [],
+    nodes: [
+      { id: 'ltx-v2', type: 'ltxDirector', x: 20, y: 110, w: 800, h: 600, durationFrames: 120, durationSeconds: 5, frameRate: 24, customWidth: 0, customHeight: 0, ltxTimelineData: JSON.stringify({ segments: [{ id: 'segment-1', type: 'text', prompt: 'opening', start: 0, length: 120 }], audioSegments: [] }) },
+      { id: 'image-a', type: 'image', x: 850, y: 110, url: '', name: '空白图片', mediaKind: 'image' },
+      { id: 'image-b', type: 'image', x: 850, y: 470, url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', name: 'second.gif', mediaKind: 'image' },
+    ],
+  }, { onSave: (body) => {
     saves.push(body);
-    await route.fulfill({ json: { canvas: { ...body, id: 'v2-ltx-media', updated_at: saves.length + 1 } } });
-  });
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_board_v2=1');
-  await expect(page.locator('#gateStatus')).not.toContainText('正在加载画布列表');
-  await expect(page.getByTestId('canvas-board-v2')).toHaveCount(1);
-  await page.evaluate(() => {
-    document.getElementById('shell')?.classList.remove('no-canvas');
-    window.dispatchEvent(new CustomEvent('canvas-legacy-document', { detail: {
-      id: 'v2-ltx-media', updated_at: 1, extension: 'kept', connections: [],
-      nodes: [
-        { id: 'ltx-v2', type: 'ltxDirector', x: 20, y: 110, w: 800, h: 600, durationFrames: 120, durationSeconds: 5, frameRate: 24, customWidth: 0, customHeight: 0, ltxTimelineData: JSON.stringify({ segments: [{ id: 'segment-1', type: 'text', prompt: 'opening', start: 0, length: 120 }], audioSegments: [] }) },
-        { id: 'image-a', type: 'image', x: 850, y: 110, url: '', name: '空白图片', mediaKind: 'image' },
-        { id: 'image-b', type: 'image', x: 850, y: 470, url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', name: 'second.gif', mediaKind: 'image' },
-      ],
-    } }));
-  });
+    return { canvas: { ...body, id: 'v2-ltx-media', updated_at: saves.length + 1 } as CanvasFixture };
+  } });
 
   const ltx = page.locator('[data-node-id="ltx-v2"]');
   await expect.poll(() => ltx.locator('.ltx-director-timeline-host').evaluate((element) => element.childElementCount)).toBeGreaterThan(0);
@@ -593,7 +540,7 @@ test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page 
 
   await first.locator('.node-head').click();
   await page.locator('[data-node-id="image-b"] .node-head').click({ modifiers: ['Control'] });
-  await page.evaluate(() => (window as typeof window & { groupSelectedImages(): void }).groupSelectedImages());
+  await page.getByRole('button', { name: '分组' }).click();
   const group = page.locator('[data-node-type="group"]');
   await expect(group).toHaveCount(1);
   await expect(group).toContainText('2 个媒体');
@@ -603,11 +550,11 @@ test('owns Image, Group and LTX Director media lifecycles in V2', async ({ page 
   await expect(page.locator('[data-node-type="ltxDirector"]')).toHaveCount(1);
   expect(saves.at(-1)).toMatchObject({ extension: 'kept' });
 
-  await page.evaluate(() => (window as typeof window & { addLTXDirectorNode(): void }).addLTXDirectorNode());
+  await page.getByRole('button', { name: 'LTX Director' }).click();
   await expect(page.locator('[data-node-type="ltxDirector"]')).toHaveCount(2);
 });
 
-test('runs fake execution and mocked task/repository contracts with all M2 switches enabled', async ({ page }) => {
+test('runs modern execution and mocked task/repository contracts without the retired Legacy bridge', async ({ page }) => {
   let taskPolls = 0;
   let taskPosts = 0;
   await page.route('**/api/canvas-image-tasks**', async (route) => {
@@ -643,56 +590,12 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
     });
   });
 
-  await page.goto('/static/canvas.html?canvas_v2=0&canvas_m2=1&canvas_react_islands=1');
+  await page.goto('/static/canvas.html?canvas_v2=0&canvas_m2=1');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-execution-engine', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-task-client', 'enabled');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-repository', 'enabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-activity', 'enabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-execution', 'enabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-islands', 'enabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-status', 'enabled');
-  await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-react-toolbar', 'enabled');
-  await expect(page.getByTestId('execution-status-island')).toContainText('现代执行已就绪');
-  await expect(page.locator('#canvasExecutionIsland')).not.toHaveAttribute('hidden', '');
-  await page.locator('#shell').evaluate((element) => element.classList.remove('no-canvas'));
-  await expect(page.getByTestId('execution-status-island')).toBeVisible();
-  await expect(page.getByTestId('canvas-status-island')).toBeVisible();
-  await page.evaluate(() => (window as typeof window & { setStatus(text: string): void }).setStatus('Saving...'));
-  await expect(page.getByTestId('canvas-status-island')).toContainText('Saving...');
-  await page.evaluate(() => (window as typeof window & { setStatus(text: string): void }).setStatus('Saved'));
-  await expect(page.getByTestId('canvas-status-island')).toContainText('Saved');
-  await expect(page.locator('#canvasCostToggle')).toBeHidden();
-  await expect(page.locator('#canvasLogToggle')).toBeHidden();
-  await expect(page.locator('#canvasBackupToggle')).toBeHidden();
-  await expect(page.locator('#logModal > .log-panel')).toBeHidden();
-  await page.getByRole('button', { name: '生成日志' }).click();
-  await expect(page.locator('#logModal')).toHaveClass(/open/);
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-legacy-activity', {
-    detail: {
-      costs: { calls: 1, estimated: 0, image: 1_250_000, total: 1_250_000, unknown: 0, video: 0 },
-      logs: [{
-        costMicros: 1_250_000,
-        costSource: 'actual',
-        createdAt: Date.now(),
-        error: '',
-        id: 'e2e-log',
-        model: 'Mock Image',
-        outputCount: 1,
-        platform: 'Mock API',
-        prompt: 'island projection',
-        runMs: 1_500,
-        status: 'success',
-      }],
-      mode: 'logs',
-    },
-  })));
-  await expect(page.getByTestId('canvas-activity-island')).toContainText('island projection');
-  await expect(page.getByTestId('canvas-activity-island')).toContainText('¥1.25');
-  await page.evaluate(() => (window as typeof window & { closeCanvasLog(): void }).closeCanvasLog());
-  await page.getByRole('button', { name: '费用' }).click();
-  await expect(page.getByTestId('canvas-activity-island')).toContainText('费用仪表盘');
-  await page.getByRole('button', { name: '关闭日志' }).click();
+  expect(await page.evaluate(() => 'CanvasLegacyBridge' in window)).toBe(false);
 
   const result = await page.evaluate(async () => {
     const core = (window as typeof window & { CanvasModernCore: any }).CanvasModernCore;
@@ -781,44 +684,4 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
   });
   expect(taskPosts).toBe(1);
   expect(taskPolls).toBe(2);
-  await expect(page.getByTestId('execution-status-island')).toContainText('已完成');
-  await expect(page.getByTestId('execution-status-island')).toContainText('2/2 节点');
-
-  await page.evaluate(() => {
-    const target = window as typeof window & {
-      __stageSixCommands: string[];
-      requestCascadeStop(id: string): void;
-      retryNodeAndDownstream(id: string): void;
-    };
-    target.__stageSixCommands = [];
-    target.requestCascadeStop = (id) => { target.__stageSixCommands.push(`stop:${id}`); };
-    target.retryNodeAndDownstream = (id) => { target.__stageSixCommands.push(`retry:${id}`); };
-    window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { state: {
-      completedNodeIds: ['failed-node'],
-      completedRounds: 0,
-      currentNodeId: '',
-      error: 'mock failure',
-      mode: 'retry',
-      order: ['failed-node', 'child'],
-      rounds: {},
-      status: 'failed',
-      targetId: 'failed-node',
-    } } }));
-  });
-  await expect(page.getByTestId('execution-status-island')).toContainText('mock failure');
-  await page.getByRole('button', { name: '重试', exact: true }).click();
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('canvas-modern-execution', { detail: { state: {
-    completedNodeIds: [],
-    completedRounds: 0,
-    currentNodeId: 'running-node',
-    error: '',
-    mode: 'serial',
-    order: ['running-node'],
-    rounds: {},
-    status: 'running',
-    targetId: 'running-node',
-  } } })));
-  await page.getByRole('button', { name: '停止', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as typeof window & { __stageSixCommands: string[] }).__stageSixCommands))
-    .toEqual(['retry:failed-node', 'stop:running-node']);
 });

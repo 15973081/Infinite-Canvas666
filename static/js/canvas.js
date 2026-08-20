@@ -1539,19 +1539,10 @@ function formatCanvasTime(value){
     if(Number.isNaN(date.getTime())) return '--';
     return date.toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
 }
-let canvasStatusSnapshot = {kind:'info', text:''};
-function canvasStatusKind(text){
-    const value = String(text || '').toLowerCase();
-    if(/fail|conflict|失败|无法/.test(value)) return 'error';
-    if(/saving|creating|opening|syncing|restoring|deleting|importing|正在|提交/.test(value)) return 'pending';
-    if(/saved|ready|synced|restored|已保存|已恢复|已获得|已解锁/.test(value)) return 'success';
-    return 'info';
-}
 function setStatus(text){
-    canvasStatusSnapshot = {kind:canvasStatusKind(text), text:String(text || '')};
-    document.getElementById('saveState').textContent = canvasStatusSnapshot.text;
-    if(gateStatus) gateStatus.textContent = canvasStatusSnapshot.text;
-    window.dispatchEvent(new CustomEvent('canvas-legacy-status', {detail:{...canvasStatusSnapshot}}));
+    const status = String(text || '');
+    document.getElementById('saveState').textContent = status;
+    if(gateStatus) gateStatus.textContent = status;
 }
 function normalizeCanvasFolderId(value){
     return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -2046,14 +2037,6 @@ function legacyDocumentSnapshot(){
         viewport:{...viewport}
     }));
 }
-function publishLegacyDocument(){
-    const snapshot = legacyDocumentSnapshot();
-    if(snapshot) window.dispatchEvent(new CustomEvent('canvas-legacy-document', {detail:snapshot}));
-}
-function publishLegacyExecutionDocument(){
-    const snapshot = legacyDocumentSnapshot();
-    if(snapshot) window.dispatchEvent(new CustomEvent('canvas-legacy-execution-document', {detail:snapshot}));
-}
 function resetCanvasSaveSnapshot(){
     if(!canvas) {
         lastSavedCanvasSnapshot = '';
@@ -2062,7 +2045,6 @@ function resetCanvasSaveSnapshot(){
     }
     lastSavedCanvasSnapshot = canvasSaveSnapshot(canvasSavePayload());
     lastSavedCanvasDocument = legacyDocumentSnapshot();
-    publishLegacyDocument();
 }
 function adoptCanvasBridgeSnapshot(snapshot){
     const next = JSON.parse(JSON.stringify(snapshot || null));
@@ -2073,102 +2055,6 @@ function adoptCanvasBridgeSnapshot(snapshot){
     lastCanvasUpdatedAt = Number(next.updated_at || lastCanvasUpdatedAt || 0);
     return next;
 }
-const legacyOpenOutputLightbox = openOutputLightbox;
-window.CanvasLegacyBridge = Object.freeze({
-    async getComfyFields(workflow){
-        const data = await ensureComfyWorkflow(String(workflow || ''));
-        return JSON.parse(JSON.stringify(data?.config?.fields || []));
-    },
-    getNodeOptions(type, field, node={}){
-        if(type === 'msgen' && field === 'model') return Object.entries(MS_GEN_MODELS).map(([value, item]) => ({value, label:item.labelKey ? tr(item.labelKey) : item.label}));
-        if(type === 'msgen' && field === 'custom-model') return modelscopeImageModels(node.msCustomModel).map(value => ({value, label:value}));
-        if(type === 'msgen' && field === 'lora'){
-            const modelId = currentMsModelId(node.msgenModel || 'zimage', node);
-            return modelscopeLorasForModel(modelId).map(item => ({
-                value:String(item.id || '').trim(),
-                label:String(item.name || item.id || '').trim(),
-                meta:{strength:Number(item.strength ?? 0.8)}
-            }));
-        }
-        if(type === 'comfy' && field === 'workflow') return comfyWorkflows.map(item => ({value:String(item.name || ''), label:String(item.title || item.name || '')}));
-        if(field === 'provider'){
-            const providers = type === 'video' ? videoApiProviders() : type === 'llm' ? chatApiProviders() : imageApiProviders();
-            return providers.map(item => ({value:String(item.id || ''), label:String(item.name || item.id || '')}));
-        }
-        if(field === 'model'){
-            const values = type === 'video' ? providerVideoModels(node.apiProvider) : type === 'llm' ? providerChatModels(node.llmProvider) : providerImageModels(node.apiProvider);
-            return values.map(value => ({value, label:value}));
-        }
-        return [];
-    },
-    normalizeLtxNode(node){
-        const copy = JSON.parse(JSON.stringify(node || {}));
-        if(typeof window.ltxMigrateLegacySegments === 'function') window.ltxMigrateLegacySegments(copy);
-        ltxDirectorSyncSeconds(copy);
-        if(!copy.ltxTimelineData){
-            const length = Math.max(1, Number(copy.durationFrames) || 120);
-            copy.ltxTimelineData = JSON.stringify({segments:[{id:uid('ltxseg'), start:0, length, prompt:'', type:'text'}], audioSegments:[]});
-        }
-        return copy;
-    },
-    openOutputLightbox(node, url){
-        legacyOpenOutputLightbox(String(url || ''), JSON.parse(JSON.stringify(node || {})));
-    },
-    async prepareVideoMedia(nodeId, snapshot, action, value=''){
-        adoptCanvasBridgeSnapshot(snapshot);
-        const node = nodes.find(item => item.id === String(nodeId || '') && item.type === 'video');
-        if(!node) throw new Error('Video node is missing from the active canvas');
-        if(action === 'cloud'){
-            await uploadCanvasVideosToCloud(node.id);
-        } else if(action === 'manual'){
-            const url = String(value || '').trim();
-            if(url && !isRemoteVideoReferenceUrl(url)) throw new Error('请输入 http/https 媒体网址或 asset:// 火山素材 URI');
-            const refs = orderedSources(node, generatorSources(node)).flatMap(src => src.refs || [])
-                .filter(ref => ref?.url && ['image','video'].includes(mediaKindForRef(ref)));
-            if(url) applyManualVideoUrlToCanvasRef(node, refs.find(ref => !isRemoteVideoReferenceUrl(ref.url)) || refs[0] || null, url);
-            else clearManualVideoUrlForNode(node);
-        } else {
-            throw new Error(`Unknown video media action: ${action}`);
-        }
-        clearTimeout(saveTimer);
-        saveTimer = null;
-        return legacyDocumentSnapshot();
-    },
-    async uploadMedia(files){
-        const form = new FormData();
-        [...(files || [])].forEach(file => form.append('files', file));
-        return window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:'上传失败'});
-    },
-    async runNode(nodeId, snapshot, mode='node'){
-        adoptCanvasBridgeSnapshot(snapshot);
-        if(mode === 'chat') await runLLMChat(String(nodeId || ''));
-        else if(mode === 'cascade') await runNodeCascade(String(nodeId || ''));
-        else await runCanvasGenerate(String(nodeId || ''));
-        clearTimeout(saveTimer);
-        saveTimer = null;
-        await saveCanvas();
-        return legacyDocumentSnapshot();
-    },
-    runCommand(command, payload={}){
-        if(command === 'open-cost') return openCanvasCost();
-        if(command === 'open-log') return openCanvasLog();
-        if(command === 'close-log') return closeCanvasLog();
-        if(command === 'open-backups') return showBackupList();
-        const targetId = String(payload?.targetId || '');
-        if(command === 'stop-execution' && targetId) return requestCascadeStop(targetId);
-        if(command === 'retry-execution' && targetId) return retryNodeAndDownstream(targetId);
-        throw new Error(`Unknown canvas bridge command: ${command}`);
-    },
-    getActivitySnapshot(){ return canvasActivitySnapshot(); },
-    getStatusSnapshot(){ return {...canvasStatusSnapshot}; },
-    getDocumentSnapshot(){ return legacyDocumentSnapshot(); },
-    computeCascadeOrder(targetId){
-        return [...computeLegacyCascadeOrder(targetId)];
-    },
-    computeRetryCascadeOrder(nodeId){
-        return [...computeLegacyRetryCascadeOrder(nodeId)];
-    }
-});
 function modernCanvasRepository(){
     const core = window.CanvasModernCore;
     return core?.canvasRepositoryEnabled ? core.canvasRepository : null;
@@ -2261,7 +2147,6 @@ async function saveCanvas(){
         lastSavedCanvasDocument = legacyDocumentSnapshot();
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at);
         setStatus('Saved');
-        publishLegacyDocument();
         if(data.canvas) {
             updateCanvasListRecord(data.canvas);
             refreshGateViewControls();
@@ -2786,7 +2671,6 @@ async function setCanvasTitle(id, title){
         const data = await window.CanvasApi.patchCanvasMeta(id, {title});
         if(data.canvas) updateCanvasListRecord(data.canvas);
         if(currentCanvasTitle && canvas?.id === id) currentCanvasTitle.textContent = title;
-        if(canvas?.id === id) publishLegacyDocument();
     } catch(e){
         setStatus('重命名失败');
         console.error(e);
@@ -12170,34 +12054,6 @@ function canvasCostTotals(logs=canvas?.logs || []){
 function updateCanvasCostButton(totals=canvasCostTotals()){
     if(canvasCostToggleLabel) canvasCostToggleLabel.textContent = `费用 ${formatCostMicros(totals.total)}`;
     if(canvasCostToggle) canvasCostToggle.title = totals.unknown ? `费用仪表盘 · ${totals.unknown} 笔待定价` : '费用仪表盘';
-    publishCanvasActivity(totals);
-}
-let canvasActivityMode = 'logs';
-function canvasActivitySnapshot(totals=canvasCostTotals()){
-    const logs = Array.isArray(canvas?.logs) ? canvas.logs : [];
-    return {
-        mode:canvasActivityMode,
-        costs:{...totals},
-        logs:logs.slice(0, 100).map(log => {
-            const cost = generationLogCost(log);
-            return {
-                id:String(log.id || ''),
-                createdAt:Number(log.createdAt || Date.now()),
-                status:log.status === 'failed' ? 'failed' : 'success',
-                platform:String(log.platform || ''),
-                model:String(logTaskLabel(log) || ''),
-                prompt:String(log.prompt || ''),
-                error:String(log.error || ''),
-                outputCount:Array.isArray(log.outputs) ? log.outputs.length : 0,
-                runMs:Number(log.runMs || 0),
-                costMicros:cost?.status === 'priced' ? Number(cost.amount_micros || 0) : null,
-                costSource:String(cost?.source || '')
-            };
-        })
-    };
-}
-function publishCanvasActivity(totals){
-    window.dispatchEvent(new CustomEvent('canvas-legacy-activity', {detail:canvasActivitySnapshot(totals)}));
 }
 function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
     if(!canvas) return;
@@ -12336,7 +12192,6 @@ function openCanvasLog(event, mode='logs'){
     event?.preventDefault?.();
     event?.stopPropagation?.();
     event?.stopImmediatePropagation?.();
-    canvasActivityMode = mode === 'cost' ? 'cost' : 'logs';
     const modal = document.getElementById('logModal') || (typeof logModal !== 'undefined' ? logModal : null);
     const list = document.getElementById('logList') || (typeof logList !== 'undefined' ? logList : null);
     modal?.querySelector('.log-panel')?.classList.toggle('cost-mode', mode === 'cost');
@@ -12621,7 +12476,6 @@ function completeRecoverPendingOutput(out, pending, result){
     }
     addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs || 0});
     refreshRunNodes(gen, out);
-    publishLegacyExecutionDocument();
     scheduleSave();
 }
 async function queryRecoverPendingOutput(pendingId){
@@ -12657,7 +12511,6 @@ async function queryRecoverPendingOutput(pendingId){
         if(latest){
             latest.querying = false;
             refreshNodes([out.id]);
-            publishLegacyExecutionDocument();
             scheduleSave();
         }
     }
@@ -12725,7 +12578,6 @@ function completeCanvasImageTask(taskId, result){
     }
     addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs || 0});
     refreshRunNodes(gen, out);
-    publishLegacyExecutionDocument();
     scheduleSave();
 }
 function failCanvasImageTask(taskId, message, taskData={}){
@@ -12744,7 +12596,6 @@ function failCanvasImageTask(taskId, message, taskData={}){
         pending.canvasTaskStatus = 'failed';
         if(gen){ gen.runStatus = 'failed'; gen.runError = pending.error; gen.running = false; }
         refreshRunNodes(gen, out);
-        publishLegacyExecutionDocument();
         scheduleSave();
         return;
     }
@@ -12763,7 +12614,6 @@ function failCanvasImageTask(taskId, message, taskData={}){
         }
         addGenerationLog({run, outputs:[], runMs, error:pending.error});
         refreshRunNodes(gen, out);
-        publishLegacyExecutionDocument();
         scheduleSave();
         return;
     }
@@ -12776,7 +12626,6 @@ function failCanvasImageTask(taskId, message, taskData={}){
     }
     addGenerationLog({run, outputs:[], runMs, error:message || tr('canvas.generationFailed')});
     refreshRunNodes(gen, out);
-    publishLegacyExecutionDocument();
     scheduleSave();
 }
 function videoOutputsFromResult(result){
@@ -12807,7 +12656,6 @@ function completeCanvasVideoTask(taskId, result){
     }
     addGenerationLog({run:meta.run, outputs, runMs:meta.runMs || 0, error:outputs.length ? '' : tr('canvas.videoFailed')});
     refreshRunNodes(gen, out);
-    publishLegacyExecutionDocument();
     scheduleSave();
 }
 function failCanvasVideoTask(taskId, message, taskData={}){
@@ -12825,7 +12673,6 @@ function failCanvasVideoTask(taskId, message, taskData={}){
         pending.canvasTaskStatus = 'failed';
         if(gen){ gen.runStatus = 'failed'; gen.runError = pending.error; gen.running = false; }
         refreshRunNodes(gen, out);
-        publishLegacyExecutionDocument();
         scheduleSave();
         return;
     }
@@ -12838,7 +12685,6 @@ function failCanvasVideoTask(taskId, message, taskData={}){
     }
     addGenerationLog({run, outputs:[], runMs, error:message || tr('canvas.videoFailed')});
     refreshRunNodes(gen, out);
-    publishLegacyExecutionDocument();
     scheduleSave();
 }
 async function pollCanvasVideoTask(taskId, options={}){

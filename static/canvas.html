@@ -38,9 +38,7 @@
                     <span id="canvasIdentityLabel">我的名称</span>
                 </button>
                 <p id="saveState" style="display:none">请选择或新建画布</p>
-                <div id="canvasStatusIsland" hidden></div>
             </div>
-            <div id="canvasExecutionIsland" class="editor-only" hidden></div>
             <div id="quickToolbar" class="panel toolbar editor-only">
                 <button class="tool-btn toolbar-toggle" type="button" onclick="toggleQuickToolbar()" title="折叠快捷菜单" aria-label="折叠快捷菜单"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
                 <div class="toolbar-items">
@@ -57,7 +55,6 @@
                     <button class="tool-btn" onclick="groupSelectedImages()"><i data-lucide="group" class="w-4 h-4"></i><span>分组</span></button>
                 </div>
                 <div class="toolbar-fixed">
-                    <div id="canvasToolbarIsland" hidden></div>
                     <button id="workflowTransferToggle" class="tool-btn toolbar-workflow" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open" class="w-4 h-4"></i><span>工作流</span></button>
                     <button id="canvasAssetToggle" class="tool-btn toolbar-asset canvas-asset-toggle" type="button" title="资产库" aria-label="资产库"><i data-lucide="library" class="w-4 h-4"></i><span>资产库</span></button>
                     <button id="canvasCostToggle" class="tool-btn toolbar-cost" type="button" onclick="openCanvasCost(event)" title="费用仪表盘" aria-label="费用仪表盘"><i data-lucide="circle-dollar-sign" class="w-4 h-4"></i><span id="canvasCostToggleLabel">费用 ¥0.00</span></button>
@@ -204,7 +201,6 @@
                 <div class="canvas-asset-hover-name"></div>
             </div>
         </div>
-        <div id="canvasBoardV2" class="editor-only" hidden></div>
         <div class="hint editor-only">拖拽画布移动，Ctrl 框选多选，拖动选中节点可一起移动。上传/提示词节点右下端口拖线到生成节点。</div>
         <div id="outputLightbox" class="output-lightbox" onclick="closeOutputLightbox()">
             <div id="outputLightboxShell" class="output-lightbox-shell" onclick="event.stopPropagation()">
@@ -273,7 +269,6 @@
                 </div>
                 <div id="logList" class="log-list"></div>
             </div>
-            <div id="canvasActivityIsland" hidden></div>
         </div>
         <div id="assetManagerModal" class="asset-manager-modal" onclick="closeAssetManager()">
             <div class="asset-manager-panel" onclick="event.stopPropagation()">

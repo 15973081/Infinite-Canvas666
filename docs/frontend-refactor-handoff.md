@@ -61,13 +61,13 @@ Set-Location ..
 
 以下约束贯穿剩余阶段，不得为了加快迁移而绕过：
 
-1. `canvas.js` 在 CanvasBoard V2 整体切换前仍是节点、连线、选择和文档修改的唯一写入者。
-2. React 岛只能读取 Store 投影，或通过 `CanvasLegacyBridge.runCommand()` 发送白名单命令。
-3. 禁止旧 DOM、React 和 Store 同时写同一份状态。
-4. Graph 等无副作用逻辑可以影子比较；执行、任务提交和保存禁止双跑。
+1. 默认 Canvas 入口由 React、Store、Repository 与现代运行时单独拥有。
+2. `canvas.js` 只允许由显式 `canvas_v2=0` 回滚加载，不得再向 React 导出状态或命令桥接器。
+3. 禁止旧 DOM、React 和 Store 同时写同一份状态；两条入口必须物理隔离。
+4. 执行、任务提交和保存禁止双跑。
 5. 旧文档打开并再次保存后，未知顶层字段、未知节点字段和未知节点类型不得丢失。
 6. React、Store 和领域内核不得直接持有旧画布对象引用；边界使用深拷贝快照。
-7. 新功能默认关闭，通过独立开关内部验证；旧路径必须随时可回退。
+7. 旧路径只作为整页回滚，不再支持在旧页面中嵌入现代 Board 或 React 岛。
 8. `static/dist/` 是发布制品的一部分，每次前端源码修改后必须重新构建并提交对应产物。
 9. 不在剩余重构中同步进行视觉改版、后端协议重写或智能画布 UI 合并。
 
@@ -80,46 +80,23 @@ Set-Location ..
 | 阶段 0：基线与 ADR | 完成 | 建立迁移决策、功能等价原则、回退策略和执行回归保护 | 旧入口仍可独立运行 |
 | 阶段 1：工具链 | 完成 | Vite、严格 TypeScript、Vitest、Playwright、构建产物接入 FastAPI 静态页面 | 一条 `npm run check` 验证前端 |
 | 阶段 2：类型与 Graph | 完成 | 文档 codec、未知字段保留、GraphModel、环检测、级联和重试顺序 | 支持影子比较和独立灰度 |
-| 阶段 3：Graph 灰度 | 完成 | 新旧顺序对比、`graph-order` 可选接管、失败自动回退 | 默认仍使用旧顺序 |
+| 阶段 3：Graph 灰度 | 完成并退休 | 曾用于新旧顺序对比；生产切换后已删除影子桥接 | 现代运行时独立执行 |
 | 阶段 4：Execution | 完成 | 串行、并行、轮次、共享节点占用、停止排空、失败短路、显式状态机 | 同一次运行只有一个调度器 |
 | 阶段 5：任务与持久化 | 完成 | TaskClient、CanvasRepository、轮询恢复、409 冲突、备份、M2 诊断 | 三个边界均可独立回退 |
-| 阶段 6：Store 与 React 岛 | 完成 | Document/Session/Execution Store，执行状态栏，保存状态，低风险工具栏，日志/成本面板 | React 关闭时旧 UI 正常；开启后无状态双写 |
+| 阶段 6：Store 与 React 岛 | 完成并退休 | 过渡岛用于早期验证，生产切换后已删除 | React 应用直接拥有状态与界面 |
 
-### 阶段 6 当前实现
+### 过渡层退休（2026-08-20）
 
-- Document Store：读取 `canvas-legacy-document` 深拷贝快照，当前没有文档写权限。
-- Session Store：投影 `canvas-legacy-status`，显示保存和通用页面状态。
-- Execution Store：只投影 `canvas-modern-execution`，显示状态、进度和错误。
-- 执行状态岛：停止和重试通过带 `targetId` 的 bridge command 回到现有调度器。
-- 工具栏岛：迁移费用、日志和备份入口；实际副作用仍由旧函数执行。
-- 活动面板岛：投影规范化后的日志和成本快照；React 挂载成功后隐藏旧面板，卸载时恢复。
-- 经典画布没有独立属性侧栏，字段控件嵌在节点 DOM 内，因此节点属性随阶段 7 Board V2 整体迁移。
+- 删除 `CanvasLegacyBridge`、四个 React 过渡岛及其 Session/Activity/Execution 投影 Store。
+- 删除 `canvas_react_*`、`canvas_board_v2`、`canvas_modern_core` 过渡开关和旧页面内嵌 V2 Board 路径。
+- `mountCanvasBoardV2` 现在必须显式接收 `initialDocument`、`CanvasRepository` 和 `CanvasRuntime`，运行时通过 React Context 注入。
+- 旧画布不再发布 `canvas-legacy-*` 事件；显式回滚保持纯旧版整页运行。
 
-## 6. 当前功能开关
+## 6. 当前回滚边界
 
-| 开关 | 作用 | 默认值 |
-|---|---|---|
-| `canvas_modern_core=shadow` | 新旧 Graph 顺序影子比较 | 关闭 |
-| `canvas_modern_core=graph-order` | 使用现代 Graph 顺序，异常回退旧逻辑 | 关闭 |
-| `canvas_modern_core=execution-shadow` | 只观察旧执行生命周期 | 关闭 |
-| `canvas_execution_engine=1` | 启用现代 ExecutionEngine | 关闭 |
-| `canvas_task_client=1` | 启用 TaskClient | 关闭 |
-| `canvas_repository=1` | 启用 CanvasRepository | 关闭 |
-| `canvas_m2=1` | 同时启用阶段 4、5 的三个边界 | 关闭 |
-| `canvas_react_execution=1` | 执行状态、错误、停止和重试岛 | 关闭 |
-| `canvas_react_status=1` | 保存/页面状态岛 | 关闭 |
-| `canvas_react_toolbar=1` | 费用、日志、备份工具栏岛 | 关闭 |
-| `canvas_react_activity=1` | 日志/成本 React 面板 | 关闭 |
-| `canvas_react_islands=1` | 同时启用阶段 6 的四个 React 岛 | 关闭 |
-| `canvas_board_v2=1` | 独立 CanvasBoard V2 root | 关闭 |
-
-内部完整验证地址：
-
-```text
-/static/canvas.html?canvas_m2=1&canvas_react_islands=1&canvas_board_v2=1
-```
-
-注意：阶段 4～6 已开发完成；阶段 7 目前只完成第一版迁移骨架和主要字段，尚未满足生产级功能等价门禁。默认地址仍必须走旧路径。
+- 默认地址：独立 React Canvas。
+- `?canvas_v2=0`：显式加载完整旧版 Canvas，仅用于紧急回滚。
+- 服务端 kill switch：优先于客户端选择，并回退到完整旧版入口。
 
 ## 7. 阶段 7 CanvasBoard V2（第一版实现已提交，生产级验收进行中）
 

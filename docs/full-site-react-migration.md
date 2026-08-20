@@ -18,6 +18,8 @@
 
 Canvas 的代码迁移已经完成：V2 命中时由 `frontend/src/bootstrap.ts` 启动独立 React 管理器、画布、Store、Repository 和执行运行时；Playwright 明确断言该路径不存在 `CanvasApi`、`CanvasLegacyBridge`，且没有加载 `static/js/canvas.js`。Generator、ModelScope、Video、Comfy、LLM、LTX、Output 和基础节点均由 TypeScript 路径执行。
 
+2026-08-20 已进一步退休迁移期双轨层：`CanvasLegacyBridge`、四个 React 岛、旧页面内嵌 V2 Board 及 `canvas_react_*`/`canvas_board_v2`/`canvas_modern_core` 开关均已删除。旧版只允许作为 `canvas_v2=0` 整页回滚，不再与 React 共享状态、命令或 DOM。
+
 Canvas 尚未完成的是阶段 8 发布验收：默认 100% 切换、真实供应商与历史生产数据验证、重复计费核对及两个稳定发布周期。Legacy Canvas 仅作为整页回滚制品保留。
 
 结论：Canvas 标记为“代码迁移完成，生产发布验收待完成”，全站重构主线不再等待 Canvas 阶段 8。
