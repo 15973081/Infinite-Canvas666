@@ -1,25 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-const smartCanvasV2Entry = '/__e2e__/smart-canvas-v2.html';
-
-test.beforeEach(async ({ page }) => {
-  await page.route('**/__e2e__/smart-canvas-v2.html*', route => route.fulfill({
-    contentType: 'text/html',
-    body: `<!doctype html>
-      <html lang="zh-CN" data-studio-scale="off">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width,initial-scale=1">
-          <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.19.7">
-          <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
-        </head>
-        <body>
-          <div id="smartCanvasApp"></div>
-          <script type="module" src="/static/dist/smart-canvas-modern.js?v=2026.08.19.8"></script>
-        </body>
-      </html>`,
-  }));
-});
+const smartCanvasV2Entry = '/static/smart-canvas.html';
 
 test('runs Smart Canvas on the shared React V2 stack and imports the asset inbox', async ({ page }) => {
   let created = false;

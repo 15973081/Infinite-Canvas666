@@ -167,3 +167,7 @@ ComfyUI 可通过 `python app/services/comfy_connectivity.py --network --strict`
 ## 2026-08-20 搬运边界与 Canvas API 收口
 
 当前搬运范围明确暂不包含 LTX 完整功能和 LLM 视觉失败链路。Canvas 的 React 组件间调用已收口到强类型 `CanvasBoardApi`/Context；`window.CanvasBoardV2` 只保留为兼容输出，不再是 React 生产路径的输入依赖。隔离 Smart Canvas 回归会删除该全局对象后继续操作 Prompt 节点，以验证新路径可以独立工作。
+
+## 2026-08-20 Smart Canvas 生产入口校正
+
+迁移文档此前描述的 Smart Canvas Vite 切换现已与真实 HTML 一致：`static/smart-canvas.html` 直接挂载 `frontend/src/pages/smart-canvas.tsx` 的构建产物，默认路径不再加载旧 Smart Canvas 脚本和样式。全部 Smart Canvas E2E 已从测试虚拟入口改为真实生产入口，资源审计同时断言旧 `smart-canvas.js`、`canvas-core.js`、`canvas-api.js` 和 `smart-canvas.css` 均未加载。

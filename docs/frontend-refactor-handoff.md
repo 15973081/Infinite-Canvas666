@@ -545,3 +545,9 @@ React Canvas 新增 `save-succeeded`、`execution-succeeded`、`execution-failed
 本批按当前产品边界继续搬运，不包含 LTX 完整功能和 LLM 视觉失败链路。React CanvasApp、CanvasBoard 节点组件及预留的 Smart Composer 已改用统一的 `CanvasBoardApi` 与 React Context；正常 React 功能路径不再从 `window.CanvasBoardV2` 读取能力。旧全局对象仅作为 Legacy/外部脚本兼容输出保留，后续可在兼容窗口结束后删除。
 
 Smart Canvas Playwright 回归会在页面初始化后主动删除旧全局对象，再通过 Prompt 节点打开并管理共享提示词库，用于防止 React 路径重新暗中依赖全局桥。本批验证结果：113 个 Vitest、38 个全站 Playwright 全部通过。
+
+## 32. 2026-08-20 Smart Canvas 真实生产入口切换
+
+`/static/smart-canvas.html` 现已真正切换为 `smart-canvas-modern.js` 生产入口，只保留 `#smartCanvasApp` 挂载点。生产页面不再加载 `smart-canvas.js`、`canvas-core.js`、`canvas-api.js` 或 `smart-canvas.css`；旧文件暂留在仓库中作为迁移核对与历史回退资产，不再进入默认浏览器执行链。
+
+原先使用测试专用虚拟 HTML 的 Smart Canvas Playwright 已全部改为直接访问真实生产入口，并增加资源级反向断言，防止旧 JS/CSS 被重新接回。`frontend_readiness.py` 当前确认 12/12 生产入口均有 Vite module、无 Legacy business script、无缺失构建产物。
