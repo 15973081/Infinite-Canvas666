@@ -21,14 +21,27 @@ class SmartCanvasEntryTest(unittest.TestCase):
         self.assertNotIn('id="composer"', html)
 
     def test_smart_canvas_back_navigation_cannot_nest_the_site_shell(self):
-        legacy = (ROOT / "static" / "js" / "smart-canvas.js").read_text(encoding="utf-8")
         production = (ROOT / "frontend" / "src" / "pages" / "smart-canvas.tsx").read_text(encoding="utf-8")
 
-        self.assertIn("window.location.href = '/static/canvas.html", legacy)
         self.assertIn("managerBackHref: '/static/canvas.html'", production)
         self.assertNotIn("managerBackHref: '/static/index.html'", production)
         self.assertNotIn('SmartCanvasComposer', production)
         self.assertNotIn('editorAddon:', production)
+
+    def test_retired_non_canvas_legacy_scripts_are_absent(self):
+        legacy_scripts = {
+            "api-settings.js",
+            "asset-manager.js",
+            "comfyui-settings.js",
+            "history-bulk-manager.js",
+            "image-preview.js",
+            "shared.js",
+            "smart-canvas.js",
+        }
+
+        for filename in legacy_scripts:
+            with self.subTest(filename=filename):
+                self.assertFalse((ROOT / "static" / "js" / filename).exists())
 
     def test_obsolete_experimental_alias_has_no_public_entry(self):
         self.assertFalse((ROOT / "static" / "smart-canvas-v2.html").exists())

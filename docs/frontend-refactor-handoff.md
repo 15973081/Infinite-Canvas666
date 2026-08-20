@@ -350,7 +350,7 @@ Set-Location ..
 - 新入口为 `frontend/src/pages/comfyui-settings.tsx`，页面不再加载 `static/js/comfyui-settings.js`、Tailwind CDN、Lucide 或旧 `theme.js`。
 - React 页面直接拥有 ComfyUI 后端实例管理、工作流上传/删除、工作流图浏览、动态字段暴露、字段类型与范围配置、媒体上传、随机参数、配置保存和真实运行测试。
 - `frontend/vite.site.config.ts` 建立了可继续增加页面入口的站点多入口构建；新增页面应放在 `frontend/src/pages/`，共享基础设施放在 `frontend/src/shared/`。
-- Legacy `static/js/comfyui-settings.js` 暂时只作为回滚制品保留，正常页面路径不再下载或执行它。
+- 迁移验证完成后，Legacy `static/js/comfyui-settings.js` 已作为无消费者死代码删除；该页面不再维护第二套回滚实现。
 - 自动化结果：75 个 Vitest、17 个 Playwright、41 个 Python unittest 全部通过。Comfy 页面 E2E 明确断言旧全局函数和旧脚本不存在，并覆盖后端保存、字段暴露、配置保存和运行结果展示。
 
 全站剩余页面按风险和复用价值建议依次迁移：API 设置与资产管理、GPT Chat、图片增强与各生成页、首页外壳/路由、Smart Canvas。每个页面切换时必须保持独立 E2E，且不得以 React 外壳继续执行原页面全局脚本冒充迁移完成。
@@ -401,11 +401,13 @@ SiteShell 会保留已访问 iframe，切换页面不会重建编辑状态；页
 
 ## 23. 2026-08-19 Smart Canvas 与全站代码迁移收口
 
-`/static/smart-canvas.html` 已切换到独立 Vite TSX 入口，正常路径不再加载约 731KB 的 `static/js/smart-canvas.js`。Smart Canvas 复用 CanvasAppV2、CanvasBoardV2、Document Store、Repository、Management Client 和 ModernCanvasRuntime，不维护第二套节点、执行或持久化实现。
+`/static/smart-canvas.html` 已切换到独立 Vite TSX 入口，约 731KB 的 `static/js/smart-canvas.js` 已在迁移验证后删除。Smart Canvas 复用 CanvasAppV2、CanvasBoardV2、Document Store、Repository、Management Client 和 ModernCanvasRuntime，不维护第二套节点、执行或持久化实现。
 
 Smart 管理器按 `kind: smart` 隔离列表和新建请求，支持 `?id=` 直开及素材库收件箱导入。历史 `smart-image`、`smart-prompt`、`smart-loop` 会转换为 V2 Output/Prompt/Loop；带输入或运行设置的旧图片目标会补出对应 Generator、ModelScope、Video 或 Comfy 节点并重连到 Output。
 
 最终入口审计：`static/` 共 13 个 HTML，其中 12 个生产页面和 1 个性能测试页面均由 Vite 模块拥有；非 Canvas 页面正常入口的 Legacy 业务脚本引用为 0。Canvas 仍保留阶段 8 动态回滚制品。
+
+2026-08-20 完成死代码收口：删除无 HTML、Vite 入口或回滚路径消费者的 `api-settings.js`、`asset-manager.js`、`comfyui-settings.js`、`smart-canvas.js`、`history-bulk-manager.js`、`image-preview.js` 和 `shared.js`。只有经典 Canvas 的 `canvas_v2=0` 仍保留 `canvas.js`、`canvas-api.js`、`canvas-core.js`、`theme.js` 与 `ltx-director-timeline.js` 整页回滚链。
 
 最新自动化结果：95 个 Vitest、29 个 Playwright、41 个 Python unittest 全部通过。至此“全站 React + TypeScript + Vite 代码迁移”完成；下一阶段只做生产功能等价、真实供应商/历史数据验收、Canvas 灰度、计费核对与两个稳定发布周期。不得把代码迁移完成表述为生产发布完成。
 

@@ -91,7 +91,7 @@ Asset Manager 已切换到 `frontend/src/features/asset-studio/` 与独立 TSX �
 - Canvas 素材支持分类检索、发送到 Smart Canvas 与 ZIP 下载。
 - 自动化结果：85 个 Vitest、24 个 Playwright、41 个 Python unittest 全部通过。生产页面代码迁移完成数增至 9。
 
-旧脚本继续作为整页回滚制品保留，但不是生产入口依赖。数字人素材认证、裁剪和本地图片自动反推描述属于 AssetStudio 后续增强项；它们不阻塞当前核心管理路径，但在补齐并完成真实平台验收前，不宣称 Asset Manager 已达到所有历史高级功能的生产等价。
+旧 Asset Manager 脚本及其无消费者辅助脚本已在迁移验证后删除；数字人素材认证、裁剪和本地图片自动反推描述属于 AssetStudio 后续增强项。它们不阻塞当前核心管理路径，但在补齐并完成真实平台验收前，不宣称 Asset Manager 已达到所有历史高级功能的生产等价。
 
 ## 2026-08-19 ChatStudio 结果
 
@@ -120,7 +120,7 @@ GPT Chat 已切换到 `frontend/src/features/chat-studio/` 与独立 TSX 入口�
 
 ## 2026-08-19 Smart Canvas 与全站代码迁移结果
 
-Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口只加载 `smart-canvas-modern.js`，不再下载或执行约 731KB 的 `static/js/smart-canvas.js`。页面没有建立第二套画布核心，而是复用 `CanvasAppV2`、`CanvasBoardV2`、Document Store、CanvasRepository、CanvasManagementClient 与 ModernCanvasRuntime。
+Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口只加载 `smart-canvas-modern.js`；约 731KB 的 `static/js/smart-canvas.js` 已在迁移验证后删除。页面没有建立第二套画布核心，而是复用 `CanvasAppV2`、`CanvasBoardV2`、Document Store、CanvasRepository、CanvasManagementClient 与 ModernCanvasRuntime。
 
 - 管理器只展示和创建 `kind: smart` 的画布，支持 `?id=` 直接打开、锁、冲突安全保存、回收站、备份、费用、日志、资产库和工作流导入/导出。
 - Generator、ModelScope、Video、Comfy、LLM、LTX、Output、Prompt、Loop 与媒体节点继续走同一套 TypeScript 运行时；Smart 专属入口增加素材收件箱按钮及 `Ctrl/Cmd+V` 导入。
@@ -129,6 +129,8 @@ Smart Canvas 已切换到 `frontend/src/pages/smart-canvas.tsx`，正常入口�
 - 最终自动化结果：95 个 Vitest、29 个 Playwright、41 个 Python unittest 全部通过。
 
 结论：12 个生产页面的 React + TypeScript + Vite 代码迁移全部完成。尚未完成的是生产级功能等价与发布验证，包括真实供应商链路、历史生产数据全量审计、灰度、计费核对和两个稳定发布周期。
+
+2026-08-20 进一步删除非 Canvas 页面遗留的 7 个无消费者旧业务/辅助脚本。当前唯一保留的旧前端业务链是 `canvas_v2=0` 对应的经典 Canvas 整页应急回滚；它与默认 React 入口物理隔离。
 
 ## 阶段 8 发布前总检
 
