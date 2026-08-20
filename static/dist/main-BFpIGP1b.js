@@ -1194,7 +1194,7 @@ if (window.CanvasModernCore = Object.freeze({
 	}
 }), W.enabled) {
 	let e = document.getElementById("canvasModernApp");
-	e && (e.hidden = !1, import("./canvas-app-v2-CIraHljV.js").then(({ mountCanvasAppV2: t }) => {
+	e && (e.hidden = !1, import("./canvas-app-v2-Bd_DcbH4.js").then(({ mountCanvasAppV2: t }) => {
 		let n = t(e, {
 			runtime: Z,
 			repository: Q

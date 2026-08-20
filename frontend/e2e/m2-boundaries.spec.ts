@@ -83,6 +83,11 @@ test('activates the cohesive V2 stack through deterministic rollout controls', a
   await expect(page.locator('html')).toHaveAttribute('data-canvas-v2-rollout-percentage', '100');
   await expect(page.locator('html')).toHaveAttribute('data-canvas-modern-m2', 'enabled');
   await expect(page.locator('.canvas-modern-manager')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '选择画布' })).toBeVisible();
+  await expect(page.locator('.gate-folder-pane')).toBeVisible();
+  await expect(page.locator('.gate-list')).toHaveCSS('display', 'grid');
+  await expect(page.getByRole('link', { name: '新建智能画布' })).toBeVisible();
+  await expect(page.locator('.canvas-modern-gate select')).toHaveCount(0);
   await expect(page.locator('#shell')).toHaveCount(0);
   const report = await page.evaluate(() => (window as typeof window & { CanvasModernCore: any }).CanvasModernCore.getM2Report());
   expect(report.rollout).toMatchObject({ enabled: true, forced: false, percentage: 100, source: 'server' });

@@ -46,6 +46,9 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   const [folders, setFolders] = useState<CanvasFolder[]>([]);
   const [activeFolder, setActiveFolder] = useState('all');
   const [showTrash, setShowTrash] = useState(false);
+  const [sortMode, setSortMode] = useState<'recent' | 'name'>('recent');
+  const [creating, setCreating] = useState(false);
+  const [movingCanvasId, setMovingCanvasId] = useState('');
   const [current, setCurrent] = useState<CanvasDocument | null>(null);
   const [createTitle, setCreateTitle] = useState('');
   const [status, setStatus] = useState('正在加载画布列表…');
@@ -259,10 +262,12 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   const create = async () => {
     try {
       const created = await management.create(createTitle || configuration.defaultTitle || '', {
+        folderId: ['all', 'root'].includes(activeFolder) ? undefined : activeFolder,
         icon: canvasKind === 'smart' ? 'sparkles' : undefined,
         kind: canvasKind,
       });
       setCreateTitle('');
+      setCreating(false);
       await refresh();
       await openCanvas(created);
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
@@ -403,31 +408,52 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   }, [configuration.assetInboxKey, current]);
 
   if (!current) {
-    const list = showTrash ? trash : activeFolder === 'all' ? canvases : activeFolder === 'root' ? canvases.filter((item) => !item.folder_id) : canvases.filter((item) => item.folder_id === activeFolder);
-    return <main className="canvas-modern-manager">
-      <section className="gate-panel canvas-modern-gate">
+    const filtered = showTrash ? trash : activeFolder === 'all' ? canvases : activeFolder === 'root' ? canvases.filter((item) => !item.folder_id) : canvases.filter((item) => item.folder_id === activeFolder);
+    const list = [...filtered].sort(sortMode === 'name'
+      ? (a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'zh-CN')
+      : (a, b) => Number(b.updated_at || 0) - Number(a.updated_at || 0));
+    const folderName = activeFolder === 'all' ? '全部画布' : activeFolder === 'root' ? '未分类' : String(folders.find((folder) => folder.id === activeFolder)?.name || '文件夹');
+    const folderCount = (folderId: string) => folderId === 'all' ? canvases.length : folderId === 'root' ? canvases.filter((item) => !item.folder_id).length : canvases.filter((item) => item.folder_id === folderId).length;
+    const startCreate = () => { setCreateTitle(''); setCreating(true); };
+    return <main className="canvas-modern-manager canvas-gate">
+      <section className={`gate-panel canvas-modern-gate ${creating ? 'creating' : ''} ${showTrash ? 'trash-mode' : ''}`}>
         <header className="gate-head">
-          <div className="gate-head-text"><h1 className="gate-title">{showTrash ? '回收站' : configuration.heading || '经典画布 V2'}</h1><p className="gate-subtitle">{configuration.subtitle || 'React + TypeScript 独立文档与执行路径'}</p></div>
+          <div className="gate-head-text">
+            {showTrash ? <button className="gate-back-link" onClick={() => setShowTrash(false)} type="button"><Icon name="arrow-left" />返回画布列表</button> : null}
+            <div className="gate-title-row"><h1 className="gate-title">{showTrash ? '回收站' : canvasKind === 'classic' ? '选择画布' : configuration.heading || '智能画布'}</h1><span className="gate-count-pill">{showTrash ? trash.length : canvases.length} 个</span></div>
+            <p className="gate-subtitle">{showTrash ? '可恢复画布，或将其永久删除。' : '打开已有画布，或新建一个开始创作。'}</p>
+          </div>
           <div className="gate-head-actions">
-            {configuration.managerBackHref ? <a className="gate-icon-btn" href={configuration.managerBackHref}>返回首页</a> : null}
-            {!showTrash ? <><select aria-label="画布文件夹" onChange={(event) => setActiveFolder(event.target.value)} value={activeFolder}><option value="all">全部画布</option><option value="root">未分类</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{String(folder.name || '未命名文件夹')}</option>)}</select><button className="gate-icon-btn" onClick={async () => { const name = window.prompt('文件夹名称')?.trim(); if (name) { await management.createFolder(name); await refresh(); } }} type="button">新建文件夹</button>{!['all', 'root'].includes(activeFolder) ? <button className="gate-icon-btn" onClick={async () => { if (window.confirm('删除此文件夹？文件夹内画布不会被永久删除。')) { await management.deleteFolder(activeFolder); setActiveFolder('all'); await refresh(); } }} type="button">删除文件夹</button> : null}</> : null}
-            <button className="gate-icon-btn" onClick={() => void refresh()} type="button">刷新</button>
-            <button className="gate-icon-btn" onClick={() => setShowTrash((value) => !value)} type="button">{showTrash ? '返回画布' : `回收站 ${trash.length}`}</button>
+            {!showTrash ? <div className="gate-sort" role="group" aria-label="排序方式"><button className={`gate-sort-btn ${sortMode === 'recent' ? 'active' : ''}`} onClick={() => setSortMode('recent')} type="button">最近编辑</button><button className={`gate-sort-btn ${sortMode === 'name' ? 'active' : ''}`} onClick={() => setSortMode('name')} type="button">名称</button></div> : null}
+            <button aria-label="刷新列表" className="gate-icon-btn" onClick={() => void refresh()} title="刷新列表" type="button"><Icon name="refresh" /></button>
+            {!showTrash ? <button aria-label="打开回收站" className="gate-icon-btn gate-trash-entry" onClick={() => setShowTrash(true)} title="打开回收站" type="button"><Icon name="trash" /><span className={`gate-trash-badge ${trash.length ? 'visible' : ''}`}>{trash.length}</span></button> : null}
+            {!showTrash && canvasKind === 'classic' ? <button className="primary-btn" onClick={startCreate} type="button"><Icon name="plus" />新建画布</button> : null}
+            {!showTrash && canvasKind === 'classic' ? <a className="smart-create-btn" href="/static/smart-canvas.html"><Icon name="sparkles" />新建智能画布</a> : null}
+            {!showTrash && canvasKind === 'smart' ? <button className="smart-create-btn" onClick={() => void create()} type="button"><Icon name="sparkles" />{configuration.createLabel || '新建智能画布'}</button> : null}
           </div>
         </header>
-        {!showTrash ? <div className="gate-create-row canvas-modern-create">
-          <input className="gate-name-input" maxLength={80} onChange={(event) => setCreateTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void create(); }} placeholder="新画布名称" value={createTitle} />
-          <button className="primary-btn" onClick={() => void create()} type="button">{configuration.createLabel || '新建画布'}</button>
+        {creating ? <div className="gate-create-row">
+          <input autoFocus className="gate-name-input" maxLength={80} onChange={(event) => setCreateTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void create(); if (event.key === 'Escape') setCreating(false); }} placeholder="新画布名称（可留空使用默认）" value={createTitle} />
+          <button aria-label="确定" className="create-confirm" onClick={() => void create()} type="button"><Icon name="check" /></button>
+          <button aria-label="取消" className="create-cancel" onClick={() => setCreating(false)} type="button"><Icon name="x" /></button>
         </div> : null}
         {status ? <div className="gate-status">{status}</div> : null}
-        <div className="gate-list canvas-modern-list">
-          {list.map((item) => <article className="gate-card" data-canvas-id={item.id} key={item.id}>
-            <button className="canvas-modern-card-main" disabled={showTrash} onClick={() => void openCanvas(item)} type="button">
-              <strong>{String(item.title || '未命名画布')}</strong><small>{formatTime(item.updated_at)}</small>
-            </button>
-            {showTrash ? <><button onClick={async () => { await management.restore(item.id); await refresh(); }} type="button">恢复</button><button onClick={async () => { if (window.confirm('永久删除后无法恢复，确定继续？')) { await management.purge(item.id); await refresh(); } }} type="button">永久删除</button></>
-              : <><select aria-label={`移动 ${String(item.title || '画布')}`} onChange={async (event) => { await management.moveToFolder(item.id, event.target.value); await refresh(); }} value={String(item.folder_id || '')}><option value="">未分类</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{String(folder.name || '未命名文件夹')}</option>)}</select><button aria-label="移入回收站" onClick={() => void remove(item.id)} type="button">删除</button></>}
+        {showTrash ? <div className="trash-note">回收站中的画布会在 30 天后自动清理。</div> : null}
+        <div className="gate-browser">
+          {!showTrash ? <aside aria-label="画布文件夹" className="gate-folder-pane"><div className="gate-folder-head"><span>文件夹</span><button aria-label="新建文件夹" className="gate-folder-add" onClick={async () => { const name = window.prompt('文件夹名称')?.trim(); if (name) { await management.createFolder(name); await refresh(); } }} title="新建文件夹" type="button"><Icon name="folder-plus" /></button></div><div className="gate-folder-tree">
+            <FolderRow active={activeFolder === 'all'} count={folderCount('all')} icon="grid" label="全部画布" onClick={() => setActiveFolder('all')} />
+            <FolderRow active={activeFolder === 'root'} count={folderCount('root')} icon="inbox" label="未分类" onClick={() => setActiveFolder('root')} />
+            <div className="gate-folder-separator" />
+            {folders.map((folder) => <div className={`gate-folder-node ${activeFolder === folder.id ? 'active' : ''}`} key={folder.id}><button className="gate-folder-main" onClick={() => setActiveFolder(folder.id)} type="button"><Icon name="folder" /><span className="gate-folder-name">{String(folder.name || '未命名文件夹')}</span><span className="gate-folder-count">{folderCount(folder.id)}</span></button><span className="gate-folder-actions"><button aria-label={`删除文件夹 ${String(folder.name || '')}`} className="gate-folder-action" onClick={async () => { if (window.confirm('删除此文件夹？文件夹内画布不会被永久删除。')) { await management.deleteFolder(folder.id); if (activeFolder === folder.id) setActiveFolder('all'); await refresh(); } }} type="button"><Icon name="trash" /></button></span></div>)}
+          </div></aside> : null}
+          <div className="gate-canvas-pane"><div className="gate-folder-bar"><div className="gate-folder-current"><Icon name={showTrash ? 'trash' : 'grid'} /><span>{showTrash ? '回收站' : folderName}</span></div><span className="gate-folder-current-count">{list.length}</span></div>
+          <div className="gate-list">
+          {!list.length ? <div className="gate-list-empty"><div className="gate-list-empty-icon"><Icon name={showTrash ? 'trash' : 'grid'} /></div>{showTrash ? '回收站为空' : '还没有画布'}<br />{showTrash ? null : '新建一个开始创作'}</div> : null}
+          {list.map((item) => <article className={`canvas-item ${item.kind === 'smart' ? 'smart-canvas' : ''}`} data-canvas-id={item.id} key={item.id}>
+            <button className="canvas-open" disabled={showTrash} onClick={() => void openCanvas(item)} type="button"><div className="canvas-card-icon-row"><span className="canvas-preview-mark"><Icon name={item.kind === 'smart' ? 'sparkles' : 'layers'} /></span>{item.kind === 'smart' ? <span className="canvas-kind-chip">智能</span> : null}</div><div className="canvas-card-title">{String(item.title || '未命名画布')}</div><div className="canvas-card-meta"><span className="canvas-card-meta-dot" /><span className="canvas-card-time">{formatTime(showTrash ? item.deleted_at : item.updated_at)}</span></div></button>
+            {showTrash ? <><button aria-label="恢复画布" className="canvas-delete canvas-restore" onClick={async () => { await management.restore(item.id); await refresh(); }} style={{ right: 42 }} type="button"><Icon name="restore" /></button><button aria-label="永久删除画布" className="canvas-delete" onClick={async () => { if (window.confirm('永久删除后无法恢复，确定继续？')) { await management.purge(item.id); await refresh(); } }} type="button"><Icon name="x" /></button></> : <><button aria-label="移动到文件夹" className="canvas-folder-btn" onClick={() => setMovingCanvasId((id) => id === item.id ? '' : item.id)} type="button"><Icon name="folder-input" /></button><button aria-label="移入回收站" className="canvas-delete" onClick={() => void remove(item.id)} type="button"><Icon name="trash" /></button>{movingCanvasId === item.id ? <div className="canvas-folder-menu"><button className={!item.folder_id ? 'active' : ''} onClick={async () => { await management.moveToFolder(item.id, ''); setMovingCanvasId(''); await refresh(); }} type="button"><Icon name="inbox" />未分类</button>{folders.map((folder) => <button className={item.folder_id === folder.id ? 'active' : ''} key={folder.id} onClick={async () => { await management.moveToFolder(item.id, folder.id); setMovingCanvasId(''); await refresh(); }} type="button"><Icon name="folder" />{String(folder.name || '未命名文件夹')}</button>)}</div> : null}</>}
           </article>)}
+          </div></div>
         </div>
       </section>
     </main>;
@@ -471,6 +497,33 @@ function canvasClientId(): string {
 function formatTime(value: unknown): string {
   const timestamp = Number(value || 0);
   return timestamp ? new Date(timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp).toLocaleString() : '--';
+}
+
+type ManagerIconName = 'arrow-left' | 'check' | 'folder' | 'folder-input' | 'folder-plus' | 'grid' | 'inbox' | 'layers' | 'plus' | 'refresh' | 'restore' | 'sparkles' | 'trash' | 'x';
+
+function Icon({ name }: { name: ManagerIconName }) {
+  const common = { fill: 'none', stroke: 'currentColor', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2 };
+  const paths: Record<ManagerIconName, ReactNode> = {
+    'arrow-left': <><path d="m15 18-6-6 6-6" /><path d="M9 12h10" /></>,
+    check: <path d="m5 12 4 4L19 6" />,
+    folder: <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />,
+    'folder-input': <><path d="M2 8a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z" /><path d="m12 11 3 3-3 3" /><path d="M8 14h7" /></>,
+    'folder-plus': <><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="M12 10v6M9 13h6" /></>,
+    grid: <><rect height="7" rx="1" width="7" x="3" y="3" /><rect height="7" rx="1" width="7" x="14" y="3" /><rect height="7" rx="1" width="7" x="3" y="14" /><rect height="7" rx="1" width="7" x="14" y="14" /></>,
+    inbox: <><path d="M4 5h16l2 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6Z" /><path d="M2 12h5l2 3h6l2-3h5" /></>,
+    layers: <><path d="m12 2 9 5-9 5-9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></>,
+    plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
+    refresh: <><path d="M20 6v5h-5" /><path d="M4 18v-5h5" /><path d="M18.5 9A7 7 0 0 0 6 6.5L4 9M5.5 15A7 7 0 0 0 18 17.5l2-2.5" /></>,
+    restore: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></>,
+    sparkles: <><path d="m12 3-1 4-4 1 4 1 1 4 1-4 4-1-4-1Z" /><path d="m19 14-.7 2.3L16 17l2.3.7L19 20l.7-2.3L22 17l-2.3-.7Z" /><path d="m5 14-.6 1.6L3 16l1.4.4L5 18l.6-1.6L7 16l-1.4-.4Z" /></>,
+    trash: <><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="m19 6-1 15H6L5 6" /><path d="M10 11v6M14 11v6" /></>,
+    x: <><path d="m6 6 12 12" /><path d="m18 6-12 12" /></>,
+  };
+  return <svg aria-hidden="true" className="manager-icon" height="16" viewBox="0 0 24 24" width="16" {...common}>{paths[name]}</svg>;
+}
+
+function FolderRow({ active, count, icon, label, onClick }: { active: boolean; count: number; icon: ManagerIconName; label: string; onClick: () => void }) {
+  return <div className={`gate-folder-node ${active ? 'active' : ''}`}><button className="gate-folder-main" onClick={onClick} type="button"><Icon name={icon} /><span className="gate-folder-name">{label}</span><span className="gate-folder-count">{count}</span></button></div>;
 }
 
 function lockHolderName(holder: Record<string, unknown> | undefined): string {
