@@ -25,6 +25,8 @@ test('asset manager runs as React AssetStudio and keeps real CRUD contracts', as
 
   await page.goto('/static/asset-manager.html');
   await expect(page.getByText('素材库管理', { exact: true })).toBeVisible();
+  await expect(page.locator('link[href*="/static/dist/asset-style.css"]')).toHaveCount(1);
+  await expect(page.locator('link[href*="/static/css/"]')).toHaveCount(0);
   expect(await page.evaluate(() => ({ legacy: [...document.scripts].some(script => /asset-manager\.js/.test(script.src)), global: typeof (window as typeof window & { renderAssetLibrary?: unknown }).renderAssetLibrary }))).toEqual({ legacy: false, global: 'undefined' });
   await expect(page.getByText('Hero', { exact: true })).toBeVisible();
   await expect(page.locator('.asset-manager-root > .asset-panel')).toHaveCount(3);

@@ -82,6 +82,20 @@ class FrontendReadinessTest(unittest.TestCase):
         self.assertIn("entry:index.html:dist-asset-missing", report["code_blockers"])
         self.assertEqual(["dist/missing.css"], report["entries"]["items"][0]["missing_assets"])
 
+    def test_blocks_stylesheets_outside_the_vite_build(self):
+        self.write_entry()
+        path = self.root / "static" / "index.html"
+        path.write_text(
+            path.read_text(encoding="utf-8") + '<link rel="stylesheet" href="/static/css/legacy.css">',
+            encoding="utf-8",
+        )
+
+        report = self.report()
+
+        self.assertFalse(report["code_migration_ready"])
+        self.assertIn("entry:index.html:legacy-stylesheet", report["code_blockers"])
+        self.assertEqual(["/static/css/legacy.css"], report["entries"]["items"][0]["legacy_stylesheets"])
+
     def test_keeps_missing_provider_capabilities_out_of_code_migration_status(self):
         self.write_entry()
         report = build_frontend_readiness_report(

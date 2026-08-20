@@ -65,11 +65,14 @@ def build_frontend_readiness_report(
         style_sources = re.findall(r'<link\b[^>]*\bhref=["\']([^"\']+)["\'][^>]*>', source, flags=re.I)
         dist_modules = [value for value in script_sources if "/static/dist/" in value]
         dist_styles = [value for value in style_sources if "/static/dist/" in value]
+        legacy_styles = [value for value in style_sources if "/static/css/" in value]
         if not re.search(r'<script\b[^>]*\btype=["\']module["\'][^>]*>', source, flags=re.I) or not dist_modules:
             issues.append("vite-module-missing")
         legacy = sorted({Path(value.split("?", 1)[0]).name for value in script_sources} & LEGACY_BUSINESS_SCRIPTS)
         if legacy:
             issues.append("legacy-business-script")
+        if legacy_styles:
+            issues.append("legacy-stylesheet")
         missing_assets = []
         for value in [*dist_modules, *dist_styles]:
             relative = value.split("?", 1)[0].removeprefix("/static/")
@@ -82,6 +85,7 @@ def build_frontend_readiness_report(
             "dist_modules": dist_modules,
             "dist_styles": dist_styles,
             "legacy_business_scripts": legacy,
+            "legacy_stylesheets": legacy_styles,
             "missing_assets": missing_assets,
             "ok": not issues,
             "issues": issues,

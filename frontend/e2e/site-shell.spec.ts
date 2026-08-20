@@ -15,6 +15,8 @@ test('homepage runs as React SiteShell with lazy routes, broadcasts and updater 
 
   await page.goto('/static/index.html');
   await expect(page.getByRole('button', { name: '在线生图' })).toHaveClass(/active/);
+  await expect(page.locator('link[href*="/static/dist/site-shared-style.css"]')).toHaveCount(1);
+  await expect(page.locator('link[href*="/static/css/"]')).toHaveCount(0);
   expect(await page.evaluate(() => ({ legacy: typeof (window as typeof window & { switchUI?: unknown }).switchUI, inline: [...document.scripts].filter(script => !script.type.includes('module')).length }))).toEqual({ legacy: 'undefined', inline: 0 });
   await expect(page.locator('.shell-content iframe')).toHaveCount(1);
   await expect(page.locator('.shell-content iframe')).toHaveAttribute('src', '/static/online.html');

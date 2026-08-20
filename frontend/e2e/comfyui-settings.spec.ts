@@ -31,6 +31,8 @@ test('runs the standalone React ComfyUI settings workflow without legacy globals
 
   await page.goto('/static/comfyui-settings.html');
   await expect(page.getByRole('heading', { name: 'ComfyUI 工作流设置' })).toBeVisible();
+  await expect(page.locator('link[href*="/static/dist/comfy-style.css"]')).toHaveCount(1);
+  await expect(page.locator('link[href*="/static/css/"]')).toHaveCount(0);
   const isolation = await page.evaluate(() => ({
     addInstance: typeof (window as typeof window & { addComfyInstance?: unknown }).addComfyInstance,
     legacyScript: [...document.scripts].some(script => /\/static\/js\/comfyui-settings\.js/.test(script.src)),
