@@ -11,7 +11,8 @@ class SmartCanvasEntryTest(unittest.TestCase):
 
         self.assertIn('id="smartCanvasApp"', html)
         self.assertIn('/static/dist/smart-canvas-modern.js', html)
-        self.assertIn('/static/css/canvas.css', html)
+        self.assertIn('/static/dist/canvas-modern.css', html)
+        self.assertNotIn('/static/css/canvas.css', html)
         self.assertNotIn('/static/css/smart-canvas.css', html)
         self.assertNotIn('/static/js/smart-canvas.js', html)
         self.assertNotIn('/static/js/canvas-core.js', html)

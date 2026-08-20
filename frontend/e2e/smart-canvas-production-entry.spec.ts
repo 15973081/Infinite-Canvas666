@@ -5,6 +5,7 @@ test('serves Smart Canvas from the React production entry without legacy scripts
 
   await expect(page.locator('#smartCanvasApp')).toBeAttached();
   await expect(page.locator('.canvas-modern-manager')).toBeVisible();
+  await expect(page.locator('.canvas-modern-manager')).toHaveCSS('position', 'fixed');
   await expect(page.locator('#shell')).toHaveCount(0);
   await expect(page.locator('#world')).toHaveCount(0);
   await expect(page.getByTestId('smart-canvas-composer')).toHaveCount(0);
@@ -15,6 +16,7 @@ test('serves Smart Canvas from the React production entry without legacy scripts
   }));
   expect(resources.scripts.some((src) => /\/static\/dist\/smart-canvas-modern\.js/.test(src))).toBe(true);
   expect(resources.scripts.some((src) => /\/static\/js\/(smart-canvas|canvas-core|canvas-api)\.js/.test(src))).toBe(false);
-  expect(resources.styles.some((href) => /\/static\/css\/canvas\.css/.test(href || ''))).toBe(true);
+  expect(resources.styles.some((href) => /\/static\/dist\/canvas-modern\.css/.test(href || ''))).toBe(true);
+  expect(resources.styles.some((href) => /\/static\/css\/canvas\.css/.test(href || ''))).toBe(false);
   expect(resources.styles.some((href) => /\/static\/css\/smart-canvas\.css/.test(href || ''))).toBe(false);
 });

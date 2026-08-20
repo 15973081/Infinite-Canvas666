@@ -62,14 +62,16 @@ def build_frontend_readiness_report(
         else:
             source = path.read_text(encoding="utf-8-sig")
         script_sources = re.findall(r'<script\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', source, flags=re.I)
+        style_sources = re.findall(r'<link\b[^>]*\bhref=["\']([^"\']+)["\'][^>]*>', source, flags=re.I)
         dist_modules = [value for value in script_sources if "/static/dist/" in value]
+        dist_styles = [value for value in style_sources if "/static/dist/" in value]
         if not re.search(r'<script\b[^>]*\btype=["\']module["\'][^>]*>', source, flags=re.I) or not dist_modules:
             issues.append("vite-module-missing")
         legacy = sorted({Path(value.split("?", 1)[0]).name for value in script_sources} & LEGACY_BUSINESS_SCRIPTS)
         if legacy:
             issues.append("legacy-business-script")
         missing_assets = []
-        for value in dist_modules:
+        for value in [*dist_modules, *dist_styles]:
             relative = value.split("?", 1)[0].removeprefix("/static/")
             if relative and not (static / relative).is_file():
                 missing_assets.append(relative)
@@ -78,6 +80,7 @@ def build_frontend_readiness_report(
         entry_reports.append({
             "entry": name,
             "dist_modules": dist_modules,
+            "dist_styles": dist_styles,
             "legacy_business_scripts": legacy,
             "missing_assets": missing_assets,
             "ok": not issues,

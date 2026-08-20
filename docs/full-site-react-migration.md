@@ -171,3 +171,5 @@ ComfyUI 可通过 `python app/services/comfy_connectivity.py --network --strict`
 ## 2026-08-20 Smart Canvas 生产入口校正
 
 迁移文档此前描述的 Smart Canvas Vite 切换现已与真实 HTML 一致：`static/smart-canvas.html` 直接挂载 `frontend/src/pages/smart-canvas.tsx` 的构建产物，默认路径不再加载旧 Smart Canvas 脚本和样式。全部 Smart Canvas E2E 已从测试虚拟入口改为真实生产入口，资源审计同时断言旧 `smart-canvas.js`、`canvas-core.js`、`canvas-api.js` 和 `smart-canvas.css` 均未加载。
+
+Canvas 的 159KB 样式源也已从 `static/css` 搬到 `frontend/src/canvas/ui/canvas.css`，由 `bootstrap.ts` 导入并通过 Vite 输出稳定的 `canvas-modern.css`。迁移保留了原 CSS 内容与视觉配置，没有另创一套画布设计；经典画布、智能画布及 Legacy 回退共用同一构建产物。

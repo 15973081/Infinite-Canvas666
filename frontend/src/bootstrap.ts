@@ -3,6 +3,7 @@ import {
   resolveCanvasV2Rollout,
   type CanvasRolloutPolicy,
 } from './canvas/infrastructure/rollout';
+import './canvas/ui/canvas.css';
 
 declare global {
   interface Window {

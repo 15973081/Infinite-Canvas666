@@ -551,3 +551,9 @@ Smart Canvas Playwright 回归会在页面初始化后主动删除旧全局对�
 `/static/smart-canvas.html` 现已真正切换为 `smart-canvas-modern.js` 生产入口，只保留 `#smartCanvasApp` 挂载点。生产页面不再加载 `smart-canvas.js`、`canvas-core.js`、`canvas-api.js` 或 `smart-canvas.css`；旧文件暂留在仓库中作为迁移核对与历史回退资产，不再进入默认浏览器执行链。
 
 原先使用测试专用虚拟 HTML 的 Smart Canvas Playwright 已全部改为直接访问真实生产入口，并增加资源级反向断言，防止旧 JS/CSS 被重新接回。`frontend_readiness.py` 当前确认 12/12 生产入口均有 Vite module、无 Legacy business script、无缺失构建产物。
+
+## 33. 2026-08-20 Canvas CSS 纳入 Vite
+
+原 `static/css/canvas.css` 已原样迁入 `frontend/src/canvas/ui/canvas.css`，避免重新设计造成经典画布与智能画布视觉割裂。`bootstrap.ts` 将其作为前端模块依赖导入，Vite 固定生成 `/static/dist/canvas-modern.css`；Canvas 和 Smart Canvas 生产 HTML 均引用该构建产物，Legacy Canvas 回退也继续复用同一份样式，因此没有维护两份 CSS。
+
+发布审计现同时检查 HTML 中引用的 Vite CSS 产物是否存在。Playwright 会校验 Smart Canvas 的生产页面实际加载 `canvas-modern.css`、不加载旧 CSS，并确认管理器关键定位样式已经生效。

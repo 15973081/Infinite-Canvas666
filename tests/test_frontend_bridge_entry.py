@@ -9,13 +9,18 @@ class FrontendBridgeEntryTest(unittest.TestCase):
     def test_canvas_bootstrap_owns_the_legacy_fallback(self):
         html = (ROOT / "static" / "canvas.html").read_text(encoding="utf-8")
         modern = '/static/dist/canvas-modern.js?v=2026.08.19.35'
+        modern_css = '/static/dist/canvas-modern.css?v=2026.08.20.1'
         bootstrap = (ROOT / "frontend" / "src" / "bootstrap.ts").read_text(encoding="utf-8")
 
         self.assertNotIn('/static/js/canvas.js', html)
+        self.assertNotIn('/static/css/canvas.css', html)
         self.assertIn(modern, html)
+        self.assertIn(modern_css, html)
+        self.assertIn("import './canvas/ui/canvas.css';", bootstrap)
         self.assertIn("'/static/js/canvas.js?v=2026.07.23.4'", bootstrap)
         self.assertIn("if (!decision.enabled)", bootstrap)
         self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.js").stat().st_size, 0)
+        self.assertGreater((ROOT / "static" / "dist" / "canvas-modern.css").stat().st_size, 0)
         react_chunks = list((ROOT / "static" / "dist").glob("react-execution-entry-*.js"))
         self.assertEqual(1, len(react_chunks))
         self.assertGreater(react_chunks[0].stat().st_size, 0)
