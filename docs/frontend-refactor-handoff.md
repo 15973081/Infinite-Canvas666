@@ -563,3 +563,7 @@ Smart Canvas Playwright 回归会在页面初始化后主动删除旧全局对�
 其余 React 页面使用的 `site-modern.css`、`studio-art-direction.css`、`api-settings.css`、`asset-manager.css`、`comfyui-settings.css` 与 `theme.css` 已按共享层和功能域迁入 `frontend/src`。Vite 现输出稳定的 `site-shared-style.css`、`provider-style.css`、`asset-style.css`、`comfy-style.css` 与 `theme-style.css`，12 个生产 HTML 已全部改用 `/static/dist/*.css`，不再直接引用 `/static/css/`。
 
 样式内容在搬运时保持原样，API 设置、素材库、ComfyUI、站点外壳和画布主题仍复用原设计配置。发布审计新增 `legacy-stylesheet` 门禁，并会校验所有 Vite CSS 文件存在；各主要页面的 Playwright 同时断言对应 CSS 已加载且旧 CSS 链路为零。
+
+## 35. 2026-08-20 Canvas 默认路径辅助脚本隔离
+
+`canvas.html` 不再无条件加载 Tailwind CDN、Lucide 和旧 `theme.js`。这些脚本仅由 `bootstrap.ts` 在明确进入 Legacy Canvas 回退时按顺序加载；React Canvas 正常路径只保留 Vite module 和 Vite CSS。独立 React Canvas 回归会统计相关经典脚本，要求加载数量严格为 0，同时既有 Legacy 回退测试继续验证旧路径可启动。

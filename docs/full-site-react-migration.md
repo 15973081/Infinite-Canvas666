@@ -175,3 +175,5 @@ ComfyUI 可通过 `python app/services/comfy_connectivity.py --network --strict`
 Canvas 的 159KB 样式源也已从 `static/css` 搬到 `frontend/src/canvas/ui/canvas.css`，由 `bootstrap.ts` 导入并通过 Vite 输出稳定的 `canvas-modern.css`。迁移保留了原 CSS 内容与视觉配置，没有另创一套画布设计；经典画布、智能画布及 Legacy 回退共用同一构建产物。
 
 全站其余生产样式也已按 `styles`、`provider-studio`、`asset-studio`、`comfyui-settings` 与共享主题域迁入 `frontend/src`。所有生产 HTML 只引用 `/static/dist/*.css`；`frontend_readiness.py` 会把任何重新出现的 `/static/css/` 链接作为 `legacy-stylesheet` 代码阻断项。
+
+Canvas HTML 原先无条件加载的 Tailwind CDN、Lucide 与旧主题脚本也已移出 React 默认执行链，仅在 `bootstrap.ts` 判定进入 Legacy 回退时动态加载。正常 React 页面因此不再建立这些全局对象。

@@ -107,9 +107,9 @@ test('runs the standalone React Canvas without loading the legacy Canvas runtime
   const isolation = await page.evaluate(() => ({
     api: typeof (window as typeof window & { CanvasApi?: unknown }).CanvasApi,
     bridge: typeof (window as typeof window & { CanvasLegacyBridge?: unknown }).CanvasLegacyBridge,
-    legacyScript: [...document.scripts].some((script) => /\/static\/js\/canvas\.js/.test(script.src)),
+    legacyScripts: [...document.scripts].filter((script) => /\/(static\/js\/(canvas|canvas-core|canvas-api|theme)|static\/vendor\/js\/(tailwindcss-cdn|lucide))\.js/.test(script.src)).length,
   }));
-  expect(isolation).toEqual({ api: 'undefined', bridge: 'undefined', legacyScript: false });
+  expect(isolation).toEqual({ api: 'undefined', bridge: 'undefined', legacyScripts: 0 });
 
   await page.locator('[data-node-type="generator"]').getByRole('button', { name: '运行', exact: true }).click();
   await expect.poll(() => saves).toBeGreaterThan(0);
