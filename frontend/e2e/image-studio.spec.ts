@@ -81,6 +81,70 @@ test('online image page keeps fixed reference slots and custom size controls', a
   });
 });
 
+test('online image tasks stay concurrent and retain pending and failed cards', async ({ page }) => {
+  const submitted: Array<Record<string, unknown>> = [];
+  let taskNumber = 0;
+  await page.route('**/api/config', route => route.fulfill({ json: {
+    api_providers: [{ id: 'mock-provider', name: 'Mock Provider', protocol: 'api', has_key: true, image_models: ['mock-image'] }],
+  } }));
+  await page.route('**/api/history?type=online', route => route.fulfill({ json: [] }));
+  await page.route('**/api/canvas-image-tasks', async route => {
+    submitted.push(route.request().postDataJSON());
+    taskNumber += 1;
+    await route.fulfill({ json: { task_id: `concurrent-${taskNumber}` } });
+  });
+  await page.route('**/api/canvas-image-tasks/concurrent-1', route => route.fulfill({ json: { status: 'queued' } }));
+  await page.route('**/api/canvas-image-tasks/concurrent-2', route => route.fulfill({ json: { status: 'failed', error: 'mock failure' } }));
+  page.on('dialog', dialog => void dialog.dismiss());
+
+  await page.goto('/static/online.html');
+  await page.getByLabel('提示词').fill('first task');
+  await page.getByRole('button', { name: '生成', exact: true }).click();
+  await expect(page.locator('#pending-concurrent-1')).toContainText('排队中');
+  await expect(page.getByRole('button', { name: '生成', exact: true })).toBeEnabled();
+
+  await page.getByLabel('提示词').fill('second task');
+  await page.getByRole('button', { name: '生成', exact: true }).click();
+  await expect(page.locator('#pending-concurrent-2')).toContainText('生成失败');
+  expect(submitted).toHaveLength(2);
+});
+
+test('online archive keeps pagination, zoom preview, reuse and bulk delete behavior', async ({ page }) => {
+  const preview = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%2280%22%3E%3Crect width=%22100%22 height=%2280%22 fill=%22%2394a3b8%22/%3E%3C/svg%3E';
+  const history = Array.from({ length: 30 }, (_, index) => ({
+    timestamp: index + 1,
+    prompt: `archive ${index + 1}`,
+    images: [preview],
+    params: { size: '1280x720', reference_images: [] },
+    type: 'online',
+  }));
+  await page.route('**/api/config', route => route.fulfill({ json: {
+    api_providers: [{ id: 'mock-provider', name: 'Mock Provider', protocol: 'api', has_key: true, image_models: ['mock-image'] }],
+  } }));
+  await page.route('**/api/history?type=online', route => route.fulfill({ json: history }));
+  await page.route('**/api/history/delete', route => route.fulfill({ json: { success: true } }));
+
+  await page.goto('/static/online.html');
+  await expect(page.locator('[data-history-ts]')).toHaveCount(24);
+  await page.locator('#history-1 .history-open').click();
+  await expect(page.getByRole('dialog', { name: '图片预览' })).toBeVisible();
+  await expect(page.locator('#lightboxRes')).toHaveText('100 x 80');
+  await page.locator('#lightboxFrame').dispatchEvent('wheel', { deltaY: -100, clientX: 200, clientY: 200 });
+  await expect(page.locator('#lightboxImg')).toHaveAttribute('style', /scale\(1\.1\)/);
+  await page.getByRole('button', { name: '复用' }).click();
+  await expect(page.getByLabel('提示词')).toHaveValue('archive 1');
+  await expect(page.getByLabel('比例', { exact: true })).toHaveValue('wide');
+
+  await page.getByRole('button', { name: 'Load More Archive' }).click();
+  await expect(page.locator('[data-history-ts]')).toHaveCount(30);
+  await page.getByRole('button', { name: '管理' }).click();
+  await page.getByRole('button', { name: '全选' }).click();
+  await expect(page.locator('[data-history-ts].hbm-selected')).toHaveCount(30);
+  page.on('dialog', dialog => void dialog.accept());
+  await page.getByRole('button', { name: '删除所选' }).click();
+  await expect(page.locator('[data-history-ts]')).toHaveCount(0);
+});
+
 test('zimage page reuses the studio while keeping local and cloud adapters isolated', async ({ page }) => {
   let localPayload: Record<string, unknown> | null = null;
   await page.route('**/api/history?type=zimage', route => route.fulfill({ json: [] }));

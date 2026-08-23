@@ -71,26 +71,31 @@ export async function uploadWorkflowBlob(blob: Blob, name: string): Promise<stri
 }
 
 export async function generateOnline(input: StudioGenerateInput, onStatus: (status: string) => void): Promise<StudioImageItem> {
+  const taskId = await createOnlineImageTask(input);
+  return pollOnlineImageTask(taskId, input.prompt, onStatus);
+}
+
+export async function createOnlineImageTask(input: StudioGenerateInput): Promise<string> {
   const body = {
     prompt: input.prompt, provider_id: input.providerId, model: input.model, size: outputSize(input.width, input.height),
     ...(input.quality ? { quality: input.quality } : {}), n: input.count, reference_images: input.references,
-    idempotency_key: `online:${Date.now()}:${Math.random().toString(16).slice(2)}`,
   };
   const created = await requestJson<{ task_id?: string }>('/api/canvas-image-tasks', jsonRequest('POST', body));
   if (!created.task_id) throw new Error('创建生图任务失败');
-  sessionStorage.setItem('online-image-pending', JSON.stringify({ taskId: created.task_id, prompt: input.prompt }));
-  return pollOnlineImage(created.task_id, input.prompt, onStatus);
+  return created.task_id;
 }
 
-async function pollOnlineImage(taskId: string, prompt: string, onStatus: (status: string) => void): Promise<StudioImageItem> {
+export async function pollOnlineImageTask(taskId: string, prompt: string, onStatus: (status: string) => void, onTaskStatus?: (status: string) => void): Promise<StudioImageItem> {
   for (let attempt = 0; attempt < 900; attempt += 1) {
     if (attempt) await new Promise(resolve => setTimeout(resolve, 2_000));
     const task = await requestJson<{ status?: string; result?: unknown; error?: string }>(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`);
-    onStatus(task.status === 'queued' ? '任务排队中…' : '图片生成中…');
+    const taskStatus = task.status || 'running';
+    onTaskStatus?.(taskStatus);
+    onStatus(taskStatus === 'queued' ? '任务排队中…' : '图片生成中…');
     if (task.status === 'succeeded') { sessionStorage.removeItem('online-image-pending'); return normalizeImageResult(task.result, prompt, 'online'); }
-    if (task.status === 'failed' || task.status === 'interrupted') { sessionStorage.removeItem('online-image-pending'); throw new Error(task.error || '生成任务失败'); }
+    if (task.status === 'failed' || task.status === 'interrupted') { sessionStorage.removeItem('online-image-pending'); throw new Error(task.error || '生成失败'); }
   }
-  throw new Error('生成任务超时');
+  throw new Error('生成超时');
 }
 
 export async function resumeOnline(onStatus: (status: string) => void): Promise<StudioImageItem | null> {
@@ -100,7 +105,7 @@ export async function resumeOnline(onStatus: (status: string) => void): Promise<
     const pending = JSON.parse(raw) as { taskId?: string; prompt?: string };
     if (!pending.taskId) { sessionStorage.removeItem('online-image-pending'); return null; }
     onStatus('正在恢复未完成任务…');
-    return await pollOnlineImage(pending.taskId, pending.prompt || '', onStatus);
+    return await pollOnlineImageTask(pending.taskId, pending.prompt || '', onStatus);
   } catch (error) {
     if (error instanceof SyntaxError) sessionStorage.removeItem('online-image-pending');
     throw error;
