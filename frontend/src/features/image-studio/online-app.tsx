@@ -122,9 +122,13 @@ export function OnlineStudioApp() {
     const unsubscribe = subscribeStudioEvents(type => {
       if (type === 'providers-changed' || type === 'workflows-changed') void refreshProviders();
     });
+    const message = (event: MessageEvent) => {
+      if (event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed') void refreshProviders();
+    };
     const visible = () => { if (!document.hidden) void refreshProviders(); };
+    window.addEventListener('message', message);
     document.addEventListener('visibilitychange', visible);
-    return () => { unsubscribe(); document.removeEventListener('visibilitychange', visible); };
+    return () => { unsubscribe(); window.removeEventListener('message', message); document.removeEventListener('visibilitychange', visible); };
   }, []);
 
   useEffect(() => {

@@ -16,7 +16,7 @@ export async function loadOnlineProviders(): Promise<StudioProvider[]> {
     const value = raw as Record<string, unknown>;
     return value.enabled !== false && Boolean(value.has_key) && provider.image_models.length > 0;
   });
-  if (configured.length) return configured;
+  if (configured.length) return configured.map(provider => ({ ...provider, image_models: [...new Set(provider.image_models.map(model => model.trim()).filter(Boolean))] }));
   const configuredModels = Array.isArray(config.image_models)
     ? config.image_models.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     : [];

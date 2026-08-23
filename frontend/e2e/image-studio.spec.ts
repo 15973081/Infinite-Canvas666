@@ -145,6 +145,26 @@ test('online archive keeps pagination, zoom preview, reuse and bulk delete behav
   await expect(page.locator('[data-history-ts]')).toHaveCount(0);
 });
 
+test('online page retains dark theme and responsive breakpoints', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('studio_theme', 'dark'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/config', route => route.fulfill({ json: {
+    api_providers: [{ id: 'mock-provider', name: 'Mock Provider', protocol: 'api', has_key: true, image_models: ['mock-image'] }],
+  } }));
+  await page.route('**/api/history?type=online', route => route.fulfill({ json: [] }));
+
+  await page.goto('/static/online.html');
+  await expect(page.locator('html')).toHaveClass(/studio-theme-dark/);
+  expect(await page.evaluate(() => ({
+    columns: getComputedStyle(document.querySelector('main')!).gridTemplateColumns.split(' ').length,
+    overflow: document.documentElement.scrollWidth > window.innerWidth,
+    toolBackground: getComputedStyle(document.querySelector('.tool-panel')!).backgroundColor,
+  }))).toEqual({ columns: 1, overflow: false, toolBackground: 'rgb(23, 29, 41)' });
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('main')!).gridTemplateColumns.split(' ').length)).toBe(12);
+});
+
 test('zimage page reuses the studio while keeping local and cloud adapters isolated', async ({ page }) => {
   let localPayload: Record<string, unknown> | null = null;
   await page.route('**/api/history?type=zimage', route => route.fulfill({ json: [] }));
