@@ -6,6 +6,27 @@ export async function loadProviders(): Promise<StudioProvider[]> {
   return normalizeProviders(await requestJson<Record<string, unknown>>('/api/config'));
 }
 
+export async function loadOnlineProviders(): Promise<StudioProvider[]> {
+  const config = await requestJson<Record<string, unknown>>('/api/config');
+  const normalized = normalizeProviders(config);
+  const rawProviders = Array.isArray(config.api_providers) ? config.api_providers : [];
+  const configured = normalized.filter(provider => {
+    const raw = rawProviders.find(value => value && typeof value === 'object' && String((value as Record<string, unknown>).id || '') === provider.id);
+    if (!raw || typeof raw !== 'object') return false;
+    const value = raw as Record<string, unknown>;
+    return value.enabled !== false && Boolean(value.has_key) && provider.image_models.length > 0;
+  });
+  if (configured.length) return configured;
+  const configuredModels = Array.isArray(config.image_models)
+    ? config.image_models.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+  const nano = configuredModels.find(value => value.toLowerCase().includes('nano')) || 'nano-banana-pro';
+  const gpt = configuredModels.find(value => !value.toLowerCase().includes('nano'))
+    || (typeof config.image_model === 'string' ? config.image_model : '')
+    || 'gpt-image-2';
+  return [{ id: 'comfly', name: 'Comfly', image_models: [...new Set([gpt, nano])] }];
+}
+
 export async function loadHistory(type: string): Promise<StudioImageItem[]> {
   const data = await requestJson<unknown>(`/api/history?type=${encodeURIComponent(type)}`);
   return Array.isArray(data) ? data.filter((item): item is StudioImageItem => Boolean(item && typeof item === 'object' && Array.isArray((item as StudioImageItem).images))) : [];
@@ -52,7 +73,7 @@ export async function uploadWorkflowBlob(blob: Blob, name: string): Promise<stri
 export async function generateOnline(input: StudioGenerateInput, onStatus: (status: string) => void): Promise<StudioImageItem> {
   const body = {
     prompt: input.prompt, provider_id: input.providerId, model: input.model, size: outputSize(input.width, input.height),
-    quality: input.quality, n: input.count, reference_images: input.references,
+    ...(input.quality ? { quality: input.quality } : {}), n: input.count, reference_images: input.references,
     idempotency_key: `online:${Date.now()}:${Math.random().toString(16).slice(2)}`,
   };
   const created = await requestJson<{ task_id?: string }>('/api/canvas-image-tasks', jsonRequest('POST', body));

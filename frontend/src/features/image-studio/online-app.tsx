@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeStudioEvents } from '../../shared/studio-events';
-import { deleteHistory, generateOnline, loadHistory, loadProviders, uploadReference } from './client';
+import { deleteHistory, generateOnline, loadHistory, loadOnlineProviders, uploadReference } from './client';
 import type { StudioImageItem, StudioProvider, StudioReference } from './types';
 
 interface ReferenceSlot {
   data: StudioReference;
+  height: number;
   name: string;
   preview: string;
+  width: number;
 }
 
 type IconName = 'copy' | 'download' | 'images' | 'layout' | 'plus' | 'ruler' | 'sliders' | 'terminal' | 'x' | 'zap';
@@ -21,7 +23,29 @@ const SIZE_OPTIONS: Record<string, Record<string, [number, number]>> = {
   wide: { '1k': [1280, 720], '2k': [2048, 1152], '4k': [3840, 2160] },
 };
 
+const RES_LONG_SIDE: Record<string, number> = { '1k': 1536, '2k': 2048, '4k': 3840 };
+const RES_PIXEL_LIMIT: Record<string, number> = { '1k': 1_572_864, '2k': 4_194_304, '4k': 8_294_400 };
+
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : '操作失败';
+
+function imageDimensions(source: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error('无法读取图片尺寸'));
+    image.src = source;
+  });
+}
+
+function customRatioSize(resolution: string, width: string, height: string): [number, number] | null {
+  const ratio = Number(width) / Number(height);
+  if (!Number.isFinite(ratio) || ratio <= 0) return null;
+  const longSide = RES_LONG_SIDE[resolution] || 1024;
+  const pixelLimit = RES_PIXEL_LIMIT[resolution] || longSide * longSide;
+  const rawWidth = ratio >= 1 ? longSide : Math.min(longSide * ratio, Math.sqrt(pixelLimit * ratio));
+  const rawHeight = ratio >= 1 ? Math.min(longSide / ratio, Math.sqrt(pixelLimit / ratio)) : longSide;
+  return [Math.max(64, Math.floor(rawWidth / 16) * 16), Math.max(64, Math.floor(rawHeight / 16) * 16)];
+}
 
 function Icon({ name, className = '' }: { name: IconName; className?: string }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -48,7 +72,12 @@ export function OnlineStudioApp() {
   const [count, setCount] = useState(1);
   const [resolution, setResolution] = useState('1k');
   const [ratio, setRatio] = useState('square');
+  const [customRatioWidth, setCustomRatioWidth] = useState('');
+  const [customRatioHeight, setCustomRatioHeight] = useState('');
+  const [customWidth, setCustomWidth] = useState('');
+  const [customHeight, setCustomHeight] = useState('');
   const [references, setReferences] = useState<Array<ReferenceSlot | null>>([null, null, null, null]);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [items, setItems] = useState<StudioImageItem[]>([]);
   const [selected, setSelected] = useState<StudioImageItem | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -56,9 +85,11 @@ export function OnlineStudioApp() {
   const [status, setStatus] = useState('正在加载归档…');
   const [busy, setBusy] = useState(false);
   const fileInputs = useRef<Array<HTMLInputElement | null>>([]);
+  const referencesRef = useRef(references);
+  referencesRef.current = references;
 
   const refreshProviders = async () => {
-    const next = await loadProviders();
+    const next = await loadOnlineProviders();
     setProviders(next);
     setProviderId(current => next.some(provider => provider.id === current) ? current : next[0]?.id ?? '');
   };
@@ -75,6 +106,18 @@ export function OnlineStudioApp() {
     return () => { unsubscribe(); document.removeEventListener('visibilitychange', visible); };
   }, []);
 
+  useEffect(() => {
+    const paste = (event: ClipboardEvent) => {
+      const file = [...(event.clipboardData?.items ?? [])]
+        .find(item => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile();
+      if (!file) return;
+      const index = referencesRef.current.findIndex(slot => !slot);
+      void selectReference(file, index < 0 ? 0 : index);
+    };
+    window.addEventListener('paste', paste);
+    return () => window.removeEventListener('paste', paste);
+  }, []);
+
   const activeProvider = providers.find(provider => provider.id === providerId);
   const models = activeProvider?.image_models ?? [];
   useEffect(() => { if (!models.includes(model)) setModel(models[0] ?? ''); }, [providerId, models.join('|')]);
@@ -88,20 +131,34 @@ export function OnlineStudioApp() {
   }, [activeProvider]);
   const supportsQuality = protocol === 'API';
 
-  const [width, height] = SIZE_OPTIONS[ratio]?.[resolution] ?? SIZE_OPTIONS.square['1k'];
+  const dimensions = useMemo<[number, number]>(() => {
+    if (resolution === 'custom') {
+      const width = Math.round(Number(customWidth));
+      const height = Math.round(Number(customHeight));
+      return [width > 0 ? width : 1024, height > 0 ? height : 1024];
+    }
+    if (ratio === 'custom') return customRatioSize(resolution, customRatioWidth, customRatioHeight) ?? [1024, 1024];
+    return SIZE_OPTIONS[ratio]?.[resolution] ?? SIZE_OPTIONS.square['1k'];
+  }, [resolution, ratio, customRatioWidth, customRatioHeight, customWidth, customHeight]);
+  const [width, height] = dimensions;
   const currentImage = selected?.images[selectedImageIndex] ?? selected?.images[0];
   const lightboxImage = lightboxItem?.images[0];
 
   const selectReference = async (file: File | undefined, index: number) => {
     if (!file || !file.type.startsWith('image/')) return;
     const preview = URL.createObjectURL(file);
+    const previous = referencesRef.current[index];
+    const dimensions = await imageDimensions(preview).catch(() => ({ width: 0, height: 0 }));
+    setReferences(current => current.map((slot, slotIndex) => slotIndex === index
+      ? { data: {}, name: file.name, preview, ...dimensions }
+      : slot));
     setStatus('正在上传参考图…');
     try {
       const data = await uploadReference(file);
       setReferences(current => current.map((slot, slotIndex) => {
         if (slotIndex !== index) return slot;
-        if (slot) URL.revokeObjectURL(slot.preview);
-        return { data, name: file.name, preview };
+        if (previous && previous.preview !== preview) URL.revokeObjectURL(previous.preview);
+        return { data, name: file.name, preview, ...dimensions };
       }));
       setStatus('参考图已上传');
     } catch (error) {
@@ -116,6 +173,25 @@ export function OnlineStudioApp() {
     return null;
   }));
 
+  const setResolutionValue = (value: string) => {
+    setResolution(value);
+    if (value === 'custom') setRatio('');
+    else if (!ratio) setRatio('square');
+    if (value !== 'custom') { setCustomWidth(''); setCustomHeight(''); }
+  };
+
+  const setRatioValue = (value: string) => {
+    setRatio(value);
+    if (value !== 'custom') { setCustomRatioWidth(''); setCustomRatioHeight(''); }
+  };
+
+  const fitCustomSize = () => {
+    const reference = references.find(slot => slot?.width && slot.height);
+    if (!reference) return;
+    setResolution('custom'); setRatio('');
+    setCustomWidth(String(reference.width)); setCustomHeight(String(reference.height));
+  };
+
   const generate = async () => {
     const value = prompt.trim();
     if (!value) { setStatus('请输入提示词'); return; }
@@ -129,7 +205,7 @@ export function OnlineStudioApp() {
         model,
         width,
         height,
-        quality,
+        quality: supportsQuality ? quality : '',
         count,
         references: references.flatMap(slot => slot ? [slot.data] : []),
         extras: {},
@@ -179,7 +255,7 @@ export function OnlineStudioApp() {
           <div className="grid grid-cols-4 gap-4">
             {['Main', 'Aux A', 'Aux B', 'Aux C'].map((label, index) => {
               const slot = references[index];
-              return <div id={`drop-zone-${index + 1}`} key={label} className="upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer" onClick={() => fileInputs.current[index]?.click()}>
+              return <div id={`drop-zone-${index + 1}`} key={label} className={`upload-item group aspect-square rounded-2xl flex flex-col items-center justify-center cursor-pointer${draggingIndex === index ? ' drag-over' : ''}`} onClick={() => fileInputs.current[index]?.click()} onDragOver={event => { event.preventDefault(); setDraggingIndex(index); }} onDragLeave={() => setDraggingIndex(current => current === index ? null : current)} onDrop={event => { event.preventDefault(); setDraggingIndex(null); void selectReference(event.dataTransfer.files[0], index); }}>
                 <input ref={element => { fileInputs.current[index] = element; }} type="file" id={`file${index + 1}`} accept="image/*" className="hidden" onChange={event => { void selectReference(event.target.files?.[0], index); event.target.value = ''; }} />
                 <Icon className="w-5 h-5 text-gray-300 group-hover:text-black" name="plus" /><span className="text-[9px] mt-2 font-bold text-gray-400 uppercase">{label}</span>
                 {slot && <><img id={`prev${index + 1}`} className="preview-img" src={slot.preview} alt={slot.name} /><button id={`del${index + 1}`} type="button" aria-label={`删除参考图 ${index + 1}`} className="absolute top-2 right-2 w-6 h-6 bg-white/90 rounded-full shadow-sm z-10" onClick={event => { event.stopPropagation(); clearReference(index); }}>×</button></>}
@@ -200,8 +276,8 @@ export function OnlineStudioApp() {
           </div>
           <div className="control-label mt-1"><Icon className="w-3.5 h-3.5" name="ruler" /><span>尺寸</span></div>
           <div className="size-row">
-            <label id="resolutionField" className="size-field"><select id="resolutionSelect" aria-label="分辨率" className="size-select" value={resolution} onChange={event => setResolution(event.target.value)}><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option></select></label>
-            <label id="ratioField" className="size-field"><select id="ratioSelect" aria-label="比例" className="size-select" value={ratio} onChange={event => setRatio(event.target.value)}><option value="square">1:1 方图</option><option value="portrait">2:3 竖图</option><option value="landscape">3:2 横图</option><option value="portrait43">3:4 竖图</option><option value="landscape43">4:3 横图</option><option value="story">9:16 竖屏</option><option value="wide">16:9 宽屏</option></select></label>
+            <label id="resolutionField" className={`size-field${resolution === 'custom' ? ' custom' : ''}`}><select id="resolutionSelect" aria-label="分辨率" className="size-select" value={resolution} onChange={event => setResolutionValue(event.target.value)}><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="custom">自定义尺寸</option></select><span className="size-pair with-fit"><input id="sizeCustomWidth" aria-label="自定义宽度" className="size-custom" type="number" min="64" step="64" placeholder="宽度" value={customWidth} onChange={event => setCustomWidth(event.target.value)} /><input id="sizeCustomHeight" aria-label="自定义高度" className="size-custom" type="number" min="64" step="64" placeholder="高度" value={customHeight} onChange={event => setCustomHeight(event.target.value)} /><button id="fitImageSizeBtn" className="size-fit-btn" type="button" disabled={!references.some(slot => slot?.width && slot.height)} onClick={fitCustomSize}>适配图片</button></span></label>
+            <label id="ratioField" className={`size-field${ratio === 'custom' ? ' custom' : ''}`}><select id="ratioSelect" aria-label="比例" className="size-select" disabled={resolution === 'custom'} value={ratio} onChange={event => setRatioValue(event.target.value)}><option value="">比例为空</option><option value="square">1:1 方图</option><option value="portrait">2:3 竖图</option><option value="landscape">3:2 横图</option><option value="portrait43">3:4 竖图</option><option value="landscape43">4:3 横图</option><option value="story">9:16 竖屏</option><option value="wide">16:9 宽屏</option><option value="custom">自定义比例</option></select><span className="size-pair"><input id="ratioCustomWidth" aria-label="自定义比例宽" className="size-custom" type="number" min="1" step="1" placeholder="宽" value={customRatioWidth} onChange={event => setCustomRatioWidth(event.target.value)} /><input id="ratioCustomHeight" aria-label="自定义比例高" className="size-custom" type="number" min="1" step="1" placeholder="高" value={customRatioHeight} onChange={event => setCustomRatioHeight(event.target.value)} /></span></label>
           </div>
         </div>
 
