@@ -2,14 +2,27 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>API 设置</title>
-  <link rel="stylesheet" href="/static/css/site-modern.css?v=2026.08.19.4">
-  <link rel="stylesheet" href="/static/css/studio-art-direction.css?v=2026.08.19.2">
-  <link rel="stylesheet" href="/static/css/api-settings.css?v=2026.08.19.react1">
+  <script>
+    (function(){
+      try {
+        var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
+        if(theme === 'dark') {
+          document.documentElement.classList.add('studio-theme-dark');
+          document.documentElement.classList.add('theme-dark');
+        }
+      } catch(e) {}
+    })();
+  </script>
+  <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.10.1.1781494198"></script>
+  <script src="/static/vendor/js/lucide.js?v=2026.06.10.1.1781494198"></script>
+  <script src="/static/js/theme.js?v=2026.06.10.1.1781494198"></script>
+  <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
+  <link rel="stylesheet" href="/static/css/api-settings.css?v=2026.08.23.react2">
 </head>
 <body>
   <div id="apiSettingsApp"></div>
-  <script type="module" src="/static/dist/api-settings-modern.js?v=2026.08.19.4"></script>
+  <script type="module" src="/static/dist/api-settings-modern.js?v=2026.08.23.1"></script>
 </body>
 </html>

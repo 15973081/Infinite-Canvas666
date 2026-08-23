@@ -1,1 +1,402 @@
-import{a as e,c as t,r as n,s as r,t as i}from"./site-jsx-runtime-C-f9yWk5.js";import{n as a,r as o,t as s}from"./site-http-fKNMWWuX.js";var c=t(r(),1),l=e(),u={async list(){return(await a(`/api/providers`)).providers??[]},async save(e){return(await a(`/api/providers`,s(`PUT`,e))).providers??e},test(e){return a(`/api/providers/test-connection`,s(`POST`,d(e)))},probeAsync(e){return a(`/api/providers/probe-async`,s(`POST`,d(e)))},fetchModels(e){return a(`/api/providers/fetch-models`,s(`POST`,d(e)))}};function d(e){return{base_url:e.base_url,api_key:e.api_key||``,provider_id:e.id,protocol:e.protocol,image_request_mode:e.image_request_mode,proxy_url:e.proxy_url}}var f=[{value:`openai`,label:`OpenAI 兼容`},{value:`apimart`,label:`APIMart 异步`},{value:`gemini`,label:`Gemini`},{value:`volcengine`,label:`火山方舟`}];function p(e){return e.trim().toLowerCase().replace(/[^a-z0-9_-]+/g,`-`).replace(/^-+|-+$/g,``).slice(0,48)}function m(e){return[...new Set((Array.isArray(e)?e:[]).map(e=>String(e).trim()).filter(Boolean))]}function h(e,t=0){let n=f.some(t=>t.value===e.protocol)?e.protocol:`openai`,r=p(e.id||e.name||`provider-${t+1}`)||`provider-${t+1}`;return{...e,id:r,name:String(e.name||r),base_url:String(e.base_url||``),protocol:n,image_request_mode:e.image_request_mode===`openai-json`?`openai-json`:`openai`,proxy_url:String(e.proxy_url||``),enabled:e.enabled!==!1,primary:e.primary===!0,image_models:m(e.image_models),chat_models:m(e.chat_models),video_models:m(e.video_models),model_prices:Array.isArray(e.model_prices)?e.model_prices.filter(e=>!e.effective_to):[],model_protocols:e.model_protocols&&typeof e.model_protocols==`object`?e.model_protocols:{},ms_loras:Array.isArray(e.ms_loras)?e.ms_loras:[],ms_defaults_version:Number(e.ms_defaults_version||0),volcengine_project_name:String(e.volcengine_project_name||``),volcengine_region:String(e.volcengine_region||``)}}function g(e){let t=e.length+1;for(;e.some(e=>e.id===`provider-${t}`);)t+=1;return h({id:`provider-${t}`,name:`新平台 ${t}`,base_url:`https://api.example.com/v1`})}var _=e=>`${e}_models`;function v(e,t,n){return e.model_prices.find(e=>e.kind===t&&e.model===n&&!e.effective_to)}function y(e,t,n,r,i){if(t===`chat`)return e;let a=e.model_prices.filter(e=>!(e.kind===t&&e.model===n&&!e.effective_to)),o=Number(r);return!Number.isFinite(o)||o<=0?{...e,model_prices:a}:{...e,model_prices:[...a,{kind:t,model:n,unit_price:r,billing_type:[`per_image`,`per_second`,`per_call`].includes(i)?i:`per_call`,currency:`CNY`}]}}var b=i();function x({name:e}){return(0,b.jsx)(`svg`,{"aria-hidden":`true`,viewBox:`0 0 24 24`,fill:`none`,stroke:`currentColor`,strokeWidth:`1.8`,strokeLinecap:`round`,strokeLinejoin:`round`,children:{plus:(0,b.jsx)(`path`,{d:`M12 5v14M5 12h14`}),sparkles:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`path`,{d:`m12 3 1.4 4.2L18 9l-4.6 1.8L12 15l-1.4-4.2L6 9l4.6-1.8z`}),(0,b.jsx)(`path`,{d:`m19 15 .7 2.1L22 18l-2.3.9L19 21l-.7-2.1L16 18l2.3-.9z`})]}),key:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`circle`,{cx:`8`,cy:`15`,r:`4`}),(0,b.jsx)(`path`,{d:`m11 12 9-9m-3 3 2 2m-5 1 2 2`})]}),trash:(0,b.jsx)(b.Fragment,{children:(0,b.jsx)(`path`,{d:`M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13`})}),save:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`path`,{d:`M5 4h12l2 2v14H5z`}),(0,b.jsx)(`path`,{d:`M8 4v6h8V4M8 20v-6h8v6`})]}),check:(0,b.jsx)(`path`,{d:`m5 12 4 4L19 6`}),radar:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`circle`,{cx:`12`,cy:`12`,r:`8`}),(0,b.jsx)(`circle`,{cx:`12`,cy:`12`,r:`3`}),(0,b.jsx)(`path`,{d:`m12 12 6-6`})]}),download:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`path`,{d:`M12 4v12m0 0 5-5m-5 5-5-5`}),(0,b.jsx)(`path`,{d:`M5 20h14`})]}),list:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`path`,{d:`M9 6h11M9 12h11M9 18h11`}),(0,b.jsx)(`path`,{d:`m4 6 1 1 2-2m-3 7 1 1 2-2m-3 7 1 1 2-2`})]}),x:(0,b.jsx)(`path`,{d:`m6 6 12 12M18 6 6 18`}),external:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`path`,{d:`M14 4h6v6M20 4l-9 9`}),(0,b.jsx)(`path`,{d:`M18 13v7H4V6h7`})]}),grip:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`circle`,{cx:`9`,cy:`6`,r:`1`}),(0,b.jsx)(`circle`,{cx:`15`,cy:`6`,r:`1`}),(0,b.jsx)(`circle`,{cx:`9`,cy:`12`,r:`1`}),(0,b.jsx)(`circle`,{cx:`15`,cy:`12`,r:`1`}),(0,b.jsx)(`circle`,{cx:`9`,cy:`18`,r:`1`}),(0,b.jsx)(`circle`,{cx:`15`,cy:`18`,r:`1`})]}),image:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`rect`,{x:`3`,y:`4`,width:`18`,height:`16`,rx:`2`}),(0,b.jsx)(`path`,{d:`m4 17 5-5 4 4 3-3 5 5`})]}),chat:(0,b.jsx)(`path`,{d:`M4 5h16v12H8l-4 3z`}),video:(0,b.jsxs)(b.Fragment,{children:[(0,b.jsx)(`rect`,{x:`3`,y:`5`,width:`14`,height:`14`,rx:`2`}),(0,b.jsx)(`path`,{d:`m17 10 4-2v8l-4-2z`})]})}[e]})}var S=[{kind:`image`,title:`生图模型`,description:`在线生图和无限画布 API 生成使用。`,icon:`image`},{kind:`chat`,title:`聊天模型`,description:`GPT 对话和 LLM 节点使用。`,icon:`chat`},{kind:`video`,title:`视频模型`,description:`无限画布视频生成节点使用。`,icon:`video`}],C=[{name:`APIMART`,base_url:`https://api.apimart.ai`,protocol:`apimart`,register_url:`https://apimart.ai/zh/register?aff=1uyAbb`,summary:`图像、视频和 LLM 模型覆盖完整，适合异步长任务。`,advantages:[`模型类型覆盖广`,`适合多节点工作流`,`异步协议支持长任务`]},{name:`玉玉API`,base_url:`https://yuli.host`,protocol:`openai`,register_url:`https://yuli.host/register?aff=95JQ`,summary:`OpenAI 兼容平台，提供图像、视频与聊天模型。`,advantages:[`模型种类完整`,`图像/视频/LLM 全覆盖`,`支持签到积分`],image_models:[`gpt-image-2`,`gemini-3.1-flash-image-preview`],chat_models:[`gpt-5.5`],video_models:[`veo3.1-fast`],model_protocols:{"gemini-3.1-flash-image-preview":`gemini`}},{name:`Agnes AI`,base_url:`https://apihub.agnes-ai.com`,protocol:`openai`,image_request_mode:`openai-json`,register_url:`https://platform.agnes-ai.com/settings/apiKeys`,summary:`配置简单的 OpenAI 兼容图像与视频接口。`,advantages:[`提供免费额度`,`支持图像与视频`,`OpenAI JSON 请求`],image_models:[`agnes-image-2.1-flash`],chat_models:[],video_models:[`agnes-video-v2.0`]},{name:`FHL`,base_url:`https://www.fhl.mom`,protocol:`openai`,register_url:`https://www.fhl.mom/register?aff=86L574B4T2N9`,summary:`适合图像与代码相关模型的 OpenAI 兼容平台。`,advantages:[`OpenAI 兼容接入`,`配置路径简单`,`图像与代码模型`]}],w=e=>[`modelscope`,`runninghub`,`volcengine`].includes(e?.id||``),T=e=>e instanceof Error?e.message:`操作失败`;function E({provider:e}){return e.id===`modelscope`?(0,b.jsxs)(`span`,{className:`provider-logo-wrap`,children:[(0,b.jsx)(`img`,{src:`/static/images/modelscope.gif`,alt:`ModelScope`,className:`ms-icon-light`}),(0,b.jsx)(`img`,{src:`/static/images/modelscope-1.gif`,alt:`ModelScope`,className:`ms-icon-dark`}),(0,b.jsx)(`span`,{className:`provider-logo-fallback`,children:`ModelScope`})]}):e.id===`runninghub`?(0,b.jsxs)(`span`,{className:`provider-logo-wrap`,children:[(0,b.jsx)(`img`,{src:`/static/images/RunningHub-B.png`,alt:`RunningHub`,className:`runninghub-icon ms-icon-light`}),(0,b.jsx)(`img`,{src:`/static/images/RunningHub-W.png`,alt:`RunningHub`,className:`runninghub-icon ms-icon-dark`}),(0,b.jsx)(`span`,{className:`provider-logo-fallback`,children:`RunningHub`})]}):e.id===`volcengine`?(0,b.jsxs)(`span`,{className:`provider-logo-wrap`,children:[(0,b.jsx)(`img`,{src:`/static/images/volcengine-theme-light.svg`,alt:`火山引擎`,className:`volcengine-icon ms-icon-light`}),(0,b.jsx)(`img`,{src:`/static/images/volcengine-theme-dark.svg`,alt:`火山引擎`,className:`volcengine-icon ms-icon-dark`}),(0,b.jsx)(`span`,{className:`provider-logo-fallback`,children:`火山引擎`})]}):null}function D({providers:e,selected:t,recommendMode:n,onSelect:r,onAdd:i,onRecommend:a,onReorder:o}){let s=(0,c.useMemo)(()=>[...e].sort((e,t)=>{let n=[`modelscope`,`runninghub`,`volcengine`],r=n.indexOf(e.id),i=n.indexOf(t.id);return r<0&&i<0?0:r<0?1:i<0?-1:r-i}),[e]);return(0,b.jsxs)(`aside`,{className:`sidebar`,children:[(0,b.jsx)(`div`,{className:`side-section-title`,children:`平台列表`}),(0,b.jsx)(`div`,{className:`provider-list`,children:s.map(e=>{let i=w(e),a=!n&&t?.id===e.id,s=e.enabled===!1?`is-disabled`:e.has_key?`has-key`:`missing-key`;return i?(0,b.jsx)(`button`,{className:`provider-card provider-card-banner ${a?`active`:``} ${s}`,type:`button`,onClick:()=>r(e.id),children:(0,b.jsxs)(`span`,{className:`provider-banner-inner`,children:[(0,b.jsx)(E,{provider:e}),(0,b.jsx)(`span`,{className:`provider-protocol-pill`,children:e.id===`volcengine`?`Ark`:e.id===`runninghub`?`RH`:`OpenAI`})]})},e.id):(0,b.jsxs)(`button`,{className:`provider-card provider-card-sortable ${a?`active`:``} ${s}`,type:`button`,draggable:!0,onDragStart:t=>t.dataTransfer.setData(`text/provider-id`,e.id),onDragOver:e=>e.preventDefault(),onDrop:t=>{t.preventDefault(),o(t.dataTransfer.getData(`text/provider-id`),e.id)},onClick:()=>r(e.id),children:[(0,b.jsx)(`span`,{className:`provider-drag-handle`,children:(0,b.jsx)(x,{name:`grip`})}),(0,b.jsx)(`span`,{className:`provider-mark`,children:(0,b.jsx)(x,{name:`key`})}),(0,b.jsxs)(`span`,{className:`provider-info`,children:[(0,b.jsx)(`span`,{className:`provider-name`,children:e.name||e.id}),(0,b.jsx)(`span`,{className:`provider-meta`,children:e.base_url||`未配置地址`})]}),(0,b.jsxs)(`span`,{className:`provider-side-meta`,children:[(0,b.jsx)(`span`,{className:`provider-status-dot`}),(0,b.jsx)(`span`,{className:`provider-protocol-pill`,children:String(e.protocol||`openai`).toUpperCase()})]})]},e.id)})}),(0,b.jsxs)(`button`,{className:`add-btn`,type:`button`,onClick:i,children:[(0,b.jsx)(x,{name:`plus`}),(0,b.jsx)(`span`,{children:`新增平台`})]}),(0,b.jsxs)(`button`,{className:`api-link-btn`,type:`button`,onClick:a,children:[(0,b.jsx)(x,{name:`sparkles`}),(0,b.jsx)(`span`,{children:`推荐API`})]})]})}function O({provider:e,kind:t,onChange:n}){let r=S.find(e=>e.kind===t),i=_(t),a=e[i],o=(r,o)=>{let s=a[r],c=[...a];c[r]=o;let l={...e.model_protocols};l[s]&&(l[o]=l[s],delete l[s]),n({...e,[i]:c,model_protocols:l,model_prices:e.model_prices.map(e=>e.kind===t&&e.model===s?{...e,model:o}:e)})},s=r=>{let o=a[r],s={...e.model_protocols};delete s[o],n({...e,[i]:a.filter((e,t)=>t!==r),model_protocols:s,model_prices:e.model_prices.filter(e=>!(e.kind===t&&e.model===o&&!e.effective_to))})};return(0,b.jsxs)(`section`,{className:`block`,children:[(0,b.jsxs)(`div`,{className:`block-head`,children:[(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`block-title`,children:r.title}),(0,b.jsx)(`div`,{className:`block-desc`,children:r.description}),t===`image`&&e.id===`modelscope`&&(0,b.jsx)(`div`,{className:`ms-hint`,children:(0,b.jsxs)(`span`,{className:`ms-line`,children:[`模型名称示意：`,(0,b.jsx)(`span`,{className:`inline-code`,children:`Tongyi-MAI/Z-Image-Turbo`})]})})]}),(0,b.jsxs)(`button`,{className:`ghost-btn`,type:`button`,onClick:()=>n({...e,[i]:[...a,``]}),children:[(0,b.jsx)(x,{name:`plus`}),(0,b.jsx)(`span`,{children:`模型`})]})]}),(0,b.jsx)(`div`,{className:`model-list`,children:a.length?a.map((r,i)=>{let a=v(e,t,r);return(0,b.jsxs)(`div`,{className:`model-row has-protocol ${t===`chat`?``:`has-price`}`,children:[(0,b.jsx)(`input`,{"aria-label":`${t} 模型 ${i+1}`,value:r,onChange:e=>o(i,e.target.value),placeholder:`模型 ID`}),(0,b.jsxs)(`select`,{className:`model-protocol-select`,"aria-label":`${r||t} 单模型协议`,value:e.model_protocols[r]||``,onChange:t=>{let i={...e.model_protocols};t.target.value?i[r]=t.target.value:delete i[r],n({...e,model_protocols:i})},children:[(0,b.jsx)(`option`,{value:``,children:`跟随平台`}),(0,b.jsx)(`option`,{value:`openai`,children:`OpenAI`}),(0,b.jsx)(`option`,{value:`gemini`,children:`Gemini`})]}),t!==`chat`&&(0,b.jsxs)(b.Fragment,{children:[(0,b.jsxs)(`select`,{className:`model-price-type`,"aria-label":`${r||t} 计费方式`,value:a?.billing_type||(t===`video`?`per_second`:`per_image`),onChange:i=>n(y(e,t,r,a?.unit_price||``,i.target.value)),children:[(0,b.jsx)(`option`,{value:`per_image`,children:`按图片`}),(0,b.jsx)(`option`,{value:`per_second`,children:`按秒`}),(0,b.jsx)(`option`,{value:`per_call`,children:`按次`})]}),(0,b.jsx)(`input`,{className:`model-price-input`,"aria-label":`${r||t} 单价`,type:`number`,min:`0`,step:`0.000001`,value:a?.unit_price||``,placeholder:`人民币单价`,onChange:i=>n(y(e,t,r,i.target.value,a?.billing_type||(t===`video`?`per_second`:`per_image`)))})]}),(0,b.jsx)(`button`,{className:`icon-btn`,type:`button`,"aria-label":`删除 ${r||t} 模型`,onClick:()=>s(i),children:(0,b.jsx)(x,{name:`x`})})]},`${t}-${i}`)}):(0,b.jsx)(`div`,{className:`lora-empty`,children:`暂无模型，可手动添加或从上游拉取。`})})]})}function k({provider:e,onChange:t}){let n=(n,r)=>t({...e,ms_loras:e.ms_loras.map((e,t)=>t===n?{...e,...r}:e)});return(0,b.jsxs)(`section`,{className:`block ms-lora-block`,children:[(0,b.jsxs)(`div`,{className:`block-head`,children:[(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`block-title`,children:`LoRA 管理`}),(0,b.jsx)(`div`,{className:`block-desc`,children:`为 ModelScope 生图模型绑定可用 LoRA。`}),(0,b.jsx)(`div`,{className:`ms-hint`,children:(0,b.jsxs)(`span`,{className:`ms-line`,children:[`中文模型库：`,(0,b.jsx)(`a`,{href:`https://www.modelscope.cn/aigc/models`,target:`_blank`,rel:`noreferrer`,children:`modelscope.cn/aigc/models`})]})})]}),(0,b.jsxs)(`button`,{className:`ghost-btn`,"aria-label":`＋ LoRA`,type:`button`,onClick:()=>t({...e,ms_loras:[...e.ms_loras,{id:``,name:``,target_model:e.image_models[0]||``,strength:.8,enabled:!0,note:``}]}),children:[(0,b.jsx)(x,{name:`plus`}),(0,b.jsx)(`span`,{children:`LoRA`})]})]}),(0,b.jsx)(`div`,{className:`lora-list`,children:e.ms_loras.length?e.ms_loras.map((r,i)=>(0,b.jsxs)(`div`,{className:`lora-row api-react-lora-row`,children:[(0,b.jsxs)(`label`,{className:`lora-field`,children:[(0,b.jsx)(`span`,{children:`LoRA ID`}),(0,b.jsx)(`input`,{"aria-label":`LoRA ID ${i+1}`,value:r.id,placeholder:`组织/LoRA-ID`,onChange:e=>n(i,{id:e.target.value})})]}),(0,b.jsxs)(`label`,{className:`lora-field`,children:[(0,b.jsx)(`span`,{children:`显示名称`}),(0,b.jsx)(`input`,{value:r.name,onChange:e=>n(i,{name:e.target.value})})]}),(0,b.jsxs)(`label`,{className:`lora-field`,children:[(0,b.jsx)(`span`,{children:`目标模型`}),(0,b.jsx)(`select`,{value:r.target_model,onChange:e=>n(i,{target_model:e.target.value}),children:e.image_models.map(e=>(0,b.jsx)(`option`,{value:e,children:e},e))})]}),(0,b.jsxs)(`label`,{className:`lora-field`,children:[(0,b.jsx)(`span`,{children:`强度`}),(0,b.jsx)(`input`,{"aria-label":`LoRA 强度 ${i+1}`,type:`number`,min:`0`,max:`2`,step:`0.05`,value:r.strength,onChange:e=>n(i,{strength:Number(e.target.value)})})]}),(0,b.jsxs)(`label`,{className:`api-react-lora-toggle`,children:[(0,b.jsx)(`input`,{type:`checkbox`,checked:r.enabled,onChange:e=>n(i,{enabled:e.target.checked})}),`启用`]}),(0,b.jsx)(`button`,{className:`icon-btn`,type:`button`,"aria-label":`删除 LoRA ${i+1}`,onClick:()=>t({...e,ms_loras:e.ms_loras.filter((e,t)=>t!==i)}),children:(0,b.jsx)(x,{name:`trash`})})]},i)):(0,b.jsx)(`div`,{className:`lora-empty`,children:`暂无 LoRA 配置`})})]})}function A({onUse:e}){return(0,b.jsxs)(`main`,{className:`content recommend-content`,children:[(0,b.jsx)(`div`,{className:`content-head`,children:(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`editor-title`,children:`推荐平台`}),(0,b.jsx)(`div`,{className:`editor-sub`,children:`获取 Key 后，将平台地址、协议和推荐模型一键填入配置。`})]})}),(0,b.jsxs)(`section`,{className:`provider-onboarding-card recommend-inline-card`,children:[(0,b.jsx)(`div`,{className:`recommend-inline-body`,children:C.map(t=>(0,b.jsxs)(`article`,{className:`recommend-platform-card`,children:[(0,b.jsxs)(`div`,{className:`recommend-platform-info`,children:[(0,b.jsxs)(`div`,{className:`recommend-platform-head`,children:[(0,b.jsx)(`div`,{className:`recommend-name`,children:t.name}),(0,b.jsx)(`span`,{className:`recommend-badge`,children:`推荐 API`})]}),(0,b.jsx)(`p`,{className:`recommend-platform-summary`,children:t.summary}),(0,b.jsxs)(`div`,{className:`recommend-tags`,children:[(0,b.jsx)(`span`,{className:`recommend-tag`,children:`IMG`}),(0,b.jsx)(`span`,{className:`recommend-tag`,children:`VID`}),(0,b.jsx)(`span`,{className:`recommend-tag`,children:`LLM`})]}),(0,b.jsx)(`div`,{className:`recommend-advantages`,children:t.advantages.map(e=>(0,b.jsx)(`span`,{children:e},e))})]}),(0,b.jsxs)(`div`,{className:`recommend-platform-setup`,children:[(0,b.jsx)(`div`,{className:`recommend-setup-title`,children:`获取 Key → 填入平台配置`}),(0,b.jsxs)(`div`,{className:`recommend-setup-flow`,children:[(0,b.jsxs)(`a`,{className:`recommend-guide-key-btn`,href:t.register_url,target:`_blank`,rel:`noreferrer`,children:[(0,b.jsx)(x,{name:`external`}),`获取 API Key`]}),(0,b.jsx)(`span`,{className:`recommend-guide-arrow`,children:(0,b.jsx)(`b`,{children:`→`})}),(0,b.jsxs)(`div`,{className:`recommend-guide-save`,children:[(0,b.jsxs)(`div`,{className:`onboarding-rh-row-field`,children:[(0,b.jsx)(`span`,{children:`请求地址`}),(0,b.jsx)(`strong`,{children:t.base_url})]}),(0,b.jsx)(`button`,{className:`onboarding-save-btn recommend-guide-save-btn`,type:`button`,onClick:()=>e(t),children:`填入配置`})]})]})]})]},t.name))}),(0,b.jsx)(`div`,{className:`recommend-note`,children:`账户通常需要保留少量余额，才能验证地址并拉取模型。`})]})]})}function j({probe:e,onClose:t,onApply:n}){let[r,i]=(0,c.useState)(``),[a,o]=(0,c.useState)(`all`),s=(0,c.useMemo)(()=>({image:m(e.image_models),chat:m(e.chat_models),video:m(e.video_models)}),[e]),[l,u]=(0,c.useState)(s),d=S.flatMap(e=>s[e.kind].map(t=>({model:t,kind:e.kind}))).filter(e=>(a===`all`||e.kind===a)&&e.model.toLowerCase().includes(r.trim().toLowerCase())),f=(e,t)=>u(n=>({...n,[t]:n[t].includes(e)?n[t].filter(t=>t!==e):[...n[t],e]}));return(0,b.jsx)(`div`,{className:`picker-overlay`,style:{display:`flex`},onMouseDown:t,children:(0,b.jsxs)(`div`,{className:`picker-modal`,onMouseDown:e=>e.stopPropagation(),children:[(0,b.jsxs)(`div`,{className:`picker-head`,children:[(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`picker-title`,children:`从上游拉取的模型清单`}),(0,b.jsxs)(`div`,{className:`picker-count`,children:[`共 `,d.length,` 个模型`]})]}),(0,b.jsx)(`button`,{className:`picker-close`,type:`button`,onClick:t,children:(0,b.jsx)(x,{name:`x`})})]}),(0,b.jsxs)(`div`,{className:`picker-toolbar`,children:[(0,b.jsx)(`input`,{className:`picker-search`,placeholder:`按名称搜索模型…`,value:r,onChange:e=>i(e.target.value)}),(0,b.jsx)(`div`,{className:`picker-cat-tabs`,children:[`all`,`image`,`chat`,`video`].map(e=>(0,b.jsx)(`button`,{className:`picker-cat-tab ${a===e?`active`:``}`,type:`button`,onClick:()=>o(e),children:e===`all`?`全部`:e===`image`?`生图`:e===`chat`?`LLM`:`视频`},e))})]}),(0,b.jsx)(`div`,{className:`picker-body`,children:d.map(e=>{let t=l[e.kind].includes(e.model);return(0,b.jsxs)(`button`,{className:`picker-row ${t?`has-sel`:``}`,type:`button`,onClick:()=>f(e.model,e.kind),children:[(0,b.jsx)(`span`,{className:`picker-checkbox ${t?`checked`:``}`,children:t&&(0,b.jsx)(x,{name:`check`})}),(0,b.jsx)(`span`,{className:`picker-model-name`,children:e.model}),(0,b.jsx)(`span`,{className:`picker-model-cat`,children:e.kind})]},`${e.kind}-${e.model}`)})}),(0,b.jsxs)(`div`,{className:`picker-summary`,children:[(0,b.jsx)(`span`,{children:`将应用：`}),(0,b.jsxs)(`span`,{className:`picker-sum-chip`,children:[`生图 `,l.image.length]}),(0,b.jsxs)(`span`,{className:`picker-sum-chip`,children:[`聊天 `,l.chat.length]}),(0,b.jsxs)(`span`,{className:`picker-sum-chip`,children:[`视频 `,l.video.length]})]}),(0,b.jsxs)(`div`,{className:`picker-foot`,children:[(0,b.jsx)(`button`,{className:`action-btn`,type:`button`,onClick:t,children:`取消`}),(0,b.jsx)(`button`,{className:`action-btn save-btn`,type:`button`,onClick:()=>n(l),children:`应用到模型列表`})]})]})})}function M(){let[e,t]=(0,c.useState)([]),[n,r]=(0,c.useState)(``),[i,a]=(0,c.useState)(`正在加载平台…`),[s,l]=(0,c.useState)(!1),[d,_]=(0,c.useState)(null),[v,y]=(0,c.useState)(!1),[C,E]=(0,c.useState)(null),[M,N]=(0,c.useState)(!1),P=e.find(e=>e.id===n)??e[0];(0,c.useEffect)(()=>{u.list().then(e=>{let n=e.map(h);t(n),r(n[0]?.id||``),a(`已就绪`)}).catch(e=>a(T(e)))},[]),(0,c.useEffect)(()=>{let e=P?.id===`volcengine`||P?.protocol===`volcengine`;return document.body.classList.toggle(`show-ms`,P?.id===`modelscope`),document.body.classList.toggle(`show-runninghub`,P?.id===`runninghub`),document.body.classList.toggle(`show-volcengine`,e),document.body.classList.toggle(`show-volcengine-standalone`,P?.id===`volcengine`),document.body.classList.toggle(`show-provider-proxy`,!!(P&&!w(P))),()=>[`show-ms`,`show-runninghub`,`show-volcengine`,`show-volcengine-standalone`,`show-provider-proxy`].forEach(e=>document.body.classList.remove(e))},[P?.id,P?.protocol]);let F=e=>{P&&(t(t=>t.map(t=>t.id===P.id?e:t)),e.id!==P.id&&r(e.id))},I=()=>{let n=g(e);t(e=>[...e,n]),r(n.id),_(null),y(!1)},L=()=>{if(!P||w(P)||e.length<=1||!confirm(`删除平台“${P.name}”？`))return;let n=e.filter(e=>e.id!==P.id);t(n),r(n[0]?.id||``)},R=async(i=e)=>{if(new Set(i.map(e=>p(e.id))).size!==i.length)return a(`平台 ID 不能重复`),!1;l(!0),a(`正在保存…`);try{let e=i.map((e,t)=>({...h(e,t),api_key:e.api_key||void 0,clear_key:e.clear_key===!0,volcengine_access_key_id:e.volcengine_access_key_id||void 0,volcengine_secret_access_key:e.volcengine_secret_access_key||void 0,clear_volcengine_access_key_id:e.clear_volcengine_access_key_id===!0,clear_volcengine_secret_access_key:e.clear_volcengine_secret_access_key===!0})),s=(await u.save(e)).map(h);return t(s),r(s.find(e=>e.id===n)?.id||s[0]?.id||``),o(`providers-changed`),a(`平台配置已保存`),!0}catch(e){return a(T(e)),!1}finally{l(!1)}},z=async(n,r)=>{if(!P)return;let i={...P,...n},o=e.map(e=>e.id===P.id?i:e);t(o),a(r),await R(o)},B=async e=>{if(P){l(!0),a(e===`models`?`正在拉取模型…`:`正在验证连接…`);try{let t=e===`test`?await u.test(P):e===`async`?await u.probeAsync(P):await u.fetchModels(P);_(t);let n={};t.protocol&&f.some(e=>e.value===t.protocol)&&(n.protocol=t.protocol),t.image_request_mode===`openai-json`&&(n.image_request_mode=`openai-json`),e===`models`&&(n.image_models=m(t.image_models),n.chat_models=m(t.chat_models),n.video_models=m(t.video_models),E(t)),F({...P,...n}),a(t.message||(t.ok===!1?`验证失败`:`完成，发现 ${t.model_count??t.total??t.all?.length??0} 个模型`))}catch(e){_({ok:!1,message:T(e)}),a(T(e))}finally{l(!1)}}},V=n=>{let i=p(n.name),o=e.find(e=>e.id===i||e.base_url===n.base_url),s=h({...o||{},id:o?.id||i,name:n.name,base_url:n.base_url,protocol:n.protocol,image_request_mode:n.image_request_mode||`openai`,enabled:!0,primary:o?.primary||!1,image_models:n.image_models||o?.image_models||[],chat_models:n.chat_models||o?.chat_models||[],video_models:n.video_models||o?.video_models||[],model_protocols:n.model_protocols||o?.model_protocols||{}});t(e=>o?e.map(e=>e===o?s:e):[...e,s]),r(s.id),y(!1),a(`已填入 ${n.name}，请填写 API Key 后保存`)},H=(n,r)=>{!n||n===r||w(e.find(e=>e.id===n))||w(e.find(e=>e.id===r))||t(e=>{let t=[...e],i=t.findIndex(e=>e.id===n),a=t.findIndex(e=>e.id===r);if(i<0||a<0)return e;let[o]=t.splice(i,1);return t.splice(t.findIndex(e=>e.id===r),0,o),t})},U=P?.id===`volcengine`||P?.protocol===`volcengine`;return(0,b.jsxs)(`div`,{className:`page`,children:[(0,b.jsxs)(`div`,{className:`wrap`,children:[(0,b.jsxs)(`header`,{className:`page-head`,children:[(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`h1`,{className:`title`,children:`API 设置`}),(0,b.jsx)(`div`,{className:`sub`,children:`管理平台地址、模型列表和 Key。Key 写入后端 env，页面不会回显完整内容。`})]}),(0,b.jsx)(`div`,{className:`status`,role:`status`,children:i})]}),(0,b.jsxs)(`div`,{className:`layout`,children:[(0,b.jsx)(D,{providers:e,selected:P,recommendMode:v,onSelect:e=>{r(e),_(null),y(!1)},onAdd:I,onRecommend:()=>y(e=>!e),onReorder:H}),v?(0,b.jsx)(A,{onUse:V}):(0,b.jsx)(`main`,{className:`content`,children:P&&(0,b.jsxs)(b.Fragment,{children:[(0,b.jsxs)(`div`,{className:`content-head`,children:[(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`h2`,{className:`editor-title`,children:P.name||P.id}),(0,b.jsx)(`div`,{className:`editor-sub`,children:`配置基础信息、API Key 和可用模型`})]}),(0,b.jsxs)(`div`,{className:`content-actions`,children:[!w(P)&&(0,b.jsxs)(`button`,{className:`action-btn danger-btn api-page-delete-btn`,type:`button`,disabled:s,onClick:L,children:[(0,b.jsx)(x,{name:`trash`}),(0,b.jsx)(`span`,{children:`删除`})]}),(0,b.jsxs)(`button`,{className:`action-btn save-btn api-page-save-btn`,"aria-label":`保存全部`,type:`button`,disabled:s,onClick:()=>void R(),children:[(0,b.jsx)(x,{name:`save`}),(0,b.jsx)(`span`,{children:`保存`})]})]})]}),(0,b.jsxs)(`section`,{className:`block`,children:[(0,b.jsx)(`div`,{className:`block-head`,children:(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`block-title`,children:`基本信息`}),(0,b.jsx)(`div`,{className:`block-desc`,children:`平台显示名、唯一 ID 和请求地址`})]})}),(0,b.jsxs)(`div`,{className:`form`,children:[(0,b.jsxs)(`label`,{className:`field full`,children:[(0,b.jsx)(`span`,{className:`label`,children:`平台名称`}),(0,b.jsx)(`div`,{className:`field-frame`,children:(0,b.jsx)(`input`,{"aria-label":`平台名称`,value:P.name,onChange:e=>{let t=e.target.value;F({...P,name:t,id:w(P)?P.id:p(t)||P.id})}})}),(0,b.jsxs)(`span`,{className:`hint`,children:[`平台 ID: `,(0,b.jsx)(`span`,{className:`inline-code`,children:P.id})]})]}),(0,b.jsxs)(`label`,{className:`field full api-base-url-field`,children:[(0,b.jsx)(`span`,{className:`label`,children:`请求地址`}),(0,b.jsx)(`div`,{className:`field-frame`,children:(0,b.jsx)(`input`,{"aria-label":`Base URL`,value:P.base_url,placeholder:`https://api.example.com/v1`,onChange:e=>F({...P,base_url:e.target.value})})}),P.id===`modelscope`&&(0,b.jsxs)(`div`,{className:`ms-hint`,children:[(0,b.jsxs)(`span`,{className:`ms-line`,children:[`国内默认请求地址：`,(0,b.jsx)(`span`,{className:`inline-code`,children:`https://api-inference.modelscope.cn/v1`})]}),(0,b.jsxs)(`span`,{className:`ms-line`,children:[`国外使用请求地址：`,(0,b.jsx)(`span`,{className:`inline-code`,children:`https://api-inference.modelscope.ai/v1`})]})]}),U&&(0,b.jsxs)(`div`,{className:`volcengine-hint`,children:[(0,b.jsxs)(`span`,{className:`ms-line`,children:[`方舟默认请求地址：`,(0,b.jsx)(`span`,{className:`inline-code`,children:`https://ark.cn-beijing.volces.com/api/v3`})]}),(0,b.jsx)(`span`,{className:`ms-line`,children:`Seedance 视频生成使用方舟 API Key，验证会请求 /api/v3/models。`})]})]}),!w(P)&&(0,b.jsxs)(`label`,{className:`field full api-proxy-field`,children:[(0,b.jsx)(`span`,{className:`label`,children:`代理地址`}),(0,b.jsx)(`div`,{className:`field-frame`,children:(0,b.jsx)(`input`,{"aria-label":`代理地址`,value:P.proxy_url,placeholder:`http://127.0.0.1:7890`,onChange:e=>F({...P,proxy_url:e.target.value})})}),(0,b.jsx)(`span`,{className:`hint`,children:`仅对自定义平台生效；留空则不单独指定。`})]}),(0,b.jsxs)(`label`,{className:`field full api-key-field`,children:[(0,b.jsx)(`span`,{className:`label api-key-label`,children:`API Key`}),(0,b.jsx)(`div`,{className:`key-panel api-standard-key-row`,children:(0,b.jsxs)(`div`,{className:`key-input-line`,children:[(0,b.jsx)(`div`,{className:`field-frame`,children:(0,b.jsx)(`input`,{"aria-label":`API Key`,type:`password`,autoComplete:`new-password`,value:P.api_key||``,placeholder:P.has_key?`保持当前 ${U?`方舟 API Key`:`API Key`} ${P.key_preview||``}`:`输入${U?`方舟 `:` `}API Key`,onChange:e=>F({...P,api_key:e.target.value,clear_key:!1})})}),(0,b.jsxs)(`div`,{className:`key-actions`,children:[(0,b.jsx)(`button`,{className:`key-btn`,type:`button`,title:`保存 Key`,"aria-label":`保存 Key`,onClick:()=>void R(),children:(0,b.jsx)(x,{name:`check`})}),(0,b.jsx)(`button`,{className:`key-btn key-clear`,type:`button`,title:`清除 Key`,"aria-label":`清除 Key`,onClick:()=>{confirm(`确认清除当前 Key？`)&&z({api_key:``,clear_key:!0},`正在清除 Key…`)},children:(0,b.jsx)(x,{name:`trash`})})]})]})}),(0,b.jsx)(`span`,{className:`hint`,children:P.has_key?`已保存 ${P.key_env||``} ${P.key_preview||``}`:`尚未保存`}),U&&(0,b.jsxs)(`div`,{className:`volcengine-key-stack`,children:[(0,b.jsxs)(`div`,{className:`rh-key-item`,children:[(0,b.jsx)(`div`,{className:`rh-key-head`,children:(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`rh-key-title`,children:`方舟 API Key · 生成视频`}),(0,b.jsx)(`div`,{className:`rh-key-desc`,children:`用于 Seedance 2.0 生成接口，Authorization: Bearer。`})]})}),(0,b.jsx)(`span`,{className:`hint`,children:P.has_key?`方舟 API Key 已保存：${P.key_preview||``}`:`尚未保存方舟 API Key`})]}),(0,b.jsxs)(`div`,{className:`rh-key-item`,children:[(0,b.jsx)(`div`,{className:`rh-key-head`,children:(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`rh-key-title`,children:`素材库 AK/SK · 上传素材`}),(0,b.jsx)(`div`,{className:`rh-key-desc`,children:`用于 CreateAssetGroup / CreateAsset / GetAsset 的 Access Key 鉴权。`})]})}),(0,b.jsx)(`div`,{className:`key-input-line`,children:(0,b.jsx)(`div`,{className:`field-frame`,children:(0,b.jsx)(`input`,{"aria-label":`素材库 Access Key`,type:`password`,value:P.volcengine_access_key_id||``,placeholder:P.has_volcengine_access_key?`保持当前 AK ${P.volcengine_access_key_preview||``}`:`Access Key ID`,onChange:e=>F({...P,volcengine_access_key_id:e.target.value,clear_volcengine_access_key_id:!1})})})}),(0,b.jsxs)(`div`,{className:`key-input-line`,children:[(0,b.jsx)(`div`,{className:`field-frame`,children:(0,b.jsx)(`input`,{"aria-label":`素材库 Secret Key`,type:`password`,value:P.volcengine_secret_access_key||``,placeholder:P.has_volcengine_secret_key?`保持当前 SK ${P.volcengine_secret_key_preview||``}`:`Secret Access Key`,onChange:e=>F({...P,volcengine_secret_access_key:e.target.value,clear_volcengine_secret_access_key:!1})})}),(0,b.jsxs)(`div`,{className:`key-actions`,children:[(0,b.jsx)(`button`,{className:`key-btn`,type:`button`,title:`保存火山素材库 AK/SK`,onClick:()=>void R(),children:(0,b.jsx)(x,{name:`check`})}),(0,b.jsx)(`button`,{className:`key-btn key-clear`,type:`button`,title:`清除火山素材库 AK/SK`,onClick:()=>{confirm(`确认清除火山素材库 AK/SK？`)&&z({volcengine_access_key_id:``,volcengine_secret_access_key:``,clear_volcengine_access_key_id:!0,clear_volcengine_secret_access_key:!0},`正在清除素材库 AK/SK…`)},children:(0,b.jsx)(x,{name:`trash`})})]})]}),(0,b.jsxs)(`span`,{className:`hint`,children:[`AK `,P.has_volcengine_access_key?`已保存 ${P.volcengine_access_key_preview||``}`:`未保存`,` · SK `,P.has_volcengine_secret_key?`已保存 ${P.volcengine_secret_key_preview||``}`:`未保存`]})]}),(0,b.jsxs)(`div`,{className:`rh-key-item volcengine-project-card`,children:[(0,b.jsx)(`div`,{className:`rh-key-head`,children:(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`rh-key-title`,children:`素材库项目`}),(0,b.jsx)(`div`,{className:`rh-key-desc`,children:`ProjectName 必须和视频生成 API Key 所属项目一致。`})]})}),(0,b.jsxs)(`div`,{className:`volcengine-project-grid`,children:[(0,b.jsxs)(`label`,{className:`rh-card-title-field`,children:[(0,b.jsx)(`span`,{children:`ProjectName`}),(0,b.jsx)(`input`,{"aria-label":`ProjectName`,value:P.volcengine_project_name,onChange:e=>F({...P,volcengine_project_name:e.target.value})})]}),(0,b.jsxs)(`label`,{className:`rh-card-title-field`,children:[(0,b.jsx)(`span`,{children:`Region`}),(0,b.jsx)(`input`,{"aria-label":`Region`,value:P.volcengine_region,onChange:e=>F({...P,volcengine_region:e.target.value})})]})]})]})]}),P.id===`modelscope`&&(0,b.jsxs)(`div`,{className:`ms-hint`,children:[(0,b.jsxs)(`span`,{className:`ms-line`,children:[`获取 Token · 国内：`,(0,b.jsx)(`a`,{href:`https://www.modelscope.cn/my/access/token`,target:`_blank`,rel:`noreferrer`,children:`modelscope.cn/my/access/token`})]}),(0,b.jsxs)(`span`,{className:`ms-line`,children:[`获取 Token · 国外：`,(0,b.jsx)(`a`,{href:`https://www.modelscope.ai/my/access/token`,target:`_blank`,rel:`noreferrer`,children:`modelscope.ai/my/access/token`})]})]})]}),(0,b.jsxs)(`div`,{className:`verify-action-row`,children:[(0,b.jsxs)(`button`,{className:`action-btn`,"aria-label":`测试连接`,disabled:s,type:`button`,onClick:()=>void B(`test`),children:[(0,b.jsx)(x,{name:`check`}),(0,b.jsx)(`span`,{children:`验证地址`})]}),(0,b.jsxs)(`button`,{className:`action-btn`,disabled:s,type:`button`,onClick:()=>void B(`async`),children:[(0,b.jsx)(x,{name:`radar`}),(0,b.jsx)(`span`,{children:`验证协议`})]}),(0,b.jsx)(`div`,{className:`field-frame protocol-selector-wrap`,children:(0,b.jsx)(`select`,{"aria-label":`协议`,value:P.protocol,onChange:e=>F({...P,protocol:e.target.value}),children:f.map(e=>(0,b.jsx)(`option`,{value:e.value,children:e.label},e.value))})}),(0,b.jsx)(`div`,{className:`field-frame image-request-mode-wrap`,children:(0,b.jsxs)(`select`,{"aria-label":`图片请求格式`,value:P.image_request_mode,onChange:e=>F({...P,image_request_mode:e.target.value}),children:[(0,b.jsx)(`option`,{value:`openai`,children:`图片：OpenAI 标准`}),(0,b.jsx)(`option`,{value:`openai-json`,children:`图片：OpenAI JSON`})]})})]}),d&&(0,b.jsxs)(`div`,{className:`api-react-verify ${d.ok===!1?`failed`:`success`}`,children:[(0,b.jsx)(`strong`,{children:d.ok===!1?`验证未通过`:`验证完成`}),(0,b.jsx)(`span`,{children:d.message||`发现 ${d.model_count??d.total??d.all?.length??0} 个模型`})]}),(0,b.jsxs)(`div`,{className:`api-provider-flags`,children:[(0,b.jsxs)(`label`,{children:[(0,b.jsx)(`input`,{type:`checkbox`,checked:P.enabled,onChange:e=>F({...P,enabled:e.target.checked})}),`启用平台`]}),(0,b.jsxs)(`label`,{children:[(0,b.jsx)(`input`,{type:`checkbox`,checked:P.primary,onChange:e=>t(t=>t.map(t=>({...t,primary:t.id===P.id&&e.target.checked})))}),`设为主要平台`]})]})]})]}),(0,b.jsxs)(`section`,{className:`block models-toolbar`,children:[(0,b.jsxs)(`div`,{children:[(0,b.jsx)(`div`,{className:`block-title`,children:`模型列表`}),(0,b.jsx)(`div`,{className:`block-desc`,children:`从上游 API 自动拉取所有可用模型并按类型分类（image / chat / video）`})]}),(0,b.jsxs)(`div`,{className:`models-toolbar-actions`,children:[(0,b.jsxs)(`button`,{className:`action-btn primary-btn`,type:`button`,disabled:s,onClick:()=>void B(`models`),children:[(0,b.jsx)(x,{name:`download`}),(0,b.jsx)(`span`,{children:`拉取模型`})]}),(0,b.jsxs)(`button`,{className:`action-btn`,type:`button`,disabled:!C,onClick:()=>N(!0),children:[(0,b.jsx)(x,{name:`list`}),(0,b.jsx)(`span`,{children:`选择模型`})]})]})]}),(0,b.jsxs)(`div`,{className:`model-grid`,children:[S.map(e=>(0,b.jsx)(O,{provider:P,kind:e.kind,onChange:F},e.kind)),P.id===`modelscope`&&(0,b.jsx)(k,{provider:P,onChange:F})]})]})})]})]}),M&&C&&(0,b.jsx)(j,{probe:C,onClose:()=>N(!1),onApply:e=>{P&&F({...P,image_models:e.image,chat_models:e.chat,video_models:e.video}),N(!1),a(`已应用模型选择`)}})]})}n();var N=document.getElementById(`apiSettingsApp`);if(!N)throw Error(`Missing #apiSettingsApp`);(0,l.createRoot)(N).render((0,b.jsx)(c.StrictMode,{children:(0,b.jsx)(M,{})}));
+import{a as e,c as t,r as n,s as r,t as i}from"./site-jsx-runtime-C-f9yWk5.js";var a=t(r(),1),o=e(),s=`<div class="page">
+        <div class="wrap">
+            <header class="page-head">
+                <div>
+                    <div class="title">API 设置</div>
+                    <div class="sub">管理平台地址、模型列表和 Key。Key 写入后端 env，页面不会回显完整内容。</div>
+                </div>
+                <div id="status" class="status"></div>
+            </header>
+
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="side-section-title">平台列表</div>
+                    <div id="providerList" class="provider-list"></div>
+                    <button class="add-btn" type="button" onclick="addProvider()"><i data-lucide="plus" class="w-4 h-4"></i><span>新增平台</span></button>
+                    <button class="api-link-btn" type="button" onclick="openRecommendApi()"><i data-lucide="sparkles" class="w-4 h-4"></i><span>推荐API</span></button>
+                </aside>
+
+                <main id="settingsContent" class="content">
+                    <div class="content-head">
+                        <div>
+                            <div id="editorTitle" class="editor-title">平台</div>
+                            <div class="editor-sub">配置基础信息、API Key 和可用模型</div>
+                        </div>
+                        <div class="content-actions">
+                            <button id="deleteBtn" class="action-btn danger-btn api-page-delete-btn" type="button" onclick="deleteProvider()"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>删除</span></button>
+                            <button class="action-btn save-btn api-page-save-btn" type="button" onclick="saveProviders()"><i data-lucide="save" class="w-3.5 h-3.5"></i><span>保存</span></button>
+                        </div>
+                    </div>
+
+                    <section id="providerOnboardingCard" class="provider-onboarding-card" hidden></section>
+
+                    <section class="block">
+                        <div class="block-head">
+                            <div>
+                                <div class="block-title">基本信息</div>
+                                <div class="block-desc">平台显示名、唯一 ID 和请求地址</div>
+                            </div>
+                        </div>
+                        <div class="form">
+                            <label class="field full">
+                                <span class="label">平台名称</span>
+                                <div class="field-frame"><input id="nameInput" type="text" placeholder="Comfly"></div>
+                                <span class="hint"><span>平台 ID</span>: <span id="idPreview" style="font-family:ui-monospace,Menlo,monospace;color:var(--text)">—</span></span>
+                                <input id="idInput" type="hidden">
+                            </label>
+                            <label class="field full api-base-url-field">
+                                <span class="label">请求地址</span>
+                                <div class="field-frame"><input id="baseInput" type="text" placeholder="https://api.example.com/v1"></div>
+                                <div class="ms-hint">
+                                    <span class="ms-line"><span>国内默认请求地址：</span><span class="inline-code">https://api-inference.modelscope.cn/v1</span></span>
+                                    <span class="ms-line"><span>国外使用请求地址：</span><span class="inline-code">https://api-inference.modelscope.ai/v1</span></span>
+                                </div>
+                                <div class="runninghub-hint">
+                                    <span class="ms-line">国外地址：<span class="inline-code">https://www.runninghub.ai</span></span>
+                                </div>
+                                <div class="volcengine-hint">
+                                    <span class="ms-line">方舟默认请求地址：<span class="inline-code">https://ark.cn-beijing.volces.com/api/v3</span></span>
+                                    <span class="ms-line">Seedance 视频生成使用方舟 API Key，验证会请求 <span class="inline-code">/api/v3/models</span>。</span>
+                                </div>
+                            </label>
+                            <label class="field full api-proxy-field">
+                                <span class="label">代理地址</span>
+                                <div class="field-frame"><input id="proxyInput" type="text" placeholder="http://127.0.0.1:7890"></div>
+                                <span class="hint">仅对自定义平台生效，支持 http://、https://；留空则不单独指定。</span>
+                            </label>
+                            <label class="field full api-key-field">
+                                <span class="label api-key-label">API Key</span>
+                                <div class="key-panel api-standard-key-row">
+                                    <div class="key-input-line">
+                                        <div class="field-frame"><input id="keyInput" type="password"></div>
+                                        <div class="key-actions">
+                                            <button class="key-btn" type="button" onclick="saveKeyOnly()" title="保存 Key"><i data-lucide="check" class="w-4 h-4"></i></button>
+                                            <button class="key-btn key-clear" type="button" onclick="clearKeyOnly()" title="清除 Key"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span id="keyHint" class="hint"></span>
+                                <div class="rh-key-stack">
+                                    <div class="rh-key-item">
+                                        <div class="rh-key-head">
+                                            <div>
+                                                <div class="rh-key-title">RH币 API Key · 必填</div>
+                                                <div class="rh-key-desc">使用 RH币 接口时填写</div>
+                                            </div>
+                                            <div class="rh-key-links">
+                                                <span>获取</span>
+                                                <a href="https://www.runninghub.cn/enterprise-api/consumerApi?inviteCode=rh-v1331" target="_blank" rel="noopener"><i data-lucide="external-link" class="w-3 h-3"></i><span>国内 Key</span></a>
+                                                <a href="https://www.runninghub.ai/enterprise-api/consumerApi?inviteCode=rh-v1331" target="_blank" rel="noopener"><i data-lucide="external-link" class="w-3 h-3"></i><span>国外 Key</span></a>
+                                            </div>
+                                        </div>
+                                        <div class="key-input-line">
+                                            <div class="field-frame"><input id="rhFreeKeyInput" type="password"></div>
+                                            <div class="key-actions">
+                                                <button class="key-btn" type="button" onclick="saveRhKeyOnly('free')" title="保存 RH币 Key"><i data-lucide="check" class="w-4 h-4"></i></button>
+                                                <button class="key-btn key-clear" type="button" onclick="clearRhKeyOnly('free')" title="清除 RH币 Key"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                            </div>
+                                        </div>
+                                        <span id="rhFreeKeyHint" class="hint"></span>
+                                    </div>
+                                    <div class="rh-key-item">
+                                        <div class="rh-key-head">
+                                            <div>
+                                                <div class="rh-key-title">账户余额 API Key · 可选</div>
+                                                <div class="rh-key-desc">使用账户余额接口时填写</div>
+                                            </div>
+                                            <div class="rh-key-links">
+                                                <span>获取</span>
+                                                <a href="https://www.runninghub.cn/enterprise-api/sharedApi?inviteCode=rh-v1331" target="_blank" rel="noopener"><i data-lucide="external-link" class="w-3 h-3"></i><span>国内 Key</span></a>
+                                                <a href="https://www.runninghub.ai/enterprise-api/sharedApi?inviteCode=rh-v1331" target="_blank" rel="noopener"><i data-lucide="external-link" class="w-3 h-3"></i><span>国外 Key</span></a>
+                                            </div>
+                                        </div>
+                                        <div class="key-input-line">
+                                            <div class="field-frame"><input id="rhWalletKeyInput" type="password"></div>
+                                            <div class="key-actions">
+                                                <button class="key-btn" type="button" onclick="saveRhKeyOnly('wallet')" title="保存账户余额 Key"><i data-lucide="check" class="w-4 h-4"></i></button>
+                                                <button class="key-btn key-clear" type="button" onclick="clearRhKeyOnly('wallet')" title="清除账户余额 Key"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                            </div>
+                                        </div>
+                                        <span id="rhWalletKeyHint" class="hint"></span>
+                                    </div>
+                                </div>
+                                <div class="volcengine-key-stack">
+                                    <div class="rh-key-item">
+                                        <div class="rh-key-head">
+                                            <div>
+                                                <div class="rh-key-title">方舟 API Key · 生成视频</div>
+                                                <div class="rh-key-desc">用于 Seedance 2.0 生成接口，Authorization: Bearer。</div>
+                                            </div>
+                                        </div>
+                                        <span id="volcArkKeyHint" class="hint"></span>
+                                    </div>
+                                    <div class="rh-key-item">
+                                        <div class="rh-key-head">
+                                            <div>
+                                                <div class="rh-key-title">素材库 AK/SK · 上传素材</div>
+                                                <div class="rh-key-desc">用于 CreateAssetGroup / CreateAsset / GetAsset 的 Access Key 鉴权。</div>
+                                            </div>
+                                        </div>
+                                        <div class="key-input-line">
+                                            <div class="field-frame"><input id="volcAkInput" type="password" placeholder="Access Key ID"></div>
+                                        </div>
+                                        <div class="key-input-line">
+                                            <div class="field-frame"><input id="volcSkInput" type="password" placeholder="Secret Access Key"></div>
+                                            <div class="key-actions">
+                                                <button class="key-btn" type="button" onclick="saveVolcengineAssetKeys()" title="保存火山素材库 AK/SK"><i data-lucide="check" class="w-4 h-4"></i></button>
+                                                <button class="key-btn key-clear" type="button" onclick="clearVolcengineAssetKeys()" title="清除火山素材库 AK/SK"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                            </div>
+                                        </div>
+                                        <span id="volcAssetKeyHint" class="hint"></span>
+                                    </div>
+                                    <div class="rh-key-item volcengine-project-card">
+                                        <div class="rh-key-head">
+                                            <div>
+                                                <div class="rh-key-title">素材库项目</div>
+                                                <div class="rh-key-desc">ProjectName 必须和视频生成 API Key 所属项目一致。</div>
+                                            </div>
+                                        </div>
+                                        <div class="volcengine-project-grid">
+                                            <div class="rh-card-title-field">
+                                                <span>ProjectName</span>
+                                                <input id="volcProjectInput" type="text" value="default">
+                                            </div>
+                                            <div class="rh-card-title-field">
+                                                <span>Region</span>
+                                                <input id="volcRegionInput" type="text" value="cn-beijing">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ms-hint">
+                                    <span class="ms-line"><span>获取 Token · 国内：</span><a href="https://www.modelscope.cn/my/access/token" target="_blank">https://www.modelscope.cn/my/access/token</a></span>
+                                    <span class="ms-line"><span>获取 Token · 国外：</span><a href="https://www.modelscope.ai/my/access/token" target="_blank">https://www.modelscope.ai/my/access/token</a></span>
+                                </div>
+                                <div class="runninghub-hint">
+                                </div>
+                            </label>
+                            <!-- 验证操作行 -->
+                            <div class="verify-action-row">
+                                <button id="testUrlBtn" class="action-btn" type="button" onclick="testConnection()">
+                                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i><span>验证地址</span>
+                                </button>
+                                <button id="probeAsyncBtn" class="action-btn" type="button" onclick="probeAsync()">
+                                    <i data-lucide="radar" class="w-3.5 h-3.5"></i><span>验证协议</span>
+                                </button>
+                                <div class="field-frame protocol-selector-wrap">
+                                    <select id="protocolInput">
+                                        <option value="openai">OpenAI 直连</option>
+                                        <option value="apimart">异步协议</option>
+                                        <option value="gemini">Gemini 协议</option>
+                                        <option value="volcengine">方舟/Ark 任务协议</option>
+                                    </select>
+                                </div>
+                                <div class="field-frame image-request-mode-wrap">
+                                    <select id="imageRequestModeInput" title="图片接口">
+                                        <option value="openai">图片：OpenAI 标准</option>
+                                        <option value="openai-json">图片：OpenAI JSON</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div id="verifyResult" style="display:none;padding:2px 0;grid-column:1/-1"></div>
+                        </div>
+                    </section>
+
+                    <section id="runninghubConfigBlock" class="block runninghub-config-block" hidden>
+                        <div class="block-head">
+                            <div>
+                                <div class="block-title">应用与工作流</div>
+                                <div class="block-desc">粘贴运行路径后，点击右侧创建卡片。</div>
+                            </div>
+                        </div>
+                        <div class="rh-paste-row">
+                            <input id="rhPasteInput" class="rh-paste-input" type="text" placeholder="/run/ai-app/... 或 /run/workflow/...">
+                            <button class="action-btn" type="button" onclick="createRhEntryFromPaste()"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>创建</span></button>
+                        </div>
+                        <div class="rh-card-columns">
+                            <div class="rh-card-group">
+                                <div class="rh-group-head">
+                                    <div class="rh-group-title">AI 应用</div>
+                                    <div id="rhAppsCount" class="rh-group-count">0</div>
+                                </div>
+                                <div id="rhAppsList" class="rh-card-list"></div>
+                            </div>
+                            <div class="rh-card-group">
+                                <div class="rh-group-head">
+                                    <div class="rh-group-title">工作流</div>
+                                    <div id="rhWorkflowsCount" class="rh-group-count">0</div>
+                                </div>
+                                <div id="rhWorkflowsList" class="rh-card-list"></div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div id="modelsHead" class="block models-toolbar">
+                        <div>
+                            <div class="block-title">模型列表</div>
+                            <div class="block-desc">从上游 API 自动拉取所有可用模型并按类型分类（image / chat / video）</div>
+                        </div>
+                        <div class="models-toolbar-actions">
+                            <button id="fetchModelsBtn" class="action-btn primary-btn" type="button" onclick="fetchModels()">
+                                <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i><span>拉取模型</span>
+                            </button>
+                            <button id="openPickerBtn" class="action-btn" type="button" onclick="openModelPicker()" disabled style="opacity:.5">
+                                <i data-lucide="list-checks" class="w-3.5 h-3.5"></i><span>选择模型</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="model-grid">
+                        <section class="block">
+                            <div class="block-head">
+                                <div>
+                                    <div class="block-title">生图模型</div>
+                                    <div class="block-desc">在线生图和无限画布 API 生成使用。</div>
+                                    <div class="ms-hint">
+                                        <span class="ms-line"><span>模型名称示意：</span><span class="inline-code">Tongyi-MAI/Z-Image-Turbo</span></span>
+                                    </div>
+                                </div>
+                                <button class="ghost-btn" type="button" onclick="addModel('image')"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>模型</span></button>
+                            </div>
+                            <div id="imageModelList" class="model-list"></div>
+                        </section>
+
+                        <section class="block">
+                            <div class="block-head">
+                                <div>
+                                    <div class="block-title">聊天模型</div>
+                                    <div class="block-desc">GPT 对话和 LLM 节点使用。</div>
+                                </div>
+                                <button class="ghost-btn" type="button" onclick="addModel('chat')"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>模型</span></button>
+                        </div>
+                        <div id="chatModelList" class="model-list"></div>
+                    </section>
+
+                        <section class="block">
+                            <div class="block-head">
+                                <div>
+                                    <div class="block-title">视频模型</div>
+                                    <div class="block-desc">无限画布视频生成节点使用。</div>
+                                </div>
+                                <button class="ghost-btn" type="button" onclick="addModel('video')"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>模型</span></button>
+                            </div>
+                            <div id="videoModelList" class="model-list"></div>
+                        </section>
+
+                        <section id="msLoraBlock" class="block ms-lora-block">
+                            <div class="block-head">
+                                <div>
+                                    <div class="block-title">LoRA 管理</div>
+                                    <div class="block-desc">为 ModelScope 生图模型绑定可用 LoRA。无限画布 MS 节点会按当前模型自动筛选。</div>
+                                    <div class="ms-hint">
+                                        <span class="ms-line"><span>中文模型库：</span><a href="https://www.modelscope.cn/aigc/models" target="_blank">https://www.modelscope.cn/aigc/models</a></span>
+                                        <span class="ms-line"><span>英文模型库：</span><a href="https://www.modelscope.ai/civision/models" target="_blank">https://www.modelscope.ai/civision/models</a></span>
+                                    </div>
+                                </div>
+                                <button class="ghost-btn" type="button" onclick="addMsLora()"><i data-lucide="plus" class="w-3.5 h-3.5"></i><span>LoRA</span></button>
+                            </div>
+                            <div id="msLoraList" class="lora-list"></div>
+                        </section>
+                </div>
+            </main>
+                <main id="recommendContent" class="content recommend-content" hidden>
+                    <div class="content-head">
+                        <div>
+                            <div class="editor-title">推荐平台</div>
+                            <div class="editor-sub">获取 Key 后保存，右侧会切换到刚保存的平台配置。</div>
+                        </div>
+                    </div>
+                    <section id="recommendPanel" class="provider-onboarding-card recommend-inline-card"></section>
+                </main>
+        </div>
+        </div>
+    </div>
+
+    <!-- 模型选择浮层 -->
+    <div id="recommendApiOverlay" class="picker-overlay">
+        <div class="picker-modal">
+            <div class="picker-head">
+                <div>
+                    <div class="picker-title">推荐API</div>
+                    <div class="picker-count">选择平台后可以一键填写请求地址和协议。</div>
+                </div>
+                <div class="picker-close" onclick="closeRecommendApi()"><i data-lucide="x" class="w-4 h-4"></i></div>
+            </div>
+            <div id="recommendApiList" class="recommend-api-body"></div>
+            <div class="recommend-note">提示：账户内需要至少 0.05 元余额，才能验证地址并拉取模型。</div>
+        </div>
+    </div>
+
+    <div id="modelPickerOverlay" class="picker-overlay">
+        <div class="picker-modal">
+            <div class="picker-head">
+                <div>
+                    <div class="picker-title">从上游拉取的模型清单</div>
+                    <div id="pickerCount" class="picker-count">—</div>
+                </div>
+                <div class="picker-close" onclick="closeModelPicker()"><i data-lucide="x" class="w-4 h-4"></i></div>
+            </div>
+            <div class="picker-toolbar">
+                <input id="pickerFilter" class="picker-search" type="text" placeholder="按名称搜索模型…" oninput="renderModelPicker()">
+                <div class="picker-cat-tabs">
+                    <button class="picker-cat-tab active" data-cat="all" onclick="selectPickerCat('all')">全部 <span class="cat-count">0</span></button>
+                    <button class="picker-cat-tab" data-cat="image" onclick="selectPickerCat('image')">生图 <span class="cat-count">0</span></button>
+                    <button class="picker-cat-tab" data-cat="chat" onclick="selectPickerCat('chat')">LLM <span class="cat-count">0</span></button>
+                    <button class="picker-cat-tab" data-cat="video" onclick="selectPickerCat('video')">视频 <span class="cat-count">0</span></button>
+                </div>
+            </div>
+            <div id="pickerList" class="picker-body"></div>
+            <div id="pickerSummary" class="picker-summary">
+                <span class="picker-summary-title">将应用：</span>
+                <span id="sumImage" class="picker-sum-chip picker-sum-chip-empty">生图 0</span>
+                <span id="sumChat" class="picker-sum-chip picker-sum-chip-empty">聊天 0</span>
+                <span id="sumVideo" class="picker-sum-chip picker-sum-chip-empty">视频 0</span>
+                <span id="sumUnsel" style="margin-left:auto;color:var(--faint)">未选 0</span>
+            </div>
+            <div class="picker-foot">
+                <button class="action-btn" type="button" onclick="closeModelPicker()">取消</button>
+                <button class="action-btn save-btn" type="button" onclick="applyModelPicker()">应用到模型列表</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rhWorkflowEditorOverlay" class="rh-workflow-editor-overlay">
+        <div class="rh-workflow-editor-modal">
+            <div class="rh-workflow-editor-head">
+                <div class="rh-workflow-editor-title-wrap">
+                    <div id="rhWorkflowEditorTitle" class="rh-workflow-editor-title">RunningHub 工作流</div>
+                    <div id="rhWorkflowEditorSub" class="rh-workflow-editor-sub">选择要暴露到画布的输入参数</div>
+                </div>
+                <div class="rh-workflow-editor-actions">
+                    <button class="action-btn" type="button" onclick="fetchRhWorkflowEditor(true)"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>重新拉取</span></button>
+                    <button id="rhWorkflowSaveBtn" class="action-btn save-btn" type="button" onclick="saveRhWorkflowEditor()"><i data-lucide="save" class="w-3.5 h-3.5"></i><span>保存</span></button>
+                    <button class="rh-workflow-editor-close" type="button" onclick="closeRhWorkflowEditor()"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+            <div class="rh-workflow-editor-body">
+                <aside class="rh-workflow-editor-side">
+                    <label class="rh-editor-field">
+                        <span>名称</span>
+                        <input id="rhWorkflowEditName" type="text" oninput="updateRhWorkflowEditorMeta('title', this.value)">
+                    </label>
+                    <label class="rh-editor-field">
+                        <span>备注</span>
+                        <textarea id="rhWorkflowEditNote" oninput="updateRhWorkflowEditorMeta('description', this.value)"></textarea>
+                    </label>
+                    <div id="rhWorkflowEditorSummary" class="rh-editor-summary"></div>
+                    <div id="rhWorkflowEditorNodeList" class="rh-editor-node-list"></div>
+                </aside>
+                <section class="rh-workflow-editor-canvas">
+                    <div id="rhWorkflowEditorGraphWrap" class="rh-editor-graph-wrap">
+                        <svg id="rhWorkflowEditorGraphSvg" class="rh-editor-graph-svg"></svg>
+                        <div class="rh-editor-graph-controls">
+                            <button type="button" onclick="rhEditorGraphZoom(-1)" title="缩小"><i data-lucide="zoom-out" class="w-4 h-4"></i></button>
+                            <span id="rhWorkflowEditorZoom">100%</span>
+                            <button type="button" onclick="rhEditorGraphZoom(1)" title="放大"><i data-lucide="zoom-in" class="w-4 h-4"></i></button>
+                            <button type="button" onclick="rhEditorGraphFit()" title="适应窗口"><i data-lucide="maximize" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+`,c=i();function l(){return(0,c.jsx)(`div`,{className:`api-settings-react-root`,dangerouslySetInnerHTML:{__html:s}})}n();var u=document.getElementById(`apiSettingsApp`);if(!u)throw Error(`Missing #apiSettingsApp`);(0,o.createRoot)(u).render((0,c.jsx)(a.StrictMode,{children:(0,c.jsx)(l,{})}));
