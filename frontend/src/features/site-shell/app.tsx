@@ -38,6 +38,11 @@ const CONNECTIVITY_TARGETS = [
 ] as const;
 
 const versionLabel = (value?: string) => value ? `v${value.replace(/^v/i, '')}` : 'v-';
+const compactVersionLabel = (value?: string) => {
+  const text = String(value || '').trim();
+  const parts = text.match(/\d+/g) || [];
+  return `v${parts.length >= 3 ? `${parts[1]}.${parts[2]}` : text.replace(/^v/i, '') || '-'}`;
+};
 const sourceLabel = (source: string) => source === 'modelscope' ? 'ModelScope' : 'GitHub';
 const sourceStats = (source: string, results: ConnectivityItem[]) => {
   const items = results.filter(item => item.source === source);
@@ -94,7 +99,7 @@ async function fallbackUpdateCheck(info: AppInfo): Promise<UpdateCheck> {
   };
 }
 
-function ShellIcon({ name }: { name: SitePageId | 'settings' | 'chevron' | 'moon' | 'sun' | 'refresh' }) {
+function ShellIcon({ name, className }: { name: SitePageId | 'settings' | 'chevron' | 'moon' | 'sun' | 'refresh'; className?: string }) {
   const common = {
     fill: 'none',
     stroke: 'currentColor',
@@ -104,10 +109,10 @@ function ShellIcon({ name }: { name: SitePageId | 'settings' | 'chevron' | 'moon
     strokeLinejoin: 'round' as const,
     'aria-hidden': true,
   };
-  if (name === 'online') return <svg {...common}><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>;
-  if (name === 'gpt-chat') return <svg {...common}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
-  if (name === 'canvas') return <svg {...common}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>;
-  if (name === 'asset-manager') return <svg {...common}><path d="M4 19.5V6.8A2.8 2.8 0 0 1 6.8 4h10.4A2.8 2.8 0 0 1 20 6.8v12.7" /><path d="M7 8h10M7 12h10M7 16h6" /></svg>;
+  if (name === 'online') return <svg {...common} className={className}><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>;
+  if (name === 'gpt-chat') return <svg {...common} className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
+  if (name === 'canvas') return <svg {...common} className={className}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>;
+  if (name === 'asset-manager') return <svg {...common} className={className}><path d="M4 19.5V6.8A2.8 2.8 0 0 1 6.8 4h10.4A2.8 2.8 0 0 1 20 6.8v12.7" /><path d="M7 8h10M7 12h10M7 16h6" /></svg>;
   if (name === 'api-settings') return <svg {...common}><path d="M15 7h3a5 5 0 0 1 0 10h-3M9 17H6A5 5 0 0 1 6 7h3" /><line x1="8" y1="12" x2="16" y2="12" /></svg>;
   if (name === 'comfyui-settings') return <svg {...common}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h7v7h-7z" /><line x1="10" y1="6.5" x2="14" y2="6.5" /><line x1="6.5" y1="10" x2="6.5" y2="14" /></svg>;
   if (name === 'settings') return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.36 1.08V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.08-.36H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .36-1.08V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.22.38.58.69 1 .86.2.08.42.13.65.14H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z" /></svg>;
@@ -245,7 +250,7 @@ function UpdateCenter({ info, check, onClose }: { info?: AppInfo; check?: Update
 function PrimaryNavigation({ active, onOpen }: { active: SitePageId; onOpen: (page: SitePage) => void }) {
   return <>{PRIMARY_PAGE_IDS.map(id => {
     const page = SITE_PAGES.find(item => item.id === id)!;
-    return <button type="button" title={page.label} aria-label={page.label} className={`nav-item ${active === page.id ? 'active' : ''}`} onClick={() => onOpen(page)} key={page.id}><ShellIcon name={page.id} /><span className="nav-text">{page.label}</span></button>;
+    return <button type="button" title={page.label} aria-label={page.label} className={`nav-item ${active === page.id ? 'active' : ''}`} onClick={() => onOpen(page)} key={page.id}><ShellIcon name={page.id} className="w-5 h-5 flex-shrink-0" /><span className="nav-text">{page.label}</span></button>;
   })}</>;
 }
 
@@ -415,7 +420,7 @@ export function SiteShellApp() {
             <button className="side-pill" type="button" title="切换夜间模式" aria-label="切换主题" onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}><ShellIcon name={theme === 'dark' ? 'sun' : 'moon'} /><span className="side-pill-text">{theme === 'dark' ? '浅色模式' : '黑夜模式'}</span></button>
             <button className={`side-pill ${active === 'comfyui-settings' ? 'active' : ''}`} type="button" title="工作流设置" aria-label="工作流设置" onClick={() => open(SITE_PAGES.find(page => page.id === 'comfyui-settings')!)}><ShellIcon name="comfyui-settings" /><span className="side-pill-text">工作流设置</span></button>
           </div>
-          <button id="update-now-btn" type="button" className={`update-now-btn ${check?.update_available ? 'show' : ''}`} title="一键更新" onClick={() => setUpdateOpen(true)}><ShellIcon name="refresh" /><span id="update-now-text" className="update-now-text">更新到 {check?.latest?.version || '新版本'}</span></button>
+          <button id="update-now-btn" type="button" className={`update-now-btn ${check?.update_available ? 'show' : ''}`} title="一键更新" aria-label={check?.latest?.version ? `更新到 ${versionLabel(check.latest.version)}` : '一键更新'} onClick={() => setUpdateOpen(true)}><ShellIcon name="refresh" /><span id="update-now-text" className="update-now-text"><span className="update-action-prefix">更新到 </span><span className="update-version-compact">{compactVersionLabel(check?.latest?.version)}</span><span className="update-version-full">{versionLabel(check?.latest?.version)}</span></span></button>
           <div id="project-version-badge" className={`project-version-badge ${checking ? 'checking' : ''}`} title="点击检测更新" role="button" tabIndex={0} onClick={() => { if (!checking) void checkForUpdates(true); }} onKeyDown={event => { if (!checking && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); void checkForUpdates(true); } }}><span className="project-version-compact">v{(info?.version || check?.current || '-').split('.').slice(-2).join('.')}</span><span className="project-version-full">v{info?.version || check?.current || '-'}</span></div>
         </div>
       </aside>

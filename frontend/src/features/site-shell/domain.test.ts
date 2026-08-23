@@ -5,7 +5,9 @@ describe('site shell routing', () => {
   it('normalizes storage and hash routes', () => {
     expect(normalizePageId('canvas')).toBe('canvas');
     expect(normalizePageId('missing')).toBe('online');
+    expect(normalizePageId('zimage')).toBe('online');
     expect(pageFromHash('#/gpt-chat')).toBe('gpt-chat');
+    expect(pageFromHash('#/angle')).toBe('online');
     expect(routeHash('asset-manager')).toBe('#/asset-manager');
   });
   it('only forwards bounded studio events', () => {
@@ -13,4 +15,3 @@ describe('site shell routing', () => {
     expect(isForwardableEvent({ type: 'arbitrary-message' })).toBe(false);
   });
 });
-
