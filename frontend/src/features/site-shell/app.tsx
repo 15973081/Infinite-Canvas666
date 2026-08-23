@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { applyStudioTheme, normalizeStudioTheme, type StudioTheme } from '../../shared/theme';
 import { subscribeStudioEvents } from '../../shared/studio-events';
 import { shellClient } from './client';
+import { HttpError } from '../../shared/http';
 import {
   ACTIVE_PAGE_KEY,
   DEFAULT_PAGE,
@@ -15,18 +16,83 @@ import {
 } from './domain';
 import type {
   AppInfo,
+  ConnectivityItem,
   ConnectivityResult,
   SitePage,
   SitePageId,
-  UpdateBackup,
   UpdateCheck,
-  UpdateResult,
 } from './types';
 
 const uuid = () => crypto.randomUUID?.() || `shell-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : '操作失败';
 const SIDEBAR_SETTINGS_COLLAPSED_KEY = 'studio_sidebar_settings_collapsed';
 const PRIMARY_PAGE_IDS: SitePageId[] = ['online', 'gpt-chat', 'canvas', 'asset-manager'];
+const CONNECTIVITY_TARGETS = [
+  { name: 'GitHub 更新列表', source: 'github', required: true },
+  { name: 'GitHub 版本文件', source: 'github', required: true },
+  { name: 'GitHub 主页', source: 'github', required: false },
+  { name: 'ModelScope 版本文件', source: 'modelscope', required: true },
+  { name: 'ModelScope 空间页面', source: 'modelscope', required: false },
+  { name: 'ModelScope 主页', source: 'modelscope', required: false },
+  { name: 'Google 连通性', source: 'reference', required: false },
+] as const;
+
+const versionLabel = (value?: string) => value ? `v${value.replace(/^v/i, '')}` : 'v-';
+const sourceLabel = (source: string) => source === 'modelscope' ? 'ModelScope' : 'GitHub';
+const sourceStats = (source: string, results: ConnectivityItem[]) => {
+  const items = results.filter(item => item.source === source);
+  const required = items.filter(item => item.required);
+  const okItems = items.filter(item => item.ok);
+  const average = okItems.length ? Math.round(okItems.reduce((sum, item) => sum + Number(item.elapsed_ms || 0), 0) / okItems.length) : Number.MAX_SAFE_INTEGER;
+  return { ok: required.length > 0 && required.every(item => item.ok), average, done: items.filter(item => !item.pending).length, total: items.length };
+};
+
+async function waitForBackendAndReload() {
+  const deadline = Date.now() + 90_000;
+  await new Promise(resolve => window.setTimeout(resolve, 4_000));
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch('/api/app-info', { cache: 'no-store' });
+      if (response.ok) { location.reload(); return; }
+    } catch { /* backend is restarting */ }
+    await new Promise(resolve => window.setTimeout(resolve, 1_500));
+  }
+}
+
+function compareVersions(left: string, right: string) {
+  const a = String(left || '').match(/\d+/g)?.map(Number) || [];
+  const b = String(right || '').match(/\d+/g)?.map(Number) || [];
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (a[index] || 0) - (b[index] || 0);
+    if (difference) return difference;
+  }
+  return String(left || '').trim() === String(right || '').trim() ? 0 : 1;
+}
+
+async function fallbackUpdateCheck(info: AppInfo): Promise<UpdateCheck> {
+  const candidates = [
+    { source: 'github', url: info.sources?.github?.version_url || info.version_url || '' },
+    { source: 'modelscope', url: info.sources?.modelscope?.version_url || '' },
+  ].filter(candidate => candidate.url);
+  let latest: UpdateCheck['latest'];
+  let reachable = false;
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(`${candidate.url}${candidate.url.includes('?') ? '&' : '?'}t=${Date.now()}`, { cache: 'no-store' });
+      const remote = response.ok ? (await response.text()).trim().split(/\r?\n/)[0].trim() : '';
+      if (!remote) continue;
+      reachable = true;
+      if (!latest?.version || compareVersions(remote, latest.version) > 0) latest = { source: candidate.source, version: remote };
+    } catch { /* preserve offline startup */ }
+  }
+  return {
+    current: info.version || '',
+    reachable,
+    latest,
+    update_available: Boolean(info.version && latest?.version && compareVersions(latest.version, info.version) > 0),
+  };
+}
 
 function ShellIcon({ name }: { name: SitePageId | 'settings' | 'chevron' | 'moon' | 'sun' | 'refresh' }) {
   const common = {
@@ -52,45 +118,127 @@ function ShellIcon({ name }: { name: SitePageId | 'settings' | 'chevron' | 'moon
 }
 
 function UpdateCenter({ info, check, onClose }: { info?: AppInfo; check?: UpdateCheck; onClose: () => void }) {
-  const [source, setSource] = useState(localStorage.getItem(UPDATE_SOURCE_KEY) || check?.latest?.source || 'github');
-  const [status, setStatus] = useState('可先检测网络，再执行更新。');
-  const [busy, setBusy] = useState(false);
-  const [connectivity, setConnectivity] = useState<ConnectivityResult>();
-  const [result, setResult] = useState<UpdateResult>();
-  const [backups, setBackups] = useState<UpdateBackup[]>([]);
-  useEffect(() => { shellClient.backups().then(value => setBackups(value.backups)).catch(() => undefined); }, []);
-  const run = async (label: string, action: () => Promise<void>) => {
-    setBusy(true);
-    setStatus(label);
-    try { await action(); } catch (error) { setStatus(errorMessage(error)); } finally { setBusy(false); }
+  const initialSource = localStorage.getItem(UPDATE_SOURCE_KEY) || check?.latest?.source || 'github';
+  const [source, setSourceState] = useState(initialSource === 'modelscope' ? 'modelscope' : 'github');
+  const [items, setItems] = useState<ConnectivityItem[]>(CONNECTIVITY_TARGETS.map(item => ({ ...item, ok: false, untouched: true })));
+  const [tested, setTested] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [summary, setSummary] = useState({ kind: 'warn', title: '建议先测试连通性', text: '测试会同时测速 GitHub 和 ModelScope。你可以根据结果切换下载源。' });
+  const abortRef = useRef<AbortController | null>(null);
+  const remoteVersion = check?.latest?.version || '';
+  const localVersion = info?.version || check?.current || '';
+  const notes = check?.latest?.update_notes || check?.update_notes;
+  const setSource = (next: string) => {
+    const normalized = next === 'modelscope' ? 'modelscope' : 'github';
+    setSourceState(normalized);
+    localStorage.setItem(UPDATE_SOURCE_KEY, normalized);
+    if (tested) {
+      const stats = sourceStats(normalized, items);
+      setSummary(stats.ok
+        ? { kind: 'ok', title: `${sourceLabel(normalized)} 下载源可用`, text: `${sourceLabel(normalized)} 可访问，可以开始更新。` }
+        : { kind: 'fail', title: `${sourceLabel(normalized)} 下载源不可用`, text: `当前网络无法访问 ${sourceLabel(normalized)} 必需节点。请切换下载源，或检查代理、DNS 后重试。` });
+    }
   };
-  const update = () => {
-    if (!confirm(`从 ${source === 'github' ? 'GitHub' : 'ModelScope'} 更新应用？更新会替换程序文件，请确保当前任务已保存。`)) return;
-    localStorage.setItem(UPDATE_SOURCE_KEY, source);
-    void run('正在下载并应用更新…', async () => {
-      const value = await shellClient.update(source);
-      setResult(value);
-      setStatus(`更新完成：${value.count} 个文件${value.fallback_used ? '（已自动切换备用源）' : ''}`);
-    });
+  const close = () => {
+    abortRef.current?.abort();
+    onClose();
   };
-  const rollback = (backup: UpdateBackup) => {
-    if (!confirm(`回滚到备份 ${backup.name}？`)) return;
-    void run('正在恢复备份…', async () => {
-      const value = await shellClient.rollback(backup.name);
-      setStatus(`已恢复 ${value.count} 个文件，请重启应用`);
-    });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const runConnectivityTest = async () => {
+    if (testing) return;
+    setTesting(true);
+    setTested(false);
+    setSummary({ kind: 'warn', title: '正在测试连通性', text: '正在逐条检测各节点，结果实时显示。' });
+    const live: ConnectivityItem[] = CONNECTIVITY_TARGETS.map(item => ({ ...item, ok: false, pending: true }));
+    setItems(live);
+    let backendMissing = false;
+    const apply = (name: string, patchValue: Partial<ConnectivityItem>) => {
+      const index = live.findIndex(item => item.name === name);
+      if (index < 0) return;
+      live[index] = { ...live[index], pending: false, untouched: false, ...patchValue };
+      setItems([...live]);
+    };
+    await Promise.all(CONNECTIVITY_TARGETS.map(async target => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 6_000);
+      try {
+        const value = await shellClient.connectivityProbe(target.name, controller.signal);
+        apply(target.name, value);
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 404) backendMissing = true;
+        else if (error instanceof DOMException && error.name === 'AbortError') apply(target.name, { ok: false, timed_out: true, error: '连接超时（超过 5s）' });
+        else apply(target.name, { ok: false, error: errorMessage(error) });
+      } finally { clearTimeout(timeout); }
+    }));
+    let finalItems = live;
+    if (backendMissing) {
+      try {
+        const fallback = await shellClient.connectivity();
+        finalItems = fallback.results;
+        setItems(finalItems);
+      } catch {
+        finalItems = CONNECTIVITY_TARGETS.map(item => ({ ...item, ok: false, error: '后端还没有加载新的连通性测试接口。请重启服务后再测试。' }));
+        setItems(finalItems);
+      }
+    }
+    const github = sourceStats('github', finalItems);
+    const modelscope = sourceStats('modelscope', finalItems);
+    const best = github.ok && modelscope.ok ? (modelscope.average < github.average ? 'modelscope' : 'github') : modelscope.ok ? 'modelscope' : github.ok ? 'github' : source;
+    setSource(best);
+    const selected = sourceStats(best, finalItems);
+    if (selected.ok) setSummary({ kind: 'ok', title: `${sourceLabel(best)} 下载源可用`, text: `${sourceLabel(best)} 可访问，可以开始更新。` });
+    else setSummary({ kind: 'fail', title: `${sourceLabel(best)} 下载源不可用`, text: `当前网络无法访问 ${sourceLabel(best)} 必需节点。请切换下载源，或检查代理、DNS 后重试。` });
+    setTested(true);
+    setTesting(false);
   };
-  return <div className="shell-modal-backdrop" onMouseDown={onClose}>
-    <section className="studio-card shell-update-modal" onMouseDown={event => event.stopPropagation()}>
-      <header><div><h2>更新中心</h2><p>当前 {info?.version || check?.current || '未知'} · 最新 {check?.latest?.version || '未检测到'}</p></div><button className="studio-button" type="button" onClick={onClose}>关闭</button></header>
-      <div className={`shell-update-summary ${check?.update_available ? 'available' : ''}`}><strong>{check?.update_available ? '发现新版本' : '当前版本状态'}</strong><span>{check?.update_available ? `${check.current} → ${check.latest?.version}` : check?.reachable === false ? '版本源暂时不可达' : '已是最新或尚未检测'}</span></div>
-      {check?.update_notes?.items?.length ? <div className="shell-release-notes"><strong>更新说明</strong><ul>{check.update_notes.items.map((item, index) => <li key={index}>{item}</li>)}</ul></div> : null}
-      <div className="shell-source-grid">{(['github', 'modelscope'] as const).map(item => <button type="button" className={source === item ? 'active' : ''} key={item} onClick={() => setSource(item)}><strong>{item === 'github' ? 'GitHub' : 'ModelScope'}</strong><span>{connectivity?.sources?.[item]?.ok === true ? '连接正常' : connectivity?.sources?.[item]?.ok === false ? '连接失败' : '尚未检测'}</span></button>)}</div>
-      {connectivity && <div className="shell-connectivity">{connectivity.results.map(item => <div key={item.name}><i className={item.ok ? 'ok' : ''} /><span>{item.name}</span><small>{item.ok ? `${item.status || 200} · ${item.elapsed_ms || 0}ms` : item.error || '不可用'}</small></div>)}</div>}
-      {result && <div className="shell-update-result">{result.version || '新版本'} 已安装。{result.restart_required ? '需要重启应用后生效。' : ''}</div>}
-      <div className="shell-backups"><strong>可用备份</strong>{backups.length ? backups.map(item => <div key={item.name}><span>{item.name}</span><button className="studio-button" disabled={busy} type="button" onClick={() => rollback(item)}>回滚</button></div>) : <p>暂无更新备份</p>}</div>
-      <footer><span role="status">{status}</span><div><button className="studio-button" disabled={busy} type="button" onClick={() => void run('正在检测更新网络…', async () => { const value = await shellClient.connectivity(); setConnectivity(value); setStatus(value.results.some(item => item.ok) ? '网络检测完成' : '所有更新源均不可用'); })}>检测网络</button><button className="studio-button primary" disabled={busy} type="button" onClick={update}>{busy ? '执行中…' : '立即更新'}</button></div></footer>
-    </section>
+
+  const confirmUpdate = async () => {
+    if (updating) return;
+    setUpdating(true);
+    setSummary({ kind: 'warn', title: '正在更新', text: `正在从 ${sourceLabel(source)} 下载文件，并创建本地备份。` });
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 300_000);
+    try {
+      const value = await shellClient.update(source, controller.signal);
+      const used = value.source_label || sourceLabel(value.source);
+      const fallback = value.fallback_used ? `（${sourceLabel(source)} 不可用，已自动兜底切换到 ${used}）` : '';
+      setSummary({ kind: 'ok', title: '更新完成', text: value.restart_scheduled ? `已更新 ${value.count || 0} 个文件。后端将在约 3 秒后自动重启，本页面会在恢复后自动刷新。${fallback}` : `已更新 ${value.count || 0} 个文件。请重启后端，然后刷新页面。${fallback}` });
+      if (value.restart_scheduled) void waitForBackendAndReload();
+    } catch (error) {
+      const message = error instanceof DOMException && error.name === 'AbortError' ? '更新超时。请切换下载源或检查网络后重试。' : errorMessage(error);
+      setSummary({ kind: 'fail', title: '更新失败', text: message });
+    } finally {
+      clearTimeout(timeout);
+      abortRef.current = null;
+      setUpdating(false);
+    }
+  };
+
+  return <div id="project-update-modal" className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="project-update-title" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
+    <div className="studio-modal-panel">
+      <div className="studio-modal-head"><div><div className="studio-modal-kicker">发现更新</div><h2 id="project-update-title" className="studio-modal-title">{remoteVersion ? `更新到 ${versionLabel(remoteVersion)}` : '一键更新'}</h2></div><button className="studio-modal-close" type="button" onClick={close} title="关闭" aria-label="关闭"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button></div>
+      <div className="studio-modal-body">
+        <p id="project-update-copy" className="studio-modal-copy">将从 {sourceLabel(source)} 更新 main.py、VERSION 和 static 文件。更新前会自动备份，更新完成后后端会自动重启。当前 {versionLabel(localVersion)}，最新 {versionLabel(remoteVersion || localVersion)}。</p>
+        {(notes?.version || notes?.items?.length) ? <div id="project-update-notes" className="update-notes-box"><div className="update-notes-head"><strong>本次更新内容</strong><span className="update-notes-version">{notes.version ? versionLabel(notes.version) : ''}</span></div>{notes.items?.length ? <ol className="update-notes-list">{notes.items.slice(0, 8).map((item, index) => <li key={index}>{typeof item === 'string' ? item : item.text}</li>)}</ol> : <p className="update-notes-empty">暂未获取到这个版本的更新说明。</p>}</div> : null}
+        <div id="update-source-list" className="update-source-list">{(['github', 'modelscope'] as const).map(candidate => {
+          const stats = sourceStats(candidate, items);
+          const sourceItems = items.filter(item => item.source === candidate || (candidate === 'github' && item.source === 'reference'));
+          return <button id={`update-source-${candidate}`} className={`update-source-card ${source === candidate ? 'active' : ''}`} type="button" data-update-source={candidate} aria-pressed={source === candidate} onClick={() => setSource(candidate)} key={candidate}>
+            <div className="update-source-head"><div className="update-source-title"><strong>{sourceLabel(candidate)} 下载源</strong><span>{candidate === 'github' ? 'GitHub API / raw 文件 / GitHub 网页，Google 仅作外网参考。' : 'ModelScope 空间与版本文件，适合国内网络。'}</span></div><div className="update-source-head-right"><span className="update-source-check" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></span><span className={`update-source-badge ${tested ? stats.ok ? 'ok' : 'bad' : ''}`}>{testing && stats.done < stats.total ? `检测中 ${stats.done}/${stats.total}` : tested ? stats.ok ? '可用' : '不可用' : '待测试'}</span></div></div>
+            <div className="connectivity-list" data-connectivity-source={candidate}>{sourceItems.map(item => <div className={`connectivity-row ${item.pending ? 'pending' : item.untouched ? '' : item.ok ? 'ok' : 'fail'}`} key={item.name}><span className="connectivity-indicator" /><div><div className="connectivity-name">{item.name}</div><div className="connectivity-url">{item.url || ''}</div></div><div className="connectivity-status">{item.pending ? '检测中...' : item.untouched ? '待测试' : item.ok ? `正常 · ${item.elapsed_ms || 0}ms` : item.timed_out ? '失败 · 超时' : item.status ? `HTTP ${item.status}` : '失败'}</div>{item.error && !item.timed_out ? <div className="connectivity-error">{item.error.slice(0, 220)}</div> : null}</div>)}</div>
+          </button>;
+        })}</div>
+        <div id="project-update-summary" className={`update-modal-summary ${summary.kind}`}><span className="update-modal-dot" aria-hidden="true" /><div><strong>{summary.title}</strong><span>{summary.text}</span></div></div>
+      </div>
+      <div className="studio-modal-actions"><button id="connectivity-test-btn" className="studio-modal-btn" type="button" disabled={testing || updating} onClick={() => void runConnectivityTest()}><ShellIcon name="refresh" /><span>{testing ? '检测中...' : tested ? '重新测试' : '测试连通性'}</span></button><button className="studio-modal-btn" type="button" onClick={close}>取消</button><button id="project-update-confirm-btn" className="studio-modal-btn primary" type="button" disabled={testing || updating} onClick={() => void confirmUpdate()}><ShellIcon name="refresh" /><span>{updating ? '更新中...' : '开始更新'}</span></button></div>
+    </div>
   </div>;
 }
 
@@ -113,6 +261,7 @@ export function SiteShellApp() {
   const [queue, setQueue] = useState({ total: 0, position: 0 });
   const [info, setInfo] = useState<AppInfo>();
   const [check, setCheck] = useState<UpdateCheck>();
+  const [checking, setChecking] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   const frames = useRef<Partial<Record<SitePageId, HTMLIFrameElement>>>({});
   const activeRef = useRef(active);
@@ -154,12 +303,32 @@ export function SiteShellApp() {
     localStorage.setItem(SIDEBAR_SETTINGS_COLLAPSED_KEY, next ? '1' : '0');
     return next;
   });
+  const checkForUpdates = async (manual = false) => {
+    if (manual) setChecking(true);
+    try {
+      const currentInfo = await shellClient.appInfo();
+      setInfo(currentInfo);
+      let currentCheck: UpdateCheck;
+      try { currentCheck = await shellClient.checkUpdate(); }
+      catch { currentCheck = await fallbackUpdateCheck(currentInfo); }
+      setCheck(currentCheck);
+      if (currentCheck.update_available) {
+        if (currentCheck.latest?.source === 'modelscope') localStorage.setItem(UPDATE_SOURCE_KEY, 'modelscope');
+        if (manual) setUpdateOpen(true);
+      } else if (manual) {
+        alert(currentCheck.reachable ? `已是最新版本（${versionLabel(currentCheck.current)}）。` : '无法连接 GitHub 或 ModelScope 更新源，请检查网络或代理后重试。');
+      }
+    } catch {
+      if (manual) alert('检测更新失败。');
+    } finally { if (manual) setChecking(false); }
+  };
 
   useEffect(() => {
-    if (!location.hash) history.replaceState(null, '', routeHash(active));
+    if (location.hash !== routeHash(active)) history.replaceState(null, '', routeHash(active));
     document.documentElement.classList.remove('studio-route-booting');
     const onHash = () => {
       const next = pageFromHash(location.hash);
+      if (location.hash !== routeHash(next)) history.replaceState(null, '', routeHash(next));
       setActive(next);
       setLoaded(current => new Set(current).add(next));
       localStorage.setItem(ACTIVE_PAGE_KEY, next);
@@ -172,6 +341,14 @@ export function SiteShellApp() {
   useEffect(() => { localStorage.setItem(SHELL_PINNED_KEY, pinned ? '1' : '0'); }, [pinned]);
   useEffect(() => () => clearTimeout(collapseTimer.current), []);
   useEffect(() => { applyStudioTheme(theme); localStorage.setItem('studio_theme', theme); broadcast({ type: 'studio-theme', theme }); }, [theme]);
+  useEffect(() => {
+    const onThemeChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ theme?: string }>).detail;
+      if (detail?.theme) setTheme(normalizeStudioTheme(detail.theme));
+    };
+    window.addEventListener('studio-theme-change', onThemeChange);
+    return () => window.removeEventListener('studio-theme-change', onThemeChange);
+  }, []);
   useEffect(() => {
     const forward = (data: unknown) => { if (isForwardableEvent(data)) broadcast(data); };
     const unsubscribe = subscribeStudioEvents(type => forward({ type }));
@@ -203,13 +380,25 @@ export function SiteShellApp() {
     const poll = window.setInterval(() => shellClient.queue(clientId).then(value => setQueue({ total: value.total || 0, position: value.position || 0 })).catch(() => undefined), 2000);
     return () => { closed = true; clearTimeout(reconnect); clearInterval(poll); socket?.close(); };
   }, [clientId]);
+  useEffect(() => { void checkForUpdates(); }, []);
   useEffect(() => {
-    Promise.allSettled([shellClient.appInfo(), shellClient.checkUpdate()]).then(values => {
-      const app = values[0];
-      const update = values[1];
-      if (app.status === 'fulfilled') setInfo(app.value);
-      if (update.status === 'fulfilled') setCheck(update.value);
-    });
+    const host = window as typeof window & { rollbackProjectUpdate?: () => Promise<void> };
+    host.rollbackProjectUpdate = async () => {
+      try {
+        const backups = (await shellClient.backups()).backups;
+        if (!backups.length) { alert('没有可用的备份'); return; }
+        const lines = backups.slice(0, 8).map((backup, index) => `${index + 1}. ${backup.name}  (${backup.file_count || 0} files, ${backup.created_at ? new Date(backup.created_at * 1000).toLocaleString() : '-'})`);
+        const answer = prompt(`选择要还原的备份（输入序号）：\n${lines.join('\n')}`, '1');
+        const selected = Number(answer) - 1;
+        if (!(selected >= 0 && selected < backups.length)) return;
+        const backup = backups[selected];
+        if (!confirm(`要还原 "${backup.name}" 吗？后端会自动重启。`)) return;
+        const result = await shellClient.rollback(backup.name);
+        alert(`已还原 ${result.count || 0} 个文件。后端正在重启。`);
+        if (result.restart_scheduled) void waitForBackendAndReload();
+      } catch (error) { alert(`回滚失败：${errorMessage(error)}`); }
+    };
+    return () => { delete host.rollbackProjectUpdate; };
   }, []);
 
   return <>
@@ -226,11 +415,12 @@ export function SiteShellApp() {
             <button className="side-pill" type="button" title="切换夜间模式" aria-label="切换主题" onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}><ShellIcon name={theme === 'dark' ? 'sun' : 'moon'} /><span className="side-pill-text">{theme === 'dark' ? '浅色模式' : '黑夜模式'}</span></button>
             <button className={`side-pill ${active === 'comfyui-settings' ? 'active' : ''}`} type="button" title="工作流设置" aria-label="工作流设置" onClick={() => open(SITE_PAGES.find(page => page.id === 'comfyui-settings')!)}><ShellIcon name="comfyui-settings" /><span className="side-pill-text">工作流设置</span></button>
           </div>
-          {check?.update_available ? <button type="button" className="update-now-btn show" title="更新中心" onClick={() => setUpdateOpen(true)}><ShellIcon name="refresh" /><span className="update-now-text">更新到 {check.latest?.version || '新版本'}</span></button> : <button type="button" className="project-version-badge" title="点击检测更新" onClick={() => setUpdateOpen(true)}><span className="project-version-compact">v{(info?.version || check?.current || '-').split('.').slice(-2).join('.')}</span><span className="project-version-full">v{info?.version || check?.current || '-'}</span></button>}
+          <button id="update-now-btn" type="button" className={`update-now-btn ${check?.update_available ? 'show' : ''}`} title="一键更新" onClick={() => setUpdateOpen(true)}><ShellIcon name="refresh" /><span id="update-now-text" className="update-now-text">更新到 {check?.latest?.version || '新版本'}</span></button>
+          <div id="project-version-badge" className={`project-version-badge ${checking ? 'checking' : ''}`} title="点击检测更新" role="button" tabIndex={0} onClick={() => { if (!checking) void checkForUpdates(true); }} onKeyDown={event => { if (!checking && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); void checkForUpdates(true); } }}><span className="project-version-compact">v{(info?.version || check?.current || '-').split('.').slice(-2).join('.')}</span><span className="project-version-full">v{info?.version || check?.current || '-'}</span></div>
         </div>
       </aside>
       <main className="stage">
-        {SITE_PAGES.filter(page => loaded.has(page.id)).map(page => <iframe ref={node => { if (node) frames.current[page.id] = node; else delete frames.current[page.id]; }} id={`frame-${page.id}`} data-src={page.src} className={active === page.id ? 'active' : ''} src={page.src} title={page.label} scrolling="yes" onLoad={event => { syncFrame(event.currentTarget); if (page.id === 'canvas') postToFrame(event.currentTarget, { type: 'canvas-focus' }); }} key={page.id} />)}
+        {SITE_PAGES.map(page => <iframe ref={node => { if (node) frames.current[page.id] = node; else delete frames.current[page.id]; }} id={`frame-${page.id}`} data-src={page.src} className={active === page.id ? 'active' : ''} src={loaded.has(page.id) ? page.src : undefined} title={page.label} scrolling="yes" onLoad={event => { syncFrame(event.currentTarget); if (page.id === 'canvas') postToFrame(event.currentTarget, { type: 'canvas-focus' }); }} key={page.id} />)}
         <div className={`nano-monitor ${queue.position > 0 ? 'is-busy' : ''}`} id="nano-monitor">
           <div className="stat-group"><span className="pulse-dot animate-pulse" /><span className="spinner-nano" /><span className="label-nano">ONLINE</span><span id="online-val">{online}</span></div>
           <span className="divider" />

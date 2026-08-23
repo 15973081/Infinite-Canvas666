@@ -6,10 +6,6 @@ export const UPDATE_SOURCE_KEY = 'studio_update_source';
 export const DEFAULT_PAGE: SitePageId = 'online';
 
 export const SITE_PAGES: SitePage[] = [
-  { id: 'zimage', label: '文生图', src: '/static/zimage.html', group: 'create' },
-  { id: 'enhance', label: '细节增强', src: '/static/enhance.html', group: 'create' },
-  { id: 'klein', label: '图片编辑', src: '/static/klein.html', group: 'create' },
-  { id: 'angle', label: '角度控制', src: '/static/angle.html', group: 'create' },
   { id: 'online', label: '在线生图', src: '/static/online.html', group: 'workspace' },
   { id: 'gpt-chat', label: 'GPT 对话', src: '/static/gpt-chat.html', group: 'workspace' },
   { id: 'canvas', label: '无限画布', src: '/static/canvas.html', group: 'workspace' },
