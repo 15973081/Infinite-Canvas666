@@ -1,22 +1,28 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ComfyUI 工作流设置</title>
-  <script>
-    (function () {
-      try {
-        var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
-        if (theme === 'dark') document.documentElement.classList.add('studio-theme-dark', 'theme-dark');
-      } catch (_) {}
-    })();
-  </script>
-  <link rel="stylesheet" href="/static/css/comfyui-settings.css?v=2026.08.19.1">
-  <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.9.1779672341">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作流设置</title>
+    <script>
+        (function(){
+            try {
+                var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
+                if(theme === 'dark') {
+                    document.documentElement.classList.add('studio-theme-dark');
+                    document.documentElement.classList.add('theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.9.1779672342"></script>
+    <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
+    <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
+    <link rel="stylesheet" href="/static/css/comfyui-settings.css?v=2026.08.23.react2">
+    <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.9.1779672341">
 </head>
 <body>
-  <div id="comfySettingsApp"></div>
-  <script type="module" src="/static/dist/comfyui-settings-modern.js?v=2026.08.19.1"></script>
+    <div id="comfySettingsApp"></div>
+    <script type="module" src="/static/dist/comfyui-settings-modern.js?v=2026.08.23.2"></script>
 </body>
 </html>
