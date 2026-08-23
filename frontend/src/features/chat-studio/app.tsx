@@ -1,31 +1,71 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { publishStudioEvent, subscribeStudioEvents } from '../../shared/studio-events';
 import { chatClient } from './client';
-import { availableProviders, CHAT_LAST_CONVERSATION_KEY, CHAT_SETTINGS_KEY, CHAT_USER_KEY, filterConversations, isImageAttachment } from './domain';
+import { availableProviders, CHAT_LAST_CONVERSATION_KEY, CHAT_SETTINGS_KEY, CHAT_USER_KEY, isImageAttachment } from './domain';
 import type { ChatAttachment, ChatConfig, ChatMessage, ChatStreamEvent, Conversation, ConversationSummary } from './types';
 
 const id = () => crypto.randomUUID?.() || `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : '操作失败';
 const readStored = <T,>(key: string, fallback: T): T => { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } };
 
-function AttachmentView({ attachment, onOpen }: { attachment: ChatAttachment; onOpen?: (url: string) => void }) {
-  if (isImageAttachment(attachment)) return <button className="chat-attachment-image" type="button" onClick={() => onOpen?.(attachment.url)}><img src={attachment.url} alt={attachment.name} /></button>;
-  return <a className="chat-attachment-file" href={attachment.url} target="_blank" rel="noreferrer"><strong>{attachment.kind.toUpperCase()}</strong><span>{attachment.name}</span></a>;
+type IconName = 'boxes' | 'check' | 'chevron-up' | 'file' | 'history' | 'messages' | 'paperclip' | 'plus' | 'send' | 'x';
+
+function Icon({ name }: { name: IconName }) {
+  const common = { 'aria-hidden': true, fill: 'none', stroke: 'currentColor', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, strokeWidth: 2, viewBox: '0 0 24 24' };
+  if (name === 'plus') return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>;
+  if (name === 'history') return <svg {...common}><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg>;
+  if (name === 'paperclip') return <svg {...common}><path d="m21.4 11.6-8.5 8.5a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></svg>;
+  if (name === 'boxes') return <svg {...common}><path d="m12 2 4 2.3v4.6L12 11 8 8.9V4.3zM5 13l4 2.3v4.6L5 22l-4-2.1v-4.6zM19 13l4 2.3v4.6L19 22l-4-2.1v-4.6z" /></svg>;
+  if (name === 'chevron-up') return <svg {...common}><path d="m18 15-6-6-6 6" /></svg>;
+  if (name === 'check') return <svg {...common}><path d="m5 12 4 4L19 6" /></svg>;
+  if (name === 'file') return <svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>;
+  if (name === 'messages') return <svg {...common}><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /></svg>;
+  if (name === 'send') return <svg {...common}><path d="m22 2-7 20-4-9-9-4zM22 2 11 13" /></svg>;
+  return <svg {...common}><path d="M18 6 6 18M6 6l12 12" /></svg>;
 }
 
-function MessageBubble({ message, streaming, onOpen, onCopy }: { message: ChatMessage; streaming?: boolean; onOpen: (url: string) => void; onCopy: (text: string) => void }) {
-  return <article className={`chat-message ${message.role} ${streaming ? 'streaming' : ''}`}><div className="chat-message-role">{message.role === 'user' ? '你' : 'AI'}</div><div className="chat-bubble"><div className="chat-message-text">{message.content || (streaming ? '正在思考…' : '')}</div>{message.attachments?.length ? <div className="chat-attachments">{message.attachments.map((attachment, index) => <AttachmentView attachment={attachment} onOpen={onOpen} key={`${attachment.url}-${index}`} />)}</div> : null}<footer><span>{message.model?.split('/').pop()?.split(':')[0] || ''}</span>{message.content && <button type="button" onClick={() => onCopy(message.content)}>复制</button>}</footer></div></article>;
+function attachmentName(attachment: ChatAttachment) {
+  return attachment.name || attachment.url.split('/').pop() || '附件';
+}
+
+function AttachmentThumb({ attachment, onOpen }: { attachment: ChatAttachment; onOpen: (url: string) => void }) {
+  if (isImageAttachment(attachment)) return <img className="thumb" src={attachment.url} title={attachmentName(attachment)} onClick={() => onOpen(attachment.url)} />;
+  return <div className="thumb file-thumb" title={attachmentName(attachment)}><Icon name="file" /><span className="thumb-name">{attachmentName(attachment)}</span></div>;
+}
+
+function MessageBubble({ message, streaming, onOpen }: { message: ChatMessage; streaming?: boolean; onOpen: (url: string) => void }) {
+  return <div className={`bubble-row ${message.role === 'user' ? 'user' : 'assistant'}`}>
+    <div className={`bubble ${message.role === 'user' ? 'user' : 'assistant'} ${streaming ? 'streaming' : ''}`}>
+      <div className="bubble-text">{message.content || ''}</div>
+      {message.attachments?.length ? <div className="thumbs">{message.attachments.map((attachment, index) => <AttachmentThumb attachment={attachment} onOpen={onOpen} key={`${attachment.url}-${index}`} />)}</div> : null}
+      {message.role === 'assistant' && message.model ? <div className="chat-model-badge">{message.model.split('/').pop()?.split(':')[0]}</div> : null}
+    </div>
+  </div>;
 }
 
 export function ChatStudioApp() {
-  const [config, setConfig] = useState<ChatConfig>({}); const [summaries, setSummaries] = useState<ConversationSummary[]>([]); const [conversation, setConversation] = useState<Conversation>();
-  const [query, setQuery] = useState(''); const [draft, setDraft] = useState(''); const [attachments, setAttachments] = useState<ChatAttachment[]>([]); const [status, setStatus] = useState('正在加载对话…');
-  const settings = readStored(CHAT_SETTINGS_KEY, { provider: '', model: '' }); const [providerId, setProviderId] = useState(settings.provider); const [model, setModel] = useState(settings.model);
-  const [busy, setBusy] = useState(false); const [streamingText, setStreamingText] = useState(''); const [failedDraft, setFailedDraft] = useState<{ text: string; attachments: ChatAttachment[] }>(); const [preview, setPreview] = useState(''); const [historyOpen, setHistoryOpen] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null); const messageRef = useRef<HTMLTextAreaElement>(null); const messagesRef = useRef<HTMLDivElement>(null); const abortRef = useRef<AbortController | undefined>(undefined);
+  const [config, setConfig] = useState<ChatConfig>({});
+  const [summaries, setSummaries] = useState<ConversationSummary[]>([]);
+  const [conversation, setConversation] = useState<Conversation>();
+  const [draft, setDraft] = useState('');
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [status, setStatus] = useState('正在加载对话…');
+  const settings = readStored(CHAT_SETTINGS_KEY, { provider: '', model: '' });
+  const [providerId, setProviderId] = useState(settings.provider);
+  const [model, setModel] = useState(settings.model);
+  const [busy, setBusy] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [preview, setPreview] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const messageRef = useRef<HTMLTextAreaElement>(null);
+  const messagesRef = useRef<HTMLElement>(null);
+  const abortRef = useRef<AbortController | undefined>(undefined);
   const userId = useMemo(() => { const saved = localStorage.getItem(CHAT_USER_KEY); const next = saved || id(); localStorage.setItem(CHAT_USER_KEY, next); return next; }, []);
-  const providers = useMemo(() => availableProviders(config), [config]); const provider = providers.find(item => item.id === providerId) ?? providers[0]; const models = provider?.chat_models ?? [];
-  const visibleSummaries = useMemo(() => filterConversations(summaries, query), [summaries, query]);
+  const providers = useMemo(() => availableProviders(config), [config]);
+  const provider = providers.find(item => item.id === providerId) ?? providers[0];
+  const models = provider?.chat_models ?? [];
 
   const refreshList = async () => { const value = await chatClient.list(userId); setSummaries(value.conversations); return value.conversations; };
   const openConversation = async (conversationId: string) => { const value = await chatClient.get(userId, conversationId); setConversation(value.conversation); localStorage.setItem(CHAT_LAST_CONVERSATION_KEY, conversationId); setStatus('已就绪'); setHistoryOpen(false); };
@@ -38,13 +78,12 @@ export function ChatStudioApp() {
   useEffect(() => { if (!provider) return; const nextModel = provider.chat_models.includes(model) ? model : provider.chat_models[0] || ''; if (nextModel !== model) setModel(nextModel); localStorage.setItem(CHAT_SETTINGS_KEY, JSON.stringify({ provider: provider.id, model: nextModel })); }, [provider?.id, model, providers]);
   useEffect(() => { requestAnimationFrame(() => { if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight; }); }, [conversation?.messages, streamingText]);
 
-  const createConversation = async () => { try { const value = await chatClient.create(userId); setConversation(value.conversation); localStorage.setItem(CHAT_LAST_CONVERSATION_KEY, value.conversation.id); await refreshList(); setStatus('新对话已创建'); messageRef.current?.focus(); } catch (error) { setStatus(errorMessage(error)); } };
-  const removeConversation = async (item: ConversationSummary) => { if (!confirm(`删除对话“${item.title}”？`)) return; try { await chatClient.remove(userId, item.id); const items = await refreshList(); if (conversation?.id === item.id) { const next = items[0]; if (next) await openConversation(next.id); else { setConversation(undefined); localStorage.removeItem(CHAT_LAST_CONVERSATION_KEY); } } setStatus('对话已删除'); } catch (error) { setStatus(errorMessage(error)); } };
-  const upload = async (files: File[]) => { const available = Math.max(0, 4 - attachments.length); if (!available) { setStatus('每条消息最多添加 4 个附件'); return; } setStatus('正在上传附件…'); try { const value = await chatClient.upload(files.slice(0, available)); setAttachments(current => [...current, ...value.files].slice(0, 4)); setStatus(`已添加 ${value.files.length} 个附件`); } catch (error) { setStatus(errorMessage(error)); } };
-  const stop = () => { abortRef.current?.abort(); setStatus('已停止接收；服务端已接收的消息仍会保留'); };
-  const send = async (retry?: { text: string; attachments: ChatAttachment[] }) => {
-    const text = (retry?.text ?? draft).trim(); const refs = retry?.attachments ?? attachments; if (!text || busy || !provider || !model) return;
-    const controller = new AbortController(); abortRef.current = controller; setBusy(true); setStreamingText(''); setFailedDraft(undefined); setDraft(''); setAttachments([]); setStatus('正在生成回复…');
+  const createConversation = async () => { try { const value = await chatClient.create(userId); setConversation(value.conversation); localStorage.setItem(CHAT_LAST_CONVERSATION_KEY, value.conversation.id); await refreshList(); setStatus('新对话已创建'); setHistoryOpen(false); messageRef.current?.focus(); } catch (error) { setStatus(errorMessage(error)); } };
+  const removeConversation = async (item: ConversationSummary) => { if (!confirm('删除这条历史对话？')) return; try { await chatClient.remove(userId, item.id); const items = await refreshList(); if (conversation?.id === item.id) { const next = items[0]; if (next) await openConversation(next.id); else { setConversation(undefined); localStorage.removeItem(CHAT_LAST_CONVERSATION_KEY); } } setStatus('对话已删除'); } catch (error) { setStatus(errorMessage(error)); } };
+  const upload = async (files: File[]) => { const available = Math.max(0, 4 - attachments.length); if (!available) return; try { const value = await chatClient.upload(files.slice(0, available)); setAttachments(current => [...current, ...value.files].slice(0, 4)); } catch (error) { setStatus(errorMessage(error)); } };
+  const send = async () => {
+    const text = draft.trim(); const refs = attachments; if (!text || busy || !provider || !model) return;
+    const controller = new AbortController(); abortRef.current = controller; setBusy(true); setStreamingText(''); setDraft(''); setAttachments([]); setStatus('正在生成回复…');
     const optimistic: ChatMessage = { id: id(), role: 'user', content: text, attachments: refs, created_at: Date.now() };
     const current = conversation ?? { id: '', title: '新对话', created_at: Date.now(), updated_at: Date.now(), messages: [] };
     setConversation({ ...current, messages: [...current.messages, optimistic] });
@@ -57,23 +96,52 @@ export function ChatStudioApp() {
       });
       await refreshList(); setStatus('回复完成'); publishStudioEvent('chat-changed');
     } catch (error) {
-      const failureStatus = controller.signal.aborted ? '已停止接收回复' : errorMessage(error);
-      if (!controller.signal.aborted) setFailedDraft({ text, attachments: refs });
-      if (current.id) await openConversation(current.id).catch(() => undefined); else { const items = await refreshList().catch(() => []); if (items[0]) await openConversation(items[0].id).catch(() => undefined); }
-      setStatus(failureStatus);
+      setStatus(errorMessage(error));
+      if (current.id) await openConversation(current.id).catch(() => undefined);
     } finally { setBusy(false); setStreamingText(''); abortRef.current = undefined; }
   };
-  const copy = async (text: string) => { await navigator.clipboard.writeText(text); setStatus('已复制消息'); };
   const messages = conversation?.messages ?? [];
 
-  return <div className="chat-page">
-    <main className="chat-main"><header className="chat-header"><div className="chat-title-block"><span className="chat-product-name">ChatStudio</span><h1>{conversation?.title || '新对话'}</h1><span role="status">{status}</span></div><div className="chat-header-actions"><button className="studio-button" type="button" onClick={() => void createConversation()}>＋ 新建</button><button className="studio-button" type="button" aria-label="历史" onClick={() => setHistoryOpen(true)}>↶ 历史</button></div></header>
-      <div className="chat-messages" ref={messagesRef}>{messages.length ? messages.map(message => <MessageBubble message={message} onOpen={setPreview} onCopy={text => void copy(text)} key={message.id} />) : <div className="chat-empty"><strong>开始一个新对话</strong><p>支持流式回复以及图片、文档、音频和视频附件。</p></div>}{busy && <MessageBubble message={{ id: 'stream', role: 'assistant', content: streamingText }} streaming onOpen={setPreview} onCopy={text => void copy(text)} />}</div>
-      <section className={`studio-card chat-composer ${busy ? 'busy' : ''}`} onDragOver={event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); }} onDrop={event => { if (event.dataTransfer.files.length) { event.preventDefault(); void upload([...event.dataTransfer.files]); } }}>
-        {attachments.length > 0 && <div className="chat-composer-attachments">{attachments.map((attachment, index) => <div key={`${attachment.url}-${index}`}><AttachmentView attachment={attachment} onOpen={setPreview} /><button type="button" aria-label={`移除 ${attachment.name}`} onClick={() => setAttachments(items => items.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>}
-        {failedDraft && !busy && <div className="chat-retry"><span>上次请求失败，可以重新提交。</span><button className="studio-button" type="button" onClick={() => void send(failedDraft)}>重试</button></div>}
-        <textarea ref={messageRef} aria-label="消息" value={draft} placeholder="输入消息，Enter 发送…" onPaste={event => { const files = [...event.clipboardData.files]; if (files.length) void upload(files); }} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} />
-        <footer><div className="chat-composer-tools"><button className="chat-icon-button" type="button" title="添加附件" onClick={() => fileRef.current?.click()}>⌕</button><span>{attachments.length}/4</span><div className="chat-model-controls"><select className="studio-input" aria-label="对话平台" value={provider?.id || ''} onChange={event => setProviderId(event.target.value)}>{providers.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select><select className="studio-input" aria-label="对话模型" value={model} onChange={event => setModel(event.target.value)}>{models.map(item => <option key={item}>{item}</option>)}</select></div></div>{busy ? <button className="studio-button danger" type="button" onClick={stop}>停止</button> : <button className="studio-button primary chat-send" aria-label="发送" type="button" disabled={!draft.trim() || !model} onClick={() => void send()}>➤</button>}<input hidden multiple ref={fileRef} type="file" onChange={event => { if (event.target.files) void upload([...event.target.files]); event.target.value = ''; }} /></footer>
-      </section>
-    </main>{historyOpen && <div className="chat-history-scrim" onMouseDown={() => setHistoryOpen(false)}><aside className="chat-history-panel" onMouseDown={event => event.stopPropagation()}><header><div><span>CONVERSATIONS</span><strong>历史对话</strong></div><button type="button" aria-label="关闭历史" onClick={() => setHistoryOpen(false)}>×</button></header><input className="studio-input" aria-label="搜索对话" placeholder="搜索历史对话…" value={query} onChange={event => setQuery(event.target.value)} /><nav className="chat-thread-list">{visibleSummaries.map(item => <div className={`chat-thread ${conversation?.id === item.id ? 'active' : ''}`} key={item.id}><button type="button" onClick={() => void openConversation(item.id)}><strong>{item.title}</strong><span>{item.last_message || '暂无消息'}</span></button><button type="button" aria-label={`删除 ${item.title}`} onClick={() => void removeConversation(item)}>×</button></div>)}</nav></aside></div>}{preview && <div className="chat-preview" onMouseDown={() => setPreview('')}><img src={preview} alt="附件预览" onMouseDown={event => event.stopPropagation()} /><button type="button" onClick={() => setPreview('')}>×</button></div>}</div>;
+  return <div className="chat-shell">
+    <main className="chat-main">
+      <header className="topbar">
+        <div className="topbar-inner">
+          <div className="title-block"><h1 id="chatTitle">{conversation?.title || '新对话'}</h1><span className="sr-only" role="status">{status}</span></div>
+          <div className="top-actions">
+            <button className="action-btn" title="新对话" type="button" onClick={() => void createConversation()}><Icon name="plus" /><span>新建</span></button>
+            <button className="action-btn history-toggle" title="历史" type="button" onClick={event => { event.stopPropagation(); setHistoryOpen(value => !value); }}><Icon name="history" /><span>历史</span></button>
+            <aside id="historyPopover" className={`chat-rail ${historyOpen ? 'open' : ''}`}>
+              <div className="rail-head"><div><div className="rail-kicker">对话列表</div><div className="rail-title">历史</div></div><button className="rail-close" title="关闭" aria-label="关闭" type="button" onClick={() => setHistoryOpen(false)}><Icon name="x" /></button></div>
+              <button className="rail-new" title="新对话" type="button" onClick={() => void createConversation()}><Icon name="plus" /><span>新建</span></button>
+              <div id="threadList" className="thread-list">{summaries.length ? summaries.map(item => <div className="thread-row" key={item.id}><button className={`thread-item ${conversation?.id === item.id ? 'active' : ''}`} type="button" onClick={() => void openConversation(item.id)}><div className="text-sm font-bold truncate">{item.title || '新对话'}</div><div className="text-[11px] opacity-50 truncate mt-1">{item.last_message || ''}</div></button><button className="thread-delete" title="删除对话" aria-label={`删除 ${item.title}`} type="button" onClick={event => { event.stopPropagation(); void removeConversation(item); }}><Icon name="x" /></button></div>) : <div className="px-3 py-8 text-center text-[11px] font-bold text-gray-300 uppercase tracking-widest">暂无历史</div>}</div>
+            </aside>
+          </div>
+        </div>
+      </header>
+
+      <section id="messages" className="messages" ref={messagesRef}>{messages.length ? messages.map(message => <MessageBubble message={message} onOpen={setPreview} key={message.id} />) : <div className="empty-state"><Icon name="messages" /><div className="empty-state-text">就绪</div></div>}{busy ? <MessageBubble message={{ id: 'stream', role: 'assistant', content: streamingText }} streaming onOpen={setPreview} /> : null}</section>
+
+      <div className="composer-wrap">
+        <div className="composer">
+          <div id="composerBody" className="composer-body">
+            <textarea id="messageInput" ref={messageRef} rows={4} placeholder="输入消息，Enter 发送..." value={draft} onChange={event => setDraft(event.target.value)} />
+            <div id="refStrip" className="ref-strip">{attachments.map((attachment, index) => isImageAttachment(attachment) ? <div className="ref-chip" key={`${attachment.url}-${index}`}><img src={attachment.url} title={attachmentName(attachment)} /><button type="button" onClick={() => setAttachments(items => items.filter((_, itemIndex) => itemIndex !== index))}>×</button></div> : <div className="ref-chip file" key={`${attachment.url}-${index}`}><Icon name="file" /><span className="ref-file-name" title={attachmentName(attachment)}>{attachmentName(attachment)}</span><button type="button" onClick={() => setAttachments(items => items.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>
+            <div className="composer-inside-foot">
+              <div className="left-tools"><div className="inline-controls">
+                <input id="attachmentInput" className="file-input" ref={fileRef} type="file" multiple onChange={event => { if (event.target.files) void upload([...event.target.files]); event.target.value = ''; }} />
+                <button type="button" className="upload-btn" title="上传附件" aria-label="上传附件" onClick={() => fileRef.current?.click()}><Icon name="paperclip" /></button>
+                <div id="modelPicker" className={`model-picker ${modelPickerOpen ? 'open' : ''}`}>
+                  <button id="modelPickerBtn" className="model-picker-button" title="选择平台和模型" type="button" onClick={event => { event.stopPropagation(); setModelPickerOpen(value => !value); }}><Icon name="boxes" /><span className="model-picker-labels"><span id="modelPickerProvider" className="model-picker-provider">{provider?.name || 'API'}</span><span className="model-picker-dot" /><span id="modelPickerModel" className="model-picker-model">{model.split('/').pop()?.split(':')[0] || 'Model'}</span></span><Icon name="chevron-up" /></button>
+                  <div id="modelPickerPopover" className={`model-picker-popover ${modelPickerOpen ? 'open' : ''}`} onClick={event => event.stopPropagation()}><div className="model-picker-head"><div id="modelPickerTitle" className="model-picker-title">对话模型</div><div id="modelPickerScope" className="model-picker-scope" /></div><div className="model-picker-body"><div id="modelProviderList" className="model-picker-list">{providers.map(item => <button className={`model-picker-option ${item.id === provider?.id ? 'active' : ''}`} type="button" key={item.id} onClick={() => setProviderId(item.id)}><span>{item.name}</span>{item.id === provider?.id ? <Icon name="check" /> : null}</button>)}</div><div id="modelList" className="model-picker-list">{models.map(item => <button className={`model-picker-option ${item === model ? 'active' : ''}`} type="button" key={item} onClick={() => { setModel(item); setModelPickerOpen(false); }}><span>{item.split('/').pop()?.split(':')[0]}</span>{item === model ? <Icon name="check" /> : null}</button>)}</div></div></div>
+                </div>
+                <div id="imageControls" className="image-controls hidden"><div className="mini-ratio"><button className="active" type="button">1:1</button><button type="button">2:3</button><button type="button">3:2</button><button type="button">3:4</button><button type="button">4:3</button><button type="button">9:16</button><button type="button">16:9</button></div><div className="resolution-toggle" title="分辨率"><button className="resolution-option active" type="button">1K</button><button className="resolution-option" type="button">2K</button></div></div>
+              </div></div>
+              <button id="sendBtn" className="send-btn" title="发送" aria-label="发送" type="button" disabled={!draft.trim() || busy || !model} onClick={() => void send()}><Icon name="send" /></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div id="imagePreviewModal" className={`image-preview-modal ${preview ? 'open' : ''}`} onClick={() => setPreview('')}><button className="image-preview-close" title="关闭" aria-label="关闭" type="button" onClick={event => { event.stopPropagation(); setPreview(''); }}><Icon name="x" /></button><img id="imagePreviewImg" src={preview} alt="preview" onClick={event => event.stopPropagation()} /></div>
+  </div>;
 }
