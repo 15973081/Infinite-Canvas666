@@ -1,6 +1,7 @@
 import type { ChatAttachment, ChatConfig, ChatProvider, ConversationSummary } from './types';
 
-export const CHAT_SETTINGS_KEY = 'gpt_chat_settings_v2';
+export const CHAT_SETTINGS_KEY = 'gpt_chat_settings_v1';
+export const CHAT_SETTINGS_V2_KEY = 'gpt_chat_settings_v2';
 export const CHAT_LAST_CONVERSATION_KEY = 'gpt_chat_last_conversation_v1';
 export const CHAT_USER_KEY = 'gpt_chat_browser_user';
 
@@ -33,4 +34,3 @@ export function parseSseBuffer(buffer: string) {
   });
   return { events, rest };
 }
-

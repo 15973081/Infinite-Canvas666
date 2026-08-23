@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { publishStudioEvent, subscribeStudioEvents } from '../../shared/studio-events';
 import { chatClient } from './client';
-import { availableProviders, CHAT_LAST_CONVERSATION_KEY, CHAT_SETTINGS_KEY, CHAT_USER_KEY, isImageAttachment } from './domain';
+import { availableProviders, CHAT_LAST_CONVERSATION_KEY, CHAT_SETTINGS_KEY, CHAT_SETTINGS_V2_KEY, CHAT_USER_KEY, isImageAttachment } from './domain';
 import type { ChatAttachment, ChatConfig, ChatMessage, ChatStreamEvent, Conversation, ConversationSummary } from './types';
 
 const id = () => crypto.randomUUID?.() || `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -34,10 +35,13 @@ function AttachmentThumb({ attachment, onOpen }: { attachment: ChatAttachment; o
 }
 
 function MessageBubble({ message, streaming, onOpen }: { message: ChatMessage; streaming?: boolean; onOpen: (url: string) => void }) {
+  const imageUrls = message.image_urls?.length ? message.image_urls : message.image_url ? [message.image_url] : [];
+  const content = message.type === 'image' ? message.agent_reply || '生成完成' : message.content;
   return <div className={`bubble-row ${message.role === 'user' ? 'user' : 'assistant'}`}>
-    <div className={`bubble ${message.role === 'user' ? 'user' : 'assistant'} ${streaming ? 'streaming' : ''}`}>
-      <div className="bubble-text">{message.content || ''}</div>
+    <div className={`bubble ${message.role === 'user' ? 'user' : 'assistant'} ${imageUrls.length ? 'image-bubble' : ''} ${streaming ? 'streaming' : ''}`}>
+      <div className="bubble-text">{content || ''}</div>
       {message.attachments?.length ? <div className="thumbs">{message.attachments.map((attachment, index) => <AttachmentThumb attachment={attachment} onOpen={onOpen} key={`${attachment.url}-${index}`} />)}</div> : null}
+      {imageUrls.length ? <div className={`generated-grid count-${Math.min(imageUrls.length, 4)}`}>{imageUrls.map(url => <img className="generated" src={url} alt="生成结果" onClick={() => onOpen(url)} key={url} />)}</div> : null}
       {message.role === 'assistant' && message.model ? <div className="chat-model-badge">{message.model.split('/').pop()?.split(':')[0]}</div> : null}
     </div>
   </div>;
@@ -50,16 +54,25 @@ export function ChatStudioApp() {
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [status, setStatus] = useState('正在加载对话…');
-  const settings = readStored(CHAT_SETTINGS_KEY, { provider: '', model: '' });
-  const [providerId, setProviderId] = useState(settings.provider);
-  const [model, setModel] = useState(settings.model);
+  const legacySettings = readStored<Record<string, unknown>>(CHAT_SETTINGS_KEY, {});
+  const modernSettings = readStored(CHAT_SETTINGS_V2_KEY, { provider: '', model: '' });
+  const initialProvider = String(legacySettings.provider || modernSettings.provider || '');
+  const initialModelsByProvider = typeof legacySettings.chatProviderModels === 'object' && legacySettings.chatProviderModels ? legacySettings.chatProviderModels as Record<string, string> : {};
+  const initialModel = String(legacySettings.activeChatModel || legacySettings.msModel || modernSettings.model || '');
+  const [providerId, setProviderId] = useState(initialProvider);
+  const [model, setModel] = useState(initialModel);
+  const [modelsByProvider, setModelsByProvider] = useState(initialModelsByProvider);
   const [busy, setBusy] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [preview, setPreview] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const modelButtonRef = useRef<HTMLButtonElement>(null);
+  const modelPopoverRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLElement>(null);
   const abortRef = useRef<AbortController | undefined>(undefined);
   const userId = useMemo(() => { const saved = localStorage.getItem(CHAT_USER_KEY); const next = saved || id(); localStorage.setItem(CHAT_USER_KEY, next); return next; }, []);
@@ -75,8 +88,48 @@ export function ChatStudioApp() {
     setModel(current => nextProviders.some(item => item.chat_models.includes(current)) ? current : nextProviders[0]?.chat_models[0] || '');
   };
   useEffect(() => { Promise.all([refreshConfig(), refreshList()]).then(([, items]) => { const remembered = localStorage.getItem(CHAT_LAST_CONVERSATION_KEY); const target = items.find(item => item.id === remembered) ?? items[0]; if (target) return openConversation(target.id); setStatus('新建对话后即可开始'); }).catch(error => setStatus(errorMessage(error))); return subscribeStudioEvents(event => { if (event === 'providers-changed') void refreshConfig(); }); }, []);
-  useEffect(() => { if (!provider) return; const nextModel = provider.chat_models.includes(model) ? model : provider.chat_models[0] || ''; if (nextModel !== model) setModel(nextModel); localStorage.setItem(CHAT_SETTINGS_KEY, JSON.stringify({ provider: provider.id, model: nextModel })); }, [provider?.id, model, providers]);
+  useEffect(() => {
+    if (!provider) return;
+    const remembered = modelsByProvider[provider.id];
+    const nextModel = provider.chat_models.includes(model) ? model : provider.chat_models.includes(remembered) ? remembered : provider.chat_models[0] || '';
+    if (nextModel !== model) setModel(nextModel);
+    const nextModels = { ...modelsByProvider, [provider.id]: nextModel };
+    if (modelsByProvider[provider.id] !== nextModel) setModelsByProvider(nextModels);
+    const previous = readStored<Record<string, unknown>>(CHAT_SETTINGS_KEY, {});
+    localStorage.setItem(CHAT_SETTINGS_KEY, JSON.stringify({ ...previous, mode: 'chat', provider: provider.id, msModel: provider.id === 'modelscope' ? nextModel : String(previous.msModel || ''), activeChatModel: nextModel, chatProviderModels: nextModels, modelPickerScope: 'chat' }));
+    localStorage.setItem(CHAT_SETTINGS_V2_KEY, JSON.stringify({ provider: provider.id, model: nextModel }));
+  }, [provider?.id, model, providers]);
   useEffect(() => { requestAnimationFrame(() => { if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight; }); }, [conversation?.messages, streamingText]);
+  useEffect(() => {
+    const input = messageRef.current; const composer = composerRef.current; if (!input || !composer) return;
+    input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
+    requestAnimationFrame(() => composer.classList.toggle('has-overflow', composer.scrollHeight > composer.clientHeight + 2));
+  }, [draft, attachments]);
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => { const files = [...(event.clipboardData?.items || [])].filter(item => item.kind === 'file').map(item => item.getAsFile()).filter((file): file is File => Boolean(file)); if (files.length) void upload(files); };
+    const handleKey = (event: KeyboardEvent) => { if (event.key === 'Escape') { setPreview(''); setModelPickerOpen(false); } };
+    window.addEventListener('paste', handlePaste); window.addEventListener('keydown', handleKey);
+    return () => { window.removeEventListener('paste', handlePaste); window.removeEventListener('keydown', handleKey); };
+  }, [attachments.length]);
+  useEffect(() => {
+    if (!modelPickerOpen) return;
+    const position = () => {
+      const button = modelButtonRef.current; const popover = modelPopoverRef.current; if (!button || !popover) return;
+      const rect = button.getBoundingClientRect(); const viewportWidth = window.visualViewport?.width || window.innerWidth; const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const width = Math.min(380, Math.max(300, viewportWidth - 32)); const availableAbove = Math.max(180, rect.top - 14); const maxHeight = Math.min(390, availableAbove, viewportHeight - 32);
+      const left = Math.min(Math.max(16, rect.left), Math.max(16, viewportWidth - width - 16)); const top = Math.max(12, rect.top - maxHeight - 10);
+      popover.style.setProperty('--model-picker-left', `${Math.round(left)}px`); popover.style.setProperty('--model-picker-top', `${Math.round(top)}px`); popover.style.setProperty('--model-picker-width', `${Math.round(width)}px`); popover.style.setProperty('--model-picker-max-height', `${Math.round(maxHeight)}px`);
+    };
+    const close = (event: MouseEvent) => { const target = event.target as Node; if (!modelButtonRef.current?.contains(target) && !modelPopoverRef.current?.contains(target)) setModelPickerOpen(false); };
+    position(); window.addEventListener('resize', position); document.addEventListener('click', close);
+    return () => { window.removeEventListener('resize', position); document.removeEventListener('click', close); };
+  }, [modelPickerOpen]);
+  useEffect(() => {
+    if (!historyOpen) return;
+    const close = (event: MouseEvent) => { if (window.innerWidth <= 900 && !(event.target as Element).closest?.('.top-actions')) setHistoryOpen(false); };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [historyOpen]);
 
   const createConversation = async () => { try { const value = await chatClient.create(userId); setConversation(value.conversation); localStorage.setItem(CHAT_LAST_CONVERSATION_KEY, value.conversation.id); await refreshList(); setStatus('新对话已创建'); setHistoryOpen(false); messageRef.current?.focus(); } catch (error) { setStatus(errorMessage(error)); } };
   const removeConversation = async (item: ConversationSummary) => { if (!confirm('删除这条历史对话？')) return; try { await chatClient.remove(userId, item.id); const items = await refreshList(); if (conversation?.id === item.id) { const next = items[0]; if (next) await openConversation(next.id); else { setConversation(undefined); localStorage.removeItem(CHAT_LAST_CONVERSATION_KEY); } } setStatus('对话已删除'); } catch (error) { setStatus(errorMessage(error)); } };
@@ -96,10 +149,18 @@ export function ChatStudioApp() {
       });
       await refreshList(); setStatus('回复完成'); publishStudioEvent('chat-changed');
     } catch (error) {
-      setStatus(errorMessage(error));
-      if (current.id) await openConversation(current.id).catch(() => undefined);
+      const detail = errorMessage(error);
+      setStatus(detail);
+      setConversation(value => value ? { ...value, messages: [...value.messages, { id: id(), role: 'assistant', content: detail, created_at: Date.now() }] } : value);
     } finally { setBusy(false); setStreamingText(''); abortRef.current = undefined; }
   };
+  const modelPickerPopover = <div ref={modelPopoverRef} id="modelPickerPopover" className={`model-picker-popover ${modelPickerOpen ? 'open' : ''}`} onClick={event => event.stopPropagation()}>
+    <div className="model-picker-head"><div id="modelPickerTitle" className="model-picker-title">对话模型</div><div id="modelPickerScope" className="model-picker-scope" style={{ display: 'none' }} /></div>
+    <div className="model-picker-body">
+      <div id="modelProviderList" className="model-picker-list">{providers.map(item => <button className={`model-picker-option ${item.id === provider?.id ? 'active' : ''}`} type="button" key={item.id} onClick={() => { setProviderId(item.id); setModel(modelsByProvider[item.id] || item.chat_models[0] || ''); }}><span>{item.name}</span>{item.id === provider?.id ? <Icon name="check" /> : null}</button>)}</div>
+      <div id="modelList" className="model-picker-list">{models.length ? models.map(item => <button className={`model-picker-option ${item === model ? 'active' : ''}`} type="button" key={item} onClick={() => { setModel(item); setModelPickerOpen(false); }}><span>{item.split('/').pop()?.split(':')[0]}</span>{item === model ? <Icon name="check" /> : null}</button>) : <div className="model-picker-empty">暂无模型</div>}</div>
+    </div>
+  </div>;
   const messages = conversation?.messages ?? [];
 
   return <div className="chat-shell">
@@ -123,18 +184,18 @@ export function ChatStudioApp() {
 
       <div className="composer-wrap">
         <div className="composer">
-          <div id="composerBody" className="composer-body">
-            <textarea id="messageInput" ref={messageRef} rows={4} placeholder="输入消息，Enter 发送..." value={draft} onChange={event => setDraft(event.target.value)} />
+          <div id="composerBody" ref={composerRef} className={`composer-body ${dragOver ? 'drag-over' : ''}`} onDragOver={event => { if ([...event.dataTransfer.items].some(item => item.kind === 'file')) { event.preventDefault(); setDragOver(true); } }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false); }} onDrop={event => { const files = [...event.dataTransfer.files]; if (files.length) { event.preventDefault(); setDragOver(false); void upload(files); } }}>
+            <textarea id="messageInput" ref={messageRef} rows={4} placeholder="输入消息，Enter 发送..." value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} />
             <div id="refStrip" className="ref-strip">{attachments.map((attachment, index) => isImageAttachment(attachment) ? <div className="ref-chip" key={`${attachment.url}-${index}`}><img src={attachment.url} title={attachmentName(attachment)} /><button type="button" onClick={() => setAttachments(items => items.filter((_, itemIndex) => itemIndex !== index))}>×</button></div> : <div className="ref-chip file" key={`${attachment.url}-${index}`}><Icon name="file" /><span className="ref-file-name" title={attachmentName(attachment)}>{attachmentName(attachment)}</span><button type="button" onClick={() => setAttachments(items => items.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>)}</div>
             <div className="composer-inside-foot">
               <div className="left-tools"><div className="inline-controls">
                 <input id="attachmentInput" className="file-input" ref={fileRef} type="file" multiple onChange={event => { if (event.target.files) void upload([...event.target.files]); event.target.value = ''; }} />
                 <button type="button" className="upload-btn" title="上传附件" aria-label="上传附件" onClick={() => fileRef.current?.click()}><Icon name="paperclip" /></button>
                 <div id="modelPicker" className={`model-picker ${modelPickerOpen ? 'open' : ''}`}>
-                  <button id="modelPickerBtn" className="model-picker-button" title="选择平台和模型" type="button" onClick={event => { event.stopPropagation(); setModelPickerOpen(value => !value); }}><Icon name="boxes" /><span className="model-picker-labels"><span id="modelPickerProvider" className="model-picker-provider">{provider?.name || 'API'}</span><span className="model-picker-dot" /><span id="modelPickerModel" className="model-picker-model">{model.split('/').pop()?.split(':')[0] || 'Model'}</span></span><Icon name="chevron-up" /></button>
-                  <div id="modelPickerPopover" className={`model-picker-popover ${modelPickerOpen ? 'open' : ''}`} onClick={event => event.stopPropagation()}><div className="model-picker-head"><div id="modelPickerTitle" className="model-picker-title">对话模型</div><div id="modelPickerScope" className="model-picker-scope" /></div><div className="model-picker-body"><div id="modelProviderList" className="model-picker-list">{providers.map(item => <button className={`model-picker-option ${item.id === provider?.id ? 'active' : ''}`} type="button" key={item.id} onClick={() => setProviderId(item.id)}><span>{item.name}</span>{item.id === provider?.id ? <Icon name="check" /> : null}</button>)}</div><div id="modelList" className="model-picker-list">{models.map(item => <button className={`model-picker-option ${item === model ? 'active' : ''}`} type="button" key={item} onClick={() => { setModel(item); setModelPickerOpen(false); }}><span>{item.split('/').pop()?.split(':')[0]}</span>{item === model ? <Icon name="check" /> : null}</button>)}</div></div></div>
+                  <button ref={modelButtonRef} id="modelPickerBtn" className="model-picker-button" title="选择平台和模型" type="button" onClick={event => { event.stopPropagation(); setModelPickerOpen(value => !value); }}><Icon name="boxes" /><span className="model-picker-labels"><span id="modelPickerProvider" className="model-picker-provider">{provider?.name || 'API'}</span><span className="model-picker-dot" /><span id="modelPickerModel" className="model-picker-model">{model.split('/').pop()?.split(':')[0] || 'Model'}</span></span><Icon name="chevron-up" /></button>
+                  {createPortal(modelPickerPopover, document.body)}
                 </div>
-                <div id="imageControls" className="image-controls hidden"><div className="mini-ratio"><button className="active" type="button">1:1</button><button type="button">2:3</button><button type="button">3:2</button><button type="button">3:4</button><button type="button">4:3</button><button type="button">9:16</button><button type="button">16:9</button></div><div className="resolution-toggle" title="分辨率"><button className="resolution-option active" type="button">1K</button><button className="resolution-option" type="button">2K</button></div></div>
+                <div id="imageControls" className="image-controls hidden"><div className="mini-ratio"><button id="chat-ratio-square" className="active" type="button">1:1</button><button id="chat-ratio-portrait" type="button">2:3</button><button id="chat-ratio-landscape" type="button">3:2</button><button id="chat-ratio-portrait43" type="button">3:4</button><button id="chat-ratio-landscape43" type="button">4:3</button><button id="chat-ratio-story" type="button">9:16</button><button id="chat-ratio-wide" type="button">16:9</button></div><div className="resolution-toggle" title="分辨率"><button id="chat-res-1k" className="resolution-option active" type="button">1K</button><button id="chat-res-2k" className="resolution-option" type="button">2K</button></div></div>
               </div></div>
               <button id="sendBtn" className="send-btn" title="发送" aria-label="发送" type="button" disabled={!draft.trim() || busy || !model} onClick={() => void send()}><Icon name="send" /></button>
             </div>
