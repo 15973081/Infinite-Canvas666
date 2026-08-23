@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('online image page uses the shared React studio and async task contract', async ({ page }) => {
+test('online image page preserves the legacy studio DOM while using the React async task contract', async ({ page }) => {
   let submitted: Record<string, unknown> | null = null;
   await page.route('**/api/config', route => route.fulfill({ json: {
     image_models: ['fallback'], api_providers: [{ id: 'mock-provider', name: 'Mock Provider', protocol: 'api', image_models: ['mock-image'] }],
@@ -18,16 +18,21 @@ test('online image page uses the shared React studio and async task contract', a
   await expect(page.getByRole('heading', { name: '在线生图' })).toBeVisible();
   expect(await page.evaluate(() => ({
     submitImage: typeof (window as typeof window & { submitImage?: unknown }).submitImage,
-    legacyScripts: [...document.scripts].filter(script => !script.type.includes('module')).length,
-  }))).toEqual({ submitImage: 'undefined', legacyScripts: 0 });
+    pageScripts: [...document.scripts].filter(script => script.src.includes('/static/js/')).length,
+  }))).toEqual({ submitImage: 'undefined', pageScripts: 0 });
+  await expect(page.locator('.container-box')).toBeVisible();
+  await expect(page.locator('.tool-panel')).toBeVisible();
+  await expect(page.locator('.result-frame')).toBeVisible();
+  await expect(page.locator('.upload-item')).toHaveCount(4);
+  await expect(page.locator('.masonry-grid')).toBeVisible();
   await expect(page.getByLabel('平台')).toHaveValue('mock-provider');
   await expect(page.getByLabel('模型')).toHaveValue('mock-image');
   await page.getByLabel('提示词').fill('react online');
-  await page.getByLabel('宽度').fill('1280');
+  await page.getByLabel('比例').selectOption('wide');
   await page.getByLabel('数量').selectOption('2');
-  await page.getByRole('button', { name: '开始生成' }).click();
+  await page.getByRole('button', { name: '生成', exact: true }).click();
   await expect(page.locator('img[alt="生成结果"]')).toHaveAttribute('src', '/output/online-react.png');
-  await expect.poll(() => submitted).toMatchObject({ prompt: 'react online', provider_id: 'mock-provider', model: 'mock-image', size: '1280x1024', n: 2 });
+  await expect.poll(() => submitted).toMatchObject({ prompt: 'react online', provider_id: 'mock-provider', model: 'mock-image', size: '1280x720', n: 2 });
 });
 
 test('zimage page reuses the studio while keeping local and cloud adapters isolated', async ({ page }) => {
