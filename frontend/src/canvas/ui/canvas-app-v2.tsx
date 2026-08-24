@@ -52,8 +52,11 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [assetRequest, setAssetRequest] = useState<CanvasAssetLibraryRequest | null>(null);
   const [lockHolder, setLockHolder] = useState<Record<string, unknown> | null>(null);
+  const [ownedLockHolder, setOwnedLockHolder] = useState<Record<string, unknown> | null>(null);
   const [lockIssue, setLockIssue] = useState('');
   const [syncIssue, setSyncIssue] = useState('');
+  const [identityName, setIdentityName] = useState(() => localStorage.getItem('canvasUserName') || '');
+  const [shortcutOpen, setShortcutOpen] = useState(false);
   const [toolbarCollapsed, setToolbarCollapsed] = useState(() => localStorage.getItem('canvas_quick_toolbar_collapsed') === '1');
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clientId = useRef(canvasClientId());
@@ -91,9 +94,9 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   useEffect(() => { window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder)); }, [lockHolder]);
 
   useEffect(() => {
-    if (!current || configuration.kind) return;
+    if (!current || (configuration.kind && configuration.kind !== 'smart')) return;
     window.requestAnimationFrame(() => (window as typeof window & { lucide?: { createIcons(): void } }).lucide?.createIcons());
-  }, [configuration.kind, current, lockHolder, toolbarCollapsed]);
+  }, [assetRequest, backups, configuration.kind, current, identityName, inspector, lockHolder, shortcutOpen, toolbarCollapsed, workflowOpen]);
 
   useEffect(() => {
     const listener = (event: Event) => {
@@ -138,6 +141,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       const loaded = await repository.get(summary.id);
       ownsLock.current = lock.ok;
       setLockHolder(lock.ok ? null : lock.holder || {});
+      setOwnedLockHolder(lock.ok ? lock.holder || {} : null);
       setLockIssue('');
       setSyncIssue('');
       lastKnownUpdatedAt.current = Number(loaded.updated_at || 0);
@@ -166,12 +170,14 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       if (!lock.ok) {
         ownsLock.current = false;
         setLockHolder(lock.holder || {});
+        setOwnedLockHolder(null);
         setLockIssue('');
         setStatus(`只读模式：画布正由 ${lockHolderName(lock.holder)} 编辑`);
         return false;
       }
       ownsLock.current = true;
       setLockHolder(null);
+      setOwnedLockHolder(lock.holder || {});
       setLockIssue('');
       if (!wasOwner) {
         const latest = await repository.get(String(current.id));
@@ -183,6 +189,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     } catch (error) {
       ownsLock.current = false;
       setLockHolder({ username: '锁状态未知' });
+      setOwnedLockHolder(null);
       const message = `编辑锁续期失败，已切换只读并将自动重试：${error instanceof Error ? error.message : String(error)}`;
       setLockIssue(message);
       setStatus(message);
@@ -245,6 +252,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     if (current?.id && ownsLock.current) await management.releaseLock(String(current.id), clientId.current).catch(() => undefined);
     ownsLock.current = false;
     setLockHolder(null);
+    setOwnedLockHolder(null);
     setLockIssue('');
     setSyncIssue('');
     lastKnownUpdatedAt.current = 0;
@@ -258,7 +266,13 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     const name = window.prompt('编辑身份名称', currentName);
     if (name === null) return;
     localStorage.setItem('canvasUserName', name.trim());
+    setIdentityName(name.trim());
     if (current?.id) await acquireCurrentLock();
+  };
+
+  const backToCanvasList = async () => {
+    await closeCanvas();
+    window.location.href = configuration.managerBackHref || '/static/canvas.html';
   };
 
   const showBackups = async () => {
@@ -391,6 +405,13 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     return () => document.body.classList.remove('smart-canvas-readonly');
   }, [configuration.kind, current, lockHolder]);
 
+  useEffect(() => {
+    if (!shortcutOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setShortcutOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [shortcutOpen]);
+
   if (!current) {
     const Manager = configuration.kind === 'classic' ? ScopedCanvasManager : CanvasManager;
     return <Manager canvases={canvases} configuration={configuration} folders={folders} management={management} onOpen={openCanvas} onRefresh={refresh} onStatus={setStatus} status={status} trash={trash} />;
@@ -431,13 +452,42 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
           <button aria-label="备份" className="tool-btn toolbar-backup" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} title="备份" type="button"><i className="w-4 h-4" data-lucide="hard-drive" /><span>备份</span></button>
         </div>
       </div>
-    </header> : <header className="topbar canvas-modern-topbar">
-      <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{lockHolder ? `只读 · ${lockHolderName(lockHolder)} 编辑中` : syncIssue || formatTime(current.updated_at)}</small></div><button className="tool-btn" onClick={() => void editIdentity()} type="button">编辑身份</button></div>
-      <div className="panel toolbar canvas-modern-toolbar">
-        <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" disabled={Boolean(lockHolder)} key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
-        <div className="toolbar-fixed"><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} type="button">备份</button></div>
+    </header> : <>
+      <div className="smart-nav">
+        <button aria-label="返回画布管理" className="smart-nav-back" onClick={() => void backToCanvasList()} title="返回画布管理" type="button"><i data-lucide="arrow-left" /></button>
+        <div className="smart-nav-meta">
+          <div className="smart-title" id="smartTitle">{String(current.title || '智能画布')}</div>
+          <div className="smart-canvas-time" id="smartCanvasTime">{syncIssue || formatSmartTime(current.updated_at)}</div>
+        </div>
+        <div className={`smart-lock-badge ${lockHolder ? 'other' : 'mine'}`} id="smartLockBadge" title={lockHolder ? `${lockHolderName(lockHolder)} 正在编辑` : ownedLockTitle(ownedLockHolder)}><i data-lucide="lock" /><span id="smartLockLabel">{lockHolder ? `${lockHolderName(lockHolder)} 编辑中` : ownedLockLabel(ownedLockHolder)}</span></div>
+        <button className="smart-identity-btn" id="smartIdentityBtn" onClick={() => void editIdentity()} title="设置我的名称" type="button"><i data-lucide="user-pen" /><span id="smartIdentityLabel">{identityName || '未命名用户'}</span></button>
       </div>
-    </header>}
+      <button aria-label="导入导出工作流" className={`smart-workflow-toggle ${workflowOpen ? 'active' : ''}`} id="smartWorkflowToggle" onClick={() => setWorkflowOpen(true)} title="导入导出工作流" type="button"><i data-lucide="package-open" /><span>工作流</span></button>
+      <button aria-label="快捷键" className={`smart-shortcut-toggle ${shortcutOpen ? 'active' : ''}`} id="smartShortcutToggle" onClick={() => setShortcutOpen(true)} title="快捷键" type="button"><i data-lucide="keyboard" /><span>快捷键</span></button>
+      <button aria-label="费用仪表盘" className={`smart-cost-toggle ${inspector?.mode === 'cost' ? 'active' : ''}`} id="smartCostToggle" onClick={() => void showInspector('cost')} title="费用仪表盘" type="button"><i data-lucide="circle-dollar-sign" /><span id="smartCostToggleLabel">费用 ¥{canvasDocumentCost(current).toFixed(2)}</span></button>
+      <button aria-label="日志" className={`smart-log-toggle ${inspector?.mode === 'logs' ? 'active' : ''}`} id="smartLogToggle" onClick={() => void showInspector('logs')} title="日志" type="button"><i data-lucide="list-todo" /><span>日志</span></button>
+      <button aria-label="备份" className={`smart-backup-toggle ${backups ? 'active' : ''}`} disabled={Boolean(lockHolder)} id="smartBackupToggle" onClick={() => void showBackups()} title="备份" type="button"><i data-lucide="hard-drive" /><span>备份</span></button>
+      <button className={`asset-toggle ${assetRequest ? 'active' : ''}`} id="assetToggle" onClick={showAssets} type="button"><i data-lucide="library" /><span>资产库</span></button>
+      <div className={`shortcut-modal ${shortcutOpen ? 'open' : ''}`} id="smartShortcutModal" onClick={() => setShortcutOpen(false)}>
+        <div className="shortcut-panel" onClick={(event) => event.stopPropagation()}>
+          <div className="shortcut-head"><div className="shortcut-title"><i data-lucide="keyboard" /><span>快捷键</span></div><button className="preview-icon-btn" onClick={() => setShortcutOpen(false)} title="关闭" type="button"><i data-lucide="x" /></button></div>
+          <div className="shortcut-list">
+            <ShortcutItem keys={['Ctrl']} text="按住并拖拽框选节点" />
+            <ShortcutItem keys={['Ctrl', 'G']} text="合并选中的图片为组" />
+            <ShortcutItem keys={['Ctrl', 'Shift', 'G']} text="释放选中的分组" />
+            <ShortcutItem keys={['Ctrl', 'Z']} text="撤销上一步操作" />
+            <ShortcutItem keys={['Ctrl', 'C']} text="复制选中的节点" />
+            <ShortcutItem keys={['Ctrl', 'V']} text="粘贴节点或剪贴板图片" />
+            <ShortcutItem keys={['A']} text="打开/关闭资源库" />
+            <ShortcutItem keys={['Z']} text="缩小画布视图" />
+            <ShortcutItem keys={['双击']} text="打开快捷菜单" />
+            <ShortcutItem keys={['空白处']} text="拖动画布" />
+            <ShortcutItem keys={['滚轮']} text="缩放画布或预览图片" />
+            <ShortcutItem keys={['Del']} text="删除选中节点" />
+          </div>
+        </div>
+      </div>
+    </>}
     <div className={`canvas-modern-board ${smartEditor ? 'world' : ''}`} id={smartEditor ? 'world' : undefined} ref={boardRef} style={smartEditor ? { height: '100%', inset: 0, position: 'absolute', transform: 'none', width: '100%' } : classicEditor ? { inset: 0 } : undefined} />
     {smartEditor ? <div className="selection-box" id="selectionBox" /> : null}
     {smartEditor ? <div aria-live="polite" className={`toast ${status ? 'show' : ''}`} id="toast">{status}</div> : null}
@@ -467,6 +517,10 @@ export function mountCanvasAppV2(element: HTMLElement, dependencies: CanvasAppDe
   return () => root.unmount();
 }
 
+function ShortcutItem({ keys, text }: { keys: string[]; text: string }) {
+  return <div className="shortcut-item"><span className="shortcut-keys">{keys.map((key) => <kbd key={key}>{key}</kbd>)}</span><span>{text}</span></div>;
+}
+
 function canvasClientId(): string {
   const existing = sessionStorage.getItem('canvasClientId');
   if (existing) return existing;
@@ -480,8 +534,23 @@ function formatTime(value: unknown): string {
   return timestamp ? new Date(timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp).toLocaleString() : '--';
 }
 
+function formatSmartTime(value: unknown): string {
+  const timestamp = Number(value || 0);
+  if (!timestamp) return '--';
+  const date = new Date(timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp);
+  return Number.isNaN(date.getTime()) ? '--' : date.toLocaleString('zh-CN', { day: '2-digit', hour: '2-digit', minute: '2-digit', month: '2-digit' });
+}
+
 function lockHolderName(holder: Record<string, unknown> | undefined): string {
   return String(holder?.username || holder?.ip || '其他用户');
+}
+
+function ownedLockLabel(holder: Record<string, unknown> | null): string {
+  return `你正在编辑${holder?.ip ? ` · ${String(holder.ip)}` : ''}`;
+}
+
+function ownedLockTitle(holder: Record<string, unknown> | null): string {
+  return [`用户：${String(holder?.username || '').trim() || '未命名用户'}`, holder?.ip ? `IP：${String(holder.ip)}` : ''].filter(Boolean).join('\n');
 }
 
 function normalizeWorkflow(payload: unknown): { connections: unknown[]; nodes: unknown[] } {
