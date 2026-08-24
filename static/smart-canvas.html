@@ -432,7 +432,9 @@
     <div id="smartCanvasApp" hidden></div>
     <script>
         (function(){
-            var reactEnabled = new URLSearchParams(window.location.search).get('smart_canvas_react') === '1';
+            var entryParams = new URLSearchParams(window.location.search);
+            var forceLegacy = entryParams.get('smart_canvas_legacy') === '1' || entryParams.get('smart_canvas_react') === '0';
+            var reactEnabled = !forceLegacy;
             var legacyShell = document.getElementById('shell');
             var modernRoot = document.getElementById('smartCanvasApp');
             var legacyStyles = document.getElementById('smartCanvasLegacyStyles');
@@ -464,7 +466,9 @@
                 });
             }
 
-            window.__loadSmartCanvasLegacyFallback = async function(){
+            var legacyFallbackPromise = null;
+            window.__loadSmartCanvasLegacyFallback = function(){
+                if(legacyFallbackPromise) return legacyFallbackPromise;
                 document.documentElement.dataset.smartCanvasReact = 'fallback';
                 modernStyles.forEach(function(link){ link.disabled = true; });
                 if(legacyStyles) legacyStyles.disabled = false;
@@ -473,14 +477,17 @@
                     if(!legacyShell.isConnected && modernRoot) modernRoot.before(legacyShell);
                     legacyShell.hidden = false;
                 }
-                for(var index = 0; index < legacySources.length; index += 1){
-                    await loadClassicScript(legacySources[index]);
-                }
-                if(document.readyState === 'complete' && typeof window.onload === 'function'){
-                    var initializer = window.onload;
-                    window.onload = null;
-                    await initializer.call(window, new Event('load'));
-                }
+                legacyFallbackPromise = (async function(){
+                    for(var index = 0; index < legacySources.length; index += 1){
+                        await loadClassicScript(legacySources[index]);
+                    }
+                    if(document.readyState === 'complete' && typeof window.onload === 'function'){
+                        var initializer = window.onload;
+                        window.onload = null;
+                        await initializer.call(window, new Event('load'));
+                    }
+                })();
+                return legacyFallbackPromise;
             };
 
             if(!reactEnabled){
@@ -511,7 +518,7 @@
 
             var module = document.createElement('script');
             module.type = 'module';
-            module.src = '/static/dist/smart-canvas-modern.js?v=2026.08.24.1';
+            module.src = '/static/dist/smart-canvas-modern.js?v=2026.08.24.2';
             module.dataset.smartCanvasReactEntry = '1';
             module.onerror = function(){
                 window.__loadSmartCanvasLegacyFallback().catch(function(error){

@@ -5,6 +5,13 @@ import { mountCanvasAppV2 } from '../canvas/ui/canvas-app-v2';
 import { migrateLegacySmartDocument } from '../features/smart-canvas/domain';
 import { mountStudioTheme } from '../shared/theme';
 
+declare global {
+  interface Window {
+    __loadSmartCanvasLegacyFallback?: () => Promise<void>;
+  }
+}
+
+async function mountSmartCanvas(): Promise<void> {
 mountStudioTheme();
 
 const root = document.getElementById('smartCanvasApp');
@@ -32,3 +39,12 @@ mountCanvasAppV2(root, {
   },
   runtime,
 });
+}
+
+try {
+  await mountSmartCanvas();
+} catch (error) {
+  console.error('[smart-canvas] React entry failed', error);
+  if (!window.__loadSmartCanvasLegacyFallback) throw error;
+  await window.__loadSmartCanvasLegacyFallback();
+}
