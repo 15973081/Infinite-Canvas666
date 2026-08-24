@@ -65,12 +65,12 @@ test('keeps the migrated navigation buttons wired to their existing React functi
   await shell.locator('#smartWorkflowTransferModal .workflow-transfer-head button').click();
 
   await shell.locator('#smartCostToggle').click();
-  await expect(shell.locator('.canvas-modern-backups')).toContainText('费用汇总');
-  await shell.locator('.canvas-modern-backups header button').click();
+  await expect(shell.locator('#smartLogModal.log-modal.open #smartLogPanel.cost-mode')).toContainText('费用仪表盘');
+  await shell.locator('#smartLogModal .log-head button').click();
 
   await shell.locator('#smartLogToggle').click();
-  await expect(shell.locator('.canvas-modern-backups')).toContainText('生成日志');
-  await shell.locator('.canvas-modern-backups header button').click();
+  await expect(shell.locator('#smartLogModal.log-modal.open #smartLogPanel')).toContainText('生成日志');
+  await shell.locator('#smartLogModal .log-head button').click();
 
   await shell.locator('#smartBackupToggle').click();
   await expect(shell.locator('.canvas-modern-backups')).toContainText('画布备份');

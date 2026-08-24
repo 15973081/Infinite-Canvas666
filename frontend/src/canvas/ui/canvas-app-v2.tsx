@@ -14,6 +14,7 @@ import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
 import { AssetLibraryDialog, type CanvasAssetLibraryRequest } from './asset-library-dialog';
 import { SmartCanvasAssetPanel } from './smart-canvas-asset-panel';
 import { SmartCanvasWorkflowPanel, type SmartWorkflowSelection } from './smart-canvas-workflow-panel';
+import { formatSmartCanvasCost, SmartCanvasLogCostPanel, smartCanvasLogCostTotals } from './smart-canvas-log-cost-panel';
 import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
 import { CanvasManager, ScopedCanvasManager } from './canvas-manager';
 
@@ -421,6 +422,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
 
   const classicEditor = !configuration.kind;
   const smartEditor = configuration.kind === 'smart';
+  const smartCostTotals = smartEditor ? smartCanvasLogCostTotals(Array.isArray(current.logs) ? current.logs : []) : null;
   const toggleToolbar = () => {
     setToolbarCollapsed((collapsed) => {
       const next = !collapsed;
@@ -466,7 +468,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       </div>
       <button aria-label="导入导出工作流" className={`smart-workflow-toggle ${workflowOpen ? 'active' : ''}`} id="smartWorkflowToggle" onClick={() => setWorkflowOpen(true)} title="导入导出工作流" type="button"><i data-lucide="package-open" /><span>工作流</span></button>
       <button aria-label="快捷键" className={`smart-shortcut-toggle ${shortcutOpen ? 'active' : ''}`} id="smartShortcutToggle" onClick={() => setShortcutOpen(true)} title="快捷键" type="button"><i data-lucide="keyboard" /><span>快捷键</span></button>
-      <button aria-label="费用仪表盘" className={`smart-cost-toggle ${inspector?.mode === 'cost' ? 'active' : ''}`} id="smartCostToggle" onClick={() => void showInspector('cost')} title="费用仪表盘" type="button"><i data-lucide="circle-dollar-sign" /><span id="smartCostToggleLabel">费用 ¥{canvasDocumentCost(current).toFixed(2)}</span></button>
+      <button aria-label="费用仪表盘" className={`smart-cost-toggle ${inspector?.mode === 'cost' ? 'active' : ''}`} id="smartCostToggle" onClick={() => void showInspector('cost')} title={smartCostTotals?.unknown ? `费用仪表盘 · ${smartCostTotals.unknown} 笔待定价` : '费用仪表盘'} type="button"><i data-lucide="circle-dollar-sign" /><span id="smartCostToggleLabel">费用 {formatSmartCanvasCost(smartCostTotals?.total || 0)}</span></button>
       <button aria-label="日志" className={`smart-log-toggle ${inspector?.mode === 'logs' ? 'active' : ''}`} id="smartLogToggle" onClick={() => void showInspector('logs')} title="日志" type="button"><i data-lucide="list-todo" /><span>日志</span></button>
       <button aria-label="备份" className={`smart-backup-toggle ${backups ? 'active' : ''}`} disabled={Boolean(lockHolder)} id="smartBackupToggle" onClick={() => void showBackups()} title="备份" type="button"><i data-lucide="hard-drive" /><span>备份</span></button>
       <button className={`asset-toggle ${assetRequest ? 'active' : ''}`} id="assetToggle" onClick={showAssets} type="button"><i data-lucide="library" /><span>资产库</span></button>
@@ -513,7 +515,9 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     {assetRequest ? smartEditor
       ? <SmartCanvasAssetPanel onClose={() => setAssetRequest(null)} request={assetRequest} />
       : <AssetLibraryDialog onClose={() => setAssetRequest(null)} request={assetRequest} /> : null}
-    {inspector ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
+    {inspector ? smartEditor
+      ? <SmartCanvasLogCostPanel document={inspector.document} mode={inspector.mode} onClose={() => setInspector(null)} />
+      : <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>{inspector.mode === 'logs' ? '生成日志' : '费用汇总'}</strong><button onClick={() => setInspector(null)} type="button">关闭</button></header>{inspector.mode === 'logs' ? <>{(Array.isArray(inspector.document.logs) ? inspector.document.logs : []).slice().reverse().map((log, index) => <pre key={String((log as Record<string, unknown>).id || index)}>{JSON.stringify(log, null, 2)}</pre>)}</> : <><h2>¥ {canvasDocumentCost(inspector.document).toFixed(4)}</h2><p>仅汇总任务记录中已返回的费用字段；供应商未返回价格时显示为 0。</p></>}</section></div> : null}
   </main>;
 }
 
