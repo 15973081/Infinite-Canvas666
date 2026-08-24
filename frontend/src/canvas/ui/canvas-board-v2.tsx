@@ -11,6 +11,17 @@ import { ImageTransformDialog, type ImageTransformResult } from './image-transfo
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
+type SelectionRect = { height: number; left: number; top: number; width: number };
+
+const WORLD_WIDTH = 6000;
+const WORLD_HEIGHT = 4000;
+const VIEWPORT_STORAGE_KEY = 'canvas_session_viewports_v1';
+
+const createMenuNodes = [
+  ['image', '上传节点', 'image-plus'], ['prompt', '提示词', 'text-cursor-input'], ['loop', '循环节点', 'repeat-2'],
+  ['llm', 'LLM 节点', 'message-square-text'], ['generator', 'API生成', 'wand-sparkles'], ['msgen', 'ModelScope生成', 'cloud-lightning'],
+  ['video', '视频生成', 'clapperboard'], ['comfy', 'ComfyUI 生成', 'workflow'], ['ltxDirector', 'LTX Director', 'film'], ['output', 'Output', 'circle-dot'],
+] as const;
 
 const nodeRegistry: Record<string, string> = {
   comfy: 'ComfyUI', generator: 'API 生成', group: '分组', image: '上传', llm: 'LLM', loop: '循环',
@@ -23,6 +34,36 @@ function runtime(): CanvasRuntime | null {
 
 function nodePoint(node: CanvasNode): Point {
   return { x: Number(node.x || 0), y: Number(node.y || 0) };
+}
+
+function loadViewport(documentId: string): Viewport {
+  try {
+    const values = JSON.parse(sessionStorage.getItem(VIEWPORT_STORAGE_KEY) || '{}') as Record<string, Partial<Viewport>>;
+    const saved = values[documentId];
+    if (!saved) return { x: 0, y: 0, zoom: 1 };
+    return {
+      x: Number.isFinite(Number(saved.x)) ? Number(saved.x) : 0,
+      y: Number.isFinite(Number(saved.y)) ? Number(saved.y) : 0,
+      zoom: Math.min(1.5, Math.max(0.25, Number(saved.zoom || 1))),
+    };
+  } catch {
+    return { x: 0, y: 0, zoom: 1 };
+  }
+}
+
+function persistViewport(documentId: string, viewport: Viewport): void {
+  if (!documentId) return;
+  try {
+    const values = JSON.parse(sessionStorage.getItem(VIEWPORT_STORAGE_KEY) || '{}') as Record<string, Viewport>;
+    values[documentId] = viewport;
+    sessionStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(values));
+  } catch {
+    // Session viewport persistence is best-effort, matching the legacy fallback behavior.
+  }
+}
+
+function intersects(a: { height: number; width: number; x: number; y: number }, b: { height: number; width: number; x: number; y: number }): boolean {
+  return a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y;
 }
 
 function nodeSize(node: CanvasNode): { height: number; width: number } {
@@ -455,9 +496,12 @@ function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: 
   </div>;
 }
 
-function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelectionChange, store }: { canvasRuntime: CanvasRuntime; commit: () => void; initialReadOnly?: boolean; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
+function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyUi = false, onSelectionChange, store }: { canvasRuntime: CanvasRuntime; commit: () => void; initialReadOnly?: boolean; legacyUi?: boolean; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
+  const documentId = String(document?.id || '');
+  const boardRef = useRef<HTMLDivElement | null>(null);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
+  const rSelectionKey = useRef(false);
   const [connectingFrom, setConnectingFrom] = useState('');
   const [selectedEdge, setSelectedEdge] = useState(-1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -465,8 +509,11 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
   const [lightbox, setLightbox] = useState<{ nodeId: string; url: string } | null>(null);
   const [imageEditorNodeId, setImageEditorNodeId] = useState('');
   const [readOnly, setReadOnly] = useState(initialReadOnly);
-  const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
-  const documentId = String(document?.id || '');
+  const [viewport, setViewport] = useState<Viewport>(() => legacyUi ? loadViewport(documentId) : { x: 0, y: 0, zoom: 1 });
+  const [boardSize, setBoardSize] = useState({ height: 0, width: 0 });
+  const [createMenu, setCreateMenu] = useState<{ left: number; point: Point; top: number } | null>(null);
+  const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
+  const [dropActive, setDropActive] = useState(false);
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
   const boardDocument = { connections: document?.connections ?? [], nodes: document?.nodes ?? [] };
 
@@ -474,7 +521,36 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
     setConnectingFrom('');
     setSelectedEdge(-1);
     setSelectedIds(new Set());
-  }, [documentId]);
+    setCreateMenu(null);
+    setViewport(legacyUi ? loadViewport(documentId) : { x: 0, y: 0, zoom: 1 });
+  }, [documentId, legacyUi]);
+
+  useEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    const update = () => setBoardSize({ height: board.clientHeight, width: board.clientWidth });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(board);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.key.toLowerCase() === 'r' && !target?.isContentEditable && !target?.matches('input, textarea, select')) rSelectionKey.current = true;
+    };
+    const keyup = (event: KeyboardEvent) => { if (event.key.toLowerCase() === 'r') rSelectionKey.current = false; };
+    const blur = () => { rSelectionKey.current = false; };
+    window.addEventListener('keydown', keydown);
+    window.addEventListener('keyup', keyup);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', keydown);
+      window.removeEventListener('keyup', keyup);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
 
   useEffect(() => {
     const listener = (event: Event) => setReadOnly(Boolean((event as CustomEvent<boolean>).detail));
@@ -491,6 +567,8 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
         setConnectingFrom('');
         setSelectedEdge(-1);
         setSelectedIds(new Set());
+        setCreateMenu(null);
+        setSelectionRect(null);
         return;
       }
       if (readOnly) return;
@@ -576,16 +654,50 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
   const lightboxNode = lightbox ? nodesById.get(lightbox.nodeId) : null;
   const imageEditorNode = imageEditorNodeId ? nodesById.get(imageEditorNodeId) : null;
   useEffect(() => { onSelectionChange?.(selectedIds); }, [onSelectionChange, selectedIds]);
+  useEffect(() => {
+    if (!legacyUi || !createMenu) return;
+    window.requestAnimationFrame(() => (window as typeof window & { lucide?: { createIcons(): void } }).lucide?.createIcons());
+  }, [createMenu, legacyUi]);
+
+  const centerViewport = (clientX: number, clientY: number) => {
+    const minimap = boardRef.current?.querySelector('.minimap-content')?.getBoundingClientRect();
+    if (!minimap || !boardSize.width || !boardSize.height) return;
+    const world = {
+      x: Math.min(WORLD_WIDTH, Math.max(0, ((clientX - minimap.left) / minimap.width) * WORLD_WIDTH)),
+      y: Math.min(WORLD_HEIGHT, Math.max(0, ((clientY - minimap.top) / minimap.height) * WORLD_HEIGHT)),
+    };
+    setViewport((value) => {
+      const next = { ...value, x: boardSize.width / 2 - world.x * value.zoom, y: boardSize.height / 2 - world.y * value.zoom };
+      persistViewport(documentId, next);
+      return next;
+    });
+  };
+
   return <div
     aria-label="CanvasBoard V2"
     aria-readonly={readOnly}
-    className={readOnly ? 'canvas-board-v2-readonly' : undefined}
+    className={`${legacyUi ? 'board' : ''} ${readOnly ? 'canvas-board-v2-readonly' : ''}`.trim() || undefined}
     data-testid="canvas-board-v2"
     data-viewport={`${viewport.x},${viewport.y},${viewport.zoom.toFixed(2)}`}
-    onDragOver={(event) => event.preventDefault()}
+    onContextMenu={(event) => {
+      if (!legacyUi) return;
+      const target = event.target as HTMLElement;
+      if (target.closest('.node, .create-menu, .minimap, input, textarea, select, button')) return;
+      event.preventDefault();
+      if (readOnly) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      setCreateMenu({
+        left: event.clientX - rect.left,
+        point: { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom },
+        top: event.clientY - rect.top,
+      });
+    }}
+    onDragLeave={(event) => { if (legacyUi && !event.currentTarget.contains(event.relatedTarget as Node | null)) setDropActive(false); }}
+    onDragOver={(event) => { event.preventDefault(); if (legacyUi && !readOnly) setDropActive(true); }}
     onDrop={(event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (legacyUi) setDropActive(false);
       if (readOnly) return;
       const rect = event.currentTarget.getBoundingClientRect();
       const point = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
@@ -609,43 +721,112 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
       if (files.length) void window.CanvasBoardV2?.importFiles(files, point);
     }}
     onPointerDown={(event) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 && event.button !== 1) return;
+      event.preventDefault();
       const board = event.currentTarget;
-      const start = { x: event.clientX, y: event.clientY, viewport };
+      if (!legacyUi) {
+        if (event.button !== 0) return;
+        const start = { x: event.clientX, y: event.clientY, viewport };
+        board.setPointerCapture(event.pointerId);
+        setSelectedIds(new Set());
+        setSelectedEdge(-1);
+        const move = (next: PointerEvent) => setViewport((value) => ({
+          ...value,
+          x: start.viewport.x + next.clientX - start.x,
+          y: start.viewport.y + next.clientY - start.y,
+        }));
+        const up = () => board.removeEventListener('pointermove', move);
+        board.addEventListener('pointermove', move);
+        board.addEventListener('pointerup', up, { once: true });
+        return;
+      }
+      const boardRect = board.getBoundingClientRect();
+      const start = { localX: event.clientX - boardRect.left, localY: event.clientY - boardRect.top, x: event.clientX, y: event.clientY, viewport };
       board.setPointerCapture(event.pointerId);
-      setSelectedIds(new Set());
+      setCreateMenu(null);
       setSelectedEdge(-1);
-      const move = (next: PointerEvent) => setViewport((value) => ({
-        ...value,
-        x: start.viewport.x + next.clientX - start.x,
-        y: start.viewport.y + next.clientY - start.y,
-      }));
-      const up = () => board.removeEventListener('pointermove', move);
+      const selecting = event.button === 0 && (event.ctrlKey || event.metaKey || rSelectionKey.current);
+      let moved = false;
+      let latestViewport = start.viewport;
+      let latestSelection: SelectionRect = { height: 0, left: start.localX, top: start.localY, width: 0 };
+      const move = (next: PointerEvent) => {
+        moved = moved || Math.hypot(next.clientX - start.x, next.clientY - start.y) > 4;
+        if (selecting) {
+          const localX = next.clientX - boardRect.left;
+          const localY = next.clientY - boardRect.top;
+          latestSelection = {
+            height: Math.abs(localY - start.localY),
+            left: Math.min(localX, start.localX),
+            top: Math.min(localY, start.localY),
+            width: Math.abs(localX - start.localX),
+          };
+          setSelectionRect(latestSelection);
+          return;
+        }
+        latestViewport = {
+          ...start.viewport,
+          x: start.viewport.x + next.clientX - start.x,
+          y: start.viewport.y + next.clientY - start.y,
+        };
+        setViewport(latestViewport);
+      };
+      const up = () => {
+        board.removeEventListener('pointermove', move);
+        if (selecting) {
+          const worldRect = {
+            height: latestSelection.height / start.viewport.zoom,
+            width: latestSelection.width / start.viewport.zoom,
+            x: (latestSelection.left - start.viewport.x) / start.viewport.zoom,
+            y: (latestSelection.top - start.viewport.y) / start.viewport.zoom,
+          };
+          const ids = (store.getState().document?.nodes ?? []).filter((node) => {
+            const point = nodePoint(node);
+            const size = nodeSize(node);
+            return intersects({ ...point, ...size }, worldRect);
+          }).map((node) => node.id);
+          setSelectedIds(new Set(ids));
+          setSelectionRect(null);
+        } else if (moved) persistViewport(documentId, latestViewport);
+        else if (event.button === 0) setSelectedIds(new Set());
+      };
       board.addEventListener('pointermove', move);
       board.addEventListener('pointerup', up, { once: true });
     }}
     onWheel={(event) => {
       event.preventDefault();
-      setViewport((value) => ({
-        ...value,
-        zoom: Math.min(1.5, Math.max(0.25, value.zoom * (event.deltaY < 0 ? 1.1 : 0.9))),
-      }));
+      if (!legacyUi) {
+        setViewport((value) => ({ ...value, zoom: Math.min(1.5, Math.max(0.25, value.zoom * (event.deltaY < 0 ? 1.1 : 0.9))) }));
+        return;
+      }
+      setCreateMenu(null);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const local = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      setViewport((value) => {
+        const world = { x: (local.x - value.x) / value.zoom, y: (local.y - value.y) / value.zoom };
+        const zoom = Math.min(1.5, Math.max(0.25, value.zoom * (event.deltaY < 0 ? 1.08 : 0.92)));
+        const next = { x: local.x - world.x * zoom, y: local.y - world.y * zoom, zoom };
+        persistViewport(documentId, next);
+        return next;
+      });
     }}
+    ref={boardRef}
     style={{
-      backgroundColor: 'var(--page)',
-      backgroundImage: 'radial-gradient(var(--grid) 1px, transparent 1px)',
-      backgroundSize: '24px 24px',
+      backgroundColor: legacyUi ? undefined : 'var(--page)',
+      backgroundImage: legacyUi ? undefined : 'radial-gradient(var(--grid) 1px, transparent 1px)',
+      backgroundSize: legacyUi ? undefined : '24px 24px',
       inset: 0,
       overflow: 'hidden',
       position: 'absolute',
       touchAction: 'none',
     }}
   >
+    {legacyUi ? <div className={`drop-overlay ${dropActive ? 'active' : ''}`}>拖放素材到画布</div> : null}
+    {legacyUi && selectionRect ? <div className="selection-box" style={{ ...selectionRect, display: 'block' }} /> : null}
     <div aria-live="polite" data-testid="canvas-board-v2-save-status" style={{ position: 'absolute', right: 18, top: 74, zIndex: 20 }}>
       {saveState === 'saving' ? '正在保存' : saveState === 'error' ? '保存失败，本地修改仍保留' : saveState === 'saved' ? '已保存' : ''}
     </div>
-    <div style={{ height: 4000, position: 'absolute', transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`, transformOrigin: '0 0', width: 6000 }}>
-      <svg height="4000" style={{ inset: 0, overflow: 'visible', position: 'absolute' }} width="6000">
+    <div className={legacyUi ? 'world' : undefined} style={{ height: legacyUi ? undefined : WORLD_HEIGHT, position: 'absolute', transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`, transformOrigin: legacyUi ? undefined : '0 0', width: legacyUi ? undefined : WORLD_WIDTH }}>
+      <svg className={legacyUi ? 'links' : undefined} height={WORLD_HEIGHT} style={legacyUi ? undefined : { inset: 0, overflow: 'visible', position: 'absolute' }} width={WORLD_WIDTH}>
         {(document?.connections ?? []).map((edge, index) => {
           const source = nodesById.get(edge.from);
           const target = nodesById.get(edge.to);
@@ -690,18 +871,17 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
             event.stopPropagation();
             if (event.ctrlKey || event.metaKey) return;
             const element = event.currentTarget;
-            const start = { clientX: event.clientX, clientY: event.clientY, point };
+            const movingIds = legacyUi && selectedIds.has(node.id) ? new Set(selectedIds) : new Set([node.id]);
+            const startPoints = new Map((store.getState().document?.nodes ?? []).filter((item) => movingIds.has(item.id)).map((item) => [item.id, nodePoint(item)]));
+            const start = { clientX: event.clientX, clientY: event.clientY };
             let moved = false;
             element.setPointerCapture(event.pointerId);
             setSelectedEdge(-1);
-            if (!selectedIds.has(node.id)) setSelectedIds(new Set([node.id]));
+            if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
             const move = (next: PointerEvent) => {
               moved = true;
-              store.getState().moveNode(
-                node.id,
-                start.point.x + (next.clientX - start.clientX) / viewport.zoom,
-                start.point.y + (next.clientY - start.clientY) / viewport.zoom,
-              );
+              const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom };
+              startPoints.forEach((startPoint, id) => store.getState().moveNode(id, startPoint.x + delta.x, startPoint.y + delta.y));
             };
             const up = () => {
               element.removeEventListener('pointermove', move);
@@ -733,6 +913,47 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, onSelec
         </article>;
       })}
     </div>
+    {legacyUi && createMenu ? <div className="create-menu open" onPointerDown={(event) => event.stopPropagation()} style={{ left: createMenu.left, top: createMenu.top }}>
+      {createMenuNodes.map(([type, label, icon]) => <button className="menu-btn" key={type} onClick={() => {
+        const id = store.getState().addNode(type, createMenu.point);
+        if (id) {
+          setSelectedIds(new Set([id]));
+          commit();
+        }
+        setCreateMenu(null);
+      }} type="button"><i className="w-4 h-4" data-lucide={icon} /><span>{label}</span></button>)}
+    </div> : null}
+    {legacyUi ? <div className="minimap" onPointerDown={(event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const element = event.currentTarget;
+      centerViewport(event.clientX, event.clientY);
+      element.setPointerCapture(event.pointerId);
+      const move = (next: PointerEvent) => centerViewport(next.clientX, next.clientY);
+      const up = () => element.removeEventListener('pointermove', move);
+      element.addEventListener('pointermove', move);
+      element.addEventListener('pointerup', up, { once: true });
+    }} title="导航地图">
+      <div className="minimap-content">
+        {(document?.nodes ?? []).map((node) => {
+          const point = nodePoint(node);
+          const size = nodeSize(node);
+          return <div className={`minimap-node ${selectedIds.has(node.id) ? 'selected' : ''}`} data-minimap-node-id={node.id} key={node.id} style={{
+            height: `${Math.max(2, (size.height / WORLD_HEIGHT) * 110)}px`,
+            left: `${(point.x / WORLD_WIDTH) * 100}%`,
+            top: `${(point.y / WORLD_HEIGHT) * 100}%`,
+            width: `${Math.max(2, (size.width / WORLD_WIDTH) * 172)}px`,
+          }} />;
+        })}
+        {(document?.nodes ?? []).length ? null : <div className="minimap-empty">暂无节点</div>}
+        <div className="minimap-viewport" style={{
+          height: `${Math.max(4, (boardSize.height / viewport.zoom / WORLD_HEIGHT) * 100)}%`,
+          left: `${(-viewport.x / viewport.zoom / WORLD_WIDTH) * 100}%`,
+          top: `${(-viewport.y / viewport.zoom / WORLD_HEIGHT) * 100}%`,
+          width: `${Math.max(4, (boardSize.width / viewport.zoom / WORLD_WIDTH) * 100)}%`,
+        }} />
+      </div>
+    </div> : null}
     {lightbox && lightboxNode ? <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} /> : null}
     {imageEditorNode?.url ? <ImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: ImageTransformResult) => {
       if (readOnly) throw new Error('只读模式不能编辑图片');
@@ -777,6 +998,7 @@ function OutputLightbox({ node, onClose, url }: { node: CanvasNode; onClose: () 
 export interface CanvasBoardMountOptions {
   clientId?: string;
   initialDocument?: unknown;
+  legacyUi?: boolean;
   readOnly?: boolean;
   repository?: CanvasRepository;
   runtime?: CanvasRuntime;
@@ -1110,7 +1332,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       return true;
     },
   };
-  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
+  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} legacyUi={Boolean(options.legacyUi)} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
   if (legacyBoard) legacyBoard.hidden = true;
   element.hidden = false;
   return () => {

@@ -35,8 +35,8 @@ export interface CanvasAppDependencies {
 }
 
 const nodeButtons = [
-  ['image', '上传'], ['prompt', '提示词'], ['loop', '循环'], ['llm', 'LLM'], ['generator', 'API生成'],
-  ['msgen', 'ModelScope'], ['video', '视频'], ['comfy', 'ComfyUI'], ['ltxDirector', 'LTX Director'], ['output', 'Output'],
+  ['image', '上传', 'image-plus'], ['prompt', '提示词', 'text-cursor-input'], ['loop', '循环', 'repeat-2'], ['llm', 'LLM', 'message-square-text'], ['generator', 'API生成', 'wand-sparkles'],
+  ['msgen', 'ModelScope生成', 'cloud-lightning'], ['video', '视频生成', 'clapperboard'], ['comfy', 'ComfyUI', 'workflow'], ['ltxDirector', 'LTX Director', 'film'], ['output', 'Output', 'circle-dot'],
 ] as const;
 
 function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManagementClient(), repository, runtime }: CanvasAppDependencies) {
@@ -54,6 +54,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   const [lockHolder, setLockHolder] = useState<Record<string, unknown> | null>(null);
   const [lockIssue, setLockIssue] = useState('');
   const [syncIssue, setSyncIssue] = useState('');
+  const [toolbarCollapsed, setToolbarCollapsed] = useState(() => localStorage.getItem('canvas_quick_toolbar_collapsed') === '1');
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clientId = useRef(canvasClientId());
   const initialCanvasAttempted = useRef(false);
@@ -82,12 +83,17 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   useEffect(() => {
     const host = boardRef.current;
     if (!host || !current) return;
-    const cleanup = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, readOnly: Boolean(lockHolder), repository, runtime });
+    const cleanup = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, legacyUi: !configuration.kind, readOnly: Boolean(lockHolder), repository, runtime });
     window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder));
     return cleanup;
-  }, [current, repository, runtime]);
+  }, [configuration.kind, current, repository, runtime]);
 
   useEffect(() => { window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder)); }, [lockHolder]);
+
+  useEffect(() => {
+    if (!current || configuration.kind) return;
+    window.requestAnimationFrame(() => (window as typeof window & { lucide?: { createIcons(): void } }).lucide?.createIcons());
+  }, [configuration.kind, current, lockHolder, toolbarCollapsed]);
 
   useEffect(() => {
     const listener = (event: Event) => {
@@ -381,15 +387,49 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     return <Manager canvases={canvases} configuration={configuration} folders={folders} management={management} onOpen={openCanvas} onRefresh={refresh} onStatus={setStatus} status={status} trash={trash} />;
   }
 
-  return <main className="canvas-modern-editor">
-    <header className="topbar canvas-modern-topbar">
+  const classicEditor = !configuration.kind;
+  const toggleToolbar = () => {
+    setToolbarCollapsed((collapsed) => {
+      const next = !collapsed;
+      localStorage.setItem('canvas_quick_toolbar_collapsed', next ? '1' : '0');
+      return next;
+    });
+  };
+
+  return <main className={`canvas-modern-editor ${classicEditor ? 'shell' : ''}`}>
+    {classicEditor ? <header className="topbar canvas-modern-topbar">
+      <div className="panel canvas-nav">
+        <button aria-label="返回画布管理" className="tool-btn" onClick={() => void closeCanvas()} title="返回画布管理" type="button"><i className="w-4 h-4" data-lucide="arrow-left" /></button>
+        <div className="canvas-nav-meta">
+          <div className="current-canvas-title">{String(current.title || '未命名画布')}</div>
+          <div className="current-canvas-time">{lockHolder ? `只读 · ${lockHolderName(lockHolder)} 编辑中` : syncIssue || formatTime(current.updated_at)}</div>
+        </div>
+        {lockHolder ? <div className="canvas-lock-badge locked-by-other" title={`${lockHolderName(lockHolder)} 正在编辑`}><i className="w-3.5 h-3.5" data-lucide="lock" /><span>{lockHolderName(lockHolder)}</span></div> : null}
+        <button aria-label="设置我的名称" className="canvas-identity-btn" onClick={() => void editIdentity()} title="设置我的名称" type="button"><i className="w-3.5 h-3.5" data-lucide="user-pen" /><span>我的名称</span></button>
+      </div>
+      <div className={`panel toolbar editor-only canvas-modern-toolbar ${toolbarCollapsed ? 'collapsed' : ''}`}>
+        <button aria-label={toolbarCollapsed ? '展开快捷菜单' : '折叠快捷菜单'} className="tool-btn toolbar-toggle" onClick={toggleToolbar} title={toolbarCollapsed ? '展开快捷菜单' : '折叠快捷菜单'} type="button"><i className="w-4 h-4" data-lucide="chevron-left" /></button>
+        <div className="toolbar-items">
+          {nodeButtons.map(([type, label, icon]) => <button className="tool-btn" disabled={Boolean(lockHolder)} key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button"><i className="w-4 h-4" data-lucide={icon} /><span>{label}</span></button>)}
+          <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.groupSelected()} type="button"><i className="w-4 h-4" data-lucide="group" /><span>分组</span></button>
+        </div>
+        <div className="toolbar-fixed">
+          <button aria-label="导入导出工作流" className="tool-btn toolbar-workflow" onClick={() => setWorkflowOpen(true)} title="导入导出工作流" type="button"><i className="w-4 h-4" data-lucide="package-open" /><span>工作流</span></button>
+          <button aria-label="资产库" className="tool-btn toolbar-asset canvas-asset-toggle" onClick={showAssets} title="资产库" type="button"><i className="w-4 h-4" data-lucide="library" /><span>资产库</span></button>
+          <button aria-label="费用仪表盘" className="tool-btn toolbar-cost" onClick={() => void showInspector('cost')} title="费用仪表盘" type="button"><i className="w-4 h-4" data-lucide="circle-dollar-sign" /><span>费用 ¥{canvasDocumentCost(current).toFixed(2)}</span></button>
+          <button aria-label="日志" className="tool-btn toolbar-log" onClick={() => void showInspector('logs')} title="日志" type="button"><i className="w-4 h-4" data-lucide="list-todo" /><span>日志</span></button>
+          <button aria-label="备份" className="tool-btn toolbar-backup" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} title="备份" type="button"><i className="w-4 h-4" data-lucide="hard-drive" /><span>备份</span></button>
+        </div>
+      </div>
+    </header> : <header className="topbar canvas-modern-topbar">
       <div className="panel canvas-nav"><button className="tool-btn" onClick={() => void closeCanvas()} type="button">← 返回</button><div className="canvas-nav-meta"><strong>{String(current.title || '未命名画布')}</strong><small>{lockHolder ? `只读 · ${lockHolderName(lockHolder)} 编辑中` : syncIssue || formatTime(current.updated_at)}</small></div><button className="tool-btn" onClick={() => void editIdentity()} type="button">编辑身份</button></div>
       <div className="panel toolbar canvas-modern-toolbar">
         <div className="toolbar-items">{nodeButtons.map(([type, label]) => <button className="tool-btn" disabled={Boolean(lockHolder)} key={type} onClick={() => window.CanvasBoardV2?.addNode(type)} type="button">{label}</button>)}</div>
         <div className="toolbar-fixed"><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} type="button">备份</button></div>
       </div>
-    </header>
-    <div className="canvas-modern-board" ref={boardRef} />
+    </header>}
+    <div className="canvas-modern-board" ref={boardRef} style={classicEditor ? { inset: 0 } : undefined} />
+    {classicEditor ? <div className="hint editor-only">拖拽画布移动，Ctrl 框选多选，拖动选中节点可一起移动。上传/提示词节点右下端口拖线到生成节点。</div> : null}
     {configuration.editorAddon}
     {lockHolder ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
