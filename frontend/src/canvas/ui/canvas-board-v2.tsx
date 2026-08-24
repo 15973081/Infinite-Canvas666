@@ -10,6 +10,7 @@ import { createDocumentStore, type DocumentStore } from '../stores/document-stor
 import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
 import { LegacyImageTransformDialog, type LegacyGridResult, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
 import { LegacyOutputLightbox } from './legacy-output-lightbox';
+import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canvas-create-menu';
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
 
 type Point = { x: number; y: number };
@@ -658,9 +659,9 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const imageEditorNode = imageEditorNodeId ? nodesById.get(imageEditorNodeId) : null;
   useEffect(() => { onSelectionChange?.(selectedIds); }, [onSelectionChange, selectedIds]);
   useEffect(() => {
-    if (!legacyUi || !createMenu) return;
+    if ((!legacyUi && !smartUi) || !createMenu) return;
     window.requestAnimationFrame(() => (window as typeof window & { lucide?: { createIcons(): void } }).lucide?.createIcons());
-  }, [createMenu, legacyUi]);
+  }, [createMenu, legacyUi, smartUi]);
 
   const centerViewport = (clientX: number, clientY: number) => {
     const minimap = boardRef.current?.querySelector('.minimap-content')?.getBoundingClientRect();
@@ -682,6 +683,24 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       return next;
     });
   };
+  const createSmartNode = (type: SmartCanvasCreateType) => {
+    if (!createMenu || readOnly) return;
+    let selectedId = '';
+    if (type === 'image') {
+      const outputId = store.getState().addNode('output', createMenu.point);
+      const generatorId = store.getState().addNode('generator', { x: createMenu.point.x - 420, y: createMenu.point.y });
+      if (outputId && generatorId) store.getState().connectNodes(generatorId, outputId);
+      selectedId = outputId || generatorId || '';
+    } else {
+      const offset = type === 'prompt' ? { x: 158, y: 97 } : { x: 135, y: 95 };
+      selectedId = store.getState().addNode(type, { x: createMenu.point.x - offset.x, y: createMenu.point.y - offset.y }) || '';
+    }
+    if (selectedId) {
+      setSelectedIds(new Set([selectedId]));
+      commit();
+    }
+    setCreateMenu(null);
+  };
 
   return <div
     aria-label="CanvasBoard V2"
@@ -689,6 +708,18 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     className={`${legacyUi ? 'board' : ''} ${readOnly ? 'canvas-board-v2-readonly' : ''}`.trim() || undefined}
     data-testid="canvas-board-v2"
     data-viewport={`${viewport.x},${viewport.y},${viewport.zoom.toFixed(2)}`}
+    onDoubleClick={(event) => {
+      if (!smartUi || readOnly) return;
+      const target = event.target as HTMLElement;
+      if (target.closest('.node, .composer, .create-menu, .smart-minimap, input, textarea, select, button')) return;
+      event.preventDefault();
+      const rect = event.currentTarget.getBoundingClientRect();
+      setCreateMenu({
+        left: Math.max(14, Math.min(window.innerWidth - 420 - 14, event.clientX + 8)),
+        point: { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom },
+        top: Math.max(14, Math.min(window.innerHeight - 286 - 14, event.clientY + 8)),
+      });
+    }}
     onContextMenu={(event) => {
       if (!legacyUi) return;
       const target = event.target as HTMLElement;
@@ -933,6 +964,8 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
         setCreateMenu(null);
       }} type="button"><i className="w-4 h-4" data-lucide={icon} /><span>{label}</span></button>)}
     </div> : null}
+    {smartUi && createMenu ? <SmartCanvasCreateMenu left={createMenu.left} onCreate={createSmartNode} top={createMenu.top} /> : null}
+    {smartUi ? <input accept="image/*,video/*,audio/*" hidden id="fileInput" multiple type="file" /> : null}
     {legacyUi ? <div className="minimap" onPointerDown={(event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -1339,6 +1372,21 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       if (readOnlyMode) return;
       if (!files.length) return;
       const uploaded = await modernRuntime.uploadMedia(files);
+      if (options.smartUi) {
+        const images = (uploaded.files ?? []).filter((file) => file.url).map((file) => ({
+          ...file,
+          kind: file.kind || 'image',
+          name: file.name || 'media',
+          url: file.url || '',
+        }));
+        if (!images.length) return;
+        const id = store.getState().addNode('output', point);
+        if (id) {
+          store.getState().updateNode(id, { images });
+          commit();
+        }
+        return;
+      }
       const ids = (uploaded.files ?? []).map((file, index) => {
         const id = store.getState().addNode('image', point ? { x: point.x + index * 36, y: point.y + index * 36 } : undefined);
         if (id) store.getState().updateNode(id, { url: file.url || '', name: file.name || 'media', mediaKind: file.kind || 'image' });
