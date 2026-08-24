@@ -17,6 +17,7 @@ import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canva
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
 import { SmartCanvasPromptTemplate } from './smart-canvas-prompt-template';
+import { SmartCanvasPreview } from './smart-canvas-preview';
 import { SmartImageNode, smartImageItems, smartImageNodeLayout } from './smart-image-node';
 import { SmartLoopNode, smartLoopImagesForRound, smartLoopNodeLayout, smartLoopPromptForRound } from './smart-loop-node';
 import { SmartPromptNode, smartPromptNodeLayout, type SmartPromptProvider } from './smart-prompt-node';
@@ -1417,7 +1418,22 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       onLocate={locateSmartViewport}
       viewport={viewport}
     /> : null}
-    {lightbox && lightboxNode ? (legacyUi ? <LegacyOutputLightbox
+    {lightbox && lightboxNode ? (smartUi ? <SmartCanvasPreview
+      document={document!}
+      node={lightboxNode}
+      onClose={() => setLightbox(null)}
+      onNavigate={(url) => setLightbox({ nodeId: lightboxNode.id, url })}
+      onRememberSize={(index, width, height) => {
+        const active = store.getState().document?.nodes.find((item) => item.id === lightboxNode.id);
+        if (!active || !Array.isArray(active.images)) return;
+        const images = active.images.map((item, itemIndex) => itemIndex === index && item && typeof item === 'object' && !Array.isArray(item)
+          ? { ...item as Record<string, unknown>, natural_h: height, natural_w: width }
+          : item);
+        store.getState().updateNode(active.id, { images });
+        commit();
+      }}
+      url={lightbox.url}
+    /> : legacyUi ? <LegacyOutputLightbox
       node={lightboxNode}
       onClose={() => setLightbox(null)}
       onNavigate={(url) => setLightbox({ nodeId: lightboxNode.id, url })}
