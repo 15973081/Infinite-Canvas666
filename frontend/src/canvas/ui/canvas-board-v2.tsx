@@ -9,6 +9,7 @@ import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository }
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
 import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
 import { LegacyImageTransformDialog, type LegacyGridResult, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
+import { LegacyOutputLightbox } from './legacy-output-lightbox';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -955,7 +956,26 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
         }} />
       </div>
     </div> : null}
-    {lightbox && lightboxNode ? <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} /> : null}
+    {lightbox && lightboxNode ? (legacyUi ? <LegacyOutputLightbox
+      node={lightboxNode}
+      onClose={() => setLightbox(null)}
+      onNavigate={(url) => setLightbox({ nodeId: lightboxNode.id, url })}
+      onRerun={(meta) => { window.CanvasBoardV2?.rerunFromOutputMeta(meta); setLightbox(null); }}
+      onViewed={(url) => {
+        const active = store.getState().document?.nodes.find((item) => item.id === lightboxNode.id);
+        if (!active || !Array.isArray(active.images)) return;
+        let changed = false;
+        const images = active.images.map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item) || String((item as Record<string, unknown>).url || '') !== url || (item as Record<string, unknown>).viewed) return item;
+          changed = true;
+          return { ...(item as Record<string, unknown>), viewed: true };
+        });
+        if (!changed) return;
+        store.getState().updateNode(active.id, { images });
+        commit();
+      }}
+      url={lightbox.url}
+    /> : <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} />) : null}
     {imageEditorNode?.url ? (legacyUi ? <LegacyImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: LegacyImageTransformResult) => {
       if (readOnly) throw new Error('只读模式不能编辑图片');
       const uploaded = await canvasRuntime.uploadMedia([new File([result.blob], result.name, { type: 'image/png' })]);
@@ -1326,7 +1346,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       }) : [];
       store.getState().updateNode(String(node.id || ''), { images });
       commit(false);
-      if (options.initialDocument) window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
+      if (options.legacyUi || options.initialDocument) window.dispatchEvent(new CustomEvent('canvas-v2-open-lightbox', { detail: { nodeId: String(node.id || ''), url } }));
       else if (bridge) bridge.openOutputLightbox(node, url);
     },
     async prepareVideoMedia(nodeId, action, value) {
