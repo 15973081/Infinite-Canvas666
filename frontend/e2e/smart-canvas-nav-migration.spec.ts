@@ -77,7 +77,7 @@ test('keeps the migrated navigation buttons wired to their existing React functi
   await shell.locator('.canvas-modern-backups header button').click();
 
   await shell.locator('#assetToggle').click();
-  await expect(shell.locator('.canvas-asset-dialog')).toBeVisible();
+  await expect(shell.locator('#assetPanel.asset-panel.open')).toBeVisible();
 });
 
 test('keeps the legacy back-navigation destination', async ({ page }) => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CanvasNode } from '../domain/types';
-import { smartImageMediaKind, smartImageNodeLayout, smartImageTaskPatch } from './smart-image-node';
+import { smartImageDragPayload, smartImageMediaKind, smartImageNodeLayout, smartImageTaskPatch } from './smart-image-node';
 
 describe('SmartImageNode', () => {
   it('preserves the legacy empty, single and group layout defaults', () => {
@@ -13,6 +13,16 @@ describe('SmartImageNode', () => {
     expect(smartImageMediaKind({ url: '/a.png' })).toBe('image');
     expect(smartImageMediaKind({ url: '/a.webm' })).toBe('video');
     expect(smartImageMediaKind({ kind: 'audio', url: '/asset/1' })).toBe('audio');
+  });
+
+  it('keeps asset identity and authenticated URIs in the canvas drag payload', () => {
+    expect(smartImageDragPayload({ asset_item_id: 'asset-1', asset_uris: { volcengine: 'asset://face' }, kind: 'image', name: 'face.png', url: '/face.png' })).toEqual({
+      asset_item_id: 'asset-1',
+      asset_uris: { volcengine: 'asset://face' },
+      kind: 'image',
+      name: 'face.png',
+      url: '/face.png',
+    });
   });
 
   it('finalizes a recovered task on the same smart-image data structure', () => {

@@ -1042,6 +1042,23 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       if (readOnly) return;
       const rect = event.currentTarget.getBoundingClientRect();
       const point = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
+      const smartAssetPayload = event.dataTransfer.getData('application/x-smart-asset');
+      if (smartAssetPayload) {
+        try {
+          const media = JSON.parse(smartAssetPayload) as { asset_item_id?: string; asset_uris?: Record<string, string>; kind?: string; name?: string; url?: string };
+          if (media.url) {
+            const id = store.getState().addNode(smartUi ? 'smart-image' : 'image', point);
+            if (id) {
+              if (smartUi) store.getState().updateNode(id, { images: [{ asset_item_id: media.asset_item_id, asset_uris: media.asset_uris, kind: media.kind || 'image', name: media.name || 'asset', url: media.url }], scale: 2, title: media.kind === 'video' ? 'Video' : media.kind === 'audio' ? 'Audio' : 'Image' });
+              else store.getState().updateNode(id, { mediaKind: media.kind || 'image', name: media.name || 'asset', url: media.url });
+              commit();
+            }
+            return;
+          }
+        } catch (error) {
+          console.warn('[canvas-modern-core] invalid smart asset drag payload', error);
+        }
+      }
       const outputPayload = event.dataTransfer.getData('application/x-canvas-output-image');
       if (outputPayload) {
         try {

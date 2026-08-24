@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useState, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { CanvasNode } from '../domain/types';
 
 export interface SmartImageItem extends Record<string, unknown> { kind?: string; name?: string; url?: string }
@@ -83,6 +83,23 @@ export function smartImageItems(node: CanvasNode): SmartImageItem[] {
     const url = String(value.originalLocalUrl || value.localUrl || value.sourceUrl || value.local_url || value.source_url || value.url || '');
     return url ? [{ ...value, url, kind: value.kind || smartImageMediaKind({ ...value, url }) }] : [];
   });
+}
+
+export function smartImageDragPayload(item: SmartImageItem): Record<string, unknown> {
+  return {
+    asset_item_id: item.asset_item_id,
+    asset_uris: item.asset_uris,
+    kind: smartImageMediaKind(item),
+    name: String(item.name || 'asset'),
+    url: String(item.url || ''),
+  };
+}
+
+function startSmartImageDrag(event: ReactDragEvent<HTMLElement>, item: SmartImageItem) {
+  event.stopPropagation();
+  event.dataTransfer.effectAllowed = 'copy';
+  event.dataTransfer.setData('application/x-smart-canvas-image', JSON.stringify(smartImageDragPayload(item)));
+  event.dataTransfer.setData('text/plain', String(item.url || ''));
 }
 
 export function smartImagePendingTasks(node: CanvasNode): SmartImagePendingTask[] {
@@ -230,8 +247,8 @@ export function SmartImageNode({ connecting, node, onAppendFiles, onConnectIn, o
     <div className="node-body">{recoverTask && !images.length ? <div className="image-task-pending-cell loading-cell single" style={{ height: layout.height, width: layout.width }}><div className="image-task-pending-overlay"><div className="image-task-pending-spinner"><i data-lucide={recoverTask.querying ? 'loader-2' : 'refresh-cw'} /></div><div className="image-task-pending-text">{recoverTask.querying ? '查询中' : '任务未丢失'}</div><div className="image-task-pending-sub">{`任务 ID：${recoverTask.recoverTaskId || ''}`}</div><button className="image-task-pending-query" disabled={Boolean(recoverTask.querying)} onClick={(event) => { event.stopPropagation(); void queryRecoverTask(); }} onPointerDown={(event) => event.stopPropagation()} type="button"><i data-lucide={recoverTask.querying ? 'loader-2' : 'refresh-cw'} /><span>{recoverTask.querying ? '查询中…' : '查询结果'}</span></button></div></div>
       : isQueued ? <div className="loading-cell single queued" style={{ height: layout.height, width: layout.width }} />
         : node.pending && !images.length ? Number(node.pending) <= 1 ? <div className="loading-cell single" style={{ height: layout.height, width: layout.width }} /> : <div className="loading-skeleton" style={{ boxSizing: 'border-box', gridTemplateColumns: `repeat(${Math.min(4, Math.max(2, Math.ceil(Math.sqrt(Number(node.pending)))) )}, 1fr)`, gridTemplateRows: `repeat(${Math.ceil(Number(node.pending) / Math.min(4, Math.max(2, Math.ceil(Math.sqrt(Number(node.pending)))) ))}, 1fr)`, height: layout.height, padding: 8, width: layout.width }}>{Array.from({ length: Number(node.pending) }, (_, index) => <div className="loading-cell" key={index} />)}</div>
-          : isGroup ? <div className="thumb-grid" data-thumb-scroll="1" style={{ '--thumb-cols': layout.cols, '--thumb-max-height': `${(layout.visibleRows || layout.rows) * layout.thumb + Math.max(0, (layout.visibleRows || layout.rows) - 1) * 8}px`, '--thumb-size': `${layout.thumb}px` } as React.CSSProperties}>{images.map((item, index) => <div className={`thumb-item ${selectedImage === index ? 'image-selected' : ''}`} data-image-index={index} data-media-signature={`${smartImageMediaKind(item)}:${item.url || ''}`} key={`${item.url}-${index}`} onClick={(event) => { event.stopPropagation(); setSelectedImage(index); }}><SmartMedia active={activeVideos.includes(index)} group item={item} onPlay={() => setActiveVideos((current) => current.includes(index) ? current : [...current, index])} />{resolution(item) ? <span className="image-resolution-badge">{resolution(item)}</span> : null}<button className="mini-x image-delete" disabled={readOnly} onClick={(event) => { event.stopPropagation(); onDeleteImage(index); }} title="删除图片" type="button"><i data-lucide="trash-2" /></button></div>)}</div>
-            : images[0] ? <div className={`image-wrap ${selectedImage === 0 ? 'image-selected' : ''}`} data-image-index="0" data-media-signature={`${smartImageMediaKind(images[0])}:${images[0].url || ''}`} onClick={(event) => { event.stopPropagation(); setSelectedImage(0); }} style={{ '--node-img-h': `${layout.height}px`, '--node-img-w': `${layout.width}px` } as React.CSSProperties}><SmartMedia active={activeVideos.includes(0)} group={false} item={images[0]} onPlay={() => setActiveVideos((current) => current.includes(0) ? current : [...current, 0])} />{resolution(images[0]) ? <span className="image-resolution-badge">{resolution(images[0])}</span> : null}<button className="mini-x image-delete" disabled={readOnly} onClick={(event) => { event.stopPropagation(); onDeleteImage(0); }} title="删除图片" type="button"><i data-lucide="trash-2" /></button></div>
+          : isGroup ? <div className="thumb-grid" data-thumb-scroll="1" style={{ '--thumb-cols': layout.cols, '--thumb-max-height': `${(layout.visibleRows || layout.rows) * layout.thumb + Math.max(0, (layout.visibleRows || layout.rows) - 1) * 8}px`, '--thumb-size': `${layout.thumb}px` } as React.CSSProperties}>{images.map((item, index) => <div className={`thumb-item ${selectedImage === index ? 'image-selected' : ''}`} data-image-index={index} data-media-signature={`${smartImageMediaKind(item)}:${item.url || ''}`} draggable key={`${item.url}-${index}`} onClick={(event) => { event.stopPropagation(); setSelectedImage(index); }} onDragStart={(event) => startSmartImageDrag(event, item)} onPointerDown={(event) => event.stopPropagation()}><SmartMedia active={activeVideos.includes(index)} group item={item} onPlay={() => setActiveVideos((current) => current.includes(index) ? current : [...current, index])} />{resolution(item) ? <span className="image-resolution-badge">{resolution(item)}</span> : null}<button className="mini-x image-delete" disabled={readOnly} onClick={(event) => { event.stopPropagation(); onDeleteImage(index); }} title="删除图片" type="button"><i data-lucide="trash-2" /></button></div>)}</div>
+            : images[0] ? <div className={`image-wrap ${selectedImage === 0 ? 'image-selected' : ''}`} data-image-index="0" data-media-signature={`${smartImageMediaKind(images[0])}:${images[0].url || ''}`} draggable onClick={(event) => { event.stopPropagation(); setSelectedImage(0); }} onDragStart={(event) => startSmartImageDrag(event, images[0])} onPointerDown={(event) => event.stopPropagation()} style={{ '--node-img-h': `${layout.height}px`, '--node-img-w': `${layout.width}px` } as React.CSSProperties}><SmartMedia active={activeVideos.includes(0)} group={false} item={images[0]} onPlay={() => setActiveVideos((current) => current.includes(0) ? current : [...current, 0])} />{resolution(images[0]) ? <span className="image-resolution-badge">{resolution(images[0])}</span> : null}<button className="mini-x image-delete" disabled={readOnly} onClick={(event) => { event.stopPropagation(); onDeleteImage(0); }} title="删除图片" type="button"><i data-lucide="trash-2" /></button></div>
               : <div className="node-drop" data-upload-action="files" onClick={(event) => { event.stopPropagation(); upload(); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); onAppendFiles([...event.dataTransfer.files]); }}><span className="upload-node-main"><i data-lucide="upload-cloud" /></span><span className="upload-node-title">上传节点</span><span className="upload-node-sub">拖拽 / 粘贴 / 点击上传</span></div>}</div>
     <div className="node-hint">{hint}</div>
     {images.length || node.pending || isQueued ? <div className="node-resize-handle" data-resize="1" /> : null}
