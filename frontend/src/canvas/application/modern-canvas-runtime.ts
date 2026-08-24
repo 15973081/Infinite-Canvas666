@@ -2,6 +2,7 @@ import { createGraphModel } from '../domain/graph';
 import type { CanvasDocument, CanvasNode } from '../domain/types';
 import { requestJson, type Fetcher } from '../infrastructure/http';
 import type { TaskClient } from '../infrastructure/task-client';
+import { createSmartCanvasExecution } from './smart-canvas-execution';
 
 export type RuntimeMode = 'cascade' | 'chat' | 'node';
 export type RuntimeCommand = 'retry-execution' | 'stop-execution';
@@ -163,7 +164,24 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     return document;
   };
 
+  const smartExecution = createSmartCanvasExecution({
+    fetcher,
+    getConfig: () => config,
+    getWorkflow: async (name) => {
+      let detail = workflowDetails.get(name);
+      if (!detail) {
+        detail = await requestJson<WorkflowRecord>(fetcher, `/api/workflows/${encodeURIComponent(name)}`);
+        workflowDetails.set(name, detail);
+      }
+      return detail;
+    },
+    taskClient,
+  });
+
   const runNode: CanvasRuntime['runNode'] = async (nodeId, source, mode = 'node', onUpdate) => {
+    if (source.kind === 'smart' && smartExecution.canHandle(source.nodes.find((node) => node.id === nodeId))) {
+      return smartExecution.runNode(nodeId, source, mode, onUpdate);
+    }
     const document = structuredClone(source);
     const order = mode === 'cascade' ? createGraphModel(document).cascadeOrder(nodeId) : [nodeId];
     if (!order.length) throw new Error('没有可执行的节点');
@@ -182,6 +200,9 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
   };
 
   const runCommand: CanvasRuntime['runCommand'] = async (command, nodeId, source, onUpdate) => {
+    if (source.kind === 'smart' && smartExecution.canHandle(source.nodes.find((node) => node.id === nodeId))) {
+      return smartExecution.runCommand(command, nodeId, source, onUpdate);
+    }
     if (command === 'stop-execution') {
       controllers.get(nodeId)?.abort();
       return structuredClone(source);
@@ -199,7 +220,7 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
   };
 
   const recoverDocument: CanvasRuntime['recoverDocument'] = async (source, onUpdate) => {
-    const document = structuredClone(source);
+    const document = await smartExecution.recoverDocument(source, onUpdate);
     const recoveries: Promise<void>[] = [];
     for (const output of document.nodes.filter((node) => node.type === 'output')) {
       for (const pending of Array.isArray(output._pending) ? output._pending as Array<Record<string, unknown>> : []) {
@@ -509,8 +530,8 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
   };
 
   const post = <T>(path: string, payload: unknown, signal: AbortSignal) => requestJson<T>(fetcher, path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal,
-  });
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }, { signal });
 
   const uploadComfyRef = async (ref: MediaRef, signal: AbortSignal): Promise<string> => {
     const source = /^https?:\/\//i.test(ref.url)
@@ -521,7 +542,7 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     const blob = await response.blob();
     const form = new FormData();
     form.append('files', new File([blob], ref.name || `canvas-${ref.kind}`, { type: blob.type }));
-    const uploaded = await requestJson<{ files?: Array<{ comfy_name?: string }> }>(fetcher, '/api/upload', { method: 'POST', body: form, signal });
+    const uploaded = await requestJson<{ files?: Array<{ comfy_name?: string }> }>(fetcher, '/api/upload', { method: 'POST', body: form }, { signal });
     const name = String(uploaded.files?.[0]?.comfy_name || '');
     if (!name) throw new Error('ComfyUI 没有返回媒体文件名');
     return name;

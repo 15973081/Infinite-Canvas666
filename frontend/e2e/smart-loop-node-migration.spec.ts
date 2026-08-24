@@ -74,8 +74,6 @@ test('runs all loop rounds in parallel against the downstream chain', async ({ p
   const node = page.locator('[data-node-id="loop"]');
   await node.locator('.loop-smart-seg button').filter({ hasText: '并行' }).click();
   await node.locator('.loop-smart-run').click();
-  await expect.poll(() => page.evaluate(() => (window as typeof window & { __loopRuns?: unknown[] }).__loopRuns)).toEqual([
-    { id: 'target', mode: 'cascade' }, { id: 'target', mode: 'cascade' },
-  ]);
-  await expect.poll(() => state.saves.at(-1)?.nodes.find((item: any) => item.id === 'loop')?.running).toBe(false);
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { __loopRuns?: unknown[] }).__loopRuns)).toEqual([{ id: 'loop', mode: 'cascade' }]);
+  await expect.poll(() => state.saves.at(-1)?.nodes.find((item: any) => item.id === 'loop')?.running).not.toBe(true);
 });

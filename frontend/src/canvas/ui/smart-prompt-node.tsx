@@ -66,7 +66,7 @@ function InputThumbs({ media }: { media: SmartImageItem[] }) {
   })}{media.length > 10 ? <div className="smart-node-input-thumb smart-node-input-more">+{media.length - 10}</div> : null}</div>;
 }
 
-export function SmartPromptNode({ connecting, media, node, onConnectIn, onConnectOut, onDelete, onMoveStart, onOpenPreset, onOpenTemplate, onPatch, onSelect, providers, readOnly, selected }: {
+export function SmartPromptNode({ connecting, media, node, onConnectIn, onConnectOut, onDelete, onMoveStart, onOpenPreset, onOpenTemplate, onPatch, onRun, onSelect, providers, readOnly, selected }: {
   connecting: boolean;
   media: SmartImageItem[];
   node: CanvasNode;
@@ -77,6 +77,7 @@ export function SmartPromptNode({ connecting, media, node, onConnectIn, onConnec
   onOpenPreset(): void;
   onOpenTemplate(): void;
   onPatch(patch: Record<string, unknown>, save?: boolean): void;
+  onRun(): Promise<void> | void;
   onSelect(event: ReactMouseEvent<HTMLDivElement>): void;
   providers: SmartPromptProvider[];
   readOnly: boolean;
@@ -101,14 +102,10 @@ export function SmartPromptNode({ connecting, media, node, onConnectIn, onConnec
   const run = async () => {
     const payload = smartPromptLlmPayload({ ...node, llmProvider: provider?.value || node.llmProvider, llmModel: model }, media);
     if (!payload.message) { showToast('请输入要处理的提示词或 LLM 指令'); return; }
-    onPatch({ llmEnabled: true, llmProvider: payload.provider, llmModel: payload.model, running: true });
+    onPatch({ llmEnabled: true, llmProvider: payload.provider, llmModel: payload.model });
     try {
-      const response = await fetch('/api/canvas-llm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const result = await response.json().catch(() => ({})) as Record<string, unknown>;
-      if (!response.ok) throw new Error(String(result.detail || result.error || `请求失败 (${response.status})`));
-      onPatch({ text: String(result.text || '').trim(), llmProvider: payload.provider, llmModel: payload.model, running: false }, true);
+      await onRun();
     } catch (error) {
-      onPatch({ running: false });
       showToast((error instanceof Error ? error.message : String(error)).slice(0, 160));
     }
   };

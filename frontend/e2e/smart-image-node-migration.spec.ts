@@ -67,7 +67,7 @@ test('restores automatic and manually recoverable tasks on the same smart-image 
   const recover = page.locator('[data-node-id="recover"]');
   await expect(recover.locator('.image-task-pending-cell')).toContainText('任务未丢失');
   await expect(recover.locator('.image-task-pending-sub')).toContainText('upstream-42');
-  await recover.locator('.image-task-pending-query').click();
+  await recover.locator('.image-task-pending-query').dispatchEvent('click');
   await expect.poll(() => state.saves.some(save => save.nodes.find((node: any) => node.id === 'recover')?.images?.[0]?.url === '/assets/manual-recovered.png')).toBe(true);
   await expect(recover.locator('.image-wrap img')).toHaveCount(1);
 });

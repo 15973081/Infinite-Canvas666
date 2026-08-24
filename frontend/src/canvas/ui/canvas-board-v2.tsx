@@ -906,52 +906,13 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const runSmartLoop = async (loop: CanvasNode) => {
     if (loop.running) {
       await window.CanvasBoardV2?.controlExecution('stop-execution', loop.id);
-      store.getState().updateNode(loop.id, { activeRound: undefined, running: false });
-      commit();
       return;
     }
-    const snapshot = store.getState().document;
-    if (!snapshot) return;
-    const reachable: CanvasNode[] = [];
-    const seen = new Set([loop.id]);
-    const queue = [loop.id];
-    while (queue.length) {
-      const from = queue.shift()!;
-      snapshot.connections.filter((edge) => edge.from === from).forEach((edge) => {
-        if (seen.has(edge.to)) return;
-        seen.add(edge.to);
-        const target = snapshot.nodes.find((item) => item.id === edge.to);
-        if (target) { reachable.push(target); queue.push(target.id); }
-      });
-    }
-    const target = reachable.filter((item) => ['comfy', 'generator', 'ltxDirector', 'msgen', 'smart-image', 'video'].includes(item.type)).at(-1);
-    if (!target) {
-      const toast = window.document.getElementById('toast');
-      if (toast) { toast.textContent = '请把循环节点连接到下游图片链路'; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1_800); }
-      return;
-    }
-    const start = Math.max(1, Number(loop.loopStart || 1));
-    const count = Math.max(1, Math.min(100, Number(loop.count || 1)));
-    const rounds = Array.from({ length: count }, (_, index) => start + index);
-    store.getState().updateNode(loop.id, { running: true, runStartedAt: Date.now(), runTotal: count });
-    commit();
-    const execute = async (round: number) => {
-      const current = store.getState().document;
-      const activeLoop = current?.nodes.find((item) => item.id === loop.id) || loop;
-      const prompt = smartLoopPromptForRound(activeLoop, connectedPrompts(current || snapshot, activeLoop), round);
-      const images = smartLoopImagesForRound(activeLoop, connectedMedia(current || snapshot, activeLoop), round);
-      store.getState().updateNode(loop.id, { activeRound: round, currentImages: images, currentPrompt: prompt });
-      await window.CanvasBoardV2?.runNode(target.id, 'cascade');
-    };
     try {
-      if (loop.mode === 'parallel') await Promise.all(rounds.map(execute));
-      else for (const round of rounds) await execute(round);
+      await window.CanvasBoardV2?.runNode(loop.id, 'cascade');
     } catch (error) {
       const toast = window.document.getElementById('toast');
       if (toast) { toast.textContent = error instanceof Error ? error.message : String(error); toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1_800); }
-    } finally {
-      store.getState().updateNode(loop.id, { activeRound: undefined, currentImages: undefined, currentPrompt: undefined, runFinishedAt: Date.now(), running: false });
-      commit();
     }
   };
 
@@ -1254,6 +1215,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
             onOpenTemplate={() => setPromptTemplateTarget({ initialText: String(node.text || ''), nodeId: node.id, target: 'node' })}
             onOpenPreset={() => setPromptPresetNodeId(node.id)}
             onPatch={(patch, save = false) => { store.getState().updateNode(node.id, patch); if (save) commit(); }}
+            onRun={() => window.CanvasBoardV2?.runNode(node.id)}
             onSelect={(event) => {
               setSelectedEdge(-1);
               setSelectedIds((current) => {
