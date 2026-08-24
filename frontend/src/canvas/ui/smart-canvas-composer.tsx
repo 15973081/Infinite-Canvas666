@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { CanvasRuntime, RuntimeOption } from '../application/modern-canvas-runtime';
 import type { CanvasDocument, CanvasNode } from '../domain/types';
+import { SmartCanvasMentionPicker, snapshotPrompt, type SmartCanvasPromptSnapshot } from './smart-canvas-mention-picker';
+import { movedReferenceOrder, promptHtmlWithMentionTokens, promptReferencesFor, smartCanvasComposerReferences, smartCanvasMentionCandidates, smartCanvasReferenceKey } from './smart-canvas-mention-picker-state';
 
 type ComposerEngine = 'api' | 'comfy' | 'modelscope' | 'volcengine';
 type ComposerKind = 'image' | 'video';
@@ -26,8 +28,13 @@ export function SmartCanvasComposer({ canvasRuntime, document, generator, onPatc
   const [prompt, setPrompt] = useState(() => promptFor(output));
   const [promptHeight, setPromptHeight] = useState(() => promptHeightFor(output));
   const [comfyFields, setComfyFields] = useState<ComfyField[]>([]);
+  const [draggedReference, setDraggedReference] = useState(-1);
+  const [dropReference, setDropReference] = useState<{ index: number; placement: 'after' | 'before' } | null>(null);
+  const promptInputRef = useRef<HTMLDivElement>(null);
   const activeGenerator = generator ?? virtualGenerator(engine, kind);
-  const references = useMemo(() => composerReferences(document, output, generator), [document, generator, output]);
+  const mentionCandidates = useMemo(() => smartCanvasMentionCandidates(document, output, generator), [document, generator, output]);
+  const references = useMemo(() => smartCanvasComposerReferences(document, output, generator), [document, generator, output]);
+  const blockedReferences = useMemo(() => new Set(Array.isArray(output?.blockedInputRefs) ? output.blockedInputRefs.map(String) : []), [output?.blockedInputRefs]);
   const upstreamPrompt = useMemo(() => composerUpstreamPrompt(document, generator), [document, generator]);
   const hasCascadeInputs = Boolean(generator && document?.connections.some((edge) => edge.to === generator.id));
 
@@ -37,6 +44,12 @@ export function SmartCanvasComposer({ canvasRuntime, document, generator, onPatc
     setPrompt(promptFor(output));
     setPromptHeight(promptHeightFor(output));
   }, [generator?.id, output?.id]);
+
+  useLayoutEffect(() => {
+    const input = promptInputRef.current;
+    if (!input) return;
+    input.innerHTML = promptHtmlFor(output);
+  }, [output?.id]);
 
   useEffect(() => {
     let active = true;
@@ -65,9 +78,43 @@ export function SmartCanvasComposer({ canvasRuntime, document, generator, onPatc
     if (next === 'video') onPatchGenerator({ apiProvider: engine === 'volcengine' ? 'volcengine' : activeGenerator.apiProvider || '', aspectRatio: activeGenerator.aspectRatio || '16:9', duration: Number(activeGenerator.duration || 5), resolution: activeGenerator.resolution || '' }, 'video');
     else onPatchGenerator({ apiProvider: engine === 'volcengine' ? 'volcengine' : activeGenerator.apiProvider === 'volcengine' ? '' : activeGenerator.apiProvider || '', count: Number(activeGenerator.count || 1), quality: activeGenerator.quality || 'auto', ratio: activeGenerator.ratio || 'square', resolution: activeGenerator.resolution || '1k' }, 'generator');
   };
+  const patchPrompt = (snapshot: SmartCanvasPromptSnapshot, save: boolean) => {
+    setPrompt(snapshot.text);
+    onPatchOutput({ promptDraftHtml: snapshot.html, promptDraftText: snapshot.text, promptDraftTouched: true, runPromptRefs: snapshot.refs }, save);
+  };
   const savePrompt = (value = prompt) => {
-    setPrompt(value);
-    onPatchOutput({ promptDraftHtml: escapeComposerText(value), promptDraftText: value, promptDraftTouched: true }, true);
+    const input = promptInputRef.current;
+    if (!input) return;
+    input.textContent = value;
+    patchPrompt(snapshotPrompt(input), true);
+  };
+  const toggleReference = (index: number) => {
+    if (readOnly || !output) return;
+    const item = references[index];
+    if (!item) return;
+    const key = smartCanvasReferenceKey(item);
+    const next = new Set(blockedReferences);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onPatchOutput({ blockedInputRefs: [...next] }, true);
+  };
+  const dropReferenceAt = (event: ReactDragEvent<HTMLDivElement>, index: number) => {
+    if (draggedReference < 0 || draggedReference === index || readOnly) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const placement = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    setDropReference({ index, placement });
+  };
+  const reorderReference = (event: ReactDragEvent<HTMLDivElement>, index: number) => {
+    if (draggedReference < 0 || draggedReference === index || readOnly) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const placement = event.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    onPatchOutput({ inputRefOrder: movedReferenceOrder(references, draggedReference, index, placement) }, true);
+    setDraggedReference(-1);
+    setDropReference(null);
   };
   const startPromptResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -111,16 +158,19 @@ export function SmartCanvasComposer({ canvasRuntime, document, generator, onPatc
         </div>
       </div>
       <div className={`input-thumbs-row ${references.length ? 'has-items' : ''}`} id="inputThumbsRow">
-        {references.length ? <div className="input-thumb-list">{references.map((item, index) => <div className="input-thumb" data-node-id={item.nodeId} data-url={item.url} key={`${item.url}-${index}`} title={item.name}>
+        {references.length ? <div className="input-thumb-list">{references.map((item, index) => {
+          const blocked = blockedReferences.has(smartCanvasReferenceKey(item));
+          const dropClass = dropReference?.index === index ? (dropReference.placement === 'before' ? 'drop-before' : 'drop-after') : '';
+          return <div className={`input-thumb ${blocked ? 'input-blocked' : ''} ${draggedReference === index ? 'dragging' : ''} ${dropClass}`.trim()} data-blocked-label={blocked ? '已阻止' : undefined} data-node-id={item.nodeId} data-url={item.url} draggable={!readOnly && references.length > 1} key={`${item.url}-${index}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleReference(index); }} onDragEnd={() => { setDraggedReference(-1); setDropReference(null); }} onDragOver={(event) => dropReferenceAt(event, index)} onDragStart={(event) => { event.stopPropagation(); setDraggedReference(index); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-smart-input-thumb', String(index)); }} onDrop={(event) => reorderReference(event, index)} title={`${item.name} · ${blocked ? '点击恢复引用' : '点击阻止引用'}`}>
           {item.kind === 'video' ? <video muted preload="metadata" src={item.url} /> : <img alt="" draggable={false} src={item.url} />}
           <span className="input-thumb-label">图{index + 1}</span>
-        </div>)}{references.length > 1 ? <span className="input-thumb-count">共 {references.length} 个输入</span> : null}</div> : null}
+        </div>})}{references.length > 1 ? <span className="input-thumb-count">共 {references.length} 个输入</span> : null}</div> : null}
       </div>
       <div className={`input-prompt-preview ${upstreamPrompt ? 'has-text' : ''}`} id="inputPromptPreview">{upstreamPrompt ? <><div className="input-prompt-preview-label">上游提示词</div><div className="input-prompt-preview-text">{upstreamPrompt}</div></> : null}</div>
       <div className="prompt-row">
-        <div className="prompt-input" contentEditable={!readOnly} data-placeholder={kind === 'video' ? '描述你想生成或编辑的视频...' : '描述你想生成或编辑的图片...'} id="promptInput" onBlur={() => savePrompt()} onInput={(event) => setPrompt(event.currentTarget.textContent || '')} suppressContentEditableWarning>{prompt}</div>
+        <div className="prompt-input" contentEditable={!readOnly} data-placeholder={kind === 'video' ? '描述你想生成或编辑的视频...' : '描述你想生成或编辑的图片...'} id="promptInput" onBlur={(event) => patchPrompt(snapshotPrompt(event.currentTarget), true)} onInput={(event) => patchPrompt(snapshotPrompt(event.currentTarget), false)} ref={promptInputRef} suppressContentEditableWarning />
         <button aria-label="模板库" className="composer-template-btn" disabled={!output || readOnly} id="composerTemplateBtn" onClick={() => window.openCanvasPromptLibrary?.({ initialText: prompt, onApply: savePrompt })} title="模板库" type="button"><i data-lucide="library" /><span>模板库</span></button>
-        <div className="mention-picker" id="mentionPicker" />
+        <SmartCanvasMentionPicker inputItems={mentionCandidates} inputRef={promptInputRef} onPromptChange={patchPrompt} outputId={output?.id || ''} readOnly={readOnly} />
         <div className="prompt-resize" id="promptResize" onPointerDown={startPromptResize} title="拖拽调整文本框高度" />
       </div>
       <div className="param-row"><div className="dynamic-params" id="dynamicParams">
@@ -247,24 +297,10 @@ function composerUpstreamPrompt(document: CanvasDocument | null, generator: Canv
   }).map((text) => text.trim()).filter(Boolean).join('\n');
 }
 
-function composerReferences(document: CanvasDocument | null, output: CanvasNode | null, generator: CanvasNode | null) {
-  if (!document || !output) return [];
-  const byId = new Map(document.nodes.map((node) => [node.id, node]));
-  const sources = generator ? document.connections.filter((edge) => edge.to === generator.id).map((edge) => byId.get(edge.from)).filter(Boolean) as CanvasNode[] : [];
-  const items: Array<{ kind: string; name: string; nodeId: string; url: string }> = [];
-  const append = (node: CanvasNode, raw: unknown) => {
-    const item = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
-    const url = typeof raw === 'string' ? raw : String(item.url || '');
-    if (!url) return;
-    const kind = String(item.kind || node.mediaKind || (/\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : /\.(mp3|wav|m4a)(\?|$)/i.test(url) ? 'audio' : 'image'));
-    items.push({ kind, name: String(item.name || node.name || '参考媒体'), nodeId: node.id, url });
-  };
-  [...sources, output].forEach((node) => {
-    if (node.url) append(node, { kind: node.mediaKind, name: node.name, url: node.url });
-    if (Array.isArray(node.images)) node.images.forEach((item) => append(node, item));
-  });
-  const seen = new Set<string>();
-  return items.filter((item) => item.kind !== 'audio' && !seen.has(item.url) && Boolean(seen.add(item.url))).slice(0, 12);
+function promptHtmlFor(output: CanvasNode | null) {
+  const stored = String(output?.promptDraftHtml || '');
+  if (stored.includes('mention-image-token')) return stored;
+  return promptHtmlWithMentionTokens(promptFor(output), promptReferencesFor(output)) || stored || escapeComposerText(promptFor(output));
 }
 
 function escapeComposerText(value: string) {
