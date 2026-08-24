@@ -13,6 +13,9 @@ export interface OutpaintRegion extends ImageSize {
   offsetY: number;
 }
 
+export interface GridLine { pos: number; type: 'h' | 'v' }
+export interface GridRect { col: number; h: number; row: number; w: number; x: number; y: number }
+
 export function normalizeCrop(region: CropRegion, source: ImageSize): CropRegion {
   const sourceWidth = dimension(source.width);
   const sourceHeight = dimension(source.height);
@@ -59,6 +62,33 @@ export function binaryMaskPixels(source: Uint8ClampedArray): Uint8ClampedArray {
 export function circledNumber(value: number): string {
   const number = Math.max(1, Math.round(Number(value) || 1));
   return number <= 20 ? String.fromCharCode(0x2460 + number - 1) : String(number);
+}
+
+export function gridSplitRects(widthValue: number, heightValue: number, options: { cols?: number; gap?: number; lines?: GridLine[]; rows?: number } = {}): GridRect[] {
+  const width = dimension(widthValue);
+  const height = dimension(heightValue);
+  const gap = Math.max(0, Math.min(240, Number(options.gap) || 0));
+  const halfGap = gap / 2;
+  const custom = Array.isArray(options.lines);
+  const horizontal = custom
+    ? [...new Set(options.lines!.filter((line) => line.type === 'h').map((line) => Math.max(0.001, Math.min(0.999, Number(line.pos) || 0.001)) * height))].sort((a, b) => a - b)
+    : Array.from({ length: Math.max(1, Math.min(21, Math.round(Number(options.rows) || 1))) - 1 }, (_, index) => (index + 1) * height / Math.max(1, Math.min(21, Math.round(Number(options.rows) || 1))));
+  const vertical = custom
+    ? [...new Set(options.lines!.filter((line) => line.type === 'v').map((line) => Math.max(0.001, Math.min(0.999, Number(line.pos) || 0.001)) * width))].sort((a, b) => a - b)
+    : Array.from({ length: Math.max(1, Math.min(21, Math.round(Number(options.cols) || 1))) - 1 }, (_, index) => (index + 1) * width / Math.max(1, Math.min(21, Math.round(Number(options.cols) || 1))));
+  const yCuts = [0, ...horizontal, height];
+  const xCuts = [0, ...vertical, width];
+  const rects: GridRect[] = [];
+  for (let row = 0; row < yCuts.length - 1; row += 1) {
+    const y1 = Math.round(row === 0 ? yCuts[row] : yCuts[row] + halfGap);
+    const y2 = Math.round(row === yCuts.length - 2 ? yCuts[row + 1] : yCuts[row + 1] - halfGap);
+    for (let col = 0; col < xCuts.length - 1; col += 1) {
+      const x1 = Math.round(col === 0 ? xCuts[col] : xCuts[col] + halfGap);
+      const x2 = Math.round(col === xCuts.length - 2 ? xCuts[col + 1] : xCuts[col + 1] - halfGap);
+      if (x2 > x1 && y2 > y1) rects.push({ row, col, x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+    }
+  }
+  return rects;
 }
 
 function dimension(value: number): number { return Math.max(1, Math.round(Number(value) || 1)); }

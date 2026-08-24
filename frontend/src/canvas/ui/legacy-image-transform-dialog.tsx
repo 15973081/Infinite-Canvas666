@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { binaryMaskPixels, circledNumber, transformedImageName, type CropRegion, type ImageSize, type OutpaintRegion } from '../domain/image-transform';
+import { binaryMaskPixels, circledNumber, gridSplitRects, transformedImageName, type CropRegion, type GridLine, type GridRect, type ImageSize, type OutpaintRegion } from '../domain/image-transform';
 
-type LegacyImageEditMode = 'brush' | 'mask' | 'preview' | 'crop' | 'outpaint';
+type LegacyImageEditMode = 'brush' | 'grid' | 'mask' | 'preview' | 'crop' | 'outpaint';
 type BrushTool = 'ellipse' | 'free' | 'label' | 'rect' | 'text';
 type DrawSnapshot = { imageData: ImageData; labelCounter: number; textItems: TextItem[] };
 type TextItem = { color: string; id: string; size: number; text: string; x: number; y: number };
@@ -21,6 +21,11 @@ export interface LegacyMaskResult {
   width: number;
 }
 
+export interface LegacyGridResult {
+  items: Array<{ blob: Blob; name: string; rect: GridRect }>;
+  layout: { cols: number; groupId: string; rows: number; type: 'grid-split' };
+}
+
 type DragState = {
   mode: 'crop-move' | 'crop-resize' | 'image' | 'outpaint-bottom' | 'outpaint-corner' | 'outpaint-left' | 'outpaint-right' | 'outpaint-top';
   startCrop: CropRegion;
@@ -29,11 +34,12 @@ type DragState = {
   startY: number;
 };
 
-export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMask, url }: {
+export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMask, onGridSplit, url }: {
   name: string;
   onApply(result: LegacyImageTransformResult): Promise<void>;
   onClose(): void;
   onCreateMask(result: LegacyMaskResult): Promise<void>;
+  onGridSplit(result: LegacyGridResult): Promise<void>;
   url: string;
 }) {
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -45,6 +51,8 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   const undoRef = useRef<DrawSnapshot[]>([]);
   const redoRef = useRef<DrawSnapshot[]>([]);
   const labelCounterRef = useRef(1);
+  const gridDragRef = useRef<{ index: number; pointerId: number } | null>(null);
+  const gridHistoryRef = useRef<GridLine[][]>([]);
   const [mode, setMode] = useState<LegacyImageEditMode>('crop');
   const [source, setSource] = useState<ImageSize | null>(null);
   const [baseDisplay, setBaseDisplay] = useState<ImageSize>({ width: 1, height: 1 });
@@ -58,6 +66,13 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   const [paintBrushSize, setPaintBrushSize] = useState(14);
   const [textItems, setTextItems] = useState<TextItem[]>([]);
   const [textEditorId, setTextEditorId] = useState('');
+  const [gridRows, setGridRows] = useState(3);
+  const [gridCols, setGridCols] = useState(3);
+  const [gridGap, setGridGap] = useState(0);
+  const [gridCustom, setGridCustom] = useState(false);
+  const [gridOrientation, setGridOrientation] = useState<'h' | 'v'>('h');
+  const [gridLines, setGridLines] = useState<GridLine[]>([]);
+  const [gridVersion, setGridVersion] = useState(0);
   const [historyVersion, setHistoryVersion] = useState(0);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
@@ -80,6 +95,15 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
     labelCounterRef.current = 1;
     setTextItems([]);
     setTextEditorId('');
+    gridDragRef.current = null;
+    gridHistoryRef.current = [];
+    setGridRows(3);
+    setGridCols(3);
+    setGridGap(0);
+    setGridCustom(false);
+    setGridOrientation('h');
+    setGridLines([]);
+    setGridVersion((value) => value + 1);
     setHistoryVersion((value) => value + 1);
   }, [url]);
 
@@ -134,6 +158,33 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   }, [source]);
 
   useEffect(() => {
+    if (mode !== 'grid' || !source) return;
+    const canvas = drawCanvasRef.current;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.save();
+    context.strokeStyle = 'rgba(248,250,252,.96)';
+    context.lineWidth = Math.max(1, Math.min(canvas.width, canvas.height) / 420);
+    context.setLineDash([8, 6]);
+    const lines = gridCustom ? gridLines : [
+      ...Array.from({ length: gridRows - 1 }, (_, index) => ({ type: 'h' as const, pos: (index + 1) / gridRows })),
+      ...Array.from({ length: gridCols - 1 }, (_, index) => ({ type: 'v' as const, pos: (index + 1) / gridCols })),
+    ];
+    lines.forEach((line) => {
+      const position = line.pos * (line.type === 'h' ? canvas.height : canvas.width);
+      const draw = (offset: number) => {
+        context.beginPath();
+        if (line.type === 'h') { context.moveTo(0, position + offset); context.lineTo(canvas.width, position + offset); }
+        else { context.moveTo(position + offset, 0); context.lineTo(position + offset, canvas.height); }
+        context.stroke();
+      };
+      if (gridGap > 0) { draw(-gridGap / 2); draw(gridGap / 2); } else draw(0);
+    });
+    context.restore();
+  }, [gridCols, gridCustom, gridGap, gridLines, gridRows, gridVersion, mode, source]);
+
+  useEffect(() => {
     const move = (event: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag || !source) return;
@@ -176,10 +227,11 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   };
 
   const chooseMode = (next: LegacyImageEditMode) => {
+    if (mode === 'grid' && next !== 'grid') clearDrawing(true);
     setMode(next);
     reset(next);
     setTextEditorId('');
-    if (next === 'preview' || next === 'crop') clearDrawing(true);
+    if (next === 'preview' || next === 'crop' || next === 'grid') clearDrawing(true);
   };
 
   const startDrag = (event: React.PointerEvent, dragMode: DragState['mode']) => {
@@ -263,6 +315,28 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   };
 
   const beginDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (mode === 'grid') {
+      if (!gridCustom || saving) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const canvas = event.currentTarget;
+      const point = drawPoint(event);
+      const threshold = Math.max(8, Math.min(canvas.width, canvas.height) / 80);
+      let hitIndex = -1;
+      let distance = Number.POSITIVE_INFINITY;
+      gridLines.forEach((line, index) => {
+        const next = line.type === 'h' ? Math.abs(point.y - line.pos * canvas.height) : Math.abs(point.x - line.pos * canvas.width);
+        if (next <= threshold && next < distance) { hitIndex = index; distance = next; }
+      });
+      gridHistoryRef.current.push(gridLines.map((line) => ({ ...line })));
+      const nextLine = { type: gridOrientation, pos: gridOrientation === 'h' ? point.y / canvas.height : point.x / canvas.width } as GridLine;
+      const index = hitIndex >= 0 ? hitIndex : gridLines.length;
+      setGridLines((lines) => hitIndex >= 0 ? lines.map((line, itemIndex) => itemIndex === hitIndex ? { ...line, pos: nextLine.pos } : line) : [...lines, nextLine]);
+      gridDragRef.current = { index, pointerId: event.pointerId };
+      canvas.setPointerCapture(event.pointerId);
+      setGridVersion((value) => value + 1);
+      return;
+    }
     if (!['brush', 'mask'].includes(mode) || saving || (mode === 'brush' && brushTool === 'text')) return;
     event.preventDefault();
     event.stopPropagation();
@@ -300,6 +374,16 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   };
 
   const moveDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const gridDrag = gridDragRef.current;
+    if (mode === 'grid' && gridCustom && gridDrag?.pointerId === event.pointerId) {
+      event.preventDefault();
+      const point = drawPoint(event);
+      setGridLines((lines) => lines.map((line, index) => index === gridDrag.index ? {
+        ...line,
+        pos: Math.max(0.001, Math.min(0.999, line.type === 'h' ? point.y / event.currentTarget.height : point.x / event.currentTarget.width)),
+      } : line));
+      return;
+    }
     const state = drawStateRef.current;
     if (!state || state.pointerId !== event.pointerId) return;
     event.preventDefault();
@@ -333,6 +417,11 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   };
 
   const endDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (gridDragRef.current?.pointerId === event.pointerId) {
+      gridDragRef.current = null;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+      setGridVersion((value) => value + 1);
+    }
     if (drawStateRef.current?.pointerId === event.pointerId) {
       drawStateRef.current = null;
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -374,6 +463,30 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
         context.fillStyle = '#ffffff';
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, Math.round(region.offsetX), Math.round(region.offsetY), source.width, source.height);
+      } else if (mode === 'grid') {
+        const rects = gridSplitRects(source.width, source.height, gridCustom ? { gap: gridGap, lines: gridLines } : { cols: gridCols, gap: gridGap, rows: gridRows });
+        if (!rects.length) throw new Error('当前切割线没有产生有效图片');
+        const base = String(name || 'image').replace(/\.[^.]+$/, '') || 'image';
+        const items: LegacyGridResult['items'] = [];
+        for (const rect of rects) {
+          const part = document.createElement('canvas');
+          part.width = rect.w;
+          part.height = rect.h;
+          part.getContext('2d')?.drawImage(image, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+          items.push({ blob: await canvasBlob(part), name: `${base}_r${rect.row + 1}_c${rect.col + 1}.png`, rect });
+        }
+        setStatus(`正在上传 ${items.length} 张切分图片…`);
+        await onGridSplit({
+          items,
+          layout: {
+            cols: Math.max(1, ...rects.map((rect) => rect.col + 1)),
+            groupId: `grid_${crypto.randomUUID?.() || Date.now()}`,
+            rows: Math.max(1, ...rects.map((rect) => rect.row + 1)),
+            type: 'grid-split',
+          },
+        });
+        onClose();
+        return;
       } else if (mode === 'mask') {
         const drawCanvas = drawCanvasRef.current;
         const drawContext = drawCanvas?.getContext('2d');
@@ -411,6 +524,20 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
     }
   };
 
+  const applyGridPreset = (rows: number, cols: number) => {
+    setGridCustom(false);
+    setGridRows(rows);
+    setGridCols(cols);
+    setGridLines([]);
+    gridHistoryRef.current = [];
+    setGridVersion((value) => value + 1);
+  };
+  const undoGridLine = () => {
+    const previous = gridHistoryRef.current.pop();
+    if (!previous) return;
+    setGridLines(previous);
+    setGridVersion((value) => value + 1);
+  };
   const canUndo = historyVersion >= 0 && undoRef.current.length > 0;
   const canRedo = historyVersion >= 0 && redoRef.current.length > 0;
   const activeText = textItems.find((item) => item.id === textEditorId);
@@ -425,6 +552,7 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
           <ModeButton active={mode === 'outpaint'} icon="expand" label="扩图" onClick={() => chooseMode('outpaint')} />
           <ModeButton active={mode === 'mask'} icon="brush" label="遮罩" onClick={() => chooseMode('mask')} />
           <ModeButton active={mode === 'brush'} icon="paintbrush" label="画笔" onClick={() => chooseMode('brush')} />
+          <ModeButton active={mode === 'grid'} icon="grid-3x3" label="宫格切分" onClick={() => chooseMode('grid')} />
         </div>
         <div className="image-edit-head-end"><button aria-label="关闭" className="preview-icon-btn" disabled={saving} onClick={onClose} title="关闭" type="button"><i className="w-4 h-4" data-lucide="x" /></button></div>
       </div>
@@ -442,6 +570,18 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
         <HistoryButton disabled={!canUndo} icon="undo-2" label="撤销画笔" onClick={undoDrawing} />
         <HistoryButton disabled={!canRedo} icon="redo-2" label="恢复画笔" onClick={redoDrawing} />
         <button className="image-edit-btn secondary" onClick={() => clearDrawing()} type="button"><i className="w-4 h-4" data-lucide="eraser" /><span>清空</span></button>
+      </div>
+      <div className={`image-edit-tools ${mode === 'grid' ? 'active' : ''}`}>
+        <button className={`image-edit-btn ${gridCustom ? 'primary' : 'secondary'}`} onClick={() => { setGridCustom((value) => !value); setGridLines([]); gridHistoryRef.current = []; setGridVersion((value) => value + 1); }} title="自由放置切割线" type="button">自定义</button>
+        <div className="grid-preset-row"><span className="image-edit-sub">预设</span>{([[1, 2], [2, 1], [2, 2], [2, 3], [3, 2], [3, 3]] as const).map(([rows, cols]) => <button className="grid-preset-btn" key={`${rows}x${cols}`} onClick={() => applyGridPreset(rows, cols)} type="button">{rows}×{cols}</button>)}</div>
+        {!gridCustom ? <span style={{ display: 'contents' }}><label><span>横向线</span><input aria-label="横向线" max="20" min="0" onChange={(event) => setGridRows(Math.max(1, Math.min(21, Number(event.target.value) + 1)))} type="number" value={gridRows - 1} /></label><label><span>竖向线</span><input aria-label="竖向线" max="20" min="0" onChange={(event) => setGridCols(Math.max(1, Math.min(21, Number(event.target.value) + 1)))} type="number" value={gridCols - 1} /></label></span> : <div style={{ alignItems: 'center', display: 'flex', gap: 6 }}>
+          <button className={`image-edit-btn ${gridOrientation === 'h' ? 'primary' : 'secondary'}`} onClick={() => setGridOrientation('h')} title="点击图片放置水平线" type="button">水平</button>
+          <button className={`image-edit-btn ${gridOrientation === 'v' ? 'primary' : 'secondary'}`} onClick={() => setGridOrientation('v')} title="点击图片放置竖直线" type="button">垂直</button>
+          <button aria-label="撤销切割线" className="image-edit-btn secondary" disabled={!gridHistoryRef.current.length} onClick={undoGridLine} style={{ opacity: gridHistoryRef.current.length ? 1 : 0.4 }} title="撤销上一条线" type="button"><i className="w-3.5 h-3.5" data-lucide="undo-2" /></button>
+          <button aria-label="清除自定义线" className="image-edit-btn secondary" onClick={() => { gridHistoryRef.current = []; setGridLines([]); setGridVersion((value) => value + 1); }} title="清除所有自定义线" type="button"><i className="w-3.5 h-3.5" data-lucide="eraser" /></button>
+        </div>}
+        <label className="grid-gap-control"><span>间隔(px)</span><input aria-label="宫格间隔" max="240" min="0" onChange={(event) => setGridGap(Math.max(0, Math.min(240, Number(event.target.value))))} step="1" type="range" value={gridGap} /><span className="grid-gap-value">{gridGap}</span></label>
+        <span className="image-edit-sub">将输出 {gridCustom ? (gridLines.filter((line) => line.type === 'h').length + 1) * (gridLines.filter((line) => line.type === 'v').length + 1) : gridRows * gridCols} 张图片</span>
       </div>
       <div className={`image-edit-stage ${canvasSize.width + 36 > stageSize.width ? 'overflow-x' : ''} ${canvasSize.height + 36 > stageSize.height ? 'overflow-y' : ''}`.trim()} onWheel={(event) => {
         if (!source) return;
@@ -465,7 +605,7 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
         setZoom(next);
       }} ref={stageRef}>
         <div className="image-edit-stage-inner">
-          <div className={`crop-canvas ${mode === 'preview' ? 'preview-mode' : mode === 'outpaint' ? `outpaint-mode ${outpaint.width > 4096 || outpaint.height > 4096 ? 'outpaint-warning' : ''}` : mode === 'mask' ? 'mask-mode' : mode === 'brush' ? `brush-mode ${brushTool === 'text' ? 'text-mode' : ''}` : ''}`} style={source ? { height: canvasSize.height, width: canvasSize.width } : undefined}>
+          <div className={`crop-canvas ${mode === 'preview' ? 'preview-mode' : mode === 'outpaint' ? `outpaint-mode ${outpaint.width > 4096 || outpaint.height > 4096 ? 'outpaint-warning' : ''}` : mode === 'mask' ? 'mask-mode' : mode === 'brush' ? `brush-mode ${brushTool === 'text' ? 'text-mode' : ''}` : mode === 'grid' ? `grid-mode ${gridCustom ? `grid-custom-${gridOrientation}` : ''}` : ''}`} style={source ? { height: canvasSize.height, width: canvasSize.width } : undefined}>
             <img alt="crop source" crossOrigin={/^https?:/i.test(url) ? 'anonymous' : undefined} onLoad={(event) => {
               const image = event.currentTarget;
               const nextSource = { width: image.naturalWidth, height: image.naturalHeight };
@@ -514,23 +654,24 @@ function HistoryButton({ disabled, icon, label, onClick }: { disabled: boolean; 
 }
 
 function modeTitle(mode: LegacyImageEditMode): string {
-  return mode === 'preview' ? '预览图片' : mode === 'crop' ? '裁剪图片' : mode === 'outpaint' ? '扩图' : mode === 'mask' ? '遮罩编辑' : '画笔编辑';
+  return mode === 'preview' ? '预览图片' : mode === 'crop' ? '裁剪图片' : mode === 'outpaint' ? '扩图' : mode === 'mask' ? '遮罩编辑' : mode === 'brush' ? '画笔编辑' : '宫格切分';
 }
 
 function modeHint(mode: LegacyImageEditMode): string {
   return mode === 'preview' ? '滚轮缩放查看图片'
     : mode === 'crop' ? '拖动裁剪区域并调整右下角控制点'
       : mode === 'outpaint' ? '拖动原图或边缘控制点调整画布'
-        : mode === 'mask' ? '白色绘制区域将生成黑白遮罩图'
-          : '使用画笔、图形、数字或文字标记图片';
+          : mode === 'mask' ? '白色绘制区域将生成黑白遮罩图'
+            : mode === 'brush' ? '使用画笔、图形、数字或文字标记图片'
+              : '使用预设或自定义切割线批量拆分图片';
 }
 
 function modeIcon(mode: Exclude<LegacyImageEditMode, 'preview'>): string {
-  return mode === 'crop' ? 'crop' : mode === 'outpaint' ? 'expand' : mode === 'mask' ? 'brush' : 'paintbrush';
+  return mode === 'crop' ? 'crop' : mode === 'outpaint' ? 'expand' : mode === 'mask' ? 'brush' : mode === 'brush' ? 'paintbrush' : 'grid-3x3';
 }
 
 function applyLabel(mode: Exclude<LegacyImageEditMode, 'preview'>): string {
-  return mode === 'crop' ? '应用裁剪' : mode === 'outpaint' ? '应用扩图' : mode === 'mask' ? '应用遮罩' : '应用画笔';
+  return mode === 'crop' ? '应用裁剪' : mode === 'outpaint' ? '应用扩图' : mode === 'mask' ? '应用遮罩' : mode === 'brush' ? '应用画笔' : '应用切分';
 }
 
 function canvasHasPixels(canvas: HTMLCanvasElement): boolean {

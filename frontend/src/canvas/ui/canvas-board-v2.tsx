@@ -8,7 +8,7 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
 import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
-import { LegacyImageTransformDialog, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
+import { LegacyImageTransformDialog, type LegacyGridResult, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -987,6 +987,34 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       const id = store.getState().addNode('image', { x: Number(active.x || 0) + Number(active.w || 260) + 36, y: Number(active.y || 0) + 28 });
       if (!id) throw new Error('无法创建遮罩节点');
       store.getState().updateNode(id, { mediaKind: file.kind || 'image', name: file.name || result.name, natural_h: result.height, natural_w: result.width, role: 'mask', url: file.url });
+      commit();
+    }} onGridSplit={async (result: LegacyGridResult) => {
+      if (readOnly) throw new Error('只读模式不能编辑图片');
+      const files = result.items.map((item) => new File([item.blob], item.name, { type: 'image/png' }));
+      const uploaded = await canvasRuntime.uploadMedia(files);
+      if (!uploaded.files?.length) throw new Error('切分图片上传失败');
+      const document = store.getState().document;
+      const active = document?.nodes.find((item) => item.id === imageEditorNode.id);
+      if (!document || !active) throw new Error('图片节点已经被移除');
+      const output = document.connections.filter((edge) => edge.from === active.id).map((edge) => document.nodes.find((item) => item.id === edge.to)).find((item) => item?.type === 'output');
+      const outputId = output?.id || store.getState().addNode('output', { x: Number(active.x || 0) + Number(active.w || 260) + 36, y: Number(active.y || 0) });
+      if (!outputId) throw new Error('无法创建 Output 节点');
+      const sourceRef = { name: String(active.name || 'source image'), url: String(active.url || '') };
+      const images = uploaded.files.slice(0, result.items.length).map((file, index) => ({
+        grid: { ...result.layout, ...result.items[index].rect },
+        kind: file.kind || 'image',
+        name: file.name || result.items[index].name,
+        run: { prompt: '宫格切分', refs: [sourceRef] },
+        runMs: 0,
+        url: file.url || '',
+        viewed: false,
+      })).filter((item) => item.url);
+      if (!images.length) throw new Error('切分图片上传结果为空');
+      store.getState().updateNode(outputId, {
+        imageComparisons: Object.fromEntries(images.map((item) => [item.url, sourceRef])),
+        images,
+        outputLayout: result.layout,
+      });
       commit();
     }} url={String(imageEditorNode.url)} /> : <ImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: ImageTransformResult) => {
       if (readOnly) throw new Error('只读模式不能编辑图片');
