@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "percentage": 5,
+  "kill_switch": false,
+  "require_audit": true,
+  "max_audit_files": 20000
+}
