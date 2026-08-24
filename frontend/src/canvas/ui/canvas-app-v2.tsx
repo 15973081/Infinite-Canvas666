@@ -383,7 +383,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   }, [configuration.assetInboxKey, current]);
 
   if (!current) {
-    const Manager = configuration.kind ? ScopedCanvasManager : CanvasManager;
+    const Manager = configuration.kind === 'classic' ? ScopedCanvasManager : CanvasManager;
     return <Manager canvases={canvases} configuration={configuration} folders={folders} management={management} onOpen={openCanvas} onRefresh={refresh} onStatus={setStatus} status={status} trash={trash} />;
   }
 
