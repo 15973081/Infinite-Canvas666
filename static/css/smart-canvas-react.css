@@ -1,0 +1,128 @@
+/* React-only Smart Canvas adapter.
+ * Keep this file independent from canvas.css: the classic Canvas visual contract
+ * is frozen at 9ed2ca3 and must not be imported into this entry. */
+
+#smartCanvasApp { position:fixed; inset:0; overflow:hidden; }
+#smartCanvasApp[hidden] { display:none; }
+
+.canvas-modern-manager { position:fixed; inset:0; z-index:1000; overflow:auto; padding:28px; background:var(--page); color:var(--text); }
+.canvas-modern-manager .canvas-gate { min-height:calc(100vh - 56px); }
+.canvas-modern-manager .gate-panel { width:min(1180px,100%); min-height:calc(100vh - 56px); margin:0 auto; padding:28px; border:1px solid var(--line); border-radius:28px; background:var(--card); box-shadow:0 20px 60px var(--shadow); text-align:left; backdrop-filter:blur(16px); }
+.canvas-modern-manager .gate-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:20px; }
+.canvas-modern-manager .gate-head-text { min-width:0; flex:1; display:flex; flex-direction:column; gap:6px; }
+.canvas-modern-manager .gate-title-row { display:flex; align-items:center; gap:10px; }
+.canvas-modern-manager .gate-title { color:var(--text); font-size:22px; line-height:1.15; font-weight:850; }
+.canvas-modern-manager .gate-count-pill { display:inline-flex; align-items:center; padding:2px 9px; border-radius:999px; background:var(--soft); color:var(--muted); font-size:11px; font-weight:800; line-height:1.5; }
+.canvas-modern-manager .gate-subtitle { color:var(--faint); font-size:12px; line-height:1.35; font-weight:700; }
+.canvas-modern-manager .gate-status { display:none; }
+.canvas-modern-manager .gate-head-actions { display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+.canvas-modern-manager .canvas-gate.creating .gate-head-actions { display:none; }
+.canvas-modern-manager .gate-sort { display:inline-flex; align-items:center; gap:2px; padding:2px; border:1px solid var(--line); border-radius:999px; background:var(--soft); }
+.canvas-modern-manager .gate-sort.hidden { display:none; }
+.canvas-modern-manager .gate-sort-btn { height:26px; padding:0 11px; border-radius:999px; background:transparent; color:var(--muted); font-size:11px; font-weight:800; transition:all .14s var(--ease); }
+.canvas-modern-manager .gate-sort-btn:hover { color:var(--text); }
+.canvas-modern-manager .gate-sort-btn.active { background:var(--card-solid); color:var(--text); box-shadow:0 1px 2px var(--shadow); }
+.canvas-modern-manager .gate-icon-btn { position:relative; width:38px; height:38px; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:12px; background:var(--card-solid); color:var(--muted); transition:all .16s var(--ease); }
+.canvas-modern-manager .gate-icon-btn:hover { border-color:var(--line-2); background:var(--soft); color:var(--text); }
+.canvas-modern-manager .gate-manager-btn { display:none; width:auto; padding:0 12px; gap:7px; font-size:12px; font-weight:850; white-space:nowrap; }
+.canvas-modern-manager .gate-back-link { display:none; align-items:center; gap:8px; width:fit-content; height:36px; margin-bottom:14px; padding:0 14px; border:1px solid var(--line); border-radius:10px; background:var(--soft); color:var(--muted); font-size:12px; font-weight:800; }
+.canvas-modern-manager .canvas-gate.trash-mode .gate-back-link { display:inline-flex; }
+.canvas-modern-manager .canvas-gate.trash-mode .gate-trash-entry { display:none; }
+.canvas-modern-manager .gate-trash-badge { position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 4px; display:none; align-items:center; justify-content:center; border:2px solid var(--card-solid); border-radius:999px; background:var(--strong); color:var(--strong-text); font-size:9px; font-weight:700; line-height:1; }
+.canvas-modern-manager .gate-trash-badge.visible { display:flex; }
+.canvas-modern-manager .primary-btn { height:38px; padding:0 14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:12px; background:var(--strong); color:var(--strong-text); font-size:12px; font-weight:850; }
+.canvas-modern-manager .gate-create-row { display:none; width:100%; padding:4px; align-items:center; gap:4px; border:1px solid var(--line); border-radius:14px; background:var(--soft); }
+.canvas-modern-manager .canvas-gate.creating .gate-create-row { display:flex; }
+.canvas-modern-manager .gate-name-input { min-width:0; height:36px; flex:1; padding:0 12px; border:0; border-radius:10px; outline:none; background:transparent; color:var(--text); font-size:13px; font-weight:600; }
+.canvas-modern-manager .create-confirm,.canvas-modern-manager .create-cancel { width:38px; height:38px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; border-radius:12px; }
+.canvas-modern-manager .create-confirm { background:var(--strong); color:var(--strong-text); }
+.canvas-modern-manager .create-cancel { border:1px solid var(--line); background:var(--card-solid); color:var(--muted); }
+.canvas-modern-manager .trash-note { display:none; margin-top:14px; padding:10px 12px; border:1px solid #fde68a; border-radius:12px; background:#fff8e6; color:#92400e; font-size:11px; line-height:1.35; font-weight:700; }
+.canvas-modern-manager .canvas-gate.trash-mode .trash-note { display:block; }
+.canvas-modern-manager .gate-browser { display:grid; grid-template-columns:220px minmax(0,1fr); gap:14px; align-items:stretch; margin-top:14px; }
+.canvas-modern-manager .canvas-gate.trash-mode .gate-browser { display:block; }
+.canvas-modern-manager .canvas-gate.trash-mode .gate-folder-pane,.canvas-modern-manager .canvas-gate.trash-mode .gate-folder-bar { display:none; }
+.canvas-modern-manager .gate-folder-pane { min-height:0; max-height:492px; padding:10px; display:flex; flex-direction:column; gap:8px; overflow:hidden; border:1px solid var(--line); border-radius:18px; background:var(--soft); }
+.canvas-modern-manager .gate-folder-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 2px 4px 6px; color:var(--muted); font-size:11px; line-height:1.2; font-weight:900; }
+.canvas-modern-manager .gate-folder-add { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:9px; background:var(--card-solid); color:var(--muted); }
+.canvas-modern-manager .gate-folder-tree { min-height:0; display:flex; flex-direction:column; gap:4px; overflow:auto; }
+.canvas-modern-manager .gate-folder-node { position:relative; display:flex; align-items:center; gap:4px; padding-left:calc(var(--depth,0) * 14px); border-radius:11px; }
+.canvas-modern-manager .gate-folder-main { min-width:0; height:32px; flex:1; padding:0 8px; display:flex; align-items:center; gap:7px; border-radius:10px; background:transparent; color:var(--muted); text-align:left; }
+.canvas-modern-manager .gate-folder-main:hover { background:var(--card-solid); color:var(--text); }
+.canvas-modern-manager .gate-folder-node.active .gate-folder-main { background:var(--strong); color:var(--strong-text); }
+.canvas-modern-manager .gate-folder-name { min-width:0; flex:1; overflow:hidden; font-size:12px; font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
+.canvas-modern-manager .gate-folder-count { min-width:20px; height:18px; padding:0 5px; display:inline-flex; align-items:center; justify-content:center; border-radius:999px; background:rgba(148,163,184,.14); color:var(--muted); font-size:10px; font-weight:900; }
+.canvas-modern-manager .gate-folder-node.active .gate-folder-count { background:rgba(255,255,255,.14); color:inherit; }
+.canvas-modern-manager .gate-folder-actions { position:absolute; top:3px; right:4px; display:none; align-items:center; gap:2px; padding:1px; border:1px solid var(--line); border-radius:9px; background:var(--card-solid); box-shadow:0 8px 18px var(--shadow); }
+.canvas-modern-manager .gate-folder-node:hover .gate-folder-actions { display:flex; }
+.canvas-modern-manager .gate-folder-action { width:24px; height:24px; display:flex; align-items:center; justify-content:center; border-radius:7px; color:var(--muted); }
+.canvas-modern-manager .gate-folder-separator { height:1px; margin:4px; background:var(--line); }
+.canvas-modern-manager .gate-canvas-pane { min-width:0; }
+.canvas-modern-manager .gate-folder-bar { height:34px; padding:0 2px 0 4px; display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--muted); font-size:12px; font-weight:850; }
+.canvas-modern-manager .gate-folder-current { min-width:0; display:flex; align-items:center; gap:7px; }
+.canvas-modern-manager .gate-folder-current span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.canvas-modern-manager .gate-folder-current-count { min-width:24px; height:20px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:999px; background:var(--soft); color:var(--muted); font-size:10px; font-weight:900; }
+.canvas-modern-manager .gate-list { margin-top:0; padding:12px; display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; max-height:440px; overflow:auto; border:1px solid var(--line); border-radius:18px; background:var(--soft); text-align:left; }
+.canvas-modern-manager .gate-list-empty { grid-column:1/-1; padding:56px 16px; color:var(--faint); font-size:12px; font-weight:700; line-height:1.6; text-align:center; }
+.canvas-modern-manager .gate-list-empty-icon { width:60px; height:60px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:20px; background:linear-gradient(135deg,var(--card-solid),var(--soft)); color:var(--faint); }
+
+.canvas-modern-manager .canvas-item { position:relative; width:100%; aspect-ratio:1/1; padding:0; border:1px solid var(--line); border-radius:14px; background:var(--card-solid); text-align:left; transition:all .18s var(--ease); }
+.canvas-modern-manager .canvas-item:hover { border-color:var(--line-2); box-shadow:0 1px 3px var(--shadow); }
+.canvas-modern-manager .canvas-card-icon-row { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.canvas-modern-manager .canvas-card-title { flex:1; overflow:hidden; color:var(--text); font-size:13.5px; line-height:1.3; font-weight:750; word-break:break-word; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.canvas-modern-manager .canvas-card-title-input { width:100%; flex:1; padding:4px 6px; border:1px solid var(--line-2); border-radius:6px; outline:none; background:var(--card-solid); color:var(--text); font-size:13.5px; line-height:1.3; font-weight:750; }
+.canvas-modern-manager .canvas-card-meta { margin-top:auto; display:inline-flex; align-items:center; gap:4px; align-self:flex-start; max-width:100%; padding:2px 7px; border:1px solid var(--line); border-radius:999px; background:var(--soft); }
+.canvas-modern-manager .canvas-card-time { min-width:max-content; color:var(--muted); font-size:9px; line-height:1.2; font-weight:600; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; }
+.canvas-modern-manager .canvas-preview-mark { width:34px; height:34px; display:flex; align-items:center; justify-content:center; flex:0 0 auto; border:1px solid var(--line); border-radius:10px; background:var(--soft); color:var(--muted); font-size:16px; }
+.canvas-modern-manager .canvas-card-edit,.canvas-modern-manager .canvas-folder-btn,.canvas-modern-manager .canvas-delete { position:absolute; top:8px; z-index:2; width:26px; height:26px; display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:10px; background:var(--card-solid); color:var(--faint); opacity:0; }
+.canvas-modern-manager .canvas-card-edit { right:40px; }
+.canvas-modern-manager .canvas-folder-btn { right:72px; }
+.canvas-modern-manager .canvas-delete { right:8px; }
+.canvas-modern-manager .canvas-item:hover .canvas-card-edit,.canvas-modern-manager .canvas-item:hover .canvas-folder-btn,.canvas-modern-manager .canvas-item:hover .canvas-delete { opacity:1; }
+.canvas-modern-manager .canvas-folder-menu { position:absolute; top:40px; right:8px; z-index:8; width:176px; max-height:220px; padding:6px; display:flex; flex-direction:column; gap:2px; overflow:auto; border:1px solid var(--line); border-radius:12px; background:var(--card-solid); box-shadow:0 18px 44px var(--shadow); }
+.canvas-modern-manager .canvas-folder-menu button { height:28px; padding:0 8px 0 calc(8px + var(--depth,0) * 12px); display:flex; align-items:center; gap:7px; border-radius:8px; color:var(--muted); font-size:11px; font-weight:800; text-align:left; }
+.canvas-modern-manager .canvas-folder-menu button:hover { background:var(--soft); color:var(--text); }
+.canvas-modern-manager .canvas-owner-chip { display:inline-flex; align-items:center; gap:3px; align-self:flex-start; max-width:100%; padding:2px 8px; overflow:hidden; border:1px solid #e0e7ff; border-radius:999px; background:#eef2ff; color:#4338ca; font-size:9.5px; font-weight:800; }
+.canvas-modern-manager .canvas-owner-text { max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.canvas-modern-manager .canvas-delete-confirm { position:absolute; inset:0; z-index:4; padding:12px; display:flex; align-items:center; justify-content:center; background:rgba(15,23,42,.18); backdrop-filter:blur(4px); }
+.canvas-modern-manager .canvas-delete-box { width:100%; padding:12px; border-radius:16px; background:#111827; box-shadow:0 16px 36px rgba(15,23,42,.22); text-align:center; }
+.canvas-modern-manager .canvas-delete-title { color:#fff; font-size:12px; font-weight:800; line-height:1.35; }
+.canvas-modern-manager .canvas-delete-actions { display:flex; gap:6px; margin-top:10px; }
+.canvas-modern-manager .canvas-meta-pop { position:fixed; z-index:120; width:212px; max-height:calc(100vh - 24px); padding:10px; display:flex; flex-direction:column; gap:11px; overflow:auto; border:1px solid var(--line); border-radius:14px; background:var(--card-solid); color:var(--text); box-shadow:0 22px 54px var(--shadow); }
+.canvas-modern-manager .canvas-meta-label { margin-bottom:5px; color:var(--faint); font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.canvas-modern-manager .canvas-owner-input { width:100%; height:28px; padding:0 8px; border:1px solid var(--line); border-radius:8px; outline:none; background:var(--soft); color:var(--text); font-size:12px; }
+
+.canvas-board-readonly-shield { position:absolute; inset:0; z-index:90; cursor:not-allowed; background:rgba(148,163,184,.06); }
+
+.canvas-modern-editor > .modal { position:fixed; inset:0; z-index:1100; padding:20px; display:flex; align-items:center; justify-content:center; pointer-events:auto; background:rgba(15,23,42,.24); backdrop-filter:blur(8px); }
+.canvas-modern-editor > .modal > .modal-panel { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--panel); box-shadow:0 26px 80px rgba(0,0,0,.3); pointer-events:auto; }
+.prompt-library-dialog .modal-panel { width:min(980px,calc(100vw - 28px)); max-width:980px; }
+.prompt-library-toolbar { display:flex; align-items:center; gap:7px; overflow-x:auto; }
+.prompt-library-toolbar input { min-width:190px; margin-left:auto; }
+.prompt-library-body { min-height:460px; display:grid; grid-template-columns:260px minmax(0,1fr); gap:12px; }
+.prompt-library-body aside { max-height:58vh; padding-right:4px; display:flex; flex-direction:column; gap:6px; overflow:auto; }
+.prompt-library-body aside > button { display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; }
+.prompt-library-body aside > button.active { border-color:var(--strong); background:var(--soft); }
+.prompt-library-body aside small { max-width:100%; overflow:hidden; color:var(--muted); text-overflow:ellipsis; white-space:nowrap; }
+.prompt-library-editor { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+.prompt-library-editor label { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:12px; }
+.prompt-library-editor label:nth-of-type(3),.prompt-library-editor label:nth-of-type(4),.prompt-library-editor label:nth-of-type(5) { grid-column:1/-1; }
+.prompt-library-editor textarea { min-height:104px; resize:vertical; }
+.prompt-library-actions { grid-column:1/-1; display:flex; justify-content:flex-end; gap:8px; }
+.prompt-library-dialog .primary-btn { height:38px; padding:0 14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:12px; background:var(--strong); color:var(--strong-text); font-size:12px; font-weight:850; }
+
+@media(max-width:800px) {
+  .canvas-modern-manager { padding:10px; }
+  .canvas-modern-manager .gate-head { flex-direction:column; }
+  .canvas-modern-manager .gate-head-actions { width:100%; flex-wrap:wrap; }
+  .canvas-modern-manager .gate-browser { grid-template-columns:1fr; }
+  .canvas-modern-manager .gate-folder-pane { max-height:180px; }
+}
+
+@media(max-width:760px) {
+  .prompt-library-body { grid-template-columns:1fr; }
+  .prompt-library-body aside { max-height:180px; }
+  .prompt-library-editor { grid-template-columns:1fr; }
+  .prompt-library-editor label { grid-column:1!important; }
+  .prompt-library-toolbar input { margin-left:0; }
+}

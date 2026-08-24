@@ -13,6 +13,8 @@ class SmartCanvasEntryTest(unittest.TestCase):
         self.assertIn('id="composer"', html)
         self.assertIn('class="smart-nav"', html)
         self.assertIn('/static/css/smart-canvas.css', html)
+        self.assertIn('/static/css/smart-canvas-react.css', html)
+        self.assertNotIn("'/static/css/canvas.css", html)
         self.assertIn('/static/js/smart-canvas.js', html)
         self.assertIn('id="smartCanvasApp"', html)
         self.assertIn('/static/dist/smart-canvas-modern.js', html)

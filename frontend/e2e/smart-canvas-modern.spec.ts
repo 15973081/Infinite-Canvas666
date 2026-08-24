@@ -10,7 +10,8 @@ test.beforeEach(async ({ page }) => {
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width,initial-scale=1">
-          <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.19.7">
+          <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.07.23.2">
+          <link rel="stylesheet" href="/static/css/smart-canvas-react.css?v=2026.08.25.1">
           <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
         </head>
         <body>
@@ -60,6 +61,8 @@ test('runs Smart Canvas on the shared React V2 stack and imports the asset inbox
   });
 
   await page.goto(smartCanvasV2Entry);
+  await expect(page.locator('link[href*="/static/css/smart-canvas-react.css"]')).toHaveCount(1);
+  await expect(page.locator('link[href*="/static/css/canvas.css"]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: '智能画布' })).toBeVisible();
   await expect(page.getByText('Classic hidden')).toHaveCount(0);
   await page.getByRole('button', { name: '新建智能画布' }).click();
@@ -208,6 +211,9 @@ test('crops, outpaints and restores image node revisions', async ({ page }) => {
   const imageNode = page.locator('[data-node-id="editable-image"]');
   await imageNode.getByRole('button', { name: '编辑图片' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveClass(/\bcanvas-image-transform\b/);
+  await expect(page.getByRole('button', { name: '应用裁剪' })).toHaveClass(/\bprimary-btn\b/);
+  await expect(page.getByLabel('裁剪 X')).toHaveClass(/\bsetting-input\b/);
   await expect(page.getByRole('button', { name: '应用裁剪' })).toBeEnabled();
   await page.getByRole('button', { name: '应用裁剪' }).click();
   await expect.poll(() => uploads).toBe(1);
