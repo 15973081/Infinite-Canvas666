@@ -16,6 +16,7 @@ import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
 import { SmartCanvasPromptTemplate } from './smart-canvas-prompt-template';
 import { SmartImageNode, smartImageItems, smartImageNodeLayout } from './smart-image-node';
+import { SmartPromptNode, smartPromptNodeLayout, type SmartPromptProvider } from './smart-prompt-node';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -80,8 +81,11 @@ function nodeSize(node: CanvasNode): { height: number; width: number } {
     const layout = smartImageNodeLayout(node);
     return { height: layout.height, width: layout.width };
   }
+  if (node.type === 'prompt') {
+    const layout = smartPromptNodeLayout(node);
+    return { height: layout.height, width: layout.width };
+  }
   const defaults = node.type === 'image' ? { height: 336, width: 260 }
-    : node.type === 'prompt' ? { height: 230, width: 310 }
     : node.type === 'loop' ? { height: node.showPrompt || node.imageInput ? 390 : 180, width: 336 }
       : node.type === 'promptGroup' ? { height: 220, width: 260 }
         : node.type === 'generator' || node.type === 'msgen' ? { height: 340, width: 380 }
@@ -227,6 +231,7 @@ function connectedMedia(document: { connections: CanvasEdge[]; nodes: CanvasNode
   return sources.flatMap((source) => {
     if (source.type === 'image' && source.url) return [{ kind: String(source.mediaKind || 'image'), name: String(source.name || ''), url: String(source.url) }];
     if (source.type === 'output' && Array.isArray(source.images)) return source.images.map((item) => typeof item === 'string' ? { kind: 'image', name: '', url: item } : { kind: String((item as Record<string, unknown>).kind || 'image'), name: String((item as Record<string, unknown>).name || ''), url: String((item as Record<string, unknown>).url || '') }).filter((item) => item.url);
+    if (source.type === 'smart-image') return smartImageItems(source).map((item) => ({ ...item, kind: String(item.kind || 'image'), name: String(item.name || ''), url: String(item.url || '') }));
     if (source.type === 'group' && Array.isArray(source.items)) return source.items.map((id) => byId.get(String(id))).filter((item) => item?.type === 'image' && item.url).map((item) => ({ kind: String(item!.mediaKind || 'image'), name: String(item!.name || ''), url: String(item!.url) }));
     return [];
   });
@@ -1031,6 +1036,58 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
           readOnly={readOnly}
           selected={selectedIds.has(node.id)}
         />;
+        if (smartUi && node.type === 'prompt') {
+          const options = runtime()?.getNodeOptions('llm', 'provider', node) ?? [];
+          const fallback = { label: String(node.llmProvider || 'comfly'), models: [String(node.llmModel || 'gpt-4o-mini')], value: String(node.llmProvider || 'comfly') };
+          const providers: SmartPromptProvider[] = options.length ? options.map((option) => ({
+            label: option.label,
+            models: (runtime()?.getNodeOptions('llm', 'model', { ...node, llmProvider: option.value }) ?? []).map((item) => item.value),
+            value: option.value,
+          })) : [fallback];
+          return <SmartPromptNode
+            connecting={Boolean(connectingFrom)}
+            key={node.id}
+            media={connectedMedia(boardDocument, node)}
+            node={node}
+            onConnectIn={() => connect(node.id)}
+            onConnectOut={() => setConnectingFrom(node.id)}
+            onDelete={() => { store.getState().deleteNode(node.id); setSelectedIds(new Set()); commit(); }}
+            onMoveStart={(event) => {
+              if (event.button !== 0 || readOnly || (event.target as HTMLElement).closest('button, textarea, select, .node-port, .prompt-llm-instruction-resize')) return;
+              event.stopPropagation();
+              const element = event.currentTarget;
+              const movingIds = selectedIds.has(node.id) ? new Set(selectedIds) : new Set([node.id]);
+              const startPoints = new Map((store.getState().document?.nodes ?? []).filter((item) => movingIds.has(item.id)).map((item) => [item.id, nodePoint(item)]));
+              const start = { clientX: event.clientX, clientY: event.clientY };
+              let moved = false;
+              element.setPointerCapture(event.pointerId);
+              if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
+              const move = (next: PointerEvent) => {
+                moved = true;
+                const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom };
+                startPoints.forEach((startPoint, id) => store.getState().moveNode(id, startPoint.x + delta.x, startPoint.y + delta.y));
+              };
+              const up = () => { element.removeEventListener('pointermove', move); if (moved) commit(); };
+              element.addEventListener('pointermove', move);
+              element.addEventListener('pointerup', up, { once: true });
+            }}
+            onOpenTemplate={() => setPromptTemplateTarget({ initialText: String(node.text || ''), nodeId: node.id, target: 'node' })}
+            onOpenPreset={() => setPromptPresetNodeId(node.id)}
+            onPatch={(patch, save = false) => { store.getState().updateNode(node.id, patch); if (save) commit(); }}
+            onSelect={(event) => {
+              setSelectedEdge(-1);
+              setSelectedIds((current) => {
+                if (!event.ctrlKey && !event.metaKey) return new Set([node.id]);
+                const next = new Set(current);
+                if (next.has(node.id)) next.delete(node.id); else next.add(node.id);
+                return next;
+              });
+            }}
+            providers={providers}
+            readOnly={readOnly}
+            selected={selectedIds.has(node.id)}
+          />;
+        }
         return <article
           aria-label={`${node.type} ${node.id}`}
           className={`node ${node.type}-node sized ${node.url ? 'has-image' : ''} ${selectedIds.has(node.id) ? 'selected' : ''}`}
