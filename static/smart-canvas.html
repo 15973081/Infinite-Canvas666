@@ -18,7 +18,7 @@
     </script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
-    <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.07.23.2">
+    <link id="smartCanvasLegacyStyles" rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.07.23.2">
 </head>
 <body>
     <div id="shell" class="shell">
@@ -429,8 +429,89 @@
             </div>
         </div>
     </div>
-    <script src="/static/js/canvas-core.js?v=2026.07.06.1"></script>
-    <script src="/static/js/canvas-api.js?v=2026.07.06.1"></script>
-    <script src="/static/js/smart-canvas.js?v=2026.08.13.1"></script>
+    <div id="smartCanvasApp" hidden></div>
+    <script>
+        (function(){
+            var reactEnabled = new URLSearchParams(window.location.search).get('smart_canvas_react') === '1';
+            var legacyShell = document.getElementById('shell');
+            var modernRoot = document.getElementById('smartCanvasApp');
+            var legacyStyles = document.getElementById('smartCanvasLegacyStyles');
+            var modernStyles = [];
+            var legacySources = [
+                '/static/js/canvas-core.js?v=2026.07.06.1',
+                '/static/js/canvas-api.js?v=2026.07.06.1',
+                '/static/js/smart-canvas.js?v=2026.08.13.1'
+            ];
+
+            document.documentElement.dataset.smartCanvasReact = reactEnabled ? 'enabled' : 'disabled';
+
+            function writeLegacyScripts(){
+                document.write(
+                    legacySources.map(function(source){
+                        return '<script src="' + source + '"><\/script>';
+                    }).join('')
+                );
+            }
+
+            function loadClassicScript(source){
+                return new Promise(function(resolve, reject){
+                    var script = document.createElement('script');
+                    script.src = source;
+                    script.onload = resolve;
+                    script.onerror = function(){ reject(new Error('Failed to load Smart Canvas fallback: ' + source)); };
+                    document.body.appendChild(script);
+                });
+            }
+
+            window.__loadSmartCanvasLegacyFallback = async function(){
+                document.documentElement.dataset.smartCanvasReact = 'fallback';
+                modernStyles.forEach(function(link){ link.disabled = true; });
+                if(legacyStyles) legacyStyles.disabled = false;
+                if(modernRoot) modernRoot.hidden = true;
+                if(legacyShell) legacyShell.hidden = false;
+                for(var index = 0; index < legacySources.length; index += 1){
+                    await loadClassicScript(legacySources[index]);
+                }
+                if(document.readyState === 'complete' && typeof window.onload === 'function'){
+                    var initializer = window.onload;
+                    window.onload = null;
+                    await initializer.call(window, new Event('load'));
+                }
+            };
+
+            if(!reactEnabled){
+                writeLegacyScripts();
+                return;
+            }
+
+            if(legacyStyles) legacyStyles.disabled = true;
+            if(legacyShell) legacyShell.hidden = true;
+            if(modernRoot) modernRoot.hidden = false;
+
+            [
+                '/static/css/studio-tokens.css?v=2026.08.20.1',
+                '/static/css/canvas.css?v=2026.08.20.1',
+                '/static/css/theme.css?v=2026.06.10.1.1781494198'
+            ].forEach(function(href){
+                var link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                link.dataset.smartCanvasReactStyle = '1';
+                document.head.appendChild(link);
+                modernStyles.push(link);
+            });
+
+            var module = document.createElement('script');
+            module.type = 'module';
+            module.src = '/static/dist/smart-canvas-modern.js?v=2026.08.24.1';
+            module.dataset.smartCanvasReactEntry = '1';
+            module.onerror = function(){
+                window.__loadSmartCanvasLegacyFallback().catch(function(error){
+                    console.error('[smart-canvas] Legacy fallback failed', error);
+                });
+            };
+            document.body.appendChild(module);
+        })();
+    </script>
 </body>
 </html>
