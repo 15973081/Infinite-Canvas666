@@ -16,6 +16,7 @@ import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
 import { SmartCanvasPromptTemplate } from './smart-canvas-prompt-template';
 import { SmartImageNode, smartImageItems, smartImageNodeLayout } from './smart-image-node';
+import { SmartLoopNode, smartLoopImagesForRound, smartLoopNodeLayout, smartLoopPromptForRound } from './smart-loop-node';
 import { SmartPromptNode, smartPromptNodeLayout, type SmartPromptProvider } from './smart-prompt-node';
 
 type Point = { x: number; y: number };
@@ -85,9 +86,9 @@ function nodeSize(node: CanvasNode): { height: number; width: number } {
     const layout = smartPromptNodeLayout(node);
     return { height: layout.height, width: layout.width };
   }
+  if (node.type === 'loop') return smartLoopNodeLayout(node);
   const defaults = node.type === 'image' ? { height: 336, width: 260 }
-    : node.type === 'loop' ? { height: node.showPrompt || node.imageInput ? 390 : 180, width: 336 }
-      : node.type === 'promptGroup' ? { height: 220, width: 260 }
+    : node.type === 'promptGroup' ? { height: 220, width: 260 }
         : node.type === 'generator' || node.type === 'msgen' ? { height: 340, width: 380 }
           : node.type === 'output' ? { height: 320, width: 460 }
             : node.type === 'video' ? { height: 410, width: 400 }
@@ -233,6 +234,15 @@ function connectedMedia(document: { connections: CanvasEdge[]; nodes: CanvasNode
     if (source.type === 'output' && Array.isArray(source.images)) return source.images.map((item) => typeof item === 'string' ? { kind: 'image', name: '', url: item } : { kind: String((item as Record<string, unknown>).kind || 'image'), name: String((item as Record<string, unknown>).name || ''), url: String((item as Record<string, unknown>).url || '') }).filter((item) => item.url);
     if (source.type === 'smart-image') return smartImageItems(source).map((item) => ({ ...item, kind: String(item.kind || 'image'), name: String(item.name || ''), url: String(item.url || '') }));
     if (source.type === 'group' && Array.isArray(source.items)) return source.items.map((id) => byId.get(String(id))).filter((item) => item?.type === 'image' && item.url).map((item) => ({ kind: String(item!.mediaKind || 'image'), name: String(item!.name || ''), url: String(item!.url) }));
+    return [];
+  });
+}
+
+function connectedPrompts(document: { connections: CanvasEdge[]; nodes: CanvasNode[] }, node: CanvasNode): string[] {
+  const byId = new Map(document.nodes.map((item) => [item.id, item]));
+  return document.connections.filter((edge) => edge.to === node.id).map((edge) => byId.get(edge.from)).filter(Boolean).flatMap((source) => {
+    if (source?.type === 'prompt') return String(source.text || '').trim() ? [String(source.text).trim()] : [];
+    if (source?.type === 'loop') return smartLoopPromptForRound(source, [], Math.max(1, Number(source.loopStart || 1))) || [];
     return [];
   });
 }
@@ -794,6 +804,57 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     store.getState().updateNode(nodeId, { h: undefined, images, scale: images.length > 1 ? 0.8 : Number(active.scale || 2), title: images.length > 1 ? 'Group' : additions[0].kind === 'video' ? 'Video' : additions[0].kind === 'audio' ? 'Audio' : 'Image', w: undefined });
     commit();
   };
+  const runSmartLoop = async (loop: CanvasNode) => {
+    if (loop.running) {
+      await window.CanvasBoardV2?.controlExecution('stop-execution', loop.id);
+      store.getState().updateNode(loop.id, { activeRound: undefined, running: false });
+      commit();
+      return;
+    }
+    const snapshot = store.getState().document;
+    if (!snapshot) return;
+    const reachable: CanvasNode[] = [];
+    const seen = new Set([loop.id]);
+    const queue = [loop.id];
+    while (queue.length) {
+      const from = queue.shift()!;
+      snapshot.connections.filter((edge) => edge.from === from).forEach((edge) => {
+        if (seen.has(edge.to)) return;
+        seen.add(edge.to);
+        const target = snapshot.nodes.find((item) => item.id === edge.to);
+        if (target) { reachable.push(target); queue.push(target.id); }
+      });
+    }
+    const target = reachable.filter((item) => ['comfy', 'generator', 'ltxDirector', 'msgen', 'smart-image', 'video'].includes(item.type)).at(-1);
+    if (!target) {
+      const toast = window.document.getElementById('toast');
+      if (toast) { toast.textContent = '请把循环节点连接到下游图片链路'; toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1_800); }
+      return;
+    }
+    const start = Math.max(1, Number(loop.loopStart || 1));
+    const count = Math.max(1, Math.min(100, Number(loop.count || 1)));
+    const rounds = Array.from({ length: count }, (_, index) => start + index);
+    store.getState().updateNode(loop.id, { running: true, runStartedAt: Date.now(), runTotal: count });
+    commit();
+    const execute = async (round: number) => {
+      const current = store.getState().document;
+      const activeLoop = current?.nodes.find((item) => item.id === loop.id) || loop;
+      const prompt = smartLoopPromptForRound(activeLoop, connectedPrompts(current || snapshot, activeLoop), round);
+      const images = smartLoopImagesForRound(activeLoop, connectedMedia(current || snapshot, activeLoop), round);
+      store.getState().updateNode(loop.id, { activeRound: round, currentImages: images, currentPrompt: prompt });
+      await window.CanvasBoardV2?.runNode(target.id, 'cascade');
+    };
+    try {
+      if (loop.mode === 'parallel') await Promise.all(rounds.map(execute));
+      else for (const round of rounds) await execute(round);
+    } catch (error) {
+      const toast = window.document.getElementById('toast');
+      if (toast) { toast.textContent = error instanceof Error ? error.message : String(error); toast.classList.add('show'); window.setTimeout(() => toast.classList.remove('show'), 1_800); }
+    } finally {
+      store.getState().updateNode(loop.id, { activeRound: undefined, currentImages: undefined, currentPrompt: undefined, runFinishedAt: Date.now(), running: false });
+      commit();
+    }
+  };
 
   return <div
     aria-label="CanvasBoard V2"
@@ -1088,6 +1149,36 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
             selected={selectedIds.has(node.id)}
           />;
         }
+        if (smartUi && node.type === 'loop') return <SmartLoopNode
+          connecting={Boolean(connectingFrom)}
+          key={node.id}
+          media={connectedMedia(boardDocument, node)}
+          node={node}
+          onConnectIn={() => connect(node.id)}
+          onConnectOut={() => setConnectingFrom(node.id)}
+          onDelete={() => { store.getState().deleteNode(node.id); setSelectedIds(new Set()); commit(); }}
+          onMoveStart={(event) => {
+            if (event.button !== 0 || readOnly || (event.target as HTMLElement).closest('button, input, [contenteditable="true"], .node-port')) return;
+            event.stopPropagation();
+            const element = event.currentTarget;
+            const movingIds = selectedIds.has(node.id) ? new Set(selectedIds) : new Set([node.id]);
+            const startPoints = new Map((store.getState().document?.nodes ?? []).filter((item) => movingIds.has(item.id)).map((item) => [item.id, nodePoint(item)]));
+            const start = { clientX: event.clientX, clientY: event.clientY };
+            let moved = false;
+            element.setPointerCapture(event.pointerId);
+            if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
+            const move = (next: PointerEvent) => { moved = true; const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom }; startPoints.forEach((startPoint, id) => store.getState().moveNode(id, startPoint.x + delta.x, startPoint.y + delta.y)); };
+            const up = () => { element.removeEventListener('pointermove', move); if (moved) commit(); };
+            element.addEventListener('pointermove', move);
+            element.addEventListener('pointerup', up, { once: true });
+          }}
+          onPatch={(patch, save = false) => { store.getState().updateNode(node.id, patch); if (save) commit(); }}
+          onRun={() => runSmartLoop(node)}
+          onSelect={(event) => { setSelectedEdge(-1); setSelectedIds((current) => { if (!event.ctrlKey && !event.metaKey) return new Set([node.id]); const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next; }); }}
+          readOnly={readOnly}
+          selected={selectedIds.has(node.id)}
+          upstreamPrompts={connectedPrompts(boardDocument, node)}
+        />;
         return <article
           aria-label={`${node.type} ${node.id}`}
           className={`node ${node.type}-node sized ${node.url ? 'has-image' : ''} ${selectedIds.has(node.id) ? 'selected' : ''}`}

@@ -58,11 +58,11 @@ test('creates upload, prompt and loop nodes with the legacy Smart Canvas coordin
 
   await openMenu(page, 800, 100);
   await page.locator('[data-create-type="prompt"]').click();
-  await expect(page.locator('[data-node-type="prompt"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="smart-prompt"]')).toHaveCount(1);
 
   await openMenu(page, 1100, 250);
   await page.locator('[data-create-type="loop"]').click();
-  await expect(page.locator('[data-node-type="loop"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="smart-loop"]')).toHaveCount(1);
 
   await expect.poll(() => state.saves.at(-1)?.nodes.length).toBe(3);
   const saved = state.saves.at(-1)!;
