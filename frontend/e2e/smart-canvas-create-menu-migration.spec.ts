@@ -54,8 +54,7 @@ test('creates upload, prompt and loop nodes with the legacy Smart Canvas coordin
   await openMenu(page, 520, 360);
   await page.locator('[data-create-type="image"]').click();
   await expect(page.locator('#createMenu')).toHaveCount(0);
-  await expect(page.locator('[data-node-type="output"]')).toHaveCount(1);
-  await expect(page.locator('[data-node-type="generator"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="smart-image"]')).toHaveCount(1);
 
   await openMenu(page, 800, 100);
   await page.locator('[data-create-type="prompt"]').click();
@@ -65,19 +64,18 @@ test('creates upload, prompt and loop nodes with the legacy Smart Canvas coordin
   await page.locator('[data-create-type="loop"]').click();
   await expect(page.locator('[data-node-type="loop"]')).toHaveCount(1);
 
-  await expect.poll(() => state.saves.at(-1)?.nodes.length).toBe(4);
+  await expect.poll(() => state.saves.at(-1)?.nodes.length).toBe(3);
   const saved = state.saves.at(-1)!;
-  const output = saved.nodes.find((node: any) => node.type === 'output');
-  const generator = saved.nodes.find((node: any) => node.type === 'generator');
+  const image = saved.nodes.find((node: any) => node.type === 'smart-image');
   const prompt = saved.nodes.find((node: any) => node.type === 'prompt');
   const loop = saved.nodes.find((node: any) => node.type === 'loop');
-  expect(generator.x).toBeCloseTo(output.x - 420, 0);
+  expect(image).toMatchObject({ x: 520 - 158, y: 360 - 97, images: [] });
   expect(prompt).toMatchObject({ x: 800 - 158, y: 100 - 97 });
   expect(loop).toMatchObject({ x: 1100 - 135, y: 250 - 95 });
-  expect(saved.connections).toContainEqual(expect.objectContaining({ from: generator.id, to: output.id }));
+  expect(saved.connections).toEqual([]);
 });
 
-test('uploads dropped media into one migrated Smart Canvas output node at the drop point', async ({ page }) => {
+test('uploads dropped media into one Smart Image node at the drop point', async ({ page }) => {
   const state = await mockSmartCanvasCreateMenu(page);
   await page.goto('/static/smart-canvas.html?smart_canvas_react=1&id=smart-create-menu');
 
@@ -89,8 +87,8 @@ test('uploads dropped media into one migrated Smart Canvas output node at the dr
   });
 
   await expect.poll(state.uploads).toBe(1);
-  await expect(page.locator('[data-node-type="output"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="smart-image"]')).toHaveCount(1);
   await expect.poll(() => state.saves.at(-1)?.nodes[0]).toMatchObject({
-    type: 'output', x: 640, y: 420, images: [{ kind: 'image', name: 'dropped.png', url: '/uploads/dropped-1.png' }],
+    type: 'smart-image', x: 640 - 158, y: 420 - 97, images: [{ kind: 'image', name: 'dropped.png', url: '/uploads/dropped-1.png' }],
   });
 });

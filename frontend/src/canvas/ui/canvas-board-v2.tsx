@@ -15,6 +15,7 @@ import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canva
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
 import { SmartCanvasPromptTemplate } from './smart-canvas-prompt-template';
+import { SmartImageNode, smartImageItems, smartImageNodeLayout } from './smart-image-node';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -31,6 +32,7 @@ const createMenuNodes = [
 ] as const;
 
 const nodeRegistry: Record<string, string> = {
+  'smart-image': 'Image',
   comfy: 'ComfyUI', generator: 'API 生成', group: '分组', image: '上传', llm: 'LLM', loop: '循环',
   ltxDirector: 'LTX Director', msgen: 'ModelScope', output: 'Output', prompt: '提示词', promptGroup: '提示词组', video: '视频',
 };
@@ -74,6 +76,10 @@ function intersects(a: { height: number; width: number; x: number; y: number }, 
 }
 
 function nodeSize(node: CanvasNode): { height: number; width: number } {
+  if (node.type === 'smart-image') {
+    const layout = smartImageNodeLayout(node);
+    return { height: layout.height, width: layout.width };
+  }
   const defaults = node.type === 'image' ? { height: 336, width: 260 }
     : node.type === 'prompt' ? { height: 230, width: 310 }
     : node.type === 'loop' ? { height: node.showPrompt || node.imageInput ? 390 : 180, width: 336 }
@@ -90,12 +96,28 @@ function nodeSize(node: CanvasNode): { height: number; width: number } {
 }
 
 function canInput(node: CanvasNode): boolean {
-  return ['generator', 'comfy', 'ltxDirector', 'output', 'llm', 'msgen', 'video'].includes(node.type)
+  return ['generator', 'comfy', 'ltxDirector', 'output', 'llm', 'msgen', 'smart-image', 'video'].includes(node.type)
     || (node.type === 'loop' && (Boolean(node.imageInput) || Boolean(node.showPrompt)));
 }
 
 function canOutput(node: CanvasNode): boolean {
-  return ['image', 'prompt', 'loop', 'group', 'promptGroup', 'generator', 'comfy', 'ltxDirector', 'llm', 'msgen', 'video', 'output'].includes(node.type);
+  return ['image', 'prompt', 'loop', 'group', 'promptGroup', 'generator', 'comfy', 'ltxDirector', 'llm', 'msgen', 'smart-image', 'video', 'output'].includes(node.type);
+}
+
+function smartImageGeneratorView(node: CanvasNode): CanvasNode {
+  const settings = node.runSettings && typeof node.runSettings === 'object' ? node.runSettings as Record<string, unknown> : {};
+  const engine = String(settings.engine || 'api');
+  const type = engine === 'modelscope' ? 'msgen' : engine === 'comfy' ? 'comfy' : String(settings.apiKind || settings.kind || 'image') === 'video' ? 'video' : 'generator';
+  return {
+    ...settings,
+    id: node.id,
+    type,
+    apiProvider: settings.apiProvider || settings.provider_id || settings.providerId || '',
+    model: settings.model || '',
+    ratio: settings.ratio || settings.apiRatio || 'square',
+    resolution: settings.resolution || settings.apiResolution || '1k',
+    running: node.running,
+  };
 }
 
 function PromptBody({ commit, node, onOpenPreset, onOpenTemplate, store }: { commit: () => void; node: CanvasNode; onOpenPreset?: (nodeId: string) => void; onOpenTemplate?: (nodeId: string) => void; store: DocumentStore }) {
@@ -700,10 +722,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     if (!createMenu || readOnly) return;
     let selectedId = '';
     if (type === 'image') {
-      const outputId = store.getState().addNode('output', createMenu.point);
-      const generatorId = store.getState().addNode('generator', { x: createMenu.point.x - 420, y: createMenu.point.y });
-      if (outputId && generatorId) store.getState().connectNodes(generatorId, outputId);
-      selectedId = outputId || generatorId || '';
+      selectedId = store.getState().addNode('smart-image', { x: createMenu.point.x - 158, y: createMenu.point.y - 97 }) || '';
     } else {
       const offset = type === 'prompt' ? { x: 158, y: 97 } : { x: 135, y: 95 };
       selectedId = store.getState().addNode(type, { x: createMenu.point.x - offset.x, y: createMenu.point.y - offset.y }) || '';
@@ -715,16 +734,23 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     setCreateMenu(null);
   };
   const selectedSmartOutput = smartUi && selectedIds.size === 1
-    ? (document?.nodes.find((node) => selectedIds.has(node.id) && node.type === 'output') ?? null)
+    ? (document?.nodes.find((node) => selectedIds.has(node.id) && ['output', 'smart-image'].includes(node.type)) ?? null)
     : null;
   const smartGeneratorForOutput = (output: CanvasNode | null, snapshot = store.getState().document) => {
     if (!output || !snapshot) return null;
     const sourceIds = snapshot.connections.filter((edge) => edge.to === output.id).map((edge) => edge.from);
     return snapshot.nodes.find((node) => sourceIds.includes(node.id) && ['comfy', 'generator', 'msgen', 'video'].includes(node.type)) ?? null;
   };
-  const selectedSmartGenerator = smartGeneratorForOutput(selectedSmartOutput, document);
+  const selectedSmartGenerator = selectedSmartOutput?.type === 'smart-image' ? smartImageGeneratorView(selectedSmartOutput) : smartGeneratorForOutput(selectedSmartOutput, document);
   const patchSmartGenerator = (patch: Record<string, unknown>, nextType: 'comfy' | 'generator' | 'msgen' | 'video' = 'generator') => {
     if (!selectedSmartOutput || readOnly) return '';
+    if (selectedSmartOutput.type === 'smart-image') {
+      const current = selectedSmartOutput.runSettings && typeof selectedSmartOutput.runSettings === 'object' ? selectedSmartOutput.runSettings as Record<string, unknown> : {};
+      const engine = nextType === 'msgen' ? 'modelscope' : nextType === 'comfy' ? 'comfy' : 'api';
+      store.getState().updateNode(selectedSmartOutput.id, { runSettings: { ...current, ...patch, engine, apiKind: nextType === 'video' ? 'video' : 'image' } });
+      commit();
+      return selectedSmartOutput.id;
+    }
     let snapshot = store.getState().document;
     if (!snapshot) return '';
     let target = smartGeneratorForOutput(selectedSmartOutput, snapshot);
@@ -749,8 +775,19 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     if (save) commit();
   };
   const runSmartComposer = (mode: 'cascade' | 'node') => {
-    const generatorId = selectedSmartGenerator?.id || patchSmartGenerator({});
+    const generatorId = selectedSmartOutput?.type === 'smart-image' ? selectedSmartOutput.id : selectedSmartGenerator?.id || patchSmartGenerator({});
     if (generatorId) void window.CanvasBoardV2?.runNode(generatorId, mode);
+  };
+  const appendSmartMedia = async (nodeId: string, files: File[]) => {
+    if (readOnly || !files.length) return;
+    const uploaded = await canvasRuntime.uploadMedia(files);
+    const active = store.getState().document?.nodes.find((node) => node.id === nodeId && node.type === 'smart-image');
+    if (!active) return;
+    const additions = (uploaded.files ?? []).filter((file) => file.url).map((file) => ({ ...file, kind: file.kind || 'image', name: file.name || 'media', url: file.url || '' }));
+    if (!additions.length) return;
+    const images = [...smartImageItems(active), ...additions];
+    store.getState().updateNode(nodeId, { h: undefined, images, scale: images.length > 1 ? 0.8 : Number(active.scale || 2), title: images.length > 1 ? 'Group' : additions[0].kind === 'video' ? 'Video' : additions[0].kind === 'audio' ? 'Audio' : 'Image', w: undefined });
+    commit();
   };
 
   return <div
@@ -941,6 +978,59 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       {(document?.nodes ?? []).map((node) => {
         const point = nodePoint(node);
         const size = nodeSize(node);
+        if (smartUi && node.type === 'smart-image') return <SmartImageNode
+          connecting={Boolean(connectingFrom)}
+          key={node.id}
+          node={node}
+          onAppendFiles={(files) => void appendSmartMedia(node.id, files)}
+          onConnectIn={() => connect(node.id)}
+          onConnectOut={() => setConnectingFrom(node.id)}
+          onDelete={() => { store.getState().deleteNode(node.id); setSelectedIds(new Set()); commit(); }}
+          onDeleteImage={(index) => {
+            const active = store.getState().document?.nodes.find((item) => item.id === node.id);
+            if (!active) return;
+            const images = smartImageItems(active).filter((_, itemIndex) => itemIndex !== index);
+            store.getState().updateNode(node.id, { h: undefined, images, scale: images.length > 1 ? 0.8 : 2, title: images.length > 1 ? 'Group' : images.length ? 'Image' : '上传节点', w: undefined });
+            commit();
+          }}
+          onMoveStart={(event) => {
+            if (event.button !== 0 || readOnly || (event.target as HTMLElement).closest('button, audio, video, .node-drop')) return;
+            event.stopPropagation();
+            const element = event.currentTarget;
+            const movingIds = selectedIds.has(node.id) ? new Set(selectedIds) : new Set([node.id]);
+            const startPoints = new Map((store.getState().document?.nodes ?? []).filter((item) => movingIds.has(item.id)).map((item) => [item.id, nodePoint(item)]));
+            const start = { clientX: event.clientX, clientY: event.clientY };
+            let moved = false;
+            element.setPointerCapture(event.pointerId);
+            if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
+            const move = (next: PointerEvent) => {
+              moved = true;
+              const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom };
+              startPoints.forEach((startPoint, id) => store.getState().moveNode(id, startPoint.x + delta.x, startPoint.y + delta.y));
+            };
+            const up = () => { element.removeEventListener('pointermove', move); if (moved) commit(); };
+            element.addEventListener('pointermove', move);
+            element.addEventListener('pointerup', up, { once: true });
+          }}
+          onPatch={(patch, save = false) => {
+            const current = store.getState().document?.nodes.find((item) => item.id === node.id);
+            if (!current) return;
+            store.getState().updateNode(node.id, typeof patch === 'function' ? patch(current) : patch);
+            if (save) commit();
+          }}
+          onPreview={(url) => setLightbox({ nodeId: node.id, url })}
+          onSelect={(event) => {
+            setSelectedEdge(-1);
+            setSelectedIds((current) => {
+              if (!event.ctrlKey && !event.metaKey) return new Set([node.id]);
+              const next = new Set(current);
+              if (next.has(node.id)) next.delete(node.id); else next.add(node.id);
+              return next;
+            });
+          }}
+          readOnly={readOnly}
+          selected={selectedIds.has(node.id)}
+        />;
         return <article
           aria-label={`${node.type} ${node.id}`}
           className={`node ${node.type}-node sized ${node.url ? 'has-image' : ''} ${selectedIds.has(node.id) ? 'selected' : ''}`}
@@ -1424,7 +1514,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       if (readOnlyMode) return [];
       const nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
       const connections = Array.isArray(payload.connections) ? payload.connections : [];
-      const importableTypes = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'promptGroup', 'video'] as const;
+      const importableTypes = ['comfy', 'generator', 'group', 'image', 'llm', 'loop', 'ltxDirector', 'msgen', 'output', 'prompt', 'promptGroup', 'smart-image', 'video'] as const;
       const idMap = new Map<string, string>();
       nodes.forEach((raw, index) => {
         if (!raw || typeof raw !== 'object') return;
@@ -1474,9 +1564,10 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
           url: file.url || '',
         }));
         if (!images.length) return;
-        const id = store.getState().addNode('output', point);
+        const target = point ?? { x: 500, y: 400 };
+        const id = store.getState().addNode('smart-image', { x: target.x - 158, y: target.y - 97 });
         if (id) {
-          store.getState().updateNode(id, { images });
+          store.getState().updateNode(id, { images, scale: images.length > 1 ? 0.8 : 2, title: images.length > 1 ? 'Group' : images[0].kind === 'video' ? 'Video' : images[0].kind === 'audio' ? 'Audio' : 'Image' });
           commit();
         }
         return;

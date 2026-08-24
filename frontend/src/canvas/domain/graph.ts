@@ -79,6 +79,8 @@ export function createGraphModel(
     const from = nodes.get(fromId);
     const to = nodes.get(toId);
     if (!from || !to || (!allowExisting && document.connections.some((edge) => edge.from === fromId && edge.to === toId))) return false;
+    if (to.type === 'smart-image') return ['image', 'loop', 'output', 'prompt', 'promptGroup', 'smart-image'].includes(from.type) && !wouldCreateCycle(fromId, toId);
+    if (from.type === 'smart-image') return ['loop', 'smart-image'].includes(to.type) && !wouldCreateCycle(fromId, toId);
     if (MEDIA_OUTPUT_NODE_TYPES.has(from.type)) {
       if (to.type === 'output') return !wouldCreateCycle(fromId, toId);
       if (MEDIA_OUTPUT_NODE_TYPES.has(to.type)) return !wouldCreateCycle(fromId, toId);

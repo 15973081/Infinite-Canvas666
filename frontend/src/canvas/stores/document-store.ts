@@ -5,7 +5,7 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 
 export interface DocumentStoreState {
   acceptSavedDocument(saved: CanvasDocument, submitted: CanvasDocument): void;
-  addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'promptGroup' | 'video', point?: { x: number; y: number }): string | null;
+  addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'promptGroup' | 'smart-image' | 'video', point?: { x: number; y: number }): string | null;
   adoptDocument(snapshot: unknown): void;
   connectNodes(fromId: string, toId: string): boolean;
   copyNodes(nodeIds: string[]): { connections: CanvasEdge[]; nodes: CanvasNode[] };
@@ -54,6 +54,7 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
         output: { images: [], imageComparisons: {} },
         prompt: { text: '' },
         promptGroup: { w: 300, h: 220, items: [] },
+        'smart-image': { title: '上传节点', images: [], scale: 2, created_at: Date.now() },
         video: { apiProvider: 'comfly', model: '', duration: 5, aspectRatio: '16:9', resolution: '', enhancePrompt: false, enableUpsample: false, watermark: false, cameraFixed: false, generateAudio: false, taskMode: 'auto', useFrameRoles: false, multimodal: false, manualVideoUrls: [], tempShLinks: [], inputs: [] },
       };
       const node: CanvasNode = { id, type, ...position, ...defaults[type] };
@@ -166,7 +167,7 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       const createdOutputIds = new Set(createdOutputs.map((node) => node.id));
       const executionFields = [
         '_cascadeFailed', '_pending', 'generatedOutputs', 'imageComparisons', 'images', 'messages',
-        'outputLayout', 'outputText', 'pendingTaskId', 'runError', 'running', 'runStatus',
+        'outputKind', 'outputLayout', 'outputText', 'pending', 'pendingTaskId', 'pendingTasks', 'queued', 'runElapsedMs', 'runError', 'runFinishedAt', 'running', 'runStatus',
       ];
       const nodes = current.nodes.map((node) => {
         const next = projectedById.get(node.id);

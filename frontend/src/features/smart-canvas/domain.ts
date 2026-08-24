@@ -5,65 +5,17 @@ const legacyTypes = new Set(['smart-image', 'smart-prompt', 'smart-loop']);
 export function migrateLegacySmartDocument(document: CanvasDocument): CanvasDocument {
   if (String(document.kind || '') !== 'smart' || !document.nodes.some((node) => legacyTypes.has(node.type) || !node.type)) return document;
   const original = structuredClone(document);
-  const connections = structuredClone(original.connections);
-  const migrated: CanvasNode[] = [];
-
-  original.nodes.forEach((node) => {
+  const nodes = original.nodes.map((node) => {
     if (node.type === 'smart-prompt') {
-      migrated.push({ ...node, type: 'prompt', text: String(node.text || node.prompt || '') });
-      return;
+      return { ...node, type: 'prompt', text: String(node.text || node.prompt || '') };
     }
     if (node.type === 'smart-loop') {
-      migrated.push({ ...node, type: 'loop', count: Math.max(1, Number(node.count || node.loopCount || 1)) });
-      return;
+      return { ...node, type: 'loop', count: Math.max(1, Number(node.count || node.loopCount || 1)) };
     }
-    if (node.type && node.type !== 'smart-image') {
-      migrated.push(node);
-      return;
-    }
-
-    const images = legacyImages(node);
-    const incoming = connections.filter((edge) => edge.to === node.id);
-    const settings = settingsFor(node, original);
-    const historyOnly = Boolean(node.isHistoryGroup || node.historyFor);
-    const needsGenerator = !historyOnly && (incoming.length > 0 || Boolean(node.runSettings) || images.length === 0 || legacyPendingTasks(node).length > 0);
-    const generatorId = `${node.id}__generator`;
-    const pending = needsGenerator ? migratePendingTasks(node, generatorId, settings) : [];
-    const output: CanvasNode = {
-      ...node,
-      type: 'output',
-      images,
-      imageComparisons: node.imageComparisons && typeof node.imageComparisons === 'object' ? node.imageComparisons : {},
-      _pending: pending.length ? pending : Array.isArray(node._pending) ? node._pending : [],
-      running: false,
-    };
-    delete output.url;
-    delete output.pendingTasks;
-    delete output.pending;
-    delete output.queued;
-    migrated.push(output);
-    if (!needsGenerator) return;
-
-    connections.forEach((edge) => { if (edge.to === node.id) edge.to = generatorId; });
-    connections.push({ from: generatorId, to: node.id });
-    migrated.push({
-      ...generatorFromSettings(settings),
-      id: generatorId,
-      legacySmartNodeId: node.id,
-      runError: pending.length ? '检测到刷新前未完成的任务，正在恢复' : '',
-      runStatus: pending.length ? 'recovering' : undefined,
-      x: Number(node.x || 0) - 420,
-      y: Number(node.y || 0),
-    });
+    if (!node.type || node.type === 'smart-image') return { ...node, type: 'smart-image', images: legacyImages(node) };
+    return node;
   });
-
-  return {
-    ...original,
-    connections: uniqueConnections(connections),
-    nodes: migrated,
-    schemaVersion: Math.max(1, Number(original.schemaVersion || 1)),
-    smartV2Migrated: true,
-  };
+  return { ...original, nodes, schemaVersion: Math.max(1, Number(original.schemaVersion || 1)) };
 }
 
 function legacyImages(node: CanvasNode): Array<Record<string, unknown>> {
