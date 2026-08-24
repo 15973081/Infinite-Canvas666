@@ -68,6 +68,8 @@ test('restores legacy output lightbox DOM, compare, prompt and zoom behavior', a
   const state = await prepare(page);
   const lightbox = await openPreview(page);
   const preview = lightbox.locator('.output-preview');
+  await expect(page.locator('.shell > .output-lightbox.open.canvas-v2-lightbox')).toBeVisible();
+  await expect(lightbox).toHaveCSS('z-index', '1100');
   await expect(lightbox.locator('.output-lightbox-shell')).toBeVisible();
   await expect(preview.locator('.output-single-img')).toBeVisible();
   await expect(lightbox.locator('.output-resolution')).toContainText('1m 05s');

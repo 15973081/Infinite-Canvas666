@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react';
+import { createPortal } from 'react-dom';
 import type { CanvasNode } from '../domain/types';
 import { formatOutputRunDuration, outputComparisonUrl, outputDownloadName, outputPreviewItems, outputPreviewMeta } from '../domain/output-preview';
 
@@ -130,7 +131,7 @@ export function LegacyOutputLightbox({ node, onClose, onNavigate, onRerun, onVie
     window.setTimeout(() => setCopied(false), 1200);
   };
 
-  return <div aria-label="输出预览" className="output-lightbox open canvas-v2-lightbox" onClick={onClose} role="dialog">
+  return createPortal(<div aria-label="输出预览" className="output-lightbox open canvas-v2-lightbox" onClick={onClose} role="dialog" style={{ zIndex: 1100 }}>
     <div className="output-lightbox-shell" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
       <div
         className={`output-preview ${compareMode ? 'compare-mode' : ''} ${panning ? 'panning' : ''} ${zoom > 1.001 ? 'zoomed' : ''}`.trim()}
@@ -171,7 +172,7 @@ export function LegacyOutputLightbox({ node, onClose, onNavigate, onRerun, onVie
         </div>
       </div>
     </div>
-  </div>;
+  </div>, document.querySelector('.shell') || document.body);
 }
 
 function updateCompare(clientX: number, element: HTMLDivElement | null, apply: (value: number) => void) {
