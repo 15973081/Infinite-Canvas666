@@ -8,7 +8,7 @@ import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
 import { createDocumentStore, type DocumentStore } from '../stores/document-store';
 import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
-import { LegacyImageTransformDialog, type LegacyImageTransformResult } from './legacy-image-transform-dialog';
+import { LegacyImageTransformDialog, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -977,7 +977,18 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
         url: file.url,
       });
       commit();
-    }} onClose={() => setImageEditorNodeId('')} url={String(imageEditorNode.url)} /> : <ImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: ImageTransformResult) => {
+    }} onClose={() => setImageEditorNodeId('')} onCreateMask={async (result: LegacyMaskResult) => {
+      if (readOnly) throw new Error('只读模式不能编辑图片');
+      const uploaded = await canvasRuntime.uploadMedia([new File([result.blob], result.name, { type: 'image/png' })]);
+      const file = uploaded.files?.[0];
+      if (!file?.url) throw new Error('遮罩上传失败');
+      const active = store.getState().document?.nodes.find((item) => item.id === imageEditorNode.id);
+      if (!active) throw new Error('图片节点已经被移除');
+      const id = store.getState().addNode('image', { x: Number(active.x || 0) + Number(active.w || 260) + 36, y: Number(active.y || 0) + 28 });
+      if (!id) throw new Error('无法创建遮罩节点');
+      store.getState().updateNode(id, { mediaKind: file.kind || 'image', name: file.name || result.name, natural_h: result.height, natural_w: result.width, role: 'mask', url: file.url });
+      commit();
+    }} url={String(imageEditorNode.url)} /> : <ImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: ImageTransformResult) => {
       if (readOnly) throw new Error('只读模式不能编辑图片');
       const uploaded = await canvasRuntime.uploadMedia([new File([result.blob], result.name, { type: 'image/png' })]);
       const file = uploaded.files?.[0];

@@ -44,6 +44,23 @@ export function transformedImageName(name: string, mode: 'crop' | 'outpaint'): s
   return `${base}_${mode}.png`;
 }
 
+export function binaryMaskPixels(source: Uint8ClampedArray): Uint8ClampedArray {
+  const output = new Uint8ClampedArray(source.length);
+  for (let index = 0; index < source.length; index += 4) {
+    const value = source[index + 3] > 8 ? 255 : 0;
+    output[index] = value;
+    output[index + 1] = value;
+    output[index + 2] = value;
+    output[index + 3] = 255;
+  }
+  return output;
+}
+
+export function circledNumber(value: number): string {
+  const number = Math.max(1, Math.round(Number(value) || 1));
+  return number <= 20 ? String.fromCharCode(0x2460 + number - 1) : String(number);
+}
+
 function dimension(value: number): number { return Math.max(1, Math.round(Number(value) || 1)); }
 function integer(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, Math.round(Number(value) || 0)));

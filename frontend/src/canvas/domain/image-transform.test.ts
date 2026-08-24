@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCrop, normalizeOutpaint, transformedImageName } from './image-transform';
+import { binaryMaskPixels, circledNumber, normalizeCrop, normalizeOutpaint, transformedImageName } from './image-transform';
 
 describe('canvas image transforms', () => {
   it('clamps crop regions inside the source image', () => {
@@ -17,5 +17,23 @@ describe('canvas image transforms', () => {
   it('creates stable PNG names for transformed uploads', () => {
     expect(transformedImageName('portrait.jpeg', 'crop')).toBe('portrait_crop.png');
     expect(transformedImageName('', 'outpaint')).toBe('image_outpaint.png');
+  });
+
+  it('converts painted alpha into the legacy black and white mask', () => {
+    expect([...binaryMaskPixels(new Uint8ClampedArray([
+      255, 255, 255, 0,
+      10, 20, 30, 8,
+      10, 20, 30, 9,
+    ]))]).toEqual([
+      0, 0, 0, 255,
+      0, 0, 0, 255,
+      255, 255, 255, 255,
+    ]);
+  });
+
+  it('keeps the legacy circled labels for the first twenty brush markers', () => {
+    expect(circledNumber(1)).toBe('①');
+    expect(circledNumber(20)).toBe('⑳');
+    expect(circledNumber(21)).toBe('21');
   });
 });
