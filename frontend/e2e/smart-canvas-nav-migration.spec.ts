@@ -73,8 +73,8 @@ test('keeps the migrated navigation buttons wired to their existing React functi
   await shell.locator('#smartLogModal .log-head button').click();
 
   await shell.locator('#smartBackupToggle').click();
-  await expect(shell.locator('.canvas-modern-backups')).toContainText('画布备份');
-  await shell.locator('.canvas-modern-backups header button').click();
+  await expect(shell.locator('#smartBackupModal.log-modal.open .backup-panel')).toContainText('画布备份');
+  await shell.locator('#smartBackupModal .log-head button').click();
 
   await shell.locator('#assetToggle').click();
   await expect(shell.locator('#assetPanel.asset-panel.open')).toBeVisible();

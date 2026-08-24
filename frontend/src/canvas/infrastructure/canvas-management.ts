@@ -33,6 +33,7 @@ export interface CanvasMeta extends Record<string, unknown> {
 
 export interface CanvasManagementClient {
   acquireLock(canvasId: string, clientId: string, username?: string): Promise<CanvasLockResult>;
+  checkLock?(canvasId: string): Promise<{ holder?: Record<string, unknown> }>;
   create(title?: string, options?: CanvasCreateOptions): Promise<CanvasSummary>;
   createFolder(name: string, parentId?: string): Promise<CanvasFolder>;
   delete(canvasId: string): Promise<void>;
@@ -91,6 +92,7 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
       return { ok: false, holder: object(detail.holder || details.holder) };
     }
   };
+  const checkLock = async (canvasId: string) => object(await requestJson(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock`)) as { holder?: Record<string, unknown> };
   const releaseLock = async (canvasId: string, clientId: string, keepalive = false) => {
     if (keepalive) {
       await jsonRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock/release`, 'POST', { client_id: clientId }, true);
@@ -98,7 +100,7 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
     }
     await emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock?client_id=${encodeURIComponent(clientId)}`, 'DELETE');
   };
-  return { acquireLock, create, createFolder, delete: remove, deleteBackup, deleteFolder, getMeta, list, listFolders, listTrash, moveToFolder, patchMeta, purge, releaseLock, restore, updateFolder };
+  return { acquireLock, checkLock, create, createFolder, delete: remove, deleteBackup, deleteFolder, getMeta, list, listFolders, listTrash, moveToFolder, patchMeta, purge, releaseLock, restore, updateFolder };
 }
 
 const defaultCanvasManagementClient = createCanvasManagementClient();

@@ -15,6 +15,7 @@ import { AssetLibraryDialog, type CanvasAssetLibraryRequest } from './asset-libr
 import { SmartCanvasAssetPanel } from './smart-canvas-asset-panel';
 import { SmartCanvasWorkflowPanel, type SmartWorkflowSelection } from './smart-canvas-workflow-panel';
 import { formatSmartCanvasCost, SmartCanvasLogCostPanel, smartCanvasLogCostTotals } from './smart-canvas-log-cost-panel';
+import { SmartCanvasBackupAndLock } from './smart-canvas-backup-and-lock';
 import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
 import { CanvasManager, ScopedCanvasManager } from './canvas-manager';
 
@@ -200,6 +201,28 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     }
   }, [current?.id, management, repository]);
 
+  const checkCurrentLock = useCallback(async () => {
+    if (!current?.id || !management.checkLock) return acquireCurrentLock();
+    try {
+      const state = await management.checkLock(String(current.id));
+      const holder = state.holder || null;
+      if (!holder || String(holder.client_id || '') === clientId.current) return acquireCurrentLock();
+      ownsLock.current = false;
+      setLockHolder(holder);
+      setOwnedLockHolder(null);
+      setLockIssue('');
+      return false;
+    } catch (error) {
+      const message = `编辑锁检查失败，保持只读并将自动重试：${error instanceof Error ? error.message : String(error)}`;
+      ownsLock.current = false;
+      setLockHolder({ username: '锁状态未知' });
+      setOwnedLockHolder(null);
+      setLockIssue(message);
+      setStatus(message);
+      return false;
+    }
+  }, [acquireCurrentLock, current?.id, management]);
+
   const syncRemoteVersion = useCallback(async (hintedUpdatedAt = 0) => {
     if (!current?.id || remoteSyncInFlight.current) return;
     remoteSyncInFlight.current = true;
@@ -239,10 +262,34 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   }, [current?.id, syncRemoteVersion]);
 
   useEffect(() => {
+    if (!current?.id || configuration.kind !== 'smart') return;
+    let disposed = false;
+    let retryTimer = 0;
+    let socket: WebSocket | null = null;
+    const connect = () => {
+      if (disposed) return;
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        socket = new WebSocket(`${protocol}//${window.location.host}/ws/stats?client_id=${encodeURIComponent(clientId.current)}`);
+        socket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(String(event.data || '{}')) as Record<string, unknown>;
+            if (data.type !== 'canvas_updated' || String(data.canvas_id || '') !== String(current.id) || String(data.client_id || '') === clientId.current) return;
+            void syncRemoteVersion(Number(data.updated_at || 0));
+          } catch { /* Ignore non-JSON status frames, matching the legacy listener. */ }
+        };
+        socket.onclose = () => { if (!disposed) retryTimer = window.setTimeout(connect, 3_000); };
+      } catch { retryTimer = window.setTimeout(connect, 3_000); }
+    };
+    connect();
+    return () => { disposed = true; window.clearTimeout(retryTimer); socket?.close(); };
+  }, [configuration.kind, current?.id, syncRemoteVersion]);
+
+  useEffect(() => {
     if (!current?.id) return;
-    const timer = window.setInterval(() => { void acquireCurrentLock(); }, 25_000);
+    const timer = window.setInterval(() => { void checkCurrentLock(); }, 5_000);
     return () => window.clearInterval(timer);
-  }, [acquireCurrentLock, current?.id]);
+  }, [checkCurrentLock, current?.id]);
 
   useEffect(() => {
     const canvasId = String(configuration.initialCanvasId || '').trim();
@@ -430,6 +477,28 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       return next;
     });
   };
+  const createCurrentBackup = async () => {
+    if (!current?.id) return;
+    const result = await repository.createBackup(String(current.id));
+    const updatedAt = Number(result.updated_at || 0);
+    setStatus(updatedAt ? `备份已保存 (${new Date(updatedAt).toLocaleTimeString()})` : '备份已保存');
+    await showBackups();
+  };
+  const restoreCurrentBackup = async (filename: string) => {
+    if (!current?.id) return;
+    if (lockHolder) { setStatus('画布正在被其他人编辑，无法恢复备份'); return; }
+    await window.CanvasBoardV2?.flushSaves();
+    const restored = await repository.restoreBackup(String(current.id), filename);
+    lastKnownUpdatedAt.current = Number(restored.updated_at || 0);
+    setCurrent(restored);
+    setBackups(null);
+    setStatus('备份已恢复');
+  };
+  const deleteCurrentBackup = async (filename: string) => {
+    if (!current?.id) return;
+    await management.deleteBackup(String(current.id), filename);
+    await showBackups();
+  };
 
   return <main className={`canvas-modern-editor ${(classicEditor || smartEditor) ? 'shell' : ''}`} id={smartEditor ? 'shell' : undefined}>
     {classicEditor ? <header className="topbar canvas-modern-topbar">
@@ -470,7 +539,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       <button aria-label="快捷键" className={`smart-shortcut-toggle ${shortcutOpen ? 'active' : ''}`} id="smartShortcutToggle" onClick={() => setShortcutOpen(true)} title="快捷键" type="button"><i data-lucide="keyboard" /><span>快捷键</span></button>
       <button aria-label="费用仪表盘" className={`smart-cost-toggle ${inspector?.mode === 'cost' ? 'active' : ''}`} id="smartCostToggle" onClick={() => void showInspector('cost')} title={smartCostTotals?.unknown ? `费用仪表盘 · ${smartCostTotals.unknown} 笔待定价` : '费用仪表盘'} type="button"><i data-lucide="circle-dollar-sign" /><span id="smartCostToggleLabel">费用 {formatSmartCanvasCost(smartCostTotals?.total || 0)}</span></button>
       <button aria-label="日志" className={`smart-log-toggle ${inspector?.mode === 'logs' ? 'active' : ''}`} id="smartLogToggle" onClick={() => void showInspector('logs')} title="日志" type="button"><i data-lucide="list-todo" /><span>日志</span></button>
-      <button aria-label="备份" className={`smart-backup-toggle ${backups ? 'active' : ''}`} disabled={Boolean(lockHolder)} id="smartBackupToggle" onClick={() => void showBackups()} title="备份" type="button"><i data-lucide="hard-drive" /><span>备份</span></button>
+      <button aria-label="备份" className={`smart-backup-toggle ${backups ? 'active' : ''}`} id="smartBackupToggle" onClick={() => void showBackups()} title="备份" type="button"><i data-lucide="hard-drive" /><span>备份</span></button>
       <button className={`asset-toggle ${assetRequest ? 'active' : ''}`} id="assetToggle" onClick={showAssets} type="button"><i data-lucide="library" /><span>资产库</span></button>
       <div className={`shortcut-modal ${shortcutOpen ? 'open' : ''}`} id="smartShortcutModal" onClick={() => setShortcutOpen(false)}>
         <div className="shortcut-panel" onClick={(event) => event.stopPropagation()}>
@@ -495,19 +564,11 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     <div className={`canvas-modern-board ${smartEditor ? 'world' : ''}`} id={smartEditor ? 'world' : undefined} ref={boardRef} style={smartEditor ? { height: '100%', inset: 0, position: 'absolute', transform: 'none', width: '100%' } : classicEditor ? { inset: 0 } : undefined} />
     {smartEditor ? <div className="selection-box" id="selectionBox" /> : null}
     {smartEditor ? <div aria-live="polite" className={`toast ${status ? 'show' : ''}`} id="toast">{status}</div> : null}
-    {smartEditor ? <div className="smart-lock-overlay" hidden={!lockHolder} id="smartLockOverlay">
-      <div className="smart-lock-card">
-        <i data-lucide="lock" />
-        <strong>画布编辑中</strong>
-        <span id="smartLockMessage">{lockHolder ? `${lockHolderName(lockHolder)} 正在编辑此画布` : ''}</span>
-        <small>你只能查看、移动和缩放画布，等对方退出后会自动解锁。</small>
-        <button id="smartLockRetryBtn" onClick={() => void acquireCurrentLock()} type="button"><i data-lucide="refresh-cw" /><span>刷新状态</span></button>
-      </div>
-    </div> : null}
+    {smartEditor ? <SmartCanvasBackupAndLock backups={backups} lockHolder={lockHolder} lockIssue={lockIssue} onAcquireLock={acquireCurrentLock} onCloseBackups={() => setBackups(null)} onCreateBackup={createCurrentBackup} onDeleteBackup={deleteCurrentBackup} onRestoreBackup={restoreCurrentBackup} onStatus={setStatus} /> : null}
     {classicEditor ? <div className="hint editor-only">拖拽画布移动，Ctrl 框选多选，拖动选中节点可一起移动。上传/提示词节点右下端口拖线到生成节点。</div> : null}
     {configuration.editorAddon}
     {lockHolder && !smartEditor ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
-    {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
+    {backups && !smartEditor ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={createCurrentBackup} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={() => void restoreCurrentBackup(String(backup.filename))} type="button">恢复</button><button onClick={() => void deleteCurrentBackup(String(backup.filename))} type="button">删除</button></div>)}</section></div> : null}
     {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
     {workflowOpen ? smartEditor
       ? <SmartCanvasWorkflowPanel onClose={() => setWorkflowOpen(false)} onImport={importWorkflow} onSaveToLibrary={saveWorkflowToLibrary} onStatus={setStatus} title={String(current.title || 'canvas')} />

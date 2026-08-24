@@ -133,6 +133,7 @@ declare global {
     CanvasBoardV2?: {
       addNode(type: 'comfy' | 'generator' | 'group' | 'image' | 'llm' | 'loop' | 'ltxDirector' | 'msgen' | 'output' | 'prompt' | 'promptGroup' | 'smart-image' | 'video', point?: { x: number; y: number }): string | null;
       exportSelection(): { connections: unknown[]; nodes: unknown[] };
+      flushSaves(): Promise<void>;
       groupSelected(): void;
       importFiles(files: File[], point?: { x: number; y: number }): Promise<void>;
       importWorkflow(payload: { connections?: unknown[]; nodes?: unknown[] }): string[];

@@ -19,10 +19,45 @@ export function mergeCanvasDocuments(baseInput: unknown, localInput: unknown, re
 
   const conflicts: string[] = [];
   const document = mergeRecord(base, local, remote, '', conflicts) as CanvasDocument;
-  document.nodes = mergeCollection(base.nodes, local.nodes, remote.nodes, 'nodes', conflicts, nodeKey) as CanvasNode[];
+  document.nodes = mergeNodeCollection(base.nodes, local.nodes, remote.nodes, conflicts);
   document.connections = mergeCollection(base.connections, local.connections, remote.connections, 'connections', conflicts, edgeKey) as CanvasEdge[];
   document.updated_at = remote.updated_at;
   return { conflicts: [...new Set(conflicts)], document: decodeCanvasDocument(document) };
+}
+
+export function canvasDocumentHasInFlightNodes(document: CanvasDocument): boolean {
+  return document.nodes.some(canvasNodeInFlight);
+}
+
+function mergeNodeCollection(base: CanvasNode[], local: CanvasNode[], remote: CanvasNode[], conflicts: string[]): CanvasNode[] {
+  const baseMap = new Map(base.map((node) => [node.id, node]));
+  const localMap = new Map(local.map((node) => [node.id, node]));
+  const remoteMap = new Map(remote.map((node) => [node.id, node]));
+  const order = [...local.map(nodeKey), ...remote.map(nodeKey)].filter((key, index, all) => all.indexOf(key) === index);
+  return order.flatMap((key) => {
+    const localNode = localMap.get(key);
+    const remoteNode = remoteMap.get(key);
+    if (localNode && remoteNode && canvasNodeInFlight(localNode)) return [{ ...clone(localNode), images: mergeNodeImages(localNode.images, remoteNode.images) }];
+    const value = mergeValue(baseMap.get(key) ?? missing, localNode ?? missing, remoteNode ?? missing, `nodes.${key}`, conflicts);
+    return value === missing ? [] : [clone(value) as CanvasNode];
+  });
+}
+
+function canvasNodeInFlight(node: CanvasNode): boolean {
+  return Boolean(node.running || node.pending || node.queued || (Array.isArray(node.pendingTasks) && node.pendingTasks.some((task) => Boolean(task && typeof task === 'object' && (task as Record<string, unknown>).taskId))));
+}
+
+function mergeNodeImages(local: unknown, remote: unknown): unknown[] | undefined {
+  if (!Array.isArray(local) && !Array.isArray(remote)) return Array.isArray(local) ? clone(local) : undefined;
+  const result: unknown[] = [];
+  const seen = new Set<string>();
+  [...(Array.isArray(local) ? local : []), ...(Array.isArray(remote) ? remote : [])].forEach((item) => {
+    const url = typeof item === 'string' ? item : item && typeof item === 'object' ? String((item as Record<string, unknown>).url || '') : '';
+    if (url && seen.has(url)) return;
+    if (url) seen.add(url);
+    result.push(clone(item));
+  });
+  return result;
 }
 
 function mergeRecord(

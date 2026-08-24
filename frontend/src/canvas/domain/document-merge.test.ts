@@ -47,4 +47,22 @@ describe('canvas document three-way merge', () => {
     expect(result.conflicts).toEqual([]);
     expect(result.document.nodes.map((node) => node.id)).toEqual(['b', 'c']);
   });
+
+  it('protects local in-flight Smart nodes while merging unique remote outputs', () => {
+    const smartBase = {
+      id: 'smart', updated_at: 10, connections: [],
+      nodes: [{ id: 'image', type: 'smart-image', title: 'Local run', running: false, images: [{ url: '/base.png' }] }],
+    };
+    const local = structuredClone(smartBase);
+    local.nodes[0] = { ...local.nodes[0], running: true, pending: 1, pendingTasks: [{ taskId: 'task-local' }], images: [{ url: '/base.png' }, { url: '/local.png' }] } as typeof local.nodes[0];
+    const remote = structuredClone(smartBase);
+    remote.updated_at = 20;
+    remote.nodes[0] = { ...remote.nodes[0], title: 'Stale remote', images: [{ url: '/base.png' }, { url: '/remote.png' }] };
+
+    const result = mergeCanvasDocuments(smartBase, local, remote);
+
+    expect(result.conflicts).toEqual([]);
+    expect(result.document.nodes[0]).toMatchObject({ title: 'Local run', running: true, pending: 1, pendingTasks: [{ taskId: 'task-local' }] });
+    expect(result.document.nodes[0].images).toEqual([{ url: '/base.png' }, { url: '/local.png' }, { url: '/remote.png' }]);
+  });
 });

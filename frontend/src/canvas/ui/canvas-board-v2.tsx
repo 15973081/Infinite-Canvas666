@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
 import { decodeCanvasDocument } from '../domain/document-codec';
-import { mergeCanvasDocuments } from '../domain/document-merge';
+import { canvasDocumentHasInFlightNodes, mergeCanvasDocuments } from '../domain/document-merge';
 import { createGraphModel } from '../domain/graph';
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
@@ -1632,7 +1632,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       });
       commit();
     }} onClose={() => setImageEditorNodeId('')} url={String(imageEditorNode.url)} />) : null}
-    {readOnly ? <div className="canvas-board-readonly-shield" data-testid="canvas-board-readonly-shield" /> : null}
+    {readOnly ? <div aria-hidden="true" className="canvas-board-readonly-shield" data-testid="canvas-board-readonly-shield" style={{ pointerEvents: 'none' }} /> : null}
   </div>;
 }
 
@@ -1698,6 +1698,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
   let disposed = false;
   let pending = false;
   let saving = false;
+  let saveOperation: Promise<void> | null = null;
   const savePayload = (document: CanvasDocument) => ({
     ...canvasDocumentSavePayload(document),
     ...(options.clientId ? { client_id: options.clientId } : {}),
@@ -1720,7 +1721,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     pending = true;
     if (saving) return;
     saving = true;
-    void (async () => {
+    const operation = (async () => {
       while (pending && !disposed) {
         pending = false;
         const submitted = store.getState().document;
@@ -1780,6 +1781,8 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       }
       saving = false;
     })();
+    saveOperation = operation;
+    void operation.finally(() => { if (saveOperation === operation) saveOperation = null; });
   };
   const undo = () => {
     const current = store.getState().document;
@@ -1811,7 +1814,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
     const localChanged = Boolean(baseDocument && documentHistoryKey(current) !== documentHistoryKey(baseDocument));
     let next = remote;
     let merged = false;
-    if (!readOnlyMode && baseDocument && localChanged) {
+    if (!readOnlyMode && baseDocument && (localChanged || canvasDocumentHasInFlightNodes(current))) {
       const result = mergeCanvasDocuments(baseDocument, current, remote);
       if (result.conflicts.length) {
         reportSaveState('conflict');
@@ -1999,6 +2002,14 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       });
       store.getState().projectDocument(result);
       commit(false);
+    },
+    async flushSaves() {
+      while (saving || pending) {
+        if (pending && !saving) commit(false);
+        const operation = saveOperation;
+        if (operation) await operation;
+        else await new Promise((resolve) => window.setTimeout(resolve, 0));
+      }
     },
     selectedNodeIds() { return [...externalSelection]; },
     setReadOnly(value) {
