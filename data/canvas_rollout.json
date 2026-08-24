@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "percentage": 5,
+  "percentage": 100,
   "kill_switch": false,
   "require_audit": true,
   "max_audit_files": 20000
