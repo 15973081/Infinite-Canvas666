@@ -56,6 +56,7 @@ export function LegacyOutputLightbox({ node, onClose, onNavigate, onRerun, onVie
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        event.stopImmediatePropagation();
         onClose();
         return;
       }
@@ -64,10 +65,11 @@ export function LegacyOutputLightbox({ node, onClose, onNavigate, onRerun, onVie
       const index = Math.max(0, items.findIndex((item) => item.url === url));
       const direction = event.key === 'ArrowRight' ? 1 : -1;
       event.preventDefault();
+      event.stopImmediatePropagation();
       onNavigate(items[(index + direction + items.length) % items.length].url);
     };
-    window.addEventListener('keydown', keydown);
-    return () => window.removeEventListener('keydown', keydown);
+    window.addEventListener('keydown', keydown, true);
+    return () => window.removeEventListener('keydown', keydown, true);
   }, [items, onClose, onNavigate, url]);
 
   useEffect(() => {
@@ -129,7 +131,7 @@ export function LegacyOutputLightbox({ node, onClose, onNavigate, onRerun, onVie
   };
 
   return <div aria-label="输出预览" className="output-lightbox open canvas-v2-lightbox" onClick={onClose} role="dialog">
-    <div className="output-lightbox-shell" onClick={(event) => event.stopPropagation()}>
+    <div className="output-lightbox-shell" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
       <div
         className={`output-preview ${compareMode ? 'compare-mode' : ''} ${panning ? 'panning' : ''} ${zoom > 1.001 ? 'zoomed' : ''}`.trim()}
         data-preview-url={url}
