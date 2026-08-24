@@ -98,7 +98,7 @@ test('runs the standalone React Canvas without loading the legacy Canvas runtime
   });
 
   await page.goto('/static/canvas.html?canvas_v2_rollout=100');
-  await page.getByRole('button', { name: /Standalone E2E/ }).click();
+  await page.locator('.canvas-item[data-canvas-id="standalone-e2e"] .canvas-open').click();
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.locator('[data-node-type="generator"]')).toHaveCount(1);
   const isolation = await page.evaluate(() => ({
