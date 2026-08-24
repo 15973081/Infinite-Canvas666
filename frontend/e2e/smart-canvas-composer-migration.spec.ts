@@ -104,8 +104,8 @@ test('persists prompt drafts, opens the prompt library and runs the selected gen
   await expect.poll(() => state.saves.at(-1)?.nodes.find((node: any) => node.id === 'output-1')?.promptDraftText).toBe('new composer prompt');
 
   await composer.locator('#composerTemplateBtn').click();
-  await expect(page.locator('.prompt-library-dialog')).toBeVisible();
-  await page.locator('.prompt-library-dialog header button').click();
+  await expect(page.locator('#promptTemplatePanel.prompt-template-panel.open[data-target="composer"]')).toBeVisible();
+  await page.locator('#promptTemplateClose').click();
 
   await composer.locator('#runBtn').click();
   await composer.locator('#cascadeRunBtn').click();

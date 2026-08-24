@@ -14,6 +14,7 @@ import { SmartCanvasComposer } from './smart-canvas-composer';
 import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canvas-create-menu';
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
+import { SmartCanvasPromptTemplate } from './smart-canvas-prompt-template';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -97,11 +98,11 @@ function canOutput(node: CanvasNode): boolean {
   return ['image', 'prompt', 'loop', 'group', 'promptGroup', 'generator', 'comfy', 'ltxDirector', 'llm', 'msgen', 'video', 'output'].includes(node.type);
 }
 
-function PromptBody({ commit, node, onOpenPreset, store }: { commit: () => void; node: CanvasNode; onOpenPreset?: (nodeId: string) => void; store: DocumentStore }) {
+function PromptBody({ commit, node, onOpenPreset, onOpenTemplate, store }: { commit: () => void; node: CanvasNode; onOpenPreset?: (nodeId: string) => void; onOpenTemplate?: (nodeId: string) => void; store: DocumentStore }) {
   const text = String(node.text || '');
   return <div className="prompt-editor" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <div className="prompt-toolbar">
-      <button className="prompt-template-btn" onClick={() => window.CanvasBoardV2?.openPromptTemplates(node.id)} type="button">模板</button>
+      <button className="prompt-template-btn prompt-preset-edit" onClick={() => onOpenTemplate ? onOpenTemplate(node.id) : window.CanvasBoardV2?.openPromptTemplates(node.id)} type="button">模板</button>
       {onOpenPreset ? <button className="prompt-template-btn prompt-preset-save" onClick={() => onOpenPreset(node.id)} type="button">预设</button> : null}
       <div className={`prompt-counter ${text.length > 20_000 ? 'over' : ''}`}><span>{text.length.toLocaleString()}</span><span>/ 20,000</span></div>
     </div>
@@ -522,6 +523,12 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [promptPresetNodeId, setPromptPresetNodeId] = useState('');
+  const [promptTemplateTarget, setPromptTemplateTarget] = useState<{
+    initialText: string;
+    nodeId?: string;
+    onApply?: (text: string) => void;
+    target: 'composer' | 'node';
+  } | null>(null);
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
   const boardDocument = { connections: document?.connections ?? [], nodes: document?.nodes ?? [] };
 
@@ -531,6 +538,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     setSelectedIds(new Set());
     setCreateMenu(null);
     setPromptPresetNodeId('');
+    setPromptTemplateTarget(null);
     setViewport(legacyUi ? loadViewport(documentId) : { x: 0, y: 0, zoom: 1 });
   }, [documentId, legacyUi]);
 
@@ -981,7 +989,10 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
           {canInput(node) ? <button aria-label={`连接到 ${node.id}`} className="port in" data-port="in" onClick={() => connect(node.id)} onPointerDown={(event) => event.stopPropagation()} onPointerUp={() => connect(node.id)} type="button" /> : null}
           {canOutput(node) ? <button aria-label={`从 ${node.id} 连线`} className="port out" data-port="out" onClick={() => setConnectingFrom(node.id)} onPointerDown={(event) => { event.stopPropagation(); setConnectingFrom(node.id); }} type="button" /> : null}
           <header className="node-head"><strong className="node-title">{nodeRegistry[node.type] ?? node.type}</strong></header>
-          <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} onOpenPreset={smartUi && !readOnly ? setPromptPresetNodeId : undefined} store={store} />
+          <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} onOpenPreset={smartUi && !readOnly ? setPromptPresetNodeId : undefined} onOpenTemplate={smartUi ? (nodeId) => {
+            const active = store.getState().document?.nodes.find((item) => item.id === nodeId);
+            if (active) setPromptTemplateTarget({ initialText: String(active.text || ''), nodeId, target: 'node' });
+          } : undefined} store={store} />
             : node.type === 'image' ? <ImageBody canvasRuntime={canvasRuntime} commit={commit} node={node} onEdit={() => setImageEditorNodeId(node.id)} store={store} />
               : node.type === 'group' ? <GroupBody node={node} nodesById={nodesById} />
             : node.type === 'promptGroup' ? <PromptGroupBody node={node} nodesById={nodesById} />
@@ -1002,6 +1013,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
         generator={selectedSmartGenerator}
         onPatchGenerator={patchSmartGenerator}
         onPatchOutput={patchSmartOutput}
+        onOpenTemplate={(initialText, onApply) => setPromptTemplateTarget({ initialText, onApply, target: 'composer' })}
         onRun={runSmartComposer}
         output={selectedSmartOutput}
         readOnly={readOnly}
@@ -1033,6 +1045,19 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       onClose={() => setPromptPresetNodeId('')}
       onPatchNode={(nodeId, patch) => { store.getState().updateNode(nodeId, patch); commit(); }}
       readOnly={readOnly}
+    /> : null}
+    {smartUi && promptTemplateTarget ? <SmartCanvasPromptTemplate
+      initialText={promptTemplateTarget.initialText}
+      onApply={(text, promptPresetId) => {
+        if (promptTemplateTarget.target === 'composer') promptTemplateTarget.onApply?.(text);
+        else if (promptTemplateTarget.nodeId) {
+          store.getState().updateNode(promptTemplateTarget.nodeId, { promptPresetId, text });
+          commit();
+        }
+      }}
+      onClose={() => setPromptTemplateTarget(null)}
+      readOnly={readOnly}
+      target={promptTemplateTarget.target}
     /> : null}
     {smartUi ? <input accept="image/*,video/*,audio/*" hidden id="fileInput" multiple type="file" /> : null}
     {legacyUi ? <div className="minimap" onPointerDown={(event) => {

@@ -3,7 +3,7 @@ export interface PromptItem { category: string; created_at?: number; id: string;
 export interface PromptLibrary { categories: PromptCategory[]; id: string; items: PromptItem[]; name: string; readonly?: boolean; system?: boolean }
 export interface PromptLibraryState { active_library_id: string; libraries: PromptLibrary[] }
 
-type PromptResponse = { item?: PromptItem; library: PromptLibraryState; removed?: number };
+type PromptResponse = { category?: PromptCategory; item?: PromptItem; library: PromptLibraryState; removed?: number };
 
 export const promptLibraryClient = {
   list: () => request<PromptResponse>('/api/prompt-libraries'),
@@ -15,6 +15,8 @@ export const promptLibraryClient = {
     : '/api/prompt-libraries/items', json(item.id ? 'PATCH' : 'POST', { library_id: libraryId, ...item })),
   deletePrompts: (ids: string[]) => request<PromptResponse>('/api/prompt-libraries/items/delete', json('POST', { ids })),
   createCategory: (libraryId: string, name: string) => request<PromptResponse>('/api/prompt-libraries/categories', json('POST', { library_id: libraryId, name })),
+  renameCategory: (libraryId: string, id: string, name: string) => request<PromptResponse>(`/api/prompt-libraries/categories/${encodeURIComponent(id)}`, json('PATCH', { library_id: libraryId, name })),
+  deleteCategory: (id: string) => request<PromptResponse>(`/api/prompt-libraries/categories/${encodeURIComponent(id)}`, json('DELETE')),
 };
 
 async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {

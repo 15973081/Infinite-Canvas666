@@ -14,6 +14,7 @@ interface SmartCanvasComposerProps {
   generator: CanvasNode | null;
   onPatchGenerator(patch: Record<string, unknown>, type?: 'comfy' | 'generator' | 'msgen' | 'video'): string;
   onPatchOutput(patch: Record<string, unknown>, save?: boolean): void;
+  onOpenTemplate?: (initialText: string, onApply: (text: string) => void) => void;
   onRun(mode: 'cascade' | 'node'): void;
   output: CanvasNode | null;
   readOnly: boolean;
@@ -22,7 +23,7 @@ interface SmartCanvasComposerProps {
 const imageResolutions = [['1k', '1K'], ['2k', '2K'], ['4k', '4K'], ['custom', '自定义']] as const;
 const imageRatios = [['square', '1:1'], ['portrait', '2:3'], ['landscape', '3:2'], ['portrait43', '3:4'], ['landscape43', '4:3'], ['story', '9:16'], ['wide', '16:9'], ['ultrawide', '21:9'], ['tall', '9:21'], ['source', '自适应'], ['custom', '自定义']] as const;
 
-export function SmartCanvasComposer({ canvasRuntime, document, generator, onPatchGenerator, onPatchOutput, onRun, output, readOnly }: SmartCanvasComposerProps) {
+export function SmartCanvasComposer({ canvasRuntime, document, generator, onOpenTemplate, onPatchGenerator, onPatchOutput, onRun, output, readOnly }: SmartCanvasComposerProps) {
   const [engine, setEngine] = useState<ComposerEngine>(() => engineFor(generator));
   const [kind, setKind] = useState<ComposerKind>(() => generator?.type === 'video' ? 'video' : 'image');
   const [prompt, setPrompt] = useState(() => promptFor(output));
@@ -169,7 +170,7 @@ export function SmartCanvasComposer({ canvasRuntime, document, generator, onPatc
       <div className={`input-prompt-preview ${upstreamPrompt ? 'has-text' : ''}`} id="inputPromptPreview">{upstreamPrompt ? <><div className="input-prompt-preview-label">上游提示词</div><div className="input-prompt-preview-text">{upstreamPrompt}</div></> : null}</div>
       <div className="prompt-row">
         <div className="prompt-input" contentEditable={!readOnly} data-placeholder={kind === 'video' ? '描述你想生成或编辑的视频...' : '描述你想生成或编辑的图片...'} id="promptInput" onBlur={(event) => patchPrompt(snapshotPrompt(event.currentTarget), true)} onInput={(event) => patchPrompt(snapshotPrompt(event.currentTarget), false)} ref={promptInputRef} suppressContentEditableWarning />
-        <button aria-label="模板库" className="composer-template-btn" disabled={!output || readOnly} id="composerTemplateBtn" onClick={() => window.openCanvasPromptLibrary?.({ initialText: prompt, onApply: savePrompt })} title="模板库" type="button"><i data-lucide="library" /><span>模板库</span></button>
+        <button aria-label="模板库" className="composer-template-btn" disabled={!output || readOnly} id="composerTemplateBtn" onClick={() => onOpenTemplate?.(prompt, savePrompt)} title="模板库" type="button"><i data-lucide="library" /><span>模板库</span></button>
         <SmartCanvasMentionPicker inputItems={mentionCandidates} inputRef={promptInputRef} onPromptChange={patchPrompt} outputId={output?.id || ''} readOnly={readOnly} />
         <div className="prompt-resize" id="promptResize" onPointerDown={startPromptResize} title="拖拽调整文本框高度" />
       </div>
