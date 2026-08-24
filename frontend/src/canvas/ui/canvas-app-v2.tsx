@@ -16,6 +16,7 @@ import { SmartCanvasAssetPanel } from './smart-canvas-asset-panel';
 import { SmartCanvasWorkflowPanel, type SmartWorkflowSelection } from './smart-canvas-workflow-panel';
 import { formatSmartCanvasCost, SmartCanvasLogCostPanel, smartCanvasLogCostTotals } from './smart-canvas-log-cost-panel';
 import { SmartCanvasBackupAndLock } from './smart-canvas-backup-and-lock';
+import { isSmartCanvasEditableTarget, isSupportedSmartCanvasClipboardFile, SmartCanvasShortcutPanel } from './smart-canvas-shortcut-panel';
 import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
 import { CanvasManager, ScopedCanvasManager } from './canvas-manager';
 
@@ -113,6 +114,12 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     window.addEventListener('canvas-board-v2-document-saved', listener);
     return () => window.removeEventListener('canvas-board-v2-document-saved', listener);
   }, [current?.id]);
+
+  useEffect(() => {
+    const listener = (event: Event) => setStatus(String((event as CustomEvent<string>).detail || ''));
+    window.addEventListener('canvas-board-v2-shortcut-status', listener);
+    return () => window.removeEventListener('canvas-board-v2-shortcut-status', listener);
+  }, []);
 
   useEffect(() => {
     const release = () => {
@@ -414,17 +421,21 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       await importWorkflow(new File([await response.blob()], `${item.name || 'workflow'}${extension}`));
     },
   });
+  const toggleAssets = () => assetRequest ? setAssetRequest(null) : showAssets();
   const importAssetInbox = () => {
     const key = configuration.assetInboxKey || '';
     const items = readCanvasAssetInbox(key);
     if (!items.length) { setStatus('素材收件箱为空或已过期'); return 0; }
     const columns = Math.max(1, Math.min(items.length, Math.ceil(Math.sqrt(items.length))));
     const ids = items.map((item, index) => {
-      const id = window.CanvasBoardV2?.addNode('image', {
+      const smart = configuration.kind === 'smart';
+      const id = window.CanvasBoardV2?.addNode(smart ? 'smart-image' : 'image', {
         x: 100 + (index % columns) * 280,
         y: 100 + Math.floor(index / columns) * 220,
       });
-      if (id) window.CanvasBoardV2?.updateNode(id, { mediaKind: item.kind, name: item.name, url: item.url });
+      if (id) window.CanvasBoardV2?.updateNode(id, smart
+        ? { images: [{ kind: item.kind, name: item.name, url: item.url }], scale: 2, title: item.kind === 'video' ? 'Video' : item.kind === 'audio' ? 'Audio' : 'Image' }
+        : { mediaKind: item.kind, name: item.name, url: item.url });
       return id;
     }).filter(Boolean);
     localStorage.removeItem(key);
@@ -434,16 +445,16 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
 
   useEffect(() => {
     if (!current || !configuration.assetInboxKey) return;
-    const paste = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return;
-      const target = event.target as HTMLElement | null;
-      if (target?.isContentEditable || ['INPUT', 'TEXTAREA'].includes(target?.tagName || '')) return;
+    const paste = (event: ClipboardEvent) => {
+      if (isSmartCanvasEditableTarget(event.target)) return;
+      if ([...(event.clipboardData?.files || [])].some(isSupportedSmartCanvasClipboardFile)) return;
       if (!readCanvasAssetInbox(configuration.assetInboxKey || '').length) return;
       event.preventDefault();
       importAssetInbox();
+      window.dispatchEvent(new Event('canvas-board-v2-asset-inbox-pasted'));
     };
-    window.addEventListener('keydown', paste, true);
-    return () => window.removeEventListener('keydown', paste, true);
+    window.addEventListener('paste', paste, true);
+    return () => window.removeEventListener('paste', paste, true);
   }, [configuration.assetInboxKey, current]);
 
   useEffect(() => {
@@ -454,13 +465,6 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     document.body.classList.toggle('smart-canvas-readonly', Boolean(lockHolder));
     return () => document.body.classList.remove('smart-canvas-readonly');
   }, [configuration.kind, current, lockHolder]);
-
-  useEffect(() => {
-    if (!shortcutOpen) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setShortcutOpen(false); };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
-  }, [shortcutOpen]);
 
   if (!current) {
     const Manager = configuration.kind === 'classic' ? ScopedCanvasManager : CanvasManager;
@@ -541,25 +545,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       <button aria-label="日志" className={`smart-log-toggle ${inspector?.mode === 'logs' ? 'active' : ''}`} id="smartLogToggle" onClick={() => void showInspector('logs')} title="日志" type="button"><i data-lucide="list-todo" /><span>日志</span></button>
       <button aria-label="备份" className={`smart-backup-toggle ${backups ? 'active' : ''}`} id="smartBackupToggle" onClick={() => void showBackups()} title="备份" type="button"><i data-lucide="hard-drive" /><span>备份</span></button>
       <button className={`asset-toggle ${assetRequest ? 'active' : ''}`} id="assetToggle" onClick={showAssets} type="button"><i data-lucide="library" /><span>资产库</span></button>
-      <div className={`shortcut-modal ${shortcutOpen ? 'open' : ''}`} id="smartShortcutModal" onClick={() => setShortcutOpen(false)}>
-        <div className="shortcut-panel" onClick={(event) => event.stopPropagation()}>
-          <div className="shortcut-head"><div className="shortcut-title"><i data-lucide="keyboard" /><span>快捷键</span></div><button className="preview-icon-btn" onClick={() => setShortcutOpen(false)} title="关闭" type="button"><i data-lucide="x" /></button></div>
-          <div className="shortcut-list">
-            <ShortcutItem keys={['Ctrl']} text="按住并拖拽框选节点" />
-            <ShortcutItem keys={['Ctrl', 'G']} text="合并选中的图片为组" />
-            <ShortcutItem keys={['Ctrl', 'Shift', 'G']} text="释放选中的分组" />
-            <ShortcutItem keys={['Ctrl', 'Z']} text="撤销上一步操作" />
-            <ShortcutItem keys={['Ctrl', 'C']} text="复制选中的节点" />
-            <ShortcutItem keys={['Ctrl', 'V']} text="粘贴节点或剪贴板图片" />
-            <ShortcutItem keys={['A']} text="打开/关闭资源库" />
-            <ShortcutItem keys={['Z']} text="缩小画布视图" />
-            <ShortcutItem keys={['双击']} text="打开快捷菜单" />
-            <ShortcutItem keys={['空白处']} text="拖动画布" />
-            <ShortcutItem keys={['滚轮']} text="缩放画布或预览图片" />
-            <ShortcutItem keys={['Del']} text="删除选中节点" />
-          </div>
-        </div>
-      </div>
+      <SmartCanvasShortcutPanel onClose={() => setShortcutOpen(false)} onToggleAssets={toggleAssets} open={shortcutOpen} />
     </>}
     <div className={`canvas-modern-board ${smartEditor ? 'world' : ''}`} id={smartEditor ? 'world' : undefined} ref={boardRef} style={smartEditor ? { height: '100%', inset: 0, position: 'absolute', transform: 'none', width: '100%' } : classicEditor ? { inset: 0 } : undefined} />
     {smartEditor ? <div className="selection-box" id="selectionBox" /> : null}
@@ -586,10 +572,6 @@ export function mountCanvasAppV2(element: HTMLElement, dependencies: CanvasAppDe
   const root = createRoot(element);
   root.render(<CanvasAppV2 {...dependencies} />);
   return () => root.unmount();
-}
-
-function ShortcutItem({ keys, text }: { keys: string[]; text: string }) {
-  return <div className="shortcut-item"><span className="shortcut-keys">{keys.map((key) => <kbd key={key}>{key}</kbd>)}</span><span>{text}</span></div>;
 }
 
 function canvasClientId(): string {

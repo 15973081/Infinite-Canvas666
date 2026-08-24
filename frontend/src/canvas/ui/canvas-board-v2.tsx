@@ -19,6 +19,7 @@ import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
 import { SmartCanvasPromptTemplate } from './smart-canvas-prompt-template';
 import { SmartCanvasPreview } from './smart-canvas-preview';
+import { isSmartCanvasEditableTarget, isSupportedSmartCanvasClipboardFile } from './smart-canvas-shortcut-panel';
 import { SmartImageNode, smartImageItems, smartImageNodeLayout } from './smart-image-node';
 import { SmartLoopNode, smartLoopImagesForRound, smartLoopNodeLayout, smartLoopPromptForRound } from './smart-loop-node';
 import { SmartPromptNode, smartPromptNodeLayout, type SmartPromptProvider } from './smart-prompt-node';
@@ -26,6 +27,7 @@ import { SmartPromptNode, smartPromptNodeLayout, type SmartPromptProvider } from
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
 type SelectionRect = { height: number; left: number; top: number; width: number };
+type ZoomPreview = { viewport: Viewport };
 
 const WORLD_WIDTH = 6000;
 const WORLD_HEIGHT = 4000;
@@ -111,6 +113,69 @@ function canInput(node: CanvasNode): boolean {
 
 function canOutput(node: CanvasNode): boolean {
   return ['image', 'prompt', 'loop', 'group', 'promptGroup', 'generator', 'comfy', 'ltxDirector', 'llm', 'msgen', 'smart-image', 'video', 'output'].includes(node.type);
+}
+
+function stripSmartImageGenerationMeta(item: unknown): Record<string, unknown> | null {
+  const image = typeof item === 'string' ? { url: item } : item && typeof item === 'object' ? structuredClone(item as Record<string, unknown>) : null;
+  if (!image) return null;
+  ['runPrompt', 'runModelPrompt', 'runSettings', 'sourceNodeId', 'runAt', 'promptDraftHtml', 'promptDraftText'].forEach((field) => delete image[field]);
+  return image;
+}
+
+export function groupSmartCanvasImageNodes(snapshot: CanvasDocument, nodeIds: string[]): { document: CanvasDocument; id: string } | null {
+  const ids = new Set(nodeIds);
+  const selected = snapshot.nodes.filter((node) => ids.has(node.id) && Array.isArray(node.images) && node.images.length);
+  if (selected.length < 2) return null;
+  const id = `smart_${crypto.randomUUID()}`;
+  const images = selected.flatMap((node) => (node.images as unknown[]).map(stripSmartImageGenerationMeta).filter((item): item is Record<string, unknown> => Boolean(item)));
+  const group: CanvasNode = {
+    created_at: Date.now(), id, images, scale: 0.8, title: 'Group', type: 'smart-image',
+    x: Math.min(...selected.map((node) => Number(node.x || 0))),
+    y: Math.min(...selected.map((node) => Number(node.y || 0))),
+  };
+  const remapped = snapshot.connections.map((edge) => ({
+    ...edge,
+    from: ids.has(edge.from) ? id : edge.from,
+    to: ids.has(edge.to) ? id : edge.to,
+  }));
+  const seen = new Set<string>();
+  const connections = remapped.filter((edge) => {
+    const key = `${edge.from}\u0000${edge.to}\u0000${String(edge.kind || 'flow')}`;
+    if (edge.from === edge.to || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { document: { ...snapshot, connections, nodes: [...snapshot.nodes.filter((node) => !ids.has(node.id)), group] }, id };
+}
+
+export function ungroupSmartCanvasImageNode(snapshot: CanvasDocument, groupId: string): { document: CanvasDocument; ids: string[] } | null {
+  const group = snapshot.nodes.find((node) => node.id === groupId);
+  const images = Array.isArray(group?.images) ? group.images.map(stripSmartImageGenerationMeta).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
+  if (!group || images.length < 2) return null;
+  const layout = smartImageNodeLayout(group);
+  const cell = Math.max(28, Math.round(layout.thumb || 96));
+  const created = images.map((image, index): CanvasNode => {
+    const col = index % Math.max(1, layout.cols || 1);
+    const row = Math.floor(index / Math.max(1, layout.cols || 1));
+    const width = Number(image.natural_w || image.width || image.w || 0);
+    const height = Number(image.natural_h || image.height || image.h || 0);
+    const fit = width > 0 && height > 0 ? Math.min(cell / width, cell / height) : 1;
+    const displayWidth = width > 0 && height > 0 ? Math.max(28, Math.round(width * fit)) : cell;
+    const displayHeight = width > 0 && height > 0 ? Math.max(28, Math.round(height * fit)) : cell;
+    return {
+      created_at: Date.now(), h: displayHeight, id: `smart_${crypto.randomUUID()}`, images: [image], scale: 2, title: 'Image', type: 'smart-image', w: displayWidth,
+      x: Math.round(Number(group.x || 0) + 16 + col * (cell + 8) + Math.max(0, (cell - displayWidth) / 2)),
+      y: Math.round(Number(group.y || 0) + 16 + row * (cell + 8) + Math.max(0, (cell - displayHeight) / 2)),
+    };
+  });
+  const createdIds = created.map((node) => node.id);
+  const nodes = snapshot.nodes.filter((node) => node.id !== groupId).map((node) => Array.isArray(node.inputNodeIds)
+    ? { ...node, inputNodeIds: node.inputNodeIds.filter((id) => String(id) !== groupId) }
+    : node);
+  return {
+    document: { ...snapshot, connections: snapshot.connections.filter((edge) => edge.from !== groupId && edge.to !== groupId), nodes: [...nodes, ...created] },
+    ids: createdIds,
+  };
 }
 
 function smartImageGeneratorView(node: CanvasNode): CanvasNode {
@@ -550,7 +615,11 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const documentId = String(document?.id || '');
   const boardRef = useRef<HTMLDivElement | null>(null);
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
+  const lastImagePasteAt = useRef(0);
+  const lastMouseWorld = useRef<Point | null>(null);
+  const lastNodePasteAt = useRef(0);
   const rSelectionKey = useRef(false);
+  const selectedIdsRef = useRef<Set<string>>(new Set());
   const [connectingFrom, setConnectingFrom] = useState('');
   const [portDrag, setPortDrag] = useState<SmartCanvasPortDrag | null>(null);
   const [selectedEdge, setSelectedEdge] = useState(-1);
@@ -561,6 +630,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const [imageEditorNodeId, setImageEditorNodeId] = useState('');
   const [readOnly, setReadOnly] = useState(initialReadOnly);
   const [viewport, setViewport] = useState<Viewport>(() => legacyUi ? loadViewport(documentId) : { x: 0, y: 0, zoom: 1 });
+  const [zoomPreview, setZoomPreview] = useState<ZoomPreview | null>(null);
   const [boardSize, setBoardSize] = useState({ height: 0, width: 0 });
   const [createMenu, setCreateMenu] = useState<{ left: number; point: Point; top: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
@@ -572,6 +642,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     onApply?: (text: string) => void;
     target: 'composer' | 'node';
   } | null>(null);
+  selectedIdsRef.current = selectedIds;
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
   const boardDocument = { connections: document?.connections ?? [], nodes: document?.nodes ?? [] };
   const connectionGraph = document ? createGraphModel(document) : null;
@@ -584,6 +655,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     setCreateMenu(null);
     setPromptPresetNodeId('');
     setPromptTemplateTarget(null);
+    setZoomPreview(null);
     setViewport(legacyUi ? loadViewport(documentId) : { x: 0, y: 0, zoom: 1 });
   }, [documentId, legacyUi]);
 
@@ -597,10 +669,54 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     return () => observer.disconnect();
   }, []);
 
+  const exitZoomPreview = (point?: Point, node?: CanvasNode) => {
+    if (!zoomPreview) return false;
+    const previous = zoomPreview.viewport;
+    let next = previous;
+    if (node) {
+      const size = nodeSize(node);
+      const center = { x: Number(node.x || 0) + size.width / 2, y: Number(node.y || 0) + size.height / 2 };
+      const fitScale = Math.min(1.15, (boardSize.width - 160) / Math.max(1, size.width), (boardSize.height - 160) / Math.max(1, size.height));
+      const zoom = Math.max(previous.zoom, Math.min(1.15, Math.max(0.72, fitScale)));
+      next = { x: boardSize.width / 2 - center.x * zoom, y: boardSize.height / 2 - center.y * zoom, zoom };
+    } else if (point) {
+      next = { x: boardSize.width / 2 - point.x * previous.zoom, y: boardSize.height / 2 - point.y * previous.zoom, zoom: previous.zoom };
+    }
+    setZoomPreview(null);
+    setViewport(next);
+    persistViewport(documentId, next);
+    return true;
+  };
+
+  const toggleZoomPreview = () => {
+    if (!smartUi) return;
+    if (zoomPreview) { exitZoomPreview(); return; }
+    const nodes = store.getState().document?.nodes ?? [];
+    if (!nodes.length || !boardSize.width || !boardSize.height) return;
+    const rects = nodes.map((node) => ({ ...nodePoint(node), ...nodeSize(node) }));
+    const minX = Math.min(...rects.map((rect) => rect.x));
+    const minY = Math.min(...rects.map((rect) => rect.y));
+    const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+    const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+    const width = Math.max(1, maxX - minX + 320);
+    const height = Math.max(1, maxY - minY + 320);
+    const zoom = Math.max(0.06, Math.min(0.82, (boardSize.width - 80) / width, (boardSize.height - 80) / height));
+    const next = { x: boardSize.width / 2 - ((minX + maxX) / 2) * zoom, y: boardSize.height / 2 - ((minY + maxY) / 2) * zoom, zoom };
+    setCreateMenu(null);
+    setZoomPreview({ viewport });
+    setViewport(next);
+    persistViewport(documentId, next);
+  };
+
+  useEffect(() => {
+    const shell = boardRef.current?.closest('.shell');
+    shell?.classList.toggle('zoom-preview', Boolean(zoomPreview));
+    return () => shell?.classList.remove('zoom-preview');
+  }, [zoomPreview]);
+
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (event.key.toLowerCase() === 'r' && !target?.isContentEditable && !target?.matches('input, textarea, select')) rSelectionKey.current = true;
+      if (event.key.toLowerCase() === 'r' && !isSmartCanvasEditableTarget(event.target)) rSelectionKey.current = true;
     };
     const keyup = (event: KeyboardEvent) => { if (event.key.toLowerCase() === 'r') rSelectionKey.current = false; };
     const blur = () => { rSelectionKey.current = false; };
@@ -623,55 +739,92 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const editable = target?.isContentEditable || target?.matches('input, textarea, select');
+      const editable = isSmartCanvasEditableTarget(event.target);
+      const key = String(event.key || '').toLowerCase();
       if (event.key === 'Escape') {
         setConnectingFrom('');
         setPortDrag(null);
         setSelectedEdge(-1);
-        setSelectedIds(new Set());
         setCreateMenu(null);
         setSelectionRect(null);
         return;
       }
-      if (readOnly) return;
       if (editable) return;
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      if (smartUi && !event.ctrlKey && !event.metaKey && !event.altKey && key === 'z') {
+        if (event.repeat) return;
         event.preventDefault();
-        if (event.shiftKey) window.CanvasBoardV2?.redo();
+        toggleZoomPreview();
+        return;
+      }
+      if (readOnly) return;
+      if ((event.ctrlKey || event.metaKey) && key === 'z') {
+        event.preventDefault();
+        if (!smartUi && event.shiftKey) window.CanvasBoardV2?.redo();
         else window.CanvasBoardV2?.undo();
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+      if (!smartUi && (event.ctrlKey || event.metaKey) && key === 'y') {
         event.preventDefault();
         window.CanvasBoardV2?.redo();
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
-        clipboard.current = store.getState().copyNodes([...selectedIds]);
+      if ((event.ctrlKey || event.metaKey) && key === 'c') {
+        if (window.getSelection?.()?.toString()) return;
+        event.preventDefault();
+        const copied = store.getState().copyNodes([...selectedIdsRef.current]);
+        clipboard.current = copied;
+        if (copied.nodes.length) window.dispatchEvent(new CustomEvent('canvas-board-v2-shortcut-status', { detail: `已复制 ${copied.nodes.length} 个节点` }));
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v' && clipboard.current) {
-        event.preventDefault();
-        const ids = store.getState().pasteNodes(clipboard.current);
-        if (ids.length) {
+      if ((event.ctrlKey || event.metaKey) && key === 'v' && clipboard.current) {
+        const requestedAt = Date.now();
+        window.setTimeout(() => {
+          if (lastImagePasteAt.current >= requestedAt || lastNodePasteAt.current >= requestedAt || !clipboard.current) return;
+          const ids = store.getState().pasteNodes(clipboard.current);
+          if (!ids.length) return;
+          lastNodePasteAt.current = Date.now();
           setSelectedIds(new Set(ids));
           commit();
-        }
+          window.dispatchEvent(new CustomEvent('canvas-board-v2-shortcut-status', { detail: `已粘贴 ${ids.length} 个节点` }));
+        }, 90);
         return;
       }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'g') {
+      if ((event.ctrlKey || event.metaKey) && key === 'g') {
         event.preventDefault();
-        const selected = store.getState().document?.nodes.filter((node) => selectedIds.has(node.id)) ?? [];
-        const id = selected.some((node) => node.type === 'image') ? store.getState().groupNodes([...selectedIds]) : store.getState().groupPromptNodes([...selectedIds]);
-        if (id) {
-          setSelectedIds(new Set([id]));
-          commit();
+        const snapshot = store.getState().document;
+        if (smartUi && snapshot) {
+          if (event.shiftKey) {
+            let next = snapshot;
+            const created: string[] = [];
+            [...selectedIdsRef.current].forEach((id) => {
+              const result = ungroupSmartCanvasImageNode(next, id);
+              if (result) { next = result.document; created.push(...result.ids); }
+            });
+            if (created.length) {
+              store.getState().projectDocument(next);
+              setSelectedIds(new Set(created));
+              commit();
+            }
+          } else {
+            const result = groupSmartCanvasImageNodes(snapshot, [...selectedIdsRef.current]);
+            if (result) {
+              store.getState().projectDocument(result.document);
+              setSelectedIds(new Set([result.id]));
+              commit();
+            }
+          }
+        } else if (!event.shiftKey) {
+          const selected = snapshot?.nodes.filter((node) => selectedIdsRef.current.has(node.id)) ?? [];
+          const id = selected.some((node) => node.type === 'image') ? store.getState().groupNodes([...selectedIdsRef.current]) : store.getState().groupPromptNodes([...selectedIdsRef.current]);
+          if (id) {
+            setSelectedIds(new Set([id]));
+            commit();
+          }
         }
         return;
       }
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-      if (selectedIds.size) selectedIds.forEach((id) => store.getState().deleteNode(id));
+      if (selectedIdsRef.current.size) selectedIdsRef.current.forEach((id) => store.getState().deleteNode(id));
       else if (selectedEdge >= 0) store.getState().deleteConnection(selectedEdge);
       else return;
       event.preventDefault();
@@ -681,21 +834,31 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [commit, readOnly, selectedEdge, selectedIds, store]);
+  }, [boardSize, commit, readOnly, selectedEdge, selectedIds, smartUi, store, viewport, zoomPreview]);
 
   useEffect(() => {
     const group = () => {
       if (readOnly) return;
-      const selected = store.getState().document?.nodes.filter((node) => selectedIds.has(node.id)) ?? [];
-      const id = selected.some((node) => node.type === 'image') ? store.getState().groupNodes([...selectedIds]) : store.getState().groupPromptNodes([...selectedIds]);
-      if (id) {
-        setSelectedIds(new Set([id]));
-        commit();
+      const snapshot = store.getState().document;
+      if (smartUi && snapshot) {
+        const result = groupSmartCanvasImageNodes(snapshot, [...selectedIds]);
+        if (result) {
+          store.getState().projectDocument(result.document);
+          setSelectedIds(new Set([result.id]));
+          commit();
+        }
+      } else {
+        const selected = snapshot?.nodes.filter((node) => selectedIds.has(node.id)) ?? [];
+        const id = selected.some((node) => node.type === 'image') ? store.getState().groupNodes([...selectedIds]) : store.getState().groupPromptNodes([...selectedIds]);
+        if (id) {
+          setSelectedIds(new Set([id]));
+          commit();
+        }
       }
     };
     window.addEventListener('canvas-board-v2-group-selected', group);
     return () => window.removeEventListener('canvas-board-v2-group-selected', group);
-  }, [commit, readOnly, selectedIds, store]);
+  }, [commit, readOnly, selectedIds, smartUi, store]);
 
   useEffect(() => {
     const listener = (event: Event) => setSaveState(String((event as CustomEvent<string>).detail || 'ready'));
@@ -907,6 +1070,40 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     store.getState().updateNode(nodeId, { h: undefined, images, scale: images.length > 1 ? 0.8 : Number(active.scale || 2), title: images.length > 1 ? 'Group' : additions[0].kind === 'video' ? 'Video' : additions[0].kind === 'audio' ? 'Audio' : 'Image', w: undefined });
     commit();
   };
+  useEffect(() => {
+    if (!smartUi) return;
+    const paste = (event: ClipboardEvent) => {
+      if (readOnly) return;
+      const files = [...(event.clipboardData?.files || [])].filter(isSupportedSmartCanvasClipboardFile);
+      if (files.length) {
+        lastImagePasteAt.current = Date.now();
+        const selectedId = selectedIdsRef.current.size === 1 ? [...selectedIdsRef.current][0] : '';
+        const selected = store.getState().document?.nodes.find((node) => node.id === selectedId && node.type === 'smart-image');
+        if (selected) { void appendSmartMedia(selected.id, files); return; }
+        const point = lastMouseWorld.current || {
+          x: (boardSize.width / 2 - viewport.x) / viewport.zoom,
+          y: (boardSize.height / 2 - viewport.y) / viewport.zoom,
+        };
+        void window.CanvasBoardV2?.importFiles(files, point);
+        return;
+      }
+      if (event.defaultPrevented || isSmartCanvasEditableTarget(event.target) || !clipboard.current) return;
+      event.preventDefault();
+      const ids = store.getState().pasteNodes(clipboard.current);
+      if (!ids.length) return;
+      lastNodePasteAt.current = Date.now();
+      setSelectedIds(new Set(ids));
+      commit();
+      window.dispatchEvent(new CustomEvent('canvas-board-v2-shortcut-status', { detail: `已粘贴 ${ids.length} 个节点` }));
+    };
+    const assetInbox = () => { lastNodePasteAt.current = Date.now(); };
+    window.addEventListener('paste', paste);
+    window.addEventListener('canvas-board-v2-asset-inbox-pasted', assetInbox);
+    return () => {
+      window.removeEventListener('paste', paste);
+      window.removeEventListener('canvas-board-v2-asset-inbox-pasted', assetInbox);
+    };
+  }, [boardSize.height, boardSize.width, readOnly, selectedIds, smartUi, store, viewport]);
   const uploadSmartPng = async (blob: Blob, name: string) => {
     const uploaded = await canvasRuntime.uploadMedia([new File([blob], name, { type: 'image/png' })]);
     const file = uploaded.files?.[0];
@@ -1000,7 +1197,24 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     className={`${legacyUi ? 'board' : ''} ${readOnly ? 'canvas-board-v2-readonly' : ''}`.trim() || undefined}
     data-testid="canvas-board-v2"
     data-viewport={`${viewport.x},${viewport.y},${viewport.zoom.toFixed(2)}`}
+    onClickCapture={(event) => {
+      if (!zoomPreview || event.button !== 0) return;
+      const target = event.target as HTMLElement;
+      if (target.closest('.composer,.smart-nav,.asset-panel,.create-menu,.smart-minimap,.log-modal,.shortcut-modal,.image-edit-modal')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const nodeId = String(target.closest<HTMLElement>('.image-node,[data-node-id]')?.dataset.id || target.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId || '');
+      const node = store.getState().document?.nodes.find((item) => item.id === nodeId);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const point = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
+      exitZoomPreview(point, node);
+    }}
     onPointerDownCapture={(event) => {
+      if (zoomPreview && event.button === 0 && !(event.target as HTMLElement).closest('.composer,.asset-panel,.create-menu,.smart-minimap,.log-modal,.shortcut-modal,.image-edit-modal')) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (!smartUi || readOnly || event.button !== 0 || connectingFrom) return;
       const port = (event.target as HTMLElement).closest<HTMLElement>('.node-port[data-port]');
       const node = port?.closest<HTMLElement>('.image-node, [data-node-id]');
@@ -1150,6 +1364,10 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       board.addEventListener('pointermove', move);
       board.addEventListener('pointerup', up, { once: true });
     }}
+    onPointerMove={(event) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      lastMouseWorld.current = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
+    }}
     onWheel={(event) => {
       event.preventDefault();
       if (!legacyUi) {
@@ -1183,7 +1401,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     <div aria-live="polite" data-testid="canvas-board-v2-save-status" style={{ position: 'absolute', right: 18, top: 74, zIndex: 20 }}>
       {saveState === 'saving' ? '正在保存' : saveState === 'error' ? '保存失败，本地修改仍保留' : saveState === 'saved' ? '已保存' : ''}
     </div>
-    <div className={legacyUi ? 'world' : undefined} style={{ height: legacyUi ? undefined : WORLD_HEIGHT, position: 'absolute', transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`, transformOrigin: legacyUi ? undefined : '0 0', width: legacyUi ? undefined : WORLD_WIDTH }}>
+    <div className={legacyUi ? `world ${Math.abs(viewport.zoom - 1) > 0.001 ? 'canvas-scaled' : ''}`.trim() : undefined} style={{ height: legacyUi ? undefined : WORLD_HEIGHT, position: 'absolute', transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`, transformOrigin: legacyUi ? undefined : '0 0', width: legacyUi ? undefined : WORLD_WIDTH }}>
       {smartUi ? <SmartCanvasConnections
         document={boardDocument}
         drag={portDrag}
@@ -1243,7 +1461,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
             const start = { clientX: event.clientX, clientY: event.clientY };
             let moved = false;
             element.setPointerCapture(event.pointerId);
-            if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
+            if (!selectedIds.has(node.id) && !event.ctrlKey && !event.metaKey) setSelectedIds(movingIds);
             const move = (next: PointerEvent) => {
               moved = true;
               const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom };
@@ -1297,7 +1515,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
               const start = { clientX: event.clientX, clientY: event.clientY };
               let moved = false;
               element.setPointerCapture(event.pointerId);
-              if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
+              if (!selectedIds.has(node.id) && !event.ctrlKey && !event.metaKey) setSelectedIds(movingIds);
               const move = (next: PointerEvent) => {
                 moved = true;
                 const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom };
@@ -1342,7 +1560,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
             const start = { clientX: event.clientX, clientY: event.clientY };
             let moved = false;
             element.setPointerCapture(event.pointerId);
-            if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
+            if (!selectedIds.has(node.id) && !event.ctrlKey && !event.metaKey) setSelectedIds(movingIds);
             const move = (next: PointerEvent) => { moved = true; const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom }; startPoints.forEach((startPoint, id) => store.getState().moveNode(id, startPoint.x + delta.x, startPoint.y + delta.y)); };
             const up = () => { element.removeEventListener('pointermove', move); if (moved) commit(); };
             element.addEventListener('pointermove', move);
@@ -1383,7 +1601,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
             let moved = false;
             element.setPointerCapture(event.pointerId);
             setSelectedEdge(-1);
-            if (!selectedIds.has(node.id)) setSelectedIds(movingIds);
+            if (!selectedIds.has(node.id) && !event.ctrlKey && !event.metaKey) setSelectedIds(movingIds);
             const move = (next: PointerEvent) => {
               moved = true;
               const delta = { x: (next.clientX - start.clientX) / viewport.zoom, y: (next.clientY - start.clientY) / viewport.zoom };
