@@ -260,9 +260,11 @@ export function createModernCanvasRuntime(taskClient: TaskClient, fetcher: Fetch
     try {
       if (node.type !== 'llm') {
         output = ensureOutput(document, node);
-        pending = { id: uniqueId('pending'), startedAt: Date.now(), nodeId, type: node.type };
-        output._pending = [...(Array.isArray(output._pending) ? output._pending : []), pending];
-        await emit(document, onUpdate);
+        if (output) {
+          pending = { id: uniqueId('pending'), startedAt: Date.now(), nodeId, type: node.type };
+          output._pending = [...(Array.isArray(output._pending) ? output._pending : []), pending];
+          await emit(document, onUpdate);
+        }
       }
       outputs = await executeByType(document, node, input, chat, signal, pending, onUpdate);
       if (outputs.length) {
@@ -565,9 +567,15 @@ function requireOutputs(result: unknown, operation: string): unknown[] {
   return outputs;
 }
 
-function ensureOutput(document: CanvasDocument, node: CanvasNode): CanvasNode {
+function ensureOutput(document: CanvasDocument, node: CanvasNode): CanvasNode | null {
   const byId = new Map(document.nodes.map((item) => [item.id, item]));
   let output = document.connections.filter((edge) => edge.from === node.id).map((edge) => byId.get(edge.to)).find((item) => item?.type === 'output');
+  if (output) return output;
+  const hasDownstreamGenerator = document.connections
+    .filter((edge) => edge.from === node.id)
+    .map((edge) => byId.get(edge.to))
+    .some((item) => item && MEDIA_TYPES.has(item.type));
+  if (hasDownstreamGenerator) return null;
   if (!output) {
     output = { id: uniqueId('out'), type: 'output', x: Number(node.x || 0) + 460, y: Number(node.y || 0), images: [] };
     document.nodes.push(output);
@@ -720,6 +728,11 @@ function parseRatio(value: unknown): number | null {
 
 function resolveGeneratorSelection(node: CanvasNode, providers: ProviderConfig[]): { model: string; providerId: string } {
   const available = providers.filter((provider) => provider.enabled !== false && Array.isArray(provider.image_models) && provider.image_models.length > 0);
+  if (!available.length) {
+    const providerId = String(node.apiProvider || '').trim();
+    const model = String(node.model || '').trim();
+    if (providerId && model) return { providerId, model };
+  }
   const provider = available.find((item) => item.id === node.apiProvider) ?? available[0];
   if (!provider?.id) throw new Error('没有可用的图片生成平台，请先完成 API 设置');
   const models = [...new Set((provider.image_models ?? []).map(String).filter(Boolean))];

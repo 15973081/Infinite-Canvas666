@@ -65,6 +65,53 @@ describe('modern Canvas runtime', () => {
     });
   });
 
+  it('uses the provider and model saved on a legacy Canvas node when config is unavailable', async () => {
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === '/api/config') throw new Error('config unavailable');
+      if (path === '/api/workflows') return json({ workflows: [] });
+      if (path === '/api/canvas-image-tasks') {
+        expect(JSON.parse(String(init?.body))).toMatchObject({ provider_id: 'saved-provider', model: 'saved-model' });
+        return json({ task_id: 'saved-task', status: 'queued' });
+      }
+      if (path === '/api/canvas-image-tasks/saved-task') return json({ id: 'saved-task', status: 'succeeded', result: { images: ['/output/saved.png'] } });
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
+    await runtime.initialize();
+
+    const result = await runtime.runNode('generator', document([
+      { id: 'prompt', type: 'prompt', text: 'saved settings' },
+      { id: 'generator', type: 'generator', apiProvider: 'saved-provider', model: 'saved-model' },
+    ], [{ from: 'prompt', to: 'generator' }]));
+
+    expect(result.nodes.find((node) => node.type === 'output')).toMatchObject({ images: [{ url: '/output/saved.png', kind: 'image' }] });
+  });
+
+  it('creates an Output only for the final generator in a legacy cascade', async () => {
+    let taskIndex = 0;
+    const fetcher = async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/config') return json({});
+      if (path === '/api/workflows') return json({ workflows: [] });
+      if (path === '/api/canvas-image-tasks') return json({ task_id: `cascade-${++taskIndex}`, status: 'queued' });
+      if (path.startsWith('/api/canvas-image-tasks/cascade-')) return json({ id: path.split('/').pop(), status: 'succeeded', result: { images: [`/output/cascade-${taskIndex}.png`] } });
+      throw new Error(`unexpected ${path}`);
+    };
+    const runtime = createModernCanvasRuntime(createTaskClient(fetcher), fetcher);
+    await runtime.initialize();
+
+    const result = await runtime.runNode('second', document([
+      { id: 'prompt', type: 'prompt', text: 'cascade' },
+      { id: 'first', type: 'generator', apiProvider: 'saved', model: 'saved', x: 100, y: 100 },
+      { id: 'second', type: 'generator', apiProvider: 'saved', model: 'saved', x: 560, y: 100 },
+    ], [{ from: 'prompt', to: 'first' }, { from: 'first', to: 'second' }]), 'cascade');
+
+    expect(result.nodes.filter((node) => node.type === 'output')).toHaveLength(1);
+    expect(result.connections).toContainEqual(expect.objectContaining({ from: 'second', to: expect.stringMatching(/^out_/) }));
+    expect(result.connections.some((edge) => edge.from === 'first' && result.nodes.find((node) => node.id === edge.to)?.type === 'output')).toBe(false);
+  });
+
   it('builds the production LTX relay payload without the legacy timeline script', async () => {
     let submitted: Record<string, any> = {};
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {

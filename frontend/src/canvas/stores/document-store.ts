@@ -160,7 +160,10 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
       const projected = decodeSnapshot(snapshot);
       const current = get().document;
       if (!current || !projected || current.id !== projected.id) return;
+      const currentIds = new Set(current.nodes.map((node) => node.id));
       const projectedById = new Map(projected.nodes.map((node) => [node.id, node]));
+      const createdOutputs = projected.nodes.filter((node) => node.type === 'output' && !currentIds.has(node.id));
+      const createdOutputIds = new Set(createdOutputs.map((node) => node.id));
       const executionFields = [
         '_cascadeFailed', '_pending', 'generatedOutputs', 'imageComparisons', 'images', 'messages',
         'outputLayout', 'outputText', 'pendingTaskId', 'runError', 'running', 'runStatus',
@@ -175,7 +178,18 @@ export function createDocumentStore(initial?: unknown): DocumentStore {
         });
         return { ...node, ...patch };
       });
-      set({ document: { ...current, nodes, updated_at: projected.updated_at ?? current.updated_at } });
+      const connectionKeys = new Set(current.connections.map((edge) => `${edge.from}\u0000${edge.to}\u0000${String(edge.kind || '')}`));
+      const executionConnections = projected.connections.filter((edge) =>
+        (createdOutputIds.has(edge.from) || createdOutputIds.has(edge.to))
+        && !connectionKeys.has(`${edge.from}\u0000${edge.to}\u0000${String(edge.kind || '')}`)
+      );
+      set({ document: {
+        ...current,
+        ...(Array.isArray(projected.logs) ? { logs: structuredClone(projected.logs) } : {}),
+        connections: [...current.connections, ...structuredClone(executionConnections)],
+        nodes: [...nodes, ...structuredClone(createdOutputs)],
+        updated_at: projected.updated_at ?? current.updated_at,
+      } });
     },
     updateNode: (nodeId, patch) => set(({ document }) => {
       if (!document?.nodes.some((node) => node.id === nodeId)) return {};

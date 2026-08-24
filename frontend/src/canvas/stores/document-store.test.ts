@@ -73,6 +73,38 @@ describe('document store', () => {
     });
   });
 
+  it('projects runtime-created Output nodes and their connections without accepting unrelated nodes', () => {
+    const store = createDocumentStore({
+      id: 'canvas-1', updated_at: 1,
+      nodes: [{ id: 'generator', type: 'generator', x: 100, y: 100 }],
+      connections: [],
+    });
+    store.getState().projectExecutionDocument({
+      id: 'canvas-1', updated_at: 2,
+      nodes: [
+        { id: 'generator', type: 'generator', x: 100, y: 100, runStatus: 'done', generatedOutputs: ['/output/result.png'] },
+        { id: 'runtime-output', type: 'output', x: 560, y: 100, images: [{ url: '/output/result.png', kind: 'image' }], _pending: [] },
+        { id: 'runtime-prompt', type: 'prompt', x: 0, y: 0, text: 'must not be projected' },
+      ],
+      connections: [
+        { from: 'generator', to: 'runtime-output' },
+        { from: 'runtime-prompt', to: 'generator' },
+      ],
+      logs: [{ id: 'run-log', status: 'done' }],
+    });
+
+    expect(store.getState().document).toMatchObject({
+      updated_at: 2,
+      nodes: [
+        { id: 'generator', runStatus: 'done', generatedOutputs: ['/output/result.png'] },
+        { id: 'runtime-output', type: 'output', images: [{ url: '/output/result.png', kind: 'image' }] },
+      ],
+      connections: [{ from: 'generator', to: 'runtime-output' }],
+      logs: [{ id: 'run-log', status: 'done' }],
+    });
+    expect(store.getState().document?.nodes.some((node) => node.id === 'runtime-prompt')).toBe(false);
+  });
+
   it('creates and edits low-risk nodes while preserving group membership', () => {
     const store = createDocumentStore({ id: 'canvas-1', nodes: [], connections: [], updated_at: 1 });
     const promptId = store.getState().addNode('prompt', { x: 10, y: 20 })!;
