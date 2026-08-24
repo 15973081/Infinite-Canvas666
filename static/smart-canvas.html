@@ -503,6 +503,7 @@
             if(modernRoot) modernRoot.hidden = false;
 
             [
+                '/static/css/smart-canvas-classic-compat.css?v=2026.08.25.1',
                 '/static/css/smart-canvas-react.css?v=2026.08.25.1',
                 '/static/css/theme.css?v=2026.06.10.1.1781494198'
             ].forEach(function(href){
@@ -517,7 +518,7 @@
 
             var module = document.createElement('script');
             module.type = 'module';
-            module.src = '/static/dist/smart-canvas-modern.js?v=2026.08.24.2';
+            module.src = '/static/dist/smart-canvas/smart-canvas-modern.js?v=2026.08.25.1';
             module.dataset.smartCanvasReactEntry = '1';
             module.onerror = function(){
                 window.__loadSmartCanvasLegacyFallback().catch(function(error){

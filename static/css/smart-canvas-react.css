@@ -94,6 +94,16 @@
 
 .canvas-board-readonly-shield { position:absolute; inset:0; z-index:90; cursor:not-allowed; background:rgba(148,163,184,.06); }
 
+/* The image editor is rendered through a body portal. Keep its original Canvas
+ * rules local to the Smart Canvas entry instead of importing canvas.css. */
+.canvas-image-transform { position:fixed; inset:0; z-index:2120; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(15,23,42,.32); pointer-events:auto; backdrop-filter:blur(8px); }
+.canvas-image-transform .modal-panel { width:min(680px,calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--panel); box-shadow:0 26px 80px rgba(0,0,0,.3); pointer-events:auto; }
+.canvas-image-transform .setting-input { width:100%; height:32px; padding:0 10px; border:1px solid var(--line-2); border-radius:12px; outline:none; background:var(--card-solid); color:var(--text); font-size:12px; font-weight:700; }
+.canvas-image-transform .primary-btn { height:38px; padding:0 14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; border-radius:12px; background:var(--strong); color:var(--strong-text); font-size:12px; font-weight:850; }
+.canvas-image-transform-preview { display:block; max-width:100%; max-height:42vh; margin:10px auto; object-fit:contain; }
+.canvas-image-transform-fields { display:grid; grid-template-columns:repeat(4,minmax(110px,1fr)); gap:8px; margin:10px 0; }
+.canvas-image-transform-fields .field { display:flex; flex-direction:column; gap:4px; }
+
 .canvas-modern-editor > .modal { position:fixed; inset:0; z-index:1100; padding:20px; display:flex; align-items:center; justify-content:center; pointer-events:auto; background:rgba(15,23,42,.24); backdrop-filter:blur(8px); }
 .canvas-modern-editor > .modal > .modal-panel { padding:16px; border:1px solid var(--line); border-radius:18px; background:var(--panel); box-shadow:0 26px 80px rgba(0,0,0,.3); pointer-events:auto; }
 .prompt-library-dialog .modal-panel { width:min(980px,calc(100vw - 28px)); max-width:980px; }
@@ -125,4 +135,8 @@
   .prompt-library-editor { grid-template-columns:1fr; }
   .prompt-library-editor label { grid-column:1!important; }
   .prompt-library-toolbar input { margin-left:0; }
+}
+
+@media(max-width:700px) {
+  .canvas-image-transform-fields { grid-template-columns:repeat(2,minmax(100px,1fr)); }
 }

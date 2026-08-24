@@ -45,13 +45,13 @@ test('mounts React from the production Smart Canvas URL without loading the lega
     legacyApi: typeof (window as typeof window & { CanvasApi?: unknown }).CanvasApi,
     legacyGlobal: typeof (window as typeof window & { addSmartNode?: unknown }).addSmartNode,
     legacyScript: [...document.scripts].some(script => /\/static\/js\/smart-canvas\.js/.test(script.src)),
-    modernScript: [...document.scripts].some(script => /\/static\/dist\/smart-canvas-modern\.js/.test(script.src)),
+    modernScript: [...document.scripts].some(script => /\/static\/dist\/smart-canvas\/smart-canvas-modern\.js/.test(script.src)),
   }));
   expect(isolation).toEqual({ legacyApi: 'undefined', legacyGlobal: 'undefined', legacyScript: false, modernScript: true });
 });
 
 test('falls back to the original Smart Canvas runtime when the React entry cannot load', async ({ page }) => {
-  await page.route('**/static/dist/smart-canvas-modern.js*', route => route.abort());
+  await page.route('**/static/dist/smart-canvas/smart-canvas-modern.js*', route => route.abort());
 
   await page.goto('/static/smart-canvas.html');
 

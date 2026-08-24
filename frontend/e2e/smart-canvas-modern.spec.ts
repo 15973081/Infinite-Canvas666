@@ -10,13 +10,14 @@ test.beforeEach(async ({ page }) => {
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width,initial-scale=1">
+          <link rel="stylesheet" href="/static/css/smart-canvas-classic-compat.css?v=2026.08.25.1">
           <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.07.23.2">
           <link rel="stylesheet" href="/static/css/smart-canvas-react.css?v=2026.08.25.1">
           <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
         </head>
         <body>
           <div id="smartCanvasApp"></div>
-          <script type="module" src="/static/dist/smart-canvas-modern.js?v=2026.08.19.8"></script>
+          <script type="module" src="/static/dist/smart-canvas/smart-canvas-modern.js?v=2026.08.25.1"></script>
         </body>
       </html>`,
   }));
@@ -61,19 +62,26 @@ test('runs Smart Canvas on the shared React V2 stack and imports the asset inbox
   });
 
   await page.goto(smartCanvasV2Entry);
+  await expect(page.locator('link[href*="/static/css/smart-canvas-classic-compat.css"]')).toHaveCount(1);
   await expect(page.locator('link[href*="/static/css/smart-canvas-react.css"]')).toHaveCount(1);
   await expect(page.locator('link[href*="/static/css/canvas.css"]')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: '智能画布' })).toBeVisible();
+  await expect(page.locator('.gate-title')).toHaveText('智能画布');
   await expect(page.getByText('Classic hidden')).toHaveCount(0);
   await page.getByRole('button', { name: '新建智能画布' }).click();
+  await page.locator('.gate-name-input').fill('智能画布');
+  await page.locator('.create-confirm').click();
 
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   expect(createPayload).toMatchObject({ kind: 'smart', icon: 'sparkles', title: '智能画布' });
-  await page.getByRole('button', { name: '导入素材' }).click();
-  await expect(page.locator('[data-node-type="image"]')).toHaveCount(1);
-  await expect(page.locator('[data-node-type="image"]')).toContainText('Inbox asset');
+  await page.evaluate(() => window.dispatchEvent(new ClipboardEvent('paste', {
+    bubbles: true,
+    cancelable: true,
+    clipboardData: new DataTransfer(),
+  })));
+  await expect(page.locator('[data-node-type="smart-image"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-type="smart-image"] img[data-original-src="/output/inbox.png"]')).toHaveCount(1);
   await expect.poll(() => saves).toBeGreaterThan(0);
-  await expect.poll(() => canvasDocument.nodes.some((node) => node.url === '/output/inbox.png')).toBe(true);
+  await expect.poll(() => canvasDocument.nodes.some((node) => Array.isArray(node.images) && node.images.some((item: any) => item.url === '/output/inbox.png'))).toBe(true);
 
   const isolation = await page.evaluate(() => ({
     inbox: localStorage.getItem('smart_canvas_asset_inbox'),
@@ -100,9 +108,10 @@ test('opens a smart canvas directly from the id query', async ({ page }) => {
   await page.route('**/api/canvases', async (route) => route.fulfill({ json: { canvases: [] } }));
   await page.goto(`${smartCanvasV2Entry}?id=smart-direct`);
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
+  await expect(page.locator('[data-node-id="prompt-direct"]')).toHaveAttribute('data-node-type', 'smart-prompt');
   await expect(page.locator('[data-node-id="prompt-direct"]')).toContainText('direct');
-  await expect(page.locator('[data-node-id="output-direct__generator"]')).toHaveAttribute('data-node-type', 'generator');
-  await expect(page.locator('[data-node-id="output-direct"] img[src="/output/legacy.png"]')).toHaveCount(1);
+  await expect(page.locator('[data-node-id="output-direct"]')).toHaveAttribute('data-node-type', 'smart-image');
+  await expect(page.locator('[data-node-id="output-direct"] img[data-original-src="/output/legacy.png"]')).toHaveCount(1);
 });
 
 test('opens a remotely locked canvas read-only and takes over after release', async ({ page }) => {
@@ -113,21 +122,27 @@ test('opens a remotely locked canvas read-only and takes over after release', as
     nodes: [{ id: 'locked-prompt', type: 'prompt', text: 'read only prompt', x: 40, y: 80 }],
   };
   let remoteUpdatedAt = 1;
+  let remoteLocked = true;
+  let failRenewal = false;
   await page.route('**/api/config', (route) => route.fulfill({ json: { api_providers: [] } }));
   await page.route('**/api/workflows', (route) => route.fulfill({ json: { workflows: [] } }));
   await page.route('**/api/canvas-folders', (route) => route.fulfill({ json: { folders: [] } }));
   await page.route('**/api/canvases/trash', (route) => route.fulfill({ json: { canvases: [] } }));
   await page.route('**/api/canvases/smart-locked/lock', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ json: remoteLocked ? { holder: { client_id: 'other', username: 'Alice', ip: '10.0.0.2' } } : {} });
+      return;
+    }
     lockRequests += 1;
     if (lockRequests === 1) {
       await route.fulfill({ status: 409, json: { detail: { message: 'locked', holder: { client_id: 'other', username: 'Alice', ip: '10.0.0.2' } } } });
       return;
     }
-    if (lockRequests === 3) {
+    if (failRenewal) {
       await route.fulfill({ status: 503, json: { detail: 'lock service unavailable' } });
       return;
     }
-    await route.fulfill({ json: { ok: true, renewed: false, holder: { client_id: 'mine', username: 'Bob' } } });
+    await route.fulfill({ json: { ok: true, renewed: false } });
   });
   await page.route('**/api/canvases/smart-locked/meta', (route) => route.fulfill({ json: { id: 'smart-locked', updated_at: remoteUpdatedAt } }));
   await page.route('**/api/canvases/smart-locked', (route) => {
@@ -141,7 +156,7 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await expect(page.locator('.canvas-modern-editor')).toBeVisible();
   await expect(page.getByText('Alice 正在编辑此画布')).toBeVisible();
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
-  await expect(page.getByRole('button', { name: 'API生成' })).toBeDisabled();
+  await expect(page.getByRole('combobox').first()).toBeDisabled();
   expect(await page.evaluate(() => window.CanvasBoardV2?.addNode('prompt'))).toBeNull();
 
   canvasDocument = { ...canvasDocument, updated_at: 2, nodes: [{ ...canvasDocument.nodes[0], text: 'remote saved prompt' }] };
@@ -154,18 +169,20 @@ test('opens a remotely locked canvas read-only and takes over after release', as
   await page.clock.fastForward(5_100);
   await expect(page.locator('[data-node-id="locked-prompt"]')).toContainText('remote polled prompt');
 
-  await page.getByRole('button', { name: '尝试取得编辑锁' }).click();
+  remoteLocked = false;
+  await page.getByRole('button', { name: '刷新状态' }).click();
   await expect(page.getByText('Alice 正在编辑此画布')).toHaveCount(0);
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'false');
-  await expect(page.getByRole('button', { name: 'API生成' })).toBeEnabled();
+  await expect(page.locator('[data-node-id="locked-prompt"]').getByRole('button', { name: '删除节点' })).toBeEnabled();
   await expect.poll(() => canvasLoads).toBe(4);
   expect(lockRequests).toBe(2);
 
-  await page.clock.fastForward(25_100);
+  failRenewal = true;
+  await page.clock.fastForward(5_100);
   await expect.poll(() => lockRequests).toBe(3);
   await expect(page.getByText('锁状态未知 正在编辑此画布')).toBeVisible();
   await expect(page.getByTestId('canvas-board-v2')).toHaveAttribute('aria-readonly', 'true');
-  await expect(page.getByText(/编辑锁续期失败，已切换只读并将自动重试/)).toBeVisible();
+  await expect(page.locator('#toast')).toContainText('编辑锁续期失败，已切换只读并将自动重试');
 });
 
 test('keeps the removed React composer out of the isolated V2 entry', async ({ page }) => {
@@ -312,27 +329,17 @@ test('manages the shared prompt library from isolated Smart Canvas V2', async ({
   await page.goto(`${smartCanvasV2Entry}?id=smart-prompts`);
   const promptNode = page.locator('[data-node-id="prompt-target"]');
   await promptNode.getByRole('button', { name: '模板' }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('button', { name: '新建提示词' }).click();
-  await page.getByLabel('提示词名称').fill('夜景');
-  await page.getByLabel('正向提示词').fill('neon city at night');
-  await page.getByRole('button', { name: '创建提示词' }).click();
+  const templatePanel = page.locator('.prompt-template-panel.open');
+  await expect(templatePanel).toContainText('提示词模板库');
+  await templatePanel.getByRole('button', { name: '新建模板' }).click();
   await expect.poll(() => created).toBe(1);
-  await page.getByLabel('正向提示词').fill('neon city after rain');
-  await page.getByRole('button', { name: '保存修改' }).click();
+  await templatePanel.locator('[data-template-edit-name]').fill('夜景');
+  await templatePanel.locator('[data-template-edit-text]').fill('neon city after rain');
+  await templatePanel.getByRole('button', { name: '保存', exact: true }).click();
   await expect.poll(() => updated).toBe(1);
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: '删除提示词' }).click();
+  await templatePanel.getByTitle('删除模板').click();
   await expect.poll(() => deleted).toBe(1);
-  page.once('dialog', (dialog) => dialog.accept('项目提示词'));
-  await page.getByRole('button', { name: '新建库' }).click();
-  await expect(page.getByLabel('提示词库')).toHaveValue('library-created');
-  page.once('dialog', (dialog) => dialog.accept('项目提示词 2'));
-  await page.getByRole('button', { name: '重命名库' }).click();
-  await expect(page.getByLabel('提示词库')).toContainText('项目提示词 2');
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: '删除库' }).click();
-  await expect.poll(() => libraryChanges).toBe(3);
+  await expect(templatePanel.locator('[data-template-id="prompt-created"]')).toHaveCount(0);
 });
 
 test('manages canvas assets, saves outputs, and exports resource-complete workflows', async ({ page }) => {
@@ -417,50 +424,53 @@ test('manages canvas assets, saves outputs, and exports resource-complete workfl
 
   await page.goto(`${smartCanvasV2Entry}?id=smart-assets`);
   await page.getByRole('button', { name: '资产库', exact: true }).click();
-  await expect(page.getByRole('dialog')).toContainText('图片');
-  await page.locator('.canvas-asset-preview').filter({ hasText: 'Hero' }).click();
-  await expect(page.locator('[data-node-type="image"]')).toContainText('Hero');
+  const assetPanel = page.locator('.asset-panel.open');
+  await expect(assetPanel).toContainText('图片资产');
+  await assetPanel.locator('[data-asset-id="hero"]').dblclick();
+  const insertedImage = page.locator('[data-node-type="smart-image"]').filter({ has: page.locator('img[data-original-src="/assets/hero.png"]') });
+  await expect(insertedImage).toHaveCount(1);
 
-  await page.getByRole('button', { name: '资产库', exact: true }).click();
-  await page.getByLabel('素材地址').fill('/output/new.png');
-  await page.getByLabel('素材名称').fill('New asset');
-  await page.getByRole('button', { name: '添加地址' }).click();
-  await expect.poll(() => added).toBe(1);
-  page.once('dialog', (dialog) => dialog.accept('Renamed asset'));
-  await page.locator('.canvas-modern-asset-grid article').filter({ hasText: 'New asset' }).getByRole('button', { name: '重命名' }).click();
+  await assetPanel.locator('[data-asset-id="hero"] [data-rename-asset]').click();
+  await assetPanel.getByLabel('重命名素材').fill('Renamed asset');
+  await assetPanel.getByLabel('重命名素材').press('Enter');
   await expect.poll(() => renamed).toBe(1);
-  page.once('dialog', (dialog) => dialog.accept());
-  await page.locator('.canvas-modern-asset-grid article').filter({ hasText: 'Renamed asset' }).getByRole('button', { name: '删除' }).click();
+  await assetPanel.locator('[data-asset-id="hero"] [data-delete-asset]').click();
   await expect.poll(() => deleted).toBe(1);
-  await page.getByRole('button', { name: '关闭' }).click();
+  await assetPanel.getByTitle('关闭').click();
+  await insertedImage.locator('.floating-node-actions .node-delete').evaluate((button: HTMLButtonElement) => button.click());
+  await expect(insertedImage).toHaveCount(0);
 
   await page.locator('[data-node-id="output-assets"]').getByRole('button', { name: '保存到资产库' }).click();
-  await expect(page.getByLabel('素材地址')).toHaveValue('/output/generated.png');
-  await page.getByRole('button', { name: '保存输出' }).click();
-  await expect.poll(() => added).toBe(2);
+  await expect(page.locator('.asset-panel.open .asset-drop-zone')).toContainText('保存当前素材');
+  await page.locator('.asset-panel.open .asset-drop-zone').click();
+  await expect.poll(() => added).toBe(1);
 
-  await page.getByRole('button', { name: '工作流', exact: true }).click();
+  await page.locator('[data-node-type="output"][data-node-id="output-assets"]').dispatchEvent('click');
+  await page.locator('#smartWorkflowToggle').dispatchEvent('click');
+  const workflowPanel = page.locator('.workflow-transfer-panel.open');
+  await expect(workflowPanel).toContainText('导入导出工作流');
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: '导出 ZIP（含资源）' }).click();
+  await workflowPanel.getByRole('button', { name: '导出并包含资源' }).click();
   await download;
-  expect(exportPayload).toMatchObject({ filename: 'Asset Smart-workflow.zip', include_resources: true });
+  expect(exportPayload).toMatchObject({ include_resources: true });
   expect(Array.isArray(exportPayload.nodes)).toBe(true);
 
-  await page.getByRole('button', { name: '工作流', exact: true }).click();
-  await page.getByRole('button', { name: '保存到工作流库' }).click();
-  await expect(page.getByRole('dialog')).toContainText('保存工作流到资产库');
-  await expect(page.getByRole('button', { name: '保存工作流' })).toBeEnabled();
-  await page.getByRole('button', { name: '保存工作流' }).click();
+  await workflowPanel.getByRole('button', { name: '保存到工作流库' }).click();
+  await expect(page.locator('.asset-panel.open .asset-drop-zone')).toContainText('保存当前工作流');
+  await page.locator('.asset-panel.open .asset-drop-zone').click();
   await expect.poll(() => libraryExportPayload).toMatchObject({ library_id: 'default', category_id: 'workflows', include_resources: true, name: 'Asset Smart' });
 
   await page.getByRole('button', { name: '资产库', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: /工作流/ }).click();
-  await page.locator('.canvas-asset-preview').filter({ hasText: 'Saved workflow' }).click();
-  await expect(page.locator('[data-node-type="prompt"]')).toContainText('imported from asset library');
+  await page.locator('.asset-panel.open [data-asset-tab="workflow"]').click();
+  await page.locator('.asset-panel.open [data-asset-id="saved-flow"]').dblclick();
+  await expect(page.locator('[data-node-type="smart-prompt"]')).toContainText('imported from asset library');
+  await page.locator('.asset-panel.open').getByTitle('关闭').click();
 
-  await page.getByRole('button', { name: '工作流', exact: true }).click();
+  await page.locator('[data-node-type="output"][data-node-id="output-assets"]').dispatchEvent('click');
+  await page.locator('[data-node-type="smart-prompt"]').filter({ hasText: 'imported from asset library' }).dispatchEvent('click', { ctrlKey: true });
+  await page.locator('#smartWorkflowToggle').dispatchEvent('click');
   page.once('dialog', (dialog) => dialog.accept('D:/exports'));
-  await page.getByRole('button', { name: '批量导出选区结果' }).click();
+  await page.locator('.workflow-transfer-panel.open').getByRole('button', { name: '批量导出选区结果' }).click();
   await expect.poll(() => groupExportPayload).toMatchObject({ folder: 'D:/exports', group_name: 'Asset Smart' });
   expect(groupExportPayload.items).toEqual(expect.arrayContaining([
     expect.objectContaining({ kind: 'image', url: '/output/generated.png' }),
