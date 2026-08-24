@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react';
 import type { CanvasDocument, CanvasNode } from '../domain/types';
+import { createSmartVideoFrame, type SmartVideoFrameResult } from './smart-canvas-image-editor';
 import { smartImageItems, smartImageMediaKind, type SmartImageItem } from './smart-image-node';
 
 type EditMode = 'brush' | 'crop' | 'grid' | 'mask' | 'outpaint';
@@ -19,6 +20,7 @@ export interface SmartCanvasPreviewProps {
   node: CanvasNode;
   onClose(): void;
   onEdit?(index: number, mode: EditMode): void;
+  onExportVideoFrame?(result: SmartVideoFrameResult): Promise<void>;
   onNavigate(url: string): void;
   onRememberSize?(index: number, width: number, height: number): void;
   url: string;
@@ -68,7 +70,7 @@ export function isLikelyPanorama(node: CanvasNode, item: SmartImageItem, natural
   return aspect >= 1.9 && aspect <= 2.1;
 }
 
-export function SmartCanvasPreview({ document, node, onClose, onEdit, onNavigate, onRememberSize, url }: SmartCanvasPreviewProps) {
+export function SmartCanvasPreview({ document, node, onClose, onEdit, onExportVideoFrame, onNavigate, onRememberSize, url }: SmartCanvasPreviewProps) {
   const items = useMemo(() => smartImageItems(node), [node]);
   const initialIndex = Math.max(0, items.findIndex((item) => item.url === url));
   const [index, setIndex] = useState(initialIndex);
@@ -88,6 +90,8 @@ export function SmartCanvasPreview({ document, node, onClose, onEdit, onNavigate
   const [customRatio, setCustomRatio] = useState({ w: 16, h: 9 });
   const [panoramaView, setPanoramaView] = useState({ fov: 75, pitch: 0, yaw: 0 });
   const [naturalSize, setNaturalSize] = useState({ height: Number(item?.natural_h || item?.height || 0), width: Number(item?.natural_w || item?.width || 0) });
+  const [exportingFrame, setExportingFrame] = useState(false);
+  const [frameStatus, setFrameStatus] = useState('');
   const frameRef = useRef<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -222,6 +226,18 @@ export function SmartCanvasPreview({ document, node, onClose, onEdit, onNavigate
       return !active;
     });
   };
+  const exportFrame = async (which: 'current' | 'first' | 'last') => {
+    const video = videoRef.current;
+    if (!video || !item || !onExportVideoFrame || exportingFrame) return;
+    setExportingFrame(true); setFrameStatus('正在导出视频帧…');
+    try {
+      const result = await createSmartVideoFrame(video, item, which);
+      await onExportVideoFrame(result);
+      setFrameStatus('已导出到画布');
+    } catch (error) {
+      setFrameStatus((error instanceof Error ? error.message : String(error)) || '导出帧失败');
+    } finally { setExportingFrame(false); }
+  };
 
   if (!item?.url || !['image', 'video'].includes(kind)) return null;
   const frameStyle = panorama ? { height: `${panoramaSize.height}px`, transform: '', width: `${panoramaSize.width}px` } : { transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` };
@@ -230,7 +246,7 @@ export function SmartCanvasPreview({ document, node, onClose, onEdit, onNavigate
     <div className={`image-edit-panel ${isVideo ? 'video-preview-mode' : ''}`} onClick={(event) => event.stopPropagation()}>
       <div className="image-edit-head">
         <div><div className="image-edit-title" id="imageEditTitle">{isVideo ? '预览视频' : '预览图片'}</div><div className="image-edit-sub" id="imageEditSub">{isVideo ? '' : '滚轮缩放 · 拖动平移 · 双击百分比复位'}</div></div>
-        <div className="image-edit-mode">
+        <div className="image-edit-mode" style={{ display: isVideo ? 'none' : undefined }}>
           <button className="active" data-image-edit-mode="preview" type="button"><i data-lucide="eye" /><span>预览</span></button>
           {([['crop', 'crop', '裁剪'], ['outpaint', 'expand', '扩图'], ['mask', 'brush', '遮罩'], ['brush', 'paintbrush', '画笔'], ['grid', 'grid-3x3', '宫格切分']] as const).map(([mode, icon, label]) => <button data-image-edit-mode={mode} key={mode} onClick={() => onEdit?.(index, mode)} type="button"><i data-lucide={icon} /><span>{label}</span></button>)}
         </div>
@@ -268,7 +284,12 @@ export function SmartCanvasPreview({ document, node, onClose, onEdit, onNavigate
           <button className={`compare-toggle ${compareOn ? 'active' : ''}`} disabled={!compareSources.length || panorama} id="compareToggleBtn" onClick={toggleCompare} style={{ opacity: compareSources.length && !panorama ? 1 : .45 }} title={compareSources.length ? '对比原图' : '没有可用原图'} type="button"><i data-lucide="columns-2" /><span>对比原图</span></button>
         </div></div> : null}
       </div>
-      <div className="image-edit-actions"><span id="imageEditZoomLabel" onDoubleClick={reset} style={{ color: '#94a3b8', cursor: 'pointer', fontSize: 11, fontWeight: 800, marginRight: 'auto', padding: '0 4px', userSelect: 'none' }} title="双击重置缩放">{Math.round((panorama ? 75 / Math.max(1, panoramaView.fov) : zoom) * 100)}%</span><button className="image-edit-btn secondary" id="imageEditCancelBtn" onClick={onClose} type="button">关闭</button></div>
+      <div className="image-edit-actions"><span id="imageEditZoomLabel" onDoubleClick={reset} style={{ color: '#94a3b8', cursor: 'pointer', display: isVideo ? 'none' : undefined, fontSize: 11, fontWeight: 800, marginRight: 'auto', padding: '0 4px', userSelect: 'none' }} title="双击重置缩放">{Math.round((panorama ? 75 / Math.max(1, panoramaView.fov) : zoom) * 100)}%</span>{isVideo ? <div className="video-frame-tools" id="videoFrameTools" style={{ display: 'flex', marginRight: 'auto' }}>
+        <button className="image-edit-btn secondary" disabled={exportingFrame || !onExportVideoFrame} onClick={() => void exportFrame('first')} type="button"><i data-lucide="skip-back" /><span>导出首帧</span></button>
+        <button className="image-edit-btn primary" disabled={exportingFrame || !onExportVideoFrame} onClick={() => void exportFrame('current')} type="button"><i data-lucide="image-down" /><span>{exportingFrame ? '正在导出…' : '导出当前帧'}</span></button>
+        <button className="image-edit-btn secondary" disabled={exportingFrame || !onExportVideoFrame} onClick={() => void exportFrame('last')} type="button"><i data-lucide="skip-forward" /><span>导出尾帧</span></button>
+      </div> : null}<button className="image-edit-btn secondary" id="imageEditCancelBtn" onClick={onClose} type="button">关闭</button></div>
+      {frameStatus ? <div className="image-edit-sub" data-testid="video-frame-status">{frameStatus}</div> : null}
     </div>
   </div>;
 }

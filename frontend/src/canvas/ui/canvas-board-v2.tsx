@@ -14,6 +14,7 @@ import { LegacyOutputLightbox } from './legacy-output-lightbox';
 import { SmartCanvasComposer } from './smart-canvas-composer';
 import { SmartCanvasConnections, type SmartCanvasPortDrag } from './smart-canvas-connections';
 import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canvas-create-menu';
+import { SmartCanvasImageEditor, type SmartCanvasImageEditMode, type SmartVideoFrameResult } from './smart-canvas-image-editor';
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
 import { SmartCanvasPromptTemplate } from './smart-canvas-prompt-template';
@@ -556,6 +557,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState('ready');
   const [lightbox, setLightbox] = useState<{ nodeId: string; url: string } | null>(null);
+  const [smartImageEditor, setSmartImageEditor] = useState<{ imageIndex: number; mode: SmartCanvasImageEditMode; nodeId: string } | null>(null);
   const [imageEditorNodeId, setImageEditorNodeId] = useState('');
   const [readOnly, setReadOnly] = useState(initialReadOnly);
   const [viewport, setViewport] = useState<Viewport>(() => legacyUi ? loadViewport(documentId) : { x: 0, y: 0, zoom: 1 });
@@ -806,6 +808,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   }, [commit, connectingFrom, portDrag?.fromPort, readOnly, smartUi, store, viewport]);
 
   const lightboxNode = lightbox ? nodesById.get(lightbox.nodeId) : null;
+  const smartImageEditorNode = smartImageEditor ? nodesById.get(smartImageEditor.nodeId) : null;
   const imageEditorNode = imageEditorNodeId ? nodesById.get(imageEditorNodeId) : null;
   useEffect(() => { onSelectionChange?.(selectedIds); }, [onSelectionChange, selectedIds]);
   useEffect(() => {
@@ -903,6 +906,80 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     const images = [...smartImageItems(active), ...additions];
     store.getState().updateNode(nodeId, { h: undefined, images, scale: images.length > 1 ? 0.8 : Number(active.scale || 2), title: images.length > 1 ? 'Group' : additions[0].kind === 'video' ? 'Video' : additions[0].kind === 'audio' ? 'Audio' : 'Image', w: undefined });
     commit();
+  };
+  const uploadSmartPng = async (blob: Blob, name: string) => {
+    const uploaded = await canvasRuntime.uploadMedia([new File([blob], name, { type: 'image/png' })]);
+    const file = uploaded.files?.[0];
+    if (!file?.url) throw new Error('图片上传失败');
+    return { ...file, kind: 'image', name: file.name || name, url: file.url };
+  };
+  const createSmartImageOutput = (source: CanvasNode, images: Array<Record<string, unknown> & { url: string }>, title: string, placement: 'centered' | 'split' = 'centered') => {
+    const sourceLayout = smartImageNodeLayout(source);
+    const scale = images.length > 1 ? 0.8 : 2;
+    const outputLayout = smartImageNodeLayout({ id: '', images, scale, type: 'smart-image' } as CanvasNode);
+    const point = placement === 'split'
+      ? { x: Number(source.x || 0) + sourceLayout.width + 40, y: Number(source.y || 0) }
+      : { x: Number(source.x || 0) + sourceLayout.width + 240 - outputLayout.width / 2, y: Number(source.y || 0) + sourceLayout.height / 2 - outputLayout.height / 2 };
+    const id = store.getState().addNode('smart-image', point);
+    if (!id) throw new Error('无法创建图片节点');
+    store.getState().updateNode(id, { h: undefined, images, scale, title, w: undefined });
+    setSelectedIds(new Set([id]));
+    commit();
+    return id;
+  };
+  const applySmartImageEdit = async (result: LegacyImageTransformResult) => {
+    if (readOnly || !smartImageEditor) throw new Error('只读模式不能编辑图片');
+    const file = await uploadSmartPng(result.blob, result.name);
+    const active = store.getState().document?.nodes.find((node) => node.id === smartImageEditor.nodeId && node.type === 'smart-image');
+    if (!active) throw new Error('图片节点已经被移除');
+    const images = smartImageItems(active);
+    const previous = images[smartImageEditor.imageIndex];
+    if (!previous) throw new Error('图片已经被移除');
+    images[smartImageEditor.imageIndex] = { ...previous, ...file, natural_h: result.height, natural_w: result.width };
+    const patch: Record<string, unknown> = { h: undefined, images, lastImageEdit: { height: result.height, mode: result.mode, width: result.width }, w: undefined };
+    if (result.mode === 'outpaint') {
+      patch.outpaintSize = { height: result.height, width: result.width };
+      patch.runSettings = smartOutpaintSettings(active.runSettings, result.width, result.height);
+      patch.promptDraftHtml = 'Remove white area and fill the scene';
+      patch.promptDraftText = 'Remove white area and fill the scene';
+      patch.promptDraftTouched = true;
+    }
+    store.getState().updateNode(active.id, patch);
+    commit();
+  };
+  const createSmartMask = async (result: LegacyMaskResult) => {
+    if (readOnly || !smartImageEditor) throw new Error('只读模式不能编辑图片');
+    const file = await uploadSmartPng(result.blob, result.name);
+    const active = store.getState().document?.nodes.find((node) => node.id === smartImageEditor.nodeId && node.type === 'smart-image');
+    if (!active) throw new Error('图片节点已经被移除');
+    const images = [...smartImageItems(active), { ...file, natural_h: result.height, natural_w: result.width, role: 'mask' }];
+    store.getState().updateNode(active.id, { h: undefined, images, scale: images.length > 1 ? 0.8 : Number(active.scale || 2), title: images.length > 1 ? 'Group' : active.title, w: undefined });
+    commit();
+  };
+  const splitSmartGrid = async (result: LegacyGridResult) => {
+    if (readOnly || !smartImageEditor) throw new Error('只读模式不能编辑图片');
+    const uploaded = await canvasRuntime.uploadMedia(result.items.map((item) => new File([item.blob], item.name, { type: 'image/png' })));
+    const active = store.getState().document?.nodes.find((node) => node.id === smartImageEditor.nodeId && node.type === 'smart-image');
+    if (!active) throw new Error('图片节点已经被移除');
+    const source = smartImageItems(active)[smartImageEditor.imageIndex];
+    const images = uploaded.files.slice(0, result.items.length).map((file, index) => ({
+      grid: { ...result.layout, ...result.items[index].rect }, kind: file.kind || 'image', name: file.name || result.items[index].name,
+      run: { prompt: '宫格切分', refs: source ? [{ name: source.name || 'source image', url: source.url || '' }] : [] }, runMs: 0, url: String(file.url || ''), viewed: false,
+    })).filter((item): item is typeof item & { url: string } => Boolean(item.url));
+    if (!images.length) throw new Error('切分图片上传结果为空');
+    createSmartImageOutput(active, images, 'Grid', 'split');
+  };
+  const joinSmartGrid = async (result: import('./legacy-image-transform-dialog').LegacyGridJoinResult) => {
+    if (readOnly || !smartImageEditor) throw new Error('只读模式不能编辑图片');
+    const file = await uploadSmartPng(result.blob, result.name);
+    const active = store.getState().document?.nodes.find((node) => node.id === smartImageEditor.nodeId && node.type === 'smart-image');
+    if (!active) throw new Error('图片节点已经被移除');
+    createSmartImageOutput(active, [{ ...file, natural_h: result.height, natural_w: result.width }], 'Grid Join');
+  };
+  const exportSmartVideoFrame = async (source: CanvasNode, result: SmartVideoFrameResult) => {
+    if (readOnly) throw new Error('只读模式不能导出视频帧');
+    const file = await uploadSmartPng(result.blob, result.name);
+    createSmartImageOutput(source, [{ ...file, natural_h: result.height, natural_w: result.width }], 'Image');
   };
   const runSmartLoop = async (loop: CanvasNode) => {
     if (loop.running) {
@@ -1422,6 +1499,8 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       document={document!}
       node={lightboxNode}
       onClose={() => setLightbox(null)}
+      onEdit={(imageIndex, mode) => { setSmartImageEditor({ imageIndex, mode, nodeId: lightboxNode.id }); setLightbox(null); }}
+      onExportVideoFrame={(result) => exportSmartVideoFrame(lightboxNode, result)}
       onNavigate={(url) => setLightbox({ nodeId: lightboxNode.id, url })}
       onRememberSize={(index, width, height) => {
         const active = store.getState().document?.nodes.find((item) => item.id === lightboxNode.id);
@@ -1453,6 +1532,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       }}
       url={lightbox.url}
     /> : <OutputLightbox node={lightboxNode} onClose={() => setLightbox(null)} url={lightbox.url} />) : null}
+    {smartUi && smartImageEditor && smartImageEditorNode ? <SmartCanvasImageEditor imageIndex={smartImageEditor.imageIndex} initialMode={smartImageEditor.mode} node={smartImageEditorNode} onApply={applySmartImageEdit} onClose={() => setSmartImageEditor(null)} onCreateMask={createSmartMask} onGridJoin={joinSmartGrid} onGridSplit={splitSmartGrid} /> : null}
     {imageEditorNode?.url ? (legacyUi ? <LegacyImageTransformDialog name={String(imageEditorNode.name || 'image')} onApply={async (result: LegacyImageTransformResult) => {
       if (readOnly) throw new Error('只读模式不能编辑图片');
       const uploaded = await canvasRuntime.uploadMedia([new File([result.blob], result.name, { type: 'image/png' })]);
@@ -1537,6 +1617,16 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     }} onClose={() => setImageEditorNodeId('')} url={String(imageEditorNode.url)} />) : null}
     {readOnly ? <div className="canvas-board-readonly-shield" data-testid="canvas-board-readonly-shield" /> : null}
   </div>;
+}
+
+function smartOutpaintSettings(value: unknown, width: number, height: number): Record<string, unknown> {
+  const base = value && typeof value === 'object' && !Array.isArray(value) ? { ...value as Record<string, unknown> } : {};
+  const engine = ['api', 'volcengine', 'modelscope', 'comfy'].includes(String(base.engine || '')) ? String(base.engine) : 'api';
+  const next: Record<string, unknown> = { ...base, customHeight: height, customSize: `${width}x${height}`, customWidth: width, engine, outpaintResolutionLocked: true, ratio: '', resolution: 'custom' };
+  if (engine === 'api' || engine === 'volcengine') next.apiKind = 'image';
+  if (engine === 'modelscope') Object.assign(next, { msCustomHeight: height, msCustomSize: `${width}x${height}`, msCustomWidth: width, msRatio: '', msResolution: 'custom' });
+  if (engine === 'comfy') Object.assign(next, { height, width });
+  return next;
 }
 
 function OutputLightbox({ node, onClose, url }: { node: CanvasNode; onClose: () => void; url: string }) {

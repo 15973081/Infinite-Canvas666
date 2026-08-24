@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { binaryMaskPixels, circledNumber, gridSplitRects, transformedImageName, type CropRegion, type GridLine, type GridRect, type ImageSize, type OutpaintRegion } from '../domain/image-transform';
 
-type LegacyImageEditMode = 'brush' | 'grid' | 'mask' | 'preview' | 'crop' | 'outpaint';
+export type LegacyImageEditMode = 'brush' | 'grid' | 'mask' | 'preview' | 'crop' | 'outpaint';
 type BrushTool = 'ellipse' | 'free' | 'label' | 'rect' | 'text';
 type DrawSnapshot = { imageData: ImageData; labelCounter: number; textItems: TextItem[] };
 type TextItem = { color: string; id: string; size: number; text: string; x: number; y: number };
@@ -26,6 +26,23 @@ export interface LegacyGridResult {
   layout: { cols: number; groupId: string; rows: number; type: 'grid-split' };
 }
 
+export interface LegacyGridJoinItem { name?: string; natural_h?: number; natural_w?: number; url: string }
+export interface LegacyGridJoinResult { blob: Blob; height: number; name: string; width: number }
+
+export interface LegacyImageTransformDialogProps {
+  initialMode?: LegacyImageEditMode;
+  joinItems?: LegacyGridJoinItem[];
+  name: string;
+  onApply(result: LegacyImageTransformResult): Promise<void>;
+  onClose(): void;
+  onCreateMask(result: LegacyMaskResult): Promise<void>;
+  onGridJoin?(result: LegacyGridJoinResult): Promise<void>;
+  onGridSplit(result: LegacyGridResult): Promise<void>;
+  url: string;
+}
+
+const EMPTY_GRID_JOIN_ITEMS: LegacyGridJoinItem[] = [];
+
 type DragState = {
   mode: 'crop-move' | 'crop-resize' | 'image' | 'outpaint-bottom' | 'outpaint-corner' | 'outpaint-left' | 'outpaint-right' | 'outpaint-top';
   startCrop: CropRegion;
@@ -34,14 +51,7 @@ type DragState = {
   startY: number;
 };
 
-export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMask, onGridSplit, url }: {
-  name: string;
-  onApply(result: LegacyImageTransformResult): Promise<void>;
-  onClose(): void;
-  onCreateMask(result: LegacyMaskResult): Promise<void>;
-  onGridSplit(result: LegacyGridResult): Promise<void>;
-  url: string;
-}) {
+export function LegacyImageTransformDialog({ initialMode = 'crop', joinItems = EMPTY_GRID_JOIN_ITEMS, name, onApply, onClose, onCreateMask, onGridJoin, onGridSplit, url }: LegacyImageTransformDialogProps) {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const textCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -52,8 +62,10 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   const redoRef = useRef<DrawSnapshot[]>([]);
   const labelCounterRef = useRef(1);
   const gridDragRef = useRef<{ index: number; pointerId: number } | null>(null);
+  const gridJoinCanvasRef = useRef<HTMLDivElement | null>(null);
+  const gridJoinDragRef = useRef<{ clientX: number; clientY: number; index: number; pointerId: number } | null>(null);
   const gridHistoryRef = useRef<GridLine[][]>([]);
-  const [mode, setMode] = useState<LegacyImageEditMode>('crop');
+  const [mode, setMode] = useState<LegacyImageEditMode>(initialMode);
   const [source, setSource] = useState<ImageSize | null>(null);
   const [baseDisplay, setBaseDisplay] = useState<ImageSize>({ width: 1, height: 1 });
   const [stageSize, setStageSize] = useState<ImageSize>({ width: 1, height: 1 });
@@ -73,6 +85,12 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   const [gridOrientation, setGridOrientation] = useState<'h' | 'v'>('h');
   const [gridLines, setGridLines] = useState<GridLine[]>([]);
   const [gridVersion, setGridVersion] = useState(0);
+  const [gridOperation, setGridOperation] = useState<'join' | 'split'>('split');
+  const [gridJoinOrder, setGridJoinOrder] = useState<number[]>(() => joinItems.map((_, index) => index));
+  const [gridJoinRows, setGridJoinRows] = useState(() => Math.max(1, Math.ceil(joinItems.length / Math.max(1, Math.ceil(Math.sqrt(Math.max(1, joinItems.length)))))));
+  const [gridJoinCols, setGridJoinCols] = useState(() => Math.max(1, Math.ceil(Math.sqrt(Math.max(1, joinItems.length)))));
+  const [gridJoinOutputSize, setGridJoinOutputSize] = useState(2048);
+  const [gridJoinOffset, setGridJoinOffset] = useState({ x: 0, y: 0 });
   const [historyVersion, setHistoryVersion] = useState(0);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
@@ -80,7 +98,11 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
   const display = useMemo(() => ({ width: Math.max(1, baseDisplay.width * zoom), height: Math.max(1, baseDisplay.height * zoom) }), [baseDisplay, zoom]);
   const scaleX = source ? display.width / source.width : 1;
   const scaleY = source ? display.height / source.height : 1;
-  const canvasSize = mode === 'outpaint'
+  const validJoinItems = useMemo(() => joinItems.filter((item) => item?.url), [joinItems]);
+  const joinLayout = useMemo(() => legacyGridJoinLayout(validJoinItems, gridJoinOrder, gridJoinRows, gridJoinCols, gridGap), [gridGap, gridJoinCols, gridJoinOrder, gridJoinRows, validJoinItems]);
+  const canvasSize = mode === 'grid' && gridOperation === 'join'
+    ? { width: joinLayout.width * zoom, height: joinLayout.height * zoom }
+    : mode === 'outpaint'
     ? { width: outpaint.width * scaleX, height: outpaint.height * scaleY }
     : display;
 
@@ -103,9 +125,16 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
     setGridCustom(false);
     setGridOrientation('h');
     setGridLines([]);
+    setMode(initialMode);
+    setGridOperation('split');
+    setGridJoinOrder(joinItems.map((_, index) => index));
+    const autoCols = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, joinItems.length))));
+    setGridJoinCols(autoCols);
+    setGridJoinRows(Math.max(1, Math.ceil(joinItems.length / autoCols)));
+    setGridJoinOutputSize(2048);
     setGridVersion((value) => value + 1);
     setHistoryVersion((value) => value + 1);
-  }, [url]);
+  }, [initialMode, joinItems, url]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -464,6 +493,15 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
         context.fillRect(0, 0, canvas.width, canvas.height);
         context.drawImage(image, Math.round(region.offsetX), Math.round(region.offsetY), source.width, source.height);
       } else if (mode === 'grid') {
+        if (gridOperation === 'join') {
+          if (validJoinItems.length <= 1 || !onGridJoin) throw new Error('请从包含多张图片的分组打开宫格拼接');
+          setStatus('正在生成拼接图片…');
+          const joined = await createLegacyGridJoin(validJoinItems, joinLayout, gridJoinOutputSize, name);
+          setStatus('正在上传拼接图片…');
+          await onGridJoin(joined);
+          onClose();
+          return;
+        }
         const rects = gridSplitRects(source.width, source.height, gridCustom ? { gap: gridGap, lines: gridLines } : { cols: gridCols, gap: gridGap, rows: gridRows });
         if (!rects.length) throw new Error('当前切割线没有产生有效图片');
         const base = String(name || 'image').replace(/\.[^.]+$/, '') || 'image';
@@ -532,6 +570,39 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
     gridHistoryRef.current = [];
     setGridVersion((value) => value + 1);
   };
+  const applyGridJoinPreset = (rows: number, cols: number) => {
+    setGridJoinRows(rows);
+    setGridJoinCols(cols);
+  };
+  const beginGridJoinDrag = (event: React.PointerEvent<HTMLImageElement>, itemIndex: number) => {
+    if (saving || gridOperation !== 'join') return;
+    event.preventDefault(); event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    gridJoinDragRef.current = { clientX: event.clientX, clientY: event.clientY, index: itemIndex, pointerId: event.pointerId };
+    setGridJoinOffset({ x: 0, y: 0 });
+  };
+  const moveGridJoinDrag = (event: React.PointerEvent<HTMLImageElement>) => {
+    const active = gridJoinDragRef.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    event.preventDefault(); event.stopPropagation();
+    setGridJoinOffset({ x: event.clientX - active.clientX, y: event.clientY - active.clientY });
+  };
+  const endGridJoinDrag = (event: React.PointerEvent<HTMLImageElement>) => {
+    const active = gridJoinDragRef.current;
+    if (!active || active.pointerId !== event.pointerId) return;
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-grid-join-index]');
+    const targetIndex = Number(target?.dataset.gridJoinIndex);
+    if (Number.isInteger(targetIndex) && targetIndex !== active.index) {
+      setGridJoinOrder((order) => {
+        const next = [...order]; const from = next.indexOf(active.index); const to = next.indexOf(targetIndex);
+        if (from >= 0 && to >= 0) [next[from], next[to]] = [next[to], next[from]];
+        return next;
+      });
+    }
+    gridJoinDragRef.current = null;
+    setGridJoinOffset({ x: 0, y: 0 });
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
   const undoGridLine = () => {
     const previous = gridHistoryRef.current.pop();
     if (!previous) return;
@@ -571,7 +642,15 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
         <HistoryButton disabled={!canRedo} icon="redo-2" label="恢复画笔" onClick={redoDrawing} />
         <button className="image-edit-btn secondary" onClick={() => clearDrawing()} type="button"><i className="w-4 h-4" data-lucide="eraser" /><span>清空</span></button>
       </div>
-      <div className={`image-edit-tools ${mode === 'grid' ? 'active' : ''}`}>
+      <div className={`image-edit-tools ${mode === 'grid' ? `active grid-operation-${gridOperation}` : ''}`}>
+        {validJoinItems.length > 1 && onGridJoin ? <div className="grid-operation-toggle">
+          <button className={gridOperation === 'split' ? 'active' : ''} id="gridSplitModeBtn" onClick={() => setGridOperation('split')} type="button">拆分</button>
+          <button className={gridOperation === 'join' ? 'active' : ''} id="gridJoinModeBtn" onClick={() => { setGridOperation('join'); setGridCustom(false); }} type="button">拼接</button>
+        </div> : null}
+        {gridOperation === 'join' ? <>
+          <div className="grid-preset-row grid-join-control" id="gridJoinPresetRow"><span className="image-edit-sub">布局</span>{([[1, 2], [2, 1], [2, 2], [2, 3], [3, 2], [3, 3]] as const).map(([rows, cols]) => <button className={`grid-preset-btn ${gridJoinRows === rows && gridJoinCols === cols ? 'active' : ''}`} key={`${rows}x${cols}`} onClick={() => applyGridJoinPreset(rows, cols)} type="button">{rows}×{cols}</button>)}<button className="grid-preset-btn" onClick={() => { const cols = Math.max(1, Math.ceil(Math.sqrt(validJoinItems.length))); applyGridJoinPreset(Math.ceil(validJoinItems.length / cols), cols); }} type="button">自动</button></div>
+          <div className="grid-preset-row grid-join-control" id="gridJoinSizeRow"><span className="image-edit-sub">输出</span>{([1024, 2048, 4096] as const).map((size) => <button className={`grid-preset-btn ${gridJoinOutputSize === size ? 'active' : ''}`} data-grid-join-size={size} key={size} onClick={() => setGridJoinOutputSize(size)} type="button">{size}</button>)}</div>
+        </> : null}
         <button className={`image-edit-btn ${gridCustom ? 'primary' : 'secondary'}`} onClick={() => { setGridCustom((value) => !value); setGridLines([]); gridHistoryRef.current = []; setGridVersion((value) => value + 1); }} title="自由放置切割线" type="button">自定义</button>
         <div className="grid-preset-row"><span className="image-edit-sub">预设</span>{([[1, 2], [2, 1], [2, 2], [2, 3], [3, 2], [3, 3]] as const).map(([rows, cols]) => <button className="grid-preset-btn" key={`${rows}x${cols}`} onClick={() => applyGridPreset(rows, cols)} type="button">{rows}×{cols}</button>)}</div>
         {!gridCustom ? <span style={{ display: 'contents' }}><label><span>横向线</span><input aria-label="横向线" max="20" min="0" onChange={(event) => setGridRows(Math.max(1, Math.min(21, Number(event.target.value) + 1)))} type="number" value={gridRows - 1} /></label><label><span>竖向线</span><input aria-label="竖向线" max="20" min="0" onChange={(event) => setGridCols(Math.max(1, Math.min(21, Number(event.target.value) + 1)))} type="number" value={gridCols - 1} /></label></span> : <div style={{ alignItems: 'center', display: 'flex', gap: 6 }}>
@@ -605,8 +684,8 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
         setZoom(next);
       }} ref={stageRef}>
         <div className="image-edit-stage-inner">
-          <div className={`crop-canvas ${mode === 'preview' ? 'preview-mode' : mode === 'outpaint' ? `outpaint-mode ${outpaint.width > 4096 || outpaint.height > 4096 ? 'outpaint-warning' : ''}` : mode === 'mask' ? 'mask-mode' : mode === 'brush' ? `brush-mode ${brushTool === 'text' ? 'text-mode' : ''}` : mode === 'grid' ? `grid-mode ${gridCustom ? `grid-custom-${gridOrientation}` : ''}` : ''}`} style={source ? { height: canvasSize.height, width: canvasSize.width } : undefined}>
-            <img alt="crop source" crossOrigin={/^https?:/i.test(url) ? 'anonymous' : undefined} onLoad={(event) => {
+          <div className={`crop-canvas ${mode === 'preview' ? 'preview-mode' : mode === 'outpaint' ? `outpaint-mode ${outpaint.width > 4096 || outpaint.height > 4096 ? 'outpaint-warning' : ''}` : mode === 'mask' ? 'mask-mode' : mode === 'brush' ? `brush-mode ${brushTool === 'text' ? 'text-mode' : ''}` : mode === 'grid' ? `grid-mode ${gridOperation === 'join' ? 'grid-join-mode' : gridCustom ? `grid-custom-${gridOrientation}` : ''}` : ''}`} style={source ? { height: canvasSize.height, width: canvasSize.width } : undefined}>
+            <img alt="crop source" className={mode === 'grid' && gridOperation === 'join' ? 'grid-join-hidden' : undefined} crossOrigin={/^https?:/i.test(url) ? 'anonymous' : undefined} onLoad={(event) => {
               const image = event.currentTarget;
               const nextSource = { width: image.naturalWidth, height: image.naturalHeight };
               imageRef.current = image;
@@ -616,8 +695,13 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
               setCrop({ x: nextSource.width * 0.08, y: nextSource.height * 0.08, width: nextSource.width * 0.84, height: nextSource.height * 0.84 });
               setOutpaint({ offsetX: 0, offsetY: 0, width: nextSource.width, height: nextSource.height });
             }} onError={() => setStatus('无法读取图片，远程图片可能不允许跨域编辑')} onPointerDown={(event) => { if (mode === 'outpaint') startDrag(event, 'image'); }} src={url} style={!source ? undefined : mode === 'outpaint' ? { height: display.height, left: outpaint.offsetX * scaleX, maxHeight: 'none', maxWidth: 'none', top: outpaint.offsetY * scaleY, width: display.width } : { height: display.height, maxHeight: 'none', maxWidth: 'none', width: display.width }} />
-            <canvas className="edit-draw-canvas" height={source?.height || 1} onPointerCancel={endDrawing} onPointerDown={beginDrawing} onPointerLeave={endDrawing} onPointerMove={moveDrawing} onPointerUp={endDrawing} ref={drawCanvasRef} style={{ height: display.height, left: mode === 'outpaint' ? outpaint.offsetX * scaleX : undefined, top: mode === 'outpaint' ? outpaint.offsetY * scaleY : undefined, width: display.width }} width={source?.width || 1} />
-            <canvas className="edit-text-canvas" height={source?.height || 1} onDoubleClick={beginText} onPointerDown={beginText} ref={textCanvasRef} style={{ height: display.height, left: mode === 'outpaint' ? outpaint.offsetX * scaleX : undefined, top: mode === 'outpaint' ? outpaint.offsetY * scaleY : undefined, width: display.width }} width={source?.width || 1} />
+            {mode === 'grid' && gridOperation === 'join' ? <div className="grid-join-canvas" id="gridJoinCanvas" ref={gridJoinCanvasRef} style={{ display: 'block', height: joinLayout.height * zoom, width: joinLayout.width * zoom }}>{joinLayout.items.map((layoutItem) => {
+              const item = validJoinItems[layoutItem.index];
+              const active = gridJoinDragRef.current?.index === layoutItem.index;
+              return <img alt={item?.name || `grid ${layoutItem.index + 1}`} className={`grid-join-item ${active ? 'dragging' : ''}`} crossOrigin={/^https?:/i.test(item?.url || '') ? 'anonymous' : undefined} data-grid-join-index={layoutItem.index} draggable={false} key={`${item?.url}-${layoutItem.index}`} onPointerCancel={endGridJoinDrag} onPointerDown={(event) => beginGridJoinDrag(event, layoutItem.index)} onPointerMove={moveGridJoinDrag} onPointerUp={endGridJoinDrag} src={item?.url} style={{ height: layoutItem.height * zoom, left: layoutItem.x * zoom, objectFit: 'cover', top: layoutItem.y * zoom, transform: active ? `translate(${gridJoinOffset.x}px, ${gridJoinOffset.y}px)` : undefined, width: layoutItem.width * zoom }} />;
+            })}</div> : null}
+            <canvas className="edit-draw-canvas" height={source?.height || 1} onPointerCancel={endDrawing} onPointerDown={beginDrawing} onPointerLeave={endDrawing} onPointerMove={moveDrawing} onPointerUp={endDrawing} ref={drawCanvasRef} style={{ display: mode === 'grid' && gridOperation === 'join' ? 'none' : undefined, height: display.height, left: mode === 'outpaint' ? outpaint.offsetX * scaleX : undefined, top: mode === 'outpaint' ? outpaint.offsetY * scaleY : undefined, width: display.width }} width={source?.width || 1} />
+            <canvas className="edit-text-canvas" height={source?.height || 1} onDoubleClick={beginText} onPointerDown={beginText} ref={textCanvasRef} style={{ display: mode === 'grid' && gridOperation === 'join' ? 'none' : undefined, height: display.height, left: mode === 'outpaint' ? outpaint.offsetX * scaleX : undefined, top: mode === 'outpaint' ? outpaint.offsetY * scaleY : undefined, width: display.width }} width={source?.width || 1} />
             {activeText ? <div className="edit-text-inline" contentEditable onBlur={(event) => {
               const next = event.currentTarget.textContent?.trim() || '';
               setTextItems((items) => next ? items.map((item) => item.id === activeText.id ? { ...item, text: next } : item) : items.filter((item) => item.id !== activeText.id));
@@ -638,7 +722,7 @@ export function LegacyImageTransformDialog({ name, onApply, onClose, onCreateMas
         <span onDoubleClick={() => { setZoom(1); if (stageRef.current) { stageRef.current.scrollLeft = 0; stageRef.current.scrollTop = 0; } }} style={{ color: '#94a3b8', cursor: 'pointer', fontSize: 11, fontWeight: 800, marginRight: 'auto', padding: '0 4px', userSelect: 'none' }} title="双击重置缩放">{Math.round(zoom * 100)}%</span>
         <button className="image-edit-btn secondary" disabled={!source || saving} onClick={() => reset()} type="button"><i className="w-4 h-4" data-lucide="rotate-ccw" /><span>重置</span></button>
         <button className="image-edit-btn secondary" disabled={saving} onClick={onClose} type="button">取消</button>
-        {mode !== 'preview' ? <button className="image-edit-btn primary" disabled={!source || saving} onClick={() => void apply()} type="button"><i className="w-4 h-4" data-lucide={modeIcon(mode)} /><span>{saving ? '正在上传…' : applyLabel(mode)}</span></button> : null}
+        {mode !== 'preview' ? <button className="image-edit-btn primary" disabled={!source || saving} onClick={() => void apply()} type="button"><i className="w-4 h-4" data-lucide={modeIcon(mode)} /><span>{saving ? '正在上传…' : mode === 'grid' && gridOperation === 'join' ? '输出拼接' : applyLabel(mode)}</span></button> : null}
       </div>
       {status ? <div className="image-edit-sub" data-testid="image-transform-status">{status}</div> : null}
     </div>
@@ -722,6 +806,82 @@ function clampLegacyOutpaint(region: OutpaintRegion, source: ImageSize): Outpain
     offsetX: Math.max(0, Math.min(width - source.width, Number(region.offsetX) || 0)),
     offsetY: Math.max(0, Math.min(height - source.height, Number(region.offsetY) || 0)),
   };
+}
+
+export interface LegacyGridJoinLayout {
+  cols: number;
+  gap: number;
+  height: number;
+  items: Array<{ height: number; index: number; width: number; x: number; y: number }>;
+  rows: number;
+  width: number;
+}
+
+export function legacyGridJoinLayout(items: LegacyGridJoinItem[], order: number[], rows: number, cols: number, gap: number): LegacyGridJoinLayout {
+  const normalizedCols = Math.max(1, Number(cols) || 1);
+  const normalizedRows = Math.max(1, Number(rows) || 1, Math.ceil(items.length / normalizedCols));
+  const normalizedGap = Math.max(0, Math.min(240, Number(gap) || 0));
+  const widths = items.map((item) => Math.max(1, Number(item.natural_w) || 512));
+  const heights = items.map((item) => Math.max(1, Number(item.natural_h) || 512));
+  const maxWidth = Math.max(1, ...widths);
+  const maxHeight = Math.max(1, ...heights);
+  const cellScale = Math.min(1, 420 / Math.max(maxWidth, maxHeight));
+  const cellWidth = Math.max(1, Math.round(maxWidth * cellScale));
+  const cellHeight = Math.max(1, Math.round(maxHeight * cellScale));
+  const uniqueOrder = [...new Set(order.filter((index) => Number.isInteger(index) && index >= 0 && index < items.length)), ...items.map((_, index) => index).filter((index) => !order.includes(index))];
+  const layoutItems = uniqueOrder.map((index, position) => ({
+    height: cellHeight,
+    index,
+    width: cellWidth,
+    x: (position % normalizedCols) * (cellWidth + normalizedGap),
+    y: Math.floor(position / normalizedCols) * (cellHeight + normalizedGap),
+  }));
+  return {
+    cols: normalizedCols,
+    gap: normalizedGap,
+    height: Math.max(normalizedRows * cellHeight + Math.max(0, normalizedRows - 1) * normalizedGap, ...layoutItems.map((item) => item.y + item.height), 1),
+    items: layoutItems,
+    rows: normalizedRows,
+    width: Math.max(normalizedCols * cellWidth + Math.max(0, normalizedCols - 1) * normalizedGap, ...layoutItems.map((item) => item.x + item.width), 1),
+  };
+}
+
+async function createLegacyGridJoin(items: LegacyGridJoinItem[], layout: LegacyGridJoinLayout, targetLong: number, name: string): Promise<LegacyGridJoinResult> {
+  const outputScale = Math.max(1, Math.max(256, Number(targetLong) || 2048) / Math.max(1, layout.width, layout.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(layout.width * outputScale));
+  canvas.height = Math.max(1, Math.round(layout.height * outputScale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('无法创建拼接画布');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  for (const entry of layout.items) {
+    const item = items[entry.index];
+    if (!item) continue;
+    const image = await loadLegacyGridImage(item.url);
+    drawLegacyImageCover(context, image, Math.round(entry.x * outputScale), Math.round(entry.y * outputScale), Math.round(entry.width * outputScale), Math.round(entry.height * outputScale));
+  }
+  const base = String(name || items[0]?.name || 'image').replace(/\.[^.]+$/, '') || 'image';
+  return { blob: await canvasBlob(canvas), height: canvas.height, name: `${base}_join.png`, width: canvas.width };
+}
+
+function loadLegacyGridImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('图片加载失败'));
+    image.src = url;
+  });
+}
+
+function drawLegacyImageCover(context: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number) {
+  const sourceWidth = Math.max(1, image.naturalWidth || image.width || 1);
+  const sourceHeight = Math.max(1, image.naturalHeight || image.height || 1);
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const cropWidth = Math.max(1, width / scale);
+  const cropHeight = Math.max(1, height / scale);
+  context.drawImage(image, Math.max(0, (sourceWidth - cropWidth) / 2), Math.max(0, (sourceHeight - cropHeight) / 2), cropWidth, cropHeight, x, y, width, height);
 }
 
 function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {

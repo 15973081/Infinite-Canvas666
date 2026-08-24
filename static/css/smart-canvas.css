@@ -1076,6 +1076,10 @@ input[type=range].smart-range::-webkit-slider-thumb { -webkit-appearance:none; w
 .grid-gap-control input[type="range"] { width:160px; }
 .grid-gap-value { min-width:42px; height:24px; padding:0 8px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:var(--strong); color:var(--strong-text); font-size:11px; font-weight:900; font-variant-numeric:tabular-nums; }
 .grid-operation-toggle { display:flex; align-items:center; gap:4px; padding:3px; border-radius:12px; background:var(--card); border:1px solid var(--line); }
+.image-edit-tools.grid-operation-join > .image-edit-btn,
+.image-edit-tools.grid-operation-join > .grid-preset-row:not(.grid-join-control),
+.image-edit-tools.grid-operation-join > div:not(.grid-operation-toggle):not(.grid-join-control),
+.image-edit-tools.grid-operation-join > span { display:none; }
 .grid-preset-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .grid-preset-btn { height:28px; padding:0 9px; border-radius:999px; border:1px solid var(--line); background:var(--card); color:var(--muted); font-size:11px; font-weight:850; }
 .grid-preset-btn:hover,.grid-preset-btn.active { background:var(--strong); border-color:var(--strong); color:var(--strong-text); }
