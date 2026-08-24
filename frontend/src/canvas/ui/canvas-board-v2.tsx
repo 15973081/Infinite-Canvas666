@@ -10,6 +10,7 @@ import { createDocumentStore, type DocumentStore } from '../stores/document-stor
 import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
 import { LegacyImageTransformDialog, type LegacyGridResult, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
 import { LegacyOutputLightbox } from './legacy-output-lightbox';
+import { SmartCanvasComposer } from './smart-canvas-composer';
 import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canvas-create-menu';
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
 
@@ -701,6 +702,44 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     }
     setCreateMenu(null);
   };
+  const selectedSmartOutput = smartUi && selectedIds.size === 1
+    ? (document?.nodes.find((node) => selectedIds.has(node.id) && node.type === 'output') ?? null)
+    : null;
+  const smartGeneratorForOutput = (output: CanvasNode | null, snapshot = store.getState().document) => {
+    if (!output || !snapshot) return null;
+    const sourceIds = snapshot.connections.filter((edge) => edge.to === output.id).map((edge) => edge.from);
+    return snapshot.nodes.find((node) => sourceIds.includes(node.id) && ['comfy', 'generator', 'msgen', 'video'].includes(node.type)) ?? null;
+  };
+  const selectedSmartGenerator = smartGeneratorForOutput(selectedSmartOutput, document);
+  const patchSmartGenerator = (patch: Record<string, unknown>, nextType: 'comfy' | 'generator' | 'msgen' | 'video' = 'generator') => {
+    if (!selectedSmartOutput || readOnly) return '';
+    let snapshot = store.getState().document;
+    if (!snapshot) return '';
+    let target = smartGeneratorForOutput(selectedSmartOutput, snapshot);
+    if (!target) {
+      const id = store.getState().addNode(nextType, { x: Number(selectedSmartOutput.x || 0) - 420, y: Number(selectedSmartOutput.y || 0) });
+      if (!id) return '';
+      store.getState().connectNodes(id, selectedSmartOutput.id);
+      snapshot = store.getState().document;
+      target = snapshot?.nodes.find((node) => node.id === id) ?? null;
+    }
+    if (!target) return '';
+    if (target.type !== nextType && snapshot) {
+      store.getState().projectDocument({ ...snapshot, nodes: snapshot.nodes.map((node) => node.id === target!.id ? { ...node, type: nextType } : node) });
+    }
+    store.getState().updateNode(target.id, patch);
+    commit();
+    return target.id;
+  };
+  const patchSmartOutput = (patch: Record<string, unknown>, save = false) => {
+    if (!selectedSmartOutput || readOnly) return;
+    store.getState().updateNode(selectedSmartOutput.id, patch);
+    if (save) commit();
+  };
+  const runSmartComposer = (mode: 'cascade' | 'node') => {
+    const generatorId = selectedSmartGenerator?.id || patchSmartGenerator({});
+    if (generatorId) void window.CanvasBoardV2?.runNode(generatorId, mode);
+  };
 
   return <div
     aria-label="CanvasBoard V2"
@@ -953,6 +992,16 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
                               : String(node.title || node.name || node.id)}</div>
         </article>;
       })}
+      {smartUi ? <SmartCanvasComposer
+        canvasRuntime={canvasRuntime}
+        document={document}
+        generator={selectedSmartGenerator}
+        onPatchGenerator={patchSmartGenerator}
+        onPatchOutput={patchSmartOutput}
+        onRun={runSmartComposer}
+        output={selectedSmartOutput}
+        readOnly={readOnly}
+      /> : null}
     </div>
     {legacyUi && createMenu ? <div className="create-menu open" onPointerDown={(event) => event.stopPropagation()} style={{ left: createMenu.left, top: createMenu.top }}>
       {createMenuNodes.map(([type, label, icon]) => <button className="menu-btn" key={type} onClick={() => {
