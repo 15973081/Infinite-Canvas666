@@ -13,6 +13,7 @@ import { LegacyOutputLightbox } from './legacy-output-lightbox';
 import { SmartCanvasComposer } from './smart-canvas-composer';
 import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canvas-create-menu';
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
+import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -96,11 +97,12 @@ function canOutput(node: CanvasNode): boolean {
   return ['image', 'prompt', 'loop', 'group', 'promptGroup', 'generator', 'comfy', 'ltxDirector', 'llm', 'msgen', 'video', 'output'].includes(node.type);
 }
 
-function PromptBody({ commit, node, store }: { commit: () => void; node: CanvasNode; store: DocumentStore }) {
+function PromptBody({ commit, node, onOpenPreset, store }: { commit: () => void; node: CanvasNode; onOpenPreset?: (nodeId: string) => void; store: DocumentStore }) {
   const text = String(node.text || '');
   return <div className="prompt-editor" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
     <div className="prompt-toolbar">
       <button className="prompt-template-btn" onClick={() => window.CanvasBoardV2?.openPromptTemplates(node.id)} type="button">模板</button>
+      {onOpenPreset ? <button className="prompt-template-btn prompt-preset-save" onClick={() => onOpenPreset(node.id)} type="button">预设</button> : null}
       <div className={`prompt-counter ${text.length > 20_000 ? 'over' : ''}`}><span>{text.length.toLocaleString()}</span><span>/ 20,000</span></div>
     </div>
     <textarea data-field="text" maxLength={20_000} onBlur={commit} onChange={(event) => store.getState().updateNode(node.id, { text: event.target.value })} placeholder="输入提示词" value={text} />
@@ -519,6 +521,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const [createMenu, setCreateMenu] = useState<{ left: number; point: Point; top: number } | null>(null);
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null);
   const [dropActive, setDropActive] = useState(false);
+  const [promptPresetNodeId, setPromptPresetNodeId] = useState('');
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
   const boardDocument = { connections: document?.connections ?? [], nodes: document?.nodes ?? [] };
 
@@ -527,6 +530,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     setSelectedEdge(-1);
     setSelectedIds(new Set());
     setCreateMenu(null);
+    setPromptPresetNodeId('');
     setViewport(legacyUi ? loadViewport(documentId) : { x: 0, y: 0, zoom: 1 });
   }, [documentId, legacyUi]);
 
@@ -977,7 +981,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
           {canInput(node) ? <button aria-label={`连接到 ${node.id}`} className="port in" data-port="in" onClick={() => connect(node.id)} onPointerDown={(event) => event.stopPropagation()} onPointerUp={() => connect(node.id)} type="button" /> : null}
           {canOutput(node) ? <button aria-label={`从 ${node.id} 连线`} className="port out" data-port="out" onClick={() => setConnectingFrom(node.id)} onPointerDown={(event) => { event.stopPropagation(); setConnectingFrom(node.id); }} type="button" /> : null}
           <header className="node-head"><strong className="node-title">{nodeRegistry[node.type] ?? node.type}</strong></header>
-          <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} store={store} />
+          <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} onOpenPreset={smartUi && !readOnly ? setPromptPresetNodeId : undefined} store={store} />
             : node.type === 'image' ? <ImageBody canvasRuntime={canvasRuntime} commit={commit} node={node} onEdit={() => setImageEditorNodeId(node.id)} store={store} />
               : node.type === 'group' ? <GroupBody node={node} nodesById={nodesById} />
             : node.type === 'promptGroup' ? <PromptGroupBody node={node} nodesById={nodesById} />
@@ -1014,6 +1018,22 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       }} type="button"><i className="w-4 h-4" data-lucide={icon} /><span>{label}</span></button>)}
     </div> : null}
     {smartUi && createMenu ? <SmartCanvasCreateMenu left={createMenu.left} onCreate={createSmartNode} top={createMenu.top} /> : null}
+    {smartUi && promptPresetNodeId && nodesById.get(promptPresetNodeId) ? <SmartCanvasPromptPreset
+      boardRef={boardRef}
+      node={nodesById.get(promptPresetNodeId)!}
+      onClearPreset={(presetId) => {
+        const snapshot = store.getState().document;
+        if (!snapshot) return;
+        store.getState().projectDocument({
+          ...snapshot,
+          nodes: snapshot.nodes.map((node) => String(node.promptPresetId || '') === presetId ? { ...node, promptPresetId: undefined } : node),
+        });
+        commit();
+      }}
+      onClose={() => setPromptPresetNodeId('')}
+      onPatchNode={(nodeId, patch) => { store.getState().updateNode(nodeId, patch); commit(); }}
+      readOnly={readOnly}
+    /> : null}
     {smartUi ? <input accept="image/*,video/*,audio/*" hidden id="fileInput" multiple type="file" /> : null}
     {legacyUi ? <div className="minimap" onPointerDown={(event) => {
       event.preventDefault();
