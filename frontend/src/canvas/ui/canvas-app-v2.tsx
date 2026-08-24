@@ -13,6 +13,7 @@ import { mountCanvasBoardV2 } from './canvas-board-v2';
 import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
 import { AssetLibraryDialog, type CanvasAssetLibraryRequest } from './asset-library-dialog';
 import { SmartCanvasAssetPanel } from './smart-canvas-asset-panel';
+import { SmartCanvasWorkflowPanel, type SmartWorkflowSelection } from './smart-canvas-workflow-panel';
 import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
 import { CanvasManager, ScopedCanvasManager } from './canvas-manager';
 
@@ -313,8 +314,8 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
       setWorkflowOpen(false);
     } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
   };
-  const saveWorkflowToLibrary = () => {
-    const workflow = window.CanvasBoardV2?.exportSelection();
+  const saveWorkflowToLibrary = (selectedWorkflow?: SmartWorkflowSelection) => {
+    const workflow = selectedWorkflow || window.CanvasBoardV2?.exportSelection();
     if (!workflow?.nodes.length) { setStatus('没有可保存的节点'); return; }
     const name = String(current?.title || 'canvas');
     setWorkflowOpen(false);
@@ -339,19 +340,16 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   };
   const importWorkflow = async (file: File) => {
     try {
-      let payload: unknown;
-      if (/\.json$/i.test(file.name)) payload = JSON.parse(await file.text());
-      else {
-        const form = new FormData(); form.append('file', file);
-        const response = await fetch('/api/canvas-workflows/import', { method: 'POST', body: form });
-        if (!response.ok) throw new Error('导入工作流失败');
-        payload = await response.json();
-      }
+      const form = new FormData(); form.append('file', file);
+      const response = await fetch('/api/canvas-workflows/import', { method: 'POST', body: form });
+      if (!response.ok) throw new Error('导入工作流失败');
+      const payload: unknown = await response.json();
       const normalized = normalizeWorkflow(payload);
       const ids = window.CanvasBoardV2?.importWorkflow(normalized) ?? [];
       setStatus(ids.length ? `已导入 ${ids.length} 个节点` : '文件中没有可导入节点');
       setWorkflowOpen(false);
-    } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
+      return ids.length;
+    } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); throw error; }
   };
   const showAssets = () => setAssetRequest({
     onInsert: (item) => {
@@ -509,7 +507,9 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     {lockHolder && !smartEditor ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
     {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
-    {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><button onClick={saveWorkflowToLibrary} type="button">保存到工作流库</button><button onClick={() => void exportSelectedResults()} type="button">批量导出选区结果</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
+    {workflowOpen ? smartEditor
+      ? <SmartCanvasWorkflowPanel onClose={() => setWorkflowOpen(false)} onImport={importWorkflow} onSaveToLibrary={saveWorkflowToLibrary} onStatus={setStatus} title={String(current.title || 'canvas')} />
+      : <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><button onClick={() => saveWorkflowToLibrary()} type="button">保存到工作流库</button><button onClick={() => void exportSelectedResults()} type="button">批量导出选区结果</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
     {assetRequest ? smartEditor
       ? <SmartCanvasAssetPanel onClose={() => setAssetRequest(null)} request={assetRequest} />
       : <AssetLibraryDialog onClose={() => setAssetRequest(null)} request={assetRequest} /> : null}

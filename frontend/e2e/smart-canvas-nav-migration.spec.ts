@@ -61,8 +61,8 @@ test('keeps the migrated navigation buttons wired to their existing React functi
   await expect(shell.locator('#smartShortcutModal')).not.toHaveClass(/\bopen\b/);
 
   await shell.locator('#smartWorkflowToggle').click();
-  await expect(shell.locator('.canvas-modern-backups')).toContainText('工作流导入 / 导出');
-  await shell.locator('.canvas-modern-backups header button').click();
+  await expect(shell.locator('#smartWorkflowTransferModal.workflow-transfer-panel.open')).toContainText('导入导出工作流');
+  await shell.locator('#smartWorkflowTransferModal .workflow-transfer-head button').click();
 
   await shell.locator('#smartCostToggle').click();
   await expect(shell.locator('.canvas-modern-backups')).toContainText('费用汇总');

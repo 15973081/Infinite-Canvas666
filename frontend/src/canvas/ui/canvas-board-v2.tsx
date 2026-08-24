@@ -2000,6 +2000,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       store.getState().projectDocument(result);
       commit(false);
     },
+    selectedNodeIds() { return [...externalSelection]; },
     setReadOnly(value) {
       readOnlyMode = Boolean(value);
       window.dispatchEvent(new CustomEvent('canvas-board-v2-readonly', { detail: readOnlyMode }));
@@ -2014,7 +2015,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       return true;
     },
   };
-  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} legacyUi={Boolean(options.legacyUi)} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} smartUi={Boolean(options.smartUi)} store={store} />);
+  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} legacyUi={Boolean(options.legacyUi)} onSelectionChange={(ids) => { externalSelection = new Set(ids); window.dispatchEvent(new Event('canvas-board-v2-selection')); }} smartUi={Boolean(options.smartUi)} store={store} />);
   if (legacyBoard) legacyBoard.hidden = true;
   element.hidden = false;
   return () => {
