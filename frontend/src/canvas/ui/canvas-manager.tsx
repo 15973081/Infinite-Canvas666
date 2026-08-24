@@ -5,7 +5,7 @@ import type { CanvasFolder, CanvasManagementClient, CanvasSummary } from '../inf
 const CANVAS_COLORS = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'violet', 'pink', 'slate'];
 const CANVAS_ICONS = ['layers', 'sparkles', 'image', 'palette', 'wand-2', 'star', 'heart', 'rocket', 'flame', 'moon', 'cloud', 'leaf', 'gem', 'compass', 'pin', 'flag', 'bookmark', 'crown'];
 
-interface CanvasManagerConfiguration {
+export interface CanvasManagerConfiguration {
   createLabel?: string;
   defaultTitle?: string;
   heading?: string;
@@ -14,7 +14,7 @@ interface CanvasManagerConfiguration {
   subtitle?: string;
 }
 
-interface CanvasManagerProps {
+export interface CanvasManagerProps {
   canvases: CanvasSummary[];
   configuration: CanvasManagerConfiguration;
   folders: CanvasFolder[];
@@ -255,6 +255,48 @@ export function CanvasManager({ canvases, configuration, folders, management, on
   </main>;
 }
 
+export function ScopedCanvasManager({ canvases, configuration, folders, management, onOpen, onRefresh, onStatus, status, trash }: CanvasManagerProps) {
+  const [activeFolder, setActiveFolder] = useState('all');
+  const [createTitle, setCreateTitle] = useState('');
+  const [showTrash, setShowTrash] = useState(false);
+  const list = showTrash ? trash : activeFolder === 'all' ? canvases : activeFolder === 'root' ? canvases.filter((item) => !item.folder_id) : canvases.filter((item) => item.folder_id === activeFolder);
+  const create = async () => {
+    try {
+      const created = await management.create(createTitle || configuration.defaultTitle || '', {
+        icon: configuration.kind === 'smart' ? 'sparkles' : undefined,
+        kind: configuration.kind ?? 'classic',
+      });
+      setCreateTitle('');
+      await onRefresh();
+      await onOpen(created);
+    } catch (error) { onStatus(errorMessage(error, '新建画布失败')); }
+  };
+  return <main className="canvas-modern-manager">
+    <section className="gate-panel canvas-modern-gate">
+      <header className="gate-head">
+        <div className="gate-head-text"><h1 className="gate-title">{showTrash ? '回收站' : configuration.heading || '经典画布 V2'}</h1><p className="gate-subtitle">{configuration.subtitle || 'React + TypeScript 独立文档与执行路径'}</p></div>
+        <div className="gate-head-actions">
+          {configuration.managerBackHref ? <a className="gate-icon-btn" href={configuration.managerBackHref}>返回首页</a> : null}
+          {!showTrash ? <><select aria-label="画布文件夹" onChange={(event) => setActiveFolder(event.target.value)} value={activeFolder}><option value="all">全部画布</option><option value="root">未分类</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{String(folder.name || '未命名文件夹')}</option>)}</select><button className="gate-icon-btn" onClick={async () => { const name = window.prompt('文件夹名称')?.trim(); if (name) { await management.createFolder(name); await onRefresh(); } }} type="button">新建文件夹</button>{!['all', 'root'].includes(activeFolder) ? <button className="gate-icon-btn" onClick={async () => { if (window.confirm('删除此文件夹？文件夹内画布不会被永久删除。')) { await management.deleteFolder(activeFolder); setActiveFolder('all'); await onRefresh(); } }} type="button">删除文件夹</button> : null}</> : null}
+          <button className="gate-icon-btn" onClick={() => void onRefresh()} type="button">刷新</button>
+          <button className="gate-icon-btn" onClick={() => setShowTrash((value) => !value)} type="button">{showTrash ? '返回画布' : `回收站 ${trash.length}`}</button>
+        </div>
+      </header>
+      {!showTrash ? <div className="gate-create-row canvas-modern-create">
+        <input className="gate-name-input" maxLength={80} onChange={(event) => setCreateTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void create(); }} placeholder="新画布名称" value={createTitle} />
+        <button className="primary-btn" onClick={() => void create()} type="button">{configuration.createLabel || '新建画布'}</button>
+      </div> : null}
+      {status ? <div className="gate-status">{status}</div> : null}
+      <div className="gate-list canvas-modern-list">
+        {list.map((item) => <article className="gate-card" data-canvas-id={item.id} key={item.id}>
+          <button className="canvas-modern-card-main" disabled={showTrash} onClick={() => void onOpen(item)} type="button"><strong>{String(item.title || '未命名画布')}</strong><small>{formatTime(item.updated_at)}</small></button>
+          {showTrash ? <><button onClick={async () => { await management.restore(item.id); await onRefresh(); }} type="button">恢复</button><button onClick={async () => { if (window.confirm('永久删除后无法恢复，确定继续？')) { await management.purge(item.id); await onRefresh(); } }} type="button">永久删除</button></> : <><select aria-label={`移动 ${String(item.title || '画布')}`} onChange={async (event) => { await management.moveToFolder(item.id, event.target.value); await onRefresh(); }} value={String(item.folder_id || '')}><option value="">未分类</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{String(folder.name || '未命名文件夹')}</option>)}</select><button aria-label="移入回收站" onClick={async () => { if (window.confirm('将此画布移入回收站？')) { await management.delete(item.id); await onRefresh(); } }} type="button">删除</button></>}
+        </article>)}
+      </div>
+    </section>
+  </main>;
+}
+
 function CanvasCard({ editing, folders, item, metaOpen, metaPosition, moving, onCancelConfirm, onConfirmDelete, onConfirmPurge, onDelete, onEdit, onMeta, onMove, onMoveMenu, onOpen, onPatch, onPurge, onRestore, onTitle, pendingDelete, pendingPurge, showTrash }: {
   editing: boolean; folders: CanvasFolder[]; item: CanvasSummary; metaOpen: boolean; metaPosition: { left: number; top: number }; moving: boolean;
   onCancelConfirm(): void; onConfirmDelete(): void; onConfirmPurge(): void; onDelete(): void; onEdit(): void; onMeta(event: MouseEvent<HTMLButtonElement>): void; onMove(folderId: string): void; onMoveMenu(): void; onOpen(): void;
@@ -287,7 +329,7 @@ function CanvasCard({ editing, folders, item, metaOpen, metaPosition, moving, on
 
 function CanvasMetaPopover({ item, onPatch, position }: { item: CanvasSummary; onPatch(patch: Record<string, unknown>, failure: string): void; position: { left: number; top: number } }) {
   const [owner, setOwner] = useState(String(item.owner || ''));
-  const popover = <div className="canvas-meta-pop" data-canvas-meta-pop={item.id} onMouseDown={(event) => event.stopPropagation()} style={position}>
+  const popover = <div className="canvas-meta-pop" data-canvas-meta-pop={item.id} onMouseDown={(event) => event.stopPropagation()} style={{ ...position, zIndex: 1120 }}>
     <div className="canvas-meta-section"><div className="canvas-meta-label">负责人 / 项目</div><input className="canvas-owner-input" maxLength={40} onBlur={() => { const value = owner.trim(); if (value !== String(item.owner || '')) onPatch({ owner: value }, '负责人保存失败'); }} onChange={(event) => setOwner(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} placeholder="如：张三 / 双十一项目" type="text" value={owner} /></div>
     <div className="canvas-meta-section"><div className="canvas-meta-label">颜色标记</div><div className="canvas-color-row"><button className={`canvas-color-swatch cc-none${item.color ? '' : ' active'}`} onClick={() => onPatch({ color: '' }, '颜色保存失败')} title="无" type="button"><Icon name="ban" size={12} /></button>{CANVAS_COLORS.map((color) => <button aria-label={color} className={`canvas-color-swatch cc-${color}${item.color === color ? ' active' : ''}`} key={color} onClick={() => onPatch({ color }, '颜色保存失败')} type="button" />)}</div></div>
     <div className="canvas-meta-section"><div className="canvas-meta-label">更换图标</div><div className="emoji-picker-grid">{CANVAS_ICONS.map((icon) => <button className="emoji-option" data-icon={icon} key={icon} onClick={() => onPatch({ icon }, '图标保存失败')} type="button"><Icon name={icon} size={14} /></button>)}</div></div>

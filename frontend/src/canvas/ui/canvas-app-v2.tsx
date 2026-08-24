@@ -13,7 +13,7 @@ import { mountCanvasBoardV2 } from './canvas-board-v2';
 import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
 import { AssetLibraryDialog, type CanvasAssetLibraryRequest } from './asset-library-dialog';
 import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
-import { CanvasManager } from './canvas-manager';
+import { CanvasManager, ScopedCanvasManager } from './canvas-manager';
 
 export interface CanvasAppConfiguration {
   assetInboxKey?: string;
@@ -377,7 +377,8 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   }, [configuration.assetInboxKey, current]);
 
   if (!current) {
-    return <CanvasManager canvases={canvases} configuration={configuration} folders={folders} management={management} onOpen={openCanvas} onRefresh={refresh} onStatus={setStatus} status={status} trash={trash} />;
+    const Manager = configuration.kind ? ScopedCanvasManager : CanvasManager;
+    return <Manager canvases={canvases} configuration={configuration} folders={folders} management={management} onOpen={openCanvas} onRefresh={refresh} onStatus={setStatus} status={status} trash={trash} />;
   }
 
   return <main className="canvas-modern-editor">
