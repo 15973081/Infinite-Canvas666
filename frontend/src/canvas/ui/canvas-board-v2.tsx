@@ -10,6 +10,7 @@ import { createDocumentStore, type DocumentStore } from '../stores/document-stor
 import { ImageTransformDialog, type ImageTransformResult } from './image-transform-dialog';
 import { LegacyImageTransformDialog, type LegacyGridResult, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
 import { LegacyOutputLightbox } from './legacy-output-lightbox';
+import { SmartCanvasMinimap } from './smart-canvas-minimap';
 
 type Point = { x: number; y: number };
 type Viewport = Point & { zoom: number };
@@ -498,7 +499,7 @@ function LtxTimelineEditor({ commit, node, store }: { commit: () => void; node: 
   </div>;
 }
 
-function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyUi = false, onSelectionChange, store }: { canvasRuntime: CanvasRuntime; commit: () => void; initialReadOnly?: boolean; legacyUi?: boolean; onSelectionChange?: (ids: Set<string>) => void; store: DocumentStore }) {
+function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyUi = false, onSelectionChange, smartUi = false, store }: { canvasRuntime: CanvasRuntime; commit: () => void; initialReadOnly?: boolean; legacyUi?: boolean; onSelectionChange?: (ids: Set<string>) => void; smartUi?: boolean; store: DocumentStore }) {
   const document = useStore(store, ({ document }) => document);
   const documentId = String(document?.id || '');
   const boardRef = useRef<HTMLDivElement | null>(null);
@@ -670,6 +671,13 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     };
     setViewport((value) => {
       const next = { ...value, x: boardSize.width / 2 - world.x * value.zoom, y: boardSize.height / 2 - world.y * value.zoom };
+      persistViewport(documentId, next);
+      return next;
+    });
+  };
+  const locateSmartViewport = (point: Point) => {
+    setViewport((value) => {
+      const next = { ...value, x: boardSize.width / 2 - point.x * value.zoom, y: boardSize.height / 2 - point.y * value.zoom };
       persistViewport(documentId, next);
       return next;
     });
@@ -956,6 +964,13 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
         }} />
       </div>
     </div> : null}
+    {smartUi ? <SmartCanvasMinimap
+      boardHeight={boardSize.height}
+      boardWidth={boardSize.width}
+      nodes={(document?.nodes ?? []).map((node) => ({ ...nodePoint(node), ...nodeSize(node), id: node.id }))}
+      onLocate={locateSmartViewport}
+      viewport={viewport}
+    /> : null}
     {lightbox && lightboxNode ? (legacyUi ? <LegacyOutputLightbox
       node={lightboxNode}
       onClose={() => setLightbox(null)}
@@ -1083,6 +1098,7 @@ export interface CanvasBoardMountOptions {
   readOnly?: boolean;
   repository?: CanvasRepository;
   runtime?: CanvasRuntime;
+  smartUi?: boolean;
 }
 
 export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElement | null, options: CanvasBoardMountOptions = {}): () => void {
@@ -1413,7 +1429,7 @@ export function mountCanvasBoardV2(element: HTMLElement, legacyBoard: HTMLElemen
       return true;
     },
   };
-  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} legacyUi={Boolean(options.legacyUi)} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} store={store} />);
+  root.render(<CanvasBoardV2 canvasRuntime={modernRuntime} commit={commit} initialReadOnly={readOnlyMode} legacyUi={Boolean(options.legacyUi)} onSelectionChange={(ids) => { externalSelection = new Set(ids); }} smartUi={Boolean(options.smartUi)} store={store} />);
   if (legacyBoard) legacyBoard.hidden = true;
   element.hidden = false;
   return () => {

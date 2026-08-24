@@ -86,7 +86,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   useEffect(() => {
     const host = boardRef.current;
     if (!host || !current) return;
-    const cleanup = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, legacyUi: !configuration.kind, readOnly: Boolean(lockHolder), repository, runtime });
+    const cleanup = mountCanvasBoardV2(host, null, { clientId: clientId.current, initialDocument: current, legacyUi: !configuration.kind, readOnly: Boolean(lockHolder), repository, runtime, smartUi: configuration.kind === 'smart' });
     window.CanvasBoardV2?.setReadOnly(Boolean(lockHolder));
     return cleanup;
   }, [configuration.kind, current, repository, runtime]);
