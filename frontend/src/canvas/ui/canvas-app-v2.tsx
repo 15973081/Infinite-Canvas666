@@ -13,6 +13,7 @@ import { mountCanvasBoardV2 } from './canvas-board-v2';
 import { canvasDocumentCost, readCanvasAssetInbox } from './canvas-app-domain';
 import { AssetLibraryDialog, type CanvasAssetLibraryRequest } from './asset-library-dialog';
 import { PromptLibraryDialog, type PromptLibraryRequest } from './prompt-library-dialog';
+import { CanvasManager } from './canvas-manager';
 
 export interface CanvasAppConfiguration {
   assetInboxKey?: string;
@@ -43,10 +44,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   const [canvases, setCanvases] = useState<CanvasSummary[]>([]);
   const [trash, setTrash] = useState<CanvasSummary[]>([]);
   const [folders, setFolders] = useState<CanvasFolder[]>([]);
-  const [activeFolder, setActiveFolder] = useState('all');
-  const [showTrash, setShowTrash] = useState(false);
   const [current, setCurrent] = useState<CanvasDocument | null>(null);
-  const [createTitle, setCreateTitle] = useState('');
   const [status, setStatus] = useState('正在加载画布列表…');
   const [backups, setBackups] = useState<Array<Record<string, unknown>> | null>(null);
   const [promptRequest, setPromptRequest] = useState<PromptLibraryRequest | null>(null);
@@ -67,7 +65,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     setStatus('正在加载画布列表…');
     try {
       const [allActive, allDeleted, folderList] = await Promise.all([management.list(), management.listTrash(), management.listFolders()]);
-      const matchesKind = (item: CanvasSummary) => String(item.kind || 'classic') === canvasKind;
+      const matchesKind = (item: CanvasSummary) => !configuration.kind || String(item.kind || 'classic') === canvasKind;
       const active = allActive.filter(matchesKind);
       const deleted = allDeleted.filter(matchesKind);
       setCanvases(active.sort((a, b) => Number(b.updated_at || 0) - Number(a.updated_at || 0)));
@@ -77,7 +75,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     }
-  }, [canvasKind, management]);
+  }, [canvasKind, configuration.kind, management]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -249,29 +247,12 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     await refresh();
   };
 
-  const create = async () => {
-    try {
-      const created = await management.create(createTitle || configuration.defaultTitle || '', {
-        icon: canvasKind === 'smart' ? 'sparkles' : undefined,
-        kind: canvasKind,
-      });
-      setCreateTitle('');
-      await refresh();
-      await openCanvas(created);
-    } catch (error) { setStatus(error instanceof Error ? error.message : String(error)); }
-  };
   const editIdentity = async () => {
     const currentName = localStorage.getItem('canvasUserName') || '';
     const name = window.prompt('编辑身份名称', currentName);
     if (name === null) return;
     localStorage.setItem('canvasUserName', name.trim());
     if (current?.id) await acquireCurrentLock();
-  };
-
-  const remove = async (id: string) => {
-    if (!window.confirm('将此画布移入回收站？')) return;
-    await management.delete(id);
-    await refresh();
   };
 
   const showBackups = async () => {
@@ -396,34 +377,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
   }, [configuration.assetInboxKey, current]);
 
   if (!current) {
-    const list = showTrash ? trash : activeFolder === 'all' ? canvases : activeFolder === 'root' ? canvases.filter((item) => !item.folder_id) : canvases.filter((item) => item.folder_id === activeFolder);
-    return <main className="canvas-modern-manager">
-      <section className="gate-panel canvas-modern-gate">
-        <header className="gate-head">
-          <div className="gate-head-text"><h1 className="gate-title">{showTrash ? '回收站' : configuration.heading || '经典画布 V2'}</h1><p className="gate-subtitle">{configuration.subtitle || 'React + TypeScript 独立文档与执行路径'}</p></div>
-          <div className="gate-head-actions">
-            {configuration.managerBackHref ? <a className="gate-icon-btn" href={configuration.managerBackHref}>返回首页</a> : null}
-            {!showTrash ? <><select aria-label="画布文件夹" onChange={(event) => setActiveFolder(event.target.value)} value={activeFolder}><option value="all">全部画布</option><option value="root">未分类</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{String(folder.name || '未命名文件夹')}</option>)}</select><button className="gate-icon-btn" onClick={async () => { const name = window.prompt('文件夹名称')?.trim(); if (name) { await management.createFolder(name); await refresh(); } }} type="button">新建文件夹</button>{!['all', 'root'].includes(activeFolder) ? <button className="gate-icon-btn" onClick={async () => { if (window.confirm('删除此文件夹？文件夹内画布不会被永久删除。')) { await management.deleteFolder(activeFolder); setActiveFolder('all'); await refresh(); } }} type="button">删除文件夹</button> : null}</> : null}
-            <button className="gate-icon-btn" onClick={() => void refresh()} type="button">刷新</button>
-            <button className="gate-icon-btn" onClick={() => setShowTrash((value) => !value)} type="button">{showTrash ? '返回画布' : `回收站 ${trash.length}`}</button>
-          </div>
-        </header>
-        {!showTrash ? <div className="gate-create-row canvas-modern-create">
-          <input className="gate-name-input" maxLength={80} onChange={(event) => setCreateTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void create(); }} placeholder="新画布名称" value={createTitle} />
-          <button className="primary-btn" onClick={() => void create()} type="button">{configuration.createLabel || '新建画布'}</button>
-        </div> : null}
-        {status ? <div className="gate-status">{status}</div> : null}
-        <div className="gate-list canvas-modern-list">
-          {list.map((item) => <article className="gate-card" data-canvas-id={item.id} key={item.id}>
-            <button className="canvas-modern-card-main" disabled={showTrash} onClick={() => void openCanvas(item)} type="button">
-              <strong>{String(item.title || '未命名画布')}</strong><small>{formatTime(item.updated_at)}</small>
-            </button>
-            {showTrash ? <><button onClick={async () => { await management.restore(item.id); await refresh(); }} type="button">恢复</button><button onClick={async () => { if (window.confirm('永久删除后无法恢复，确定继续？')) { await management.purge(item.id); await refresh(); } }} type="button">永久删除</button></>
-              : <><select aria-label={`移动 ${String(item.title || '画布')}`} onChange={async (event) => { await management.moveToFolder(item.id, event.target.value); await refresh(); }} value={String(item.folder_id || '')}><option value="">未分类</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{String(folder.name || '未命名文件夹')}</option>)}</select><button aria-label="移入回收站" onClick={() => void remove(item.id)} type="button">删除</button></>}
-          </article>)}
-        </div>
-      </section>
-    </main>;
+    return <CanvasManager canvases={canvases} configuration={configuration} folders={folders} management={management} onOpen={openCanvas} onRefresh={refresh} onStatus={setStatus} status={status} trash={trash} />;
   }
 
   return <main className="canvas-modern-editor">

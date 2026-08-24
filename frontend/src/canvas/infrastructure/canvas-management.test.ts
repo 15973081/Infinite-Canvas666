@@ -16,6 +16,7 @@ describe('Canvas management client', () => {
       if (path === '/api/canvases' && init?.method === 'POST') return response({ id: 'created', title: 'New' });
       if (path === '/api/canvases') return response({ canvases: [{ id: 'active' }] });
       if (path === '/api/canvases/trash') return response({ canvases: [{ id: 'deleted', deleted_at: 1 }] });
+      if (path === '/api/canvases/active/meta' && init?.method === 'POST') return response({ canvas: { id: 'active', title: 'Renamed', pinned: true } });
       if (path === '/api/canvases/active/meta') return response({ id: 'active', updated_at: 42 });
       if (path.endsWith('/lock') && init?.method === 'POST') return response({ ok: true });
       return response({ ok: true });
@@ -26,11 +27,13 @@ describe('Canvas management client', () => {
     expect(await client.listTrash()).toMatchObject([{ id: 'deleted' }]);
     expect(await client.create('New')).toMatchObject({ id: 'created', title: 'New' });
     expect(await client.getMeta('active')).toEqual({ id: 'active', updated_at: 42 });
+    expect(await client.patchMeta('active', { title: 'Renamed', pinned: true })).toMatchObject({ id: 'active', title: 'Renamed', pinned: true });
     expect(await client.acquireLock('active', 'client', 'User')).toEqual({ ok: true });
     await client.releaseLock('active', 'client', true);
 
     expect(requests).toContainEqual({ path: '/api/canvases/active/lock', method: 'POST', body: { client_id: 'client', username: 'User' } });
     expect(requests).toContainEqual({ path: '/api/canvases/active/lock/release', method: 'POST', body: { client_id: 'client' } });
+    expect(requests).toContainEqual({ path: '/api/canvases/active/meta', method: 'POST', body: { title: 'Renamed', pinned: true } });
   });
 
   it('returns the remote holder when the editing lock is already owned', async () => {

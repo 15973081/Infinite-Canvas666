@@ -43,6 +43,7 @@ export interface CanvasManagementClient {
   listFolders(): Promise<CanvasFolder[]>;
   listTrash(): Promise<CanvasSummary[]>;
   moveToFolder(canvasId: string, folderId: string): Promise<void>;
+  patchMeta(canvasId: string, patch: Record<string, unknown>): Promise<CanvasSummary>;
   purge(canvasId: string): Promise<void>;
   releaseLock(canvasId: string, clientId: string, keepalive?: boolean): Promise<void>;
   restore(canvasId: string): Promise<void>;
@@ -74,6 +75,10 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
   const restore = (canvasId: string) => emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/restore`, 'POST');
   const purge = (canvasId: string) => emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/purge`, 'DELETE');
   const moveToFolder = (canvasId: string, folderId: string) => jsonRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/folder`, 'PATCH', { folder_id: folderId }).then(() => undefined);
+  const patchMeta = async (canvasId: string, patch: Record<string, unknown>) => {
+    const payload = object(await jsonRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/meta`, 'POST', patch));
+    return (payload.canvas ? object(payload.canvas) : payload) as CanvasSummary;
+  };
   const deleteBackup = (canvasId: string, filename: string) => emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/backups/${encodeURIComponent(filename)}`, 'DELETE');
   const getMeta = async (canvasId: string) => object(await requestJson(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/meta`)) as CanvasMeta;
   const acquireLock = async (canvasId: string, clientId: string, username = '') => {
@@ -93,7 +98,7 @@ export function createCanvasManagementClient(fetcher: Fetcher = fetch): CanvasMa
     }
     await emptyRequest(fetcher, `/api/canvases/${encodeURIComponent(canvasId)}/lock?client_id=${encodeURIComponent(clientId)}`, 'DELETE');
   };
-  return { acquireLock, create, createFolder, delete: remove, deleteBackup, deleteFolder, getMeta, list, listFolders, listTrash, moveToFolder, purge, releaseLock, restore, updateFolder };
+  return { acquireLock, create, createFolder, delete: remove, deleteBackup, deleteFolder, getMeta, list, listFolders, listTrash, moveToFolder, patchMeta, purge, releaseLock, restore, updateFolder };
 }
 
 const defaultCanvasManagementClient = createCanvasManagementClient();
