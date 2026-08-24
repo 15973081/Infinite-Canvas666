@@ -655,6 +655,11 @@ test('runs fake execution and mocked task/repository contracts with all M2 switc
   await page.locator('#shell').evaluate((element) => element.classList.remove('no-canvas'));
   await expect(page.getByTestId('execution-status-island')).toBeVisible();
   await expect(page.getByTestId('canvas-status-island')).toBeVisible();
+  await expect(page.locator('link[href*="/static/css/canvas.css"]')).toHaveCount(1);
+  await expect(page.locator('link[href*="/static/css/studio-tokens.css"]')).toHaveCount(0);
+  await expect(page.locator('link[href*="/static/dist/infinite-canvas-frontend.css"]')).toHaveCount(0);
+  await expect(page.getByTestId('execution-status-island')).toHaveClass(/\bpanel\b/);
+  await expect(page.getByRole('button', { name: '生成日志' })).toHaveClass(/\btool-btn\b/);
   await page.evaluate(() => (window as typeof window & { setStatus(text: string): void }).setStatus('Saving...'));
   await expect(page.getByTestId('canvas-status-island')).toContainText('Saving...');
   await page.evaluate(() => (window as typeof window & { setStatus(text: string): void }).setStatus('Saved'));
