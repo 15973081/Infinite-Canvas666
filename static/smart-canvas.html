@@ -436,6 +436,7 @@
             var legacyShell = document.getElementById('shell');
             var modernRoot = document.getElementById('smartCanvasApp');
             var legacyStyles = document.getElementById('smartCanvasLegacyStyles');
+            var legacyAnchor = document.createComment('smart-canvas-legacy-shell');
             var modernStyles = [];
             var legacySources = [
                 '/static/js/canvas-core.js?v=2026.07.06.1',
@@ -468,7 +469,10 @@
                 modernStyles.forEach(function(link){ link.disabled = true; });
                 if(legacyStyles) legacyStyles.disabled = false;
                 if(modernRoot) modernRoot.hidden = true;
-                if(legacyShell) legacyShell.hidden = false;
+                if(legacyShell){
+                    if(!legacyShell.isConnected && modernRoot) modernRoot.before(legacyShell);
+                    legacyShell.hidden = false;
+                }
                 for(var index = 0; index < legacySources.length; index += 1){
                     await loadClassicScript(legacySources[index]);
                 }
@@ -484,8 +488,11 @@
                 return;
             }
 
-            if(legacyStyles) legacyStyles.disabled = true;
-            if(legacyShell) legacyShell.hidden = true;
+            if(legacyShell){
+                legacyShell.before(legacyAnchor);
+                legacyShell.hidden = true;
+                legacyShell.remove();
+            }
             if(modernRoot) modernRoot.hidden = false;
 
             [
@@ -500,6 +507,7 @@
                 document.head.appendChild(link);
                 modernStyles.push(link);
             });
+            if(legacyStyles) document.head.appendChild(legacyStyles);
 
             var module = document.createElement('script');
             module.type = 'module';

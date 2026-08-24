@@ -382,12 +382,22 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     return () => window.removeEventListener('keydown', paste, true);
   }, [configuration.assetInboxKey, current]);
 
+  useEffect(() => {
+    if (configuration.kind !== 'smart' || !current) {
+      document.body.classList.remove('smart-canvas-readonly');
+      return;
+    }
+    document.body.classList.toggle('smart-canvas-readonly', Boolean(lockHolder));
+    return () => document.body.classList.remove('smart-canvas-readonly');
+  }, [configuration.kind, current, lockHolder]);
+
   if (!current) {
     const Manager = configuration.kind === 'classic' ? ScopedCanvasManager : CanvasManager;
     return <Manager canvases={canvases} configuration={configuration} folders={folders} management={management} onOpen={openCanvas} onRefresh={refresh} onStatus={setStatus} status={status} trash={trash} />;
   }
 
   const classicEditor = !configuration.kind;
+  const smartEditor = configuration.kind === 'smart';
   const toggleToolbar = () => {
     setToolbarCollapsed((collapsed) => {
       const next = !collapsed;
@@ -396,7 +406,7 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
     });
   };
 
-  return <main className={`canvas-modern-editor ${classicEditor ? 'shell' : ''}`}>
+  return <main className={`canvas-modern-editor ${(classicEditor || smartEditor) ? 'shell' : ''}`} id={smartEditor ? 'shell' : undefined}>
     {classicEditor ? <header className="topbar canvas-modern-topbar">
       <div className="panel canvas-nav">
         <button aria-label="返回画布管理" className="tool-btn" onClick={() => void closeCanvas()} title="返回画布管理" type="button"><i className="w-4 h-4" data-lucide="arrow-left" /></button>
@@ -428,10 +438,21 @@ function CanvasAppV2({ configuration = {}, management = getDefaultCanvasManageme
         <div className="toolbar-fixed"><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.undo()} title="Ctrl/⌘ + Z" type="button">撤销</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.redo()} title="Ctrl/⌘ + Shift + Z" type="button">重做</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => window.CanvasBoardV2?.groupSelected()} type="button">分组</button><button className="tool-btn" onClick={() => setWorkflowOpen(true)} type="button">工作流</button><button className="tool-btn" onClick={showAssets} type="button">资产库</button>{configuration.assetInboxKey ? <button className="tool-btn" disabled={Boolean(lockHolder)} onClick={importAssetInbox} type="button">导入素材</button> : null}<button className="tool-btn" onClick={() => void showInspector('cost')} type="button">费用</button><button className="tool-btn" onClick={() => void showInspector('logs')} type="button">日志</button><button className="tool-btn" disabled={Boolean(lockHolder)} onClick={() => void showBackups()} type="button">备份</button></div>
       </div>
     </header>}
-    <div className="canvas-modern-board" ref={boardRef} style={classicEditor ? { inset: 0 } : undefined} />
+    <div className={`canvas-modern-board ${smartEditor ? 'world' : ''}`} id={smartEditor ? 'world' : undefined} ref={boardRef} style={smartEditor ? { height: '100%', inset: 0, position: 'absolute', transform: 'none', width: '100%' } : classicEditor ? { inset: 0 } : undefined} />
+    {smartEditor ? <div className="selection-box" id="selectionBox" /> : null}
+    {smartEditor ? <div aria-live="polite" className={`toast ${status ? 'show' : ''}`} id="toast">{status}</div> : null}
+    {smartEditor ? <div className="smart-lock-overlay" hidden={!lockHolder} id="smartLockOverlay">
+      <div className="smart-lock-card">
+        <i data-lucide="lock" />
+        <strong>画布编辑中</strong>
+        <span id="smartLockMessage">{lockHolder ? `${lockHolderName(lockHolder)} 正在编辑此画布` : ''}</span>
+        <small>你只能查看、移动和缩放画布，等对方退出后会自动解锁。</small>
+        <button id="smartLockRetryBtn" onClick={() => void acquireCurrentLock()} type="button"><i data-lucide="refresh-cw" /><span>刷新状态</span></button>
+      </div>
+    </div> : null}
     {classicEditor ? <div className="hint editor-only">拖拽画布移动，Ctrl 框选多选，拖动选中节点可一起移动。上传/提示词节点右下端口拖线到生成节点。</div> : null}
     {configuration.editorAddon}
-    {lockHolder ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
+    {lockHolder && !smartEditor ? <div className="canvas-modern-readonly-overlay"><section><strong>只读模式</strong><span>{lockHolderName(lockHolder)} 正在编辑此画布</span>{lockIssue ? <small>{lockIssue}</small> : null}<button className="primary-btn" onClick={() => void acquireCurrentLock()} type="button">尝试取得编辑锁</button></section></div> : null}
     {backups ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>画布备份</strong><button onClick={() => setBackups(null)} type="button">关闭</button></header><button onClick={async () => { await repository.createBackup(String(current.id)); await showBackups(); }} type="button">立即备份</button>{backups.map((backup) => <div className="backup-item" key={String(backup.filename)}><span>{String(backup.filename)}</span><button onClick={async () => { const restored = await repository.restoreBackup(String(current.id), String(backup.filename)); setCurrent(restored); setBackups(null); }} type="button">恢复</button><button onClick={async () => { await management.deleteBackup(String(current.id), String(backup.filename)); await showBackups(); }} type="button">删除</button></div>)}</section></div> : null}
     {promptRequest ? <PromptLibraryDialog onClose={() => setPromptRequest(null)} request={promptRequest} /> : null}
     {workflowOpen ? <div className="modal open canvas-modern-backups"><section className="modal-panel"><header><strong>工作流导入 / 导出</strong><button onClick={() => setWorkflowOpen(false)} type="button">关闭</button></header><p>有选中节点时仅导出选区；分组会自动包含其成员。ZIP 会携带节点引用的本地媒体，导入后自动恢复资源地址。</p><button onClick={exportWorkflow} type="button">导出 JSON</button><button className="primary-btn" onClick={() => void exportWorkflowArchive()} type="button">导出 ZIP（含资源）</button><button onClick={saveWorkflowToLibrary} type="button">保存到工作流库</button><button onClick={() => void exportSelectedResults()} type="button">批量导出选区结果</button><label className="primary-btn">导入 JSON / ZIP<input accept=".json,.zip,application/json,application/zip" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void importWorkflow(file); }} type="file" /></label></section></div> : null}
