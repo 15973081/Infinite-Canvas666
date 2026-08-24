@@ -1,4 +1,4 @@
-import { n as e, t } from "./graph-DUr4u9Sb.js";
+import { n as e, t } from "./graph-Dsb9toch.js";
 //#region \0rolldown/runtime.js
 var n = Object.create, r = Object.defineProperty, i = Object.getOwnPropertyDescriptor, a = Object.getOwnPropertyNames, o = Object.getPrototypeOf, s = Object.prototype.hasOwnProperty, c = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t.exports), l = (e, t, n, o) => {
 	if (t && typeof t == "object" || typeof t == "function") for (var c = a(t), l = 0, u = c.length, d; l < u; l++) d = c[l], !s.call(e, d) && d !== n && r(e, d, {
@@ -8203,6 +8203,12 @@ function C(e) {
 					h: 220,
 					items: []
 				},
+				"smart-image": {
+					title: "上传节点",
+					images: [],
+					scale: 2,
+					created_at: Date.now()
+				},
 				video: {
 					apiProvider: "comfly",
 					model: "",
@@ -8353,33 +8359,41 @@ function C(e) {
 		projectExecutionDocument: (t) => {
 			let n = ne(t), i = r().document;
 			if (!i || !n || i.id !== n.id) return;
-			let a = new Map(n.nodes.map((e) => [e.id, e])), o = [
+			let a = new Set(i.nodes.map((e) => e.id)), o = new Map(n.nodes.map((e) => [e.id, e])), s = n.nodes.filter((e) => e.type === "output" && !a.has(e.id)), c = new Set(s.map((e) => e.id)), l = [
 				"_cascadeFailed",
 				"_pending",
 				"generatedOutputs",
 				"imageComparisons",
 				"images",
 				"messages",
+				"outputKind",
 				"outputLayout",
 				"outputText",
+				"pending",
 				"pendingTaskId",
+				"pendingTasks",
+				"queued",
+				"runElapsedMs",
 				"runError",
+				"runFinishedAt",
 				"running",
 				"runStatus"
-			], s = i.nodes.map((e) => {
-				let t = a.get(e.id);
+			], u = i.nodes.map((e) => {
+				let t = o.get(e.id);
 				if (!t) return e;
 				let n = {};
-				return o.forEach((r) => {
+				return l.forEach((r) => {
 					r in t ? n[r] = structuredClone(t[r]) : r in e && (n[r] = void 0);
 				}), {
 					...e,
 					...n
 				};
-			});
+			}), d = new Set(i.connections.map((e) => `${e.from}\u0000${e.to}\u0000${String(e.kind || "")}`)), f = n.connections.filter((e) => (c.has(e.from) || c.has(e.to)) && !d.has(`${e.from}\u0000${e.to}\u0000${String(e.kind || "")}`));
 			e({ document: {
 				...i,
-				nodes: s,
+				...Array.isArray(n.logs) ? { logs: structuredClone(n.logs) } : {},
+				connections: [...i.connections, ...structuredClone(f)],
+				nodes: [...u, ...structuredClone(s)],
 				updated_at: n.updated_at ?? i.updated_at
 			} });
 		},

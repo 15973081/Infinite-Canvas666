@@ -1,5 +1,5 @@
 import { n as e, t } from "./http-F-lX8WKW.js";
-import { n, r } from "./graph-DUr4u9Sb.js";
+import { n, r } from "./graph-Dsb9toch.js";
 //#region src/canvas/infrastructure/canvas-repository.ts
 var i = class extends t {
 	serverCanvas;
@@ -83,13 +83,39 @@ var c = Symbol("missing");
 function l(e, t, r) {
 	let i = n(e), a = n(t), o = n(r);
 	if (String(i.id || "") !== String(a.id || "") || String(a.id || "") !== String(o.id || "")) throw TypeError("Cannot merge different canvas documents");
-	let s = [], c = u(i, a, o, "", s);
-	return c.nodes = d(i.nodes, a.nodes, o.nodes, "nodes", s, p), c.connections = d(i.connections, a.connections, o.connections, "connections", s, m), c.updated_at = o.updated_at, {
+	let s = [], c = m(i, a, o, "", s);
+	return c.nodes = d(i.nodes, a.nodes, o.nodes, s), c.connections = h(i.connections, a.connections, o.connections, "connections", s, v), c.updated_at = o.updated_at, {
 		conflicts: [...new Set(s)],
 		document: n(c)
 	};
 }
-function u(e, t, n, r, i, a = /* @__PURE__ */ new Set([
+function u(e) {
+	return e.nodes.some(f);
+}
+function d(e, t, n, r) {
+	let i = new Map(e.map((e) => [e.id, e])), a = new Map(t.map((e) => [e.id, e])), o = new Map(n.map((e) => [e.id, e]));
+	return [...t.map(_), ...n.map(_)].filter((e, t, n) => n.indexOf(e) === t).flatMap((e) => {
+		let t = a.get(e), n = o.get(e);
+		if (t && n && f(t)) return [{
+			...S(t),
+			images: p(t.images, n.images)
+		}];
+		let s = g(i.get(e) ?? c, t ?? c, n ?? c, `nodes.${e}`, r);
+		return s === c ? [] : [S(s)];
+	});
+}
+function f(e) {
+	return !!(e.running || e.pending || e.queued || Array.isArray(e.pendingTasks) && e.pendingTasks.some((e) => !!(e && typeof e == "object" && e.taskId)));
+}
+function p(e, t) {
+	if (!Array.isArray(e) && !Array.isArray(t)) return Array.isArray(e) ? S(e) : void 0;
+	let n = [], r = /* @__PURE__ */ new Set();
+	return [...Array.isArray(e) ? e : [], ...Array.isArray(t) ? t : []].forEach((e) => {
+		let t = typeof e == "string" ? e : e && typeof e == "object" ? String(e.url || "") : "";
+		t && r.has(t) || (t && r.add(t), n.push(S(e)));
+	}), n;
+}
+function m(e, t, n, r, i, a = /* @__PURE__ */ new Set([
 	"connections",
 	"nodes",
 	"updated_at"
@@ -101,37 +127,37 @@ function u(e, t, n, r, i, a = /* @__PURE__ */ new Set([
 		...Object.keys(n)
 	])).forEach((s) => {
 		if (a.has(s)) return;
-		let l = f(s in e ? e[s] : c, s in t ? t[s] : c, s in n ? n[s] : c, r ? `${r}.${s}` : s, i);
-		l !== c && (o[s] = v(l));
+		let l = g(s in e ? e[s] : c, s in t ? t[s] : c, s in n ? n[s] : c, r ? `${r}.${s}` : s, i);
+		l !== c && (o[s] = S(l));
 	}), o;
 }
-function d(e, t, n, r, i, a) {
+function h(e, t, n, r, i, a) {
 	let o = new Map(e.map((e) => [a(e), e])), s = new Map(t.map((e) => [a(e), e])), l = new Map(n.map((e) => [a(e), e]));
 	return [...n.map(a), ...t.map(a)].filter((e, t, n) => n.indexOf(e) === t).flatMap((e) => {
-		let t = f(o.get(e) ?? c, s.get(e) ?? c, l.get(e) ?? c, `${r}.${e}`, i);
-		return t === c ? [] : [v(t)];
+		let t = g(o.get(e) ?? c, s.get(e) ?? c, l.get(e) ?? c, `${r}.${e}`, i);
+		return t === c ? [] : [S(t)];
 	});
 }
-function f(e, t, n, r, i) {
-	return g(t, e) ? n : g(n, e) || g(t, n) ? t : h(e) && h(t) && h(n) ? u(e, t, n, r, i, /* @__PURE__ */ new Set()) : (i.push(r), t);
-}
-function p(e) {
-	return e.id;
-}
-function m(e) {
-	return String(e.id || `${e.from}->${e.to}:${e.kind || "flow"}`);
-}
-function h(e) {
-	return e !== c && !!e && typeof e == "object" && !Array.isArray(e);
-}
-function g(e, t) {
-	return e === c || t === c ? e === t : _(e) === _(t);
+function g(e, t, n, r, i) {
+	return b(t, e) ? n : b(n, e) || b(t, n) ? t : y(e) && y(t) && y(n) ? m(e, t, n, r, i, /* @__PURE__ */ new Set()) : (i.push(r), t);
 }
 function _(e) {
-	return Array.isArray(e) ? `[${e.map(_).join(",")}]` : e && typeof e == "object" ? `{${Object.entries(e).sort(([e], [t]) => e.localeCompare(t)).map(([e, t]) => `${JSON.stringify(e)}:${_(t)}`).join(",")}}` : JSON.stringify(e);
+	return e.id;
 }
 function v(e) {
+	return String(e.id || `${e.from}->${e.to}:${e.kind || "flow"}`);
+}
+function y(e) {
+	return e !== c && !!e && typeof e == "object" && !Array.isArray(e);
+}
+function b(e, t) {
+	return e === c || t === c ? e === t : x(e) === x(t);
+}
+function x(e) {
+	return Array.isArray(e) ? `[${e.map(x).join(",")}]` : e && typeof e == "object" ? `{${Object.entries(e).sort(([e], [t]) => e.localeCompare(t)).map(([e, t]) => `${JSON.stringify(e)}:${x(t)}`).join(",")}}` : JSON.stringify(e);
+}
+function S(e) {
 	return JSON.parse(JSON.stringify(e));
 }
 //#endregion
-export { a as i, i as n, o as r, l as t };
+export { a, o as i, l as n, i as r, u as t };

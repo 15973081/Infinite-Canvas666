@@ -92,16 +92,29 @@ function c(e, t = o) {
 	function u(t, r, i = !1) {
 		if (!t || !r || t === r) return !1;
 		let a = n.get(t), o = n.get(r);
-		return !a || !o || !i && e.connections.some((e) => e.from === t && e.to === r) ? !1 : s.has(a.type) ? o.type === "output" || s.has(o.type) ? !c(t, r) : !1 : o.type === "loop" ? !!o.imageInput && [
+		return !a || !o || !i && e.connections.some((e) => e.from === t && e.to === r) ? !1 : o.type === "smart-image" ? [
+			"image",
+			"loop",
+			"output",
+			"prompt",
+			"promptGroup",
+			"smart-image"
+		].includes(a.type) && !c(t, r) : a.type === "smart-image" ? [
+			"loop",
+			"prompt",
+			"smart-image"
+		].includes(o.type) && !c(t, r) : s.has(a.type) ? o.type === "output" || s.has(o.type) ? !c(t, r) : !1 : o.type === "loop" ? (!!o.imageInput && [
 			"image",
 			"group",
-			"output"
+			"output",
+			"smart-image"
 		].includes(a.type) || !!o.showPrompt && [
 			"prompt",
 			"promptGroup",
 			"loop",
-			"llm"
-		].includes(a.type) : o.type === "llm" ? [
+			"llm",
+			"smart-image"
+		].includes(a.type)) && !c(t, r) : o.type === "llm" ? [
 			"prompt",
 			"loop",
 			"promptGroup",
@@ -109,7 +122,7 @@ function c(e, t = o) {
 			"image",
 			"group",
 			"output"
-		].includes(a.type) : a.type === "llm" ? s.has(o.type) : s.has(o.type) && [
+		].includes(a.type) && !c(t, r) : a.type === "llm" ? s.has(o.type) && !c(t, r) : s.has(o.type) && [
 			"image",
 			"prompt",
 			"loop",
@@ -117,7 +130,7 @@ function c(e, t = o) {
 			"promptGroup",
 			"output",
 			"llm"
-		].includes(a.type) && (a.type !== "output" || !c(t, r));
+		].includes(a.type) && !c(t, r);
 	}
 	function d(e) {
 		let r = /* @__PURE__ */ new Set(), o = /* @__PURE__ */ new Set();
