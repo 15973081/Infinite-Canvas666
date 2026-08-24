@@ -94,6 +94,19 @@ describe('graph model', () => {
     expect(graph.canConnect('a', 'prompt')).toBe(false);
   });
 
+  it('rejects cycles across smart prompt, loop and image ports', () => {
+    const graph = createGraphModel({
+      nodes: [
+        { id: 'prompt', type: 'prompt' },
+        { id: 'loop', imageInput: true, showPrompt: true, type: 'loop' },
+        { id: 'image', type: 'smart-image' },
+      ],
+      connections: [{ from: 'prompt', to: 'loop' }, { from: 'loop', to: 'image' }],
+    });
+    expect(graph.canConnect('image', 'prompt')).toBe(false);
+    expect(graph.canConnect('image', 'loop')).toBe(false);
+  });
+
   it('matches legacy first-node behavior for duplicate ids and ignores missing nodes', () => {
     const graph: CanvasDocument = {
       schemaVersion: 1,

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useStore } from 'zustand';
 import { decodeCanvasDocument } from '../domain/document-codec';
 import { mergeCanvasDocuments } from '../domain/document-merge';
+import { createGraphModel } from '../domain/graph';
 import type { CanvasRuntime } from '../application/modern-canvas-runtime';
 import type { CanvasDocument, CanvasEdge, CanvasNode } from '../domain/types';
 import { CanvasConflictError, canvasDocumentSavePayload, type CanvasRepository } from '../infrastructure/canvas-repository';
@@ -11,6 +12,7 @@ import { ImageTransformDialog, type ImageTransformResult } from './image-transfo
 import { LegacyImageTransformDialog, type LegacyGridResult, type LegacyImageTransformResult, type LegacyMaskResult } from './legacy-image-transform-dialog';
 import { LegacyOutputLightbox } from './legacy-output-lightbox';
 import { SmartCanvasComposer } from './smart-canvas-composer';
+import { SmartCanvasConnections, type SmartCanvasPortDrag } from './smart-canvas-connections';
 import { SmartCanvasCreateMenu, type SmartCanvasCreateType } from './smart-canvas-create-menu';
 import { SmartCanvasMinimap } from './smart-canvas-minimap';
 import { SmartCanvasPromptPreset } from './smart-canvas-prompt-preset';
@@ -548,6 +550,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   const clipboard = useRef<{ connections: CanvasEdge[]; nodes: CanvasNode[] } | null>(null);
   const rSelectionKey = useRef(false);
   const [connectingFrom, setConnectingFrom] = useState('');
+  const [portDrag, setPortDrag] = useState<SmartCanvasPortDrag | null>(null);
   const [selectedEdge, setSelectedEdge] = useState(-1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saveState, setSaveState] = useState('ready');
@@ -568,9 +571,11 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   } | null>(null);
   const nodesById = new Map((document?.nodes ?? []).map((node) => [node.id, node]));
   const boardDocument = { connections: document?.connections ?? [], nodes: document?.nodes ?? [] };
+  const connectionGraph = document ? createGraphModel(document) : null;
 
   useEffect(() => {
     setConnectingFrom('');
+    setPortDrag(null);
     setSelectedEdge(-1);
     setSelectedIds(new Set());
     setCreateMenu(null);
@@ -619,6 +624,7 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       const editable = target?.isContentEditable || target?.matches('input, textarea, select');
       if (event.key === 'Escape') {
         setConnectingFrom('');
+        setPortDrag(null);
         setSelectedEdge(-1);
         setSelectedIds(new Set());
         setCreateMenu(null);
@@ -701,9 +707,102 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
   }, []);
 
   const connect = (toId: string) => {
-    if (connectingFrom && store.getState().connectNodes(connectingFrom, toId)) commit();
+    const active = store.getState().document;
+    if (connectingFrom && portDrag?.fromPort !== 'in' && active && createGraphModel(active).canConnect(connectingFrom, toId) && store.getState().connectNodes(connectingFrom, toId)) commit();
     setConnectingFrom('');
+    setPortDrag(null);
   };
+
+  const startConnection = (fromId: string, fromPort: 'in' | 'out' = 'out') => {
+    if (readOnly) return;
+    const source = store.getState().document?.nodes.find((node) => node.id === fromId);
+    if (!source) return;
+    const point = nodePoint(source);
+    const size = nodeSize(source);
+    setConnectingFrom(fromId);
+    setPortDrag({ currentWorld: { x: fromPort === 'out' ? point.x + size.width : point.x, y: point.y + size.height / 2 }, fromId, fromPort });
+  };
+
+  useEffect(() => {
+    if (!connectingFrom || readOnly || !smartUi) return;
+    const board = boardRef.current;
+    if (!board) return;
+    const shell = board.closest('.shell');
+    shell?.classList.add('port-dragging');
+    let moved = false;
+    const clearHover = () => {
+      board.querySelectorAll('.node-port.is-active').forEach((element) => element.classList.remove('is-active'));
+      board.querySelectorAll('.image-node.port-hover').forEach((element) => element.classList.remove('port-hover'));
+    };
+    const hitAt = (clientX: number, clientY: number) => {
+      const hit = window.document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+      let port = hit?.closest<HTMLElement>('.node-port, [data-port]') || null;
+      if (!port) {
+        const nearest = [...window.document.querySelectorAll<HTMLElement>('#smartCanvasApp .node-port[data-port]')].map((element) => {
+          const rect = element.getBoundingClientRect();
+          const distance = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2));
+          return { distance, element };
+        }).filter((candidate) => candidate.distance <= 22).sort((left, right) => left.distance - right.distance)[0];
+        port = nearest?.element || null;
+      }
+      const node = (port?.closest<HTMLElement>('.image-node, [data-node-id]') || hit?.closest<HTMLElement>('.image-node, [data-node-id]')) ?? null;
+      const id = String(node?.dataset.id || node?.dataset.nodeId || '');
+      let targetPort = String(port?.dataset.port || '');
+      if (!targetPort && node) {
+        const rect = node.getBoundingClientRect();
+        targetPort = clientX - rect.left < rect.width / 2 ? 'in' : 'out';
+      }
+      if (!id || id === connectingFrom || (targetPort !== 'in' && targetPort !== 'out')) return { hit, id: '', port: '' as const, valid: false };
+      const fromPort = portDrag?.fromPort || 'out';
+      const compatible = (fromPort === 'out' && targetPort === 'in') || (fromPort === 'in' && targetPort === 'out');
+      const fromId = fromPort === 'out' ? connectingFrom : id;
+      const toId = fromPort === 'out' ? id : connectingFrom;
+      const active = store.getState().document;
+      return { hit, id, port: targetPort as 'in' | 'out', valid: Boolean(compatible && active && createGraphModel(active).canConnect(fromId, toId)) };
+    };
+    const move = (event: PointerEvent) => {
+      moved = true;
+      const rect = board.getBoundingClientRect();
+      const currentWorld = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
+      const target = hitAt(event.clientX, event.clientY);
+      clearHover();
+      if (target.valid) {
+        const node = board.querySelector<HTMLElement>(`.image-node[data-id="${CSS.escape(target.id)}"], [data-node-id="${CSS.escape(target.id)}"]`);
+        node?.classList.add('port-hover');
+        node?.querySelector<HTMLElement>(`[data-port="${target.port}"]`)?.classList.add('is-active');
+      }
+      setPortDrag((current) => current ? { ...current, currentWorld, hoverPort: target.valid ? target.port : '', hoverTargetId: target.valid ? target.id : '' } : current);
+    };
+    const up = (event: PointerEvent) => {
+      const drag = portDrag;
+      const target = hitAt(event.clientX, event.clientY);
+      if (target.valid && drag) {
+        const fromId = drag.fromPort === 'out' ? drag.fromId : target.id;
+        const toId = drag.fromPort === 'out' ? target.id : drag.fromId;
+        if (store.getState().connectNodes(fromId, toId)) commit();
+      } else if (moved && drag && !target.id && !target.hit?.closest('.composer,.smart-nav,.asset-panel,.create-menu,.smart-minimap,.log-modal,.shortcut-modal,.image-edit-modal')) {
+        const rect = board.getBoundingClientRect();
+        const point = { x: (event.clientX - rect.left - viewport.x) / viewport.zoom, y: (event.clientY - rect.top - viewport.y) / viewport.zoom };
+        const id = store.getState().addNode('smart-image', { x: point.x - 158, y: point.y - 97 });
+        if (id) {
+          const fromId = drag.fromPort === 'out' ? drag.fromId : id;
+          const toId = drag.fromPort === 'out' ? id : drag.fromId;
+          if (store.getState().connectNodes(fromId, toId)) commit();
+        }
+      }
+      setConnectingFrom('');
+      setPortDrag(null);
+      clearHover();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up, { once: true });
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      shell?.classList.remove('port-dragging');
+      clearHover();
+    };
+  }, [commit, connectingFrom, portDrag?.fromPort, readOnly, smartUi, store, viewport]);
 
   const lightboxNode = lightbox ? nodesById.get(lightbox.nodeId) : null;
   const imageEditorNode = imageEditorNodeId ? nodesById.get(imageEditorNodeId) : null;
@@ -862,6 +961,14 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
     className={`${legacyUi ? 'board' : ''} ${readOnly ? 'canvas-board-v2-readonly' : ''}`.trim() || undefined}
     data-testid="canvas-board-v2"
     data-viewport={`${viewport.x},${viewport.y},${viewport.zoom.toFixed(2)}`}
+    onPointerDownCapture={(event) => {
+      if (!smartUi || readOnly || event.button !== 0 || connectingFrom) return;
+      const port = (event.target as HTMLElement).closest<HTMLElement>('.node-port[data-port]');
+      const node = port?.closest<HTMLElement>('.image-node, [data-node-id]');
+      const id = String(node?.dataset.id || node?.dataset.nodeId || '');
+      const fromPort = port?.dataset.port;
+      if (id && (fromPort === 'in' || fromPort === 'out')) startConnection(id, fromPort);
+    }}
     onDoubleClick={(event) => {
       if (!smartUi || readOnly) return;
       const target = event.target as HTMLElement;
@@ -1021,7 +1128,19 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
       {saveState === 'saving' ? '正在保存' : saveState === 'error' ? '保存失败，本地修改仍保留' : saveState === 'saved' ? '已保存' : ''}
     </div>
     <div className={legacyUi ? 'world' : undefined} style={{ height: legacyUi ? undefined : WORLD_HEIGHT, position: 'absolute', transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`, transformOrigin: legacyUi ? undefined : '0 0', width: legacyUi ? undefined : WORLD_WIDTH }}>
-      <svg className={legacyUi ? 'links' : undefined} height={WORLD_HEIGHT} style={legacyUi ? undefined : { inset: 0, overflow: 'visible', position: 'absolute' }} width={WORLD_WIDTH}>
+      {smartUi ? <SmartCanvasConnections
+        document={boardDocument}
+        drag={portDrag}
+        nodeRect={(node) => ({ ...nodePoint(node), ...nodeSize(node) })}
+        onCut={(index) => {
+          if (readOnly) return;
+          store.getState().deleteConnection(index);
+          setSelectedEdge(-1);
+          commit();
+        }}
+        onSelect={(index) => { setSelectedEdge(index); setSelectedIds(new Set()); }}
+        selectedIndex={selectedEdge}
+      /> : <svg className={legacyUi ? 'links' : undefined} height={WORLD_HEIGHT} style={legacyUi ? undefined : { inset: 0, overflow: 'visible', position: 'absolute' }} width={WORLD_WIDTH}>
         {(document?.connections ?? []).map((edge, index) => {
           const source = nodesById.get(edge.from);
           const target = nodesById.get(edge.to);
@@ -1040,17 +1159,17 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
             }} onPointerDown={(event) => event.stopPropagation()} pointerEvents="stroke" stroke="rgba(0,0,0,.001)" strokeWidth="16" />
           </g>;
         })}
-      </svg>
+      </svg>}
       {(document?.nodes ?? []).map((node) => {
         const point = nodePoint(node);
         const size = nodeSize(node);
         if (smartUi && node.type === 'smart-image') return <SmartImageNode
-          connecting={Boolean(connectingFrom)}
+          connecting={Boolean(connectingFrom && portDrag?.fromPort === 'out' && connectionGraph?.canConnect(connectingFrom, node.id))}
           key={node.id}
           node={node}
           onAppendFiles={(files) => void appendSmartMedia(node.id, files)}
           onConnectIn={() => connect(node.id)}
-          onConnectOut={() => setConnectingFrom(node.id)}
+          onConnectOut={() => startConnection(node.id)}
           onDelete={() => { store.getState().deleteNode(node.id); setSelectedIds(new Set()); commit(); }}
           onDeleteImage={(index) => {
             const active = store.getState().document?.nodes.find((item) => item.id === node.id);
@@ -1106,12 +1225,12 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
             value: option.value,
           })) : [fallback];
           return <SmartPromptNode
-            connecting={Boolean(connectingFrom)}
+            connecting={Boolean(connectingFrom && portDrag?.fromPort === 'out' && connectionGraph?.canConnect(connectingFrom, node.id))}
             key={node.id}
             media={connectedMedia(boardDocument, node)}
             node={node}
             onConnectIn={() => connect(node.id)}
-            onConnectOut={() => setConnectingFrom(node.id)}
+            onConnectOut={() => startConnection(node.id)}
             onDelete={() => { store.getState().deleteNode(node.id); setSelectedIds(new Set()); commit(); }}
             onMoveStart={(event) => {
               if (event.button !== 0 || readOnly || (event.target as HTMLElement).closest('button, textarea, select, .node-port, .prompt-llm-instruction-resize')) return;
@@ -1150,12 +1269,12 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
           />;
         }
         if (smartUi && node.type === 'loop') return <SmartLoopNode
-          connecting={Boolean(connectingFrom)}
+          connecting={Boolean(connectingFrom && portDrag?.fromPort === 'out' && connectionGraph?.canConnect(connectingFrom, node.id))}
           key={node.id}
           media={connectedMedia(boardDocument, node)}
           node={node}
           onConnectIn={() => connect(node.id)}
-          onConnectOut={() => setConnectingFrom(node.id)}
+          onConnectOut={() => startConnection(node.id)}
           onDelete={() => { store.getState().deleteNode(node.id); setSelectedIds(new Set()); commit(); }}
           onMoveStart={(event) => {
             if (event.button !== 0 || readOnly || (event.target as HTMLElement).closest('button, input, [contenteditable="true"], .node-port')) return;
@@ -1224,8 +1343,8 @@ function CanvasBoardV2({ canvasRuntime, commit, initialReadOnly = false, legacyU
           style={{ height: size.height, left: point.x, minHeight: size.height, minWidth: size.width, top: point.y, width: size.width }}
           tabIndex={0}
         >
-          {canInput(node) ? <button aria-label={`连接到 ${node.id}`} className="port in" data-port="in" onClick={() => connect(node.id)} onPointerDown={(event) => event.stopPropagation()} onPointerUp={() => connect(node.id)} type="button" /> : null}
-          {canOutput(node) ? <button aria-label={`从 ${node.id} 连线`} className="port out" data-port="out" onClick={() => setConnectingFrom(node.id)} onPointerDown={(event) => { event.stopPropagation(); setConnectingFrom(node.id); }} type="button" /> : null}
+          {canInput(node) ? <button aria-label={`连接到 ${node.id}`} className="port in node-port port-in" data-port="in" onClick={() => connect(node.id)} onPointerDown={(event) => event.stopPropagation()} type="button" /> : null}
+          {canOutput(node) ? <button aria-label={`从 ${node.id} 连线`} className="port out node-port port-out" data-port="out" onClick={() => startConnection(node.id)} onPointerDown={(event) => { event.stopPropagation(); startConnection(node.id); }} type="button" /> : null}
           <header className="node-head"><strong className="node-title">{nodeRegistry[node.type] ?? node.type}</strong></header>
           <div className="node-body">{node.type === 'prompt' ? <PromptBody commit={commit} node={node} onOpenPreset={smartUi && !readOnly ? setPromptPresetNodeId : undefined} onOpenTemplate={smartUi ? (nodeId) => {
             const active = store.getState().document?.nodes.find((item) => item.id === nodeId);

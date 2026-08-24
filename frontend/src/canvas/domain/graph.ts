@@ -87,14 +87,15 @@ export function createGraphModel(
       return false;
     }
     if (to.type === 'loop') {
-      return (Boolean(to.imageInput) && ['image', 'group', 'output'].includes(from.type))
-        || (Boolean(to.showPrompt) && ['prompt', 'promptGroup', 'loop', 'llm'].includes(from.type));
+      const allowed = (Boolean(to.imageInput) && ['image', 'group', 'output', 'smart-image'].includes(from.type))
+        || (Boolean(to.showPrompt) && ['prompt', 'promptGroup', 'loop', 'llm', 'smart-image'].includes(from.type));
+      return allowed && !wouldCreateCycle(fromId, toId);
     }
-    if (to.type === 'llm') return ['prompt', 'loop', 'promptGroup', 'llm', 'image', 'group', 'output'].includes(from.type);
-    if (from.type === 'llm') return MEDIA_OUTPUT_NODE_TYPES.has(to.type);
+    if (to.type === 'llm') return ['prompt', 'loop', 'promptGroup', 'llm', 'image', 'group', 'output'].includes(from.type) && !wouldCreateCycle(fromId, toId);
+    if (from.type === 'llm') return MEDIA_OUTPUT_NODE_TYPES.has(to.type) && !wouldCreateCycle(fromId, toId);
     return MEDIA_OUTPUT_NODE_TYPES.has(to.type)
       && ['image', 'prompt', 'loop', 'group', 'promptGroup', 'output', 'llm'].includes(from.type)
-      && (from.type !== 'output' || !wouldCreateCycle(fromId, toId));
+      && !wouldCreateCycle(fromId, toId);
   }
 
   function retryCascadeOrder(nodeId: string): string[] {
