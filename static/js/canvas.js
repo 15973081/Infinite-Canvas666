@@ -826,6 +826,7 @@ const promptTemplateCats = document.getElementById('promptTemplateCats');
 const promptTemplateBody = document.getElementById('promptTemplateBody');
 const canvasAssetToggle = document.getElementById('canvasAssetToggle');
 const canvasAssetPanel = document.getElementById('canvasAssetPanel');
+const canvasAssetResizeHandle = document.getElementById('canvasAssetResizeHandle');
 const canvasAssetCloseBtn = document.getElementById('canvasAssetCloseBtn');
 const canvasAssetLibrarySelect = document.getElementById('canvasAssetLibrarySelect');
 const canvasAssetCategorySelect = document.getElementById('canvasAssetCategorySelect');
@@ -974,6 +975,20 @@ let promptTemplateGroupEditMode = false;
 let canvasPromptTemplateOverrides = {hiddenBuiltinIds:[], editedBuiltins:{}};
 let canvasAssetLibrary = {categories:[]};
 let canvasAssetLibraryOpen = false;
+const CANVAS_ASSET_PANEL_WIDTH_KEY = 'canvas_asset_panel_width_v1';
+const CANVAS_ASSET_PANEL_DEFAULT_WIDTH = 320;
+const CANVAS_ASSET_PANEL_MIN_WIDTH = 320;
+const CANVAS_ASSET_PANEL_MAX_WIDTH = 960;
+let canvasAssetPanelPreferredWidth = (() => {
+    try {
+        const saved = Number(localStorage.getItem(CANVAS_ASSET_PANEL_WIDTH_KEY));
+        return Number.isFinite(saved) && saved > 0 ? saved : CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
+    } catch(e) {
+        return CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
+    }
+})();
+let canvasAssetPanelWidth = canvasAssetPanelPreferredWidth;
+let canvasAssetPanelResize = null;
 let activeCanvasAssetLibraryId = '';
 let activeCanvasAssetCategoryId = '';
 let canvasAssetSearchQuery = '';
@@ -7707,7 +7722,57 @@ function toggleCanvasAssetLibrary(open=!canvasAssetLibraryOpen){
     canvasAssetPanel?.classList.toggle('open', canvasAssetLibraryOpen);
     canvasAssetToggle?.classList.toggle('active', canvasAssetLibraryOpen);
     if(!canvasAssetLibraryOpen) hideCanvasAssetHoverPreview();
-    if(canvasAssetLibraryOpen) loadCanvasAssetLibrary();
+    if(canvasAssetLibraryOpen) {
+        applyCanvasAssetPanelWidth(canvasAssetPanelPreferredWidth);
+        loadCanvasAssetLibrary();
+    }
+}
+function canvasAssetPanelWidthBounds(){
+    const right = canvasAssetPanel ? (parseFloat(getComputedStyle(canvasAssetPanel).right) || 0) : 24;
+    const viewportMax = Math.max(0, window.innerWidth - right - 16);
+    const max = Math.min(CANVAS_ASSET_PANEL_MAX_WIDTH, viewportMax);
+    return {min:Math.min(CANVAS_ASSET_PANEL_MIN_WIDTH, max), max};
+}
+function applyCanvasAssetPanelWidth(width=canvasAssetPanelPreferredWidth, {persist=false, remember=persist}={}){
+    if(!canvasAssetPanel) return;
+    const bounds = canvasAssetPanelWidthBounds();
+    const next = Math.round(Math.max(bounds.min, Math.min(bounds.max, Number(width) || CANVAS_ASSET_PANEL_DEFAULT_WIDTH)));
+    canvasAssetPanelWidth = next;
+    if(remember) canvasAssetPanelPreferredWidth = next;
+    canvasAssetPanel.style.setProperty('--canvas-asset-panel-width', `${next}px`);
+    canvasAssetResizeHandle?.setAttribute('aria-valuemin', String(Math.round(bounds.min)));
+    canvasAssetResizeHandle?.setAttribute('aria-valuemax', String(Math.round(bounds.max)));
+    canvasAssetResizeHandle?.setAttribute('aria-valuenow', String(next));
+    if(persist) {
+        try { localStorage.setItem(CANVAS_ASSET_PANEL_WIDTH_KEY, String(next)); } catch(e) {}
+    }
+}
+function startCanvasAssetPanelResize(event){
+    if(event.button !== 0 || !canvasAssetPanel || !canvasAssetResizeHandle) return;
+    event.preventDefault();
+    event.stopPropagation();
+    canvasAssetPanelResize = {
+        pointerId:event.pointerId,
+        startX:event.clientX,
+        startWidth:canvasAssetPanel.getBoundingClientRect().width
+    };
+    canvasAssetResizeHandle.setPointerCapture?.(event.pointerId);
+    canvasAssetPanel.classList.add('is-resizing');
+    document.body.classList.add('canvas-asset-resizing');
+}
+function moveCanvasAssetPanelResize(event){
+    if(!canvasAssetPanelResize || event.pointerId !== canvasAssetPanelResize.pointerId) return;
+    event.preventDefault();
+    applyCanvasAssetPanelWidth(canvasAssetPanelResize.startWidth + canvasAssetPanelResize.startX - event.clientX);
+}
+function finishCanvasAssetPanelResize(event){
+    if(!canvasAssetPanelResize || (event?.pointerId != null && event.pointerId !== canvasAssetPanelResize.pointerId)) return;
+    const pointerId = canvasAssetPanelResize.pointerId;
+    canvasAssetPanelResize = null;
+    try { canvasAssetResizeHandle?.releasePointerCapture?.(pointerId); } catch(e) {}
+    canvasAssetPanel?.classList.remove('is-resizing');
+    document.body.classList.remove('canvas-asset-resizing');
+    applyCanvasAssetPanelWidth(canvasAssetPanelWidth, {persist:true});
 }
 async function addUrlToCanvasAssetLibrary(url, name=''){
     if(canvasAssetLibraryIsLocal()){ setStatus('本地素材请在素材库管理中上传'); return; }
@@ -13011,6 +13076,31 @@ workflowImportDropZone?.addEventListener('drop', event => {
     else setStatus('请拖入 JSON 或 ZIP 工作流文件');
 });
 canvasAssetCloseBtn?.addEventListener('click', () => toggleCanvasAssetLibrary(false));
+canvasAssetResizeHandle?.addEventListener('pointerdown', startCanvasAssetPanelResize);
+window.addEventListener('pointermove', moveCanvasAssetPanelResize, {passive:false});
+window.addEventListener('pointerup', finishCanvasAssetPanelResize);
+window.addEventListener('pointercancel', finishCanvasAssetPanelResize);
+window.addEventListener('blur', () => finishCanvasAssetPanelResize());
+canvasAssetResizeHandle?.addEventListener('lostpointercapture', finishCanvasAssetPanelResize);
+canvasAssetResizeHandle?.addEventListener('dblclick', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    applyCanvasAssetPanelWidth(CANVAS_ASSET_PANEL_DEFAULT_WIDTH, {persist:true});
+});
+canvasAssetResizeHandle?.addEventListener('keydown', event => {
+    const step = event.shiftKey ? 64 : 24;
+    let next = canvasAssetPanelWidth;
+    if(event.key === 'ArrowLeft') next += step;
+    else if(event.key === 'ArrowRight') next -= step;
+    else if(event.key === 'Home') next = CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
+    else if(event.key === 'End') next = canvasAssetPanelWidthBounds().max;
+    else return;
+    event.preventDefault();
+    event.stopPropagation();
+    applyCanvasAssetPanelWidth(next, {persist:true});
+});
+window.addEventListener('resize', () => applyCanvasAssetPanelWidth(canvasAssetPanelPreferredWidth));
+applyCanvasAssetPanelWidth(canvasAssetPanelPreferredWidth);
 canvasAssetLibrarySelect?.addEventListener('change', () => {
     activeCanvasAssetLibraryId = canvasAssetLibrarySelect.value || '';
     activeCanvasAssetCategoryId = '';
