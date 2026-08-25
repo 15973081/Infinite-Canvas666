@@ -18,6 +18,8 @@ const avatarPollQueued = new Set();
 const avatarPollInFlight = new Set();
 const AVATAR_POLL_CONCURRENCY = 6;
 let avatarPollActive = 0;
+const avatarStatusDirtyIds = new Set();
+let avatarStatusRefreshFrame = 0;
 let activeAssetLibraryId = '';
 let activeAssetCategoryId = '';
 let activeWorkflowLibraryId = '';
@@ -1808,7 +1810,7 @@ function renderAvatarSection(item){
         : '';
     const providers = avatarCandidateProviders();
     if(!providers.length){
-        return `<div class="avatar-section">
+        return `<div class="avatar-section" data-avatar-status-region="${escapeAttr(item.id)}">
             ${cards}
             <div class="avatar-head"><i data-lucide="user-round-cog"></i><span>注册为真人/数字人</span></div>
             <div class="avatar-hint">未检测到可用平台。请先在「API 平台管理」中添加并启用 API 平台（如 APIMart）并填写 Key。</div>
@@ -1831,11 +1833,42 @@ function renderAvatarSection(item){
             ${alreadyRegistered ? '<div class="avatar-hint">该平台已注册，再次提交会覆盖该平台的认证。</div>' : ''}
             <button class="asset-btn primary" type="button" data-avatar-register="${escapeAttr(item.id)}" data-avatar-prov="${escapeAttr(selected?.id || '')}" ${busy || noKey ? 'disabled' : ''}><i data-lucide="user-round-plus"></i><span>${busy ? '注册中，请稍候…' : (alreadyRegistered ? '重新注册到该平台' : '注册并等待审核')}</span></button>`;
     }
-    return `<div class="avatar-section">
+    return `<div class="avatar-section" data-avatar-status-region="${escapeAttr(item.id)}">
         ${submittingCard}${cards}
         <div class="avatar-head"><i data-lucide="user-round-cog"></i><span>注册到平台</span></div>
         ${registerUI}
     </div>`;
+}
+function refreshAssetAvatarToolbar(){
+    const button = root.querySelector('.asset-content [data-avatar-register-selected]');
+    if(button) button.disabled = !selectedAssetIds.size || Boolean(avatarBusyId);
+}
+function flushAssetAvatarStatusRefresh(){
+    avatarStatusRefreshFrame = 0;
+    if(activeTab !== 'assets'){
+        avatarStatusDirtyIds.clear();
+        return;
+    }
+    const dirtyIds = new Set(avatarStatusDirtyIds);
+    avatarStatusDirtyIds.clear();
+    let changed = false;
+    root.querySelectorAll('[data-avatar-status-region]').forEach(region => {
+        const id = region.dataset.avatarStatusRegion || '';
+        if(!dirtyIds.has(id)) return;
+        const item = findAssetItem(id);
+        if(!item) return;
+        region.outerHTML = renderAvatarSection(item);
+        changed = true;
+    });
+    refreshAssetAvatarToolbar();
+    if(changed) refreshIcons();
+}
+function scheduleAssetAvatarStatusRefresh(ids){
+    if(activeTab !== 'assets') return;
+    const values = Array.isArray(ids) || ids instanceof Set ? ids : [ids];
+    values.forEach(id => { if(id) avatarStatusDirtyIds.add(String(id)); });
+    if(avatarStatusRefreshFrame) return;
+    avatarStatusRefreshFrame = requestAnimationFrame(flushAssetAvatarStatusRefresh);
 }
 function renderAssetDetail(item){
     if(!item) return `<div class="panel-head"><div class="panel-title"><strong>素材预览</strong><span>选择一个素材查看详情</span></div></div><div class="detail-scroll"><div class="detail-empty"><i data-lucide="image"></i><span>暂无可预览素材</span></div></div>`;
@@ -3284,7 +3317,7 @@ async function registerSelectedAssetAvatars(providerId=''){
     const batchLibraryId = activeAssetLibraryId;
     ids.forEach(id => avatarSubmittingItems.set(id, {providerId:provider.id, libraryId:batchLibraryId}));
     avatarBusyId = '__batch__';
-    render();
+    scheduleAssetAvatarStatusRefresh(ids);
     setStatus(`正在批量提交 ${ids.length} 个素材到 ${avatarPlatformLabel(providerAvatarPlatform(provider))} 审核…`);
     try {
         let ok = 0;
@@ -3332,6 +3365,7 @@ async function registerSelectedAssetAvatars(providerId=''){
                 }
             } finally {
                 avatarSubmittingItems.delete(id);
+                scheduleAssetAvatarStatusRefresh(id);
                 completed += 1;
                 setStatus(`姝ｅ湪鎵归噺鎻愪氦 ${completed}/${ids.length}锛堝苟鍙?8锛夆€?`);
             }
@@ -3355,7 +3389,7 @@ async function registerSelectedAssetAvatars(providerId=''){
     } finally {
         ids.forEach(id => avatarSubmittingItems.delete(id));
         avatarBusyId = '';
-        render();
+        scheduleAssetAvatarStatusRefresh(ids);
     }
 }
 async function reconcileAvatarBatch(ids, provider, libraryId){
@@ -3389,7 +3423,8 @@ async function registerAssetAvatar(id, providerId=''){
     avatarSubmittingItems.set(id, {providerId:provider.id, libraryId:activeAssetLibraryId});
     avatarBusyId = id;
     selectedAssetId = id;
-    render();
+    refreshAssetSelectionOnly({detail:false});
+    scheduleAssetAvatarStatusRefresh(id);
     setStatus(`正在上传素材并提交 ${avatarPlatformLabel(providerAvatarPlatform(provider))} 审核…`);
     try {
         const data = await apiJson(`/api/asset-library/items/${encodeURIComponent(id)}/register-avatar`, {
@@ -3419,7 +3454,7 @@ async function registerAssetAvatar(id, providerId=''){
     } finally {
         avatarSubmittingItems.delete(id);
         avatarBusyId = '';
-        render();
+        scheduleAssetAvatarStatusRefresh(id);
     }
 }
 async function cancelAssetAvatar(id, providerId=''){
@@ -3444,7 +3479,7 @@ async function cancelAssetAvatar(id, providerId=''){
         setStatus(err.message || '取消认证失败');
     } finally {
         if(!avatarSubmittingItems.has(id)) avatarCancelRequested.delete(`${provider.id}:${id}`);
-        render();
+        scheduleAssetAvatarStatusRefresh(id);
     }
 }
 function avatarRegistrationOf(item, platform){
@@ -3459,7 +3494,7 @@ async function checkAssetAvatarStatus(id, silent=false, providerId='', libraryId
     const platform = providerAvatarPlatform(provider);
     const reg = avatarRegistrationOf(item, platform);
     if(!reg || !reg.task_id) return;
-    if(!silent){ avatarBusyId = id; render(); setStatus('正在查询审核状态…'); }
+    if(!silent){ avatarBusyId = id; scheduleAssetAvatarStatusRefresh(id); setStatus('正在查询审核状态…'); }
     try {
         const data = await apiJson(`/api/asset-library/items/${encodeURIComponent(id)}/avatar-status`, {
             method:'POST',
@@ -3484,7 +3519,7 @@ async function checkAssetAvatarStatus(id, silent=false, providerId='', libraryId
         scheduleAvatarPoll(id, provider.id, false, libraryId);
     } finally {
         if(!silent) avatarBusyId = '';
-        render();
+        scheduleAssetAvatarStatusRefresh(id);
     }
 }
 function clearAvatarPoll(id, providerId){
@@ -4057,7 +4092,7 @@ root.addEventListener('change', event => {
     const avatarProvider = event.target.closest?.('[data-avatar-provider]');
     if(avatarProvider){
         avatarRegisterProvider = avatarProvider.value || '';
-        render();
+        scheduleAssetAvatarStatusRefresh(selectedAssetId);
     }
 });
 root.addEventListener('dragover', event => {
