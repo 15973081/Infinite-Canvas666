@@ -1005,6 +1005,7 @@ const activeCanvasTaskPolls = new Set();
 let hoveredConnectionId = '';
 let lastMouseBoard = {x: 0, y: 0};
 let undoStack = [];
+let redoStack = [];
 const UNDO_MAX = 30;
 const cascadeRunningIds = new Set();
 const cascadeRunningNodeIds = new Set();
@@ -2631,6 +2632,7 @@ async function openCanvas(id){
             return;
         }
         canvas = nextCanvas;
+        resetCanvasHistory();
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
         connections = canvas.connections || [];
@@ -2672,6 +2674,7 @@ function applyRemoteCanvasData(remote){
     applyingRemoteCanvas = true;
     try {
         resetCascadeRuntimeState();
+        resetCanvasHistory();
         const localViewport = localViewportForCanvas(canvas.id, viewport || {x:0, y:0, scale:1});
         const localSelectedIds = new Set(selected);
         canvas = remote;
@@ -2751,7 +2754,8 @@ async function syncRemoteCanvasNow(){
     try {
         const data = await window.CanvasApi.getCanvas(canvas.id, {errorFallback:tr('canvas.openFailed')});
         const remote = data.canvas;
-        if(Number(remote?.updated_at || 0) >= Number(lastCanvasUpdatedAt || 0)){
+        // 相同版本无需重复应用，否则切回画布标签时会无意义地重置本机撤销历史。
+        if(Number(remote?.updated_at || 0) > Number(lastCanvasUpdatedAt || 0)){
             applyRemoteCanvasData(remote);
         }
     } catch(e) {
@@ -3292,6 +3296,7 @@ backToManagerBtn.addEventListener('click', returnToCanvasManager);
 
 function addNode(node){
     if(!ensureCanvas()) return;
+    pushUndo();
     nodes.push(node);
     render();
     scheduleSave();
@@ -4379,7 +4384,6 @@ function createLinkedNode(type){
     if(!state) return;
     const origin = nodes.find(n => n.id === state.originId);
     if(!origin) return;
-    pushUndo();
     const created = createNodeByType(type, state.point);
     if(!created) return;
     const fromId = state.originKind === 'out' ? origin.id : created.id;
@@ -13577,19 +13581,46 @@ function connectSelectionToGenerator(kind, genId){
     syncGeneratorInputs();
 }
 
-function pushUndo(){
-    if(!canvas) return;
-    undoStack.push({nodes:JSON.parse(JSON.stringify(serializableCanvasNodes())), connections:JSON.parse(JSON.stringify(connections))});
-    if(undoStack.length > UNDO_MAX) undoStack.shift();
+function canvasHistorySnapshot(){
+    return {
+        nodes:JSON.parse(JSON.stringify(serializableCanvasNodes())),
+        connections:JSON.parse(JSON.stringify(connections)),
+    };
 }
-function performUndo(){
-    if(!canvas || !undoStack.length) return;
-    const state = undoStack.pop();
+function trimCanvasHistory(stack){
+    if(stack.length > UNDO_MAX) stack.splice(0, stack.length - UNDO_MAX);
+}
+function resetCanvasHistory(){
+    undoStack.length = 0;
+    redoStack.length = 0;
+}
+function restoreCanvasHistoryState(state){
+    if(!state) return false;
     nodes = state.nodes;
     connections = state.connections;
     selected.clear();
     render();
     scheduleSave();
+    return true;
+}
+function pushUndo(){
+    if(!canvas) return;
+    undoStack.push(canvasHistorySnapshot());
+    trimCanvasHistory(undoStack);
+    // 发生新的编辑后，旧的重做分支已经失效。
+    redoStack.length = 0;
+}
+function performUndo(){
+    if(!canvas || !undoStack.length) return false;
+    redoStack.push(canvasHistorySnapshot());
+    trimCanvasHistory(redoStack);
+    return restoreCanvasHistoryState(undoStack.pop());
+}
+function performRedo(){
+    if(!canvas || !redoStack.length) return false;
+    undoStack.push(canvasHistorySnapshot());
+    trimCanvasHistory(undoStack);
+    return restoreCanvasHistoryState(redoStack.pop());
 }
 function cloneNode(n, dx, dy){
     const copy = JSON.parse(JSON.stringify(serializableCanvasNode(n)));
@@ -14410,6 +14441,28 @@ function isEditableTarget(target){
     const tag = target?.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable || target?.closest?.('select, option');
 }
+function canvasHistoryShortcutAction(event){
+    if(!(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return '';
+    const key = String(event.key || '').toLowerCase();
+    const isZ = key === 'z' || event.code === 'KeyZ';
+    const isY = key === 'y' || event.code === 'KeyY';
+    if(isZ) return event.shiftKey ? 'redo' : 'undo';
+    if(isY) return 'redo';
+    return '';
+}
+function handleCanvasHistoryShortcut(event){
+    const action = canvasHistoryShortcutAction(event);
+    if(!action || !canvas) return;
+    if(isEditableTarget(event.target) || isEditableTarget(document.activeElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(isCanvasLockedByOther()){
+        setStatus(`画布正被其他人编辑中，无法${action === 'undo' ? '撤销' : '重做'}`);
+        return;
+    }
+    const changed = action === 'undo' ? performUndo() : performRedo();
+    if(!changed) setStatus(action === 'undo' ? '没有可撤销的操作' : '没有可重做的操作');
+}
 minimap?.addEventListener('mousedown', e => {
     if(!canvas || e.button !== 0) return;
     e.preventDefault();
@@ -14591,6 +14644,8 @@ window.addEventListener('paste', e => {
     else if(files.length > 1) uploadImageGroup(files);
     else uploadImages(files);
 });
+// 使用捕获阶段，避免节点内控件 stopPropagation 后让画布快捷键偶发失效。
+window.addEventListener('keydown', handleCanvasHistoryShortcut, true);
 window.addEventListener('keydown', e => {
     if(!canvas) return;
     if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
@@ -14627,11 +14682,6 @@ window.addEventListener('keydown', e => {
                 pasteNodes();
             }, 90);
         }
-    }
-    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        const tag = document.activeElement?.tagName;
-        if(tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
-        e.preventDefault(); performUndo();
     }
     if(e.key === 'Delete' || e.key === 'Backspace') {
         const tag = document.activeElement?.tagName;
