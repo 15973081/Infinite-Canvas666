@@ -156,6 +156,7 @@ let suppressNodeClickUntil = 0;
 let textSelectionGuard = null;
 const UNDO_LIMIT = 40;
 const undoStack = [];
+const redoStack = [];
 let undoSuppressed = false;
 let pendingUndoSnapshot = null;
 function activeSmartCascadeCount(){ return smartCascadeRuns.size; }
@@ -187,6 +188,7 @@ function commitPendingUndo(){
     if(pendingUndoSnapshot){
         undoStack.push(pendingUndoSnapshot);
         if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+        redoStack.length = 0;
         pendingUndoSnapshot = null;
     }
 }
@@ -205,10 +207,13 @@ function pushUndo(){
     if(!canvas) return;
     undoStack.push(snapshotForUndo());
     if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack.length = 0;
 }
 function performUndo(){
     if(!undoStack.length){ toast(tr('smart.toastNoUndo')); return; }
     const snap = undoStack.pop();
+    redoStack.push(snapshotForUndo());
+    if(redoStack.length > UNDO_LIMIT) redoStack.shift();
     undoSuppressed = true;
     nodes = snap.nodes;
     if(canvas) canvas.connections = snap.connections;
@@ -221,6 +226,24 @@ function performUndo(){
     scheduleSave();
     undoSuppressed = false;
     toast(tr('smart.toastUndone'));
+}
+function performRedo(){
+    if(!redoStack.length){ toast(tr('smart.toastNoRedo')); return; }
+    const snap = redoStack.pop();
+    undoStack.push(snapshotForUndo());
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+    undoSuppressed = true;
+    nodes = snap.nodes;
+    if(canvas) canvas.connections = snap.connections;
+    selectedId = snap.selectedId;
+    selectedIds = snap.selectedIds;
+    selectedImage = snap.selectedImage;
+    activeComposerSubject = null;
+    lastComposerNodeId = '';
+    render();
+    scheduleSave();
+    undoSuppressed = false;
+    toast(tr('smart.toastRedone'));
 }
 let comfyWorkflowCache = {};
 let cropState = null;
@@ -940,6 +963,8 @@ const LOCAL_I18N = {
     "smart.mentionEmpty": "没有可引用的图片",
     "smart.toastNoUndo": "没有可撤销的操作",
     "smart.toastUndone": "已撤销",
+    "smart.toastNoRedo": "没有可重做的操作",
+    "smart.toastRedone": "已重做",
     "smart.toastNeedPrompt": "请输入提示词",
     "smart.toastNeedGroup": "请先按住 Ctrl 框选至少两个图片节点",
     "smart.toastUploadFail": "素材上传失败",
@@ -4125,6 +4150,7 @@ function applyMergedServerCanvas(serverCanvas){
     if(typeof refreshConnectionLayer === 'function') refreshConnectionLayer();
     // 远端合并后，旧撤销快照可能覆盖刚合并的服务器状态。
     undoStack.length = 0;
+    redoStack.length = 0;
     pendingUndoSnapshot = null;
     resumeSmartPendingTasks();
     return true;
@@ -4682,6 +4708,7 @@ async function loadCanvas(){
         clearTimeout(saveTimer);
         saveTimer = null;
         undoStack.length = 0;
+        redoStack.length = 0;
         pendingUndoSnapshot = null;
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || tr('canvas.smartCanvas');
@@ -13574,8 +13601,17 @@ window.addEventListener('paste', e => {
     }
 });
 window.addEventListener('keydown', e => {
-    const key = String(e.key || '').toLowerCase();
-    if(isSmartCanvasLocked() && (((e.ctrlKey || e.metaKey) && ['v','z','g'].includes(key)) || ['delete','backspace'].includes(key))) return;
+    const normalizedKey = String(e.key || '').toLowerCase();
+    const key = normalizedKey === 'z' || normalizedKey === 'y'
+        ? normalizedKey
+        : (e.code === 'KeyZ' ? 'z' : e.code === 'KeyY' ? 'y' : normalizedKey);
+    if(isSmartCanvasLocked() && (((e.ctrlKey || e.metaKey) && ['v','z','y','g'].includes(key)) || ['delete','backspace'].includes(key))){
+        if((e.ctrlKey || e.metaKey) && (key === 'z' || key === 'y')){
+            e.preventDefault();
+            toast('画布正被其他人编辑中，无法撤销或重做');
+        }
+        return;
+    }
     if(key === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
     if(imageEditModal.classList.contains('open') && imageEditMode === 'preview' && !isEditableTarget(e.target)){
         if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){
@@ -13619,9 +13655,10 @@ window.addEventListener('keydown', e => {
         closeImageEditor();
         return;
     }
-    if((e.ctrlKey || e.metaKey) && key === 'z' && !isEditableTarget(e.target)){
+    if((e.ctrlKey || e.metaKey) && !e.altKey && (key === 'z' || key === 'y') && !isEditableTarget(e.target) && !isEditableTarget(document.activeElement)){
         e.preventDefault();
-        performUndo();
+        if(key === 'y' || (key === 'z' && e.shiftKey)) performRedo();
+        else performUndo();
         return;
     }
     if((e.key === 'Delete' || e.key === 'Backspace') && (selectedId || selectedIds.length) && !isEditableTarget(e.target)){

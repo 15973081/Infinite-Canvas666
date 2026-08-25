@@ -1007,6 +1007,8 @@ const activeCanvasTaskPolls = new Set();
 let hoveredConnectionId = '';
 let lastMouseBoard = {x: 0, y: 0};
 let undoStack = [];
+let redoStack = [];
+let pendingCanvasUndoSnapshot = null;
 const UNDO_MAX = 30;
 const cascadeRunningIds = new Set();
 const cascadeRunningNodeIds = new Set();
@@ -2611,7 +2613,7 @@ async function createSmartCanvas(){
 }
 function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.07.23.3`;
+    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.08.25.1`;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();
@@ -2708,6 +2710,7 @@ async function openCanvas(id){
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
         connections = canvas.connections || [];
+        resetCanvasHistory();
         viewport = localViewportForCanvas(canvas.id, {x:0, y:0, scale:1});
         canvas.viewport = {...viewport};
         lastCanvasUpdatedAt = Number(canvas.updated_at || 0);
@@ -2738,7 +2741,7 @@ async function openCanvas(id){
 }
 function applyRemoteCanvasData(remote){
     if(!remote || !canvas || remote.id !== canvas.id) return;
-    if(localCanvasDirty || saveTimer || savingCanvasNow || saveCanvasAgain){
+    if(localCanvasDirty || saveTimer || savingCanvasNow || saveCanvasAgain || canvasHasActiveLocalEdit()){
         clearTimeout(remoteSyncTimer);
         remoteSyncTimer = setTimeout(syncRemoteCanvasNow, 1000);
         return;
@@ -2752,6 +2755,7 @@ function applyRemoteCanvasData(remote){
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
         connections = canvas.connections || [];
+        resetCanvasHistory();
         viewport = localViewport;
         canvas.viewport = {...viewport};
         lastCanvasUpdatedAt = Number(canvas.updated_at || Date.now());
@@ -2781,6 +2785,9 @@ function resetTransientRunState(list=nodes){
         if(node._cascadeIdx) node._cascadeIdx = '';
         if(node._cascadeFailed) node._cascadeFailed = false;
     });
+}
+function canvasHasActiveLocalEdit(){
+    return Boolean(dragNode || resizeNode || llmPaneDrag || knifeActive || tempLink || pendingCanvasUndoSnapshot);
 }
 function canvasLocalAssetUrls(){
     const urls = new Set();
@@ -2869,7 +2876,7 @@ function handleCanvasUpdatedMessage(data){
     const remoteUpdatedAt = Number(data.updated_at || 0);
     if(remoteUpdatedAt && remoteUpdatedAt <= Number(lastCanvasUpdatedAt || 0)) return;
     clearTimeout(remoteSyncTimer);
-    if(localCanvasDirty || saveTimer || savingCanvasNow || saveCanvasAgain){
+    if(localCanvasDirty || saveTimer || savingCanvasNow || saveCanvasAgain || canvasHasActiveLocalEdit()){
         remoteSyncTimer = setTimeout(syncRemoteCanvasNow, savingCanvasNow ? 1000 : 1500);
         return;
     }
@@ -2888,6 +2895,7 @@ async function returnToCanvasManager(){
     canvas = null;
     nodes = [];
     connections = [];
+    resetCanvasHistory();
     selected.clear();
     viewport = {x: -1800, y: -1000, scale: 1};
     setCanvasMode(false);
@@ -3366,6 +3374,7 @@ backToManagerBtn.addEventListener('click', returnToCanvasManager);
 
 function addNode(node){
     if(!ensureCanvas()) return;
+    pushUndo();
     nodes.push(node);
     render();
     scheduleSave();
@@ -4453,7 +4462,6 @@ function createLinkedNode(type){
     if(!state) return;
     const origin = nodes.find(n => n.id === state.originId);
     if(!origin) return;
-    pushUndo();
     const created = createNodeByType(type, state.point);
     if(!created) return;
     const fromId = state.originKind === 'out' ? origin.id : created.id;
@@ -4862,10 +4870,12 @@ async function uploadMediaFiles(files, point, onlyImages=false, opts={}){
     if(!supported.length) return [];
     const form = new FormData();
     supported.forEach(file => form.append('files', file));
-        const data = await window.CanvasApi.uploadAi(form);
+    const data = await window.CanvasApi.uploadAi(form);
     const base = point || screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
     const created = [];
-    (data.files || []).forEach((file, i) => {
+    const uploaded = data.files || [];
+    if(uploaded.length && !opts.skipUndo) pushUndo();
+    uploaded.forEach((file, i) => {
         const kind = file.kind || mediaKindForUpload(supported[i]);
         const node = {
             id:uid('img'),
@@ -4890,8 +4900,8 @@ async function uploadMediaFiles(files, point, onlyImages=false, opts={}){
 async function uploadImages(files, point){
     return uploadMediaFiles(files, point, false);
 }
-async function uploadImageGroup(files, point){
-    return uploadMediaFiles(files, point, false, {group:true});
+async function uploadImageGroup(files, point, opts={}){
+    return uploadMediaFiles(files, point, false, {...opts, group:true});
 }
 function createImageCardFromUrl(url, point, name='image', opts={}){
     if(!ensureCanvas() || !url) return;
@@ -4901,6 +4911,7 @@ function createImageCardFromUrl(url, point, name='image', opts={}){
     if(opts.asset_uris && typeof opts.asset_uris === 'object') node.asset_uris = opts.asset_uris;
     if(opts.asset_item_id) node.asset_item_id = opts.asset_item_id;
     if(opts.asset_library_id) node.asset_library_id = opts.asset_library_id;
+    pushUndo();
     nodes.push(node);
     render();
     scheduleSave();
@@ -4912,6 +4923,7 @@ async function createImageCardsFromLocalPaths(paths, point){
         const files = await importLocalImages(paths);
         const base = point || screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
         const created = [];
+        if(files.length) pushUndo();
         files.forEach((file, i) => {
             const node = {id:uid('img'), type:'image', x:base.x + i * 36, y:base.y + i * 36, url:file.url, name:file.name, mediaKind:'image'};
             nodes.push(node);
@@ -5008,7 +5020,7 @@ async function fillImageNode(nodeId, files, opts={}){
         const point = source ? {x:Number(source.x || 0), y:Number(source.y || 0)} : defaultPoint(0, 0);
         const outgoing = connections.filter(c => c.from === source?.id).map(c => c.to);
         const incoming = connections.filter(c => c.to === source?.id).map(c => c.from);
-        const created = await uploadImageGroup(imgs, point);
+        const created = await uploadImageGroup(imgs, point, {skipUndo:true});
         const group = created?.group;
         if(source && created?.length > 1){
             nodes = nodes.filter(n => n.id !== source.id);
@@ -5037,6 +5049,7 @@ async function fillImageNode(nodeId, files, opts={}){
     const file = data.files?.[0];
     const node = nodes.find(n => n.id === nodeId);
     if(file && node){
+        pushUndo();
         node.url = file.url;
         node.name = file.name;
         node.mediaKind = file.kind || mediaKindForUpload(imgs[0]);
@@ -9062,6 +9075,7 @@ function bindScrollableText(el){
 function startLLMPaneResize(e, node){
     e.preventDefault();
     e.stopPropagation();
+    capturePendingCanvasUndo();
     llmPaneDrag = {
         node,
         sy:e.clientY,
@@ -12917,6 +12931,7 @@ function createImageCardFromOutput(url, point){
     if(!ensureCanvas() || !url) return;
     if(mediaKindForRef(url) !== 'image') return;
     const p = point || defaultPoint(0, 0);
+    pushUndo();
     nodes.push({id:uid('img'), type:'image', x:p.x, y:p.y, url, name:outputImageName(url)});
     render();
     scheduleSave();
@@ -13766,19 +13781,83 @@ function connectSelectionToGenerator(kind, genId){
     syncGeneratorInputs();
 }
 
-function pushUndo(){
-    if(!canvas) return;
-    undoStack.push({nodes:JSON.parse(JSON.stringify(serializableCanvasNodes())), connections:JSON.parse(JSON.stringify(connections))});
-    if(undoStack.length > UNDO_MAX) undoStack.shift();
+function canvasHistorySnapshot(){
+    return {
+        nodes:JSON.parse(JSON.stringify(serializableCanvasNodes())),
+        connections:JSON.parse(JSON.stringify(connections))
+    };
 }
-function performUndo(){
-    if(!canvas || !undoStack.length) return;
-    const state = undoStack.pop();
+function canvasHistoryStatesEqual(a, b){
+    if(!a || !b) return false;
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+function pushCanvasHistoryEntry(stack, state){
+    stack.push(state);
+    if(stack.length > UNDO_MAX) stack.shift();
+}
+function resetCanvasHistory(){
+    undoStack = [];
+    redoStack = [];
+    pendingCanvasUndoSnapshot = null;
+}
+function pushUndo(){
+    if(!canvas || isCanvasLockedByOther()) return;
+    pendingCanvasUndoSnapshot = null;
+    pushCanvasHistoryEntry(undoStack, canvasHistorySnapshot());
+    redoStack = [];
+}
+function capturePendingCanvasUndo(){
+    if(!canvas || isCanvasLockedByOther()) return;
+    pendingCanvasUndoSnapshot = canvasHistorySnapshot();
+}
+function commitPendingCanvasUndo(){
+    const before = pendingCanvasUndoSnapshot;
+    pendingCanvasUndoSnapshot = null;
+    if(!before || !canvas || canvasHistoryStatesEqual(before, canvasHistorySnapshot())) return;
+    pushCanvasHistoryEntry(undoStack, before);
+    redoStack = [];
+}
+function restoreCanvasHistoryState(state){
     nodes = state.nodes;
     connections = state.connections;
     selected.clear();
+    sanitizeConnections();
+    syncGeneratorInputs();
+    refreshGeneratorInputViews();
     render();
     scheduleSave();
+}
+function performUndo(){
+    if(!canvas) return false;
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法撤销');
+        return false;
+    }
+    if(!undoStack.length){
+        setStatus('没有可撤销的操作');
+        return false;
+    }
+    const state = undoStack.pop();
+    pushCanvasHistoryEntry(redoStack, canvasHistorySnapshot());
+    pendingCanvasUndoSnapshot = null;
+    restoreCanvasHistoryState(state);
+    return true;
+}
+function performRedo(){
+    if(!canvas) return false;
+    if(isCanvasLockedByOther()){
+        setStatus('画布正被其他人编辑中，无法重做');
+        return false;
+    }
+    if(!redoStack.length){
+        setStatus('没有可重做的操作');
+        return false;
+    }
+    const state = redoStack.pop();
+    pushCanvasHistoryEntry(undoStack, canvasHistorySnapshot());
+    pendingCanvasUndoSnapshot = null;
+    restoreCanvasHistoryState(state);
+    return true;
 }
 function cloneNode(n, dx, dy){
     const copy = JSON.parse(JSON.stringify(serializableCanvasNode(n)));
@@ -14044,6 +14123,7 @@ function startNodeDrag(e, node){
     }
     e.preventDefault();
     e.stopPropagation();
+    capturePendingCanvasUndo();
     let dragTarget = node;
     if(e.altKey){
         const copy = cloneNode(node, 0, 0);
@@ -14116,6 +14196,7 @@ function startNodeResize(e, node){
     }
     e.preventDefault();
     e.stopPropagation();
+    capturePendingCanvasUndo();
     const el = nodesEl.querySelector(`.node[data-id="${node.id}"]`);
     const rect = el?.getBoundingClientRect();
     resizeNode = {
@@ -14270,6 +14351,7 @@ function endDrag(event=null){
         const draggedGroup = moved.some(n => n.type === 'group' || n.type === 'promptGroup');
         if(!draggedGroup) updateGroupMembership(moved);
     }
+    commitPendingCanvasUndo();
     dragNode = null;
     dragBoard = null;
     resizeNode = null;
@@ -14782,6 +14864,10 @@ window.addEventListener('paste', e => {
 });
 window.addEventListener('keydown', e => {
     if(!canvas) return;
+    const normalizedKey = String(e.key || '').toLowerCase();
+    const shortcutKey = normalizedKey === 'z' || normalizedKey === 'y'
+        ? normalizedKey
+        : (e.code === 'KeyZ' ? 'z' : e.code === 'KeyY' ? 'y' : normalizedKey);
     if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
     if(e.key === 'Shift' && !isEditableTarget(document.activeElement)) setKnifeMode(true);
     if(e.key === 'Escape' && document.getElementById('imageEditModal').classList.contains('open')) { closeImageEditor(); return; }
@@ -14794,6 +14880,14 @@ window.addEventListener('keydown', e => {
         return;
     }
     if(e.key === 'Escape' && outputLightbox.classList.contains('open')) { closeOutputLightbox(); return; }
+    if((e.ctrlKey || e.metaKey) && !e.altKey && (shortcutKey === 'z' || shortcutKey === 'y')) {
+        if(e.isComposing || isEditableTarget(e.target) || isEditableTarget(document.activeElement)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if(shortcutKey === 'y' || (shortcutKey === 'z' && e.shiftKey)) performRedo();
+        else performUndo();
+        return;
+    }
     if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); groupSelectedImages(); }
     if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         // 在输入框/可编辑元素里时，让浏览器原生 Ctrl+C 工作
@@ -14816,11 +14910,6 @@ window.addEventListener('keydown', e => {
                 pasteNodes();
             }, 90);
         }
-    }
-    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        const tag = document.activeElement?.tagName;
-        if(tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
-        e.preventDefault(); performUndo();
     }
     if(e.key === 'Delete' || e.key === 'Backspace') {
         const tag = document.activeElement?.tagName;
