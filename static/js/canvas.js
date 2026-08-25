@@ -689,7 +689,8 @@ function canvasActivateVideoPreview(img){
 document.addEventListener('click', event => {
     const btn = event.target?.closest?.('.canvas-video-play');
     if(!btn) return;
-    const wrap = btn.closest('.output-img-wrap,.media-card.video-card');
+    const wrap = btn.closest('.media-card.video-card');
+    if(!wrap) return;
     const preview = wrap?.querySelector?.('img[data-preview-kind="video"]');
     if(!preview) return;
     event.preventDefault();
@@ -710,6 +711,24 @@ function bindCanvasPreviewImageFallbacks(root=document){
         img.addEventListener('error', () => {
             const original = img.dataset.originalSrc || img.dataset.url || '';
             if(img.dataset.previewKind === 'video'){
+                const outputWrap = img.closest('.output-img-wrap');
+                if(outputWrap){
+                    const placeholder = document.createElement('button');
+                    placeholder.type = 'button';
+                    placeholder.className = 'output-video-fallback';
+                    placeholder.dataset.outputVideoFallback = original;
+                    placeholder.innerHTML = '<i data-lucide="video"></i><span>VIDEO</span><small>点击播放</small>';
+                    placeholder.onclick = event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const nodeId = outputWrap.closest('.output-node')?.dataset.id || '';
+                        const out = nodes.find(node => node.id === nodeId) || null;
+                        openOutputLightbox(original, out);
+                    };
+                    img.replaceWith(placeholder);
+                    refreshIcons();
+                    return;
+                }
                 const video = document.createElement('template');
                 video.innerHTML = canvasVideoFallbackHtml(original, img.dataset.videoFallbackAttrs || '');
                 const fallback = video.content.firstElementChild;
@@ -6962,7 +6981,10 @@ function bindOutputWrap(wrap, node){
         img.onclick = e => {
             e.stopPropagation();
             if(img.dataset.dragging) return;
-            if(img.dataset.previewKind === 'video' && canvasActivateVideoPreview(img)) return;
+            if(img.dataset.previewKind === 'video'){
+                openOutputLightbox(img.dataset.url || wrap.dataset.outputUrl || '', node);
+                return;
+            }
             openOutputLightbox(img.dataset.url, node);
         };
     }
@@ -6976,19 +6998,20 @@ function bindOutputWrap(wrap, node){
         };
     }
     if(playBtn){
-        playBtn.addEventListener('click', e => {
+        playBtn.onmousedown = e => {
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
-            const preview = wrap.querySelector('img[data-preview-kind="video"]');
-            if(preview){
-                canvasActivateVideoPreview(preview);
-                return;
-            }
-            const fallbackVideo = wrap.querySelector('video[data-url]');
-            const url = fallbackVideo?.dataset.url || wrap.dataset.outputUrl || '';
+        };
+        playBtn.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const url = wrap.querySelector('[data-output-video-fallback]')?.dataset.outputVideoFallback
+                || wrap.querySelector('img[data-preview-kind="video"]')?.dataset.url
+                || wrap.querySelector('video[data-url]')?.dataset.url
+                || wrap.dataset.outputUrl
+                || '';
             if(url) openOutputLightbox(url, node);
-        }, true);
+        };
     }
     if(fileCard){
         fileCard.onclick = e => {
@@ -7020,17 +7043,6 @@ function bindOutputWrap(wrap, node){
                 scheduleSave();
             }
             refreshNodes([node.id]);
-        };
-    }
-    if(playBtn && img){
-        playBtn.onmousedown = e => {
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        playBtn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            canvasActivateVideoPreview(img);
         };
     }
     if(recoverQuery){
@@ -13381,6 +13393,12 @@ function initOutputCompareEvents(){
     }, {passive:false});
     window.addEventListener('touchend', () => { outputCompareDrag = false; });
 }
+function releaseOutputLightboxVideo(){
+    outputLightboxVideo.onloadedmetadata = null;
+    outputLightboxVideo.pause();
+    outputLightboxVideo.removeAttribute('src');
+    outputLightboxVideo.load();
+}
 function openOutputLightbox(url, out){
     if(!url) return;
     resetOutputPreviewZoom();
@@ -13406,6 +13424,7 @@ function openOutputLightbox(url, out){
     outputCompareResult.style.display = videoMode ? 'none' : 'block';
     outputCompareOriginal.style.display = videoMode ? 'none' : 'block';
     if(videoMode){
+        releaseOutputLightboxVideo();
         outputLightboxImg.src = '';
         outputCompareResult.src = '';
         outputCompareOriginal.src = '';
@@ -13424,8 +13443,7 @@ function openOutputLightbox(url, out){
         refreshIcons();
         return;
     }
-    outputLightboxVideo.pause();
-    outputLightboxVideo.src = '';
+    releaseOutputLightboxVideo();
     outputLightboxImg.draggable = false;
     outputCompareResult.draggable = false;
     outputCompareOriginal.draggable = false;
@@ -13451,8 +13469,7 @@ function closeOutputLightbox(){
     outputLightbox.classList.remove('open');
     setOutputCompareMode(false);
     outputLightboxImg.src = '';
-    outputLightboxVideo.pause();
-    outputLightboxVideo.src = '';
+    releaseOutputLightboxVideo();
     outputLightboxVideo.style.display = 'none';
     outputLightboxImg.style.display = 'block';
     outputCompareResult.style.display = 'block';
