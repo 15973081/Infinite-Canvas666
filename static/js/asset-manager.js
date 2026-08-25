@@ -26,6 +26,7 @@ let activePromptLibraryId = '';
 let activePromptCategory = 'all';
 let assetTreeFocus = 'category';
 const ASSET_TREE_COLLAPSED_STORAGE_KEY = 'asset_manager_collapsed_libraries_v1';
+const ASSET_VIEW_SESSION_STORAGE_KEY = 'asset_manager_image_view_v1';
 function loadCollapsedAssetLibraryIds(){
     try {
         const ids = JSON.parse(localStorage.getItem(ASSET_TREE_COLLAPSED_STORAGE_KEY) || '[]');
@@ -40,6 +41,19 @@ function saveCollapsedAssetLibraryIds(){
     } catch(_) {}
 }
 let collapsedAssetLibraryIds = loadCollapsedAssetLibraryIds();
+function loadAssetViewSession(){
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(ASSET_VIEW_SESSION_STORAGE_KEY) || '{}');
+        return saved && typeof saved === 'object'
+            ? {...saved, views:saved.views && typeof saved.views === 'object' ? saved.views : {}}
+            : {views:{}};
+    } catch(_) {
+        return {views:{}};
+    }
+}
+let assetViewSession = loadAssetViewSession();
+let assetViewSaveTimer = 0;
+let assetViewRestoreToken = 0;
 let promptTreeFocus = 'category';
 let selectedAssetId = '';
 let selectedWorkflowId = '';
@@ -112,6 +126,112 @@ const ASSET_VIRTUAL_OVERSCAN_ROWS = 3;
 
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 function setStatus(text='准备就绪'){ if(statusEl) statusEl.textContent = text || '准备就绪'; }
+function assetViewKey(libraryId=activeAssetLibraryId, categoryId=activeAssetCategoryId, query=assetQuery){
+    return JSON.stringify([String(libraryId || ''), String(categoryId || ''), String(query || '').trim().toLowerCase()]);
+}
+function assetContentScrollContext(){
+    const element = root.querySelector('.asset-content .content-scroll[data-asset-view-library]');
+    if(!element) return null;
+    const usesWindow = getComputedStyle(document.body).overflowY !== 'hidden';
+    const scrollingElement = document.scrollingElement || document.documentElement;
+    return usesWindow
+        ? {kind:'window', element, scrollingElement, top:window.scrollY || scrollingElement.scrollTop || 0, left:window.scrollX || scrollingElement.scrollLeft || 0, viewportTop:0, viewportHeight:window.innerHeight}
+        : {kind:'element', element, scrollingElement:null, top:element.scrollTop, left:element.scrollLeft, viewportTop:element.getBoundingClientRect().top, viewportHeight:element.clientHeight};
+}
+function captureAssetViewState(){
+    const context = assetContentScrollContext();
+    if(!context) return null;
+    const libraryId = context.element.dataset.assetViewLibrary || '';
+    const categoryId = context.element.dataset.assetViewCategory || '';
+    const query = context.element.dataset.assetViewQuery || '';
+    const cards = [...root.querySelectorAll('[data-asset-card]')];
+    const anchor = cards.find(card => card.getBoundingClientRect().bottom > context.viewportTop + 1) || null;
+    const nav = root.querySelector('.asset-nav .nav-scroll');
+    const detail = root.querySelector('.asset-detail .detail-scroll');
+    return {
+        libraryId,
+        categoryId,
+        query,
+        top:context.top,
+        left:context.left,
+        scrollKind:context.kind,
+        anchorId:anchor?.dataset.assetCard || '',
+        anchorOffset:anchor ? anchor.getBoundingClientRect().top - context.viewportTop : 0,
+        navTop:nav?.scrollTop || 0,
+        detailTop:detail?.scrollTop || 0,
+        savedAt:Date.now()
+    };
+}
+function persistAssetViewSession(snapshot=null){
+    if(snapshot?.libraryId && snapshot?.categoryId){
+        assetViewSession.views[assetViewKey(snapshot.libraryId, snapshot.categoryId, snapshot.query)] = snapshot;
+        const entries = Object.entries(assetViewSession.views);
+        if(entries.length > 40){
+            entries.sort((a, b) => Number(b[1]?.savedAt || 0) - Number(a[1]?.savedAt || 0));
+            assetViewSession.views = Object.fromEntries(entries.slice(0, 40));
+        }
+    }
+    assetViewSession.activeLibraryId = activeAssetLibraryId;
+    assetViewSession.activeCategoryId = activeAssetCategoryId;
+    assetViewSession.query = assetQuery;
+    try { sessionStorage.setItem(ASSET_VIEW_SESSION_STORAGE_KEY, JSON.stringify(assetViewSession)); } catch(_) {}
+}
+function scheduleAssetViewSave(){
+    clearTimeout(assetViewSaveTimer);
+    assetViewSaveTimer = setTimeout(() => {
+        const snapshot = captureAssetViewState();
+        if(snapshot) persistAssetViewSession(snapshot);
+    }, 120);
+}
+function savedAssetViewForCurrentState(preferred=null){
+    const key = assetViewKey();
+    if(preferred && assetViewKey(preferred.libraryId, preferred.categoryId, preferred.query) === key) return preferred;
+    return assetViewSession.views[key] || null;
+}
+function setAssetScrollPosition(context, top, left=0){
+    if(context.kind === 'window') window.scrollTo({top:Math.max(0, top || 0), left:Math.max(0, left || 0), behavior:'auto'});
+    else {
+        context.element.scrollTop = Math.max(0, top || 0);
+        context.element.scrollLeft = Math.max(0, left || 0);
+    }
+}
+function alignAssetScrollAnchor(snapshot){
+    if(!snapshot?.anchorId) return false;
+    const context = assetContentScrollContext();
+    if(!context) return false;
+    const anchor = [...root.querySelectorAll('[data-asset-card]')].find(card => card.dataset.assetCard === snapshot.anchorId);
+    if(!anchor) return false;
+    const delta = anchor.getBoundingClientRect().top - context.viewportTop - Number(snapshot.anchorOffset || 0);
+    if(Math.abs(delta) < 1) return true;
+    if(context.kind === 'window') window.scrollBy({top:delta, left:0, behavior:'auto'});
+    else context.element.scrollTop += delta;
+    return true;
+}
+function restoreAssetViewState(snapshot){
+    if(!snapshot) return;
+    const expectedKey = assetViewKey();
+    if(assetViewKey(snapshot.libraryId, snapshot.categoryId, snapshot.query) !== expectedKey) return;
+    const token = ++assetViewRestoreToken;
+    requestAnimationFrame(() => {
+        if(token !== assetViewRestoreToken || activeTab !== 'assets') return;
+        const context = assetContentScrollContext();
+        if(!context) return;
+        root.querySelector('.asset-nav .nav-scroll')?.scrollTo({top:Number(snapshot.navTop || 0), behavior:'auto'});
+        root.querySelector('.asset-detail .detail-scroll')?.scrollTo({top:Number(snapshot.detailTop || 0), behavior:'auto'});
+        setAssetScrollPosition(context, Number(snapshot.top || 0), Number(snapshot.left || 0));
+        renderAssetVirtualWindow();
+        requestAnimationFrame(() => {
+            if(token !== assetViewRestoreToken || activeTab !== 'assets') return;
+            alignAssetScrollAnchor(snapshot);
+            renderAssetVirtualWindow();
+            requestAnimationFrame(() => {
+                if(token !== assetViewRestoreToken || activeTab !== 'assets') return;
+                alignAssetScrollAnchor(snapshot);
+                scheduleAssetViewSave();
+            });
+        });
+    });
+}
 function renderPreservingScroll(selectors=['.nav-scroll']){
     const scrollState = Object.fromEntries(selectors.map(selector => {
         const el = root.querySelector(selector);
@@ -784,7 +904,7 @@ function normalizeCanvasAssetState(){
     selectedCanvasAssetIds = new Set([...selectedCanvasAssetIds].filter(id => findCanvasAssetItem(id)));
 }
 async function loadAll({reset=false}={}){
-    const scrollState = reset ? null : Object.fromEntries(
+    const scrollState = reset || activeTab === 'assets' ? null : Object.fromEntries(
         ['.nav-scroll', '.content-scroll', '.detail-scroll'].map(selector => {
             const el = root.querySelector(selector);
             return [selector, {top:el?.scrollTop || 0, left:el?.scrollLeft || 0}];
@@ -815,9 +935,12 @@ async function loadAll({reset=false}={}){
     };
     if(reset){
         const libs = assetLibraries();
-        activeAssetLibraryId = (libs.find(lib => lib.id === 'default') || libs[0])?.id || '';
+        const savedAssetLibrary = libs.find(lib => lib.id === assetViewSession.activeLibraryId);
+        activeAssetLibraryId = (savedAssetLibrary || libs.find(lib => lib.id === 'default') || libs[0])?.id || '';
+        assetQuery = typeof assetViewSession.query === 'string' ? assetViewSession.query : '';
+        const savedAssetCategoryId = String(assetViewSession.activeCategoryId || '');
+        activeAssetCategoryId = assetCategories().some(cat => cat.id === savedAssetCategoryId) ? savedAssetCategoryId : '';
         activeWorkflowLibraryId = (libs.find(lib => lib.id === 'default') || libs[0])?.id || '';
-        activeAssetCategoryId = '';
         activeWorkflowCategoryId = '';
         selectedAssetId = '';
         selectedWorkflowId = '';
@@ -836,13 +959,39 @@ async function loadAll({reset=false}={}){
     });
     setStatus('准备就绪');
 }
+async function refreshAssetLibrary(){
+    setStatus('正在刷新图片素材…');
+    const data = await apiJson('/api/asset-library');
+    assetLibrary = data.library || {libraries:[], categories:[]};
+    const validLibraryIds = new Set(assetLibraries().map(lib => String(lib.id || '')).filter(Boolean));
+    const validCollapsedIds = new Set([...collapsedAssetLibraryIds].filter(id => validLibraryIds.has(id)));
+    if(validCollapsedIds.size !== collapsedAssetLibraryIds.size){
+        collapsedAssetLibraryIds = validCollapsedIds;
+        saveCollapsedAssetLibraryIds();
+    }
+    assetGridKey = '';
+    assetRenderedCount = 0;
+    render();
+    resumeAvatarPolls();
+    setStatus('图片素材已刷新');
+}
+async function refreshCurrentManager(){
+    if(activeTab === 'assets') return refreshAssetLibrary();
+    return loadAll();
+}
 function render(){
+    const previousAssetView = captureAssetViewState();
+    if(previousAssetView) persistAssetViewSession(previousAssetView);
     document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
     if(activeTab === 'prompts') renderPromptManager();
     else if(activeTab === 'workflows') renderWorkflowManager();
     else if(activeTab === 'local') renderLocalManager();
     else if(activeTab === 'canvas-assets') renderCanvasAssetsManager();
-    else renderAssetManager();
+    else {
+        renderAssetManager();
+        persistAssetViewSession();
+        restoreAssetViewState(savedAssetViewForCurrentState(previousAssetView));
+    }
     refreshIcons();
 }
 function renderCanvasAssetsManager(){
@@ -1285,9 +1434,10 @@ function scheduleAssetVirtualRender(){
 }
 function renderAssetVirtualWindow(){
     const grid = root.querySelector('[data-asset-virtual-grid]');
-    const scroller = root.querySelector('.asset-content .content-scroll');
+    const context = assetContentScrollContext();
+    const scroller = context?.element;
     const items = currentAssetItems();
-    if(!grid || !scroller || !items.length) return;
+    if(!grid || !scroller || !context || !items.length) return;
     const sample = grid.querySelector('[data-asset-card]') || grid.querySelector('.upload-grid-card');
     if(!sample) return;
     const style = getComputedStyle(grid);
@@ -1296,12 +1446,19 @@ function renderAssetVirtualWindow(){
     if(sampleRect.width <= 0 || sampleRect.height <= 0) return;
     const columns = Math.max(1, Math.round((grid.clientWidth + gap) / (sampleRect.width + gap)));
     const rowStride = sampleRect.height + gap;
-    const gridTop = grid.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-    const scrollTop = Math.max(0, scroller.scrollTop - gridTop);
+    const gridTop = context.kind === 'window'
+        ? grid.getBoundingClientRect().top + context.top
+        : grid.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    const scrollTop = context.kind === 'window'
+        ? Math.max(0, context.top - gridTop)
+        : Math.max(0, scroller.scrollTop - gridTop);
     const total = items.length + 1; // 上传卡也占一个网格位置
     const totalRows = Math.ceil(total / columns);
-    const visibleRows = Math.ceil(scroller.clientHeight / rowStride);
-    const startRow = Math.max(0, Math.floor(scrollTop / rowStride) - ASSET_VIRTUAL_OVERSCAN_ROWS);
+    const visibleRows = Math.ceil(context.viewportHeight / rowStride);
+    const startRow = Math.min(
+        Math.max(0, Math.floor(scrollTop / rowStride) - ASSET_VIRTUAL_OVERSCAN_ROWS),
+        Math.max(0, totalRows - 1)
+    );
     const endRow = Math.min(totalRows, startRow + visibleRows + ASSET_VIRTUAL_OVERSCAN_ROWS * 2);
     const start = startRow * columns;
     const end = Math.min(total, endRow * columns);
@@ -1365,7 +1522,7 @@ function renderAssetManager(){
                     <button class="asset-btn danger" type="button" data-asset-delete-selected ${selectedAssetIds.size ? '' : 'disabled'}><i data-lucide="trash-2"></i><span>删除所选</span></button>
                 </div>
             </div>
-            <div class="content-scroll">
+            <div class="content-scroll" data-asset-view-library="${escapeAttr(activeAssetLibraryId)}" data-asset-view-category="${escapeAttr(activeAssetCategoryId)}" data-asset-view-query="${escapeAttr(assetQuery)}">
                 <div class="asset-grid" data-asset-virtual-grid>
                     ${renderUploadCard(cat)}
                     ${visibleItems.map(item => renderAssetCard(item)).join('')}
@@ -2299,7 +2456,7 @@ async function handleClick(event){
     const target = event.target;
     const tabBtn = target.closest?.('[data-tab]');
     if(tabBtn){ activeTab = tabBtn.dataset.tab || 'assets'; selectedAssetIds.clear(); selectedWorkflowIds.clear(); selectedPromptIds.clear(); selectedLocalIds.clear(); selectedLocalUploadIds.clear(); selectedCanvasAssetIds.clear(); render(); return; }
-    if(target.closest?.('#refreshBtn')){ await loadAll(); return; }
+    if(target.closest?.('#refreshBtn')){ await refreshCurrentManager(); return; }
     const assetPreview = target.closest?.('[data-asset-preview]');
     if(assetPreview){ showDetailPreview('asset', assetPreview.dataset.assetPreview || ''); return; }
     const canvasAssetPreview = target.closest?.('[data-canvas-asset-preview]');
@@ -3747,10 +3904,23 @@ root.addEventListener('pointerdown', beginMarqueeSelection);
 document.addEventListener('pointermove', event => updateMarqueeSelection(event));
 document.addEventListener('pointerup', endMarqueeSelection);
 root.addEventListener('scroll', event => {
-    if(activeTab !== 'assets' || !event.target?.classList?.contains('content-scroll')) return;
-    scheduleAssetVirtualRender();
+    if(activeTab !== 'assets') return;
+    if(event.target?.classList?.contains('content-scroll')) scheduleAssetVirtualRender();
+    scheduleAssetViewSave();
 }, true);
-window.addEventListener('resize', scheduleAssetVirtualRender);
+window.addEventListener('scroll', () => {
+    if(activeTab !== 'assets') return;
+    scheduleAssetVirtualRender();
+    scheduleAssetViewSave();
+}, {passive:true});
+window.addEventListener('resize', () => {
+    scheduleAssetVirtualRender();
+    scheduleAssetViewSave();
+});
+window.addEventListener('pagehide', () => {
+    const snapshot = captureAssetViewState();
+    if(snapshot) persistAssetViewSession(snapshot);
+});
 root.addEventListener('error', event => {
     const img = event.target;
     if(!(img instanceof HTMLImageElement)) return;
@@ -3929,7 +4099,7 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
         render();
     });
 });
-refreshBtn?.addEventListener('click', () => loadAll().catch(err => setStatus(err.message || '加载失败')));
+refreshBtn?.addEventListener('click', () => refreshCurrentManager().catch(err => setStatus(err.message || '加载失败')));
 window.addEventListener('message', event => {
     if(event.data?.type === 'studio-theme') window.StudioTheme?.apply?.(event.data.theme);
 });
