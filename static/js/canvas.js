@@ -4493,6 +4493,20 @@ function videoRefsOnly(refs){
 function isSeedance25VideoModel(model){
     return String(model || '').toLowerCase().replaceAll('_','-').replaceAll('.','-').includes('seedance-2-5');
 }
+function isVolcengineSeedance25VideoNode(node){
+    return resolveVideoProviderId(node?.apiProvider || 'comfly') === 'volcengine' && isSeedance25VideoModel(node?.model);
+}
+function normalizeVideoNodeSelection(node){
+    if(!node) return;
+    if(isVolcengineSeedance25VideoNode(node)){
+        if(Number(node.duration) !== -1) node.duration = Math.max(4, Math.min(30, Number(node.duration) || 5));
+        if(!['', '480p', '720p'].includes(node.resolution)) node.resolution = '';
+        if(['9:21', 'keep_ratio'].includes(node.aspectRatio)) node.aspectRatio = 'adaptive';
+        return;
+    }
+    node.taskMode = 'auto';
+    if(Number(node.duration) === -1) node.duration = 5;
+}
 function videoNodeMediaRefs(refs){
     return (refs || []).filter(ref => ref?.url && ['image','video'].includes(mediaKindForRef(ref)));
 }
@@ -9359,8 +9373,9 @@ function renderVideoBody(node){
     const imageInputs = ordered.filter(src => src.refs?.length);
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
     sanitizeVideoNodeProviderModel(node);
+    normalizeVideoNodeSelection(node);
     const isVolcengineVideoNode = resolveVideoProviderId(node.apiProvider || 'comfly') === 'volcengine';
-    const isSeedance25 = isVolcengineVideoNode && isSeedance25VideoModel(node.model);
+    const isSeedance25 = isVolcengineSeedance25VideoNode(node);
     if(isVolcengineVideoNode) node.useFrameRoles = false;
     node.model = node.model || 'veo3-fast';
     wrap.innerHTML = `
@@ -9445,22 +9460,19 @@ function renderVideoBody(node){
         e.stopPropagation();
         node.apiProvider = e.target.value;
         const models = providerVideoModels(node.apiProvider);
-        if(!models.includes(node.model)) node.model = models[0] || node.model;
-        modelSelect.innerHTML = videoModelOptions(node.model, node.apiProvider);
+        if(!models.includes(node.model)) node.model = models[0] || '';
+        normalizeVideoNodeSelection(node);
+        render();
         scheduleSave();
     };
     modelSelect.onchange = e => {
         e.stopPropagation();
         node.model = e.target.value;
-        if(isSeedance25VideoModel(node.model)){
-            if(Number(node.duration) !== -1) node.duration = Math.max(4, Math.min(30, Number(node.duration) || 5));
-            if(!['', '480p', '720p'].includes(node.resolution)) node.resolution = '';
-            if(['9:21', 'keep_ratio'].includes(node.aspectRatio)) node.aspectRatio = 'adaptive';
-        }
+        normalizeVideoNodeSelection(node);
         render();
         scheduleSave();
     };
-    durationSelect.oninput = e => { e.stopPropagation(); const seedance25 = isSeedance25VideoModel(node.model), value = Number(e.target.value || 5); node.duration = seedance25 && value === -1 ? -1 : Math.max(seedance25 ? 4 : 1, Math.min(seedance25 ? 30 : 60, value)); scheduleSave(); };
+    durationSelect.oninput = e => { e.stopPropagation(); const seedance25 = isVolcengineSeedance25VideoNode(node), value = Number(e.target.value || 5); node.duration = seedance25 && value === -1 ? -1 : Math.max(seedance25 ? 4 : 1, Math.min(seedance25 ? 30 : 60, value)); scheduleSave(); };
     durationSelect.onblur = e => { e.target.value = String(node.duration || 5); };
     aspectSelect.onchange = e => { e.stopPropagation(); node.aspectRatio = e.target.value; scheduleSave(); };
     resolutionSelect.onchange = e => { e.stopPropagation(); node.resolution = e.target.value; scheduleSave(); };
