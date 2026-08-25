@@ -826,6 +826,7 @@ const promptTemplateCats = document.getElementById('promptTemplateCats');
 const promptTemplateBody = document.getElementById('promptTemplateBody');
 const canvasAssetToggle = document.getElementById('canvasAssetToggle');
 const canvasAssetPanel = document.getElementById('canvasAssetPanel');
+const canvasAssetResizeHandle = document.getElementById('canvasAssetResizeHandle');
 const canvasAssetCloseBtn = document.getElementById('canvasAssetCloseBtn');
 const canvasAssetLibrarySelect = document.getElementById('canvasAssetLibrarySelect');
 const canvasAssetCategorySelect = document.getElementById('canvasAssetCategorySelect');
@@ -978,9 +979,21 @@ let activeCanvasAssetLibraryId = '';
 let activeCanvasAssetCategoryId = '';
 let canvasAssetSearchQuery = '';
 const CANVAS_ASSET_BATCH_SIZE = 60;
+const CANVAS_ASSET_PANEL_WIDTH_KEY = 'canvas_asset_panel_width_v1';
+const CANVAS_ASSET_PANEL_DEFAULT_WIDTH = 320;
+const CANVAS_ASSET_PANEL_MIN_WIDTH = 320;
 let canvasAssetRenderKey = '';
 let canvasAssetRenderedCount = CANVAS_ASSET_BATCH_SIZE;
 let canvasAssetFilteredCount = 0;
+let canvasAssetPanelWidth = (() => {
+    try {
+        const stored = Number(localStorage.getItem(CANVAS_ASSET_PANEL_WIDTH_KEY));
+        return Number.isFinite(stored) && stored > 0 ? stored : CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
+    } catch(e) {
+        return CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
+    }
+})();
+let canvasAssetPanelResize = null;
 const LOCAL_CANVAS_ASSET_LIBRARY_ID = '__local_assets__';
 let localCanvasAssetLibrary = {items:[], tree:null};
 let assetManagerTab = 'assets';
@@ -7637,6 +7650,38 @@ function toggleCanvasAssetLibrary(open=!canvasAssetLibraryOpen){
     if(!canvasAssetLibraryOpen) hideCanvasAssetHoverPreview();
     if(canvasAssetLibraryOpen) loadCanvasAssetLibrary();
 }
+
+function canvasAssetPanelMaxWidth(){
+    const horizontalMargin = window.innerWidth <= 760 ? 28 : 48;
+    return Math.max(0, window.innerWidth - horizontalMargin);
+}
+
+function clampCanvasAssetPanelWidth(width){
+    const maxWidth = canvasAssetPanelMaxWidth();
+    const minWidth = Math.min(CANVAS_ASSET_PANEL_MIN_WIDTH, maxWidth);
+    const value = Number.isFinite(Number(width)) ? Number(width) : CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
+    return Math.round(Math.min(Math.max(value, minWidth), maxWidth));
+}
+
+function applyCanvasAssetPanelWidth(width, {persist=false, updatePreferred=true}={}){
+    if(!canvasAssetPanel) return;
+    const nextWidth = clampCanvasAssetPanelWidth(width);
+    canvasAssetPanel.style.width = `${nextWidth}px`;
+    if(updatePreferred) canvasAssetPanelWidth = nextWidth;
+    canvasAssetResizeHandle?.setAttribute('aria-valuenow', String(nextWidth));
+    canvasAssetResizeHandle?.setAttribute('aria-valuemax', String(canvasAssetPanelMaxWidth()));
+    if(persist){
+        try { localStorage.setItem(CANVAS_ASSET_PANEL_WIDTH_KEY, String(canvasAssetPanelWidth)); } catch(e) {}
+    }
+}
+
+function finishCanvasAssetPanelResize(){
+    if(!canvasAssetPanelResize) return;
+    canvasAssetPanelResize = null;
+    canvasAssetPanel?.classList.remove('resizing');
+    document.body.classList.remove('canvas-asset-panel-resizing');
+    applyCanvasAssetPanelWidth(canvasAssetPanelWidth, {persist:true});
+}
 async function addUrlToCanvasAssetLibrary(url, name=''){
     if(canvasAssetLibraryIsLocal()){ setStatus('本地素材请在素材库管理中上传'); return; }
     const cat = activeCanvasAssetCategory();
@@ -12793,6 +12838,41 @@ promptTemplatePanel?.addEventListener('click', event => {
     }
 });
 canvasAssetToggle?.addEventListener('click', () => toggleCanvasAssetLibrary());
+applyCanvasAssetPanelWidth(canvasAssetPanelWidth, {updatePreferred:false});
+canvasAssetResizeHandle?.addEventListener('mousedown', event => {
+    if(event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    canvasAssetPanelResize = {
+        startX:event.clientX,
+        startWidth:canvasAssetPanel.getBoundingClientRect().width,
+    };
+    canvasAssetPanel.classList.add('resizing');
+    document.body.classList.add('canvas-asset-panel-resizing');
+    startWindowPointerSession(moveEvent => {
+        if(!canvasAssetPanelResize) return;
+        moveEvent.preventDefault();
+        applyCanvasAssetPanelWidth(canvasAssetPanelResize.startWidth + canvasAssetPanelResize.startX - moveEvent.clientX);
+    }, finishCanvasAssetPanelResize);
+});
+canvasAssetResizeHandle?.addEventListener('dblclick', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    applyCanvasAssetPanelWidth(CANVAS_ASSET_PANEL_DEFAULT_WIDTH, {persist:true});
+});
+canvasAssetResizeHandle?.addEventListener('keydown', event => {
+    if(!['ArrowLeft','ArrowRight','Home'].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if(event.key === 'Home') applyCanvasAssetPanelWidth(CANVAS_ASSET_PANEL_DEFAULT_WIDTH, {persist:true});
+    else {
+        const step = event.shiftKey ? 64 : 24;
+        applyCanvasAssetPanelWidth(canvasAssetPanelWidth + (event.key === 'ArrowLeft' ? step : -step), {persist:true});
+    }
+});
+window.addEventListener('resize', () => {
+    if(!canvasAssetPanelResize) applyCanvasAssetPanelWidth(canvasAssetPanelWidth, {updatePreferred:false});
+});
 workflowTransferToggle?.addEventListener('click', () => {
     if(workflowTransferModal?.classList.contains('open')) closeWorkflowTransferModal();
     else openWorkflowTransferModal();
