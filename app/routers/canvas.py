@@ -222,12 +222,13 @@ async def canvas_video_impl(payload: CanvasVideoRequest):
                     if model != "veo3.1-lite":
                         body["official_fallback"] = False
                 else:
+                    model = selected_model(payload.model, "doubao-seedance-2.0")
                     body = {
                         "prompt": payload.prompt,
-                        "model": selected_model(payload.model, "doubao-seedance-2.0"),
+                        "model": model,
                         "duration": apimart_video_duration(payload.duration),
                         "size": apimart_video_size(payload.aspect_ratio or payload.size),
-                        "resolution": payload.resolution or "480p",
+                        "resolution": apimart_video_resolution(model, payload.resolution),
                     }
                     if image_with_roles and video_payload:
                         raise HTTPException(status_code=400, detail="APIMart Seedance 的 image_with_roles 不能和 video_urls 同时使用，请只保留图片首尾帧或参考视频其中一种。")

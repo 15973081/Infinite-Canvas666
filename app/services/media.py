@@ -995,6 +995,16 @@ def apimart_video_duration(duration) -> int:
         value = 5
     return max(4, min(15, value))
 
+def apimart_video_resolution(model: str, resolution: str) -> str:
+    value = str(resolution or "").strip().lower()
+    if str(model or "").strip().lower() != "minimax-h3":
+        return value or "480p"
+    if not value:
+        return "768P"
+    if value in {"480", "480p", "720", "720p", "768", "768p", "780", "780p"}:
+        return "768P"
+    return "2K"
+
 def apimart_veo31_duration(duration) -> int:
     try:
         value = int(duration)
