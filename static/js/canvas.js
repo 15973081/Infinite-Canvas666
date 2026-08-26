@@ -2558,7 +2558,7 @@ async function createSmartCanvas(){
 }
 function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.07.23.3`;
+    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.08.26.4`;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();

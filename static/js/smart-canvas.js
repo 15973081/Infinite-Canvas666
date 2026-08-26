@@ -1521,7 +1521,7 @@ async function backToCanvasList(){
         }
     }
     releaseSmartCanvasLockOnExit();
-    window.location.href = '/static/canvas.html?v=2026.05.22.1';
+    window.location.href = '/static/canvas.html?v=2026.08.26.4';
 }
 function promptPlainText(){
     return promptInput.innerText.replace(/\u00a0/g, ' ').trim();
