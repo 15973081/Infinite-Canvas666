@@ -98,6 +98,7 @@ class ImageTaskQueryRequest(BaseModel):
 # ── Canvas Video ──
 
 class CanvasVideoRequest(BaseModel):
+    client_task_id: str = Field(default="", max_length=96)
     prompt: str = Field(min_length=1, max_length=VIDEO_PROMPT_MAX_LENGTH)
     provider_id: str = "comfly"
     model: str = "veo3-fast"

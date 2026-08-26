@@ -46,8 +46,16 @@ async def get_canvas_image_task(task_id: str):
 
 @router.post("/api/canvas-video-tasks")
 async def create_canvas_video_task(payload: CanvasVideoRequest):
-    task_id = f"canvas_vid_{uuid.uuid4().hex}"
+    requested_task_id = str(payload.client_task_id or "").strip()
+    if requested_task_id and not re.fullmatch(r"canvas_vid_[A-Za-z0-9_-]{8,80}", requested_task_id):
+        raise HTTPException(status_code=400, detail="无效的视频任务 ID")
+    task_id = requested_task_id or f"canvas_vid_{uuid.uuid4().hex}"
     with CANVAS_TASK_LOCK:
+        existing = dict(CANVAS_TASKS.get(task_id) or {})
+        if existing:
+            if existing.get("type") != "video":
+                raise HTTPException(status_code=409, detail="任务 ID 已被占用")
+            return {"task_id": task_id, "status": existing.get("status") or "queued"}
         CANVAS_TASKS[task_id] = {
             "id": task_id,
             "type": "video",
