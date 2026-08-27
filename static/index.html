@@ -1428,9 +1428,12 @@
         const LOCAL_PAGE_IDS = ['zimage','enhance','klein','angle'];
         let maintenanceState = null;
         let maintenanceRequestRunning = false;
+        let maintenanceStatusRequest = null;
+        let maintenancePollingTimer = null;
         let studioSocket = null;
         let studioReconnectTimer = null;
         let studioReconnectAttempts = 0;
+        let studioHasConnected = false;
 
         function setSidebarPinned(pinned, options = {}) {
             const sidebar = document.getElementById('studioSidebar');
@@ -1595,7 +1598,9 @@
         if (host) {
             connectStudioWebSocket();
             setInterval(syncStatus, 2000);
-            setInterval(fetchMaintenanceStatus, 2500);
+            setInterval(() => {
+                if(maintenanceState?.mode !== 'draining') fetchMaintenanceStatus();
+            }, 60000);
         }
 
         // --- 夜间模式 ---
@@ -1782,23 +1787,42 @@
                     showTransientBanner('服务已恢复，可以继续使用。');
                 }
             }
+            syncMaintenancePolling(snapshot.mode === 'draining');
             renderMaintenanceSnapshot(snapshot);
             forwardMaintenanceToFrames(snapshot);
         }
 
-        async function fetchMaintenanceStatus() {
-            try {
-                const response = await fetch('/api/maintenance/status', {cache:'no-store'});
-                if(!response.ok) throw new Error(`HTTP ${response.status}`);
-                const snapshot = await response.json();
-                const disconnected = document.getElementById('service-disconnected');
-                if(disconnected) disconnected.hidden = true;
-                handleMaintenanceSnapshot(snapshot);
-                return snapshot;
-            } catch(error) {
-                if(!studioSocket || studioSocket.readyState !== WebSocket.OPEN) showServiceDisconnected();
-                return null;
+        function syncMaintenancePolling(draining) {
+            if(draining && !maintenancePollingTimer) {
+                maintenancePollingTimer = window.setInterval(
+                    () => fetchMaintenanceStatus(),
+                    2500,
+                );
+            } else if(!draining && maintenancePollingTimer) {
+                window.clearInterval(maintenancePollingTimer);
+                maintenancePollingTimer = null;
             }
+        }
+
+        function fetchMaintenanceStatus() {
+            if(maintenanceStatusRequest) return maintenanceStatusRequest;
+            maintenanceStatusRequest = (async () => {
+                try {
+                    const response = await fetch('/api/maintenance/status', {cache:'no-store'});
+                    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const snapshot = await response.json();
+                    const disconnected = document.getElementById('service-disconnected');
+                    if(disconnected) disconnected.hidden = true;
+                    handleMaintenanceSnapshot(snapshot);
+                    return snapshot;
+                } catch(error) {
+                    if(!studioSocket || studioSocket.readyState !== WebSocket.OPEN) showServiceDisconnected();
+                    return null;
+                } finally {
+                    maintenanceStatusRequest = null;
+                }
+            })();
+            return maintenanceStatusRequest;
         }
 
         function showServiceDisconnected() {
@@ -1831,10 +1855,12 @@
             const socket = new WebSocket(`${protocol}://${host}/ws/stats?client_id=${encodeURIComponent(CID)}`);
             studioSocket = socket;
             socket.onopen = () => {
+                const reconnected = studioHasConnected;
+                studioHasConnected = true;
                 studioReconnectAttempts = 0;
                 const disconnected = document.getElementById('service-disconnected');
                 if(disconnected) disconnected.hidden = true;
-                fetchMaintenanceStatus();
+                if(reconnected || !maintenanceState) fetchMaintenanceStatus();
             };
             socket.onmessage = event => {
                 let data = null;
