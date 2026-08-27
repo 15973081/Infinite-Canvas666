@@ -1243,6 +1243,34 @@ async def purge_canvas(canvas_id: str):
         os.remove(path)
     return {"ok": True}
 
+
+def _manual_backup_timestamp_ms(filename: str) -> Optional[int]:
+    match = re.fullmatch(r"(\d+)\.json", filename or "")
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
+def _backup_recency_ms(backup_dir: str, filename: str) -> int:
+    manual_timestamp = _manual_backup_timestamp_ms(filename)
+    if manual_timestamp is not None:
+        return manual_timestamp
+    try:
+        return int(os.path.getmtime(os.path.join(backup_dir, filename)) * 1000)
+    except OSError:
+        return 0
+
+
+def _prune_canvas_backups(backup_dir: str) -> None:
+    filenames = [name for name in os.listdir(backup_dir) if name.endswith(".json")]
+    filenames.sort(key=lambda name: _backup_recency_ms(backup_dir, name), reverse=True)
+    for old in filenames[MAX_BACKUPS_PER_CANVAS:]:
+        os.remove(os.path.join(backup_dir, old))
+
+
 @router.post("/api/canvases/{canvas_id}/backup")
 async def create_canvas_backup(canvas_id: str):
     canvas = load_canvas(canvas_id)
@@ -1254,9 +1282,7 @@ async def create_canvas_backup(canvas_id: str):
         json.dump(canvas, f, ensure_ascii=False, indent=2)
     # 清理旧备份，最多保留 MAX_BACKUPS_PER_CANVAS 份
     try:
-        files = sorted(os.listdir(backup_dir), reverse=True)
-        for old in files[MAX_BACKUPS_PER_CANVAS:]:
-            os.remove(os.path.join(backup_dir, old))
+        _prune_canvas_backups(backup_dir)
     except Exception:
         pass
     return {"ok": True, "filename": filename, "updated_at": ts}
@@ -1267,22 +1293,25 @@ async def list_canvas_backups(canvas_id: str):
     if not os.path.isdir(backup_dir):
         return {"backups": []}
     files = []
-    for name in sorted(os.listdir(backup_dir), reverse=True):
-        if name.endswith('.json'):
-            p = _backup_path(canvas_id, name)
-            try:
-                stat = os.stat(p)
-                with open(p, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                files.append({
-                    "filename": name,
-                    "timestamp": int(name.replace('.json', '') or 0),
-                    "size": stat.st_size,
-                    "title": data.get("title", ""),
-                    "node_count": len(data.get("nodes", [])),
-                })
-            except Exception:
-                continue
+    for name in os.listdir(backup_dir):
+        timestamp = _manual_backup_timestamp_ms(name)
+        if timestamp is None:
+            continue
+        p = _backup_path(canvas_id, name)
+        try:
+            stat = os.stat(p)
+            with open(p, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            files.append({
+                "filename": name,
+                "timestamp": timestamp,
+                "size": stat.st_size,
+                "title": data.get("title", ""),
+                "node_count": len(data.get("nodes") or []),
+            })
+        except Exception:
+            continue
+    files.sort(key=lambda item: item["timestamp"], reverse=True)
     return {"backups": files}
 
 @router.post("/api/canvases/{canvas_id}/backups/{filename}/restore")
@@ -1353,9 +1382,7 @@ async def release_canvas_lock(canvas_id: str, client_id: str = ""):
         with open(_backup_path(canvas_id, filename), 'w', encoding='utf-8') as f:
             json.dump(canvas, f, ensure_ascii=False, indent=2)
         # Prune old backups
-        files = sorted(os.listdir(backup_dir), reverse=True)
-        for old in files[MAX_BACKUPS_PER_CANVAS:]:
-            os.remove(os.path.join(backup_dir, old))
+        _prune_canvas_backups(backup_dir)
     except Exception as e:
         print(f"Auto-backup failed for canvas {canvas_id}: {e}")
     released = canvas_lock_manager.release(canvas_id, client_id)
