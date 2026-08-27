@@ -18,8 +18,9 @@ from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
 from app.routers import (
     angle, assets, canvas, chat, comfyui, conversation,
     generate, history, image, prompt,
-    providers, update, upload, video, websocket,
+    providers, maintenance, upload, video, websocket,
 )
+from app.services.maintenance import begin_transient_generation, end_transient_generation, mark_service_started
 
 QUIET_ACCESS_PATHS = {
     "/api/queue_status",
@@ -50,6 +51,7 @@ logging.getLogger("uvicorn.access").addFilter(QuietAccessLogFilter())
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    mark_service_started()
     await canvas.recover_durable_canvas_video_tasks()
     yield
 
@@ -63,6 +65,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+TRANSIENT_GENERATION_PATHS = {
+    "/generate": "online-image",
+    "/api/ms/generate": "online-image",
+    "/api/online-image": "online-image",
+    "/api/angle/generate": "online-image",
+    "/api/canvas-llm": "llm",
+    "/api/canvas-video": "video",
+}
+
+
+@app.middleware("http")
+async def maintenance_generation_tracker(request: Request, call_next):
+    task_type = TRANSIENT_GENERATION_PATHS.get(request.url.path) if request.method == "POST" else None
+    if not task_type:
+        return await call_next(request)
+    try:
+        task_id = begin_transient_generation(task_type, request.url.path)
+    except Exception as exc:
+        status_code = int(getattr(exc, "status_code", 503) or 503)
+        headers = dict(getattr(exc, "headers", None) or {})
+        return JSONResponse(status_code=status_code, content={"detail": getattr(exc, "detail", str(exc))}, headers=headers)
+    try:
+        return await call_next(request)
+    finally:
+        end_transient_generation(task_id)
+
 # --- Register all routers ---
 app.include_router(angle.router)
 app.include_router(assets.router)
@@ -75,7 +103,7 @@ app.include_router(history.router)
 app.include_router(image.router)
 app.include_router(prompt.router)
 app.include_router(providers.router)
-app.include_router(update.router)
+app.include_router(maintenance.router)
 app.include_router(upload.router)
 app.include_router(video.router)
 app.include_router(websocket.router)

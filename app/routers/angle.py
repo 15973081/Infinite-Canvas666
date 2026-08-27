@@ -8,7 +8,6 @@ from app.state import *
 from app.config import *
 from app.utils import *
 from app.providers.registry import *
-from app.services.update import *
 from app.services.canvas import *
 from app.services.assets import *
 from app.services.prompt import *

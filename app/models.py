@@ -15,25 +15,11 @@ from app.config import (
 )
 
 
-# ── Update ──
+# ── Maintenance ──
 
-class UpdateRequest(BaseModel):
-    auto_restart: bool = False
-    restart_delay: int = 3
-    source: str = "github"
-    fallback: bool = True
-    wait_for_tasks: bool = True
-    drain_timeout: int = Field(default=7200, ge=0, le=86400)
-    force_update: bool = False
-
-
-class RollbackRequest(BaseModel):
-    name: str = ""
-    auto_restart: bool = False
-    restart_delay: int = 3
-    wait_for_tasks: bool = True
-    drain_timeout: int = Field(default=7200, ge=0, le=86400)
-    force_update: bool = False
+class MaintenanceStartRequest(BaseModel):
+    message: str = Field(default="服务即将维护，请保存当前工作并等待现有生成任务完成。", max_length=300)
+    planned_at: int = Field(default=0, ge=0)
 
 
 # ── Generate / Cloud ──
@@ -476,7 +462,7 @@ class ComfyInstancesPayload(BaseModel):
 
 # ── Export all names for easy import ──
 __all__ = [
-    "UpdateRequest", "RollbackRequest",
+    "MaintenanceStartRequest",
     "GenerateRequest", "DeleteHistoryRequest", "TokenRequest",
     "CloudGenRequest", "CloudPollRequest",
     "AIReference",

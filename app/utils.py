@@ -36,18 +36,6 @@ def env_quote(value):
     return text
 
 
-def version_tuple(value: str) -> List[int]:
-    return [int(x) for x in re.findall(r"\d+", str(value or ""))]
-
-
-def version_gt(a: str, b: str) -> bool:
-    ta, tb = version_tuple(a), version_tuple(b)
-    n = max(len(ta), len(tb))
-    ta += [0] * (n - len(ta))
-    tb += [0] * (n - len(tb))
-    return ta > tb
-
-
 def safe_user_id(user_id, request: Request):
     candidate = (user_id or "").strip()
     if not candidate and request.client:
@@ -110,8 +98,6 @@ __all__ = [
     "strip_auth_scheme",
     "bearer_auth_value",
     "env_quote",
-    "version_tuple",
-    "version_gt",
     "safe_user_id",
     "now_ms",
     "selected_model",

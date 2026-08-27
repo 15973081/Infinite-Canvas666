@@ -99,6 +99,16 @@ class ConnectionManager:
                 print(f"Broadcast asset library error: {e}")
                 self.active_connections.remove(connection)
 
+    async def broadcast_maintenance(self, snapshot: dict):
+        data = json.dumps({"type": "maintenance_changed", "data": snapshot}, ensure_ascii=False)
+        for connection in self.active_connections[:]:
+            try:
+                await connection.send_text(data)
+            except Exception as e:
+                print(f"Broadcast maintenance error: {e}")
+                if connection in self.active_connections:
+                    self.active_connections.remove(connection)
+
     async def broadcast_canvas_locked(self, canvas_id: str, holder: dict):
         data = json.dumps({
             "type": "canvas_locked",
@@ -230,7 +240,6 @@ CONVERSATION_LOCK = Lock()
 CANVAS_LOCK = Lock()
 CANVAS_FOLDERS_LOCK = Lock()
 LOAD_LOCK = Lock()
-UPDATE_LOCK = Lock()
 
 NEXT_TASK_ID = 1
 
@@ -280,7 +289,6 @@ __all__ = [
     "QUEUE", "QUEUE_LOCK",
     "HISTORY_LOCK", "GLOBAL_CONFIG_LOCK", "CONVERSATION_LOCK",
     "CANVAS_LOCK", "CANVAS_FOLDERS_LOCK", "LOAD_LOCK",
-    "UPDATE_LOCK",
     "NEXT_TASK_ID",
     "BACKEND_LOCAL_LOAD",
     "CANVAS_TASKS", "CANVAS_TASK_LOCK",

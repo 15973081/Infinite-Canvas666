@@ -6,10 +6,10 @@ from typing import List, Dict, Any, Optional
 
 from app.config import PROMPT_LIBRARY_PATH, DATA_DIR
 from app.utils import now_ms
+from app.services.prompt_templates import parse_prompt_template_markdown, prompt_template_markdown_path
 
 
 def builtin_prompt_templates():
-    from app.services.update import parse_prompt_template_markdown, prompt_template_markdown_path
     try:
         template_path = prompt_template_markdown_path()
         if not template_path:

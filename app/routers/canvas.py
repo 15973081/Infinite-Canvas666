@@ -8,7 +8,6 @@ from app.state import *
 from app.config import *
 from app.utils import *
 from app.providers.registry import *
-from app.services.update import *
 from app.services.canvas import *
 from app.services.assets import *
 from app.services.prompt import *
@@ -40,7 +39,7 @@ def _canvas_task_gate_error():
     if state.get("draining"):
         raise HTTPException(
             status_code=503,
-            detail=state.get("reason") or "后端正在等待任务完成并准备升级，暂不接受新的生成任务",
+            detail=state.get("reason") or "服务正在维护准备中，暂不接受新的生成任务",
             headers={"Retry-After": "30"},
         )
 
@@ -63,7 +62,7 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
-                detail=CANVAS_TASK_MAINTENANCE.get("reason") or "后端正在准备升级，暂不接受新的生成任务",
+                detail=CANVAS_TASK_MAINTENANCE.get("reason") or "服务正在维护准备中，暂不接受新的生成任务",
                 headers={"Retry-After": "30"},
             )
         CANVAS_TASKS[task_id] = {
@@ -106,7 +105,7 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
-                detail=CANVAS_TASK_MAINTENANCE.get("reason") or "后端正在准备升级，暂不接受新的视频任务",
+                detail=CANVAS_TASK_MAINTENANCE.get("reason") or "服务正在维护准备中，暂不接受新的视频任务",
                 headers={"Retry-After": "30"},
             )
         task = {

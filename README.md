@@ -13,9 +13,9 @@ https://www.fhl.mom/register?aff=86L574B4T2N9  （包含codex和GPT image 2模�
 
 ----
 
-【新增了version文件，我每次更新都会更新version的版本号，如果你下载version文件，打开项目后，导航栏的GitHub按键就会提示新版本，如果不想查看更新提示，就删除version文件】
+项目不提供远程热更新。维护代码前，请在服务器本机通过“更多设置 → 维护管理”发布停服通知，等待生成任务归零，再按 Ctrl+C 关闭服务并手动更新代码。
 
-【A version file has been added. I update the version number with each update. If you download the version file, the GitHub button in the navigation bar will indicate the new version after opening the project. If you don't want to see update notifications, delete the version file.】
+The project does not perform remote hot updates. Before changing the code, use “More settings → Maintenance” on the server host, wait for active generation tasks to finish, then stop the service with Ctrl+C and update the code manually.
 
 ----
 
