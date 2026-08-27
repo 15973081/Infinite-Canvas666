@@ -2659,7 +2659,7 @@ async def wait_for_agnes_video_task(client, provider, video_id, model):
         delay = min(delay * 1.35, 12)
     raise HTTPException(status_code=504, detail=f"Agnes 视频生成任务超时：{last_payload or video_id}")
 
-async def generate_agnes_video(client, payload, provider, base_url, requested_model):
+async def generate_agnes_video(client, payload, provider, base_url, requested_model, on_submitted=None):
     model = selected_model(requested_model, "agnes-video-v2.0")
     width, height = agnes_video_dimensions(payload.aspect_ratio, payload.resolution)
     num_frames, frame_rate = agnes_video_frame_count(payload.duration, 24)
@@ -2688,11 +2688,17 @@ async def generate_agnes_video(client, payload, provider, base_url, requested_mo
     if payload.seed is not None:
         body["seed"] = payload.seed
     submit_url = f"{base_url}/v1/videos"
-    response = await client.post(submit_url, headers=api_headers(provider=provider, model=model), json=body)
+    headers = api_headers(provider=provider, model=model)
+    if payload.client_task_id:
+        headers.setdefault("Idempotency-Key", payload.client_task_id)
+    response = await client.post(submit_url, headers=headers, json=body)
     response.raise_for_status()
     raw = response.json()
     video_id = str(raw.get("video_id") or "").strip()
     task_id = str(raw.get("task_id") or raw.get("id") or "").strip()
+    upstream_id = video_id or task_id
+    if upstream_id and callable(on_submitted):
+        on_submitted(upstream_id, submit_url, "agnes" if video_id else "video")
     result = raw
     if video_id and not video_output_urls(raw):
         result = await wait_for_agnes_video_task(client, provider, video_id, model)
@@ -2766,7 +2772,7 @@ async def yuli_fetch_reference_bytes(client, ref_url):
         return (f"input_reference.{ext}", raw, mime)
     return None
 
-async def generate_yuli_openai_video(client, payload, provider, base_url, requested_model):
+async def generate_yuli_openai_video(client, payload, provider, base_url, requested_model, on_submitted=None):
     """玉玉API veo3.1 走 OpenAI multipart 格式 /v1/videos，支持 seconds 时长控制。"""
     submit_url = f"{base_url}/v1/videos"
     data = {
@@ -2783,6 +2789,8 @@ async def generate_yuli_openai_video(client, payload, provider, base_url, reques
             files["input_reference"] = ref_file
             break
     headers = api_headers(json_body=False, provider=provider)
+    if payload.client_task_id:
+        headers.setdefault("Idempotency-Key", payload.client_task_id)
     if files:
         response = await client.post(submit_url, headers=headers, data=data, files=files)
     else:
@@ -2797,6 +2805,8 @@ async def generate_yuli_openai_video(client, payload, provider, base_url, reques
         resp_text = (response.text or "")[:500]
         raise HTTPException(status_code=502, detail=f"玉玉API 视频接口返回非 JSON 响应（状态 {response.status_code}）：{resp_text}") from exc
     task_id = raw.get("id") or extract_task_id(raw) or raw.get("task_id")
+    if task_id and callable(on_submitted):
+        on_submitted(str(task_id), submit_url, "video")
     result = raw
     if task_id and not video_output_urls(raw):
         result = await wait_for_video_task(client, provider, task_id, submit_url)

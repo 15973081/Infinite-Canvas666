@@ -1,0 +1,201 @@
+"""Durable storage for canvas generation tasks.
+
+The in-memory ``CANVAS_TASKS`` mapping remains a hot cache for the current
+process.  This module is the restart-safe source of truth for long-running
+canvas tasks, especially video jobs that outlive a backend restart.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import time
+from threading import Lock
+from typing import Any, Dict, Iterable, List, Optional
+
+from app.config import DATA_DIR
+
+
+ACTIVE_CANVAS_TASK_STATUSES = {"queued", "submitting", "running", "polling"}
+TERMINAL_CANVAS_TASK_STATUSES = {"succeeded", "failed", "cancelled"}
+
+_DB_LOCK = Lock()
+_INITIALIZED_PATHS: set[str] = set()
+
+
+def canvas_task_db_path() -> str:
+    override = str(os.getenv("CANVAS_TASK_DB_PATH") or "").strip()
+    return os.path.abspath(override or os.path.join(DATA_DIR, "canvas_tasks.sqlite3"))
+
+
+def _connect() -> sqlite3.Connection:
+    path = canvas_task_db_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    conn = sqlite3.connect(path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout=30000")
+    return conn
+
+
+def init_canvas_task_store() -> str:
+    path = canvas_task_db_path()
+    with _DB_LOCK:
+        if path in _INITIALIZED_PATHS and os.path.exists(path):
+            return path
+        with _connect() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS canvas_tasks (
+                    id TEXT PRIMARY KEY,
+                    task_type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    task_json TEXT NOT NULL,
+                    request_json TEXT NOT NULL DEFAULT '{}',
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_canvas_tasks_status_updated "
+                "ON canvas_tasks(status, updated_at)"
+            )
+        _INITIALIZED_PATHS.add(path)
+    return path
+
+
+def _loads(value: str, fallback: Any) -> Any:
+    try:
+        parsed = json.loads(value or "")
+        return parsed
+    except Exception:
+        return fallback
+
+
+def _dumps(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), default=str)
+
+
+def _row_task(row: sqlite3.Row | None) -> Dict[str, Any]:
+    if row is None:
+        return {}
+    task = _loads(row["task_json"], {})
+    if not isinstance(task, dict):
+        task = {}
+    task.setdefault("id", row["id"])
+    task.setdefault("type", row["task_type"])
+    task.setdefault("status", row["status"])
+    task.setdefault("created_at", row["created_at"])
+    task.setdefault("updated_at", row["updated_at"])
+    return task
+
+
+def save_canvas_task(task: Dict[str, Any], request_payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    task_id = str(task.get("id") or "").strip()
+    if not task_id:
+        raise ValueError("canvas task id is required")
+    init_canvas_task_store()
+    now = time.time()
+    stored = dict(task)
+    stored["id"] = task_id
+    stored["type"] = str(stored.get("type") or "unknown")
+    stored["status"] = str(stored.get("status") or "queued")
+    stored["created_at"] = float(stored.get("created_at") or now)
+    stored["updated_at"] = float(stored.get("updated_at") or now)
+    with _DB_LOCK, _connect() as conn:
+        existing = conn.execute(
+            "SELECT request_json FROM canvas_tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if request_payload is None:
+            request_json = existing["request_json"] if existing else "{}"
+        else:
+            request_json = _dumps(request_payload)
+        conn.execute(
+            """
+            INSERT INTO canvas_tasks(id, task_type, status, task_json, request_json, created_at, updated_at)
+            VALUES(?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                task_type=excluded.task_type,
+                status=excluded.status,
+                task_json=excluded.task_json,
+                request_json=excluded.request_json,
+                created_at=excluded.created_at,
+                updated_at=excluded.updated_at
+            """,
+            (
+                task_id,
+                stored["type"],
+                stored["status"],
+                _dumps(stored),
+                request_json,
+                stored["created_at"],
+                stored["updated_at"],
+            ),
+        )
+    return stored
+
+
+def get_canvas_task(task_id: str) -> Dict[str, Any]:
+    init_canvas_task_store()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM canvas_tasks WHERE id = ?", (str(task_id),)).fetchone()
+    return _row_task(row)
+
+
+def get_canvas_task_request(task_id: str) -> Dict[str, Any]:
+    init_canvas_task_store()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT request_json FROM canvas_tasks WHERE id = ?", (str(task_id),)).fetchone()
+    value = _loads(row["request_json"], {}) if row else {}
+    return value if isinstance(value, dict) else {}
+
+
+def update_canvas_task(task_id: str, **changes: Any) -> Dict[str, Any]:
+    init_canvas_task_store()
+    with _DB_LOCK, _connect() as conn:
+        row = conn.execute("SELECT * FROM canvas_tasks WHERE id = ?", (str(task_id),)).fetchone()
+        task = _row_task(row)
+        if not task:
+            return {}
+        task.update(changes)
+        task["updated_at"] = float(changes.get("updated_at") or time.time())
+        conn.execute(
+            "UPDATE canvas_tasks SET task_type=?, status=?, task_json=?, updated_at=? WHERE id=?",
+            (
+                str(task.get("type") or "unknown"),
+                str(task.get("status") or "queued"),
+                _dumps(task),
+                task["updated_at"],
+                str(task_id),
+            ),
+        )
+    return task
+
+
+def list_canvas_tasks(
+    statuses: Optional[Iterable[str]] = None,
+    task_type: str = "",
+) -> List[Dict[str, Any]]:
+    init_canvas_task_store()
+    clauses: List[str] = []
+    args: List[Any] = []
+    status_values = [str(value) for value in (statuses or []) if str(value)]
+    if status_values:
+        clauses.append(f"status IN ({','.join('?' for _ in status_values)})")
+        args.extend(status_values)
+    if task_type:
+        clauses.append("task_type = ?")
+        args.append(str(task_type))
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    with _DB_LOCK, _connect() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM canvas_tasks{where} ORDER BY created_at ASC", args
+        ).fetchall()
+    return [_row_task(row) for row in rows]
+
+
+def active_durable_canvas_tasks() -> List[Dict[str, Any]]:
+    return list_canvas_tasks(statuses=ACTIVE_CANVAS_TASK_STATUSES)
+

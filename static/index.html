@@ -2569,18 +2569,45 @@
             if(confirmText) confirmText.textContent = isEn ? 'Updating...' : '更新中...';
             const sourceName = updateSourceLabel();
             setUpdateSummary('warn', isEn ? 'Updating' : '正在更新', isEn ? `Downloading files from ${sourceName} and creating a local backup.` : `正在从 ${sourceName} 下载文件，并创建本地备份。`);
+            try {
+                const taskStatusRes = await fetch('/api/update-task-status', {cache:'no-store'});
+                const taskStatus = await taskStatusRes.json().catch(() => ({}));
+                if(taskStatusRes.ok && Number(taskStatus.active || 0) > 0){
+                    const videoCount = Number(taskStatus.by_type?.video || 0);
+                    const imageCount = Number(taskStatus.by_type?.['online-image'] || 0);
+                    const parts = [videoCount ? `${videoCount} 个视频` : '', imageCount ? `${imageCount} 个图片` : ''].filter(Boolean);
+                    setUpdateSummary(
+                        'warn',
+                        isEn ? 'Waiting for generation tasks' : '等待生成任务完成',
+                        isEn
+                            ? `${taskStatus.active} generation task(s) are still running. The update will start automatically when they finish.`
+                            : `当前仍有 ${parts.join('、') || `${taskStatus.active} 个生成任务`}。任务完成后将自动开始升级，期间不再接受新任务。`
+                    );
+                }
+            } catch(e) {}
             // 客户端兜底超时：即使后端异常挂起，UI 也能恢复，不会永远停在「更新中」
             const ac = new AbortController();
-            const killer = setTimeout(() => ac.abort(), 300000);
+            const killer = setTimeout(() => ac.abort(), 7500000);
             try {
                 const res = await fetch('/api/update-from-github', {
                     method:'POST',
                     headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({ auto_restart:true, restart_delay:3, source:updateSource, fallback:true }),
+                    body:JSON.stringify({
+                        auto_restart:true,
+                        restart_delay:3,
+                        source:updateSource,
+                        fallback:true,
+                        wait_for_tasks:true,
+                        drain_timeout:7200,
+                        force_update:false
+                    }),
                     signal:ac.signal
                 });
                 const data = await res.json().catch(() => ({}));
-                if(!res.ok) throw new Error(data.detail || (isEn ? 'Update failed' : '更新失败'));
+                if(!res.ok){
+                    const detail = typeof data.detail === 'object' ? data.detail?.message : data.detail;
+                    throw new Error(detail || (isEn ? 'Update failed' : '更新失败'));
+                }
                 if(data.update_notes) setProjectUpdateNotes(data.update_notes);
                 const restarting = data.restart_scheduled;
                 const usedLabel = data.source_label || (data.source === 'modelscope' ? 'ModelScope' : 'GitHub');
@@ -2653,10 +2680,20 @@
                 const res = await fetch('/api/update-rollback', {
                     method:'POST',
                     headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({ name:target.name, auto_restart:true, restart_delay:3 })
+                    body:JSON.stringify({
+                        name:target.name,
+                        auto_restart:true,
+                        restart_delay:3,
+                        wait_for_tasks:true,
+                        drain_timeout:7200,
+                        force_update:false
+                    })
                 });
                 const data = await res.json().catch(() => ({}));
-                if(!res.ok) throw new Error(data.detail || (isEn ? 'Rollback failed' : '回滚失败'));
+                if(!res.ok){
+                    const detail = typeof data.detail === 'object' ? data.detail?.message : data.detail;
+                    throw new Error(detail || (isEn ? 'Rollback failed' : '回滚失败'));
+                }
                 alert(isEn
                     ? `Restored ${data.count || 0} files. Backend is restarting.`
                     : `已还原 ${data.count || 0} 个文件。后端正在重启。`);

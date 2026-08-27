@@ -216,11 +216,18 @@ def generate(req: GenerateRequest):
     global NEXT_TASK_ID
     current_task = None
     target_backend = None
-    with QUEUE_LOCK:
-        task_id = NEXT_TASK_ID
-        NEXT_TASK_ID += 1
-        current_task = {"task_id": task_id, "client_id": req.client_id}
-        QUEUE.append(current_task)
+    with CANVAS_TASK_LOCK:
+        if CANVAS_TASK_MAINTENANCE.get("draining"):
+            raise HTTPException(
+                status_code=503,
+                detail=CANVAS_TASK_MAINTENANCE.get("reason") or "后端正在准备升级，暂不接受新的生成任务",
+                headers={"Retry-After": "30"},
+            )
+        with QUEUE_LOCK:
+            task_id = NEXT_TASK_ID
+            NEXT_TASK_ID += 1
+            current_task = {"task_id": task_id, "client_id": req.client_id, "created_at": time.time()}
+            QUEUE.append(current_task)
 
     try:
         required_images = collect_required_comfy_media(req.params)

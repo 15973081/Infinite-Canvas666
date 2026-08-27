@@ -18,9 +18,71 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
+from app.services.canvas_tasks import ACTIVE_CANVAS_TASK_STATUSES, active_durable_canvas_tasks
 
 
 router = APIRouter()
+
+
+def active_canvas_task_summary() -> dict:
+    """Return a deduplicated view of in-flight canvas tasks."""
+    tasks = {str(task.get("id") or ""): dict(task) for task in active_durable_canvas_tasks() if task.get("id")}
+    with CANVAS_TASK_LOCK:
+        for task_id, task in CANVAS_TASKS.items():
+            if str(task.get("status") or "") in ACTIVE_CANVAS_TASK_STATUSES:
+                tasks[str(task_id)] = dict(task)
+    with QUEUE_LOCK:
+        for queued in QUEUE:
+            queue_id = f"generation:{queued.get('task_id')}"
+            tasks[queue_id] = {
+                "id": queue_id,
+                "type": "generation",
+                "status": "running",
+                "created_at": queued.get("created_at", 0),
+            }
+    by_type: Dict[str, int] = {}
+    for task in tasks.values():
+        kind = str(task.get("type") or "unknown")
+        by_type[kind] = by_type.get(kind, 0) + 1
+    return {
+        "active": len(tasks),
+        "by_type": by_type,
+        "tasks": [
+            {
+                "id": task.get("id"),
+                "type": task.get("type"),
+                "status": task.get("status"),
+                "provider_id": task.get("provider_id", ""),
+                "model": task.get("model", ""),
+                "created_at": task.get("created_at", 0),
+            }
+            for task in tasks.values()
+        ],
+        "maintenance": canvas_task_maintenance(),
+    }
+
+
+def wait_for_active_canvas_tasks(timeout_seconds: int) -> dict:
+    deadline = time.monotonic() + max(0, int(timeout_seconds or 0))
+    while True:
+        summary = active_canvas_task_summary()
+        if not summary["active"]:
+            return summary
+        if time.monotonic() >= deadline:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "等待生成任务完成超时，升级尚未开始",
+                    "active": summary["active"],
+                    "by_type": summary["by_type"],
+                },
+            )
+        time.sleep(1.0)
+
+
+@router.get("/api/update-task-status")
+def update_task_status():
+    return active_canvas_task_summary()
 
 @router.get("/api/app-info")
 def app_info():
@@ -136,7 +198,24 @@ def update_from_github(req: UpdateRequest = UpdateRequest()):
     if req.fallback:
         other = "modelscope" if requested_source == "github" else "github"
         source_order.append(other)
+    maintenance_enabled = False
+    keep_maintenance = False
+    restart_scheduled = False
     try:
+        set_canvas_task_maintenance(True, "后端正在等待现有生成任务完成，完成后将自动升级")
+        maintenance_enabled = True
+        active_summary = active_canvas_task_summary()
+        if active_summary["active"] and not req.force_update:
+            if not req.wait_for_tasks:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "仍有生成任务正在运行，升级尚未开始",
+                        "active": active_summary["active"],
+                        "by_type": active_summary["by_type"],
+                    },
+                )
+            wait_for_active_canvas_tasks(req.drain_timeout)
         backup_root = os.path.join(DATA_DIR, "update_backups", time.strftime("%Y%m%d-%H%M%S"))
 
         # 下载阶段（带兜底切换），任意源成功即停止
@@ -222,9 +301,9 @@ def update_from_github(req: UpdateRequest = UpdateRequest()):
                 shutil.copytree(backup_static_dir, static_dir)
             raise
 
-        restart_scheduled = False
         if req.auto_restart and updated:
             restart_scheduled = schedule_self_restart(req.restart_delay)
+            keep_maintenance = restart_scheduled
         new_version = ""
         try:
             staged_version = os.path.join(staging_root, "VERSION")
@@ -263,6 +342,8 @@ def update_from_github(req: UpdateRequest = UpdateRequest()):
     finally:
         if staging_root and os.path.isdir(staging_root):
             shutil.rmtree(staging_root, ignore_errors=True)
+        if maintenance_enabled and not keep_maintenance:
+            set_canvas_task_maintenance(False)
         UPDATE_LOCK.release()
 
 @router.get("/api/update-backups")
@@ -275,7 +356,23 @@ def rollback_update(req: RollbackRequest):
         raise HTTPException(status_code=400, detail="缺少备份名称")
     if not UPDATE_LOCK.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="正在更新中，请稍后再试")
+    maintenance_enabled = False
+    keep_maintenance = False
     try:
+        set_canvas_task_maintenance(True, "后端正在等待现有生成任务完成，完成后将自动回滚")
+        maintenance_enabled = True
+        active_summary = active_canvas_task_summary()
+        if active_summary["active"] and not req.force_update:
+            if not req.wait_for_tasks:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "仍有生成任务正在运行，回滚尚未开始",
+                        "active": active_summary["active"],
+                        "by_type": active_summary["by_type"],
+                    },
+                )
+            wait_for_active_canvas_tasks(req.drain_timeout)
         backup_root_abs = os.path.abspath(os.path.join(DATA_DIR, "update_backups"))
         backup_dir = os.path.abspath(os.path.join(backup_root_abs, req.name))
         if os.path.commonpath([backup_root_abs, backup_dir]) != backup_root_abs:
@@ -322,6 +419,7 @@ def rollback_update(req: RollbackRequest):
         restart_scheduled = False
         if req.auto_restart and restored:
             restart_scheduled = schedule_self_restart(req.restart_delay)
+            keep_maintenance = restart_scheduled
         return {
             "ok": True,
             "restored": restored,
@@ -335,6 +433,8 @@ def rollback_update(req: RollbackRequest):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"回滚失败：{exc}") from exc
     finally:
+        if maintenance_enabled and not keep_maintenance:
+            set_canvas_task_maintenance(False)
         UPDATE_LOCK.release()
 
 # (CANVAS_TASKS, CANVAS_TASK_LOCK extracted to app/state.py)

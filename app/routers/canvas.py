@@ -16,12 +16,56 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
+from app.services.canvas_tasks import (
+    ACTIVE_CANVAS_TASK_STATUSES,
+    get_canvas_task as load_durable_canvas_task,
+    get_canvas_task_request,
+    list_canvas_tasks as list_durable_canvas_tasks,
+    save_canvas_task as save_durable_canvas_task,
+)
 router = APIRouter()
+
+_canvas_video_recovery_started = False
+_canvas_video_recovery_tasks = set()
+
+
+def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
+    if hasattr(payload, "model_dump"):
+        return payload.model_dump(mode="json")
+    return payload.dict()
+
+
+def _canvas_task_gate_error():
+    state = canvas_task_maintenance()
+    if state.get("draining"):
+        raise HTTPException(
+            status_code=503,
+            detail=state.get("reason") or "后端正在等待任务完成并准备升级，暂不接受新的生成任务",
+            headers={"Retry-After": "30"},
+        )
+
+
+def _update_video_task_record(task_id: str, **changes) -> dict:
+    with CANVAS_TASK_LOCK:
+        current = dict(CANVAS_TASKS.get(task_id) or load_durable_canvas_task(task_id) or {})
+        if not current:
+            return {}
+        current.update(changes)
+        current["updated_at"] = float(changes.get("updated_at") or time.time())
+        CANVAS_TASKS[task_id] = current
+        save_durable_canvas_task(current)
+        return dict(current)
 
 @router.post("/api/canvas-image-tasks")
 async def create_canvas_image_task(payload: OnlineImageRequest):
     task_id = f"canvas_img_{uuid.uuid4().hex}"
     with CANVAS_TASK_LOCK:
+        if CANVAS_TASK_MAINTENANCE.get("draining"):
+            raise HTTPException(
+                status_code=503,
+                detail=CANVAS_TASK_MAINTENANCE.get("reason") or "后端正在准备升级，暂不接受新的生成任务",
+                headers={"Retry-After": "30"},
+            )
         CANVAS_TASKS[task_id] = {
             "id": task_id,
             "type": "online-image",
@@ -50,13 +94,22 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
     if requested_task_id and not re.fullmatch(r"canvas_vid_[A-Za-z0-9_-]{8,80}", requested_task_id):
         raise HTTPException(status_code=400, detail="无效的视频任务 ID")
     task_id = requested_task_id or f"canvas_vid_{uuid.uuid4().hex}"
+    if not payload.client_task_id:
+        payload.client_task_id = task_id
     with CANVAS_TASK_LOCK:
-        existing = dict(CANVAS_TASKS.get(task_id) or {})
+        existing = dict(CANVAS_TASKS.get(task_id) or load_durable_canvas_task(task_id) or {})
         if existing:
             if existing.get("type") != "video":
                 raise HTTPException(status_code=409, detail="任务 ID 已被占用")
+            CANVAS_TASKS[task_id] = existing
             return {"task_id": task_id, "status": existing.get("status") or "queued"}
-        CANVAS_TASKS[task_id] = {
+        if CANVAS_TASK_MAINTENANCE.get("draining"):
+            raise HTTPException(
+                status_code=503,
+                detail=CANVAS_TASK_MAINTENANCE.get("reason") or "后端正在准备升级，暂不接受新的视频任务",
+                headers={"Retry-After": "30"},
+            )
+        task = {
             "id": task_id,
             "type": "video",
             "status": "queued",
@@ -67,53 +120,69 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
             "provider_id": payload.provider_id,
             "model": payload.model,
         }
+        CANVAS_TASKS[task_id] = task
+        save_durable_canvas_task(task, _canvas_video_payload_dict(payload))
     asyncio.create_task(run_canvas_video_task(task_id, payload))
     return {"task_id": task_id, "status": "queued"}
 
 @router.get("/api/canvas-video-tasks/{task_id}")
 async def get_canvas_video_task(task_id: str):
     with CANVAS_TASK_LOCK:
-        task = dict(CANVAS_TASKS.get(task_id) or {})
+        task = dict(CANVAS_TASKS.get(task_id) or load_durable_canvas_task(task_id) or {})
+        if task:
+            CANVAS_TASKS[task_id] = task
     if not task or task.get("type") != "video":
         raise HTTPException(status_code=404, detail="视频任务不存在，可能服务已重启或任务已过期")
     return task
 
 async def run_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
-    with CANVAS_TASK_LOCK:
-        if task_id in CANVAS_TASKS:
-            CANVAS_TASKS[task_id]["status"] = "running"
-            CANVAS_TASKS[task_id]["updated_at"] = time.time()
+    _update_video_task_record(task_id, status="submitting", error="")
+
+    def on_submitted(upstream_task_id: str, submit_url: str = "", poll_mode: str = "video"):
+        _update_video_task_record(
+            task_id,
+            status="polling",
+            upstream_task_id=str(upstream_task_id or ""),
+            upstream_submit_url=str(submit_url or ""),
+            upstream_poll_mode=str(poll_mode or "video"),
+            submission_unknown=False,
+        )
+
     try:
-        result = await canvas_video_impl(payload)
+        result = await canvas_video_impl(payload, on_submitted=on_submitted)
         upstream_task_id = result.get("task_id") if isinstance(result, dict) else ""
-        with CANVAS_TASK_LOCK:
-            if task_id in CANVAS_TASKS:
-                CANVAS_TASKS[task_id].update({
-                    "status": "succeeded",
-                    "result": result,
-                    "error": "",
-                    "upstream_task_id": upstream_task_id or "",
-                    "updated_at": time.time(),
-                })
+        current = load_durable_canvas_task(task_id)
+        _update_video_task_record(
+            task_id,
+            status="succeeded",
+            result=result,
+            error="",
+            upstream_task_id=upstream_task_id or current.get("upstream_task_id") or "",
+            submission_unknown=False,
+        )
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
         status_code = getattr(exc, "status_code", 500)
-        upstream_task_id = getattr(exc, "upstream_task_id", "") or extract_task_id_from_text(detail)
-        with CANVAS_TASK_LOCK:
-            if task_id in CANVAS_TASKS:
-                CANVAS_TASKS[task_id].update({
-                    "status": "failed",
-                    "error": str(detail),
-                    "status_code": status_code,
-                    "upstream_task_id": upstream_task_id,
-                    "updated_at": time.time(),
-                })
+        current = load_durable_canvas_task(task_id)
+        upstream_task_id = (
+            getattr(exc, "upstream_task_id", "")
+            or current.get("upstream_task_id")
+            or extract_task_id_from_text(detail)
+        )
+        _update_video_task_record(
+            task_id,
+            status="failed",
+            error=str(detail),
+            status_code=status_code,
+            upstream_task_id=upstream_task_id,
+        )
 
 @router.post("/api/canvas-video")
 async def canvas_video(payload: CanvasVideoRequest):
+    _canvas_task_gate_error()
     return await canvas_video_impl(payload)
 
-async def canvas_video_impl(payload: CanvasVideoRequest):
+async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     provider = get_api_provider(payload.provider_id)
     base_url = video_api_root(provider)
     if not base_url:
@@ -133,7 +202,9 @@ async def canvas_video_impl(payload: CanvasVideoRequest):
     if is_agnes:
         try:
             async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as agnes_client:
-                return await generate_agnes_video(agnes_client, payload, provider, base_url, requested_model)
+                return await generate_agnes_video(
+                    agnes_client, payload, provider, base_url, requested_model, on_submitted=on_submitted
+                )
         except httpx.HTTPStatusError as exc:
             text = exc.response.text
             raise HTTPException(status_code=exc.response.status_code, detail=f"Agnes 视频接口错误：{text}") from exc
@@ -145,7 +216,9 @@ async def canvas_video_impl(payload: CanvasVideoRequest):
     if is_yuli and yuli_is_veo_openai_model(requested_model):
         try:
             async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as yuli_client:
-                return await generate_yuli_openai_video(yuli_client, payload, provider, base_url, requested_model)
+                return await generate_yuli_openai_video(
+                    yuli_client, payload, provider, base_url, requested_model, on_submitted=on_submitted
+                )
         except httpx.HTTPStatusError as exc:
             text = exc.response.text
             raise HTTPException(status_code=exc.response.status_code, detail=f"上游视频接口错误：{text}") from exc
@@ -477,7 +550,10 @@ async def canvas_video_impl(payload: CanvasVideoRequest):
                             "url_prefix": url[:32],
                         })
                     print(f"[volc-video-debug] model={body.get('model')} project={provider.get('volcengine_project_name') or VOLCENGINE_DEFAULT_PROJECT_NAME} trusted_asset={payload.trusted_asset} content={debug_items}")
-                response = await client.post(submit_url, headers=api_headers(provider=provider), json=body)
+                submit_headers = api_headers(provider=provider)
+                if payload.client_task_id:
+                    submit_headers.setdefault("Idempotency-Key", payload.client_task_id)
+                response = await client.post(submit_url, headers=submit_headers, json=body)
                 last_response = response
                 if response.status_code >= 400:
                     # 404/405（或直接返回网页 HTML）通常表示该平台不支持这个端点路径——
@@ -516,6 +592,8 @@ async def canvas_video_impl(payload: CanvasVideoRequest):
                 ) from last_json_error
             task_id = extract_task_id(raw) or raw.get("task_id") or raw.get("id")
             result = raw
+            if task_id and callable(on_submitted):
+                on_submitted(str(task_id), submit_url, "video")
             if task_id and not video_output_urls(raw):
                 result = await wait_for_video_task(client, provider, task_id, submit_url)
             urls = video_output_urls(result)
@@ -586,6 +664,103 @@ async def canvas_video_impl(payload: CanvasVideoRequest):
     except httpx.HTTPError as exc:
         log_net_error(f"视频 网络/TLS错误 provider={provider.get('id')} model={payload.model}", exc)
         raise HTTPException(status_code=502, detail=f"请求上游视频接口失败：{exc}") from exc
+
+async def resume_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
+    """Resume provider polling for a durable video task after backend restart."""
+    task = load_durable_canvas_task(task_id)
+    upstream_task_id = str(task.get("upstream_task_id") or "").strip()
+    if not upstream_task_id:
+        return
+    provider = get_api_provider(payload.provider_id)
+    submit_url = str(task.get("upstream_submit_url") or "")
+    poll_mode = str(task.get("upstream_poll_mode") or "video")
+    _update_video_task_record(task_id, status="polling", error="", resumed_at=time.time())
+    try:
+        async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
+            if poll_mode == "agnes":
+                requested_model = selected_model(payload.model, "agnes-video-v2.0")
+                raw = await wait_for_agnes_video_task(
+                    client, provider, upstream_task_id, requested_model
+                )
+            else:
+                raw = await wait_for_video_task(
+                    client, provider, upstream_task_id, submit_url
+                )
+            urls = video_output_urls(raw)
+            if not urls:
+                raise HTTPException(status_code=502, detail=f"视频任务完成但没有返回视频：{raw}")
+            local_urls = [
+                await save_remote_video_to_output(url, provider=provider) for url in urls
+            ]
+            result = {"videos": local_urls, "task_id": upstream_task_id, "raw": raw}
+        _update_video_task_record(
+            task_id,
+            status="succeeded",
+            result=result,
+            error="",
+            status_code=200,
+            submission_unknown=False,
+        )
+    except Exception as exc:
+        detail = getattr(exc, "detail", None) or str(exc)
+        _update_video_task_record(
+            task_id,
+            status="failed",
+            error=str(detail),
+            status_code=getattr(exc, "status_code", 500),
+            upstream_task_id=upstream_task_id,
+        )
+
+
+def _track_recovery_task(coro):
+    task = asyncio.create_task(coro)
+    _canvas_video_recovery_tasks.add(task)
+    task.add_done_callback(_canvas_video_recovery_tasks.discard)
+    return task
+
+
+async def recover_durable_canvas_video_tasks():
+    global _canvas_video_recovery_started
+    if _canvas_video_recovery_started:
+        return
+    _canvas_video_recovery_started = True
+    tasks = list_durable_canvas_tasks(
+        statuses=ACTIVE_CANVAS_TASK_STATUSES,
+        task_type="video",
+    )
+    for task in tasks:
+        task_id = str(task.get("id") or "")
+        if not task_id:
+            continue
+        with CANVAS_TASK_LOCK:
+            CANVAS_TASKS[task_id] = dict(task)
+        request_data = get_canvas_task_request(task_id)
+        try:
+            payload = CanvasVideoRequest(**request_data)
+        except Exception as exc:
+            _update_video_task_record(
+                task_id,
+                status="failed",
+                error=f"重启后无法恢复视频任务参数：{exc}",
+                status_code=500,
+            )
+            continue
+        if task.get("upstream_task_id"):
+            _track_recovery_task(resume_canvas_video_task(task_id, payload))
+        elif task.get("status") == "queued":
+            _track_recovery_task(run_canvas_video_task(task_id, payload))
+        else:
+            _update_video_task_record(
+                task_id,
+                status="failed",
+                error=(
+                    "后端在上游提交响应返回前中断，无法确认供应商是否已经接单。"
+                    "为避免重复扣费，本任务不会自动重新提交。"
+                ),
+                status_code=409,
+                submission_unknown=True,
+            )
+
 
 @router.post("/api/canvas-llm")
 async def canvas_llm(payload: CanvasLLMRequest):

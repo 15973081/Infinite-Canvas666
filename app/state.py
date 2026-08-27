@@ -248,6 +248,27 @@ BACKEND_LOCAL_LOAD = {addr: 0 for addr in COMFYUI_INSTANCES}
 
 CANVAS_TASKS: Dict[str, Dict[str, any]] = {}
 CANVAS_TASK_LOCK = Lock()
+CANVAS_TASK_MAINTENANCE = {
+    "draining": False,
+    "reason": "",
+    "started_at": 0,
+}
+
+
+def set_canvas_task_maintenance(draining: bool, reason: str = "") -> dict:
+    """Atomically enable/disable the gate for new long-running canvas tasks."""
+    with CANVAS_TASK_LOCK:
+        CANVAS_TASK_MAINTENANCE.update({
+            "draining": bool(draining),
+            "reason": str(reason or "") if draining else "",
+            "started_at": now_ms() if draining else 0,
+        })
+        return dict(CANVAS_TASK_MAINTENANCE)
+
+
+def canvas_task_maintenance() -> dict:
+    with CANVAS_TASK_LOCK:
+        return dict(CANVAS_TASK_MAINTENANCE)
 
 
 __all__ = [
@@ -263,6 +284,7 @@ __all__ = [
     "NEXT_TASK_ID",
     "BACKEND_LOCAL_LOAD",
     "CANVAS_TASKS", "CANVAS_TASK_LOCK",
+    "CANVAS_TASK_MAINTENANCE", "set_canvas_task_maintenance", "canvas_task_maintenance",
     "SHARED_FOLDERS_LOCK",
     "CLIENT_ID",
 ]

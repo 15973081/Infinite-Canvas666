@@ -22,12 +22,18 @@ class UpdateRequest(BaseModel):
     restart_delay: int = 3
     source: str = "github"
     fallback: bool = True
+    wait_for_tasks: bool = True
+    drain_timeout: int = Field(default=7200, ge=0, le=86400)
+    force_update: bool = False
 
 
 class RollbackRequest(BaseModel):
     name: str = ""
     auto_restart: bool = False
     restart_delay: int = 3
+    wait_for_tasks: bool = True
+    drain_timeout: int = Field(default=7200, ge=0, le=86400)
+    force_update: bool = False
 
 
 # ── Generate / Cloud ──

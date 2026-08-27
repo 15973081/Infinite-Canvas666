@@ -2558,7 +2558,7 @@ async function createSmartCanvas(){
 }
 function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.08.26.4`;
+    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.08.27.2`;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();
@@ -10789,6 +10789,16 @@ function normalizeCanvasTaskError(err, fallback=''){
     if(/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET/i.test(text)) return cascadeBackendRestartMessage();
     return text;
 }
+function canvasTaskPollRetryWindow(status=0, err=null){
+    const code = Number(status || 0);
+    if(code === 404) return 60 * 1000;
+    if([408, 425, 429, 500, 502, 503, 504].includes(code)) return 30 * 60 * 1000;
+    const text = err?.message || String(err || '');
+    if(/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|fetch failed/i.test(text)){
+        return 30 * 60 * 1000;
+    }
+    return 0;
+}
 function clearCascadeNodeState(node, options={}){
     if(!node) return;
     const keepError = Boolean(options.keepError);
@@ -12534,17 +12544,41 @@ async function pollCanvasVideoTask(taskId, options={}){
     const pollKey = `video:${taskId}`;
     if(activeCanvasTaskPolls.has(pollKey)) return 'running';
     activeCanvasTaskPolls.add(pollKey);
+    let unavailableSince = 0;
     try {
         while(true){
             const found = findPendingTask(taskId);
             if(!found) return 'missing';
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-            const res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
+            let res;
+            try {
+                res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
+            } catch(error) {
+                if(isCascadeAbortError(error)) throw error;
+                const retryWindow = canvasTaskPollRetryWindow(0, error);
+                if(retryWindow){
+                    unavailableSince ||= nowMs();
+                    if(nowMs() - unavailableSince < retryWindow){
+                        await sleep(2500);
+                        continue;
+                    }
+                }
+                throw error;
+            }
             if(!res.ok){
+                const retryWindow = canvasTaskPollRetryWindow(res.status);
+                if(retryWindow){
+                    unavailableSince ||= nowMs();
+                    if(nowMs() - unavailableSince < retryWindow){
+                        await sleep(2500);
+                        continue;
+                    }
+                }
                 if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
                 throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
             }
+            unavailableSince = 0;
             const data = await res.json();
             if(data.status === 'succeeded'){
                 const result = data.result || {};
@@ -12571,14 +12605,38 @@ async function pollCanvasVideoTask(taskId, options={}){
 }
 async function waitCanvasVideoTaskResult(taskId, options={}){
     if(!taskId) throw new Error(tr('canvas.videoFailed'));
+    let unavailableSince = 0;
     while(true){
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
         if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
-        const res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
+        let res;
+        try {
+            res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
+        } catch(error) {
+            if(isCascadeAbortError(error)) throw error;
+            const retryWindow = canvasTaskPollRetryWindow(0, error);
+            if(retryWindow){
+                unavailableSince ||= nowMs();
+                if(nowMs() - unavailableSince < retryWindow){
+                    await sleep(2500);
+                    continue;
+                }
+            }
+            throw error;
+        }
         if(!res.ok){
+            const retryWindow = canvasTaskPollRetryWindow(res.status);
+            if(retryWindow){
+                unavailableSince ||= nowMs();
+                if(nowMs() - unavailableSince < retryWindow){
+                    await sleep(2500);
+                    continue;
+                }
+            }
             if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
             throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
         }
+        unavailableSince = 0;
         const data = await res.json();
         if(data.status === 'succeeded') return data.result || {};
         if(data.status === 'failed') throw new Error(data.error || tr('canvas.videoFailed'));

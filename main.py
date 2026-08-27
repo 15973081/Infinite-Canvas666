@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from contextlib import asynccontextmanager
 
 _sys_d = os.path.dirname(os.path.abspath(__file__))
 if _sys_d not in sys.path:
@@ -47,7 +48,13 @@ class QuietAccessLogFilter(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(QuietAccessLogFilter())
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    await canvas.recover_durable_canvas_video_tasks()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

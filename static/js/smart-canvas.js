@@ -1521,7 +1521,7 @@ async function backToCanvasList(){
         }
     }
     releaseSmartCanvasLockOnExit();
-    window.location.href = '/static/canvas.html?v=2026.08.26.4';
+    window.location.href = '/static/canvas.html?v=2026.08.27.2';
 }
 function promptPlainText(){
     return promptInput.innerText.replace(/\u00a0/g, ' ').trim();
@@ -12872,7 +12872,21 @@ async function queueAndResumeSmartApiTasks(node, taskResult, options={}){
     render();
     scheduleSave();
     await saveCanvas();
-    if(taskResult?.submission) await taskResult.submission;
+    if(taskResult?.submission){
+        try {
+            await taskResult.submission;
+        } catch(error) {
+            const rejected = new Set(taskIds);
+            node.pendingTasks = smartPendingTasks(node).filter(task => !rejected.has(task.taskId));
+            node.pending = smartPendingTasks(node).length;
+            if(!node.pending) delete node.pendingTasks;
+            node.running = false;
+            render();
+            scheduleSave();
+            await saveCanvas();
+            throw error;
+        }
+    }
     await resumeSmartPendingNode(node);
     return {
         outputs:(node.images || []).map(img => img?.url ? img : null).filter(Boolean),
@@ -12906,18 +12920,46 @@ function extractUpstreamTaskId(text){
     const match = String(text || '').match(/(?:task_id|taskId|task id)\s*[=:：]\s*([A-Za-z0-9_.:-]+)/i);
     return match ? match[1] : '';
 }
+function smartTaskPollRetryWindow(status=0, err=null){
+    const code = Number(status || 0);
+    if(code === 404) return 60 * 1000;
+    if([408, 425, 429, 500, 502, 503, 504].includes(code)) return 30 * 60 * 1000;
+    const text = err?.message || String(err || '');
+    if(/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|fetch failed/i.test(text)){
+        return 30 * 60 * 1000;
+    }
+    return 0;
+}
 async function pollSmartCanvasTask(taskId, kind='image'){
     if(!taskId) throw new Error(tr('smart.errRunFailed'));
     const taskKind = kind === 'video' ? 'video' : 'image';
     const pollKey = `${taskKind}:${taskId}`;
     if(activeSmartTaskPolls.has(pollKey)) return activeSmartTaskPolls.get(pollKey);
     const promise = (async () => {
+        let unavailableSince = 0;
         for(let i = 0; i < 900; i++){
             await new Promise(resolve => setTimeout(resolve, 2000));
-            const task = await fetch(`/api/canvas-${taskKind}-tasks/${encodeURIComponent(taskId)}`).then(async r => {
-                if(!r.ok) throw new Error(await r.text());
-                return r.json();
-            });
+            let response;
+            try {
+                response = await fetch(`/api/canvas-${taskKind}-tasks/${encodeURIComponent(taskId)}`);
+            } catch(error) {
+                const retryWindow = smartTaskPollRetryWindow(0, error);
+                if(retryWindow){
+                    unavailableSince ||= nowMs();
+                    if(nowMs() - unavailableSince < retryWindow) continue;
+                }
+                throw error;
+            }
+            if(!response.ok){
+                const retryWindow = smartTaskPollRetryWindow(response.status);
+                if(retryWindow){
+                    unavailableSince ||= nowMs();
+                    if(nowMs() - unavailableSince < retryWindow) continue;
+                }
+                throw new Error(await response.text());
+            }
+            unavailableSince = 0;
+            const task = await response.json();
             if(task.status === 'succeeded') return task.result || {};
             if(task.status === 'failed'){
                 const recoverTaskId = task.upstream_task_id || extractUpstreamTaskId(task.error || '');
