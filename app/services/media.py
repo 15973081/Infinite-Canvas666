@@ -49,7 +49,7 @@ from app.config import (
     MODELSCOPE_CHAT_MODELS,
 )
 from app.state import HISTORY_LOCK, GLOBAL_LOOP, manager
-from app.utils import mask_secret, bearer_auth_value, now_ms, selected_model
+from app.utils import mask_secret, bearer_auth_value, now_ms, selected_model, sanitize_export_filename
 from app.providers.registry import (
     provider_key_env, provider_env_key_value,
     provider_protocol, effective_protocol,
@@ -489,6 +489,103 @@ def output_file_from_url(url):
     if os.path.commonpath([output_root, path]) != output_root or not os.path.exists(path):
         return None
     return path
+
+
+def probe_video_duration(path: str) -> float:
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return 0.0
+    try:
+        proc = subprocess.run(
+            [
+                ffprobe, "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if proc.returncode != 0:
+            return 0.0
+        duration = float((proc.stdout or "").strip() or 0)
+        return duration if math.isfinite(duration) and duration > 0 else 0.0
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return 0.0
+
+
+def trim_local_video(url: str, start_seconds: float, end_seconds: float, name: str = "") -> dict:
+    source_path = output_file_from_url(url)
+    if not source_path or not os.path.isfile(source_path):
+        raise HTTPException(status_code=404, detail="本地视频不存在或已被删除")
+    if not content_type_for_path(source_path).startswith("video/"):
+        raise HTTPException(status_code=400, detail="请选择视频文件进行截取")
+
+    start = round(float(start_seconds or 0), 3)
+    end = round(float(end_seconds or 0), 3)
+    clip_duration = round(end - start, 3)
+    if start < 0 or clip_duration < 0.1:
+        raise HTTPException(status_code=400, detail="截取片段不能短于 0.1 秒")
+
+    source_duration = probe_video_duration(source_path)
+    if source_duration and end > source_duration + 0.05:
+        raise HTTPException(status_code=400, detail=f"结束时间超过视频总时长 {source_duration:.2f} 秒")
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise HTTPException(status_code=503, detail="未找到 FFmpeg，无法截取视频")
+
+    requested = sanitize_export_filename(name or os.path.basename(source_path), "video.mp4")
+    stem = os.path.splitext(requested)[0] or "video"
+    filename = sanitize_export_filename(
+        f"{stem}-clip-{int(round(start * 1000))}-{int(round(end * 1000))}-{uuid.uuid4().hex[:6]}.mp4",
+        f"video-clip-{uuid.uuid4().hex[:8]}.mp4",
+    )
+    target_path = output_path_for(filename)
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    cmd = [
+        ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+        "-ss", f"{start:.3f}",
+        "-i", source_path,
+        "-t", f"{clip_duration:.3f}",
+        "-map", "0:v:0",
+        "-map", "0:a?",
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "20",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
+        "-avoid_negative_ts", "make_zero",
+        target_path,
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired as exc:
+        try:
+            os.remove(target_path)
+        except OSError:
+            pass
+        raise HTTPException(status_code=504, detail="视频截取超时，请缩短片段后重试") from exc
+    if proc.returncode != 0 or not os.path.isfile(target_path) or os.path.getsize(target_path) <= 0:
+        try:
+            os.remove(target_path)
+        except OSError:
+            pass
+        message = (proc.stderr or "视频截取失败").strip().splitlines()[-1][:240]
+        raise HTTPException(status_code=500, detail=f"视频截取失败：{message}")
+
+    return {
+        "url": output_url_for(filename),
+        "name": filename,
+        "kind": "video",
+        "source_url": url,
+        "start_seconds": start,
+        "end_seconds": end,
+        "duration_seconds": clip_duration,
+    }
 
 
 def is_image_reference_value(value):

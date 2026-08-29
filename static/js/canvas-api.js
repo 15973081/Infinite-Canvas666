@@ -273,6 +273,10 @@
         return request('/api/canvas-workflows/import', {method:'POST', body:form});
     }
 
+    function trimSmartCanvasVideo(payload, options={}){
+        return json('/api/smart-canvas/video-trim', jsonBodyInit('POST', payload), {checkOk:true, ...options});
+    }
+
     function bodyInit(payload){
         return payload instanceof FormData ? {method:'POST', body:payload} : jsonBodyInit('POST', payload);
     }
@@ -399,6 +403,7 @@
         exportCanvasWorkflow,
         exportCanvasWorkflowToLibrary,
         importCanvasWorkflow,
+        trimSmartCanvasVideo,
         uploadCloudVideo,
         uploadGeneric,
         generate,

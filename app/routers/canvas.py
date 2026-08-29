@@ -1190,6 +1190,20 @@ async def export_smart_canvas_group(payload: SmartCanvasGroupExportRequest):
         raise HTTPException(status_code=404, detail="没有可导出的内容")
     return {"ok": True, "folder": target_dir, "count": count}
 
+
+@router.post("/api/smart-canvas/video-trim")
+async def trim_smart_canvas_video(payload: SmartCanvasVideoTrimRequest):
+    if payload.end_seconds - payload.start_seconds < 0.1:
+        raise HTTPException(status_code=400, detail="截取片段不能短于 0.1 秒")
+    return await asyncio.to_thread(
+        trim_local_video,
+        payload.url,
+        payload.start_seconds,
+        payload.end_seconds,
+        payload.name,
+    )
+
+
 @router.put("/api/canvases/{canvas_id}")
 async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
     canvas = load_canvas(canvas_id)

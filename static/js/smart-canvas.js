@@ -259,6 +259,9 @@ let previewCompareDrag = false;
 let previewComparePos = 50;
 let imageEditPanDrag = null;
 let previewNavState = {nodeId:'', index:0, count:0};
+let detachedEditPreview = null;
+const VIDEO_TRIM_MIN_DURATION = 0.1;
+let videoTrimState = {active:false, start:0, end:0, duration:0, previewing:false, busy:false, sourceUrl:''};
 const PANORAMA_RATIO_PRESETS = {
     square:{w:1, h:1},
     portrait:{w:2, h:3},
@@ -5252,6 +5255,13 @@ function mediaKindForItem(img){
 }
 function localDisplayUrlForMediaItem(img){
     if(!img) return '';
+    // Trimmed videos own a new playable file in `url`. Older trim nodes stored
+    // their provenance in `source_url`, which normally means "preferred local
+    // display URL" elsewhere in the canvas. Keep those existing nodes usable by
+    // explicitly preferring the clip URL whenever trim metadata is present.
+    if(mediaKindForItem(img) === 'video' && img.url && img.clip_start != null && img.clip_end != null){
+        return img.url;
+    }
     const candidates = [
         img.originalLocalUrl,
         img.localUrl,
@@ -5798,6 +5808,7 @@ function smartLogPreviewNode(url, kind='image'){
     const node = {id:'__smart_log_preview__', type:'smart-image', images:[{url, name:'log-preview', kind}], title:kind === 'video' ? 'Video' : 'Image'};
     const prevSelectedId = selectedId;
     const prevSelectedImage = {...selectedImage};
+    detachedEditPreview = {node, index:0, image:node.images[0]};
     nodes.push(node);
     try { openImageEditor(node.id, 0); }
     finally {
@@ -7213,7 +7224,15 @@ function deleteImage(id, imageIndex){
 function currentEditImage(){
     const node = nodes.find(n => n.id === cropState?.nodeId);
     const index = Number(cropState?.imageIndex || 0);
-    return {node, index, image:imageForDisplay(node?.images?.[index])};
+    if(node) return {node, index, image:imageForDisplay(node.images?.[index])};
+    if(detachedEditPreview?.node?.id === cropState?.nodeId){
+        return {
+            node:detachedEditPreview.node,
+            index:detachedEditPreview.index,
+            image:imageForDisplay(detachedEditPreview.image)
+        };
+    }
+    return {node:null, index, image:null};
 }
 function cropImageDisplaySize(){
     const img = document.getElementById('cropImage');
@@ -8302,6 +8321,251 @@ async function exportVideoFrame(which='current'){
         toast((e.message || '导出帧失败').slice(0, 120));
     }
 }
+function formatVideoTrimTime(value){
+    const total = Math.max(0, Number(value || 0));
+    const hundredths = Math.round(total * 100);
+    const hours = Math.floor(hundredths / 360000);
+    const minutes = Math.floor((hundredths % 360000) / 6000);
+    const seconds = Math.floor((hundredths % 6000) / 100);
+    const fraction = hundredths % 100;
+    const core = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(fraction).padStart(2, '0')}`;
+    return hours ? `${String(hours).padStart(2, '0')}:${core}` : core;
+}
+function parseVideoTrimTime(value){
+    const text = String(value || '').trim();
+    if(!text) return NaN;
+    if(/^\d+(?:\.\d+)?$/.test(text)) return Number(text);
+    const parts = text.split(':');
+    if(parts.length < 2 || parts.length > 3 || parts.some(part => !/^\d+(?:\.\d+)?$/.test(part))) return NaN;
+    let total = 0;
+    for(const part of parts) total = total * 60 + Number(part);
+    return total;
+}
+function videoTrimIsFullRange(){
+    return videoTrimState.duration > 0
+        && videoTrimState.start <= 0.01
+        && videoTrimState.end >= videoTrimState.duration - 0.01;
+}
+function ensureVideoTrimBindings(video){
+    if(!video || video.dataset.trimEventsBound === '1') return;
+    video.dataset.trimEventsBound = '1';
+    video.addEventListener('timeupdate', () => {
+        if(!videoTrimState.active || !videoTrimState.previewing) return;
+        if(Number(video.currentTime || 0) + 0.025 < videoTrimState.end) return;
+        video.pause?.();
+        video.currentTime = videoTrimState.start;
+        videoTrimState.previewing = false;
+        syncVideoTrimUi(false);
+    });
+    video.addEventListener('ended', () => {
+        if(!videoTrimState.active || !videoTrimState.previewing) return;
+        videoTrimState.previewing = false;
+        video.currentTime = videoTrimState.start;
+        syncVideoTrimUi(false);
+    });
+}
+function syncVideoTrimUi(updateInputs=true){
+    const panel = document.getElementById('videoTrimPanel');
+    const toggle = document.getElementById('videoTrimToggleBtn');
+    if(panel) panel.hidden = !videoTrimState.active;
+    toggle?.classList.toggle('active', videoTrimState.active);
+    if(!videoTrimState.active) return;
+    const duration = Math.max(VIDEO_TRIM_MIN_DURATION, Number(videoTrimState.duration || 0));
+    const startRange = document.getElementById('videoTrimStartRange');
+    const endRange = document.getElementById('videoTrimEndRange');
+    const startInput = document.getElementById('videoTrimStartInput');
+    const endInput = document.getElementById('videoTrimEndInput');
+    [startRange, endRange].forEach(input => {
+        if(!input) return;
+        input.max = String(duration);
+        input.disabled = videoTrimState.busy;
+    });
+    if(startRange){
+        startRange.value = String(videoTrimState.start);
+        startRange.style.zIndex = videoTrimState.start > duration * 0.9 ? '5' : '3';
+    }
+    if(endRange){
+        endRange.value = String(videoTrimState.end);
+        endRange.style.zIndex = '4';
+    }
+    if(updateInputs){
+        if(startInput && document.activeElement !== startInput) startInput.value = formatVideoTrimTime(videoTrimState.start);
+        if(endInput && document.activeElement !== endInput) endInput.value = formatVideoTrimTime(videoTrimState.end);
+    }
+    if(startInput) startInput.disabled = videoTrimState.busy;
+    if(endInput) endInput.disabled = videoTrimState.busy;
+    const startPct = Math.max(0, Math.min(100, videoTrimState.start / duration * 100));
+    const endPct = Math.max(startPct, Math.min(100, videoTrimState.end / duration * 100));
+    const selection = document.getElementById('videoTrimSelection');
+    if(selection){ selection.style.left = `${startPct}%`; selection.style.right = `${100 - endPct}%`; }
+    const selectedDuration = Math.max(0, videoTrimState.end - videoTrimState.start);
+    const summary = document.getElementById('videoTrimSummary');
+    if(summary) summary.textContent = videoTrimIsFullRange() ? '已选择完整视频' : `已选 ${formatVideoTrimTime(selectedDuration)}`;
+    document.querySelectorAll('.video-trim-current-btn').forEach(btn => { btn.disabled = videoTrimState.busy; });
+    const valid = selectedDuration >= VIDEO_TRIM_MIN_DURATION && videoTrimState.end <= duration + 0.01;
+    const applyBtn = document.getElementById('videoTrimApplyBtn');
+    if(applyBtn){
+        applyBtn.disabled = videoTrimState.busy || !valid || videoTrimIsFullRange() || isSmartCanvasLocked();
+        const label = applyBtn.querySelector('span');
+        if(label) label.textContent = videoTrimState.busy ? '正在截取…' : '截取并添加到画布';
+    }
+    const previewBtn = document.getElementById('videoTrimPreviewBtn');
+    if(previewBtn){
+        previewBtn.disabled = videoTrimState.busy || !valid;
+        const label = previewBtn.querySelector('span');
+        if(label) label.textContent = videoTrimState.previewing ? '停止预览' : '预览片段';
+    }
+}
+function resetVideoTrimState(){
+    const video = document.getElementById('previewCurrentVideo');
+    if(videoTrimState.previewing) video?.pause?.();
+    videoTrimState = {active:false, start:0, end:0, duration:0, previewing:false, busy:false, sourceUrl:''};
+    const panel = document.getElementById('videoTrimPanel');
+    if(panel) panel.hidden = true;
+    document.getElementById('videoTrimToggleBtn')?.classList.remove('active');
+}
+function closeVideoTrimPanel(){
+    resetVideoTrimState();
+}
+async function toggleVideoTrimPanel(){
+    if(videoTrimState.active){ closeVideoTrimPanel(); return; }
+    const video = currentPreviewVideo();
+    const editing = currentEditImage();
+    const sourceUrl = editing.image?.url || '';
+    if(!video || !sourceUrl){ toast('没有可截取的视频'); return; }
+    if(!sourceUrl.startsWith('/assets/') && !sourceUrl.startsWith('/output/')){
+        toast('请先将视频保存到本地素材后再截取');
+        return;
+    }
+    if(video.readyState < 1) await waitForVideoEvent(video, 'loadedmetadata', 2200);
+    const duration = Number(video.duration || 0);
+    if(!Number.isFinite(duration) || duration < VIDEO_TRIM_MIN_DURATION){ toast('视频时长尚未加载完成'); return; }
+    video.pause?.();
+    ensureVideoTrimBindings(video);
+    videoTrimState = {active:true, start:0, end:duration, duration, previewing:false, busy:false, sourceUrl};
+    syncVideoTrimUi();
+}
+function stopVideoTrimPreview(){
+    if(!videoTrimState.previewing) return;
+    document.getElementById('previewCurrentVideo')?.pause?.();
+    videoTrimState.previewing = false;
+}
+function setVideoTrimValue(which, rawValue, seek=true){
+    if(!videoTrimState.active) return false;
+    const value = Number(rawValue);
+    if(!Number.isFinite(value)) return false;
+    stopVideoTrimPreview();
+    if(which === 'start'){
+        videoTrimState.start = Math.max(0, Math.min(value, videoTrimState.end - VIDEO_TRIM_MIN_DURATION));
+    } else {
+        videoTrimState.end = Math.min(videoTrimState.duration, Math.max(value, videoTrimState.start + VIDEO_TRIM_MIN_DURATION));
+    }
+    const video = currentPreviewVideo();
+    if(seek && video){
+        video.pause?.();
+        video.currentTime = which === 'start' ? videoTrimState.start : videoTrimState.end;
+    }
+    syncVideoTrimUi();
+    return true;
+}
+function updateVideoTrimFromRange(which){
+    const input = document.getElementById(which === 'start' ? 'videoTrimStartRange' : 'videoTrimEndRange');
+    setVideoTrimValue(which, input?.value);
+}
+function commitVideoTrimInput(which){
+    const input = document.getElementById(which === 'start' ? 'videoTrimStartInput' : 'videoTrimEndInput');
+    const value = parseVideoTrimTime(input?.value);
+    if(!setVideoTrimValue(which, value)){
+        toast('请输入秒数或 00:00.00 格式的时间');
+        syncVideoTrimUi();
+    }
+}
+function setVideoTrimPoint(which){
+    const video = currentPreviewVideo();
+    if(!video) return;
+    setVideoTrimValue(which, Number(video.currentTime || 0), false);
+}
+async function previewVideoTrim(){
+    const video = currentPreviewVideo();
+    if(!video || !videoTrimState.active) return;
+    if(videoTrimState.previewing){
+        video.pause?.();
+        videoTrimState.previewing = false;
+        syncVideoTrimUi(false);
+        return;
+    }
+    try {
+        await seekVideoForFrame(video, videoTrimState.start);
+        videoTrimState.previewing = true;
+        syncVideoTrimUi(false);
+        await video.play();
+    } catch(e) {
+        videoTrimState.previewing = false;
+        syncVideoTrimUi(false);
+        toast('无法播放所选片段');
+    }
+}
+async function applyVideoTrim(){
+    if(videoTrimState.busy || !videoTrimState.active) return;
+    if(isSmartCanvasLocked()){ toast('画布当前为只读状态'); return; }
+    const selectedDuration = videoTrimState.end - videoTrimState.start;
+    if(selectedDuration < VIDEO_TRIM_MIN_DURATION){ toast('截取片段不能短于 0.1 秒'); return; }
+    if(videoTrimIsFullRange()){ toast('当前选择为完整视频'); return; }
+    const editing = currentEditImage();
+    const source = editing.image || {};
+    if(!source.url){ toast('没有可截取的视频'); return; }
+    const sourceNode = editing.node && nodes.includes(editing.node) ? editing.node : null;
+    const sourceRect = sourceNode ? nodeRect(sourceNode) : null;
+    const video = currentPreviewVideo();
+    stopVideoTrimPreview();
+    video?.pause?.();
+    videoTrimState.busy = true;
+    syncVideoTrimUi();
+    try {
+        const result = await window.CanvasApi.trimSmartCanvasVideo({
+            url:source.url,
+            start_seconds:videoTrimState.start,
+            end_seconds:videoTrimState.end,
+            name:source.name || fileNameFromUrl(source.url) || 'video.mp4'
+        }, {errorFallback:'视频截取失败'});
+        if(!result?.url) throw new Error('视频截取结果无效');
+        const item = {
+            url:result.url,
+            name:result.name || fileNameFromUrl(result.url) || 'video-clip.mp4',
+            kind:'video',
+            generatedResult:true,
+            clip_source_url:source.url,
+            clip_start:Number(result.start_seconds ?? videoTrimState.start),
+            clip_end:Number(result.end_seconds ?? videoTrimState.end),
+            duration_seconds:Number(result.duration_seconds ?? selectedDuration)
+        };
+        if(video?.videoWidth && video?.videoHeight){
+            item.natural_w = video.videoWidth;
+            item.natural_h = video.videoHeight;
+            item.layout_w = video.videoWidth;
+            item.layout_h = video.videoHeight;
+        }
+        const point = sourceRect
+            ? {x:sourceRect.x + sourceRect.width + 240, y:sourceRect.y + sourceRect.height / 2}
+            : viewportCenter();
+        pushUndo();
+        const newNode = createImageNodeAt(point, [item], {select:true, skipUndo:true});
+        selectedIds = [];
+        selectedImage = {nodeId:newNode.id, index:0};
+        render();
+        // The trim request already produced a new file. Move the lightbox context to
+        // that node immediately so playback and the top-level download button no
+        // longer keep pointing at the source video.
+        openImageEditor(newNode.id, 0);
+        scheduleSave();
+        toast(`已截取 ${formatVideoTrimTime(item.duration_seconds)}，已切换到新片段`);
+    } catch(e) {
+        toast((e.message || '视频截取失败').slice(0, 160));
+    } finally {
+        videoTrimState.busy = false;
+        if(videoTrimState.active) syncVideoTrimUi();
+    }
+}
 function editDrawSnapshot(){
     const canvasEl = editDrawCanvas();
     return {
@@ -9143,6 +9407,8 @@ function openImageEditor(nodeId, imageIndex=0){
     const node = nodes.find(n => n.id === nodeId);
     const image = imageForDisplay(node?.images?.[imageIndex]);
     if(!image?.url) return;
+    resetVideoTrimState();
+    if(detachedEditPreview?.node?.id !== nodeId) detachedEditPreview = null;
     const kind = mediaKindForItem(image);
     if(kind !== 'image' && kind !== 'video'){
         downloadPreviewFile(image);
@@ -9211,6 +9477,8 @@ function openImageEditor(nodeId, imageIndex=0){
     refreshIcons();
 }
 function closeImageEditor(){
+    resetVideoTrimState();
+    detachedEditPreview = null;
     imageEditModal.classList.remove('open');
     document.querySelector('.image-edit-panel')?.classList.remove('video-preview-mode');
     const img = document.getElementById('cropImage');

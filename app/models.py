@@ -113,6 +113,13 @@ class CanvasVideoRequest(BaseModel):
     task_mode: str = "auto"
 
 
+class SmartCanvasVideoTrimRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=4096)
+    start_seconds: float = Field(default=0, ge=0, le=86400)
+    end_seconds: float = Field(gt=0, le=86400)
+    name: str = Field(default="", max_length=240)
+
+
 class TempShUploadRequest(BaseModel):
     url: str = ""
 
@@ -467,7 +474,7 @@ __all__ = [
     "CloudGenRequest", "CloudPollRequest",
     "AIReference",
     "OnlineImageRequest", "ImageTaskQueryRequest",
-    "CanvasVideoRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
+    "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
     "ChatRequest", "MsGenerateRequest", "CanvasLLMRequest",
     "ConversationCreateRequest",
