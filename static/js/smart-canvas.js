@@ -1034,7 +1034,7 @@ function smartMediaPreviewUrl(itemOrUrl, size=512){
 function smartPreviewImgHtml(itemOrUrl, size=512, attrs=''){
     const original = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
     const preview = smartMediaPreviewUrl(itemOrUrl, size);
-    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
+    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function smartVideoPreviewHtml(itemOrUrl, size=512, attrs=''){
     const original = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
@@ -5817,10 +5817,12 @@ function renderSmartCanvasLog(){
         if(target) target.textContent = value;
     });
     smartLogList.innerHTML = logs.length ? logs.map(log => {
-        const thumbs = (log.outputs || []).slice(0, 8).map(url => {
-            const safe = escapeAttr(url);
-            const kind = outputUrlLooksVideo(url) ? 'video' : 'image';
-            return kind === 'video' ? smartVideoPreviewHtml(url, 256, 'data-kind="video" alt="output"') : smartPreviewImgHtml(url, 256, 'data-kind="image" alt="output"');
+        const thumbs = (log.outputs || []).slice(0, 8).map(item => {
+            const url = typeof item === 'string' ? item : (item?.url || '');
+            if(!url) return '';
+            const mediaItem = typeof item === 'string' ? {url} : item;
+            const kind = mediaKindForItem(mediaItem || {url});
+            return kind === 'video' ? smartVideoPreviewHtml(item, 256, 'data-kind="video" alt="output"') : smartPreviewImgHtml(item, 256, 'data-kind="image" alt="output"');
         }).join('');
         const date = new Date(log.createdAt || Date.now()).toLocaleString('zh-CN');
         const req = log.request || {};
