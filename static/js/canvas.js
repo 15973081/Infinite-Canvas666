@@ -6725,7 +6725,7 @@ function bindCanvasNodeAssetDrag(img, node){
     const payload = canvasNodeAssetDragPayload(node);
     if(!img || !payload) return;
     img.draggable = true;
-    img.title = img.title || '拖到资产库侧栏保存';
+    img.title = img.title || '拖到画布或资产库侧栏';
     img.addEventListener('mousedown', event => {
         if(event.button !== 0) return;
         event.stopPropagation();
@@ -6736,6 +6736,8 @@ function bindCanvasNodeAssetDrag(img, node){
         setOutputDragPreview(event, img);
         event.dataTransfer.effectAllowed = 'copy';
         event.dataTransfer.setData(CANVAS_NODE_ASSET_DRAG_TYPE, JSON.stringify(payload));
+        event.dataTransfer.setData('text/uri-list', payload.url);
+        event.dataTransfer.setData('text/plain', payload.url);
     }, true);
     img.addEventListener('dragend', () => setTimeout(() => { delete img.dataset.dragging; }, 0), true);
 }
@@ -6830,9 +6832,7 @@ function renderNode(node){
             if(loadedImg && mediaKind === 'video'){
                 loadedImg.addEventListener('mousedown', e => {
                     if(e.button !== 0) return;
-                    e.preventDefault();
                     e.stopPropagation();
-                    e.stopImmediatePropagation();
                 }, true);
                 loadedImg.addEventListener('click', e => {
                     e.preventDefault();
@@ -7430,7 +7430,7 @@ function canvasAssetFaceVerified(item){
 function canvasNodeAssetDragPayload(node){
     if(!node || node.type !== 'image' || !node.url || isMissingAssetUrl(node.url)) return null;
     const kind = mediaKindForNode(node);
-    if(kind !== 'image') return null;
+    if(!['image','video'].includes(kind)) return null;
     return {
         url: node.url,
         name: node.name || outputImageName(node.url),
@@ -12136,6 +12136,7 @@ async function createCanvasBackup(){
     try {
         const data = await window.CanvasApi.createCanvasBackup(canvas.id);
         setStatus(langIsEn() ? `Backup saved (${new Date(data.updated_at).toLocaleTimeString()})` : `备份已保存 (${new Date(data.updated_at).toLocaleTimeString()})`);
+        if(document.getElementById('backupModal')) await showBackupList();
     } catch(e) {
         setStatus(langIsEn() ? 'Backup failed' : '备份失败');
         console.error(e);
@@ -12802,9 +12803,10 @@ function navigateOutputLightbox(direction){
 }
 function createImageCardFromOutput(url, point){
     if(!ensureCanvas() || !url) return;
-    if(mediaKindForRef(url) !== 'image') return;
+    const mediaKind = mediaKindForRef(url);
+    if(!['image','video'].includes(mediaKind)) return;
     const p = point || defaultPoint(0, 0);
-    nodes.push({id:uid('img'), type:'image', x:p.x, y:p.y, url, name:outputImageName(url)});
+    nodes.push({id:uid('img'), type:'image', x:p.x, y:p.y, url, name:outputImageName(url), mediaKind});
     render();
     scheduleSave();
 }
@@ -14670,7 +14672,7 @@ board.addEventListener('dragover', e => {
         dropOverlay.classList.remove('active');
         return;
     }
-    if(hasImageDropData(e.dataTransfer) || hasOutputImageDrag(e.dataTransfer)){
+    if(hasCanvasNodeAssetDrag(e.dataTransfer) || Array.from(e.dataTransfer?.types || []).includes('application/x-canvas-asset') || hasImageDropData(e.dataTransfer) || hasOutputImageDrag(e.dataTransfer)){
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
         dropOverlay.classList.add('active');
@@ -14687,6 +14689,11 @@ board.addEventListener('drop', async e => {
         return;
     }
     if(e.target.closest?.('.image-node')) return;
+    if(hasCanvasNodeAssetDrag(e.dataTransfer)) {
+        const payload = readCanvasNodeAssetDrag(e.dataTransfer);
+        if(payload?.url) createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {asset_uris:payload.asset_uris || {}});
+        return;
+    }
     if(hasOutputImageDrag(e.dataTransfer)) {
         createImageCardFromOutput(e.dataTransfer.getData('application/x-canvas-output-image'), screenToWorld(e.clientX, e.clientY));
         return;
