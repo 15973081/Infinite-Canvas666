@@ -18,6 +18,9 @@ const inputPromptPreview = document.getElementById('inputPromptPreview');
 const minimap = document.getElementById('minimap');
 const minimapContent = document.getElementById('minimapContent');
 const imageEditModal = document.getElementById('imageEditModal');
+const smartAudioLightbox = document.getElementById('smartAudioLightbox');
+const smartAudioLightboxTitle = document.getElementById('smartAudioLightboxTitle');
+const smartAudioLightboxHost = document.getElementById('smartAudioLightboxHost');
 const smartLogModal = document.getElementById('smartLogModal');
 const smartLogList = document.getElementById('smartLogList');
 const smartShortcutModal = document.getElementById('smartShortcutModal');
@@ -1059,6 +1062,49 @@ function openSmartVideoLightbox(nodeId, imageIndex=0){
     hideRunTimerForNode(node);
     openImagePreview(nodeId, index);
     return true;
+}
+let smartAudioLightboxState = {nodeId:'', index:-1};
+function releaseSmartAudioLightboxPlayer(){
+    const audio = smartAudioLightboxHost?.querySelector('audio');
+    if(audio){
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+    }
+    smartAudioLightboxHost?.replaceChildren();
+}
+function openSmartAudioLightbox(nodeId, imageIndex=0){
+    const node = nodes.find(n => n.id === nodeId);
+    const index = Math.max(0, Number(imageIndex) || 0);
+    const image = node?.images?.[index];
+    if(mediaKindForItem(image || {}) !== 'audio' || !image?.url) return false;
+    if(imageEditModal.classList.contains('open')) closeImageEditor();
+    selectedId = nodeId;
+    selectedIds = [];
+    selectedImage = {nodeId, index};
+    hideRunTimerForNode(node);
+    smartAudioLightboxState = {nodeId, index};
+    smartAudioLightboxTitle.textContent = image.name || fileNameFromUrl(image.url) || 'Audio';
+    releaseSmartAudioLightboxPlayer();
+    const audio = document.createElement('audio');
+    audio.controls = true;
+    audio.preload = 'metadata';
+    audio.src = image.url;
+    smartAudioLightboxHost.replaceChildren(audio);
+    smartAudioLightbox.classList.add('open');
+    refreshIcons();
+    return true;
+}
+function closeSmartAudioLightbox(){
+    smartAudioLightbox.classList.remove('open');
+    releaseSmartAudioLightboxPlayer();
+    smartAudioLightboxTitle.textContent = 'Audio';
+    smartAudioLightboxState = {nodeId:'', index:-1};
+}
+function downloadSmartAudioLightbox(){
+    const node = nodes.find(n => n.id === smartAudioLightboxState.nodeId);
+    const image = node?.images?.[smartAudioLightboxState.index];
+    if(mediaKindForItem(image || {}) === 'audio') downloadPreviewFile(image);
 }
 function isSmartPreviewImage(img){
     return img?.tagName?.toLowerCase?.() === 'img'
@@ -5352,7 +5398,7 @@ function audioRefsOnly(refs){
 }
 function thumbMediaHtml(img){
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="media-thumb file-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="${escapeAttr(mediaKindForItem(img))}"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i><span>${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</span></div>`;
-    if(isAudioMediaItem(img)) return `<div class="media-thumb audio-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="audio"><i data-lucide="file-audio"></i><span>${escapeHtml(img.name || 'Audio')}</span></div>`;
+    if(isAudioMediaItem(img)) return `<div class="media-thumb audio-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="audio"><i data-lucide="file-audio"></i><span>${escapeHtml(img.name || 'Audio')}</span><button class="smart-audio-open thumb-audio-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button></div>`;
     if(isVideoMediaItem(img)) return `<div class="media-thumb video-thumb">${smartVideoPreviewHtml(img, 512, 'alt=""')}<button class="smart-video-play thumb-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`;
     return smartPreviewImgHtml(img, 512, 'draggable="false"');
 }
@@ -5413,7 +5459,7 @@ function updateImageResolutionBadgeElement(itemEl, img){
 }
 function singleMediaHtml(img, w, h){
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="node-img media-card media-file-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i></div><div class="media-card-title">${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</div><div class="media-card-sub">${isTextMediaItem(img) ? 'TEXT' : 'FILE'}</div></div>`;
-    if(isAudioMediaItem(img)) return `<div class="node-img media-card media-audio-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="file-audio"></i></div><div class="media-card-title">${escapeHtml(img.name || 'Audio')}</div><div class="media-card-sub">AUDIO</div><audio src="${escapeAttr(img.url || '')}" data-url="${escapeAttr(img.url || '')}" controls preload="metadata"></audio></div>`;
+    if(isAudioMediaItem(img)) return `<div class="node-img media-card media-audio-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="file-audio"></i></div><div class="media-card-title">${escapeHtml(img.name || 'Audio')}</div><div class="media-card-sub">AUDIO</div><button class="smart-audio-open" type="button"><i data-lucide="play"></i><span>打开播放器</span></button></div>`;
     if(isVideoMediaItem(img)) return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px">${smartVideoPreviewHtml(img, 768, 'alt=""')}<button class="smart-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`;
     return smartPreviewImgHtml(img, 768, `class="node-img" draggable="false" style="width:${w}px;height:${h}px"`);
 }
@@ -6764,7 +6810,7 @@ function handlePortDrop(drag, e){
         return;
     }
     if(!drag.moved){ discardPendingUndo(); render(); return; }
-    if(hit?.closest?.('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-minimap')){
+    if(hit?.closest?.('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.smart-minimap')){
         discardPendingUndo(); render(); return;
     }
     const p = screenToWorld(e);
@@ -6888,6 +6934,25 @@ function bindNodeEvents(){
                 clearImageClickTimer();
                 suppressImageClickUntil = Date.now() + 260;
                 openSmartVideoLightbox(id, imageIndex);
+            }, true);
+        });
+        el.querySelectorAll('.smart-audio-open').forEach(btn => {
+            btn.addEventListener('mousedown', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }, true);
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                const item = btn.closest('[data-image-index]');
+                const imageIndex = Number(item?.dataset.imageIndex || 0);
+                const owner = nodes.find(n => n.id === id);
+                if(mediaKindForItem(owner?.images?.[imageIndex] || {}) !== 'audio') return;
+                clearImageClickTimer();
+                suppressImageClickUntil = Date.now() + 260;
+                openSmartAudioLightbox(id, imageIndex);
             }, true);
         });
         el.querySelectorAll('.thumb-item,.image-wrap').forEach(item => {
@@ -9400,6 +9465,9 @@ function navigatePreviewImage(delta){
     openImageEditor(node.id, next);
 }
 function openImagePreview(nodeId, imageIndex=0){
+    const node = nodes.find(n => n.id === nodeId);
+    const image = node?.images?.[Math.max(0, Number(imageIndex) || 0)];
+    if(mediaKindForItem(image || {}) === 'audio') return openSmartAudioLightbox(nodeId, imageIndex);
     openImageEditor(nodeId, imageIndex);
     setImageEditMode('preview');
 }
@@ -9407,6 +9475,7 @@ function openImageEditor(nodeId, imageIndex=0){
     const node = nodes.find(n => n.id === nodeId);
     const image = imageForDisplay(node?.images?.[imageIndex]);
     if(!image?.url) return;
+    if(smartAudioLightbox.classList.contains('open')) closeSmartAudioLightbox();
     resetVideoTrimState();
     if(detachedEditPreview?.node?.id !== nodeId) detachedEditPreview = null;
     const kind = mediaKindForItem(image);
@@ -13467,14 +13536,14 @@ function createNodeFromMenu(type){
 shell.addEventListener('mousedown', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
 }, true);
 shell.addEventListener('click', e => {
     if(!zoomPreviewState) return;
     if(e.button !== 0) return;
-    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
     e.preventDefault();
     e.stopPropagation();
     const nodeEl = e.target.closest('.image-node');
@@ -13482,8 +13551,8 @@ shell.addEventListener('click', e => {
     else exitZoomPreview(screenToWorld(e));
 }, true);
 shell.onmousedown = e => {
-    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu,.smart-minimap')) return;
-    if(e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.create-menu,.smart-minimap')) return;
+    if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
+    if(e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
     closeCreateMenu();
     if(e.button === 0 && isRKeyDown){
         e.preventDefault();
@@ -13513,14 +13582,14 @@ shell.oncontextmenu = e => {
     }
 };
 shell.ondblclick = e => {
-    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     e.preventDefault();
     openCreateMenu(e);
 };
 shell.onclick = e => {
     if(selectionJustFinished) return;
-    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.create-menu')) return;
+    if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
     if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
     closeCreateMenu();
     clearSelection();
@@ -13880,7 +13949,7 @@ window.onmouseup = e => {
     }
 };
 shell.addEventListener('wheel', e => {
-    if(e.target.closest('.composer,.smart-nav,.image-edit-modal,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
+    if(e.target.closest('.composer,.smart-nav,.image-edit-modal,.smart-audio-lightbox,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.workflow-transfer-panel,.log-modal,.shortcut-modal,[data-thumb-scroll]')) return;
     e.preventDefault();
     const rect = shell.getBoundingClientRect();
     const sx = e.clientX - rect.left;
@@ -13962,6 +14031,10 @@ window.addEventListener('keydown', e => {
             if(lastNodePasteAt >= requestedAt) return;
             pasteNodes();
         }, 90);
+    }
+    if(e.key === 'Escape' && smartAudioLightbox.classList.contains('open')){
+        closeSmartAudioLightbox();
+        return;
     }
     if(e.key === 'Escape' && imageEditModal.classList.contains('open')){
         closeImageEditor();

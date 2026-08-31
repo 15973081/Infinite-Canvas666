@@ -18,7 +18,7 @@
     </script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
-    <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.08.29.1">
+    <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.08.31.1">
 </head>
 <body>
     <div id="shell" class="shell">
@@ -447,6 +447,16 @@
                 </div>
             </div>
         </div>
+        <div id="smartAudioLightbox" class="smart-audio-lightbox" role="dialog" aria-modal="true" aria-labelledby="smartAudioLightboxTitle" onclick="if(event.target===this) closeSmartAudioLightbox()">
+            <div class="smart-audio-lightbox-card" onclick="event.stopPropagation()">
+                <button class="smart-audio-lightbox-close" type="button" aria-label="关闭" title="关闭" onclick="closeSmartAudioLightbox()"><i data-lucide="x"></i></button>
+                <div class="smart-audio-lightbox-icon"><i data-lucide="file-audio"></i></div>
+                <div id="smartAudioLightboxTitle" class="smart-audio-lightbox-title">Audio</div>
+                <div class="smart-audio-lightbox-sub">AUDIO</div>
+                <div id="smartAudioLightboxHost" class="smart-audio-lightbox-host"></div>
+                <button class="smart-audio-lightbox-download" type="button" onclick="downloadSmartAudioLightbox()"><i data-lucide="download"></i><span>下载音频</span></button>
+            </div>
+        </div>
         <div id="toast" class="toast"></div>
         <div id="mentionPreview" class="mention-preview"><img alt="preview"></div>
         <div id="smartLockOverlay" class="smart-lock-overlay" hidden>
@@ -461,6 +471,6 @@
     </div>
     <script src="/static/js/canvas-core.js?v=2026.07.06.1"></script>
     <script src="/static/js/canvas-api.js?v=2026.08.29.1"></script>
-    <script src="/static/js/smart-canvas.js?v=2026.08.29.6"></script>
+    <script src="/static/js/smart-canvas.js?v=2026.08.31.1"></script>
 </body>
 </html>
