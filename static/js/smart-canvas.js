@@ -1556,7 +1556,9 @@ async function backToCanvasList(){
         }
     }
     releaseSmartCanvasLockOnExit();
-    window.location.href = '/static/canvas.html?v=2026.08.27.2';
+    await window.FrontendVersion?.checkForUpdate?.();
+    const target = '/static/canvas.html';
+    window.location.replace(window.FrontendVersion?.versionedUrl(target) || target);
 }
 function promptPlainText(){
     return promptInput.innerText.replace(/\u00a0/g, ' ').trim();
@@ -7768,7 +7770,9 @@ async function ensurePanoramaRenderer(){
     const canvas = document.getElementById('panoramaCanvas');
     if(!canvas) return false;
     if(!panoramaState.three){
-        panoramaState.threeLoadPromise = panoramaState.threeLoadPromise || import('/static/vendor/js/three-0.160.0.module.js?v=2026.05.30');
+        const threeModulePath = '/static/vendor/js/three-0.160.0.module.js';
+        const threeModuleUrl = window.FrontendVersion?.versionedUrl(threeModulePath) || threeModulePath;
+        panoramaState.threeLoadPromise = panoramaState.threeLoadPromise || import(threeModuleUrl);
         panoramaState.three = await panoramaState.threeLoadPromise;
     }
     const THREE = panoramaState.three;
@@ -14810,6 +14814,10 @@ window.addEventListener('beforeunload', event => {
         event.returnValue = '';
     }
     releaseSmartCanvasLockOnExit();
+});
+window.addEventListener('pagehide', () => {
+    if(smartAudioLightbox?.classList.contains('open')) closeSmartAudioLightbox();
+    else releaseSmartAudioLightboxPlayer();
 });
 window.addEventListener('frontend:before-reload', event => {
     if(typeof event.detail?.waitUntil !== 'function') return;

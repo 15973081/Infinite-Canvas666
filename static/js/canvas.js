@@ -2559,9 +2559,11 @@ async function createCanvas(){
 async function createSmartCanvas(){
     setCreateMode(true, 'smart');
 }
-function openSmartCanvasPage(id){
+async function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.08.31.2`;
+    await window.FrontendVersion?.checkForUpdate?.();
+    const target = `/static/smart-canvas.html?id=${encodeURIComponent(id)}`;
+    window.location.href = window.FrontendVersion?.versionedUrl(target) || target;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();
@@ -3139,6 +3141,10 @@ window.addEventListener('beforeunload', event => {
         event.returnValue = '';
     }
     releaseCanvasLockOnExit();
+});
+window.addEventListener('pagehide', () => {
+    if(outputLightbox?.classList.contains('open')) closeOutputLightbox();
+    else releaseOutputLightboxAudio();
 });
 
 function requestDeleteCanvas(id, event){

@@ -42,7 +42,22 @@
         }));
     }
 
+    function parentVersionController(){
+        try {
+            if(window.parent !== window && window.parent.FrontendVersion){
+                return window.parent.FrontendVersion;
+            }
+        } catch(_error) {}
+        return null;
+    }
+
     async function checkForUpdate(){
+        const parentController = parentVersionController();
+        if(parentController?.checkForUpdate){
+            const buildId = await parentController.checkForUpdate();
+            if(buildId) latestBuildId = buildId;
+            return buildId || null;
+        }
         if(checkRequest) return checkRequest;
         checkRequest = (async () => {
             try {
@@ -96,12 +111,22 @@
         window.location.replace(url.toString());
     }
 
+    function versionedUrl(value, buildId=latestBuildId){
+        const url = new URL(value, window.location.href);
+        url.searchParams.delete('v');
+        url.searchParams.set('__frontend_build', buildId || latestBuildId || loadedBuildId);
+        return url.toString();
+    }
+
     function scheduleChecks(){
         clearInterval(checkTimer);
         checkTimer = window.setInterval(checkForUpdate, CHECK_INTERVAL_MS);
     }
 
     window.addEventListener('focus', checkForUpdate);
+    window.addEventListener('pageshow', event => {
+        if(event.persisted) checkForUpdate();
+    });
     document.addEventListener('visibilitychange', () => {
         if(!document.hidden) checkForUpdate();
     });
@@ -118,6 +143,7 @@
     window.FrontendVersion = Object.freeze({
         loadedBuildId,
         checkForUpdate,
-        refreshToLatestBuild
+        refreshToLatestBuild,
+        versionedUrl
     });
 })();
