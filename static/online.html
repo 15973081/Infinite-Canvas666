@@ -279,6 +279,7 @@
         let models = {gpt:'gpt-image-2', nano:'nano-banana-pro'};
         let allHistory = [], currentIndex = 0, currentResult = null, currentLightboxData = null, isLoading = false;
         const PAGE_SIZE = 24;
+        const HISTORY_THUMB_WIDTH = 512;
         const SIZE_OPTIONS = {
             square: [
                 ['1024x1024', '1k'],
@@ -677,6 +678,8 @@
 
         function renderImageCard(data, isNew=false){
             if(!data.images?.[0] || document.getElementById(`history-${data.timestamp}`)) return;
+            const originalUrl = data.images[0];
+            const thumbnailUrl = `/api/media-preview?${new URLSearchParams({url:originalUrl, w:String(HISTORY_THUMB_WIDTH)})}`;
             const card = document.createElement('div');
             card.id = `history-${data.timestamp}`;
             card.dataset.historyTs = data.timestamp;
@@ -684,8 +687,15 @@
             card.onclick = () => { if(document.body.classList.contains('history-bulk-selecting')) return; openLightbox(data); };
             const multi = Array.isArray(data.images) && data.images.length > 1
                 ? `<div class="absolute top-3 right-3 bg-black/60 text-white text-[10px] font-black px-2 py-0.5 rounded-full pointer-events-none">×${data.images.length}</div>` : '';
-            card.innerHTML = `<img src="${data.images[0]}" class="w-full h-full object-cover block group-hover:scale-105 transition-transform duration-1000" loading="lazy">${multi}
+            card.innerHTML = `<img src="${thumbnailUrl}" class="w-full h-full object-cover block group-hover:scale-105 transition-transform duration-1000" loading="lazy" decoding="async" fetchpriority="low" alt="">${multi}
                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 p-6 flex flex-col justify-end"><p class="text-white text-[10px] font-medium line-clamp-2 uppercase tracking-wider">${data.prompt || tr('online.onlineImageFallback')}</p></div>`;
+            const thumbnail = card.querySelector('img');
+            thumbnail.dataset.originalSrc = originalUrl;
+            thumbnail.addEventListener('error', () => {
+                if(thumbnail.dataset.originalFallback === '1') return;
+                thumbnail.dataset.originalFallback = '1';
+                thumbnail.src = originalUrl;
+            });
             isNew ? document.getElementById('masonry').prepend(card) : document.getElementById('masonry').appendChild(card);
             lucide.createIcons();
         }
