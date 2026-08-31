@@ -823,6 +823,9 @@ const currentCanvasTime = document.getElementById('currentCanvasTime');
 const outputLightbox = document.getElementById('outputLightbox');
 const outputPreview = document.getElementById('outputPreview');
 const outputLightboxImg = document.getElementById('outputLightboxImg');
+const outputLightboxAudio = document.getElementById('outputLightboxAudio');
+const outputLightboxAudioTitle = document.getElementById('outputLightboxAudioTitle');
+const outputLightboxAudioHost = document.getElementById('outputLightboxAudioHost');
 const outputCompareContainer = document.getElementById('outputCompareContainer');
 const outputCompareResult = document.getElementById('outputCompareResult');
 const outputCompareOriginal = document.getElementById('outputCompareOriginal');
@@ -4187,7 +4190,7 @@ function openImageNodePreview(nodeId){
     const node = nodes.find(n => n.id === nodeId);
     if(!node?.url || isMissingAssetUrl(node.url)) return;
     const kind = mediaKindForNode(node);
-    if(!['image','video'].includes(kind)) return;
+    if(!['image','video','audio'].includes(kind)) return;
     openOutputLightbox(node.url, node);
 }
 function openOutputNodeMenu(nodeId, clientX, clientY){
@@ -6413,7 +6416,7 @@ function applyImageEdit(){
 }
 
 function nodeHasLiveMedia(node){
-    return node?.type === 'image' && node.url && ['video','audio'].includes(mediaKindForNode(node));
+    return node?.type === 'image' && node.url && mediaKindForNode(node) === 'video';
 }
 function captureMediaPlaybackState(media){
     if(!media) return null;
@@ -6790,12 +6793,13 @@ function renderNode(node){
             if(!missing && mediaKind !== 'image'){
                 const mediaHtml = mediaKind === 'video'
                     ? `<div class="media-card video-card">${canvasVideoPreviewHtml(node.url, 768, 'draggable="false" data-video-fallback-attrs="controls"')}<button class="canvas-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`
-                    : `<div class="media-card audio-card"><i data-lucide="file-audio" class="w-8 h-8"></i><div class="audio-title">${escapeHtml(node.name || 'Audio')}</div><div class="audio-sub">AUDIO</div><audio src="${escapeAttr(node.url)}" data-url="${escapeAttr(node.url)}" controls preload="metadata"></audio></div>`;
+                    : `<div class="media-card audio-card"><i data-lucide="file-audio" class="w-8 h-8"></i><div class="audio-title">${escapeHtml(node.name || 'Audio')}</div><div class="audio-sub">AUDIO</div><button class="audio-card-open" type="button"><i data-lucide="play"></i><span>打开播放器</span></button></div>`;
                 body.innerHTML = `<div class="image-preview-wrap">${mediaHtml}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || nodeTitleForMedia(node))}</div>`;
             }
             const previewWrap = body.querySelector('.image-preview-wrap');
             const loadedImg = body.querySelector('img');
             const videoPlayBtn = body.querySelector('.canvas-video-play');
+            const audioOpenBtn = body.querySelector('.audio-card-open');
             const openPreview = e => {
                 if(!node.url || missing) return;
                 e.preventDefault();
@@ -6853,6 +6857,9 @@ function renderNode(node){
                     e.stopImmediatePropagation();
                     canvasActivateVideoPreview(loadedImg);
                 }, true);
+            }
+            if(audioOpenBtn){
+                audioOpenBtn.addEventListener('click', openPreview, true);
             }
             body.addEventListener('dblclick', openPreview, true);
             if(loadedImg && loadedImg.complete && loadedImg.naturalHeight > 0){
@@ -6975,7 +6982,7 @@ function renderNode(node){
 function bindOutputWrap(wrap, node){
     const img = wrap.querySelector('img');
     const video = wrap.querySelector('video');
-    const audio = wrap.querySelector('audio');
+    const audioCard = wrap.querySelector('.output-audio-card');
     const fileCard = wrap.querySelector('.output-file-card');
     const playBtn = wrap.querySelector('.canvas-video-play');
     const download = wrap.querySelector('.output-download');
@@ -7024,6 +7031,14 @@ function bindOutputWrap(wrap, node){
                 || wrap.querySelector('video[data-url]')?.dataset.url
                 || wrap.dataset.outputUrl
                 || '';
+            if(url) openOutputLightbox(url, node);
+        };
+    }
+    if(audioCard){
+        audioCard.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            const url = wrap.dataset.outputUrl || '';
             if(url) openOutputLightbox(url, node);
         };
     }
@@ -12673,7 +12688,7 @@ function renderOutputMedia(item, useGridLayout=false){
         return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output" data-video-fallback-attrs="controls"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-download" type="button" title="${tr('canvas.download')}"><i data-lucide="download"></i></button><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'audio'){
-        return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(outputImageName(url))}</span><audio src="${safe}" data-url="${safe}" controls preload="metadata"></audio></div>${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(meta.name || outputImageName(url))}</span><small><i data-lucide="play"></i>打开播放器</small></div>${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'text' || kind === 'file'){
         const icon = kind === 'text' ? 'file-text' : 'file';
@@ -13389,7 +13404,7 @@ function resetOutputPreviewZoom(){
 }
 function initOutputPreviewZoomEvents(){
     outputPreview.addEventListener('wheel', e => {
-        if(outputLightboxVideo.style.display === 'block') return;
+        if(outputLightboxVideo.style.display === 'block' || outputLightboxAudio.style.display === 'flex') return;
         e.preventDefault();
         e.stopPropagation();
         const rect = outputPreview.getBoundingClientRect();
@@ -13409,7 +13424,7 @@ function initOutputPreviewZoomEvents(){
         applyOutputPreviewZoom();
     }, {passive:false});
     outputPreview.addEventListener('mousedown', e => {
-        if(outputLightboxVideo.style.display === 'block') return;
+        if(outputLightboxVideo.style.display === 'block' || outputLightboxAudio.style.display === 'flex') return;
         if(e.button !== 0 || outputPreviewZoom <= 1.001) return;
         if(e.target.closest('.output-preview-actions, .output-resolution, .output-compare-slider')) return;
         outputPreviewPanDrag = {
@@ -13471,6 +13486,15 @@ function releaseOutputLightboxVideo(){
     outputLightboxVideo.removeAttribute('src');
     outputLightboxVideo.load();
 }
+function releaseOutputLightboxAudio(){
+    const audio = outputLightboxAudioHost?.querySelector('audio');
+    if(audio){
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+    }
+    outputLightboxAudioHost?.replaceChildren();
+}
 function openOutputLightbox(url, out){
     if(!url) return;
     resetOutputPreviewZoom();
@@ -13490,11 +13514,39 @@ function openOutputLightbox(url, out){
             if(currentOutputLightboxOutId) downloadGroupNodeImages(currentOutputLightboxOutId);
         };
     }
-    const videoMode = isVideoUrl(url) || mediaKindForOutputItem(meta) === 'video';
-    outputLightboxImg.style.display = videoMode ? 'none' : 'block';
+    const mediaKind = out?.type === 'image' ? mediaKindForNode(out) : mediaKindForOutputItem(meta);
+    const audioMode = isAudioUrl(url) || mediaKind === 'audio';
+    const videoMode = !audioMode && (isVideoUrl(url) || mediaKind === 'video');
+    outputLightbox.classList.toggle('audio-mode', audioMode);
+    outputPreview.classList.toggle('audio-mode', audioMode);
+    outputLightboxImg.style.display = videoMode || audioMode ? 'none' : 'block';
     outputLightboxVideo.style.display = videoMode ? 'block' : 'none';
-    outputCompareResult.style.display = videoMode ? 'none' : 'block';
-    outputCompareOriginal.style.display = videoMode ? 'none' : 'block';
+    outputLightboxAudio.style.display = audioMode ? 'flex' : 'none';
+    outputCompareResult.style.display = videoMode || audioMode ? 'none' : 'block';
+    outputCompareOriginal.style.display = videoMode || audioMode ? 'none' : 'block';
+    if(audioMode){
+        releaseOutputLightboxVideo();
+        releaseOutputLightboxAudio();
+        outputLightboxImg.src = '';
+        outputCompareResult.src = '';
+        outputCompareOriginal.src = '';
+        outputLightboxAudioTitle.textContent = out?.name || meta?.name || outputImageName(url) || 'Audio';
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.preload = 'metadata';
+        audio.src = url;
+        outputLightboxAudioHost.replaceChildren(audio);
+        outputResolutionText('Audio', meta);
+        outputPreview.ondblclick = null;
+        outputDownloadBtn.onclick = e => {
+            e.stopPropagation();
+            downloadUrl(url, outputDownloadName(url)).catch(err => alert(err.message || '下载失败'));
+        };
+        outputLightbox.classList.add('open');
+        refreshIcons();
+        return;
+    }
+    releaseOutputLightboxAudio();
     if(videoMode){
         releaseOutputLightboxVideo();
         outputLightboxImg.src = '';
@@ -13539,10 +13591,14 @@ function openOutputLightbox(url, out){
 }
 function closeOutputLightbox(){
     outputLightbox.classList.remove('open');
+    outputLightbox.classList.remove('audio-mode');
+    outputPreview.classList.remove('audio-mode');
     setOutputCompareMode(false);
     outputLightboxImg.src = '';
     releaseOutputLightboxVideo();
+    releaseOutputLightboxAudio();
     outputLightboxVideo.style.display = 'none';
+    outputLightboxAudio.style.display = 'none';
     outputLightboxImg.style.display = 'block';
     outputCompareResult.style.display = 'block';
     outputCompareOriginal.style.display = 'block';
@@ -13558,6 +13614,7 @@ function closeOutputLightbox(){
     currentOutputMeta = null;
     currentOutputLightboxOutId = '';
     currentOutputLightboxUrl = '';
+    outputLightboxAudioTitle.textContent = 'Audio';
     setupOutputPromptPanel(null);
 }
 function groupSelectedImages(){

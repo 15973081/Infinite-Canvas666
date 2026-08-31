@@ -19,7 +19,7 @@
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/js/theme.js?v=2026.06.10.1.1781494198"></script>
-    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.25.2">
+    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.31.1">
     <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
 </head>
 <body>
@@ -219,6 +219,12 @@
                 </div>
                 <img id="outputLightboxImg" class="output-single-img" src="" alt="output preview">
                 <video id="outputLightboxVideo" class="output-single-video" src="" controls playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback" style="display:none"></video>
+                <div id="outputLightboxAudio" class="output-single-audio" style="display:none">
+                    <div class="output-audio-lightbox-icon"><i data-lucide="file-audio"></i></div>
+                    <div id="outputLightboxAudioTitle" class="output-audio-lightbox-title">Audio</div>
+                    <div class="output-audio-lightbox-sub">AUDIO</div>
+                    <div id="outputLightboxAudioHost" class="output-audio-lightbox-host"></div>
+                </div>
                 <div class="output-preview-bar">
                     <div id="outputResolution" class="output-resolution">--</div>
                     <div class="output-preview-actions">
@@ -410,6 +416,6 @@
     <script src="/static/js/canvas-core.js?v=2026.07.06.1"></script>
     <script src="/static/js/canvas-api.js?v=2026.07.06.1"></script>
     <script src="/static/js/ltx-director-timeline.js?v=2026.06.10.1.1781494198"></script>
-    <script src="/static/js/canvas.js?v=2026.08.27.3"></script>
+    <script src="/static/js/canvas.js?v=2026.08.31.1"></script>
 </body>
 </html>
