@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
+from app.services.static_pages import VersionedStaticFiles
 # Routers — extracted to app/routers/
 from app.routers import (
     angle, assets, canvas, chat, comfyui, conversation,
@@ -109,7 +110,7 @@ app.include_router(video.router)
 app.include_router(websocket.router)
 
 # --- Mount static files (after routers so API routes take priority) ---
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", VersionedStaticFiles(directory="static"), name="static")
 app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 ensure_runtime_config_files()

@@ -14811,6 +14811,15 @@ window.addEventListener('beforeunload', event => {
     }
     releaseSmartCanvasLockOnExit();
 });
+window.addEventListener('frontend:before-reload', event => {
+    if(typeof event.detail?.waitUntil !== 'function') return;
+    event.detail.waitUntil((async () => {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+        const saved = await saveCanvas({force:true});
+        return saved !== false && !smartCanvasDirty && !smartSaveInFlight && !smartSaveAgain;
+    })());
+});
 document.addEventListener('visibilitychange', () => { if(!document.hidden && canvasId) checkSmartCanvasLock(); });
 
 function renderSmartNodePlaceholderHtml(node){

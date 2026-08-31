@@ -2561,7 +2561,7 @@ async function createSmartCanvas(){
 }
 function openSmartCanvasPage(id){
     if(!id) return;
-    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.08.27.2`;
+    window.location.href = `/static/smart-canvas.html?id=${encodeURIComponent(id)}&v=2026.08.31.2`;
 }
 function toggleEmojiPicker(id, event){
     event?.preventDefault();
@@ -3115,8 +3115,29 @@ function handleCanvasUnlockedMessage(data){
     }, 120);
 }
 
-// beforeunload — release lock on tab close
-window.addEventListener('beforeunload', () => {
+async function flushClassicCanvasBeforeFrontendReload(){
+    if(!canvas) return true;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if(localCanvasDirty || savingCanvasNow || saveCanvasAgain) await saveCanvas();
+    const deadline = Date.now() + 10000;
+    while((savingCanvasNow || saveCanvasAgain) && Date.now() < deadline){
+        await new Promise(resolve => setTimeout(resolve, 80));
+    }
+    return !localCanvasDirty && !savingCanvasNow && !saveCanvasAgain;
+}
+window.addEventListener('frontend:before-reload', event => {
+    if(typeof event.detail?.waitUntil === 'function'){
+        event.detail.waitUntil(flushClassicCanvasBeforeFrontendReload());
+    }
+});
+
+// beforeunload — protect unsaved work and release lock on tab close
+window.addEventListener('beforeunload', event => {
+    if(localCanvasDirty || savingCanvasNow || saveCanvasAgain || saveTimer){
+        event.preventDefault();
+        event.returnValue = '';
+    }
     releaseCanvasLockOnExit();
 });
 

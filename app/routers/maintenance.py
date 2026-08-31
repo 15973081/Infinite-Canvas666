@@ -4,6 +4,7 @@ import ipaddress
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from app.models import MaintenanceStartRequest
 from app.services.maintenance import (
@@ -12,9 +13,18 @@ from app.services.maintenance import (
     set_maintenance,
 )
 from app.state import manager
+from app.services.static_pages import current_app_version, frontend_build_id
 
 
 router = APIRouter()
+
+
+@router.get("/api/frontend/version")
+async def get_frontend_version():
+    return JSONResponse(
+        {"build_id": frontend_build_id(), "version": current_app_version()},
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 def request_is_local(request: Request) -> bool:
