@@ -20,7 +20,7 @@
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/js/theme.js?v=2026.06.10.1.1781494198"></script>
-    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.31.1">
+    <link rel="stylesheet" href="/static/css/canvas.css?v=2026.08.31.2">
     <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.10.1.1781494198">
 </head>
 <body>
@@ -79,6 +79,13 @@
                         <div id="gateSubtitle" class="gate-subtitle">打开已有画布，或新建一个开始创作。</div>
                     </div>
                     <div class="gate-head-actions">
+                        <div id="gateSearch" class="gate-search" role="search">
+                            <i data-lucide="search" class="w-4 h-4" aria-hidden="true"></i>
+                            <input id="gateSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索画布名称" aria-label="搜索画布名称">
+                            <button id="gateSearchClear" class="gate-search-clear" type="button" title="清空搜索" aria-label="清空搜索">
+                                <i data-lucide="x" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                            </button>
+                        </div>
                         <div id="gateSortSwitch" class="gate-sort" role="group" aria-label="排序方式">
                             <button type="button" class="gate-sort-btn active" data-sort="recent">最近编辑</button>
                             <button type="button" class="gate-sort-btn" data-sort="name">名称</button>
@@ -418,6 +425,6 @@
     <script src="/static/js/canvas-api.js?v=2026.07.06.1"></script>
     <script src="/static/js/ltx-director-timeline.js?v=2026.06.10.1.1781494198"></script>
     <script src="/static/js/frontend-version.js"></script>
-    <script src="/static/js/canvas.js?v=2026.08.31.2"></script>
+    <script src="/static/js/canvas.js?v=2026.08.31.3"></script>
 </body>
 </html>

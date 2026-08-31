@@ -246,6 +246,9 @@ const LOCAL_I18N = {
     "canvas.previewHint": "查看大图，可切换到裁剪 / 扩图 / 遮罩等模式",
     "canvas.sortRecent": "最近编辑",
     "canvas.sortName": "名称",
+    "canvas.searchPlaceholder": "搜索画布名称",
+    "canvas.clearSearch": "清空搜索",
+    "canvas.noSearchResults": "没有找到匹配的画布",
     "canvas.ownerLabel": "负责人 / 项目",
     "canvas.ownerPlaceholder": "输入负责人或项目",
     "canvas.colorLabel": "颜色标记",
@@ -804,6 +807,9 @@ const gateTrashCount = document.getElementById('gateTrashCount');
 const gateTitleText = document.getElementById('gateTitleText');
 const gateSubtitle = document.getElementById('gateSubtitle');
 const gateCanvasList = document.getElementById('gateCanvasList');
+const gateSearch = document.getElementById('gateSearch');
+const gateSearchInput = document.getElementById('gateSearchInput');
+const gateSearchClear = document.getElementById('gateSearchClear');
 const gateFolderTree = document.getElementById('gateFolderTree');
 const gateFolderBar = document.getElementById('gateFolderBar');
 const gateNewFolderBtn = document.getElementById('gateNewFolderBtn');
@@ -886,6 +892,7 @@ let canvases = [];
 let deletedCanvases = [];
 let canvasFolders = [];
 let activeFolderId = 'all';
+let canvasSearchQuery = '';
 let canvas = null;
 let nodes = [];
 let connections = [];
@@ -1609,10 +1616,16 @@ function countCanvasesInFolder(folderId){
     return canvases.filter(item => normalizeCanvasFolderId(item.folder_id) === target).length;
 }
 function visibleCanvasItems(){
-    if(trashMode) return deletedCanvases;
-    if(activeFolderId === 'all') return canvases;
-    const target = normalizeCanvasFolderId(activeFolderId);
-    return canvases.filter(item => normalizeCanvasFolderId(item.folder_id) === target);
+    let items;
+    if(trashMode) items = deletedCanvases;
+    else if(activeFolderId === 'all') items = canvases;
+    else {
+        const target = normalizeCanvasFolderId(activeFolderId);
+        items = canvases.filter(item => normalizeCanvasFolderId(item.folder_id) === target);
+    }
+    const query = String(canvasSearchQuery || '').trim().normalize('NFKC').toLocaleLowerCase('zh-CN');
+    if(!query) return items;
+    return items.filter(item => String(item.title || '').normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
 }
 function folderTargetForCreate(){
     return activeFolderId && activeFolderId !== 'all' ? normalizeCanvasFolderId(activeFolderId) : '';
@@ -1843,6 +1856,16 @@ function refreshGateViewControls(){
         sortSwitch.querySelectorAll('[data-sort]').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.sort === canvasSortMode);
         });
+    }
+    if(gateSearchInput){
+        if(gateSearchInput.value !== canvasSearchQuery) gateSearchInput.value = canvasSearchQuery;
+        gateSearchInput.placeholder = tr('canvas.searchPlaceholder');
+        gateSearchInput.setAttribute('aria-label', tr('canvas.searchPlaceholder'));
+    }
+    if(gateSearch) gateSearch.classList.toggle('has-value', Boolean(String(canvasSearchQuery || '').trim()));
+    if(gateSearchClear){
+        gateSearchClear.title = tr('canvas.clearSearch');
+        gateSearchClear.setAttribute('aria-label', tr('canvas.clearSearch'));
     }
     renderFolderTree();
 }
@@ -2306,9 +2329,12 @@ function renderCanvasListInto(list){
     if(!items.length){
         const empty = document.createElement('div');
         empty.className = 'gate-list-empty';
-        empty.innerHTML = trashMode
-            ? `<div class="gate-list-empty-icon"><i data-lucide="trash-2" class="w-6 h-6"></i></div>${tr('canvas.trashEmpty')}`
-            : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>${tr('canvas.noCanvas')}<br>${tr('canvas.startWithNewCanvas')}`;
+        const hasSearch = Boolean(String(canvasSearchQuery || '').trim());
+        empty.innerHTML = hasSearch
+            ? `<div class="gate-list-empty-icon"><i data-lucide="search-x" class="w-6 h-6"></i></div>${tr('canvas.noSearchResults')}`
+            : (trashMode
+                ? `<div class="gate-list-empty-icon"><i data-lucide="trash-2" class="w-6 h-6"></i></div>${tr('canvas.trashEmpty')}`
+                : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>${tr('canvas.noCanvas')}<br>${tr('canvas.startWithNewCanvas')}`);
         list.appendChild(empty);
         refreshIcons();
         return;
@@ -3245,6 +3271,22 @@ gateRefreshBtn.addEventListener('click', () => trashMode ? loadTrashList() : loa
 document.getElementById('gateSortSwitch')?.addEventListener('click', e => {
     const btn = e.target.closest('[data-sort]');
     if(btn) setCanvasSortMode(btn.dataset.sort);
+});
+gateSearchInput?.addEventListener('input', event => {
+    canvasSearchQuery = event.target.value || '';
+    closeCanvasMetaPopover();
+    renderCanvasList();
+});
+gateSearchInput?.addEventListener('keydown', event => {
+    if(event.key !== 'Escape' || !canvasSearchQuery) return;
+    event.preventDefault();
+    canvasSearchQuery = '';
+    renderCanvasList();
+});
+gateSearchClear?.addEventListener('click', () => {
+    canvasSearchQuery = '';
+    renderCanvasList();
+    gateSearchInput?.focus();
 });
 gateConfirmBtn.addEventListener('click', createCanvas);
 gateCancelBtn.addEventListener('click', () => setCreateMode(false));
