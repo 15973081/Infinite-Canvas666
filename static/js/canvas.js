@@ -4931,7 +4931,10 @@ async function uploadImageGroup(files, point){
 function createImageCardFromUrl(url, point, name='image', opts={}){
     if(!ensureCanvas() || !url) return;
     const p = point || defaultPoint(0, 0);
-    const mediaKind = isVideoUrl(url) ? 'video' : isAudioUrl(url) ? 'audio' : 'image';
+    const explicitKind = String(opts.mediaKind || opts.kind || '').toLowerCase();
+    const mediaKind = ['image','video','audio'].includes(explicitKind)
+        ? explicitKind
+        : isVideoUrl(url) ? 'video' : isAudioUrl(url) ? 'audio' : 'image';
     const node = {id:uid('img'), type:'image', x:p.x, y:p.y, url, name:name || outputImageName(url), mediaKind};
     if(opts.asset_uris && typeof opts.asset_uris === 'object') node.asset_uris = opts.asset_uris;
     if(opts.asset_item_id) node.asset_item_id = opts.asset_item_id;
@@ -7444,8 +7447,9 @@ function localCanvasAssetFolderCategories(){
         result.push({
             id: node.id || (node.path ? node.path : '__root__'),
             name: node.name || (node.path ? node.path.split('/').pop() : '全部上传'),
-            type: 'image',
-            items: (isRoot ? (localCanvasAssetLibrary.items || []) : (node.items || [])).filter(item => canvasAssetItemKind(item) === 'image'),
+            type: 'media',
+            items: (isRoot ? (localCanvasAssetLibrary.items || []) : (node.items || []))
+                .filter(item => ['image','video','audio'].includes(canvasAssetItemKind(item))),
             readonly: true,
             source: 'local',
         });
@@ -7730,7 +7734,7 @@ function renderCanvasAssetLibrary({preserveScroll=false}={}){
             else {
                 let assetUris = {};
                 try { assetUris = JSON.parse(card.dataset.assetUris || '{}') || {}; } catch(e) { assetUris = {}; }
-                createImageCardFromUrl(card.dataset.url, defaultPoint(0, 0), card.dataset.name || 'asset', {asset_uris:assetUris, asset_item_id:card.dataset.assetId, asset_library_id:activeCanvasAssetLibraryId});
+                createImageCardFromUrl(card.dataset.url, defaultPoint(0, 0), card.dataset.name || 'asset', {kind:card.dataset.kind || '', asset_uris:assetUris, asset_item_id:card.dataset.assetId, asset_library_id:activeCanvasAssetLibraryId});
             }
         });
         const item = visibleItems.find(entry => entry.id === card.dataset.assetId);
@@ -10158,7 +10162,7 @@ function generatorSources(gen, loopCtx=null){
         }
         if(n.type === 'image' && n.url) {
             const kind = mediaKindForNode(n);
-            const refs = kind === 'image' ? imageRefsFromNode(n) : videoRefsFromNode(n);
+            const refs = mediaRefsFromNode(n);
             return {id:n.id, type:kind, label:n.name || kind, preview:n.url, refs, prompt:''};
         }
         if(n.type === 'group') {
@@ -10170,7 +10174,7 @@ function generatorSources(gen, loopCtx=null){
                 imageId:img.id,
                 label:img.name || mediaKindForNode(img),
                 preview:img.url,
-                refs:mediaKindForNode(img) === 'image' ? imageRefsFromNode(img) : videoRefsFromNode(img),
+                refs:mediaRefsFromNode(img),
                 prompt:''
             }));
             const prompts = items.filter(x => x.type === 'prompt').map(p => p.text || '').filter(Boolean);
@@ -14817,7 +14821,7 @@ board.addEventListener('drop', async e => {
     if(e.target.closest?.('.image-node')) return;
     if(hasCanvasNodeAssetDrag(e.dataTransfer)) {
         const payload = readCanvasNodeAssetDrag(e.dataTransfer);
-        if(payload?.url) createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {asset_uris:payload.asset_uris || {}});
+        if(payload?.url) createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {kind:payload.kind || '', asset_uris:payload.asset_uris || {}});
         return;
     }
     if(hasOutputImageDrag(e.dataTransfer)) {
@@ -14829,7 +14833,7 @@ board.addEventListener('drop', async e => {
             const payload = JSON.parse(e.dataTransfer.getData('application/x-canvas-asset') || '{}');
             if(payload?.url) {
                 if(String(payload.kind || '').toLowerCase() === 'workflow') await importWorkflowAssetUrl(payload.url, payload.name || 'workflow');
-                else createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {asset_uris:payload.asset_uris || {}, asset_item_id:payload.asset_item_id || '', asset_library_id:payload.asset_library_id || ''});
+                else createImageCardFromUrl(payload.url, screenToWorld(e.clientX, e.clientY), payload.name || 'asset', {kind:payload.kind || '', asset_uris:payload.asset_uris || {}, asset_item_id:payload.asset_item_id || '', asset_library_id:payload.asset_library_id || ''});
             }
         } catch(err) {}
         return;

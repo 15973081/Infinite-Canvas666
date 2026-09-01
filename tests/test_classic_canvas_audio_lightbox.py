@@ -14,7 +14,7 @@ def _source_between(source: str, start: str, end: str) -> str:
 
 def _function_source(source: str, name: str) -> str:
     start = source.index(f"function {name}(")
-    brace = source.index("{", start)
+    brace = source.index("){", start) + 1
     depth = 0
     for index in range(brace, len(source)):
         if source[index] == "{":
@@ -88,6 +88,27 @@ class ClassicCanvasAudioLightboxTests(unittest.TestCase):
     def test_leaving_the_page_releases_the_lightbox_player(self):
         self.assertIn("window.addEventListener('pagehide'", self.source)
         self.assertIn("releaseOutputLightboxAudio()", self.source)
+
+    def test_audio_connections_keep_media_refs_for_generator_inputs(self):
+        generator_sources = _function_source(self.source, "generatorSources")
+        render_generator = _function_source(self.source, "renderGeneratorBody")
+        run_video = _function_source(self.source, "runVideoNode")
+
+        self.assertIn("const refs = mediaRefsFromNode(n)", generator_sources)
+        self.assertIn("refs:mediaRefsFromNode(img)", generator_sources)
+        self.assertNotIn("kind === 'image' ? imageRefsFromNode(n) : videoRefsFromNode(n)", generator_sources)
+        self.assertIn("ordered.filter(src => src.refs?.length)", render_generator)
+        self.assertIn("audioRefsOnly(allRefs)", run_video)
+
+    def test_asset_import_preserves_explicit_audio_kind(self):
+        create_card = _function_source(self.source, "createImageCardFromUrl")
+        render_assets = _function_source(self.source, "renderCanvasAssetLibrary")
+        local_categories = _function_source(self.source, "localCanvasAssetFolderCategories")
+
+        self.assertIn("opts.mediaKind || opts.kind", create_card)
+        self.assertIn("['image','video','audio'].includes(explicitKind)", create_card)
+        self.assertIn("{kind:card.dataset.kind || ''", render_assets)
+        self.assertIn("['image','video','audio'].includes(canvasAssetItemKind(item))", local_categories)
 
 
 if __name__ == "__main__":
