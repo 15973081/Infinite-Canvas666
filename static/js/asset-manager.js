@@ -121,9 +121,20 @@ let assetGridKey = '';
 let assetRenderedCount = 0;
 let marqueeRenderFrame = 0;
 let assetVirtualRenderFrame = 0;
+let assetVirtualRangeKey = '';
+let managerTabSwitchToken = 0;
 
-const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|webp|gif|bmp|avif|svg|mp4|webm|mov|m4v|mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/i;
-const ASSET_BATCH_SIZE = 80;
+const managerDataLoaded = {
+    assets:false,
+    prompts:false,
+    local:false,
+    'canvas-assets':false,
+    providers:false
+};
+const managerLoadPromises = new Map();
+
+const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|jfif|webp|gif|bmp|avif|svg|mp4|webm|mov|m4v|mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/i;
+const ASSET_BATCH_SIZE = 32;
 const ASSET_VIRTUAL_OVERSCAN_ROWS = 3;
 
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
@@ -423,7 +434,7 @@ function assetMediaPreviewUrl(url, size=384){
     const raw = String(url || '');
     if(!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
     if(!raw.startsWith('/output/') && !raw.startsWith('/assets/')) return raw;
-    if(!/\.(png|jpe?g|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return raw;
+    if(!/\.(png|jpe?g|jfif|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return raw;
     const width = Math.max(64, Math.min(2048, Math.round(Number(size) || 384)));
     return `/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`;
 }
@@ -905,36 +916,14 @@ function normalizeCanvasAssetState(){
     if(!selectedCanvasAssetId && items.length) selectedCanvasAssetId = items[0].id;
     selectedCanvasAssetIds = new Set([...selectedCanvasAssetIds].filter(id => findCanvasAssetItem(id)));
 }
-async function loadAll({reset=false}={}){
-    const scrollState = reset || activeTab === 'assets' ? null : Object.fromEntries(
-        ['.nav-scroll', '.content-scroll', '.detail-scroll'].map(selector => {
-            const el = root.querySelector(selector);
-            return [selector, {top:el?.scrollTop || 0, left:el?.scrollLeft || 0}];
-        })
-    );
-    setStatus('加载中...');
-    const [assetData, promptData, providerData, canvasAssetData] = await Promise.all([
-        apiJson('/api/asset-library'),
-        apiJson('/api/prompt-libraries'),
-        apiJson('/api/providers').catch(() => ({providers:[]})),
-        apiJson('/api/canvas-assets').catch(() => ({categories:[], canvases:[], items:[]})),
-        loadSharedFolders(),
-        loadLocalAssets()
-    ]);
-    assetLibrary = assetData.library || {libraries:[], categories:[]};
+function applyAssetLibraryData(data, {reset=false}={}){
+    assetLibrary = data?.library || {libraries:[], categories:[]};
     const validAssetLibraryIds = new Set(assetLibraries().map(lib => String(lib.id || '')).filter(Boolean));
     const restoredCollapsedIds = new Set([...collapsedAssetLibraryIds].filter(id => validAssetLibraryIds.has(id)));
     if(restoredCollapsedIds.size !== collapsedAssetLibraryIds.size){
         collapsedAssetLibraryIds = restoredCollapsedIds;
         saveCollapsedAssetLibraryIds();
     }
-    promptLibrary = promptData.library || {libraries:[]};
-    apiProviders = Array.isArray(providerData.providers) ? providerData.providers : [];
-    canvasAssetsData = {
-        categories:Array.isArray(canvasAssetData.categories) ? canvasAssetData.categories : [],
-        canvases:Array.isArray(canvasAssetData.canvases) ? canvasAssetData.canvases : [],
-        items:Array.isArray(canvasAssetData.items) ? canvasAssetData.items : []
-    };
     if(reset){
         const libs = assetLibraries();
         const savedAssetLibrary = libs.find(lib => lib.id === assetViewSession.activeLibraryId);
@@ -953,33 +942,89 @@ async function loadAll({reset=false}={}){
     }
     assetGridKey = '';
     assetRenderedCount = 0;
+    assetVirtualRangeKey = '';
+}
+function managerDataKey(tab){
+    return tab === 'workflows' ? 'assets' : tab;
+}
+async function loadManagerData(tab, {refresh=false, reset=false}={}){
+    const key = managerDataKey(tab);
+    if(!refresh && managerDataLoaded[key]) return;
+    if(managerLoadPromises.has(key)) return managerLoadPromises.get(key);
+    const promise = (async () => {
+        if(key === 'assets'){
+            const data = await apiJson('/api/asset-library');
+            applyAssetLibraryData(data, {reset});
+        } else if(key === 'prompts') {
+            const data = await apiJson('/api/prompt-libraries');
+            promptLibrary = data.library || {libraries:[]};
+        } else if(key === 'local') {
+            await Promise.all([loadSharedFolders(), loadLocalAssets()]);
+        } else if(key === 'canvas-assets') {
+            const data = await apiJson('/api/canvas-assets');
+            canvasAssetsData = {
+                categories:Array.isArray(data.categories) ? data.categories : [],
+                canvases:Array.isArray(data.canvases) ? data.canvases : [],
+                items:Array.isArray(data.items) ? data.items : []
+            };
+        } else if(key === 'providers') {
+            const data = await apiJson('/api/providers');
+            apiProviders = Array.isArray(data.providers) ? data.providers : [];
+        }
+        managerDataLoaded[key] = true;
+    })();
+    managerLoadPromises.set(key, promise);
+    try {
+        await promise;
+    } finally {
+        managerLoadPromises.delete(key);
+    }
+}
+async function ensureProvidersLoaded(){
+    await loadManagerData('providers');
+    return apiProviders;
+}
+async function loadInitialAssetManager(){
+    setStatus('正在加载图片素材…');
+    await loadManagerData('assets', {reset:true});
     render();
-    resumeAvatarPolls();
-    if(scrollState) Object.entries(scrollState).forEach(([selector, position]) => {
-        const el = root.querySelector(selector);
-        if(el){ el.scrollTop = position.top; el.scrollLeft = position.left; }
-    });
+    setStatus('准备就绪');
+    loadManagerData('providers').then(() => {
+        if(selectedAssetId) scheduleAssetAvatarStatusRefresh(selectedAssetId);
+        resumeAvatarPolls();
+    }).catch(() => {});
+}
+async function switchManagerTab(tab){
+    const nextTab = tab || 'assets';
+    const token = ++managerTabSwitchToken;
+    activeTab = nextTab;
+    selectedAssetIds.clear();
+    selectedWorkflowIds.clear();
+    selectedPromptIds.clear();
+    selectedLocalIds.clear();
+    selectedLocalUploadIds.clear();
+    selectedCanvasAssetIds.clear();
+    document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
+    const key = managerDataKey(nextTab);
+    if(!managerDataLoaded[key]) setStatus('加载中...');
+    await loadManagerData(nextTab);
+    if(token !== managerTabSwitchToken || activeTab !== nextTab) return;
+    render();
     setStatus('准备就绪');
 }
 async function refreshAssetLibrary(){
     setStatus('正在刷新图片素材…');
-    const data = await apiJson('/api/asset-library');
-    assetLibrary = data.library || {libraries:[], categories:[]};
-    const validLibraryIds = new Set(assetLibraries().map(lib => String(lib.id || '')).filter(Boolean));
-    const validCollapsedIds = new Set([...collapsedAssetLibraryIds].filter(id => validLibraryIds.has(id)));
-    if(validCollapsedIds.size !== collapsedAssetLibraryIds.size){
-        collapsedAssetLibraryIds = validCollapsedIds;
-        saveCollapsedAssetLibraryIds();
-    }
-    assetGridKey = '';
-    assetRenderedCount = 0;
+    await loadManagerData('assets', {refresh:true});
     render();
     resumeAvatarPolls();
     setStatus('图片素材已刷新');
 }
 async function refreshCurrentManager(){
-    if(activeTab === 'assets') return refreshAssetLibrary();
-    return loadAll();
+    if(activeTab === 'assets' || activeTab === 'workflows') return refreshAssetLibrary();
+    setStatus('正在刷新…');
+    await loadManagerData(activeTab, {refresh:true});
+    render();
+    setStatus('已刷新');
 }
 function render(){
     const previousAssetView = captureAssetViewState();
@@ -1464,6 +1509,9 @@ function renderAssetVirtualWindow(){
     const endRow = Math.min(totalRows, startRow + visibleRows + ASSET_VIRTUAL_OVERSCAN_ROWS * 2);
     const start = startRow * columns;
     const end = Math.min(total, endRow * columns);
+    const rangeKey = `${columns}:${start}:${end}:${items.length}:${currentAssetGridKey()}`;
+    if(rangeKey === assetVirtualRangeKey) return;
+    assetVirtualRangeKey = rangeKey;
     const topHeight = startRow ? Math.max(0, startRow * rowStride - gap) : 0;
     const trailingRows = totalRows - endRow;
     const bottomHeight = trailingRows ? Math.max(0, trailingRows * rowStride - gap) : 0;
@@ -1483,6 +1531,7 @@ function renderAssetManager(){
     const items = currentAssetItems();
     const visibleItems = prepareAssetRenderWindow(items);
     const detail = selectedAsset();
+    assetVirtualRangeKey = '';
     root.innerHTML = `
         <aside class="asset-panel asset-nav">
             <div class="panel-head">
@@ -1808,6 +1857,12 @@ function renderAvatarSection(item){
     const submittingCard = submitting && !Object.values(regs).some(reg => ['Queued','Uploading','Processing'].includes(reg?.status))
         ? `<div class="avatar-card processing"><div class="avatar-head"><i data-lucide="loader"></i><span>排队或提交中</span></div><div class="asset-tools"><button class="asset-btn danger" type="button" data-avatar-cancel="${escapeAttr(item.id)}" data-avatar-prov="${escapeAttr(submitting.providerId)}"><i data-lucide="x"></i><span>取消认证</span></button></div></div>`
         : '';
+    if(!managerDataLoaded.providers){
+        return `<div class="avatar-section" data-avatar-status-region="${escapeAttr(item.id)}">
+            ${submittingCard}${cards}
+            <div class="avatar-head"><i data-lucide="loader"></i><span>正在加载认证平台…</span></div>
+        </div>`;
+    }
     const providers = avatarCandidateProviders();
     if(!providers.length){
         return `<div class="avatar-section" data-avatar-status-region="${escapeAttr(item.id)}">
@@ -3306,6 +3361,7 @@ async function saveAssetInlineName(id, name){
     setStatus('素材名称已保存');
 }
 async function registerSelectedAssetAvatars(providerId=''){
+    await ensureProvidersLoaded();
     const selectedItems = [...selectedAssetIds].map(id => findAssetItem(id)).filter(Boolean);
     const ids = selectedItems.filter(item => ['image','video','audio'].includes(assetKind(item))).map(item => item.id);
     const unsupported = selectedItems.length - ids.length;
@@ -3413,6 +3469,7 @@ async function reconcileAvatarBatch(ids, provider, libraryId){
     return confirmedIds.size;
 }
 async function registerAssetAvatar(id, providerId=''){
+    await ensureProvidersLoaded();
     const item = findAssetItem(id);
     if(!item) return;
     const provider = (providerId && (apiProviders || []).find(p => p.id === providerId)) || activeAvatarProvider();
@@ -3458,6 +3515,7 @@ async function registerAssetAvatar(id, providerId=''){
     }
 }
 async function cancelAssetAvatar(id, providerId=''){
+    await ensureProvidersLoaded();
     const item = findAssetItem(id);
     const submitting = avatarSubmittingItems.get(id);
     const provider = (providerId && (apiProviders || []).find(p => p.id === providerId))
@@ -3487,6 +3545,7 @@ function avatarRegistrationOf(item, platform){
     return regs[platform] || null;
 }
 async function checkAssetAvatarStatus(id, silent=false, providerId='', libraryId=''){
+    await ensureProvidersLoaded();
     const item = findAssetItem(id);
     if(!item) return;
     const provider = (providerId && (apiProviders || []).find(p => p.id === providerId)) || activeAvatarProvider();
@@ -4124,18 +4183,11 @@ uploadInput?.addEventListener('change', event => {
 });
 document.querySelectorAll('[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
-        activeTab = btn.dataset.tab || 'assets';
-        selectedAssetIds.clear();
-        selectedWorkflowIds.clear();
-        selectedPromptIds.clear();
-        selectedLocalIds.clear();
-        selectedLocalUploadIds.clear();
-        selectedCanvasAssetIds.clear();
-        render();
+        switchManagerTab(btn.dataset.tab || 'assets').catch(err => setStatus(err.message || '加载失败'));
     });
 });
 refreshBtn?.addEventListener('click', () => refreshCurrentManager().catch(err => setStatus(err.message || '加载失败')));
 window.addEventListener('message', event => {
     if(event.data?.type === 'studio-theme') window.StudioTheme?.apply?.(event.data.theme);
 });
-document.addEventListener('DOMContentLoaded', () => loadAll({reset:true}).catch(err => setStatus(err.message || '加载失败')));
+document.addEventListener('DOMContentLoaded', () => loadInitialAssetManager().catch(err => setStatus(err.message || '加载失败')));

@@ -968,7 +968,7 @@ async def touch_canvas(canvas_id: str):
 
 @router.get("/api/canvas-assets")
 async def list_canvas_assets():
-    return canvas_assets_index()
+    return await asyncio.to_thread(canvas_assets_index)
 
 @router.get("/api/smart-canvas/prompt-templates")
 async def smart_canvas_prompt_templates():
