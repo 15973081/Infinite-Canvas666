@@ -1676,6 +1676,16 @@ function singleImageLayout(image, node, scale){
     if(Number.isFinite(explicitW) && explicitW > 24 && Number.isFinite(explicitH) && explicitH > 24){
         return {cols:1, rows:1, width:Math.round(explicitW), height:Math.round(explicitH), thumb:Math.round(96 * scale), single:true};
     }
+    if(isAudioMediaItem(image)){
+        return {
+            cols:1,
+            rows:1,
+            width:300,
+            height:180,
+            thumb:Math.round(96 * scale),
+            single:true
+        };
+    }
     const layoutSize = mediaLayoutSize(image);
     const naturalW = layoutSize.width;
     const naturalH = layoutSize.height;
@@ -1940,7 +1950,9 @@ function renderSmartNodeHtml(node){
     const faceVerified = isImageNode && imgs.some(img => smartVolcengineFaceVerified(img?.asset_uris));
     const faceVerifying = isImageNode && !faceVerified && imgs.some(img => img?.face_auth_status === 'Processing');
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
-    const title = isPending ? escapeHtml(tr('canvas.generating')) : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? 'Image' : escapeHtml(tr('smart.createImportNode'))));
+    const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : '';
+    const singleMediaTitle = singleMediaKind === 'video' ? 'Video' : singleMediaKind === 'audio' ? 'Audio' : singleMediaKind === 'text' ? 'Text' : singleMediaKind === 'file' ? 'File' : 'Image';
+    const title = isPending ? escapeHtml(tr('canvas.generating')) : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml(tr('smart.createImportNode'))));
     const body = nodeBodyHtml(node, layout);
     const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
     const hint = isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')));
@@ -5276,6 +5288,14 @@ function isAudioMediaItem(img){
     const url = String(img.url || '').toLowerCase();
     return /\.(mp3|wav|m4a|aac|ogg|flac)(\?|$)/.test(url);
 }
+function smartAudioFormatLabel(img){
+    const clean = `${img?.name || ''} ${String(img?.url || '').split(/[?#]/)[0]}`;
+    const match = clean.match(/\.([a-z0-9]{2,5})(?:\s|$)/i);
+    return match ? match[1].toUpperCase() : 'AUDIO';
+}
+function smartAudioWaveformSvg(className='smart-audio-waveform'){
+    return `<svg class="${className}" viewBox="0 0 156 32" preserveAspectRatio="none" aria-hidden="true"><path d="M3 13v6M9 9v14M15 5v22M21 11v10M27 7v18M33 3v26M39 8v16M45 12v8M51 6v20M57 2v28M63 7v18M69 11v10M75 4v24M81 8v16M87 13v6M93 6v20M99 3v26M105 9v14M111 5v22M117 11v10M123 7v18M129 4v24M135 9v14M141 12v8M147 7v18M153 11v10"/></svg>`;
+}
 function isTextMediaItem(img){
     if(!img) return false;
     if(img.kind === 'text') return true;
@@ -5400,7 +5420,7 @@ function audioRefsOnly(refs){
 }
 function thumbMediaHtml(img){
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="media-thumb file-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="${escapeAttr(mediaKindForItem(img))}"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i><span>${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</span></div>`;
-    if(isAudioMediaItem(img)) return `<div class="media-thumb audio-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="audio"><i data-lucide="file-audio"></i><span>${escapeHtml(img.name || 'Audio')}</span><button class="smart-audio-open thumb-audio-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button></div>`;
+    if(isAudioMediaItem(img)) return `<div class="media-thumb audio-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="audio"><i data-lucide="audio-lines"></i><span>${escapeHtml(img.name || 'Audio')}</span><button class="smart-audio-open thumb-audio-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button></div>`;
     if(isVideoMediaItem(img)) return `<div class="media-thumb video-thumb">${smartVideoPreviewHtml(img, 512, 'alt=""')}<button class="smart-video-play thumb-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`;
     return smartPreviewImgHtml(img, 512, 'draggable="false"');
 }
@@ -5461,7 +5481,7 @@ function updateImageResolutionBadgeElement(itemEl, img){
 }
 function singleMediaHtml(img, w, h){
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="node-img media-card media-file-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i></div><div class="media-card-title">${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</div><div class="media-card-sub">${isTextMediaItem(img) ? 'TEXT' : 'FILE'}</div></div>`;
-    if(isAudioMediaItem(img)) return `<div class="node-img media-card media-audio-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="file-audio"></i></div><div class="media-card-title">${escapeHtml(img.name || 'Audio')}</div><div class="media-card-sub">AUDIO</div><button class="smart-audio-open" type="button"><i data-lucide="play"></i><span>打开播放器</span></button></div>`;
+    if(isAudioMediaItem(img)) return `<div class="node-img media-card media-audio-card" style="width:${w}px;height:${h}px"><div class="smart-audio-copy"><div class="smart-audio-title" title="${escapeAttr(img.name || 'Audio')}">${escapeHtml(img.name || 'Audio')}</div><div class="smart-audio-meta">${escapeHtml(smartAudioFormatLabel(img))} · 音频素材</div></div><div class="smart-audio-player"><button class="smart-audio-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button>${smartAudioWaveformSvg()}</div></div>`;
     if(isVideoMediaItem(img)) return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px">${smartVideoPreviewHtml(img, 768, 'alt=""')}<button class="smart-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`;
     return smartPreviewImgHtml(img, 768, `class="node-img" draggable="false" style="width:${w}px;height:${h}px"`);
 }

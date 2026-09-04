@@ -41,6 +41,8 @@ class ClassicCanvasAudioLightboxTests(unittest.TestCase):
         )
 
         self.assertIn('class="audio-card-open"', render_node)
+        self.assertIn('audioWaveformSvg()', render_node)
+        self.assertIn("nodeMediaKind === 'audio' ? {w:280, h:204}", render_node)
         self.assertNotIn("<audio", render_node)
         self.assertIn("mediaKindForNode(node) === 'video'", live_media)
 

@@ -38,8 +38,20 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
 
         self.assertIn("smart-audio-open", thumb_media)
         self.assertIn("smart-audio-open", single_media)
+        self.assertIn("smartAudioWaveformSvg()", single_media)
         self.assertNotIn("<audio", thumb_media)
         self.assertNotIn("<audio", single_media)
+
+    def test_audio_nodes_use_compact_audio_specific_layout(self):
+        layout = _source_between(
+            self.source,
+            "function singleImageLayout(",
+            "function groupImageGridLayout(",
+        )
+
+        self.assertIn("isAudioMediaItem(image)", layout)
+        self.assertIn("width:300", layout)
+        self.assertIn("height:180", layout)
 
     def test_audio_lightbox_owns_the_only_dynamic_player(self):
         lightbox = _source_between(

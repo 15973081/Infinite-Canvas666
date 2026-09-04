@@ -4544,6 +4544,14 @@ async function uploadFilesFromDataTransfer(dataTransfer){
 function isAudioUrl(url){
     return /\.(mp3|wav|m4a|aac|ogg|flac)(\?|$)/i.test(String(url || ''));
 }
+function audioFormatLabel(name='', url=''){
+    const clean = `${name || ''} ${String(url || '').split(/[?#]/)[0]}`;
+    const match = clean.match(/\.([a-z0-9]{2,5})(?:\s|$)/i);
+    return match ? match[1].toUpperCase() : 'AUDIO';
+}
+function audioWaveformSvg(className='audio-card-waveform'){
+    return `<svg class="${className}" viewBox="0 0 156 32" preserveAspectRatio="none" aria-hidden="true"><path d="M3 13v6M9 9v14M15 5v22M21 11v10M27 7v18M33 3v26M39 8v16M45 12v8M51 6v20M57 2v28M63 7v18M69 11v10M75 4v24M81 8v16M87 13v6M93 6v20M99 3v26M105 9v14M111 5v22M117 11v10M123 7v18M129 4v24M135 9v14M141 12v8M147 7v18M153 11v10"/></svg>`;
+}
 function isTextUrl(url){
     return /\.(txt|json|csv|srt|vtt|md)(\?|$)/i.test(String(url || ''));
 }
@@ -6819,11 +6827,12 @@ function bindCanvasNodeAssetDrag(img, node){
 function renderNode(node){
     normalizeApiNodeLayout(node);
     const el = document.createElement('div');
-    const size = defaultNodeSize(node.type);
+    const nodeMediaKind = node.type === 'image' && node.url ? mediaKindForNode(node) : '';
+    const size = nodeMediaKind === 'audio' ? {w:280, h:204} : defaultNodeSize(node.type);
     const hasFixedSize = Boolean(node.h || size.h);
     const faceVerified = node.type === 'image' && canvasAssetUrisFaceVerified(node.asset_uris);
     const faceVerifying = node.type === 'image' && !faceVerified && node.face_auth_status === 'Processing';
-    el.className = `node ${node.type}-node ${node.url ? 'has-image' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${hasFixedSize ? 'sized' : ''} ${selected.has(node.id) ? 'selected' : ''}`;
+    el.className = `node ${node.type}-node ${nodeMediaKind === 'audio' ? 'audio-node' : ''} ${node.url ? 'has-image' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${hasFixedSize ? 'sized' : ''} ${selected.has(node.id) ? 'selected' : ''}`;
     if(faceVerifying) el.title = '人脸认证审核中';
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
@@ -6859,14 +6868,16 @@ function renderNode(node){
     if(node.type === 'image') {
         if(node.url) {
             const missing = isMissingAssetUrl(node.url);
-            const mediaKind = mediaKindForNode(node);
+            const mediaKind = nodeMediaKind;
             const isEditableImage = mediaKind === 'image' && !missing;
             body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="true"')}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || 'image')}${missing ? ` · ${langIsEn() ? 'missing' : '文件缺失'}` : ''}</div>`;
             if(!missing && mediaKind !== 'image'){
                 const mediaHtml = mediaKind === 'video'
                     ? `<div class="media-card video-card">${canvasVideoPreviewHtml(node.url, 768, 'draggable="false" data-video-fallback-attrs="controls"')}<button class="canvas-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`
-                    : `<div class="media-card audio-card"><i data-lucide="file-audio" class="w-8 h-8"></i><div class="audio-title">${escapeHtml(node.name || 'Audio')}</div><div class="audio-sub">AUDIO</div><button class="audio-card-open" type="button"><i data-lucide="play"></i><span>打开播放器</span></button></div>`;
-                body.innerHTML = `<div class="image-preview-wrap">${mediaHtml}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || nodeTitleForMedia(node))}</div>`;
+                    : `<div class="media-card audio-card"><div class="audio-card-copy"><div class="audio-title" title="${escapeAttr(node.name || 'Audio')}">${escapeHtml(node.name || 'Audio')}</div><div class="audio-meta">${escapeHtml(audioFormatLabel(node.name, node.url))} · 音频素材</div></div><div class="audio-player-row"><button class="audio-card-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button>${audioWaveformSvg()}</div></div>`;
+                body.innerHTML = mediaKind === 'audio'
+                    ? `<div class="image-preview-wrap">${mediaHtml}</div>`
+                    : `<div class="image-preview-wrap">${mediaHtml}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || nodeTitleForMedia(node))}</div>`;
             }
             const previewWrap = body.querySelector('.image-preview-wrap');
             const loadedImg = body.querySelector('img');
