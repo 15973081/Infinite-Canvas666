@@ -7006,8 +7006,7 @@ function renderNode(node){
             node.text = e.target.value;
             refreshPromptCounter(body, node.text);
             scheduleSave();
-            syncGeneratorInputs();
-            refreshGeneratorInputViews();
+            refreshPromptDependents(node.id);
         };
     }
     if(node.type === 'loop') body.appendChild(renderLoopBody(node));
@@ -7282,14 +7281,14 @@ function splitPromptIntoItems(text){
     return [trimmed];
 }
 const loopPromptVisiting = new Set();
-function loopInputPromptItems(node, ctx=null){
+function loopInputPromptItems(node, ctx=null, graph=null){
     if(!node?.showPrompt) return [];
     if(loopPromptVisiting.has(node.id)) return [];
     loopPromptVisiting.add(node.id);
     try {
         const items = [];
-        connections.filter(c => c.to === node.id)
-            .map(c => nodes.find(n => n.id === c.from))
+        (graph ? graph.incoming.get(node.id) || [] : connections.filter(c => c.to === node.id))
+            .map(c => graph ? graph.nodeById.get(c.from) : nodes.find(n => n.id === c.from))
             .filter(Boolean)
             .forEach(n => {
                 let text = '';
@@ -7298,14 +7297,14 @@ function loopInputPromptItems(node, ctx=null){
                     return;
                 }
                 else if(n.type === 'promptGroup') {
-                    const parts = (n.items || []).map(id => nodes.find(x => x.id === id)).filter(Boolean).map(p => p.text || '').filter(Boolean);
+                    const parts = (n.items || []).map(id => graph ? graph.nodeById.get(id) : nodes.find(x => x.id === id)).filter(Boolean).map(p => p.text || '').filter(Boolean);
                     parts.forEach(part => {
                         const text = String(part || '').trim();
                         if(text) items.push(text);
                     });
                     return;
                 }
-                else if(n.type === 'loop') text = renderLoopPrompt(n, ctx);
+                else if(n.type === 'loop') text = renderLoopPrompt(n, ctx, graph);
                 else if(n.type === 'llm') text = n.outputText || '';
                 if(String(text || '').trim()) items.push(String(text || '').trim());
             });
@@ -7314,14 +7313,14 @@ function loopInputPromptItems(node, ctx=null){
         loopPromptVisiting.delete(node.id);
     }
 }
-function loopInputPrompt(node, ctx=null){
-    const items = loopInputPromptItems(node, ctx);
+function loopInputPrompt(node, ctx=null, graph=null){
+    const items = loopInputPromptItems(node, ctx, graph);
     if(!items.length) return '';
     const startBase = Math.max(1, Number(node?.loopStart) || 1);
     const currentIndex = Math.max(1, Number(ctx?.index || startBase) || startBase);
     return items[(currentIndex - 1) % items.length];
 }
-function renderLoopPrompt(node, ctx=null){
+function renderLoopPrompt(node, ctx=null, graph=null){
     if(!node?.showPrompt) return '';
     const variable = String(node?.variablePrompt || '').trim();
     const count = loopCount(node);
@@ -7334,7 +7333,7 @@ function renderLoopPrompt(node, ctx=null){
         .replaceAll(`[${tr('canvas.counterToken')}]`, String(index))
         .replaceAll(`[${tr('canvas.totalToken')}]`, String(total))
         .replaceAll(`[${tr('canvas.progressToken')}]`, `${index}/${total}`);
-    const selected = loopInputPrompt(node, ctx);
+    const selected = loopInputPrompt(node, ctx, graph);
     if(selected) return replaceVars(selected);
     return replaceVars(variable);
 }
@@ -8678,8 +8677,7 @@ function applyPromptTemplateToPromptNode(mode='positive'){
     const textarea = body?.querySelector('textarea');
     if(textarea) textarea.value = node.text;
     if(body) refreshPromptCounter(body, node.text);
-    syncGeneratorInputs();
-    refreshGeneratorInputViews();
+    refreshPromptDependents(node.id);
     refreshGeometryAfterLayout();
 }
 function renderLoopBody(node){
@@ -10289,8 +10287,9 @@ function mediaRefsFromNode(node){
     if(CANVAS_MEDIA_OUTPUT_TYPES.includes(node.type)) return generatedImageRefs(node);
     return [];
 }
-function generatorSources(gen, loopCtx=null){
-    return connections.filter(c => c.to === gen.id).map(c => nodes.find(n => n.id === c.from)).filter(Boolean).map(n => {
+function generatorSources(gen, loopCtx=null, graph=null){
+    const findNode = id => graph ? graph.nodeById.get(id) : nodes.find(n => n.id === id);
+    return (graph ? graph.incoming.get(gen.id) || [] : connections.filter(c => c.to === gen.id)).map(c => findNode(c.from)).filter(Boolean).map(n => {
         if(n.type === 'output' && (n.images||[]).length){
             // 从 output 节点取最新一张图当作 reference 给下游
             const reversed = [...n.images].map((item, index) => ({item, index})).reverse();
@@ -10320,7 +10319,7 @@ function generatorSources(gen, loopCtx=null){
             return {id:n.id, type:kind, label:n.name || kind, preview:n.url, refs, prompt:''};
         }
         if(n.type === 'group') {
-            const items = (n.items || []).map(id => nodes.find(x => x.id === id)).filter(Boolean);
+            const items = (n.items || []).map(findNode).filter(Boolean);
             const sources = items.filter(x => x.type === 'image' && x.url).map(img => ({
                 id:`${n.id}:${img.id}`,
                 type:`group-${mediaKindForNode(img)}`,
@@ -10348,7 +10347,7 @@ function generatorSources(gen, loopCtx=null){
         if(n.type === 'prompt') return {id:n.id, type:'prompt', label:(n.text || '提示词').slice(0, 32), refs:[], prompt:n.text || ''};
         if(n.type === 'loop') {
             const ctx = loopCtx;
-            const prompt = renderLoopPrompt(n, ctx);
+            const prompt = renderLoopPrompt(n, ctx, graph);
             const imageRefs = loopInputImageRefs(n, ctx);
             const out = [];
             if(imageRefs.length){
@@ -10368,7 +10367,7 @@ function generatorSources(gen, loopCtx=null){
             return {id:n.id, type:'loop', label:`${tr('canvas.loopNode')} ${loopCount(n)}x`, refs:[], prompt};
         }
         if(n.type === 'promptGroup') {
-            const prompts = (n.items || []).map(id => nodes.find(x => x.id === id)).filter(Boolean).map(p => p.text || '').filter(Boolean);
+            const prompts = (n.items || []).map(findNode).filter(Boolean).map(p => p.text || '').filter(Boolean);
             return {id:n.id, type:'promptGroup', label:`提示词 ${prompts.length} 个`, refs:[], prompt:prompts.join('\n\n')};
         }
         if(n.type === 'llm' && (n.mode || 'node') === 'node' && n.outputText) return {id:n.id, type:'llm', label:(n.outputText || 'LLM').slice(0, 32), refs:[], prompt:n.outputText || ''};
@@ -10401,12 +10400,54 @@ function syncGeneratorInputs(){
         if(gen.type === 'ltxDirector') ltxSyncConnectedImagesToTimeline(gen);
     });
 }
-function refreshGeneratorInputViews(ids=null){
+function canvasInputGraph(){
+    const graph = {nodeById:new Map(), incoming:new Map(), outgoing:new Map(), parents:new Map()};
+    const add = (map, key, value) => {
+        if(!map.has(key)) map.set(key, []);
+        map.get(key).push(value);
+    };
+    for(const node of nodes){
+        graph.nodeById.set(node.id, node);
+        if(node.type === 'group' || node.type === 'promptGroup'){
+            for(const id of node.items || []) add(graph.parents, id, node.id);
+        }
+    }
+    for(const connection of connections){
+        add(graph.incoming, connection.to, connection);
+        add(graph.outgoing, connection.from, connection.to);
+    }
+    return graph;
+}
+function refreshPromptDependents(nodeId){
+    // Ephemeral indexes: editing, undo and topology changes always see the current graph.
+    const graph = canvasInputGraph(), visited = new Set(), affected = new Set(), queue = [nodeId];
+    for(let i = 0; i < queue.length; i++){
+        const id = queue[i];
+        if(visited.has(id)) continue;
+        visited.add(id);
+        queue.push(...(graph.parents.get(id) || []));
+        for(const to of graph.outgoing.get(id) || []){
+            const target = graph.nodeById.get(to);
+            if(!target) continue;
+            if(CANVAS_GENERATOR_TYPES.includes(target.type)) affected.add(to);
+            if(target.type === 'loop') queue.push(to);
+        }
+    }
+    const prepared = new Map();
+    for(const id of affected){
+        const gen = graph.nodeById.get(id);
+        prepared.set(id, orderedSources(gen, generatorSources(gen, null, graph)));
+        if(gen.type === 'ltxDirector') ltxSyncConnectedImagesToTimeline(gen);
+    }
+    refreshGeneratorInputViews(affected, prepared, graph.nodeById);
+}
+function refreshGeneratorInputViews(ids=null, prepared=null, nodeById=null){
     const scope = ids === null ? null : new Set(ids);
-    nodes.filter(n => CANVAS_GENERATOR_TYPES.includes(n.type) && (!scope || scope.has(n.id))).forEach(gen => {
+    const candidates = scope && nodeById ? [...scope].map(id => nodeById.get(id)).filter(Boolean) : nodes;
+    candidates.filter(n => CANVAS_GENERATOR_TYPES.includes(n.type) && (!scope || scope.has(n.id))).forEach(gen => {
         const el = nodesEl.querySelector(`.node[data-id="${gen.id}"]`);
         if(!el || el.classList.contains('node-placeholder')) return;
-        const sources = orderedSources(gen, generatorSources(gen));
+        const sources = prepared?.get(gen.id) || orderedSources(gen, generatorSources(gen));
         const imageInputs = sources
             .map(src => ({...src, refs:gen.type === 'video' ? videoNodeMediaRefs(src.refs || []) : imageRefsOnly(src.refs || [])}))
             .filter(src => src.refs?.length);
@@ -10418,7 +10459,7 @@ function refreshGeneratorInputViews(ids=null){
             renderComfyImages(el.querySelector('.input-list'), gen, mediaInputs);
         }
         if(gen.type === 'ltxDirector'){
-            ltxSyncConnectedImagesToTimeline(gen);
+            if(!prepared?.has(gen.id)) ltxSyncConnectedImagesToTimeline(gen);
             renderComfyImages(el.querySelector('.input-list'), gen, imageInputs);
         }
         if(gen.type === 'video') renderVideoImageInputs(el.querySelector('.video-img-list'), gen, imageInputs);

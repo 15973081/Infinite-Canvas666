@@ -7,6 +7,7 @@ function setup(){
     const ctx=vm.createContext({nodes:[node,gen],nodesEl:{querySelector:()=>body},CSS:{escape:s=>s},
         canvasPromptTemplates:[{id:'t'}],promptTemplateSelectedId:'t',promptTemplateNodeId:'p',canvasPromptTemplateText:()=> 'new template',
         closePromptTemplateModal(){},scheduleSave(){},syncGeneratorInputs(){},refreshPromptCounter:(_body,text)=>calls.push(['counter',text]),
+        refreshPromptDependents:id=>calls.push(['dependents',id]),
         refreshGeneratorInputViews:ids=>calls.push(['views',ids && [...ids]]),refreshGeometryAfterLayout:()=>calls.push(['layout']),
         generatorSources:()=>[{id:'a',refs:[{url:'/a.mp4',kind:'video'}]},{id:'b',refs:[{url:'/b.mp4',kind:'video'}]}],
         orderedSources:(_g,s)=>s,mediaKindForRef:r=>r.kind,isRemoteVideoReferenceUrl:s=>/^https:/.test(s),
