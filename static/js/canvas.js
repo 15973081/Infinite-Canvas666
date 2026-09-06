@@ -672,35 +672,10 @@ function canvasVideoPreviewHtml(url, size=512, attrs=''){
     const preview = canvasMediaPreviewUrl(original, size);
     return `<img src="${escapeAttr(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
-function canvasVideoFallbackHtml(url, attrs=''){
+function canvasVideoFallbackHtml(url){
     const safe = escapeAttr(url || '');
-    return `<video src="${safe}" data-url="${safe}" muted preload="metadata" playsinline disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback"${attrs ? ` ${attrs}` : ''}></video>`;
+    return `<button type="button" class="canvas-video-fallback" data-url="${safe}" aria-label="打开视频灯箱"><i data-lucide="play"></i><span>VIDEO</span><small>点击打开灯箱</small></button>`;
 }
-function canvasActivateVideoPreview(img){
-    if(!img || img.dataset?.previewKind !== 'video') return false;
-    const original = img.dataset.originalSrc || img.dataset.url || img.getAttribute('src') || '';
-    if(!original) return false;
-    const tpl = document.createElement('template');
-    tpl.innerHTML = canvasVideoPlayerHtml(original, img.dataset.videoPlayerAttrs || '');
-    const video = tpl.content.firstElementChild;
-    if(!video) return false;
-    img.replaceWith(video);
-    video.parentElement?.querySelector?.('.canvas-video-play')?.style?.setProperty('display', 'none');
-    video.play?.().catch(() => {});
-    return true;
-}
-document.addEventListener('click', event => {
-    const btn = event.target?.closest?.('.canvas-video-play');
-    if(!btn) return;
-    const wrap = btn.closest('.media-card.video-card');
-    if(!wrap) return;
-    const preview = wrap?.querySelector?.('img[data-preview-kind="video"]');
-    if(!preview) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation?.();
-    canvasActivateVideoPreview(preview);
-}, true);
 function isCanvasPreviewImage(img){
     return img?.tagName?.toLowerCase?.() === 'img'
         && img.dataset?.previewSrc
@@ -732,11 +707,19 @@ function bindCanvasPreviewImageFallbacks(root=document){
                     refreshIcons();
                     return;
                 }
-                const video = document.createElement('template');
-                video.innerHTML = canvasVideoFallbackHtml(original, img.dataset.videoFallbackAttrs || '');
-                const fallback = video.content.firstElementChild;
-                fallback.onclick = img.onclick;
+                const template = document.createElement('template');
+                template.innerHTML = canvasVideoFallbackHtml(original);
+                const fallback = template.content.firstElementChild;
+                fallback.onmousedown = event => event.stopPropagation();
+                fallback.onclick = event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const nodeId = fallback.closest('.node')?.dataset.id || '';
+                    const owner = nodes.find(node => node.id === nodeId);
+                    openOutputLightbox(original, owner || {type:'image', url:original, mediaKind:'video'});
+                };
                 img.replaceWith(fallback);
+                refreshIcons();
                 return;
             }
             if(original && img.getAttribute('src') !== original) img.src = original;
@@ -6873,7 +6856,7 @@ function renderNode(node){
             body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="true"')}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || 'image')}${missing ? ` · ${langIsEn() ? 'missing' : '文件缺失'}` : ''}</div>`;
             if(!missing && mediaKind !== 'image'){
                 const mediaHtml = mediaKind === 'video'
-                    ? `<div class="media-card video-card">${canvasVideoPreviewHtml(node.url, 768, 'draggable="false" data-video-fallback-attrs="controls"')}<button class="canvas-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`
+                    ? `<div class="media-card video-card">${canvasVideoPreviewHtml(node.url, 768, 'draggable="false"')}<button class="canvas-video-play" type="button" title="打开视频灯箱" aria-label="打开视频灯箱"><i data-lucide="play"></i></button></div>`
                     : `<div class="media-card audio-card"><div class="audio-card-copy"><div class="audio-title" title="${escapeAttr(node.name || 'Audio')}">${escapeHtml(node.name || 'Audio')}</div><div class="audio-meta">${escapeHtml(audioFormatLabel(node.name, node.url))} · 音频素材</div></div><div class="audio-player-row"><button class="audio-card-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button>${audioWaveformSvg()}</div></div>`;
                 body.innerHTML = mediaKind === 'audio'
                     ? `<div class="image-preview-wrap">${mediaHtml}</div>`
@@ -6921,12 +6904,7 @@ function renderNode(node){
                     if(e.button !== 0) return;
                     e.stopPropagation();
                 }, true);
-                loadedImg.addEventListener('click', e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    canvasActivateVideoPreview(loadedImg);
-                }, true);
+                loadedImg.addEventListener('click', openPreview, true);
             }
             if(videoPlayBtn && loadedImg && mediaKind === 'video'){
                 videoPlayBtn.addEventListener('mousedown', e => {
@@ -6934,12 +6912,7 @@ function renderNode(node){
                     e.stopPropagation();
                     e.stopImmediatePropagation();
                 }, true);
-                videoPlayBtn.addEventListener('click', e => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    canvasActivateVideoPreview(loadedImg);
-                }, true);
+                videoPlayBtn.addEventListener('click', openPreview, true);
             }
             if(audioOpenBtn){
                 audioOpenBtn.addEventListener('click', openPreview, true);
@@ -7620,7 +7593,6 @@ function showCanvasAssetHoverPreview(event, item){
         img.dataset.originalSrc = item.url || item.thumbnail || '';
         img.dataset.url = item.url || item.thumbnail || '';
         img.dataset.previewKind = isVideo ? 'video' : '';
-        img.dataset.videoFallbackAttrs = '';
         img.alt = item.name || 'asset preview';
     }
     if(video){
@@ -12845,7 +12817,7 @@ function renderOutputMedia(item, useGridLayout=false){
         return `<div class="output-img-wrap" data-output-url="${safe}" data-missing-url="${safe}"${gridStyle}>${missingAssetHtml(url, true)}${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'video'){
-        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output" data-video-fallback-attrs="controls"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-download" type="button" title="${tr('canvas.download')}"><i data-lucide="download"></i></button><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-download" type="button" title="${tr('canvas.download')}"><i data-lucide="download"></i></button><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
     }
     if(kind === 'audio'){
         return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(meta.name || outputImageName(url))}</span><small><i data-lucide="play"></i>打开播放器</small></div>${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
@@ -15084,11 +15056,6 @@ window.onload = async () => {
     await loadCanvasList(false, {refreshFolders:true});
     setCanvasMode(false);
 };
-
-function canvasVideoPlayerHtml(url, attrs=''){
-    const safe = escapeAttr(url || '');
-    return `<video src="${safe}" data-url="${safe}" controls autoplay playsinline preload="metadata" disablepictureinpicture controlslist="nodownload noplaybackrate noremoteplayback"${attrs ? ` ${attrs}` : ''}></video>`;
-}
 
 function promptCounterHtml(text){
     const count = promptTextLength(text);
