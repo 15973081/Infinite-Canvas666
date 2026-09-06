@@ -4588,7 +4588,7 @@ function normalizeVideoNodeSelection(node){
     if(Number(node.duration) === -1) node.duration = 5;
 }
 function videoNodeMediaRefs(refs){
-    return (refs || []).filter(ref => ref?.url && ['image','video'].includes(mediaKindForRef(ref)));
+    return (refs || []).filter(ref => ref?.url && ['image','video','audio'].includes(mediaKindForRef(ref)));
 }
 function isRemoteVideoReferenceUrl(url){
     return /^https?:\/\//i.test(String(url || '')) || /^asset:\/\//i.test(String(url || ''));
@@ -9480,7 +9480,7 @@ function renderVideoBody(node){
     wrap.innerHTML = `
         <div class="prompt-list mb-3"></div>
         <div class="video-input-head">
-            <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">${tr('canvas.images') || 'Images'}</div>
+            <div class="media-input-heading">输入素材</div>
             <div class="video-input-actions">
                 <button type="button" class="tool-btn" data-video-manual-url title="手动输入视频 URL"><i data-lucide="link" class="w-4 h-4"></i><span>输入网址</span></button>
                 <button type="button" class="tool-btn" data-video-temp-sh ${node.tempShUploading ? 'disabled' : ''} title="上传当前输入视频到云端直链"><i data-lucide="upload-cloud" class="w-4 h-4"></i><span>${node.tempShUploading ? '上传中...' : '上传云端'}</span></button>
@@ -9661,32 +9661,117 @@ function renderImageInputList(list, node, imageInputs, emptyText=null){
 }
 function renderVideoImageInputs(list, node, imageInputs){
     if(!list) return;
-    list.innerHTML = imageInputs.length ? '' : `<div class="text-[11px] text-gray-300 py-2">${tr('canvas.groupEmpty')}</div>`;
-    imageInputs.forEach((src, i) => {
-        const item = document.createElement('div');
-        item.className = 'input-item video-input-item';
-        item.draggable = true;
-        item.dataset.sourceId = src.id;
-        const frameLabel = node.useFrameRoles && i === 0 ? tr('canvas.videoRoleFirstFrame') : node.useFrameRoles && i === 1 ? tr('canvas.videoRoleLastFrame') : '';
-        const mediaKind = mediaKindForRef(src.refs?.[0] || src.preview);
-        const previewHtml = src.preview && !isMissingAssetUrl(src.preview)
-            ? (mediaKind === 'video' ? canvasVideoPreviewHtml(src.preview, 256) : canvasPreviewImgHtml(src.preview, 256))
-            : (src.preview ? missingAssetHtml(src.preview, true) : '<i data-lucide="image" class="w-6 h-6 text-slate-400"></i>');
-        item.innerHTML = `
-            <div class="video-input-thumb">
-                <span class="input-index">${i + 1}</span>
-                ${previewHtml}
-                <span class="input-label">${escapeHtml(src.label)}</span>
-            </div>
-            ${frameLabel ? `<div class="video-frame-label">${frameLabel}</div>` : ''}
-        `;
-        item.ondragstart = e => { e.stopPropagation(); internalDrag = true; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-canvas-input', src.id); };
-        item.ondragend = () => { internalDrag = false; };
-        item.ondragover = e => { e.preventDefault(); e.stopPropagation(); };
-        item.ondrop = e => { e.preventDefault(); e.stopPropagation(); reorderInput(node, e.dataTransfer.getData('application/x-canvas-input'), src.id); internalDrag = false; };
-        list.appendChild(item);
-    });
+    const groups = videoInputMediaGroups(node, imageInputs);
+    list.classList.add('media-input-groups');
+    list.onwheel = e => e.stopPropagation();
+    list.innerHTML = '';
+    if(!groups.length){
+        list.innerHTML = '<div class="media-input-empty">连接图片、音频或视频作为参考素材</div>';
+        return;
+    }
+    for(const group of groups){
+        const section = document.createElement('section');
+        section.className = `media-input-group media-input-group-${group.kind}`;
+        section.dataset.mediaKind = group.kind;
+        section.setAttribute('aria-label', `${group.title}输入`);
+        section.innerHTML = `<div class="media-input-group-head">${group.title}<span>${group.items.length}</span></div><div class="media-input-items"></div>`;
+        const row = section.querySelector('.media-input-items');
+        for(const entry of group.items){
+            const {ref, sourceId, label, referenceLabel, index, kind} = entry;
+            const item = document.createElement('div');
+            item.className = `input-item media-reference-item media-reference-${kind}`;
+            item.dataset.sourceId = sourceId;
+            item.dataset.mediaKind = kind;
+            item.dataset.referenceLabel = referenceLabel;
+            item.draggable = Boolean(sourceId);
+            const unavailable = isMissingAssetUrl(ref.url) || String(ref.url).startsWith('asset://');
+            const referenceButton = `<button type="button" class="media-reference-label" title="复制提示词引用：${referenceLabel}" aria-label="复制${referenceLabel}">${referenceLabel}</button>`;
+            const name = `<span class="media-reference-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>`;
+            const previewButton = `<button type="button" class="media-reference-preview" title="${unavailable ? '该素材暂不支持预览' : `预览${referenceLabel}`}" aria-label="预览${referenceLabel}" ${unavailable ? 'disabled' : ''}><i data-lucide="${kind === 'image' ? 'maximize-2' : 'play'}"></i></button>`;
+            if(kind === 'audio'){
+                item.innerHTML = `${previewButton}<div class="media-reference-copy"><div class="media-reference-name-row">${referenceButton}${name}</div><div class="media-reference-audio-detail"><span>${escapeHtml(audioFormatLabel(label, ref.url))}</span>${audioWaveformSvg('media-reference-waveform')}</div></div>`;
+            } else {
+                const preview = unavailable
+                    ? `<div class="media-reference-placeholder"><i data-lucide="${kind === 'video' ? 'clapperboard' : 'image'}"></i></div>`
+                    : kind === 'video' ? canvasVideoPreviewHtml(ref.url, 256, 'draggable="false"') : canvasPreviewImgHtml(ref.url, 256, 'draggable="false"');
+                const frameLabel = kind === 'image' && node.useFrameRoles && index <= 2
+                    ? (index === 1 ? tr('canvas.videoRoleFirstFrame') : tr('canvas.videoRoleLastFrame')) : '';
+                item.innerHTML = `<div class="media-reference-thumb">${preview}${referenceButton}${previewButton}</div>${name}${frameLabel ? `<span class="video-frame-label">${frameLabel}</span>` : ''}`;
+            }
+            const previous = group.items[index - 2];
+            if(sourceId && previous?.sourceId && previous.sourceId !== sourceId){
+                const move = document.createElement('button');
+                move.type = 'button';
+                move.className = 'media-reference-move';
+                move.title = `将${referenceLabel}前移`;
+                move.setAttribute('aria-label', move.title);
+                move.innerHTML = `<i data-lucide="${kind === 'audio' ? 'arrow-up' : 'arrow-left'}"></i>`;
+                move.onclick = e => {
+                    e.stopPropagation();
+                    reorderInput(node, sourceId, previous.sourceId);
+                    setStatus('素材顺序已更新，请检查提示词中的同类编号');
+                };
+                item.appendChild(move);
+            }
+            item.onmousedown = e => e.stopPropagation();
+            item.onclick = e => e.stopPropagation();
+            item.querySelector('.media-reference-label').onclick = async e => {
+                e.stopPropagation();
+                try { const copied = await copyTextToClipboard(referenceLabel); setStatus(copied ? `已复制 ${referenceLabel}，可粘贴到提示词` : `复制失败，请在提示词中输入 ${referenceLabel}`); }
+                catch(err) { setStatus(`复制失败，请在提示词中输入 ${referenceLabel}`); }
+            };
+            item.querySelector('.media-reference-preview').onclick = e => {
+                e.stopPropagation();
+                if(!unavailable) openOutputLightbox(ref.url, {type:'image', url:ref.url, mediaKind:kind, name:label});
+            };
+            item.ondragstart = e => {
+                e.stopPropagation();
+                if(!sourceId || e.target.closest('button')){ e.preventDefault(); return; }
+                internalDrag = true;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('application/x-canvas-input', sourceId);
+                e.dataTransfer.setData('application/x-canvas-input-kind', kind);
+            };
+            item.ondragend = () => { internalDrag = false; };
+            item.ondragover = e => { e.preventDefault(); e.stopPropagation(); };
+            item.ondrop = e => {
+                e.preventDefault(); e.stopPropagation(); internalDrag = false;
+                if(!sourceId || e.dataTransfer.getData('application/x-canvas-input-kind') !== kind) return;
+                const movedId = e.dataTransfer.getData('application/x-canvas-input');
+                if(movedId && movedId !== sourceId){
+                    reorderInput(node, movedId, sourceId);
+                    setStatus('素材顺序已更新，请检查提示词中的同类编号');
+                }
+            };
+            row.appendChild(item);
+        }
+        list.appendChild(section);
+    }
+    const hint = document.createElement('div');
+    hint.className = 'media-input-hint';
+    hint.textContent = manualVideoUrlForNode(node)
+        ? '手动网址作为视频1，替代连入的视频。点击编号复制引用。'
+        : '各类独立编号 · 点击编号复制 · 拖动调整同类顺序';
+    list.appendChild(hint);
     refreshIcons();
+}
+function videoInputMediaGroups(node, sources){
+    // Keep each type in request order; grouping only changes the visual layout.
+    const groups = ['image','audio','video'].map(kind => ({kind, title:{image:'图片', audio:'音频', video:'视频'}[kind], items:[]}));
+    for(const source of sources || []){
+        for(const ref of source.refs || []){
+            if(!ref?.url) continue;
+            const kind = mediaKindForRef(ref);
+            const group = groups.find(group => group.kind === kind);
+            if(!group) continue;
+            group.items.push({ref, sourceId:source.id, label:ref.name || source.label || group.title, kind});
+        }
+    }
+    const manualUrl = manualVideoUrlForNode(node);
+    if(manualUrl){
+        groups.find(group => group.kind === 'video').items = [{ref:{url:manualUrl, kind:'video'}, sourceId:'', label:'手动视频网址', kind:'video'}];
+    }
+    return groups.filter(group => group.items.length).map(group => ({...group, items:group.items.map((entry, i) => ({...entry, index:i + 1, referenceLabel:`${group.title}${i + 1}`}))}));
 }
 function comfyWorkflowOptions(selected){
     const opts = comfyWorkflows.map(w => `<option value="${escapeHtml(w.name)}" ${w.name === selected ? 'selected' : ''}>${escapeHtml(w.title || w.name.replace('.json',''))}</option>`).join('');
