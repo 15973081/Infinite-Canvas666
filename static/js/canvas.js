@@ -971,6 +971,9 @@ let currentOutputCompareUrl = '';
 let currentOutputMeta = null;
 let currentOutputLightboxOutId = '';
 let currentOutputLightboxUrl = '';
+let outputTrimState = null;
+let outputTrimFrame = null;
+let outputTrimJob = null;
 const missingAssetUrls = new Set();
 let outputTimer = null;
 let clipboard = null;
@@ -13822,6 +13825,145 @@ function initOutputCompareEvents(){
     }, {passive:false});
     window.addEventListener('touchend', () => { outputCompareDrag = false; });
 }
+function outputTrimTime(value){
+    const cs = Math.max(0, Math.round(Number(value || 0) * 100));
+    return `${String(Math.floor(cs / 6000)).padStart(2, '0')}:${String(Math.floor(cs / 100) % 60).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
+}
+function parseOutputTrimTime(value){
+    const text = String(value).trim();
+    if(!/^\d+(?:\.\d+)?$/.test(text) && !/^\d+(?::\d{1,2}){1,2}(?:\.\d+)?$/.test(text)) return NaN;
+    return text.split(':').reduce((total, part) => total * 60 + Number(part), 0);
+}
+function stopOutputTrimPreview(){
+    if(outputTrimFrame !== null) cancelAnimationFrame(outputTrimFrame);
+    outputTrimFrame = null;
+    if(outputTrimState?.previewing) outputLightboxVideo.pause();
+    if(outputTrimState) outputTrimState.previewing = false;
+}
+function resetOutputVideoTrim(){
+    stopOutputTrimPreview();
+    outputTrimState = null;
+    syncOutputTrimUi();
+}
+function syncOutputTrimUi(){
+    const state = outputTrimState, active = Boolean(state), busy = Boolean(outputTrimJob);
+    document.getElementById('outputTrimPanel').hidden = !active;
+    document.getElementById('outputTrimToggle').setAttribute('aria-expanded', String(active));
+    outputLightbox.classList.toggle('trim-open', active);
+    if(!state) return;
+    for(const which of ['start', 'end']){
+        const suffix = which === 'start' ? 'Start' : 'End';
+        const input = document.getElementById(`outputTrim${suffix}`);
+        const range = document.getElementById(`outputTrim${suffix}Range`);
+        if(document.activeElement !== input && !state.invalidFields?.[which]) input.value = outputTrimTime(state[which]);
+        range.max = String(state.duration);
+        range.value = String(state[which]);
+        range.style.zIndex = which === 'start' && state.start > state.duration * .9 ? '5' : (which === 'end' ? '4' : '3');
+    }
+    document.querySelectorAll('#outputTrimPanel input, #outputTrimPanel button').forEach(el => { el.disabled = busy; });
+    const full = state.start <= .001 && state.end >= state.duration - .001;
+    const invalid = Object.values(state.invalidFields || {}).some(Boolean);
+    document.getElementById('outputTrimApply').disabled = busy || invalid || full || !canvas || isCanvasLockedByOther();
+    document.getElementById('outputTrimPreview').disabled = busy || invalid;
+    document.getElementById('outputTrimApply').textContent = busy ? '正在截取…' : '另存为新节点';
+    document.getElementById('outputTrimPreview').textContent = state.previewing ? '停止预览' : '预览片段';
+    document.getElementById('outputTrimSummary').textContent = state.error || (full ? '已选择完整视频' : `已选 ${outputTrimTime(state.end - state.start)}`);
+    const selection = document.getElementById('outputTrimSelection');
+    selection.style.left = `${state.start / state.duration * 100}%`;
+    selection.style.right = `${100 - state.end / state.duration * 100}%`;
+}
+function toggleOutputVideoTrim(){
+    if(outputTrimState){ resetOutputVideoTrim(); return; }
+    if(outputLightboxVideo.style.display !== 'block' || !currentOutputLightboxUrl) return;
+    if(!/^\/(assets|output)\//.test(currentOutputLightboxUrl)){
+        showErrorModal('请先将视频保存到本地素材后再截取。', '截取片段'); return;
+    }
+    const duration = Number(outputLightboxVideo.duration);
+    if(outputLightboxVideo.readyState < 1 || !Number.isFinite(duration) || duration < .1){
+        showErrorModal('视频时长尚未加载完成，或视频不足 0.1 秒。', '截取片段'); return;
+    }
+    outputLightboxVideo.pause();
+    outputTrimState = {url:currentOutputLightboxUrl, start:0, end:duration, duration, previewing:false, error:'', invalidFields:{}};
+    syncOutputTrimUi();
+}
+function setOutputTrimValue(which, raw, seek=true){
+    const state = outputTrimState, value = Number(raw);
+    if(!state || outputTrimJob || !['start','end'].includes(which)) return;
+    stopOutputTrimPreview();
+    state.invalidFields[which] = !Number.isFinite(value);
+    state.error = Object.values(state.invalidFields).some(Boolean) ? '请输入秒数或 00:00.00 格式的时间' : '';
+    if(!Number.isFinite(value)) { syncOutputTrimUi(); return; }
+    else {
+        state[which] = which === 'start' ? Math.max(0, Math.min(value, state.end - .1)) : Math.min(state.duration, Math.max(value, state.start + .1));
+        if(seek){
+            outputLightboxVideo.pause();
+            outputLightboxVideo.currentTime = state[which];
+        }
+    }
+    syncOutputTrimUi();
+}
+function setOutputTrimInput(which, seek=true){
+    const input = document.getElementById(which === 'start' ? 'outputTrimStart' : 'outputTrimEnd');
+    setOutputTrimValue(which, parseOutputTrimTime(input.value), seek);
+}
+function tickOutputTrimPreview(){
+    outputTrimFrame = null;
+    const state = outputTrimState;
+    if(!state?.previewing) return;
+    if(outputLightboxVideo.currentTime >= state.end - .01 || outputLightboxVideo.ended || outputLightboxVideo.paused){
+        stopOutputTrimPreview();
+        outputLightboxVideo.currentTime = state.start;
+        syncOutputTrimUi();
+    } else outputTrimFrame = requestAnimationFrame(tickOutputTrimPreview);
+}
+async function previewOutputVideoTrim(){
+    const state = outputTrimState;
+    if(!state || outputTrimJob || Object.values(state.invalidFields || {}).some(Boolean)) return;
+    if(state.previewing){ stopOutputTrimPreview(); syncOutputTrimUi(); return; }
+    state.previewing = true;
+    outputLightboxVideo.currentTime = state.start;
+    syncOutputTrimUi();
+    try {
+        const playback = outputLightboxVideo.play();
+        tickOutputTrimPreview();
+        await playback;
+    }
+    catch(e){
+        if(outputTrimState !== state) return;
+        stopOutputTrimPreview(); state.error = '无法播放所选片段'; syncOutputTrimUi();
+    }
+}
+async function applyOutputVideoTrim(){
+    const state = outputTrimState;
+    if(!state || outputTrimJob || !canvas || isCanvasLockedByOther() || Object.values(state.invalidFields || {}).some(Boolean)) return;
+    if(state.end - state.start < .1 - 1e-9 || (state.start <= .001 && state.end >= state.duration - .001)) return;
+    const canvasId = canvas.id, source = nodes.find(n => n.id === currentOutputLightboxOutId);
+    const rect = source ? nodeRect(source) : null, point = rect ? {x:rect.x + rect.w + 60, y:rect.y} : defaultPoint();
+    const payload = {url:state.url, start_seconds:state.start, end_seconds:state.end, name:source?.name || outputImageName(state.url) || 'video.mp4'};
+    const natural = {natural_w:outputLightboxVideo.videoWidth, natural_h:outputLightboxVideo.videoHeight};
+    stopOutputTrimPreview();
+    outputTrimJob = {canvasId}; state.error = ''; syncOutputTrimUi();
+    try {
+        const result = await window.CanvasApi.trimSmartCanvasVideo(payload, {errorFallback:'视频截取失败'});
+        if(!result?.url) throw new Error('视频截取结果无效');
+        if(canvas?.id !== canvasId || isCanvasLockedByOther()){
+            showErrorModal(`片段已保存，但画布已切换或变为只读，未添加节点。文件：${result.url}`, '截取片段'); return;
+        }
+        const node = {id:uid('img'), type:'image', mediaKind:'video', x:point.x, y:point.y, ...natural,
+            url:result.url, name:result.name || 'video-clip.mp4', clip_source_url:state.url,
+            clip_start:result.start_seconds ?? state.start, clip_end:result.end_seconds ?? state.end,
+            duration_seconds:result.duration_seconds ?? state.end - state.start};
+        pushUndo(); nodes.push(node);
+        const el = isNodeInCanvasViewport(node, 400) ? renderNode(node) : renderNodePlaceholder(node);
+        nodesEl.appendChild(el);
+        bindCanvasPreviewImageFallbacks(el); refreshIcons(); refreshGeometryAfterLayout(); scheduleSave();
+        if(outputTrimState === state && outputLightbox.classList.contains('open')) openOutputLightbox(node.url, node);
+        setStatus('已截取片段并另存为新节点');
+    } catch(e){
+        if(outputTrimState === state) state.error = e.message || '视频截取失败';
+        else setStatus(e.message || '视频截取失败');
+    } finally { outputTrimJob = null; syncOutputTrimUi(); }
+}
 function releaseOutputLightboxVideo(){
     outputLightboxVideo.onloadedmetadata = null;
     outputLightboxVideo.pause();
@@ -13839,6 +13981,7 @@ function releaseOutputLightboxAudio(){
 }
 function openOutputLightbox(url, out){
     if(!url) return;
+    resetOutputVideoTrim();
     resetOutputPreviewZoom();
     currentOutputLightboxOutId = out?.id || '';
     currentOutputLightboxUrl = url;
@@ -13859,6 +14002,7 @@ function openOutputLightbox(url, out){
     const mediaKind = out?.type === 'image' ? mediaKindForNode(out) : mediaKindForOutputItem(meta);
     const audioMode = isAudioUrl(url) || mediaKind === 'audio';
     const videoMode = !audioMode && (isVideoUrl(url) || mediaKind === 'video');
+    document.getElementById('outputTrimToggle').hidden = !videoMode;
     outputLightbox.classList.toggle('audio-mode', audioMode);
     outputPreview.classList.toggle('audio-mode', audioMode);
     outputLightboxImg.style.display = videoMode || audioMode ? 'none' : 'block';
@@ -13932,6 +14076,8 @@ function openOutputLightbox(url, out){
     refreshIcons();
 }
 function closeOutputLightbox(){
+    resetOutputVideoTrim();
+    document.getElementById('outputTrimToggle').hidden = true;
     outputLightbox.classList.remove('open');
     outputLightbox.classList.remove('audio-mode');
     outputPreview.classList.remove('audio-mode');

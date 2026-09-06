@@ -236,12 +236,22 @@
                 <div class="output-preview-bar">
                     <div id="outputResolution" class="output-resolution">--</div>
                     <div class="output-preview-actions">
+                        <button id="outputTrimToggle" class="preview-icon-btn output-trim-toggle" type="button" hidden aria-expanded="false" aria-controls="outputTrimPanel" onclick="toggleOutputVideoTrim()"><i data-lucide="scissors" class="w-4 h-4"></i><span>截取片段</span></button>
                         <button id="outputDownloadBtn" class="preview-icon-btn" type="button" title="下载" aria-label="下载"><i data-lucide="download" class="w-4 h-4"></i></button>
                         <button id="outputDownloadAllBtn" class="preview-icon-btn" type="button" title="下载全部图片" aria-label="下载全部图片" style="display:none"><i data-lucide="archive" class="w-4 h-4"></i></button>
                         <button class="preview-icon-btn" type="button" title="关闭" aria-label="关闭" onclick="closeOutputLightbox()"><i data-lucide="x" class="w-4 h-4"></i></button>
                     </div>
                 </div>
             </div>
+            <section id="outputTrimPanel" class="output-trim-panel" hidden aria-label="视频截取">
+                <div class="output-trim-heading"><strong>截取片段</strong><span id="outputTrimSummary" role="status" aria-live="polite"></span></div>
+                <div class="output-trim-editor">
+                    <div class="output-trim-point"><label for="outputTrimStart">开始</label><input id="outputTrimStart" type="text" inputmode="decimal" value="00:00.00" aria-label="片段开始时间" oninput="setOutputTrimInput('start', false)" onchange="setOutputTrimInput('start')"><button type="button" onclick="setOutputTrimValue('start', outputLightboxVideo.currentTime)">设为当前</button></div>
+                    <div class="output-trim-range"><div class="output-trim-track"><div id="outputTrimSelection"></div></div><input id="outputTrimStartRange" type="range" min="0" max="1" step="0.01" value="0" aria-label="拖动开始时间" oninput="setOutputTrimValue('start', this.value)"><input id="outputTrimEndRange" type="range" min="0" max="1" step="0.01" value="1" aria-label="拖动结束时间" oninput="setOutputTrimValue('end', this.value)"></div>
+                    <div class="output-trim-point"><label for="outputTrimEnd">结束</label><input id="outputTrimEnd" type="text" inputmode="decimal" value="00:00.00" aria-label="片段结束时间" oninput="setOutputTrimInput('end', false)" onchange="setOutputTrimInput('end')"><button type="button" onclick="setOutputTrimValue('end', outputLightboxVideo.currentTime)">设为当前</button></div>
+                    <div class="output-trim-actions"><button id="outputTrimPreview" type="button" onclick="previewOutputVideoTrim()">预览片段</button><button type="button" onclick="resetOutputVideoTrim()">收起</button><button id="outputTrimApply" class="primary" type="button" onclick="applyOutputVideoTrim()">另存为新节点</button></div>
+                </div>
+            </section>
             <div id="outputPromptPanel" class="output-prompt-panel">
                 <div id="outputPromptText" class="output-prompt-text"></div>
                 <div class="output-prompt-actions">
