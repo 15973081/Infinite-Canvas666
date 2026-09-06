@@ -9633,12 +9633,28 @@ function renderVideoBody(node){
     bindCascadeButtons(wrap, node.id);
     return wrap;
 }
+const canvasInputViewCache = new WeakMap();
+function isCanvasInputViewCurrent(container, node, signature){
+    const cached = canvasInputViewCache.get(container);
+    return cached?.node === node && cached?.signature === signature;
+}
+function rememberCanvasInputView(container, node, signature){
+    // Cache only after rendering succeeds; detached lists can be garbage-collected.
+    canvasInputViewCache.set(container, {node, signature});
+}
 function renderPromptPreview(container, promptInputs){
     if(!container) return;
-    container.innerHTML = promptInputs.length ? `<div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Prompts</div>${promptInputs.map(src => `<div class="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 line-clamp-2">${escapeHtml(src.label)}</div>`).join('')}` : '';
+    const html = promptInputs.length ? `<div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Prompts</div>${promptInputs.map(src => `<div class="text-[11px] text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 line-clamp-2">${escapeHtml(src.label)}</div>`).join('')}` : '';
+    if(isCanvasInputViewCurrent(container, null, html)) return;
+    container.innerHTML = html;
+    rememberCanvasInputView(container, null, html);
 }
 function renderImageInputList(list, node, imageInputs, emptyText=null){
     if(!list) return;
+    const signature = JSON.stringify(['images', emptyText || tr('canvas.inputImagesEmpty'), imageInputs.map(src => [
+        src.id, src.label, src.preview, mediaKindForRef(src.refs?.[0] || src.preview), isMissingAssetUrl(src.preview)
+    ])]);
+    if(isCanvasInputViewCurrent(list, node, signature)) return;
     list.innerHTML = imageInputs.length ? '' : `<div class="text-[11px] text-gray-300 py-2">${escapeHtml(emptyText || tr('canvas.inputImagesEmpty'))}</div>`;
     imageInputs.forEach((src, i) => {
         const item = document.createElement('div');
@@ -9667,15 +9683,23 @@ function renderImageInputList(list, node, imageInputs, emptyText=null){
         list.appendChild(item);
     });
     refreshIcons();
+    rememberCanvasInputView(list, node, signature);
 }
 function renderVideoImageInputs(list, node, imageInputs){
     if(!list) return;
     const groups = videoInputMediaGroups(node, imageInputs);
+    const signature = JSON.stringify(['video', Boolean(node.useFrameRoles), manualVideoUrlForNode(node),
+        tr('canvas.videoRoleFirstFrame'), tr('canvas.videoRoleLastFrame'),
+        groups.map(group => [group.kind, group.items.map(entry => [
+            entry.sourceId, entry.label, entry.referenceLabel, entry.ref.url, isMissingAssetUrl(entry.ref.url)
+        ])])]);
+    if(isCanvasInputViewCurrent(list, node, signature)) return;
     list.classList.add('media-input-groups');
     list.onwheel = e => e.stopPropagation();
     list.innerHTML = '';
     if(!groups.length){
         list.innerHTML = '<div class="media-input-empty">连接图片、音频或视频作为参考素材</div>';
+        rememberCanvasInputView(list, node, signature);
         return;
     }
     for(const group of groups){
@@ -9763,6 +9787,7 @@ function renderVideoImageInputs(list, node, imageInputs){
         : '各类独立编号 · 点击编号复制 · 拖动调整同类顺序';
     list.appendChild(hint);
     refreshIcons();
+    rememberCanvasInputView(list, node, signature);
 }
 function videoInputMediaGroups(node, sources){
     // Keep each type in request order; grouping only changes the visual layout.
@@ -9931,6 +9956,12 @@ function renderComfyBody(node){
     return wrap;
 }
 function renderComfyImages(list, node, imageInputs){
+    if(!list) return;
+    const signature = JSON.stringify(['comfy', tr('canvas.groupEmpty'), tr('canvas.image'), imageInputs.map(src => {
+        const kind = mediaKindForRef(src.refs?.[0] || src.preview);
+        return [src.id, src.preview, kind, nodeTitleForMedia({mediaKind:kind}), isMissingAssetUrl(src.preview)];
+    })]);
+    if(isCanvasInputViewCurrent(list, node, signature)) return;
     list.innerHTML = imageInputs.length ? '' : `<div class="text-[11px] text-gray-300 py-2">${tr('canvas.groupEmpty')}</div>`;
     imageInputs.forEach((src, i) => {
         const item = document.createElement('div');
@@ -9963,6 +9994,7 @@ function renderComfyImages(list, node, imageInputs){
         };
         list.appendChild(item);
     });
+    rememberCanvasInputView(list, node, signature);
 }
 function renderComfySettings(container, node){
     const mode = node.mode || 'text';
@@ -10354,7 +10386,7 @@ function syncGeneratorInputs(){
 function refreshGeneratorInputViews(){
     nodes.filter(n => CANVAS_GENERATOR_TYPES.includes(n.type)).forEach(gen => {
         const el = nodesEl.querySelector(`.node[data-id="${gen.id}"]`);
-        if(!el) return;
+        if(!el || el.classList.contains('node-placeholder')) return;
         const sources = orderedSources(gen, generatorSources(gen));
         const imageInputs = sources
             .map(src => ({...src, refs:gen.type === 'video' ? videoNodeMediaRefs(src.refs || []) : imageRefsOnly(src.refs || [])}))
@@ -10362,7 +10394,10 @@ function refreshGeneratorInputViews(){
         renderPromptPreview(el.querySelector('.prompt-list'), sources.filter(src => src.prompt && !src.refs?.length));
         if(gen.type === 'generator') renderImageInputList(el.querySelector('.input-list'), gen, imageInputs);
         if(gen.type === 'msgen') renderImageInputList(el.querySelector('.ms-img-list'), gen, imageInputs);
-        if(gen.type === 'comfy') renderComfyImages(el.querySelector('.input-list'), gen, imageInputs);
+        if(gen.type === 'comfy'){
+            const mediaInputs = gen.mode === 'custom' ? sources.filter(src => src.refs?.length) : imageInputs;
+            renderComfyImages(el.querySelector('.input-list'), gen, mediaInputs);
+        }
         if(gen.type === 'ltxDirector'){
             ltxSyncConnectedImagesToTimeline(gen);
             renderComfyImages(el.querySelector('.input-list'), gen, imageInputs);
