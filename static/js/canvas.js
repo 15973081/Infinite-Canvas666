@@ -1985,11 +1985,29 @@ function refreshGeometry(){
     renderLinks();
     renderSelectionHub();
 }
-function refreshGeometryAfterLayout(){
-    requestAnimationFrame(() => {
+let geometryRefreshFrame = null;
+let geometryRefreshPasses = 0;
+function scheduleGeometryRefresh(passes=1){
+    geometryRefreshPasses = Math.max(geometryRefreshPasses, passes);
+    if(geometryRefreshFrame !== null) return;
+    geometryRefreshFrame = requestAnimationFrame(() => {
+        geometryRefreshFrame = null;
+        geometryRefreshPasses--;
         refreshGeometry();
-        requestAnimationFrame(refreshGeometry);
+        if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses);
     });
+}
+function flushScheduledGeometryRefresh(){
+    if(geometryRefreshFrame === null) return;
+    cancelAnimationFrame(geometryRefreshFrame);
+    geometryRefreshFrame = null;
+    geometryRefreshPasses--;
+    refreshGeometry();
+    if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses);
+}
+function refreshGeometryAfterLayout(){
+    // Coalesce image/node layout notifications, retaining the second-frame correction.
+    scheduleGeometryRefresh(2);
 }
 function scheduleSave(){
     if(!canvas || applyingRemoteCanvas) return;
@@ -6919,7 +6937,7 @@ function renderNode(node){
             }
             body.addEventListener('dblclick', openPreview, true);
             if(loadedImg && loadedImg.complete && loadedImg.naturalHeight > 0){
-                requestAnimationFrame(refreshGeometry);
+                scheduleGeometryRefresh();
             } else if(loadedImg) {
                 loadedImg.onload = () => refreshGeometryAfterLayout();
             }
@@ -14224,8 +14242,8 @@ function onNodeDrag(e){
             childEl.style.top = `${childDrag.node.y}px`;
         }
     });
-    renderLinks();
-    renderSelectionHub();
+    // Keep model coordinates synchronous; only defer the expensive shared drawing.
+    scheduleGeometryRefresh();
     if(workflowTransferModal?.classList.contains('open')) updateWorkflowTransferMeta();
     scheduleMinimapRender();
 }
@@ -14261,8 +14279,7 @@ function onNodeResize(e){
         el.style.width = `${resizeNode.node.w}px`;
         el.style.height = `${resizeNode.node.h}px`;
     }
-    renderLinks();
-    renderSelectionHub();
+    scheduleGeometryRefresh();
     scheduleMinimapRender();
 }
 function startLink(e, originId, originKind){
@@ -14384,6 +14401,7 @@ function sanitizeConnections(){
 function endDrag(event=null){
     const hadContentDrag = Boolean(dragNode || resizeNode || llmPaneDrag || knifeChanged || tempLink);
     const hadViewportDrag = Boolean(dragBoard || minimapDrag);
+    const hadKnifeTrail = knifeTrail.length > 1;
     if(dragNode){
         const moved = [dragNode.node, ...(dragNode.children || []).map(c => c.node)].filter(Boolean);
         // 拖动 group/promptGroup 自身时不重新评估（成员跟着一起走，包含关系不变）
@@ -14405,6 +14423,8 @@ function endDrag(event=null){
     document.body.classList.remove('canvas-node-drag', 'canvas-node-resize', 'canvas-selecting', 'canvas-board-pan');
     endWindowPointerSession();
     if(shouldRenderKnife) render();
+    else if(hadKnifeTrail) renderLinks();
+    flushScheduledGeometryRefresh();
     scheduleMinimapRender();
     if(hadContentDrag) scheduleSave();
     else if(hadViewportDrag) scheduleViewportSave();
@@ -14676,8 +14696,10 @@ function applyKnifeCut(from, to){
     scheduleSave();
 }
 function setKnifeMode(active){
+    const needsCleanup = knifeActive || knifePoint || knifeTrail.length
+        || knifeChanged || knifeNeedsRender || document.body.classList.contains('canvas-knife');
     document.body.classList.toggle('canvas-knife', Boolean(active && canvas));
-    if(!active){
+    if(!active && needsCleanup){
         knifeActive = false;
         knifePoint = null;
         knifeTrail = [];
@@ -14844,8 +14866,7 @@ board.onwheel = e => {
     viewport.x = e.clientX - rect.left - before.x * viewport.scale;
     viewport.y = e.clientY - rect.top - before.y * viewport.scale;
     applyViewport();
-    renderLinks();
-    renderSelectionHub();
+    scheduleGeometryRefresh();
     scheduleViewportSave();
 };
 board.addEventListener('dragover', e => {
