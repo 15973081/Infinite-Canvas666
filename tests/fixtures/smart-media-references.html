@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>智能画布素材分类回归</title>
+<link rel="stylesheet" href="/static/css/smart-canvas.css">
+<style>
+:root { --panel:#fff; --card:#fff; --soft:#f5f7fa; --line:#e2e7ef; --text:#17202d; --muted:#65758c; --faint:#8794a8; --shadow:#17202d16; }
+body { padding:40px; background:#f4f7fa; font:13px system-ui; }
+body.theme-dark { --panel:#19212c; --card:#141b25; --soft:#1f2937; --line:#334155; --text:#e2e8f0; --muted:#94a3b8; --faint:#8291a7; background:#0e141c; }
+.fixture { width:500px; padding:12px; border:1px solid var(--line); border-radius:16px; background:var(--panel); color:var(--text); }
+button { font:inherit; } #promptInput { margin-top:12px; min-height:70px; padding:10px; border:1px solid var(--line); border-radius:10px; }
+#result { white-space:pre-wrap; } .mention-picker { position:static; display:block; }
+</style>
+<button id="theme">切换明暗</button><button id="reorder">交换两张图片</button><button id="submit">检查提交</button><button id="reload">保存并重开草稿</button><button id="picker">打开分类选择器</button>
+<div class="fixture"><div>视频生成 · 素材引用</div><div id="inputThumbsRow" class="input-thumbs-row typed-media-inputs"></div><div id="promptInput" contenteditable="true"></div><div id="mentionPicker" class="mention-picker"></div><pre id="result"></pre></div>
+<script>
+// Isolated UI harness: loads production functions, never calls a generation API.
+const settings={engine:'volcengine',apiKind:'video'};
+const inputThumbsRow=document.getElementById('inputThumbsRow'), promptInput=document.getElementById('promptInput'), mentionPicker=document.getElementById('mentionPicker');
+let mentionRange=null, mentionSource='input', mentionAssetCategoryId='', activeAssetLibraryId='', activeAssetCategoryId='';
+const assetLibrary={libraries:[]};
+const smartLoopContext=null;
+const imageData='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="70"><rect width="100" height="70" fill="#cbd5e1"/><circle cx="50" cy="28" r="14" fill="#64748b"/><path d="M25 70 Q50 15 75 70" fill="#64748b"/></svg>');
+const refs=[{url:imageData,kind:'image',name:'人物.png'},{url:'asset://voice',kind:'audio',name:'一段很长很长的人物配音文件.mp3'},{url:'asset://video',kind:'video',name:'运镜.mp4'},{url:imageData+'#2',kind:'image',name:'场景.png'},{url:'asset://music',kind:'audio',name:'背景音乐.wav'}];
+const nodes=[{id:'source',images:refs}], node={id:'gen'};
+refs.forEach((ref,i)=>Object.assign(ref,{nodeId:'source',imageIndex:i}));
+const noop=()=>{};
+const pushUndo=noop,scheduleSave=noop,bindSmartPreviewImageFallbacks=noop,refreshIcons=noop,positionMentionPickerAtCaret=noop,closeMentionPicker=()=>mentionPicker.replaceChildren();
+const selectedNode=()=>node,defaultReferenceImagesFor=()=>refs,manualSmartMediaLinks=()=>[],inputPromptTextFor=()=>'',isApiLikeEngine=()=>true;
+const escapeHtml=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),escapeAttr=escapeHtml;
+const smartPreviewImgHtml=ref=>`<img src="${escapeAttr(ref.url)}" alt="">`,smartVideoPreviewHtml=smartPreviewImgHtml;
+const fileNameFromUrl=url=>url,toast=message=>document.getElementById('result').textContent=message;
+const assetLibraries=()=>[],assetCategories=()=>[],assetCategoryForMention=()=>null,assetMentionCandidateImages=()=>[],tr=key=>key;
+const inputMentionCandidateImages=()=>refs.map(ref=>({...ref,alias:ref.name}));
+const renderInputThumbsRow=()=>renderSmartMediaGroups(node),savePromptDraftForCurrent=noop;
+fetch('/static/js/smart-canvas.js').then(r=>r.text()).then(source=>{
+ const names=['isFileMediaItem','isTextMediaItem','isAudioMediaItem','isVideoMediaItem','mediaKindForItem','inputRefKey','blockedInputRefKeys','smartTypedVideoInputs','smartMediaRefKey','smartMediaReferencePlan','smartReferencePreviewHtml','reorderSmartMediaReference','renderSmartMediaGroups','mentionTokenHtml','collectPromptParts','originalPromptTextFromParts','buildPromptRequest','saveMentionRange','insertMentionToken','renderMentionPicker'];
+ const functions=names.map(name=>{const start=source.search(new RegExp(`^function ${name}\\(`,'m'));return source.slice(start,source.indexOf('\n}',start)+2);}).join('\n');
+ (0,eval)(functions);
+ promptInput.innerHTML='声音参考 '+mentionTokenHtml(refs[1])+'，人物参考 '+mentionTokenHtml(refs[0]);
+ renderInputThumbsRow();
+ document.getElementById('theme').onclick=()=>document.body.classList.toggle('theme-dark');
+ document.getElementById('reorder').onclick=()=>reorderSmartMediaReference(node,smartMediaReferencePlan(node,refs,collectPromptParts()).refs,1,0);
+ document.getElementById('submit').onclick=()=>{const request=buildPromptRequest(node);document.getElementById('result').textContent=JSON.stringify({prompt:request.prompt,labels:request.refs.map(r=>r.referenceLabel),players:document.querySelectorAll('video,audio').length},null,2);};
+ document.getElementById('reload').onclick=()=>{const saved=JSON.parse(JSON.stringify({html:promptInput.innerHTML,order:node.mediaReferenceOrder}));promptInput.innerHTML=saved.html;node.mediaReferenceOrder=saved.order;renderInputThumbsRow();};
+ document.getElementById('picker').onclick=()=>renderMentionPicker('input');
+}).catch(error=>document.getElementById('result').textContent=error.stack);
+</script></html>

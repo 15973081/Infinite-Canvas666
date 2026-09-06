@@ -895,7 +895,7 @@ async def volcengine_video_reference_content_items(value, max_frames=4, max_size
             "role": "reference_video",
         }]
     if direct_video:
-        raise HTTPException(status_code=400, detail="Seedance 2.5 参考视频需要公网视频 URL 或 asset:// 素材，请先点击“上传云端”。")
+        raise HTTPException(status_code=400, detail="Seedance 参考视频需要公网视频 URL 或 asset:// 素材，请先点击“上传云端”。")
     frame_urls = await video_reference_to_frame_data_urls(text, max_frames=max_frames, max_size=max_size)
     return [
         {

@@ -352,9 +352,10 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                     text = str(payload.prompt or "").strip()
                     volc_model = selected_model(payload.model, "doubao-seedance-2-0-fast-260128")
                     is_seedance25 = is_volcengine_seedance25_model(volc_model)
+                    is_seedance_multimodal = is_seedance25 or is_volcengine_seedance2_model(volc_model)
                     image_limit, video_limit, audio_limit = (30, 10, 10) if is_seedance25 else (9, 3, 3)
-                    if is_seedance25 and (len(payload.images) > image_limit or len(payload.videos or []) > video_limit or len(payload.audios or []) > audio_limit):
-                        raise HTTPException(status_code=400, detail="Seedance 2.5 单次最多支持 30 张图片、10 个视频、10 个音频。")
+                    if is_seedance_multimodal and (len(payload.images) > image_limit or len(payload.videos or []) > video_limit or len(payload.audios or []) > audio_limit):
+                        raise HTTPException(status_code=400, detail=f"当前模型单次最多支持 {image_limit} 张图片、{video_limit} 个视频、{audio_limit} 个音频，请减少素材后重试。")
                     if is_seedance25:
                         task_mode = str(payload.task_mode or "auto").strip().lower()
                         task_type = "edit" if task_mode == "edit" else "extend" if task_mode in {"extend_forward", "extend_backward"} else ""
@@ -399,7 +400,6 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         body["return_last_frame"] = True
                     project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
                     image_like_urls = set()
-                    volc_video_count = 0
                     for ref in payload.images[:image_limit]:
                         url = await volcengine_video_media_reference_url(ref.url, project_name, max_image_size=1536)
                         if not url:
@@ -418,6 +418,8 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         if not media_url:
                             continue
                         if media_url in image_like_urls or looks_like_image_media_url(media_url):
+                            if is_seedance_multimodal:
+                                raise HTTPException(status_code=400, detail="视频输入中包含图片，请将该素材归入图片后重试，避免提示词引用错位。")
                             body["content"].append({
                                 "type": "image_url",
                                 "image_url": {"url": media_url},
@@ -425,10 +427,8 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                             })
                             image_like_urls.add(media_url)
                             continue
-                        video_items = await volcengine_video_reference_content_items(media_url, direct_video=is_seedance25)
+                        video_items = await volcengine_video_reference_content_items(media_url, direct_video=is_seedance_multimodal)
                         body["content"].extend(video_items)
-                        volc_video_count += 1
-                    volc_audio_count = 0
                     for url in (payload.audios or [])[:audio_limit]:
                         audio_url = await volcengine_video_media_reference_url(url, project_name, max_image_size=None)
                         if not audio_url:
@@ -438,10 +438,12 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                             "audio_url": {"url": audio_url},
                             "role": volcengine_content_role("", "audio"),
                         })
-                        volc_audio_count += 1
                     if payload.trusted_asset and body["content"] and body["content"][0].get("type") == "text":
                         body["content"][0]["text"] = apply_trusted_asset_prompt_index(
-                            body["content"][0].get("text") or "", len(image_like_urls), volc_video_count, volc_audio_count
+                            body["content"][0].get("text") or "",
+                            sum(item.get("type") == "image_url" for item in body["content"]),
+                            sum(item.get("type") == "video_url" for item in body["content"]),
+                            sum(item.get("type") == "audio_url" for item in body["content"]),
                         )
                     if payload.seed is not None and not is_seedance25:
                         body["seed"] = payload.seed

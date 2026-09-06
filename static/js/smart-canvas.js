@@ -2419,6 +2419,7 @@ function renderDynamicParams(){
     bindDynamicParams();
     updatePromptPlaceholder();
     persistActiveSmartSettings();
+    if(composer?.classList.contains('open')) renderInputThumbsRow(selectedNode());
     if(window.lucide) lucide.createIcons();
 }
 function renderApiParams(){
@@ -2901,6 +2902,7 @@ function renderedInputMediaRefs(){
         sourceUrl:el.dataset.sourceUrl || el.dataset.url || '',
         nodeId:el.dataset.nodeId || '',
         imageIndex:Number.isFinite(Number(el.dataset.imageIndex)) ? Number(el.dataset.imageIndex) : index,
+        kind:el.dataset.kind || '',
         name:tr('smart.inputNum').replace('{n}', String(index + 1)),
         role:`image_${index + 1}`
     })).filter(ref => ref.url);
@@ -9980,8 +9982,136 @@ function renderInputPromptPreview(node){
         ? `<div class="input-prompt-preview-label">${escapeHtml(tr('smart.inputUpstream'))}</div><div class="input-prompt-preview-text">${escapeHtml(text)}</div>`
         : '';
 }
+function smartTypedVideoInputs(source=settings){
+    return isApiLikeEngine(source?.engine) && source?.apiKind === 'video';
+}
+function smartMediaRefKey(ref){
+    return `${mediaKindForItem(ref)}|${ref?.originalLocalUrl || ref?.url || ''}`;
+}
+function smartMediaReferencePlan(node, base, parts=[], source=settings){
+    const refs = [], invalid = [], aliases = new Map(), seen = new Set();
+    const blocked = blockedInputRefKeys(node);
+    const manual = manualSmartMediaLinks(source).map(ref => ({...ref, kind:'video', name:'手动视频网址', manual:true}));
+    const add = ref => {
+        if(!ref?.url || !['image','audio','video'].includes(mediaKindForItem(ref))) return;
+        if(String(ref.url).startsWith('asset://') && !['image','audio','video'].includes(ref.kind)){
+            invalid.push(ref);
+            return;
+        }
+        const key = smartMediaRefKey(ref);
+        if(seen.has(key)) return;
+        seen.add(key);
+        refs.push({...ref, kind:mediaKindForItem(ref)});
+    };
+    (base || []).filter(ref => !blocked.has(inputRefKey(ref)) && !(manual.length && mediaKindForItem(ref) === 'video')).forEach(add);
+    manual.forEach(add);
+    parts.filter(part => part.type === 'image').forEach(part => {
+        const sourceNode = part.nodeId ? nodes.find(n => n.id === part.nodeId) : null;
+        const stale = part.nodeId && (!sourceNode || !(sourceNode.images || []).some(ref => ref.url === part.url || ref.originalLocalUrl === part.url));
+        if(!['image','audio','video'].includes(mediaKindForItem(part)) || blocked.has(inputRefKey(part)) || stale || (manual.length && mediaKindForItem(part) === 'video' && !manual.some(ref => ref.url === part.url))){
+            invalid.push(part);
+        } else add(part);
+    });
+    const order = new Map((node?.mediaReferenceOrder || []).map((key, i) => [key, i]));
+    const sorted = [];
+    for(const kind of ['image','audio','video']){
+        const group = refs.filter(ref => ref.kind === kind);
+        // Manual links retain the exact ordering used by runApiVideoGeneration.
+        if(!(kind === 'video' && manual.length)) group.sort((a,b) => (order.get(smartMediaRefKey(a)) ?? Infinity) - (order.get(smartMediaRefKey(b)) ?? Infinity));
+        group.forEach((ref,i) => {
+            ref.referenceLabel = `${{image:'图片',audio:'音频',video:'视频'}[kind]}${i + 1}`;
+            ref.role = `reference_${kind}`;
+            aliases.set(smartMediaRefKey(ref), ref.referenceLabel);
+            sorted.push(ref);
+        });
+    }
+    return {refs:sorted, aliases, invalid};
+}
+function smartReferencePreviewHtml(ref){
+    const kind = mediaKindForItem(ref);
+    if(kind === 'audio') return '<span class="smart-ref-symbol" aria-hidden="true">♪</span>';
+    if(String(ref.url || '').startsWith('asset://')) return '<span class="smart-ref-symbol" aria-hidden="true">▧</span>';
+    return kind === 'video' ? smartVideoPreviewHtml(ref, 256, 'alt=""') : smartPreviewImgHtml(ref, 256, 'alt=""');
+}
+function reorderSmartMediaReference(node, refs, from, to){
+    if(!node || from === to || !refs[from] || !refs[to] || refs[from].kind !== refs[to].kind || refs[from].manual || refs[to].manual) return;
+    pushUndo();
+    const keys = refs.map(smartMediaRefKey);
+    keys.splice(to, 0, keys.splice(from, 1)[0]);
+    node.mediaReferenceOrder = keys;
+    renderInputThumbsRow(node);
+    savePromptDraftForCurrent();
+    scheduleSave();
+}
+function previewSmartReference(ref){
+    const owner = nodes.find(n => n.id === ref.nodeId);
+    const index = owner?.images?.findIndex(img => img.url === ref.url || img.originalLocalUrl === ref.url) ?? -1;
+    if(index >= 0){
+        const previous = {selectedId, selectedIds, selectedImage};
+        try { return openImagePreview(owner.id, index); }
+        finally { selectedId = previous.selectedId; selectedIds = previous.selectedIds; selectedImage = previous.selectedImage; }
+    }
+    if(String(ref.url || '').startsWith('asset://')) return toast('该资产没有可直接播放的预览地址');
+    if(ref.kind === 'audio'){
+        if(imageEditModal.classList.contains('open')) closeImageEditor();
+        releaseSmartAudioLightboxPlayer();
+        smartAudioLightboxState = {nodeId:'', index:-1};
+        smartAudioLightboxTitle.textContent = ref.name || '音频';
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.preload = 'metadata';
+        audio.src = ref.url;
+        smartAudioLightboxHost.replaceChildren(audio);
+        smartAudioLightbox.classList.add('open');
+        return;
+    }
+    smartLogPreviewNode(ref.url, ref.kind);
+    setImageEditMode('preview');
+}
+function renderSmartMediaGroups(node){
+    const parts = collectPromptParts();
+    const plan = smartMediaReferencePlan(node, node ? defaultReferenceImagesFor(node) : [], parts);
+    const refs = plan.refs;
+    inputThumbsRow.classList.toggle('has-items', refs.length > 0 || plan.invalid.length > 0);
+    inputThumbsRow.innerHTML = ['image','audio','video'].map(kind => {
+        const group = refs.filter(ref => ref.kind === kind);
+        if(!group.length) return '';
+        const title = {image:'图片',audio:'音频',video:'视频'}[kind];
+        return `<section class="smart-ref-group"><div class="smart-ref-heading">${title}<span>${group.length}</span></div><div class="smart-ref-list smart-ref-list-${kind}">${group.map(ref => {
+            const i = refs.indexOf(ref);
+            return `<div class="input-thumb smart-ref-item smart-ref-${kind}" data-thumb-index="${i}" data-kind="${kind}" data-url="${escapeAttr(ref.url)}" data-source-url="${escapeAttr(ref.originalLocalUrl || ref.url)}" data-node-id="${escapeAttr(ref.nodeId || '')}" data-image-index="${ref.imageIndex ?? ''}" draggable="${!ref.manual}"><button type="button" class="smart-ref-preview" data-ref-preview="${i}" aria-label="预览${ref.referenceLabel}">${kind === 'audio' ? '▷' : smartReferencePreviewHtml(ref)}${kind === 'video' ? '<span class="smart-ref-play">▷</span>' : ''}</button><button type="button" class="smart-ref-alias" data-ref-insert="${i}" title="插入引用">${ref.referenceLabel}</button>${kind === 'audio' ? `<span class="smart-ref-name" title="${escapeAttr(ref.name || ref.url)}">${escapeHtml(ref.name || fileNameFromUrl(ref.url))}</span>` : ''}</div>`;
+        }).join('')}</div></section>`;
+    }).join('') + (plan.invalid.length ? '<div class="smart-ref-error">存在失效引用，请在提示词中重新选择素材。</div>' : '');
+    inputThumbsRow.querySelectorAll('[data-ref-insert]').forEach(btn => {
+        btn.onmousedown = event => { event.preventDefault(); event.stopPropagation(); saveMentionRange(); };
+        btn.onclick = event => { event.stopPropagation(); insertMentionToken(refs[Number(btn.dataset.refInsert)]); savePromptDraftForCurrent(); scheduleSave(); };
+    });
+    inputThumbsRow.querySelectorAll('[data-ref-preview]').forEach(btn => {
+        btn.onclick = event => { event.stopPropagation(); previewSmartReference(refs[Number(btn.dataset.refPreview)]); };
+    });
+    let dragged = -1;
+    inputThumbsRow.querySelectorAll('.smart-ref-item').forEach(el => {
+        const target = Number(el.dataset.thumbIndex);
+        el.ondragstart = event => { dragged = target; event.stopPropagation(); event.dataTransfer.setData('application/x-smart-input-thumb', String(target)); };
+        el.ondragover = event => { if(dragged >= 0 && refs[dragged].kind === refs[target].kind && !refs[target].manual){ event.preventDefault(); event.stopPropagation(); } };
+        el.ondrop = event => { event.preventDefault(); event.stopPropagation(); reorderSmartMediaReference(node, refs, dragged, target); dragged = -1; };
+        el.ondragend = () => { dragged = -1; };
+    });
+    promptInput.querySelectorAll('.mention-image-token').forEach(token => {
+        const ref = parts.find(part => part.type === 'image' && part.url === token.dataset.url) || {url:token.dataset.url, kind:token.dataset.kind};
+        token.dataset.kind = mediaKindForItem(ref);
+        const invalid = plan.invalid.some(item => smartMediaRefKey(item) === smartMediaRefKey(ref));
+        const label = invalid ? '引用失效' : plan.aliases.get(smartMediaRefKey(ref));
+        token.classList.toggle('smart-ref-invalid', invalid);
+        const text = token.querySelector('span:last-child');
+        if(label && text) text.textContent = `@${label}`;
+    });
+    bindSmartPreviewImageFallbacks(inputThumbsRow);
+}
 function renderInputThumbsRow(node){
     if(!inputThumbsRow) return;
+    inputThumbsRow.classList.toggle('typed-media-inputs', smartTypedVideoInputs());
+    if(smartTypedVideoInputs()) return renderSmartMediaGroups(node);
     const dedup = node ? visibleReferenceImagesFor(node) : [];
     inputThumbsRow.classList.toggle('has-items', dedup.length > 0);
     if(!dedup.length){ inputThumbsRow.innerHTML = ''; return; }
@@ -10536,10 +10666,8 @@ function mentionTokenHtml(img){
     if(!img?.url) return '';
     const name = img.alias || img.name || '图片';
     const kind = mediaKindForItem(img);
-    const media = kind === 'video'
-        ? smartVideoPreviewHtml(img, 256, 'alt=""')
-        : smartPreviewImgHtml(img, 256, 'alt=""');
-    return `<span class="mention-image-token" contenteditable="false" data-url="${escapeHtml(img.url)}" data-kind="${escapeHtml(kind)}" data-name="${escapeHtml(name)}" data-node-id="${escapeHtml(img.nodeId || '')}" data-image-index="${escapeHtml(img.imageIndex ?? '')}">${media}<span>${escapeHtml(name)}</span></span>`;
+    const media = smartReferencePreviewHtml(img);
+    return `<span class="mention-image-token" contenteditable="false" data-url="${escapeHtml(img.url)}" data-kind="${escapeHtml(kind)}" data-name="${escapeHtml(name)}" data-asset-uris="${escapeAttr(JSON.stringify(img.asset_uris || {}))}" data-node-id="${escapeHtml(img.nodeId || '')}" data-image-index="${escapeHtml(img.imageIndex ?? '')}">${media}<span>${escapeHtml(img.referenceLabel || name)}</span></span>`;
 }
 function promptHtmlWithMentionTokens(text, refs=[]){
     const value = String(text || '');
@@ -10567,8 +10695,8 @@ function snapshotRunMeta(prompt, sourceId, displayPrompt='', refs=[]){
         displayPrompt:displayPrompt || promptPlainText() || prompt,
         promptHtml: promptInput ? promptInput.innerHTML : '',
         promptText: promptPlainText(),
-        promptRefs:(refs || []).map(ref => ({url:ref.url || '', name:ref.name || '', nodeId:ref.nodeId || '', imageIndex:ref.imageIndex ?? ''})).filter(ref => ref.url),
-        inputRefs:(refs || []).map(ref => ({url:ref.url || '', name:ref.name || '', nodeId:ref.nodeId || '', imageIndex:ref.imageIndex ?? '', kind:ref.kind || ''})).filter(ref => ref.url),
+        promptRefs:(refs || []).map(ref => ({...ref})).filter(ref => ref.url),
+        inputRefs:(refs || []).map(ref => ({...ref})).filter(ref => ref.url),
         sourceNodeId:sourceId,
         settings:JSON.parse(JSON.stringify(settings)),
         createdAt:Date.now()
@@ -10580,6 +10708,7 @@ function attachRunMeta(targetNode, meta){
     targetNode.runModelPrompt = meta.prompt;
     targetNode.runPromptRefs = meta.promptRefs || [];
     targetNode.runInputRefs = (meta.inputRefs || meta.promptRefs || []).map(ref => ({
+        ...ref,
         url:ref.url || '',
         name:ref.name || '',
         nodeId:ref.nodeId || '',
@@ -10969,7 +11098,7 @@ function visibleReferenceImagesFor(node){
     return uniqueReferenceImages([...base, ...collectMentionedImagesFromPrompt()]);
 }
 function inputMentionCandidateImages(node){
-    const current = node ? lineImagesFor(node) : [];
+    const current = node ? [...(smartTypedVideoInputs() ? smartMediaReferencePlan(node, defaultReferenceImagesFor(node), collectPromptParts()).refs : []), ...lineImagesFor(node)] : [];
     const seen = new Set();
     return current.filter(img => {
         if(!img?.url || seen.has(img.url)) return false;
@@ -11060,13 +11189,21 @@ function renderMentionPicker(source){
     const nextAssetCats = assetCategories('image');
     const currentAssetCat = assetCategoryForMention();
     const assetItems = assetMentionCandidateImages(currentAssetCat?.id || '');
-    const candidates = (mentionSource === 'asset' ? assetItems : inputItems).slice(0, 36);
-    const body = candidates.length ? `<div class="mention-option-grid">${candidates.map((img, i) => `
+    const available = mentionSource === 'asset' ? assetItems : inputItems;
+    const candidates = smartTypedVideoInputs()
+        ? ['image','audio','video'].flatMap(kind => available.filter(ref => mediaKindForItem(ref) === kind).slice(0, 36))
+        : available.slice(0, 36);
+    const labels = smartTypedVideoInputs() ? smartMediaReferencePlan(node, defaultReferenceImagesFor(node), collectPromptParts()).aliases : new Map();
+    const optionHtml = (img, i) => `
             <button class="mention-option" type="button" data-mention-index="${i}">
-                ${mediaKindForItem(img) === 'video' ? smartVideoPreviewHtml(img, 256, 'alt=""') : smartPreviewImgHtml(img, 256, 'alt=""')}
-                <span>${escapeHtml(img.alias)}</span>
-            </button>
-        `).join('')}</div>` : `<div class="mention-empty">${escapeHtml(tr('smart.mentionEmpty'))}</div>`;
+                ${smartReferencePreviewHtml(img)}
+                <span title="${escapeAttr(img.name || '')}">${escapeHtml(labels.get(smartMediaRefKey(img)) || img.alias)}</span>
+            </button>`;
+    const body = !candidates.length ? `<div class="mention-empty">${escapeHtml(tr('smart.mentionEmpty'))}</div>` : smartTypedVideoInputs()
+        ? ['image','audio','video'].map(kind => {
+            const items = candidates.map((img,i) => ({img,i})).filter(({img}) => mediaKindForItem(img) === kind);
+            return items.length ? `<section class="mention-media-group mention-media-group-${kind}"><div class="smart-ref-heading">${{image:'图片',audio:'音频',video:'视频'}[kind]}</div><div class="mention-option-grid">${items.map(({img,i}) => optionHtml(img,i)).join('')}</div></section>` : '';
+        }).join('') : `<div class="mention-option-grid">${candidates.map(optionHtml).join('')}</div>`;
     const librarySelect = (mentionSource === 'asset' && assetLibs.length)
         ? `<label class="mention-library-row"><span>${escapeHtml(tr('smart.assetLibrary'))}</span><select class="mention-library-select" data-mention-library>${assetLibs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === activeAssetLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('')}</select></label>`
         : '';
@@ -11171,11 +11308,15 @@ function insertMentionToken(img){
     if(!img?.url) return;
     promptInput.focus();
     const sel = window.getSelection();
-    if(mentionRange){
+    if(mentionRange && promptInput.contains(mentionRange.commonAncestorContainer)){
         sel.removeAllRanges();
         sel.addRange(mentionRange);
     }
-    const range = sel.rangeCount ? sel.getRangeAt(0) : document.createRange();
+    const range = sel.rangeCount && promptInput.contains(sel.getRangeAt(0).commonAncestorContainer) ? sel.getRangeAt(0) : document.createRange();
+    if(!promptInput.contains(range.commonAncestorContainer)){
+        range.selectNodeContents(promptInput);
+        range.collapse(false);
+    }
     let removedAt = false;
     if(range.startContainer?.nodeType === Node.TEXT_NODE && range.startOffset > 0){
         const text = range.startContainer.textContent || '';
@@ -11204,9 +11345,7 @@ function insertMentionToken(img){
     token.dataset.nodeId = img.nodeId || '';
     token.dataset.imageIndex = String(img.imageIndex ?? '');
     token.dataset.assetUris = JSON.stringify(img.asset_uris || {});
-    token.innerHTML = token.dataset.kind === 'video'
-        ? `${smartVideoPreviewHtml(img, 256, 'alt=""')}<span>${escapeHtml(token.dataset.name)}</span>`
-        : `${smartPreviewImgHtml(img, 256, 'alt=""')}<span>${escapeHtml(token.dataset.name)}</span>`;
+    token.innerHTML = `${smartReferencePreviewHtml(img)}<span>${escapeHtml(img.referenceLabel || token.dataset.name)}</span>`;
     range.insertNode(token);
     bindSmartPreviewImageFallbacks(token);
     const spacer = document.createTextNode(' ');
@@ -11230,7 +11369,9 @@ function collectPromptParts(){
         if(node.classList?.contains('mention-image-token')){
             let assetUris = {};
             try { assetUris = JSON.parse(node.dataset.assetUris || '{}') || {}; } catch(e) { assetUris = {}; }
-            parts.push({type:'image', url:node.dataset.url || '', name:node.dataset.name || '图片', nodeId:node.dataset.nodeId || '', imageIndex:Number(node.dataset.imageIndex || 0), asset_uris:assetUris});
+            const owner = nodes.find(item => item.id === node.dataset.nodeId);
+            const original = owner?.images?.find(item => item.url === node.dataset.url || item.originalLocalUrl === node.dataset.url);
+            parts.push({...original, type:'image', kind:original?.kind || node.dataset.kind || '', url:node.dataset.url || '', name:node.dataset.name || '图片', nodeId:node.dataset.nodeId || '', imageIndex:Number(node.dataset.imageIndex || 0), asset_uris:{...original?.asset_uris, ...assetUris}});
             return;
         }
         if(node.tagName === 'BR') parts.push({type:'text', text:'\n'});
@@ -11253,6 +11394,13 @@ function originalPromptTextFromParts(parts){
 }
 function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=false, ctx=smartLoopContext){
     const parts = collectPromptParts();
+    if(smartTypedVideoInputs()){
+        const base = Array.isArray(overrideDefaultImages) ? overrideDefaultImages : defaultReferenceImagesFor(node, consumeDefault, ctx);
+        const plan = smartMediaReferencePlan(node, base, parts);
+        if(plan.invalid.length) throw new Error('存在失效的素材引用，请重新选择：' + plan.invalid.map(ref => ref.name || '素材').join('、'));
+        const body = parts.map(part => part.type === 'text' ? part.text : plan.aliases.get(smartMediaRefKey(part)) || '').join('');
+        return {prompt:[inputPromptTextFor(node, ctx).trim(), body.trim()].filter(Boolean).join('\n\n'), displayPrompt:originalPromptTextFromParts(parts), refs:plan.refs, mentioned:parts.some(part => part.type === 'image')};
+    }
     const originalPrompt = originalPromptTextFromParts(parts);
     const blockedRefs = blockedInputRefKeys(node);
     const hasOverrideImages = Array.isArray(overrideDefaultImages);
@@ -11278,7 +11426,7 @@ function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=fal
         }
         if(!refMap.has(part.url)){
             refMap.set(part.url, refs.length + 1);
-            refs.push({url:part.url, name:part.name || `图${refs.length + 1}`, nodeId:part.nodeId, imageIndex:part.imageIndex, role:`image_${refs.length + 1}`});
+            refs.push({...part, name:part.name || `图${refs.length + 1}`, role:`image_${refs.length + 1}`});
         }
         body += `图${refMap.get(part.url)}`;
     });
@@ -11291,14 +11439,14 @@ function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=fal
         return {
             prompt:`${tr('smart.refMapHeader')}\n${mapText}\n\n${tr('smart.refUserNeed')}\n${body}`,
             displayPrompt,
-            refs:refs.map((img, index) => ({url:img.url, name:img.name || `图${index + 1}`, role:`image_${index + 1}`})),
+            refs:refs.map((img, index) => ({...img, name:img.name || `图${index + 1}`, role:`image_${index + 1}`})),
             mentioned:true
         };
     }
     return {
         prompt:body,
         displayPrompt,
-        refs:refs.map((img, index) => ({url:img.url, name:img.name || `图${index + 1}`, role:`image_${index + 1}`})),
+        refs:refs.map((img, index) => ({...img, name:img.name || `图${index + 1}`, role:`image_${index + 1}`})),
         mentioned:false
     };
 }
@@ -12221,11 +12369,9 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
     const refsForRequest = sourceRefs.length
         ? sourceRefs
         : (inputRefs && inputRefs.length ? inputRefs : null);
-    const request = buildPromptRequestForNode(
-        requestNode,
-        refsForRequest,
-        ctx
-    );
+    let request;
+    try { request = buildPromptRequestForNode(requestNode, refsForRequest, ctx); }
+    catch(error){ settings = previousSettings; throw error; }
     const prompt = (request.prompt || '').trim();
     const displayPrompt = (request.displayPrompt || '').trim();
     if((!prompt || !displayPrompt) && smartRunNeedsPrompt(runSettings)){
@@ -12235,8 +12381,8 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
     const meta = {
         prompt,
         displayPrompt:request.displayPrompt || '',
-        promptRefs:(request.refs || []).map(ref => ({url:ref.url || '', name:ref.name || '', nodeId:ref.nodeId || '', imageIndex:ref.imageIndex ?? ''})).filter(ref => ref.url),
-        inputRefs:(request.refs || []).map(ref => ({url:ref.url || '', name:ref.name || '', nodeId:ref.nodeId || '', imageIndex:ref.imageIndex ?? '', kind:ref.kind || ''})).filter(ref => ref.url),
+        promptRefs:(request.refs || []).map(ref => ({...ref})).filter(ref => ref.url),
+        inputRefs:(request.refs || []).map(ref => ({...ref})).filter(ref => ref.url),
         sourceNodeId:sourceNode.id,
         settings:JSON.parse(JSON.stringify(runSettings)),
         createdAt:Date.now()
@@ -12335,8 +12481,8 @@ async function runLoopRoundIntoSlot(loopNode, rootNode, outputSlot, loopIndex, c
         const meta = {
             prompt,
             displayPrompt:request.displayPrompt || '',
-            promptRefs:(request.refs || []).map(ref => ({url:ref.url || '', name:ref.name || '', nodeId:ref.nodeId || '', imageIndex:ref.imageIndex ?? ''})).filter(ref => ref.url),
-            inputRefs:(request.refs || []).map(ref => ({url:ref.url || '', name:ref.name || '', nodeId:ref.nodeId || '', imageIndex:ref.imageIndex ?? '', kind:ref.kind || ''})).filter(ref => ref.url),
+            promptRefs:(request.refs || []).map(ref => ({...ref})).filter(ref => ref.url),
+            inputRefs:(request.refs || []).map(ref => ({...ref})).filter(ref => ref.url),
             sourceNodeId:rootNode.id,
             settings:JSON.parse(JSON.stringify(runSettings)),
             createdAt:Date.now()
@@ -12701,13 +12847,15 @@ function runSmartCascadeFromLoop(loopId){
 async function runGeneration(){
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();
-    const request = buildPromptRequest(node, null, true, smartLoopContext);
-    const prompt = request.prompt.trim();
     if(!node) return;
-    const refs = request.refs;
     const previousSettings = cloneSmartSettings(settings);
     const runSettings = smartSettingsForNode(node);
     settings = {...settings, ...cloneSmartSettings(runSettings || {})};
+    let request;
+    try { request = buildPromptRequest(node, null, true, smartLoopContext); }
+    catch(error){ settings = previousSettings; toast(error.message || '素材引用无效'); return; }
+    const prompt = request.prompt.trim();
+    const refs = request.refs;
     if(!prompt && smartRunNeedsPrompt(settings)){
         settings = previousSettings;
         toast(tr('smart.toastNeedPrompt'));
@@ -14511,6 +14659,8 @@ promptInput.addEventListener('keydown', event => {
 promptInput.addEventListener('mouseover', event => {
     const token = event.target.closest?.('.mention-image-token');
     if(!token) return;
+    // Reference chips never create hover video/audio decoders. Play in the lightbox.
+    if(smartTypedVideoInputs() || token.dataset.kind === 'audio' || String(token.dataset.url || '').startsWith('asset://')) return;
     let media = mentionPreview.querySelector('img,video');
     const isVideo = token.dataset.kind === 'video' || isVideoMediaItem({url:token.dataset.url, kind:token.dataset.kind});
     if(isVideo && media?.tagName?.toLowerCase() !== 'video'){
