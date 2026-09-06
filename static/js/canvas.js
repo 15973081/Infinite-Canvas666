@@ -1018,6 +1018,7 @@ const activeCanvasTaskPolls = new Set();
 let hoveredConnectionId = '';
 let connectionHoverFrame = null;
 let pendingConnectionHover = null;
+const renderedCanvasLinks = new Map();
 let lastMouseBoard = {x: 0, y: 0};
 let undoStack = [];
 let redoStack = [];
@@ -1863,6 +1864,7 @@ function setCanvasMode(open){
         minimapState = null;
         minimapLayoutDirty = true;
         clearConnectionHover();
+        renderedCanvasLinks.clear();
         clearLocalCanvasLock();
         nodesEl.innerHTML = '';
         linksEl.innerHTML = '';
@@ -2007,20 +2009,25 @@ function centerViewportOnWorldPoint(point){
     renderLinks();
     renderSelectionHub();
 }
-function refreshGeometry(){
-    renderLinks();
+function refreshGeometry(nodeIds=null){
+    renderLinks(nodeIds);
     renderSelectionHub();
 }
 let geometryRefreshFrame = null;
 let geometryRefreshPasses = 0;
-function scheduleGeometryRefresh(passes=1){
+let geometryRefreshAll = false;
+const geometryRefreshNodes = new Set();
+function scheduleGeometryRefresh(passes=1, nodeIds=null){
+    if(nodeIds === null) geometryRefreshAll = true;
+    else for(const id of nodeIds) geometryRefreshNodes.add(id);
     geometryRefreshPasses = Math.max(geometryRefreshPasses, passes);
     if(geometryRefreshFrame !== null) return;
     geometryRefreshFrame = requestAnimationFrame(() => {
         geometryRefreshFrame = null;
         geometryRefreshPasses--;
-        refreshGeometry();
-        if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses);
+        refreshGeometry(geometryRefreshAll ? null : geometryRefreshNodes);
+        if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses, geometryRefreshAll ? null : geometryRefreshNodes);
+        else { geometryRefreshAll = false; geometryRefreshNodes.clear(); }
     });
 }
 function flushScheduledGeometryRefresh(){
@@ -2028,8 +2035,9 @@ function flushScheduledGeometryRefresh(){
     cancelAnimationFrame(geometryRefreshFrame);
     geometryRefreshFrame = null;
     geometryRefreshPasses--;
-    refreshGeometry();
-    if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses);
+    refreshGeometry(geometryRefreshAll ? null : geometryRefreshNodes);
+    if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses, geometryRefreshAll ? null : geometryRefreshNodes);
+    else { geometryRefreshAll = false; geometryRefreshNodes.clear(); }
 }
 function refreshGeometryAfterLayout(){
     // Coalesce image/node layout notifications, retaining the second-frame correction.
@@ -14309,7 +14317,7 @@ function onNodeDrag(e){
         }
     });
     // Keep model coordinates synchronous; only defer the expensive shared drawing.
-    scheduleGeometryRefresh();
+    scheduleGeometryRefresh(1, [dragNode.node.id, ...(dragNode.children || []).map(child => child.node.id)]);
     if(workflowTransferModal?.classList.contains('open')) updateWorkflowTransferMeta();
     scheduleMinimapRender();
 }
@@ -14345,7 +14353,7 @@ function onNodeResize(e){
         el.style.width = `${resizeNode.node.w}px`;
         el.style.height = `${resizeNode.node.h}px`;
     }
-    scheduleGeometryRefresh();
+    scheduleGeometryRefresh(1, [resizeNode.node.id]);
     scheduleMinimapRender();
 }
 function startLink(e, originId, originKind){
@@ -14590,17 +14598,49 @@ function portPoint(id, kind, nodeById=null){
     const w = el.offsetWidth || n.w || 260, h = el.offsetHeight || n.h || 160;
     return kind === 'out' ? {x:n.x + w, y:n.y + h / 2} : {x:n.x, y:n.y + h / 2};
 }
-function renderLinks(){
-    linksEl.innerHTML = '';
-    linkControlsEl.innerHTML = '';
+function renderLinks(nodeIds=null){
+    const dirty = nodeIds === null ? null : new Set(nodeIds);
     const nodeById = new Map(nodes.map(node => [node.id, node]));
+    const points = {in:new Map(), out:new Map()};
+    const pointFor = (id, kind) => {
+        if(!points[kind].has(id)) points[kind].set(id, portPoint(id, kind, nodeById));
+        return points[kind].get(id);
+    };
+    const liveIds = new Set();
     connections.forEach(c => {
-        const a = portPoint(c.from, 'out', nodeById), b = portPoint(c.to, 'in', nodeById);
-        linksEl.appendChild(pathEl(a.x, a.y, b.x, b.y, 'link'));
-        const btn = linkDeleteButton(c, a, b);
-        linkControlsEl.appendChild(btn);
-        linksEl.appendChild(linkHitEl(a.x, a.y, b.x, b.y, c.id));
+        liveIds.add(c.id);
+        let entry = renderedCanvasLinks.get(c.id);
+        if(entry && (entry.path.parentNode !== linksEl || entry.hit.parentNode !== linksEl || entry.button.parentNode !== linkControlsEl)){
+            entry.path.remove(); entry.hit.remove(); entry.button.remove();
+            entry = null;
+        }
+        if(entry && dirty && entry.from === c.from && entry.to === c.to && !dirty.has(c.from) && !dirty.has(c.to)) return;
+        const a = pointFor(c.from, 'out'), b = pointFor(c.to, 'in');
+        if(!entry){
+            entry = {path:pathEl(a.x, a.y, b.x, b.y, 'link'), hit:linkHitEl(a.x, a.y, b.x, b.y, c.id), button:linkDeleteButton(c, a, b)};
+            entry.path.dataset.connectionId = c.id;
+            linksEl.appendChild(entry.path);
+            linksEl.appendChild(entry.hit);
+            linkControlsEl.appendChild(entry.button);
+            renderedCanvasLinks.set(c.id, entry);
+        } else {
+            const d = connectionPathData(a.x, a.y, b.x, b.y);
+            entry.path.setAttribute('d', d);
+            entry.hit.setAttribute('d', d);
+            entry.button.style.left = `${(a.x + b.x) / 2}px`;
+            entry.button.style.top = `${(a.y + b.y) / 2}px`;
+            entry.button.classList.toggle('visible', isConnectionSelected(c));
+            entry.button.classList.toggle('hover', hoveredConnectionId === c.id);
+        }
+        entry.from = c.from;
+        entry.to = c.to;
     });
+    for(const [id, entry] of renderedCanvasLinks){
+        if(liveIds.has(id)) continue;
+        entry.path.remove(); entry.hit.remove(); entry.button.remove();
+        renderedCanvasLinks.delete(id);
+    }
+    linksEl.querySelectorAll('.temp, .knife-trail').forEach(el => el.remove());
     if(tempLink){
         linksEl.appendChild(pathEl(tempLink.x1, tempLink.y1, tempLink.x2, tempLink.y2, 'link temp'));
     }
@@ -14725,10 +14765,13 @@ function refreshSelectionVisuals(){
     if(workflowTransferModal?.classList.contains('open')) updateWorkflowTransferMeta();
     scheduleMinimapRender();
 }
+function connectionPathData(x1,y1,x2,y2){
+    const dx = Math.max(80, Math.abs(x2 - x1) * .45);
+    return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+}
 function pathEl(x1,y1,x2,y2,cls){
     const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-    const dx = Math.max(80, Math.abs(x2 - x1) * .45);
-    p.setAttribute('d', `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
+    p.setAttribute('d', connectionPathData(x1,y1,x2,y2));
     p.setAttribute('class', cls);
     return p;
 }

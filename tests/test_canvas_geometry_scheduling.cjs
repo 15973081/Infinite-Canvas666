@@ -18,6 +18,7 @@ function setup() {
     const calls = {links: 0, selection: 0, save: 0, render: 0};
     const context = vm.createContext({
         geometryRefreshFrame: null, geometryRefreshPasses: 0,
+        geometryRefreshAll: false, geometryRefreshNodes: new Set(),
         canvas: {}, viewport: {scale: 2},
         knifeActive: false, knifePoint: null, knifeTrail: [], knifeChanged: false, knifeNeedsRender: false,
         dragNode: null, resizeNode: null, dragBoard: null, minimapDrag: null, llmPaneDrag: null,
@@ -47,6 +48,21 @@ function setup() {
         current.forEach(([, callback]) => callback());
     }};
 }
+
+test('partial scopes merge and a full correction cannot be downgraded by later drags', () => {
+    const {context, tick} = setup(), scopes=[];
+    context.renderLinks = ids => scopes.push(ids === null ? null : [...ids]);
+    context.scheduleGeometryRefresh(1, ['a']);
+    context.scheduleGeometryRefresh(1, ['b']);
+    tick(); assert.deepEqual(scopes.pop(), ['a','b']);
+    context.scheduleGeometryRefresh(1, ['a']);
+    context.refreshGeometryAfterLayout();
+    context.scheduleGeometryRefresh(1, ['b']);
+    tick(); tick(); assert.deepEqual(scopes, [null,null]);
+    context.scheduleGeometryRefresh(1, ['c']);
+    context.flushScheduledGeometryRefresh();
+    assert.deepEqual(scopes.pop(), ['c']);
+});
 
 test('120 inactive knife exits do not rebuild links; a real exit still cleans up once', () => {
     const {context, calls, classes} = setup();
