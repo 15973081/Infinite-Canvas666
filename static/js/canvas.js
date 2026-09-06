@@ -1016,6 +1016,8 @@ let managerSelectedPromptIds = new Set();
 let activeCanvasWorkflowCategoryId = '';
 const activeCanvasTaskPolls = new Set();
 let hoveredConnectionId = '';
+let connectionHoverFrame = null;
+let pendingConnectionHover = null;
 let lastMouseBoard = {x: 0, y: 0};
 let undoStack = [];
 let redoStack = [];
@@ -1860,6 +1862,7 @@ function setCanvasMode(open){
     if(!open){
         minimapState = null;
         minimapLayoutDirty = true;
+        clearConnectionHover();
         clearLocalCanvasLock();
         nodesEl.innerHTML = '';
         linksEl.innerHTML = '';
@@ -14641,9 +14644,14 @@ function setHoveredConnection(id){
         if(btn) btn.classList.add('hover');
     }
 }
-function connectionDistanceToPoint(connection, point){
-    const from = portPoint(connection.from, 'out');
-    const to = portPoint(connection.to, 'in');
+function connectionDistanceToPoint(connection, point, from=portPoint(connection.from, 'out'), to=portPoint(connection.to, 'in'), maxDistance=Infinity){
+    // A Bezier curve (and its sampled segments) stays inside its control-point bounds.
+    // Include both control points: short/backward links can bend beyond their endpoints.
+    const dx = Math.max(80, Math.abs(to.x - from.x) * .45);
+    if(point.x < Math.min(from.x, from.x + dx, to.x - dx, to.x) - maxDistance
+        || point.x > Math.max(from.x, from.x + dx, to.x - dx, to.x) + maxDistance
+        || point.y < Math.min(from.y, to.y) - maxDistance
+        || point.y > Math.max(from.y, to.y) + maxDistance) return Infinity;
     let min = Infinity;
     let prev = cubicPoint(from, to, 0);
     for(let i = 1; i <= 28; i++){
@@ -14652,6 +14660,27 @@ function connectionDistanceToPoint(connection, point){
         prev = cur;
     }
     return min;
+}
+function clearConnectionHover(){
+    if(connectionHoverFrame !== null) cancelAnimationFrame(connectionHoverFrame);
+    connectionHoverFrame = null;
+    pendingConnectionHover = null;
+    setHoveredConnection('');
+}
+function scheduleConnectionHover(e){
+    if(!canvas || tempLink || dragNode || dragBoard || resizeNode || knifeActive){
+        clearConnectionHover();
+        return;
+    }
+    pendingConnectionHover = {clientX:e.clientX, clientY:e.clientY, canvasId:canvas.id};
+    if(connectionHoverFrame !== null) return;
+    connectionHoverFrame = requestAnimationFrame(() => {
+        connectionHoverFrame = null;
+        const latest = pendingConnectionHover;
+        pendingConnectionHover = null;
+        if(latest && canvas?.id === latest.canvasId) updateConnectionHoverFromMouse(latest);
+        else setHoveredConnection('');
+    });
 }
 function updateConnectionHoverFromMouse(e){
     if(!canvas || tempLink || dragNode || dragBoard || resizeNode || knifeActive){
@@ -14663,12 +14692,23 @@ function updateConnectionHoverFromMouse(e){
         setHoveredConnection(button.dataset.connectionId);
         return;
     }
+    if(!connections.length){
+        setHoveredConnection('');
+        return;
+    }
     const point = screenToWorld(e.clientX, e.clientY);
     const threshold = Math.max(12, 16 / viewport.scale);
     let bestId = '';
     let best = Infinity;
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
+    const portPoints = {in:new Map(), out:new Map()};
+    const pointFor = (id, kind) => {
+        const cache = portPoints[kind];
+        if(!cache.has(id)) cache.set(id, portPoint(id, kind, nodeById));
+        return cache.get(id);
+    };
     connections.forEach(c => {
-        const d = connectionDistanceToPoint(c, point);
+        const d = connectionDistanceToPoint(c, point, pointFor(c.from, 'out'), pointFor(c.to, 'in'), threshold);
         if(d < best){ best = d; bestId = c.id; }
     });
     setHoveredConnection(best <= threshold ? bestId : '');
@@ -14891,14 +14931,14 @@ board.onmousedown = e => {
 board.addEventListener('mousemove', e => {
     const point = screenToWorld(e.clientX, e.clientY);
     lastMouseBoard = point;
-    updateConnectionHoverFromMouse(e);
+    scheduleConnectionHover(e);
     if(canvas && knifeActive && !isEditableTarget(e.target) && !dragNode && !dragBoard && !resizeNode && !tempLink){
         continueKnifeDrag(e);
     } else if(!e.shiftKey) {
         setKnifeMode(false);
     }
 });
-board.addEventListener('mouseleave', () => setHoveredConnection(''));
+board.addEventListener('mouseleave', clearConnectionHover);
 board.ondblclick = null;
 board.oncontextmenu = e => {
     if(!canvas) return;

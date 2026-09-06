@@ -191,7 +191,7 @@ test('the real ordinary-mousemove handler does not redraw when the knife is inac
     let move;
     context.board = {addEventListener(event, handler) { if (event === 'mousemove') move = handler; }};
     context.screenToWorld = (x, y) => ({x, y});
-    context.updateConnectionHoverFromMouse = () => {};
+    context.scheduleConnectionHover = () => {};
     context.isEditableTarget = () => false;
     const start = source.indexOf("board.addEventListener('mousemove', e => {");
     vm.runInContext(source.slice(start, source.indexOf('\n});', start) + 4), context);

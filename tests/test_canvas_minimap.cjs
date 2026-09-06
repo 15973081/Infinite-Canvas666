@@ -180,6 +180,7 @@ test('leaving the canvas releases cached node-array references', () => {
     context.renderMinimap();
     context.shell = {classList: {toggle() {}}};
     context.clearLocalCanvasLock = () => {};
+    context.clearConnectionHover = () => {};
     context.linksEl = {};
     context.linkControlsEl = {};
     context.selectionHub = {classList: {remove() {}}};
