@@ -36,7 +36,7 @@ function setup() {
         requestAnimationFrame(callback) { frames.set(++frameId, callback); return frameId; },
         cancelAnimationFrame(id) { frames.delete(id); },
         renderLinks() { calls.links++; }, renderSelectionHub() { calls.selection++; },
-        scheduleMinimapRender() {}, updateWorkflowTransferMeta() {}, updateGroupMembership() {},
+        scheduleMinimapRender() {}, scheduleViewportRefresh() {}, updateWorkflowTransferMeta() {}, updateGroupMembership() {},
         endWindowPointerSession() {}, scheduleSave() { calls.save++; }, scheduleViewportSave() {},
         render() { calls.render++; }, defaultNodeSize() { return {w: 260, h: 160}; },
     });

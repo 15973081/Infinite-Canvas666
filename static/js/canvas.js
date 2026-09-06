@@ -677,6 +677,7 @@ function canvasVideoFallbackHtml(url){
     return `<button type="button" class="canvas-video-fallback" data-url="${safe}" aria-label="打开视频灯箱"><i data-lucide="play"></i><span>VIDEO</span><small>点击打开灯箱</small></button>`;
 }
 function isCanvasPreviewImage(img){
+    if(img?.dataset?.canvasMediaSuspended) return true;
     return img?.tagName?.toLowerCase?.() === 'img'
         && img.dataset?.previewSrc
         && img.dataset?.originalSrc
@@ -687,6 +688,8 @@ function bindCanvasPreviewImageFallbacks(root=document){
     root.querySelectorAll?.('img[data-preview-src][data-original-src]:not([data-preview-fallback-bound])').forEach(img => {
         img.dataset.previewFallbackBound = '1';
         img.addEventListener('error', () => {
+            // Removing an offscreen source must not fetch the original or replace its poster.
+            if(img.dataset.canvasMediaSuspended) return;
             const original = img.dataset.originalSrc || img.dataset.url || '';
             if(img.dataset.previewKind === 'video'){
                 const outputWrap = img.closest('.output-img-wrap');
@@ -1019,6 +1022,7 @@ let hoveredConnectionId = '';
 let connectionHoverFrame = null;
 let pendingConnectionHover = null;
 const renderedCanvasLinks = new Map();
+const suspendedCanvasPreviewImages = new WeakMap();
 let lastMouseBoard = {x: 0, y: 0};
 let undoStack = [];
 let redoStack = [];
@@ -1181,6 +1185,7 @@ function scheduleViewportRefresh(delay=200){
         pendingViewportRefresh = null;
         // 只刷新视野外变视野内的节点内容，不触发全量 render
         renderOffscreenPlaceholders();
+        refreshCanvasMediaVisibility();
         // Reconcile dynamic node sizes once navigation settles, not on every wheel event.
         scheduleMinimapRender();
     }, delay);
@@ -6662,6 +6667,65 @@ function renderOffscreenPlaceholders(){
     refreshGeometryAfterLayout();
 }
 
+function suspendCanvasPreviewImage(img){
+    if(suspendedCanvasPreviewImages.has(img)) return false;
+    const src = img.getAttribute('src');
+    // Do not interrupt pending/failed requests or their normal fallback handling.
+    if(!src || !img.complete || !img.naturalWidth) return false;
+    const width = img.offsetWidth, height = img.offsetHeight;
+    if(!width || !height) return false;
+    const state = {src, srcset:img.getAttribute('srcset'), width:img.style.width, height:img.style.height, visibility:img.style.visibility};
+    suspendedCanvasPreviewImages.set(img, state);
+    img.style.width = `${width}px`;
+    img.style.height = `${height}px`;
+    img.style.visibility = 'hidden';
+    img.dataset.canvasMediaSuspended = '1';
+    img.removeAttribute('srcset');
+    img.removeAttribute('src');
+    return true;
+}
+function restoreCanvasPreviewImage(img){
+    const state = suspendedCanvasPreviewImages.get(img);
+    if(!state) return false;
+    suspendedCanvasPreviewImages.delete(img);
+    delete img.dataset.canvasMediaSuspended;
+    img.style.width = state.width;
+    img.style.height = state.height;
+    img.style.visibility = state.visibility;
+    if(state.srcset !== null) img.setAttribute('srcset', state.srcset);
+    img.setAttribute('src', state.src);
+    return true;
+}
+function refreshCanvasMediaVisibility(){
+    if(!canvas || !nodesEl) return;
+    // Navigation/interaction must settle before releasing anything.
+    if(dragNode || resizeNode || dragBoard || minimapDrag || selectDrag || tempLink || knifeActive || internalDrag) return;
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
+    const protectedIds = new Set(selected);
+    for(const id of selected){
+        const node = nodeById.get(id);
+        if(node?.type === 'group') (node.items || []).forEach(childId => protectedIds.add(childId));
+    }
+    let restored = false;
+    nodesEl.querySelectorAll('.image-node:not(.node-placeholder)').forEach(el => {
+        const node = nodeById.get(el.dataset.id);
+        if(!node || node.type !== 'image' || !['image','video'].includes(mediaKindForNode(node))) return;
+        const protectedNode = protectedIds.has(node.id) || node.running || node._pending?.length
+            || cascadeRunningNodeIds.has(node.id) || ['running','queued'].includes(node.runStatus)
+            || el.contains(document.activeElement) || el.querySelector('video, audio, [data-dragging]')
+            || cropState?.nodeId === node.id || currentOutputLightboxOutId === node.id
+            || (currentOutputLightboxUrl && currentOutputLightboxUrl === node.url);
+        const enter = protectedNode || isNodeInCanvasViewport(node, 400);
+        const release = !enter && !isNodeInCanvasViewport(node, 800);
+        if(!enter && !release) return;
+        el.querySelectorAll('.image-preview-wrap img').forEach(img => {
+            if(enter) restored = restoreCanvasPreviewImage(img) || restored;
+            else suspendCanvasPreviewImage(img);
+        });
+    });
+    if(restored) refreshGeometryAfterLayout();
+}
+
 function render(){
     const outputScrolls = captureOutputScrolls();
     const mediaStates = captureMediaPlaybackStates();
@@ -6979,8 +7043,13 @@ function renderNode(node){
             body.addEventListener('dblclick', openPreview, true);
             if(loadedImg && loadedImg.complete && loadedImg.naturalHeight > 0){
                 scheduleGeometryRefresh();
-            } else if(loadedImg) {
-                loadedImg.onload = () => refreshGeometryAfterLayout();
+            }
+            if(loadedImg) {
+                loadedImg.onload = () => {
+                    if(loadedImg.dataset.canvasMediaSuspended) return;
+                    refreshGeometryAfterLayout();
+                    scheduleViewportRefresh();
+                };
             }
         } else {
         body.innerHTML = `<div class="blank-image"><i data-lucide="image-plus" class="w-7 h-7"></i><div class="text-[11px] font-bold">${tr('canvas.clickDragPasteImage')}</div></div>`;
@@ -14551,6 +14620,7 @@ function endDrag(event=null){
     scheduleMinimapRender();
     if(hadContentDrag) scheduleSave();
     else if(hadViewportDrag) scheduleViewportSave();
+    if(hadContentDrag) scheduleViewportRefresh();
 }
 function nodeRect(n){
     const el = nodesEl.querySelector(`.node[data-id="${n.id}"]`);
