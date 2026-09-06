@@ -9689,7 +9689,7 @@ function renderVideoImageInputs(list, node, imageInputs){
             const name = `<span class="media-reference-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>`;
             const previewButton = `<button type="button" class="media-reference-preview" title="${unavailable ? '该素材暂不支持预览' : `预览${referenceLabel}`}" aria-label="预览${referenceLabel}" ${unavailable ? 'disabled' : ''}><i data-lucide="${kind === 'image' ? 'maximize-2' : 'play'}"></i></button>`;
             if(kind === 'audio'){
-                item.innerHTML = `${previewButton}<div class="media-reference-copy"><div class="media-reference-name-row">${referenceButton}${name}</div><div class="media-reference-audio-detail"><span>${escapeHtml(audioFormatLabel(label, ref.url))}</span>${audioWaveformSvg('media-reference-waveform')}</div></div>`;
+                item.innerHTML = `${previewButton}${referenceButton}${name}`;
             } else {
                 const preview = unavailable
                     ? `<div class="media-reference-placeholder"><i data-lucide="${kind === 'video' ? 'clapperboard' : 'image'}"></i></div>`
