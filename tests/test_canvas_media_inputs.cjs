@@ -30,7 +30,7 @@ function setup(){
     const noop = () => {};
     const ctx = loadFunctions(functions, {
         nodes:[node], generatorSources:() => sources, isVideoUrl:url => /\.mp4$/.test(url),
-        render:noop, scheduleSave:noop, cascadeTargetIdFromOptions:()=>'',
+        render:noop, refreshGeneratorInputViews:noop, refreshGeometryAfterLayout:noop, scheduleSave:noop, cascadeTargetIdFromOptions:()=>'',
         resolveVideoProviderId:id=>id, apiProviders:[], canvasAvatarPlatform:()=> 'volcengine',
         applyUploadedUrlToRefs:refs=>refs, tempShUploadedUrlForNode:(_node,url)=>url,
         outputForNode:()=>null, runSnapshot:()=>({}), refreshRunNodes:noop,

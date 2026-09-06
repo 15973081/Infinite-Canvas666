@@ -4751,7 +4751,8 @@ async function setCanvasManualVideoUrl(nodeId){
     const url = String(value || '').trim();
     if(!url){
         clearManualVideoUrlForNode(node);
-        refreshNodes([node.id]);
+        refreshGeneratorInputViews([node.id]);
+        refreshGeometryAfterLayout();
         scheduleSave();
         showErrorModal('已清除手动网址。', '输入网址');
         return '';
@@ -4761,7 +4762,8 @@ async function setCanvasManualVideoUrl(nodeId){
         return '';
     }
     applyManualVideoUrlToCanvasRef(node, firstAny, url);
-    refreshNodes([node.id, firstAny?.nodeId].filter(Boolean));
+    refreshGeneratorInputViews([node.id]);
+    refreshGeometryAfterLayout();
     scheduleSave();
     showErrorModal('已设置视频网址。', '输入网址');
     return url;
@@ -8672,9 +8674,13 @@ function applyPromptTemplateToPromptNode(mode='positive'){
     node.text = canvasPromptTemplateText(template, mode);
     closePromptTemplateModal();
     scheduleSave();
+    const body = nodesEl.querySelector(`.node[data-id="${CSS.escape(node.id)}"] .node-body`);
+    const textarea = body?.querySelector('textarea');
+    if(textarea) textarea.value = node.text;
+    if(body) refreshPromptCounter(body, node.text);
     syncGeneratorInputs();
     refreshGeneratorInputViews();
-    render();
+    refreshGeometryAfterLayout();
 }
 function renderLoopBody(node){
     const wrap = document.createElement('div');
@@ -10385,7 +10391,8 @@ function reorderInput(gen, movedId, targetId){
     if(from < 0 || to < 0) return;
     ids.splice(to, 0, ids.splice(from, 1)[0]);
     gen.inputs = [...ids, ...promptIds];
-    render();
+    refreshGeneratorInputViews([gen.id]);
+    refreshGeometryAfterLayout();
     scheduleSave();
 }
 function syncGeneratorInputs(){
@@ -10394,8 +10401,9 @@ function syncGeneratorInputs(){
         if(gen.type === 'ltxDirector') ltxSyncConnectedImagesToTimeline(gen);
     });
 }
-function refreshGeneratorInputViews(){
-    nodes.filter(n => CANVAS_GENERATOR_TYPES.includes(n.type)).forEach(gen => {
+function refreshGeneratorInputViews(ids=null){
+    const scope = ids === null ? null : new Set(ids);
+    nodes.filter(n => CANVAS_GENERATOR_TYPES.includes(n.type) && (!scope || scope.has(n.id))).forEach(gen => {
         const el = nodesEl.querySelector(`.node[data-id="${gen.id}"]`);
         if(!el || el.classList.contains('node-placeholder')) return;
         const sources = orderedSources(gen, generatorSources(gen));
