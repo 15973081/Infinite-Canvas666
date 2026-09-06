@@ -885,6 +885,7 @@ let dragBoard = null;
 let minimapDrag = false;
 let minimapState = null;
 let minimapRenderQueued = false;
+let minimapLayoutDirty = true;
 let resizeNode = null;
 let llmPaneDrag = null;
 let tempLink = null;
@@ -1177,6 +1178,8 @@ function scheduleViewportRefresh(delay=200){
         pendingViewportRefresh = null;
         // 只刷新视野外变视野内的节点内容，不触发全量 render
         renderOffscreenPlaceholders();
+        // Reconcile dynamic node sizes once navigation settles, not on every wheel event.
+        scheduleMinimapRender();
     }, delay);
 }
 
@@ -1855,6 +1858,8 @@ function refreshGateViewControls(){
 function setCanvasMode(open){
     shell.classList.toggle('no-canvas', !open);
     if(!open){
+        minimapState = null;
+        minimapLayoutDirty = true;
         clearLocalCanvasLock();
         nodesEl.innerHTML = '';
         linksEl.innerHTML = '';
@@ -1894,9 +1899,9 @@ function screenToWorld(clientX, clientY){
     const rect = board.getBoundingClientRect();
     return { x:(clientX - rect.left - viewport.x) / viewport.scale, y:(clientY - rect.top - viewport.y) / viewport.scale };
 }
-function applyViewport(){
+function applyViewport({viewportOnly=false}={}){
     world.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`;
-    scheduleMinimapRender();
+    scheduleMinimapRender({viewportOnly});
 }
 function estimatedNodeRect(n){
     const el = nodesEl?.querySelector?.(`.node[data-id="${CSS.escape(n.id)}"]`);
@@ -1915,10 +1920,8 @@ function currentWorldViewRect(){
         h:rect.height / scale
     };
 }
-function minimapBounds(){
-    const rects = (nodes || []).map(estimatedNodeRect);
-    rects.push(currentWorldViewRect());
-    if(!rects.length) return {x:0, y:0, w:1000, h:700};
+function minimapNodeBounds(rects){
+    if(!rects.length) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     rects.forEach(r => {
         minX = Math.min(minX, r.x);
@@ -1926,39 +1929,59 @@ function minimapBounds(){
         maxX = Math.max(maxX, r.x + r.w);
         maxY = Math.max(maxY, r.y + r.h);
     });
+    return {x:minX, y:minY, w:maxX - minX, h:maxY - minY};
+}
+function minimapBounds(nodeBounds, view){
+    const minX = Math.min(nodeBounds?.x ?? view.x, view.x);
+    const minY = Math.min(nodeBounds?.y ?? view.y, view.y);
+    const maxX = Math.max(nodeBounds ? nodeBounds.x + nodeBounds.w : view.x + view.w, view.x + view.w);
+    const maxY = Math.max(nodeBounds ? nodeBounds.y + nodeBounds.h : view.y + view.h, view.y + view.h);
     const pad = Math.max(240, Math.max(maxX - minX, maxY - minY) * 0.08);
     return {x:minX - pad, y:minY - pad, w:Math.max(1, maxX - minX + pad * 2), h:Math.max(1, maxY - minY + pad * 2)};
 }
-function scheduleMinimapRender(){
+function scheduleMinimapRender({viewportOnly=false}={}){
+    // A viewport request must never override an already queued layout invalidation.
+    if(!viewportOnly) minimapLayoutDirty = true;
     if(minimapRenderQueued) return;
     minimapRenderQueued = true;
     requestAnimationFrame(() => {
         minimapRenderQueued = false;
-        renderMinimap();
+        renderMinimap({viewportOnly:!minimapLayoutDirty});
     });
 }
-function renderMinimap(){
+function renderMinimap({viewportOnly=false}={}){
     if(!minimapContent || !minimapViewport) return;
-    const bounds = minimapBounds();
+    const previous = minimapState;
+    const reuseLayout = viewportOnly && !minimapLayoutDirty && previous
+        && previous.canvasId === canvas?.id && previous.sourceNodes === nodes
+        && previous.rects.length === nodes.length;
+    const rects = reuseLayout ? previous.rects : (nodes || []).map(n => ({id:n.id, ...estimatedNodeRect(n)}));
+    const nodeBounds = reuseLayout ? previous.nodeBounds : minimapNodeBounds(rects);
+    const view = currentWorldViewRect();
+    const bounds = minimapBounds(nodeBounds, view);
     const cw = minimapContent.clientWidth || 172;
     const ch = minimapContent.clientHeight || 110;
+    if(reuseLayout && previous.cw === cw && previous.ch === ch
+        && ['x','y','w','h'].every(key => previous.bounds[key] === bounds[key])){
+        updateMinimapViewport(view);
+        return;
+    }
     const scale = Math.min(cw / bounds.w, ch / bounds.h);
     const mapW = bounds.w * scale;
     const mapH = bounds.h * scale;
     const ox = (cw - mapW) / 2;
     const oy = (ch - mapH) / 2;
-    minimapState = {bounds, scale, ox, oy, cw, ch};
-    const nodeHtml = (nodes || []).map(n => {
-        const r = estimatedNodeRect(n);
-        return `<div class="minimap-node ${selected.has(n.id) ? 'selected' : ''}" style="left:${ox + (r.x - bounds.x) * scale}px;top:${oy + (r.y - bounds.y) * scale}px;width:${Math.max(3, r.w * scale)}px;height:${Math.max(3, r.h * scale)}px"></div>`;
+    minimapState = {bounds, scale, ox, oy, cw, ch, rects, nodeBounds, canvasId:canvas?.id, sourceNodes:nodes};
+    minimapLayoutDirty = false;
+    const nodeHtml = rects.map(r => {
+        return `<div class="minimap-node ${selected.has(r.id) ? 'selected' : ''}" style="left:${ox + (r.x - bounds.x) * scale}px;top:${oy + (r.y - bounds.y) * scale}px;width:${Math.max(3, r.w * scale)}px;height:${Math.max(3, r.h * scale)}px"></div>`;
     }).join('');
     minimapContent.innerHTML = `${nodeHtml}${nodes?.length ? '' : '<div class="minimap-empty">EMPTY</div>'}<div id="minimapViewport" class="minimap-viewport"></div>`;
     minimapViewport = document.getElementById('minimapViewport');
-    updateMinimapViewport();
+    updateMinimapViewport(view);
 }
-function updateMinimapViewport(){
+function updateMinimapViewport(r=currentWorldViewRect()){
     if(!minimapViewport || !minimapState) return;
-    const r = currentWorldViewRect();
     const {bounds, scale, ox, oy} = minimapState;
     minimapViewport.style.left = `${ox + (r.x - bounds.x) * scale}px`;
     minimapViewport.style.top = `${oy + (r.y - bounds.y) * scale}px`;
@@ -1977,7 +2000,7 @@ function centerViewportOnWorldPoint(point){
     const rect = board.getBoundingClientRect();
     viewport.x = rect.width / 2 - point.x * viewport.scale;
     viewport.y = rect.height / 2 - point.y * viewport.scale;
-    applyViewport();
+    applyViewport({viewportOnly:true});
     renderLinks();
     renderSelectionHub();
 }
@@ -2008,6 +2031,7 @@ function flushScheduledGeometryRefresh(){
 function refreshGeometryAfterLayout(){
     // Coalesce image/node layout notifications, retaining the second-frame correction.
     scheduleGeometryRefresh(2);
+    scheduleMinimapRender();
 }
 function scheduleSave(){
     if(!canvas || applyingRemoteCanvas) return;
@@ -3383,6 +3407,7 @@ document.getElementById('imageEditStage').addEventListener('wheel', event => {
 }, {passive: false});
 window.addEventListener('resize', () => {
     if(cropState) syncImageEditOverflow();
+    scheduleMinimapRender();
 });
 backToManagerBtn.addEventListener('click', returnToCanvasManager);
 
@@ -6602,20 +6627,23 @@ function renderOffscreenPlaceholders(){
     const placeholders = nodesEl.querySelectorAll('.node-placeholder');
     if(!placeholders.length) return;
     const nodeById = new Map(nodes.map(node => [node.id, node]));
+    let changed = false;
     placeholders.forEach(el => {
         const id = el.dataset.id;
         if(!id) return;
         const node = nodeById.get(id);
         if(!node || !isNodeInCanvasViewport(node, 400)){
             // 仍在视野外或节点已删除，保持/移除占位
-            if(!node) el.remove();
+            if(!node){ el.remove(); changed = true; }
             return;
         }
         // 进入视野：替换为完整节点
         const fresh = renderNode(node);
         el.replaceWith(fresh);
+        changed = true;
         bindCanvasPreviewImageFallbacks(fresh);
     });
+    if(!changed) return;
     refreshIcons();
     refreshGeometry();
     refreshGeometryAfterLayout();
@@ -14789,7 +14817,7 @@ function startBoardPan(e, opts={}){
         if(Math.hypot(e2.clientX - dragBoard.sx, e2.clientY - dragBoard.sy) > 4) dragBoard.moved = true;
         viewport.x = dragBoard.ox + e2.clientX - dragBoard.sx;
         viewport.y = dragBoard.oy + e2.clientY - dragBoard.sy;
-        applyViewport();
+        applyViewport({viewportOnly:true});
     }, e2 => {
         const shouldClearSelection = dragBoard?.clearSelectionOnClick && !dragBoard.moved && selected.size;
         if(shouldClearSelection){
@@ -14865,7 +14893,7 @@ board.onwheel = e => {
     const rect = board.getBoundingClientRect();
     viewport.x = e.clientX - rect.left - before.x * viewport.scale;
     viewport.y = e.clientY - rect.top - before.y * viewport.scale;
-    applyViewport();
+    applyViewport({viewportOnly:true});
     scheduleGeometryRefresh();
     scheduleViewportSave();
 };
