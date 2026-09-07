@@ -1926,29 +1926,56 @@ function scheduleSmartViewportRefresh(delay=200){
         renderSmartOffscreenPlaceholders();
     }, delay);
 }
+const smartViewportScrolls = new WeakMap();
+function canRecycleSmartMediaNode(node, el){
+    if(!node || (node.type && node.type !== 'smart-image') || !(node.images || []).length) return false;
+    if(node.running || node.queued || smartNodePendingCount(node) || isNodeSelected(node.id)) return false;
+    if(dragState || resizeState || thumbDragState || portDragState || selectionState || smartCascadeAnyRunning()) return false;
+    if(el?.contains(document.activeElement) || el?.querySelector('video,audio')) return false;
+    if(imageEditModal?.classList.contains('open') && previewNavState?.nodeId === node.id) return false;
+    if(smartAudioLightbox?.classList.contains('open') && smartAudioLightboxState?.nodeId === node.id) return false;
+    return true;
+}
+function restoreSmartNodeScroll(el, node){
+    const scroll = smartViewportScrolls.get(node);
+    const scroller = el.querySelector('[data-thumb-scroll]');
+    if(scroll !== undefined && scroller) scroller.scrollTop = scroll;
+}
 function renderSmartOffscreenPlaceholders(){
     if(!world) return;
-    const placeholders = world.querySelectorAll('.image-node.image-node-placeholder');
-    if(!placeholders.length) return;
-    placeholders.forEach(el => {
+    const byId = new Map(nodes.map(node => [node.id, node]));
+    const restored = [];
+    world.querySelectorAll('.image-node').forEach(el => {
         const id = el.dataset.id;
         if(!id) return;
-        const node = nodes.find(n => n.id === id);
-        if(!node || !isSmartNodeInViewport(node, 400)){
-            if(!node) el.remove();
-            return;
+        const node = byId.get(id);
+        if(!node){ el.remove(); return; }
+        const placeholder = el.classList.contains('image-node-placeholder');
+        const visible = isSmartNodeInViewport(node, placeholder ? 400 : 700);
+        if(placeholder ? !visible : visible || !canRecycleSmartMediaNode(node, el)) return;
+        if(!placeholder){
+            const scroller = el.querySelector('[data-thumb-scroll]');
+            if(scroller) smartViewportScrolls.set(node, scroller.scrollTop);
         }
-        const freshHtml = renderSmartNodeHtml(node);
+        const freshHtml = placeholder ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
         const tpl = document.createElement('template');
         tpl.innerHTML = freshHtml;
         const fresh = tpl.content.firstElementChild;
         if(fresh){
             el.replaceWith(fresh);
             bindSmartNodeEvents(fresh, node);
+            if(placeholder){
+                restoreSmartNodeScroll(fresh, node);
+                bindSmartPreviewImageFallbacks(fresh);
+                measureSmartNodeImages(fresh);
+                restored.push(node.id);
+            }
         }
     });
-    if(window.lucide) lucide.createIcons();
-    bindSmartPreviewImageFallbacks(world);
+    if(restored.length){
+        refreshIcons();
+        scheduleSmartGeometryRefresh(restored, 2);
+    }
 }
 function renderSmartNodeHtml(node){
     const imgs = node.images || [];
@@ -6435,6 +6462,8 @@ function render(){
     const reusableNodes = new Map();
     world.querySelectorAll('.image-node').forEach(el => {
         const node = nodes.find(n => n.id === el.dataset.id);
+        const scroller = el.querySelector('[data-thumb-scroll]');
+        if(node && scroller) smartViewportScrolls.set(node, scroller.scrollTop);
         if(smartNodeHasLiveMedia(node)) reusableNodes.set(node.id, el);
     });
     const nodeHtmlEntries = nodes.map(node => {
@@ -6467,6 +6496,7 @@ function render(){
             transplantSmartMediaElements(reusable, fresh);
             if(reusable !== fresh) reusable.remove();
         }
+        restoreSmartNodeScroll(fresh, entry.node);
     });
     restoreMediaPlaybackStates(mediaStates);
     bindNodeEvents();
@@ -6552,7 +6582,7 @@ function refreshSmartNodes(ids){
             }
             return;
         }
-        const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop || 0;
+        const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop ?? smartViewportScrolls.get(node) ?? 0;
         const tpl = document.createElement('template');
         tpl.innerHTML = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
         const fresh = tpl.content.firstElementChild;
@@ -7037,6 +7067,7 @@ function bindNodeEvents(elements=null){
             selectedIds = [];
             selectedImage = {nodeId:'', index:-1};
             if(smartCascadeAnyRunning()) smartCascadeSilentSelection = false;
+            if(el.classList.contains('image-node-placeholder')) refreshSmartNodes([id]);
             syncSelectionUi();
             refreshRunTimerPills();
             updateComposer();
@@ -15163,7 +15194,8 @@ document.addEventListener('visibilitychange', () => { if(!document.hidden && can
 
 function renderSmartNodePlaceholderHtml(node){
     const layout = imageLayout(node.images || [], nodeScale(node), node);
-    const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : ((node.images || []).length > 1 ? 'Group' : 'Image');
+    const kind = mediaKindForItem(node.images?.[0] || {});
+    const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : ((node.images || []).length > 1 ? 'Group' : kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Image');
     return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-head"><div class="node-title">${escapeHtml(title)}</div></div>
         <div class="node-port port-in" data-port="in" title="input"></div>

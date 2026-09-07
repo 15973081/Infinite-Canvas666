@@ -3,7 +3,7 @@
 <style>
 body{font:14px system-ui;margin:20px;background:#101620;color:#dce4ef}button,input{font:inherit;margin:4px;padding:7px}#shell{position:relative;height:400px;overflow:hidden;border:1px solid #526174}#world{position:absolute;inset:0}.image-node{position:absolute;width:200px;height:160px;background:#243044;border:1px solid #526174;overflow:hidden}.selected{outline:2px solid #a9bdd8}.image-node-placeholder{background:#18202c}.thumb-grid{height:85px;overflow:auto}.thumb-item{height:40px}.connection-layer{position:absolute;pointer-events:none}.conn-hit,.conn-cut{pointer-events:auto}#minimapContent{position:relative;width:170px;height:108px;background:#18202c;margin:10px}.minimap-node{position:absolute;background:#8497b2}.smart-minimap-viewport{position:absolute;border:1px solid white}pre{white-space:pre-wrap}
 </style>
-<button id="selection">检查选择不重建</button><button id="partial">检查焦点和局部更新</button><button id="geometry">检查120次几何刷新</button><button id="links">检查连线复用和删除</button>
+<button id="selection">检查选择不重建</button><button id="partial">检查焦点和局部更新</button><button id="geometry">检查120次几何刷新</button><button id="links">检查连线复用和删除</button><button id="recycle">检查视野回收和恢复</button>
 <div id="shell"><div id="world"></div></div><div id="minimapContent"><div id="minimapViewport" class="smart-minimap-viewport"></div></div><pre id="result">加载中</pre>
 <script>
 // UI-only harness: production update/event functions, synthetic nodes; no backend writes.
@@ -22,6 +22,7 @@ const noop=()=>{},scheduleSave=noop,hideRunTimerForNode=noop,refreshRunTimerPill
 const smartCascadeAnyRunning=()=>false,smartNodePendingCount=n=>n.pending||0,beginNodeDrag=noop;
 const selectedNode=()=>nodes.find(n=>n.id===selectedId),cascadeConnectionKeys=()=>new Set(),smartCascadeEdgeState=()=>'',positionComposerForNode=noop;
 const nodeRect=n=>({x:n.x,y:n.y,width:200,height:160}),imageLayout=()=>({width:200,height:160}),nodeScale=()=>1;
+const mediaKindForItem=img=>img.kind||'image';
 function disconnectConnection(index){canvas.connections.splice(index,1);refreshConnectionLayer();}
 const escapeHtml=s=>String(s??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 const isSmartNodeInViewport=n=>n.x<2000;
@@ -36,6 +37,7 @@ fetch('/static/js/smart-canvas.js').then(r=>r.text()).then(source=>{
  document.getElementById('partial').onclick=()=>{const old=world.querySelector('[data-id="a"]'),other=world.querySelector('[data-id="b"]'),field=other.querySelector('input'),scroll=old.querySelector('[data-thumb-scroll]');scroll.scrollTop=80;field.focus();field.value='保留输入';field.dispatchEvent(new Event('input'));refreshSmartNodes(['a']);const firstPass=field===document.activeElement&&other.isConnected;field.blur();setTimeout(()=>report({focusProtected:firstPass,draft:world.querySelector('[data-id="b"] input').value==='保留输入',targetReplaced:old!==world.querySelector('[data-id="a"]'),scrollPreserved:world.querySelector('[data-id="a"] [data-thumb-scroll]').scrollTop===80}),20);};
  document.getElementById('geometry').onclick=()=>{const old=world.querySelector('.connection-layer');for(let i=0;i<120;i++){nodes[0].x=i;scheduleSmartGeometryRefresh(['a'],2);scheduleSmartMinimapRender();}requestAnimationFrame(()=>requestAnimationFrame(()=>report({finalGeometry:world.querySelector('.connection-layer').innerHTML.includes('M319 '),minimapCount:minimapContent.querySelectorAll('.minimap-node').length===2})));};
  document.getElementById('links').onclick=()=>{canvas.connections=[{from:'a',to:'b',kind:'input'},{from:'b',to:'a',kind:'history'}];refreshConnectionLayer();const svg=world.querySelector('.connection-layer'),group=svg.querySelector('.smart-connection'),cut=group.querySelector('.conn-cut');nodes[0].x=150;refreshConnectionLayer(['a']);const preserved=svg===world.querySelector('.connection-layer')&&group===svg.querySelector('.smart-connection')&&cut===group.querySelector('.conn-cut');cut.dispatchEvent(new MouseEvent('click',{bubbles:true}));report({preserved,deletedOnce:canvas.connections.length===1,correctRemaining:svg.querySelector('.conn-history')!==null});};
+ document.getElementById('recycle').onclick=()=>{selectedId='';selectedIds=[];nodes[0].images=[{url:'mock.png',kind:'image'}];const old=world.querySelector('[data-id="a"]');old.querySelector('[data-thumb-scroll]').scrollTop=70;nodes[0].x=3000;renderSmartOffscreenPlaceholders();const recycled=world.querySelector('[data-id="a"]').classList.contains('image-node-placeholder');nodes[0].x=30;renderSmartOffscreenPlaceholders();const restored=world.querySelector('[data-id="a"]');restored.click();report({recycled,restored:!restored.classList.contains('image-node-placeholder'),scrollPreserved:restored.querySelector('[data-thumb-scroll]').scrollTop===70,selectionWorks:selectedId==='a'});};
  document.getElementById('result').textContent='就绪';
 }).catch(e=>{document.getElementById('result').textContent=e.stack;});
 </script></html>
