@@ -63,3 +63,33 @@ test('virtual geometry follows width even when column count does not change', ()
     assert.equal(context.assetAnchorScrollTop(snapshot,items,after),12+77*214+20);
     assert.equal(context.assetAnchorScrollTop({...snapshot,anchorId:'removed'},items,after),14000);
 });
+
+test('view memories isolate tab/category/search/sort, bound history and remember last category per library', () => {
+    let stored;
+    const context=vm.createContext({activeTab:'assets',activeAssetLibraryId:'lib',activeAssetCategoryId:'cat2',assetQuery:'',selectedAssetId:'picked',
+        managerViews:{tabs:{},views:{},libraries:{},collapsed:{}},MANAGER_VIEW_STORAGE_KEY:'views',sessionStorage:{setItem(_key,value){stored=JSON.parse(value)}}});
+    load(context,['managerViewDescriptor','managerViewKey','rememberManagerView','restoreManagerDescriptor']);
+    for(let i=0;i<100;i++) context.rememberManagerView({tab:'assets',libraryId:'lib',categoryId:String(i),savedAt:i,top:i*10});
+    assert.equal(Object.keys(stored.views).length,80);
+    assert.equal(stored.libraries[JSON.stringify(['assets','lib'])],'cat2');
+    assert.equal(stored.tabs.assets.selectedId,'picked');
+    assert.equal(context.managerViewKey({tab:'assets',query:' AB '}),context.managerViewKey({tab:'assets',query:'ab'}));
+    assert.notEqual(context.managerViewKey({tab:'assets',categoryId:'a'}),context.managerViewKey({tab:'local',categoryId:'a'}));
+    assert.notEqual(context.managerViewKey({tab:'canvas-assets',sort:'name'}),context.managerViewKey({tab:'canvas-assets',sort:'date'}));
+    context.restoreManagerDescriptor({tab:'assets',libraryId:'lib2',categoryId:'cat4',query:'abc',selectedId:'saved'});
+    assert.equal(context.activeAssetCategoryId,'cat4');
+    assert.equal(context.selectedAssetId,'saved');
+});
+
+test('late scroll restoration cannot move a different view; search reset returns to top', () => {
+    const frames=[], positions=[];let descriptor={tab:'prompts',libraryId:'a',categoryId:'x',query:''};
+    const context=vm.createContext({activeTab:'prompts',managerRestoreToken:0,requestAnimationFrame:fn=>frames.push(fn),
+        managerViewDescriptor:()=>descriptor,managerScrollContext:()=>({element:{},kind:'element'}),
+        setAssetScrollPosition:(_context,top)=>positions.push(top),root:{querySelector:()=>null},scheduleAssetViewSave(){}});
+    load(context,['managerViewKey','restoreManagerView']);
+    context.restoreManagerView({top:500});
+    descriptor={...descriptor,categoryId:'y'};
+    frames.shift()();assert.equal(positions.length,0);
+    context.restoreManagerView({top:900},true);
+    frames.shift()();assert.deepEqual(positions,[0]);
+});

@@ -132,6 +132,105 @@ const managerDataLoaded = {
     providers:false
 };
 const managerLoadPromises = new Map();
+const MANAGER_VIEW_STORAGE_KEY = 'asset_manager_views_v1';
+let managerViews = loadManagerViews();
+let managerRestoreToken = 0;
+
+function loadManagerViews(){
+    try {
+        const value = JSON.parse(sessionStorage.getItem(MANAGER_VIEW_STORAGE_KEY) || '{}');
+        return {tabs:{...(value?.tabs || {})}, views:{...(value?.views || {})}, libraries:{...(value?.libraries || {})}, collapsed:{...(value?.collapsed || {})}, activeTab:value?.activeTab};
+    } catch(_) { return {tabs:{}, views:{}, libraries:{}, collapsed:{}}; }
+}
+function managerViewDescriptor(){
+    if(activeTab === 'workflows') return {tab:activeTab, libraryId:activeWorkflowLibraryId, categoryId:activeWorkflowCategoryId, query:workflowQuery, selectedId:selectedWorkflowId};
+    if(activeTab === 'prompts') return {tab:activeTab, libraryId:activePromptLibraryId, categoryId:activePromptCategory, query:promptQuery, selectedId:selectedPromptId};
+    if(activeTab === 'local') return {tab:activeTab, libraryId:'uploads', categoryId:activeLocalUploadFolder, query:localUploadQuery, selectedId:selectedLocalUploadId};
+    if(activeTab === 'canvas-assets') return {tab:activeTab, libraryId:activeCanvasAssetCategory, categoryId:activeCanvasAssetCanvasId, query:canvasAssetQuery, sort:canvasAssetSort, selectedId:selectedCanvasAssetId};
+    return {tab:'assets', libraryId:activeAssetLibraryId, categoryId:activeAssetCategoryId, query:assetQuery, selectedId:selectedAssetId};
+}
+function managerViewKey(view){
+    return JSON.stringify([view.tab, view.libraryId || '', view.categoryId || '', String(view.query || '').trim().toLowerCase(), view.sort || '']);
+}
+function restoreManagerDescriptor(view){
+    if(!view) return;
+    const library = String(view.libraryId || ''), category = String(view.categoryId || ''), query = String(view.query || ''), selected = String(view.selectedId || '');
+    if(view.tab === 'assets'){ activeAssetLibraryId=library; activeAssetCategoryId=category; assetQuery=query; selectedAssetId=selected; }
+    if(view.tab === 'workflows'){ activeWorkflowLibraryId=library; activeWorkflowCategoryId=category; workflowQuery=query; selectedWorkflowId=selected; }
+    if(view.tab === 'prompts'){ activePromptLibraryId=library; activePromptCategory=category; promptQuery=query; selectedPromptId=selected; }
+    if(view.tab === 'local'){ activeLocalUploadFolder=category; localUploadQuery=query; selectedLocalUploadId=selected; }
+    if(view.tab === 'canvas-assets'){ activeCanvasAssetCategory=library; activeCanvasAssetCanvasId=category; canvasAssetQuery=query; canvasAssetSort=String(view.sort || 'canvas_asc'); selectedCanvasAssetId=selected; }
+}
+function managerScrollContext(element=root.querySelector('.asset-content .content-scroll')){
+    if(!element) return null;
+    const usesWindow = getComputedStyle(document.body).overflowY !== 'hidden';
+    const scrollingElement = document.scrollingElement || document.documentElement;
+    return usesWindow
+        ? {kind:'window', element, top:window.scrollY || scrollingElement.scrollTop || 0, left:window.scrollX || 0, viewportTop:0, viewportHeight:window.innerHeight}
+        : {kind:'element', element, top:element.scrollTop, left:element.scrollLeft, viewportTop:element.getBoundingClientRect().top, viewportHeight:element.clientHeight};
+}
+function captureManagerView(){
+    if(!root.dataset.managerView) return null;
+    const descriptor = JSON.parse(root.dataset.managerView);
+    const context = managerScrollContext();
+    if(!context) return null;
+    const card = [...context.element.querySelectorAll('[data-asset-card],[data-workflow-card],[data-prompt-row],[data-localup-card],[data-canvas-asset-card]')].find(el => el.getBoundingClientRect().bottom > context.viewportTop + 1);
+    return {...descriptor, top:context.top, left:context.left,
+        anchorId:card ? (card.dataset.assetCard || card.dataset.workflowCard || card.dataset.promptRow || card.dataset.localupCard || card.dataset.canvasAssetCard) : '',
+        anchorOffset:card ? card.getBoundingClientRect().top - context.viewportTop : 0,
+        navTop:root.querySelector('.nav-scroll')?.scrollTop || 0, detailTop:root.querySelector('.detail-scroll')?.scrollTop || 0, savedAt:Date.now()};
+}
+function rememberManagerView(snapshot=null){
+    if(snapshot){
+        managerViews.views[managerViewKey(snapshot)] = snapshot;
+        const entries = Object.entries(managerViews.views).sort((a,b) => b[1].savedAt-a[1].savedAt);
+        managerViews.views = Object.fromEntries(entries.slice(0,80));
+    }
+    const view = managerViewDescriptor();
+    managerViews.tabs[view.tab] = view;
+    managerViews.activeTab = activeTab;
+    managerViews.libraries[JSON.stringify([view.tab,view.libraryId])] = view.categoryId;
+    try { sessionStorage.setItem(MANAGER_VIEW_STORAGE_KEY, JSON.stringify(managerViews)); } catch(_) {}
+}
+function restoreManagerView(snapshot, resetScroll=false){
+    const expectedKey = managerViewKey(managerViewDescriptor());
+    const token = ++managerRestoreToken;
+    const matches = () => token === managerRestoreToken && expectedKey === managerViewKey(managerViewDescriptor());
+    if(activeTab === 'assets'){
+        restoreAssetViewState(resetScroll || !snapshot ? {...managerViewDescriptor(),top:0,navTop:snapshot?.navTop || 0} : snapshot);
+        return;
+    }
+    requestAnimationFrame(() => {
+        if(!matches()) return;
+        const context = managerScrollContext();
+        if(!context) return;
+        setAssetScrollPosition(context, resetScroll ? 0 : snapshot?.top || 0);
+        root.querySelector('.nav-scroll')?.scrollTo({top:snapshot?.navTop || 0});
+        root.querySelector('.detail-scroll')?.scrollTo({top:resetScroll ? 0 : snapshot?.detailTop || 0});
+        if(!resetScroll && snapshot?.anchorId){
+            const card = [...context.element.querySelectorAll('[data-workflow-card],[data-prompt-row],[data-localup-card],[data-canvas-asset-card]')].find(el => Object.values(el.dataset).includes(snapshot.anchorId));
+            if(card) setAssetScrollPosition(managerScrollContext(), (managerScrollContext()?.top || 0) + card.getBoundingClientRect().top-context.viewportTop-snapshot.anchorOffset);
+        }
+        scheduleAssetViewSave();
+    });
+}
+function decorateManagerNavigation(){
+    if(activeTab === 'assets') return;
+    root.querySelectorAll('.asset-nav .tree-branch').forEach(branch => {
+        const row=branch.querySelector(':scope > .tree-row'), children=branch.querySelector(':scope > .tree-children');
+        if(!row || !children) return;
+        const key=JSON.stringify([activeTab,row.dataset]);
+        const expanded=!managerViews.collapsed[key];
+        const heading=document.createElement('div');
+        heading.className='manager-tree-heading';
+        const toggle=document.createElement('button');
+        toggle.type='button'; toggle.className='manager-tree-toggle'; toggle.dataset.managerToggle=key;
+        toggle.textContent=expanded ? '▾' : '▸'; toggle.setAttribute('aria-expanded',String(expanded));
+        toggle.setAttribute('aria-label',`${expanded ? '折叠' : '展开'}${row.textContent.trim()}`);
+        branch.insertBefore(heading,row); heading.append(toggle,row);
+        children.hidden=!expanded;
+    });
+}
 
 const LOCAL_MEDIA_EXTS = /\.(png|jpe?g|jfif|webp|gif|bmp|avif|svg|mp4|webm|mov|m4v|mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/i;
 const ASSET_BATCH_SIZE = 32;
@@ -144,12 +243,7 @@ function assetViewKey(libraryId=activeAssetLibraryId, categoryId=activeAssetCate
 }
 function assetContentScrollContext(){
     const element = root.querySelector('.asset-content .content-scroll[data-asset-view-library]');
-    if(!element) return null;
-    const usesWindow = getComputedStyle(document.body).overflowY !== 'hidden';
-    const scrollingElement = document.scrollingElement || document.documentElement;
-    return usesWindow
-        ? {kind:'window', element, scrollingElement, top:window.scrollY || scrollingElement.scrollTop || 0, left:window.scrollX || scrollingElement.scrollLeft || 0, viewportTop:0, viewportHeight:window.innerHeight}
-        : {kind:'element', element, scrollingElement:null, top:element.scrollTop, left:element.scrollLeft, viewportTop:element.getBoundingClientRect().top, viewportHeight:element.clientHeight};
+    return element ? managerScrollContext(element) : null;
 }
 function captureAssetViewState(){
     const context = assetContentScrollContext();
@@ -192,6 +286,7 @@ function persistAssetViewSession(snapshot=null){
 function scheduleAssetViewSave(){
     clearTimeout(assetViewSaveTimer);
     assetViewSaveTimer = setTimeout(() => {
+        rememberManagerView(captureManagerView());
         const snapshot = captureAssetViewState();
         if(snapshot) persistAssetViewSession(snapshot);
     }, 120);
@@ -269,7 +364,9 @@ function renderPreservingScroll(selectors=['.nav-scroll']){
         return [selector, {top:el?.scrollTop || 0, left:el?.scrollLeft || 0}];
     }));
     render();
+    const token = managerRestoreToken;
     const restore = () => Object.entries(scrollState).forEach(([selector, position]) => {
+        if(token !== managerRestoreToken) return;
         const el = root.querySelector(selector);
         if(el){ el.scrollTop = position.top; el.scrollLeft = position.left; }
     });
@@ -282,7 +379,7 @@ function scheduleSearchRender(inputId, position){
     clearTimeout(searchRenderTimer);
     searchRenderTimer = setTimeout(() => {
         const restoreFocus = document.activeElement?.id === inputId;
-        render();
+        render({resetScroll:true});
         if(!restoreFocus) return;
         requestAnimationFrame(() => {
             const input = document.getElementById(inputId);
@@ -1005,6 +1102,9 @@ async function ensureProvidersLoaded(){
 async function loadInitialAssetManager(){
     setStatus('正在加载图片素材…');
     await loadManagerData('assets', {reset:true});
+    Object.values(managerViews.tabs).forEach(restoreManagerDescriptor);
+    if(['assets','workflows','prompts','local','canvas-assets'].includes(managerViews.activeTab)) activeTab=managerViews.activeTab;
+    await loadManagerData(activeTab);
     render();
     setStatus('准备就绪');
     loadManagerData('providers').then(() => {
@@ -1013,6 +1113,8 @@ async function loadInitialAssetManager(){
     }).catch(() => {});
 }
 async function switchManagerTab(tab){
+    rememberManagerView(captureManagerView());
+    clearTimeout(searchRenderTimer);
     const nextTab = tab || 'assets';
     const token = ++managerTabSwitchToken;
     activeTab = nextTab;
@@ -1044,7 +1146,14 @@ async function refreshCurrentManager(){
     render();
     setStatus('已刷新');
 }
-function render(){
+function render({resetScroll=false}={}){
+    const previousView = captureManagerView();
+    rememberManagerView(previousView);
+    const targetView=managerViewDescriptor();
+    const remembered=managerViews.views[managerViewKey(targetView)];
+    if(!resetScroll && remembered && (!previousView || managerViewKey(previousView)!==managerViewKey(targetView))){
+        restoreManagerDescriptor({...targetView,selectedId:remembered.selectedId});
+    }
     const previousAssetView = captureAssetViewState();
     if(previousAssetView) persistAssetViewSession(previousAssetView);
     document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
@@ -1055,8 +1164,14 @@ function render(){
     else {
         renderAssetManager();
         persistAssetViewSession();
-        restoreAssetViewState(savedAssetViewForCurrentState(previousAssetView));
     }
+    const descriptor=managerViewDescriptor();
+    root.dataset.managerView=JSON.stringify(descriptor);
+    let saved=managerViews.views[managerViewKey(descriptor)] || (activeTab === 'assets' ? savedAssetViewForCurrentState(previousAssetView) : null);
+    if(previousView?.tab===activeTab) saved={...descriptor,...saved,navTop:previousView.navTop};
+    decorateManagerNavigation();
+    restoreManagerView(saved,resetScroll);
+    rememberManagerView();
     refreshIcons();
 }
 function renderCanvasAssetsManager(){
@@ -2567,6 +2682,18 @@ async function handleClick(event){
         return;
     }
     const target = event.target;
+    const navToggle=target.closest?.('[data-manager-toggle]');
+    if(navToggle){
+        const key=navToggle.dataset.managerToggle;
+        const collapsed=!managerViews.collapsed[key];
+        managerViews.collapsed[key]=collapsed;
+        navToggle.setAttribute('aria-expanded',String(!collapsed));
+        navToggle.textContent=collapsed ? '▸' : '▾';
+        navToggle.setAttribute('aria-label',`${collapsed ? '展开' : '折叠'}${navToggle.nextElementSibling.textContent.trim()}`);
+        navToggle.closest('.tree-branch').querySelector(':scope > .tree-children').hidden=collapsed;
+        rememberManagerView(captureManagerView());
+        return;
+    }
     const tabBtn = target.closest?.('[data-tab]');
     if(tabBtn){ activeTab = tabBtn.dataset.tab || 'assets'; selectedAssetIds.clear(); selectedWorkflowIds.clear(); selectedPromptIds.clear(); selectedLocalIds.clear(); selectedLocalUploadIds.clear(); selectedCanvasAssetIds.clear(); render(); return; }
     if(target.closest?.('#refreshBtn')){ await refreshCurrentManager(); return; }
@@ -2855,7 +2982,8 @@ async function handleClick(event){
         } else {
             activeAssetLibraryId = libraryId;
             collapsedAssetLibraryIds.delete(libraryId);
-            activeAssetCategoryId = assetCategories()[0]?.id || '';
+            const remembered=managerViews.libraries[JSON.stringify(['assets',libraryId])];
+            activeAssetCategoryId = assetCategories().some(cat=>cat.id===remembered) ? remembered : assetCategories()[0]?.id || '';
             selectedAssetId = '';
             selectedAssetIds.clear();
         }
@@ -2941,7 +3069,7 @@ async function handleClick(event){
         await deletePromptLibrary(); return;
     }
     const promptLib = target.closest?.('[data-prompt-lib]');
-    if(promptLib){ activePromptLibraryId = promptLib.dataset.promptLib || ''; activePromptCategory = 'all'; promptTreeFocus = 'library'; selectedPromptId = ''; promptCreateMode = false; promptEditMode = false; selectedPromptIds.clear(); render(); return; }
+    if(promptLib){ activePromptLibraryId = promptLib.dataset.promptLib || ''; activePromptCategory = managerViews.libraries[JSON.stringify(['prompts',activePromptLibraryId])] || 'all'; promptTreeFocus = 'library'; selectedPromptId = ''; promptCreateMode = false; promptEditMode = false; selectedPromptIds.clear(); renderPreservingScroll(); return; }
     const promptCat = target.closest?.('[data-prompt-cat]');
     if(promptCat){ activePromptLibraryId = promptCat.dataset.promptCatLib || activePromptLibraryId; activePromptCategory = promptCat.dataset.promptCat || 'all'; promptTreeFocus = 'category'; selectedPromptId = ''; promptCreateMode = false; promptEditMode = false; selectedPromptIds.clear(); render(); return; }
     const promptRow = target.closest?.('[data-prompt-row]');
@@ -4021,20 +4149,19 @@ root.addEventListener('pointerdown', beginMarqueeSelection);
 document.addEventListener('pointermove', event => updateMarqueeSelection(event));
 document.addEventListener('pointerup', endMarqueeSelection);
 root.addEventListener('scroll', event => {
-    if(activeTab !== 'assets') return;
     if(event.target?.classList?.contains('content-scroll')) scheduleAssetVirtualRender();
     scheduleAssetViewSave();
 }, true);
 window.addEventListener('scroll', () => {
-    if(activeTab !== 'assets') return;
     scheduleAssetVirtualRender();
     scheduleAssetViewSave();
 }, {passive:true});
 window.addEventListener('resize', () => {
     scheduleAssetVirtualRender();
-    if(activeTab === 'assets') restoreAssetViewState(savedAssetViewForCurrentState());
+    restoreManagerView(managerViews.views[managerViewKey(managerViewDescriptor())]);
 });
 window.addEventListener('pagehide', () => {
+    rememberManagerView(captureManagerView());
     const snapshot = captureAssetViewState();
     if(snapshot) persistAssetViewSession(snapshot);
 });
@@ -4155,7 +4282,7 @@ root.addEventListener('change', event => {
     if(event.target?.id === 'canvasAssetSort'){
         canvasAssetSort = event.target.value || 'canvas_asc';
         selectedCanvasAssetId = '';
-        render();
+        render({resetScroll:true});
     }
     if(event.target?.id === 'assetMoveTarget'){
         assetMoveTarget = event.target.value || '';

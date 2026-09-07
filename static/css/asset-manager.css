@@ -124,6 +124,10 @@ button { border:0; cursor:pointer; }
 .tree-action:hover { background:rgba(220,38,38,.08); color:var(--danger); }
 .tree-action svg { width:12px; height:12px; }
 .tree-children { margin-left:11px; padding-left:9px; border-left:1px solid var(--line); display:flex; flex-direction:column; gap:3px; }
+.tree-children[hidden] { display:none; }
+.manager-tree-heading { display:flex; align-items:center; min-width:0; }
+.manager-tree-heading > .tree-row { flex:1; min-width:0; }
+.manager-tree-toggle { flex:0 0 24px; color:var(--muted); background:transparent; border:0; cursor:pointer; }
 .asset-library-tree .tree-branch:not(.expanded) > .tree-children { display:none; }
 .tree-elbow { width:12px; height:1px; background:var(--line-2); opacity:.8; }
 .tree-empty { margin:2px 0 2px 21px; min-height:28px; border-radius:8px; color:var(--faint); display:flex; align-items:center; font-size:10.5px; font-weight:750; }
