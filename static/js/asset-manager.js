@@ -152,6 +152,59 @@ function managerViewDescriptor(){
 function managerViewKey(view){
     return JSON.stringify([view.tab, view.libraryId || '', view.categoryId || '', String(view.query || '').trim().toLowerCase(), view.sort || '']);
 }
+function managerSelectionContext(){
+    const common = (prefix, key, ids, items, mode, selectedId, select, detail, readonly=false) => ({prefix,key,ids,items,mode,selectedId,select,detail,readonly,
+        cardSelector:`[data-${prefix}-${key==='promptRow' ? 'row' : 'card'}]`,checkSelector:`[data-${prefix}-check]`,
+        checkKey:prefix==='canvas-asset' ? 'canvasAssetCheck' : prefix==='localup' ? 'localupCheck' : `${prefix}Check`});
+    if(activeTab==='assets') return common('asset','assetCard',selectedAssetIds,currentAssetItems(),assetManageMode,selectedAssetId,id=>selectedAssetId=id,()=>renderAssetDetail(selectedAsset()));
+    if(activeTab==='workflows') return common('workflow','workflowCard',selectedWorkflowIds,currentWorkflowItems(),workflowManageMode,selectedWorkflowId,id=>selectedWorkflowId=id,()=>renderWorkflowDetail(selectedWorkflow()));
+    if(activeTab==='prompts') return common('prompt','promptRow',selectedPromptIds,currentPromptItems(),promptManageMode,selectedPromptId,id=>{selectedPromptId=id;promptEditMode=false;promptCreateMode=false;},()=>renderPromptDetail(selectedPrompt(),Boolean(activePromptLibrary()?.readonly)),Boolean(activePromptLibrary()?.readonly));
+    if(activeTab==='local') return common('localup','localupCard',selectedLocalUploadIds,localUploadItems(),localUploadManageMode,selectedLocalUploadId,id=>selectedLocalUploadId=id,()=>renderLocalUploadDetail(findLocalUpload(selectedLocalUploadId)));
+    return common('canvas-asset','canvasAssetCard',selectedCanvasAssetIds,currentCanvasAssetItems(),canvasAssetManageMode,selectedCanvasAssetId,id=>selectedCanvasAssetId=id,()=>renderCanvasAssetDetail(selectedCanvasAsset()));
+}
+function pruneManagerSelection(selection=managerSelectionContext()){
+    const visible=new Set(selection.readonly ? [] : selection.items.map(item=>item.id));
+    for(const id of selection.ids) if(!visible.has(id)) selection.ids.delete(id);
+}
+function refreshManagerSelection({detail=false}={}){
+    const selection=managerSelectionContext();
+    pruneManagerSelection(selection);
+    root.querySelectorAll(selection.cardSelector).forEach(card=>card.classList.toggle('active',card.dataset[selection.key]===selection.selectedId));
+    root.querySelectorAll(selection.checkSelector).forEach(input=>input.checked=selection.ids.has(input.dataset[selection.checkKey]));
+    const tools=root.querySelector('.asset-content .manage-tools');
+    const count=selection.ids.size;
+    const summary=tools?.querySelector(':scope > span');
+    if(summary) summary.textContent=`已选择 ${count} 项（当前筛选结果共 ${selection.items.length} 项）${activeTab==='local' ? `，其中 ${selectedLocalUploadImageItems().length} 张图片` : ''}。`;
+    const selectors={assets:['asset-clear-selection','asset-cut-selected','asset-copy-selected','asset-download-selected','asset-copy-to-canvas','asset-delete-selected'],workflows:['workflow-clear-selection','workflow-export-selected','workflow-delete-selected'],prompts:['prompt-clear-selection','prompt-delete-selected'],local:['localup-clear','localup-delete-selected'],'canvas-assets':['canvas-asset-clear-selection','canvas-asset-download-selected']}[activeTab];
+    for(const name of selectors){ const button=tools?.querySelector(`[data-${name}]`); if(button) button.disabled=!count || selection.readonly; }
+    const avatar=tools?.querySelector('[data-avatar-register-selected]');
+    if(avatar) avatar.disabled=!count || Boolean(avatarBusyId);
+    const caption=tools?.querySelector('[data-local-caption-run]');
+    if(caption) caption.disabled=!selectedLocalUploadImageItems().length || !localCaptionProviders().length || !localCaptionModel || localCaptionBusy;
+    if(detail){ const panel=root.querySelector('.asset-detail'); if(panel){panel.innerHTML=selection.detail();refreshIcons();} }
+    root.dataset.managerView=JSON.stringify(managerViewDescriptor());
+    scheduleAssetViewSave();
+}
+function handleManagerSelectionClick(target){
+    const selection=managerSelectionContext();
+    if(target.closest?.(selection.checkSelector)) return true; // native change is the single checkbox update path
+    const all=target.closest?.(`[data-${selection.prefix}-select-all]`);
+    const clear=target.closest?.(`[data-${selection.prefix}-${activeTab==='local' ? 'clear' : 'clear-selection'}]`);
+    if(all || clear){
+        selection.ids.clear();
+        if(all && !selection.readonly) selection.items.forEach(item=>selection.ids.add(item.id));
+        pendingBatchDelete=''; refreshManagerSelection(); return true;
+    }
+    const card=target.closest?.(selection.cardSelector);
+    if(!card || target.closest?.('button,input,textarea,select,a')) return false;
+    const id=card.dataset[selection.key];
+    if(selection.mode){
+        if(!selection.readonly){ if(selection.ids.has(id)) selection.ids.delete(id); else selection.ids.add(id); }
+    } else selection.select(id);
+    pendingBatchDelete=''; pendingDeleteAssetId=''; pendingDeletePromptId='';
+    refreshManagerSelection({detail:!selection.mode && id!==selection.selectedId});
+    return true;
+}
 function restoreManagerDescriptor(view){
     if(!view) return;
     const library = String(view.libraryId || ''), category = String(view.categoryId || ''), query = String(view.query || ''), selected = String(view.selectedId || '');
@@ -1154,6 +1207,7 @@ function render({resetScroll=false}={}){
     if(!resetScroll && remembered && (!previousView || managerViewKey(previousView)!==managerViewKey(targetView))){
         restoreManagerDescriptor({...targetView,selectedId:remembered.selectedId});
     }
+    pruneManagerSelection();
     const previousAssetView = captureAssetViewState();
     if(previousAssetView) persistAssetViewSession(previousAssetView);
     document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
@@ -2694,6 +2748,7 @@ async function handleClick(event){
         rememberManagerView(captureManagerView());
         return;
     }
+    if(handleManagerSelectionClick(target)) return;
     const tabBtn = target.closest?.('[data-tab]');
     if(tabBtn){ activeTab = tabBtn.dataset.tab || 'assets'; selectedAssetIds.clear(); selectedWorkflowIds.clear(); selectedPromptIds.clear(); selectedLocalIds.clear(); selectedLocalUploadIds.clear(); selectedCanvasAssetIds.clear(); render(); return; }
     if(target.closest?.('#refreshBtn')){ await refreshCurrentManager(); return; }
@@ -2979,6 +3034,12 @@ async function handleClick(event){
         const libraryId = assetLib.dataset.assetLib || '';
         if(libraryId === activeAssetLibraryId){
             if(collapsedAssetLibraryIds.has(libraryId)) collapsedAssetLibraryIds.delete(libraryId); else collapsedAssetLibraryIds.add(libraryId);
+            saveCollapsedAssetLibraryIds();
+            assetTreeFocus='library';
+            const tree=root.querySelector('.asset-library-tree');
+            if(tree){ tree.innerHTML=assetLibraries().map(renderAssetTreeBranch).join(''); refreshIcons(); }
+            scheduleAssetViewSave();
+            return;
         } else {
             activeAssetLibraryId = libraryId;
             collapsedAssetLibraryIds.delete(libraryId);
@@ -3198,11 +3259,8 @@ function rectsIntersect(a, b){
     return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 function marqueeTargetSelector(){
-    if(activeTab === 'assets' && assetManageMode) return '[data-asset-card]';
-    if(activeTab === 'prompts' && promptManageMode) return '[data-prompt-row]';
-    if(activeTab === 'local' && localManageMode) return '[data-local-card]';
-    if(activeTab === 'canvas-assets' && canvasAssetManageMode) return '[data-canvas-asset-card]';
-    return '';
+    const selection=managerSelectionContext();
+    return selection.mode && !selection.readonly ? selection.cardSelector : '';
 }
 function beginMarqueeSelection(event){
     const selector = marqueeTargetSelector();
@@ -3222,10 +3280,7 @@ function beginMarqueeSelection(event){
         box,
         active:false,
         selector,
-        baseAsset:new Set(selectedAssetIds),
-        basePrompt:new Set(selectedPromptIds),
-        baseLocal:new Set(selectedLocalIds),
-        baseCanvasAsset:new Set(selectedCanvasAssetIds)
+        baseSelection:new Set(managerSelectionContext().ids)
     };
 }
 function updateMarqueeSelection(event){
@@ -3264,31 +3319,13 @@ function performMarqueeSelection(clientX, clientY){
         height:`${Math.max(1, bottom - top)}px`
     });
     const rect = {left, top, right, bottom};
-    if(activeTab === 'assets'){
-        selectedAssetIds = new Set(marqueeState.baseAsset);
-        marqueeState.targets.forEach(({el, rect:targetRect}) => {
-            if(rectsIntersect(rect, targetRect)) selectedAssetIds.add(el.dataset.assetCard);
-        });
-    } else if(activeTab === 'prompts') {
-        selectedPromptIds = new Set(marqueeState.basePrompt);
-        marqueeState.targets.forEach(({el, rect:targetRect}) => {
-            if(rectsIntersect(rect, targetRect)) selectedPromptIds.add(el.dataset.promptRow);
-        });
-    } else if(activeTab === 'local') {
-        selectedLocalIds = new Set(marqueeState.baseLocal);
-        marqueeState.targets.forEach(({el, rect:targetRect}) => {
-            if(rectsIntersect(rect, targetRect)) selectedLocalIds.add(el.dataset.localCard);
-        });
-    } else if(activeTab === 'canvas-assets') {
-        selectedCanvasAssetIds = new Set(marqueeState.baseCanvasAsset);
-        marqueeState.targets.forEach(({el, rect:targetRect}) => {
-            if(rectsIntersect(rect, targetRect)) selectedCanvasAssetIds.add(el.dataset.canvasAssetCard);
-        });
-    }
-    document.querySelectorAll('[data-asset-check]').forEach(input => { input.checked = selectedAssetIds.has(input.dataset.assetCheck); });
-    document.querySelectorAll('[data-prompt-check]').forEach(input => { input.checked = selectedPromptIds.has(input.dataset.promptCheck); });
-    document.querySelectorAll('[data-local-check]').forEach(input => { input.checked = selectedLocalIds.has(input.dataset.localCheck); });
-    document.querySelectorAll('[data-canvas-asset-check]').forEach(input => { input.checked = selectedCanvasAssetIds.has(input.dataset.canvasAssetCheck); });
+    const selection=managerSelectionContext();
+    selection.ids.clear();
+    marqueeState.baseSelection.forEach(id=>selection.ids.add(id));
+    root.querySelectorAll(selection.cardSelector).forEach(el=>{
+        if(rectsIntersect(rect,el.getBoundingClientRect())) selection.ids.add(el.dataset[selection.key]);
+    });
+    refreshManagerSelection();
 }
 function endMarqueeSelection(){
     if(!marqueeState) return;
@@ -3299,14 +3336,12 @@ function endMarqueeSelection(){
         if(point) performMarqueeSelection(point.clientX, point.clientY);
     }
     const shouldRender = marqueeState.active;
-    const selectionKind = activeTab;
     marqueeState.box.remove();
     marqueeState = null;
     pendingBatchDelete = '';
     if(shouldRender){
         suppressClickAfterMarquee = true;
-        if(selectionKind === 'assets') refreshAssetSelectionOnly({detail:false});
-        else render();
+        refreshManagerSelection();
     }
 }
 async function createAssetLibrary(){
@@ -4215,6 +4250,16 @@ root.addEventListener('input', event => {
     }
 });
 root.addEventListener('change', event => {
+    const selection=managerSelectionContext();
+    const selectionCheck=event.target.closest?.(selection.checkSelector);
+    if(selectionCheck){
+        if(!selection.mode || selection.readonly) return;
+        const id=selectionCheck.dataset[selection.checkKey];
+        if(selectionCheck.checked) selection.ids.add(id); else selection.ids.delete(id);
+        pendingBatchDelete='';
+        refreshManagerSelection();
+        return;
+    }
     const inlineAssetName = event.target.closest?.('[data-asset-inline-name]');
     if(inlineAssetName){
         saveAssetInlineName(inlineAssetName.dataset.assetInlineName || '', inlineAssetName.value || '').catch(err => setStatus(err.message || '保存失败'));

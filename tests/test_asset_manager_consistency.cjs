@@ -14,7 +14,7 @@ function load(context, names) {
 
 test('upload entry points reset file types after workflow -> local -> asset transitions', async () => {
     const opened = [];
-    const context = vm.createContext({suppressClickAfterMarquee:false,
+    const context = vm.createContext({suppressClickAfterMarquee:false,handleManagerSelectionClick:()=>false,
         uploadInput:{accept:'', click() { opened.push(this.accept); }}});
     load(context, ['openManagerUpload', 'handleClick']);
     for(const selector of ['[data-workflow-upload]', '[data-localup-upload]', '[data-asset-upload]']) {
@@ -92,4 +92,27 @@ test('late scroll restoration cannot move a different view; search reset returns
     frames.shift()();assert.equal(positions.length,0);
     context.restoreManagerView({top:900},true);
     frames.shift()();assert.deepEqual(positions,[0]);
+});
+
+test('selection removes hidden results and select-all replaces previous selection without a full render', () => {
+    const selection={prefix:'workflow',key:'workflowCard',checkSelector:'[data-workflow-check]',cardSelector:'[data-workflow-card]',ids:new Set(['hidden','a']),items:[{id:'a'},{id:'b'}],mode:true};
+    let updates=0;
+    const context=vm.createContext({activeTab:'workflows',managerSelectionContext:()=>selection,refreshManagerSelection:()=>updates++,pendingBatchDelete:''});
+    load(context,['pruneManagerSelection','handleManagerSelectionClick']);
+    context.pruneManagerSelection();assert.deepEqual([...selection.ids],['a']);
+    selection.ids.add('hidden');
+    context.handleManagerSelectionClick({closest:s=>s==='[data-workflow-select-all]'?{}:null});
+    assert.deepEqual([...selection.ids],['a','b']);assert.equal(updates,1);
+    context.handleManagerSelectionClick({closest:s=>s==='[data-workflow-check]'?{}:null});
+    assert.equal(updates,1); // checkbox click does not double-toggle before change
+    selection.readonly=true;context.pruneManagerSelection();assert.equal(selection.ids.size,0);
+});
+
+test('workflow and local upload batch modes expose correct marquee targets', () => {
+    const context=vm.createContext({activeTab:'workflows',selectedWorkflowIds:new Set(),currentWorkflowItems:()=>[],workflowManageMode:true,selectedWorkflowId:'',
+        selectedLocalUploadIds:new Set(),localUploadItems:()=>[],localUploadManageMode:true,selectedLocalUploadId:''});
+    load(context,['managerSelectionContext','marqueeTargetSelector']);
+    assert.equal(context.marqueeTargetSelector(),'[data-workflow-card]');
+    context.activeTab='local';assert.equal(context.marqueeTargetSelector(),'[data-localup-card]');
+    context.localUploadManageMode=false;assert.equal(context.marqueeTargetSelector(),'');
 });
