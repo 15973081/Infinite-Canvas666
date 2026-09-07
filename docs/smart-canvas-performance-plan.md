@@ -19,6 +19,8 @@
 
 ## 后续评估（不盲目改写）
 
+- [x] S9 删除局部更新：保留按钮先清空/键盘直接删除语义；多选仅一次撤销快照和更新；处理关联历史组、下游引用、灯箱释放与撤销恢复；无关节点 DOM/焦点/滚动不变。
+
 差量撤销涉及历史恢复语义，本轮保留完整快照和 40 条上限；先处理确定的渲染热点。长生命周期依赖缓存同样不直接引入，优先采用单次刷新内索引/计算复用。
 
 ## 验证记录
@@ -36,9 +38,11 @@
 
 ## 复验命令
 
+S9 验证：新增 6 项删除专项测试（包含真实键盘处理分支），与既有回归合计 90 项检查通过（52 项 JS、33 项 Python 智能画布/版本、5 项后端请求）。浏览器隔离页验证删除/历史组清理、无关节点 DOM/焦点/滚动保留、按钮立即清空、多选单次撤销及撤销恢复；无错误日志。撤销恢复仍保留完整渲染，新增/分组和组内单张素材删除不在此项修改范围；未调用付费生成接口。
+
 ```powershell
 node --check static/js/smart-canvas.js
-node --test tests/test_smart_canvas_performance.cjs tests/test_smart_media_references.cjs tests/test_canvas_media_inputs.cjs tests/test_canvas_incremental_links.cjs tests/test_canvas_geometry_scheduling.cjs
+node --test tests/test_smart_canvas_deletion.cjs tests/test_smart_canvas_performance.cjs tests/test_smart_media_references.cjs tests/test_canvas_media_inputs.cjs tests/test_canvas_incremental_links.cjs tests/test_canvas_geometry_scheduling.cjs
 ./python/python.exe -c "import sys,unittest; sys.path.insert(0, '.'); loader=unittest.TestLoader(); suite=unittest.TestSuite([loader.discover('tests',pattern='test_smart_canvas*.py'),loader.discover('tests',pattern='test_frontend_versioning.py')]); result=unittest.TextTestRunner().run(suite); sys.exit(not result.wasSuccessful())"
 ./python/python.exe tests/test_seedance_reference_payload.py
 git diff --check

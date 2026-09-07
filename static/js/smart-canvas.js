@@ -6611,14 +6611,14 @@ function smartAffectedNodeIds(ids){
     }
     return affected;
 }
-function refreshSmartNodes(ids){
+function refreshSmartNodes(ids, {forceIds=[]}={}){
     const affected = smartAffectedNodeIds(ids);
     const byId = new Map(nodes.map(node => [node.id, node]));
     affected.forEach(id => {
         const node = byId.get(id);
         const current = world.querySelector(`.image-node[data-id="${CSS.escape(id)}"]`);
         if(!node || !current) return;
-        if(current.contains(document.activeElement)){
+        if(current.contains(document.activeElement) && !forceIds.includes(id)){
             if(!current._smartRefreshPending){
                 current._smartRefreshPending = true;
                 current.addEventListener('focusout', () => setTimeout(() => {
@@ -7415,21 +7415,53 @@ function setDropHighlight(targetId){
     if(el) el.classList.add('drop-target');
 }
 function deleteNode(id){
+    deleteSmartNodes([id]);
+}
+function deleteSmartNodes(ids){
+    const requested = new Set(ids.filter(Boolean));
+    const deleteIds = new Set(nodes.filter(node => requested.has(node.id)).map(node => node.id));
+    if(!deleteIds.size) return;
     pushUndo();
-    const deleteIds = new Set([id]);
     nodes.forEach(node => {
-        if(isHistoryGroupNode(node) && node.historyFor === id) deleteIds.add(node.id);
+        if(isHistoryGroupNode(node) && requested.has(node.historyFor)) deleteIds.add(node.id);
     });
+    // Capture dependants BEFORE removing the edges that identify them.
+    const affected = smartAffectedNodeIds([...deleteIds]);
     nodes = nodes.filter(node => !deleteIds.has(node.id));
     if(canvas) canvas.connections = (canvas.connections || []).filter(c => !deleteIds.has(c.from) && !deleteIds.has(c.to));
     nodes.forEach(node => {
-        if(Array.isArray(node.inputNodeIds)) node.inputNodeIds = node.inputNodeIds.filter(inputId => !deleteIds.has(inputId));
+        if(Array.isArray(node.inputNodeIds) && node.inputNodeIds.some(inputId => deleteIds.has(inputId))){
+            node.inputNodeIds = node.inputNodeIds.filter(inputId => !deleteIds.has(inputId));
+            affected.add(node.id);
+        }
     });
-    if(selectedId === id) selectedId = '';
+    if(deleteIds.has(selectedId)) selectedId = '';
     selectedIds = selectedIds.filter(selected => !deleteIds.has(selected));
     if(deleteIds.has(selectedImage.nodeId)) selectedImage = {nodeId:'', index:-1};
-    render();
+    finishSmartNodeRemoval(deleteIds, affected);
     scheduleSave();
+}
+function finishSmartNodeRemoval(deleteIds, affected, forceIds=[]){
+    deleteIds.forEach(id => {
+        const el = world.querySelector(`.image-node[data-id="${CSS.escape(id)}"]`);
+        if(!el) return;
+        releaseSmartGroupPreviews(el);
+        el.querySelectorAll('video,audio').forEach(media => {
+            media.pause(); media.removeAttribute('src'); media.load();
+        });
+        el.remove();
+    });
+    if(deleteIds.has(previewNavState?.nodeId) && imageEditModal.classList.contains('open')) closeImageEditor();
+    if(deleteIds.has(smartAudioLightboxState?.nodeId) && smartAudioLightbox.classList.contains('open')) closeSmartAudioLightbox();
+    const remaining = [...affected].filter(id => !deleteIds.has(id));
+    refreshSmartNodes(remaining, {forceIds});
+    // A disconnected explicit mention can live outside the graph's downstream scope.
+    if(!smartAffectedNodeIds(remaining).has(selectedId)) updateComposer();
+    syncSelectionUi();
+    refreshConnectionLayer();
+    // The immediate topology sync must not discard the layout correction for refreshed nodes.
+    if(remaining.length) scheduleSmartGeometryRefresh(remaining, 2);
+    if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
 }
 function clearNodeMediaBeforeDelete(id){
     const node = nodes.find(n => n.id === id);
@@ -7437,6 +7469,9 @@ function clearNodeMediaBeforeDelete(id){
     const hadMedia = Boolean((node.images || []).length || node.pending);
     if(!hadMedia) return false;
     pushUndo();
+    const historyIds = nodes.filter(n => isHistoryGroupNode(n) && n.historyFor === id).map(n => n.id);
+    const affected = smartAffectedNodeIds([id, ...historyIds]);
+    const deleteIds = new Set();
     node.images = [];
     node.pending = 0;
     node.running = false;
@@ -7445,13 +7480,23 @@ function clearNodeMediaBeforeDelete(id){
     delete node.h;
     const history = historyGroupForNode(node);
     if(history){
+        deleteIds.add(history.id);
         nodes = nodes.filter(n => n.id !== history.id);
         if(canvas) canvas.connections = (canvas.connections || []).filter(c => c.from !== history.id && c.to !== history.id);
+        nodes.forEach(n => {
+            if(Array.isArray(n.inputNodeIds) && n.inputNodeIds.includes(history.id)){
+                n.inputNodeIds = n.inputNodeIds.filter(inputId => inputId !== history.id);
+                affected.add(n.id);
+            }
+        });
     }
     if(selectedImage.nodeId === id) selectedImage = {nodeId:'', index:-1};
     selectedId = id;
     selectedIds = [];
-    render();
+    // Clearing the source also invalidates any open preview of its former media.
+    if(previewNavState?.nodeId === id && imageEditModal.classList.contains('open')) closeImageEditor();
+    if(smartAudioLightboxState?.nodeId === id && smartAudioLightbox.classList.contains('open')) closeSmartAudioLightbox();
+    finishSmartNodeRemoval(deleteIds, affected, [id]);
     scheduleSave();
     return true;
 }
@@ -14459,10 +14504,7 @@ window.addEventListener('keydown', e => {
     if((e.key === 'Delete' || e.key === 'Backspace') && (selectedId || selectedIds.length) && !isEditableTarget(e.target)){
         e.preventDefault();
         const ids = selectedIds.length ? selectedIds.slice() : [selectedId];
-        pushUndo();
-        ids.forEach(id => { undoSuppressed = true; deleteNode(id); undoSuppressed = false; });
-        render();
-        scheduleSave();
+        deleteSmartNodes(ids);
     }
     if((e.ctrlKey || e.metaKey) && e.shiftKey && key === 'g' && !isEditableTarget(e.target)){
         e.preventDefault();
