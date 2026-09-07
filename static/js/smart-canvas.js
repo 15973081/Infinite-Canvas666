@@ -1117,6 +1117,7 @@ function bindSmartPreviewImageFallbacks(root=document){
     root.querySelectorAll?.('img[data-preview-src][data-original-src]:not([data-preview-fallback-bound])').forEach(img => {
         img.dataset.previewFallbackBound = '1';
         img.addEventListener('error', () => {
+            if(img.dataset.smartGroupSrc && !img.hasAttribute('src')) return;
             const original = img.dataset.originalSrc || '';
             if(img.dataset.previewKind === 'video'){
                 const tpl = document.createElement('template');
@@ -1127,6 +1128,38 @@ function bindSmartPreviewImageFallbacks(root=document){
             }
             if(original && img.getAttribute('src') !== original) img.src = original;
         });
+    });
+    manageSmartGroupPreviews(root);
+}
+function manageSmartGroupPreviews(root){
+    root.querySelectorAll?.('.thumb-grid').forEach(grid => {
+        if(grid._smartPreviewObserver) return;
+        const items = [...grid.querySelectorAll('.thumb-item')].filter(item => item.querySelector('img[data-smart-group-src]'));
+        if(!items.length) return;
+        if(typeof IntersectionObserver === 'undefined'){
+            items.forEach(item => { const img=item.querySelector('img[data-smart-group-src]'); img.src=img.dataset.smartGroupSrc; });
+            return;
+        }
+        grid._smartPreviewObserver = new IntersectionObserver(entries => {
+            if(!grid.isConnected) return;
+            entries.forEach(entry => {
+                const img = entry.target.querySelector('img[data-smart-group-src]');
+                if(!img) return;
+                if(entry.isIntersecting){
+                    if(!img.hasAttribute('src')) img.src = img.dataset.smartGroupSrc;
+                } else if(img.hasAttribute('src')){
+                    img.dataset.smartGroupSrc = img.getAttribute('src');
+                    img.removeAttribute('src');
+                }
+            });
+        }, {root:grid, rootMargin:'200px 0px'});
+        items.forEach(item => grid._smartPreviewObserver.observe(item));
+    });
+}
+function releaseSmartGroupPreviews(root){
+    root.querySelectorAll?.('.thumb-grid').forEach(grid => {
+        grid._smartPreviewObserver?.disconnect();
+        delete grid._smartPreviewObserver;
     });
 }
 function cloneSmartSettings(source=settings){
@@ -1962,6 +1995,7 @@ function renderSmartOffscreenPlaceholders(){
         tpl.innerHTML = freshHtml;
         const fresh = tpl.content.firstElementChild;
         if(fresh){
+            releaseSmartGroupPreviews(el);
             el.replaceWith(fresh);
             bindSmartNodeEvents(fresh, node);
             if(placeholder){
@@ -5548,7 +5582,9 @@ function isRemoteVideoReferenceUrl(url){
 function audioRefsOnly(refs){
     return (refs || []).filter(ref => ref?.url && mediaKindForItem(ref) === 'audio');
 }
-function thumbMediaHtml(img){
+function thumbMediaHtml(img, deferPreview=false){
+    // Preserve cells, indexes and controls; only defer heavyweight preview resources.
+    if(deferPreview) return thumbMediaHtml(img).replace(/<img src=/g, '<img data-smart-group-src=');
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="media-thumb file-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="${escapeAttr(mediaKindForItem(img))}"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i><span>${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</span></div>`;
     if(isAudioMediaItem(img)) return `<div class="media-thumb audio-thumb" data-media-url="${escapeAttr(img.url || '')}" data-media-kind="audio"><i data-lucide="audio-lines"></i><span>${escapeHtml(img.name || 'Audio')}</span><button class="smart-audio-open thumb-audio-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button></div>`;
     if(isVideoMediaItem(img)) return `<div class="media-thumb video-thumb">${smartVideoPreviewHtml(img, 512, 'alt=""')}<button class="smart-video-play thumb-video-play" type="button" title="播放"><i data-lucide="play"></i></button></div>`;
@@ -5681,6 +5717,12 @@ function transplantSmartMediaElements(oldNodeEl, newNodeEl){
             oldMedia.alt = newMedia.getAttribute('alt') || oldMedia.getAttribute('alt') || '';
             oldMedia.style.cssText = newMedia.style.cssText;
             oldMedia.dataset.originalSrc = newMedia.dataset?.originalSrc || oldMedia.dataset?.originalSrc || '';
+            if(newMedia.dataset.smartGroupSrc){
+                oldMedia.dataset.smartGroupSrc = oldMedia.dataset.smartGroupSrc || newMedia.dataset.smartGroupSrc;
+            } else {
+                delete oldMedia.dataset.smartGroupSrc;
+                if(!oldMedia.hasAttribute('src') && newMedia.hasAttribute('src')) oldMedia.src = newMedia.getAttribute('src');
+            }
             newMedia.replaceWith(oldMedia);
             return;
         }
@@ -5738,6 +5780,7 @@ function bindImageProxyFallback(imgEl, itemOrUrl){
     if(!imgEl || imgEl.dataset.proxyFallbackBound === '1') return;
     imgEl.dataset.proxyFallbackBound = '1';
     imgEl.addEventListener('error', () => {
+        if(imgEl.dataset.smartGroupSrc && !imgEl.hasAttribute('src')) return;
         if(imgEl.dataset.proxyFallbackTried === '1') return;
         const fallback = proxiedMediaUrl(itemOrUrl);
         if(!fallback || fallback === imgEl.getAttribute('src')) return;
@@ -6287,7 +6330,7 @@ function nodeBodyHtml(node, layout){
     if(imgs.length > 1){
         const visibleRows = Math.max(1, Math.min(MEDIA_GROUP_MAX_VISIBLE_ROWS, Number(layout.visibleRows || layout.rows || 1)));
         const maxHeight = visibleRows * Number(layout.thumb || 96) + Math.max(0, visibleRows - 1) * 8;
-        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
+        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
     }
     if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true)}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`;
     return `<div class="node-drop" data-upload-action="files">
@@ -6455,6 +6498,7 @@ function refreshRunTimerPills(){
 }
 function render(){
     cancelSmartGeometryRefresh();
+    releaseSmartGroupPreviews(world);
     if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
     world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
     const composerEl = composer;
@@ -6587,6 +6631,7 @@ function refreshSmartNodes(ids){
         tpl.innerHTML = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
         const fresh = tpl.content.firstElementChild;
         if(!fresh) return;
+        releaseSmartGroupPreviews(current);
         transplantSmartMediaElements(current, fresh);
         current.replaceWith(fresh);
         bindNodeEvents([fresh]);
@@ -6640,7 +6685,7 @@ function measureSmartNodeImages(root=world){
             scheduleSave();
         };
         const isVideo = imgEl.tagName?.toLowerCase() === 'video';
-        if(!isVideo && imgEl.complete) apply();
+        if(!isVideo && imgEl.complete && imgEl.naturalWidth) apply();
         else imgEl.addEventListener('load', apply, {once:true});
         imgEl.addEventListener('loadedmetadata', apply, {once:true});
     });

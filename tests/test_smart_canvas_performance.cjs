@@ -104,7 +104,7 @@ test('node refresh defers focused editor and never replaces unrelated DOM',()=>{
     const ctx=vm.createContext({nodes:[a,b],smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',smartViewportScrolls:new WeakMap(),
         world:{querySelector:()=>current},CSS:{escape:x=>x},document:{activeElement:{},createElement:()=>({content:{firstElementChild:fresh}})},
         setTimeout:fn=>fn(),isSmartNodeInViewport:()=>true,renderSmartNodeHtml:()=>'',transplantSmartMediaElements(){},bindNodeEvents(){},
-        bindSmartPreviewImageFallbacks(){},measureSmartNodeImages(){},scheduleSmartGeometryRefresh(){scheduled++;},
+        releaseSmartGroupPreviews(){},bindSmartPreviewImageFallbacks(){},measureSmartNodeImages(){},scheduleSmartGeometryRefresh(){scheduled++;},
         scheduleSmartMinimapRender(){},refreshRunTimerPills(){},refreshIcons(){},updateComposer(){throw Error('unrelated composer');}});
     load(ctx,['refreshSmartNodes']);ctx.refreshSmartNodes(['a']);ctx.refreshSmartNodes(['a']);assert.equal(replaced,0);
     assert.equal(current._smartRefreshPending,true);focused=false;focusout();assert.equal(replaced,1);assert.equal(scroller.scrollTop,93);
@@ -151,4 +151,31 @@ test('offscreen reclamation protects interaction, running tasks, editors and lig
     assert.equal(ctx.canRecycleSmartMediaNode(node,{...el,querySelector:()=>({})}),false);
     ctx.imageEditModal.classList.contains=()=>true;assert.equal(ctx.canRecycleSmartMediaNode(node,el),false);
     ctx.imageEditModal.classList.contains=()=>false;ctx.smartCascadeAnyRunning=()=>true;assert.equal(ctx.canRecycleSmartMediaNode(node,el),false);
+});
+test('large group previews load observed cells, suspend sources and disconnect',()=>{
+    let callback,observed=0,disconnected=0;
+    const img={dataset:{smartGroupSrc:'preview.png'},srcValue:null,hasAttribute(){return this.srcValue!==null;},getAttribute(){return this.srcValue;},removeAttribute(){this.srcValue=null;},set src(v){this.srcValue=v;}};
+    const item={querySelector:()=>img},grid={isConnected:true,querySelectorAll:()=>[item]},root={querySelectorAll:()=>[grid]};
+    const ctx=vm.createContext({IntersectionObserver:class {constructor(fn){callback=fn;}observe(){observed++;}disconnect(){disconnected++;}}});
+    load(ctx,['manageSmartGroupPreviews','releaseSmartGroupPreviews']);ctx.manageSmartGroupPreviews(root);ctx.manageSmartGroupPreviews(root);
+    assert.equal(observed,1);assert.equal(img.srcValue,null);
+    callback([{target:item,isIntersecting:true}]);assert.equal(img.srcValue,'preview.png');
+    img.src='fallback.png';callback([{target:item,isIntersecting:false}]);assert.equal(img.srcValue,null);
+    callback([{target:item,isIntersecting:true}]);assert.equal(img.srcValue,'fallback.png');
+    ctx.releaseSmartGroupPreviews(root);assert.equal(disconnected,1);assert.equal(grid._smartPreviewObserver,undefined);
+});
+test('deferred thumbnail HTML retains media metadata and contains no live player',()=>{
+    const ctx=vm.createContext({isFileMediaItem:()=>false,isTextMediaItem:()=>false,isAudioMediaItem:()=>false,isVideoMediaItem:img=>img.kind==='video',
+        smartVideoPreviewHtml:()=>'<img src="poster.png" data-url="video.mp4">',smartPreviewImgHtml:()=>'<img src="preview.png" data-url="original.png">'});
+    load(ctx,['thumbMediaHtml']);const html=ctx.thumbMediaHtml({kind:'video'},true);
+    assert.ok(html.includes('data-smart-group-src="poster.png"'));assert.ok(html.includes('data-url="video.mp4"'));assert.ok(!html.includes('<video'));
+    assert.ok(!/<img src=/.test(html));assert.ok(ctx.thumbMediaHtml({}).includes('<img src='));
+});
+test('suspending an image cannot trigger proxy or preview fallback reloads',()=>{
+    const listeners=[];let reloads=0;
+    const img={dataset:{smartGroupSrc:'preview.png'},hasAttribute:()=>false,addEventListener:(_name,fn)=>listeners.push(fn),set src(v){reloads++;}};
+    const ctx=vm.createContext({proxiedMediaUrl:()=> 'proxy.png',manageSmartGroupPreviews(){}});
+    load(ctx,['bindImageProxyFallback','bindSmartPreviewImageFallbacks']);
+    ctx.bindImageProxyFallback(img,'original.png');ctx.bindSmartPreviewImageFallbacks({querySelectorAll:()=>[img]});
+    listeners.forEach(fn=>fn());assert.equal(reloads,0);
 });
