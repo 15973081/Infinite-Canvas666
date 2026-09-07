@@ -1184,16 +1184,24 @@ function renderCanvasAssetDetail(item){
         </div>
     `;
 }
-function refreshCanvasAssetSelectionOnly(){
+function refreshCanvasAssetSelectionOnly({detail=true}={}){
     document.querySelectorAll('[data-canvas-asset-card]').forEach(card => {
         card.classList.toggle('active', card.dataset.canvasAssetCard === selectedCanvasAssetId);
     });
     document.querySelectorAll('[data-canvas-asset-check]').forEach(input => {
         input.checked = selectedCanvasAssetIds.has(input.dataset.canvasAssetCheck);
     });
-    const detail = root.querySelector('.asset-detail');
-    if(detail){
-        detail.innerHTML = renderCanvasAssetDetail(selectedCanvasAsset());
+    const tools = root.querySelector('.asset-content .manage-tools');
+    const count = selectedCanvasAssetIds.size;
+    const summary = tools?.querySelector(':scope > span');
+    if(summary) summary.textContent = `已选择 ${count} 个画布资产，支持拖拽框选或逐个勾选。`;
+    for(const selector of ['[data-canvas-asset-clear-selection]', '[data-canvas-asset-download-selected]']){
+        const button = tools?.querySelector(selector);
+        if(button) button.disabled = !count;
+    }
+    const panel = detail && root.querySelector('.asset-detail');
+    if(panel){
+        panel.innerHTML = renderCanvasAssetDetail(selectedCanvasAsset());
         refreshIcons();
     }
 }
@@ -2536,6 +2544,13 @@ async function saveLocalUploadCaption(id){
         setStatus(err.message || '保存提示词失败');
     }
 }
+function openManagerUpload(kind){
+    if(!uploadInput) return;
+    uploadInput.accept = kind === 'workflow'
+        ? '.json,.zip,application/json,application/zip,application/x-zip-compressed'
+        : 'image/*,video/*,audio/*';
+    uploadInput.click();
+}
 async function handleClick(event){
     if(suppressClickAfterMarquee){
         suppressClickAfterMarquee = false;
@@ -2553,7 +2568,7 @@ async function handleClick(event){
     if(localPreview){ showDetailPreview('local', localPreview.dataset.localPreview || ''); return; }
     const localUpPreview = target.closest?.('[data-localup-preview]');
     if(localUpPreview){ showDetailPreview('localup', localUpPreview.dataset.localupPreview || ''); return; }
-    if(target.closest?.('[data-localup-upload]')){ uploadInput?.click(); return; }
+    if(target.closest?.('[data-localup-upload]')){ openManagerUpload('media'); return; }
     if(target.closest?.('[data-localup-folder-new]')){ await createLocalUploadFolder(); return; }
     if(target.closest?.('[data-localup-folder-rename]')){ await renameLocalUploadFolder(); return; }
     const localUpFolder = target.closest?.('[data-localup-folder]');
@@ -2626,8 +2641,8 @@ async function handleClick(event){
         render();
         return;
     }
-    if(target.closest?.('[data-canvas-asset-select-all]')){ currentCanvasAssetItems().forEach(item => selectedCanvasAssetIds.add(item.id)); render(); return; }
-    if(target.closest?.('[data-canvas-asset-clear-selection]')){ selectedCanvasAssetIds.clear(); render(); return; }
+    if(target.closest?.('[data-canvas-asset-select-all]')){ currentCanvasAssetItems().forEach(item => selectedCanvasAssetIds.add(item.id)); refreshCanvasAssetSelectionOnly({detail:false}); return; }
+    if(target.closest?.('[data-canvas-asset-clear-selection]')){ selectedCanvasAssetIds.clear(); refreshCanvasAssetSelectionOnly({detail:false}); return; }
     if(target.closest?.('[data-canvas-asset-download-selected]')){ await downloadCanvasAssetItems([...selectedCanvasAssetIds]); return; }
     const canvasAssetDownload = target.closest?.('[data-canvas-asset-download]');
     if(canvasAssetDownload){ await downloadCanvasAssetItems([canvasAssetDownload.dataset.canvasAssetDownload || '']); return; }
@@ -2691,8 +2706,7 @@ async function handleClick(event){
     if(target.closest?.('[data-workflow-export-selected]')){ await exportWorkflowItems([...selectedWorkflowIds]); return; }
     if(target.closest?.('[data-workflow-delete-selected]')){ await deleteSelectedWorkflows(); return; }
     if(target.closest?.('[data-workflow-upload]')){
-        if(uploadInput) uploadInput.accept = '.json,.zip,application/json,application/zip,application/x-zip-compressed';
-        uploadInput?.click();
+        openManagerUpload('workflow');
         return;
     }
     const workflowDownload = target.closest?.('[data-workflow-download]');
@@ -2784,8 +2798,7 @@ async function handleClick(event){
     if(target.closest?.('[data-asset-copy-to-canvas]')){ copySelectedAssetsToCanvas(); return; }
     if(target.closest?.('[data-asset-delete-selected]')){ await deleteSelectedAssets(); return; }
     if(target.closest?.('[data-asset-upload]')){
-        if(uploadInput) uploadInput.accept = 'image/*,video/*,audio/*';
-        uploadInput?.click();
+        openManagerUpload('media');
         return;
     }
     if(target.closest?.('[data-asset-lib-new]')){ assetTreeFocus = 'library'; assetTreeEdit = {kind:'library-new', placement:'head', value:'新资产库', label:'资产库名称'}; render(); focusTreeEditInput('assetTreeEditInput'); return; }
