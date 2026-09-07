@@ -137,6 +137,44 @@ let managerViews = loadManagerViews();
 let managerRestoreToken = 0;
 const managerItemCache = new Map();
 let managerVirtualModel = null;
+let managerDeleteConfirmation = '';
+let managerDeleteBusy = false;
+
+function managerTabLabel(tab){
+    return {assets:'图片资产',workflows:'工作流',prompts:'提示词',local:'本地素材','canvas-assets':'画布资产'}[tab] || '素材';
+}
+function showManagerLoadState(tab,error=''){
+    ++assetViewRestoreToken; ++managerRestoreToken;
+    delete root.dataset.managerView;
+    root.innerHTML=`<section class="asset-panel manager-load-state" role="status"><p>${escapeHtml(error ? `${managerTabLabel(tab)}加载失败：${error}` : `正在加载${managerTabLabel(tab)}…`)}</p>${error ? '<button class="asset-btn" type="button" data-manager-retry>重试</button>' : ''}</section>`;
+}
+function managerEmptyState(query,emptyText){
+    return `<div class="empty-state">${query.trim() ? '没有匹配的结果，请更换关键词或清空搜索。<button class="asset-btn" type="button" data-manager-clear-search>清空搜索</button>' : escapeHtml(emptyText)}</div>`;
+}
+function cancelManagerDelete(){
+    managerDeleteConfirmation=''; pendingBatchDelete='';
+    root.querySelector('[data-manager-cancel-delete]')?.remove();
+    const button=root.querySelector('.manage-tools [data-manager-delete-pending]');
+    if(button){button.removeAttribute('data-manager-delete-pending');button.classList.remove('detail-confirm');button.querySelector('span').textContent='删除所选';}
+}
+async function confirmManagerBatchDelete(kind,ids,action){
+    if(!ids.length || managerDeleteBusy) return;
+    const key=JSON.stringify([kind,managerViewKey(managerViewDescriptor()),[...ids].sort()]);
+    if(managerDeleteConfirmation!==key){
+        cancelManagerDelete(); managerDeleteConfirmation=key;
+        const name={assets:'asset-delete-selected',workflows:'workflow-delete-selected',prompts:'prompt-delete-selected',local:'localup-delete-selected'}[kind];
+        const button=root.querySelector(`[data-${name}]`);
+        if(button){
+            button.dataset.managerDeletePending='';button.classList.add('detail-confirm');button.querySelector('span').textContent=`确认删除 ${ids.length} 项`;
+            const cancel=document.createElement('button');cancel.type='button';cancel.className='asset-btn';cancel.dataset.managerCancelDelete='';cancel.textContent='取消删除';button.after(cancel);
+        }
+        setStatus(`再次点击确认删除 ${ids.length} 项${managerTabLabel(kind)}，也可取消。`);
+        return;
+    }
+    managerDeleteBusy=true;
+    try { await action(); }
+    finally { managerDeleteBusy=false; cancelManagerDelete(); }
+}
 
 function cachedManagerItems(name, source, key, compute){
     const cached=managerItemCache.get(name);
@@ -253,6 +291,7 @@ function pruneManagerSelection(selection=managerSelectionContext()){
     for(const id of selection.ids) if(!visible.has(id)) selection.ids.delete(id);
 }
 function refreshManagerSelection({detail=false}={}){
+    cancelManagerDelete();
     const selection=managerSelectionContext();
     pruneManagerSelection(selection);
     root.querySelectorAll(selection.cardSelector).forEach(card=>card.classList.toggle('active',card.dataset[selection.key]===selection.selectedId));
@@ -808,14 +847,9 @@ async function loadSharedFolders(){
     return sharedFolders;
 }
 async function loadLocalAssets(){
-    try {
-        const data = await apiJson('/api/local-assets');
-        localAssets = Array.isArray(data.items) ? data.items : [];
-        localUploadTree = data.tree || {id:'__root__', path:'', name:'全部上传', count:localAssets.length, items:[], children:[]};
-    } catch(err) {
-        localAssets = [];
-        localUploadTree = {id:'__root__', path:'', name:'全部上传', count:0, items:[], children:[]};
-    }
+    const data = await apiJson('/api/local-assets');
+    localAssets = Array.isArray(data.items) ? data.items : [];
+    localUploadTree = data.tree || {id:'__root__', path:'', name:'全部上传', count:localAssets.length, items:[], children:[]};
     if(activeLocalUploadFolder && !localUploadFolderExists(activeLocalUploadFolder)) activeLocalUploadFolder = '';
     selectedLocalUploadIds = new Set([...selectedLocalUploadIds].filter(id => localAssets.some(item => item.id === id)));
     localAssetsLoaded = true;
@@ -1252,17 +1286,23 @@ async function ensureProvidersLoaded(){
     return apiProviders;
 }
 async function loadInitialAssetManager(){
+    const token=++managerTabSwitchToken;
+    showManagerLoadState('assets');
     setStatus('正在加载图片素材…');
+    try {
     await loadManagerData('assets', {reset:true});
+    if(token!==managerTabSwitchToken) return;
     Object.values(managerViews.tabs).forEach(restoreManagerDescriptor);
     if(['assets','workflows','prompts','local','canvas-assets'].includes(managerViews.activeTab)) activeTab=managerViews.activeTab;
     await loadManagerData(activeTab);
+    if(token!==managerTabSwitchToken) return;
     render();
     setStatus('准备就绪');
     loadManagerData('providers').then(() => {
         if(selectedAssetId) scheduleAssetAvatarStatusRefresh(selectedAssetId);
         resumeAvatarPolls();
     }).catch(() => {});
+    } catch(err){ if(token===managerTabSwitchToken){showManagerLoadState(activeTab,err.message || '请求失败');setStatus('加载失败，请重试');} }
 }
 async function switchManagerTab(tab){
     rememberManagerView(captureManagerView());
@@ -1278,27 +1318,39 @@ async function switchManagerTab(tab){
     selectedCanvasAssetIds.clear();
     document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
     const key = managerDataKey(nextTab);
-    if(!managerDataLoaded[key]) setStatus('加载中...');
-    await loadManagerData(nextTab);
-    if(token !== managerTabSwitchToken || activeTab !== nextTab) return;
-    render();
-    setStatus('准备就绪');
+    if(refreshBtn) refreshBtn.disabled=false;
+    if(!managerDataLoaded[key]){setStatus(`正在加载${managerTabLabel(nextTab)}…`);showManagerLoadState(nextTab);}
+    try {
+        await loadManagerData(nextTab);
+        if(token !== managerTabSwitchToken || activeTab !== nextTab) return;
+        render(); setStatus('准备就绪');
+        if(nextTab==='assets' && !managerDataLoaded.providers) loadManagerData('providers').then(()=>scheduleAssetAvatarStatusRefresh(selectedAssetId)).catch(()=>{});
+    } catch(err){
+        if(token!==managerTabSwitchToken || activeTab!==nextTab) return;
+        showManagerLoadState(nextTab,err.message || '请求失败');setStatus(`${managerTabLabel(nextTab)}加载失败，请重试`);
+    }
 }
 async function refreshAssetLibrary(){
-    setStatus('正在刷新图片素材…');
-    await loadManagerData('assets', {refresh:true});
-    render();
-    resumeAvatarPolls();
-    setStatus('图片素材已刷新');
+    return refreshCurrentManager();
 }
 async function refreshCurrentManager(){
-    if(activeTab === 'assets' || activeTab === 'workflows') return refreshAssetLibrary();
-    setStatus('正在刷新…');
-    await loadManagerData(activeTab, {refresh:true});
-    render();
-    setStatus('已刷新');
+    const tab=activeTab, token=++managerTabSwitchToken;
+    setStatus(`正在刷新${managerTabLabel(tab)}…`);
+    if(refreshBtn) refreshBtn.disabled=true;
+    try {
+        await loadManagerData(tab, {refresh:true});
+        if(token!==managerTabSwitchToken || tab!==activeTab) return;
+        render();
+        if(tab==='assets') resumeAvatarPolls();
+        setStatus(`${managerTabLabel(tab)}已刷新`);
+    } catch(err){
+        if(token!==managerTabSwitchToken || tab!==activeTab) return;
+        setStatus(`${managerTabLabel(tab)}刷新失败：${err.message || '请求失败'}，点击刷新重试`);
+        if(!root.dataset.managerView) showManagerLoadState(tab,err.message || '请求失败');
+    } finally { if(token===managerTabSwitchToken && refreshBtn) refreshBtn.disabled=false; }
 }
 function render({resetScroll=false}={}){
+    cancelManagerDelete();
     managerItemCache.clear();
     managerVirtualModel=null;
     const previousView = captureManagerView();
@@ -1373,7 +1425,7 @@ function renderCanvasAssetsManager(){
                 </div>
             </div>
             <div class="content-scroll">
-                ${items.length ? renderManagerVirtualGrid(groups,renderCanvasAssetCard) : '<div class="empty-state">当前分类没有可下载的画布资产。可以切换分类，或在画布中生成/导入图片、视频、音频后再查看。</div>'}
+                ${items.length ? renderManagerVirtualGrid(groups,renderCanvasAssetCard) : managerEmptyState(canvasAssetQuery,'当前分类没有可下载的画布资产。可以切换分类，或在画布中生成、导入素材。')}
             </div>
         </section>
         <aside class="asset-panel asset-detail">
@@ -1617,6 +1669,7 @@ function renderLocalManager(){
             </div>
             <div class="content-scroll">
                 ${renderManagerVirtualGrid([{key:'uploads',items}],renderLocalUploadCard,renderLocalUploadAddCard())}
+                ${items.length ? '' : managerEmptyState(localUploadQuery,'当前文件夹还没有素材，可以上传图片、视频或音频。')}
             </div>
         </section>
         <aside class="asset-panel asset-detail">
@@ -1866,7 +1919,7 @@ function renderAssetManager(){
                     ${renderUploadCard(cat)}
                     ${visibleItems.map(item => renderAssetCard(item)).join('')}
                     ${renderAssetLoadMore(items.length)}
-                    ${items.length ? '' : '<div class="empty-state">当前分组还没有素材，可以上传，或从智能画布输出保存到素材库。</div>'}
+                    ${items.length ? '' : managerEmptyState(assetQuery,'当前分组还没有素材，可以上传，或从智能画布输出保存到素材库。')}
                 </div>
             </div>
         </section>
@@ -1936,7 +1989,7 @@ function renderWorkflowManager(){
             </div>
             <div class="content-scroll">
                 ${renderManagerVirtualGrid([{key:'workflows',items}],renderWorkflowCard,renderWorkflowUploadCard(cat))}
-                ${items.length ? '' : '<div class="empty-state">当前分组还没有工作流，可以上传 JSON / ZIP，或从传统画布导出到资产库。</div>'}
+                ${items.length ? '' : managerEmptyState(workflowQuery,'当前分组还没有工作流，可以上传 JSON / ZIP，或从传统画布导出到资产库。')}
             </div>
         </section>
         <aside class="asset-panel asset-detail">
@@ -2335,7 +2388,7 @@ function renderPromptManager(){
                 </div>
             </div>
             <div class="content-scroll">
-                ${items.length ? `<div class="prompt-list">${items.map(item => renderPromptRow(item, readonly)).join('')}</div>` : `<div class="empty-state">${escapeHtml(promptEmptyText)}</div>`}
+                ${items.length ? `<div class="prompt-list">${items.map(item => renderPromptRow(item, readonly)).join('')}</div>` : managerEmptyState(promptQuery,promptEmptyText)}
             </div>
         </section>
         <aside class="asset-panel asset-detail">
@@ -2675,9 +2728,10 @@ async function deleteWorkflowItem(id){
     render();
     setStatus('已删除工作流');
 }
-async function deleteSelectedWorkflows(){
+async function deleteSelectedWorkflows(confirmed=false){
     const ids = [...selectedWorkflowIds];
     if(!ids.length) return;
+    if(!confirmed) return confirmManagerBatchDelete('workflows',ids,()=>deleteSelectedWorkflows(true));
     const data = await apiJson('/api/asset-library/items/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:activeWorkflowLibraryId, ids})});
     assetLibrary = data.library || assetLibrary;
     selectedWorkflowIds.clear();
@@ -2834,6 +2888,9 @@ async function handleClick(event){
         return;
     }
     const target = event.target;
+    if(target.closest?.('[data-manager-retry]')){ await switchManagerTab(activeTab); return; }
+    if(target.closest?.('[data-manager-cancel-delete]')){ cancelManagerDelete();setStatus('已取消删除');return; }
+    if(target.closest?.('[data-manager-clear-search]')){ restoreManagerDescriptor({...managerViewDescriptor(),query:'',selectedId:''});render({resetScroll:true});return; }
     const navToggle=target.closest?.('[data-manager-toggle]');
     if(navToggle){
         const key=navToggle.dataset.managerToggle;
@@ -2878,7 +2935,7 @@ async function handleClick(event){
     }
     if(target.closest?.('[data-localup-select-all]')){ localUploadItems().forEach(item => selectedLocalUploadIds.add(item.id)); render(); return; }
     if(target.closest?.('[data-localup-clear]')){ selectedLocalUploadIds.clear(); render(); return; }
-    if(target.closest?.('[data-localup-delete-selected]')){ await deleteLocalAssets([...selectedLocalUploadIds]); return; }
+    if(target.closest?.('[data-localup-delete-selected]')){ const ids=[...selectedLocalUploadIds];await confirmManagerBatchDelete('local',ids,()=>deleteLocalAssets(ids)); return; }
     if(target.closest?.('[data-local-caption-run]')){ await runLocalUploadCaptionSelected(); return; }
     const localUpCaptionSave = target.closest?.('[data-localup-caption-save]');
     if(localUpCaptionSave){ await saveLocalUploadCaption(localUpCaptionSave.dataset.localupCaptionSave || ''); return; }
@@ -3933,9 +3990,10 @@ async function deleteAssetItem(id){
     render();
     setStatus('素材已删除');
 }
-async function deleteSelectedAssets(){
+async function deleteSelectedAssets(confirmed=false){
     if(!selectedAssetIds.size) return;
     const ids = [...selectedAssetIds];
+    if(!confirmed) return confirmManagerBatchDelete('assets',ids,()=>deleteSelectedAssets(true));
     const data = await apiJson('/api/asset-library/items/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:activeAssetLibraryId, ids})});
     assetLibrary = data.library || assetLibrary;
     if(ids.includes(selectedAssetId)) selectedAssetId = '';
@@ -4236,15 +4294,10 @@ async function deletePromptItem(id){
     render();
     setStatus('提示词已删除');
 }
-async function deleteSelectedPrompts(){
+async function deleteSelectedPrompts(confirmed=false){
     if(!selectedPromptIds.size) return;
-    if(pendingBatchDelete !== 'prompt'){
-        pendingBatchDelete = 'prompt';
-        render();
-        setStatus('再次点击确认删除所选提示词');
-        return;
-    }
     const ids = [...selectedPromptIds];
+    if(!confirmed) return confirmManagerBatchDelete('prompts',ids,()=>deleteSelectedPrompts(true));
     const data = await apiJson('/api/prompt-libraries/items/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids})});
     promptLibrary = data.library || promptLibrary;
     if(ids.includes(selectedPromptId)) selectedPromptId = '';

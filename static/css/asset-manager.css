@@ -128,6 +128,8 @@ button { border:0; cursor:pointer; }
 .manager-tree-heading { display:flex; align-items:center; min-width:0; }
 .manager-tree-heading > .tree-row { flex:1; min-width:0; }
 .manager-tree-toggle { flex:0 0 24px; color:var(--muted); background:transparent; border:0; cursor:pointer; }
+.manager-load-state { grid-column:1 / -1; padding:32px; text-align:center; }
+.empty-state > button { margin:12px auto 0; }
 .asset-library-tree .tree-branch:not(.expanded) > .tree-children { display:none; }
 .tree-elbow { width:12px; height:1px; background:var(--line-2); opacity:.8; }
 .tree-empty { margin:2px 0 2px 21px; min-height:28px; border-radius:8px; color:var(--faint); display:flex; align-items:center; font-size:10.5px; font-weight:750; }

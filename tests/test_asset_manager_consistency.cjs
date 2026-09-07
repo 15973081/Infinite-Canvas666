@@ -160,3 +160,36 @@ test('virtual patch retains overlapping media nodes and removes offscreen nodes'
     assert.deepEqual(grid.children.map(n=>n.dataset.managerCellKey),['__top__','b','c','d']);
     assert.equal(created,6);
 });
+
+test('stale refresh completion never renders or reports success in a newer tab', async () => {
+    let resolve;const pending=new Promise(r=>resolve=r);const status=[];let renders=0;
+    const context=vm.createContext({activeTab:'assets',managerTabSwitchToken:0,refreshBtn:{disabled:false},
+        setStatus:value=>status.push(value),loadManagerData:()=>pending,render:()=>renders++,resumeAvatarPolls(){}});
+    load(context,['managerTabLabel','refreshCurrentManager']);
+    const refresh=context.refreshCurrentManager();
+    context.activeTab='prompts';context.managerTabSwitchToken++;context.refreshBtn.disabled=false;
+    resolve();await refresh;
+    assert.equal(renders,0);assert.equal(status.length,1);assert.equal(context.refreshBtn.disabled,false);
+});
+
+test('local loading failure preserves data and propagates to the retry UI', async () => {
+    const old=[{id:'old'}];const tree={path:''};
+    const context=vm.createContext({localAssets:old,localUploadTree:tree,apiJson:async()=>{throw Error('offline')}});
+    load(context,['loadLocalAssets']);
+    await assert.rejects(context.loadLocalAssets(),/offline/);
+    assert.equal(context.localAssets,old);assert.equal(context.localUploadTree,tree);
+});
+
+test('batch delete confirms the exact view and selected IDs, and supports cancellation and failure recovery', async () => {
+    let calls=0;const context=vm.createContext({managerDeleteConfirmation:'',managerDeleteBusy:false,pendingBatchDelete:'',
+        managerViewDescriptor:()=>({tab:'assets',categoryId:'a'}),root:{querySelector:()=>null},setStatus(){}});
+    load(context,['managerViewKey','managerTabLabel','cancelManagerDelete','confirmManagerBatchDelete']);
+    const action=async()=>calls++;
+    await context.confirmManagerBatchDelete('assets',['a'],action);assert.equal(calls,0);
+    await context.confirmManagerBatchDelete('assets',['b'],action);assert.equal(calls,0);
+    await context.confirmManagerBatchDelete('assets',['b'],action);assert.equal(calls,1);
+    await context.confirmManagerBatchDelete('assets',['a'],action);context.cancelManagerDelete();
+    await context.confirmManagerBatchDelete('assets',['a'],action);assert.equal(calls,1);
+    await assert.rejects(context.confirmManagerBatchDelete('assets',['a'],async()=>{throw Error('failed')}),/failed/);
+    assert.equal(context.managerDeleteBusy,false);assert.equal(context.managerDeleteConfirmation,'');
+});
