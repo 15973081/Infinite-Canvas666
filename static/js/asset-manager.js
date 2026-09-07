@@ -1250,8 +1250,8 @@ function managerDataKey(tab){
 }
 async function loadManagerData(tab, {refresh=false, reset=false}={}){
     const key = managerDataKey(tab);
-    if(!refresh && managerDataLoaded[key]) return;
     if(managerLoadPromises.has(key)) return managerLoadPromises.get(key);
+    if(!refresh && managerDataLoaded[key]) return;
     const promise = (async () => {
         if(key === 'assets'){
             const data = await apiJson('/api/asset-library');
@@ -1380,6 +1380,7 @@ function render({resetScroll=false}={}){
     renderManagerVirtualWindow();
     restoreManagerView(saved,resetScroll);
     rememberManagerView();
+    refreshManagerSelection();
     refreshIcons();
 }
 function renderCanvasAssetsManager(){

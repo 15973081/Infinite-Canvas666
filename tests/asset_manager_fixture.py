@@ -5,14 +5,14 @@ Serves the real static UI with synthetic lists; never reads or modifies business
 import http.server
 import json
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def items(prefix, count=1000, **extra):
     return [dict(id=f"{prefix}-{i}", name=f"Review {i:04}",
-                 url=f"/assets/review-{prefix}-{i}.png", created_at=1788825600,
+                 url=f"/assets/review-{prefix}-{i}.png", created_at=1788825600000,
                  **extra) for i in range(count)]
 
 
@@ -58,7 +58,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             version = (ROOT / "static/js/asset-manager.js").stat().st_mtime_ns
             html = html.replace("?v=", f"?fixture={version}&v=")
             self.respond(html.encode(), "text/html; charset=utf-8")
-        elif route.startswith("/static/"):
+        elif route.startswith("/static/") and (ROOT / unquote(route).lstrip("/")).resolve().is_relative_to(ROOT / "static"):
             super().do_GET()
         else:
             self.send_error(404)

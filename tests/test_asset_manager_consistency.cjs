@@ -172,6 +172,15 @@ test('stale refresh completion never renders or reports success in a newer tab',
     assert.equal(renders,0);assert.equal(status.length,1);assert.equal(context.refreshBtn.disabled,false);
 });
 
+test('returning to a cached tab waits for its in-flight refresh', async () => {
+    let resolve;const pending=new Promise(r=>resolve=r);
+    const context=vm.createContext({managerDataLoaded:{assets:true},managerLoadPromises:new Map([['assets',pending]])});
+    load(context,['managerDataKey','loadManagerData']);
+    let finished=false;const loadResult=context.loadManagerData('assets').then(()=>finished=true);
+    await Promise.resolve();assert.equal(finished,false);
+    resolve();await loadResult;assert.equal(finished,true);
+});
+
 test('local loading failure preserves data and propagates to the retry UI', async () => {
     const old=[{id:'old'}];const tree={path:''};
     const context=vm.createContext({localAssets:old,localUploadTree:tree,apiJson:async()=>{throw Error('offline')}});
