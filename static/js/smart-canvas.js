@@ -1882,7 +1882,7 @@ function applyViewport(){
     world.classList.toggle('canvas-scaled', Math.abs(viewport.scale - 1) > 0.001);
     shell.style.backgroundSize = '24px 24px';
     shell.style.backgroundPosition = '0 0';
-    renderMinimap();
+    scheduleSmartMinimapRender(true);
     scheduleSmartViewportRefresh();
 }
 // 视野裁剪：判断节点是否在智能画布可见区域内
@@ -1997,7 +1997,22 @@ function viewportCenter(){
         y:(shell.clientHeight / 2 - viewport.y) / viewport.scale
     };
 }
-function renderMinimap(){
+let smartMinimapFrame = null;
+let smartMinimapViewportOnly = true;
+function scheduleSmartMinimapRender(viewportOnly=false){
+    smartMinimapViewportOnly = smartMinimapViewportOnly && viewportOnly;
+    if(smartMinimapFrame !== null) return;
+    smartMinimapFrame = requestAnimationFrame(() => {
+        const onlyViewport = smartMinimapViewportOnly;
+        smartMinimapFrame = null;
+        smartMinimapViewportOnly = true;
+        renderMinimap({viewportOnly:onlyViewport});
+    });
+}
+function renderMinimap({viewportOnly=false}={}){
+    if(smartMinimapFrame !== null) cancelAnimationFrame(smartMinimapFrame);
+    smartMinimapFrame = null;
+    smartMinimapViewportOnly = true;
     if(!minimapContent || !minimapViewport) return;
     const width = minimapContent.clientWidth || 170;
     const height = minimapContent.clientHeight || 108;
@@ -5196,7 +5211,35 @@ function renderConnections(){
     }).join('');
     return `<svg class="connection-layer" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
 }
-function refreshConnectionLayer(){
+let smartGeometryFrame = null;
+let smartGeometryPasses = 0;
+let smartGeometryAll = false;
+const smartGeometryNodes = new Set();
+function scheduleSmartGeometryRefresh(nodeIds=null, passes=1){
+    if(nodeIds === null) smartGeometryAll = true;
+    else nodeIds.forEach(id => smartGeometryNodes.add(id));
+    smartGeometryPasses = Math.max(smartGeometryPasses, passes);
+    if(smartGeometryFrame !== null) return;
+    smartGeometryFrame = requestAnimationFrame(() => {
+        smartGeometryFrame = null;
+        const ids = smartGeometryAll ? null : [...smartGeometryNodes];
+        const remaining = smartGeometryPasses - 1;
+        smartGeometryPasses = 0;
+        smartGeometryAll = false;
+        smartGeometryNodes.clear();
+        refreshConnectionLayer(ids);
+        if(remaining > 0) scheduleSmartGeometryRefresh(ids, remaining);
+    });
+}
+function cancelSmartGeometryRefresh(){
+    if(smartGeometryFrame !== null) cancelAnimationFrame(smartGeometryFrame);
+    smartGeometryFrame = null;
+    smartGeometryPasses = 0;
+    smartGeometryAll = false;
+    smartGeometryNodes.clear();
+}
+function refreshConnectionLayer(nodeIds=null){
+    cancelSmartGeometryRefresh();
     const oldSvg = world.querySelector('svg.connection-layer');
     if(!oldSvg) return;
     const tpl = document.createElement('template');
@@ -5220,8 +5263,8 @@ function moveNodeElementsDuringDrag(){
     if(active && (dragState.group || [{id:dragState.id}]).some(item => item.id === active.id)){
         positionComposerForNode(active);
     }
-    refreshConnectionLayer();
-    renderMinimap();
+    scheduleSmartGeometryRefresh(groupItems.map(item => item.id));
+    scheduleSmartMinimapRender();
 }
 function updateNodeElementDuringResize(node){
     if(!node) return;
@@ -5275,8 +5318,8 @@ function updateNodeElementDuringResize(node){
     }
     const active = selectedNode();
     if(active?.id === node.id) positionComposerForNode(active);
-    refreshConnectionLayer();
-    renderMinimap();
+    scheduleSmartGeometryRefresh([node.id], 2);
+    scheduleSmartMinimapRender();
 }
 function isVideoMediaItem(img){
     if(!img) return false;
@@ -6326,6 +6369,7 @@ function refreshRunTimerPills(){
     if(!active && runTimerInterval){ clearInterval(runTimerInterval); runTimerInterval = null; }
 }
 function render(){
+    cancelSmartGeometryRefresh();
     if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
     world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
     const composerEl = composer;
