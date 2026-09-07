@@ -90,3 +90,29 @@ test('unchanged typed list preserves DOM but still updates tokens; metadata inva
     ctx.renderSmartMediaGroups({id:'b'});plan.refs[0].asset_uris.volcengine='asset://second';
     ctx.renderSmartMediaGroups({id:'b'});assert.equal(writes,5);
 });
+test('affected nodes include transitive/cyclic and legacy dependencies, not unrelated nodes',()=>{
+    const ctx=vm.createContext({canvasUsesConnections:true,nodes:[{id:'legacy',inputNodeIds:['a']}],
+        canvas:{connections:[{from:'a',to:'b'},{from:'b',to:'c'},{from:'c',to:'a'},{from:'x',to:'y'}]}});
+    load(ctx,['smartAffectedNodeIds']);assert.deepEqual([...ctx.smartAffectedNodeIds(['a'])],['a','b','c']);
+    ctx.canvasUsesConnections=false;assert.deepEqual([...ctx.smartAffectedNodeIds(['a'])],['a','b','legacy','c']);
+});
+test('node refresh defers focused editor and never replaces unrelated DOM',()=>{
+    const a={id:'a'},b={id:'b'};let replaced=0,focusout,scheduled=0,focused=true;
+    const current={contains:()=>focused,addEventListener:(_name,fn)=>focusout=fn,
+        querySelector:()=>({scrollTop:93}),replaceWith:()=>replaced++};
+    const fresh={querySelector:()=>scroller},scroller={scrollTop:0};
+    const ctx=vm.createContext({nodes:[a,b],smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',
+        world:{querySelector:()=>current},CSS:{escape:x=>x},document:{activeElement:{},createElement:()=>({content:{firstElementChild:fresh}})},
+        setTimeout:fn=>fn(),isSmartNodeInViewport:()=>true,renderSmartNodeHtml:()=>'',transplantSmartMediaElements(){},bindNodeEvents(){},
+        bindSmartPreviewImageFallbacks(){},measureSmartNodeImages(){},scheduleSmartGeometryRefresh(){scheduled++;},
+        scheduleSmartMinimapRender(){},refreshRunTimerPills(){},refreshIcons(){},updateComposer(){throw Error('unrelated composer');}});
+    load(ctx,['refreshSmartNodes']);ctx.refreshSmartNodes(['a']);ctx.refreshSmartNodes(['a']);assert.equal(replaced,0);
+    assert.equal(current._smartRefreshPending,true);focused=false;focusout();assert.equal(replaced,1);assert.equal(scroller.scrollTop,93);
+    assert.equal(scheduled,3);
+});
+test('restored nodes use complete event bindings and selection avoids full render',()=>{
+    let bound;const ctx=vm.createContext({bindNodeEvents:els=>bound=els});load(ctx,['bindSmartNodeEvents']);
+    const el={};ctx.bindSmartNodeEvents(el,{id:'a'});assert.equal(bound[0],el);
+    const click=source.slice(source.indexOf('el.onclick = e => {',source.indexOf('function bindNodeEvents(')),source.indexOf('el.ondblclick =',source.indexOf('function bindNodeEvents(')));
+    assert.ok(click.includes('syncSelectionUi()'));assert.ok(!click.includes('render()'));
+});

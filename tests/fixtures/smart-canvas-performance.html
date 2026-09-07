@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><title>智能画布性能回归</title>
+<style>
+body{font:14px system-ui;margin:20px;background:#101620;color:#dce4ef}button,input{font:inherit;margin:4px;padding:7px}#shell{position:relative;height:400px;overflow:hidden;border:1px solid #526174}#world{position:absolute;inset:0}.image-node{position:absolute;width:200px;height:160px;background:#243044;border:1px solid #526174;overflow:hidden}.selected{outline:2px solid #a9bdd8}.image-node-placeholder{background:#18202c}.thumb-grid{height:85px;overflow:auto}.thumb-item{height:40px}.connection-layer{position:absolute;pointer-events:none}.conn-hit,.conn-cut{pointer-events:auto}#minimapContent{position:relative;width:170px;height:108px;background:#18202c;margin:10px}.minimap-node{position:absolute;background:#8497b2}.smart-minimap-viewport{position:absolute;border:1px solid white}pre{white-space:pre-wrap}
+</style>
+<button id="selection">检查选择不重建</button><button id="partial">检查焦点和局部更新</button><button id="geometry">检查120次几何刷新</button>
+<div id="shell"><div id="world"></div></div><div id="minimapContent"><div id="minimapViewport" class="smart-minimap-viewport"></div></div><pre id="result">加载中</pre>
+<script>
+// UI-only harness: production update/event functions, synthetic nodes; no backend writes.
+const world=document.getElementById('world'),shell=document.getElementById('shell'),minimapContent=document.getElementById('minimapContent');
+let minimapViewport=document.getElementById('minimapViewport'),smartMinimapState=null,smartMinimapFrame=null,smartMinimapViewportOnly=true;
+let smartGeometryFrame=null,smartGeometryPasses=0,smartGeometryAll=false;const smartGeometryNodes=new Set();
+let nodes=[{id:'a',type:'smart-image',x:30,y:30,images:[]},{id:'b',type:'smart-image',x:400,y:50,images:[]}];
+let canvas={connections:[{from:'a',to:'b',kind:'input'}]},canvasUsesConnections=true,viewport={x:0,y:0,scale:1};
+let selectedId='',selectedIds=[],selectedImage={nodeId:'',index:-1},smartCascadeSilentSelection=false,suppressNodeClickUntil=0;
+let smartLoopContext=null,smartComputationContext=null;
+let dragState=null,resizeState=null,thumbDragState=null,portDragState=null,selectionState=null,loopInsertPreview=null;
+let smartAudioLightboxState={nodeId:'',index:-1},previewNavState={nodeId:'',index:0};
+const smartAudioLightbox={classList:{contains:()=>false}},imageEditModal={classList:{contains:()=>false}};
+const smartCascadeRuns=new Map(),smartViewportScrolls=new Map();
+const noop=()=>{},scheduleSave=noop,hideRunTimerForNode=noop,refreshRunTimerPills=noop,refreshIcons=noop,updateComposer=noop,transplantSmartMediaElements=noop,bindSmartPreviewImageFallbacks=noop,measureSmartNodeImages=noop;
+const smartCascadeAnyRunning=()=>false,smartNodePendingCount=n=>n.pending||0,beginNodeDrag=noop;
+const selectedNode=()=>nodes.find(n=>n.id===selectedId),cascadeConnectionKeys=()=>new Set(),smartCascadeEdgeState=()=>'',positionComposerForNode=noop;
+const nodeRect=n=>({x:n.x,y:n.y,width:200,height:160}),imageLayout=()=>({width:200,height:160}),nodeScale=()=>1;
+const escapeHtml=s=>String(s??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
+const isSmartNodeInViewport=n=>n.x<2000;
+function renderSmartNodeHtml(n){return `<div class="image-node" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px"><div class="node-head">节点${n.id}</div><input aria-label="编辑${n.id}" value="${escapeHtml(n.text||'草稿')}" oninput="nodes.find(n=>n.id==='${n.id}').text=this.value"><div class="thumb-grid" data-thumb-scroll="1">${Array.from({length:12},(_,i)=>`<div class="row">素材${i}<br>内容</div>`).join('')}</div></div>`;}
+fetch('/static/js/smart-canvas.js').then(r=>r.text()).then(source=>{
+ const names=['scheduleSmartGeometryRefresh','cancelSmartGeometryRefresh','scheduleSmartMinimapRender','renderMinimap','renderConnections','refreshConnectionLayer','bindConnectionEvents','smartAffectedNodeIds','refreshSmartNodes','bindNodeEvents','bindSmartNodeEvents','syncSelectionUi','isNodeSelected','selectedNodeIds','renderSmartNodePlaceholderHtml'];
+ for(const optional of ['withSmartComputation','smartComputationData','smartConnectionGroupHtml','patchSmartConnectionGroup','canRecycleSmartMediaNode','renderSmartOffscreenPlaceholders','restoreSmartNodeScroll','manageSmartGroupPreviews'])if(source.includes('function '+optional+'('))names.push(optional);
+ for(const name of names){const start=source.indexOf('function '+name+'(');(0,eval)(source.slice(start,source.indexOf('\n}',start)+2));}
+ world.innerHTML=renderConnections()+nodes.map(renderSmartNodeHtml).join('');bindNodeEvents();bindConnectionEvents();renderMinimap();
+ const report=checks=>{document.getElementById('result').textContent=JSON.stringify(checks,null,2);if(Object.values(checks).some(v=>v===false))throw Error('fixture assertion failed');};
+ document.getElementById('selection').onclick=()=>{const old=world.querySelector('[data-id="a"]');old.click();world.querySelector('[data-id="b"]').click();report({selection:selectedId==='b',sameNode:old===world.querySelector('[data-id="a"]')});};
+ document.getElementById('partial').onclick=()=>{const old=world.querySelector('[data-id="a"]'),other=world.querySelector('[data-id="b"]'),field=other.querySelector('input'),scroll=old.querySelector('[data-thumb-scroll]');scroll.scrollTop=80;field.focus();field.value='保留输入';field.dispatchEvent(new Event('input'));refreshSmartNodes(['a']);const firstPass=field===document.activeElement&&other.isConnected;field.blur();setTimeout(()=>report({focusProtected:firstPass,draft:world.querySelector('[data-id="b"] input').value==='保留输入',targetReplaced:old!==world.querySelector('[data-id="a"]'),scrollPreserved:world.querySelector('[data-id="a"] [data-thumb-scroll]').scrollTop===80}),20);};
+ document.getElementById('geometry').onclick=()=>{const old=world.querySelector('.connection-layer');for(let i=0;i<120;i++){nodes[0].x=i;scheduleSmartGeometryRefresh(['a'],2);scheduleSmartMinimapRender();}requestAnimationFrame(()=>requestAnimationFrame(()=>report({finalGeometry:world.querySelector('.connection-layer').innerHTML.includes('M319 '),minimapCount:minimapContent.querySelectorAll('.minimap-node').length===2})));};
+ document.getElementById('result').textContent='就绪';
+}).catch(e=>{document.getElementById('result').textContent=e.stack;});
+</script></html>

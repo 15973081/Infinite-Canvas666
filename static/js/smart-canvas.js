@@ -1970,18 +1970,7 @@ function renderSmartNodeHtml(node){
 }
 function bindSmartNodeEvents(el, node){
     if(!el || !node) return;
-    const deleteBtn = el.querySelector('.node-delete');
-    if(deleteBtn){
-        deleteBtn.addEventListener('click', e => { e.stopPropagation(); deleteSmartNode(node.id); });
-    }
-    el.addEventListener('click', e => {
-        if(e.target.closest('.node-delete, .smart-node-toolbar, .run-time-pill')) return;
-        handleSmartNodeClick(node.id, e);
-    });
-    el.addEventListener('mousedown', e => {
-        if(e.target.closest('.node-delete, .node-resize-handle, .smart-node-toolbar, .run-time-pill, .node-port')) return;
-        startSmartNodeDrag(node.id, e);
-    });
+    bindNodeEvents([el]);
 }
 
 function screenToWorld(event){
@@ -6250,7 +6239,7 @@ async function querySmartImageTaskNow(nodeId, localTaskId){
     }
     task.querying = true;
     task.recoverTaskId = recoverTaskId;
-    render();
+    refreshSmartNodes([node.id]);
     try {
         const data = await window.CanvasApi.queryImageTask({provider_id:providerIdForSmartTask(node, task), task_id:recoverTaskId});
         if(data.status === 'succeeded'){
@@ -6267,7 +6256,7 @@ async function querySmartImageTaskNow(nodeId, localTaskId){
     } finally {
         const latest = smartPendingTasks(node).find(item => item.taskId === localTaskId);
         if(latest) latest.querying = false;
-        render();
+        refreshSmartNodes([node.id]);
         scheduleSave();
     }
 }
@@ -6480,8 +6469,62 @@ function render(){
     measureSmartNodeImages();
     refreshRunTimerPills();
 }
-function measureSmartNodeImages(){
-    world.querySelectorAll('.image-node img,.image-node video').forEach(imgEl => {
+function smartAffectedNodeIds(ids){
+    const affected = new Set(ids.filter(Boolean)), outgoing = new Map();
+    (canvas?.connections || []).forEach(conn => {
+        if(!outgoing.has(conn.from)) outgoing.set(conn.from, []);
+        outgoing.get(conn.from).push(conn.to);
+    });
+    if(!canvasUsesConnections) nodes.forEach(node => (node.inputNodeIds || []).forEach(from => {
+        if(!outgoing.has(from)) outgoing.set(from, []);
+        outgoing.get(from).push(node.id);
+    }));
+    const queue = [...affected];
+    for(let i=0; i<queue.length; i++){
+        (outgoing.get(queue[i]) || []).forEach(id => {
+            if(!affected.has(id)){ affected.add(id); queue.push(id); }
+        });
+    }
+    return affected;
+}
+function refreshSmartNodes(ids){
+    const affected = smartAffectedNodeIds(ids);
+    const byId = new Map(nodes.map(node => [node.id, node]));
+    affected.forEach(id => {
+        const node = byId.get(id);
+        const current = world.querySelector(`.image-node[data-id="${CSS.escape(id)}"]`);
+        if(!node || !current) return;
+        if(current.contains(document.activeElement)){
+            if(!current._smartRefreshPending){
+                current._smartRefreshPending = true;
+                current.addEventListener('focusout', () => setTimeout(() => {
+                    current._smartRefreshPending = false;
+                    refreshSmartNodes([id]);
+                }, 0), {once:true});
+            }
+            return;
+        }
+        const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop || 0;
+        const tpl = document.createElement('template');
+        tpl.innerHTML = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+        const fresh = tpl.content.firstElementChild;
+        if(!fresh) return;
+        transplantSmartMediaElements(current, fresh);
+        current.replaceWith(fresh);
+        bindNodeEvents([fresh]);
+        const scroller = fresh.querySelector('[data-thumb-scroll]');
+        if(scroller) scroller.scrollTop = scroll;
+        bindSmartPreviewImageFallbacks(fresh);
+        measureSmartNodeImages(fresh);
+    });
+    if(affected.has(selectedId)) updateComposer();
+    scheduleSmartGeometryRefresh([...affected], 2);
+    scheduleSmartMinimapRender();
+    refreshRunTimerPills();
+    refreshIcons();
+}
+function measureSmartNodeImages(root=world){
+    root.querySelectorAll('.image-node img,.image-node video').forEach(imgEl => {
         const nodeEl = imgEl.closest('.image-node');
         const itemEl = imgEl.closest('[data-image-index]');
         const node = nodes.find(n => n.id === nodeEl?.dataset.id);
@@ -6929,8 +6972,8 @@ function pickMediaForSmartNode(nodeId){
     document.body.appendChild(input);
     input.click();
 }
-function bindNodeEvents(){
-    world.querySelectorAll('.image-node').forEach(el => {
+function bindNodeEvents(elements=null){
+    (elements || world.querySelectorAll('.image-node')).forEach(el => {
         const id = el.dataset.id;
         const nodeForControls = nodes.find(n => n.id === id);
         if(nodeForControls?.type === 'smart-prompt') bindPromptNodeControls(el, nodeForControls);
@@ -6940,17 +6983,13 @@ function bindNodeEvents(){
             if(Date.now() < suppressNodeClickUntil) return;
             const node = nodes.find(n => n.id === id);
             hideRunTimerForNode(node);
-            const alreadySelected = selectedId === id && selectedIds.length === 0 && selectedImage.nodeId === '';
             selectedId = id;
             selectedIds = [];
             selectedImage = {nodeId:'', index:-1};
             if(smartCascadeAnyRunning()) smartCascadeSilentSelection = false;
-            if(alreadySelected){
-                syncSelectionUi();
-                updateComposer();
-                return;
-            }
-            render();
+            syncSelectionUi();
+            refreshRunTimerPills();
+            updateComposer();
         };
         el.ondblclick = e => e.stopPropagation();
         const nodeDrop = el.querySelector('.node-drop');
@@ -13575,7 +13614,7 @@ async function resumeSmartPendingNode(node){
         if(!tasks.length) return;
         node.pending = Math.max(tasks.length, Number(node.pending || 0) || tasks.length);
         node.running = false;
-        render();
+        refreshSmartNodes([node.id]);
         const failures = [];
         await Promise.all(tasks.map(async task => {
             if(task.failed && task.recoverTaskId) return;
@@ -13584,7 +13623,7 @@ async function resumeSmartPendingNode(node){
                 const result = await pollSmartCanvasTask(task.taskId, kind);
                 const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(result?.images || result);
                 finalizeSmartPendingTask(node, task.taskId, outputs, kind);
-                render();
+                refreshSmartNodes([node.id]);
                 scheduleSave();
             } catch(e) {
                 if(e && e.imageTaskRecover && e.recoverTaskId){
@@ -13596,7 +13635,7 @@ async function resumeSmartPendingNode(node){
                     node.running = false;
                     node.pending = Math.max(1, smartPendingTasks(node).length);
                     toast('任务未丢失，可稍后手动查询结果');
-                    render();
+                    refreshSmartNodes([node.id]);
                     scheduleSave();
                     return;
                 }
@@ -13612,7 +13651,7 @@ async function resumeSmartPendingNode(node){
                 }
                 failures.push(e);
                 toast((e.message || tr('smart.errRunFailed')).slice(0, 160));
-                render();
+                refreshSmartNodes([node.id]);
                 scheduleSave();
             }
         }));
