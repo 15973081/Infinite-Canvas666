@@ -220,6 +220,22 @@ function alignAssetScrollAnchor(snapshot){
     else context.element.scrollTop += delta;
     return true;
 }
+function assetVirtualMetrics(grid, context){
+    const style = getComputedStyle(grid);
+    const columns = Math.max(1, style.gridTemplateColumns.split(' ').filter(Boolean).length);
+    const gap = Number.parseFloat(style.rowGap) || 10;
+    const columnGap = Number.parseFloat(style.columnGap) || 10;
+    const cardHeight = (grid.clientWidth - (columns - 1) * columnGap) / columns + 48;
+    return {columns, gap, cardHeight, rowStride:cardHeight + gap,
+        gridTop:context.kind === 'window'
+            ? grid.getBoundingClientRect().top + context.top
+            : grid.getBoundingClientRect().top - context.viewportTop + context.top};
+}
+function assetAnchorScrollTop(snapshot, items, metrics){
+    const index = items.findIndex(item => item.id === snapshot.anchorId);
+    return index < 0 ? Number(snapshot.top || 0)
+        : metrics.gridTop + Math.floor((index + 1) / metrics.columns) * metrics.rowStride - Number(snapshot.anchorOffset || 0);
+}
 function restoreAssetViewState(snapshot){
     if(!snapshot) return;
     const expectedKey = assetViewKey();
@@ -231,7 +247,9 @@ function restoreAssetViewState(snapshot){
         if(!context) return;
         root.querySelector('.asset-nav .nav-scroll')?.scrollTo({top:Number(snapshot.navTop || 0), behavior:'auto'});
         root.querySelector('.asset-detail .detail-scroll')?.scrollTo({top:Number(snapshot.detailTop || 0), behavior:'auto'});
-        setAssetScrollPosition(context, Number(snapshot.top || 0), Number(snapshot.left || 0));
+        const grid = root.querySelector('[data-asset-virtual-grid]');
+        const top = grid ? assetAnchorScrollTop(snapshot, currentAssetItems(), assetVirtualMetrics(grid, context)) : Number(snapshot.top || 0);
+        setAssetScrollPosition(context, top, Number(snapshot.left || 0));
         renderAssetVirtualWindow();
         requestAnimationFrame(() => {
             if(token !== assetViewRestoreToken || activeTab !== 'assets') return;
@@ -1493,17 +1511,9 @@ function renderAssetVirtualWindow(){
     const scroller = context?.element;
     const items = currentAssetItems();
     if(!grid || !scroller || !context || !items.length) return;
-    const sample = grid.querySelector('[data-asset-card]') || grid.querySelector('.upload-grid-card');
-    if(!sample) return;
-    const style = getComputedStyle(grid);
-    const gap = Number.parseFloat(style.rowGap || style.gap) || 10;
-    const sampleRect = sample.getBoundingClientRect();
-    if(sampleRect.width <= 0 || sampleRect.height <= 0) return;
-    const columns = Math.max(1, Math.round((grid.clientWidth + gap) / (sampleRect.width + gap)));
-    const rowStride = sampleRect.height + gap;
-    const gridTop = context.kind === 'window'
-        ? grid.getBoundingClientRect().top + context.top
-        : grid.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    if(grid.clientWidth <= 0) return;
+    const {columns, gap, cardHeight, rowStride, gridTop} = assetVirtualMetrics(grid, context);
+    grid.style.setProperty('--asset-virtual-card-height', `${cardHeight}px`);
     const scrollTop = context.kind === 'window'
         ? Math.max(0, context.top - gridTop)
         : Math.max(0, scroller.scrollTop - gridTop);
@@ -1517,7 +1527,7 @@ function renderAssetVirtualWindow(){
     const endRow = Math.min(totalRows, startRow + visibleRows + ASSET_VIRTUAL_OVERSCAN_ROWS * 2);
     const start = startRow * columns;
     const end = Math.min(total, endRow * columns);
-    const rangeKey = `${columns}:${start}:${end}:${items.length}:${currentAssetGridKey()}`;
+    const rangeKey = `${columns}:${rowStride}:${start}:${end}:${items.length}:${currentAssetGridKey()}`;
     if(rangeKey === assetVirtualRangeKey) return;
     assetVirtualRangeKey = rangeKey;
     const topHeight = startRow ? Math.max(0, startRow * rowStride - gap) : 0;
@@ -4022,7 +4032,7 @@ window.addEventListener('scroll', () => {
 }, {passive:true});
 window.addEventListener('resize', () => {
     scheduleAssetVirtualRender();
-    scheduleAssetViewSave();
+    if(activeTab === 'assets') restoreAssetViewState(savedAssetViewForCurrentState());
 });
 window.addEventListener('pagehide', () => {
     const snapshot = captureAssetViewState();

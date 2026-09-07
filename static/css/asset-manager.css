@@ -163,6 +163,10 @@ button { border:0; cursor:pointer; }
 .content-scroll { position:relative; flex:1; padding:12px; }
 .asset-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:10px; align-content:start; }
 .asset-virtual-spacer { grid-column:1 / -1; min-width:0; pointer-events:none; }
+[data-asset-virtual-grid] > .asset-card,
+[data-asset-virtual-grid] > .upload-grid-card { height:var(--asset-virtual-card-height); content-visibility:visible; contain-intrinsic-size:none; transform:none; }
+[data-asset-virtual-grid] .asset-thumb,
+[data-asset-virtual-grid] .upload-thumb { flex-shrink:0; }
 .upload-grid-card { min-width:0; border:1px dashed rgba(148,163,184,.46); border-radius:12px; background:var(--card); color:var(--muted); display:flex; flex-direction:column; padding:0; text-align:left; overflow:hidden; transition:border-color .14s ease, background .14s ease, color .14s ease, transform .14s ease; }
 .upload-grid-card:hover,.upload-grid-card.drag-over { border-color:var(--line-2); background:var(--soft); color:var(--text); transform:translateY(-1px); }
 .upload-thumb { width:100%; aspect-ratio:1 / 1; background:var(--soft); display:flex; align-items:center; justify-content:center; }
