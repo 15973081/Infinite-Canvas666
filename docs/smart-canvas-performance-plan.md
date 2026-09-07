@@ -15,7 +15,7 @@
 - [x] S5 连线局部更新及计算复用：保留 SVG 元素、命中区和删除事件；移动只更新相邻连线；缓存限于安全的计算周期，避免过期拓扑。
 - [x] S6 视野外媒体回收：仅降级安全媒体节点，保护交互/选中/运行/灯箱节点；回到视野正确恢复尺寸和组内滚动。
 - [x] S7 大分组资源控制：保留素材索引、拖拽、删除及灯箱语义，按组内可见范围控制预览资源，不改变素材数据。
-- [ ] S8 计时器与最终回归：完成计时标签不维持无效定时器；浏览器隔离场景验证、相关自动测试、语法及 diff 检查。
+- [x] S8 计时器与最终回归：完成计时标签不维持无效定时器；浏览器隔离场景验证、相关自动测试、语法及 diff 检查。
 
 ## 后续评估（不盲目改写）
 
@@ -32,3 +32,16 @@
 - S5：性能及素材测试 23 项、Python 回归 25 项通过。1000 条链式连接场景，全量尺寸计算 1001 次，移动端点局部计算 2 次（不等于整体性能提升比例）；局部几何与全量结果相同。浏览器验证 SVG/命中区复用、最终几何、删除仅触发一次、历史线保留。拓扑变动自动升级为完整连线同步，单次计算索引在结束/异常后释放。
 - S6：性能及素材测试 24 项、Python 回归 25 项通过，语法/diff 通过。浏览器验证移出视野降级、返回恢复、滚动位置和选择交互。700px 回收/400px 恢复缓冲避免边缘反复切换；滚动状态按节点对象 WeakMap 保存，不写入业务数据。交互、运行、选中、媒体播放及灯箱保护专项测试通过。
 - S7：性能及素材测试 27 项、Python 回归 25 项、语法/diff 通过。超过 48 份素材的分组采用可见范围 + 200px 缓冲的预览资源加载；保留单元 DOM/索引而非高风险全列表虚拟化。浏览器 100 张测试组初始激活 10 张预览，滚到底部/返回正确释放和恢复，索引保持 0–99。验证观察器清理、回退地址保留、主动暂停不会触发错误回退重新加载；浏览器无错误日志。
+- S8：最终 84 项自动检查通过（46 项 JS，33 项智能画布/版本 Python 检查，5 项后端请求检查），JS 语法及 diff 检查通过。浏览器重跑选择、焦点、滚动、几何最终位置、连线删除、视野回收、大分组资源，以及素材分类/插入/保存重开；未调用真实生成接口。计时器仅有活跃任务时运行，完成标签保持静态。
+
+## 复验命令
+
+```powershell
+node --check static/js/smart-canvas.js
+node --test tests/test_smart_canvas_performance.cjs tests/test_smart_media_references.cjs tests/test_canvas_media_inputs.cjs tests/test_canvas_incremental_links.cjs tests/test_canvas_geometry_scheduling.cjs
+./python/python.exe -c "import sys,unittest; sys.path.insert(0, '.'); loader=unittest.TestLoader(); suite=unittest.TestSuite([loader.discover('tests',pattern='test_smart_canvas*.py'),loader.discover('tests',pattern='test_frontend_versioning.py')]); result=unittest.TextTestRunner().run(suite); sys.exit(not result.wasSuccessful())"
+./python/python.exe tests/test_seedance_reference_payload.py
+git diff --check
+```
+
+浏览器隔离页面：`tests/fixtures/smart-canvas-performance.html`、`tests/fixtures/smart-media-references.html`。本轮没有对用户真实大画布做 FPS/内存基准测试，不承诺整体性能提升百分比。后续若需要进一步收益，再测量全分组 DOM 虚拟化、差量撤销和跨帧依赖缓存的必要性。

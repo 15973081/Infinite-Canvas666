@@ -6483,14 +6483,16 @@ function hideRunTimerForNode(node){
     return true;
 }
 function refreshRunTimerPills(){
-    const active = nodes.some(n => n.type !== 'smart-prompt' && !n.runTimerHidden && (smartNodePendingCount(n) || n.running || n.runFinishedAt));
+    const active = nodes.some(n => n.type !== 'smart-prompt' && !n.runTimerHidden && (smartNodePendingCount(n) || n.running));
+    const byId = new Map(nodes.map(node => [node.id, node]));
     document.querySelectorAll('[data-run-timer]').forEach(el => {
-        const node = nodes.find(n => n.id === el.dataset.runTimer);
+        const node = byId.get(el.dataset.runTimer);
         if(!node || node.runTimerHidden || node.type === 'smart-prompt') {
             el.remove();
             return;
         }
-        el.textContent = formatRunDuration(nodeRunElapsedMs(node));
+        const label = formatRunDuration(nodeRunElapsedMs(node));
+        if(el.textContent !== label) el.textContent = label;
         el.classList.toggle('done', Boolean(!smartNodePendingCount(node) && !node.running && node.runFinishedAt));
     });
     if(active && !runTimerInterval) runTimerInterval = setInterval(refreshRunTimerPills, 1000);

@@ -179,3 +179,14 @@ test('suspending an image cannot trigger proxy or preview fallback reloads',()=>
     ctx.bindImageProxyFallback(img,'original.png');ctx.bindSmartPreviewImageFallbacks({querySelectorAll:()=>[img]});
     listeners.forEach(fn=>fn());assert.equal(reloads,0);
 });
+test('completed run labels do not keep timer alive or rewrite unchanged text',()=>{
+    let started=0,stopped=0,writes=0,text='';const node={id:'a',runFinishedAt:100};
+    const el={dataset:{runTimer:'a'},classList:{toggle(){}},get textContent(){return text;},set textContent(v){writes++;text=v;}};
+    const ctx=vm.createContext({nodes:[node],runTimerInterval:null,document:{querySelectorAll:()=>[el]},
+        smartNodePendingCount:n=>n.pending||0,formatRunDuration:ms=>String(ms),nodeRunElapsedMs:()=>100,
+        setInterval:()=>{started++;return 1;},clearInterval:()=>stopped++});
+    load(ctx,['refreshRunTimerPills']);ctx.refreshRunTimerPills();ctx.refreshRunTimerPills();
+    assert.equal(started,0);assert.equal(writes,1);
+    node.running=true;ctx.refreshRunTimerPills();assert.equal(started,1);
+    node.running=false;ctx.refreshRunTimerPills();assert.equal(stopped,1);assert.equal(ctx.runTimerInterval,null);
+});
