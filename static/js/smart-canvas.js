@@ -2010,6 +2010,9 @@ function scheduleSmartMinimapRender(viewportOnly=false){
     });
 }
 function renderMinimap({viewportOnly=false}={}){
+    const reuseLayout = viewportOnly && smartMinimapViewportOnly && smartMinimapState
+        && smartMinimapState.sourceNodes === nodes && smartMinimapState.canvas === canvas
+        && smartMinimapState.rects.length === nodes.length;
     if(smartMinimapFrame !== null) cancelAnimationFrame(smartMinimapFrame);
     smartMinimapFrame = null;
     smartMinimapViewportOnly = true;
@@ -2020,8 +2023,8 @@ function renderMinimap({viewportOnly=false}={}){
     const viewH = shell.clientHeight / viewport.scale;
     const viewX = -viewport.x / viewport.scale;
     const viewY = -viewport.y / viewport.scale;
-    const rects = nodes.map(nodeRect);
-    rects.push({x:viewX, y:viewY, width:viewW, height:viewH});
+    const nodeRects = reuseLayout ? smartMinimapState.rects : nodes.map(node => ({id:node.id, ...nodeRect(node)}));
+    const rects = [...nodeRects, {x:viewX, y:viewY, width:viewW, height:viewH}];
     const minX = Math.min(...rects.map(r => r.x), -200);
     const minY = Math.min(...rects.map(r => r.y), -200);
     const maxX = Math.max(...rects.map(r => r.x + r.width), viewX + viewW + 200);
@@ -2029,20 +2032,38 @@ function renderMinimap({viewportOnly=false}={}){
     const scale = Math.min(width / Math.max(1, maxX - minX), height / Math.max(1, maxY - minY));
     const offsetX = (width - (maxX - minX) * scale) / 2;
     const offsetY = (height - (maxY - minY) * scale) / 2;
-    smartMinimapState = {minX, minY, scale, offsetX, offsetY, width, height};
+    const previous = smartMinimapState;
+    smartMinimapState = {minX, minY, scale, offsetX, offsetY, width, height, rects:nodeRects, sourceNodes:nodes, canvas};
     const project = r => ({
         left:offsetX + (r.x - minX) * scale,
         top:offsetY + (r.y - minY) * scale,
         width:Math.max(4, r.width * scale),
         height:Math.max(4, r.height * scale)
     });
-    const nodeHtml = rects.slice(0, -1).map(r => {
+    const paint = (el, r) => {
         const p = project(r);
-        return `<div class="minimap-node" style="left:${p.left}px;top:${p.top}px;width:${p.width}px;height:${p.height}px"></div>`;
-    }).join('');
+        el.style.left = `${p.left}px`; el.style.top = `${p.top}px`;
+        el.style.width = `${p.width}px`; el.style.height = `${p.height}px`;
+    };
+    const sameProjection = reuseLayout && ['minX','minY','scale','offsetX','offsetY','width','height']
+        .every(key => previous[key] === smartMinimapState[key]);
+    if(!sameProjection){
+        const existing = new Map([...minimapContent.querySelectorAll('.minimap-node')].map(el => [el.dataset.nodeId, el]));
+        nodeRects.forEach(r => {
+            let el = existing.get(r.id);
+            if(!el){
+                el = document.createElement('div');
+                el.className = 'minimap-node'; el.dataset.nodeId = r.id;
+                minimapContent.appendChild(el);
+            }
+            paint(el, r);
+            existing.delete(r.id);
+        });
+        existing.forEach(el => el.remove());
+    }
     const view = project({x:viewX, y:viewY, width:viewW, height:viewH});
-    minimapContent.innerHTML = `${nodeHtml}<div id="minimapViewport" class="smart-minimap-viewport" style="left:${view.left}px;top:${view.top}px;width:${view.width}px;height:${view.height}px"></div>`;
-    minimapViewport = document.getElementById('minimapViewport');
+    minimapViewport.style.left = `${view.left}px`; minimapViewport.style.top = `${view.top}px`;
+    minimapViewport.style.width = `${view.width}px`; minimapViewport.style.height = `${view.height}px`;
 }
 function minimapEventToWorld(event){
     if(!smartMinimapState) renderMinimap();
