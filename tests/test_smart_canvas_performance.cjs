@@ -65,3 +65,28 @@ test('minimap reuses DOM and layout on pan, reprojects expanded bounds, invalida
     ctx.nodes=[{id:'c',x:0,y:0,width:50,height:50}];ctx.renderMinimap({viewportOnly:true});
     assert.equal(root.children.length,1);assert.equal(root.children[0].dataset.nodeId,'c');
 });
+test('composer refreshes material list once through normalized dynamic params',()=>{
+    let inputs=0;const noop=()=>{},node={id:'a'};
+    const ctx=vm.createContext({selectedNode:()=>node,smartCascadeSilentSelection:false,activeComposerSubject:node,
+        composer:{classList:{toggle(){},contains:()=>true}},cascadeRunBtn:{style:{}},isSmartImageNode:()=>true,
+        lastComposerNodeId:'a:node',promptInputNodesFor:()=>[],setPromptInputLocked:noop,syncCascadeRunButton:noop,
+        positionComposerForNode:noop,settings:{},promptInput:{style:{setProperty:noop}},renderInputPromptPreview:noop,
+        renderInputThumbsRow:()=>inputs++,updateProviderModels:()=>ctx.renderInputThumbsRow()});
+    load(ctx,['updateComposer']);ctx.updateComposer();assert.equal(inputs,1);
+});
+test('unchanged typed list preserves DOM but still updates tokens; metadata invalidates bindings',()=>{
+    let writes=0,binds=0,tokenChecks=0;
+    const row={classList:{toggle(){}},querySelectorAll:()=>[],set innerHTML(v){writes++;}};
+    const plan={refs:[],invalid:[],aliases:new Map()};
+    const ctx=vm.createContext({inputThumbsRow:row,collectPromptParts:()=>[],smartMediaReferencePlan:()=>plan,
+        defaultReferenceImagesFor:()=>[],promptInput:{querySelectorAll(){tokenChecks++;return[];}},
+        bindSmartPreviewImageFallbacks(){binds++;}});
+    load(ctx,['renderSmartMediaGroups']);ctx.renderSmartMediaGroups({id:'a'});ctx.renderSmartMediaGroups({id:'a'});
+    assert.equal(writes,1);assert.equal(binds,1);assert.equal(tokenChecks,2);
+    ctx.renderSmartMediaGroups({id:'b'});assert.equal(writes,2);
+    plan.invalid.push({url:'missing'});ctx.renderSmartMediaGroups({id:'b'});assert.equal(writes,3);
+    // Changes not present in the markup still require fresh event closures.
+    plan.refs.push({kind:'unknown',url:'asset://a',asset_uris:{volcengine:'asset://first'}});
+    ctx.renderSmartMediaGroups({id:'b'});plan.refs[0].asset_uris.volcengine='asset://second';
+    ctx.renderSmartMediaGroups({id:'b'});assert.equal(writes,5);
+});

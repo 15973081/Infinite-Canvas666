@@ -10034,7 +10034,6 @@ function updateComposer(){
     positionComposerForNode(node);
     const ph = Math.max(60, Math.min(380, Number(settings.promptH) || 124));
     promptInput.style.setProperty('--prompt-h', `${ph}px`);
-    renderInputThumbsRow(node);
     renderInputPromptPreview(node);
     syncCascadeRunButton(node);
     updateProviderModels();
@@ -10138,7 +10137,7 @@ function renderSmartMediaGroups(node){
     const plan = smartMediaReferencePlan(node, node ? defaultReferenceImagesFor(node) : [], parts);
     const refs = plan.refs;
     inputThumbsRow.classList.toggle('has-items', refs.length > 0 || plan.invalid.length > 0);
-    inputThumbsRow.innerHTML = ['image','audio','video'].map(kind => {
+    const html = ['image','audio','video'].map(kind => {
         const group = refs.filter(ref => ref.kind === kind);
         if(!group.length) return '';
         const title = {image:'图片',audio:'音频',video:'视频'}[kind];
@@ -10147,21 +10146,29 @@ function renderSmartMediaGroups(node){
             return `<div class="input-thumb smart-ref-item smart-ref-${kind}" data-thumb-index="${i}" data-kind="${kind}" data-url="${escapeAttr(ref.url)}" data-source-url="${escapeAttr(ref.originalLocalUrl || ref.url)}" data-node-id="${escapeAttr(ref.nodeId || '')}" data-image-index="${ref.imageIndex ?? ''}" draggable="${!ref.manual}"><button type="button" class="smart-ref-preview" data-ref-preview="${i}" aria-label="预览${ref.referenceLabel}">${kind === 'audio' ? '▷' : smartReferencePreviewHtml(ref)}${kind === 'video' ? '<span class="smart-ref-play">▷</span>' : ''}</button><button type="button" class="smart-ref-alias" data-ref-insert="${i}" title="插入引用">${ref.referenceLabel}</button>${kind === 'audio' ? `<span class="smart-ref-name" title="${escapeAttr(ref.name || ref.url)}">${escapeHtml(ref.name || fileNameFromUrl(ref.url))}</span>` : ''}</div>`;
         }).join('')}</div></section>`;
     }).join('') + (plan.invalid.length ? '<div class="smart-ref-error">存在失效引用，请在提示词中重新选择素材。</div>' : '');
-    inputThumbsRow.querySelectorAll('[data-ref-insert]').forEach(btn => {
-        btn.onmousedown = event => { event.preventDefault(); event.stopPropagation(); saveMentionRange(); };
-        btn.onclick = event => { event.stopPropagation(); insertMentionToken(refs[Number(btn.dataset.refInsert)]); savePromptDraftForCurrent(); scheduleSave(); };
-    });
-    inputThumbsRow.querySelectorAll('[data-ref-preview]').forEach(btn => {
-        btn.onclick = event => { event.stopPropagation(); previewSmartReference(refs[Number(btn.dataset.refPreview)]); };
-    });
-    let dragged = -1;
-    inputThumbsRow.querySelectorAll('.smart-ref-item').forEach(el => {
-        const target = Number(el.dataset.thumbIndex);
-        el.ondragstart = event => { dragged = target; event.stopPropagation(); event.dataTransfer.setData('application/x-smart-input-thumb', String(target)); };
-        el.ondragover = event => { if(dragged >= 0 && refs[dragged].kind === refs[target].kind && !refs[target].manual){ event.preventDefault(); event.stopPropagation(); } };
-        el.ondrop = event => { event.preventDefault(); event.stopPropagation(); reorderSmartMediaReference(node, refs, dragged, target); dragged = -1; };
-        el.ondragend = () => { dragged = -1; };
-    });
+    // Include source metadata: equal markup alone does not imply equal insert/preview targets.
+    const renderKey = JSON.stringify([node?.id, refs, html]);
+    if(inputThumbsRow._smartRefRenderKey !== renderKey){
+        inputThumbsRow.innerHTML = html;
+        inputThumbsRow._smartRefRenderKey = renderKey;
+        inputThumbsRow.querySelectorAll('[data-ref-insert]').forEach(btn => {
+            btn.onmousedown = event => { event.preventDefault(); event.stopPropagation(); saveMentionRange(); };
+            btn.onclick = event => { event.stopPropagation(); insertMentionToken(refs[Number(btn.dataset.refInsert)]); savePromptDraftForCurrent(); scheduleSave(); };
+        });
+        inputThumbsRow.querySelectorAll('[data-ref-preview]').forEach(btn => {
+            btn.onclick = event => { event.stopPropagation(); previewSmartReference(refs[Number(btn.dataset.refPreview)]); };
+        });
+        let dragged = -1;
+        inputThumbsRow.querySelectorAll('.smart-ref-item').forEach(el => {
+            const target = Number(el.dataset.thumbIndex);
+            el.ondragstart = event => { dragged = target; event.stopPropagation(); event.dataTransfer.setData('application/x-smart-input-thumb', String(target)); };
+            el.ondragover = event => { if(dragged >= 0 && refs[dragged].kind === refs[target].kind && !refs[target].manual){ event.preventDefault(); event.stopPropagation(); } };
+            el.ondrop = event => { event.preventDefault(); event.stopPropagation(); reorderSmartMediaReference(node, refs, dragged, target); dragged = -1; };
+            el.ondragend = () => { dragged = -1; };
+        });
+        bindSmartPreviewImageFallbacks(inputThumbsRow);
+    }
+    // Tokens may have changed even when the material list did not.
     promptInput.querySelectorAll('.mention-image-token').forEach(token => {
         const ref = parts.find(part => part.type === 'image' && part.url === token.dataset.url) || {url:token.dataset.url, kind:token.dataset.kind};
         token.dataset.kind = mediaKindForItem(ref);
@@ -10171,12 +10178,12 @@ function renderSmartMediaGroups(node){
         const text = token.querySelector('span:last-child');
         if(label && text) text.textContent = `@${label}`;
     });
-    bindSmartPreviewImageFallbacks(inputThumbsRow);
 }
 function renderInputThumbsRow(node){
     if(!inputThumbsRow) return;
     inputThumbsRow.classList.toggle('typed-media-inputs', smartTypedVideoInputs());
     if(smartTypedVideoInputs()) return renderSmartMediaGroups(node);
+    delete inputThumbsRow._smartRefRenderKey;
     const dedup = node ? visibleReferenceImagesFor(node) : [];
     inputThumbsRow.classList.toggle('has-items', dedup.length > 0);
     if(!dedup.length){ inputThumbsRow.innerHTML = ''; return; }
