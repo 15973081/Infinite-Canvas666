@@ -1869,9 +1869,24 @@ function fitSmartLoopNode(node){
     node.w = smartLoopWidth(node);
     node.h = smartLoopHeight(node);
 }
+let smartComputationContext = null;
+function withSmartComputation(work){
+    if(smartComputationContext) return work();
+    const incoming = new Map();
+    (canvas?.connections || []).forEach(conn => {
+        if(!incoming.has(conn.to)) incoming.set(conn.to, []);
+        incoming.get(conn.to).push(conn);
+    });
+    smartComputationContext = {byId:new Map(nodes.map(node => [node.id, node])), incoming, rects:new Map()};
+    try { return work(); } finally { smartComputationContext = null; }
+}
 function nodeRect(node){
+    const cached = smartComputationContext?.rects.get(node);
+    if(cached) return cached;
     const layout = imageLayout(node.images || [], nodeScale(node), node);
-    return {x:node.x || 0, y:node.y || 0, width:layout.width, height:layout.height};
+    const rect = {x:node.x || 0, y:node.y || 0, width:layout.width, height:layout.height};
+    smartComputationContext?.rects.set(node, rect);
+    return rect;
 }
 function applyViewport(){
     world.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`;
@@ -2012,7 +2027,7 @@ function renderMinimap({viewportOnly=false}={}){
     const viewH = shell.clientHeight / viewport.scale;
     const viewX = -viewport.x / viewport.scale;
     const viewY = -viewport.y / viewport.scale;
-    const nodeRects = reuseLayout ? smartMinimapState.rects : nodes.map(node => ({id:node.id, ...nodeRect(node)}));
+    const nodeRects = reuseLayout ? smartMinimapState.rects : withSmartComputation(() => nodes.map(node => ({id:node.id, ...nodeRect(node)})));
     const rects = [...nodeRects, {x:viewX, y:viewY, width:viewW, height:viewH}];
     const minX = Math.min(...rects.map(r => r.x), -200);
     const minY = Math.min(...rects.map(r => r.y), -200);
@@ -5182,12 +5197,18 @@ function shellPoint(event){
     const rect = shell.getBoundingClientRect();
     return {x:event.clientX - rect.left, y:event.clientY - rect.top};
 }
-function renderConnections(){
-    const conns = (canvas?.connections || []).map((conn, index) => ({...conn, index})).filter(c => nodes.some(n => n.id === c.from) && nodes.some(n => n.id === c.to));
+function renderConnections(nodeIds=null){
+    return withSmartComputation(() => renderSmartConnectionPaths(nodeIds));
+}
+function renderSmartConnectionPaths(nodeIds=null){
+    const byId = smartComputationContext.byId;
+    const scope = nodeIds === null ? null : new Set(nodeIds);
+    const conns = (canvas?.connections || []).map((conn, index) => ({...conn, index}))
+        .filter(c => byId.has(c.from) && byId.has(c.to) && (!scope || scope.has(c.from) || scope.has(c.to)));
     const cascadeKeys = cascadeConnectionKeys();
     const paths = conns.map(conn => {
-        const fromNode = nodes.find(n => n.id === conn.from);
-        const toNode = nodes.find(n => n.id === conn.to);
+        const fromNode = byId.get(conn.from);
+        const toNode = byId.get(conn.to);
         const fr = nodeRect(fromNode), tr = nodeRect(toNode);
         const kind = conn.kind || 'flow';
         const isHistory = kind === 'history';
@@ -5217,9 +5238,27 @@ function renderConnections(){
         const color = isCascade ? '#16a34a' : isHistory ? 'rgba(100,116,139,0.46)' : kind === 'input' ? 'rgba(100,116,139,0.62)' : 'rgba(148,163,184,0.62)';
         const opacity = isPendingLine ? '.82' : '1';
         const width = kind === 'input' ? '1.9' : '1.6';
-        return `<path class="${cls}" d="${curve}" stroke="${color}" stroke-width="${width}" fill="none" opacity="${opacity}"></path><path class="conn-hit" data-conn-index="${conn.index}" d="${curve}" stroke="transparent" stroke-width="14" fill="none"></path><circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}" opacity=".66"></circle><g class="conn-cut" data-conn-index="${conn.index}" transform="translate(${mx} ${my})"><circle r="8" fill="var(--card)" stroke="${color}" stroke-width="1.4"></circle><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="${color}" stroke-width="1.5" stroke-linecap="round"></path></g>`;
+        return `<g class="smart-connection" data-conn-key="${conn.index}"><path class="${cls}" d="${curve}" stroke="${color}" stroke-width="${width}" fill="none" opacity="${opacity}"></path><path class="conn-hit" data-conn-index="${conn.index}" d="${curve}" stroke="transparent" stroke-width="14" fill="none"></path><circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}" opacity=".66"></circle><g class="conn-cut" data-conn-index="${conn.index}" transform="translate(${mx} ${my})"><circle r="8" fill="var(--card)" stroke="${color}" stroke-width="1.4"></circle><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="${color}" stroke-width="1.5" stroke-linecap="round"></path></g></g>`;
     }).join('');
-    return `<svg class="connection-layer" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+    return `<svg class="connection-layer" data-topology="${escapeHtml(smartConnectionTopology())}" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+}
+function smartConnectionTopology(){
+    return JSON.stringify([nodes.map(n => n.id), (canvas?.connections || []).map(c => [c.from,c.to,c.kind || 'flow'])]);
+}
+function patchSmartConnectionGroup(current, fresh){
+    [...current.attributes].forEach(attr => {
+        if(!fresh.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+    });
+    [...fresh.attributes].forEach(attr => {
+        if(current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
+    });
+    [...fresh.children].forEach((child, index) => {
+        const old = current.children[index];
+        if(old && old.tagName === child.tagName) patchSmartConnectionGroup(old, child);
+        else if(old) old.replaceWith(child.cloneNode(true));
+        else current.appendChild(child.cloneNode(true));
+    });
+    while(current.children.length > fresh.children.length) current.lastElementChild.remove();
 }
 let smartGeometryFrame = null;
 let smartGeometryPasses = 0;
@@ -5252,11 +5291,20 @@ function refreshConnectionLayer(nodeIds=null){
     cancelSmartGeometryRefresh();
     const oldSvg = world.querySelector('svg.connection-layer');
     if(!oldSvg) return;
+    if(oldSvg.dataset.topology !== smartConnectionTopology()) nodeIds = null;
     const tpl = document.createElement('template');
-    tpl.innerHTML = renderConnections().trim();
+    tpl.innerHTML = renderConnections(nodeIds).trim();
     const nextSvg = tpl.content.firstElementChild;
-    if(nextSvg) oldSvg.replaceWith(nextSvg);
-    bindConnectionEvents();
+    if(!nextSvg) return;
+    const existing = new Map([...oldSvg.querySelectorAll('.smart-connection')].map(el => [el.dataset.connKey, el]));
+    [...nextSvg.children].forEach(fresh => {
+        const current = existing.get(fresh.dataset.connKey);
+        if(current) patchSmartConnectionGroup(current, fresh);
+        else { oldSvg.appendChild(fresh); bindConnectionEvents(fresh); }
+        existing.delete(fresh.dataset.connKey);
+    });
+    if(nodeIds === null) existing.forEach(el => el.remove());
+    oldSvg.dataset.topology = nextSvg.dataset.topology;
 }
 function moveNodeElementsDuringDrag(){
     if(!dragState) return;
@@ -6567,8 +6615,10 @@ function measureSmartNodeImages(root=world){
         imgEl.addEventListener('loadedmetadata', apply, {once:true});
     });
 }
-function bindConnectionEvents(){
-    world.querySelectorAll('[data-conn-index]').forEach(el => {
+function bindConnectionEvents(root=world){
+    root.querySelectorAll('[data-conn-index]').forEach(el => {
+        if(el._smartConnectionBound) return;
+        el._smartConnectionBound = true;
         if(el.classList.contains('conn-hit')){
             el.addEventListener('dblclick', e => {
                 e.preventDefault(); e.stopPropagation();
@@ -10890,13 +10940,13 @@ function upstreamNodesForKinds(node, kinds=['input']){
     if(!node) return [];
     const allowed = new Set(kinds);
     const ids = new Set();
-    (canvas?.connections || []).forEach(conn => {
+    (smartComputationContext ? smartComputationContext.incoming.get(node.id) || [] : canvas?.connections || []).forEach(conn => {
         if(conn.to === node.id && allowed.has(conn.kind || 'flow')) ids.add(conn.from);
     });
     if(!canvasUsesConnections && allowed.has('input')){
         (node.inputNodeIds || []).forEach(id => ids.add(id));
     }
-    return [...ids].map(id => nodes.find(n => n.id === id)).filter(Boolean);
+    return [...ids].map(id => smartComputationContext ? smartComputationContext.byId.get(id) : nodes.find(n => n.id === id)).filter(Boolean);
 }
 function inputNodesFor(node){
     return upstreamNodesForKinds(node, ['input']);

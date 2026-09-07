@@ -50,11 +50,11 @@ function element(){
 test('minimap reuses DOM and layout on pan, reprojects expanded bounds, invalidates on change',()=>{
     const root=element(),view=element();let layouts=0;
     const nodes=[{id:'a',x:0,y:0,width:200,height:200},{id:'b',x:1000,y:1000,width:200,height:200}];
-    const ctx=vm.createContext({minimapContent:root,minimapViewport:view,nodes,canvas:{},
+    const ctx=vm.createContext({minimapContent:root,minimapViewport:view,nodes,canvas:{},smartComputationContext:null,
         shell:{clientWidth:800,clientHeight:600},viewport:{x:0,y:0,scale:1},
         smartMinimapFrame:null,smartMinimapViewportOnly:true,smartMinimapState:null,
         nodeRect:n=>{layouts++;return n;},document:{createElement:element},cancelAnimationFrame(){}});
-    load(ctx,['renderMinimap']);ctx.renderMinimap();
+    load(ctx,['renderMinimap','withSmartComputation']);ctx.renderMinimap();
     const first=root.children[0],firstLeft=first.style.left;
     ctx.viewport.x=-100;ctx.renderMinimap({viewportOnly:true});
     assert.equal(layouts,2);assert.equal(root.children[0],first);
@@ -115,4 +115,26 @@ test('restored nodes use complete event bindings and selection avoids full rende
     const el={};ctx.bindSmartNodeEvents(el,{id:'a'});assert.equal(bound[0],el);
     const click=source.slice(source.indexOf('el.onclick = e => {',source.indexOf('function bindNodeEvents(')),source.indexOf('el.ondblclick =',source.indexOf('function bindNodeEvents(')));
     assert.ok(click.includes('syncSelectionUi()'));assert.ok(!click.includes('render()'));
+});
+test('partial links compute only endpoints, match full geometry, preserve history/cascade states',()=>{
+    let layouts=0;
+    const nodes=Array.from({length:1001},(_,i)=>({id:String(i),x:i*30,y:10,images:[]}));
+    const ctx=vm.createContext({nodes,canvas:{connections:nodes.slice(1).map((n,i)=>({from:String(i),to:n.id,kind:i===0?'history':'input'}))},
+        smartComputationContext:null,loopInsertPreview:null,cascadeConnectionKeys:()=>new Set(),smartCascadeEdgeState:()=>'',
+        imageLayout:()=>{layouts++;return {width:200,height:100};},nodeScale:()=>1,escapeHtml:s=>s});
+    load(ctx,['withSmartComputation','nodeRect','renderConnections','renderSmartConnectionPaths','smartConnectionTopology']);
+    const full=ctx.renderConnections();assert.equal(layouts,1001);
+    layouts=0;const partial=ctx.renderConnections(['0']);assert.equal(layouts,2);
+    assert.equal((partial.match(/class="smart-connection"/g)||[]).length,1);
+    assert.ok(partial.includes('conn-history'));assert.ok(full.includes(partial.slice(partial.indexOf('<g class='),partial.lastIndexOf('</svg>'))));
+    nodes[0].x=999;const moved=ctx.renderConnections(['0']);assert.ok(moved.includes('M1099 110'));
+    ctx.smartCascadeEdgeState=()=> 'active';assert.ok(ctx.renderConnections(['2']).includes('conn-cascade-active'));
+    assert.equal(ctx.smartComputationContext,null);
+});
+test('computation indexes are fresh per call and released on failure',()=>{
+    const ctx=vm.createContext({nodes:[{id:'a'},{id:'b'}],canvas:{connections:[{from:'a',to:'b',kind:'input'}]},canvasUsesConnections:true,smartComputationContext:null});
+    load(ctx,['withSmartComputation','upstreamNodesForKinds']);
+    assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'})[0].id),'a');
+    ctx.canvas.connections=[];assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'}).length),0);
+    assert.throws(()=>ctx.withSmartComputation(()=>{throw Error('test');}));assert.equal(ctx.smartComputationContext,null);
 });
