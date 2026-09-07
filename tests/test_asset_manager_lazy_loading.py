@@ -68,7 +68,7 @@ class AssetManagerLazyLoadingTest(unittest.TestCase):
         virtual = _function_source(self.source, "renderAssetVirtualWindow")
 
         guard = virtual.index("if(rangeKey === assetVirtualRangeKey) return")
-        replace = virtual.index("grid.innerHTML")
+        replace = virtual.index("patchVirtualGrid(")
         self.assertLess(guard, replace)
 
     def test_canvas_asset_scan_runs_off_event_loop(self):

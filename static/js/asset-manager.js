@@ -135,6 +135,92 @@ const managerLoadPromises = new Map();
 const MANAGER_VIEW_STORAGE_KEY = 'asset_manager_views_v1';
 let managerViews = loadManagerViews();
 let managerRestoreToken = 0;
+const managerItemCache = new Map();
+let managerVirtualModel = null;
+
+function cachedManagerItems(name, source, key, compute){
+    const cached=managerItemCache.get(name);
+    if(cached?.source===source && cached.key===key) return cached.items;
+    const items=compute();
+    managerItemCache.set(name,{source,key,items});
+    return items;
+}
+function patchVirtualGrid(grid, cells, topHeight, bottomHeight){
+    const desired=[];
+    if(topHeight>0) desired.push({key:'__top__',html:`<div class="asset-virtual-spacer" style="height:${topHeight}px"></div>`,item:topHeight});
+    desired.push(...cells);
+    if(bottomHeight>0) desired.push({key:'__bottom__',html:`<div class="asset-virtual-spacer" style="height:${bottomHeight}px"></div>`,item:bottomHeight});
+    const existing=new Map([...grid.children].map(node=>[node.dataset.managerCellKey,node]));
+    const retained=new Set();
+    let cursor=grid.firstElementChild;
+    for(const cell of desired){
+        let node=existing.get(cell.key);
+        if(!node || node.managerItem!==cell.item){
+            const template=document.createElement('template');
+            template.innerHTML=cell.html;
+            const replacement=template.content.firstElementChild;
+            replacement.dataset.managerCellKey=cell.key;
+            replacement.managerItem=cell.item;
+            if(node){ if(cursor===node) cursor=node.nextElementSibling; node.remove(); }
+            node=replacement;
+        }
+        if(node!==cursor) grid.insertBefore(node,cursor);
+        else cursor=cursor.nextElementSibling;
+        retained.add(node);
+    }
+    for(const node of [...grid.children]) if(!retained.has(node)) node.remove();
+}
+function renderManagerVirtualGrid(groups, renderCard, upload=''){
+    managerVirtualModel={groups,renderCard,upload,layout:null};
+    return '<div class="asset-grid" data-manager-virtual-grid></div>';
+}
+function buildManagerVirtualRows(groups, columns, cardHeight, gap, upload=''){
+    const rows=[], offsets=new Map();
+    let top=0;
+    const add=(cells,height)=>{ rows.push({top,height,cells}); for(const cell of cells) if(cell.id) offsets.set(cell.id,top); top+=height+gap; };
+    groups.forEach((group,index)=>{
+        if(group.title) add([{key:`header:${group.key}`,group}],64);
+        const cells=group.items.map(item=>({key:`card:${group.key}:${item.id}`,id:item.id,item}));
+        if(index===0 && upload) cells.unshift({key:'upload',html:upload,item:upload});
+        for(let i=0;i<cells.length;i+=columns) add(cells.slice(i,i+columns),cardHeight);
+    });
+    return {rows,offsets,height:Math.max(0,top-gap)};
+}
+function managerVisibleRows(rows, top, height, overscan){
+    let low=0, high=rows.length;
+    while(low<high){ const mid=(low+high)>>1; if(rows[mid].top+rows[mid].height<top-overscan) low=mid+1; else high=mid; }
+    const start=low;
+    while(low<rows.length && rows[low].top<top+height+overscan) low++;
+    return [start,low];
+}
+function renderManagerVirtualWindow(snapshot=null){
+    const grid=root.querySelector('[data-manager-virtual-grid]');
+    const context=managerScrollContext();
+    const model=managerVirtualModel;
+    if(!grid || !context || !model || !grid.clientWidth) return;
+    const metrics=assetVirtualMetrics(grid,context);
+    const {columns,cardHeight,rowStride,gap,gridTop}=metrics;
+    const layoutKey=`${columns}:${cardHeight}`;
+    if(model.layoutKey!==layoutKey){ model.layout=buildManagerVirtualRows(model.groups,columns,cardHeight,gap,model.upload); model.layoutKey=layoutKey; }
+    const layout=model.layout;
+    grid.style.setProperty('--asset-virtual-card-height',`${cardHeight}px`);
+    grid.style.minHeight=`${layout.height}px`;
+    if(snapshot){
+        const offset=layout.offsets.get(snapshot.anchorId);
+        setAssetScrollPosition(context,offset===undefined ? snapshot.top || 0 : gridTop+offset-Number(snapshot.anchorOffset || 0));
+    }
+    const current=managerScrollContext();
+    const [start,end]=managerVisibleRows(layout.rows,Math.max(0,current.top-gridTop),current.viewportHeight,rowStride*3);
+    const cells=layout.rows.slice(start,end).flatMap(row=>row.cells).map(cell=>{
+        if(cell.group) return {...cell,item:cell.group,html:`<div class="canvas-asset-group-head manager-group-heading"><div><strong>${escapeHtml(cell.group.title)}</strong><span>${escapeHtml(cell.group.subtitle || '')}</span></div><small>${cell.group.items.length} 个资产</small></div>`};
+        return {...cell,html:cell.html || model.renderCard(cell.item)};
+    });
+    const topHeight=start ? layout.rows[start]?.top-gap || 0 : 0;
+    const last=layout.rows[end-1];
+    const bottomHeight=last && end<layout.rows.length ? layout.height-last.top-last.height-gap : 0;
+    patchVirtualGrid(grid,cells,topHeight,bottomHeight);
+    if(grid.querySelector('[data-lucide]')) refreshIcons();
+}
 
 function loadManagerViews(){
     try {
@@ -258,6 +344,7 @@ function restoreManagerView(snapshot, resetScroll=false){
         const context = managerScrollContext();
         if(!context) return;
         setAssetScrollPosition(context, resetScroll ? 0 : snapshot?.top || 0);
+        renderManagerVirtualWindow(resetScroll ? {top:0} : snapshot);
         root.querySelector('.nav-scroll')?.scrollTo({top:snapshot?.navTop || 0});
         root.querySelector('.detail-scroll')?.scrollTo({top:resetScroll ? 0 : snapshot?.detailTop || 0});
         if(!resetScroll && snapshot?.anchorId){
@@ -806,6 +893,9 @@ async function openSharedFolder(folderId){
     }
 }
 function currentAssetItems(){
+    return cachedManagerItems('assets',assetLibrary,assetViewKey(),computeAssetItems);
+}
+function computeAssetItems(){
     const query = assetQuery.trim().toLowerCase();
     return (activeAssetCategory()?.items || []).filter(item => {
         if(!query) return true;
@@ -813,6 +903,9 @@ function currentAssetItems(){
     });
 }
 function currentWorkflowItems(){
+    return cachedManagerItems('workflows',assetLibrary,JSON.stringify([activeWorkflowLibraryId,activeWorkflowCategoryId,workflowQuery]),computeWorkflowItems);
+}
+function computeWorkflowItems(){
     const query = workflowQuery.trim().toLowerCase();
     return (activeWorkflowCategory()?.items || []).filter(item => {
         if(!query) return true;
@@ -882,6 +975,9 @@ function canvasAssetSortLabel(){
     return map[canvasAssetSort] || map.canvas_asc;
 }
 function currentCanvasAssetItems(){
+    return cachedManagerItems('canvas-assets',canvasAssetsData,JSON.stringify([activeCanvasAssetCategory,activeCanvasAssetCanvasId,canvasAssetQuery,canvasAssetSort]),computeCanvasAssetItems);
+}
+function computeCanvasAssetItems(){
     const q = String(canvasAssetQuery || '').trim().toLowerCase();
     let list = uniqueCanvasAssets(canvasAssetsData.items || []).filter(item => {
         if((item.canvas_kind || 'classic') !== activeCanvasAssetCategory) return false;
@@ -946,6 +1042,9 @@ function normalizeAssetMoveTarget(){
     return targets;
 }
 function currentPromptItems(){
+    return cachedManagerItems('prompts',promptLibrary,JSON.stringify([activePromptLibraryId,activePromptCategory,promptQuery]),computePromptItems);
+}
+function computePromptItems(){
     const lib = activePromptLibrary();
     const query = promptQuery.trim().toLowerCase();
     return (lib?.items || []).filter(item => {
@@ -1200,6 +1299,8 @@ async function refreshCurrentManager(){
     setStatus('已刷新');
 }
 function render({resetScroll=false}={}){
+    managerItemCache.clear();
+    managerVirtualModel=null;
     const previousView = captureManagerView();
     rememberManagerView(previousView);
     const targetView=managerViewDescriptor();
@@ -1224,6 +1325,7 @@ function render({resetScroll=false}={}){
     let saved=managerViews.views[managerViewKey(descriptor)] || (activeTab === 'assets' ? savedAssetViewForCurrentState(previousAssetView) : null);
     if(previousView?.tab===activeTab) saved={...descriptor,...saved,navTop:previousView.navTop};
     decorateManagerNavigation();
+    renderManagerVirtualWindow();
     restoreManagerView(saved,resetScroll);
     rememberManagerView();
     refreshIcons();
@@ -1271,10 +1373,7 @@ function renderCanvasAssetsManager(){
                 </div>
             </div>
             <div class="content-scroll">
-                <div class="asset-grid">
-                    ${groups.map(group => renderCanvasAssetGroup(group)).join('')}
-                    ${items.length ? '' : '<div class="empty-state">当前分类没有可下载的画布资产。可以切换分类，或在画布中生成/导入图片、视频、音频后再查看。</div>'}
-                </div>
+                ${items.length ? renderManagerVirtualGrid(groups,renderCanvasAssetCard) : '<div class="empty-state">当前分类没有可下载的画布资产。可以切换分类，或在画布中生成/导入图片、视频、音频后再查看。</div>'}
             </div>
         </section>
         <aside class="asset-panel asset-detail">
@@ -1409,6 +1508,9 @@ function focusTreeEditInput(id){
     });
 }
 function localUploadItems(){
+    return cachedManagerItems('local',localAssets,JSON.stringify([activeLocalUploadFolder,localUploadQuery]),computeLocalUploadItems);
+}
+function computeLocalUploadItems(){
     const q = String(localUploadQuery || '').trim().toLowerCase();
     let list = Array.isArray(localAssets) ? localAssets.slice() : [];
     if(activeLocalUploadFolder) list = list.filter(it => String(it.folder || '') === activeLocalUploadFolder);
@@ -1514,10 +1616,7 @@ function renderLocalManager(){
                 </div>
             </div>
             <div class="content-scroll">
-                <div class="asset-grid">
-                    ${renderLocalUploadAddCard()}
-                    ${items.map(item => renderLocalUploadCard(item)).join('')}
-                </div>
+                ${renderManagerVirtualGrid([{key:'uploads',items}],renderLocalUploadCard,renderLocalUploadAddCard())}
             </div>
         </section>
         <aside class="asset-panel asset-detail">
@@ -1668,10 +1767,11 @@ function appendNextAssetBatch(){
     scheduleAssetVirtualRender();
 }
 function scheduleAssetVirtualRender(){
-    if(activeTab !== 'assets' || assetVirtualRenderFrame) return;
+    if(assetVirtualRenderFrame) return;
     assetVirtualRenderFrame = requestAnimationFrame(() => {
         assetVirtualRenderFrame = 0;
-        renderAssetVirtualWindow();
+        if(activeTab==='assets') renderAssetVirtualWindow();
+        else renderManagerVirtualWindow();
     });
 }
 function renderAssetVirtualWindow(){
@@ -1704,9 +1804,10 @@ function renderAssetVirtualWindow(){
     const bottomHeight = trailingRows ? Math.max(0, trailingRows * rowStride - gap) : 0;
     const cells = [];
     for(let index = start; index < end; index++){
-        cells.push(index === 0 ? renderUploadCard(activeAssetCategory()) : renderAssetCard(items[index - 1]));
+        const item=index===0 ? activeAssetCategory() : items[index-1];
+        cells.push({key:index===0 ? 'upload' : `card:${item.id}`,item,html:index===0 ? renderUploadCard(item) : renderAssetCard(item)});
     }
-    grid.innerHTML = `${topHeight ? `<div class="asset-virtual-spacer" style="height:${topHeight}px"></div>` : ''}${cells.join('')}${bottomHeight ? `<div class="asset-virtual-spacer" style="height:${bottomHeight}px"></div>` : ''}`;
+    patchVirtualGrid(grid,cells,topHeight,bottomHeight);
     if(grid.querySelector('[data-lucide]')) refreshIcons();
 }
 function renderAssetManager(){
@@ -1834,11 +1935,8 @@ function renderWorkflowManager(){
                 </div>
             </div>
             <div class="content-scroll">
-                <div class="asset-grid">
-                    ${renderWorkflowUploadCard(cat)}
-                    ${items.map(item => renderWorkflowCard(item)).join('')}
-                    ${items.length ? '' : '<div class="empty-state">当前分组还没有工作流，可以上传 JSON / ZIP，或从传统画布导出到资产库。</div>'}
-                </div>
+                ${renderManagerVirtualGrid([{key:'workflows',items}],renderWorkflowCard,renderWorkflowUploadCard(cat))}
+                ${items.length ? '' : '<div class="empty-state">当前分组还没有工作流，可以上传 JSON / ZIP，或从传统画布导出到资产库。</div>'}
             </div>
         </section>
         <aside class="asset-panel asset-detail">

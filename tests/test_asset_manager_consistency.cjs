@@ -85,7 +85,7 @@ test('late scroll restoration cannot move a different view; search reset returns
     const frames=[], positions=[];let descriptor={tab:'prompts',libraryId:'a',categoryId:'x',query:''};
     const context=vm.createContext({activeTab:'prompts',managerRestoreToken:0,requestAnimationFrame:fn=>frames.push(fn),
         managerViewDescriptor:()=>descriptor,managerScrollContext:()=>({element:{},kind:'element'}),
-        setAssetScrollPosition:(_context,top)=>positions.push(top),root:{querySelector:()=>null},scheduleAssetViewSave(){}});
+        setAssetScrollPosition:(_context,top)=>positions.push(top),root:{querySelector:()=>null},scheduleAssetViewSave(){},renderManagerVirtualWindow(){}});
     load(context,['managerViewKey','restoreManagerView']);
     context.restoreManagerView({top:500});
     descriptor={...descriptor,categoryId:'y'};
@@ -115,4 +115,48 @@ test('workflow and local upload batch modes expose correct marquee targets', () 
     assert.equal(context.marqueeTargetSelector(),'[data-workflow-card]');
     context.activeTab='local';assert.equal(context.marqueeTargetSelector(),'[data-localup-card]');
     context.localUploadManageMode=false;assert.equal(context.marqueeTargetSelector(),'');
+});
+
+test('grouped virtual layout keeps headings, indexes anchors and bounds a 1000-item viewport', () => {
+    const context=vm.createContext({});load(context,['buildManagerVirtualRows','managerVisibleRows']);
+    const groups=Array.from({length:4},(_,g)=>({key:String(g),title:`Group ${g}`,items:Array.from({length:250},(_,i)=>({id:`${g}-${i}`}))}));
+    const layout=context.buildManagerVirtualRows(groups,5,200,10);
+    assert.equal(layout.rows.filter(row=>row.cells[0].group).length,4);
+    assert.equal(layout.offsets.get('0-0'),74);
+    assert.equal(layout.offsets.get('1-0'),74+50*210+74);
+    const [start,end]=context.managerVisibleRows(layout.rows,20000,700,630);
+    assert.ok(start>0);assert.ok(end-start<=12);
+    assert.ok(layout.rows.slice(start,end).flatMap(row=>row.cells).length<=60);
+});
+
+test('filter cache reuses results during scrolling and invalidates for source/query/render changes', () => {
+    const context=vm.createContext({managerItemCache:new Map()});load(context,['cachedManagerItems']);
+    let calls=0;const source=[];const compute=()=>{calls++;return ['result']};
+    const first=context.cachedManagerItems('assets',source,'q',compute);
+    for(let i=0;i<100;i++) assert.equal(context.cachedManagerItems('assets',source,'q',compute),first);
+    assert.equal(calls,1);
+    context.cachedManagerItems('assets',source,'other',compute);
+    context.cachedManagerItems('assets',[],'other',compute);
+    context.managerItemCache.clear();context.cachedManagerItems('assets',source,'other',compute);
+    assert.equal(calls,4);
+});
+
+test('virtual patch retains overlapping media nodes and removes offscreen nodes', () => {
+    class Node {
+        constructor(){this.dataset={};this.children=[];}
+        get firstElementChild(){return this.children[0] || null;}
+        get nextElementSibling(){return this.parent?.children[this.parent.children.indexOf(this)+1] || null;}
+        remove(){if(this.parent){const p=this.parent;p.children.splice(p.children.indexOf(this),1);this.parent=null;}}
+        insertBefore(node,before){node.remove();let index=before?this.children.indexOf(before):this.children.length;assert.ok(index>=0);this.children.splice(index,0,node);node.parent=this;}
+    }
+    const grid=new Node();let created=0;
+    const context=vm.createContext({document:{createElement(){return {set innerHTML(value){created++;this.content={firstElementChild:new Node()};}}}}});
+    load(context,['patchVirtualGrid']);
+    const a={},b={},c={},d={};const cell=(key,item)=>({key,item,html:'<article></article>'});
+    context.patchVirtualGrid(grid,[cell('a',a),cell('b',b),cell('c',c)],0,100);
+    const oldB=grid.children[1],oldC=grid.children[2];
+    context.patchVirtualGrid(grid,[cell('b',b),cell('c',c),cell('d',d)],100,0);
+    assert.equal(grid.children[1],oldB);assert.equal(grid.children[2],oldC);
+    assert.deepEqual(grid.children.map(n=>n.dataset.managerCellKey),['__top__','b','c','d']);
+    assert.equal(created,6);
 });
