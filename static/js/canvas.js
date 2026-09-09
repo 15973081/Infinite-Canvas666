@@ -10740,6 +10740,7 @@ async function runVideoNode(nodeId, opts={}){
             const outputUrls = videoOutputsFromResult(result);
             if(!outputUrls.length) throw new Error(tr('canvas.videoFailed'));
             run.request = requestMetaFromResult(result);
+            Object.assign(run, window.VolcengineVideoBilling?.metadata(result));
             mergeGeneratedOutputs(node, outputUrls, Boolean(opts.cascade));
             addGenerationLog({run, outputs:outputUrls, runMs:0});
             node.runStatus = 'done';
@@ -10778,6 +10779,7 @@ async function runVideoNode(nodeId, opts={}){
             return;
         }
         if(currentOut && pendingForRun && !handledTaskFailure) currentOut._pending = (currentOut._pending || []).filter(p => p.id !== pendingForRun.id);
+        Object.assign(run, window.VolcengineVideoBilling?.metadata(err.videoResult || {}));
         if(!handledTaskFailure) addGenerationLog({run, outputs:[], runMs:meta.runMs || 0, error:err.message || String(err)});
         currentNode.runStatus = 'failed'; currentNode.runError = err.message || String(err);
         refreshRunNodes(currentNode, currentOut);
@@ -12260,7 +12262,8 @@ function videoDurationSeconds(url){
 let videoCostBackfillRunning = false;
 async function backfillHistoricalVideoCosts(){
     if(videoCostBackfillRunning || !canvas) return;
-    const logs = (canvas.logs || []).filter(log => log.status !== 'failed' && billingIdentity({}, log).kind === 'video' && !Number(log.durationSeconds || 0));
+    const logs = (canvas.logs || []).filter(log => log.status !== 'failed' && billingIdentity({}, log).kind === 'video' && !Number(log.durationSeconds || 0)
+        && window.VolcengineVideoBilling?.costFor({}, log, billingIdentity({}, log), apiProviders) === undefined);
     if(!logs.length) return;
     videoCostBackfillRunning = true;
     let changed = false;
@@ -12279,8 +12282,10 @@ async function backfillHistoricalVideoCosts(){
     }
 }
 function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
-    if(log.status === 'failed') return null;
     const identity = billingIdentity(run, log);
+    const volcCost = window.VolcengineVideoBilling?.costFor(run, log, identity, apiProviders);
+    if(volcCost !== undefined) return volcCost;
+    if(log.status === 'failed') return null;
     if(!identity.kind || !identity.providerId || !identity.model) return {status:'unknown', source, ...identity};
     const price = modelPriceAt(identity.providerId, identity.kind, identity.model, createdAt);
     if(!price) return {status:'unknown', source, ...identity};
@@ -12304,6 +12309,8 @@ function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now
     };
 }
 function generationLogCost(log){
+    const volcCost = window.VolcengineVideoBilling?.costFor({}, log, billingIdentity({}, log), apiProviders);
+    if(volcCost !== undefined) return volcCost;
     if(log?.status === 'failed') return null;
     if(log?.cost?.status === 'priced') return log.cost;
     return calculateGenerationCost({log, outputs:log.outputs || [], createdAt:log.createdAt, source:'estimated'});
@@ -12342,13 +12349,14 @@ function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
         providerId:identity.providerId,
         billingKind:identity.kind,
         billingModel:identity.model,
-        durationSeconds:Number(run?.node?.duration || 0),
+        durationSeconds:Number(run?.video_info?.duration || run?.node?.duration || 0),
         request:run?.request || {},
         prompt:run?.prompt || '',
         outputs:(outputs || []).filter(Boolean),
         refs:run?.refs || [],
         runMs:Number(runMs || 0),
         error:error ? String(error) : '',
+        ...window.VolcengineVideoBilling?.metadata(run),
     };
     entry.cost = calculateGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
     canvas.logs = [entry, ...canvas.logs].slice(0, 500);
@@ -12399,11 +12407,12 @@ function renderCanvasLog(){
         const cost = generationLogCost(log);
         const costChip = cost?.status === 'priced'
             ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${formatCostMicros(cost.amount_micros)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
-            : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">待定价</span>` : '';
+            : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">${escapeHtml(window.VolcengineVideoBilling?.pendingLabel(cost) || '待核算')}</span>` : '';
         const idText = taskId || requestId || '';
         const backendText = workflow || backend || '';
         const subParts = [
             date,
+            ...(window.VolcengineVideoBilling?.details(log) || []),
             `${langIsEn() ? 'outputs' : '输出'} ${(log.outputs || []).length}`,
             idText ? `ID ${idText}` : '',
             backendText,
@@ -12855,7 +12864,8 @@ function failCanvasImageTask(taskId, message, taskData={}){
 function videoOutputsFromResult(result){
     return resultMediaUrls(result).map(item => {
         const url = outputUrlValue(item);
-        return item && typeof item === 'object' ? {...item, url, kind:item.kind || 'video'} : {url, kind:'video'};
+        const media = item && typeof item === 'object' ? {...item, url, kind:item.kind || 'video'} : {url, kind:'video'};
+        return {...media, ...window.VolcengineVideoBilling?.metadata(result)};
     }).filter(item => item.url);
 }
 function completeCanvasVideoTask(taskId, result){
@@ -12868,6 +12878,7 @@ function completeCanvasVideoTask(taskId, result){
         kind: 'video',
     };
     meta.run.request = requestMetaFromResult(result);
+    Object.assign(meta.run, window.VolcengineVideoBilling?.metadata(result));
     const outputs = videoOutputsFromResult(result);
     out._pending = (out._pending || []).filter(p => p.id !== pending.id);
     appendOutputImages(out, outputs, meta.run?.refs?.[0], [meta]);
@@ -12887,6 +12898,8 @@ function failCanvasVideoTask(taskId, message, taskData={}){
     if(!found) return;
     const {out, pending} = found;
     const run = pending.run || {};
+    Object.assign(run, window.VolcengineVideoBilling?.metadata(taskData.result || {}));
+    if(taskData.result) run.request = requestMetaFromResult(taskData.result);
     const runMs = nowMs() - Number(pending.startedAt || nowMs());
     const gen = nodes.find(n => n.id === run?.node?.id);
     out._pending = (out._pending || []).filter(p => p.id !== pending.id);
@@ -13000,7 +13013,11 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
         unavailableSince = 0;
         const data = await res.json();
         if(data.status === 'succeeded') return data.result || {};
-        if(data.status === 'failed') throw new Error(data.error || tr('canvas.videoFailed'));
+        if(data.status === 'failed'){
+            const error = new Error(data.error || tr('canvas.videoFailed'));
+            error.videoResult = data.result;
+            throw error;
+        }
         await sleep(2500);
     }
 }

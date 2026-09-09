@@ -2795,6 +2795,9 @@ function currentModelPrice(item, kind, model){
 }
 function modelPriceHtml(kind, index, model, item){
     if(kind === 'chat') return '';
+    if(kind === 'video' && window.VolcengineVideoBilling?.isProvider(item)){
+        return '<span class="model-price-type">Token 计费</span>';
+    }
     const price = currentModelPrice(item, kind, model) || {};
     const billingType = price.billing_type || (kind === 'video' ? 'per_second' : 'per_image');
     const typeSelect = kind === 'video' ? `<select class="model-price-type" title="计费方式" onchange="updateModelPrice('${kind}', ${index}, null, this.value)">
@@ -2815,15 +2818,58 @@ function renderModels(kind){
     }
     const showProtocol = kind !== 'video' && providerSupportsModelProtocol(item);
     const showPrice = kind !== 'chat';
+    const volcVideo = kind === 'video' && window.VolcengineVideoBilling?.isProvider(item);
     list.innerHTML = models.map((model, index) => `
-        <div class="model-row${showProtocol ? ' has-protocol' : ''}${showPrice ? ' has-price' : ''}">
-            <input value="${escapeAttr(model)}" oninput="updateModel('${kind}', ${index}, this.value)">
+        <div class="model-row${showProtocol ? ' has-protocol' : ''}${showPrice ? ' has-price' : ''}${volcVideo ? ' volcengine-video-model' : ''}">
+            <input value="${escapeAttr(model)}" oninput="updateModel('${kind}', ${index}, this.value)" ${volcVideo ? `onchange="renderModels('video')"` : ''}>
             ${modelProtocolSelectHtml(kind, index, model, item)}
             ${modelPriceHtml(kind, index, model, item)}
             <button class="icon-btn" type="button" onclick="removeModel('${kind}', ${index})" title="删除"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
         </div>
+        ${volcVideo ? volcengineVideoPriceHtml(item, model, index) : ''}
     `).join('');
     refreshIcons();
+}
+function volcengineVideoPriceHtml(item, model, index){
+    const family = window.VolcengineVideoBilling.family(model);
+    const resolutions = family.endsWith('-mini') || family.endsWith('-fast') ? ['480p','720p']
+        : family === 'seedance-2-5' ? ['480p','720p','1080p'] : ['480p','720p','1080p','4k'];
+    const now = Date.now();
+    const rules = item.volcengine_video_pricing?.rules || [];
+    const cell = (resolution, hasVideo) => {
+        const custom = (item.model_prices || []).find(p => p.kind === 'video' && p.model === model
+            && p.billing_type === 'per_million_tokens' && p.resolution === resolution
+            && p.has_video_input === hasVideo && (p.service_tier || 'default') === 'default' && !Number(p.effective_to));
+        const official = rules.find(p => p.model === family && p.resolution === resolution && p.has_video_input === hasVideo
+            && p.effective_from <= now && (!p.effective_to || now < p.effective_to));
+        const hint = official ? `官方 ¥${official.unit_price}` : '待配置';
+        const discount = official?.discount ? ` · 优惠至 ${new Date(official.effective_to).toLocaleString('zh-CN', {timeZone:'Asia/Shanghai'})}（北京时间）` : '';
+        return `<td><input class="volcengine-token-price" type="number" min="0" step="0.000001"
+            data-volc-price-index="${index}" data-resolution="${resolution}" data-video-input="${hasVideo}"
+            aria-label="${escapeAttr(model)} ${resolution} ${hasVideo ? '有' : '无'}视频输入单价"
+            value="${escapeAttr(custom?.unit_price ?? '')}" placeholder="${escapeAttr(hint)}"
+            oninput="updateVolcengineVideoPrice(${index}, '${resolution}', ${hasVideo}, this.value)">
+            <small>${escapeHtml(hint + discount)}</small></td>`;
+    };
+    return `<details class="volcengine-video-prices"><summary>规格单价 · 元 / 百万 tokens</summary>
+        <p>按返回的 completion tokens 核算。留空使用已核验的官方价格；填写后覆盖该规格单价（0 表示免费）。缺少用量或价格时待核算。</p>
+        <table><thead><tr><th>输出分辨率</th><th>无视频输入</th><th>有视频输入</th></tr></thead>
+        <tbody>${resolutions.map(r => `<tr><th>${r}</th>${cell(r,false)}${cell(r,true)}</tr>`).join('')}</tbody></table>
+        <p>在线推理 · 已核验版本 2026-09-09 · <a href="https://www.volcengine.com/docs/82379/1544106" target="_blank" rel="noopener noreferrer">官方计费说明</a>。历史任务保留当时价格快照。</p>
+    </details>`;
+}
+function updateVolcengineVideoPrice(index, resolution, hasVideo, value){
+    const item = provider();
+    if(!window.VolcengineVideoBilling?.isProvider(item)) return;
+    const model = String(item.video_models?.[index] || '').trim();
+    if(!model) return;
+    const text = String(value).trim();
+    if(text !== '' && (!Number.isFinite(Number(text)) || Number(text) < 0)) return;
+    item.model_prices = (item.model_prices || []).filter(p => !(p.model === model && p.kind === 'video'
+        && p.billing_type === 'per_million_tokens' && p.resolution === resolution && p.has_video_input === hasVideo
+        && (p.service_tier || 'default') === 'default' && !Number(p.effective_to)));
+    if(text !== '') item.model_prices.push({kind:'video', model, billing_type:'per_million_tokens', resolution,
+        has_video_input:hasVideo, service_tier:'default', unit_price:text, currency:'CNY', effective_from:0, effective_to:0});
 }
 function msLoraTargetOptions(selected){
     const item = provider();
@@ -3072,6 +3118,13 @@ async function loadProviders(){
     }
 }
 async function saveProviders(){
+    const tokenInputs = [...document.querySelectorAll('[data-volc-price-index]')];
+    if(tokenInputs.some(input => !input.validity.valid)){
+        setStatus('Token 单价需为非负数，最多保留六位小数');
+        return false;
+    }
+    tokenInputs.forEach(input => updateVolcengineVideoPrice(Number(input.dataset.volcPriceIndex), input.dataset.resolution,
+        input.dataset.videoInput === 'true', input.value));
     syncEditor();
     providers.forEach(item => {
         item.id = normalizeId(item.id);

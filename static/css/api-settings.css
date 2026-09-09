@@ -150,6 +150,15 @@ body.studio-theme-dark .key-btn.key-clear:hover { background:rgba(127,29,29,.18)
 .model-row { display:grid; grid-template-columns:minmax(0,1fr) 36px; align-items:center; gap:6px; padding:4px; border:1px solid var(--line); border-radius:11px; background:var(--panel); }
 .model-row.has-protocol { grid-template-columns:minmax(0,1fr) auto 36px; }
 .model-row.has-price { grid-template-columns:minmax(0,1fr) auto 94px 36px; }
+.model-row.volcengine-video-model { grid-template-columns:minmax(0,1fr) auto 36px; }
+.volcengine-video-prices { margin:0 0 10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--panel); font-size:12px; color:var(--text); }
+.volcengine-video-prices summary { cursor:pointer; font-weight:600; }
+.volcengine-video-prices p { margin:10px 0; color:var(--muted); line-height:1.6; }
+.volcengine-video-prices table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.volcengine-video-prices th, .volcengine-video-prices td { padding:6px; text-align:left; vertical-align:top; }
+.volcengine-video-prices th:first-child { width:22%; }
+.volcengine-video-prices .volcengine-token-price { width:100%; min-width:0; height:32px; padding:4px 8px; background:var(--soft); color:var(--text); border:1px solid var(--line); border-radius:6px; }
+.volcengine-video-prices small { display:block; margin-top:4px; color:var(--muted); line-height:1.4; overflow-wrap:anywhere; }
 .model-row.has-protocol.has-price { grid-template-columns:minmax(0,1fr) auto auto 94px 36px; }
 body.studio-theme-dark .model-row { background:var(--soft); border-color:var(--line-strong); }
 .model-row input { height:34px; padding:0 10px; border:0; background:transparent; font-size:12.5px; }

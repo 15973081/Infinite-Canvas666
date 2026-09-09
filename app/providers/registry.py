@@ -32,7 +32,7 @@ from app.utils import model_list_from_values, mask_secret, strip_auth_scheme, be
 from app.models import ApiProviderPayload
 
 REMOVED_PROVIDER_IDS = {"runninghub"}
-MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call"}
+MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call", "per_million_tokens"}
 
 
 def normalize_model_prices(rows):
@@ -45,13 +45,24 @@ def normalize_model_prices(rows):
         billing_type = str(raw.get("billing_type") or "").strip().lower()
         if kind not in {"image", "video"} or not model or billing_type not in MODEL_PRICE_BILLING_TYPES:
             continue
+        if raw.get("unit_price") is None or isinstance(raw.get("unit_price"), bool) or not str(raw["unit_price"]).strip():
+            continue
         try:
             price = Decimal(str(raw.get("unit_price") or "0"))
         except (InvalidOperation, ValueError):
             continue
-        if not price.is_finite() or price <= 0:
+        if not price.is_finite() or price < 0 or (price == 0 and billing_type != "per_million_tokens"):
             continue
+        conditions = {}
+        if billing_type == "per_million_tokens":
+            resolution = str(raw.get("resolution") or "").lower()
+            has_video = raw.get("has_video_input")
+            tier = str(raw.get("service_tier") or "default")
+            if kind != "video" or resolution not in {"480p", "720p", "1080p", "4k"} or not isinstance(has_video, bool) or tier not in {"default", "flex"}:
+                continue
+            conditions = {"resolution": resolution, "has_video_input": has_video, "service_tier": tier}
         normalized.append({
+            **conditions,
             "kind": kind,
             "model": model,
             "billing_type": billing_type,
@@ -63,15 +74,20 @@ def normalize_model_prices(rows):
     return normalized
 
 
+def model_price_key(row):
+    return (row["kind"], row["model"], row.get("resolution", ""),
+            row.get("has_video_input"), row.get("service_tier", ""))
+
+
 def merge_model_price_history(existing_rows, desired_rows, effective_at=None):
     now = int(effective_at or now_ms())
     existing = normalize_model_prices(existing_rows)
     desired = {
-        (row["kind"], row["model"]): row
+        model_price_key(row): row
         for row in normalize_model_prices(desired_rows)
         if not row["effective_to"]
     }
-    active = {(row["kind"], row["model"]): row for row in existing if not row["effective_to"]}
+    active = {model_price_key(row): row for row in existing if not row["effective_to"]}
     history = [row for row in existing if row["effective_to"]]
 
     for key, old in active.items():
@@ -87,8 +103,8 @@ def merge_model_price_history(existing_rows, desired_rows, effective_at=None):
         comparable = ("billing_type", "unit_price", "currency")
         if old and all(old[field] == new[field] for field in comparable):
             continue
-        had_history = any((row["kind"], row["model"]) == key for row in existing)
-        history.append({**new, "effective_from": now if had_history else 0, "effective_to": 0})
+        had_history = any(model_price_key(row) == key for row in existing)
+        history.append({**new, "effective_from": now if had_history or new["billing_type"] == "per_million_tokens" else 0, "effective_to": 0})
     return history
 
 
@@ -492,6 +508,12 @@ def public_provider(provider):
         "key_preview": mask_secret(key),
         "key_env": provider_key_env(provider["id"]),
     }
+    if is_volcengine_provider(provider):
+        from app.services.volcengine_billing import official_ark, official_video_prices, PRICE_SOURCE, PRICE_VERSION
+        item["volcengine_video_pricing"] = {
+            "rules": official_video_prices() if official_ark(provider) else [],
+            "source": PRICE_SOURCE, "version": PRICE_VERSION,
+        }
     if provider.get("id") == "volcengine":
         ak = volcengine_access_key_value()
         sk = volcengine_secret_key_value()

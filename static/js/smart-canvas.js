@@ -5957,7 +5957,8 @@ function smartVideoDurationSeconds(url){
 let smartVideoCostBackfillRunning = false;
 async function backfillSmartHistoricalVideoCosts(){
     if(smartVideoCostBackfillRunning || !canvas) return;
-    const logs = (canvas.logs || []).filter(log => log.status !== 'failed' && smartBillingIdentity({}, log).kind === 'video' && !Number(log.durationSeconds || 0));
+    const logs = (canvas.logs || []).filter(log => log.status !== 'failed' && smartBillingIdentity({}, log).kind === 'video' && !Number(log.durationSeconds || 0)
+        && window.VolcengineVideoBilling?.costFor({}, log, smartBillingIdentity({}, log), apiProviders) === undefined);
     if(!logs.length) return;
     smartVideoCostBackfillRunning = true;
     let changed = false;
@@ -5977,8 +5978,10 @@ async function backfillSmartHistoricalVideoCosts(){
     }
 }
 function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now(), source='actual'}){
-    if(log.status === 'failed') return null;
     const identity = smartBillingIdentity(run, log);
+    const volcCost = window.VolcengineVideoBilling?.costFor(run, log, identity, apiProviders);
+    if(volcCost !== undefined) return volcCost;
+    if(log.status === 'failed') return null;
     if(!identity.kind || !identity.providerId || !identity.model) return {status:'unknown', source, ...identity};
     const price = smartModelPriceAt(identity.providerId, identity.kind, identity.model, createdAt);
     if(!price) return {status:'unknown', source, ...identity};
@@ -5992,6 +5995,8 @@ function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Dat
     return {status:'priced', source, ...identity, billing_type:price.billing_type, quantity, unit_price:String(price.unit_price), currency:price.currency || 'CNY', amount_micros:Math.round(unitPriceMicros * quantity), price_effective_from:Number(price.effective_from || 0)};
 }
 function smartGenerationLogCost(log){
+    const volcCost = window.VolcengineVideoBilling?.costFor({}, log, smartBillingIdentity({}, log), apiProviders);
+    if(volcCost !== undefined) return volcCost;
     if(log?.status === 'failed') return null;
     if(log?.cost?.status === 'priced') return log.cost;
     return calculateSmartGenerationCost({log, outputs:log.outputs || [], createdAt:log.createdAt, source:'estimated'});
@@ -6032,13 +6037,14 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
         providerId:identity.providerId,
         billingKind:identity.kind,
         billingModel:identity.model,
-        durationSeconds:Number(run?.settings?.videoDuration || 0),
-        request:smartRunRequestMeta(run),
+        durationSeconds:Number(run?.video_info?.duration || run?.settings?.videoDuration || 0),
+        request:{...smartRunRequestMeta(run), ...(run?.video_info?.task_id ? {task_id:run.video_info.task_id} : {})},
         prompt:run?.prompt || '',
         outputs:(outputs || []).filter(Boolean),
         refs:run?.refs || [],
         runMs:Number(runMs || 0),
-        error:error ? String(error) : ''
+        error:error ? String(error) : '',
+        ...window.VolcengineVideoBilling?.metadata(run),
     };
     entry.cost = calculateSmartGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
     canvas.logs = [entry, ...canvas.logs].slice(0, 500);
@@ -6083,9 +6089,10 @@ function renderSmartCanvasLog(){
         const cost = smartGenerationLogCost(log);
         const costChip = cost?.status === 'priced'
             ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${formatSmartCost(cost.amount_micros)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
-            : cost?.status === 'unknown' ? '<span class="log-chip cost-unknown">待定价</span>' : '';
+            : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">${escapeHtml(window.VolcengineVideoBilling?.pendingLabel(cost) || '待核算')}</span>` : '';
         const subParts = [
             date,
+            ...(window.VolcengineVideoBilling?.details(log) || []),
             `${'输出'} ${(log.outputs || []).length}`,
             taskId ? `ID ${taskId}` : '',
             backend
@@ -13729,7 +13736,9 @@ async function pollSmartCanvasTask(taskId, kind='image'){
             if(task.status === 'failed'){
                 const recoverTaskId = task.upstream_task_id || extractUpstreamTaskId(task.error || '');
                 if(taskKind === 'image' && recoverTaskId) throw new ImageTaskRecoverSignal({taskId, recoverTaskId, providerId:task.provider_id, kind:'image', message:task.error || tr('smart.errRunFailed')});
-                throw new Error(task.error || tr('smart.errRunFailed'));
+                const error = new Error(task.error || tr('smart.errRunFailed'));
+                error.videoResult = taskKind === 'video' ? task.result : null;
+                throw error;
             }
         }
         throw new Error(tr('smart.errRunTimeout'));
@@ -13741,16 +13750,17 @@ async function pollSmartCanvasTask(taskId, kind='image'){
         activeSmartTaskPolls.delete(pollKey);
     }
 }
-function finalizeSmartPendingTask(node, taskId, images, kind='image'){
+function finalizeSmartPendingTask(node, taskId, images, kind='image', result={}){
     if(!node || !taskId) return;
     const task = smartPendingTasks(node).find(item => item.taskId === taskId) || null;
+    if(kind === 'video' && !task) return;
     node.pendingTasks = smartPendingTasks(node).filter(task => task.taskId !== taskId);
     node.pending = Math.max(0, Number(node.pending || 0) - 1);
     const ext = kind === 'video' ? 'mp4' : kind === 'audio' ? 'mp3' : kind === 'text' ? 'txt' : 'png';
     const additions = (images || []).map((item, i) => {
         const url = typeof item === 'string' ? item : item?.url || '';
         const itemKind = (typeof item === 'object' && item.kind) || kind;
-        return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:itemKind, generatedResult:true}));
+        return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:itemKind, generatedResult:true, ...window.VolcengineVideoBilling?.metadata(result)}));
     }).filter(item => item.url);
     node.images = [...(node.images || []).map(img => stripImageGenerationMeta(img)), ...additions];
     const pendingRun = smartPendingTaskRun(node, task, kind);
@@ -13759,7 +13769,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image'){
         if(task?.providerId) runSettings.provider_id = task.providerId;
         if(task?.model) runSettings.model = task.model;
         addSmartGenerationLog({
-            run:{...pendingRun, kind:task?.kind || kind, settings:runSettings},
+            run:{...pendingRun, kind:task?.kind || kind, settings:runSettings, ...window.VolcengineVideoBilling?.metadata(result)},
             outputs:additions,
             runMs:nowMs() - Number(task?.startedAt || node.runStartedAt || nowMs())
         });
@@ -13795,7 +13805,7 @@ async function resumeSmartPendingNode(node){
                 const kind = task.kind || 'image';
                 const result = await pollSmartCanvasTask(task.taskId, kind);
                 const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(result?.images || result);
-                finalizeSmartPendingTask(node, task.taskId, outputs, kind);
+                finalizeSmartPendingTask(node, task.taskId, outputs, kind, result);
                 refreshSmartNodes([node.id]);
                 scheduleSave();
             } catch(e) {
@@ -13811,6 +13821,11 @@ async function resumeSmartPendingNode(node){
                     refreshSmartNodes([node.id]);
                     scheduleSave();
                     return;
+                }
+                if(task.kind === 'video' && e.videoResult?.cost?.billing_source === 'volcengine_usage'){
+                    const pendingRun = smartPendingTaskRun(node, task, 'video');
+                    addSmartGenerationLog({run:{...pendingRun, kind:'video', ...window.VolcengineVideoBilling.metadata(e.videoResult)},
+                        outputs:[], runMs:nowMs() - Number(task.startedAt || nowMs()), error:e.message});
                 }
                 node.pendingTasks = smartPendingTasks(node).filter(item => item.taskId !== task.taskId);
                 node.pending = Math.max(0, Number(node.pending || 0) - 1);

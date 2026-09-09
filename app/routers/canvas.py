@@ -22,6 +22,7 @@ from app.services.canvas_tasks import (
     list_canvas_tasks as list_durable_canvas_tasks,
     save_canvas_task as save_durable_canvas_task,
 )
+from app.services.volcengine_billing import pricing_context, video_accounting
 router = APIRouter()
 
 _canvas_video_recovery_started = False
@@ -135,6 +136,7 @@ async def get_canvas_video_task(task_id: str):
     return task
 
 async def run_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
+    payload.client_task_id = task_id
     _update_video_task_record(task_id, status="submitting", error="")
 
     def on_submitted(upstream_task_id: str, submit_url: str = "", poll_mode: str = "video"):
@@ -191,6 +193,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
         raise HTTPException(status_code=400, detail=f"未配置 {provider.get('name') or provider['id']} 的 API Key，请在 API 设置中填写。")
     is_apimart = is_apimart_provider(provider)
     is_volcengine = is_volcengine_provider(provider)
+    video_pricing = _volcengine_video_pricing(payload, provider) if is_volcengine else None
     is_yuli = is_yuli_provider(provider)
     is_agnes = is_agnes_provider(provider, payload.model)
     volc_is_proxy = bool(is_volcengine and urllib.parse.urlparse(base_url).path.rstrip("/"))
@@ -597,11 +600,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                 on_submitted(str(task_id), submit_url, "video")
             if task_id and not video_output_urls(raw):
                 result = await wait_for_video_task(client, provider, task_id, submit_url)
-            urls = video_output_urls(result)
-            if not urls:
-                raise HTTPException(status_code=502, detail=f"视频生成成功但没有返回视频：{result}")
-            local_urls = [await save_remote_video_to_output(url, provider=provider) for url in urls]
-            return {"videos": local_urls, "task_id": task_id, "raw": result}
+            return await _finish_canvas_video(payload, provider, result, task_id, video_pricing)
     except httpx.HTTPStatusError as exc:
         text = exc.response.text
         try:
@@ -666,6 +665,31 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
         log_net_error(f"视频 网络/TLS错误 provider={provider.get('id')} model={payload.model}", exc)
         raise HTTPException(status_code=502, detail=f"请求上游视频接口失败：{exc}") from exc
 
+def _volcengine_video_pricing(payload, provider):
+    task = load_durable_canvas_task(payload.client_task_id) if payload.client_task_id else {}
+    if task.get("video_pricing"):
+        return task["video_pricing"]
+    at = int(task["created_at"] * 1000) if task.get("created_at") else None
+    context = pricing_context(provider, at)
+    if task:
+        _update_video_task_record(payload.client_task_id, video_pricing=context)
+    return context
+
+
+async def _finish_canvas_video(payload, provider, raw, upstream_task_id, context=None):
+    result = {"videos": [], "task_id": upstream_task_id, "raw": raw}
+    if context is not None:
+        result.update(video_accounting(raw, _canvas_video_payload_dict(payload), provider, context))
+        # Save usage and the price snapshot before any local download can fail.
+        if payload.client_task_id:
+            _update_video_task_record(payload.client_task_id, result=result, upstream_status="succeeded")
+    urls = video_output_urls(raw)
+    if not urls:
+        raise HTTPException(status_code=502, detail="视频生成成功但没有返回视频下载地址")
+    result["videos"] = [await save_remote_video_to_output(url, provider=provider) for url in urls]
+    return result
+
+
 async def resume_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
     """Resume provider polling for a durable video task after backend restart."""
     task = load_durable_canvas_task(task_id)
@@ -673,12 +697,16 @@ async def resume_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
     if not upstream_task_id:
         return
     provider = get_api_provider(payload.provider_id)
+    payload.client_task_id = task_id
+    context = _volcengine_video_pricing(payload, provider) if is_volcengine_provider(provider) else None
     submit_url = str(task.get("upstream_submit_url") or "")
     poll_mode = str(task.get("upstream_poll_mode") or "video")
     _update_video_task_record(task_id, status="polling", error="", resumed_at=time.time())
     try:
         async with httpx.AsyncClient(timeout=VIDEO_POLL_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
-            if poll_mode == "agnes":
+            if context is not None and task.get("upstream_status") == "succeeded" and (task.get("result") or {}).get("raw"):
+                raw = task["result"]["raw"]
+            elif poll_mode == "agnes":
                 requested_model = selected_model(payload.model, "agnes-video-v2.0")
                 raw = await wait_for_agnes_video_task(
                     client, provider, upstream_task_id, requested_model
@@ -687,13 +715,7 @@ async def resume_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
                 raw = await wait_for_video_task(
                     client, provider, upstream_task_id, submit_url
                 )
-            urls = video_output_urls(raw)
-            if not urls:
-                raise HTTPException(status_code=502, detail=f"视频任务完成但没有返回视频：{raw}")
-            local_urls = [
-                await save_remote_video_to_output(url, provider=provider) for url in urls
-            ]
-            result = {"videos": local_urls, "task_id": upstream_task_id, "raw": raw}
+            result = await _finish_canvas_video(payload, provider, raw, upstream_task_id, context)
         _update_video_task_record(
             task_id,
             status="succeeded",
