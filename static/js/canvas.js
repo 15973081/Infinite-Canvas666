@@ -12359,7 +12359,7 @@ function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
         ...window.VolcengineVideoBilling?.metadata(run),
     };
     entry.cost = calculateGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
-    canvas.logs = [entry, ...canvas.logs].slice(0, 500);
+    canvas.logs = [entry, ...canvas.logs].slice(0, 5000);
     updateCanvasCostButton();
 }
 function renderCanvasLog(){

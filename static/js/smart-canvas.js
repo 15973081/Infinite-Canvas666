@@ -6047,7 +6047,7 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
         ...window.VolcengineVideoBilling?.metadata(run),
     };
     entry.cost = calculateSmartGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
-    canvas.logs = [entry, ...canvas.logs].slice(0, 500);
+    canvas.logs = [entry, ...canvas.logs].slice(0, 5000);
     updateSmartCanvasCostButton();
     scheduleSave();
 }

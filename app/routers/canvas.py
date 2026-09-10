@@ -1249,7 +1249,7 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
     else:
         canvas["viewport"] = canvas.get("viewport") or {"x": 0, "y": 0, "scale": 1}
     if "logs" in fields_set:
-        canvas["logs"] = payload.logs[-500:]
+        canvas["logs"] = payload.logs[:5000]
     if "settings" in fields_set:
         canvas["settings"] = payload.settings or {}
     save_canvas(canvas)

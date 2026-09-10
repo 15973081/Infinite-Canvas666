@@ -521,7 +521,7 @@ def recover_canvas_logs(canvas_id, canvas):
             recovered,
             key=lambda log: int(log.get("createdAt") or log.get("created_at") or 0) if isinstance(log, dict) else 0,
             reverse=True,
-        )[:500]
+        )[:5000]
         current["_logs_history_recovered"] = True
         with open(path, "w", encoding="utf-8") as f:
             json.dump(current, f, ensure_ascii=False, indent=2)
