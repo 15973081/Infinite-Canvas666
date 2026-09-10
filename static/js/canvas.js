@@ -2166,15 +2166,20 @@ async function saveCanvas(){
         }
         if(!res.ok) throw new Error('save failed');
         const data = await res.json().catch(() => ({}));
+        const changedDuringSave = canvasSaveSnapshot(canvasSavePayload()) !== snapshot;
         const localViewport = {...viewport};
-        if(data.canvas) canvas = {...canvas, ...data.canvas, viewport:localViewport};
+        // The response acknowledges the sent snapshot, not edits or logs added while awaiting it.
+        if(data.canvas) canvas = changedDuringSave
+            ? {...data.canvas, ...canvas, updated_at:data.canvas.updated_at, viewport:localViewport}
+            : {...canvas, ...data.canvas, viewport:localViewport};
         viewport = localViewport;
         canvas.updated_at = Number(canvas.updated_at || Date.now());
         lastCanvasUpdatedAt = canvas.updated_at;
+        saveCanvasAgain = saveCanvasAgain || changedDuringSave;
         localCanvasDirty = Boolean(saveCanvasAgain);
         lastSavedCanvasSnapshot = snapshot;
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at);
-        setStatus('Saved');
+        setStatus(localCanvasDirty ? 'Saving...' : 'Saved');
         if(data.canvas) {
             updateCanvasListRecord(data.canvas);
             refreshGateViewControls();
