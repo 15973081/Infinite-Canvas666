@@ -6,6 +6,7 @@ from app.services.media import (
     is_volcengine_seedance25_model,
     volcengine_seedance25_options,
     volcengine_seedance25_task_type,
+    volcengine_video_resolution,
     volcengine_video_reference_content_items,
 )
 
@@ -25,6 +26,11 @@ def test_seedance25_rules():
     assert volcengine_seedance25_options("生成新镜头", -1, "21:9", "", 0) == (
         "reference", -1, "21:9", ""
     )
+    for resolution in ("1080", "1080p", "1080P"):
+        assert volcengine_seedance25_options("生成新镜头", 10, "16:9", resolution, 0) == (
+            "reference", 10, "16:9", "1080p"
+        )
+    assert volcengine_video_resolution("4K") == "4k"
     try:
         volcengine_seedance25_options("生成新镜头", 31, "16:9", "720p", 0)
     except HTTPException as exc:

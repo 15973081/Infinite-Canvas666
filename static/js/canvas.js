@@ -4623,6 +4623,9 @@ function videoRefsOnly(refs){
 function isSeedance25VideoModel(model){
     return String(model || '').toLowerCase().replaceAll('_','-').replaceAll('.','-').includes('seedance-2-5');
 }
+function isSeedance20VideoModel(model){
+    return /(?:^|-)seedance-2-0(?:-\d{6})?$/.test(String(model || '').toLowerCase().replaceAll('_','-').replaceAll('.','-'));
+}
 function isVolcengineSeedance25VideoNode(node){
     return resolveVideoProviderId(node?.apiProvider || 'comfly') === 'volcengine' && isSeedance25VideoModel(node?.model);
 }
@@ -4630,7 +4633,7 @@ function normalizeVideoNodeSelection(node){
     if(!node) return;
     if(isVolcengineSeedance25VideoNode(node)){
         if(Number(node.duration) !== -1) node.duration = Math.max(4, Math.min(30, Number(node.duration) || 5));
-        if(!['', '480p', '720p'].includes(node.resolution)) node.resolution = '';
+        if(!['', '480p', '720p', '1080p'].includes(node.resolution)) node.resolution = '';
         if(['9:21', 'keep_ratio'].includes(node.aspectRatio)) node.aspectRatio = 'adaptive';
         return;
     }
@@ -9630,7 +9633,9 @@ function renderVideoBody(node){
                         <option value="">Auto</option>
                         <option value="480p">480p</option>
                         <option value="720p">720p</option>
-                        ${isSeedance25 ? '' : '<option value="1080p">1080p</option><option value="780P">780P</option>'}
+                        <option value="1080p">1080p</option>
+                        ${isSeedance20VideoModel(node.model) ? '<option value="4k">4K</option>' : ''}
+                        ${isSeedance25 ? '' : '<option value="780P">780P</option>'}
                     </select>
                 </label>
             </div>

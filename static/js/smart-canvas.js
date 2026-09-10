@@ -2360,6 +2360,9 @@ function renderVideoModelControl(models){
 function isSeedance25VideoModel(model=settings.videoModel){
     return String(model || '').toLowerCase().replaceAll('_','-').replaceAll('.','-').includes('seedance-2-5');
 }
+function isSeedance20VideoModel(model=settings.videoModel){
+    return /(?:^|-)seedance-2-0(?:-\d{6})?$/.test(String(model || '').toLowerCase().replaceAll('_','-').replaceAll('.','-'));
+}
 function renderSeedance25TaskModeControl(){
     if(!isSeedance25VideoModel()) return '';
     const options = [['auto','自动判断'], ['edit','视频编辑'], ['extend_backward','向后延长'], ['extend_forward','向前延长']];
@@ -2412,7 +2415,7 @@ function renderVideoAspectControl(){
     </div>`;
 }
 function renderVideoResolutionControl(){
-    const options = [['', tr('smart.videoResAuto')], ['480p','480P'], ['720p','720P'], ...(!isSeedance25VideoModel() ? [['1080p','1080P']] : [])];
+    const options = [['', tr('smart.videoResAuto')], ['480p','480P'], ['720p','720P'], ['1080p','1080P'], ...(isSeedance20VideoModel() ? [['4k','4K']] : [])];
     const value = settings.videoResolution || '';
     const labelMap = Object.fromEntries(options);
     return `<div class="smart-control resolution-control">
@@ -3168,7 +3171,7 @@ function setDynamicSetting(key, value){
     if(key === 'videoProvider') settings.videoModel = '';
     if(key === 'videoModel' && isSeedance25VideoModel()){
         if(Number(settings.videoDuration) !== -1) settings.videoDuration = Math.max(4, Math.min(30, Number(settings.videoDuration) || 5));
-        if(!['', '480p', '720p'].includes(settings.videoResolution)) settings.videoResolution = '';
+        if(!['', '480p', '720p', '1080p'].includes(settings.videoResolution)) settings.videoResolution = '';
         if(['9:21', 'keep_ratio'].includes(settings.videoAspect)) settings.videoAspect = 'adaptive';
     }
     if(key === 'videoTaskMode' && settings.videoTaskMode !== 'auto'){

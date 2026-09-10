@@ -869,16 +869,16 @@ def volcengine_seedance25_options(prompt: str, duration, ratio: str, resolution:
     if ratio not in {"16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"}:
         raise HTTPException(status_code=400, detail="Seedance 2.5 不支持当前视频比例。")
     resolution = str(resolution or "").strip().lower()
-    resolution = {"auto": "", "480": "480p", "720": "720p"}.get(resolution, resolution)
-    if resolution not in {"", "480p", "720p"}:
-        raise HTTPException(status_code=400, detail="Seedance 2.5 分辨率仅支持 480p、720p 或自动。")
+    resolution = {"auto": "", "480": "480p", "720": "720p", "1080": "1080p"}.get(resolution, resolution)
+    if resolution not in {"", "480p", "720p", "1080p"}:
+        raise HTTPException(status_code=400, detail="Seedance 2.5 分辨率仅支持 480p、720p、1080p 或自动。")
     return task_type, duration, ratio, resolution
 
 def volcengine_video_resolution(value: str) -> str:
     text = str(value or "").strip().lower()
     aliases = {"": "", "auto": "", "480": "480p", "720": "720p", "1080": "1080p"}
     text = aliases.get(text, text)
-    return text if text in {"480p", "720p", "1080p"} else ""
+    return text if text in {"480p", "720p", "1080p", "4k"} else ""
 
 def is_volcengine_seedance2_model(model: str) -> bool:
     value = str(model or "").strip().lower().replace("_", "-").replace(".", "-")
