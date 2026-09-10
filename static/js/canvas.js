@@ -10580,10 +10580,10 @@ async function runGenerator(genId, opts={}){
                 const result = await waitCanvasImageTaskResult(task.task_id, {cascadeTargetId});
                 outputs.push(...(result.images || []));
                 run.request = requestMetaFromResult(result);
+                addGenerationLog({run:{...run, canvasTaskId:task.task_id}, outputs:result.images || [], runMs:nowMs() - startedAt});
             }
             if(!outputs.length) throw new Error(tr('canvas.generationFailed'));
             mergeGeneratedOutputs(gen, outputs, Boolean(opts.cascade));
-            addGenerationLog({run, outputs, runMs:nowMs() - startedAt});
             gen.runStatus = 'done';
             gen.runError = '';
             gen.running = false;
@@ -10745,6 +10745,7 @@ async function runVideoNode(nodeId, opts={}){
             const outputUrls = videoOutputsFromResult(result);
             if(!outputUrls.length) throw new Error(tr('canvas.videoFailed'));
             run.request = requestMetaFromResult(result);
+            run.canvasTaskId = task.task_id;
             Object.assign(run, window.VolcengineVideoBilling?.metadata(result));
             mergeGeneratedOutputs(node, outputUrls, Boolean(opts.cascade));
             addGenerationLog({run, outputs:outputUrls, runMs:0});
@@ -12314,6 +12315,7 @@ function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now
     };
 }
 function generationLogCost(log){
+    if(log?._ledger) return log._ledger_cost?.status === 'excluded' ? null : log._ledger_cost;
     const volcCost = window.VolcengineVideoBilling?.costFor({}, log, billingIdentity({}, log), apiProviders);
     if(volcCost !== undefined) return volcCost;
     if(log?.status === 'failed') return null;
@@ -12324,6 +12326,10 @@ function formatCostMicros(value){
     return `¥${new Intl.NumberFormat('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:6}).format(Number(value || 0) / 1000000)}`;
 }
 function canvasCostTotals(logs=canvas?.logs || []){
+    if(arguments.length === 0 && canvas?.id && window.CanvasLedger){
+        const ledger = window.CanvasLedger.view(canvas.id);
+        if(ledger.allTotals) return ledger.allTotals;
+    }
     return logs.reduce((sum, log) => {
         const cost = generationLogCost(log);
         if(cost?.status === 'priced'){
@@ -12346,6 +12352,7 @@ function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
     const identity = billingIdentity(run);
     const entry = {
         id:uid('log'),
+        canvas_task_id:run?.canvasTaskId || run?.request?.canvas_task_id || '',
         createdAt,
         status:error ? 'failed' : 'success',
         platform:runPlatformLabel(run),
@@ -12365,14 +12372,17 @@ function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
     };
     entry.cost = calculateGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
     canvas.logs = [entry, ...canvas.logs].slice(0, 5000);
+    window.CanvasLedger?.record(canvas.id, entry);
     updateCanvasCostButton();
 }
 function renderCanvasLog(){
     const list = document.getElementById('logList') || (typeof logList !== 'undefined' ? logList : null);
-    const logs = (typeof canvas !== 'undefined' && Array.isArray(canvas?.logs)) ? canvas.logs : [];
+    const ledger = canvas?.id ? window.CanvasLedger?.view(canvas.id) : null;
+    const logs = ledger ? ledger.logs : ((typeof canvas !== 'undefined' && Array.isArray(canvas?.logs)) ? canvas.logs : []);
     if(!list) return;
-    const totals = canvasCostTotals(logs);
-    updateCanvasCostButton(totals);
+    const totals = ledger ? ledger.totals : canvasCostTotals(logs);
+    updateCanvasCostButton(ledger?.allTotals || totals);
+    window.CanvasLedger?.mount(list, canvas?.id);
     const summary = document.getElementById('canvasCostSummary');
     if(summary) summary.textContent = [
         `总计 ${formatCostMicros(totals.total)}`,
@@ -12391,8 +12401,9 @@ function renderCanvasLog(){
     };
     Object.entries(dashboardValues).forEach(([id, value]) => {
         const target = document.getElementById(id);
-        if(target) target.textContent = value;
+        if(target) target.textContent = ledger && !ledger.ready ? '读取中…' : value;
     });
+    if(summary && ledger && !ledger.ready) summary.textContent = '正在读取全部费用流水…';
     list.innerHTML = logs.length ? logs.map(log => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = outputUrlValue(item);
@@ -12410,8 +12421,11 @@ function renderCanvasLog(){
         const workflow = req.workflow_json || req.workflow || '';
         const taskLabel = logTaskLabel(log);
         const cost = generationLogCost(log);
+        const costAmount = cost?.currency && cost.currency !== 'CNY'
+            ? `${cost.currency} ${new Intl.NumberFormat('zh-CN', {maximumFractionDigits:6}).format(Number(cost.amount_micros || 0)/1000000)}`
+            : formatCostMicros(cost?.amount_micros);
         const costChip = cost?.status === 'priced'
-            ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${formatCostMicros(cost.amount_micros)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
+            ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${escapeHtml(costAmount)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
             : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">${escapeHtml(window.VolcengineVideoBilling?.pendingLabel(cost) || '待核算')}</span>` : '';
         const idText = taskId || requestId || '';
         const backendText = workflow || backend || '';
@@ -12460,8 +12474,13 @@ function renderCanvasLog(){
         };
     });
     refreshIcons();
-    void backfillHistoricalVideoCosts();
+    if(!ledger) void backfillHistoricalVideoCosts();
 }
+window.addEventListener('canvas-ledger-updated', event => {
+    if(event.detail?.canvasId !== canvas?.id) return;
+    updateCanvasCostButton();
+    if(document.getElementById('logModal')?.classList.contains('open')) renderCanvasLog();
+});
 async function importWorkflowAssetUrl(url, name='workflow'){
     if(!canvas || !url) return;
     try {
@@ -12675,11 +12694,13 @@ function findPendingTask(taskId){
     return null;
 }
 async function createCanvasImageTask(payload, options={}){
+    payload = {...payload, canvas_id:canvas?.id || ''};
     const res = await window.CanvasApi.createCanvasImageTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
     return res.json();
 }
 async function createCanvasVideoTask(payload, options={}){
+    payload = {...payload, canvas_id:canvas?.id || ''};
     const res = await window.CanvasApi.createCanvasVideoTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
     if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
     return res.json();
@@ -12697,6 +12718,7 @@ function providerIdForPending(pending){
 }
 function completeRecoverPendingOutput(out, pending, result){
     if(!out || !pending || !result) return;
+    pending.run = {...pending.run, canvasTaskId:pending.canvasTaskId};
     const images = result.images || [];
     if(!images.length) return;
     const meta = {
@@ -12810,6 +12832,7 @@ function completeCanvasImageTask(taskId, result){
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
+    pending.run = {...pending.run, canvasTaskId:taskId};
     const meta = {
         runMs: nowMs() - Number(pending.startedAt || nowMs()),
         run: pending.run || {},
@@ -12833,6 +12856,7 @@ function failCanvasImageTask(taskId, message, taskData={}){
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
+    pending.run = {...pending.run, canvasTaskId:taskId};
     const run = pending.run || {};
     const runMs = nowMs() - Number(pending.startedAt || nowMs());
     const recoverTaskId = taskData?.upstream_task_id || taskData?.task_id || extractUpstreamTaskId(message);
@@ -12877,6 +12901,7 @@ function completeCanvasVideoTask(taskId, result){
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
+    pending.run = {...pending.run, canvasTaskId:taskId};
     const meta = {
         runMs: nowMs() - Number(pending.startedAt || nowMs()),
         run: pending.run || {},
@@ -12902,6 +12927,7 @@ function failCanvasVideoTask(taskId, message, taskData={}){
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
+    pending.run = {...pending.run, canvasTaskId:taskId};
     const run = pending.run || {};
     Object.assign(run, window.VolcengineVideoBilling?.metadata(taskData.result || {}));
     if(taskData.result) run.request = requestMetaFromResult(taskData.result);

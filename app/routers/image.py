@@ -15,6 +15,7 @@ from app.services.media import *
 from app.services.chat import *
 from app.services.comfyui import *
 from app.services.workflow import *
+from app.services.canvas_tasks import save_canvas_task as save_durable_canvas_task
 router = APIRouter()
 
 @router.post("/api/online-image")
@@ -86,6 +87,7 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
         if task_id in CANVAS_TASKS:
             CANVAS_TASKS[task_id]["status"] = "running"
             CANVAS_TASKS[task_id]["updated_at"] = time.time()
+            save_durable_canvas_task(CANVAS_TASKS[task_id])
     try:
         result = await build_online_image_result(payload)
         with CANVAS_TASK_LOCK:
@@ -95,6 +97,7 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
                 "error": "",
                 "updated_at": time.time(),
             })
+            save_durable_canvas_task(CANVAS_TASKS[task_id])
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
         status_code = getattr(exc, "status_code", 500)
@@ -107,6 +110,7 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
                 "upstream_task_id": upstream_task_id,
                 "updated_at": time.time(),
             })
+            save_durable_canvas_task(CANVAS_TASKS[task_id])
 
 # ── Cross-router imports (at bottom to avoid circular imports) ──
 from app.routers.providers import build_online_image_result

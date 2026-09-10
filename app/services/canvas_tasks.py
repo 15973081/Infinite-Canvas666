@@ -8,6 +8,7 @@ canvas tasks, especially video jobs that outlive a backend restart.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import time
@@ -62,6 +63,9 @@ def init_canvas_task_store() -> str:
                 "CREATE INDEX IF NOT EXISTS idx_canvas_tasks_status_updated "
                 "ON canvas_tasks(status, updated_at)"
             )
+            if "canvas_id" not in {row[1] for row in conn.execute("PRAGMA table_info(canvas_tasks)")}:
+                conn.execute("ALTER TABLE canvas_tasks ADD COLUMN canvas_id TEXT NOT NULL DEFAULT ''")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_canvas_tasks_canvas ON canvas_tasks(canvas_id, updated_at)")
         _INITIALIZED_PATHS.add(path)
     return path
 
@@ -114,15 +118,16 @@ def save_canvas_task(task: Dict[str, Any], request_payload: Optional[Dict[str, A
             request_json = _dumps(request_payload)
         conn.execute(
             """
-            INSERT INTO canvas_tasks(id, task_type, status, task_json, request_json, created_at, updated_at)
-            VALUES(?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO canvas_tasks(id, task_type, status, task_json, request_json, created_at, updated_at, canvas_id)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 task_type=excluded.task_type,
                 status=excluded.status,
                 task_json=excluded.task_json,
                 request_json=excluded.request_json,
                 created_at=excluded.created_at,
-                updated_at=excluded.updated_at
+                updated_at=excluded.updated_at,
+                canvas_id=excluded.canvas_id
             """,
             (
                 task_id,
@@ -132,9 +137,19 @@ def save_canvas_task(task: Dict[str, Any], request_payload: Optional[Dict[str, A
                 request_json,
                 stored["created_at"],
                 stored["updated_at"],
+                stored.get("canvas_id") or "",
             ),
         )
+    _record_ledger(stored)
     return stored
+
+
+def _record_ledger(task):
+    try:
+        from app.services.canvas_ledger import record_task
+        record_task(task)
+    except Exception:
+        logging.exception("Canvas ledger write failed; retained durable task %s for reconciliation", task.get("id"))
 
 
 def get_canvas_task(task_id: str) -> Dict[str, Any]:
@@ -162,21 +177,24 @@ def update_canvas_task(task_id: str, **changes: Any) -> Dict[str, Any]:
         task.update(changes)
         task["updated_at"] = float(changes.get("updated_at") or time.time())
         conn.execute(
-            "UPDATE canvas_tasks SET task_type=?, status=?, task_json=?, updated_at=? WHERE id=?",
+            "UPDATE canvas_tasks SET task_type=?, status=?, task_json=?, updated_at=?, canvas_id=? WHERE id=?",
             (
                 str(task.get("type") or "unknown"),
                 str(task.get("status") or "queued"),
                 _dumps(task),
                 task["updated_at"],
+                task.get("canvas_id") or "",
                 str(task_id),
             ),
         )
+    _record_ledger(task)
     return task
 
 
 def list_canvas_tasks(
     statuses: Optional[Iterable[str]] = None,
     task_type: str = "",
+    canvas_id: str = "",
 ) -> List[Dict[str, Any]]:
     init_canvas_task_store()
     clauses: List[str] = []
@@ -188,6 +206,9 @@ def list_canvas_tasks(
     if task_type:
         clauses.append("task_type = ?")
         args.append(str(task_type))
+    if canvas_id:
+        clauses.append("canvas_id = ?")
+        args.append(canvas_id)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     with _DB_LOCK, _connect() as conn:
         rows = conn.execute(
@@ -198,4 +219,3 @@ def list_canvas_tasks(
 
 def active_durable_canvas_tasks() -> List[Dict[str, Any]]:
     return list_canvas_tasks(statuses=ACTIVE_CANVAS_TASK_STATUSES)
-

@@ -17,7 +17,7 @@ from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
 from app.services.static_pages import VersionedStaticFiles
 # Routers — extracted to app/routers/
 from app.routers import (
-    angle, assets, canvas, chat, comfyui, conversation,
+    angle, assets, canvas, canvas_ledger, chat, comfyui, conversation,
     generate, history, image, prompt,
     providers, maintenance, upload, video, websocket,
 )
@@ -96,6 +96,7 @@ async def maintenance_generation_tracker(request: Request, call_next):
 app.include_router(angle.router)
 app.include_router(assets.router)
 app.include_router(canvas.router)
+app.include_router(canvas_ledger.router)
 app.include_router(chat.router)
 app.include_router(comfyui.router)
 app.include_router(conversation.router)

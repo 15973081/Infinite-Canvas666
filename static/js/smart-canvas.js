@@ -5995,6 +5995,7 @@ function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Dat
     return {status:'priced', source, ...identity, billing_type:price.billing_type, quantity, unit_price:String(price.unit_price), currency:price.currency || 'CNY', amount_micros:Math.round(unitPriceMicros * quantity), price_effective_from:Number(price.effective_from || 0)};
 }
 function smartGenerationLogCost(log){
+    if(log?._ledger) return log._ledger_cost?.status === 'excluded' ? null : log._ledger_cost;
     const volcCost = window.VolcengineVideoBilling?.costFor({}, log, smartBillingIdentity({}, log), apiProviders);
     if(volcCost !== undefined) return volcCost;
     if(log?.status === 'failed') return null;
@@ -6005,6 +6006,10 @@ function formatSmartCost(value){
     return `¥${new Intl.NumberFormat('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:6}).format(Number(value || 0) / 1000000)}`;
 }
 function smartCanvasCostTotals(logs=canvas?.logs || []){
+    if(arguments.length === 0 && canvas?.id && window.CanvasLedger){
+        const ledger = window.CanvasLedger.view(canvas.id);
+        if(ledger.allTotals) return ledger.allTotals;
+    }
     return logs.reduce((sum, log) => {
         const cost = smartGenerationLogCost(log);
         if(cost?.status === 'priced'){
@@ -6029,6 +6034,7 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
     const identity = smartBillingIdentity(run);
     const entry = {
         id:uid('log'),
+        canvas_task_id:run?.canvasTaskId || '',
         createdAt,
         status:error ? 'failed' : 'success',
         platform:smartRunPlatformLabel(run),
@@ -6048,6 +6054,7 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
     };
     entry.cost = calculateSmartGenerationCost({run, log:entry, outputs:entry.outputs, createdAt});
     canvas.logs = [entry, ...canvas.logs].slice(0, 5000);
+    window.CanvasLedger?.record(canvas.id, entry);
     updateSmartCanvasCostButton();
     scheduleSave();
 }
@@ -6065,15 +6072,18 @@ function smartLogPreviewNode(url, kind='image'){
     }
 }
 function renderSmartCanvasLog(){
-    const logs = canvas?.logs || [];
-    const totals = smartCanvasCostTotals(logs);
-    updateSmartCanvasCostButton(totals);
+    const ledger = canvas?.id ? window.CanvasLedger?.view(canvas.id) : null;
+    const logs = ledger ? ledger.logs : (canvas?.logs || []);
+    const totals = ledger ? ledger.totals : smartCanvasCostTotals(logs);
+    updateSmartCanvasCostButton(ledger?.allTotals || totals);
+    window.CanvasLedger?.mount(smartLogList, canvas?.id);
     const summary = document.getElementById('smartCostSummary');
     if(summary) summary.textContent = `总计 ${formatSmartCost(totals.total)} · 已计费 ${totals.calls} 次${totals.unknown ? ` · 待定价 ${totals.unknown} 笔` : ''}`;
     [['smartCostTotal', formatSmartCost(totals.total)], ['smartCostImage', formatSmartCost(totals.image)], ['smartCostVideo', formatSmartCost(totals.video)], ['smartCostCalls', String(totals.calls)], ['smartCostMeta', totals.estimated ? `含历史预估 ${formatSmartCost(totals.estimated)}` : '按调用时价格快照'], ['smartCostUnknown', `待定价 ${totals.unknown} 笔`]].forEach(([id, value]) => {
         const target = document.getElementById(id);
-        if(target) target.textContent = value;
+        if(target) target.textContent = ledger && !ledger.ready ? '读取中…' : value;
     });
+    if(summary && ledger && !ledger.ready) summary.textContent = '正在读取全部费用流水…';
     smartLogList.innerHTML = logs.length ? logs.map(log => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = typeof item === 'string' ? item : (item?.url || '');
@@ -6087,8 +6097,11 @@ function renderSmartCanvasLog(){
         const taskId = req.task_id || req.taskId || req.prompt_id || req.promptId || '';
         const backend = req.workflow_json || req.workflow || req.provider_id || req.providerId || req.backend || '';
         const cost = smartGenerationLogCost(log);
+        const costAmount = cost?.currency && cost.currency !== 'CNY'
+            ? `${cost.currency} ${new Intl.NumberFormat('zh-CN', {maximumFractionDigits:6}).format(Number(cost.amount_micros || 0)/1000000)}`
+            : formatSmartCost(cost?.amount_micros);
         const costChip = cost?.status === 'priced'
-            ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${formatSmartCost(cost.amount_micros)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
+            ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${escapeHtml(costAmount)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
             : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">${escapeHtml(window.VolcengineVideoBilling?.pendingLabel(cost) || '待核算')}</span>` : '';
         const subParts = [
             date,
@@ -6135,7 +6148,7 @@ function renderSmartCanvasLog(){
         };
     });
     refreshIcons();
-    void backfillSmartHistoricalVideoCosts();
+    if(!ledger) void backfillSmartHistoricalVideoCosts();
 }
 function openSmartCanvasLog(mode='logs'){
     if(!canvas) return;
@@ -6153,6 +6166,11 @@ function openSmartCanvasCost(event){
 function closeSmartCanvasLog(){
     smartLogModal.classList.remove('open');
 }
+window.addEventListener('canvas-ledger-updated', event => {
+    if(event.detail?.canvasId !== canvas?.id) return;
+    updateSmartCanvasCostButton();
+    if(document.getElementById('smartLogModal')?.classList.contains('open')) renderSmartCanvasLog();
+});
 function openSmartCanvasShortcuts(){
     smartShortcutModal?.classList.add('open');
     refreshIcons();
@@ -12564,9 +12582,15 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
         const taskResult = await runApiGeneration(prompt, refs, activeSettings);
         const taskIds = Array.isArray(taskResult?.taskIds) ? taskResult.taskIds : [];
         if(taskIds.length){
-            const settled = await Promise.all(taskIds.map(taskId => pollSmartCanvasTask(taskId)));
+            const run = {...smartRunSnapshot(node, prompt, refs, 'image'), settings:cloneSmartSettings(activeSettings)};
+            const startedAt = nowMs();
+            const settled = await Promise.all(taskIds.map(async taskId => {
+                const result = await pollSmartCanvasTask(taskId);
+                addSmartGenerationLog({run:{...run, canvasTaskId:taskId}, outputs:resultMediaUrls(result?.images || result), runMs:nowMs()-startedAt});
+                return result;
+            }));
             const urls = settled.flatMap(result => resultMediaUrls(result?.images || result)).filter(Boolean);
-            return {urls, kind:mediaKindForUrls(urls, 'image')};
+            return {urls, kind:mediaKindForUrls(urls, 'image'), logged:true};
         }
         const urls = resultMediaUrls(taskResult);
         return {urls, kind:mediaKindForUrls(urls, 'image')};
@@ -12724,7 +12748,7 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
         if(isAsyncVideo){
             additions = result.urls.map(item => stripImageGenerationMeta({...item})).filter(item => item?.url);
         } else {
-            addSmartGenerationLog({run:{...runLog, kind:result.kind || logKind}, outputs:result.urls, runMs:nowMs() - runLogStart});
+            if(!result.logged) addSmartGenerationLog({run:{...runLog, kind:result.kind || logKind}, outputs:result.urls, runMs:nowMs() - runLogStart});
             const ext = result.kind === 'video' ? 'mp4' : result.kind === 'audio' ? 'mp3' : result.kind === 'text' ? 'txt' : 'png';
             additions = result.urls.map((item, i) => {
                 const url = typeof item === 'string' ? item : item?.url || '';
@@ -13360,7 +13384,7 @@ async function runApiGeneration(prompt, refs, runSettings=settings){
     if(!runSettings.provider_id || !runSettings.model) throw new Error(tr('smart.errNoApiModel'));
     const count = Math.max(1, Math.min(8, Number(runSettings.count || 1)));
     const payload = {prompt, provider_id:runSettings.provider_id, model:runSettings.model, size:sizeForRun(runSettings), quality:runSettings.quality || 'auto', n:1, reference_images:imageRefsOnly(refs)};
-    const tasks = await Promise.all(Array.from({length:count}, () => fetch('/api/canvas-image-tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}).then(async r => {
+    const tasks = await Promise.all(Array.from({length:count}, () => fetch('/api/canvas-image-tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...payload, canvas_id:canvasId})}).then(async r => {
         if(!r.ok) throw new Error(await r.text());
         return r.json();
     })));
@@ -13417,7 +13441,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
         const submission = fetch('/api/canvas-video-tasks', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({...payload, client_task_id:taskId})
+            body:JSON.stringify({...payload, client_task_id:taskId, canvas_id:canvasId})
         }).then(async r => {
             if(!r.ok) throw new Error(await smartResponseErrorMessage(r, tr('smart.errRunFailed')));
             const task = await r.json();
@@ -13769,7 +13793,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={})
         if(task?.providerId) runSettings.provider_id = task.providerId;
         if(task?.model) runSettings.model = task.model;
         addSmartGenerationLog({
-            run:{...pendingRun, kind:task?.kind || kind, settings:runSettings, ...window.VolcengineVideoBilling?.metadata(result)},
+            run:{...pendingRun, canvasTaskId:taskId, kind:task?.kind || kind, settings:runSettings, ...window.VolcengineVideoBilling?.metadata(result)},
             outputs:additions,
             runMs:nowMs() - Number(task?.startedAt || node.runStartedAt || nowMs())
         });
@@ -13824,7 +13848,7 @@ async function resumeSmartPendingNode(node){
                 }
                 if(task.kind === 'video' && e.videoResult?.cost?.billing_source === 'volcengine_usage'){
                     const pendingRun = smartPendingTaskRun(node, task, 'video');
-                    addSmartGenerationLog({run:{...pendingRun, kind:'video', ...window.VolcengineVideoBilling.metadata(e.videoResult)},
+                    addSmartGenerationLog({run:{...pendingRun, canvasTaskId:task.taskId, kind:'video', ...window.VolcengineVideoBilling.metadata(e.videoResult)},
                         outputs:[], runMs:nowMs() - Number(task.startedAt || nowMs()), error:e.message});
                 }
                 node.pendingTasks = smartPendingTasks(node).filter(item => item.taskId !== task.taskId);

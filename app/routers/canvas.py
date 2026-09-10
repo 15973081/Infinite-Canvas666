@@ -23,6 +23,7 @@ from app.services.canvas_tasks import (
     save_canvas_task as save_durable_canvas_task,
 )
 from app.services.volcengine_billing import pricing_context, video_accounting
+from app.services.canvas_ledger import task_billing_fields
 router = APIRouter()
 
 _canvas_video_recovery_started = False
@@ -58,6 +59,9 @@ def _update_video_task_record(task_id: str, **changes) -> dict:
 
 @router.post("/api/canvas-image-tasks")
 async def create_canvas_image_task(payload: OnlineImageRequest):
+    if payload.canvas_id:
+        load_canvas(payload.canvas_id)
+    billing_fields = task_billing_fields(payload, "image")
     task_id = f"canvas_img_{uuid.uuid4().hex}"
     with CANVAS_TASK_LOCK:
         if CANVAS_TASK_MAINTENANCE.get("draining"):
@@ -67,6 +71,7 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
                 headers={"Retry-After": "30"},
             )
         CANVAS_TASKS[task_id] = {
+            **billing_fields,
             "id": task_id,
             "type": "online-image",
             "status": "queued",
@@ -77,19 +82,22 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
             "provider_id": payload.provider_id,
             "model": payload.model,
         }
+        save_durable_canvas_task(CANVAS_TASKS[task_id], _canvas_video_payload_dict(payload))
     asyncio.create_task(run_canvas_image_task(task_id, payload))
     return {"task_id": task_id, "status": "queued"}
 
 @router.get("/api/canvas-image-tasks/{task_id}")
 async def get_canvas_image_task(task_id: str):
     with CANVAS_TASK_LOCK:
-        task = dict(CANVAS_TASKS.get(task_id) or {})
+        task = dict(CANVAS_TASKS.get(task_id) or load_durable_canvas_task(task_id) or {})
     if not task:
         raise HTTPException(status_code=404, detail="画布任务不存在，可能服务已重启或任务已过期")
     return task
 
 @router.post("/api/canvas-video-tasks")
 async def create_canvas_video_task(payload: CanvasVideoRequest):
+    if payload.canvas_id:
+        load_canvas(payload.canvas_id)
     requested_task_id = str(payload.client_task_id or "").strip()
     if requested_task_id and not re.fullmatch(r"canvas_vid_[A-Za-z0-9_-]{8,80}", requested_task_id):
         raise HTTPException(status_code=400, detail="无效的视频任务 ID")
@@ -101,6 +109,8 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
         if existing:
             if existing.get("type") != "video":
                 raise HTTPException(status_code=409, detail="任务 ID 已被占用")
+            if existing.get("canvas_id", "") != payload.canvas_id:
+                raise HTTPException(status_code=409, detail="任务已关联其他画布")
             CANVAS_TASKS[task_id] = existing
             return {"task_id": task_id, "status": existing.get("status") or "queued"}
         if CANVAS_TASK_MAINTENANCE.get("draining"):
@@ -110,6 +120,7 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
                 headers={"Retry-After": "30"},
             )
         task = {
+            **task_billing_fields(payload, "video"),
             "id": task_id,
             "type": "video",
             "status": "queued",

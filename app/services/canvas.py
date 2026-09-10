@@ -31,6 +31,8 @@ def canvas_path(canvas_id):
     return os.path.join(CANVAS_DIR, f"{cleaned}.json")
 
 def save_canvas(canvas):
+    from app.services.canvas_ledger import import_canvas_logs
+    import_canvas_logs(canvas["id"], canvas.get("logs") or [])
     canvas["updated_at"] = now_ms()
     with CANVAS_LOCK:
         with open(canvas_path(canvas["id"]), 'w', encoding='utf-8') as f:
@@ -162,9 +164,10 @@ def load_canvas(canvas_id):
         raise HTTPException(status_code=404, detail="画布不存在")
     with open(path, 'r', encoding='utf-8') as f:
         canvas = json.load(f)
-    canvas = recover_canvas_logs(canvas_id, canvas)
     if canvas.get("deleted_at"):
         raise HTTPException(status_code=404, detail="画布已在回收站")
+    from app.services.canvas_ledger import import_canvas_logs
+    import_canvas_logs(canvas_id, canvas.get("logs") or [])
     return canvas
 
 def load_canvas_any(canvas_id):
