@@ -150,6 +150,8 @@ def versioned_static_html(html: str) -> str:
             count=1,
             flags=re.I,
         )
+    if "/static/js/auth-session.js" not in versioned and 'id="login-form"' not in versioned:
+        versioned = versioned.replace("</head>", '<script src="/static/js/auth-session.js" defer></script>\n</head>', 1)
     return versioned_static_references(versioned, build_id)
 
 

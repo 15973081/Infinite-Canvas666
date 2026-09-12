@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>登录 · 无限画布</title>
+<link rel="stylesheet" href="/static/css/login.css">
+<script src="/static/js/login.js" defer></script>
+</head>
+<body>
+<main class="login-shell">
+<section class="showcase" aria-label="无限画布创作空间">
+<a class="brand" href="/login"><span class="brand-mark">∞</span><span>无限画布<small>INFINITE CANVAS</small></span></a>
+<div class="intro"><span class="eyebrow"><i></i> YOUR NEXT IDEA STARTS HERE</span><h1>让灵感连接，<br>让想象<span>无限。</span></h1><p>从一个想法，到一整个创作世界。<br>在自由的画布上，连接文字、图像与视频。</p></div>
+<div class="canvas-preview" aria-hidden="true">
+<svg class="connections" viewBox="0 0 560 290" fill="none"><path d="M174 100 C285 100 220 180 323 180" /><path d="M174 100 C300 100 260 45 374 45" /><circle cx="174" cy="100" r="4"/><circle cx="323" cy="180" r="4"/></svg>
+<div class="idea-node"><div class="node-label"><span class="node-icon">✦</span> 灵感起点 <span class="dots">···</span></div><p>一座漂浮在云端的岛屿，<br>阳光穿过薄雾，<br>一切皆有可能。</p><span class="node-tag">文字 / PROMPT</span><i class="port"></i></div>
+<div class="image-node"><div class="dreamscape"><div class="sun"></div><div class="mountain back"></div><div class="mountain front"></div><div class="mist"></div><span>IMAGINATION, UNBOUND.</span></div><div class="image-caption"><span><i></i> 灵感已成像</span><span>01 / ∞</span></div></div>
+<div class="video-node"><span class="play">▷</span><span>让画面，动起来<small>下一段故事由你定义</small></span></div>
+<div class="canvas-coordinates">无限延展 · 自由连接</div>
+</div>
+<div class="showcase-footer"><span>✧ AI 创作工作台</span><span>文字 <b>·</b> 图像 <b>·</b> 视频</span></div>
+</section>
+<section class="form-panel">
+<div class="panel-top"><span><i></i> 你的创作空间</span><span>CREATE WITHOUT LIMITS</span></div>
+<div class="form-content">
+<div class="welcome-icon">↗</div>
+<span class="eyebrow form-eyebrow">WELCOME TO YOUR CANVAS</span>
+<h2 id="form-title">欢迎回来</h2>
+<p class="subtitle" id="form-subtitle">登录工作区，继续未完成的灵感。</p>
+<form id="login-form">
+<label for="username">访问账号</label>
+<div class="input-wrap"><span class="input-icon" aria-hidden="true">◎</span><input id="username" name="username" autocomplete="username" maxlength="64" placeholder="输入你的访问账号" required disabled></div>
+<div class="password-label"><label for="password">密码</label><button class="text-button" id="help-button" type="button">忘记密码？</button></div>
+<div class="input-wrap"><span class="input-icon" aria-hidden="true">⌑</span><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" placeholder="输入密码" required disabled><button id="toggle-password" type="button" aria-label="显示密码" aria-pressed="false">显示</button></div>
+<div id="confirm-wrap" hidden><label for="confirm-password">确认密码</label><div class="input-wrap"><span class="input-icon" aria-hidden="true">⌑</span><input id="confirm-password" type="password" autocomplete="new-password" maxlength="256" placeholder="再次输入密码"></div></div>
+<label class="remember"><input id="remember" type="checkbox"><span>保持登录 30 天</span></label>
+<div class="message" id="form-message" role="alert" hidden></div>
+<button class="submit-button" id="submit-button" type="submit" disabled><span id="submit-label">正在连接工作区…</span><span aria-hidden="true">↗</span></button>
+</form>
+<div id="help-message" class="help-message" role="status" hidden>请联系工作区管理员重置访问密码。本地管理员可按项目登录说明恢复账号。</div>
+<div class="workspace-note"><span aria-hidden="true">◇</span><p>一个入口，连接所有创作。<small>使用工作区访问账号登录，画布与素材保留在原工作区。</small></p></div>
+<button id="retry-button" type="button" class="text-button" hidden>重新连接</button>
+</div>
+<footer class="panel-footer"><span>INFINITE POSSIBILITIES.</span><span>为每一个好想法而生</span></footer>
+</section>
+</main>
+</body>
+</html>

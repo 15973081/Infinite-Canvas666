@@ -113,6 +113,11 @@ async def maintenance_generation_tracker(request: Request, call_next):
     finally:
         end_transient_generation(task_id)
 
+# Authentication runs outside maintenance and storage middleware.
+from app.services.auth import AuthenticationMiddleware, router as auth_router
+app.add_middleware(AuthenticationMiddleware)
+app.include_router(auth_router)
+
 # --- Register all routers ---
 app.include_router(angle.router)
 app.include_router(assets.router)
