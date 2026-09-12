@@ -6393,7 +6393,7 @@ async function querySmartImageTaskNow(nodeId, localTaskId){
             task.querying = false;
             finalizeSmartPendingTask(node, task.taskId, data.images || [], task.kind || 'image');
         } else {
-            task.error = data.error || data.message || (data.status === 'failed' ? tr('smart.errRunFailed') : '任务仍在生成中，请稍后再查询');
+            task.error = data.error || data.message || ((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled') ? tr('smart.errRunFailed') : '任务仍在生成中，请稍后再查询');
             toast(task.error.slice(0, 160));
         }
     } catch(e){
@@ -13760,7 +13760,7 @@ async function pollSmartCanvasTask(taskId, kind='image'){
             unavailableSince = 0;
             const task = await response.json();
             if(task.status === 'succeeded') return task.result || {};
-            if(task.status === 'failed'){
+            if((task.status === 'failed' || task.status === 'needs_review' || task.status === 'cancelled')){
                 const recoverTaskId = task.upstream_task_id || extractUpstreamTaskId(task.error || '');
                 if(taskKind === 'image' && recoverTaskId) throw new ImageTaskRecoverSignal({taskId, recoverTaskId, providerId:task.provider_id, kind:'image', message:task.error || tr('smart.errRunFailed')});
                 const error = new Error(task.error || tr('smart.errRunFailed'));

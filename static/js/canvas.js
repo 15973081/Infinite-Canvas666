@@ -12762,7 +12762,7 @@ async function queryRecoverPendingOutput(pendingId){
             completeRecoverPendingOutput(out, pending, data);
             return;
         }
-        if(data.status === 'failed'){
+        if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
             pending.error = data.error || tr('canvas.generationFailed');
             showErrorModal(pending.error, tr('canvas.apiFailed'));
         } else {
@@ -12802,7 +12802,7 @@ async function pollCanvasImageTask(taskId, options={}){
                 completeCanvasImageTask(taskId, data.result || {});
                 return 'succeeded';
             }
-            if(data.status === 'failed'){
+            if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
                 failCanvasImageTask(taskId, data.error || tr('canvas.generationFailed'), data);
                 return 'failed';
             }
@@ -12829,7 +12829,7 @@ async function waitCanvasImageTaskResult(taskId, options={}){
         }
         const data = await res.json();
         if(data.status === 'succeeded') return data.result || {};
-        if(data.status === 'failed') throw new Error(data.error || tr('canvas.generationFailed'));
+        if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')) throw new Error(data.error || tr('canvas.generationFailed'));
         await sleep(1800);
     }
 }
@@ -12999,7 +12999,7 @@ async function pollCanvasVideoTask(taskId, options={}){
                 completeCanvasVideoTask(taskId, result);
                 return 'succeeded';
             }
-            if(data.status === 'failed'){
+            if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
                 failCanvasVideoTask(taskId, data.error || tr('canvas.videoFailed'), data);
                 return 'failed';
             }
@@ -13049,7 +13049,7 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
         unavailableSince = 0;
         const data = await res.json();
         if(data.status === 'succeeded') return data.result || {};
-        if(data.status === 'failed'){
+        if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
             const error = new Error(data.error || tr('canvas.videoFailed'));
             error.videoResult = data.result;
             throw error;

@@ -85,7 +85,7 @@ async def query_image_task(payload: ImageTaskQueryRequest):
 async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
     with CANVAS_TASK_LOCK:
         if task_id in CANVAS_TASKS:
-            CANVAS_TASKS[task_id]["status"] = "running"
+            CANVAS_TASKS[task_id]["status"] = "submitting" if postgres_enabled() else "running"
             CANVAS_TASKS[task_id]["updated_at"] = time.time()
             save_durable_canvas_task(CANVAS_TASKS[task_id])
     try:

@@ -11,19 +11,23 @@ from app.utils import model_list_from_values
 
 # ── Base paths ──
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RUNTIME_DIR = os.path.abspath(os.getenv("APP_RUNTIME_DIR") or (
+    os.path.join(BASE_DIR, ".local", "cloud", "runtime")
+    if os.getenv("DATABASE_BACKEND") == "postgres" else BASE_DIR
+))
 
 WORKFLOW_DIR = os.path.join(BASE_DIR, "workflows")
 WORKFLOW_PATH = os.path.join(WORKFLOW_DIR, "Z-Image.json")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+OUTPUT_DIR = os.path.join(RUNTIME_DIR, "output")
+ASSETS_DIR = os.path.join(RUNTIME_DIR, "assets")
 OUTPUT_INPUT_DIR = os.path.join(ASSETS_DIR, "input")
 OUTPUT_OUTPUT_DIR = os.path.join(ASSETS_DIR, "output")
 ASSET_LIBRARY_DIR = os.path.join(ASSETS_DIR, "library")
 LOCAL_UPLOAD_DIR = os.path.join(ASSETS_DIR, "uploads")
-HISTORY_FILE = os.path.join(BASE_DIR, "history.json")
-API_ENV_FILE = os.path.join(BASE_DIR, "API", ".env")
-DATA_DIR = os.path.join(BASE_DIR, "data")
+HISTORY_FILE = os.path.join(RUNTIME_DIR, "history.json")
+API_ENV_FILE = os.path.join(RUNTIME_DIR, "API", ".env")
+DATA_DIR = os.path.join(RUNTIME_DIR, "data")
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")
 CANVAS_DIR = os.path.join(DATA_DIR, "canvases")
 CANVAS_FOLDERS_FILE = os.path.join(DATA_DIR, "canvas_folders.json")
@@ -32,7 +36,7 @@ ASSET_LIBRARY_PATH = os.path.join(DATA_DIR, "asset_library.json")
 PROMPT_LIBRARY_PATH = os.path.join(DATA_DIR, "prompt_libraries.json")
 API_PROVIDERS_FILE = os.path.join(DATA_DIR, "api_providers.json")
 SHARED_FOLDERS_FILE = os.path.join(DATA_DIR, "shared_folders.json")
-GLOBAL_CONFIG_FILE = os.path.join(BASE_DIR, "global_config.json")
+GLOBAL_CONFIG_FILE = os.path.join(RUNTIME_DIR, "global_config.json")
 
 # ── App version ──
 APP_VERSION = "2026.06.03"

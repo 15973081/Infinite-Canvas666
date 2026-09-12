@@ -16,9 +16,10 @@ from threading import Lock
 from typing import Any, Dict, Iterable, List, Optional
 
 from app.config import DATA_DIR
+from app.storage.settings import postgres_enabled
 
 
-ACTIVE_CANVAS_TASK_STATUSES = {"queued", "submitting", "running", "polling"}
+ACTIVE_CANVAS_TASK_STATUSES = {"queued", "submitting", "running", "polling", "finalizing"}
 TERMINAL_CANVAS_TASK_STATUSES = {"succeeded", "failed", "cancelled"}
 
 _DB_LOCK = Lock()
@@ -40,6 +41,10 @@ def _connect() -> sqlite3.Connection:
 
 
 def init_canvas_task_store() -> str:
+    if postgres_enabled():
+        from app.storage.database import check
+        check()
+        return 'postgres'
     path = canvas_task_db_path()
     with _DB_LOCK:
         if path in _INITIALIZED_PATHS and os.path.exists(path):
@@ -97,6 +102,11 @@ def _row_task(row: sqlite3.Row | None) -> Dict[str, Any]:
 
 
 def save_canvas_task(task: Dict[str, Any], request_payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if postgres_enabled():
+        from app.storage.tasks import save
+        stored = save(task, request_payload)
+        _record_ledger(stored)
+        return stored
     task_id = str(task.get("id") or "").strip()
     if not task_id:
         raise ValueError("canvas task id is required")
@@ -153,6 +163,9 @@ def _record_ledger(task):
 
 
 def get_canvas_task(task_id: str) -> Dict[str, Any]:
+    if postgres_enabled():
+        from app.storage.tasks import get
+        return get(task_id)
     init_canvas_task_store()
     with _DB_LOCK, _connect() as conn:
         row = conn.execute("SELECT * FROM canvas_tasks WHERE id = ?", (str(task_id),)).fetchone()
@@ -160,6 +173,9 @@ def get_canvas_task(task_id: str) -> Dict[str, Any]:
 
 
 def get_canvas_task_request(task_id: str) -> Dict[str, Any]:
+    if postgres_enabled():
+        from app.storage.tasks import request
+        return request(task_id)
     init_canvas_task_store()
     with _DB_LOCK, _connect() as conn:
         row = conn.execute("SELECT request_json FROM canvas_tasks WHERE id = ?", (str(task_id),)).fetchone()
@@ -168,6 +184,16 @@ def get_canvas_task_request(task_id: str) -> Dict[str, Any]:
 
 
 def update_canvas_task(task_id: str, **changes: Any) -> Dict[str, Any]:
+    if postgres_enabled():
+        from app.storage.tasks import get, save
+        task = get(task_id)
+        if not task:
+            return {}
+        task.update(changes)
+        task['updated_at'] = float(changes.get('updated_at') or time.time())
+        stored = save(task)
+        _record_ledger(stored)
+        return stored
     init_canvas_task_store()
     with _DB_LOCK, _connect() as conn:
         row = conn.execute("SELECT * FROM canvas_tasks WHERE id = ?", (str(task_id),)).fetchone()
@@ -196,6 +222,9 @@ def list_canvas_tasks(
     task_type: str = "",
     canvas_id: str = "",
 ) -> List[Dict[str, Any]]:
+    if postgres_enabled():
+        from app.storage.tasks import list_tasks
+        return list_tasks(statuses, task_type, canvas_id)
     init_canvas_task_store()
     clauses: List[str] = []
     args: List[Any] = []

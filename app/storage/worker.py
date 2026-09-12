@@ -1,0 +1,104 @@
+"""PostgreSQL queue consumer. May run embedded or as a separate process."""
+import asyncio
+import logging
+import os
+import socket
+import uuid
+import threading
+from app.storage import tasks
+from app.storage.media import operation_scope
+
+
+async def execute(row):
+    from app.models import CanvasVideoRequest, OnlineImageRequest
+    from app.state import CANVAS_TASKS, CANVAS_TASK_LOCK
+    from app.routers.canvas import run_canvas_video_task, resume_canvas_video_task
+    from app.routers.image import run_canvas_image_task
+    task_id, token = row["id"], row["lease_token"]
+    task = tasks.decode(row)
+    with CANVAS_TASK_LOCK:
+        CANVAS_TASKS[task_id] = task
+    context = tasks.lease_context.set((task_id, token))
+    owner_task = asyncio.current_task()
+
+    loop = asyncio.get_running_loop()
+    stopped = threading.Event()
+
+    def renew():
+        try:
+            while not stopped.wait(20):
+                if not tasks.heartbeat(task_id, token):
+                    loop.call_soon_threadsafe(owner_task.cancel)
+                    return
+        except Exception:
+            logging.exception("Task heartbeat failed for %s", task_id)
+            loop.call_soon_threadsafe(owner_task.cancel)
+
+    # SDK downloads and some legacy media helpers are synchronous. Their I/O must
+    # not prevent lease renewal while they are still doing useful work.
+    heartbeat = threading.Thread(target=renew, name="cloud-lease-" + task_id, daemon=True)
+    heartbeat.start()
+    try:
+        with operation_scope():
+            if row["status"] in {"polling", "finalizing"} and (row["kind"] != "video" or not row["upstream_task_id"]):
+                current = tasks.get(task_id)
+                current.update(status="needs_review", error="缺少可恢复的上游任务信息，请人工核对；未重新提交生成")
+                tasks.save(current)
+                return
+            if row["kind"] == "video":
+                payload = CanvasVideoRequest(**row["request"])
+                if row["upstream_task_id"]:
+                    await resume_canvas_video_task(task_id, payload)
+                else:
+                    await run_canvas_video_task(task_id, payload)
+            else:
+                await run_canvas_image_task(task_id, OnlineImageRequest(**row["request"]))
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logging.exception("Cloud task worker failed for %s", task_id)
+        current = tasks.get(task_id)
+        if current.get("status") in tasks.ACTIVE:
+            current.update(status="needs_review", error=str(exc))
+            tasks.save(current)
+    finally:
+        stopped.set()
+        await asyncio.to_thread(heartbeat.join, 20)
+        tasks.lease_context.reset(context)
+        await asyncio.to_thread(tasks.release, task_id, token)
+
+
+async def consume(stop):
+    owner = socket.gethostname() + ":" + str(os.getpid()) + ":" + uuid.uuid4().hex[:8]
+    while not stop.is_set():
+        try:
+            from app.services.maintenance import canvas_task_maintenance
+            if not canvas_task_maintenance().get("draining"):
+                await asyncio.to_thread(tasks.recover_expired)
+                row = await asyncio.to_thread(tasks.claim, owner)
+                if row:
+                    await execute(row)
+                    continue
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception("Cloud worker iteration failed")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=1)
+        except asyncio.TimeoutError:
+            pass
+
+
+def start():
+    stop = asyncio.Event()
+    consumers = [asyncio.create_task(consume(stop)) for _ in range(max(1, min(8, int(os.getenv("CLOUD_WORKER_CONCURRENCY", "2")))))]
+    return stop, consumers
+
+
+async def shutdown(handle):
+    stop, consumers = handle
+    stop.set()
+    done, pending = await asyncio.wait(consumers, timeout=10)
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*consumers, return_exceptions=True)

@@ -1,4 +1,5 @@
 import os
+from app.storage.settings import postgres_enabled
 import re
 import json
 import time
@@ -459,9 +460,15 @@ async def wait_for_image_task(client, task_id, provider=None):
 
 
 def output_storage(category="output"):
+    if postgres_enabled():
+        from app.storage.media import scratch_directory
+        return scratch_directory(category), 'input' if category == 'input' else 'output'
     return (OUTPUT_INPUT_DIR, "input") if category == "input" else (OUTPUT_OUTPUT_DIR, "output")
 
 def output_url_for(filename, category="output"):
+    if postgres_enabled():
+        from app.storage.media import publish_output
+        return publish_output(filename, category)
     _, subdir = output_storage(category)
     return f"/assets/{subdir}/{filename}"
 
@@ -470,6 +477,9 @@ def output_path_for(filename, category="output"):
     return os.path.join(folder, filename)
 
 def output_file_from_url(url):
+    if postgres_enabled():
+        from app.storage.media import materialize
+        return materialize(url)
     if isinstance(url, dict):
         url = url.get("url", "")
     if not url or not (url.startswith("/output/") or url.startswith("/assets/")):
@@ -1048,6 +1058,10 @@ def public_media_url_suffix() -> str:
     return f"?token={urllib.parse.quote(token)}" if token else ""
 
 def local_asset_public_url(value: str) -> str:
+    if postgres_enabled():
+        from app.storage.media import get_asset, browser_url
+        asset = get_asset(value)
+        return browser_url(asset, provider=True) if asset else ''
     text = str(value or "").strip()
     if not text.startswith(("/output/", "/assets/")):
         return ""
@@ -1729,7 +1743,15 @@ async def upload_local_video_to_temp_sh(ref_url: str) -> Dict[str, str]:
 
 
 async def save_ai_image_to_output(image_data, prefix="online_", category="output", provider=None):
+    if postgres_enabled() and image_data.get("type") != "b64":
+        from app.storage.media import download_remote, get_asset, stable_url
+        asset = get_asset(image_data.get("value", ""))
+        if asset:
+            return stable_url(asset)
+        return await download_remote(image_data["value"], prefix, category, provider, ".png")
     filename = f"{prefix}{uuid.uuid4().hex[:10]}.png"
+    if postgres_enabled():
+        filename = prefix + hashlib.sha256(str(image_data.get("value", "")).encode()).hexdigest()[:24] + ".png"
     path = output_path_for(filename, category)
     if image_data["type"] == "b64":
         mime_type = str(image_data.get("mime_type") or "").lower()
@@ -1765,6 +1787,12 @@ async def save_ai_image_to_output(image_data, prefix="online_", category="output
         return value
 
 async def save_remote_video_to_output(url, prefix="video_", category="output", provider=None):
+    if postgres_enabled():
+        from app.storage.media import download_remote, get_asset, stable_url
+        asset = get_asset(url)
+        if asset:
+            return stable_url(asset)
+        return await download_remote(url, prefix, category, provider, ".mp4")
     if not url:
         return ""
     if url.startswith("/output/") or url.startswith("/assets/"):

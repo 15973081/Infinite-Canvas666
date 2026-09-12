@@ -21,6 +21,11 @@ router = APIRouter()
 
 @router.get("/api/history")
 async def get_history_api(type: str = None):
+    if postgres_enabled():
+        from app.storage.documents import list_values
+        data = [row["value"] for row in list_values("history")]
+        data = [v for v in data if v.get("images") and (not type or v.get("type", "zimage") == type)]
+        return sorted(data, key=lambda v: v.get("timestamp") if isinstance(v.get("timestamp"), (int, float)) else 0, reverse=True)[:5000]
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
@@ -52,6 +57,16 @@ async def get_queue_status(client_id: str):
 
 @router.post("/api/history/delete")
 async def delete_history(req: DeleteHistoryRequest):
+    if postgres_enabled():
+        from app.storage.documents import list_values, delete
+        found = False
+        for row in list_values("history"):
+            at = row["value"].get("timestamp", 0)
+            matches = abs(at - req.timestamp) < 0.001 if isinstance(at, (int, float)) and isinstance(req.timestamp, (int, float)) else str(at) == str(req.timestamp)
+            if matches:
+                delete("history", row["id"])
+                found = True
+        return {"success": found}
     if not os.path.exists(HISTORY_FILE):
         return {"success": False, "message": "History file not found"}
     try:

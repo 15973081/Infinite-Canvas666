@@ -261,6 +261,7 @@ class CanvasSaveRequest(BaseModel):
     settings: Dict[str, Any] = {}
     client_id: str = ""
     base_updated_at: int = 0
+    base_revision: Optional[int] = None
 
 
 class CanvasAssetCheckRequest(BaseModel):

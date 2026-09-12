@@ -24,6 +24,10 @@ _media_preview_semaphore = asyncio.Semaphore(max(2, min(4, os.cpu_count() or 2))
 
 @router.get("/api/media-preview")
 async def media_preview(url: str, w: int = 512):
+    if postgres_enabled():
+        from app.routers.cloud_media import preview
+        async with _media_preview_semaphore:
+            return await preview(url, w)
     path = output_file_from_url(url)
     if not path or not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="媒体文件不存在")
@@ -79,7 +83,7 @@ def view_image(filename: str, type: str = "input", subfolder: str = ""):
 @router.get("/api/download-output")
 def download_output(url: str, name: str = "", inline: bool = False):
     path = output_file_from_url(url)
-    if not path:
+    if not path and not postgres_enabled():
         path = local_media_file_by_basename(filename_from_media_url(url, ""))
     if path:
         filename = sanitize_export_filename(os.path.basename(name) if name else os.path.basename(path), os.path.basename(path))
@@ -129,6 +133,9 @@ async def upload_image(files: List[UploadFile] = File(...)):
 
 @router.post("/api/ai/upload")
 async def upload_ai_reference(files: List[UploadFile] = File(...)):
+    if postgres_enabled():
+        from app.routers.cloud_media import upload_files
+        return await upload_files(files)
     uploaded = []
     image_exts = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
     video_exts = {".mp4", ".webm", ".mov", ".m4v"}

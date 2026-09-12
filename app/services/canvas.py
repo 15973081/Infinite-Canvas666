@@ -1,4 +1,5 @@
 import os
+from app.storage.settings import postgres_enabled
 import re
 import json
 import time
@@ -31,6 +32,12 @@ def canvas_path(canvas_id):
     return os.path.join(CANVAS_DIR, f"{cleaned}.json")
 
 def save_canvas(canvas):
+    if postgres_enabled():
+        from app.storage.canvases import save
+        save(canvas)
+        from app.services.canvas_ledger import import_canvas_logs
+        import_canvas_logs(canvas['id'], canvas.get('logs') or [])
+        return
     from app.services.canvas_ledger import import_canvas_logs
     import_canvas_logs(canvas["id"], canvas.get("logs") or [])
     canvas["updated_at"] = now_ms()
@@ -39,6 +46,9 @@ def save_canvas(canvas):
             json.dump(canvas, f, ensure_ascii=False, indent=2)
 
 def save_canvas_without_touch(canvas):
+    if postgres_enabled():
+        from app.storage.canvases import save
+        return save(canvas, touch=False)
     with CANVAS_LOCK:
         with open(canvas_path(canvas["id"]), 'w', encoding='utf-8') as f:
             json.dump(canvas, f, ensure_ascii=False, indent=2)
@@ -50,6 +60,9 @@ def normalize_canvas_folder_id(folder_id):
     return re.sub(r"[^a-zA-Z0-9_-]", "", str(folder_id or ""))
 
 def canvas_folders_load():
+    if postgres_enabled():
+        from app.storage.documents import get
+        return get('canvas_folders', default={'folders': []})
     if not os.path.exists(CANVAS_FOLDERS_FILE):
         return {"folders": []}
     try:
@@ -83,6 +96,9 @@ def canvas_folders_load():
     return {"folders": folders}
 
 def canvas_folders_save(data):
+    if postgres_enabled():
+        from app.storage.documents import put
+        return put('canvas_folders', 'default', {'folders': data.get('folders', [])})
     os.makedirs(DATA_DIR, exist_ok=True)
     with CANVAS_FOLDERS_LOCK:
         with open(CANVAS_FOLDERS_FILE, 'w', encoding='utf-8') as f:
@@ -114,6 +130,13 @@ def canvas_folder_child_count(parent_id, folders):
     return sum(1 for folder in folders if normalize_canvas_folder_id(folder.get("parent_id")) == target)
 
 def reassign_canvas_folder(old_folder_id, new_folder_id):
+    if postgres_enabled():
+        from app.storage.canvases import all_documents
+        for canvas in all_documents():
+            if normalize_canvas_folder_id(canvas.get('folder_id')) == normalize_canvas_folder_id(old_folder_id):
+                canvas['folder_id'] = normalize_canvas_folder_id(new_folder_id)
+                save_canvas_without_touch(canvas)
+        return
     old_id = normalize_canvas_folder_id(old_folder_id)
     next_id = normalize_canvas_folder_id(new_folder_id)
     if not os.path.isdir(CANVAS_DIR):
@@ -159,6 +182,9 @@ def new_canvas(title="未命名画布", icon="layers", kind="classic", folder_id
     return canvas
 
 def load_canvas(canvas_id):
+    if postgres_enabled():
+        from app.storage.canvases import get
+        return get(canvas_id)
     path = canvas_path(canvas_id)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="画布不存在")
@@ -171,6 +197,9 @@ def load_canvas(canvas_id):
     return canvas
 
 def load_canvas_any(canvas_id):
+    if postgres_enabled():
+        from app.storage.canvases import get
+        return get(canvas_id, include_deleted=True)
     path = canvas_path(canvas_id)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="画布不存在")
@@ -198,6 +227,8 @@ def canvas_record(data):
     }
 
 def cleanup_expired_canvas_trash():
+    if postgres_enabled():
+        return  # Cloud originals and tombstones have no automatic GC.
     cutoff = now_ms() - CANVAS_TRASH_RETENTION_MS
     with CANVAS_LOCK:
         for filename in os.listdir(CANVAS_DIR):
@@ -214,6 +245,9 @@ def cleanup_expired_canvas_trash():
                 continue
 
 def iter_canvas_records(include_deleted=False):
+    if postgres_enabled():
+        from app.storage.canvases import all_documents
+        return [canvas_record(c) for c in all_documents() if bool(c.get('deleted_at')) == include_deleted and not c.get('purged_at')]
     cleanup_expired_canvas_trash()
     records = []
     for filename in os.listdir(CANVAS_DIR):
@@ -356,14 +390,7 @@ def canvas_assets_index():
     canvas_counts = {"all": 0, "smart": 0, "classic": 0}
     item_counts = {"all": 0, "smart": 0, "classic": 0}
     cleanup_expired_canvas_trash()
-    for filename in os.listdir(CANVAS_DIR):
-        if not filename.endswith(".json"):
-            continue
-        try:
-            with open(os.path.join(CANVAS_DIR, filename), "r", encoding="utf-8") as f:
-                canvas = json.load(f)
-        except Exception:
-            continue
+    for canvas in iter_canvas_documents():
         if canvas.get("deleted_at"):
             continue
         record = canvas_record(canvas)
@@ -401,7 +428,7 @@ def canvas_workflow_collect_resource_refs(value, found=None):
             canvas_workflow_collect_resource_refs(item, found)
     elif isinstance(value, str):
         text = value.strip()
-        if (text.startswith("/assets/") or text.startswith("/output/")) and output_file_from_url(text):
+        if (text.startswith("/assets/") or text.startswith("/output/")) and (postgres_enabled() or output_file_from_url(text)):
             found.append(text)
     return found
 
@@ -529,3 +556,17 @@ def recover_canvas_logs(canvas_id, canvas):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(current, f, ensure_ascii=False, indent=2)
     return current
+
+
+def iter_canvas_documents():
+    if postgres_enabled():
+        from app.storage.canvases import all_documents
+        yield from all_documents()
+        return
+    for filename in os.listdir(CANVAS_DIR):
+        if filename.endswith(".json"):
+            try:
+                with open(os.path.join(CANVAS_DIR, filename), encoding="utf-8") as stream:
+                    yield json.load(stream)
+            except (OSError, ValueError):
+                continue

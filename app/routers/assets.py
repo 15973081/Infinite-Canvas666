@@ -244,8 +244,8 @@ async def delete_asset_library(library_id: str):
             remove_asset_library_file(item)
         cat_dir = str(cat.get("dir") or "").strip("/\\")
         if cat_dir:
-            target = os.path.abspath(os.path.join(ASSET_LIBRARY_DIR, cat_dir))
-            if os.path.commonpath([os.path.abspath(ASSET_LIBRARY_DIR), target]) == os.path.abspath(ASSET_LIBRARY_DIR):
+            target = os.path.abspath(os.path.join(asset_library_storage_dir(), cat_dir))
+            if os.path.commonpath([os.path.abspath(asset_library_storage_dir()), target]) == os.path.abspath(asset_library_storage_dir()):
                 shutil.rmtree(target, ignore_errors=True)
     return {"library": lib}
 
@@ -261,7 +261,7 @@ async def create_asset_library_category(payload: AssetLibraryCategoryRequest):
         # 图片分组在 library/ 下建一个真实文件夹，之后该分组的资产都存进这个文件夹，便于在磁盘上管理。
         category["dir"] = unique_asset_category_dir(library, payload.name)
         try:
-            os.makedirs(os.path.join(ASSET_LIBRARY_DIR, category["dir"]), exist_ok=True)
+            os.makedirs(os.path.join(asset_library_storage_dir(), category["dir"]), exist_ok=True)
         except Exception as exc:
             print(f"创建分组文件夹失败: {exc}")
     library.setdefault("categories", []).append(category)
@@ -293,8 +293,8 @@ async def delete_asset_library_category(category_id: str, library_id: str = ""):
     cat_dir = str(cat.get("dir") or "").strip("/").strip()
     if cat_dir:
         try:
-            target = os.path.join(ASSET_LIBRARY_DIR, cat_dir)
-            if os.path.isdir(target) and os.path.abspath(target).startswith(os.path.abspath(ASSET_LIBRARY_DIR) + os.sep):
+            target = os.path.join(asset_library_storage_dir(), cat_dir)
+            if os.path.isdir(target) and os.path.abspath(target).startswith(os.path.abspath(asset_library_storage_dir()) + os.sep):
                 shutil.rmtree(target, ignore_errors=True)
         except Exception as exc:
             print(f"删除分组文件夹失败: {exc}")
@@ -851,8 +851,8 @@ async def batch_move_asset_library_items(payload: AssetLibraryBatchMoveRequest):
                 if item.get("id") in ids:
                     moved.append(item)
                     source_categories.append(cat)
-    target_dir = os.path.abspath(os.path.join(ASSET_LIBRARY_DIR, str(target_cat.get("dir") or "").strip("/\\")))
-    library_root = os.path.abspath(ASSET_LIBRARY_DIR)
+    target_dir = os.path.abspath(os.path.join(asset_library_storage_dir(), str(target_cat.get("dir") or "").strip("/\\")))
+    library_root = os.path.abspath(asset_library_storage_dir())
     if os.path.commonpath([library_root, target_dir]) != library_root:
         raise HTTPException(status_code=400, detail="目标分组目录无效")
     os.makedirs(target_dir, exist_ok=True)

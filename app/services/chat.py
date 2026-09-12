@@ -1,4 +1,5 @@
 import os
+from app.storage.settings import postgres_enabled
 import re
 import json
 import uuid
@@ -22,6 +23,10 @@ def conversation_path(user_id, conversation_id):
     return os.path.join(user_dir(user_id), f"{cleaned}.json")
 
 def save_conversation(user_id, conversation):
+    if postgres_enabled():
+        from app.storage.documents import put
+        from app.storage.media import normalize_document
+        return put("conversation", user_id + "/" + conversation["id"], normalize_document(conversation))
     with CONVERSATION_LOCK:
         path = conversation_path(user_id, conversation["id"])
         with open(path, 'w', encoding='utf-8') as f:
@@ -40,6 +45,12 @@ def new_conversation(user_id, title="新对话"):
     return conversation
 
 def load_conversation(user_id, conversation_id):
+    if postgres_enabled():
+        from app.storage.documents import get
+        value = get("conversation", user_id + "/" + conversation_id)
+        if value is None:
+            raise HTTPException(404, "对话不存在")
+        return value
     path = conversation_path(user_id, conversation_id)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="对话不存在")
@@ -47,6 +58,15 @@ def load_conversation(user_id, conversation_id):
         return json.load(f)
 
 def list_conversations(user_id):
+    if postgres_enabled():
+        from app.storage.documents import list_values
+        records = []
+        for row in list_values("conversation"):
+            if row["id"].startswith(user_id + "/"):
+                data = row["value"]
+                last = next((m for m in reversed(data.get("messages", [])) if m.get("role") != "system"), {})
+                records.append({**{k: data.get(k) for k in ("id", "title", "created_at", "updated_at")}, "last_message": last.get("content", "")})
+        return sorted(records, key=lambda item: item.get("updated_at") or 0, reverse=True)
     records = []
     for filename in os.listdir(user_dir(user_id)):
         if not filename.endswith(".json"):

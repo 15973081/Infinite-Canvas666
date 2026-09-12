@@ -37,6 +37,10 @@ async def get_conversation(conversation_id: str, request: Request, x_user_id: st
 @router.delete("/api/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
+    if postgres_enabled():
+        from app.storage.documents import delete
+        delete("conversation", user_id + "/" + conversation_id)
+        return {"ok": True}
     path = conversation_path(user_id, conversation_id)
     if os.path.exists(path):
         os.remove(path)

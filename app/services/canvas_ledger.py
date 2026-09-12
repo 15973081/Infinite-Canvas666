@@ -31,6 +31,12 @@ def db_path():
 
 @contextmanager
 def connection():
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        from app.storage.ledger import connection as pg_connection
+        with pg_connection() as conn:
+            yield conn
+        return
     path = db_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with _LOCK:

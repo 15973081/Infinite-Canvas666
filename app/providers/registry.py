@@ -475,6 +475,11 @@ def httpx_provider_kwargs(provider=None, proxy_url=None):
 
 
 def load_api_providers():
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        from app.storage.documents import get
+        raw = get("api_providers", default=default_api_providers())
+        return merge_default_api_providers([normalize_provider(item) for item in raw if isinstance(item, dict) and str(item.get("id") or "").lower() not in REMOVED_PROVIDER_IDS])
     defaults = default_api_providers()
     if not os.path.exists(API_PROVIDERS_FILE):
         return merge_default_api_providers(defaults)
@@ -494,6 +499,11 @@ def load_api_providers():
 
 
 def save_api_providers(providers):
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        from app.storage.documents import put
+        from app.storage.tasks import clean_request
+        return put("api_providers", "default", clean_request(providers))
     os.makedirs(DATA_DIR, exist_ok=True)
     with GLOBAL_CONFIG_LOCK:
         with open(API_PROVIDERS_FILE, "w", encoding="utf-8") as f:

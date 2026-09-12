@@ -1,4 +1,5 @@
 import os
+from app.storage.settings import postgres_enabled
 import re
 import json
 import uuid
@@ -146,6 +147,9 @@ def normalize_prompt_libraries(data):
     return {"active_library_id": active, "libraries": libraries, "updated_at": int(data.get("updated_at") or now_ms())}
 
 def load_prompt_libraries():
+    if postgres_enabled():
+        from app.storage.documents import get
+        return normalize_prompt_libraries(get("prompt_libraries", default=default_prompt_libraries()))
     if not os.path.exists(PROMPT_LIBRARY_PATH):
         data = default_prompt_libraries()
         return save_prompt_libraries(data)
@@ -164,9 +168,13 @@ def load_prompt_libraries():
 def save_prompt_libraries(data):
     data = normalize_prompt_libraries(data)
     data["updated_at"] = now_ms()
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(PROMPT_LIBRARY_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    if postgres_enabled():
+        from app.storage.documents import put
+        put("prompt_libraries", "default", data)
+    else:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(PROMPT_LIBRARY_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
     return data
 
 def public_prompt_libraries(data=None):

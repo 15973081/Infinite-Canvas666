@@ -263,6 +263,13 @@ def get_comfy_history(comfy_address, prompt_id):
         return {}
 
 def save_to_history(record):
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        from app.storage.documents import put
+        from app.storage.media import normalize_document
+        import uuid
+        record.setdefault("timestamp", time.time())
+        return put("history", str(record["timestamp"]) + ":" + uuid.uuid4().hex, normalize_document(record))
     with HISTORY_LOCK:
         history = []
         if os.path.exists(HISTORY_FILE):

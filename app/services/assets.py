@@ -1,4 +1,5 @@
 import os
+from app.storage.settings import postgres_enabled
 import re
 import json
 import shutil
@@ -290,6 +291,9 @@ def migrate_asset_item_registrations(item):
         item.pop(key, None)
 
 def load_asset_library():
+    if postgres_enabled():
+        from app.storage.documents import get
+        return normalize_asset_library(get("asset_library", default=default_asset_library()))
     if not os.path.exists(ASSET_LIBRARY_PATH):
         lib = default_asset_library()
         save_asset_library(lib)
@@ -353,12 +357,14 @@ def unique_asset_category_dir(library, base_name: str) -> str:
     }
     candidate = base
     i = 2
-    while candidate in existing or os.path.exists(os.path.join(ASSET_LIBRARY_DIR, candidate)):
+    while candidate in existing or os.path.exists(os.path.join(asset_library_storage_dir(), candidate)):
         candidate = f"{base}_{i}"
         i += 1
     return candidate
 
 def remove_asset_library_file(item) -> None:
+    if postgres_enabled():
+        return  # Removing a library entry does not delete an immutable object.
     """删除资产对应的本地文件（仅限 library 副本，删了不影响 /output 原图）。日志不影响主流程。"""
     from app.services.media import output_file_from_url
     try:
@@ -370,6 +376,13 @@ def remove_asset_library_file(item) -> None:
         print(f"删除资产文件失败: {exc}")
 
 def make_asset_library_item(src: str, name: str = "", subdir: str = "") -> Tuple[str, Dict[str, Any]]:
+    if postgres_enabled():
+        from app.storage.media import publish, stable_url
+        display = name or os.path.basename(src)
+        if not os.path.splitext(display)[1]:
+            display += os.path.splitext(src)[1]
+        asset = publish(src, display)
+        return asset["display_name"], {"id": "asset_" + uuid.uuid4().hex[:12], "name": os.path.splitext(display)[0][:120], "url": stable_url(asset), "media_asset_id": asset["id"], "kind": asset["kind"], "created_at": now_ms()}
     kind = asset_library_media_kind(src)
     ext = asset_library_safe_extension(src, kind)
     safe_name = sanitize_asset_name(name or os.path.basename(src), "asset")
@@ -378,12 +391,12 @@ def make_asset_library_item(src: str, name: str = "", subdir: str = "") -> Tuple
     dest_name = f"lib_{uuid.uuid4().hex[:12]}_{safe_name}"
     subdir = str(subdir or "").strip("/").strip()
     if subdir:
-        dest_dir = os.path.join(ASSET_LIBRARY_DIR, subdir)
+        dest_dir = os.path.join(asset_library_storage_dir(), subdir)
         os.makedirs(dest_dir, exist_ok=True)
         dest_path = os.path.join(dest_dir, dest_name)
         rel = f"{subdir}/{dest_name}"
     else:
-        dest_path = os.path.join(ASSET_LIBRARY_DIR, dest_name)
+        dest_path = os.path.join(asset_library_storage_dir(), dest_name)
         rel = dest_name
     shutil.copy2(src, dest_path)
     item = {
@@ -397,6 +410,8 @@ def make_asset_library_item(src: str, name: str = "", subdir: str = "") -> Tuple
     return lib
 
 def migrate_asset_library_into_dirs():
+    if postgres_enabled():
+        return
     """一次性整理：给所有图片分组（含默认的角色/场景）补上真实文件夹，并把仍在 library/ 根目录的
     素材文件搬进各自分组的文件夹、同步更新 URL。幂等：已经在子文件夹里的不动；可安全反复执行。"""
     try:
@@ -416,7 +431,7 @@ def migrate_asset_library_into_dirs():
             if not cat_dir:
                 continue
             try:
-                os.makedirs(os.path.join(ASSET_LIBRARY_DIR, cat_dir), exist_ok=True)
+                os.makedirs(os.path.join(asset_library_storage_dir(), cat_dir), exist_ok=True)
             except Exception as exc:
                 print(f"资产库分组整理：建文件夹失败 {exc}")
                 continue
@@ -426,10 +441,10 @@ def migrate_asset_library_into_dirs():
                 if not m:
                     continue
                 fname = m.group(1)
-                src = os.path.join(ASSET_LIBRARY_DIR, fname)
+                src = os.path.join(asset_library_storage_dir(), fname)
                 if not os.path.isfile(src):
                     continue
-                dst = os.path.join(ASSET_LIBRARY_DIR, cat_dir, fname)
+                dst = os.path.join(asset_library_storage_dir(), cat_dir, fname)
                 try:
                     if not os.path.exists(dst):
                         shutil.move(src, dst)
@@ -464,6 +479,14 @@ def asset_library_workflow_category(lib, library_id="", category_id=""):
     return library, cat
 
 def make_workflow_library_item_from_bytes(raw: bytes, filename: str, name: str = "") -> Dict[str, Any]:
+    if postgres_enabled():
+        from pathlib import Path
+        from app.storage.media import scratch_directory
+        target = Path(scratch_directory()) / (uuid.uuid4().hex + ".zip")
+        target.write_bytes(raw)
+        _, item = make_asset_library_item(str(target), filename or "workflow.zip")
+        item.update(name=name or filename, type="workflow", format="zip", size=len(raw))
+        return item
     if not raw:
         raise HTTPException(status_code=400, detail="工作流文件为空")
     safe_filename = sanitize_export_filename(filename or "canvas-workflow.zip", "canvas-workflow.zip")
@@ -472,8 +495,8 @@ def make_workflow_library_item_from_bytes(raw: bytes, filename: str, name: str =
         safe_filename += ".zip"
         ext = ".zip"
     dest_name = f"workflow_{uuid.uuid4().hex[:12]}_{safe_filename}"
-    dest_path = os.path.join(ASSET_LIBRARY_DIR, dest_name)
-    os.makedirs(ASSET_LIBRARY_DIR, exist_ok=True)
+    dest_path = os.path.join(asset_library_storage_dir(), dest_name)
+    os.makedirs(asset_library_storage_dir(), exist_ok=True)
     with open(dest_path, "wb") as f:
         f.write(raw)
     display_name = sanitize_asset_name(name or os.path.splitext(safe_filename)[0], "工作流")
@@ -494,9 +517,15 @@ def save_asset_library(lib):
     lib = normalize_asset_library(lib)
     sort_asset_library_items(lib)
     lib["updated_at"] = now_ms()
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(ASSET_LIBRARY_PATH, "w", encoding="utf-8") as f:
-        json.dump(lib, f, ensure_ascii=False, indent=2)
+    if postgres_enabled():
+        from app.storage.documents import put
+        from app.storage.media import normalize_document
+        lib = normalize_document(lib)
+        put("asset_library", "default", lib)
+    else:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(ASSET_LIBRARY_PATH, "w", encoding="utf-8") as f:
+            json.dump(lib, f, ensure_ascii=False, indent=2)
     if GLOBAL_LOOP:
         asyncio.run_coroutine_threadsafe(manager.broadcast_asset_library_updated(int(lib["updated_at"])), GLOBAL_LOOP)
 
@@ -873,3 +902,10 @@ def _local_upload_tree_and_items():
     fill_counts(root_node)
     items.sort(key=lambda it: it.get("created_at") or 0, reverse=True)
     return root_node, items
+
+
+def asset_library_storage_dir():
+    if postgres_enabled():
+        from app.storage.media import scratch_directory
+        return scratch_directory("library")
+    return ASSET_LIBRARY_DIR

@@ -7,6 +7,9 @@ _sys_d = os.path.dirname(os.path.abspath(__file__))
 if _sys_d not in sys.path:
     sys.path.insert(0, _sys_d)
 
+from app.storage.settings import load_storage_env, postgres_enabled
+load_storage_env()
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -53,15 +56,33 @@ logging.getLogger("uvicorn.access").addFilter(QuietAccessLogFilter())
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     mark_service_started()
-    await canvas.recover_durable_canvas_video_tasks()
-    yield
+    if postgres_enabled():
+        from app.storage.settings import validate
+        from app.storage import database, worker
+        validate()
+        database.check()
+        from app.storage.media import cleanup_orphaned_operations
+        cleanup_orphaned_operations()
+        handle = worker.start() if os.getenv("CLOUD_EMBEDDED_WORKER", "true").lower() == "true" else None
+        try:
+            yield
+        finally:
+            if handle:
+                await worker.shutdown(handle)
+            database.close()
+    else:
+        await canvas.recover_durable_canvas_video_tasks()
+        yield
 
 
 app = FastAPI(lifespan=lifespan)
+if postgres_enabled():
+    from app.storage.middleware import CloudStorageMiddleware
+    app.add_middleware(CloudStorageMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[os.getenv("PUBLIC_BASE_URL", "").rstrip("/")] if postgres_enabled() else ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -112,7 +133,11 @@ app.include_router(websocket.router)
 
 # --- Mount static files (after routers so API routes take priority) ---
 app.mount("/static", VersionedStaticFiles(directory="static"), name="static")
-app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+if postgres_enabled():
+    from app.routers.cloud_media import router as cloud_media_router
+    app.include_router(cloud_media_router)
+else:
+    app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 ensure_runtime_config_files()
 load_env_file()
@@ -150,4 +175,4 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("SERVER_PORT", "6003"))
     print(f"Starting ComfyUI-API-Modelscope on http://127.0.0.1:{port}/")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host=os.getenv("SERVER_HOST", "0.0.0.0"), port=port)

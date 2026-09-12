@@ -45,6 +45,10 @@ def _default_state() -> Dict[str, Any]:
 
 
 def _read_state() -> Dict[str, Any]:
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        from app.storage.documents import get
+        return {**_default_state(), **(get("maintenance", default={}) or {})}
     try:
         with open(MAINTENANCE_STATE_PATH, "r", encoding="utf-8") as file:
             payload = json.load(file)
@@ -60,6 +64,11 @@ def _read_state() -> Dict[str, Any]:
 
 
 def _write_state(state: Dict[str, Any]) -> None:
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        from app.storage.documents import put
+        put("maintenance", "default", state)
+        return
     os.makedirs(DATA_DIR, exist_ok=True)
     temp_path = f"{MAINTENANCE_STATE_PATH}.tmp"
     with open(temp_path, "w", encoding="utf-8", newline="") as file:

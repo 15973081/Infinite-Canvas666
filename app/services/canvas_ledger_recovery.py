@@ -8,12 +8,19 @@ from app.services.canvas_tasks import canvas_task_db_path
 
 
 def read_canvas_file(canvas_id):
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        from app.storage.canvases import get
+        return get(canvas_id, include_deleted=True)
     from app.services.canvas import canvas_path
     with open(canvas_path(canvas_id), encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def candidates_for_canvas(canvas_id):
+    from app.storage.settings import postgres_enabled
+    if postgres_enabled():
+        return cloud_candidates(canvas_id)
     from app.services.canvas import _backup_dir
     current = read_canvas_file(canvas_id)
     candidates, errors = [], []
@@ -102,3 +109,21 @@ def recover(canvas_id, preview_token=None):
         else:
             conn.execute("INSERT OR REPLACE INTO ledger_imports VALUES(?,?,?,?)", (canvas_id, "recovery", token, ledger._json(result)))
         return result
+
+
+def cloud_candidates(canvas_id):
+    from app.storage.documents import list_values
+    from app.storage.tasks import list_tasks
+    current = read_canvas_file(canvas_id)
+    docs = [(current, "canvas")]
+    docs.extend((row["value"], "backup:" + row["id"].split("/", 1)[1]) for row in list_values("canvas_backup") if row["id"].startswith(canvas_id + "/"))
+    candidates, errors = [], []
+    sources = {"canvas": len(current.get("logs") or []), "backups": len(docs) - 1, "tasks": 0}
+    for value, origin in docs:
+        candidates.extend((log, origin) for log in value.get("logs") or [])
+    for task in list_tasks(canvas_id=canvas_id):
+        log = ledger.task_log(task)
+        if log:
+            candidates.append((log, "task"))
+            sources["tasks"] += 1
+    return candidates, sources, errors, ledger.provider_list()
