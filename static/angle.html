@@ -21,6 +21,7 @@
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
+    <script src="/static/js/history-pager.js?v=20260914"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
     <script type="importmap">
         {
@@ -1243,28 +1244,33 @@
             else masonry.appendChild(card);
         }
 
-        function loadNextPage() {
-            const batch = allHistory.slice(currentIndex, currentIndex + PAGE_SIZE);
-            if (batch.length === 0) {
-                const el = document.getElementById('loadMoreTrigger');
-                if (el) el.innerText = "End of Archive";
-                return;
-            }
-            batch.forEach(item => renderImageCard(item, false));
-            currentIndex += PAGE_SIZE;
-        }
-
-        async function loadHistory() {
+        const historyPager = new HistoryPager('angle', PAGE_SIZE);
+        let historyPageLoading = false;
+        async function loadNextPage() {
+            if (historyPageLoading) return;
+            historyPageLoading = true;
+            const trigger = document.getElementById('loadMoreTrigger');
             try {
-                const res = await fetch('/api/history?type=angle');
-                const history = await res.json();
-                if (history && Array.isArray(history)) {
-                    allHistory = history;
-                    document.getElementById('masonry').innerHTML = '';
-                    currentIndex = 0;
-                    loadNextPage();
+                const batch = await historyPager.next();
+                allHistory.push(...batch);
+                batch.forEach(item => renderImageCard(item, false));
+                currentIndex += batch.length;
+                if (trigger) {
+                    trigger.classList.toggle('hidden', !historyPager.hasMore);
+                    trigger.textContent = '加载更多';
                 }
-            } catch (e) { console.error(e); }
+            } catch (error) {
+                console.error(error);
+                if (trigger) trigger.textContent = '加载失败，点击重试';
+            } finally { historyPageLoading = false; }
+        }
+        async function loadHistory() {
+            if (historyPageLoading) return;
+            historyPager.reset();
+            allHistory = [];
+            currentIndex = 0;
+            document.getElementById('masonry').innerHTML = '';
+            await loadNextPage();
         }
 
         // Lightbox

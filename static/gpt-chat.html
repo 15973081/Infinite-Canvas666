@@ -820,16 +820,30 @@
             lucide.createIcons();
         }
 
-        async function loadConversations(){
-            const data = await fetch('/api/conversations', {headers:{'X-User-ID':userId}}).then(r=>r.json());
-            conversations = data.conversations || [];
-            renderThreads();
-            if(!currentConversation) {
-                const rememberedId = rememberedConversation();
-                const target = (rememberedId && conversations.find(item => item.id === rememberedId)) || conversations[0];
-                if(target) await openConversation(target.id);
-            }
-            if(!currentConversation) renderMessages([]);
+        let conversationNextOffset = null;
+        let conversationsLoading = false;
+        async function loadConversations(append = false){
+            if (conversationsLoading) return;
+            conversationsLoading = true;
+            try {
+                const offset = append ? conversationNextOffset : 0;
+                if (append && offset === null) return;
+                const response = await fetch('/api/conversations?limit=100&offset=' + offset, {headers:{'X-User-ID':userId}});
+                if (!response.ok) throw new Error('对话列表加载失败');
+                const data = await response.json();
+                conversations = append ? [...conversations, ...(data.conversations || [])] : (data.conversations || []);
+                conversations = Array.from(new Map(conversations.map(item => [item.id, item])).values());
+                conversationNextOffset = data.next_offset ?? null;
+                renderThreads();
+                if(!currentConversation) {
+                    const rememberedId = rememberedConversation();
+                    if (rememberedId) {
+                        try { await openConversation(rememberedId); } catch (error) { console.error(error); }
+                    }
+                    if (!currentConversation && conversations[0]) await openConversation(conversations[0].id);
+                }
+                if(!currentConversation) renderMessages([]);
+            } finally { conversationsLoading = false; }
         }
 
         function renderThreads(){
@@ -855,6 +869,18 @@
                 row.appendChild(del);
                 list.appendChild(row);
             });
+            if (conversationNextOffset !== null) {
+                const more = document.createElement('button');
+                more.className = 'thread-item';
+                more.textContent = '加载更多';
+                more.onclick = async () => {
+                    more.disabled = true;
+                    try { await loadConversations(true); }
+                    catch (error) { console.error(error); more.textContent = '加载失败，点击重试'; }
+                    finally { more.disabled = false; }
+                };
+                list.appendChild(more);
+            }
             lucide.createIcons();
         }
 

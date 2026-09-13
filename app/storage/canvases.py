@@ -25,8 +25,31 @@ def get(canvas_id, include_deleted=False):
 
 
 def all_documents():
-    with connection() as conn:
-        return [_document(row) for row in conn.execute("SELECT * FROM canvases WHERE workspace_id='default' ORDER BY updated_at DESC,id")]
+    after = ""
+    while True:
+        with connection() as conn:
+            rows = conn.execute("SELECT * FROM canvases WHERE workspace_id='default' AND id>%s ORDER BY id LIMIT 100", (after,)).fetchall()
+        if not rows:
+            return
+        yield from (_document(row) for row in rows)
+        after = rows[-1]["id"]
+
+
+def list_records(include_deleted=False):
+    """Directory listings never transfer canvas nodes, logs or media payloads."""
+    after = ""
+    while True:
+        with connection() as conn:
+            rows = conn.execute("""SELECT id,title,kind,revision,created_at,updated_at,deleted_at,
+                jsonb_build_object('icon',document->'icon','owner',document->'owner','color',document->'color',
+                'pinned',document->'pinned','folder_id',document->'folder_id',
+                'node_count',jsonb_array_length(coalesce(document->'nodes','[]'::jsonb))) AS document
+                FROM canvases WHERE workspace_id='default' AND id>%s AND (deleted_at IS NOT NULL)=%s
+                AND coalesce(document->>'purged_at','0') IN ('0','') ORDER BY id LIMIT 100""", (after, include_deleted)).fetchall()
+        if not rows:
+            return
+        yield from (_document(row) for row in rows)
+        after = rows[-1]["id"]
 
 
 def save(canvas, touch=True):

@@ -20,6 +20,7 @@
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
+    <script src="/static/js/history-pager.js?v=20260914"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
     <style>
         @import url('/static/vendor/css/fonts.css?v=2026.06.9.1779672342');
@@ -699,14 +700,32 @@
             isNew ? document.getElementById('masonry').prepend(card) : document.getElementById('masonry').appendChild(card);
             lucide.createIcons();
         }
-        async function loadHistory(page=0){
-            if(isLoading) return; isLoading = true;
+        const historyPager = new HistoryPager('online', PAGE_SIZE);
+        async function loadHistory(page = 0) {
+            if (isLoading) return;
+            isLoading = true;
             const loader = document.getElementById('loadMoreTrigger');
-            if(page === 0){ loader.innerText = tr('online.loadingArchives'); allHistory = await fetch('/api/history?type=online').then(r=>r.json()); document.getElementById('masonry').innerHTML=''; currentIndex=0; }
-            const next = allHistory.slice(currentIndex, currentIndex + PAGE_SIZE);
-            next.forEach(item => renderImageCard(item)); currentIndex += next.length;
-            loader.classList.toggle('hidden', currentIndex >= allHistory.length);
-            loader.innerText = tr('online.loadMore'); isLoading = false;
+            try {
+                loader.classList.remove('hidden');
+                loader.textContent = '加载中…';
+                if (page === 0) {
+                    historyPager.reset();
+                    allHistory = [];
+                    currentIndex = 0;
+                    document.getElementById('masonry').innerHTML = '';
+                }
+                const next = await historyPager.next();
+                allHistory.push(...next);
+                next.forEach(item => renderImageCard(item));
+                currentIndex += next.length;
+                loader.classList.toggle('hidden', !historyPager.hasMore);
+                loader.textContent = '加载更多';
+            } catch (error) {
+                console.error(error);
+                loader.textContent = '加载失败，点击重试';
+            } finally {
+                isLoading = false;
+            }
         }
         let lightboxPreview = null;
         function ensureLightboxPreview(){

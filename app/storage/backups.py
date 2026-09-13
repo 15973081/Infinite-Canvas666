@@ -15,7 +15,7 @@ def create(canvas_id, automatic=False):
 
 def list_backups(canvas_id):
     values = []
-    for row in documents.list_values("canvas_backup"):
+    for row in documents.list_values("canvas_backup", prefix=canvas_id + "/"):
         if not row["id"].startswith(canvas_id + "/"):
             continue
         filename = row["id"].split("/", 1)[1]

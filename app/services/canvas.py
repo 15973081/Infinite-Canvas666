@@ -223,7 +223,7 @@ def canvas_record(data):
         "updated_at": data.get("updated_at", 0),
         "deleted_at": data.get("deleted_at", 0),
         "folder_id": normalize_canvas_folder_id(data.get("folder_id")),
-        "node_count": len(data.get("nodes", [])),
+        "node_count": data.get("node_count", len(data.get("nodes", []))),
     }
 
 def cleanup_expired_canvas_trash():
@@ -246,8 +246,8 @@ def cleanup_expired_canvas_trash():
 
 def iter_canvas_records(include_deleted=False):
     if postgres_enabled():
-        from app.storage.canvases import all_documents
-        return [canvas_record(c) for c in all_documents() if bool(c.get('deleted_at')) == include_deleted and not c.get('purged_at')]
+        from app.storage.canvases import list_records
+        return [canvas_record(c) for c in list_records(include_deleted)]
     cleanup_expired_canvas_trash()
     records = []
     for filename in os.listdir(CANVAS_DIR):

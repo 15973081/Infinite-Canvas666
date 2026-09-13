@@ -21,6 +21,7 @@
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
+    <script src="/static/js/history-pager.js?v=20260914"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
     <style>
         @import url('/static/vendor/css/fonts.css?v=2026.06.9.1779672342');
@@ -944,12 +945,32 @@
 
         function handleOutsideClick(e) { if (e.target.id === 'lightbox') closeLightbox(); }
 
+        const historyPager = new HistoryPager('enhance', 30);
+        let historyPageLoading = false;
         async function loadHistory() {
+            if (historyPageLoading) return;
+            historyPageLoading = true;
+            let trigger = document.getElementById('historyLoadMore');
+            if (!trigger) {
+                trigger = document.createElement('button');
+                trigger.id = 'historyLoadMore';
+                trigger.className = 'block mx-auto my-6 text-sm';
+                trigger.onclick = loadHistory;
+                document.getElementById('masonry').after(trigger);
+            }
+            trigger.disabled = true;
             try {
-                const res = await fetch('/api/history?type=enhance');
-                const history = await res.json();
+                const history = await historyPager.next();
                 history.forEach(item => renderImageCard(item));
-            } catch (e) { }
+                trigger.hidden = !historyPager.hasMore;
+                trigger.textContent = '加载更多';
+            } catch (error) {
+                console.error(error);
+                trigger.textContent = '加载失败，点击重试';
+            } finally {
+                historyPageLoading = false;
+                trigger.disabled = false;
+            }
         }
 
         window.onload = () => {

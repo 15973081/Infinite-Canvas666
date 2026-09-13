@@ -22,10 +22,8 @@ router = APIRouter()
 @router.get("/api/history")
 async def get_history_api(type: str = None):
     if postgres_enabled():
-        from app.storage.documents import list_values
-        data = [row["value"] for row in list_values("history")]
-        data = [v for v in data if v.get("images") and (not type or v.get("type", "zimage") == type)]
-        return sorted(data, key=lambda v: v.get("timestamp") if isinstance(v.get("timestamp"), (int, float)) else 0, reverse=True)[:5000]
+        from app.storage.history import legacy_list
+        return legacy_list(type)
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
@@ -47,6 +45,23 @@ async def get_history_api(type: str = None):
             return []
     return []
 
+
+@router.get("/api/history/page")
+async def get_history_page(type: str = None, limit: int = 50, cursor: str = None):
+    if not 1 <= limit <= 200:
+        raise HTTPException(400, "每页历史数量必须为 1–200")
+    if postgres_enabled():
+        from app.storage.history import page
+        return page(type, limit, cursor)
+    try:
+        offset = int(cursor or 0)
+        if offset < 0:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(400, "无效的历史分页游标") from None
+    data = await get_history_api(type)
+    return {"items": data[offset:offset + limit], "next_cursor": str(offset + limit) if offset + limit < len(data) else None}
+
 @router.get("/api/queue_status")
 async def get_queue_status(client_id: str):
     with QUEUE_LOCK:
@@ -58,15 +73,8 @@ async def get_queue_status(client_id: str):
 @router.post("/api/history/delete")
 async def delete_history(req: DeleteHistoryRequest):
     if postgres_enabled():
-        from app.storage.documents import list_values, delete
-        found = False
-        for row in list_values("history"):
-            at = row["value"].get("timestamp", 0)
-            matches = abs(at - req.timestamp) < 0.001 if isinstance(at, (int, float)) and isinstance(req.timestamp, (int, float)) else str(at) == str(req.timestamp)
-            if matches:
-                delete("history", row["id"])
-                found = True
-        return {"success": found}
+        from app.storage.history import delete_timestamp
+        return {"success": delete_timestamp(req.timestamp)}
     if not os.path.exists(HISTORY_FILE):
         return {"success": False, "message": "History file not found"}
     try:
@@ -105,4 +113,3 @@ async def delete_history(req: DeleteHistoryRequest):
     except Exception as e:
         print(f"Delete history error: {e}")
         return {"success": False, "message": str(e)}
-

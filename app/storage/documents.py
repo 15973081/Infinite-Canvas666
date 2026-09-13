@@ -36,9 +36,26 @@ def put(kind, key, value, expected_revision=None):
         return row["revision"]
 
 
-def list_values(kind):
-    with connection() as conn:
-        return conn.execute("SELECT id,value,revision,created_at,updated_at FROM workspace_documents WHERE workspace_id='default' AND kind=%s ORDER BY id", (kind,)).fetchall()
+def list_values(kind, prefix="", batch_size=100):
+    """Administrative scans release the connection after each bounded batch."""
+    if not 1 <= batch_size <= 500:
+        raise ValueError("Document batch size must be 1–500")
+    after = None
+    while True:
+        clauses, args = ["workspace_id='default'", "kind=%s"], [kind]
+        if prefix:
+            clauses.append("starts_with(id,%s)")
+            args.append(prefix)
+        if after is not None:
+            clauses.append("id>%s")
+            args.append(after)
+        with connection() as conn:
+            rows = conn.execute("SELECT id,value,revision,created_at,updated_at FROM workspace_documents WHERE " +
+                                " AND ".join(clauses) + " ORDER BY id LIMIT %s", [*args, batch_size]).fetchall()
+        if not rows:
+            return
+        yield from rows
+        after = rows[-1]["id"]
 
 
 def delete(kind, key):

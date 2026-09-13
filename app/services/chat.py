@@ -57,16 +57,16 @@ def load_conversation(user_id, conversation_id):
     with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def list_conversations(user_id):
+def list_conversations(user_id, limit=100, offset=0):
     if postgres_enabled():
-        from app.storage.documents import list_values
-        records = []
-        for row in list_values("conversation"):
-            if row["id"].startswith(user_id + "/"):
-                data = row["value"]
-                last = next((m for m in reversed(data.get("messages", [])) if m.get("role") != "system"), {})
-                records.append({**{k: data.get(k) for k in ("id", "title", "created_at", "updated_at")}, "last_message": last.get("content", "")})
-        return sorted(records, key=lambda item: item.get("updated_at") or 0, reverse=True)
+        from app.storage.database import connection
+        with connection() as conn:
+            return conn.execute("""SELECT value->>'id' AS id, value->>'title' AS title,
+                value->'created_at' AS created_at, value->'updated_at' AS updated_at,
+                left(coalesce(jsonb_path_query_array(value, '$.messages[*] ? (@.role != "system")')->-1->>'content',''),800) AS last_message
+                FROM workspace_documents WHERE workspace_id='default' AND kind='conversation' AND starts_with(id,%s)
+                ORDER BY CASE WHEN jsonb_typeof(value->'updated_at')='number' THEN (value->>'updated_at')::numeric ELSE 0 END DESC,id DESC
+                LIMIT %s OFFSET %s""", (user_id + "/", limit, offset)).fetchall()
     records = []
     for filename in os.listdir(user_dir(user_id)):
         if not filename.endswith(".json"):
@@ -86,7 +86,7 @@ def list_conversations(user_id):
             "updated_at": data.get("updated_at", 0),
             "last_message": (last_message or {}).get("content", ""),
         })
-    return sorted(records, key=lambda item: item["updated_at"], reverse=True)
+    return sorted(records, key=lambda item: item["updated_at"], reverse=True)[offset:offset + limit]
 
 
 def upstream_message_from_record(item):
