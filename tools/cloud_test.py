@@ -52,7 +52,7 @@ def main(argv=None):
         try:
             database.migrate()
             import pytest
-            return pytest.main([str(ROOT / "tests/test_cloud_storage.py"), str(ROOT / "tests/test_cloud_uploads.py"), "-q", *(argv or [])])
+            return pytest.main([str(ROOT / "tests/test_cloud_storage.py"), str(ROOT / "tests/test_cloud_uploads.py"), str(ROOT / "tests/test_cloud_finalization.py"), "-q", *(argv or [])])
         finally:
             try:
                 if (database.schema_name() != schema or os.environ["DATABASE_URL"] != target

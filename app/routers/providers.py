@@ -419,6 +419,10 @@ async def fetch_upstream_models(provider_id: str):
     return await fetch_models_from_upstream(provider.get("base_url") or "", api_key, provider_protocol(provider), provider.get("image_request_mode") or "openai", provider_proxy_url(provider))
 
 async def build_online_image_result(payload: OnlineImageRequest):
+    cloud_task = False
+    if postgres_enabled():
+        from app.storage.tasks import lease_context
+        cloud_task = lease_context.get() is not None
     provider = get_api_provider(payload.provider_id)
     default_model = (provider.get("image_models") or [IMAGE_MODEL])[0]
     model = selected_model(payload.model, default_model)
@@ -427,7 +431,7 @@ async def build_online_image_result(payload: OnlineImageRequest):
     count = max(1, min(8, int(payload.n or 1)))
     async def generate_one():
         image_data, raw_item = await generate_ai_image(payload.prompt, payload.size, payload.quality, model, image_refs, provider["id"])
-        local_url = await save_ai_image_to_output(image_data, prefix="online_", provider=provider)
+        local_url = image_data if cloud_task else await save_ai_image_to_output(image_data, prefix="online_", provider=provider)
         return local_url, raw_item
     try:
         generated = await asyncio.gather(*(generate_one() for _ in range(count)))
@@ -460,6 +464,11 @@ async def build_online_image_result(payload: OnlineImageRequest):
         "params": {"provider_id": provider["id"], "model": model, "size": payload.size, "quality": payload.quality, "n": count, "reference_images": refs},
         "raw_usage": raw.get("usage") if isinstance(raw, dict) else None,
     }
+    if cloud_task:
+        from app.storage.finalization import publish_result
+        sources = result["images"]
+        result["images"] = []
+        return await publish_result(result, sources, "images", provider["id"])
     save_to_history(result)
     if GLOBAL_LOOP:
         asyncio.run_coroutine_threadsafe(manager.broadcast_new_image(result), GLOBAL_LOOP)

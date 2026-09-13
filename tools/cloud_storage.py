@@ -11,12 +11,13 @@ sys.path.insert(0, str(ROOT))
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["init-db", "check", "serve", "worker", "migrate", "backup", "verify-backup", "restore-objects", "cleanup-temp", "cleanup-uploads"])
+    parser.add_argument("command", choices=["init-db", "check", "serve", "worker", "migrate", "backup", "verify-backup", "restore-objects", "retry-finalization", "cleanup-temp", "cleanup-uploads"])
     parser.add_argument("--env", default=str(ROOT / ".local/cloud/storage.env"))
     parser.add_argument("--source")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--report")
     parser.add_argument("--destination")
+    parser.add_argument("--task-id")
     args = parser.parse_args()
     # Offline operations must remain usable when the original DB/store is lost.
     if args.command in {"verify-backup", "restore-objects"}:
@@ -52,6 +53,11 @@ def main():
     elif args.command == "cleanup-uploads":
         from app.storage.uploads import cleanup
         print({"cleaned_staging_uploads": cleanup()})
+    elif args.command == "retry-finalization":
+        if not args.task_id:
+            parser.error("retry-finalization requires --task-id")
+        from app.storage.finalization import retry
+        print(retry(args.task_id))
     elif args.command == "backup":
         from app.storage.backup import dump
         import datetime

@@ -184,6 +184,10 @@ async def run_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
         status_code = getattr(exc, "status_code", 500)
+        if postgres_enabled():
+            from app.storage.finalization import defer
+            if defer(task_id, exc):
+                return
         current = load_durable_canvas_task(task_id)
         upstream_task_id = (
             getattr(exc, "upstream_task_id", "")
@@ -706,6 +710,11 @@ async def _finish_canvas_video(payload, provider, raw, upstream_task_id, context
     urls = video_output_urls(raw)
     if not urls:
         raise HTTPException(status_code=502, detail="视频生成成功但没有返回视频下载地址")
+    if postgres_enabled():
+        from app.storage.tasks import lease_context
+        if lease_context.get():
+            from app.storage.finalization import publish_result
+            return await publish_result(result, urls, "videos", provider["id"])
     result["videos"] = [await save_remote_video_to_output(url, provider=provider) for url in urls]
     return result
 
@@ -746,6 +755,10 @@ async def resume_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
         )
     except Exception as exc:
         detail = getattr(exc, "detail", None) or str(exc)
+        if postgres_enabled():
+            from app.storage.finalization import defer
+            if defer(task_id, exc):
+                return
         _update_video_task_record(
             task_id,
             status="failed",

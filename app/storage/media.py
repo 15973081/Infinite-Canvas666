@@ -26,6 +26,7 @@ from app.storage.database import connection
 from app.storage.settings import media_backend
 
 _scope = ContextVar("media_operation", default=None)
+result_slot = ContextVar("media_result_slot", default=None)
 ASSET_ID = re.compile(r"ast_[a-f0-9]{32}")
 
 
@@ -297,13 +298,13 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
 def publish_output(filename, category="output"):
     path = Path(scratch_directory(category)) / filename
     op = operation()
-    cache_key = str(path)
+    cache_key = (str(path), result_slot.get())
     if cache_key not in op["published"]:
         check_budget()
         # Fixed output slots make task finalization idempotent across restarts.
         from app.storage.tasks import lease_context
         lease = lease_context.get()
-        asset_id = "ast_" + hashlib.sha256((lease[0] + ":" + category + ":" + filename).encode()).hexdigest()[:32] if lease else None
+        asset_id = result_slot.get() or ("ast_" + hashlib.sha256((lease[0] + ":" + category + ":" + filename).encode()).hexdigest()[:32] if lease else None)
         op["published"][cache_key] = publish(path, asset_id=asset_id)
     return stable_url(op["published"][cache_key])
 

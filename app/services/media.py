@@ -2832,8 +2832,14 @@ async def generate_agnes_video(client, payload, provider, base_url, requested_mo
     urls = video_output_urls(result)
     if not urls:
         raise HTTPException(status_code=502, detail=f"Agnes 视频生成成功但没有返回视频：{result}")
-    local_urls = [await save_remote_video_to_output(url, provider=provider) for url in urls]
-    return {"videos": local_urls, "task_id": task_id or video_id, "video_id": video_id or None, "raw": result}
+    response = {"videos": [], "task_id": task_id or video_id, "video_id": video_id or None, "raw": result}
+    if postgres_enabled():
+        from app.storage.tasks import lease_context
+        if lease_context.get():
+            from app.storage.finalization import publish_result
+            return await publish_result(response, urls, "videos", provider["id"])
+    response["videos"] = [await save_remote_video_to_output(url, provider=provider) for url in urls]
+    return response
 
 # ---- 玉玉API（yuli.host）OpenAI 视频格式：/v1/videos（multipart，支持 seconds 时长）----
 def _yuli_model_norm(model: str) -> str:
@@ -2938,8 +2944,14 @@ async def generate_yuli_openai_video(client, payload, provider, base_url, reques
     urls = video_output_urls(result)
     if not urls:
         raise HTTPException(status_code=502, detail=f"视频生成成功但没有返回视频：{result}")
-    local_urls = [await save_remote_video_to_output(url, provider=provider) for url in urls]
-    return {"videos": local_urls, "task_id": task_id, "raw": result}
+    response = {"videos": [], "task_id": task_id, "raw": result}
+    if postgres_enabled():
+        from app.storage.tasks import lease_context
+        if lease_context.get():
+            from app.storage.finalization import publish_result
+            return await publish_result(response, urls, "videos", provider["id"])
+    response["videos"] = [await save_remote_video_to_output(url, provider=provider) for url in urls]
+    return response
 
 def volcengine_video_prompt_text(prompt, aspect_ratio="", duration=None):
     text = str(prompt or "").strip()

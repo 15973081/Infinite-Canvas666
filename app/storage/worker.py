@@ -5,6 +5,7 @@ import os
 import socket
 import uuid
 import threading
+import time
 from app.storage import tasks
 from app.storage.media import operation_scope
 
@@ -40,6 +41,14 @@ async def execute(row):
     heartbeat.start()
     try:
         with operation_scope():
+            from app.storage import finalization
+            if finalization.has_source(task_id):
+                from app.services.canvas_tasks import save_canvas_task
+                result = await finalization.resume(task_id)
+                current = tasks.get(task_id)
+                current.update(status="succeeded", result=result, error="", submission_unknown=False, updated_at=time.time())
+                await asyncio.to_thread(save_canvas_task, current)
+                return
             if row["status"] in {"polling", "finalizing"} and (row["kind"] != "video" or not row["upstream_task_id"]):
                 current = tasks.get(task_id)
                 current.update(status="needs_review", error="缺少可恢复的上游任务信息，请人工核对；未重新提交生成")
@@ -57,6 +66,9 @@ async def execute(row):
         raise
     except Exception as exc:
         logging.exception("Cloud task worker failed for %s", task_id)
+        from app.storage.finalization import defer
+        if defer(task_id, exc):
+            return
         current = tasks.get(task_id)
         if current.get("status") in tasks.ACTIVE:
             current.update(status="needs_review", error=str(exc))

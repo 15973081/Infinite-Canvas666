@@ -102,9 +102,14 @@ def save(task, request_payload=None):
 
 def recover_expired():
     with connection() as conn:
+        from app.storage.finalization import has_source
+        candidates = conn.execute("SELECT id FROM tasks WHERE workspace_id='default' AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now()) ORDER BY updated_at,id FOR UPDATE SKIP LOCKED LIMIT 100").fetchall()
+        for row in candidates:
+            if has_source(row["id"]):
+                conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=%s", (row["id"],))
         # An upstream id is enough to resume polling. An uncertain paid submission
         # is never automatically sent again, including interrupted image calls.
-        conn.execute("UPDATE tasks SET status=CASE WHEN kind='video' AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE workspace_id='default' AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())")
+        conn.execute("UPDATE tasks SET status=CASE WHEN kind='video' AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE workspace_id='default' AND id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))
 
 
 def claim(owner, seconds=90):
@@ -119,4 +124,4 @@ def heartbeat(task_id, token, seconds=90):
 
 def release(task_id, token):
     with connection() as conn:
-        conn.execute("UPDATE tasks SET lease_owner=NULL,lease_token=NULL,lease_until=NULL,available_at=now()+interval '5 seconds' WHERE id=%s AND lease_token=%s", (task_id, token))
+        conn.execute("UPDATE tasks SET lease_owner=NULL,lease_token=NULL,lease_until=NULL,available_at=GREATEST(available_at,now()+interval '5 seconds') WHERE id=%s AND lease_token=%s", (task_id, token))

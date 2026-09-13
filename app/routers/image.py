@@ -99,6 +99,10 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
             })
             save_durable_canvas_task(CANVAS_TASKS[task_id])
     except Exception as exc:
+        if postgres_enabled():
+            from app.storage.finalization import defer
+            if defer(task_id, exc):
+                return
         detail = getattr(exc, "detail", None) or str(exc)
         status_code = getattr(exc, "status_code", 500)
         upstream_task_id = getattr(exc, "upstream_task_id", "") or extract_task_id_from_text(detail)

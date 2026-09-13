@@ -104,8 +104,14 @@ def _row_task(row: sqlite3.Row | None) -> Dict[str, Any]:
 def save_canvas_task(task: Dict[str, Any], request_payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if postgres_enabled():
         from app.storage.tasks import save
-        stored = save(task, request_payload)
-        _record_ledger(stored)
+        from app.storage.database import connection
+        from app.services.canvas_ledger import record_task
+        with connection():
+            stored = save(task, request_payload)
+            record_task(stored)
+            if stored.get("status") == "succeeded" and stored.get("type") == "online-image":
+                from app.storage.documents import put
+                put("history", "task:" + stored["id"], stored["result"])
         return stored
     task_id = str(task.get("id") or "").strip()
     if not task_id:
@@ -185,15 +191,13 @@ def get_canvas_task_request(task_id: str) -> Dict[str, Any]:
 
 def update_canvas_task(task_id: str, **changes: Any) -> Dict[str, Any]:
     if postgres_enabled():
-        from app.storage.tasks import get, save
+        from app.storage.tasks import get
         task = get(task_id)
         if not task:
             return {}
         task.update(changes)
         task['updated_at'] = float(changes.get('updated_at') or time.time())
-        stored = save(task)
-        _record_ledger(stored)
-        return stored
+        return save_canvas_task(task)
     init_canvas_task_store()
     with _DB_LOCK, _connect() as conn:
         row = conn.execute("SELECT * FROM canvas_tasks WHERE id = ?", (str(task_id),)).fetchone()
