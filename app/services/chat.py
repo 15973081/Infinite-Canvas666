@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from app.config import CONVERSATION_DIR
 from app.state import CONVERSATION_LOCK
 from app.utils import now_ms
+from app.storage.workspace import current_workspace
 
 
 def user_dir(user_id):
@@ -64,9 +65,9 @@ def list_conversations(user_id, limit=100, offset=0):
             return conn.execute("""SELECT value->>'id' AS id, value->>'title' AS title,
                 value->'created_at' AS created_at, value->'updated_at' AS updated_at,
                 left(coalesce(jsonb_path_query_array(value, '$.messages[*] ? (@.role != "system")')->-1->>'content',''),800) AS last_message
-                FROM workspace_documents WHERE workspace_id='default' AND kind='conversation' AND starts_with(id,%s)
+                FROM workspace_documents WHERE workspace_id=%s AND kind='conversation' AND starts_with(id,%s)
                 ORDER BY CASE WHEN jsonb_typeof(value->'updated_at')='number' THEN (value->>'updated_at')::numeric ELSE 0 END DESC,id DESC
-                LIMIT %s OFFSET %s""", (user_id + "/", limit, offset)).fetchall()
+                LIMIT %s OFFSET %s""", (current_workspace(), user_id + "/", limit, offset)).fetchall()
     records = []
     for filename in os.listdir(user_dir(user_id)):
         if not filename.endswith(".json"):

@@ -9,6 +9,15 @@ def postgres_enabled():
     return backend == "postgres"
 
 
+def member_auth_enabled():
+    mode = os.getenv("AUTH_MODE", "shared")
+    if mode not in {"shared", "members"}:
+        raise ValueError("AUTH_MODE must be shared or members")
+    if mode == "members" and not postgres_enabled():
+        raise ValueError("Member authentication requires PostgreSQL")
+    return mode == "members"
+
+
 def media_backend():
     backend = os.getenv("MEDIA_BACKEND", "local")
     if backend not in {"local", "filesystem", "tos"}:
@@ -37,6 +46,7 @@ def load_storage_env():
 
 
 def validate():
+    members = member_auth_enabled()
     workspace_id()
     if postgres_enabled() and not os.getenv("DATABASE_URL"):
         raise ValueError("DATABASE_URL is required; no silent local fallback")
@@ -49,7 +59,7 @@ def validate():
     if media_backend() == "filesystem" and not os.getenv("OBJECT_STORE_ROOT"):
         raise ValueError("OBJECT_STORE_ROOT must point to an isolated simulation directory")
     if postgres_enabled():
-        for name in ("CLOUD_ACCESS_PASSWORD", "PUBLIC_BASE_URL"):
+        for name in (("PUBLIC_BASE_URL",) if members else ("CLOUD_ACCESS_PASSWORD", "PUBLIC_BASE_URL")):
             if not os.getenv(name):
                 raise ValueError(name + " is required")
         if media_backend() == "filesystem" and len(os.getenv("MEDIA_SIGNING_KEY", "")) < 32:

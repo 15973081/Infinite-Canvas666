@@ -118,7 +118,7 @@ def asset_ids(value):
 def lock_ready(conn, ids):
     if not ids:
         return
-    rows = conn.execute("SELECT id,status,deleted_at FROM assets WHERE workspace_id=%s AND id=ANY(%s) ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()
+    rows = conn.execute("SELECT id,status,deleted_at FROM assets WHERE workspace_id=%s AND role<>'task-result-source' AND id=ANY(%s) ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()
     if len(rows) != len(ids) or any(row["status"] != "ready" or row["deleted_at"] for row in rows):
         raise HTTPException(409, "任务引用的素材不存在、已删除或尚未就绪")
 
@@ -140,6 +140,14 @@ def account_ref(provider_id):
 
 def validate_execution(row):
     """A changed credential slot must not silently query/submit as another account."""
+    if row.get("requested_by") and not row.get("upstream_task_id"):
+        from app.services import authorization as az
+        with az.policy_transaction() as conn:
+            member = conn.execute("SELECT status FROM members WHERE id=%s", (row["requested_by"],)).fetchone()
+            space = conn.execute("SELECT status FROM workspaces WHERE id=%s", (row["workspace_id"],)).fetchone()
+            permissions = az.effective_permissions(conn, row["requested_by"], row["workspace_id"])
+            if not member or member["status"] != "active" or not space or space["status"] != "active" or not {"generation.submit", "provider.use"} <= permissions:
+                raise HTTPException(403, "成员生成权限已撤销，任务暂停，未提交新的付费请求")
     expected = row.get("provider_account_ref")
     if expected and expected != account_ref(row.get("provider_id")):
         raise HTTPException(409, "供应商账号配置已变化，请核对原任务账号后继续")

@@ -41,6 +41,7 @@ def decode(row):
                 created_at=row["created_at"].timestamp(), updated_at=row["updated_at"].timestamp())
     task["provider_account_ref"] = row["provider_account_ref"]
     task["workspace_id"] = row["workspace_id"]
+    task["requested_by"] = row.get("requested_by")
     if row["provider_id"]:
         task["provider_id"] = row["provider_id"]
     if row["upstream_task_id"]:
@@ -82,6 +83,9 @@ def save(task, request_payload=None, *, historical=False):
     if value.get("workspace_id", workspace) != workspace:
         raise HTTPException(409, "任务不属于当前空间")
     value["workspace_id"] = workspace
+    from app.services.member_context import current_access
+    access = current_access.get()
+    requester = access.principal.member_id if access else None
     with connection() as conn:
         # The lock also serializes two initial requests with the same id.
         conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (task_id,))
@@ -123,6 +127,8 @@ def save(task, request_payload=None, *, historical=False):
                 canvas_id = None  # Historical/orphan id remains in legacy_metadata.
             row = conn.execute("INSERT INTO tasks(workspace_id,id,canvas_id,kind,status,provider_id,provider_account_ref,model,upstream_task_id,request,result,legacy_metadata,idempotency_key,request_sha256,created_at,updated_at,input_asset_ids,output_asset_ids) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),%s,%s) RETURNING *",
                                (workspace, task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
+            if requester:
+                row = conn.execute("UPDATE tasks SET requested_by=%s WHERE workspace_id=%s AND id=%s RETURNING *", (requester, workspace, task_id)).fetchone()
         return decode(row)
 
 

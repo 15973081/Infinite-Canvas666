@@ -7,7 +7,7 @@ _sys_d = os.path.dirname(os.path.abspath(__file__))
 if _sys_d not in sys.path:
     sys.path.insert(0, _sys_d)
 
-from app.storage.settings import load_storage_env, postgres_enabled
+from app.storage.settings import load_storage_env, postgres_enabled, member_auth_enabled
 load_storage_env()
 
 from fastapi import FastAPI, Request
@@ -55,7 +55,8 @@ logging.getLogger("uvicorn.access").addFilter(QuietAccessLogFilter())
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    mark_service_started()
+    if not member_auth_enabled():
+        mark_service_started()
     if postgres_enabled():
         from app.storage.settings import validate
         from app.storage import database, worker

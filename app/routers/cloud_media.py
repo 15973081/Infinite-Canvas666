@@ -159,7 +159,7 @@ def _signed_content(asset_id, expires, signature):
     if media.media_backend() != "filesystem":
         raise HTTPException(404)
     asset = media.get_asset(asset_id)
-    if not asset:
+    if not asset or asset.get("role") == "task-result-source":
         raise HTTPException(404)
     if expires < int(time.time()) or expires > int(time.time()) + 86400 or not hmac.compare_digest(signature, media.signature(asset_id, asset["object_version_id"], expires)):
         raise HTTPException(403, "素材链接已过期或无效")

@@ -37,6 +37,12 @@ def env_quote(value):
 
 
 def safe_user_id(user_id, request: Request):
+    from app.storage.settings import member_auth_enabled
+    if member_auth_enabled():
+        principal = request.scope.get("member_principal")
+        if principal is None:
+            raise HTTPException(401, "成员登录已失效")
+        return principal.member_id
     candidate = (user_id or "").strip()
     if not candidate and request.client:
         candidate = f"ip-{request.client.host}"

@@ -52,6 +52,8 @@ def connection():
         with conn.transaction():
             token = _transaction.set((conn, get_ident()))
             try:
+                from app.services.member_context import check_storage_access
+                check_storage_access(conn)
                 yield conn
             finally:
                 _transaction.reset(token)

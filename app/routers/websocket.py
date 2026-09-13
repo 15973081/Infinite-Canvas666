@@ -8,6 +8,9 @@ router = APIRouter()
 
 @router.websocket("/ws/stats")
 async def websocket_endpoint(websocket: WebSocket, client_id: str = None):
+    if websocket.scope.get("member_principal"):
+        from app.services.member_presence import serve
+        return await serve(websocket)
     await manager.connect(websocket, client_id)
     try:
         while True:

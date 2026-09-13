@@ -127,6 +127,9 @@ def get_asset(ref, ready=True):
         return None
     with connection() as conn:
         row = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=%s", (current_workspace(), asset_id)).fetchone()
+    from app.services.member_context import current_access
+    if row and row["role"] == "task-result-source" and current_access.get() is not None:
+        raise HTTPException(404, "素材不存在")
     if ready and (not row or row["status"] != "ready" or row["deleted_at"]):
         raise HTTPException(404, "素材不存在或尚未就绪")
     return row
@@ -339,6 +342,8 @@ def signature(asset_id, version, expires):
 
 
 def browser_url(asset, provider=False):
+    if asset.get("role") == "task-result-source":
+        raise HTTPException(404, "内部任务检查点不可分享")
     if asset.get("workspace_id", "default") != current_workspace():
         raise HTTPException(404, "素材不属于当前空间")
     ttl = int(os.getenv("MEDIA_PROVIDER_URL_TTL" if provider else "MEDIA_BROWSER_URL_TTL", "3600" if provider else "300"))

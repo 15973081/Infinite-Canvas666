@@ -15,7 +15,7 @@ from urllib.parse import quote, urlsplit
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse, RedirectResponse
-from app.storage.settings import postgres_enabled
+from app.storage.settings import postgres_enabled, member_auth_enabled
 from app.services.static_pages import static_html_response
 
 router = APIRouter()
@@ -85,6 +85,10 @@ def token_from_scope(scope):
 
 
 def session_user(scope):
+    if member_auth_enabled():
+        from app.services.member_gateway import principal
+        actor = principal(scope)
+        return actor.member_id if actor else None
     token = token_from_scope(scope)
     if not token or len(token) > 128:
         return None
@@ -99,7 +103,7 @@ def session_user(scope):
 
 def basic_user(scope):
     # Preserve the existing cloud CLI contract, without browser Basic challenges.
-    if not postgres_enabled():
+    if member_auth_enabled() or not postgres_enabled():
         return None
     info = account()
     if not info:
@@ -162,6 +166,18 @@ def login_page():
 
 @router.get("/api/auth/status")
 def auth_status(request: Request):
+    if member_auth_enabled():
+        from app.services import members
+        from app.services.member_gateway import principal
+        actor = principal(request.scope)
+        info = None
+        if actor:
+            from app.services import authorization as az
+            with az.policy_transaction() as conn:
+                info = members.profile(az.active_member(conn, actor))
+        return JSONResponse({"authenticated": bool(actor), "mode": "members", "member": info,
+                             "username": info["username"] if info else None,
+                             "setup_required": False, "can_setup": False}, headers={"Cache-Control": "no-store"})
     user = session_user(request.scope)
     return JSONResponse({"authenticated": bool(user), "username": user,
                          "setup_required": account() is None,
@@ -188,6 +204,17 @@ def setup(request: Request, data: LoginInput):
 
 @router.post("/api/auth/login")
 def login(request: Request, data: LoginInput):
+    if member_auth_enabled():
+        from app.services import members
+        from app.services.member_gateway import COOKIE as member_cookie
+        result = members.login(data.username, data.password, audience="workbench",
+                               source=request.client.host if request.client else "unknown", remember=data.remember)
+        response = JSONResponse({"member": result["member"], "username": result["member"]["username"]}, headers={"Cache-Control": "no-store"})
+        response.set_cookie(member_cookie, result["token"], max_age=result["ttl"] if data.remember else None,
+                            httponly=True, secure=request.url.scheme == "https" or os.getenv("PUBLIC_BASE_URL", "").startswith("https://"),
+                            samesite="strict", path="/")
+        response.delete_cookie(COOKIE, path="/")
+        return response
     source = (request.client.host if request.client else "unknown")
     now = time.time()
     with database() as db:
@@ -207,6 +234,15 @@ def login(request: Request, data: LoginInput):
 
 @router.post("/api/auth/logout")
 def logout(request: Request):
+    if member_auth_enabled():
+        from app.services import members
+        from app.services.member_gateway import COOKIE as member_cookie, principal
+        actor = principal(request.scope)
+        if actor:
+            members.logout(actor)
+        response = JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
+        response.delete_cookie(member_cookie, path="/")
+        return response
     token = token_from_scope(request.scope)
     with database() as db:
         db.execute("DELETE FROM sessions WHERE token=?", (hashlib.sha256(token.encode()).hexdigest(),))
@@ -227,6 +263,9 @@ class AuthenticationMiddleware:
         signed = postgres_enabled() and scope["type"] == "http" and scope.get("method") in {"GET", "HEAD"} and bool(re.fullmatch(r"/api/media/ast_[a-f0-9]{32}/signed", path))
         signed = signed or (postgres_enabled() and scope["type"] == "http" and scope.get("method") == "PUT"
                             and bool(re.fullmatch(r"/api/media/uploads/ast_[a-f0-9]{32}/parts/[0-9]+/content", path)))
+        if member_auth_enabled() and not signed:
+            from app.services.member_gateway import dispatch
+            return await dispatch(self.app, scope, receive, send)
         if not signed:
             if (scope["type"] == "websocket" or scope.get("method") not in {"GET", "HEAD", "OPTIONS"}) and not origin_allowed(scope):
                 if scope["type"] == "websocket":
@@ -247,3 +286,37 @@ class AuthenticationMiddleware:
                     return await response(scope, receive, send)
                 scope["auth_user"] = user
         await self.app(scope, receive, send)
+
+
+class ActivationInput(BaseModel):
+    token: str = Field(min_length=20, max_length=128)
+    password: str = Field(min_length=12, max_length=256)
+
+
+class ProfileInput(BaseModel):
+    display_name: str = Field(min_length=1, max_length=80)
+    avatar: str = ""
+
+
+@router.post("/api/auth/activate")
+def activate_member(data: ActivationInput):
+    if not member_auth_enabled():
+        raise HTTPException(404)
+    from app.services.members import activate
+    return {"member": activate(data.token, data.password)}
+
+
+@router.get("/api/auth/workspaces")
+def member_workspaces(request: Request):
+    if not member_auth_enabled():
+        raise HTTPException(404)
+    from app.services.members import list_workspaces
+    return {"workspaces": list_workspaces(request.scope.get("member_principal"))}
+
+
+@router.patch("/api/auth/profile")
+def member_profile(request: Request, data: ProfileInput):
+    if not member_auth_enabled():
+        raise HTTPException(404)
+    from app.services.members import update_profile
+    return {"member": update_profile(request.scope.get("member_principal"), data.display_name, data.avatar)}

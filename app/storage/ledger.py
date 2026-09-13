@@ -59,7 +59,9 @@ class LedgerConnection:
             # Serialize merge/deduplication across processes, as SQLite did.
             return Cursor(self.conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ("ledger:" + self.workspace,)))
         if statement == "BEGIN":
-            return Cursor(self.conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+            # Shared reader lock keeps page/totals/revision consistent even
+            # inside a transaction which already checked member authorization.
+            return Cursor(self.conn.execute("SELECT pg_advisory_xact_lock_shared(hashtextextended(%s,0))", ("ledger:" + self.workspace,)))
         sql = statement.replace("?", "%s")
         ignored = sql.startswith("INSERT OR IGNORE")
         replaced = sql.startswith("INSERT OR REPLACE")
