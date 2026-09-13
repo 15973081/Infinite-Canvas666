@@ -347,8 +347,11 @@ def browser_url(asset, provider=False):
 def referenced_ids(value):
     found = set()
     if isinstance(value, dict):
-        for child in value.values():
-            found.update(referenced_ids(child))
+        for key, child in value.items():
+            # These are literal text, historical billing or supplier metadata,
+            # even if their content happens to resemble a local asset ID.
+            if key not in {"prompt", "text", "name", "description", "cost", "billing_price", "registrations", "asset_uri", "asset_uris"}:
+                found.update(referenced_ids(child))
     elif isinstance(value, list):
         for child in value:
             found.update(referenced_ids(child))

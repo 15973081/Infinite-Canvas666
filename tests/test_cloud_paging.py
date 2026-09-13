@@ -76,3 +76,20 @@ def test_batched_scans_allow_deletion_and_canvas_listing_uses_metadata():
     record = next(row for row in canvases.list_records() if row["id"] == value["id"])
     assert record["node_count"] == 1 and "nodes" not in record and "logs" not in record
     assert canvases.get(value["id"])["nodes"][0]["text"] == "large" * 10000
+
+
+@pytest.mark.parametrize("kind", ["classic", "smart"])
+def test_canvas_literal_media_ids_in_prompts_are_not_asset_references(kind):
+    from app.storage import canvases, database
+    missing = "ast_" + uuid.uuid4().hex
+    value = {"id": uuid.uuid4().hex, "title": "literal reference", "kind": kind, "nodes": [
+        {"id": "text", "prompt": "/api/media/" + missing + "/content", "text": missing,
+         "registrations": {"provider": {"url": "/assets/cloud/" + missing + "/literal.png"}}}],
+         "connections": [], "viewport": {"x": 0, "y": 0, "scale": 1}}
+    canvases.save(value)
+    assert canvases.get(value["id"])["nodes"] == value["nodes"]
+    with database.connection() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM canvas_assets WHERE canvas_id=%s", (value["id"],)).fetchone()["n"] == 0
+    value["nodes"].append({"id": "real-image", "url": "/api/media/" + missing + "/content"})
+    with pytest.raises(HTTPException):
+        canvases.save(value)

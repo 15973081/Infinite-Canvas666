@@ -139,6 +139,31 @@ def test_cloud_login_session_uses_isolated_auth_database():
         assert client.get("/api/canvases").status_code == 401
 
 
+def test_cloud_entry_protects_pages_api_and_realtime_connections():
+    from fastapi.testclient import TestClient
+    from starlette.websockets import WebSocketDisconnect
+    from main import app
+    origin = os.environ["PUBLIC_BASE_URL"]
+    with TestClient(app) as client:
+        assert client.get("/static/smart-canvas.html", follow_redirects=False).status_code == 303
+        assert client.get("/api/history/page").status_code == 401
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/stats", headers={"Origin": origin}):
+                pass
+        assert client.post("/api/auth/login", json={"username": os.environ["CLOUD_ACCESS_USER"],
+                           "password": os.environ["CLOUD_ACCESS_PASSWORD"]}, headers={"Origin": origin}).status_code == 200
+        with client.websocket_connect("/ws/stats", headers={"Origin": origin}):
+            pass
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/stats", headers={"Origin": "https://untrusted.invalid"}):
+                pass
+        assert client.post("/api/history/delete", json={"timestamp": 0}, headers={"Origin": "https://untrusted.invalid"}).status_code == 403
+        assert client.post("/api/auth/logout", headers={"Origin": origin}).status_code == 200
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/stats", headers={"Origin": origin}):
+                pass
+
+
 def test_canvas_api_save_backup_restore_and_media_index():
     from fastapi.testclient import TestClient
     from main import app
