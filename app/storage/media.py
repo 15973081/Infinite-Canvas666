@@ -24,6 +24,7 @@ from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 from app.storage.database import connection
 from app.storage.settings import media_backend
+from app.storage.workspace import current_workspace
 
 _scope = ContextVar("media_operation", default=None)
 result_slot = ContextVar("media_result_slot", default=None)
@@ -120,12 +121,12 @@ def get_asset(ref, ready=True):
         if not legacy:
             return None
         with connection() as conn:
-            alias = conn.execute("SELECT asset_id FROM asset_aliases WHERE workspace_id='default' AND source_namespace=%s AND legacy_ref=%s", (os.getenv("ASSET_SOURCE_NAMESPACE", "local"), legacy)).fetchone()
+            alias = conn.execute("SELECT asset_id FROM asset_aliases WHERE workspace_id=%s AND source_namespace=%s AND legacy_ref=%s", (current_workspace(), os.getenv("ASSET_SOURCE_NAMESPACE", "local"), legacy)).fetchone()
         asset_id = alias["asset_id"] if alias else None
     if not asset_id:
         return None
     with connection() as conn:
-        row = conn.execute("SELECT * FROM assets WHERE workspace_id='default' AND id=%s", (asset_id,)).fetchone()
+        row = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=%s", (current_workspace(), asset_id)).fetchone()
     if ready and (not row or row["status"] != "ready" or row["deleted_at"]):
         raise HTTPException(404, "素材不存在或尚未就绪")
     return row
@@ -267,29 +268,32 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
     mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
     kind = mime.split("/")[0] if mime.split("/")[0] in {"image", "video", "audio"} else "workflow" if name.lower().endswith(".zip") else "file"
     # Every attempt owns a separate key. Failed attempts cannot overwrite ready data.
-    key = "media/default/" + media_id + "/" + uuid.uuid4().hex + (Path(name).suffix[:12] or ".bin")
+    workspace = current_workspace()
+    key = "media/" + workspace + "/" + media_id + "/" + uuid.uuid4().hex + (Path(name).suffix[:12] or ".bin")
     bucket = os.getenv("TOS_BUCKET", "local-simulation") if media_backend() == "tos" else "local-simulation"
     region = os.getenv("TOS_REGION", "local") if media_backend() == "tos" else "local"
     with connection() as conn:
-        conn.execute("INSERT INTO assets(id,kind,status,display_name,bucket,region,object_key,parent_asset_id,role) VALUES(%s,%s,'uploading',%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING", (media_id, kind, name, bucket, region, key, parent_asset_id, role))
+        conn.execute("INSERT INTO assets(workspace_id,id,kind,status,display_name,bucket,region,object_key,parent_asset_id,role) VALUES(%s,%s,%s,'uploading',%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING", (workspace, media_id, kind, name, bucket, region, key, parent_asset_id, role))
+        if not conn.execute("SELECT 1 FROM assets WHERE workspace_id=%s AND id=%s", (workspace, media_id)).fetchone():
+            raise HTTPException(409, "素材 ID 不可用于当前空间")
     version = store().put(key, path, mime)
     with connection() as conn:
         from app.storage.tasks import lease_context
         lease = lease_context.get()
-        if lease and not conn.execute("SELECT id FROM tasks WHERE id=%s AND lease_token=%s AND lease_until>now() FOR SHARE", lease).fetchone():
+        if lease and not conn.execute("SELECT id FROM tasks WHERE workspace_id=%s AND id=%s AND lease_token=%s AND lease_until>now() FOR SHARE", (workspace, *lease)).fetchone():
             raise HTTPException(409, "任务租约已失效，拒绝发布旧执行者的输出")
-        row = conn.execute("SELECT * FROM assets WHERE id=%s FOR UPDATE", (media_id,)).fetchone()
+        row = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=%s FOR UPDATE", (workspace, media_id)).fetchone()
         if row["status"] == "ready":
             if row["sha256"] != digest:
                 raise HTTPException(409, "输出槽位已被另一份内容占用")
         else:
-            row = conn.execute("UPDATE assets SET status='ready',object_key=%s,object_version_id=%s,size_bytes=%s,sha256=%s,content_type=%s,updated_at=now() WHERE id=%s RETURNING *", (key, version, size, digest, mime, media_id)).fetchone()
+            row = conn.execute("UPDATE assets SET status='ready',object_key=%s,object_version_id=%s,size_bytes=%s,sha256=%s,content_type=%s,updated_at=now() WHERE workspace_id=%s AND id=%s RETURNING *", (key, version, size, digest, mime, workspace, media_id)).fetchone()
         if legacy_ref:
             canonical = canonical_legacy(legacy_ref)
             if not canonical:
                 raise ValueError("Legacy alias must be a complete /assets/ or /output/ path")
-            conn.execute("INSERT INTO asset_aliases(workspace_id,source_namespace,legacy_ref,asset_id,source_sha256) VALUES('default',%s,%s,%s,%s) ON CONFLICT DO NOTHING", (os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical, media_id, digest))
-            alias = conn.execute("SELECT asset_id,source_sha256 FROM asset_aliases WHERE workspace_id='default' AND source_namespace=%s AND legacy_ref=%s", (os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical)).fetchone()
+            conn.execute("INSERT INTO asset_aliases(workspace_id,source_namespace,legacy_ref,asset_id,source_sha256) VALUES(%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING", (workspace, os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical, media_id, digest))
+            alias = conn.execute("SELECT asset_id,source_sha256 FROM asset_aliases WHERE workspace_id=%s AND source_namespace=%s AND legacy_ref=%s", (workspace, os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical)).fetchone()
             if alias["asset_id"] != media_id or alias["source_sha256"] != digest:
                 raise HTTPException(409, "素材迁移映射冲突")
     return row
@@ -298,7 +302,7 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
 def publish_output(filename, category="output"):
     path = Path(scratch_directory(category)) / filename
     op = operation()
-    cache_key = (str(path), result_slot.get())
+    cache_key = (current_workspace(), str(path), result_slot.get())
     if cache_key not in op["published"]:
         check_budget()
         # Fixed output slots make task finalization idempotent across restarts.
@@ -331,16 +335,18 @@ def materialize(ref):
 
 def signature(asset_id, version, expires):
     secret = os.environ["MEDIA_SIGNING_KEY"].encode()
-    return hmac.new(secret, f"{asset_id}:{version}:{expires}".encode(), hashlib.sha256).hexdigest()
+    return hmac.new(secret, f"{current_workspace()}:{asset_id}:{version}:{expires}".encode(), hashlib.sha256).hexdigest()
 
 
 def browser_url(asset, provider=False):
+    if asset.get("workspace_id", "default") != current_workspace():
+        raise HTTPException(404, "素材不属于当前空间")
     ttl = int(os.getenv("MEDIA_PROVIDER_URL_TTL" if provider else "MEDIA_BROWSER_URL_TTL", "3600" if provider else "300"))
     ttl = min(max(ttl, 30), 86400)
     if media_backend() == "tos":
         return store().signed_url(asset, ttl)
     expires = int(time.time()) + ttl
-    path = f"/api/media/{asset['id']}/signed?expires={expires}&signature={signature(asset['id'], asset['object_version_id'], expires)}"
+    path = f"/api/media/{asset['id']}/signed?workspace={quote(current_workspace(), safe='')}&expires={expires}&signature={signature(asset['id'], asset['object_version_id'], expires)}"
     return os.getenv("PUBLIC_BASE_URL", "").rstrip("/") + path if provider else path
 
 

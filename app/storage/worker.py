@@ -8,9 +8,16 @@ import threading
 import time
 from app.storage import tasks
 from app.storage.media import operation_scope
+from app.storage.workspace import workspace_scope
 
 
 async def execute(row):
+    # The persisted row is authoritative; consumer/request context is irrelevant.
+    with workspace_scope(row["workspace_id"]):
+        return await _execute_scoped(row)
+
+
+async def _execute_scoped(row):
     from app.models import CanvasVideoRequest, OnlineImageRequest
     from app.state import CANVAS_TASKS, CANVAS_TASK_LOCK
     from app.routers.canvas import run_canvas_video_task, resume_canvas_video_task
@@ -28,9 +35,10 @@ async def execute(row):
     def renew():
         try:
             while not stopped.wait(20):
-                if not tasks.heartbeat(task_id, token):
-                    loop.call_soon_threadsafe(owner_task.cancel)
-                    return
+                with workspace_scope(row["workspace_id"]):
+                    if not tasks.heartbeat(task_id, token):
+                        loop.call_soon_threadsafe(owner_task.cancel)
+                        return
         except Exception:
             logging.exception("Task heartbeat failed for %s", task_id)
             loop.call_soon_threadsafe(owner_task.cancel)
@@ -86,13 +94,11 @@ async def consume(stop):
     owner = socket.gethostname() + ":" + str(os.getpid()) + ":" + uuid.uuid4().hex[:8]
     while not stop.is_set():
         try:
-            from app.services.maintenance import canvas_task_maintenance
-            if not canvas_task_maintenance().get("draining"):
-                await asyncio.to_thread(tasks.recover_expired)
-                row = await asyncio.to_thread(tasks.claim, owner)
-                if row:
-                    await execute(row)
-                    continue
+            await asyncio.to_thread(tasks.recover_expired, all_workspaces=True)
+            row = await asyncio.to_thread(tasks.claim, owner, all_workspaces=True)
+            if row:
+                await execute(row)
+                continue
         except asyncio.CancelledError:
             raise
         except Exception:

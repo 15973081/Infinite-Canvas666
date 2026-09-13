@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import hmac
 import os
+import re
 from pathlib import Path
 import time
 import uuid
@@ -89,10 +90,15 @@ def sign_upload_part(asset_id: str, number: int, data: PartDeclaration):
 
 
 @router.put("/api/media/uploads/{asset_id}/parts/{number}/content")
-async def put_upload_part(asset_id: str, number: int, request: Request, expires: int, signature: str):
+async def put_upload_part(asset_id: str, number: int, request: Request, expires: int, signature: str, workspace: str = "default"):
     enabled()
     from app.storage import uploads
-    return await uploads.receive_part(asset_id, number, expires, signature, request)
+    from app.storage.workspace import workspace_scope
+    # The signed capability, not the query selector, authorizes this one PUT.
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", workspace):
+        raise HTTPException(400, "无效空间")
+    with workspace_scope(workspace):
+        return await uploads.receive_part(asset_id, number, expires, signature, request)
 
 
 @router.post("/api/media/uploads/{asset_id}/parts/{number}/complete")
@@ -140,7 +146,15 @@ async def content(asset_id: str, variant: str = "original"):
 
 
 @router.get("/api/media/{asset_id}/signed")
-def signed_content(asset_id: str, expires: int, signature: str):
+def signed_content(asset_id: str, expires: int, signature: str, workspace: str = "default"):
+    from app.storage.workspace import workspace_scope
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", workspace):
+        raise HTTPException(400, "无效空间")
+    with workspace_scope(workspace):
+        return _signed_content(asset_id, expires, signature)
+
+
+def _signed_content(asset_id, expires, signature):
     enabled()
     if media.media_backend() != "filesystem":
         raise HTTPException(404)

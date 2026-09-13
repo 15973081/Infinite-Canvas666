@@ -13,12 +13,13 @@ import uuid
 from fastapi import HTTPException
 from app.storage import media
 from app.storage.database import connection
+from app.storage.workspace import current_workspace, workspace_scope
 
 
 def get(asset_id):
     with connection() as conn:
         row = conn.execute("SELECT u.*,a.staging_key,a.staging_version_id,a.bucket,a.content_type,a.display_name "
-                           "FROM media_uploads u JOIN assets a ON a.id=u.asset_id WHERE u.asset_id=%s", (asset_id,)).fetchone()
+                           "FROM media_uploads u JOIN assets a ON a.id=u.asset_id WHERE u.workspace_id=%s AND u.asset_id=%s", (current_workspace(), asset_id)).fetchone()
     if not row:
         raise HTTPException(404, "上传不存在")
     if row["backend"] != media.media_backend():
@@ -28,7 +29,7 @@ def get(asset_id):
 
 def parts(asset_id):
     with connection() as conn:
-        return conn.execute("SELECT * FROM media_upload_parts WHERE asset_id=%s ORDER BY part_number", (asset_id,)).fetchall()
+        return conn.execute("SELECT p.* FROM media_upload_parts p JOIN media_uploads u ON u.asset_id=p.asset_id WHERE u.workspace_id=%s AND p.asset_id=%s ORDER BY part_number", (current_workspace(), asset_id)).fetchall()
 
 
 def writable(row):
@@ -67,8 +68,8 @@ def create(name, size, idempotency_key):
         raise HTTPException(413, "素材分片数量超出限制")
     backend = media.media_backend()
     with connection() as conn:
-        conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ("upload:" + idempotency_key,))
-        old = conn.execute("SELECT * FROM media_uploads WHERE idempotency_key=%s", (idempotency_key,)).fetchone()
+        conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ("upload:" + current_workspace() + ":" + idempotency_key,))
+        old = conn.execute("SELECT * FROM media_uploads WHERE workspace_id=%s AND idempotency_key=%s", (current_workspace(), idempotency_key)).fetchone()
         if old:
             if old["request_sha256"] != digest or old["backend"] != backend:
                 raise HTTPException(409, "同一上传幂等键的文件声明不同")
@@ -83,13 +84,13 @@ def create(name, size, idempotency_key):
             bucket = os.environ["TOS_BUCKET"] if backend == "tos" else "local-simulation"
             region = os.environ["TOS_REGION"] if backend == "tos" else "local"
             ttl = max(300, min(86400, int(os.getenv("MEDIA_UPLOAD_TTL", "86400"))))
-            conn.execute("INSERT INTO assets(id,kind,display_name,bucket,region,object_key,staging_key,content_type,upload_expires_at) "
-                         "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,now()+make_interval(secs=>%s))",
-                         (asset_id, kind, name, bucket, region, "media/default/" + asset_id + "/pending",
-                          "staging/default/" + asset_id, mime, ttl))
-            conn.execute("INSERT INTO media_uploads(asset_id,idempotency_key,request_sha256,backend,size_bytes,part_size,part_count,status,expires_at) "
-                         "VALUES(%s,%s,%s,%s,%s,%s,%s,'initiating',now()+make_interval(secs=>%s))",
-                         (asset_id, idempotency_key, digest, backend, size, part_size, count, ttl))
+            conn.execute("INSERT INTO assets(workspace_id,id,kind,display_name,bucket,region,object_key,staging_key,content_type,upload_expires_at) "
+                         "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,now()+make_interval(secs=>%s))",
+                         (current_workspace(), asset_id, kind, name, bucket, region, "media/" + current_workspace() + "/" + asset_id + "/pending",
+                          "staging/" + current_workspace() + "/" + asset_id, mime, ttl))
+            conn.execute("INSERT INTO media_uploads(workspace_id,asset_id,idempotency_key,request_sha256,backend,size_bytes,part_size,part_count,status,expires_at) "
+                         "VALUES(%s,%s,%s,%s,%s,%s,%s,%s,'initiating',now()+make_interval(secs=>%s))",
+                         (current_workspace(), asset_id, idempotency_key, digest, backend, size, part_size, count, ttl))
     initialize(asset_id)
     return result(asset_id)
 
@@ -98,8 +99,8 @@ def initialize(asset_id):
     token = uuid.uuid4()
     with connection() as conn:
         claimed = conn.execute("UPDATE media_uploads SET lease_token=%s,lease_until=now()+interval '2 minutes' "
-                               "WHERE asset_id=%s AND status='initiating' AND (lease_until IS NULL OR lease_until<now()) RETURNING asset_id",
-                               (token, asset_id)).fetchone()
+                               "WHERE workspace_id=%s AND asset_id=%s AND status='initiating' AND (lease_until IS NULL OR lease_until<now()) RETURNING asset_id",
+                               (token, current_workspace(), asset_id)).fetchone()
     if not claimed:
         return
     row = get(asset_id)
@@ -118,7 +119,7 @@ def part_size(row, number):
 
 
 def part_signature(asset_id, number, digest, size, expires):
-    message = f"upload:{asset_id}:{number}:{digest}:{size}:{expires}"
+    message = f"upload:{current_workspace()}:{asset_id}:{number}:{digest}:{size}:{expires}"
     return hmac.new(os.environ["MEDIA_SIGNING_KEY"].encode(), message.encode(), hashlib.sha256).hexdigest()
 
 
@@ -147,7 +148,7 @@ def sign_part(asset_id, number, digest):
     else:
         expires = int(time.time()) + ttl
         signature = part_signature(asset_id, number, digest, size, expires)
-        url = f"/api/media/uploads/{asset_id}/parts/{number}/content?expires={expires}&signature={signature}"
+        url = f"/api/media/uploads/{asset_id}/parts/{number}/content?workspace={current_workspace()}&expires={expires}&signature={signature}"
     return {"url": url, "method": "PUT", "headers": {"Content-Type": "application/octet-stream"}, "size": size}
 
 
@@ -305,7 +306,7 @@ def complete(asset_id):
                   "object_version_id": version, "size_bytes": row["size_bytes"]}
         media.store().download(staged, path)
         size, digest = _verify(path, row, uploaded)
-        key = "media/default/" + asset_id + "/" + uuid.uuid4().hex
+        key = "media/" + current_workspace() + "/" + asset_id + "/" + uuid.uuid4().hex
         final_version = media.store().put(key, path, row["content_type"])
         with connection() as conn:
             if not conn.execute("SELECT 1 FROM media_uploads WHERE asset_id=%s AND lease_token=%s AND lease_until>now() FOR UPDATE", (asset_id, token)).fetchone():
@@ -321,7 +322,7 @@ def complete(asset_id):
 
 def abort(asset_id):
     with connection() as conn:
-        row = conn.execute("SELECT * FROM media_uploads WHERE asset_id=%s FOR UPDATE", (asset_id,)).fetchone()
+        row = conn.execute("SELECT * FROM media_uploads WHERE workspace_id=%s AND asset_id=%s FOR UPDATE", (current_workspace(), asset_id)).fetchone()
         if not row:
             raise HTTPException(404, "上传不存在")
         if row["status"] == "ready" or (row["lease_until"] and row["lease_until"].timestamp() > time.time()):
@@ -331,22 +332,32 @@ def abort(asset_id):
     return {"status": "aborted", "media_asset_id": asset_id}
 
 
-def cleanup(grace_seconds=3600):
+def cleanup(grace_seconds=3600, *, all_workspaces=False):
+    if all_workspaces:
+        # Trusted maintenance CLI only; HTTP cleanup must retain its space scope.
+        with connection() as conn:
+            workspaces = [r["workspace_id"] for r in conn.execute(
+                "SELECT DISTINCT workspace_id FROM media_uploads WHERE cleaned_at IS NULL")]
+        total = 0
+        for workspace in workspaces:
+            with workspace_scope(workspace):
+                total += cleanup(grace_seconds)
+        return total
     # Wait past the entire credential lifetime, including already signed PUTs.
     with connection() as conn:
-        ids = [r["asset_id"] for r in conn.execute("SELECT asset_id FROM media_uploads WHERE cleaned_at IS NULL "
-              "AND expires_at<now()-make_interval(secs=>%s) AND (lease_until IS NULL OR lease_until<now())", (grace_seconds,))]
+        ids = [r["asset_id"] for r in conn.execute("SELECT asset_id FROM media_uploads WHERE workspace_id=%s AND cleaned_at IS NULL "
+              "AND expires_at<now()-make_interval(secs=>%s) AND (lease_until IS NULL OR lease_until<now())", (current_workspace(), grace_seconds))]
     cleaned = 0
     for asset_id in ids:
         row = get(asset_id)
         if row["status"] not in {"ready", "aborted"}:
             abort(asset_id)
-        if row["staging_key"] != "staging/default/" + asset_id:
+        if row["staging_key"] != "staging/" + current_workspace() + "/" + asset_id:
             raise RuntimeError("Refusing cleanup outside upload staging prefix")
         store = media.store()
         if row["backend"] == "filesystem":
             target = (store.root / row["staging_key"]).resolve()
-            if target.parent != (store.root / "staging/default").resolve() or target.name != asset_id:
+            if target.parent != (store.root / "staging" / current_workspace()).resolve() or target.name != asset_id:
                 raise RuntimeError("Staging path escaped private root")
             if target.exists():
                 shutil.rmtree(target)

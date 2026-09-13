@@ -1,6 +1,6 @@
 """Small SQL adapter for the existing five-table ledger, not a new pricing engine.
 
-The application is deliberately restricted to workspace 'default' in this release.
+Every supported statement is bound to the current storage workspace.
 Historical JSON values are returned in the canonical representation used by the
 original deduplication code. Money and timestamps never pass through floats.
 """
@@ -8,6 +8,7 @@ import json
 import re
 from contextlib import contextmanager
 from app.storage.database import connection as pg_connection
+from app.storage.workspace import current_workspace
 
 COLUMNS = {
     "ledger_entries": "id,canvas_id,created_at,log_json,cost_json,source,cost_status,amount_micros,currency,kind,estimated,status,updated_at",
@@ -47,6 +48,7 @@ class Cursor:
 class LedgerConnection:
     def __init__(self, conn):
         self.conn = conn
+        self.workspace = current_workspace()
         self.rollback_requested = False
 
     def rollback(self):
@@ -55,7 +57,7 @@ class LedgerConnection:
     def execute(self, statement, args=()):
         if statement == "BEGIN IMMEDIATE":
             # Serialize merge/deduplication across processes, as SQLite did.
-            return Cursor(self.conn.execute("SELECT pg_advisory_xact_lock(642193002)"))
+            return Cursor(self.conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ("ledger:" + self.workspace,)))
         if statement == "BEGIN":
             return Cursor(self.conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
         sql = statement.replace("?", "%s")
@@ -82,6 +84,23 @@ class LedgerConnection:
                     values[index] = Jsonb(json.loads(values[index]))
         elif sql.startswith("UPDATE ledger_entries SET log_json="):
             values[0], values[1] = Jsonb(json.loads(values[0])), Jsonb(json.loads(values[1]))
+        if sql.startswith("INSERT INTO ledger_"):
+            match = re.match(r"INSERT INTO (ledger_\w+) \(([^)]+)\) VALUES\s*\(", sql)
+            if not match or match[1] not in COLUMNS or match[2] != COLUMNS[match[1]]:
+                raise ValueError("Unsupported ledger insert")
+            sql = "INSERT INTO " + match[1] + " (workspace_id," + match[2] + ") VALUES(%s," + sql[match.end():]
+            values.insert(0, self.workspace)
+        else:
+            # This is a closed adapter for the existing single-table ledger
+            # statements, not a general SQL rewriting or authorization engine.
+            if not re.match(r"(?:SELECT .+ FROM|UPDATE|DELETE FROM) ledger_\w+ ", sql) or " WHERE " not in sql:
+                raise ValueError("Unsupported unscoped ledger statement")
+            prefix, predicate = sql.split(" WHERE ", 1)
+            if re.search(r"\b(?:JOIN|UNION|SELECT)\b", predicate) or ";" in sql:
+                raise ValueError("Unsupported compound ledger statement")
+            pieces = re.split(r"( ORDER BY | LIMIT | OFFSET )", predicate, maxsplit=1)
+            sql = prefix + " WHERE workspace_id=%s AND (" + pieces[0] + ")" + "".join(pieces[1:])
+            values.insert(prefix.count("%s"), self.workspace)
         return Cursor(self.conn.execute(sql, values))
 
 

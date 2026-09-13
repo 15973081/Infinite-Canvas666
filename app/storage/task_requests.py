@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from fastapi import HTTPException
 from app.storage import media
 from app.storage.database import connection
+from app.storage.workspace import current_workspace
 
 MEDIA_FIELDS = {"images", "videos", "audios", "reference_images", "references", "frames",
                 "image", "video", "audio", "image_url", "video_url", "audio_url", "outputs"}
@@ -54,7 +55,7 @@ def canonical_ref(value, strict=False):
             if len(versions) != 1 or any(k != "versionId" and not k.lower().startswith("x-tos-") for k in query) or any(k.lower() == "x-tos-process" for k in query):
                 raise HTTPException(400, "请使用带固定版本的原始素材引用")
             with connection() as conn:
-                asset = conn.execute("SELECT id FROM assets WHERE workspace_id='default' AND bucket=%s AND object_key=%s AND object_version_id=%s", (bucket, key, versions[0])).fetchone()
+                asset = conn.execute("SELECT id FROM assets WHERE workspace_id=%s AND bucket=%s AND object_key=%s AND object_version_id=%s", (current_workspace(), bucket, key, versions[0])).fetchone()
             if not asset:
                 raise HTTPException(404, "对象版本没有对应的素材记录")
             return "/api/media/" + asset["id"] + "/content"
@@ -117,7 +118,7 @@ def asset_ids(value):
 def lock_ready(conn, ids):
     if not ids:
         return
-    rows = conn.execute("SELECT id,status,deleted_at FROM assets WHERE workspace_id='default' AND id=ANY(%s) ORDER BY id FOR SHARE", (ids,)).fetchall()
+    rows = conn.execute("SELECT id,status,deleted_at FROM assets WHERE workspace_id=%s AND id=ANY(%s) ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()
     if len(rows) != len(ids) or any(row["status"] != "ready" or row["deleted_at"] for row in rows):
         raise HTTPException(409, "任务引用的素材不存在、已删除或尚未就绪")
 

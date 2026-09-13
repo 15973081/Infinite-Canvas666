@@ -8,6 +8,7 @@ from contextvars import ContextVar
 from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 from app.storage.database import connection
+from app.storage.workspace import current_workspace, workspace_scope
 
 lease_context = ContextVar("cloud_task_lease", default=None)
 ACTIVE = ("queued", "running", "submitting", "polling", "finalizing")
@@ -39,6 +40,7 @@ def decode(row):
     task.update(id=row["id"], type=row["kind"], status=row["status"], result=row["result"],
                 created_at=row["created_at"].timestamp(), updated_at=row["updated_at"].timestamp())
     task["provider_account_ref"] = row["provider_account_ref"]
+    task["workspace_id"] = row["workspace_id"]
     if row["provider_id"]:
         task["provider_id"] = row["provider_id"]
     if row["upstream_task_id"]:
@@ -50,17 +52,17 @@ def decode(row):
 
 def get(task_id):
     with connection() as conn:
-        return decode(conn.execute("SELECT * FROM tasks WHERE workspace_id='default' AND id=%s", (task_id,)).fetchone())
+        return decode(conn.execute("SELECT * FROM tasks WHERE workspace_id=%s AND id=%s", (current_workspace(), task_id)).fetchone())
 
 
 def request(task_id):
     with connection() as conn:
-        row = conn.execute("SELECT request FROM tasks WHERE workspace_id='default' AND id=%s", (task_id,)).fetchone()
+        row = conn.execute("SELECT request FROM tasks WHERE workspace_id=%s AND id=%s", (current_workspace(), task_id)).fetchone()
         return row["request"] if row else {}
 
 
 def list_tasks(statuses=None, task_type="", canvas_id=""):
-    clauses, args = ["workspace_id='default'"], []
+    clauses, args = ["workspace_id=%s"], [current_workspace()]
     for key, value in (("status", list(statuses or [])), ("kind", task_type), ("canvas_id", canvas_id)):
         if value:
             clauses.append(key + ("=ANY(%s)" if key == "status" else "=%s"))
@@ -76,10 +78,16 @@ def save(task, request_payload=None, *, historical=False):
     task_id = value.get("id")
     if not task_id:
         raise ValueError("Task id is required")
+    workspace = current_workspace()
+    if value.get("workspace_id", workspace) != workspace:
+        raise HTTPException(409, "任务不属于当前空间")
+    value["workspace_id"] = workspace
     with connection() as conn:
         # The lock also serializes two initial requests with the same id.
         conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (task_id,))
         old = conn.execute("SELECT * FROM tasks WHERE id=%s FOR UPDATE", (task_id,)).fetchone()
+        if old and old["workspace_id"] != workspace:
+            raise HTTPException(409, "任务 ID 不可用于当前空间")
         if old:
             if request_payload is not None:
                 if fingerprint(old["request"]) != fingerprint(request_payload):
@@ -109,35 +117,42 @@ def save(task, request_payload=None, *, historical=False):
             provider_id = payload.get("provider_id") or value.get("provider_id")
             provider_account = None if historical else account_ref(provider_id)
             canvas_id = value.get("canvas_id") or None
-            if canvas_id and not conn.execute("SELECT 1 FROM canvases WHERE id=%s", (canvas_id,)).fetchone():
+            if canvas_id and not conn.execute("SELECT 1 FROM canvases WHERE workspace_id=%s AND id=%s", (workspace, canvas_id)).fetchone():
+                if conn.execute("SELECT 1 FROM canvases WHERE id=%s", (canvas_id,)).fetchone():
+                    raise HTTPException(404, "画布不存在")
                 canvas_id = None  # Historical/orphan id remains in legacy_metadata.
-            row = conn.execute("INSERT INTO tasks(id,canvas_id,kind,status,provider_id,provider_account_ref,model,upstream_task_id,request,result,legacy_metadata,idempotency_key,request_sha256,created_at,updated_at,input_asset_ids,output_asset_ids) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),%s,%s) RETURNING *",
-                               (task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
+            row = conn.execute("INSERT INTO tasks(workspace_id,id,canvas_id,kind,status,provider_id,provider_account_ref,model,upstream_task_id,request,result,legacy_metadata,idempotency_key,request_sha256,created_at,updated_at,input_asset_ids,output_asset_ids) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),%s,%s) RETURNING *",
+                               (workspace, task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
         return decode(row)
 
 
-def recover_expired():
+def recover_expired(*, all_workspaces=False):
     with connection() as conn:
         from app.storage.finalization import has_source
-        candidates = conn.execute("SELECT id FROM tasks WHERE workspace_id='default' AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now()) ORDER BY updated_at,id FOR UPDATE SKIP LOCKED LIMIT 100").fetchall()
+        scope = "" if all_workspaces else "workspace_id=%s AND "
+        args = () if all_workspaces else (current_workspace(),)
+        candidates = conn.execute("SELECT id,workspace_id FROM tasks WHERE " + scope + "status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now()) ORDER BY updated_at,id FOR UPDATE SKIP LOCKED LIMIT 100", args).fetchall()
         for row in candidates:
-            if has_source(row["id"]):
-                conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=%s", (row["id"],))
+            with workspace_scope(row["workspace_id"]):
+                if has_source(row["id"]):
+                    conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=%s", (row["id"],))
         # An upstream id is enough to resume polling. An uncertain paid submission
         # is never automatically sent again, including interrupted image calls.
-        conn.execute("UPDATE tasks SET status=CASE WHEN kind='video' AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE workspace_id='default' AND id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))
+        conn.execute("UPDATE tasks SET status=CASE WHEN kind='video' AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))
 
 
-def claim(owner, seconds=90):
+def claim(owner, seconds=90, *, all_workspaces=False):
     with connection() as conn:
-        return conn.execute("WITH candidate AS (SELECT id FROM tasks WHERE workspace_id='default' AND NOT EXISTS (SELECT 1 FROM workspace_documents WHERE workspace_id='default' AND kind='maintenance' AND id='default' AND value->>'mode'='draining') AND kind IN ('video','online-image') AND status IN ('queued','polling','finalizing') AND available_at<=now() AND (lease_until IS NULL OR lease_until<now()) ORDER BY available_at,created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (owner, seconds)).fetchone()
+        scope = "" if all_workspaces else "q.workspace_id=%s AND "
+        args = () if all_workspaces else (current_workspace(),)
+        return conn.execute("WITH candidate AS (SELECT q.id FROM tasks q JOIN workspaces w ON w.id=q.workspace_id WHERE " + scope + "(q.status IN ('polling','finalizing') OR (w.status='active' AND NOT EXISTS (SELECT 1 FROM workspace_documents d WHERE d.workspace_id=q.workspace_id AND d.kind='maintenance' AND d.id='default' AND d.value->>'mode'='draining'))) AND q.kind IN ('video','online-image') AND q.status IN ('queued','polling','finalizing') AND q.available_at<=now() AND (q.lease_until IS NULL OR q.lease_until<now()) ORDER BY q.available_at,q.created_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (*args, owner, seconds)).fetchone()
 
 
 def heartbeat(task_id, token, seconds=90):
     with connection() as conn:
-        return bool(conn.execute("UPDATE tasks SET lease_until=now()+make_interval(secs=>%s) WHERE id=%s AND lease_token=%s AND lease_until>now() RETURNING id", (seconds, task_id, token)).fetchone())
+        return bool(conn.execute("UPDATE tasks SET lease_until=now()+make_interval(secs=>%s) WHERE workspace_id=%s AND id=%s AND lease_token=%s AND lease_until>now() RETURNING id", (seconds, current_workspace(), task_id, token)).fetchone())
 
 
 def release(task_id, token):
     with connection() as conn:
-        conn.execute("UPDATE tasks SET lease_owner=NULL,lease_token=NULL,lease_until=NULL,available_at=GREATEST(available_at,now()+interval '5 seconds') WHERE id=%s AND lease_token=%s", (task_id, token))
+        conn.execute("UPDATE tasks SET lease_owner=NULL,lease_token=NULL,lease_until=NULL,available_at=GREATEST(available_at,now()+interval '5 seconds') WHERE workspace_id=%s AND id=%s AND lease_token=%s", (current_workspace(), task_id, token))

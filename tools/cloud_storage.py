@@ -52,7 +52,7 @@ def main():
         print({"removed_operation_directories": cleanup_orphaned_operations()})
     elif args.command == "cleanup-uploads":
         from app.storage.uploads import cleanup
-        print({"cleaned_staging_uploads": cleanup()})
+        print({"cleaned_staging_uploads": cleanup(all_workspaces=True)})
     elif args.command == "retry-finalization":
         if not args.task_id:
             parser.error("retry-finalization requires --task-id")

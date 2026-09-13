@@ -12,6 +12,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 from app.storage import database, media, tasks
+from app.storage.workspace import current_workspace
 
 
 def source_id(task_id):
@@ -112,20 +113,20 @@ def defer(task_id, error):
                    result_source_asset_id=source_id(task_id))
     with database.connection() as conn:
         tasks.save(current)
-        conn.execute("UPDATE tasks SET available_at=now()+make_interval(secs=>%s) WHERE id=%s",
-                     (min(300, 5 * 2 ** attempt), task_id))
+        conn.execute("UPDATE tasks SET available_at=now()+make_interval(secs=>%s) WHERE workspace_id=%s AND id=%s",
+                     (min(300, 5 * 2 ** attempt), current_workspace(), task_id))
     return True
 
 
 def retry(task_id):
     """Explicit administrative retry of publication; never submit generation."""
     with database.connection() as conn:
-        row = conn.execute("SELECT *,lease_until>now() AS leased FROM tasks WHERE id=%s FOR UPDATE", (task_id,)).fetchone()
+        row = conn.execute("SELECT *,lease_until>now() AS leased FROM tasks WHERE workspace_id=%s AND id=%s FOR UPDATE", (current_workspace(), task_id)).fetchone()
         if not row:
             raise HTTPException(404, "任务不存在")
         if row["status"] not in {"needs_review", "finalizing"} or row["leased"]:
             raise HTTPException(409, "只允许重试无执行租约的待核对结果入库任务")
         if not has_source(task_id):
             raise HTTPException(409, "没有已保存的结果来源，禁止自动重新生成")
-        conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,completed_at=NULL,available_at=now(),updated_at=now(),lease_owner=NULL,lease_token=NULL,lease_until=NULL,legacy_metadata=jsonb_set(legacy_metadata,'{finalization_failures}','0') WHERE id=%s", (task_id,))
+        conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,completed_at=NULL,available_at=now(),updated_at=now(),lease_owner=NULL,lease_token=NULL,lease_until=NULL,legacy_metadata=jsonb_set(legacy_metadata,'{finalization_failures}','0') WHERE workspace_id=%s AND id=%s", (current_workspace(), task_id))
     return {"task_id": task_id, "status": "finalizing"}
