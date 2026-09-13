@@ -4,6 +4,8 @@
 
 本页对应设计第 10 节 A–D。真实云服务和供应商网络要求仅完成适配器与模拟验证，不代表生产上线验收。
 
+后续范围更新：2026-09-14 新增[线上协作升级计划](online-collaboration-upgrade-plan.md)。成员账号、角色、数据库画布租约和接手体验尚未实施；本页保留 `38610de` 存储基线的历史验收结果，不将其视为新协作功能已验收。
+
 | 项目 | 实现与本地证据 |
 |---|---|
 | A：两种画布、版本及事务 | `test_cloud_storage.py` 验证 PostgreSQL 并发 revision 冲突、保存/备份/恢复、素材引用原子提交。浏览器普通/智能画布保存证据见 `.local/cloud/acceptance/storage-check.json`。提示词与 registrations 中形似媒体 ID 的文字不构成素材引用，两种画布均有专项测试。 |
