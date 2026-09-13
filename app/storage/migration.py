@@ -173,7 +173,7 @@ def migrate_legacy(source, apply=False, report_path=None):
                     if apply:
                         # Preserve unknown submission states; worker recovery makes
                         # them needs_review instead of resubmitting paid requests.
-                        tasks.save(value, payload)
+                        tasks.save(value, payload, historical=True)
                     report["tasks"].append(row["id"])
             finally:
                 snapshot.close()

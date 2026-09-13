@@ -54,14 +54,16 @@ async def execute(row):
                 current.update(status="needs_review", error="缺少可恢复的上游任务信息，请人工核对；未重新提交生成")
                 tasks.save(current)
                 return
+            from app.storage.task_requests import validate_execution
+            request = await asyncio.to_thread(validate_execution, row)
             if row["kind"] == "video":
-                payload = CanvasVideoRequest(**row["request"])
+                payload = CanvasVideoRequest(**request)
                 if row["upstream_task_id"]:
                     await resume_canvas_video_task(task_id, payload)
                 else:
                     await run_canvas_video_task(task_id, payload)
             else:
-                await run_canvas_image_task(task_id, OnlineImageRequest(**row["request"]))
+                await run_canvas_image_task(task_id, OnlineImageRequest(**request))
     except asyncio.CancelledError:
         raise
     except Exception as exc:

@@ -59,18 +59,35 @@ def _update_video_task_record(task_id: str, **changes) -> dict:
 
 @router.post("/api/canvas-image-tasks")
 async def create_canvas_image_task(payload: OnlineImageRequest):
+    if postgres_enabled():
+        payload.provider_id = get_api_provider(payload.provider_id)["id"]
     if payload.canvas_id:
         load_canvas(payload.canvas_id)
     billing_fields = task_billing_fields(payload, "image")
-    task_id = f"canvas_img_{uuid.uuid4().hex}"
+    requested_task_id = str(payload.client_task_id or "").strip()
+    if requested_task_id and not re.fullmatch(r"canvas_img_[A-Za-z0-9_-]{8,80}", requested_task_id):
+        raise HTTPException(400, "无效的图片任务 ID")
+    task_id = requested_task_id or f"canvas_img_{uuid.uuid4().hex}"
+    payload.client_task_id = task_id
     with CANVAS_TASK_LOCK:
+        existing = load_durable_canvas_task(task_id)
+        if existing:
+            if existing.get("type") != "online-image" or existing.get("canvas_id", "") != payload.canvas_id:
+                raise HTTPException(409, "任务 ID 已被占用")
+            if postgres_enabled():
+                from app.storage.tasks import fingerprint
+                if fingerprint(get_canvas_task_request(task_id)) != fingerprint(_canvas_video_payload_dict(payload)):
+                    raise HTTPException(409, "相同任务 ID 的请求内容不同")
+            elif get_canvas_task_request(task_id) != _canvas_video_payload_dict(payload):
+                raise HTTPException(409, "相同任务 ID 的请求内容不同")
+            return {"task_id": task_id, "status": existing.get("status") or "queued"}
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
                 detail=CANVAS_TASK_MAINTENANCE.get("reason") or "服务正在维护准备中，暂不接受新的生成任务",
                 headers={"Retry-After": "30"},
             )
-        CANVAS_TASKS[task_id] = {
+        task = {
             **billing_fields,
             "id": task_id,
             "type": "online-image",
@@ -82,10 +99,11 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
             "provider_id": payload.provider_id,
             "model": payload.model,
         }
-        save_durable_canvas_task(CANVAS_TASKS[task_id], _canvas_video_payload_dict(payload))
+        stored = save_durable_canvas_task(task, _canvas_video_payload_dict(payload))
+        CANVAS_TASKS[task_id] = stored
     if not postgres_enabled():
         asyncio.create_task(run_canvas_image_task(task_id, payload))
-    return {"task_id": task_id, "status": "queued"}
+    return {"task_id": task_id, "status": stored.get("status") or "queued"}
 
 @router.get("/api/canvas-image-tasks/{task_id}")
 async def get_canvas_image_task(task_id: str):
@@ -97,6 +115,8 @@ async def get_canvas_image_task(task_id: str):
 
 @router.post("/api/canvas-video-tasks")
 async def create_canvas_video_task(payload: CanvasVideoRequest):
+    if postgres_enabled():
+        payload.provider_id = get_api_provider(payload.provider_id)["id"]
     if payload.canvas_id:
         load_canvas(payload.canvas_id)
     requested_task_id = str(payload.client_task_id or "").strip()
@@ -139,11 +159,11 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
             "provider_id": payload.provider_id,
             "model": payload.model,
         }
-        CANVAS_TASKS[task_id] = task
-        save_durable_canvas_task(task, _canvas_video_payload_dict(payload))
+        stored = save_durable_canvas_task(task, _canvas_video_payload_dict(payload))
+        CANVAS_TASKS[task_id] = stored
     if not postgres_enabled():
         asyncio.create_task(run_canvas_video_task(task_id, payload))
-    return {"task_id": task_id, "status": "queued"}
+    return {"task_id": task_id, "status": stored.get("status") or "queued"}
 
 @router.get("/api/canvas-video-tasks/{task_id}")
 async def get_canvas_video_task(task_id: str):

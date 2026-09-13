@@ -74,6 +74,7 @@ class AIReference(BaseModel):
 
 class OnlineImageRequest(BaseModel):
     canvas_id: str = Field(default="", max_length=96)
+    client_task_id: str = Field(default="", max_length=96)
     prompt: str = Field(min_length=1, max_length=ONLINE_IMAGE_PROMPT_MAX_LENGTH)
     provider_id: str = "comfly"
     model: str = ""

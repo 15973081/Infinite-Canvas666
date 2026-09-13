@@ -3,6 +3,7 @@ import copy
 import hashlib
 import json
 import time
+import re
 from contextvars import ContextVar
 from fastapi import HTTPException
 from psycopg.types.json import Jsonb
@@ -16,14 +17,18 @@ TERMINAL = ("succeeded", "failed", "cancelled", "needs_review")
 def clean_request(value):
     if isinstance(value, dict):
         return {k: clean_request(v) for k, v in value.items()
-                if k.lower() not in {"api_key", "apikey", "secret_key", "access_key", "authorization", "password"}}
+                if re.sub(r"[^a-z0-9]", "", k.lower()) not in {
+                    "apikey", "secretkey", "accesskey", "accesskeyid", "authorization", "password",
+                    "accesstoken", "refreshtoken", "securitytoken", "sessiontoken", "xapikey", "xgoogapikey",
+                    "cookie", "setcookie", "tosaccesskey", "tossecretkey", "volcengineaccesskey", "volcenginesecretkey"}}
     if isinstance(value, list):
         return [clean_request(v) for v in value]
     return value
 
 
 def fingerprint(request):
-    return hashlib.sha256(json.dumps(clean_request(request), ensure_ascii=False, sort_keys=True,
+    from app.storage.task_requests import normalize
+    return hashlib.sha256(json.dumps(normalize(clean_request(request)), ensure_ascii=False, sort_keys=True,
                                      separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
@@ -33,6 +38,9 @@ def decode(row):
     task = copy.deepcopy(row["legacy_metadata"])
     task.update(id=row["id"], type=row["kind"], status=row["status"], result=row["result"],
                 created_at=row["created_at"].timestamp(), updated_at=row["updated_at"].timestamp())
+    task["provider_account_ref"] = row["provider_account_ref"]
+    if row["provider_id"]:
+        task["provider_id"] = row["provider_id"]
     if row["upstream_task_id"]:
         task["upstream_task_id"] = row["upstream_task_id"]
     if row["error_message"]:
@@ -61,8 +69,9 @@ def list_tasks(statuses=None, task_type="", canvas_id=""):
         return [decode(r) for r in conn.execute("SELECT * FROM tasks WHERE " + " AND ".join(clauses) + " ORDER BY created_at,id", args)]
 
 
-def save(task, request_payload=None):
+def save(task, request_payload=None, *, historical=False):
     from app.storage.media import referenced_ids
+    from app.storage.task_requests import normalize, asset_ids, lock_ready, account_ref
     value = clean_request(copy.deepcopy(task))
     task_id = value.get("id")
     if not task_id:
@@ -73,7 +82,7 @@ def save(task, request_payload=None):
         old = conn.execute("SELECT * FROM tasks WHERE id=%s FOR UPDATE", (task_id,)).fetchone()
         if old:
             if request_payload is not None:
-                if old["request_sha256"] != fingerprint(request_payload):
+                if fingerprint(old["request"]) != fingerprint(request_payload):
                     raise HTTPException(409, "相同任务 ID 的请求内容不同")
                 return decode(old)
             lease = lease_context.get()
@@ -88,15 +97,22 @@ def save(task, request_payload=None):
             status = "needs_review"
         now = float(value.get("updated_at") or time.time())
         if old:
+            if status == "succeeded":
+                lock_ready(conn, asset_ids(value.get("result")))
             row = conn.execute("UPDATE tasks SET status=%s,legacy_metadata=%s,result=%s,upstream_task_id=%s,error_message=%s,updated_at=to_timestamp(%s),completed_at=CASE WHEN %s THEN now() ELSE NULL END,output_asset_ids=%s WHERE id=%s RETURNING *",
                                (status, Jsonb(value), Jsonb(value.get("result")), value.get("upstream_task_id") or None, value.get("error") or None, now, status in TERMINAL, Jsonb(sorted(referenced_ids(value.get("result")))), task_id)).fetchone()
         else:
-            payload = clean_request(request_payload or {})
+            payload = clean_request(request_payload or {}) if historical else normalize(clean_request(request_payload or {}), strict=True)
+            inputs = asset_ids(payload)
+            if not historical:
+                lock_ready(conn, inputs)
+            provider_id = payload.get("provider_id") or value.get("provider_id")
+            provider_account = None if historical else account_ref(provider_id)
             canvas_id = value.get("canvas_id") or None
             if canvas_id and not conn.execute("SELECT 1 FROM canvases WHERE id=%s", (canvas_id,)).fetchone():
                 canvas_id = None  # Historical/orphan id remains in legacy_metadata.
-            row = conn.execute("INSERT INTO tasks(id,canvas_id,kind,status,provider_id,model,upstream_task_id,request,result,legacy_metadata,idempotency_key,request_sha256,created_at,updated_at,input_asset_ids,output_asset_ids) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),%s,%s) RETURNING *",
-                               (task_id, canvas_id, value.get("type") or "unknown", status, value.get("provider_id"), value.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload), float(value.get("created_at") or now), now, Jsonb(sorted(referenced_ids(payload))), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
+            row = conn.execute("INSERT INTO tasks(id,canvas_id,kind,status,provider_id,provider_account_ref,model,upstream_task_id,request,result,legacy_metadata,idempotency_key,request_sha256,created_at,updated_at,input_asset_ids,output_asset_ids) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),%s,%s) RETURNING *",
+                               (task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
         return decode(row)
 
 
