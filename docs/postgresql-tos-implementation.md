@@ -68,7 +68,9 @@ python\python.exe tools\cloud_storage.py migrate --source D:\canvas-backup --rep
 python\python.exe tools\cloud_storage.py migrate --source D:\canvas-backup --apply --report .local\cloud\reports\applied.json
 ```
 
-第一条只盘点和写报告，第二条才导入。报告包括文件哈希、对象版本、缺失引用、五张账本表数量及按币种/价格状态分组金额。存在缺失引用会返回 `needs_review`，不能当作完整迁移验收。
+第一条只盘点和写报告，第二条才导入。首次写入前检查所有支持的 JSON/SQLite，路径越出备份目录、无效 JSON 或缺失表会报错。报告包括类别数量/字节数、文件哈希、来源命名空间、对象版本、带源文件及 JSON 指针的引用问题、五张账本表数量及按币种/价格状态分组金额。备份、对话、历史、任务和账本日志中的媒体引用均参与审计；原日志内容与费用不重写。缺失文件、未验证外链、未知 JSON 会返回 `needs_review`。外链报告剔除用户凭证与查询参数，保留原 URL 的 SHA-256，不执行网络下载。报告必须写到源备份以外。
+
+维护状态支持 `data/maintenance_state.json`。浏览器 localStorage 不包含在服务端备份中：可把人工导出放在备份根目录 `localStorage.json` 供盘点，报告标记需人工选择保留项，不自动将浏览器令牌和偏好导入共享文档；没有导出时明确标记 `not_provided`。服务端 `complete` 只代表所提供且支持的服务端数据通过审计，不能当作浏览器数据已迁移。
 
 同一批次可以重复执行，已导入的画布不会覆盖云端新编辑；源内容变化会明确报冲突。首次切换应采用最终停写快照；当前没有自动合并持续变化的本地与云端增量，也不双写。多台来源机器使用不同的 `ASSET_SOURCE_NAMESPACE`。迁移失败允许根据报告重试，但不要修改已应用的 SQL migration。
 

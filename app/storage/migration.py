@@ -4,11 +4,12 @@ import json
 import os
 from pathlib import Path
 import sqlite3
-import tempfile
+from contextlib import nullcontext
 from psycopg import sql
 from psycopg.types.json import Jsonb
 from app.storage import canvases, database, documents, media, tasks
 from app.storage.ledger import COLUMNS
+from app.storage.migration_audit import Audit, DOCUMENTS, checked_path, read_json
 
 
 def digest(value):
@@ -33,7 +34,7 @@ def ledger_import(path, apply):
             raise ValueError("Ledger backup is missing one of the five compatibility tables")
         totals_query = "SELECT currency,cost_status,count(*) AS records,sum(amount_micros) AS amount_micros FROM ledger_entries GROUP BY currency,cost_status ORDER BY currency,cost_status"
         result["source_totals"] = [dict(row) for row in snapshot.execute(totals_query)]
-        with database.connection() as conn:
+        with database.connection() if apply else nullcontext() as conn:
             for table, columns in COLUMNS.items():
                 count = 0
                 for row in snapshot.execute("SELECT " + columns + " FROM " + table):
@@ -66,6 +67,10 @@ def migrate_legacy(source, apply=False, report_path=None):
     source_id = digest({"source": str(source), "namespace": os.getenv("ASSET_SOURCE_NAMESPACE", "local")})[:24]
     report = {"source": str(source), "applied": apply, "files": [], "documents": [], "canvases": [], "tasks": [], "missing_refs": [], "errors": [], "ledger": None}
     report_file = Path(report_path) if report_path else Path(__file__).resolve().parents[2] / ".local/cloud/reports" / (source_id + ".json")
+    if report_file.resolve().is_relative_to(source) or report_file.with_suffix(".tmp").resolve().is_relative_to(source):
+        raise ValueError("Migration report must be outside the source backup")
+    report["namespace"] = os.getenv("ASSET_SOURCE_NAMESPACE", "local")
+    audit = Audit(source, report)
 
     def checkpoint():
         report_file.parent.mkdir(parents=True, exist_ok=True)
@@ -91,6 +96,10 @@ def migrate_legacy(source, apply=False, report_path=None):
         report["documents"].append({"kind": kind, "id": key, "status": "imported" if apply else "planned"})
 
     try:
+        # Inventory every supported source before the first target write. Invalid
+        # JSON, missing SQLite tables and escaping links fail without partial import.
+        audit.scan(snapshot_sqlite, COLUMNS)
+        checkpoint()
         # Ledger first, before any canvas log ingestion can alter its imported state.
         ledger_path = source / "data/canvas_ledger.sqlite3"
         if ledger_path.exists():
@@ -101,36 +110,25 @@ def migrate_legacy(source, apply=False, report_path=None):
             for path in sorted(folder.rglob("*")):
                 if not path.is_file():
                     continue
-                resolved = path.resolve()
+                resolved = checked_path(source, path).resolve()
                 if folder.resolve() not in resolved.parents:
                     raise ValueError("Source symlink escapes media root")
                 ref = prefix + path.relative_to(folder).as_posix()
                 size, sha = media.file_digest(path)
-                entry = {"legacy_ref": ref, "size": size, "sha256": sha, "status": "planned"}
+                entry = {"legacy_ref": ref, "size": size, "sha256": sha, "status": "planned", "namespace": report["namespace"]}
+                report["files"].append(entry)
                 if apply:
                     asset_id = "ast_" + digest({"namespace": os.getenv("ASSET_SOURCE_NAMESPACE", "local"), "ref": ref})[:32]
-                    asset = media.publish(path, path.name, legacy_ref=ref, asset_id=asset_id)
+                    try:
+                        asset = media.publish(path, path.name, legacy_ref=ref, asset_id=asset_id)
+                    except Exception:
+                        entry.update(status="failed", media_asset_id=asset_id)
+                        raise
                     entry.update(media_asset_id=asset["id"], object_key=asset["object_key"], version=asset["object_version_id"], status="ready")
-                report["files"].append(entry)
                 checkpoint()
-        known_refs = {entry["legacy_ref"] for entry in report["files"]}
-
-        def missing(value):
-            if isinstance(value, dict):
-                for key, child in value.items():
-                    if key not in {"prompt", "text", "logs", "cost", "registrations"}:
-                        missing(child)
-            elif isinstance(value, list):
-                for child in value:
-                    missing(child)
-            elif isinstance(value, str) and value.startswith(("/assets/", "/output/")) and not media.id_from_ref(value):
-                ref = media.canonical_legacy(value)
-                if ref not in known_refs and ref not in report["missing_refs"]:
-                    report["missing_refs"].append(ref)
 
         for path in sorted((source / "data/canvases").glob("*.json")):
-            value = json.loads(path.read_text(encoding="utf-8-sig"))
-            missing(value)
+            value = read_json(source, path)
             cid = value["id"]
             if apply:
                 with database.connection():
@@ -148,24 +146,23 @@ def migrate_legacy(source, apply=False, report_path=None):
                         canvases.save(value, touch=False)
                         documents.put("migration_item:" + source_id, marker, {"sha256": sha})
             report["canvases"].append(cid)
-        for name, kind in (("canvas_folders.json", "canvas_folders"), ("asset_library.json", "asset_library"), ("prompt_libraries.json", "prompt_libraries"), ("api_providers.json", "api_providers"), ("shared_folders.json", "shared_folders")):
+        for name, kind in DOCUMENTS:
             path = source / "data" / name
             if path.exists():
-                value = json.loads(path.read_text(encoding="utf-8-sig"))
-                missing(value)
+                value = read_json(source, path)
                 import_document(kind, "default", value)
         for path in sorted((source / "data/canvases/backups").glob("*/*.json")):
-            import_document("canvas_backup", path.parent.name + "/" + path.name, json.loads(path.read_text(encoding="utf-8-sig")))
+            import_document("canvas_backup", path.parent.name + "/" + path.name, read_json(source, path))
         for base in (source / "conversations", source / "data/conversations"):
             for path in sorted(base.glob("*/*.json")):
-                import_document("conversation", path.parent.name + "/" + path.stem, json.loads(path.read_text(encoding="utf-8-sig")))
+                import_document("conversation", path.parent.name + "/" + path.stem, read_json(source, path))
         history = source / "history.json"
         if history.exists():
-            for index, value in enumerate(json.loads(history.read_text(encoding="utf-8-sig"))):
+            for index, value in enumerate(read_json(source, history)):
                 import_document("history", source_id + ":" + str(index), value)
         task_path = source / "data/canvas_tasks.sqlite3"
         if task_path.exists():
-            snapshot = snapshot_sqlite(task_path)
+            snapshot = snapshot_sqlite(checked_path(source, task_path))
             try:
                 for row in snapshot.execute("SELECT * FROM canvas_tasks ORDER BY created_at,id"):
                     value = json.loads(row["task_json"])
@@ -173,11 +170,24 @@ def migrate_legacy(source, apply=False, report_path=None):
                     if apply:
                         # Preserve unknown submission states; worker recovery makes
                         # them needs_review instead of resubmitting paid requests.
-                        tasks.save(value, payload, historical=True)
+                        with database.connection():
+                            marker = "task:" + row["id"]
+                            sha = digest({"task": value, "request": payload})
+                            previous = documents.get("migration_item:" + source_id, marker)
+                            if previous:
+                                if previous["sha256"] != sha:
+                                    raise ValueError("Migration source changed: " + marker)
+                            else:
+                                existing = tasks.get(row["id"])
+                                if existing:
+                                    raise ValueError("Target task already exists: " + row["id"])
+                                tasks.save(value, payload, historical=True)
+                                documents.put("migration_item:" + source_id, marker, {"sha256": sha})
                     report["tasks"].append(row["id"])
             finally:
                 snapshot.close()
-        report["status"] = "complete" if not report["missing_refs"] else "needs_review"
+        report["status"] = "needs_review" if audit.needs_review() else "complete"
+        report["total_file_bytes"] = sum(entry["size"] for entry in report["files"])
     except Exception as exc:
         report["errors"].append(str(exc))
         report["status"] = "failed"

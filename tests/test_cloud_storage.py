@@ -272,6 +272,11 @@ def test_repeatable_migration_keeps_five_ledger_tables_and_legacy_aliases(tmp_pa
     cid = uuid.uuid4().hex
     value = {**canvas_value(), "id": cid, "nodes": [{"id": "legacy-node", "url": "/assets/input/same.png", "prompt": "/assets/input/same.png", "registrations": {"volcengine": {"asset_uri": "asset://keep"}}}]}
     (root / "data/canvases" / (cid + ".json")).write_text(json.dumps(value), encoding="utf-8")
+    (root / "data/canvases/backups" / cid).mkdir(parents=True)
+    (root / "data/canvases/backups" / cid / "old.json").write_text(json.dumps(value), encoding="utf-8")
+    (root / "conversations" / cid).mkdir(parents=True)
+    (root / "conversations" / cid / "chat.json").write_text(json.dumps({"messages": [{"url": "/assets/input/same.png"}]}), encoding="utf-8")
+    (root / "data/maintenance_state.json").write_text(json.dumps({"mode": "normal", "message": "legacy maintenance"}), encoding="utf-8")
     legacy_log = {"id": "legacy", "createdAt": 1789000000000, "status": "success", "billingKind": "image", "cost": {"status": "priced", "kind": "image", "currency": "CNY", "amount_micros": 912345}}
     with patch.dict(os.environ, {"DATABASE_BACKEND": "local", "CANVAS_LEDGER_DB_PATH": str(root / "data/canvas_ledger.sqlite3")}), patch.object(ledger, "provider_list", return_value=[]):
         ledger.import_canvas_logs(cid, [legacy_log])
@@ -287,6 +292,11 @@ def test_repeatable_migration_keeps_five_ledger_tables_and_legacy_aliases(tmp_pa
     preview = migrate_legacy(root, report_path=tmp_path / "preview.json")
     assert preview["status"] == "complete"
     assert media.get_asset("/assets/input/same.png") is None
+    # The API startup tests have already created maintenance state in this run's
+    # disposable schema. A first migration deliberately requires an empty target.
+    from app.storage import documents
+    previous_maintenance = documents.get("maintenance")
+    documents.delete("maintenance", "default")
     applied = migrate_legacy(root, apply=True, report_path=tmp_path / "applied.json")
     again = migrate_legacy(root, apply=True, report_path=tmp_path / "again.json")
     assert applied["status"] == again["status"] == "complete"
@@ -305,11 +315,27 @@ def test_repeatable_migration_keeps_five_ledger_tables_and_legacy_aliases(tmp_pa
     node = get(cid)["nodes"][0]
     assert node["url"].startswith("/assets/cloud/") and node["prompt"] == "/assets/input/same.png"
     assert node["registrations"]["volcengine"]["asset_uri"] == "asset://keep"
+    from app.storage import documents
+    assert documents.get("canvas_backup", cid + "/old.json")["nodes"][0]["url"] == node["url"]
+    assert documents.get("conversation", cid + "/chat")["messages"][0]["url"] == node["url"]
+    assert documents.get("maintenance")["message"] == "legacy maintenance"
+    assert report["inventory"]["canvas_backup"]["files"] == 1
+    assert report["inventory"]["ledger_conflicts"]["records"] == 1
     for relative, data in original.items():
         assert (root / relative).read_bytes() == data
+    import sqlite3
+    with sqlite3.connect(root / "data/canvas_tasks.sqlite3") as connection:
+        task_json = json.loads(connection.execute("SELECT task_json FROM canvas_tasks WHERE id=?", (legacy_task_id,)).fetchone()[0])
+        task_json["billing_price"]["unit_price"] = "99.9"
+        connection.execute("UPDATE canvas_tasks SET task_json=? WHERE id=?", (json.dumps(task_json), legacy_task_id))
+    with pytest.raises(ValueError, match="Migration source changed: task:"):
+        migrate_legacy(root, apply=True, report_path=tmp_path / "changed-task.json")
+    assert tasks.get(legacy_task_id)["billing_price"]["unit_price"] == "0.030001"
     (root / "assets/input/same.png").write_bytes(b"changed")
     with pytest.raises(Exception):
         migrate_legacy(root, apply=True, report_path=tmp_path / "conflict.json")
+    if previous_maintenance is not None:
+        documents.put("maintenance", "default", previous_maintenance)
 
 
 def test_document_conflict_and_failed_media_publish_are_not_silently_accepted(tmp_path):
