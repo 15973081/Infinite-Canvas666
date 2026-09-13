@@ -3,6 +3,7 @@ import time
 from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 from app.storage.database import connection
+from app.storage.workspace import current_workspace
 
 
 def _document(row):
@@ -18,7 +19,7 @@ def _document(row):
 
 def get(canvas_id, include_deleted=False):
     with connection() as conn:
-        row = conn.execute("SELECT * FROM canvases WHERE workspace_id='default' AND id=%s", (canvas_id,)).fetchone()
+        row = conn.execute("SELECT * FROM canvases WHERE workspace_id=%s AND id=%s", (current_workspace(), canvas_id)).fetchone()
         if not row or (row["deleted_at"] and not include_deleted):
             raise HTTPException(404, "画布不存在或已在回收站")
         return _document(row)
@@ -28,7 +29,7 @@ def all_documents():
     after = ""
     while True:
         with connection() as conn:
-            rows = conn.execute("SELECT * FROM canvases WHERE workspace_id='default' AND id>%s ORDER BY id LIMIT 100", (after,)).fetchall()
+            rows = conn.execute("SELECT * FROM canvases WHERE workspace_id=%s AND id>%s ORDER BY id LIMIT 100", (current_workspace(), after)).fetchall()
         if not rows:
             return
         yield from (_document(row) for row in rows)
@@ -44,8 +45,8 @@ def list_records(include_deleted=False):
                 jsonb_build_object('icon',document->'icon','owner',document->'owner','color',document->'color',
                 'pinned',document->'pinned','folder_id',document->'folder_id',
                 'node_count',jsonb_array_length(coalesce(document->'nodes','[]'::jsonb))) AS document
-                FROM canvases WHERE workspace_id='default' AND id>%s AND (deleted_at IS NOT NULL)=%s
-                AND coalesce(document->>'purged_at','0') IN ('0','') ORDER BY id LIMIT 100""", (after, include_deleted)).fetchall()
+                FROM canvases WHERE workspace_id=%s AND id>%s AND (deleted_at IS NOT NULL)=%s
+                AND coalesce(document->>'purged_at','0') IN ('0','') ORDER BY id LIMIT 100""", (current_workspace(), after, include_deleted)).fetchall()
         if not rows:
             return
         yield from (_document(row) for row in rows)
@@ -65,20 +66,20 @@ def save(canvas, touch=True):
     with connection() as conn:
         args = (value.get("title") or "未命名画布", value.get("kind") or "classic", Jsonb(value), now / 1000, deleted / 1000 if deleted else None)
         if revision is None:
-            row = conn.execute("INSERT INTO canvases(id,title,kind,document,updated_at,deleted_at,created_at) VALUES(%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),to_timestamp(%s)) ON CONFLICT(id) DO NOTHING RETURNING *", (value["id"], *args, created / 1000)).fetchone()
+            row = conn.execute("INSERT INTO canvases(workspace_id,id,title,kind,document,updated_at,deleted_at,created_at) VALUES(%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),to_timestamp(%s)) ON CONFLICT(id) DO NOTHING RETURNING *", (current_workspace(), value["id"], *args, created / 1000)).fetchone()
         else:
-            row = conn.execute("UPDATE canvases SET title=%s,kind=%s,document=%s,updated_at=to_timestamp(%s),deleted_at=to_timestamp(%s),revision=revision+1 WHERE workspace_id='default' AND id=%s AND revision=%s RETURNING *", (*args, value["id"], revision)).fetchone()
+            row = conn.execute("UPDATE canvases SET title=%s,kind=%s,document=%s,updated_at=to_timestamp(%s),deleted_at=to_timestamp(%s),revision=revision+1 WHERE workspace_id=%s AND id=%s AND revision=%s RETURNING *", (*args, current_workspace(), value["id"], revision)).fetchone()
         if not row:
-            current = conn.execute("SELECT * FROM canvases WHERE workspace_id='default' AND id=%s", (value["id"],)).fetchone()
+            current = conn.execute("SELECT * FROM canvases WHERE workspace_id=%s AND id=%s", (current_workspace(), value["id"])).fetchone()
             raise HTTPException(409, {"message": "画布已更新，请重新加载后合并", "canvas": _document(current) if current else None})
         ids = sorted(referenced_ids(value))
         if ids:
-            ready = conn.execute("SELECT id FROM assets WHERE workspace_id='default' AND id=ANY(%s) AND status='ready' AND deleted_at IS NULL ORDER BY id FOR SHARE", (ids,)).fetchall()
+            ready = conn.execute("SELECT id FROM assets WHERE workspace_id=%s AND id=ANY(%s) AND status='ready' AND deleted_at IS NULL ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()
             if {r["id"] for r in ready} != set(ids):
                 raise HTTPException(400, "画布引用了尚未就绪或不存在的素材")
-        conn.execute("DELETE FROM canvas_assets WHERE workspace_id='default' AND canvas_id=%s", (value["id"],))
+        conn.execute("DELETE FROM canvas_assets WHERE workspace_id=%s AND canvas_id=%s", (current_workspace(), value["id"]))
         for asset_id in ids:
-            conn.execute("INSERT INTO canvas_assets(workspace_id,canvas_id,asset_id) VALUES('default',%s,%s)", (value["id"], asset_id))
+            conn.execute("INSERT INTO canvas_assets(workspace_id,canvas_id,asset_id) VALUES(%s,%s,%s)", (current_workspace(), value["id"], asset_id))
     canvas.clear()
     canvas.update(_document(row))
     return canvas
