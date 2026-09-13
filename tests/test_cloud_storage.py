@@ -124,6 +124,21 @@ def test_upload_preview_references_range_expiry_and_temp_cleanup():
         assert not list(media.temp_root().iterdir())
 
 
+def test_cloud_login_session_uses_isolated_auth_database():
+    from fastapi.testclient import TestClient
+    from main import app
+    assert Path(os.environ["AUTH_DB_PATH"]).parent == Path(os.environ["APP_RUNTIME_DIR"]).parent
+    with TestClient(app) as client:
+        response = client.post("/api/auth/login", json={
+            "username": os.environ["CLOUD_ACCESS_USER"],
+            "password": os.environ["CLOUD_ACCESS_PASSWORD"],
+        }, headers={"Origin": os.environ["PUBLIC_BASE_URL"]})
+        assert response.status_code == 200, response.text
+        assert client.get("/api/canvases").status_code == 200
+        assert client.post("/api/auth/logout", headers={"Origin": os.environ["PUBLIC_BASE_URL"]}).status_code == 200
+        assert client.get("/api/canvases").status_code == 401
+
+
 def test_canvas_api_save_backup_restore_and_media_index():
     from fastapi.testclient import TestClient
     from main import app
@@ -337,35 +352,130 @@ def test_document_conflict_and_failed_media_publish_are_not_silently_accepted(tm
 def test_real_pg_dump_restore_keeps_object_versions_readable(tmp_path):
     import psycopg
     from psycopg import sql
+    from psycopg.conninfo import make_conninfo
     import subprocess
+    import zipfile
+    from fastapi.testclient import TestClient
+    from main import app
     from app.storage import backup, database, canvases, media
     aid = "ast_" + uuid.uuid4().hex
     path = tmp_path / "restore.bin"
     path.write_bytes(b"restored immutable object")
     asset = media.publish(path, asset_id=aid)
-    value = canvas_value()
-    value["nodes"] = [{"id": "restored-node", "url": media.stable_url(asset)}]
-    canvases.save(value)
+    values = []
+    for kind in ("classic", "smart"):
+        value = canvas_value()
+        value["kind"] = kind
+        value["nodes"] = [{"id": "restored-node", "url": media.stable_url(asset)}]
+        canvases.save(value)
+        values.append(value)
     dump = tmp_path / "database.dump"
-    backup.dump(dump)
+    exported = backup.dump(dump)
+    assert exported["objects"] >= 1
+    assert backup.verify(dump)["format_version"] == 2
+    restored_objects = tmp_path / "independent-objects"
+    assert backup.restore_objects(dump, restored_objects)["objects"] == exported["objects"]
     old_url = os.environ["DATABASE_URL"]
     restore_db = "cloud_restore_" + uuid.uuid4().hex
-    base = old_url.rsplit("/", 1)[0]
-    with psycopg.connect(base + "/postgres", autocommit=True) as admin:
+    with psycopg.connect(make_conninfo(old_url, dbname="postgres"), autocommit=True) as admin:
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(restore_db)))
         try:
-            restored_url = base + "/" + restore_db
+            restored_url = make_conninfo(old_url, dbname=restore_db)
             subprocess.run([backup.pg_tool("pg_restore"), "--exit-on-error", "--no-owner", "--dbname=" + restore_db, str(dump)], env=backup.pg_environment(restored_url), check=True, capture_output=True)
             database.close()
-            with patch.dict(os.environ, {"DATABASE_URL": restored_url}):
+            with patch.dict(os.environ, {"DATABASE_URL": restored_url, "OBJECT_STORE_ROOT": str(restored_objects)}):
+                database.check()
                 assert canvases.get(value["id"])["nodes"][0]["id"] == "restored-node"
                 assert media.get_asset(aid)["object_version_id"] == asset["object_version_id"]
+                assert media.store().root == restored_objects.resolve()
                 with media.operation_scope():
                     assert Path(media.materialize(aid)).read_bytes() == path.read_bytes()
+                auth = (os.environ["CLOUD_ACCESS_USER"], os.environ["CLOUD_ACCESS_PASSWORD"])
+                with TestClient(app) as client:
+                    for value in values:
+                        response = client.get("/api/canvases/" + value["id"], auth=auth)
+                        assert response.status_code == 200, response.text
+                        restored = response.json()["canvas"]
+                        assert restored["kind"] == value["kind"]
+                        archive = client.post("/api/canvas-workflows/export", auth=auth, json={
+                            "nodes": restored["nodes"], "connections": restored["connections"], "include_resources": True})
+                        assert archive.status_code == 200, archive.text
+                        with zipfile.ZipFile(io.BytesIO(archive.content)) as package:
+                            resources = json.loads(package.read("workflow.json"))["resources"]
+                            assert len(resources) == 1
+                            assert package.read(resources[0]["archive"]) == path.read_bytes()
                 database.close()
         finally:
             assert restore_db.startswith("cloud_restore_") and len(restore_db) == 46
             admin.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(restore_db)))
+
+
+def test_backup_detects_corruption_and_never_overwrites(tmp_path):
+    from app.storage import backup, media
+    path = tmp_path / "source.bin"
+    path.write_bytes(b"independent recovery")
+    asset = media.publish(path)
+    dump = tmp_path / "database.dump"
+    backup.dump(dump)
+    with pytest.raises(ValueError, match="overwrite"):
+        backup.dump(dump)
+    manifest = backup.verify(dump)
+    entry = next(a for a in manifest["objects"] if a["id"] == asset["id"])
+    saved = dump.with_suffix(".objects") / entry["backup_file"]
+    saved.write_bytes(b"corrupt backup bytes")
+    destination = tmp_path / "restored"
+    with pytest.raises(ValueError, match="checksum"):
+        backup.restore_objects(dump, destination)
+    assert not destination.exists()
+    saved.write_bytes(path.read_bytes())
+    destination.mkdir()
+    marker = destination / "keep.txt"
+    marker.write_text("existing data")
+    with pytest.raises(ValueError, match="must not exist"):
+        backup.restore_objects(dump, destination)
+    assert marker.read_text() == "existing data"
+    with dump.open("ab") as stream:
+        stream.write(b"corruption")
+    with pytest.raises(ValueError, match="Database backup checksum"):
+        backup.verify(dump)
+
+
+def test_failed_object_backup_has_no_completion_manifest(tmp_path):
+    from app.storage import backup, media
+    path = tmp_path / "source.bin"
+    path.write_bytes(b"object outage")
+    media.publish(path)
+    dump = tmp_path / "failed.dump"
+    with patch.object(media.FilesystemStore, "download", side_effect=OSError("object unavailable")):
+        with pytest.raises(OSError, match="unavailable"):
+            backup.dump(dump)
+    assert not dump.with_suffix(".objects.json").exists()
+    assert not dump.exists()
+    with pytest.raises(FileNotFoundError):
+        backup.verify(dump)
+
+
+def test_object_restore_rejects_manifest_path_escape(tmp_path):
+    from app.storage import backup, media
+    path = tmp_path / "source.bin"
+    path.write_bytes(b"bounded restore")
+    asset = media.publish(path)
+    dump = tmp_path / "database.dump"
+    backup.dump(dump)
+    manifest_path = dump.with_suffix(".objects.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entry = next(a for a in manifest["objects"] if a["id"] == asset["id"])
+    entry["backup_file"] = "../source.bin"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="Invalid or duplicate"):
+        backup.verify(dump)
+    entry["backup_file"] = f"{manifest['objects'].index(entry):08d}.blob"
+    entry["object_key"] = "../../escape"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    destination = tmp_path / "restored"
+    with pytest.raises(ValueError, match="escaped private root"):
+        backup.restore_objects(dump, destination)
+    assert not destination.exists()
 
 
 def test_tos_adapter_uses_fixed_versions_and_public_signing_endpoint(tmp_path):

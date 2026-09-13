@@ -225,6 +225,8 @@ class AuthenticationMiddleware:
         path = scope.get("path", "")
         import re
         signed = postgres_enabled() and scope["type"] == "http" and scope.get("method") in {"GET", "HEAD"} and bool(re.fullmatch(r"/api/media/ast_[a-f0-9]{32}/signed", path))
+        signed = signed or (postgres_enabled() and scope["type"] == "http" and scope.get("method") == "PUT"
+                            and bool(re.fullmatch(r"/api/media/uploads/ast_[a-f0-9]{32}/parts/[0-9]+/content", path)))
         if not signed:
             if (scope["type"] == "websocket" or scope.get("method") not in {"GET", "HEAD", "OPTIONS"}) and not origin_allowed(scope):
                 if scope["type"] == "websocket":

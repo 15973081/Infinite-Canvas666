@@ -8,6 +8,7 @@ function setup(){
     let parts = [], base = [], payload;
     const node = {id:'generator'};
     const ctx = vm.createContext({
+        canvasId:'smart-reference-test',
         nodes:[], settings:{engine:'volcengine', apiKind:'video', videoModel:'doubao-seedance-2-5-260628'}, smartLoopContext:null,
         isApiLikeEngine:engine=>['api','volcengine'].includes(engine),
         manualSmartMediaLinks:settings=>settings.videoTempShLinks || [],
@@ -70,6 +71,8 @@ test('prompt aliases and outgoing payload agree, preserving asset metadata',asyn
     assert.deepEqual(payload().audios,['asset://voice','/song.mp3']);
     assert.deepEqual(payload().videos,['/move.mp4','asset://video']);
     assert.equal(payload().prompt,request.prompt);
+    assert.equal(payload().canvas_id,'smart-reference-test');
+    assert.equal(payload().client_task_id,run.taskIds[0]);
 });
 test('manual videos replace connected videos and invalidate superseded mentions',()=>{
     const {ctx,node,setBase,setParts}=setup();

@@ -11,12 +11,26 @@ sys.path.insert(0, str(ROOT))
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["init-db", "check", "serve", "worker", "migrate", "backup", "cleanup-temp"])
+    parser.add_argument("command", choices=["init-db", "check", "serve", "worker", "migrate", "backup", "verify-backup", "restore-objects", "cleanup-temp", "cleanup-uploads"])
     parser.add_argument("--env", default=str(ROOT / ".local/cloud/storage.env"))
     parser.add_argument("--source")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--report")
+    parser.add_argument("--destination")
     args = parser.parse_args()
+    # Offline operations must remain usable when the original DB/store is lost.
+    if args.command in {"verify-backup", "restore-objects"}:
+        if not args.source:
+            parser.error(args.command + " requires --source (database dump path)")
+        from app.storage import backup
+        if args.command == "verify-backup":
+            manifest = backup.verify(args.source)
+            print({"verified": True, "objects": sum(a["status"] == "ready" for a in manifest["objects"])})
+        else:
+            if not args.destination:
+                parser.error("restore-objects requires --destination (a new object directory)")
+            print(backup.restore_objects(args.source, args.destination))
+        return
     os.environ["STORAGE_ENV_FILE"] = args.env
     from app.storage.settings import load_storage_env, validate
     load_storage_env()
@@ -35,6 +49,9 @@ def main():
     elif args.command == "cleanup-temp":
         from app.storage.media import cleanup_orphaned_operations
         print({"removed_operation_directories": cleanup_orphaned_operations()})
+    elif args.command == "cleanup-uploads":
+        from app.storage.uploads import cleanup
+        print({"cleaned_staging_uploads": cleanup()})
     elif args.command == "backup":
         from app.storage.backup import dump
         import datetime

@@ -29,6 +29,7 @@ function setup(){
     let payload;
     const noop = () => {};
     const ctx = loadFunctions(functions, {
+        window:{}, // Optional billing integration is absent in this fixture.
         nodes:[node], generatorSources:() => sources, isVideoUrl:url => /\.mp4$/.test(url),
         render:noop, refreshGeneratorInputViews:noop, refreshGeometryAfterLayout:noop, scheduleSave:noop, cascadeTargetIdFromOptions:()=>'',
         resolveVideoProviderId:id=>id, apiProviders:[], canvasAvatarPlatform:()=> 'volcengine',
@@ -39,6 +40,7 @@ function setup(){
         videoOutputsFromResult:result=>result.outputs, requestMetaFromResult:()=>({}),
         mergeGeneratedOutputs:noop, addGenerationLog:noop,
         alert:message=>{throw new Error(message);}, tr:key=>key,
+        showErrorModal:message=>{throw new Error(message);},
         isCascadeAbortError:()=>false
     });
     sources.push({id:'prompt', refs:[], prompt:'使用图片1的人物，参考视频2，声音参考音频1'});

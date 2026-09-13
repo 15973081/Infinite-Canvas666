@@ -117,9 +117,10 @@ class CanvasRunEntryTest(unittest.TestCase):
 
         self.assertNotIn("let loopContext =", source)
         self.assertNotIn("_activeLoopCtx", source)
-        self.assertIn("function generatorSources(gen, loopCtx=null)", generator_sources)
+        self.assertIn("function generatorSources(gen, loopCtx=null, graph=null)", generator_sources)
         self.assertIn("const ctx = loopCtx", generator_sources)
-        self.assertIn("renderLoopPrompt(n, ctx)", loop_prompt_items)
+        self.assertIn("renderLoopPrompt(n, ctx, graph)", loop_prompt_items)
+        self.assertIn("renderLoopPrompt(n, ctx, graph)", generator_sources)
         self.assertIn("{...opts, loopContext:ctx || null}", context_run)
         self.assertIn("generatorSources(node, opts.loopContext)", source)
         self.assertIn("generatorSources(gen, opts.loopContext)", source)

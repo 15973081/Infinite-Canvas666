@@ -2,7 +2,7 @@
 
 日期：2026-09-13
 
-状态：设计与 SQL 草案，未接入现有应用、未创建云资源、未迁移真实数据。
+状态更新（2026-09-14）：PostgreSQL 存储层、TOS SDK 适配器与本地对象模拟已接入现有应用，完成本地集成验收；未创建云资源、未迁移真实数据，真实 TOS 网络尚未验收。本文保留最初的设计目标，文中的“尚未实现”和建议接口描述属于设计时状态；实际功能、差异和启动步骤以[本地实现与验收](postgresql-tos-implementation.md)为准。
 配套：[建表 SQL 草案](postgresql-tos-schema-draft.sql)；[上线计划](volcengine-cloud-launch-plan.md)。
 
 ## 1. 先确定的方案

@@ -22,6 +22,13 @@ from PIL import Image, ImageOps
 router = APIRouter()
 _media_preview_semaphore = asyncio.Semaphore(max(2, min(4, os.cpu_count() or 2)))
 
+@router.get("/api/media/uploads/capabilities")
+def upload_capabilities():
+    if postgres_enabled():
+        from app.storage.media import max_file_bytes
+        return {"resumable": True, "max_file_bytes": max_file_bytes()}
+    return {"resumable": False, "max_file_bytes": 50 * 1024 * 1024}
+
 @router.get("/api/media-preview")
 async def media_preview(url: str, w: int = 512):
     if postgres_enabled():
@@ -192,6 +199,5 @@ async def import_local_ai_reference(payload: LocalImageImportRequest, request: R
     if not requested:
         raise HTTPException(status_code=400, detail="没有可导入的本地图片")
     return {"files": [import_local_image_file(normalize_local_image_path(path)) for path in requested]}
-
 
 

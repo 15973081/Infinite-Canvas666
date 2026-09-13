@@ -65,27 +65,34 @@ def close():
             _pool = None
 
 
+def migrations():
+    return [(int(path.name.split('_', 1)[0]), path.read_text(encoding="utf-8"))
+            for path in sorted((Path(__file__).parent / "migrations").glob("[0-9]*_*.sql"))]
+
+
 def migrate():
     from psycopg import sql
-    path = Path(__file__).parent / "migrations" / "001_shared_workspace.sql"
-    source = path.read_text(encoding="utf-8")
-    digest = hashlib.sha256(source.encode()).hexdigest()
     schema = schema_name()
     with connection() as conn:
         conn.execute("SELECT pg_advisory_xact_lock(642193001)")
         conn.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {}").format(sql.Identifier(schema)))
         conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version integer PRIMARY KEY, sha256 text NOT NULL, applied_at timestamptz DEFAULT now())")
-        row = conn.execute("SELECT sha256 FROM schema_migrations WHERE version=1").fetchone()
-        if row:
-            if row["sha256"] != digest:
+        applied = {row["version"]: row["sha256"] for row in conn.execute("SELECT version,sha256 FROM schema_migrations")}
+        sources = migrations()
+        if set(applied) - {version for version, _ in sources}:
+            raise RuntimeError("Database has migrations newer than this application")
+        for version, source in sources:
+            digest = hashlib.sha256(source.encode()).hexdigest()
+            if version in applied and applied[version] != digest:
                 raise RuntimeError("Migration checksum mismatch; do not edit an applied migration")
-            return
-        conn.execute(source.replace("canvas_cloud.", schema + "."), prepare=False)
-        conn.execute("INSERT INTO schema_migrations(version,sha256) VALUES(1,%s)", (digest,))
+            if version not in applied:
+                conn.execute(source.replace("canvas_cloud.", schema + "."), prepare=False)
+                conn.execute("INSERT INTO schema_migrations(version,sha256) VALUES(%s,%s)", (version, digest))
 
 
 def check():
     with connection() as conn:
-        row = conn.execute("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").fetchone()
-        if not row or row["version"] != 1:
+        rows = {row["version"]: row["sha256"] for row in conn.execute("SELECT version,sha256 FROM schema_migrations")}
+        expected = {version: hashlib.sha256(source.encode()).hexdigest() for version, source in migrations()}
+        if rows != expected:
             raise RuntimeError("Run python tools/cloud_storage.py init-db before startup")

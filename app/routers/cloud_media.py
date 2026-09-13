@@ -5,8 +5,9 @@ import os
 from pathlib import Path
 import time
 import uuid
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile, Request
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
+from pydantic import BaseModel, Field
 from app.storage import media
 from app.storage.settings import postgres_enabled
 
@@ -45,15 +46,80 @@ async def upload_files(files):
 
 
 @router.post("/api/media/uploads")
-async def upload_media(files: list[UploadFile] = File(...)):
-    # Initial release proxies uploads through the authenticated server. Clients
-    # cannot write a ready key or replace a previously confirmed object.
-    return await upload_files(files)
+async def upload_media(request: Request):
+    enabled()
+    if request.headers.get("content-type", "").split(";", 1)[0] == "application/json":
+        from app.storage import uploads
+        from pydantic import ValidationError
+        try:
+            data = UploadStart.model_validate(await request.json())
+        except (ValueError, ValidationError):
+            raise HTTPException(422, "请提供文件名、大小和上传幂等键")
+        return JSONResponse(await asyncio.to_thread(uploads.create, data.name, data.size, data.idempotency_key), headers={"Cache-Control": "no-store"})
+    async with request.form() as form:
+        from starlette.datastructures import UploadFile as FormUploadFile
+        files = form.getlist("files")
+        if not files or any(not isinstance(file, FormUploadFile) for file in files):
+            raise HTTPException(422, "请选择要上传的文件")
+        return await upload_files(files)
+
+
+class UploadStart(BaseModel):
+    name: str = Field(min_length=1, max_length=240)
+    size: int = Field(gt=0, strict=True)
+    idempotency_key: str = Field(min_length=16, max_length=128)
+
+
+class PartDeclaration(BaseModel):
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+@router.get("/api/media/uploads/{asset_id}")
+def upload_status(asset_id: str):
+    enabled()
+    from app.storage import uploads
+    return JSONResponse(uploads.result(asset_id), headers={"Cache-Control": "no-store"})
+
+
+@router.post("/api/media/uploads/{asset_id}/parts/{number}")
+def sign_upload_part(asset_id: str, number: int, data: PartDeclaration):
+    enabled()
+    from app.storage import uploads
+    return JSONResponse(uploads.sign_part(asset_id, number, data.sha256), headers={"Cache-Control": "no-store"})
+
+
+@router.put("/api/media/uploads/{asset_id}/parts/{number}/content")
+async def put_upload_part(asset_id: str, number: int, request: Request, expires: int, signature: str):
+    enabled()
+    from app.storage import uploads
+    return await uploads.receive_part(asset_id, number, expires, signature, request)
+
+
+@router.post("/api/media/uploads/{asset_id}/parts/{number}/complete")
+def confirm_upload_part(asset_id: str, number: int):
+    enabled()
+    from app.storage import uploads
+    return uploads.confirm_part(asset_id, number)
+
+
+@router.delete("/api/media/uploads/{asset_id}")
+def abort_upload(asset_id: str):
+    enabled()
+    from app.storage import uploads
+    return uploads.abort(asset_id)
 
 
 @router.post("/api/media/uploads/{asset_id}/complete")
 def complete_upload(asset_id: str):
     enabled()
+    from app.storage import uploads
+    try:
+        uploads.get(asset_id)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+    else:
+        return uploads.complete(asset_id)
     asset = media.get_asset(asset_id)
     if not asset:
         raise HTTPException(404, "素材不存在")
@@ -61,8 +127,12 @@ def complete_upload(asset_id: str):
 
 
 @router.get("/api/media/{asset_id}/content")
-def content(asset_id: str):
+async def content(asset_id: str, variant: str = "original"):
     enabled()
+    if variant == "preview":
+        return await preview(asset_id, 512)
+    if variant != "original":
+        raise HTTPException(400, "未知媒体版本")
     asset = media.get_asset(asset_id)
     if not asset:
         raise HTTPException(404, "素材不存在")

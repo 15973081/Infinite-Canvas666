@@ -1,15 +1,16 @@
 # PostgreSQL + TOS 本地实现与验收
 
-分支：`codex/postgres-tos-local`。本版是共享工作区的可运行改造，保留默认本地模式；不包含独立账号、团队权限或实时协同扩容。
+存储实现已在提交 `b3c39b6` 接入，登录页与会话在 `3ef1780` 接入。本版是共享工作区的可运行改造，保留默认本地模式；不包含独立账号、团队权限或实时协同扩容。
 
 ## 本机已配置
 
 | 项目 | 位置 / 配置 |
 |---|---|
 | PostgreSQL | 16.15，`127.0.0.1:54329`，仅监听本机 |
-| 模拟应用 | `http://127.0.0.1:6004`，共享 HTTP Basic 入口 |
+| 模拟应用 | `http://127.0.0.1:6004`，共享登录页与 Cookie 会话，兼容脚本 HTTP Basic |
 | 开发数据库 | `canvas_cloud_dev`，schema `canvas_cloud` |
-| 自动测试数据库 | `canvas_cloud_test`；每轮独立 schema，结束后只清理本轮 schema |
+| 自动测试数据库 | `canvas_cloud_test`；仅允许显式回环主机，每轮独立 schema，结束后只清理本轮 schema |
+| 自动测试文件 | 系统临时目录内独立的运行文件、对象、暂存文件及登录会话 SQLite；结束后清理 |
 | 私有对象模拟 | `.local/cloud/objects/`，独立对象 key 和不可变版本 |
 | 临时文件 | `.local/cloud/tmp/`，按请求或任务创建，响应发送结束后清理 |
 | 配置与访问凭证 | `.local/cloud/storage.env`，已加入 Git 忽略 |
@@ -34,7 +35,7 @@ python\python.exe tools\cloud_storage.py serve
 
 `cloud_local.py init` 会在缺少程序时下载 PostgreSQL 16 Windows 压缩包，生成随机本机密码，初始化独立数据目录。下载来源：[PostgreSQL Windows 页面](https://www.postgresql.org/download/windows/)、[EDB 官方二进制发布页](https://www.enterprisedb.com/download-postgresql-binaries)。已有配置与数据库不会覆盖。
 
-访问 `http://127.0.0.1:6004`，用户名看 `CLOUD_ACCESS_USER`，密码看 `CLOUD_ACCESS_PASSWORD`。停止前台应用用 Ctrl+C；PostgreSQL 可独立管理：
+访问 `http://127.0.0.1:6004`，在登录页输入 `CLOUD_ACCESS_USER` 和 `CLOUD_ACCESS_PASSWORD`，详见[登录说明](login.md)。停止前台应用用 Ctrl+C；PostgreSQL 可独立管理：
 
 ```bat
 python\python.exe tools\cloud_local.py status
@@ -50,7 +51,7 @@ python\python.exe tools\cloud_local.py start
 - 素材索引、版本、大小、SHA-256、MIME 和派生关系存 PostgreSQL。画布引用索引与画布正文在同一事务更新。
 - 稳定 URL 使用 `/assets/cloud/ast_<id>/<文件名>`，保留现有前端的媒体类型识别；也支持 `/api/media/<id>/content`。不把短期签名链接保存到画布。
 - 原 `/assets/`、`/output/` 按完整路径查询迁移别名，禁止仅按文件名匹配。供应商 `asset://` 和 `registrations` 保留原语义。
-- 新上传经应用后端流式接收，上传校验后才标记 ready。重复确认返回同一素材；客户端不能覆盖 ready 对象。首版没有浏览器直传 staging 或 TOS 分片上传，需要大文件直传时再补对应协议。
+- 两种画布的上传统一使用 staging 分片协议：每片 8 MiB，按片计算 SHA-256，已确认的分片可以续传。`.local` 模拟使用受限签名 PUT；真实 TOS 适配使用官方原生 multipart 与绑定分片编号、大小的公网签名 PUT。确认时封存 staging 版本、检查实际大小、逐片哈希及媒体格式，通过后发布独立原件 key。重复确认返回同一素材；旧上传凭证不能改变 ready 原件。原 `/api/ai/upload` 和 multipart form 上传继续兼容。
 - 图片、视频、缩略图、裁剪和工作流 ZIP 入对象存储。FFmpeg 使用按操作下载的临时文件；工作流导出使用磁盘 ZIP，不整包驻留内存。
 - 任务请求、状态、供应商任务 ID、费用快照和输入输出媒体 ID 持久化。消费者通过 `SKIP LOCKED` 领取，独立心跳续租，状态和输出发布均验证租约。
 - 视频已有上游 ID 时只恢复查询；提交结果不明进入 `needs_review`，前端停止轮询并显示错误。未确认可恢复的图片请求不自动重新提交。
@@ -76,11 +77,26 @@ python\python.exe tools\cloud_storage.py migrate --source D:\canvas-backup --app
 ```bat
 python\python.exe tools\cloud_storage.py backup
 python\python.exe tools\cloud_storage.py cleanup-temp
+python\python.exe tools\cloud_storage.py cleanup-uploads
 ```
 
-备份产生 `.dump` 和 `.objects.json`。数据库导出和对象清单使用同一 PostgreSQL snapshot；清单不包含对象字节，真实上线还要单独保留或备份对应对象版本。恢复到隔离数据库，确认旧画布可打开、文件哈希一致后再切换连接。
+备份产生 `.dump`、`.objects.json` 和同名 `.objects/` 目录，三者一起保留。数据库导出和对象清单使用同一 PostgreSQL snapshot，随后按固定 version ID 下载全部 ready 对象（包括保留的原件），逐个校验大小和 SHA-256。清单最后发布，代表备份完成；对象读取失败不会生成完成清单。旧版只有 dump/清单的备份不具备独立对象恢复能力，新校验命令会拒绝将它当作完整备份。
+
+```bat
+python\python.exe tools\cloud_storage.py backup
+python\python.exe tools\cloud_storage.py verify-backup --source .local\cloud\backups\<备份名>.dump
+python\python.exe tools\cloud_storage.py restore-objects --source .local\cloud\backups\<备份名>.dump --destination .local\cloud\restore-<备份名>\objects
+```
+
+后两条离线命令不加载私有连接配置、不访问原数据库/对象目录。恢复目标必须是新目录；损坏的对象、数据库校验不符、路径越界或覆盖已有目录均拒绝。对象恢复当前支持 filesystem 本地模拟，沿用原 key/version，数据库记录不需要重映射。真实 TOS 备份可导出固定版本字节，但恢复到新 TOS 桶的版本重映射仍是云端联调项。
+
+数据库使用 `pg_restore --exit-on-error --no-owner --dbname=<新建隔离数据库> <备份名>.dump` 恢复，连接凭证通过受保护的环境配置提供；禁止对日常库执行覆盖式恢复。验收进程同时指定该新数据库和新 `OBJECT_STORE_ROOT`，禁用任务消费者，核验旧画布与含素材导出后再考虑切换。未完成上传的 staging/分片不纳入持久备份，灾难恢复后需重新发起上传；ready 原件全部纳入。备份不自动删除任何历史文件，异盘/异地保留和定时运行由部署安排。
 
 临时目录正常结束即删除。进程崩溃后，清理只处理带本应用 owner 标记、超过一小时、且所属进程已不存在的 `op-*` 目录；不对不明目录或活跃进程目录做递归删除。启动时也执行这项清理。
+
+`cleanup-uploads` 只处理已超过上传有效期及一小时宽限期、没有活跃确认租约的 staging。清理先禁止继续写入，再删除本次上传登记的暂存分片/版本；ready 原件不删除。正常上传凭证默认有效 24 小时，单次分片 URL 最长 15 分钟。分片声明、已确认分片、上传会话与确认租约均存 PostgreSQL 的 `media_uploads` / `media_upload_parts`；增量 migration `002_staged_uploads.sql` 不修改已有 migration 001。
+
+确认中断后保持 `verifying`，可通过同一 complete 接口重试：已落库的 staging version 保持不变；TOS 合并响应丢失时通过服务端独占 staging key 的 HEAD 取回固定版本，不重复创建上传任务。确认过程最多持有十分钟租约，过期执行者不能发布 ready。浏览器在同一标签页保留续传标识，失败后重新选择原文件即可续传；若关闭标签页或上传过期，则开始新上传。
 
 默认单文件 2 GiB、临时目录总预算 10 GiB、两个任务消费者、数据库池上限 10。预算检查能拒绝空间不足，但同步 FFmpeg 等在途输出仍可能短时增长；生产需独立临时盘、操作系统磁盘配额和监控。尚未做 200 人负载测试。
 
@@ -98,7 +114,9 @@ python\python.exe tools\cloud_storage.py cleanup-temp
 
 ```bat
 python\python.exe tools\cloud_test.py
+python\python.exe -m pytest -o pythonpath=. tests/test_cloud_test_runner.py -q
 python\python.exe -m pytest -o pythonpath=. tests -q
+node --test tests/test_canvas_resumable_upload.cjs
 node --check static\js\canvas.js
 node --check static\js\smart-canvas.js
 ```
@@ -107,4 +125,25 @@ node --check static\js\smart-canvas.js
 
 真实 TOS 网络、权限、配额、供应商拉取和云端性能尚未验证；本地模拟不能替代这部分验收。
 
-本次执行结果：新增集成测试 **15 项通过**；原有 Python 回归 **103 项通过、1 项既有断言失败**（另有云测试在普通模式跳过）。已核对 HEAD：`generatorSources(gen, loopCtx=null, graph=null)` 原本就有第三个参数，而 `tests/test_canvas_run_entry.py` 仍断言旧的双参数签名；本次没有更改该函数。两份画布 JavaScript 语法检查及 `git diff --check` 通过。
+2026-09-14 复验结果：真实 PostgreSQL 16.15 + 本地对象模拟集成测试 **16 项通过**，包含新增的登录、会话访问及退出失效验证；验收脚本隔离测试 **8 项通过**。完整 Python 回归 **116 项通过、1 项既有断言失败、16 项云测试跳过**，另有 7 项 subtest 通过。失败仍为 `tests/test_canvas_run_entry.py` 断言旧的双参数签名，而现有函数为 `generatorSources(gen, loopCtx=null, graph=null)`；本次没有更改该函数。两份画布 JavaScript 语法检查及 `git diff --check` 通过。
+
+本轮补强：测试连接使用 psycopg 解析，替换数据库名时保留密码转义、TLS 等连接参数；拒绝非回环主机、远程 hostaddr 和 service 配置。测试独立生成入口凭证和签名密钥，登录会话不再写入日常 `.local/auth.sqlite3`。仅导入验收模块不会加载私有配置或切换数据库。数据库初始化失败时也尝试清理本轮 schema，并始终关闭连接池；脚本退出恢复原进程环境。此脚本只做本地验收，不能用于真实 TOS 或远程云数据库验收。
+
+### 目标计划继续实施：分片上传（2026-09-14）
+
+- 云存储集成已扩展为 **26 项通过**：新增分片续传、超限/篡改、格式检查、并发确认、过期发布拒绝、确认后对象写入失败重试、过期 staging 清理和 preview variant；TOS 签名绑定及合并响应丢失使用真实 SDK + 模拟网络响应验证。
+- 前端上传专项 **4 项通过**：普通本地模式兼容、断线重选后跳过已确认分片、内容变化拒绝和 HTTP 局域网无 Web Crypto digest 时的 SHA-256 边界用例。
+- 完整 Python 回归 **116 通过、1 项既有断言失败、26 项云集成跳过**。CJS 全量首次复验 **152 通过、3 项失败**；失败位置为既有视频请求测试夹具缺少 `window` / `canvasId`，本轮没有修改它们提取的两份画布代码。后续又增加并通过 1 项前端哈希兼容测试，全量 CJS 未因此重复运行。
+- `.local/cloud/pgdata` 开发库已先备份，再应用 migration 002。备份为 `.local/cloud/backups/20260914-052038.dump` 及同名对象清单。
+- 浏览器通过登录页在普通/智能画布各上传一个人工图片：667 字节单片及 9,735,104 字节双片，图片预览实际加载成功。数据库中的两张画布均已保存，原件大小及 SHA-256 再读一致。证据位于 `.local/cloud/acceptance/storage-check.json`、`classic-upload.png`、`smart-upload.png`。
+- 当前阶段的实现不代表整个目标计划已完成，剩余逐项审计见[实施进度](postgresql-tos-progress.md)。
+
+真实 TOS 的 multipart 合并协议参照[官方分片上传说明](https://www.volcengine.com/docs/6349/127742?lang=zh)；本地对象模拟仍然使用 `.local/cloud/objects`，不要求开通云资源。
+
+### 独立对象备份与恢复验收（2026-09-14）
+
+云存储集成 **29 项通过**。恢复测试现在使用独立 PostgreSQL 数据库和独立对象目录，覆盖两种画布读取、含素材 ZIP 导出和字节一致性；新增损坏备份、导出中断、路径越界与覆盖拒绝用例。
+
+开发库实测备份：`.local/cloud/backups/20260914-054255.dump`、同名 `.objects.json`、`.objects/`，共 7 个 ready 对象、10,029,722 字节。验收报告 `.local/cloud/acceptance/restore-20260914-054255/report.json`，同目录保留 `classic.zip`、`smart.zip`；恢复普通画布 revision 3、智能画布 revision 4，各包含 1 个原始素材。验收数据库已删除，备份与恢复对象目录保留，日常连接配置未更改。
+
+随后核对并修复回归夹具：旧签名断言加入现有 graph 参数，保留 loopContext 与 graph 的传递检查；视频测试补齐 window/canvasId，并检查智能画布提交的画布 ID 和客户端任务 ID。画布业务函数没有为适应测试修改。最新全量结果：Python **117 通过、29 跳过、7 项 subtest 通过**，CJS **156 通过**；29 项跳过的云集成在专用 runner 中全部通过。
