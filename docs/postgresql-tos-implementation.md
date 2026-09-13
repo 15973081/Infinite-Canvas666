@@ -4,7 +4,7 @@
 
 本地目标计划已完成并复验，最终结果为 **52 项实库、120 项 Python、158 项前端测试通过**。以下分阶段记录保留当时的结果；最新完整证据及明确边界见[最终验收](postgresql-tos-acceptance.md)。
 
-2026-09-14 计划升级：新增[线上成员与画布协作计划](online-collaboration-upgrade-plan.md)，分 C1 成员身份、C2 PostgreSQL 编辑租约与写入校验、C3 两种画布交接及断线恢复三个阶段。本页“已完成”仅指上述存储基线；新增协作功能尚未实施，本次未改变运行代码、数据库或 `.local/cloud` 配置。
+2026-09-14 计划升级：新增[线上成员与画布协作计划](online-collaboration-upgrade-plan.md)，并扩展[独立管理平台、空间权限与维护计划](management-platform-upgrade-plan.md)。统一顺序为 M1+C1 身份/空间/权限 → M2 独立管理平台 → C2 PostgreSQL 编辑租约 → C3 两种画布交接及断线恢复 → M3 维护中心 → M4 联合验收。本页“已完成”仅指上述存储基线；新增协作及管理功能尚未实施，本次未改变运行代码、数据库或 `.local/cloud` 配置。
 
 ## 本机已配置
 
