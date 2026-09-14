@@ -89,19 +89,38 @@ def counts(conn, workspace=None):
     from app.services.canvas_leases import active_count
     from app.services.canvas_page_reports import counts as page_counts
     pages = page_counts(conn, workspace)
-    tasks = {r['status']: r['count'] for r in conn.execute('SELECT status,count(*) AS count FROM tasks WHERE (%s::text IS NULL OR workspace_id=%s) GROUP BY status', (workspace, workspace))}
-    uploads = conn.execute("""SELECT count(*) FILTER (WHERE status IN ('initiating','uploading','verifying') AND expires_at>clock_timestamp()) AS pending,
-        count(*) FILTER (WHERE lease_until>clock_timestamp()) AS processing FROM media_uploads
+    task_rows = list(conn.execute("""SELECT status,count(*) AS count,
+        count(*) FILTER(WHERE lease_until>statement_timestamp()) AS leased,
+        count(*) FILTER(WHERE lease_until<=statement_timestamp()) AS expired
+        FROM tasks WHERE (%s::text IS NULL OR workspace_id=%s) GROUP BY status""", (workspace, workspace)))
+    tasks = {r['status']: r['count'] for r in task_rows}
+    task_leases = {'active': sum(r['leased'] for r in task_rows), 'expired': sum(r['expired'] for r in task_rows)}
+    submissions = conn.execute("""SELECT count(*) AS n FROM task_submissions
+        WHERE outcome='admitted' AND finished_at IS NULL AND (%s::text IS NULL OR workspace_id=%s)""",
+        (workspace, workspace)).fetchone()['n']
+    uploads = conn.execute("""SELECT count(*) FILTER (WHERE status IN ('initiating','uploading','verifying') AND expires_at>statement_timestamp()) AS pending,
+        count(*) FILTER (WHERE lease_until>statement_timestamp()) AS processing,
+        count(*) FILTER (WHERE status IN ('initiating','uploading','verifying') AND expires_at<=statement_timestamp()) AS expired_unfinished
+        FROM media_uploads WHERE (%s::text IS NULL OR workspace_id=%s)""", (workspace, workspace)).fetchone()
+    backups = conn.execute("""SELECT count(*) FILTER(WHERE status='queued') AS queued,
+        count(*) FILTER(WHERE status='running') AS running FROM backup_jobs
         WHERE (%s::text IS NULL OR workspace_id=%s)""", (workspace, workspace)).fetchone()
-    services = list(conn.execute("""SELECT kind,count(*) FILTER (WHERE stopped_at IS NULL AND seen_at>clock_timestamp()-interval '35 seconds') AS online,
+    services = list(conn.execute("""SELECT kind,
+        count(*) FILTER (WHERE stopped_at IS NULL AND seen_at>statement_timestamp()-interval '35 seconds') AS online,
+        count(*) FILTER (WHERE stopped_at IS NULL AND seen_at<=statement_timestamp()-interval '35 seconds') AS unknown,
+        count(*) FILTER (WHERE stopped_at IS NOT NULL) AS stopped,
         max(seen_at) AS last_seen FROM service_heartbeats GROUP BY kind"""))
     active = sum(tasks.get(s, 0) for s in ('running', 'submitting', 'polling', 'finalizing'))
-    return {'task_counts': tasks, 'active_tasks': active, 'queued_tasks': tasks.get('queued', 0),
-            'needs_review': tasks.get('needs_review', 0), 'uploads': uploads,
-            'services': services, 'canvas_locks': active_count(conn, workspace), 'unsaved_pages': pages['unsaved_pages'],
-            'page_reports': pages, 'database_stop_ready': False,
-            'pending_checks': ['unreported_pages', 'operator_backup_and_recovery_check'] +
-                (['stale_or_closed_unsaved_pages'] if pages['pending_review_pages'] else [])}
+    result = {'task_counts': tasks, 'active_tasks': active, 'queued_tasks': tasks.get('queued', 0),
+              'task_leases': task_leases, 'unfinished_submissions': submissions,
+              'needs_review': tasks.get('needs_review', 0), 'uploads': uploads, 'backup_jobs': backups,
+              'services': services, 'canvas_locks': active_count(conn, workspace), 'unsaved_pages': pages['unsaved_pages'],
+              'page_reports': pages, 'database_stop_ready': False,
+              'pending_checks': ['unreported_pages', 'operator_backup_and_recovery_check'] +
+                  (['stale_or_closed_unsaved_pages'] if pages['pending_review_pages'] else [])}
+    from app.services.maintenance_readiness import report
+    result['release_checks'] = report(effective(conn, workspace), result, workspace)
+    return result
 
 
 def snapshot(actor, workspace=None):

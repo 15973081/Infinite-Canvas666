@@ -577,6 +577,44 @@
     dialog(reviewed ? '已核对的页面报告' : '待核对的页面报告', [el('p', '仅列出失联或关闭时未保存的页面。新报告会重新判定，旧核对不覆盖新状态。'), toolbar,
       rows.length ? table(['画布 / 空间', '成员', '最后报告', '报告状态', '核对结果'], rows) : el('p', '当前范围暂无此类报告。')], null, '确认保存', true);
   }
+  function releaseChecksPanel(report) {
+    const panel=el('section',undefined,'card');panel.append(el('h2','维护发布检查'));
+    if(!report){panel.append(el('p','检查报告暂不可用，请更新服务并重新读取状态。'));return panel;}
+    const labels={
+      new_business_admission:['新业务准入','先进入排空或更严格的维护状态。'],
+      active_tasks:['执行中任务','等待已提交任务查询、结果入库与费用记录完成。'],
+      task_execution_leases:['任务执行占用','等待执行器释放占用，不仅检查任务状态。'],
+      expired_task_leases:['过期任务占用','核对原执行器后由受控恢复流程处理；过期不代表进程已停止。'],
+      unfinished_submissions:['尚未返回的提交记录','核实供应商是否已受理，不要直接重新生成。'],
+      tasks_needing_review:['待核对任务','在任务处置中核实结果与恢复依据。'],
+      pending_uploads:['未完成上传','等待已有上传完成或核对取消。'],
+      upload_processing:['上传处理中','等待分片确认、验证与入库结束。'],
+      expired_unfinished_uploads:['过期未收尾上传','核对上传状态并按受控流程清理临时分片。'],
+      canvas_edit_leases:['有效画布占用','请成员保存并结束编辑。'],
+      unsaved_reported_pages:['在线页未保存','请成员保存或导出草稿。'],
+      unreviewed_pages:['待核对页面','查看页面报告并核实失联或关闭前的编辑。'],
+      pending_backups:['排队或执行中的备份','等待备份/导出结束并检查结果。'],
+      queued_task_recovery:['暂停的排队任务','发布前核对持久队列与新版本的恢复兼容性。']
+    };
+    const states={passed:'本次检查通过',blocked:'尚未完成',review_required:'待运维核对'};
+    panel.append(el('p',report.observed_checks_passed?'已记录的数据检查通过，仍需完成以下运维核对。':'仍有未完成或待核对项目。'),
+      el('p','检查时间：'+new Date(report.observed_at).toLocaleString()+'。这是本次读取的状态，不会锁定服务或授权停库。','muted'),
+      table(['检查项','数量 / 判断','状态','处理说明'],report.checks.map(item=>{
+        const label=labels[item.code]||['未识别检查项','请更新管理页面后重新读取。'];
+        return [label[0],item.code==='new_business_admission'?(item.count?'仍开放':'已限制'):item.count,states[item.status]||'待核对',label[1]];
+      })));
+    const manual={unreported_pages:'联系成员核对未上报页面、旧客户端和本地草稿。',
+      backup_integrity_and_restore:'校验本次发布所用备份及对象完整性，并确认恢复方案可执行。',
+      release_compatibility:'核对代码版本、数据库迁移和已有任务的恢复兼容性。',
+      stop_all_database_clients:'由运维核实工作台、任务与备份执行器、管理服务及其他数据库客户端均已停止。',
+      verify_no_inflight_transactions:'在停库前核验真实数据库连接与在途事务。'};
+    panel.append(el('h3','运维仍需确认'));
+    for(const code of report.operator_checks)panel.append(el('p',manual[code]||'存在未识别的运维检查项，请更新页面。'));
+    panel.append(el('p',report.database_stop.status==='not_applicable'
+      ?'当前仅检查本空间，不能据此停止全平台数据库。'
+      :'尚未取得停库确认。心跳消失不能证明进程退出；管理平台自身仍会访问数据库。','muted'));
+    return panel;
+  }
   async function maintenanceView() {
     if (!allowed(workspace ? 'maintenance.space' : 'maintenance.platform')) return denied();
     const data = await api(scoped('/api/maintenance')), control = data.control, activity = data.activity;
@@ -599,7 +637,7 @@
       const confirm = el('label', undefined, 'check'), check = el('input'); check.type = 'checkbox'; check.name = 'confirm_recovery'; confirm.append(check, document.createTextNode('已完成运行、数据和备份检查，确认恢复开放'));
       select.onchange = () => { planned.hidden = select.value !== 'scheduled'; planned.querySelector('input').required = select.value === 'scheduled'; confirm.hidden = !(control.mode === 'recovering' && select.value === 'normal'); };
       select.onchange();
-      dialog('更改维护 · ' + scopeName, [el('p', `当前有 ${activity.canvas_locks ?? '未知数量的'} 个画布占用、${activity.active_tasks} 个执行中任务、${activity.queued_tasks} 个排队任务。更改访问限制不会取消已提交任务或替成员保存未上传内容。`), modeLabel, message, reason, planned, grace, confirm], f => call(scoped('/api/maintenance'), 'PATCH', {
+      dialog('更改维护 · ' + scopeName, [el('p', `当前有 ${activity.canvas_locks ?? '未知数量的'} 个画布占用、${activity.active_tasks} 个执行中任务、${activity.queued_tasks} 个排队任务；${activity.uploads.pending} 个未完成上传、${activity.uploads.processing} 个处理中上传，${activity.unsaved_pages ?? '未知数量的'} 个在线未保存页面。更改访问限制不会取消已提交任务或替成员保存未上传内容。`), modeLabel, message, reason, planned, grace, confirm], f => call(scoped('/api/maintenance'), 'PATCH', {
         mode: f.get('mode'), expected_version: control.version, message: f.get('message'), reason: f.get('reason'),
         planned_at: f.get('mode') === 'scheduled' ? new Date(f.get('planned_at')).toISOString() : null,
         grace_seconds: Number(f.get('grace_seconds')), confirm_recovery: f.has('confirm_recovery')
@@ -610,7 +648,7 @@
       const card = el('div', undefined, 'card'); card.append(el('div', title, 'muted'), el('p', number, 'metric')); metrics.append(card);
     }
     const services = el('section', undefined, 'card'); services.append(el('h2', '服务与发布检查'));
-    for (const [kind, name] of [['workbench', '工作台服务'], ['worker', '任务消费者']]) { const row = activity.services.find(s => s.kind === kind); services.append(el('p', name + '：' + (row?.online ? '有在线心跳' : '当前无有效在线心跳'))); }
+    for (const [kind, name] of [['workbench', '工作台服务'], ['worker', '任务消费者']]) { const row = activity.services.find(s => s.kind === kind); services.append(el('p', name + '：' + (row?.online ? row.online+' 个在线心跳' : '当前无有效在线心跳') + '；' + (row?.unknown || 0) + ' 个失联且未确认退出')); }
     services.append(el('p', '画布占用不代表草稿已保存。页面报告只覆盖已上报的页面，失联页面与旧客户端仍需核对；即使计数为零，也不能据此确认可以停止数据库或发布服务。已有付费任务仍可能写入结果与费用。', 'muted'));
     const pages=el('section',undefined,'card'), reports=activity.page_reports;
     pages.append(el('h2','页面保存报告'));
@@ -619,7 +657,7 @@
     else pages.append(el('p','页面报告暂不可用，不能据此确认已保存。'));
     if(reports) pages.append(el('p', '待人工核对 ' + reports.pending_review_pages + ' 页；当前报告已核对 ' + reports.reviewed_pages + ' 页。核对后保留原报告状态。'),
       actions(button('查看待核对页面', () => showPageReports()), button('查看已核对页面', () => showPageReports(true))));
-    return [summary, toolbar, metrics, pages, services];
+    return [summary, toolbar, metrics, pages, releaseChecksPanel(activity.release_checks), services];
   }
   $('#cancel-dialog').onclick = () => $('#dialog').close();
   $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
