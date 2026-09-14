@@ -15,7 +15,7 @@ function loadFunctions(names, globals={}){
     }
     return context;
 }
-const functions = ['isAudioUrl', 'isTextUrl', 'mediaKindForRef', 'imageRefsOnly', 'videoRefsOnly', 'audioRefsOnly', 'videoNodeMediaRefs', 'manualVideoUrlForNode', 'videoInputMediaGroups', 'orderedSources', 'reorderInput', 'runVideoNode'];
+const functions = ['isAudioUrl', 'isTextUrl', 'mediaKindForRef', 'imageRefsOnly', 'videoRefsOnly', 'audioRefsOnly', 'videoNodeMediaRefs', 'manualVideoUrlForNode', 'videoInputMediaGroups', 'orderedSources', 'reorderInput', 'canvasTaskWriteGuard', 'runVideoNode'];
 function setup(){
     const sources = [
         {id:'a', refs:[{url:'/a.png', kind:'image', name:'人物'}]},

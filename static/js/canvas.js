@@ -10009,9 +10009,23 @@ function refreshGeneratorInputViews(ids=null, prepared=null, nodeById=null){
         if(gen.type === 'video') renderVideoImageInputs(el.querySelector('.video-img-list'), gen, imageInputs);
     });
 }
+function canvasTaskWriteGuard(...targets){
+    if(window.CanvasTaskResults?.guard)return window.CanvasTaskResults.guard(targets.filter(Boolean),()=>({canvas:canvas?.id ?? canvas,nodes}));
+    let paused=false;
+    const valid=()=>!paused && !window.CanvasSession?.enabled;
+    const pause=()=>{
+        paused=true;
+        const error=new Error('请刷新后继续生成，已提交任务可从生成结果列表找回。');
+        error.resultPending=true;
+        return error;
+    };
+    return {valid,pause,check(){if(!valid())throw pause();}};
+}
+
 async function runGenerator(genId, opts={}){
     const gen = nodes.find(n => n.id === genId);
     if(!gen || (gen.running && !opts.cascade)) return;
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
     const sources = orderedSources(gen, generatorSources(gen, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
@@ -10019,6 +10033,7 @@ async function runGenerator(genId, opts={}){
     if(!prompt && !refs.length){ alert(tr('canvas.needPromptOrImage')); return; }
     const count = Math.max(1, Math.min(8, Number(gen.count || 1)));
     let out = outputForNode(gen, 460);
+    const writeGuard=canvasTaskWriteGuard(gen,out);
     const run = runSnapshot(gen, prompt || 'Edit the reference images.', refs);
     const payload = {
         prompt: prompt || 'Edit the reference images.',
@@ -10027,6 +10042,7 @@ async function runGenerator(genId, opts={}){
         size:await generatorSizeForRun(gen, refs),
         reference_images:refs
     };
+    if(!writeGuard.valid()){if(opts.cascade)throw writeGuard.pause();return;}
     run.providerId = payload.provider_id;
     run.billingModel = payload.model;
     const quality = normalizedImageQuality(gen.quality);
@@ -10037,14 +10053,16 @@ async function runGenerator(genId, opts={}){
         gen.running = true;
         refreshRunNodes(gen, out);
         // API 支持并发：2s 后即可再次点击，任务仍由 pending 卡片继续追踪
-        setTimeout(() => { gen.running = false; refreshRunNodes(gen, out); }, 2000);
+        setTimeout(() => { if(!writeGuard.valid())return; gen.running = false; refreshRunNodes(gen, out); }, 2000);
     }
     try {
         const taskInfos = await Promise.all(Array.from({length:count}, () => createCanvasImageTask(payload, {cascadeTargetId})));
+        writeGuard.check();
         if(!out){
             let outputs = [];
             for(const task of taskInfos){
                 const result = await waitCanvasImageTaskResult(task.task_id, {cascadeTargetId});
+                writeGuard.check();
                 outputs.push(...(result.images || []));
                 run.request = requestMetaFromResult(result);
                 addGenerationLog({run:{...run, canvasTaskId:task.task_id}, outputs:result.images || [], runMs:nowMs() - startedAt});
@@ -10072,10 +10090,14 @@ async function runGenerator(genId, opts={}){
         refreshRunNodes(gen, out);
         scheduleSave();
         await saveCanvas();
+        writeGuard.check();
         const statuses = await Promise.all(taskInfos.map(task => pollCanvasImageTask(task.task_id, {cascadeTargetId})));
+        writeGuard.check();
+        if(statuses.includes('paused'))throw writeGuard.pause();
         if(statuses.includes('aborted')) throw cascadeAbortError(cascadeStopMessage());
         if(statuses.includes('failed')) throw new Error(gen.runError || tr('canvas.generationFailed'));
     } catch(err) {
+        if(err?.resultPending || !writeGuard.valid()){const paused=writeGuard.pause();if(opts.cascade)throw paused;return;}
         const remainingPending = pendingIds.map(id => pendingById(out, id)).filter(Boolean);
         if(isCascadeAbortError(err)){
             remainingPending.forEach(resumePendingAfterCascadeStop);
@@ -10154,6 +10176,7 @@ async function runGeneratorLegacy(genId, opts={}){
 async function runVideoNode(nodeId, opts={}){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || (node.running && !opts.cascade)) return;
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
     const sources = orderedSources(node, generatorSources(node, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
@@ -10177,6 +10200,8 @@ async function runVideoNode(nodeId, opts={}){
     if(!isVolcengineVideo && node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
     if(!prompt){ alert(tr('canvas.videoNeedsPrompt')); return; }
     let out = outputForNode(node, 460);
+    const writeGuard=canvasTaskWriteGuard(node,out);
+    writeGuard.check();
     const run = runSnapshot(node, prompt, refs);
     const payload = {
         prompt,
@@ -10207,8 +10232,10 @@ async function runVideoNode(nodeId, opts={}){
     let pendingId = '';
     try {
         const task = await createCanvasVideoTask(payload, {cascadeTargetId});
+        writeGuard.check();
         if(!out){
             const result = await waitCanvasVideoTaskResult(task.task_id, {cascadeTargetId});
+            writeGuard.check();
             const outputUrls = videoOutputsFromResult(result);
             if(!outputUrls.length) throw new Error(tr('canvas.videoFailed'));
             run.request = requestMetaFromResult(result);
@@ -10234,13 +10261,17 @@ async function runVideoNode(nodeId, opts={}){
         refreshRunNodes(node, out);
         scheduleSave();
         await saveCanvas();
+        writeGuard.check();
         const status = await pollCanvasVideoTask(task.task_id, {cascadeTargetId});
+        writeGuard.check();
+        if(status==='paused')throw writeGuard.pause();
         if(status === 'aborted') throw cascadeAbortError(cascadeStopMessage());
         if(status === 'failed'){
             handledTaskFailure = true;
             throw new Error(node.runError || tr('canvas.videoFailed'));
         }
     } catch(err) {
+        if(err?.resultPending || !writeGuard.valid()){const paused=writeGuard.pause();if(opts.cascade)throw paused;return;}
         const currentNode = nodes.find(n => n.id === nodeId) || node;
         const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
         const pendingForRun = (currentOut?._pending || []).find(p => p.id === pendingId);
@@ -10260,10 +10291,10 @@ async function runVideoNode(nodeId, opts={}){
         if(opts.cascade) throw err;
         alert(err.message || tr('canvas.videoFailed'));
     } finally {
-        const currentNode = nodes.find(n => n.id === nodeId) || node;
-        const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
-        currentNode.running = false;
-        refreshRunNodes(currentNode, currentOut);
+        if(writeGuard.valid()){
+            node.running = false;
+            refreshRunNodes(node, out);
+        }
     }
 }
 async function uploadCanvasUrlToComfy(url){
@@ -10644,22 +10675,37 @@ function clearCascadeCleanupTimer(ctx){
     ctx.cleanupTimer = null;
 }
 function beginCascade(targetId, order, options={}){
+    const writeGuard=canvasTaskWriteGuard(...[targetId,...order].map(id=>nodes.find(n=>n.id===id)));
+    writeGuard.check();
     const existing = cascadeContextFor(targetId);
     if(existing){
         clearCascadeCleanupTimer(existing);
         cascadeContexts.delete(targetId);
     }
     const ctx = createCascadeContext(targetId, order, options);
+    ctx.writeGuard=writeGuard;
     cascadeRunningIds.add(targetId);
     ctx.order.forEach(id => cascadeRunningNodeIds.add(id));
     if(options.serial) cascadeSerialIds.add(targetId);
     if(options.mode) ctx.mode = options.mode;
     return ctx;
 }
+function abandonCascade(ctx){
+    if(!ctx)return;
+    ctx.writeGuard?.pause();
+    clearCascadeCleanupTimer(ctx);
+    if(cascadeContexts.get(ctx.targetId)!==ctx)return;
+    cascadeContexts.delete(ctx.targetId);
+    cascadeRunningIds.delete(ctx.targetId);
+    ctx.order.forEach(id=>cascadeRunningNodeIds.delete(id));
+    cascadeStopIds.delete(ctx.targetId);
+    cascadeSerialIds.delete(ctx.targetId);
+}
 function queueCascadeCleanup(ctx, ids){
     if(!ctx) return;
     clearCascadeCleanupTimer(ctx);
     ctx.cleanupTimer = setTimeout(() => {
+        if(cascadeContexts.get(ctx.targetId)!==ctx || (ctx.writeGuard && !ctx.writeGuard.valid())){abandonCascade(ctx);return;}
         const uniqueIds = [...new Set((ids || []).filter(Boolean))];
         uniqueIds.forEach(id => {
             const node = nodes.find(n => n.id === id);
@@ -10684,14 +10730,18 @@ function requestCascadeStop(targetId, reason=''){
     }
     refreshNodes(cascadeUiNodeIds(targetId));
 }
-function ensureCascadeActive(targetId, reason=''){
+function ensureCascadeActive(targetId, reason='', expected=null){
     const ctx = cascadeContextFor(targetId);
+    if(expected && ctx!==expected)throw expected.writeGuard.pause();
     if(!ctx) return null;
+    ctx.writeGuard?.check();
     if(ctx.abortRequested || ctx.status === 'stopping') throw cascadeAbortError(cascadeStopMessage(reason || ctx.message));
     return ctx;
 }
 function finalizeCascade(targetId, state, options={}){
     const ctx = cascadeContextFor(targetId);
+    if(options.ctx && options.ctx!==ctx)return;
+    if(ctx?.writeGuard && !ctx.writeGuard.valid()){abandonCascade(ctx);return;}
     const order = options.order || ctx?.order || computeCascadeOrder(targetId);
     const uiIds = cascadeUiNodeIds(targetId, order);
     clearCascadeCleanupTimer(ctx);
@@ -11002,7 +11052,7 @@ function cascadeUiNodeIds(targetId, order=null){
 }
 async function runNodeCascade(nodeId){
     const target = nodes.find(n => n.id === nodeId);
-    if(!target) return;
+    if(!target || (window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)) return;
     if(target.running){ alert('当前节点正在运行'); return; }
     const order = computeCascadeOrder(nodeId);
     if(!order.length){ alert('没有可运行的生成节点'); return; }
@@ -11029,10 +11079,10 @@ async function runNodeCascade(nodeId){
         const rounds = Array.from({length:totalRounds}, (_, idx) => ({idx, index:startIdx + idx * loopBatchSize}));
         const limit = cascadeParallelLimit(order, totalRounds);
         const results = await runLimitedCascadeRounds(rounds, limit, async ({index}) => {
-            ensureCascadeActive(nodeId, ctx.message);
+            ensureCascadeActive(nodeId, ctx.message, ctx);
             const loopCtx = {index, total:endIdx, nodeId:loop.node.id};
             for(let i = 0; i < order.length; i++){
-                ensureCascadeActive(nodeId, ctx.message);
+                ensureCascadeActive(nodeId, ctx.message, ctx);
                 const id = order[i];
                 const node = nodes.find(n => n.id === id);
                 if(!node) continue;
@@ -11042,7 +11092,7 @@ async function runNodeCascade(nodeId){
                 node._cascadeIdx = `${order.indexOf(id)+1}/${order.length} · ${index}/${endIdx}`;
                 refreshNodes([id]);
                 await runCascadeNodeWithLoopContext(node, loopCtx, {cascadeTargetId:nodeId});
-                ensureCascadeActive(nodeId, ctx.message);
+                ensureCascadeActive(nodeId, ctx.message, ctx);
                 node.runStatus = 'done';
                 refreshNodes([id]);
             }
@@ -11053,26 +11103,28 @@ async function runNodeCascade(nodeId){
             });
             refreshNodes(order);
         });
+        if(!ctx.writeGuard.valid() || cascadeContextFor(nodeId)!==ctx){abandonCascade(ctx);return;}
         const failed = results.find(r => r.status === 'rejected');
         if(failed){
             const err = failed.reason || new Error('parallel loop failed');
+            if(err?.resultPending){abandonCascade(ctx);return;}
             if(isCascadeAbortError(err)){
-                finalizeCascade(nodeId, 'stopped', {order});
+                finalizeCascade(nodeId, 'stopped', {order,ctx});
                 return;
             }
             const node = nodes.find(n => n.id === ctx.currentNodeId) || nodes.find(n => n.id === nodeId) || target;
             node.runStatus = 'failed';
             node.runError = err.message || String(err);
             node._cascadeFailed = true;
-            finalizeCascade(nodeId, 'failed', {order});
+            finalizeCascade(nodeId, 'failed', {order,ctx});
             return;
         }
-        finalizeCascade(nodeId, 'done', {order});
+        finalizeCascade(nodeId, 'done', {order,ctx});
         return;
     }
     refreshNodes(cascadeUiNodeIds(nodeId, order));
     for(let round = 1; round <= totalRounds; round++){
-        ensureCascadeActive(nodeId, ctx.message);
+        ensureCascadeActive(nodeId, ctx.message, ctx);
         const loopIndex = startIdx + (round - 1) * loopBatchSize;
         const loopCtx = loop ? {index:loopIndex, total:endIdx, nodeId:loop.node.id} : null;
         order.forEach(id => {
@@ -11090,12 +11142,13 @@ async function runNodeCascade(nodeId){
             refreshNodes([id]);
             try {
                 await runCascadeNodeWithLoopContext(node, loopCtx, {cascadeTargetId:nodeId});
-                ensureCascadeActive(nodeId, ctx.message);
+                ensureCascadeActive(nodeId, ctx.message, ctx);
                 node.runStatus = 'done';
                 refreshNodes([id]);
             } catch(err){
+                if(err?.resultPending || !ctx.writeGuard.valid() || cascadeContextFor(nodeId)!==ctx){abandonCascade(ctx);return;}
                 if(isCascadeAbortError(err)){
-                    finalizeCascade(nodeId, 'stopped', {order});
+                    finalizeCascade(nodeId, 'stopped', {order,ctx});
                     return;
                 }
                 node.runStatus = 'failed';
@@ -11105,15 +11158,17 @@ async function runNodeCascade(nodeId){
                     const n2 = nodes.find(x => x.id === order[j]);
                     if(n2){ n2.runStatus = ''; n2._cascadeIdx = ''; }
                 }
-                finalizeCascade(nodeId, 'failed', {order});
+                finalizeCascade(nodeId, 'failed', {order,ctx});
                 return;
             }
         }
     }
-    finalizeCascade(nodeId, 'done', {order});
+    finalizeCascade(nodeId, 'done', {order,ctx});
 }
 async function runOneCascadePass(order, options={}){
     const targetId = cascadeTargetIdFromOptions(options);
+    const writeGuard=canvasTaskWriteGuard(...order.map(id=>nodes.find(n=>n.id===id)));
+    writeGuard.check();
     order.forEach(id => {
         const n = nodes.find(x => x.id === id);
         if(n){ n.runStatus = 'queued'; n.runError = ''; n._cascadeFailed = false; n._cascadeIdx = ''; }
@@ -11135,10 +11190,12 @@ async function runOneCascadePass(order, options={}){
             else if(node.type === 'ltxDirector') await runLTXDirectorNode(id, {cascade:true, cascadeTargetId:targetId});
             else if(node.type === 'llm') await runLLMNode(id, {cascade:true, cascadeTargetId:targetId});
             else if(node.type === 'video') await runVideoNode(id, {cascade:true, cascadeTargetId:targetId});
+            writeGuard.check();
             if(targetId) ensureCascadeActive(targetId);
             node.runStatus = 'done';
             refreshNodes([id]);
         } catch(err) {
+            if(err?.resultPending || !writeGuard.valid())throw writeGuard.pause();
             node.runStatus = 'failed';
             node.runError = err.message || String(err);
             node._cascadeFailed = true;
@@ -11149,21 +11206,22 @@ async function runOneCascadePass(order, options={}){
 // 失败重试：从该节点继续往下游跑
 async function retryNodeAndDownstream(nodeId){
     const target = nodes.find(n => n.id === nodeId);
-    if(!target) return;
+    if(!target || (window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)) return;
     if(isCascadeActive(nodeId)) return;
     const remain = computeRetryCascadeOrder(nodeId);
     if(!remain.length) return;
     if(cascadeBusyNodeId(remain)) return;
-    beginCascade(nodeId, remain, {serial:true, mode:'retry'});
+    const ctx=beginCascade(nodeId, remain, {serial:true, mode:'retry'});
     try {
         await runOneCascadePass(remain, {cascadeTargetId:nodeId});
-        finalizeCascade(nodeId, 'done', {order:remain});
+        finalizeCascade(nodeId, 'done', {order:remain,ctx});
     } catch(err) {
+        if(err?.resultPending || !ctx.writeGuard.valid() || cascadeContextFor(nodeId)!==ctx){abandonCascade(ctx);return;}
         if(isCascadeAbortError(err)){
-            finalizeCascade(nodeId, 'stopped', {order:remain});
+            finalizeCascade(nodeId, 'stopped', {order:remain,ctx});
             return;
         }
-        finalizeCascade(nodeId, 'failed', {order:remain});
+        finalizeCascade(nodeId, 'failed', {order:remain,ctx});
         refreshNodes(remain);
     }
 }
@@ -11871,6 +11929,11 @@ async function queryRecoverPendingOutput(pendingId){
     const out = findOutputByPendingId(pendingId);
     const pending = pendingById(out, pendingId);
     if(!out || !pending || pending.querying) return;
+    const sourceId=pending.run?.node?.id, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
+    if(window.CanvasSession?.enabled && sourceId && !source)return;
+    const writeGuard=canvasTaskWriteGuard(out,source);
+    const current=()=>writeGuard.valid() && pendingById(out,pendingId)===pending;
+    if(!current())return;
     const taskId = pending.recoverTaskId || extractUpstreamTaskId(pending.error || '');
     if(!taskId){
         showErrorModal('没有任务 ID，无法查询结果', tr('canvas.apiFailed'));
@@ -11881,6 +11944,7 @@ async function queryRecoverPendingOutput(pendingId){
     refreshNodes([out.id]);
     try {
         const data = await window.CanvasApi.queryImageTask({provider_id:providerIdForPending(pending), task_id:taskId}, {errorFallback:'查询失败'});
+        if(!current())return;
         if(data.status === 'succeeded'){
             completeRecoverPendingOutput(out, pending, data);
             return;
@@ -11893,11 +11957,12 @@ async function queryRecoverPendingOutput(pendingId){
             setStatus(pending.error);
         }
     } catch(err) {
+        if(!current())return;
         pending.error = err.message || '查询失败';
         showErrorModal(pending.error, tr('canvas.apiFailed'));
     } finally {
         const latest = pendingById(out, pendingId);
-        if(latest){
+        if(current() && latest===pending){
             latest.querying = false;
             refreshNodes([out.id]);
             scheduleSave();
@@ -11907,14 +11972,18 @@ async function queryRecoverPendingOutput(pendingId){
 function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
 async function pollCanvasImageTask(taskId, options={}){
     if(!taskId) return 'failed';
-    const originCanvas=canvas, validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
+    const originCanvas=canvas?.id, validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
     if(!validResult()) return 'paused';
+    const found=findPendingTask(taskId);
+    if(!found)return 'missing';
+    const sourceId=found.pending.run?.node?.id, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
+    const targetsCurrent=()=>canvas?.id===originCanvas && validResult() && findPendingTask(taskId)?.pending===found.pending &&
+        (!window.CanvasSession?.enabled || ((!found.out || nodes.includes(found.out)) && (!sourceId || Boolean(source && nodes.includes(source)))));
     if(activeCanvasTaskPolls.has(taskId)) return 'running';
     activeCanvasTaskPolls.add(taskId);
     try {
         while(true){
-            const found = findPendingTask(taskId);
-            if(!found) return 'missing';
+            if(!targetsCurrent())return 'paused';
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
             const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
@@ -11923,7 +11992,7 @@ async function pollCanvasImageTask(taskId, options={}){
                 throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
             }
             const data = await res.json();
-            if(canvas!==originCanvas || !validResult() || findPendingTask(taskId)?.pending!==found.pending ||
+            if(!targetsCurrent() ||
                 (window.CanvasSession?.enabled && data.canvas_edit_generation!==window.MemberCanvasEdit.active.lease.generation)) return 'paused';
             if(data.status === 'succeeded'){
                 completeCanvasImageTask(taskId, data.result || {});
@@ -11936,7 +12005,7 @@ async function pollCanvasImageTask(taskId, options={}){
             await sleep(1800);
         }
     } catch(err) {
-        if(canvas!==originCanvas || !validResult()) return 'paused';
+        if(err?.resultPending || !targetsCurrent()) return 'paused';
         const message = normalizeCanvasTaskError(err, tr('canvas.generationFailed'));
         if(isCascadeAbortError(err)) return 'aborted';
         failCanvasImageTask(taskId, message);
@@ -12083,22 +12152,27 @@ function failCanvasVideoTask(taskId, message, taskData={}){
 }
 async function pollCanvasVideoTask(taskId, options={}){
     if(!taskId) return 'failed';
-    const originCanvas=canvas, validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
+    const originCanvas=canvas?.id, validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
     if(!validResult()) return 'paused';
+    const found=findPendingTask(taskId);
+    if(!found)return 'missing';
+    const sourceId=found.pending.run?.node?.id, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
+    const targetsCurrent=()=>canvas?.id===originCanvas && validResult() && findPendingTask(taskId)?.pending===found.pending &&
+        (!window.CanvasSession?.enabled || ((!found.out || nodes.includes(found.out)) && (!sourceId || Boolean(source && nodes.includes(source)))));
     const pollKey = `video:${taskId}`;
     if(activeCanvasTaskPolls.has(pollKey)) return 'running';
     activeCanvasTaskPolls.add(pollKey);
     let unavailableSince = 0;
     try {
         while(true){
-            const found = findPendingTask(taskId);
-            if(!found) return 'missing';
+            if(!targetsCurrent())return 'paused';
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
             let res;
             try {
                 res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
             } catch(error) {
+                if(error?.resultPending || !targetsCurrent())return 'paused';
                 if(isCascadeAbortError(error)) throw error;
                 const retryWindow = canvasTaskPollRetryWindow(0, error);
                 if(retryWindow){
@@ -12110,6 +12184,7 @@ async function pollCanvasVideoTask(taskId, options={}){
                 }
                 throw error;
             }
+            if(!targetsCurrent())return 'paused';
             if(!res.ok){
                 const retryWindow = canvasTaskPollRetryWindow(res.status);
                 if(retryWindow){
@@ -12124,7 +12199,7 @@ async function pollCanvasVideoTask(taskId, options={}){
             }
             unavailableSince = 0;
             const data = await res.json();
-            if(canvas!==originCanvas || !validResult() || findPendingTask(taskId)?.pending!==found.pending ||
+            if(!targetsCurrent() ||
                 (window.CanvasSession?.enabled && data.canvas_edit_generation!==window.MemberCanvasEdit.active.lease.generation)) return 'paused';
             if(data.status === 'succeeded'){
                 const result = data.result || {};
@@ -12142,7 +12217,7 @@ async function pollCanvasVideoTask(taskId, options={}){
             await sleep(2500);
         }
     } catch(err) {
-        if(canvas!==originCanvas || !validResult()) return 'paused';
+        if(err?.resultPending || !targetsCurrent()) return 'paused';
         if(isCascadeAbortError(err)) return 'aborted';
         failCanvasVideoTask(taskId, normalizeCanvasTaskError(err, tr('canvas.videoFailed')));
         return 'failed';
