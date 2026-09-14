@@ -423,6 +423,7 @@
         if(entry===active) timer=setTimeout(() => tick(entry),Math.min(5000,(entry.lease.status?.heartbeat_seconds || 5)*1000));
     }
     const api={
+        openTaskResults:showTaskResults,
         get active(){return active;},
         get canEdit(){return Boolean(active?.lease.canEdit);},
         get canSave(){return Boolean(active?.lease.canSave);},

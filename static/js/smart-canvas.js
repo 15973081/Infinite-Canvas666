@@ -6391,43 +6391,64 @@ function providerIdForSmartTask(node, task){
 async function querySmartImageTaskNow(nodeId, localTaskId){
     const node = nodes.find(n => n.id === nodeId);
     if(!node) return;
-    const task = smartPendingTasks(node).find(item => item.taskId === localTaskId) || smartRecoverableImageTask(node);
+    const task = localTaskId ? smartPendingTasks(node).find(item => item.taskId === localTaskId) : smartRecoverableImageTask(node);
     if(!task || task.querying) return;
+    const memberMode=Boolean(window.CanvasSession?.enabled);
     const sourceId=task.run?.nodeId, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
-    if(window.CanvasSession?.enabled && sourceId && !source)return;
+    if(memberMode && sourceId && !source)return;
     const writeGuard=canvasTaskWriteGuard(node,source);
     const current=()=>writeGuard.valid() && smartPendingTasks(node).includes(task);
     if(!current())return;
-    const recoverTaskId = task.recoverTaskId || extractUpstreamTaskId(task.error || '');
-    if(!recoverTaskId){
-        toast('没有任务 ID，无法查询');
+    const taskId=memberMode ? task.taskId : task.recoverTaskId || extractUpstreamTaskId(task.error || '');
+    if(!taskId){
+        toast(memberMode ? '历史任务缺少本地记录，请在管理平台按原供应商核对。' : '没有任务 ID，无法查询');
         return;
     }
+    const inputBinding=memberMode ? task._inputBinding : null;
     task.querying = true;
-    task.recoverTaskId = recoverTaskId;
+    if(!memberMode)task.recoverTaskId = taskId;
     refreshSmartNodes([node.id]);
     try {
-        const data = await window.CanvasApi.queryImageTask({provider_id:providerIdForSmartTask(node, task), task_id:recoverTaskId});
+        let data,record;
+        if(memberMode){
+            const response=await window.CanvasApi.getCanvasImageTaskRequest(taskId);
+            if(!response.ok)throw new Error(await window.CanvasCore.responseErrorMessage(response,'查询失败'));
+            record=await response.json();
+            if(!current())return;
+            if(record.id!==taskId)throw new Error('任务记录不匹配，请刷新后重试。');
+            data={...(record.result||{}),status:record.status,error:record.error};
+        } else data=await window.CanvasApi.queryImageTask({provider_id:providerIdForSmartTask(node, task), task_id:taskId});
         if(!current())return;
         if(data.status === 'succeeded'){
-            task.failed = false;
-            task.querying = false;
-            finalizeSmartPendingTask(node, task.taskId, data.images || [], task.kind || 'image');
-            refreshSmartNodes([node.id]);
-            scheduleSave();
+            const apply=()=>{
+                task.failed=false;task.querying=false;
+                finalizeSmartPendingTask(node,task.taskId,data.images||[],task.kind||'image',data);
+                refreshSmartNodes([node.id]);scheduleSave();
+            };
+            if(memberMode){
+                if(!inputBinding || record.canvas_edit_generation!==window.MemberCanvasEdit?.active?.lease?.generation){
+                    if(window.MemberCanvasEdit?.openTaskResults)await window.MemberCanvasEdit.openTaskResults();
+                    else toast('结果已保存，请从生成结果列表确认加入。');
+                    return;
+                }
+                if(!(data.images||[]).length)throw new Error('任务没有可加入的图片，请在管理平台核对。');
+                inputBinding.apply(record,apply,taskId);
+            } else apply();
         } else {
-            task.error = data.error || data.message || ((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled') ? tr('smart.errRunFailed') : '任务仍在生成中，请稍后再查询');
-            toast(task.error.slice(0, 160));
+            const message=data.status==='needs_review' ? '任务需要在管理平台核对；不会自动重新生成。' :
+                data.error || data.message || ((data.status==='failed'||data.status==='cancelled') ? tr('smart.errRunFailed') : '任务仍在生成中，请稍后再查询');
+            if(!memberMode)task.error=message;
+            toast(message.slice(0,160));
         }
     } catch(e){
         if(!current())return;
-        task.error = e.message || '查询失败';
-        toast(task.error.slice(0, 160));
+        if(!memberMode)task.error=e.message || '查询失败';
+        if(e.resultPending && window.MemberCanvasEdit?.openTaskResults)await window.MemberCanvasEdit.openTaskResults();
+        else toast((e.message || '查询失败').slice(0,160));
     } finally {
         if(current()){
-            task.querying = false;
-            refreshSmartNodes([node.id]);
-            scheduleSave();
+            task.querying=false;
+            refreshSmartNodes([node.id]);scheduleSave();
         }
     }
 }
@@ -13783,8 +13804,7 @@ async function resumeSmartPendingNode(node){
                 scheduleSave();
                 };
                 if(inputBinding){
-                    if(e.canvasTaskRecord)inputBinding.apply(e.canvasTaskRecord,handleFailure,task.taskId);
-                    else inputBinding.mutate(handleFailure);
+                    inputBinding.mutate(handleFailure);
                 } else handleFailure();
             }
         }));

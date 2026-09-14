@@ -138,9 +138,9 @@ test('smart paused polling propagates through resume and does not remove the out
 
 for(const kind of ['classic','smart'])test(kind+' manual recovery validates source, output and exact pending record on success/failure',async()=>{
  for(const outcome of ['success','failure'])for(const scenario of ['unchanged','handoff','source','target','task']){
-  const w=fixture(),source={id:'src'},out={id:'out'},task={id:'p',taskId:'t',recoverTaskId:'upstream',run:{nodeId:'src',node:{id:'src'}}};out.pendingTasks=[task];out._pending=[task];
+  const w=fixture(),source={id:'src'},out={id:'out'},task={id:'p',taskId:'t',canvasTaskId:'t',_inputBinding:scopeOnlyBinding(),recoverTaskId:'upstream',run:{nodeId:'src',node:{id:'src'}}};out.pendingTasks=[task];out._pending=[task];
   const gate=deferred(),counts={render:0,save:0,error:0,finish:0};
-  w.CanvasApi={queryImageTask:async()=>{await gate.promise;if(outcome==='failure')throw Error('query failed');return {status:'succeeded',images:['result']};}};
+  w.CanvasApi={getCanvasImageTaskRequest:async()=>{await gate.promise;if(outcome==='failure')throw Error('query failed');return {ok:true,json:async()=>({id:'t',status:'succeeded',canvas_edit_generation:2,result:{images:['result']}})};}};
   const c={window:w,nodes:[source,out],canvas:{id:'c'},findOutputByPendingId:()=>out,pendingById:(o,id)=>o._pending.find(t=>t.id===id),smartPendingTasks:n=>n.pendingTasks||[],
    providerIdForPending:()=> 'p',providerIdForSmartTask:()=> 'p',tr:s=>s,refreshNodes:()=>counts.render++,refreshSmartNodes:()=>counts.render++,scheduleSave:()=>counts.save++,showErrorModal:()=>counts.error++,toast:()=>counts.error++,
    completeRecoverPendingOutput:()=>{counts.finish++;out._pending=[];counts.save++;},finalizeSmartPendingTask:()=>{counts.finish++;out.pendingTasks=[];}};

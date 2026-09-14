@@ -11982,41 +11982,59 @@ async function queryRecoverPendingOutput(pendingId){
     const out = findOutputByPendingId(pendingId);
     const pending = pendingById(out, pendingId);
     if(!out || !pending || pending.querying) return;
+    const memberMode=Boolean(window.CanvasSession?.enabled);
     const sourceId=pending.run?.node?.id, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
-    if(window.CanvasSession?.enabled && sourceId && !source)return;
+    if(memberMode && sourceId && !source)return;
     const writeGuard=canvasTaskWriteGuard(out,source);
     const current=()=>writeGuard.valid() && pendingById(out,pendingId)===pending;
     if(!current())return;
-    const taskId = pending.recoverTaskId || extractUpstreamTaskId(pending.error || '');
+    // Member recovery reads the original durable task. An upstream ID alone
+    // cannot select a provider account or authorize a new paid submission.
+    const taskId = memberMode ? pending.canvasTaskId : pending.recoverTaskId || extractUpstreamTaskId(pending.error || '');
     if(!taskId){
-        showErrorModal('没有任务 ID，无法查询结果', tr('canvas.apiFailed'));
+        showErrorModal(memberMode ? '历史任务缺少本地记录，请在管理平台按原供应商核对。' : '没有任务 ID，无法查询结果', tr('canvas.apiFailed'));
         return;
     }
+    const inputBinding=memberMode ? pending._inputBinding : null;
     pending.querying = true;
-    pending.recoverTaskId = taskId;
+    if(!memberMode)pending.recoverTaskId = taskId;
     refreshNodes([out.id]);
     try {
-        const data = await window.CanvasApi.queryImageTask({provider_id:providerIdForPending(pending), task_id:taskId}, {errorFallback:'查询失败'});
+        let data,record;
+        if(memberMode){
+            const response=await window.CanvasApi.getCanvasImageTaskRequest(taskId);
+            if(!response.ok)throw new Error(await responseErrorMessage(response,'查询失败'));
+            record=await response.json();
+            if(!current())return;
+            if(record.id!==taskId)throw new Error('任务记录不匹配，请刷新后重试。');
+            data={...(record.result||{}),status:record.status,error:record.error};
+        } else data=await window.CanvasApi.queryImageTask({provider_id:providerIdForPending(pending), task_id:taskId}, {errorFallback:'查询失败'});
         if(!current())return;
         if(data.status === 'succeeded'){
-            completeRecoverPendingOutput(out, pending, data);
+            if(memberMode){
+                if(!inputBinding || record.canvas_edit_generation!==window.MemberCanvasEdit?.active?.lease?.generation){
+                    if(window.MemberCanvasEdit?.openTaskResults)await window.MemberCanvasEdit.openTaskResults();
+                    else showErrorModal('结果已保存，请从生成结果列表确认加入。','生成结果');
+                    return;
+                }
+                if(!(data.images||[]).length)throw new Error('任务没有可加入的图片，请在管理平台核对。');
+                inputBinding.apply(record,()=>completeRecoverPendingOutput(out,pending,data),taskId);
+            } else completeRecoverPendingOutput(out,pending,data);
             return;
         }
-        if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
-            pending.error = data.error || tr('canvas.generationFailed');
-            showErrorModal(pending.error, tr('canvas.apiFailed'));
-        } else {
-            pending.error = data.message || '任务仍在生成中，请稍后再查询';
-            setStatus(pending.error);
-        }
+        const message=data.status==='needs_review' ? '任务需要在管理平台核对；不会自动重新生成。' :
+            data.error || data.message || ((data.status==='failed'||data.status==='cancelled') ? tr('canvas.generationFailed') : '任务仍在生成中，请稍后再查询');
+        // A status refresh must not consume the input receipt needed by a later result.
+        if(!memberMode)pending.error=message;
+        setStatus(message);
     } catch(err) {
         if(!current())return;
-        pending.error = err.message || '查询失败';
-        showErrorModal(pending.error, tr('canvas.apiFailed'));
+        if(!memberMode)pending.error=err.message || '查询失败';
+        if(err.resultPending && window.MemberCanvasEdit?.openTaskResults)await window.MemberCanvasEdit.openTaskResults();
+        else showErrorModal(err.message || '查询失败', tr('canvas.apiFailed'));
     } finally {
-        const latest = pendingById(out, pendingId);
-        if(current() && latest===pending){
-            latest.querying = false;
+        if(current()){
+            pending.querying = false;
             refreshNodes([out.id]);
             scheduleSave();
         }
@@ -12058,7 +12076,7 @@ async function pollCanvasImageTask(taskId, options={}){
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
                 const fail=()=>failCanvasImageTask(taskId,data.error||tr('canvas.generationFailed'),data);
-                if(inputBinding)inputBinding.apply(data,fail,taskId);else fail();
+                if(inputBinding)inputBinding.mutate(fail);else fail();
                 return 'failed';
             }
             await sleep(1800);
@@ -12282,7 +12300,7 @@ async function pollCanvasVideoTask(taskId, options={}){
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
                 const fail=()=>failCanvasVideoTask(taskId,data.error||tr('canvas.videoFailed'),data);
-                if(inputBinding)inputBinding.apply(data,fail,taskId);else fail();
+                if(inputBinding)inputBinding.mutate(fail);else fail();
                 return 'failed';
             }
             await sleep(2500);
