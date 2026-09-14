@@ -38,3 +38,14 @@ $env:MANAGEMENT_BASE_URL = 'http://127.0.0.1:8766'
 本批为 M2 的成员/空间/角色管理入口，**不是 M2/M3 整体完成**。供应商配置、加密凭证及空间分配已接入，运行所需主密钥与验收范围见[供应商说明](managed-providers-local.md)；供应商模型列表检测与选择导入已接入，见[检测验收](provider-probes-local.md)；协议/任务端点只读诊断及明确采用已接入，见[协议诊断验收](provider-diagnostics-local.md)；ComfyUI 与 ModelScope 已按用户要求[移除](retired-integrations.md)；保留供应商的旧配置导入、任务处置和备份页面仍需迁入；维护中心已接入首批控制底座，完整画布联动和发布检查仍在实施；旧工作台管理页面的移除与部署验证仍待完成。当前“概览”仅统计可管理范围与权限，不伪报业务服务健康或备份结果。
 
 工作台的个人激活界面、空间选择、数据库画布租约和双画布草稿已分批接入；剩余业务路由迁移、完整协作/维护联调及全链路恢复验收仍按总计划继续。开发库和原 `.local/cloud/objects` 保持原状，尚未对真实使用环境启用成员模式。最新交付范围见[实施记录](management-platform-progress.md)。
+
+## 保留现有工作台预览数据后重新启动
+
+当前用户预览使用 8768 / 8769 / 8770，记录见 .local/cloud/runtime/active-member-preview.json。已从一次性验收进程切换为保留数据模式；关闭服务不会删除 schema。后续启动前核对服务已停止，并读取记录中的 schema：
+
+    $previewRecord = Get-Content -LiteralPath '.local/cloud/runtime/active-member-preview.json' -Raw | ConvertFrom-Json
+    ./python/python.exe tools/workbench_preview.py --two-members --management --resume-schema $previewRecord.schema
+
+该模式不创建 schema、不迁移、不重置账号/画布，复用原对象目录并重建管理前端。仍存在 stop 文件时拒绝启动，应先确认它是本次预览记录指向的停止标记，再清理该标记。不要对未带 --resume-schema 的旧进程使用停止标记来保留数据：旧模式会删除自己的临时 schema。
+
+这是本地预览续用工具，仍使用 canvas_cloud_test 和原有本地配置，不承担生产部署或主密钥管理；需要持续保存加密供应商凭证时须按供应商说明配置固定主密钥。运行与备份证据见[移除与服务更新记录](retired-integrations.md)。
