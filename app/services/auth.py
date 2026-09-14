@@ -320,3 +320,9 @@ def member_profile(request: Request, data: ProfileInput):
         raise HTTPException(404)
     from app.services.members import update_profile
     return {"member": update_profile(request.scope.get("member_principal"), data.display_name, data.avatar)}
+
+
+@router.get("/api/management-entry")
+def management_entry():
+    from app.services.management_entry import management_url
+    return JSONResponse({"url": management_url()}, headers={"Cache-Control": "no-store"})

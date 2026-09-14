@@ -6,7 +6,7 @@
         ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once:true})) : Promise.resolve();
     document.documentElement.classList.add('member-session-pending');
     let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0, maintenance = null;
-    const accountPaths = new Set(['/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
+    const accountPaths = new Set(['/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
         if (text !== undefined) node.textContent = text;

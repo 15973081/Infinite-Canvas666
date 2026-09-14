@@ -1097,23 +1097,12 @@
             font-size:13px;
             font-weight:800;
         }
+        #management-entry { text-decoration:none; }
         .maintenance-banner[hidden] { display:none !important; }
-        #maintenance-entry-btn[hidden],
+        #management-entry[hidden],
         .studio-modal-btn[hidden] { display:none !important; }
         .maintenance-banner.restored { background:rgba(21,128,61,.96); border-color:rgba(134,239,172,.5); }
         .maintenance-banner button { border:0; border-radius:8px; padding:6px 10px; background:rgba(255,255,255,.16); color:inherit; font-weight:900; cursor:pointer; }
-        .maintenance-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:14px 0; }
-        .maintenance-stat { border:1px solid var(--border); border-radius:10px; padding:12px; background:var(--nav-hover-bg); }
-        .maintenance-stat span { display:block; color:var(--muted); font-size:11px; font-weight:800; }
-        .maintenance-stat strong { display:block; margin-top:5px; color:var(--text); font-size:22px; }
-        .maintenance-form { display:grid; gap:12px; }
-        .maintenance-form label { display:grid; gap:6px; color:var(--muted); font-size:12px; font-weight:800; }
-        .maintenance-form textarea,
-        .maintenance-form select { width:100%; box-sizing:border-box; border:1px solid var(--border); border-radius:9px; background:var(--stage-bg); color:var(--text); padding:10px 11px; font:inherit; }
-        .maintenance-form textarea { min-height:78px; resize:vertical; }
-        .maintenance-summary { margin-top:14px; padding:12px; border-radius:10px; background:rgba(245,158,11,.10); color:#b45309; font-size:12px; line-height:1.55; font-weight:800; }
-        .maintenance-summary.ready { background:rgba(34,197,94,.12); color:#15803d; }
-        .maintenance-summary.normal { background:var(--nav-hover-bg); color:var(--muted); }
         .service-disconnected {
             position:fixed;
             inset:0;
@@ -1129,7 +1118,6 @@
         .service-disconnected-card h2 { margin:0 0 10px; font-size:20px; }
         .service-disconnected-card p { margin:0; color:var(--muted); line-height:1.65; }
         .service-disconnected-card button { margin-top:16px; border:0; border-radius:9px; padding:9px 14px; background:#2563eb; color:#fff; font-weight:900; cursor:pointer; }
-        @media (max-width:620px) { .maintenance-grid { grid-template-columns:1fr; } }
     </style>
 </head>
 
@@ -1193,14 +1181,14 @@
             </nav>
 
             <div class="side-actions">
-                <button class="side-pill" onclick="switchUI(this, 'api-settings')" type="button" title="API 设置">
+                <a id="management-entry" class="side-pill" title="管理平台" target="_blank" rel="noopener noreferrer" hidden>
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M15 7h3a5 5 0 0 1 0 10h-3"></path>
                         <path d="M9 17H6A5 5 0 0 1 6 7h3"></path>
                         <line x1="8" y1="12" x2="16" y2="12"></line>
                     </svg>
-                    <span class="side-pill-text">API 设置</span>
-                </button>
+                    <span class="side-pill-text">管理平台</span>
+                </a>
                 <button class="side-pill settings-fold-toggle" id="settings-fold-toggle" onclick="toggleSidebarSettings()" type="button" title="更多设置" aria-expanded="false">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -1230,13 +1218,6 @@
                         <span class="side-pill-text">黑夜模式</span>
                     </button>
                     <!-- Language toggle removed: Studio is locked to Chinese. -->
-
-                    <button id="maintenance-entry-btn" class="side-pill" onclick="openMaintenanceModal()" type="button" title="维护管理" hidden>
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14.7 6.3a4 4 0 0 0-5 5L3 18v3h3l6.7-6.7a4 4 0 0 0 5-5l-2.3 2.3-3-3 2.3-2.3z"></path>
-                        </svg>
-                        <span class="side-pill-text">维护管理</span>
-                    </button>
                 </div>
             </div>
 
@@ -1292,7 +1273,6 @@
             <iframe id="frame-gpt-chat" data-src="/static/gpt-chat.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
             <iframe id="frame-canvas" data-src="/static/canvas.html?v=2026.08.25.4" scrolling="yes"></iframe>
             <iframe id="frame-asset-manager" data-src="/static/asset-manager.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
-            <iframe id="frame-api-settings" data-src="/static/api-settings.html?v=2026.07.20.1" scrolling="yes"></iframe>
 
             <div class="nano-monitor" id="nano-monitor">
                 <div class="stat-group">
@@ -1323,54 +1303,6 @@
         </div>
     </div>
 
-    <div id="maintenance-modal" class="studio-modal" hidden role="dialog" aria-modal="true" aria-labelledby="maintenance-title">
-        <div class="studio-modal-panel">
-            <div class="studio-modal-head">
-                <div>
-                    <div class="studio-modal-kicker">仅限服务器本机</div>
-                    <h2 id="maintenance-title" class="studio-modal-title">维护管理</h2>
-                </div>
-                <button class="studio-modal-close" type="button" onclick="closeMaintenanceModal()" title="关闭" aria-label="关闭">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
-            <div class="studio-modal-body">
-                <p class="studio-modal-copy">进入维护准备后，将通知所有局域网使用者并停止接收新的生成任务；现有视频与图片会继续完成。任务归零后，请回到终端按 Ctrl+C，再手动更新代码。</p>
-                <div class="maintenance-grid">
-                    <div class="maintenance-stat"><span>正在生成视频</span><strong id="maintenance-video-count">0</strong></div>
-                    <div class="maintenance-stat"><span>其他生成任务</span><strong id="maintenance-other-count">0</strong></div>
-                    <div class="maintenance-stat"><span>在线使用者</span><strong id="maintenance-online-count">0</strong></div>
-                </div>
-                <div class="maintenance-form">
-                    <label>通知内容
-                        <textarea id="maintenance-message" maxlength="300">服务即将维护，请保存当前工作并等待现有生成任务完成。</textarea>
-                    </label>
-                    <label>预计停服时间
-                        <select id="maintenance-delay">
-                            <option value="5">5 分钟后</option>
-                            <option value="10" selected>10 分钟后</option>
-                            <option value="30">30 分钟后</option>
-                            <option value="0">不显示倒计时</option>
-                        </select>
-                    </label>
-                </div>
-                <div id="maintenance-summary" class="maintenance-summary normal">当前正常运行，尚未进入维护准备。</div>
-            </div>
-            <div class="studio-modal-actions">
-                <button id="maintenance-cancel-btn" class="studio-modal-btn" type="button" onclick="cancelMaintenance()" hidden>取消维护</button>
-                <button class="studio-modal-btn" type="button" onclick="closeMaintenanceModal()">
-                    <span>关闭</span>
-                </button>
-                <button id="maintenance-start-btn" class="studio-modal-btn primary" type="button" onclick="startMaintenance()">
-                    <span>进入维护准备</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
     <script>
         function generateUUID() {
             if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -1388,10 +1320,9 @@
         const SIDEBAR_SETTINGS_COLLAPSED_KEY = 'studio_sidebar_settings_collapsed';
         const SIDEBAR_PINNED_KEY = 'studio_sidebar_pinned';
         const DEFAULT_PAGE_ID = 'online';
-        const PAGE_IDS = ['online','gpt-chat','canvas','asset-manager','api-settings'];
+        const PAGE_IDS = ['online','gpt-chat','canvas','asset-manager'];
         const LOCAL_PAGE_IDS = [];
         let maintenanceState = null;
-        let maintenanceRequestRunning = false;
         let maintenanceStatusRequest = null;
         let maintenancePollingTimer = null;
         let studioSocket = null;
@@ -1640,12 +1571,6 @@
             });
         });
 
-        function maintenanceCounts(snapshot = {}) {
-            const byType = snapshot.by_type || {};
-            const videos = Number(byType.video || 0);
-            return {videos, others:Math.max(0, Number(snapshot.active || 0) - videos)};
-        }
-
         function maintenanceCountdown(snapshot = {}) {
             const plannedAt = Number(snapshot.planned_at || 0);
             if(!plannedAt) return '';
@@ -1676,12 +1601,9 @@
 
         function renderMaintenanceSnapshot(snapshot = maintenanceState || {}) {
             const draining = snapshot.mode === 'draining';
-            const counts = maintenanceCounts(snapshot);
             const banner = document.getElementById('maintenance-banner');
             const bannerText = document.getElementById('maintenance-banner-text');
             const refreshBtn = document.getElementById('maintenance-refresh-btn');
-            const entry = document.getElementById('maintenance-entry-btn');
-            if(entry) entry.hidden = !snapshot.admin_allowed;
             if(banner && bannerText) {
                 if(draining) {
                     banner.classList.remove('restored');
@@ -1696,36 +1618,6 @@
                     banner.hidden = true;
                 }
             }
-            const videoEl = document.getElementById('maintenance-video-count');
-            const otherEl = document.getElementById('maintenance-other-count');
-            const onlineEl = document.getElementById('maintenance-online-count');
-            if(videoEl) videoEl.textContent = String(counts.videos);
-            if(otherEl) otherEl.textContent = String(counts.others);
-            if(onlineEl) onlineEl.textContent = String(snapshot.online_count || 0);
-            const summary = document.getElementById('maintenance-summary');
-            if(summary) {
-                summary.classList.remove('ready', 'normal');
-                if(!draining) {
-                    summary.classList.add('normal');
-                    summary.textContent = '当前正常运行，尚未进入维护准备。';
-                } else if(Number(snapshot.active || 0) === 0) {
-                    summary.classList.add('ready');
-                    summary.textContent = '现有生成任务已经全部完成。现在可以回到终端按 Ctrl+C，关闭服务后手动更新代码。';
-                } else {
-                    summary.textContent = `维护通知已发布，并已停止接收新生成任务。正在等待剩余 ${snapshot.active} 个任务完成。`;
-                }
-            }
-            const startBtn = document.getElementById('maintenance-start-btn');
-            const cancelBtn = document.getElementById('maintenance-cancel-btn');
-            const message = document.getElementById('maintenance-message');
-            const delay = document.getElementById('maintenance-delay');
-            if(startBtn) startBtn.hidden = draining;
-            if(cancelBtn) cancelBtn.hidden = !draining;
-            if(message) {
-                if(draining && snapshot.message) message.value = snapshot.message;
-                message.disabled = draining || maintenanceRequestRunning;
-            }
-            if(delay) delay.disabled = draining || maintenanceRequestRunning;
         }
 
         function handleMaintenanceSnapshot(snapshot = {}) {
@@ -1854,68 +1746,8 @@
             };
         }
 
-        async function openMaintenanceModal() {
-            const modal = document.getElementById('maintenance-modal');
-            if(!modal) return;
-            modal.hidden = false;
-            await fetchMaintenanceStatus();
-            renderMaintenanceSnapshot();
-        }
-
-        function closeMaintenanceModal() {
-            const modal = document.getElementById('maintenance-modal');
-            if(modal) modal.hidden = true;
-        }
-
-        async function startMaintenance() {
-            if(maintenanceRequestRunning) return;
-            const message = document.getElementById('maintenance-message')?.value?.trim() || '';
-            const minutes = Number(document.getElementById('maintenance-delay')?.value || 0);
-            const plannedAt = minutes > 0 ? Date.now() + minutes * 60000 : 0;
-            if(!confirm('进入维护准备后将立即禁止提交新的生成任务，现有任务会继续完成。是否继续？')) return;
-            maintenanceRequestRunning = true;
-            renderMaintenanceSnapshot();
-            try {
-                const response = await fetch('/api/maintenance/start', {
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({message, planned_at:plannedAt}),
-                });
-                const data = await response.json().catch(() => ({}));
-                if(!response.ok) throw new Error(data.detail || '进入维护准备失败');
-                handleMaintenanceSnapshot(data);
-            } catch(error) {
-                alert(error.message || String(error));
-            } finally {
-                maintenanceRequestRunning = false;
-                renderMaintenanceSnapshot();
-            }
-        }
-
-        async function cancelMaintenance() {
-            if(maintenanceRequestRunning || !confirm('取消维护后将重新接受新的生成任务，是否继续？')) return;
-            maintenanceRequestRunning = true;
-            renderMaintenanceSnapshot();
-            try {
-                const response = await fetch('/api/maintenance/cancel', {method:'POST'});
-                const data = await response.json().catch(() => ({}));
-                if(!response.ok) throw new Error(data.detail || '取消维护失败');
-                handleMaintenanceSnapshot(data);
-            } catch(error) {
-                alert(error.message || String(error));
-            } finally {
-                maintenanceRequestRunning = false;
-                renderMaintenanceSnapshot();
-            }
-        }
-
-        document.getElementById('maintenance-modal')?.addEventListener('click', event => {
-            if(event.target?.id === 'maintenance-modal') closeMaintenanceModal();
-        });
-        window.addEventListener('keydown', event => {
-            if(event.key === 'Escape') closeMaintenanceModal();
-        });
     </script>
+    <script src="/static/js/management-entry.js"></script>
     <script src="/static/js/frontend-version.js"></script>
 </body>
 

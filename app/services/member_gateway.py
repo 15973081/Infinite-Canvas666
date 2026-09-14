@@ -21,7 +21,7 @@ COOKIE = 'canvas_member_session'
 PUBLIC = {'/login', '/api/auth/login', '/api/auth/status', '/api/auth/activate',
           '/static/login.html', '/static/css/login.css', '/static/js/login.js',
           '/static/js/frontend-version.js', '/api/frontend/version'}
-ACCOUNT = {'/api/auth/logout', '/api/auth/workspaces', '/api/auth/profile'}
+ACCOUNT = {'/api/management-entry', '/api/auth/logout', '/api/auth/workspaces', '/api/auth/profile'}
 MANAGEMENT_PREFIXES = ('/api/shared-folders', '/api/comfyui/', '/api/workflows',
                        '/api/providers/', '/api/config/token', '/api/maintenance/start', '/api/maintenance/cancel')
 

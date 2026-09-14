@@ -26,11 +26,15 @@ def main():
     parser.add_argument('--port', type=int, default=8768, help='Primary isolated workbench port')
     parser.add_argument('--browser-host', choices=['127.0.0.1', 'localhost'], default='127.0.0.1')
     parser.add_argument('--resume-schema', help='Resume an existing local preview without creating or deleting its data')
+    parser.add_argument('--management-port', type=int, default=8770, help='Independent management port')
     args = parser.parse_args()
     if args.resume_schema and not re.fullmatch(r'workbench_ui_[0-9a-f]{32}', args.resume_schema):
         parser.error('Only an existing workbench_ui_<32 hex> preview schema can be resumed')
     if not 1024 <= args.port <= 65535 or (args.port in {8769, 8770} and (args.two_members or args.management)):
         parser.error('Use an unoccupied, distinct workbench port')
+    if args.management and (not 1024 <= args.management_port <= 65535 or args.management_port == args.port or (args.two_members and args.management_port == 8769)):
+        parser.error('Use an unoccupied, distinct management port')
+    management_url = f'http://{args.browser_host}:{args.management_port}'
     public_url = f'http://{args.browser_host}:{args.port}'
     from app.storage import database
     from app.storage.settings import load_storage_env
@@ -59,6 +63,8 @@ def main():
                       PUBLIC_BASE_URL=public_url, AUTH_MODE='members', CLOUD_EMBEDDED_WORKER='false',
                       MEDIA_BACKEND='filesystem', OBJECT_STORE_ROOT=str(acceptance / 'objects'),
                       MEDIA_TEMP_DIR=str(acceptance / 'tmp'), APP_RUNTIME_DIR=str(acceptance / 'runtime'))
+    if args.management:
+        os.environ['MANAGEMENT_BASE_URL'] = management_url
     database.close()
     try:
         if args.resume_schema:
@@ -88,8 +94,8 @@ def main():
         if args.management:
             from tools.build_management import build
             management_log = (acceptance / 'management-server.log').open('a' if args.resume_schema else 'w', encoding='utf-8')
-            management = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'management_main:app', '--host', '127.0.0.1', '--port', '8770', '--log-level', 'warning'],
-                cwd=ROOT, env={**os.environ, 'MANAGEMENT_BASE_URL': 'http://127.0.0.1:8770', 'MANAGEMENT_STATIC_DIR': str(build(acceptance / 'management-dist'))},
+            management = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'management_main:app', '--host', '127.0.0.1', '--port', str(args.management_port), '--log-level', 'warning'],
+                cwd=ROOT, env={**os.environ, 'MANAGEMENT_BASE_URL': management_url, 'MANAGEMENT_STATIC_DIR': str(build(acceptance / 'management-dist'))},
                 stdout=management_log, stderr=subprocess.STDOUT, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if args.two_members:
             # Separate host cookies and processes, sharing only this disposable
@@ -111,7 +117,7 @@ def main():
         thread = threading.Thread(target=stop_watch, daemon=True)
         thread.start()
         print(json.dumps({'url': public_url, 'second_url': 'http://localhost:8769' if args.two_members else None,
-                          'management_url': 'http://127.0.0.1:8770' if args.management else None,
+                          'management_url': management_url if args.management else None,
                           'stop_file': str(stop), 'schema': schema, 'activation_token': activation_token, 'persistent': bool(args.resume_schema),
                           'spaces': [s['id'] for s in spaces]}, ensure_ascii=False), flush=True)
         try:

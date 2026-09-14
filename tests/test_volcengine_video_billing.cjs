@@ -74,7 +74,8 @@ test('smart completion preserves media token metadata and rejects duplicate fina
 });
 test('price editor changes only the selected specification and blank restores default',()=>{
     const c=setup();const p={id:'volcengine',video_models:['seedance-2.0'],model_prices:[]};
-    c.provider=()=>p;load(c,read('api-settings.js'),['updateVolcengineVideoPrice']);
+    vm.runInContext(fs.readFileSync(path.join(__dirname,'../management/frontend/provider-prices.js'),'utf8'),c);
+    c.updateVolcengineVideoPrice=(...args)=>c.window.ManagementProviderPrices.update(p,...args);
     c.updateVolcengineVideoPrice(0,'720p',false,'46');c.updateVolcengineVideoPrice(0,'720p',true,'28');
     c.updateVolcengineVideoPrice(0,'1080p',false,'0');assert.equal(p.model_prices.length,3);
     c.updateVolcengineVideoPrice(0,'720p',false,'');assert.equal(p.model_prices.length,2);

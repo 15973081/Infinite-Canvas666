@@ -214,6 +214,35 @@
     if (data.next) toolbar.append(button('更早记录', () => { auditBefore = data.next; return render(); }));
     return [toolbar, data.events.length ? table(['时间', '操作人', '操作', '目标', '详情'], data.events.map(e => [new Date(e.created_at).toLocaleString(), e.actor_name || '系统初始化', e.action, labelText(e.target_id || '—', e.workspace_id), el('div', JSON.stringify(e.details), 'details')])) : el('div', '当前范围暂无审计记录。', 'empty')];
   }
+  function editVideoPrices(row) {
+    const inputs=[], sections=[];
+    (row.config.video_models||[]).forEach((model,index)=>{
+      const cells=['480p','720p','1080p'].map(resolution=>{
+        const values=[false,true].map(hasVideo=>{
+          const current=(row.config.model_prices||[]).find(p=>p.kind==='video' && p.model===model
+            && p.billing_type==='per_million_tokens' && p.resolution===resolution && p.has_video_input===hasVideo
+            && (p.service_tier||'default')==='default' && !Number(p.effective_to));
+          const input=el('input');input.type='number';input.min='0';input.step='0.000001';input.name='price_'+inputs.length;
+          input.value=current?.unit_price??'';input.placeholder='默认价格';
+          input.setAttribute('aria-label',model+' '+resolution+' '+(hasVideo?'有':'无')+'视频输入单价');
+          inputs.push({name:input.name,index,resolution,hasVideo,original:String(input.value)});
+          return input;
+        });
+        return [resolution,...values];
+      });
+      sections.push(el('h3',model),table(['分辨率','无视频输入 · 元/百万 tokens','有视频输入 · 元/百万 tokens'],cells));
+    });
+    const reason=field('reason','修改价格原因');reason.querySelector('input').maxLength=1000;
+    dialog('视频规格价格 · '+row.config.name,[el('p','留空使用系统默认价格，0 表示免费；没有默认价格时仍待核算。保存只调整当前价格，历史任务费用与价格生效记录由服务端保留。'),...sections,reason],form=>{
+      const config=JSON.parse(JSON.stringify(row.config));
+      // Apply changes to one shared working copy, never mutate the displayed row.
+      const next={...config,id:row.id};
+      for(const input of inputs){const value=String(form.get(input.name)??'').trim();
+        if(value!==input.original)window.ManagementProviderPrices.update(next,input.index,input.resolution,input.hasVideo,value);}
+      delete next.id;
+      return call('/api/providers/'+encodeURIComponent(row.id),'PUT',{expected_version:row.version,config:next,reason:form.get('reason')});
+    },'保存规格价格',true);
+  }
   function editProvider(row) {
     const config = row?.config || {}, controls = [];
     const id = field('id', '供应商 ID（创建后固定）', row?.id || '');
@@ -410,7 +439,7 @@
     const rows = data.providers.map(row => [labelText(row.config.name, row.id), row.config.protocol, row.config.enabled ? '启用' : '停用',
       row.configured_secrets.length ? '已配置 ' + row.configured_secrets.length + ' 项凭证' : '尚未配置凭证',
       scope ? assigned.provider_ids.includes(row.id) ? assigned.primary_provider_id === row.id ? '已分配 · 默认' : '已分配' : '未分配' : '请选择空间查看分配',
-      actions(button('编辑 · ' + row.config.name, () => editProvider(row)), button('检测与模型 · ' + row.config.name, () => probeProvider(row)), button('协议与任务端点 · ' + row.config.name, () => diagnoseProvider(row)))]);
+      actions(button('编辑 · ' + row.config.name, () => editProvider(row)), ...((row.id==='volcengine'||row.config.protocol==='volcengine') && row.config.video_models?.length ? [button('视频规格价格 · '+row.config.name,()=>editVideoPrices(row))]:[]), button('检测与模型 · ' + row.config.name, () => probeProvider(row)), button('协议与任务端点 · ' + row.config.name, () => diagnoseProvider(row)))]);
     return [el('p', '供应商配置由平台管理员维护，成员仅能使用分配到所在空间的服务。'), toolbar,
       rows.length ? table(['供应商', '协议', '状态', '凭证', '空间分配', '操作'], rows) : el('p', '尚未配置供应商。新增并分配后，成员才能选择模型。')];
   }

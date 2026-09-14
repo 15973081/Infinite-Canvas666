@@ -9,6 +9,7 @@ import threading
 import time
 import urllib.parse
 
+from fastapi import HTTPException
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
@@ -198,6 +199,8 @@ class VersionedStaticFiles(StaticFiles):
     """Serve every app-owned static dependency through one build fingerprint."""
 
     async def get_response(self, path, scope):
+        if str(path).replace('\\','/').rsplit('/',1)[-1].lower() in {'api-settings.html','api-settings.js','api-settings.css'}:
+            raise HTTPException(404)
         response = await super().get_response(path, scope)
         if response.status_code != 200:
             return response
