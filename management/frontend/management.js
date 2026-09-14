@@ -196,13 +196,18 @@
       }), '确认更改');
     }, 'primary'));
     const metrics = el('div', undefined, 'metrics');
-    for (const [title, number] of [['执行中任务', activity.active_tasks], ['等待提交', activity.queued_tasks], ['待核对任务', activity.needs_review], ['未完成上传', activity.uploads.pending], ['有效画布占用', activity.canvas_locks ?? '未知'], ['未保存页面', activity.unsaved_pages ?? '未知']]) {
+    for (const [title, number] of [['执行中任务', activity.active_tasks], ['等待提交', activity.queued_tasks], ['待核对任务', activity.needs_review], ['未完成上传', activity.uploads.pending], ['有效画布占用', activity.canvas_locks ?? '未知'], ['在线页未保存', activity.unsaved_pages ?? '未知']]) {
       const card = el('div', undefined, 'card'); card.append(el('div', title, 'muted'), el('p', number, 'metric')); metrics.append(card);
     }
     const services = el('section', undefined, 'card'); services.append(el('h2', '服务与发布检查'));
     for (const [kind, name] of [['workbench', '工作台服务'], ['worker', '任务消费者']]) { const row = activity.services.find(s => s.kind === kind); services.append(el('p', name + '：' + (row?.online ? '有在线心跳' : '当前无有效在线心跳'))); }
-    services.append(el('p', '画布占用按当前范围的有效编辑租约统计，不代表未保存草稿数量。未保存页面报告尚未接入；即使占用为零，也不能据此确认可以停止数据库或发布服务。已有付费任务仍可能写入结果与费用。', 'muted'));
-    return [summary, toolbar, metrics, services];
+    services.append(el('p', '画布占用不代表草稿已保存。页面报告只覆盖已上报的页面，失联页面与旧客户端仍需核对；即使计数为零，也不能据此确认可以停止数据库或发布服务。已有付费任务仍可能写入结果与费用。', 'muted'));
+    const pages=el('section',undefined,'card'), reports=activity.page_reports;
+    pages.append(el('h2','页面保存报告'));
+    if(reports) pages.append(el('p',`在线上报 ${reports.online_pages} 页；失联 ${reports.stale_pages} 页，其中最后报告未保存 ${reports.stale_unsaved_pages} 页；关闭时未保存 ${reports.closed_unsaved_pages} 页。`),
+      el('p',`超过 ${reports.stale_after_seconds} 秒未收到报告或成员授权已失效的页面列为失联。报告不包含草稿正文，后台不能代替成员保存。`,'muted'));
+    else pages.append(el('p','页面报告暂不可用，不能据此确认已保存。'));
+    return [summary, toolbar, metrics, pages, services];
   }
   $('#cancel-dialog').onclick = () => $('#dialog').close();
   $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; pageAfter = auditBefore = ''; return render(); });

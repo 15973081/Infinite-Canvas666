@@ -87,6 +87,8 @@ def public_effective(state):
 
 def counts(conn, workspace=None):
     from app.services.canvas_leases import active_count
+    from app.services.canvas_page_reports import counts as page_counts
+    pages = page_counts(conn, workspace)
     tasks = {r['status']: r['count'] for r in conn.execute('SELECT status,count(*) AS count FROM tasks WHERE (%s::text IS NULL OR workspace_id=%s) GROUP BY status', (workspace, workspace))}
     uploads = conn.execute("""SELECT count(*) FILTER (WHERE status IN ('initiating','uploading','verifying') AND expires_at>clock_timestamp()) AS pending,
         count(*) FILTER (WHERE lease_until>clock_timestamp()) AS processing FROM media_uploads
@@ -96,8 +98,10 @@ def counts(conn, workspace=None):
     active = sum(tasks.get(s, 0) for s in ('running', 'submitting', 'polling', 'finalizing'))
     return {'task_counts': tasks, 'active_tasks': active, 'queued_tasks': tasks.get('queued', 0),
             'needs_review': tasks.get('needs_review', 0), 'uploads': uploads,
-            'services': services, 'canvas_locks': active_count(conn, workspace), 'unsaved_pages': None,
-            'database_stop_ready': False, 'pending_checks': ['unsaved_page_reporting', 'operator_backup_and_recovery_check']}
+            'services': services, 'canvas_locks': active_count(conn, workspace), 'unsaved_pages': pages['unsaved_pages'],
+            'page_reports': pages, 'database_stop_ready': False,
+            'pending_checks': ['unreported_pages', 'operator_backup_and_recovery_check'] +
+                (['stale_or_closed_unsaved_pages'] if pages['stale_pages'] or pages['closed_unsaved_pages'] else [])}
 
 
 def snapshot(actor, workspace=None):

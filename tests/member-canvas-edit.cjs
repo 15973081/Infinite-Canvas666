@@ -43,14 +43,53 @@ function fixture() {
 }
 test('opening a member canvas only observes; saves require explicit start',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
-    assert.equal(f.calls.length,1);assert.equal(f.calls[0][0],'/api/canvases/a/edit-lease/transfers');
+    assert.deepEqual(f.calls.map(([path])=>path).sort(),['/api/canvases/a/edit-lease/transfers','/api/canvases/a/page-state']);
     await assert.rejects(f.context.CanvasApi.saveCanvas('a',{nodes:[]}));
-    assert.equal(f.calls.length,1);
+    assert.equal(f.calls.length,2);
     await f.api.active.lease.start(async()=>({revision:3}));
     const response=await f.context.CanvasApi.saveCanvas('a',{nodes:[],base_revision:99});
     assert.equal(response.ok,true);
     const init=f.calls.at(-1)[1];assert.equal(new Headers(init.headers).get('X-Canvas-Edit-Token'),'secret-lease-proof');
     assert.equal(JSON.parse(init.body).base_revision,3);assert.equal(f.api.active.lease.revision,4);
+});
+
+test('page reports capture scope and monotonic dirty/closed state without document or credentials',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    const entry=f.api.active;
+    const reports=()=>f.calls.filter(([path])=>path.endsWith('/page-state'));
+    const initial=JSON.parse(reports()[0][1].body);
+    assert.deepEqual(Object.keys(initial).sort(),['closed','dirty','page_id','sequence']);
+    assert.equal(initial.dirty,false);assert.equal(initial.sequence,1);
+    entry.options.dirty=()=>true;
+    await f.timers.get(entry.reportTimer)();
+    const changed=JSON.parse(reports().at(-1)[1].body);
+    assert.equal(changed.dirty,true);assert.equal(changed.sequence,2);assert.equal(changed.page_id,initial.page_id);
+    f.listeners.get('pagehide')({persisted:false});await new Promise(setImmediate);
+    const [path,init]=reports().at(-1),closed=JSON.parse(init.body);
+    assert.equal(closed.closed,true);assert.equal(closed.dirty,true);assert.equal(closed.sequence,3);assert.equal(init.keepalive,true);
+    assert.equal(init.headers['X-Member-ID'],'member');assert.equal(init.headers['X-Workspace-ID'],'space');
+    assert.equal(entry.reportClosed,true);assert.equal(entry.lease.state,'closed');
+});
+
+test('page reporting stops on account changes and failure does not revoke editing',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active;
+    await entry.lease.start(async()=>({revision:3}));
+    const native=f.context.fetch;f.context.fetch=async(path,init)=>{if(path.endsWith('/page-state'))throw new Error('network');return native(path,init);};
+    await f.timers.get(entry.reportTimer)();assert.match(entry.reportMessage,/暂未上报/);assert.equal(entry.lease.canSave,true);
+    const before=f.calls.length;f.context.CanvasSession.context.member.id='another';
+    await f.timers.get(entry.reportTimer)();assert.equal(f.calls.length,before);
+});
+
+test('back-forward suspension keeps one report identity and requires a new editing claim',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active;
+    await entry.lease.start(async()=>({revision:3}));entry.options.dirty=()=>true;
+    const pageId=entry.reportId;
+    f.listeners.get('pagehide')({persisted:true});await new Promise(setImmediate);
+    assert.equal(entry.reportClosed,undefined);assert.equal(entry.reportSuspended,true);assert.equal(entry.lease.canSave,false);
+    f.listeners.get('pageshow')({persisted:true});await new Promise(setImmediate);
+    const reports=f.calls.filter(([path])=>path.endsWith('/page-state')).map(([,init])=>JSON.parse(init.body));
+    assert.equal(reports.length,3);assert.ok(reports.every(row=>row.page_id===pageId&&!row.closed));
+    assert.equal(reports.at(-1).sequence,3);assert.equal(reports.at(-1).dirty,true);assert.equal(entry.lease.canSave,false);
 });
 
 test('reload snapshots dirty content, flushes and confirms release before allowing navigation',async()=>{

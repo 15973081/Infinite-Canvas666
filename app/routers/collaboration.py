@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from typing import Any, Literal
 from uuid import UUID
 
@@ -33,6 +33,14 @@ class DraftCopy(BaseModel):
     document: DraftDocument
 
 
+class PageReport(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    page_id: UUID
+    sequence: int = Field(strict=True, ge=1, le=9007199254740991)
+    dirty: StrictBool
+    closed: StrictBool = False
+
+
 def identity(request):
     # This protocol is available only through the member gateway.
     from app.storage.settings import member_auth_enabled
@@ -52,6 +60,12 @@ def copy_draft(payload: DraftCopy, request: Request):
 def state(canvas_id: str, request: Request):
     from app.services.canvas_leases import status
     return status(identity(request), canvas_id)
+
+
+@router.post('/api/canvases/{canvas_id}/page-state')
+def report_page(canvas_id: str, payload: PageReport, request: Request):
+    from app.services.canvas_page_reports import report
+    return report(identity(request), canvas_id, **payload.model_dump())
 
 
 @router.post('/api/canvases/{canvas_id}/edit-lease/acquire')

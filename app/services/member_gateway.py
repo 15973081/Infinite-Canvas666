@@ -80,6 +80,8 @@ def permissions(path, method):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method in {'POST', 'PATCH', 'DELETE'} else None
     if re.fullmatch(r'/api/canvases/[^/]+/lock(?:/release)?', path):
         az.fail('collaboration_protocol_pending', 503)  # Replaced by C2 lease routes.
+    if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):
+        return ('canvas.read',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/ledger(?:/.*)?', path):
@@ -129,6 +131,8 @@ def permissions(path, method):
 
 
 def operation(path, method):
+    if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):
+        return 'observe', None
     if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
         return 'observe', None  # Lease handlers enforce maintenance inside their transaction.
     if path in {'/api/maintenance/status', '/ws/stats'}:

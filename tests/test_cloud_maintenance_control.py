@@ -51,8 +51,9 @@ def test_maintenance_lease_counts_scope_expiry_release_and_read_only(world):
     assert control.snapshot(op)['activity']['canvas_locks'] == baseline + 3
     state = control.snapshot(op, a['id'])['activity']
     assert state['canvas_locks'] == 2
-    assert state['unsaved_pages'] is None and state['database_stop_ready'] is False
-    assert 'unsaved_page_reporting' in state['pending_checks']
+    assert state['unsaved_pages'] == 0 and state['database_stop_ready'] is False
+    assert state['page_reports']['coverage'] == 'reported_pages_only'
+    assert 'unreported_pages' in state['pending_checks']
     assert 'canvas_lease_accounting' not in state['pending_checks']
     assert control.snapshot(op, b['id'])['activity']['canvas_locks'] == 1
     with connection() as conn:

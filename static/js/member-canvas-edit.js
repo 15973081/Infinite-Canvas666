@@ -44,6 +44,31 @@
             entry.draftMessage='本地草稿暂存失败，请立即导出'; if(entry===active) render();
         });
     }
+    async function reportPage(entry=active, closed=false) {
+        if(!entry || entry.reportClosed) return false;
+        const context=window.CanvasSession.context;
+        if(window.CanvasSession.paused || context?.member.id!==entry.memberId || context?.workspace.id!==entry.workspaceId) return false;
+        if(closed) {entry.reportClosed=true;clearTimeout(entry.reportTimer);}
+        const sequence=++entry.reportSequence;
+        try {
+            const response=await fetch(`/api/canvases/${encodeURIComponent(entry.id)}/page-state`, {
+                method:'POST',credentials:'same-origin',keepalive:closed,signal:AbortSignal.timeout(5000),
+                headers:{'Content-Type':'application/json','X-Workspace-ID':entry.workspaceId,'X-Member-ID':entry.memberId},
+                body:JSON.stringify({page_id:entry.reportId,sequence,dirty:Boolean(entry.options.dirty()),closed})
+            });
+            if(!response.ok) throw new Error('维护页面状态暂未上报，后台可能显示本页失联。');
+            if(sequence===entry.reportSequence) entry.reportMessage='';
+            return true;
+        } catch(error) {
+            if(sequence===entry.reportSequence) entry.reportMessage='维护页面状态暂未上报，后台可能显示本页失联。';
+            return false;
+        } finally {if(entry===active && !closed) render();}
+    }
+    async function reportTick(entry) {
+        if(entry!==active || entry.reportClosed || entry.reportSuspended) return;
+        await reportPage(entry);
+        if(entry===active && !entry.reportClosed && !entry.reportSuspended) entry.reportTimer=setTimeout(() => reportTick(entry),10000);
+    }
     function download(record) {
         const href=URL.createObjectURL(new Blob([JSON.stringify(record,null,2)],{type:'application/json'}));
         const link=element('a'); link.href=href; link.download=`canvas-draft-${record.canvas_id}-${Date.now()}.json`; link.click();
@@ -247,7 +272,7 @@
         active.force.disabled=cannotStart;
         end.hidden=!lease.canSave; end.disabled=lease.finishing;
         save.hidden=!lease.canSave; save.disabled=lease.finishing;
-        notice.textContent=[...new Set([lease.message,active.feedback,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
+        notice.textContent=[...new Set([lease.message,active.feedback,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
         renderRequests(active);
         bar.hidden=false;
     }
@@ -314,7 +339,8 @@
             const ask=button('申请接手',askTransfer), force=button('管理员强制接管',forceTakeover), requestList=element('div');
             requestList.className='member-canvas-transfer-list';requestList.setAttribute('aria-label','待处理接手申请');
             const context=window.CanvasSession.context;
-            active={id:options.id,memberId:context.member.id,workspaceId:context.workspace.id,options,bar,label,notice,begin,save,end,ask,force,requestList,requestNodes:new Map()};
+            active={id:options.id,memberId:context.member.id,workspaceId:context.workspace.id,reportId:crypto.randomUUID(),reportSequence:0,
+                options,bar,label,notice,begin,save,end,ask,force,requestList,requestNodes:new Map()};
             const entry=active;
             entry.lease=new window.CanvasEditLease({id:options.id,changed:lease => {
                 if(entry!==active) return;
@@ -324,10 +350,10 @@
             const maintenance=window.CanvasSession.maintenance || window.parent?.CanvasSession?.maintenance;
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
             bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),notice,requestList);
-            document.body.append(bar); render(); tick(entry);
+            document.body.append(bar); render(); tick(entry); reportTick(entry);
             return entry;
         },
-        markDirty() { clearTimeout(draftTimer); const entry=active; draftTimer=setTimeout(() => persist(entry),150); },
+        markDirty() { clearTimeout(draftTimer); const entry=active; draftTimer=setTimeout(() => {persist(entry);reportPage(entry);},150); },
         prepareReload() {
             const entry=active;
             if(!entry) return Promise.resolve(true);
@@ -338,8 +364,9 @@
                     // save never authorizes navigation or removes the draft.
                     await persist(entry);
                     if(entry!==active) return false;
-                    if(entry.lease.canSave) return await entry.lease.finish(entry.options.flush);
-                    return !entry.options.dirty();
+                    const saved=entry.lease.canSave ? await entry.lease.finish(entry.options.flush) : !entry.options.dirty();
+                    await reportPage(entry);
+                    return saved;
                 } catch(error) {
                     entry.feedback=error.message; render(); return false;
                 }
@@ -355,7 +382,8 @@
                 if(!await confirmAction('保留草稿并离开','当前内容尚未保存到服务器。继续会先导出本页草稿，再离开画布；本地暂存也会保留。','导出并离开')) return false;
                 assertDraftScope(entry);download(draftRecord(entry));
             }
-            clearTimeout(timer); clearTimeout(draftTimer); entry.lease.dispose(); entry.bar.remove(); active=null;
+            reportPage(entry,true);
+            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.lease.dispose(); entry.bar.remove(); active=null;
             document.body.classList.remove('member-canvas-view'); return true;
         },
         send(path,init={},transport=window.fetch.bind(window)) {
@@ -385,7 +413,19 @@
     },true);
     window.addEventListener('member-session:paused',event => active?.lease.pause(event.detail?.message));
     window.addEventListener('member-session:maintenance',event => active?.lease.setMaintenance(event.detail.mode));
-    window.addEventListener('pagehide',() => { persist(); active?.lease.dispose(); clearTimeout(timer); });
+    window.addEventListener('pagehide',event => {
+        persist();
+        if(active){active.reportSuspended=true;clearTimeout(active.reportTimer);}
+        reportPage(active,!event.persisted);
+        if(event.persisted) active?.lease.pause('页面已暂停，请保留草稿并重新确认编辑资格。');
+        else active?.lease.dispose();
+        clearTimeout(timer);clearTimeout(draftTimer);
+    });
+    window.addEventListener('pageshow',event => {
+        if(!event.persisted || !active) return;
+        active.reportSuspended=false;
+        tick(active);reportTick(active);
+    });
     // A transport disconnect must not release a lease or erase local work.
     window.addEventListener('offline',() => active?.lease.pause('网络已断开，已停止编辑，请保留草稿。'));
 })();

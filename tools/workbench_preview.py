@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT))
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--two-members', action='store_true', help='Use separate localhost/127.0.0.1 cookies for two synthetic browser members')
+    parser.add_argument('--management', action='store_true', help='Start independent management on port 8770 against this same disposable schema')
     args = parser.parse_args()
     from app.storage import database
     from app.storage.settings import load_storage_env
@@ -37,6 +38,8 @@ def main():
     stop = acceptance / 'stop'
     second = None
     second_log = None
+    management = None
+    management_log = None
     os.environ.update(DATABASE_URL=target, DATABASE_SCHEMA=schema, DATABASE_BACKEND='postgres',
                       PUBLIC_BASE_URL='http://127.0.0.1:8768', AUTH_MODE='members', CLOUD_EMBEDDED_WORKER='false',
                       MEDIA_BACKEND='filesystem', OBJECT_STORE_ROOT=str(acceptance / 'objects'),
@@ -57,6 +60,12 @@ def main():
                 canvases.save({'id': 'canvas_' + space['id'], 'title': space['name'] + '的画布', 'kind': 'classic', 'nodes': [], 'connections': []})
                 canvases.save({'id': 'smart_' + space['id'], 'title': space['name'] + '的智能画布', 'kind': 'smart', 'nodes': [], 'connections': []})
         members.logout(actor)
+        if args.management:
+            from tools.build_management import build
+            management_log = (acceptance / 'management-server.log').open('w', encoding='utf-8')
+            management = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'management_main:app', '--host', '127.0.0.1', '--port', '8770', '--log-level', 'warning'],
+                cwd=ROOT, env={**os.environ, 'MANAGEMENT_BASE_URL': 'http://127.0.0.1:8770', 'MANAGEMENT_STATIC_DIR': str(build(acceptance / 'management-dist'))},
+                stdout=management_log, stderr=subprocess.STDOUT, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if args.two_members:
             # Separate host cookies and processes, sharing only this disposable
             # schema. Each process retains its own strict public-origin check.
@@ -77,6 +86,7 @@ def main():
         thread = threading.Thread(target=stop_watch, daemon=True)
         thread.start()
         print(json.dumps({'url': 'http://127.0.0.1:8768', 'second_url': 'http://localhost:8769' if args.two_members else None,
+                          'management_url': 'http://127.0.0.1:8770' if args.management else None,
                           'stop_file': str(stop), 'schema': schema, 'activation_token': None if args.two_members else invited['activation_token'],
                           'spaces': [s['id'] for s in spaces]}, ensure_ascii=False), flush=True)
         try:
@@ -85,6 +95,12 @@ def main():
             finished.set()
             thread.join(2)
     finally:
+        if management is not None:
+            if management.poll() is None:
+                management.terminate()
+            management.wait(timeout=10)
+        if management_log is not None:
+            management_log.close()
         if second is not None:
             if second.poll() is None:
                 second.terminate()
