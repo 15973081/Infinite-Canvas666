@@ -78,7 +78,8 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
                     raise HTTPException(409, "相同任务 ID 的请求内容不同")
             elif get_canvas_task_request(task_id) != _canvas_video_payload_dict(payload):
                 raise HTTPException(409, "相同任务 ID 的请求内容不同")
-            return {"task_id": task_id, "status": existing.get("status") or "queued"}
+            return {"task_id": task_id, "status": existing.get("status") or "queued",
+                    **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
@@ -101,7 +102,8 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
         CANVAS_TASKS[task_id] = stored
     if not postgres_enabled():
         asyncio.create_task(run_canvas_image_task(task_id, payload))
-    return {"task_id": task_id, "status": stored.get("status") or "queued"}
+    return {"task_id": task_id, "status": stored.get("status") or "queued",
+            **({"canvas_binding": stored["canvas_binding"]} if stored.get("canvas_binding") else {})}
 
 @router.get("/api/canvas-image-tasks/{task_id}")
 async def get_canvas_image_task(task_id: str):
@@ -138,7 +140,8 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
             if existing.get("canvas_id", "") != payload.canvas_id:
                 raise HTTPException(status_code=409, detail="任务已关联其他画布")
             CANVAS_TASKS[task_id] = existing
-            return {"task_id": task_id, "status": existing.get("status") or "queued"}
+            return {"task_id": task_id, "status": existing.get("status") or "queued",
+                    **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
@@ -161,7 +164,8 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
         CANVAS_TASKS[task_id] = stored
     if not postgres_enabled():
         asyncio.create_task(run_canvas_video_task(task_id, payload))
-    return {"task_id": task_id, "status": stored.get("status") or "queued"}
+    return {"task_id": task_id, "status": stored.get("status") or "queued",
+            **({"canvas_binding": stored["canvas_binding"]} if stored.get("canvas_binding") else {})}
 
 @router.get("/api/canvas-video-tasks/{task_id}")
 async def get_canvas_video_task(task_id: str):

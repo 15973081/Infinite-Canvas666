@@ -131,3 +131,18 @@ class FrontendVersioningTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_member_canvas_pages_load_binding_protocol_before_business_scripts():
+    with mock.patch('app.storage.settings.member_auth_enabled', return_value=True):
+        for filename, business in [('canvas.html', 'canvas.js'), ('smart-canvas.html', 'smart-canvas.js')]:
+            page = static_pages.versioned_static_html((ROOT / 'static' / filename).read_text(encoding='utf-8'))
+            scripts = re.findall(r'<script\b[^>]*src="([^"]+)"[^>]*>', page)
+            names = [url.split('?')[0] for url in scripts]
+            binding = names.index('/static/js/canvas-task-bindings.js')
+            assert names.index('/static/js/canvas-task-results.js') < binding < names.index('/static/js/' + business)
+            assert names.count('/static/js/canvas-task-bindings.js') == 1
+            assert '__frontend_build=' in scripts[binding]
+            assert 'defer' not in re.search(r'<script[^>]*canvas-task-bindings.js[^>]*>', page).group()
+        login = static_pages.versioned_static_html('<html><head></head><body><form id="login-form"></form></body></html>')
+        assert 'canvas-task-bindings.js' not in login

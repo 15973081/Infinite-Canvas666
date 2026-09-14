@@ -1,0 +1,171 @@
+{
+  "version": 2,
+  "values": [
+    {
+      "name": "scalars",
+      "value": [
+        null,
+        false,
+        true,
+        0,
+        -0.0,
+        1,
+        1.0,
+        -1,
+        1.5,
+        0.1,
+        1e-07,
+        5e-324,
+        9007199254740991
+      ],
+      "sha256": "bb3d6eeb97548e46923298d40323fb091a106b46481719ab4f6648b7ef0fa0d5"
+    },
+    {
+      "name": "unicode",
+      "value": {
+        "": "private use",
+        "𐀀": "astral",
+        "中文": "换行\n引号\"\\",
+        "emoji": "🎨"
+      },
+      "sha256": "f78a5005cc05be104a721e718cba6272196153f49e4771740807836a693cd09d"
+    },
+    {
+      "name": "type-tags",
+      "value": [
+        [
+          "number",
+          "3ff0000000000000"
+        ],
+        {
+          "number": "3ff0000000000000"
+        },
+        "1",
+        1
+      ],
+      "sha256": "68c2eca817004930b8947ca7f085e9920a7b9d5b19200bc2924a0284eafb4ee0"
+    },
+    {
+      "name": "empty",
+      "value": [
+        [],
+        {},
+        "",
+        null
+      ],
+      "sha256": "a7f24fdb53ec01721fa56f336a64bebebbec347b78cf9150b438b0ddd14a6796"
+    }
+  ],
+  "graphs": [
+    {
+      "name": "simple",
+      "document": {
+        "nodes": [
+          {
+            "id": "p",
+            "type": "prompt",
+            "text": "输入 🎨",
+            "x": 2.0
+          },
+          {
+            "id": "s",
+            "type": "generator",
+            "model": "m",
+            "seed": 1.0,
+            "strength": 0.1
+          },
+          {
+            "id": "o",
+            "type": "output",
+            "images": []
+          }
+        ],
+        "connections": [
+          {
+            "from": "p",
+            "to": "s",
+            "id": "e"
+          },
+          {
+            "from": "s",
+            "to": "o"
+          }
+        ],
+        "settings": {
+          "scale": 1.0
+        }
+      },
+      "source": "s",
+      "target": "o",
+      "sha256": "a1f53cab9e644071a3f4e7920aeaeba2acb0e9a70b1f94450ada5e23a0765772",
+      "legacy_v1_sha256": "7072e4f9256275ba3141dc5d2c0741dc338fcb666bd0d497ee28497daaaacb3f"
+    },
+    {
+      "name": "cycle-group-unicode",
+      "document": {
+        "nodes": [
+          {
+            "id": "𐀀",
+            "type": "prompt",
+            "text": "first"
+          },
+          {
+            "id": "",
+            "type": "image",
+            "url": "/api/media/a/content"
+          },
+          {
+            "id": "g",
+            "type": "promptGroup",
+            "items": [
+              "𐀀"
+            ]
+          },
+          {
+            "id": "s",
+            "type": "generator",
+            "inputs": [
+              "g",
+              ""
+            ]
+          },
+          {
+            "id": "o",
+            "type": "output",
+            "images": [
+              {
+                "url": "/old",
+                "w": 480,
+                "thumbnail_url": "/thumb"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "from": "g",
+            "to": "s",
+            "selected": true
+          },
+          {
+            "from": "",
+            "to": "s"
+          },
+          {
+            "from": "s",
+            "to": "o"
+          },
+          {
+            "from": "o",
+            "to": "s",
+            "port": 2
+          }
+        ]
+      },
+      "source": "s",
+      "target": "o",
+      "sha256": "219570bca274446c86d750939bac485ddd9df41bc1c8c6652e2c46a0fa927bd8",
+      "legacy_v1_sha256": "e1c6a2d503f3021b850c83332c146a95c6124de7bd7cbdee3708a9e55ecb7cf4"
+    }
+  ]
+}

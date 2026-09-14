@@ -90,6 +90,8 @@ def normalize(value, strict=False):
     result = walk(value)
     if isinstance(result, dict) and result.get("canvas_target") is None:
         result.pop("canvas_target", None)
+    if isinstance(result, dict) and isinstance(result.get("canvas_target"), dict) and result["canvas_target"].get("input_sha256") is None:
+        result["canvas_target"].pop("input_sha256", None)
     if isinstance(result, dict) and "provider_id" in result:
         # Resolve the legacy default/fallback once and persist the concrete id.
         from app.providers.registry import load_api_providers, get_primary_provider_id, managed_providers_enabled

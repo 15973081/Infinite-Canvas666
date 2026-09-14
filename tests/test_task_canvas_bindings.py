@@ -70,7 +70,7 @@ def test_capture_revision_nodes_kind_and_stored_copy_are_authoritative():
     assert state(row, binding)['state'] == 'missing'
     assert state(None, binding)['state'] == 'missing'
     assert state(row, None)['state'] == 'unbound'
-    assert state(row, {'version': 2})['state'] == 'unsupported'
+    assert state(row, {'version': 99})['state'] == 'unsupported'
     request = {'_canvas_binding': binding}
     stored(request)['graph_sha256'] = 'forged'
     assert stored(request) == binding
@@ -97,3 +97,67 @@ def test_legacy_non_object_request_fingerprints_remain_distinct():
     from app.storage.tasks import fingerprint
     values = [None, [], {}, 'legacy request']
     assert len({fingerprint(value) for value in values}) == len(values)
+
+
+def test_v1_persisted_bindings_remain_readable_after_v2_upgrade():
+    row = {'id': 'c', 'kind': 'classic', 'revision': 2, 'document': document()}
+    binding = {'version': 1, 'canvas_id': 'c', 'canvas_kind': 'classic', 'source_node_id': 'src',
+               'target_node_id': 'out', 'submitted_revision': 1,
+               'graph_sha256': graph_fingerprint(row['document'], 'src', 'out', version=1)}
+    assert binding['graph_sha256'] != graph_fingerprint(row['document'], 'src', 'out')
+    assert state(row, binding)['state'] == 'unchanged'
+    row['document']['nodes'][0]['text'] = 'changed after upgrade'
+    assert state(row, binding)['state'] == 'changed'
+
+
+def test_client_input_digest_is_an_expectation_not_authority():
+    row = {'id': 'c', 'kind': 'smart', 'revision': 2, 'document': document()}
+    target = {'source_node_id': 'src', 'target_node_id': 'out', 'base_revision': 2,
+              'input_sha256': graph_fingerprint(row['document'], 'src', 'out')}
+    assert capture(row, target, 'a' * 64)['version'] == 2
+    row['document']['nodes'][0]['text'] = 'server has different input at same revision'
+    with pytest.raises(HTTPException, match='task_binding_input_conflict'):
+        capture(row, target, 'a' * 64)
+    for invalid in ('forged', 'A' * 64, 1, False):
+        with pytest.raises(HTTPException): capture(row, {**target, 'input_sha256': invalid}, 'a' * 64)
+
+
+@pytest.mark.parametrize('model', [OnlineImageRequest, CanvasVideoRequest])
+def test_client_input_digest_validation_and_optional_idempotency(model):
+    from app.storage.tasks import fingerprint
+    target = {'source_node_id': 'src', 'target_node_id': 'out', 'base_revision': 1}
+    original = model(prompt='p', canvas_target=target).model_dump()
+    absent = copy.deepcopy(original)
+    absent['canvas_target'].pop('input_sha256')
+    assert fingerprint(original) == fingerprint(absent)
+    for digest in ('a' * 63, 'a' * 65, 'A' * 64, 'a' * 64 + '\n', 1):
+        with pytest.raises(ValidationError): model(prompt='p', canvas_target={**target, 'input_sha256': digest})
+    bound = model(prompt='p', canvas_target={**target, 'input_sha256': 'a' * 64}).model_dump()
+    assert fingerprint(original) != fingerprint(bound)
+
+
+def test_portable_number_types_unicode_and_shared_golden_vectors():
+    import json
+    from pathlib import Path
+    from app.storage.task_canvas_bindings import portable_digest, portable_value
+    cases = json.loads((Path(__file__).parent / 'fixtures/task-input-bindings-v2.json').read_text(encoding='utf-8'))
+    for case in cases['values']:
+        assert portable_digest(case['value']) == case['sha256'], case['name']
+    for case in cases['graphs']:
+        assert graph_fingerprint(case['document'], case['source'], case['target']) == case['sha256'], case['name']
+        assert graph_fingerprint(case['document'], case['source'], case['target'], version=1) == case['legacy_v1_sha256'], case['name']
+        row = {'id': 'old', 'kind': 'classic', 'revision': 7, 'document': case['document']}
+        binding = {'version': 1, 'canvas_id': 'old', 'canvas_kind': 'classic', 'source_node_id': case['source'],
+                   'target_node_id': case['target'], 'submitted_revision': 2, 'graph_sha256': case['legacy_v1_sha256']}
+        assert state(row, binding)['state'] == 'unchanged'
+    assert portable_value(1.0) == portable_value(1) == ['number', '3ff0000000000000']
+    assert portable_value(-0.0) == portable_value(0)
+    assert portable_digest({'\U00010000': 1, '\ue000': 2}) == portable_digest({'\ue000': 2, '\U00010000': 1})
+    assert len({portable_digest(value) for value in (None, False, 0, '0', [], {})}) == 6
+
+
+@pytest.mark.parametrize('value', [float('nan'), float('inf'), -float('inf'), 9007199254740992,
+                                   -9007199254740992, '\ud800', {'\udfff': 'bad'}, {1: 'not a JSON key'}])
+def test_portable_fingerprint_rejects_lossy_or_invalid_values(value):
+    from app.storage.task_canvas_bindings import portable_digest
+    with pytest.raises(HTTPException): portable_digest(value)

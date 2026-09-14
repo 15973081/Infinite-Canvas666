@@ -55,6 +55,7 @@ class CanvasTaskTarget(BaseModel):
     source_node_id: str = Field(min_length=1, max_length=160)
     target_node_id: str = Field(min_length=1, max_length=160)
     base_revision: int = Field(ge=1, strict=True)
+    input_sha256: Optional[str] = Field(default=None, pattern=r"^[0-9a-f]{64}$", strict=True)
 
 
 class OnlineImageRequest(BaseModel):

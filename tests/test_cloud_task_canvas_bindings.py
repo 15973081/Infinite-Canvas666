@@ -71,6 +71,7 @@ def test_bound_request_persists_input_and_target_under_current_lease(world, tmp_
     with workspace_scope(world['a']['id']), database.connection() as conn:
         row = conn.execute('SELECT * FROM tasks WHERE id=%s', (tid,)).fetchone()
         binding = row['request']['_canvas_binding']
+        assert created.json()['canvas_binding'] == binding and binding['version'] == 2
         assert binding['source_node_id'] == 'source' and binding['target_node_id'] == 'target'
         assert binding['graph_sha256'] == graph_fingerprint(canvas, 'source', 'target')
         from app.models import OnlineImageRequest, CanvasVideoRequest
@@ -121,6 +122,7 @@ def test_idempotent_retry_keeps_original_binding_after_input_edit_and_rejects_ne
     revision = response.json()['canvas']['revision']
     repeated = submit(world, body, lease, revision=revision)
     assert repeated.status_code == 200, repeated.text
+    assert repeated.json()['canvas_binding'] == before['request']['_canvas_binding']
     changed = copy.deepcopy(body)
     changed['canvas_target']['target_node_id'] = 'source'
     assert submit(world, changed, lease, revision=revision).status_code == 409
@@ -176,3 +178,24 @@ def test_capture_failure_rolls_back_task_creation(world, monkeypatch):
     with pytest.raises(RuntimeError, match='injected binding failure'): submit(world, body, lease)
     with connection() as conn:
         assert not conn.execute('SELECT 1 FROM tasks WHERE id=%s', (body['client_task_id'],)).fetchone()
+
+
+@pytest.mark.parametrize('canvas_kind', ['classic', 'smart'])
+@pytest.mark.parametrize('media_kind', ['image', 'video'])
+def test_browser_digest_mismatch_rolls_back_before_task_or_paid_submission(world, canvas_kind, media_kind):
+    from app.storage.database import connection
+    from app.storage.task_canvas_bindings import graph_fingerprint
+    path, canvas, lease = setup_bound_canvas(world, canvas_kind)
+    body = payload(canvas, media_kind)
+    body['canvas_target']['input_sha256'] = '0' * 64
+    rejected = submit(world, body, lease, media_kind)
+    assert rejected.status_code == 409, rejected.text
+    assert rejected.json()['detail']['code'] == 'task_binding_input_conflict'
+    with connection() as conn:
+        assert not conn.execute('SELECT 1 FROM tasks WHERE id=%s', (body['client_task_id'],)).fetchone()
+        assert not conn.execute('SELECT 1 FROM task_submissions WHERE task_id=%s', (body['client_task_id'],)).fetchone()
+    body['canvas_target']['input_sha256'] = graph_fingerprint(canvas, 'source', 'target')
+    accepted = submit(world, body, lease, media_kind)
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()['canvas_binding']['graph_sha256'] == body['canvas_target']['input_sha256']
+    assert submit(world, body, lease, media_kind).json() == accepted.json()
