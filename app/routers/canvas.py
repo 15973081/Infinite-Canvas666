@@ -976,20 +976,24 @@ async def update_canvas_folder(folder_id: str, payload: CanvasFolderUpdateReques
 
 @router.delete("/api/canvas-folders/{folder_id}")
 async def delete_canvas_folder(folder_id: str):
-    target_id = normalize_canvas_folder_id(folder_id)
-    data = canvas_folders_load()
-    folders = data.get("folders", [])
-    folder = next((entry for entry in folders if entry.get("id") == target_id), None)
-    if not folder:
-        raise HTTPException(status_code=404, detail="文件夹不存在")
-    parent_id = normalize_canvas_folder_id(folder.get("parent_id"))
-    for entry in folders:
-        if normalize_canvas_folder_id(entry.get("parent_id")) == target_id:
-            entry["parent_id"] = parent_id
-    data["folders"] = [entry for entry in folders if entry.get("id") != target_id]
-    canvas_folders_save(data)
-    reassign_canvas_folder(target_id, parent_id)
-    return {"ok": True, "folders": canvas_folder_records()}
+    from contextlib import nullcontext
+    from app.storage.database import connection
+    with connection() if postgres_enabled() else nullcontext():
+        target_id = normalize_canvas_folder_id(folder_id)
+        data = canvas_folders_load()
+        folders = data.get("folders", [])
+        folder = next((entry for entry in folders if entry.get("id") == target_id), None)
+        if not folder:
+            raise HTTPException(status_code=404, detail="文件夹不存在")
+        parent_id = normalize_canvas_folder_id(folder.get("parent_id"))
+        for entry in folders:
+            if normalize_canvas_folder_id(entry.get("parent_id")) == target_id:
+                entry["parent_id"] = parent_id
+        data["folders"] = [entry for entry in folders if entry.get("id") != target_id]
+        canvas_folders_save(data)
+        reassign_canvas_folder(target_id, parent_id)
+        return {"ok": True, "folders": canvas_folder_records()}
+
 
 @router.post("/api/canvases")
 async def create_canvas(payload: CanvasCreateRequest):
@@ -1299,6 +1303,9 @@ async def trim_smart_canvas_video(payload: SmartCanvasVideoTrimRequest):
 
 @router.put("/api/canvases/{canvas_id}")
 async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
+    from app.storage.settings import member_auth_enabled
+    if member_auth_enabled() and payload.base_revision is None:
+        raise HTTPException(428, {'code': 'canvas_protocol_required'})
     canvas = load_canvas(canvas_id)
     fields_set = getattr(payload, "model_fields_set", getattr(payload, "__fields_set__", set()))
     current_updated_at = int(canvas.get("updated_at") or 0)
@@ -1536,4 +1543,3 @@ async def release_canvas_lock_beacon(canvas_id: str, payload: CanvasLockRequest)
 
 from app.routers.image import run_canvas_image_task
 from app.services.canvas import _backup_dir, _backup_path
-

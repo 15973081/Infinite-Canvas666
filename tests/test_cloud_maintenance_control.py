@@ -118,7 +118,11 @@ def test_upload_grace_and_preissued_signed_put_cannot_publish_after_deadline(wor
 
 
 def task(world, n=1, canvas_id=''):
-    response = world['editor'].post('/api/canvas-image-tasks', headers=headers(world['a']), json={'prompt': 'maintenance test', 'provider_id': 'comfly', 'model': 'test', 'n': n, 'canvas_id': canvas_id})
+    request_headers = headers(world['a'])
+    if canvas_id:
+        from test_cloud_canvas_leases import acquire, proof
+        request_headers = proof(world, acquire(world, '/api/canvases/' + canvas_id))
+    response = world['editor'].post('/api/canvas-image-tasks', headers=request_headers, json={'prompt': 'maintenance test', 'provider_id': 'comfly', 'model': 'test', 'n': n, 'canvas_id': canvas_id})
     assert response.status_code == 200, response.text
     return response.json()['task_id']
 

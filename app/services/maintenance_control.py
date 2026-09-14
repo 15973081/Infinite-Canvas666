@@ -61,6 +61,10 @@ def ensure(conn, workspace, operation, resource_id=None):
             continue
         if operation == 'read' and mode in {'draining', 'read_only'}:
             continue
+        if operation == 'canvas.finish' and mode == 'draining' and row['server_time'] <= row['drain_deadline']:
+            lease = conn.execute('SELECT acquired_at FROM canvas_edit_leases WHERE workspace_id=%s AND canvas_id=%s', (workspace, resource_id)).fetchone()
+            if lease and lease['acquired_at'] and lease['acquired_at'] <= row['drain_started_at']:
+                continue  # The caller also validates the bound credential and generation.
         if operation == 'upload.finish' and mode == 'draining' and row['server_time'] <= row['drain_deadline']:
             upload = conn.execute('SELECT created_at,status FROM media_uploads WHERE workspace_id=%s AND asset_id=%s', (workspace, resource_id)).fetchone()
             if upload and upload['created_at'] <= row['drain_started_at'] and upload['status'] in {'uploading', 'verifying', 'ready'}:
@@ -134,6 +138,9 @@ def change(actor, workspace, mode, expected_version, *, message='', reason='', p
              now if mode == 'normal' and previous['mode'] != 'normal' else previous['restored_at']))
         az.audit(conn, actor, 'maintenance.change', key(workspace), workspace,
                  {'before': previous['mode'], 'after': mode, 'version': previous['version'] + 1, 'reason': reason.strip()})
+        if mode in {'read_only', 'offline', 'recovering'}:
+            from app.services.canvas_leases import revoke_for_maintenance
+            revoke_for_maintenance(conn, actor, workspace, mode)
         return {'control': current(conn, workspace), 'effective': public_effective(effective(conn, workspace)), 'activity': counts(conn, workspace)}
 
 

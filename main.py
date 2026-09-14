@@ -125,6 +125,8 @@ app.include_router(auth_router)
 app.include_router(angle.router)
 app.include_router(assets.router)
 app.include_router(canvas.router)
+from app.routers.collaboration import router as collaboration_router
+app.include_router(collaboration_router)
 app.include_router(canvas_ledger.router)
 app.include_router(chat.router)
 app.include_router(comfyui.router)

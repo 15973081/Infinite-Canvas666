@@ -36,8 +36,10 @@ def get_ledger(canvas_id: str, page: int = Query(default=1, ge=1), page_size: in
     canvas = _existing(canvas_id)
     if to_ms and to_ms <= from_ms:
         raise HTTPException(status_code=400, detail="开始日期不能晚于结束日期")
-    ledger.import_canvas_logs(canvas_id, canvas.get("logs") or [])
-    ledger.sync_canvas_tasks(canvas_id)
+    from app.storage.settings import member_auth_enabled
+    if not member_auth_enabled():
+        ledger.import_canvas_logs(canvas_id, canvas.get("logs") or [])
+        ledger.sync_canvas_tasks(canvas_id)
     try:
         return ledger.read_page(canvas_id, page, page_size, from_ms, to_ms, expected_revision)
     except ValueError as exc:

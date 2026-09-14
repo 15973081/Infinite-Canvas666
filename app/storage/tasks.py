@@ -87,6 +87,10 @@ def save(task, request_payload=None, *, historical=False):
     access = current_access.get()
     requester = access.principal.member_id if access else None
     with connection() as conn:
+        canvas_admission = None
+        if value.get('canvas_id') and access and not historical:
+            from app.services.canvas_leases import request_write
+            canvas_admission = request_write(conn, value['canvas_id'], operation='write')
         # The lock also serializes two initial requests with the same id.
         conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (task_id,))
         old = conn.execute("SELECT * FROM tasks WHERE id=%s FOR UPDATE", (task_id,)).fetchone()
@@ -132,6 +136,10 @@ def save(task, request_payload=None, *, historical=False):
                                (workspace, task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
             if requester:
                 row = conn.execute("UPDATE tasks SET requested_by=%s WHERE workspace_id=%s AND id=%s RETURNING *", (requester, workspace, task_id)).fetchone()
+            if canvas_admission:
+                canvas, edit_lease = canvas_admission
+                row = conn.execute('UPDATE tasks SET canvas_revision=%s,canvas_edit_generation=%s WHERE workspace_id=%s AND id=%s RETURNING *',
+                                   (canvas['revision'], edit_lease['generation'], workspace, task_id)).fetchone()
         return decode(row)
 
 

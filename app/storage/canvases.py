@@ -64,6 +64,15 @@ def save(canvas, touch=True):
     created = int(value.get("created_at") or now)
     deleted = value.get("deleted_at")
     with connection() as conn:
+        from app.services.member_context import current_access
+        from app.services import authorization as az
+        access = current_access.get()
+        if access:
+            if revision is None:
+                az.require(conn, access.principal, 'canvas.create', current_workspace())
+            else:
+                from app.services.canvas_leases import request_write
+                request_write(conn, value['id'])
         args = (value.get("title") or "未命名画布", value.get("kind") or "classic", Jsonb(value), now / 1000, deleted / 1000 if deleted else None)
         if revision is None:
             row = conn.execute("INSERT INTO canvases(workspace_id,id,title,kind,document,updated_at,deleted_at,created_at) VALUES(%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),to_timestamp(%s)) ON CONFLICT(id) DO NOTHING RETURNING *", (current_workspace(), value["id"], *args, created / 1000)).fetchone()
@@ -72,6 +81,11 @@ def save(canvas, touch=True):
         if not row:
             current = conn.execute("SELECT * FROM canvases WHERE workspace_id=%s AND id=%s", (current_workspace(), value["id"])).fetchone()
             raise HTTPException(409, {"message": "画布已更新，请重新加载后合并", "canvas": _document(current) if current else None})
+        if access:
+            row = conn.execute('''UPDATE canvases SET updated_by=%s,
+                created_by=CASE WHEN %s THEN %s ELSE created_by END
+                WHERE workspace_id=%s AND id=%s RETURNING *''',
+                (access.principal.member_id, revision is None, access.principal.member_id, current_workspace(), value['id'])).fetchone()
         ids = sorted(referenced_ids(value))
         if ids:
             ready = conn.execute("SELECT id FROM assets WHERE workspace_id=%s AND id=ANY(%s) AND status='ready' AND deleted_at IS NULL ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()

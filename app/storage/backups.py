@@ -2,13 +2,15 @@ import json
 import time
 from fastapi import HTTPException
 from app.storage import documents, canvases
+from app.storage.database import connection
 
 
 def create(canvas_id, automatic=False):
-    value = canvases.get(canvas_id)
-    stamp = int(time.time() * 1000)
-    filename = str(stamp) + ("-auto.json" if automatic else ".json")
-    documents.put("canvas_backup", canvas_id + "/" + filename, value)
+    with connection():
+        value = canvases.get(canvas_id)
+        stamp = int(time.time() * 1000)
+        filename = str(stamp) + ("-auto.json" if automatic else ".json")
+        documents.put("canvas_backup", canvas_id + "/" + filename, value)
     # No automatic snapshot removal in the first cloud release.
     return {"ok": True, "filename": filename, "updated_at": stamp}
 
@@ -28,11 +30,12 @@ def list_backups(canvas_id):
 
 
 def restore(canvas_id, filename):
-    current = canvases.get(canvas_id, include_deleted=True)
-    value = documents.get("canvas_backup", canvas_id + "/" + filename)
-    if not value:
-        raise HTTPException(404, "备份不存在")
-    value.update(id=canvas_id, revision=current["revision"])
-    from app.services.canvas import save_canvas
-    save_canvas(value)
+    with connection():
+        current = canvases.get(canvas_id, include_deleted=True)
+        value = documents.get("canvas_backup", canvas_id + "/" + filename)
+        if not value:
+            raise HTTPException(404, "备份不存在")
+        value.update(id=canvas_id, revision=current["revision"])
+        from app.services.canvas import save_canvas
+        save_canvas(value)
     return {"canvas": value}

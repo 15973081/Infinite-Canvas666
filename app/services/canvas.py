@@ -34,9 +34,11 @@ def canvas_path(canvas_id):
 def save_canvas(canvas):
     if postgres_enabled():
         from app.storage.canvases import save
-        save(canvas)
         from app.services.canvas_ledger import import_canvas_logs
-        import_canvas_logs(canvas['id'], canvas.get('logs') or [])
+        from app.storage.database import connection
+        with connection():
+            save(canvas)
+            import_canvas_logs(canvas['id'], canvas.get('logs') or [])
         return
     from app.services.canvas_ledger import import_canvas_logs
     import_canvas_logs(canvas["id"], canvas.get("logs") or [])

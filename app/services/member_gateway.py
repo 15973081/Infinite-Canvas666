@@ -77,6 +77,8 @@ def permissions(path, method):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method in {'POST', 'PATCH', 'DELETE'} else None
     if re.fullmatch(r'/api/canvases/[^/]+/lock(?:/release)?', path):
         az.fail('collaboration_protocol_pending', 503)  # Replaced by C2 lease routes.
+    if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
+        return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/ledger(?:/.*)?', path):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',)
     if re.fullmatch(r'/api/canvases/[^/]+(?:/(?:meta|touch|folder|restore|purge|backup|backups)(?:/[^/]+(?:/restore)?)?)?', path):
@@ -124,6 +126,8 @@ def permissions(path, method):
 
 
 def operation(path, method):
+    if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
+        return 'observe', None  # Lease handlers enforce maintenance inside their transaction.
     if path in {'/api/maintenance/status', '/ws/stats'}:
         return 'observe', None
     if method in {'GET', 'HEAD'} or path in {'/api/canvas-assets/check', '/api/canvas-assets/download', '/api/canvas-workflows/export', '/api/smart-canvas/group-export'}:
@@ -131,6 +135,9 @@ def operation(path, method):
     upload = re.fullmatch(r'/api/media/uploads/(ast_[a-f0-9]{32})(?:/parts/[0-9]+(?:/complete)?|/complete)?', path)
     if upload:
         return 'upload.finish', upload[1]
+    canvas = re.fullmatch(r'/api/canvases/([^/]+)(?:/.*)?', path)
+    if canvas and path != '/api/canvases/trash':
+        return ('canvas.finish' if method == 'PUT' and path == '/api/canvases/' + canvas[1] else 'canvas.write'), canvas[1]
     return 'write', None
 
 
@@ -180,8 +187,10 @@ async def dispatch(app, scope, receive, send):
             az.fail('route_not_migrated')
         workspace = selected_workspace(scope)
         action_kind, resource_id = operation(path, method)
+        from app.services.canvas_leases import proof_from_headers
+        edit_proof = proof_from_headers(dict(scope.get('headers', [])))
         await asyncio.to_thread(preflight, actor, workspace, actions, action_kind, resource_id)
-        with workspace_scope(workspace), access_scope(actor, workspace, actions, action_kind, resource_id):
+        with workspace_scope(workspace), access_scope(actor, workspace, actions, action_kind, resource_id, edit_proof):
             scope['workspace_id'] = workspace
             if path in {'/api/config', '/api/providers', '/api/models'}:
                 config = await asyncio.to_thread(public_provider_config)
