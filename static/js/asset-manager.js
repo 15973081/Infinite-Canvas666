@@ -724,20 +724,27 @@ function assetKindLabel(item){
     if(kind === 'text') return '文本';
     return '图片';
 }
+function assetDisplayMediaUrl(url){
+    return window.MemberMediaUrl ? window.MemberMediaUrl(url) : url;
+}
+function openAssetUrl(url){
+    const display = assetDisplayMediaUrl(url);
+    if(display) window.open(display, '_blank', 'noopener');
+}
 function assetMediaPreviewUrl(url, size=384){
     const raw = String(url || '');
-    if(!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
-    if(!raw.startsWith('/output/') && !raw.startsWith('/assets/')) return raw;
-    if(!/\.(png|jpe?g|jfif|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return raw;
+    if(!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return assetDisplayMediaUrl(raw);
+    if(!raw.startsWith('/output/') && !raw.startsWith('/assets/')) return assetDisplayMediaUrl(raw);
+    if(!/\.(png|jpe?g|jfif|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return assetDisplayMediaUrl(raw);
     const width = Math.max(64, Math.min(2048, Math.round(Number(size) || 384)));
-    return `/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`;
+    return assetDisplayMediaUrl(`/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`);
 }
 function assetThumb(item){
     const kind = assetKind(item);
     const original = String(item?.url || '');
     const preview = assetMediaPreviewUrl(original, 384);
-    if(kind === 'video' && preview !== original) return `<img src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" alt="${escapeAttr(item.name || 'video')}" loading="lazy" decoding="async" fetchpriority="low">`;
-    if(kind === 'video') return `<video src="${escapeAttr(original)}" muted preload="none" playsinline></video>`;
+    if(kind === 'video' && preview !== assetDisplayMediaUrl(original)) return `<img src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" alt="${escapeAttr(item.name || 'video')}" loading="lazy" decoding="async" fetchpriority="low">`;
+    if(kind === 'video') return `<video src="${escapeAttr(assetDisplayMediaUrl(original))}" muted preload="none" playsinline></video>`;
     if(kind === 'audio') return `<div class="asset-file-icon"><i data-lucide="file-audio"></i><span>音频</span></div>`;
     if(kind === 'text') return `<div class="asset-file-icon"><i data-lucide="file-text"></i><span>文本</span></div>`;
     return `<img src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" alt="${escapeAttr(item.name || 'asset')}" loading="lazy" decoding="async" fetchpriority="low">`;
@@ -2582,6 +2589,7 @@ async function uploadWorkflowFiles(files){
     setStatus(`已上传 ${data.items?.length || 0} 个工作流`);
 }
 function downloadUrl(url, filename='download'){
+    url = assetDisplayMediaUrl(url);
     if(!url) return;
     const link = document.createElement('a');
     link.href = url;
@@ -2950,7 +2958,7 @@ async function handleClick(event){
         return;
     }
     const localUpOpen = target.closest?.('[data-localup-open]');
-    if(localUpOpen){ const it = findLocalUpload(localUpOpen.dataset.localupOpen || ''); if(it?.url) window.open(it.url, '_blank'); return; }
+    if(localUpOpen){ const it = findLocalUpload(localUpOpen.dataset.localupOpen || ''); if(it?.url) openAssetUrl(it.url); return; }
     const localUpCopy = target.closest?.('[data-localup-copy]');
     if(localUpCopy){ const it = findLocalUpload(localUpCopy.dataset.localupCopy || ''); const ok = await copyTextToClipboard(it?.url || ''); setStatus(ok ? '已复制链接' : '复制失败'); return; }
     const localUpCard = target.closest?.('[data-localup-card]');
@@ -2995,7 +3003,7 @@ async function handleClick(event){
     const canvasAssetDownload = target.closest?.('[data-canvas-asset-download]');
     if(canvasAssetDownload){ await downloadCanvasAssetItems([canvasAssetDownload.dataset.canvasAssetDownload || '']); return; }
     const canvasAssetOpen = target.closest?.('[data-canvas-asset-open]');
-    if(canvasAssetOpen){ const it = findCanvasAssetItem(canvasAssetOpen.dataset.canvasAssetOpen || ''); if(it?.url) window.open(it.url, '_blank', 'noopener'); return; }
+    if(canvasAssetOpen){ const it = findCanvasAssetItem(canvasAssetOpen.dataset.canvasAssetOpen || ''); if(it?.url) openAssetUrl(it.url); return; }
     const canvasAssetCopy = target.closest?.('[data-canvas-asset-copy]');
     if(canvasAssetCopy){ const it = findCanvasAssetItem(canvasAssetCopy.dataset.canvasAssetCopy || ''); const ok = await copyTextToClipboard(it?.url || ''); setStatus(ok ? '已复制画布资产链接' : '复制失败'); return; }
     if(target.closest?.('[data-canvas-asset-check]')) return;
@@ -3310,7 +3318,7 @@ function mergeAssetItem(updated){
 }
 function openAssetItem(id){
     const item = findAssetItem(id);
-    if(item?.url) window.open(item.url, '_blank', 'noopener');
+    if(item?.url) openAssetUrl(item.url);
 }
 function showDetailPreview(source, id){
     const item = source === 'local'
@@ -3326,7 +3334,7 @@ function showDetailPreview(source, id){
         setStatus('仅图片和视频支持预览');
         return;
     }
-    const url = source === 'local' ? localObjectUrl(item) : item.url;
+    const url = assetDisplayMediaUrl(source === 'local' ? localObjectUrl(item) : item.url);
     if(!url) return;
     document.querySelector('.asset-lightbox')?.remove();
     const overlay = document.createElement('div');
@@ -4118,7 +4126,7 @@ function openLocalItem(id){
     const item = findLocalItem(id);
     if(!item) return;
     const url = localObjectUrl(item);
-    if(url) window.open(url, '_blank', 'noopener');
+    if(url) openAssetUrl(url);
 }
 async function createPromptLibrary(){
     const name = window.prompt('提示词库名称', '新提示词库');
@@ -4358,7 +4366,7 @@ root.addEventListener('error', event => {
     const original = img.dataset.originalSrc || '';
     if(!original || img.src.endsWith(original)) return;
     delete img.dataset.originalSrc;
-    img.src = original;
+    img.src = assetDisplayMediaUrl(original);
 }, true);
 root.addEventListener('input', event => {
     if(event.target?.id === 'assetSearch'){
