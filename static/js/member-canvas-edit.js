@@ -305,7 +305,7 @@
         if(!active) return;
         const {lease,options,bar,label,begin,end,save,notice}=active;
         const previousWidth=bar.getBoundingClientRect?.().width;
-        active.widthAnimation?.cancel();
+        const previousLayoutWidth=active.layout?.getBoundingClientRect?.().width;
         const editable=lease.canEdit;
         document.body.classList.toggle('member-canvas-view',!editable);
         document.querySelectorAll('#nodes input,#nodes textarea,.image-node input,.image-node textarea,.composer input,.composer textarea,.composer [contenteditable]').forEach(node => {
@@ -343,10 +343,14 @@
         renderPresence(active);
         active.mediaPreview?.sync();
         bar.hidden=false;
+        const nextLayoutWidth=active.layout?.getBoundingClientRect?.().width;
+        // Heartbeats and save notices must not restart an in-flight resize.
+        if(Math.abs(nextLayoutWidth-previousLayoutWidth)<1) return;
+        active.widthAnimation?.cancel();
         const nextWidth=bar.getBoundingClientRect?.().width;
         if(previousWidth>0 && nextWidth>0 && Math.abs(nextWidth-previousWidth)>1 && bar.animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
             active.widthAnimation=bar.animate([{width:previousWidth+'px'},{width:nextWidth+'px'}],
-                {duration:260,easing:'cubic-bezier(.22,1,.36,1)'});
+                {duration:180,easing:'linear'});
         }
     }
     async function start() {
@@ -470,7 +474,7 @@
                 button('导出当前草稿',() => {more.open=false;download(draftRecord(entry));}),force);
             more.append(moreSummary,moreItems);
             begin.className=end.className=ask.className='member-canvas-primary';
-            const layout=element('div'); layout.className='member-canvas-layout';
+            const layout=element('div'); layout.className='member-canvas-layout'; entry.layout=layout;
             layout.append(label,begin,ask,save,end,button('生成结果',showTaskResults),more,presencePanel,notice,requestList);
             bar.append(layout);
             entry.mediaPreview=window.MemberMediaPreview?.create({entry,valid:()=>validEntry(entry)});
