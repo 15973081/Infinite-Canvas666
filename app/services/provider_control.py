@@ -97,7 +97,9 @@ def retired(provider_id):
 def catalog(actor):
     with az.policy_transaction() as conn:
         require_admin(conn, actor)
-        return {'providers': [public(row) for row in conn.execute('SELECT * FROM managed_providers ORDER BY id') if not retired(row['id'])]}
+        from app.services.provider_presets import catalog as presets
+        return {'providers': [public(row) for row in conn.execute('SELECT * FROM managed_providers ORDER BY id') if not retired(row['id'])],
+                'presets': presets()}
 
 
 def save(actor, provider_id, config, expected_version, *, secrets=None, clear_secrets=None, reason, preserve_price_history=False):

@@ -1,0 +1,28 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const editor=require('../management/frontend/provider-editor.js');
+const presets=require('../config/provider-presets.json');
+function form(changes={}){const value={name:'火山引擎',base_url:'https://ark.cn-beijing.volces.com/api/v3',protocol:'volcengine',enabled:'on',image_request_mode:'openai',video_models:'old\nnew\nold',advanced:'{"model_protocols":{"custom":"gemini"},"model_prices":[{"model":"old","unit_price":3}]}',reason:'配置验收',...changes};return {get:key=>value[key],has:key=>Object.hasOwn(value,key)};}
+test('builtin providers are always visible without creating saved or assigned configurations',()=>{
+ const rows=editor.rows([],presets);assert.equal(rows.length,1);assert.equal(rows[0].id,'volcengine');assert.equal(rows[0].version,0);
+ assert.equal(rows[0].config.base_url,'https://ark.cn-beijing.volces.com/api/v3');assert.ok(rows[0].config.video_models.length>0);
+ assert.deepEqual(rows[0].configured_secrets,[]);
+});
+test('saved configuration and disabled state win over presets without duplicating an ID',()=>{
+ const saved={id:'volcengine',version:5,config:{name:'自己的方舟',enabled:false,video_models:['ep-private']},configured_secrets:['api_key']};
+ const rows=editor.rows([saved,{id:'custom',version:1,config:{}}],presets);
+ assert.equal(rows.length,2);assert.equal(rows[0].config,saved.config);assert.equal(rows[0].version,5);assert.equal(rows[0].builtin,true);
+});
+test('editor keeps hidden provider-specific values, prices and model protocols while writing only supplied secrets',()=>{
+ const row={id:'custom',version:8,config:{volcengine_project_name:'saved-project',volcengine_region:'saved-region'}};
+ const result=editor.payload(row,form({api_key:'  key  '}));
+ assert.equal(result.id,'custom');assert.equal(result.body.expected_version,8);assert.deepEqual(result.body.secrets,{api_key:'key'});
+ assert.deepEqual(result.body.config.video_models,['old','new']);assert.deepEqual(result.body.config.model_protocols,{custom:'gemini'});
+ assert.equal(result.body.config.model_prices[0].unit_price,3);assert.equal(result.body.config.volcengine_project_name,'saved-project');
+});
+test('clear and replace conflict is rejected, explicit clearing is preserved and reserved JSON fields cannot override the form',()=>{
+ assert.throws(()=>editor.payload({id:'x'},form({api_key:'key',clear_api_key:'on'})),/同时/);
+ assert.deepEqual(editor.payload({id:'x'},form({clear_api_key:'on'})).body.clear_secrets,['api_key']);
+ assert.throws(()=>editor.payload({id:'x'},form({advanced:'{"base_url":"https://wrong.test"}'})),/基础字段/);
+ assert.throws(()=>editor.payload({},form({id:'Bad ID'})),/平台 ID/);
+});

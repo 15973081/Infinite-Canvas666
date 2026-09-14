@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "builtin": [
+    {
+      "id": "volcengine",
+      "description": "方舟视频生成与素材库配置。地址、协议及视频模型沿用旧版默认值。",
+      "config": {
+        "name": "火山引擎",
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "protocol": "volcengine",
+        "image_request_mode": "openai",
+        "image_generation_endpoint": "",
+        "image_edit_endpoint": "",
+        "enabled": true,
+        "image_models": [],
+        "chat_models": [],
+        "video_models": [
+          "doubao-seedance-2-5-260628",
+          "doubao-seedance-2-0-260128",
+          "doubao-seedance-2-0-fast-260128",
+          "doubao-seedance-2-0-mini-260615",
+          "doubao-seedance-1-5-pro-251215",
+          "doubao-seedance-1-0-pro-250528",
+          "doubao-seedance-1-0-lite-t2v-250428",
+          "doubao-seedance-1-0-lite-i2v-250428"
+        ],
+        "volcengine_project_name": "default",
+        "volcengine_region": "cn-beijing"
+      }
+    }
+  ],
+  "quickstart": [
+    {
+      "id": "apimart",
+      "description": "沿用旧版 APIMART 的地址与异步协议，保存 Key 后可拉取模型。",
+      "config": {
+        "name": "APIMART",
+        "base_url": "https://api.apimart.ai",
+        "protocol": "apimart",
+        "image_models": [],
+        "video_models": [],
+        "chat_models": []
+      }
+    },
+    {
+      "id": "yuli",
+      "description": "沿用旧版玉玉 API 的模型与逐模型 Gemini 协议配置。",
+      "config": {
+        "name": "玉玉API",
+        "base_url": "https://yuli.host",
+        "protocol": "openai",
+        "image_models": [
+          "gpt-image-2",
+          "gemini-3.1-flash-image-preview",
+          "gemini-3-pro-image-preview"
+        ],
+        "chat_models": [
+          "gpt-5.5"
+        ],
+        "video_models": [
+          "veo3.1-fast"
+        ],
+        "model_protocols": {
+          "gemini-3.1-flash-image-preview": "gemini",
+          "gemini-3-pro-image-preview": "gemini"
+        }
+      }
+    },
+    {
+      "id": "agnes",
+      "description": "沿用旧版 Agnes AI 的 OpenAI JSON 图片请求模式及模型。",
+      "config": {
+        "name": "Agnes AI",
+        "base_url": "https://apihub.agnes-ai.com",
+        "protocol": "openai",
+        "image_request_mode": "openai-json",
+        "image_models": [
+          "agnes-image-2.1-flash",
+          "agnes-image-2.0-flash"
+        ],
+        "chat_models": [],
+        "video_models": [
+          "agnes-video-v2.0"
+        ]
+      }
+    },
+    {
+      "id": "fhl",
+      "description": "沿用旧版 FHL 的 OpenAI 兼容地址，模型按上游实际返回选择。",
+      "config": {
+        "name": "FHL",
+        "base_url": "https://www.fhl.mom",
+        "protocol": "openai",
+        "image_models": [],
+        "video_models": [],
+        "chat_models": []
+      }
+    }
+  ]
+}

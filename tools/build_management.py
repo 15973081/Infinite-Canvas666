@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ('index.html', 'management.css', 'management.js', 'provider-prices.js')
+FILES = ('index.html', 'management.css', 'management.js', 'provider-prices.js', 'provider-editor.js')
 
 
 def build(destination=None):

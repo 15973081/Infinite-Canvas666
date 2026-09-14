@@ -35,7 +35,7 @@ $env:MANAGEMENT_BASE_URL = 'http://127.0.0.1:8766'
 
 ## 尚未完成
 
-本批为 M2 的成员/空间/角色管理入口，**不是 M2/M3 整体完成**。供应商配置、加密凭证及空间分配已接入，运行所需主密钥与验收范围见[供应商说明](managed-providers-local.md)；供应商模型列表检测与选择导入已接入，见[检测验收](provider-probes-local.md)；协议/任务端点只读诊断及明确采用已接入，见[协议诊断验收](provider-diagnostics-local.md)；ComfyUI 与 ModelScope 已按用户要求[移除](retired-integrations.md)；保留供应商的旧配置与凭证显式导入已接入，见[导入验收](provider-imports-local.md)；任务处置与原结果恢复已接入，见[任务处置验收](task-reviews-local.md)；备份请求、独立执行与空间导出已接入，见[备份管理说明](management-backups-local.md)；分空间画布占用列表和受控结束已接入，见[占用管理验收](canvas-occupancy-local.md)；维护中心已接入控制底座和[逐项发布检查](maintenance-readiness-local.md)，并提供[本机恢复工具](maintenance-recovery-local.md)，完整画布联动、真实进程/连接核验和恢复演练仍在实施；旧工作台管理页面已[迁出并封闭接口](workbench-management-migration-local.md)，最新部署验证仍待完成。当前“概览”仅统计可管理范围与权限，不伪报业务服务健康或备份结果。
+本批为 M2 的成员/空间/角色管理入口，**不是 M2/M3 整体完成**。供应商默认预设与分组配置已[对齐旧版并更新当前用户预览](provider-editor-local.md)；供应商配置、加密凭证及空间分配已接入，运行所需主密钥与验收范围见[供应商说明](managed-providers-local.md)；供应商模型列表检测与选择导入已接入，见[检测验收](provider-probes-local.md)；协议/任务端点只读诊断及明确采用已接入，见[协议诊断验收](provider-diagnostics-local.md)；ComfyUI 与 ModelScope 已按用户要求[移除](retired-integrations.md)；保留供应商的旧配置与凭证显式导入已接入，见[导入验收](provider-imports-local.md)；任务处置与原结果恢复已接入，见[任务处置验收](task-reviews-local.md)；备份请求、独立执行与空间导出已接入，见[备份管理说明](management-backups-local.md)；分空间画布占用列表和受控结束已接入，见[占用管理验收](canvas-occupancy-local.md)；维护中心已接入控制底座和[逐项发布检查](maintenance-readiness-local.md)，并提供[本机恢复工具](maintenance-recovery-local.md)，完整画布联动、真实进程/连接核验和恢复演练仍在实施；旧工作台管理页面已[迁出并封闭接口](workbench-management-migration-local.md)，当前用户本地预览已更新，正式环境迁移仍待完成。当前“概览”仅统计可管理范围与权限，不伪报业务服务健康或备份结果。
 
 工作台的个人激活界面、空间选择、数据库画布租约和双画布草稿已分批接入；剩余业务路由迁移、完整协作/维护联调及全链路恢复验收仍按总计划继续。开发库和原 `.local/cloud/objects` 保持原状，尚未对真实使用环境启用成员模式。最新交付范围见[实施记录](management-platform-progress.md)。
 
@@ -48,4 +48,4 @@ $env:MANAGEMENT_BASE_URL = 'http://127.0.0.1:8766'
 
 该模式不创建 schema、不迁移、不重置账号/画布，复用原对象目录并重建管理前端。仍存在 stop 文件时拒绝启动，应先确认它是本次预览记录指向的停止标记，再清理该标记。不要对未带 --resume-schema 的旧进程使用停止标记来保留数据：旧模式会删除自己的临时 schema。
 
-这是本地预览续用工具，仍使用 canvas_cloud_test 和原有本地配置，不承担生产部署或主密钥管理；需要持续保存加密供应商凭证时须按供应商说明配置固定主密钥。运行与备份证据见[移除与服务更新记录](retired-integrations.md)。
+这是本地预览续用工具，仍使用 canvas_cloud_test 和原有本地配置，不承担生产部署或生产主密钥管理。预览会在原预览目录持久保存 provider-secret.key，重启复用；显式配置 PROVIDER_SECRET_KEY 时优先采用。已有密文而原密钥缺失时拒绝生成替代值。备份必须一并保存原密钥，详见[供应商配置验收](provider-editor-local.md)。运行与备份证据见[移除与服务更新记录](retired-integrations.md)。

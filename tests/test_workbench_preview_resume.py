@@ -23,6 +23,7 @@ def test_resume_preserves_existing_schema(tmp_path, monkeypatch, failure):
     monkeypatch.setenv('STORAGE_ENV_FILE', str(env))
     monkeypatch.delenv('DATABASE_URL', raising=False)
     monkeypatch.setattr(workbench_preview, 'ROOT', tmp_path)
+    monkeypatch.setattr(workbench_preview, 'prepare_provider_key', Mock())
     monkeypatch.setattr(sys, 'argv', ['preview', '--resume-schema', schema, '--port', '8772'])
     conn = Mock()
     conn.execute.return_value.fetchone.return_value = None if failure == 'missing' else {'exists': 1}
@@ -60,3 +61,35 @@ def test_resume_rejects_unrelated_schema(monkeypatch, schema):
     with pytest.raises(SystemExit) as error:
         workbench_preview.main()
     assert error.value.code == 2
+
+
+def test_preview_provider_key_persists_and_missing_key_never_reencrypts_existing_credentials(tmp_path, monkeypatch):
+    from app.storage import database
+    from cryptography.fernet import Fernet
+    conn=Mock()
+    conn.execute.return_value.fetchone.return_value=None
+    @contextmanager
+    def connection():yield conn
+    monkeypatch.setattr(database,'connection',connection)
+    monkeypatch.delenv('PROVIDER_SECRET_KEY',raising=False)
+    workbench_preview.prepare_provider_key(tmp_path)
+    original=os.environ['PROVIDER_SECRET_KEY']
+    ciphertext=Fernet(original.encode()).encrypt(b'preview-secret')
+    monkeypatch.delenv('PROVIDER_SECRET_KEY')
+    workbench_preview.prepare_provider_key(tmp_path)
+    assert Fernet(os.environ['PROVIDER_SECRET_KEY'].encode()).decrypt(ciphertext)==b'preview-secret'
+    (tmp_path/'provider-secret.key').unlink()
+    monkeypatch.delenv('PROVIDER_SECRET_KEY')
+    conn.execute.return_value.fetchone.return_value={'exists':1}
+    with pytest.raises(RuntimeError,match='original PROVIDER_SECRET_KEY'):
+        workbench_preview.prepare_provider_key(tmp_path)
+    assert not (tmp_path/'provider-secret.key').exists()
+
+
+def test_explicit_preview_provider_key_is_not_replaced_or_written(tmp_path,monkeypatch):
+    from cryptography.fernet import Fernet
+    key=Fernet.generate_key().decode()
+    monkeypatch.setenv('PROVIDER_SECRET_KEY',key)
+    workbench_preview.prepare_provider_key(tmp_path)
+    assert os.environ['PROVIDER_SECRET_KEY']==key
+    assert not (tmp_path/'provider-secret.key').exists()

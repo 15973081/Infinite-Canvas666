@@ -19,6 +19,29 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def prepare_provider_key(directory):
+    """Keep a local preview key across restarts; never replace a lost key."""
+    from cryptography.fernet import Fernet
+    from app.storage import database
+    if os.getenv('PROVIDER_SECRET_KEY'):
+        Fernet(os.environ['PROVIDER_SECRET_KEY'].encode('ascii'))
+        return
+    path = directory / 'provider-secret.key'
+    if not path.exists():
+        with database.connection() as conn:
+            if conn.execute('SELECT 1 FROM managed_providers WHERE secret_ciphertext IS NOT NULL LIMIT 1').fetchone():
+                raise RuntimeError('Saved provider credentials require their original PROVIDER_SECRET_KEY; restore the local key from backup')
+        try:
+            with path.open('x', encoding='ascii') as stream:
+                stream.write(Fernet.generate_key().decode('ascii'))
+            path.chmod(0o600)
+        except FileExistsError:
+            pass
+    key = path.read_text(encoding='ascii').strip()
+    Fernet(key.encode('ascii'))
+    os.environ['PROVIDER_SECRET_KEY'] = key
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--two-members', action='store_true', help='Use separate localhost/127.0.0.1 cookies for two synthetic browser members')
@@ -91,6 +114,7 @@ def main():
                     canvases.save({'id': 'smart_' + space['id'], 'title': space['name'] + '的智能画布', 'kind': 'smart', 'nodes': [], 'connections': []})
             members.logout(actor)
             activation_token = None if args.two_members else invited['activation_token']
+        prepare_provider_key(acceptance)
         if args.management:
             from tools.build_management import build
             management_log = (acceptance / 'management-server.log').open('a' if args.resume_schema else 'w', encoding='utf-8')
