@@ -52,18 +52,34 @@
     async function showDrafts() {
         const entry=active;
         assertDraftScope(entry);
+        // Include the latest typing even when the 150 ms draft timer has not fired.
+        if(entry.options.dirty()) await persist(entry);
         const prefix=JSON.stringify([entry.memberId,entry.workspaceId,entry.id]).slice(0,-1)+',';
         const rows=await storage('readonly',store => store.getAll(IDBKeyRange.bound(prefix,prefix+'\uffff')));
         assertDraftScope(entry);
         const dialog=element('dialog'); dialog.className='member-canvas-drafts';
-        dialog.append(element('h2','本地草稿'),element('p','这里只显示当前成员、空间和画布的草稿。先开始编辑，才能恢复同版本草稿。版本不同请导出保留。恢复不会立即提交到服务器，也不会重启生成任务。'));
+        dialog.append(element('h2','本地草稿'),element('p','这里只显示当前成员、空间和画布的草稿。先开始编辑，才能恢复同版本草稿。版本不同可另存副本或导出。恢复不会立即提交到服务器；副本会创建新画布，均不会重启生成任务。'));
         const own=rows.filter(row => ownsDraft(entry,row));
         if(!own.length) dialog.append(element('p','暂无本地草稿。'));
         for(const row of own.sort((a,b) => b.saved_at.localeCompare(a.saved_at))) {
-            const origin=row.page===page ? '本页' : row.page.includes('/restored/') ? '恢复前留存' : '其他页面';
+            const origin=row.copy_request_id ? '副本请求' : row.page===page ? '本页' : row.page.includes('/restored/') ? '恢复前留存' : '其他页面';
             const line=element('p',`${new Date(row.saved_at).toLocaleString()} · 基于版本 ${row.base_revision ?? '未知'} · ${origin} `);
             const error=element('span'); error.setAttribute('role','status');
             const action=fn => async () => {try {assertDraftScope(entry,row);await fn();} catch(e) {error.textContent=e.message;}};
+            let copyResult=row.copy_result;
+            const openCopy=button('打开副本',action(async () => {
+                if(!copyResult || !entry.options.openCopy) return;
+                if(!await api.leave()) return;
+                dialog.close();dialog.remove();await entry.options.openCopy(copyResult);
+            }));
+            openCopy.hidden=!copyResult;
+            if(copyResult) error.textContent='已创建副本：'+copyResult.title;
+            const copyButton=button(row.copy_request_id ? '重试 / 确认副本' : '另存副本',action(async () => {
+                if(!await confirmAction('另存草稿副本','将在当前空间创建新画布，保留节点、连线和素材，不复制费用日志或重启任务。原画布和草稿会保留。重复确认同一请求会返回同一个副本。','确认另存副本')) return;
+                copyResult=await copyDraft(entry,row);openCopy.hidden=false;
+                error.textContent='已创建副本：'+copyResult.title;
+            }));
+            copyButton.disabled=!['canvas.create','canvas.read','asset.read'].every(p => window.CanvasSession.context.workspace.permissions?.includes(p));
             line.append(button('导出',action(() => download(row))),button('恢复到本页',action(async () => {
                 if(!entry.lease.canEdit) throw new Error('请先关闭此窗口并开始编辑，再打开草稿恢复。');
                 if(!entry.options.restore || entry.options.busy?.()) throw new Error('请等待当前保存或生成结束后再恢复。');
@@ -87,13 +103,46 @@
                 if(row.page===page && entry.options.dirty()) throw new Error('本页还有未保存内容，请先保存或导出并离开，再清理这份草稿。');
                 if(!await confirmAction('删除本地草稿','这只删除此条本地草稿，无法撤销。需要保留时请先取消并导出。','确认删除草稿')) return;
                 await deleteDraft(entry,row);line.remove();
-            })),error); dialog.append(line);
+            })),copyButton,openCopy,error); dialog.append(line);
         }
         dialog.append(button('关闭',() => {dialog.close();dialog.remove();})); document.body.append(dialog); dialog.showModal();
     }
     function ownsDraft(entry,row) {
         return row && row.member_id===entry.memberId && row.workspace_id===entry.workspaceId && row.canvas_id===entry.id &&
             typeof row.page==='string' && row.key===JSON.stringify([entry.memberId,entry.workspaceId,entry.id,row.page]);
+    }
+    async function copyDraft(entry,row) {
+        assertDraftScope(entry,row);
+        if(window.CanvasSession.paused || !['normal','scheduled'].includes(entry.lease.maintenance)) throw new Error('会话暂停或维护期间不能新建副本，请保留草稿。');
+        if(!['canvas.create','canvas.read','asset.read'].every(p => window.CanvasSession.context.workspace.permissions?.includes(p))) throw new Error('当前角色没有创建副本或读取素材的权限。');
+        const source=row.document;
+        if(!source || source.id!==entry.id || (source.kind || 'classic')!==(entry.options.snapshot().kind || 'classic')) throw new Error('草稿身份或类型不匹配，请导出保留。');
+        const document={title:source.title || '未命名画布',icon:source.icon || (source.kind==='smart' ? 'sparkles' : '🧩'),kind:source.kind || 'classic',
+            nodes:source.nodes,connections:source.connections || [],settings:source.settings || {},viewport:source.viewport || {}};
+        // A content-derived ID survives reloads and concurrent tabs even if the
+        // network response is lost. Scope and the selected source record are bound.
+        const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([row.key,document])));
+        const hex=Array.from(new Uint8Array(bytes),b => b.toString(16).padStart(2,'0')).join('').slice(0,32);
+        const requestId=row.copy_request_id || [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
+        const attempt={...row,copy_request_id:requestId,page:row.copy_request_id ? row.page : row.page+'/copy/'+requestId};
+        attempt.key=JSON.stringify([entry.memberId,entry.workspaceId,entry.id,attempt.page]);
+        assertDraftScope(entry,row);
+        // Freeze a separate retry record before submitting; the live page may
+        // keep updating its own draft without erasing this attempt.
+        await storage('readwrite',store => store.put(attempt));
+        assertDraftScope(entry,row);
+        const response=await window.fetch('/api/canvas-draft-copies',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({request_id:requestId,document}),signal:AbortSignal.timeout(30000)});
+        const data=await response.json();
+        assertDraftScope(entry,row);
+        if(!response.ok) throw new Error({draft_copy_request_conflict:'同一请求的草稿内容已变化，请保留原稿并重新打开列表。',
+            draft_copy_unavailable:'此前创建的副本已在回收站，请先到画布列表恢复；此次不会重复新建。',
+            draft_copy_assets_unavailable:'草稿包含当前空间不可用的素材，请导出保留并检查素材。',
+            permission_denied:'当前角色没有创建副本的权限。'}[data.detail?.code] || '副本创建未确认，请保留草稿并重试同一请求。');
+        if(!data.canvas?.id || data.canvas.id===entry.id || data.canvas.kind!==document.kind || !Number.isSafeInteger(data.canvas.revision)) throw new Error('副本响应不完整，请重试确认。');
+        attempt.copy_result=data.canvas;
+        await storage('readwrite',store => store.put(attempt));
+        return data.canvas;
     }
     function assertDraftScope(entry,row) {
         const context=window.CanvasSession.context;

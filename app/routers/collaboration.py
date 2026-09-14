@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Any, Literal
+from uuid import UUID
 
 router = APIRouter()
 
@@ -16,6 +18,21 @@ class TransferDecision(BaseModel):
     confirm: bool = False
 
 
+class DraftDocument(BaseModel):
+    title: str = Field(default='未命名画布', max_length=200)
+    icon: str = Field(default='🧩', max_length=32)
+    kind: Literal['classic', 'smart'] = 'classic'
+    nodes: list[dict[str, Any]] = Field(max_length=50000)
+    connections: list[dict[str, Any]] = Field(default_factory=list, max_length=100000)
+    settings: dict[str, Any] = Field(default_factory=dict)
+    viewport: dict[str, Any] = Field(default_factory=dict)
+
+
+class DraftCopy(BaseModel):
+    request_id: UUID
+    document: DraftDocument
+
+
 def identity(request):
     # This protocol is available only through the member gateway.
     from app.storage.settings import member_auth_enabled
@@ -23,6 +40,12 @@ def identity(request):
     if not member_auth_enabled() or actor is None:
         raise HTTPException(403, {'code': 'member_protocol_required'})
     return actor
+
+
+@router.post('/api/canvas-draft-copies')
+def copy_draft(payload: DraftCopy, request: Request):
+    from app.services.canvas_draft_copies import create
+    return create(identity(request), payload.request_id, payload.document.model_dump())
 
 
 @router.get('/api/canvases/{canvas_id}/edit-lease')

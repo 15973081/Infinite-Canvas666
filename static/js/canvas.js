@@ -2648,7 +2648,8 @@ async function createSmartCanvas(){
 async function openSmartCanvasPage(id){
     if(!id) return;
     await window.FrontendVersion?.checkForUpdate?.();
-    const target = `/static/smart-canvas.html?id=${encodeURIComponent(id)}`;
+    const path = `/static/smart-canvas.html?id=${encodeURIComponent(id)}`;
+    const target = window.CanvasSession?.enabled ? window.CanvasSession.url(path) : path;
     window.location.href = window.FrontendVersion?.versionedUrl(target) || target;
 }
 function toggleEmojiPicker(id, event){
@@ -2769,6 +2770,7 @@ async function openCanvas(id){
             await window.MemberCanvasEdit.mount({id:canvas.id, dirty:() => localCanvasDirty || savingCanvasNow || saveCanvasAgain,
                 snapshot:() => ({...canvas, ...canvasSavePayload()}), flush:flushClassicCanvasBeforeFrontendReload,
                 restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed)),
+                openCopy:async copy => {await loadCanvasList(false);await openCanvas(copy.id);},
                 reload:async () => { const loaded=await openCanvas(id); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } }
             });

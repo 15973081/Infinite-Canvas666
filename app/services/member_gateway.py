@@ -69,6 +69,9 @@ def permissions(path, method):
         return ('canvas.read',)  # Private member conversation, not shared canvas write.
     if path == '/api/queue_status' and method == 'GET':
         return ('task.read',)
+    if path == '/api/canvas-draft-copies' and method == 'POST':
+        from app.services.canvas_draft_copies import PERMISSIONS
+        return PERMISSIONS
     if re.fullmatch(r'/api/canvas-(?:image|video)-tasks(?:/[^/]+)?', path):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:

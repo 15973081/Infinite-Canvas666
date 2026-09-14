@@ -55,7 +55,7 @@ def main(argv=None):
             suites = ["test_cloud_storage.py", "test_cloud_uploads.py", "test_cloud_finalization.py",
                       "test_cloud_task_requests.py", "test_cloud_paging.py", "test_cloud_members.py",
                       "test_cloud_workspaces.py", "test_cloud_member_gateway.py", "test_cloud_management.py",
-                      "test_cloud_maintenance_control.py", "test_cloud_canvas_leases.py"]
+                      "test_cloud_maintenance_control.py", "test_cloud_canvas_leases.py", "test_cloud_draft_copies.py"]
             return pytest.main([*(str(ROOT / "tests" / name) for name in suites), "-q", *(argv or [])])
         finally:
             try:

@@ -19,7 +19,7 @@ function fixture() {
             getAll(range){queries.push(range);return {result:structuredClone([...records.values()].filter(row=>row.key>=range.lower && row.key<=range.upper))};}})};
         queueMicrotask(()=>queueMicrotask(()=>{if(!transaction.aborted)transaction.oncomplete?.();}));return transaction;
     }};
-    const context={window:null,module:undefined,URL,Headers,AbortSignal,Blob,console,crypto:webcrypto,queueMicrotask,
+    const context={window:null,module:undefined,URL,Headers,AbortSignal,Blob,TextEncoder,console,crypto:webcrypto,queueMicrotask,
         location:{origin:'http://canvas.local',href:'http://canvas.local/static/canvas.html'},
         indexedDB:{open(){const request={result:database};queueMicrotask(()=>request.onsuccess());return request;}},
         IDBKeyRange:{bound:(lower,upper)=>({lower,upper})},
@@ -38,8 +38,8 @@ function fixture() {
     context.window=context;context.parent=context;
     context.CanvasEditLease=class extends Lease {constructor(options){super({...options,fetch:context.fetch,now:()=>0});}};
     vm.createContext(context);vm.runInContext(source,context);vm.runInContext(apiSource,context);
-    return {context,calls,records,queries,listeners,timers,downloads,api:context.MemberCanvasEdit,
-        mount:()=>context.MemberCanvasEdit.mount({id:'a',dirty:()=>false,snapshot:()=>({revision:3,nodes:[]}),reload:async()=>({revision:3}),flush:async()=>true})};
+    return {context,calls,records,queries,listeners,timers,downloads,database,api:context.MemberCanvasEdit,
+        mount:()=>context.MemberCanvasEdit.mount({id:'a',dirty:()=>false,snapshot:()=>({id:'a',kind:'classic',revision:3,nodes:[],connections:[]}),reload:async()=>({revision:3}),flush:async()=>true})};
 }
 test('opening a member canvas only observes; saves require explicit start',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
@@ -199,4 +199,69 @@ test('restoring the current page draft archives the selected content before repl
     const currentLine=f.context.document.body.children.at(-1).children.find(node=>node.tagName==='P' && node.textContent.includes('· 本页'));
     await action(currentLine,'删除草稿').onclick();
     assert.match(currentLine.children.at(-1).textContent,/未保存内容/);assert.equal(f.records.size,2);
+});
+
+function enableCopy(f){f.context.CanvasSession.context.workspace.permissions.push('canvas.create','asset.read');}
+const copyReply=()=>reply({canvas:{id:'new-copy',title:'草稿副本',kind:'classic',revision:1},replayed:false});
+test('lost copy responses keep a frozen retry draft; a reopened page sends the same request without a lease',async()=>{
+    const f=fixture();await f.mount();enableCopy(f);const source=seedDraft(f);const submitted=[];
+    f.context.fetch=async(path,init)=>{
+        assert.equal(path,'/api/canvas-draft-copies');const body=JSON.parse(init.body);submitted.push(body);
+        assert.ok([...f.records.values()].some(row=>row.copy_request_id===body.request_id));
+        assert.equal(new Headers(init.headers).has('X-Canvas-Edit-Token'),false);
+        throw new Error('lost response');
+    };
+    const line=await draftLine(f),operation=action(line,'另存副本').onclick();
+    await confirmLatest(f,'确认另存副本');await operation;
+    assert.equal(f.records.size,2);assert.match(line.children.at(-1).textContent,/lost response/);
+    assert.deepEqual(f.records.get(source.key),source);
+    const g=fixture();await g.mount();enableCopy(g);
+    for(const [key,row] of f.records)g.records.set(key,structuredClone(row));
+    g.context.fetch=async(path,init)=>{submitted.push(JSON.parse(init.body));return copyReply();};
+    await draftLine(g);
+    const retryLine=g.context.document.body.children.at(-1).children.find(node=>node.children.some(child=>child.textContent==='重试 / 确认副本'));
+    const retry=action(retryLine,'重试 / 确认副本').onclick();await confirmLatest(g,'确认另存副本');await retry;
+    assert.deepEqual(submitted[0],submitted[1]);assert.equal(action(retryLine,'打开副本').hidden,false);
+    assert.equal([...g.records.values()].find(row=>row.copy_request_id).copy_result.id,'new-copy');
+    assert.equal(g.api.canSave,false);
+});
+test('copy refuses storage failure, missing permission or maintenance before posting',async()=>{
+    for(const failure of ['storage','permission','maintenance']) {
+        const f=fixture();await f.mount();enableCopy(f);seedDraft(f);
+        f.context.fetch=async()=>assert.fail('submitted copy');
+        const line=await draftLine(f);
+        if(failure==='storage')f.database.transaction=()=>{throw new Error('disk full');};
+        if(failure==='permission')f.context.CanvasSession.context.workspace.permissions=['canvas.read'];
+        if(failure==='maintenance')f.api.active.lease.setMaintenance('draining');
+        const operation=action(line,'另存副本').onclick();await confirmLatest(f,'确认另存副本');await operation;
+        assert.ok(line.children.at(-1).textContent);assert.equal(action(line,'打开副本').hidden,true);
+    }
+});
+test('opening a confirmed copy preserves and exports unsaved original-page changes first',async()=>{
+    const f=fixture();await f.mount();enableCopy(f);seedDraft(f);let opened;
+    f.api.active.options.dirty=()=>true;f.api.active.options.openCopy=async copy=>{opened=copy;};
+    f.context.fetch=async()=>copyReply();
+    const line=await draftLine(f),operation=action(line,'另存副本').onclick();
+    await confirmLatest(f,'确认另存副本');await operation;
+    assert.equal(opened,undefined);assert.ok(f.api.active);assert.equal(f.api.active.options.dirty(),true);
+    const opening=action(line,'打开副本').onclick();await confirmLatest(f,'导出并离开');await opening;
+    assert.equal(opened.id,'new-copy');assert.equal(f.api.active,null);assert.equal(f.downloads.length,1);
+    assert.ok([...f.records.values()].some(row=>row.page!=='old-page' && !row.copy_request_id));
+});
+test('copy request identity is reproducible for the same source and changes with edited content',async()=>{
+    const ids=[];
+    for(const prompt of ['one','one','two']) {
+        const f=fixture();await f.mount();enableCopy(f);seedDraft(f,{document:{id:'a',kind:'classic',nodes:[{prompt}],connections:[]}});
+        f.context.fetch=async(path,init)=>{ids.push(JSON.parse(init.body).request_id);return copyReply();};
+        const line=await draftLine(f),operation=action(line,'另存副本').onclick();await confirmLatest(f,'确认另存副本');await operation;
+    }
+    assert.equal(ids[0],ids[1]);assert.notEqual(ids[0],ids[2]);
+});
+
+test('opening drafts immediately after typing flushes the latest text before listing',async()=>{
+    const f=fixture();await f.mount();f.api.active.options.dirty=()=>true;
+    f.api.active.options.snapshot=()=>({id:'a',kind:'classic',revision:3,nodes:[{prompt:'typed just now'}],connections:[]});
+    f.api.markDirty();await draftLine(f);
+    assert.equal([...f.records.values()][0].document.nodes[0].prompt,'typed just now');
+    assert.equal(f.records.size,1);
 });

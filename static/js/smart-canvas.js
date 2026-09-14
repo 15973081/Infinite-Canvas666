@@ -1591,7 +1591,7 @@ async function backToCanvasList(){
     }
     releaseSmartCanvasLockOnExit();
     await window.FrontendVersion?.checkForUpdate?.();
-    const target = '/static/canvas.html';
+    const target = window.CanvasSession?.enabled ? window.CanvasSession.url('/static/canvas.html') : '/static/canvas.html';
     window.location.replace(window.FrontendVersion?.versionedUrl(target) || target);
 }
 function promptPlainText(){
@@ -4891,6 +4891,7 @@ async function loadCanvas(){
             await window.MemberCanvasEdit.mount({id:canvasId,dirty:() => smartCanvasDirty || Boolean(smartSaveInFlight) || smartSaveAgain,
                 snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
                 restore:restoreSmartMemberDraft,busy:() => Boolean(smartSaveInFlight) || smartSaveAgain || smartCascadeAnyRunning() || nodes.some(smartNodeInFlight),
+                openCopy:async copy => {window.location.assign('/static/smart-canvas.html?id='+encodeURIComponent(copy.id)+'&workspace='+encodeURIComponent(window.CanvasSession.context.workspace.id));},
                 reload:async () => { const loaded=await loadCanvas(); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 flush:async () => {
                     clearTimeout(saveTimer); saveTimer=null;
