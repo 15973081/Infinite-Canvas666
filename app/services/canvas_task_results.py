@@ -73,14 +73,16 @@ def catalog(canvas_id, after=''):
         az.fail('task_result_cursor_invalid', 400)
     with az.policy_transaction() as conn:
         canvas = require(conn, canvas_id)
-        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image') AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
+        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at,request FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image') AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
+        from app.storage.task_canvas_bindings import stored, state
         result = []
         for task in rows[:30]:
             items = outputs(conn, task)
             result.append({'id': task['id'], 'kind': task['kind'], 'model': task['model'],
                            'completed_at': task['completed_at'].isoformat() if task['completed_at'] else None,
                            'state': 'in_canvas' if included(canvas['document'], task['id'], items) else 'ready' if items else 'unavailable',
-                           'outputs': items, 'submitted_revision': task['canvas_revision']})
+                           'outputs': items, 'submitted_revision': task['canvas_revision'],
+                           'binding': state(canvas, stored(task['request']))})
         return {'canvas_id': canvas_id, 'revision': canvas['revision'], 'results': result,
                 'next_after': rows[29]['id'] if len(rows) > 30 else None}
 

@@ -167,7 +167,11 @@
                         } catch(error) {status.textContent=error.message;}
                     });
                     add.disabled=row.state!=='ready'||!entry.lease.canEdit;
-                    card.className='member-canvas-result-row';card.append(line,state,add);list.append(card);
+                    card.className='member-canvas-result-row';card.append(line,state);
+                    if(row.state==='ready' && ['changed','missing'].includes(row.binding?.state)){
+                        card.append(element('p',row.binding.state==='missing'?'原节点已删除或不可用，结果仍可独立加入。':'原输入已修改，加入结果时会保留当前内容。'));
+                    }
+                    card.append(add);list.append(card);
                 }
                 more.hidden=!after;status.textContent=list.children.length?'':'暂无已完成的图片或视频结果。';
             } catch(error) {status.textContent=error.message;}

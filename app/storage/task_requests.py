@@ -88,6 +88,8 @@ def normalize(value, strict=False):
             return [walk(child, is_media) for child in item]
         return canonical_ref(item, strict) if is_media else item
     result = walk(value)
+    if isinstance(result, dict) and result.get("canvas_target") is None:
+        result.pop("canvas_target", None)
     if isinstance(result, dict) and "provider_id" in result:
         # Resolve the legacy default/fallback once and persist the concrete id.
         from app.providers.registry import load_api_providers, get_primary_provider_id, managed_providers_enabled

@@ -29,7 +29,8 @@ def clean_request(value):
 
 def fingerprint(request):
     from app.storage.task_requests import normalize
-    return hashlib.sha256(json.dumps(normalize(clean_request(request)), ensure_ascii=False, sort_keys=True,
+    public = {k: v for k, v in request.items() if k != '_canvas_binding'} if isinstance(request, dict) else request
+    return hashlib.sha256(json.dumps(normalize(clean_request(public)), ensure_ascii=False, sort_keys=True,
                                      separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
@@ -44,6 +45,8 @@ def decode(row):
     task["requested_by"] = row.get("requested_by")
     task["canvas_revision"] = row.get("canvas_revision")
     task["canvas_edit_generation"] = row.get("canvas_edit_generation")
+    from app.storage.task_canvas_bindings import stored
+    task["canvas_binding"] = stored(row.get("request"))
     if row["provider_id"]:
         task["provider_id"] = row["provider_id"]
     if row["upstream_task_id"]:
@@ -124,6 +127,15 @@ def save(task, request_payload=None, *, historical=False):
                 from app.services.maintenance_control import ensure
                 ensure(conn, workspace, 'write')
             payload = clean_request(request_payload or {}) if historical else normalize(clean_request(request_payload or {}), strict=True)
+            if not historical and "_canvas_binding" in payload:
+                raise HTTPException(400, {"code": "task_binding_server_field"})
+            if not historical and payload.get("canvas_target"):
+                if not canvas_admission:
+                    raise HTTPException(428, {"code": "task_binding_edit_proof_required"})
+                if payload.get("canvas_id") != canvas_admission[0]["id"]:
+                    raise HTTPException(409, {"code": "task_binding_canvas_mismatch"})
+                from app.storage.task_canvas_bindings import capture
+                payload["_canvas_binding"] = capture(canvas_admission[0], payload["canvas_target"], fingerprint(payload))
             inputs = asset_ids(payload)
             if not historical:
                 lock_ready(conn, inputs)

@@ -50,7 +50,15 @@ class AIReference(BaseModel):
 
 # ── Online Image ──
 
+class CanvasTaskTarget(BaseModel):
+    model_config = {'extra': 'forbid'}
+    source_node_id: str = Field(min_length=1, max_length=160)
+    target_node_id: str = Field(min_length=1, max_length=160)
+    base_revision: int = Field(ge=1, strict=True)
+
+
 class OnlineImageRequest(BaseModel):
+    canvas_target: Optional[CanvasTaskTarget] = None
     canvas_id: str = Field(default="", max_length=96)
     client_task_id: str = Field(default="", max_length=96)
     prompt: str = Field(min_length=1, max_length=ONLINE_IMAGE_PROMPT_MAX_LENGTH)
@@ -70,6 +78,7 @@ class ImageTaskQueryRequest(BaseModel):
 # ── Canvas Video ──
 
 class CanvasVideoRequest(BaseModel):
+    canvas_target: Optional[CanvasTaskTarget] = None
     canvas_id: str = Field(default="", max_length=96)
     client_task_id: str = Field(default="", max_length=96)
     prompt: str = Field(min_length=1, max_length=VIDEO_PROMPT_MAX_LENGTH)
