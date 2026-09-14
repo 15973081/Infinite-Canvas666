@@ -170,6 +170,14 @@ class ProviderAssignment(Input):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class TaskReview(Input):
+    request_id: UUID
+    expected_version: int = Field(strict=True, ge=1)
+    action: Literal['retry_finalization', 'resume_polling', 'cancel_unsubmitted', 'confirm_failed']
+    note: str = Field(min_length=1, max_length=1000)
+    upstream_verified: bool = Field(default=False, strict=True)
+
+
 class PageReview(Input):
     expected_sequence: int = Field(strict=True, ge=1, le=9007199254740991)
     outcome: Literal['member_confirmed_saved', 'draft_exported', 'member_discarded']
@@ -339,6 +347,22 @@ def create_app(static_dir=None):
     def review_page_report(report_id: UUID, request: Request, data: PageReview, workspace: str | None = None):
         from app.services.canvas_page_reports import review
         return review(actor(request), report_id, data.expected_sequence, data.outcome, data.note, workspace)
+
+    @app.get('/api/tasks')
+    def task_list(request: Request, workspace: str, status: str = 'needs_review',
+                  after: str = Query('', max_length=200), limit: int = Query(50, ge=1, le=100)):
+        from app.services.task_reviews import listing
+        return listing(actor(request), workspace, status, after, limit)
+
+    @app.get('/api/tasks/{task_id}')
+    def task_detail(task_id: str, request: Request, workspace: str):
+        from app.services.task_reviews import detail
+        return detail(actor(request), workspace, task_id)
+
+    @app.post('/api/tasks/{task_id}/review')
+    def task_review(task_id: str, request: Request, data: TaskReview, workspace: str):
+        from app.services.task_reviews import review
+        return review(actor(request), workspace, task_id, **data.model_dump())
 
     @app.get('/api/providers')
     def provider_catalog(request: Request):

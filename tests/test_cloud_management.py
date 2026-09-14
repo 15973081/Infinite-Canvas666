@@ -23,7 +23,10 @@ def platform(operator, monkeypatch, tmp_path):
     app = create_app(directory)
     with connection() as conn:
         username = conn.execute('SELECT username FROM members WHERE id=%s', (operator.member_id,)).fetchone()['username']
-    with TestClient(app, base_url='http://localhost:8766', headers={'Origin': 'http://localhost:8766'}) as client:
+    # Independent scenarios must not share the source-IP login budget.
+    address = uuid.uuid4().bytes
+    peer = (f'198.19.{address[0]}.{address[1]}', 50000)
+    with TestClient(app, base_url='http://localhost:8766', headers={'Origin': 'http://localhost:8766'}, client=peer) as client:
         result = client.post('/api/auth/login', json={'username': username, 'password': PASSWORD})
         assert result.status_code == 200, result.text
         yield {'client': client, 'app': app, 'operator': operator, 'username': username, 'directory': directory}

@@ -107,7 +107,7 @@ def defer(task_id, error):
     status_code = getattr(error, "status_code", None)
     if status_code is None:
         status_code = getattr(getattr(error, "response", None), "status_code", None)
-    terminal = attempt >= 5 or status_code in {400, 401, 403, 404, 410, 413}
+    terminal = attempt >= 5 or status_code in {400, 401, 403, 404, 409, 410, 413}
     current.update(status="needs_review" if terminal else "finalizing", updated_at=time.time(),
                    finalization_failures=attempt, error="结果入库未完成；已保留来源，未重新生成：" + str(getattr(error, "detail", None) or error),
                    result_source_asset_id=source_id(task_id))
@@ -124,9 +124,9 @@ def retry(task_id):
         row = conn.execute("SELECT *,lease_until>now() AS leased FROM tasks WHERE workspace_id=%s AND id=%s FOR UPDATE", (current_workspace(), task_id)).fetchone()
         if not row:
             raise HTTPException(404, "任务不存在")
-        if row["status"] not in {"needs_review", "finalizing"} or row["leased"]:
+        if row["status"] not in {"needs_review", "failed", "finalizing"} or row["leased"]:
             raise HTTPException(409, "只允许重试无执行租约的待核对结果入库任务")
         if not has_source(task_id):
             raise HTTPException(409, "没有已保存的结果来源，禁止自动重新生成")
-        conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,completed_at=NULL,available_at=now(),updated_at=now(),lease_owner=NULL,lease_token=NULL,lease_until=NULL,legacy_metadata=jsonb_set(legacy_metadata,'{finalization_failures}','0') WHERE workspace_id=%s AND id=%s", (current_workspace(), task_id))
+        conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,completed_at=NULL,available_at=now(),updated_at=now(),lease_owner=NULL,lease_token=NULL,lease_until=NULL,legacy_metadata=jsonb_set(legacy_metadata,'{finalization_failures}','0') || jsonb_build_object('error','') WHERE workspace_id=%s AND id=%s", (current_workspace(), task_id))
     return {"task_id": task_id, "status": "finalizing"}

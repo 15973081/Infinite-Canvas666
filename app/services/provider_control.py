@@ -207,11 +207,15 @@ def recovery_provider(conn):
     lease = lease_context.get()
     if not lease:
         return None
-    task = conn.execute('''SELECT provider_id,provider_account_ref FROM tasks WHERE workspace_id=%s
-        AND id=%s AND lease_token=%s AND lease_until>clock_timestamp() AND upstream_task_id IS NOT NULL
+    task = conn.execute('''SELECT id,status,upstream_task_id,provider_id,provider_account_ref FROM tasks WHERE workspace_id=%s
+        AND id=%s AND lease_token=%s AND lease_until>clock_timestamp()
         AND status IN ('polling','finalizing')''', (current_workspace(), *lease)).fetchone()
     if not task:
         return None
+    if not task['upstream_task_id']:
+        from app.storage.finalization import has_source
+        if task['status'] != 'finalizing' or not has_source(task['id']):
+            return None
     if retired(task['provider_id']):
         az.fail('provider_integration_removed', 410)
     row = conn.execute('SELECT * FROM managed_providers WHERE id=%s', (task['provider_id'],)).fetchone()

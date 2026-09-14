@@ -65,7 +65,7 @@ def test_import_encrypts_only_selected_credentials_preserves_source_and_retries(
         assert c.execute('SELECT count(*) AS n FROM workspace_provider_grants WHERE provider_id=%s', (source['id'],)).fetchone()['n'] == 0
         staged = c.execute('SELECT * FROM provider_import_previews WHERE id=%s', (report['id'],)).fetchone()
         assert SECRET not in str(staged)
-        events = c.execute('SELECT * FROM management_events WHERE target_id=%s', (report['id'],)).fetchall()
+        events = c.execute('SELECT * FROM management_events WHERE target_id=%s ORDER BY id', (report['id'],)).fetchall()
         assert [event['action'] for event in events] == ['provider.import.preview', 'provider.import.complete']
         assert SECRET not in str(events)
     assert SECRET not in platform['client'].get('/api/providers').text

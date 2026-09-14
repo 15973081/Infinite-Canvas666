@@ -48,6 +48,7 @@ def provider_stub():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--provider-probe', action='store_true', help='Seed a local-only mock supplier for connection/model UI acceptance')
+    parser.add_argument('--task-review', action='store_true', help='Seed isolated pending tasks for management review acceptance')
     args = parser.parse_args()
     from app.storage import database
     from app.storage.settings import load_storage_env
@@ -65,7 +66,7 @@ def main():
     stop = acceptance / 'stop'
     os.environ.update(DATABASE_URL=target, DATABASE_SCHEMA=schema, DATABASE_BACKEND='postgres',
                       # Use a distinct host from the user-facing 127.0.0.1 management preview.
-                      MANAGEMENT_BASE_URL=('http://localhost:8767' if args.provider_probe else 'http://127.0.0.1:8767'),
+                      MANAGEMENT_BASE_URL=('http://localhost:8767' if (args.provider_probe or args.task_review) else 'http://127.0.0.1:8767'),
                       CLOUD_EMBEDDED_WORKER='false')
     database.close()
     mock = None
@@ -75,8 +76,8 @@ def main():
         member = members.bootstrap('preview-admin', '验收管理员', 'preview-only-password-12345')
         login = members.login(member['username'], 'preview-only-password-12345', audience='management')
         actor = members.resolve_session(login['token'], 'management')
-        members.create_workspace(actor, '设计空间', member['id'], '独立管理平台浏览器验收')
-        if args.provider_probe:
+        space = members.create_workspace(actor, '设计空间', member['id'], '独立管理平台浏览器验收')
+        if args.provider_probe or args.task_review:
             from cryptography.fernet import Fernet
             from app.services import provider_control
             os.environ['PROVIDER_SECRET_KEY'] = Fernet.generate_key().decode('ascii')
@@ -85,6 +86,22 @@ def main():
             provider_control.save(actor, 'probe-preview', {'name': '本地模拟供应商', 'base_url': probe_base_url,
                 'protocol': 'openai', 'enabled': True, 'image_models': ['existing-image']}, 0,
                 secrets={'api_key': mock[3]}, reason='本地模型检测浏览器验收')
+        if args.task_review:
+            from app.storage import tasks
+            from app.storage.workspace import workspace_scope
+            os.environ['AUTH_MODE'] = 'members'
+            provider_control.assign(actor, space['id'], ['probe-preview'], 'probe-preview', 0, reason='任务处置隔离夹具')
+            with workspace_scope(space['id']):
+                for task_id, status, upstream, paid in (
+                    ('review-unsubmitted', 'queued', None, False),
+                    ('review-known-upstream', 'needs_review', 'synthetic-upstream-id', True),
+                    ('review-uncertain', 'needs_review', None, True)):
+                    tasks.save({'id': task_id, 'type': 'video', 'status': status, 'upstream_task_id': upstream,
+                                'provider_id': 'probe-preview'}, {'provider_id': 'probe-preview', 'model': 'test-video', 'prompt': 'synthetic task review only'})
+                    with database.connection() as conn:
+                        conn.execute('UPDATE tasks SET requested_by=%s WHERE id=%s', (member['id'],task_id))
+                        if paid:
+                            conn.execute("INSERT INTO task_submissions(id,task_id,workspace_id,outcome) VALUES(%s,%s,%s,'uncertain')", (uuid.uuid4(),task_id,space['id']))
         members.logout(actor)
         from app.management.application import create_app
         app = create_app(build(acceptance / 'dist'))

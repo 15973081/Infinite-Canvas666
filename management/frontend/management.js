@@ -1,8 +1,8 @@
 (() => {
   'use strict';
   const $ = (s) => document.querySelector(s);
-  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', serial = 0, reportRequest = 0;
-  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计'};
+  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', serial = 0, reportRequest = 0;
+  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置'};
   const errors = {
     authentication_required: '登录已失效，请重新登录。', management_permission_required: '此账号尚未获授管理权限。',
     invalid_credentials: '账号或密码不正确。', login_rate_limited: '登录尝试过多，请稍后重试。',
@@ -33,6 +33,14 @@
     invalid_provider_assignment: '默认供应商必须同时勾选分配，且不能重复分配。',
     provider_reason_required: '请填写操作原因。', provider_not_found: '供应商不存在，请刷新。',
     provider_endpoint_required: '请先编辑并保存供应商的 API Base URL。', provider_key_required: '请先编辑并保存供应商的 API Key。',
+    task_review_not_found:'未找到当前空间内的任务。',
+    task_review_changed:'任务状态已变化，请关闭后重新核对。',
+    task_review_busy:'任务仍有有效执行占用，请等待执行结束后刷新。',
+    task_review_action_unavailable:'任务当前不满足此操作条件，请重新核对结果来源和原账号。',
+    task_review_request_conflict:'此请求已用于其他处置，请重新打开任务记录。',
+    task_upstream_confirmation_required:'请先确认已向供应商核实结果。',
+    invalid_task_review:'请选择处置方式并填写核对依据。',
+    invalid_task_review_query:'任务筛选条件不正确，请刷新。',
     page_report_not_found: '未找到当前管理范围内的报告，请刷新。',
     page_report_changed: '报告已更新或已经核对，请刷新列表后重新确认。',
     page_report_not_reviewable: '页面已重新在线或正常关闭，请刷新列表。',
@@ -119,7 +127,7 @@
     const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView}[view])();
+    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView}[view])();
     if (stamp === serial) content.replaceChildren(...result);
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
@@ -402,6 +410,65 @@
     return [el('p', '供应商配置由平台管理员维护，成员仅能使用分配到所在空间的服务。'), toolbar,
       rows.length ? table(['供应商', '协议', '状态', '凭证', '空间分配', '操作'], rows) : el('p', '尚未配置供应商。新增并分配后，成员才能选择模型。')];
   }
+  const taskStates = {needs_review:'待核对',queued:'排队中',running:'准备执行',submitting:'提交中',polling:'查询中',finalizing:'结果入库中',succeeded:'已完成',failed:'已失败',cancelled:'已取消'};
+  const taskActions = {retry_finalization:'重试结果入库',resume_polling:'恢复原任务查询',cancel_unsubmitted:'取消未提交任务',confirm_failed:'核对后标记失败'};
+  const taskExplanations = {
+    retry_finalization:'继续处理已保存的结果来源，由 worker 完成入库。',
+    resume_polling:'使用现有上游任务 ID 和原供应商账号恢复查询。',
+    cancel_unsubmitted:'结束本地尚未付费提交的任务，后续不再执行。',
+    confirm_failed:'请先向供应商核实失败或未产生可交付结果。此操作结束本地任务跟踪，费用记录保持。'
+  };
+  async function reviewTask(taskId, scope) {
+    const stamp = serial, member = me.member.id;
+    const row = await api('/api/tasks/' + encodeURIComponent(taskId) + '?workspace=' + encodeURIComponent(scope));
+    if(serial !== stamp || me?.member.id !== member || workspace !== scope) return;
+    const summary = table(['项目','当前记录'], [
+      ['任务',row.id],['状态',taskStates[row.status] || row.status],['供应商',row.provider_id || '未知'],
+      ['上游任务 ID',row.upstream_task_id || '未记录'],['已保存结果来源',row.result_checkpoint ? '有' : '无'],
+      ['付费提交记录',Object.entries(row.submission_counts).map(([key,n]) => (({admitted:'已记录提交',responded:'已收到响应',uncertain:'响应不明确'})[key] || '其他') + ' × ' + n).join('、') || '无'],
+      ['账号核对',({matched:'与原任务一致',changed:'已变化',missing:'配置不存在',unavailable:'暂时无法核验',unverified:'旧账号尚未映射',retired:'集成已弃用'})[row.account_status] || '未知'],
+      ['执行占用',row.leased ? '正在执行，暂不可处置' : '无有效执行占用']
+    ]);
+    const history = row.reviews.length ? table(['最近核对时间','操作','说明'], row.reviews.map(item => [new Date(item.created_at).toLocaleString(),taskActions[item.action] || item.action,item.note])) : el('p','暂无人工处置记录。','muted');
+    if(!row.actions.length) {
+      dialog('任务记录 · ' + row.id,[summary,el('p','当前状态没有可执行的处置操作。请核对执行状态、结果来源及原供应商账号。'),history],null,'关闭',true); return;
+    }
+    const label=el('label','处置方式'), select=el('select'), blank=el('option','请选择处置方式');
+    select.name='action';select.required=true;blank.value='';select.append(blank);
+    row.actions.forEach(key=>{const option=el('option',taskActions[key]);option.value=key;select.append(option);});label.append(select);
+    const explanation=el('p','','muted'), verifiedLabel=el('label',undefined,'check'), verified=el('input');
+    verified.type='checkbox';verified.name='upstream_verified';verifiedLabel.append(verified,document.createTextNode('我已向供应商核实失败或没有可交付结果'));verifiedLabel.hidden=true;
+    select.onchange=()=>{explanation.textContent=taskExplanations[select.value] || '';verifiedLabel.hidden=select.value!=='confirm_failed';verified.required=!verifiedLabel.hidden;verified.checked=false;};
+    const note=field('note','核对依据与处置原因');note.querySelector('input').maxLength=1000;
+    const requestId=crypto.randomUUID();let submitted=null;
+    dialog('处置任务 · ' + row.id,[summary,label,explanation,verifiedLabel,note,history], async form=>{
+      const action=form.get('action');
+      if(!row.actions.includes(action)) throw new Error('请选择处置方式。');
+      const payload={request_id:requestId,expected_version:row.review_version,action,note:form.get('note'),upstream_verified:form.has('upstream_verified')};
+      if(action==='confirm_failed' && !payload.upstream_verified) throw new Error('请先确认已向供应商核对。');
+      if(submitted && JSON.stringify(submitted)!==JSON.stringify(payload)) throw new Error('已发送的处置请求不能更改内容。请关闭后重新核对当前任务。');
+      submitted=payload;
+      await call('/api/tasks/' + encodeURIComponent(row.id) + '/review?workspace=' + encodeURIComponent(scope),'POST',payload);
+    },'确认处置',true);
+  }
+  async function taskView() {
+    if(!workspace) return [el('p','请选择要核对任务的空间。')];
+    if(!allowed('task.review')) return denied();
+    const scope=workspace, data=await api('/api/tasks?' + new URLSearchParams({workspace:scope,status:taskStatus,after:taskAfter}));
+    const toolbar=el('div',undefined,'toolbar'), label=el('label','任务状态'), select=el('select');
+    for(const [key,text] of [['all','全部状态'],...Object.entries(taskStates)]) {const option=el('option',text);option.value=key;select.append(option);}
+    select.value=taskStatus;select.onchange=()=>{taskStatus=select.value;taskAfter='';execute(render);};label.append(select);
+    toolbar.append(label,button('刷新任务',refresh));
+    const counts=el('p',Object.entries(data.counts).map(([key,n])=>(taskStates[key] || key)+' '+n).join(' · ') || '当前空间没有任务。','muted');
+    const rows=data.tasks.map(row=>[labelText(row.id,row.model),taskStates[row.status] || row.status,row.provider_id || '未知',
+      row.upstream_task_id || '未记录',row.leased?'执行中':'无占用',new Date(row.updated_at).toLocaleString(),
+      button('核对 · ' + row.id,()=>reviewTask(row.id,scope))]);
+    const pages=el('div',undefined,'toolbar');
+    if(taskAfter) pages.append(button('回到首批',()=>{taskAfter='';return render();}));
+    if(data.next) pages.append(button('下一批任务',()=>{taskAfter=data.next;return render();}));
+    return [el('p','处置仅作用于当前空间。恢复查询和结果入库不会创建新的生成请求。'),toolbar,counts,
+      rows.length?table(['任务 / 模型','状态','供应商','上游任务','执行占用','更新时间','操作'],rows):el('p','当前筛选下没有任务。'),pages];
+  }
   const reviewOutcomes = {member_confirmed_saved: '已向成员确认保存', draft_exported: '已确认草稿导出', member_discarded: '成员确认无需保留'};
   async function showPageReports(reviewed = false, after = '', scope = workspace) {
     const stamp = serial, request = ++reportRequest, memberId = me?.member.id;
@@ -481,7 +548,7 @@
     return [summary, toolbar, metrics, pages, services];
   }
   $('#cancel-dialog').onclick = () => $('#dialog').close();
-  $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; pageAfter = auditBefore = ''; return render(); });
+  $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { view = b.dataset.view; pageAfter = auditBefore = ''; return render(); }, b));
   $('#logout').onclick = () => execute(async () => { await call('/api/auth/logout', 'POST'); showLogin(); });
   $('#unavailable-logout').onclick = $('#logout').onclick;
