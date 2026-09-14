@@ -162,11 +162,15 @@ def recover_expired(*, all_workspaces=False):
         from app.storage.finalization import has_source
         scope = "" if all_workspaces else "workspace_id=%s AND "
         args = () if all_workspaces else (current_workspace(),)
-        candidates = conn.execute("SELECT id,workspace_id FROM tasks WHERE " + scope + "status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now()) ORDER BY updated_at,id FOR UPDATE SKIP LOCKED LIMIT 100", args).fetchall()
+        candidates = conn.execute("SELECT * FROM tasks WHERE " + scope + "status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now()) ORDER BY updated_at,id FOR UPDATE SKIP LOCKED LIMIT 100", args).fetchall()
         for row in candidates:
             with workspace_scope(row["workspace_id"]):
                 if has_source(row["id"]):
                     conn.execute("UPDATE tasks SET status='finalizing',error_message=NULL,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=%s", (row["id"],))
+                else:
+                    from app.storage.image_receipts import recoverable
+                    if row["kind"] == "online-image" and recoverable(row):
+                        conn.execute("UPDATE tasks SET status='polling',error_message=NULL,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=%s", (row["id"],))
         # An upstream id is enough to resume polling. An uncertain paid submission
         # is never automatically sent again, including interrupted image calls.
         conn.execute("UPDATE tasks SET status=CASE WHEN kind='video' AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))

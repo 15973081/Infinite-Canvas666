@@ -47,7 +47,7 @@ async def management_provider_endpoint():
     raise HTTPException(410, {"code": "management_entry_required"})
 
 
-async def build_online_image_result(payload: OnlineImageRequest):
+async def build_online_image_result(payload: OnlineImageRequest, *, recover=False):
     cloud_task = False
     if postgres_enabled():
         from app.storage.tasks import lease_context
@@ -58,12 +58,25 @@ async def build_online_image_result(payload: OnlineImageRequest):
     refs = [ref.dict() for ref in payload.reference_images if ref.url]
     image_refs = image_references(refs)
     count = max(1, min(8, int(payload.n or 1)))
-    async def generate_one():
-        image_data, raw_item = await generate_ai_image(payload.prompt, payload.size, payload.quality, model, image_refs, provider["id"])
-        local_url = image_data if cloud_task else await save_ai_image_to_output(image_data, prefix="online_", provider=provider)
-        return local_url, raw_item
+    from app.storage import image_receipts
+    recovery_row = image_receipts.current_row() if recover else None
+    async def generate_one(index):
+        with image_receipts.slot_scope(index):
+            if recover:
+                packet = await asyncio.to_thread(image_receipts.read, recovery_row, index)
+                if packet["kind"] == "result":
+                    return packet["source"], packet["raw"]
+                async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT, **httpx_provider_kwargs(provider)) as client:
+                    raw_item = await wait_for_image_task(client, packet["upstream_task_id"], provider)
+                image_data = extract_image(raw_item)
+            else:
+                image_data, raw_item = await generate_ai_image(payload.prompt, payload.size, payload.quality, model, image_refs, provider["id"])
+            if cloud_task:
+                await asyncio.to_thread(image_receipts.completed, image_data, raw_item)
+            local_url = image_data if cloud_task else await save_ai_image_to_output(image_data, prefix="online_", provider=provider)
+            return local_url, raw_item
     try:
-        generated = await asyncio.gather(*(generate_one() for _ in range(count)), return_exceptions=cloud_task)
+        generated = await asyncio.gather(*(generate_one(index) for index in range(count)), return_exceptions=cloud_task)
         failures = [item for item in generated if isinstance(item, BaseException)]
         generated = [item for item in generated if not isinstance(item, BaseException)]
         if not generated and failures:

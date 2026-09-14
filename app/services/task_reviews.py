@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 
 from app.services import authorization as az, provider_control
-from app.storage import finalization, tasks
+from app.storage import finalization, tasks, image_receipts
 from app.storage.workspace import workspace_scope
 
 ACTIONS = {'retry_finalization', 'resume_polling', 'cancel_unsubmitted', 'confirm_failed'}
@@ -42,17 +42,17 @@ def account_status(conn, row):
         return 'unavailable'
 
 
-def capabilities(row, checkpoint, submissions, account):
+def capabilities(row, checkpoint, submissions, account, images=None):
     if row['leased']:
         return []
     actions = []
     if checkpoint and row['status'] in {'needs_review', 'failed', 'finalizing'}:
         actions.append('retry_finalization')
-    if (not checkpoint and row['status'] in {'needs_review', 'failed'} and row['kind'] == 'video'
-            and row['upstream_task_id'] and account == 'matched'):
+    queryable = (row['kind'] == 'video' and row['upstream_task_id']) or bool(images and images['complete'])
+    if (not checkpoint and row['status'] in {'needs_review', 'failed'} and queryable and account == 'matched'):
         actions.append('resume_polling')
     if (row['status'] in {'queued', 'needs_review'} and not checkpoint and not submissions
-            and not row['upstream_task_id'] and row['requested_by'] and row['provider_account_ref']
+            and not row['upstream_task_id'] and not (images and (images['saved_results'] or images['queryable'])) and row['requested_by'] and row['provider_account_ref']
             and row['provider_account_ref'].startswith('managed:')
             and not row['legacy_metadata'].get('submission_unknown')):
         actions.append('cancel_unsubmitted')
@@ -98,7 +98,8 @@ def detail(actor, workspace, task_id):
         reviews = conn.execute("""SELECT action,note,created_at,member_id FROM task_reviews
             WHERE workspace_id=%s AND task_id=%s ORDER BY created_at DESC LIMIT 20""", (workspace, task_id)).fetchall()
         return {**public(row), 'result_checkpoint': checkpoint, 'submission_counts': submissions,
-                'account_status': account, 'actions': capabilities(row, checkpoint, submissions, account),
+                'account_status': account, 'image_receipts': image_receipts.summary(row, conn),
+                'actions': capabilities(row, checkpoint, submissions, account, image_receipts.summary(row, conn)),
                 'reviews': reviews}
 
 
@@ -125,7 +126,7 @@ def review(actor, workspace, task_id, request_id, expected_version, action, note
         if row['leased']:
             az.fail('task_review_busy', 409)
         checkpoint, submissions, account = result_source(conn, row), submission_counts(conn, row), account_status(conn, row)
-        if action not in capabilities(row, checkpoint, submissions, account):
+        if action not in capabilities(row, checkpoint, submissions, account, image_receipts.summary(row, conn)):
             az.fail('task_review_action_unavailable', 409)
         if action == 'retry_finalization':
             with workspace_scope(workspace):

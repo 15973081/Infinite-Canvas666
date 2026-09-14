@@ -382,6 +382,7 @@ IMAGE_TASK_SUCCESS_STATUSES = {"SUCCESS", "SUCCESSFUL", "SUCCEED", "SUCCEEDED", 
 IMAGE_TASK_FAILED_STATUSES = {"FAILURE", "FAILED", "FAIL", "ERROR", "ERRORED", "CANCELED", "CANCELLED", "TIMEOUT", "REJECTED", "EXPIRED"}
 
 def image_task_url_for_provider(provider, task_id):
+    task_id = urllib.parse.quote(str(task_id), safe="")
     base_url = (provider.get("base_url") if provider else AI_BASE_URL).rstrip("/")
     is_apimart = is_apimart_provider(provider)
     if is_apimart:
@@ -2404,6 +2405,8 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
             task_id = extract_task_id(raw)
             if not task_id:
                 raise
+        from app.storage.image_receipts import submitted
+        await asyncio.to_thread(submitted, task_id)
         try:
             task_result = await wait_for_image_task(client, task_id, provider)
             return extract_image(task_result), task_result

@@ -57,7 +57,9 @@ async def _execute_scoped(row):
                 current.update(status="succeeded", result=result, error="", submission_unknown=False, updated_at=time.time())
                 await asyncio.to_thread(save_canvas_task, current)
                 return
-            if row["status"] in {"polling", "finalizing"} and (row["kind"] != "video" or not row["upstream_task_id"]):
+            from app.storage.image_receipts import recoverable
+            image_recovery = row["kind"] == "online-image" and row["status"] in {"polling", "finalizing"} and recoverable(row)
+            if row["status"] in {"polling", "finalizing"} and not image_recovery and (row["kind"] != "video" or not row["upstream_task_id"]):
                 current = tasks.get(task_id)
                 current.update(status="needs_review", error="缺少可恢复的上游任务信息，请人工核对；未重新提交生成")
                 tasks.save(current)
@@ -74,7 +76,10 @@ async def _execute_scoped(row):
                 from app.services.canvas_llm_tasks import run_task
                 await run_task(task_id, request)
             else:
-                await run_canvas_image_task(task_id, OnlineImageRequest(**request))
+                if image_recovery:
+                    await run_canvas_image_task(task_id, OnlineImageRequest(**request), resume=True)
+                else:
+                    await run_canvas_image_task(task_id, OnlineImageRequest(**request))
     except asyncio.CancelledError:
         raise
     except Exception as exc:

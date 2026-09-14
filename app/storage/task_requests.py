@@ -153,11 +153,13 @@ def account_ref(provider_id):
 
 def validate_execution(row):
     """A changed credential slot must not silently query/submit as another account."""
-    if not row.get('upstream_task_id'):
+    from app.storage.image_receipts import recoverable
+    recovery = bool(row.get("upstream_task_id")) or (row.get("status") in {"polling", "finalizing"} and recoverable(row))
+    if not recovery:
         from app.services.maintenance_control import ensure
         with connection() as conn:
             ensure(conn, row['workspace_id'], 'write')
-    if row.get("requested_by") and not row.get("upstream_task_id"):
+    if row.get("requested_by") and not recovery:
         from app.services import authorization as az
         with az.policy_transaction() as conn:
             member = conn.execute("SELECT status FROM members WHERE id=%s", (row["requested_by"],)).fetchone()

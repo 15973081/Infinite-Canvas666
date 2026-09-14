@@ -80,14 +80,14 @@ async def query_image_task(payload: ImageTaskQueryRequest):
         "raw": raw,
     }
 
-async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
+async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest, *, resume=False):
     with CANVAS_TASK_LOCK:
         if task_id in CANVAS_TASKS:
-            CANVAS_TASKS[task_id]["status"] = "submitting" if postgres_enabled() else "running"
+            CANVAS_TASKS[task_id]["status"] = "polling" if resume else "submitting" if postgres_enabled() else "running"
             CANVAS_TASKS[task_id]["updated_at"] = time.time()
             save_durable_canvas_task(CANVAS_TASKS[task_id])
     try:
-        result = await build_online_image_result(payload)
+        result = await build_online_image_result(payload, recover=True) if resume else await build_online_image_result(payload)
         with CANVAS_TASK_LOCK:
             CANVAS_TASKS[task_id].update({
                 "status": "succeeded",
@@ -112,7 +112,7 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
                 "status": "failed",
                 "error": str(detail),
                 "status_code": status_code,
-                "upstream_task_id": upstream_task_id,
+                "upstream_task_id": upstream_task_id or CANVAS_TASKS[task_id].get("upstream_task_id", ""),
                 "updated_at": time.time(),
             })
             save_durable_canvas_task(CANVAS_TASKS[task_id])

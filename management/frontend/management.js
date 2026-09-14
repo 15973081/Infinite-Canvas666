@@ -580,7 +580,7 @@
   const taskActions = {retry_finalization:'重试结果入库',resume_polling:'恢复原任务查询',cancel_unsubmitted:'取消未提交任务',confirm_failed:'核对后标记失败'};
   const taskExplanations = {
     retry_finalization:'继续处理已保存的结果来源，由 worker 完成入库。',
-    resume_polling:'使用现有上游任务 ID 和原供应商账号恢复查询。',
+    resume_polling:'使用已保存的逐图回执或上游任务 ID，以原供应商账号继续查询；已保存的图片结果直接复用。',
     cancel_unsubmitted:'结束本地尚未付费提交的任务，后续不再执行。',
     confirm_failed:'请先向供应商核实失败或未产生可交付结果。此操作结束本地任务跟踪，费用记录保持。'
   };
@@ -595,6 +595,10 @@
       ['账号核对',({matched:'与原任务一致',changed:'已变化',missing:'配置不存在',unavailable:'暂时无法核验',unverified:'旧账号尚未映射',retired:'集成已弃用'})[row.account_status] || '未知'],
       ['执行占用',row.leased ? '正在执行，暂不可处置' : '无有效执行占用']
     ]);
+    if(row.image_receipts) {
+      const r=row.image_receipts;
+      summary.append(el('p',`图片共 ${r.requested} 张：已保存结果 ${r.saved_results}，可查询原任务 ${r.queryable}，回执缺失 ${r.unknown}。`,'muted'));
+    }
     const history = row.reviews.length ? table(['最近核对时间','操作','说明'], row.reviews.map(item => [new Date(item.created_at).toLocaleString(),taskActions[item.action] || item.action,item.note])) : el('p','暂无人工处置记录。','muted');
     if(!row.actions.length) {
       dialog('任务记录 · ' + row.id,[summary,el('p','当前状态没有可执行的处置操作。请核对执行状态、结果来源及原供应商账号。'),history],null,'关闭',true); return;
