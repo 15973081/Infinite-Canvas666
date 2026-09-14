@@ -10,7 +10,7 @@ const status={canvas_id:'a',generation:1,revision:3,holder:{id:'member',display_
 const reply=(data,code=200)=>new Response(JSON.stringify(data),{status:code});
 function fixture() {
     const calls=[],records=new Map(),queries=[],listeners=new Map(),timers=new Map(); let sequence=0;
-    const element=()=>({children:[],classList:{toggle(){}},setAttribute(){},append(...items){this.children.push(...items);},addEventListener(){},remove(){},showModal(){},close(){}});
+    const element=(tag='div')=>({tagName:tag.toUpperCase(),value:'',children:[],classList:{toggle(){}},setAttribute(){},append(...items){this.children.push(...items);},addEventListener(){},remove(){},showModal(){},close(){},querySelectorAll(selector){return this.children.filter(node=>node.tagName===selector.toUpperCase());}});
     const database={transaction(){
         const transaction={objectStore:()=>({put(value){records.set(value.key,structuredClone(value));return {result:value.key};},getAll(range){queries.push(range);return {result:[...records.values()].filter(row=>row.key>=range.lower && row.key<=range.upper)};}})};
         queueMicrotask(()=>transaction.oncomplete?.());return transaction;
@@ -22,9 +22,10 @@ function fixture() {
         document:{body:element(),querySelectorAll:()=>[],createElement:element},
         setTimeout(fn){timers.set(++sequence,fn);return sequence;},clearTimeout(id){timers.delete(id);},
         addEventListener(name,fn){listeners.set(name,fn);},
-        CanvasSession:{enabled:true,context:{member:{id:'member'},workspace:{id:'space'}}},
+        CanvasSession:{enabled:true,context:{member:{id:'member'},workspace:{id:'space',permissions:['canvas.read','canvas.edit']}}},
         fetch:async(path,init={})=>{calls.push([path,init]);
             if(path.endsWith('/acquire'))return reply({...status,edit_token:'secret-lease-proof'});
+            if(path.endsWith('/edit-lease/transfers'))return reply({lease:{...status,holder:null},requests:[]});
             if(path.endsWith('/edit-lease'))return reply({...status,holder:null});
             if(init.method==='PUT')return reply({canvas:{revision:4}});
             return reply({id:'created'});
@@ -37,7 +38,7 @@ function fixture() {
 }
 test('opening a member canvas only observes; saves require explicit start',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
-    assert.equal(f.calls.length,1);assert.equal(f.calls[0][0],'/api/canvases/a/edit-lease');
+    assert.equal(f.calls.length,1);assert.equal(f.calls[0][0],'/api/canvases/a/edit-lease/transfers');
     await assert.rejects(f.context.CanvasApi.saveCanvas('a',{nodes:[]}));
     assert.equal(f.calls.length,1);
     await f.api.active.lease.start(async()=>({revision:3}));
@@ -87,4 +88,27 @@ test('draft listing queries only the exact member, workspace and canvas key rang
         const key=JSON.stringify([...ids,'page']);
         assert.equal(key>=f.queries[0].lower && key<=f.queries[0].upper,false);
     }
+});
+test('viewer cannot start and only a takeover permission exposes the force action',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    f.context.CanvasSession.context.workspace.permissions=['canvas.read'];
+    f.api.active.lease.status={...status,holder:null};f.api.active.lease.emit();
+    assert.equal(f.api.active.begin.disabled,true);assert.equal(f.api.active.force.hidden,true);
+    f.context.CanvasSession.context.workspace.permissions.push('canvas.edit');
+    f.api.active.lease.status={...status,holder:{is_self:false}};f.api.active.lease.emit();
+    assert.equal(f.api.active.ask.hidden,false);assert.equal(f.api.active.ask.disabled,false);assert.equal(f.api.active.force.hidden,true);
+    f.context.CanvasSession.context.workspace.permissions.push('canvas.lock.takeover');f.api.active.lease.emit();
+    assert.equal(f.api.active.force.hidden,false);assert.equal(f.api.active.force.disabled,false);
+});
+test('force dialog requires a reason, permits correcting an empty reason, and submits confirmed generation',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    f.context.CanvasSession.context.workspace.permissions.push('canvas.lock.takeover');
+    f.api.active.lease.status={...status,holder:{is_self:false}};f.api.active.lease.emit();
+    const operation=f.api.active.force.onclick();await new Promise(setImmediate);
+    const dialog=f.context.document.body.children.at(-1), confirm=dialog.children.find(node=>node.textContent==='确认强制接管');
+    const before=f.calls.length;
+    await confirm.onclick();assert.equal(f.calls.length,before);assert.equal(confirm.disabled,false);
+    dialog.children.find(node=>node.tagName==='TEXTAREA').value='维护检查需要';
+    await confirm.onclick();await operation;
+    assert.deepEqual(JSON.parse(f.calls.at(-1)[1].body),{takeover:'force',expected_generation:1,confirm:true,reason:'维护检查需要'});
 });

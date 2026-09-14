@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from test_cloud_member_gateway import operator, world, headers, PASSWORD
@@ -18,6 +19,48 @@ def setup_canvas(world, kind='classic'):
     assert response.status_code == 200, response.text
     canvas = response.json()['canvas']
     return '/api/canvases/' + canvas['id'], canvas
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_real_frontend_client_transfer_reject_takeover_and_final_save(world, kind):
+    from app.services import members
+    from app.storage.database import connection
+    members.assign_roles(world['operator'], world['people'][0]['id'], [world['a']['roles']['admin']], world['a']['id'])
+    members.assign_roles(world['operator'], world['people'][1]['id'], [world['a']['roles']['editor']], world['a']['id'])
+    path, canvas = setup_canvas(world, kind)
+    root = Path(__file__).resolve().parents[1]
+    clients = {'owner': world['editor'], 'recipient': world['viewer']}
+    process = subprocess.Popen(['node', str(root / 'tests/helpers/canvas-lease-http.cjs'), canvas['id']], cwd=root,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8',
+        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    done = None
+    try:
+        for line in process.stdout:
+            message = json.loads(line)
+            if message.get('done'):
+                done = message
+                break
+            response = clients[message['actor']].request(message['method'], message['path'],
+                headers={**headers(world['a']), **message['headers']}, content=message.get('body'))
+            process.stdin.write(json.dumps({'id': message['id'], 'status': response.status_code, 'body': response.json()}) + '\n')
+            process.stdin.flush()
+        process.wait(timeout=5)
+        assert process.returncode == 0, process.stderr.read()
+        assert done and done['revision'] > canvas['revision']
+        assert world['editor'].get(path, headers=headers(world['a'])).json()['canvas']['title'] == 'forced final'
+        with connection() as conn:
+            events = conn.execute('SELECT action,reason FROM collaboration_events WHERE canvas_id=%s', (canvas['id'],)).fetchall()
+            assert [row['action'] for row in events].count('transfer.approve') == 1
+            assert [row['action'] for row in events].count('transfer.reject') == 1
+            assert [row['action'] for row in events].count('release') == 1
+            assert next(row['reason'] for row in events if row['action'] == 'takeover.force') == 'client acceptance takeover'
+            assert conn.execute('SELECT count(*) AS n FROM canvas_release_snapshots WHERE canvas_id=%s', (canvas['id'],)).fetchone()['n'] == 2
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        for stream in (process.stdin, process.stdout, process.stderr):
+            stream.close()
 
 
 def acquire(world, path, **body):

@@ -91,3 +91,89 @@ test('maintenance drain permits final save but blocks new edits and other mutati
     f.lease.setMaintenance('read_only'); assert.equal(f.lease.canSave,false);
     f.lease.setMaintenance('normal'); assert.equal(f.lease.canSave,false);
 });
+test('approved transfer requires the requesting page token, a fresh proof check and matching reload',async()=>{
+    let approved=false;
+    const pending={id:'transfer-1',generation:1,status:'pending'};
+    const f=fixture((path,init)=>{
+        if(path.endsWith('/transfers') && init.method==='POST')return json({...pending,edit_token:'recipient-only'});
+        if(path.endsWith('/transfers'))return json({requests:[{...pending,status:approved?'approved':'pending'}],lease:publicLease({generation:approved?2:1,holder:{is_self:approved}})});
+        assert.equal(path.endsWith('/renew'),true);
+        assert.equal(init.headers['X-Canvas-Edit-Token'],'recipient-only');
+        assert.equal(init.headers['X-Canvas-Generation'],'2');
+        return json(publicLease({generation:2,revision:7}));
+    });
+    await f.lease.requestTransfer();await f.lease.requestTransfer();assert.equal(f.calls.length,1);
+    await f.lease.refreshTransfers(()=>{throw Error('must not reload pending');});assert.equal(f.lease.canSave,false);
+    approved=true;let loaded=0;
+    await f.lease.refreshTransfers(async()=>{loaded++;assert.equal(f.lease.canSave,false);return {revision:7};});
+    assert.equal(loaded,1);assert.equal(f.lease.canSave,true);assert.equal(f.lease.revision,7);assert.equal(f.lease.pending,null);
+    const other=fixture(()=>json({requests:[{...pending,status:'approved'}],lease:publicLease({generation:2})}));
+    await other.lease.refreshTransfers(()=>{throw Error('other page cannot reload into editing');});
+    assert.equal(other.lease.canSave,false);assert.equal(other.calls.length,1);
+});
+test('rejected or expired requests clear private pending proof without acquiring',async()=>{
+    for(const result of ['rejected','expired']) {
+        const f=fixture((path,init)=>init.method==='POST' ? json({id:'t',generation:1,edit_token:'private'})
+            :json({requests:[{id:'t',status:result}],lease:publicLease({holder:{is_self:false}})}));
+        await f.lease.requestTransfer();await f.lease.refreshTransfers(()=>{throw Error('no reload');});
+        assert.equal(f.lease.pending,null);assert.equal(f.lease.state,'view');assert.equal(f.lease.canSave,false);
+    }
+});
+test('another takeover or recipient reload conflict never enables a stale transfer',async()=>{
+    for(const generation of [2,3]) {
+        const f=fixture((path,init)=>path.endsWith('/renew') ? json(publicLease({generation:2,revision:9}))
+            :init.method==='POST' ? json({id:'t',generation:1,edit_token:'private'})
+            :json({requests:[{id:'t',status:'approved'}],lease:publicLease({generation})}));
+        await f.lease.requestTransfer();await f.lease.refreshTransfers(async()=>({revision:8})).catch(()=>{});
+        assert.equal(f.lease.canSave,false);assert.equal(f.lease.state,'paused');assert.equal(f.lease.pending,null);
+    }
+});
+test('approval saves first and transfers atomically, never issuing a release or acquisition',async()=>{
+    let revision=3;
+    const f=fixture((path,init)=>{
+        if(path.endsWith('/acquire'))return json(publicLease({edit_token:'holder'}));
+        if(init.method==='PUT')return json({canvas:{revision:++revision}});
+        assert.equal(path.endsWith('/transfers/target'),true);
+        assert.equal(new Headers(init.headers).get('X-Canvas-Revision'),'4');
+        assert.deepEqual(JSON.parse(init.body),{approve:true,confirm:true});
+        return json({status:'approved',lease:publicLease({generation:2,revision,holder:{is_self:false,display_name:'乙'}})});
+    });
+    await f.start();
+    await assert.rejects(f.lease.resolveTransfer('target',{approve:true},async()=>true),/确认/);
+    assert.equal(await f.lease.resolveTransfer('target',{approve:true,confirm:true},async()=>{
+        assert.equal(f.lease.canEdit,false);
+        await f.lease.write('/api/canvases/a',{method:'PUT',body:'{}'});return true;
+    }),true);
+    assert.equal(f.lease.canSave,false);assert.equal(f.lease.state,'view');assert.match(f.lease.message,/乙/);
+    assert.equal(f.calls.length,3);
+});
+test('failed final save never sends approval, while rejection does not flush',async()=>{
+    const f=fixture(path=>path.endsWith('/acquire')?json(publicLease({edit_token:'holder'})):json({status:'rejected',lease:publicLease()}));
+    await f.start();assert.equal(await f.lease.resolveTransfer('t',{approve:true,confirm:true},async()=>false),false);
+    assert.equal(f.calls.length,1);assert.equal(f.lease.canEdit,true);
+    assert.equal(await f.lease.resolveTransfer('t',{approve:false},async()=>{throw Error('reject must not flush');}),true);
+    assert.equal(f.lease.canEdit,true);
+});
+test('expired approval preserves holder editing; uncertain approval stops further writes',async()=>{
+    for(const uncertain of [false,true]) {
+        const f=fixture(path=>{
+            if(path.endsWith('/acquire'))return json(publicLease({edit_token:'holder'}));
+            if(uncertain)throw Error('response lost');
+            return json({detail:{code:'canvas_transfer_expired'}},409);
+        });
+        await f.start();await assert.rejects(f.lease.resolveTransfer('t',{approve:true,confirm:true},async()=>true));
+        assert.equal(f.lease.canSave,!uncertain);assert.equal(f.lease.finishing,false);
+    }
+});
+test('pause during pending request invalidates its late private response',async()=>{
+    let resolve;const f=fixture(()=>new Promise(r=>{resolve=r;}));
+    const requested=f.lease.requestTransfer();await new Promise(setImmediate);f.lease.pause('signed out');
+    resolve(json({id:'t',generation:1,edit_token:'late-secret'}));await requested;
+    assert.equal(f.lease.pending,null);assert.equal(f.lease.state,'paused');
+});
+test('closing a canvas prevents queued or delayed dialogs from reacquiring it',async()=>{
+    const f=fixture(()=>{throw Error('closed page must not send');});
+    const start=f.start();f.lease.dispose();
+    await assert.rejects(start,/关闭/);await assert.rejects(f.lease.requestTransfer(),/关闭/);
+    assert.equal(f.calls.length,0);
+});
