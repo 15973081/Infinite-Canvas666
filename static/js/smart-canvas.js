@@ -1035,7 +1035,7 @@ function smartMediaPreviewUrl(itemOrUrl, size=512){
     if(!raw.startsWith('/output/') && !raw.startsWith('/assets/')) return displayUrl;
     if(!/\.(png|jpe?g|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return displayUrl;
     const width = Math.max(64, Math.min(2048, Math.round(Number(size) || 512)));
-    return `/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`;
+    return window.MemberMediaUrl ? window.MemberMediaUrl(`/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`) : `/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`;
 }
 function smartPreviewImgHtml(itemOrUrl, size=512, attrs=''){
     const original = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
@@ -1126,7 +1126,7 @@ function bindSmartPreviewImageFallbacks(root=document){
                 img.replaceWith(fallback);
                 return;
             }
-            if(original && img.getAttribute('src') !== original) img.src = original;
+            if(original && img.getAttribute('src') !== original) img.src = window.MemberMediaUrl ? window.MemberMediaUrl(original) : original;
         });
     });
     manageSmartGroupPreviews(root);
@@ -4848,6 +4848,7 @@ async function loadCanvas(options={}){
                 },
                 changed:lease => {
                     document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
+                    if(lease.canEdit) resumeSmartPendingTasks();
                     if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;}
                     if(runBtn) runBtn.disabled=!lease.canEdit || smartCascadeAnyRunning();
                     if(cascadeRunBtn) cascadeRunBtn.disabled=!lease.canEdit;
@@ -5782,14 +5783,14 @@ function outputUrlLooksVideo(url){
 }
 function proxiedMediaUrl(itemOrUrl, name=''){
     const url = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
-    if(!url || String(url).startsWith('/assets/') || String(url).startsWith('/output/') || String(url).startsWith('data:') || String(url).startsWith('blob:')) return url;
+    if(!url || String(url).startsWith('/assets/') || String(url).startsWith('/output/') || String(url).startsWith('data:') || String(url).startsWith('blob:')) return window.MemberMediaUrl ? window.MemberMediaUrl(url) : url;
     const filename = name || (typeof itemOrUrl === 'object' ? (itemOrUrl.name || '') : '') || fileNameFromUrl(url) || 'preview';
     return `/api/download-output?inline=1&url=${encodeURIComponent(url)}&name=${encodeURIComponent(filename)}`;
 }
 function displayMediaUrl(itemOrUrl, name=''){
     const url = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
     if(/^https?:\/\//i.test(String(url || ''))) return proxiedMediaUrl(itemOrUrl, name);
-    return url;
+    return window.MemberMediaUrl ? window.MemberMediaUrl(url) : url;
 }
 function bindImageProxyFallback(imgEl, itemOrUrl){
     if(!imgEl || imgEl.dataset.proxyFallbackBound === '1') return;
@@ -13460,6 +13461,7 @@ function smartTaskPollRetryWindow(status=0, err=null){
     return 0;
 }
 async function pollSmartCanvasTask(taskId, kind='image'){
+    const validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
     if(!taskId) throw new Error(tr('smart.errRunFailed'));
     const taskKind = kind === 'video' ? 'video' : 'image';
     const pollKey = `${taskKind}:${taskId}`;
@@ -13489,6 +13491,9 @@ async function pollSmartCanvasTask(taskId, kind='image'){
             }
             unavailableSince = 0;
             const task = await response.json();
+            if(!validResult() || (window.CanvasSession?.enabled && task.canvas_edit_generation!==window.MemberCanvasEdit.active?.lease.generation)){
+                const error=new Error('结果将保留在生成结果列表，由当前编辑者加入。');error.resultPending=true;throw error;
+            }
             if(task.status === 'succeeded') return task.result || {};
             if((task.status === 'failed' || task.status === 'needs_review' || task.status === 'cancelled')){
                 const recoverTaskId = task.upstream_task_id || extractUpstreamTaskId(task.error || '');
@@ -13508,6 +13513,7 @@ async function pollSmartCanvasTask(taskId, kind='image'){
     }
 }
 function finalizeSmartPendingTask(node, taskId, images, kind='image', result={}){
+    if(window.CanvasSession?.enabled && (!window.MemberCanvasEdit?.canEdit || !nodes.includes(node))) return;
     if(!node || !taskId) return;
     const task = smartPendingTasks(node).find(item => item.taskId === taskId) || null;
     if(kind === 'video' && !task) return;
@@ -13547,6 +13553,9 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={})
 }
 async function resumeSmartPendingNode(node){
     if(!node) return;
+    const validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
+    const originCanvas=canvas;
+    if(!validResult()) return;
     const existing = activeSmartNodeResumes.get(node);
     if(existing) return existing;
     const promise = (async () => {
@@ -13561,11 +13570,13 @@ async function resumeSmartPendingNode(node){
             try {
                 const kind = task.kind || 'image';
                 const result = await pollSmartCanvasTask(task.taskId, kind);
+                if(canvas!==originCanvas || !validResult() || !nodes.includes(node) || !smartPendingTasks(node).includes(task)) return;
                 const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(result?.images || result);
                 finalizeSmartPendingTask(node, task.taskId, outputs, kind, result);
                 refreshSmartNodes([node.id]);
                 scheduleSave();
             } catch(e) {
+                if(e?.resultPending || canvas!==originCanvas || !validResult() || !nodes.includes(node) || !smartPendingTasks(node).includes(task)) return;
                 if(e && e.imageTaskRecover && e.recoverTaskId){
                     task.failed = true;
                     task.querying = false;

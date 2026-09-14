@@ -336,9 +336,12 @@ def materialize(ref):
     return op["paths"][asset["id"]]
 
 
-def signature(asset_id, version, expires):
+def signature(asset_id, version, expires, member=""):
     secret = os.environ["MEDIA_SIGNING_KEY"].encode()
-    return hmac.new(secret, f"{current_workspace()}:{asset_id}:{version}:{expires}".encode(), hashlib.sha256).hexdigest()
+    payload = f"{current_workspace()}:{asset_id}:{version}:{expires}"
+    if member:
+        payload += ":member:" + member
+    return hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
 
 
 def browser_url(asset, provider=False):
@@ -351,7 +354,15 @@ def browser_url(asset, provider=False):
     if media_backend() == "tos":
         return store().signed_url(asset, ttl)
     expires = int(time.time()) + ttl
-    path = f"/api/media/{asset['id']}/signed?workspace={quote(current_workspace(), safe='')}&expires={expires}&signature={signature(asset['id'], asset['object_version_id'], expires)}"
+    member = ""
+    if not provider:
+        from app.services.member_context import current_access
+        access = current_access.get()
+        if access:
+            member = access.principal.member_id
+    path = f"/api/media/{asset['id']}/signed?workspace={quote(current_workspace(), safe='')}&expires={expires}&signature={signature(asset['id'], asset['object_version_id'], expires, member)}"
+    if member:
+        path += "&member=" + quote(member, safe="")
     return os.getenv("PUBLIC_BASE_URL", "").rstrip("/") + path if provider else path
 
 

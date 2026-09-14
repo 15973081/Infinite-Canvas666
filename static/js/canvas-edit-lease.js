@@ -241,6 +241,32 @@
                 } catch (error) { if (epoch === this.epoch) this.pause('保存结果尚未确认，请保留草稿。'); throw error; }
             });
         }
+        async joinResult(taskId, flush, reload, valid=() => true) {
+            if(!this.canEdit || this.finishing) throw new Error('请先开始编辑，再加入结果。');
+            const epoch=this.epoch;
+            this.finishing=true;this.emit();
+            try {
+                if(!await flush()) throw new Error('当前更改尚未保存，请保留草稿后重试。');
+                if(!valid() || epoch!==this.epoch || !this.canSave) throw new Error('编辑状态已改变，请重新打开结果列表。');
+                const data=await this.enqueue(async () => {
+                    if(!valid() || epoch!==this.epoch || !this.canSave || !['normal','scheduled'].includes(this.maintenance)) throw new Error('编辑状态已改变，请重新打开结果列表。');
+                    const response=await this.transport('/api/canvases/'+encodeURIComponent(this.id)+'/task-results/'+encodeURIComponent(taskId)+'/join',
+                        {method:'POST',headers:this.headers(),signal:AbortSignal.timeout(30000)});
+                    const data=await response.json();
+                    if(!response.ok) {const error=new Error({task_result_assets_unavailable:'结果素材当前不可用，请保留任务并检查素材。',
+                        task_result_not_ready:'任务尚未完成，请刷新结果列表。',task_result_node_conflict:'结果节点已被修改，请先核对已有节点。'}[data.detail?.code] || '结果尚未确认加入，请刷新画布后核对。');throw error;}
+                    if(epoch!==this.epoch || !valid() || !this.canSave || !Number.isSafeInteger(data.canvas?.revision) || data.canvas.revision<this.revision || data.canvas.id!==this.id) throw new Error('结果加入状态尚未确认，请重新载入画布核对。');
+                    this.revision=data.canvas.revision;this.emit();return data;
+                });
+                if(!valid() || epoch!==this.epoch || !this.canSave) throw new Error('编辑状态已改变，结果已保存在服务器，请重新载入核对。');
+                const document=await reload();
+                if(!valid() || epoch!==this.epoch || !this.canSave || document?.revision!==data.canvas?.revision) throw new Error('结果已保存在服务器，请重新载入画布核对。');
+                return data;
+            } catch(error) {
+                if(epoch===this.epoch) this.pause(error.message);
+                throw error;
+            } finally {this.finishing=false;this.emit();}
+        }
         async finish(flush) {
             if (!this.canSave || this.finishing) return false;
             this.finishing = true; this.emit();

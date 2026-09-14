@@ -215,3 +215,22 @@ test('a save already in the queue completes before checking a draft base revisio
     const restoring=f.lease.restoreDraft(3,()=>assert.fail('applied'));
     await save;await assert.rejects(restoring,/版本/);assert.equal(f.lease.revision,4);
 });
+
+test('joining saved results freezes edits, flushes first and adopts only acknowledged revision',async()=>{
+ let revision=3,flushed=false;
+ const f=fixture((path,init)=>{
+  if(path.endsWith('/acquire'))return json(publicLease({edit_token:'private'}));
+  assert.equal(flushed,true);assert.equal(f.lease.canEdit,false);assert.equal(new Headers(init.headers).get('X-Canvas-Revision'),'3');
+  return json({canvas:{id:'a',revision:++revision}});
+ });await f.start();
+ await f.lease.joinResult('task',async()=>{flushed=true;return true;},async()=>({revision}));
+ assert.equal(f.lease.revision,4);assert.equal(f.lease.canEdit,true);
+});
+test('result join lost response or changed page never claims success or reloads another graph',async()=>{
+ for(const changed of [false,true]){
+  const f=fixture(path=>{if(path.endsWith('/acquire'))return json(publicLease({edit_token:'private'}));if(changed)f.lease.pause('changed');else throw new Error('network');return json({canvas:{id:'a',revision:4}});});
+  await f.start();let reloaded=false;
+  await assert.rejects(f.lease.joinResult('task',async()=>true,async()=>{reloaded=true;return {revision:4};}));
+  assert.equal(reloaded,false);assert.equal(f.lease.canEdit,false);
+ }
+});

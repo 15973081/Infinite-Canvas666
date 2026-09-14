@@ -7,3 +7,5 @@ body:has(.member-canvas-edit) #canvasLockOverlay,body:has(.member-canvas-edit) #
 .member-canvas-transfer-list{width:100%;max-height:180px;overflow:auto;border-top:1px solid #596476}.member-canvas-transfer-row{display:flex;gap:8px;align-items:center;justify-content:space-between;padding-top:8px}.member-canvas-transfer-row span{flex:1}.member-canvas-drafts textarea{display:block;width:100%;min-height:90px;background:#202b3b;color:#fff;border:1px solid #64748b;border-radius:8px;padding:10px;margin:12px 0;box-sizing:border-box}.member-canvas-drafts>button+button{margin-left:8px}
 
 .member-canvas-presence summary{cursor:pointer;padding:6px 10px;white-space:nowrap}.member-canvas-presence ul{list-style:none;margin:6px 0 0;padding:8px 12px;max-height:180px;overflow:auto;border-top:1px solid #596476}.member-canvas-presence li{padding:3px 0;overflow-wrap:anywhere}
+
+.member-canvas-drafts button:disabled{opacity:.45;cursor:default}.member-canvas-result-row{padding:14px 0;border-bottom:1px solid #465064;overflow-wrap:anywhere}.member-canvas-result-row p{margin:6px 0}.member-canvas-drafts h2{margin:0 0 12px}

@@ -138,6 +138,46 @@
         }
         dialog.append(button('关闭',() => {dialog.close();dialog.remove();})); document.body.append(dialog); dialog.showModal();
     }
+    async function showTaskResults() {
+        const entry=active;
+        assertDraftScope(entry);
+        const dialog=element('dialog');dialog.className='member-canvas-drafts';dialog.setAttribute('aria-label','生成结果');
+        const list=element('div'),status=element('p');status.setAttribute('role','status');
+        let after='',loading=false;
+        const load=async (reset=false) => {
+            if(loading)return;
+            loading=true;status.textContent='正在读取结果…';
+            try {
+                assertDraftScope(entry);
+                const cursor=reset?'':after;
+                const response=await fetch('/api/canvases/'+encodeURIComponent(entry.id)+'/task-results'+(cursor?'?after='+encodeURIComponent(cursor):''),{cache:'no-store'});
+                const data=await response.json();assertDraftScope(entry);
+                if(!dialog.isConnected)return;
+                if(!response.ok)throw new Error('结果列表暂不可用，请检查当前空间的任务与素材读取权限。');
+                if(reset)list.replaceChildren();
+                after=data.next_after || '';
+                for(const row of data.results) {
+                    const card=element('section'),line=element('p',(row.model || (row.kind==='video'?'视频':'图片'))+' · '+row.id);
+                    const state=element('p',row.state==='in_canvas'?'已在画布中':row.state==='ready'?'结果已保存 · '+row.outputs.length+' 个素材':'结果素材待核对');
+                    const add=button('加入为新结果节点',async () => {
+                        try {
+                            assertDraftScope(entry);
+                            await entry.lease.joinResult(row.id,entry.options.flush,entry.options.reload,()=>validEntry(entry));
+                            assertDraftScope(entry);status.textContent='结果已加入并保存。';await load(true);
+                        } catch(error) {status.textContent=error.message;}
+                    });
+                    add.disabled=row.state!=='ready'||!entry.lease.canEdit;
+                    card.className='member-canvas-result-row';card.append(line,state,add);list.append(card);
+                }
+                more.hidden=!after;status.textContent=list.children.length?'':'暂无已完成的图片或视频结果。';
+            } catch(error) {status.textContent=error.message;}
+            finally {loading=false;}
+        };
+        const more=button('加载更多结果',()=>load());more.hidden=true;
+        dialog.append(element('h2','生成结果'),element('p','结果由服务器独立保存。开始编辑后可加入为新节点，原节点和其他更改会保留；此操作不会重新生成或产生新的费用。'),
+            button('刷新结果',()=>load(true)),list,more,status,button('关闭',()=>{dialog.close();dialog.remove();}));
+        document.body.append(dialog);dialog.showModal();await load(true);
+    }
     function ownsDraft(entry,row) {
         return row && row.member_id===entry.memberId && row.workspace_id===entry.workspaceId && row.canvas_id===entry.id &&
             typeof row.page==='string' && row.key===JSON.stringify([entry.memberId,entry.workspaceId,entry.id,row.page]);
@@ -408,7 +448,7 @@
             }});
             const maintenance=window.CanvasSession.maintenance || window.parent?.CanvasSession?.maintenance;
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
-            bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),presencePanel,notice,requestList);
+            bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),button('生成结果',showTaskResults),presencePanel,notice,requestList);
             document.body.append(bar); render(); tick(entry); reportTick(entry); subscribe(entry);
             return entry;
         },

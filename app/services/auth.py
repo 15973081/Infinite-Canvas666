@@ -10,7 +10,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from http.cookies import SimpleCookie
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlsplit, parse_qs
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -263,7 +263,8 @@ class AuthenticationMiddleware:
         signed = postgres_enabled() and scope["type"] == "http" and scope.get("method") in {"GET", "HEAD"} and bool(re.fullmatch(r"/api/media/ast_[a-f0-9]{32}/signed", path))
         signed = signed or (postgres_enabled() and scope["type"] == "http" and scope.get("method") == "PUT"
                             and bool(re.fullmatch(r"/api/media/uploads/ast_[a-f0-9]{32}/parts/[0-9]+/content", path)))
-        if member_auth_enabled() and not signed:
+        browser_bound = "member" in parse_qs(scope.get("query_string", b"").decode("latin-1"), keep_blank_values=True)
+        if member_auth_enabled() and (not signed or browser_bound):
             from app.services.member_gateway import dispatch
             return await dispatch(self.app, scope, receive, send)
         if not signed:

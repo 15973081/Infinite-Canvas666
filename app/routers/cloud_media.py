@@ -146,22 +146,27 @@ async def content(asset_id: str, variant: str = "original"):
 
 
 @router.get("/api/media/{asset_id}/signed")
-def signed_content(asset_id: str, expires: int, signature: str, workspace: str = "default"):
+def signed_content(asset_id: str, expires: int, signature: str, workspace: str = "default", member: str = ""):
     from app.storage.workspace import workspace_scope
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", workspace):
         raise HTTPException(400, "无效空间")
     with workspace_scope(workspace):
-        return _signed_content(asset_id, expires, signature)
+        return _signed_content(asset_id, expires, signature, member)
 
 
-def _signed_content(asset_id, expires, signature):
+def _signed_content(asset_id, expires, signature, member=""):
     enabled()
+    if member:
+        from app.services.member_context import current_access
+        access = current_access.get()
+        if access is None or access.principal.member_id != member:
+            raise HTTPException(401, "素材链接需要原成员会话")
     if media.media_backend() != "filesystem":
         raise HTTPException(404)
     asset = media.get_asset(asset_id)
     if not asset or asset.get("role") == "task-result-source":
         raise HTTPException(404)
-    if expires < int(time.time()) or expires > int(time.time()) + 86400 or not hmac.compare_digest(signature, media.signature(asset_id, asset["object_version_id"], expires)):
+    if expires < int(time.time()) or expires > int(time.time()) + 86400 or not hmac.compare_digest(signature, media.signature(asset_id, asset["object_version_id"], expires, member)):
         raise HTTPException(403, "素材链接已过期或无效")
     path = media.materialize(asset_id)
     mime = asset["content_type"]

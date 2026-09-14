@@ -654,13 +654,14 @@ function actionFailed(labelKey, detail=''){
     return langIsEn() ? `${label} failed${detail ? `: ${detail}` : ''}` : `${label}失败${detail ? `：${detail}` : ''}`;
 }
 function noReturnedImage(labelKey){ return langIsEn() ? `${tr(labelKey)} failed: no image returned` : `${tr(labelKey)}失败：未返回图片`; }
+function canvasDisplayMediaUrl(url){ return window.MemberMediaUrl ? window.MemberMediaUrl(url) : url; }
 function canvasMediaPreviewUrl(url, size=512){
     const raw = String(url || '');
-    if(!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
-    if(!raw.startsWith('/output/') && !raw.startsWith('/assets/')) return raw;
-    if(!/\.(png|jpe?g|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return raw;
+    if(!raw || raw.startsWith('data:') || raw.startsWith('blob:')) return canvasDisplayMediaUrl(raw);
+    if(!raw.startsWith('/output/') && !raw.startsWith('/assets/')) return canvasDisplayMediaUrl(raw);
+    if(!/\.(png|jpe?g|webp|gif|bmp|avif|tiff?|mp4|webm|mov|m4v)(\?|#|$)/i.test(raw)) return canvasDisplayMediaUrl(raw);
     const width = Math.max(64, Math.min(2048, Math.round(Number(size) || 512)));
-    return `/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`;
+    return canvasDisplayMediaUrl(`/api/media-preview?w=${width}&url=${encodeURIComponent(raw)}`);
 }
 function canvasPreviewImgHtml(url, size=512, attrs=''){
     const original = String(url || '');
@@ -725,7 +726,7 @@ function bindCanvasPreviewImageFallbacks(root=document){
                 refreshIcons();
                 return;
             }
-            if(original && img.getAttribute('src') !== original) img.src = original;
+            if(original && img.getAttribute('src') !== original) img.src = canvasDisplayMediaUrl(original);
         });
     });
 }
@@ -2754,7 +2755,7 @@ async function openCanvas(id){
                 refresh:syncRemoteCanvasNow, restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed)),
                 openCopy:async copy => {await loadCanvasList(false);await openCanvas(copy.id);},
                 reload:async () => { const loaded=await openCanvas(id); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
-                changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } }
+                changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } else resumeCanvasImageTasks(); }
             });
         } else checkCanvasLock().then(() => {
             if(!canvasLockedByOther && !canvasLockHolder){
@@ -3615,7 +3616,7 @@ async function getImageDimensions(url){
         const img = new Image();
         img.onload = () => resolve({width: img.naturalWidth, height: img.naturalHeight});
         img.onerror = () => reject(new Error('图片加载失败'));
-        img.src = url;
+        img.src = canvasDisplayMediaUrl(url);
     });
 }
 async function urlToBase64(url){
@@ -5826,7 +5827,7 @@ function openImageEditor(nodeId, initialMode='crop'){
         refreshIcons();
     };
     img.crossOrigin = 'anonymous';
-    img.src = node.url;
+    img.src = canvasDisplayMediaUrl(node.url);
     setImageEditMode(initialMode);
     refreshIcons();
 }
@@ -11389,7 +11390,7 @@ function videoDurationSeconds(url){
         video.preload = 'metadata';
         video.onloadedmetadata = () => done(Number.isFinite(video.duration) ? Math.max(1, Math.round(video.duration)) : 0);
         video.onerror = () => done(0);
-        video.src = url;
+        video.src = canvasDisplayMediaUrl(url);
     });
 }
 let videoCostBackfillRunning = false;
@@ -11906,6 +11907,8 @@ async function queryRecoverPendingOutput(pendingId){
 function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
 async function pollCanvasImageTask(taskId, options={}){
     if(!taskId) return 'failed';
+    const originCanvas=canvas, validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
+    if(!validResult()) return 'paused';
     if(activeCanvasTaskPolls.has(taskId)) return 'running';
     activeCanvasTaskPolls.add(taskId);
     try {
@@ -11920,6 +11923,8 @@ async function pollCanvasImageTask(taskId, options={}){
                 throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
             }
             const data = await res.json();
+            if(canvas!==originCanvas || !validResult() || findPendingTask(taskId)?.pending!==found.pending ||
+                (window.CanvasSession?.enabled && data.canvas_edit_generation!==window.MemberCanvasEdit.active.lease.generation)) return 'paused';
             if(data.status === 'succeeded'){
                 completeCanvasImageTask(taskId, data.result || {});
                 return 'succeeded';
@@ -11931,6 +11936,7 @@ async function pollCanvasImageTask(taskId, options={}){
             await sleep(1800);
         }
     } catch(err) {
+        if(canvas!==originCanvas || !validResult()) return 'paused';
         const message = normalizeCanvasTaskError(err, tr('canvas.generationFailed'));
         if(isCascadeAbortError(err)) return 'aborted';
         failCanvasImageTask(taskId, message);
@@ -11956,6 +11962,7 @@ async function waitCanvasImageTaskResult(taskId, options={}){
     }
 }
 function completeCanvasImageTask(taskId, result){
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
@@ -11980,6 +11987,7 @@ function completeCanvasImageTask(taskId, result){
     scheduleSave();
 }
 function failCanvasImageTask(taskId, message, taskData={}){
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
@@ -12025,6 +12033,7 @@ function videoOutputsFromResult(result){
     }).filter(item => item.url);
 }
 function completeCanvasVideoTask(taskId, result){
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
@@ -12051,6 +12060,7 @@ function completeCanvasVideoTask(taskId, result){
     scheduleSave();
 }
 function failCanvasVideoTask(taskId, message, taskData={}){
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
@@ -12073,6 +12083,8 @@ function failCanvasVideoTask(taskId, message, taskData={}){
 }
 async function pollCanvasVideoTask(taskId, options={}){
     if(!taskId) return 'failed';
+    const originCanvas=canvas, validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
+    if(!validResult()) return 'paused';
     const pollKey = `video:${taskId}`;
     if(activeCanvasTaskPolls.has(pollKey)) return 'running';
     activeCanvasTaskPolls.add(pollKey);
@@ -12112,6 +12124,8 @@ async function pollCanvasVideoTask(taskId, options={}){
             }
             unavailableSince = 0;
             const data = await res.json();
+            if(canvas!==originCanvas || !validResult() || findPendingTask(taskId)?.pending!==found.pending ||
+                (window.CanvasSession?.enabled && data.canvas_edit_generation!==window.MemberCanvasEdit.active.lease.generation)) return 'paused';
             if(data.status === 'succeeded'){
                 const result = data.result || {};
                 if(!videoOutputsFromResult(result).length){
@@ -12128,6 +12142,7 @@ async function pollCanvasVideoTask(taskId, options={}){
             await sleep(2500);
         }
     } catch(err) {
+        if(canvas!==originCanvas || !validResult()) return 'paused';
         if(isCascadeAbortError(err)) return 'aborted';
         failCanvasVideoTask(taskId, normalizeCanvasTaskError(err, tr('canvas.videoFailed')));
         return 'failed';
@@ -13195,7 +13210,7 @@ function openOutputLightbox(url, out){
         const audio = document.createElement('audio');
         audio.controls = true;
         audio.preload = 'metadata';
-        audio.src = url;
+        audio.src = canvasDisplayMediaUrl(url);
         outputLightboxAudioHost.replaceChildren(audio);
         outputResolutionText('Audio', meta);
         outputPreview.ondblclick = null;
@@ -13218,7 +13233,7 @@ function openOutputLightbox(url, out){
                 ? `${outputLightboxVideo.videoWidth} x ${outputLightboxVideo.videoHeight}`
                 : 'Video', meta);
         };
-        outputLightboxVideo.src = url;
+        outputLightboxVideo.src = canvasDisplayMediaUrl(url);
         outputPreview.ondblclick = null;
         outputDownloadBtn.onclick = e => {
             e.stopPropagation();
@@ -13235,9 +13250,9 @@ function openOutputLightbox(url, out){
     outputLightboxImg.onload = () => {
         outputResolutionText(`${outputLightboxImg.naturalWidth} x ${outputLightboxImg.naturalHeight}`, meta);
     };
-    outputLightboxImg.src = url;
-    outputCompareResult.src = url;
-    outputCompareOriginal.src = currentOutputCompareUrl || '';
+    outputLightboxImg.src = canvasDisplayMediaUrl(url);
+    outputCompareResult.src = canvasDisplayMediaUrl(url);
+    outputCompareOriginal.src = canvasDisplayMediaUrl(currentOutputCompareUrl || '');
     outputPreview.ondblclick = e => {
         e.stopPropagation();
         if(!currentOutputCompareUrl) return;

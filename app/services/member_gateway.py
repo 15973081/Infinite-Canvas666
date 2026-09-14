@@ -80,6 +80,9 @@ def permissions(path, method):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method in {'POST', 'PATCH', 'DELETE'} else None
     if re.fullmatch(r'/api/canvases/[^/]+/lock(?:/release)?', path):
         az.fail('collaboration_protocol_pending', 503)  # Replaced by C2 lease routes.
+    if re.fullmatch(r'/api/canvases/[^/]+/task-results(?:/[^/]+/join)?', path):
+        from app.services.canvas_task_results import PERMISSIONS
+        return PERMISSIONS if method == 'GET' and path.endswith('/task-results') else (*PERMISSIONS, 'canvas.edit') if method == 'POST' and path.endswith('/join') else None
     if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):
         return ('canvas.read',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
@@ -182,7 +185,7 @@ async def dispatch(app, scope, receive, send):
     scope['auth_user'] = actor.member_id
     try:
         claimed_member = dict(scope.get('headers', [])).get(b'x-member-id', b'').decode('latin-1')
-        if scope['type'] == 'websocket':
+        if scope['type'] == 'websocket' or (method in {'GET', 'HEAD'} and (path.startswith(('/assets/', '/output/', '/api/media/')) or path == '/api/media-preview')):
             identities = parse_qs(scope.get('query_string', b'').decode('latin-1')).get('member', [])
             if len(identities) > 1 or (claimed_member and identities and claimed_member != identities[0]):
                 az.fail('member_identity_changed', 409)

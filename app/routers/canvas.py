@@ -1541,3 +1541,15 @@ async def release_canvas_lock_beacon(canvas_id: str, payload: CanvasLockRequest)
 
 from app.routers.image import run_canvas_image_task
 from app.services.canvas import _backup_dir, _backup_path
+
+
+@router.get("/api/canvases/{canvas_id}/task-results")
+def list_completed_canvas_results(canvas_id: str, after: str = ''):
+    from app.services.canvas_task_results import catalog
+    return catalog(canvas_id, after)
+
+
+@router.post("/api/canvases/{canvas_id}/task-results/{task_id}/join")
+def join_completed_canvas_result(canvas_id: str, task_id: str):
+    from app.services.canvas_task_results import join
+    return join(canvas_id, task_id)

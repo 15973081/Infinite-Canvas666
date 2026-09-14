@@ -42,6 +42,8 @@ def decode(row):
     task["provider_account_ref"] = row["provider_account_ref"]
     task["workspace_id"] = row["workspace_id"]
     task["requested_by"] = row.get("requested_by")
+    task["canvas_revision"] = row.get("canvas_revision")
+    task["canvas_edit_generation"] = row.get("canvas_edit_generation")
     if row["provider_id"]:
         task["provider_id"] = row["provider_id"]
     if row["upstream_task_id"]:
