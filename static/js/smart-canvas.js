@@ -4240,7 +4240,7 @@ function applyMergedServerCanvas(serverCanvas){
 }
 async function mergeReloadCanvasNow(){
     if(window.CanvasSession?.enabled){
-        if(window.MemberCanvasEdit?.canRefresh) await loadCanvas();
+        if(window.MemberCanvasEdit?.canRefresh) await loadCanvas({observe:true});
         return;
     }
     if(!canvasId) return;
@@ -4278,7 +4278,7 @@ function startCanvasMetaPoll(){
         try {
             const meta = await window.CanvasApi.getCanvasMeta(canvasId, null);
             if(!meta) return;
-            if(Number(meta.updated_at || 0) > Number(canvas.updated_at || 0)) mergeReloadCanvasNow();
+            if(window.CanvasSession?.enabled ? Number(meta.revision)>Number(canvas.revision || 0) : Number(meta.updated_at || 0)>Number(canvas.updated_at || 0)) mergeReloadCanvasNow();
         } catch(e) {}
     }, 8000);
 }
@@ -4784,11 +4784,16 @@ function canvasImageDragPayload(node, index=0){
     if(!img?.url) return null;
     return {url:img.url, name:img.name || node.title || 'image'};
 }
-async function loadCanvas(){
+async function loadCanvas(options={}){
     if(!canvasId) return;
+    const requestedId=canvasId, entry=window.MemberCanvasEdit?.active, epoch=entry?.lease.epoch;
+    if(options.observe && !window.MemberCanvasEdit?.canRefresh) return;
     try {
         const data = await window.CanvasApi.getCanvas(canvasId, {errorFallback:'读取画布失败'});
         if(!data?.canvas) throw new Error('画布数据为空');
+        if(canvasId!==requestedId || data.canvas.id!==requestedId) return;
+        if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
+            !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
         canvas = data.canvas;
         smartServerNodeIds = new Set((Array.isArray(canvas.nodes) ? canvas.nodes : []).map(node => node?.id).filter(Boolean));
         smartServerConnectionKeys = new Set((Array.isArray(canvas.connections) ? canvas.connections : []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
@@ -4833,7 +4838,7 @@ async function loadCanvas(){
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvasId,dirty:() => smartCanvasDirty || Boolean(smartSaveInFlight) || smartSaveAgain,
                 snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
-                restore:restoreSmartMemberDraft,busy:() => Boolean(smartSaveInFlight) || smartSaveAgain || smartCascadeAnyRunning() || nodes.some(smartNodeInFlight),
+                refresh:()=>loadCanvas({observe:true}),restore:restoreSmartMemberDraft,busy:() => Boolean(smartSaveInFlight) || smartSaveAgain || smartCascadeAnyRunning() || nodes.some(smartNodeInFlight),
                 openCopy:async copy => {window.location.assign('/static/smart-canvas.html?id='+encodeURIComponent(copy.id)+'&workspace='+encodeURIComponent(window.CanvasSession.context.workspace.id));},
                 reload:async () => { const loaded=await loadCanvas(); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 flush:async () => {

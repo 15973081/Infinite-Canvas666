@@ -158,7 +158,7 @@ def versioned_static_html(html: str) -> str:
         # Blocking script installs the request gate before inline scripts or
         # iframes can start business requests without a selected workspace.
         versioned = re.sub(r'(<head(?:\s[^>]*)?>)',
-            r'\1\n<link rel="stylesheet" href="/static/css/member-session.css">\n<script src="/static/js/member-session.js"></script>\n<link rel="stylesheet" href="/static/css/member-canvas-edit.css">\n<script src="/static/js/canvas-edit-lease.js"></script>\n<script src="/static/js/member-canvas-edit.js"></script>',
+            r'\1\n<link rel="stylesheet" href="/static/css/member-session.css">\n<script src="/static/js/member-session.js"></script>\n<link rel="stylesheet" href="/static/css/member-canvas-edit.css">\n<script src="/static/js/canvas-edit-lease.js"></script>\n<script src="/static/js/canvas-subscription.js"></script>\n<script src="/static/js/member-canvas-edit.js"></script>',
             versioned, count=1, flags=re.I)
     return versioned_static_references(versioned, build_id)
 

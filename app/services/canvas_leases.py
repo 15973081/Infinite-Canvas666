@@ -237,15 +237,20 @@ def transfers(actor, canvas_id):
         ensure(conn, workspace, 'read')
         canvas = canvas_row(conn, workspace, canvas_id)
         row = lease_row(conn, workspace, canvas_id)
-        is_holder = holder_active(conn, row) and (row['member_id'], row['login_session_id']) == (actor.member_id, actor.session_id)
-        records = conn.execute('''SELECT t.id,t.generation,t.status,t.expires_at,t.member_id,m.display_name,m.avatar
-            FROM canvas_transfer_requests t JOIN members m ON m.id=t.member_id WHERE t.workspace_id=%s AND t.canvas_id=%s
-            AND ((t.member_id=%s AND t.login_session_id=%s) OR (%s AND t.generation=%s AND t.status='pending'))
-            ORDER BY t.created_at DESC LIMIT 100''', (workspace, canvas_id, actor.member_id, actor.session_id, is_holder, row['generation'])).fetchall()
-        for request in records:
-            if request['status'] == 'pending' and (request['generation'] != row['generation'] or request['expires_at'] <= row['server_time'] or not holder_active(conn, row)):
-                request['status'] = 'expired'
-        return {'requests': records, 'lease': public(conn, row, actor, canvas['revision'])}
+        return transfer_snapshot(conn, actor, workspace, canvas, row)
+
+
+def transfer_snapshot(conn, actor, workspace, canvas, row):
+    canvas_id = canvas['id']
+    is_holder = holder_active(conn, row) and (row['member_id'], row['login_session_id']) == (actor.member_id, actor.session_id)
+    records = conn.execute('''SELECT t.id,t.generation,t.status,t.expires_at,t.member_id,m.display_name,m.avatar
+        FROM canvas_transfer_requests t JOIN members m ON m.id=t.member_id WHERE t.workspace_id=%s AND t.canvas_id=%s
+        AND ((t.member_id=%s AND t.login_session_id=%s) OR (%s AND t.generation=%s AND t.status='pending'))
+        ORDER BY t.created_at DESC LIMIT 100''', (workspace, canvas_id, actor.member_id, actor.session_id, is_holder, row['generation'])).fetchall()
+    for request in records:
+        if request['status'] == 'pending' and (request['generation'] != row['generation'] or request['expires_at'] <= row['server_time'] or not holder_active(conn, row)):
+            request['status'] = 'expired'
+    return {'requests': records, 'lease': public(conn, row, actor, canvas['revision'])}
 
 
 def resolve_transfer(actor, canvas_id, request_id, proof, *, approve, confirm=False):

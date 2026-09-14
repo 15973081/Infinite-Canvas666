@@ -356,3 +356,34 @@ test('late roster responses cannot restore an older list or leak across account 
     assert.equal(entry.presenceList.children.length,0);
     assert.equal(entry.presenceSummary.textContent,'在线名单暂不可用');
 });
+
+
+test('subscription refreshes clean viewers but never replaces dirty documents',async()=>{
+    const f=fixture();let revision=3,dirty=false,refreshes=0;
+    f.context.CanvasSubscription=class {constructor(options){this.options=options;}start(){}stop(){this.stopped=true;}};
+    f.context.CanvasSession.socketUrl=value=>value;
+    await f.api.mount({id:'a',dirty:()=>dirty,snapshot:()=>({id:'a',revision,nodes:[],connections:[]}),
+        refresh:async()=>{refreshes++;revision=4;},reload:async()=>({revision}),flush:async()=>true});
+    await new Promise(setImmediate);const entry=f.api.active;
+    entry.lease.transport=async()=>reply({lease:{...status,revision:4,holder:null},requests:[]});
+    await entry.subscription.options.onChange({maintenance:{mode:'normal'}});
+    assert.equal(refreshes,1);assert.equal(entry.lease.canSave,false);
+    dirty=true;entry.lease.transport=async()=>reply({lease:{...status,revision:5,holder:null},requests:[]});
+    await entry.subscription.options.onChange({maintenance:{mode:'normal'}});
+    assert.equal(refreshes,1);assert.equal(revision,4);
+});
+
+test('subscription loss pauses editing without release; reconnect cannot auto-resume or reload a draft',async()=>{
+    const f=fixture();let dirty=false;
+    f.context.CanvasSubscription=class {constructor(options){this.options=options;}start(){}stop(){this.stopped=true;}};
+    f.context.CanvasSession.socketUrl=value=>value;
+    await f.api.mount({id:'a',dirty:()=>dirty,snapshot:()=>({id:'a',revision:3,nodes:[],connections:[]}),
+        refresh:async()=>assert.fail('draft overwritten'),reload:async()=>({revision:3}),flush:async()=>true});
+    await new Promise(setImmediate);const entry=f.api.active;
+    await entry.lease.start(async()=>({revision:3}));dirty=true;
+    entry.subscription.options.onDisconnect('连接中断');await new Promise(setImmediate);
+    assert.equal(entry.lease.state,'paused');assert.equal(entry.lease.canSave,false);assert.equal(f.records.size,1);
+    assert.equal(f.calls.some(([path])=>path.endsWith('/release')),false);
+    await entry.subscription.options.onChange({maintenance:{mode:'normal'}});
+    assert.equal(entry.lease.state,'paused');assert.equal(entry.lease.canSave,false);
+});

@@ -22,3 +22,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str = None):
     except Exception as e:
         print(f"WS Error: {e}")
         await manager.disconnect(websocket, client_id)
+
+
+@router.websocket("/ws/canvases/{canvas_id}")
+async def canvas_subscription(websocket: WebSocket, canvas_id: str):
+    from app.services.canvas_subscriptions import serve
+    return await serve(websocket, canvas_id)

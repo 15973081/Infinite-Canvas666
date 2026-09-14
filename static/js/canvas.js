@@ -2751,7 +2751,7 @@ async function openCanvas(id){
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvas.id, dirty:() => localCanvasDirty || savingCanvasNow || saveCanvasAgain,
                 snapshot:() => ({...canvas, ...canvasSavePayload()}), flush:flushClassicCanvasBeforeFrontendReload,
-                restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed)),
+                refresh:syncRemoteCanvasNow, restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed)),
                 openCopy:async copy => {await loadCanvasList(false);await openCanvas(copy.id);},
                 reload:async () => { const loaded=await openCanvas(id); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } }
@@ -2789,6 +2789,7 @@ function restoreClassicMemberDraft(draft){
 function applyRemoteCanvasData(remote){
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canRefresh) return false;
     if(!remote || !canvas || remote.id !== canvas.id) return;
+    if(window.CanvasSession?.enabled && (!Number.isSafeInteger(remote.revision) || remote.revision<=Number(canvas.revision || 0))) return false;
     if(localCanvasDirty || saveTimer || savingCanvasNow || saveCanvasAgain){
         clearTimeout(remoteSyncTimer);
         remoteSyncTimer = setTimeout(syncRemoteCanvasNow, 1000);
@@ -2875,13 +2876,15 @@ async function refreshMissingCanvasAssets(){
 async function syncRemoteCanvasNow(){
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canRefresh) return;
     if(!canvas) return;
+    const entry=window.MemberCanvasEdit?.active, epoch=entry?.lease.epoch, id=canvas.id;
     try {
-        const data = await window.CanvasApi.getCanvas(canvas.id, {errorFallback:tr('canvas.openFailed')});
+        const data = await window.CanvasApi.getCanvas(id, {errorFallback:tr('canvas.openFailed')});
+        if(!canvas || canvas.id!==id) return;
+        if(window.CanvasSession?.enabled && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh)) return;
         const remote = data.canvas;
-        // 相同版本无需重复应用，否则切回画布标签时会无意义地重置本机撤销历史。
-        if(Number(remote?.updated_at || 0) > Number(lastCanvasUpdatedAt || 0)){
-            applyRemoteCanvasData(remote);
-        }
+        const newer=window.CanvasSession?.enabled ? Number(remote?.revision)>Number(canvas.revision || 0)
+            : Number(remote?.updated_at || 0)>Number(lastCanvasUpdatedAt || 0);
+        if(newer) applyRemoteCanvasData(remote);
     } catch(e) {
         console.error(e);
         setStatus('Sync failed');
@@ -2896,7 +2899,7 @@ async function checkRemoteCanvasVersion(){
         const meta = await window.CanvasApi.getCanvasMeta(canvas.id, null);
         if(!meta) throw new Error('meta failed');
         const remoteUpdatedAt = Number(meta.updated_at || 0);
-        if(remoteUpdatedAt > Number(lastCanvasUpdatedAt || 0)){
+        if(window.CanvasSession?.enabled ? Number(meta.revision)>Number(canvas?.revision || 0) : remoteUpdatedAt > Number(lastCanvasUpdatedAt || 0)){
             await syncRemoteCanvasNow();
         }
     } catch(e) {

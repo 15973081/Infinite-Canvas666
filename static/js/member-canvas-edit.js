@@ -289,7 +289,7 @@
         active.force.disabled=cannotStart;
         end.hidden=!lease.canSave; end.disabled=lease.finishing;
         save.hidden=!lease.canSave; save.disabled=lease.finishing;
-        notice.textContent=[...new Set([lease.message,active.feedback,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
+        notice.textContent=[...new Set([lease.message,active.feedback,active.streamMessage,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
         renderRequests(active);
         renderPresence(active);
         bar.hidden=false;
@@ -327,23 +327,61 @@
         entry.feedback='';
         await entry.lease.start(entry.options.reload,{takeover:'force',expected_generation:generation,confirm:true,reason});
     }
+    function validEntry(entry) {
+        const context=window.CanvasSession.context;
+        return entry===active && !window.CanvasSession.paused && !entry.reportSuspended &&
+            context?.member.id===entry.memberId && context?.workspace.id===entry.workspaceId;
+    }
+    function refreshState(entry) {
+        if(!validEntry(entry)) return Promise.resolve();
+        if(entry.refreshing) {entry.refreshAgain=true;return entry.refreshing;}
+        entry.refreshing=(async () => {
+            do {
+                entry.refreshAgain=false;
+                await entry.lease.refreshTransfers(async () => {
+                    if(!validEntry(entry)) throw new Error('页面身份已变化，请保留草稿。');
+                    if(entry.options.dirty()) {await persist(entry);throw new Error('交接已批准，但本页有未保存内容，请先导出草稿再接管。');}
+                    return entry.options.reload();
+                });
+                if(validEntry(entry) && api.canRefresh && !entry.options.busy?.() && entry.options.refresh &&
+                    entry.lease.status?.revision>Number(entry.options.snapshot().revision || 0)) await entry.options.refresh();
+            } while(entry.refreshAgain && validEntry(entry));
+        })().finally(()=>{entry.refreshing=null;});
+        return entry.refreshing;
+    }
+    function subscribe(entry) {
+        if(!window.CanvasSubscription || !entry.options.refresh)return;
+        const address=new URL('/ws/canvases/'+encodeURIComponent(entry.id),location.href);
+        address.protocol=location.protocol==='https:' ? 'wss:' : 'ws:';
+        entry.subscription=new window.CanvasSubscription({id:entry.id,workspace:entry.workspaceId,
+            url:window.CanvasSession.socketUrl(address.href),valid:()=>validEntry(entry),
+            onChange:async value=>{
+                if(!validEntry(entry))return;
+                entry.streamMessage='';entry.lease.setMaintenance(value.maintenance.mode);
+                if(!['offline','recovering'].includes(value.maintenance.mode))await refreshState(entry);
+                render();
+            },onDisconnect:message=>{
+                if(entry!==active)return;
+                entry.streamMessage=message;
+                if(entry.lease.token || entry.lease.pending || ['starting','requesting'].includes(entry.lease.state))entry.lease.pause(message);
+                render();
+            }});
+        entry.subscription.start();
+    }
     async function tick(entry) {
         if(entry!==active) return;
         try {
             if(entry.lease.canSave) await entry.lease.renew();
-            await entry.lease.refreshTransfers(async () => {
-                if(entry.options.dirty()) {await persist(entry);throw new Error('交接已批准，但本页有未保存内容，请先导出草稿再接管。');}
-                return entry.options.reload();
-            });
+            await refreshState(entry);
         }
-        catch(error) { entry.feedback=error.message; render(); }
+        catch(error) {if(entry===active){entry.feedback=error.message;render();}}
         if(entry===active) timer=setTimeout(() => tick(entry),Math.min(5000,(entry.lease.status?.heartbeat_seconds || 5)*1000));
     }
     const api={
         get active(){return active;},
         get canEdit(){return Boolean(active?.lease.canEdit);},
         get canSave(){return Boolean(active?.lease.canSave);},
-        get canRefresh(){return active?.lease.state==='view' && !active.options.dirty();},
+        get canRefresh(){return active?.lease.state==='view' && validEntry(active) && !['offline','recovering'].includes(active.lease.maintenance) && !active.options.dirty();},
         async mount(options) {
             if(active?.id===options.id) return active;
             if(active) throw new Error('请先保存并结束当前画布编辑。');
@@ -371,7 +409,7 @@
             const maintenance=window.CanvasSession.maintenance || window.parent?.CanvasSession?.maintenance;
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
             bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),presencePanel,notice,requestList);
-            document.body.append(bar); render(); tick(entry); reportTick(entry);
+            document.body.append(bar); render(); tick(entry); reportTick(entry); subscribe(entry);
             return entry;
         },
         markDirty() { clearTimeout(draftTimer); const entry=active; draftTimer=setTimeout(() => {persist(entry);reportPage(entry);},150); },
@@ -404,7 +442,7 @@
                 assertDraftScope(entry);download(draftRecord(entry));
             }
             reportPage(entry,true);
-            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.lease.dispose(); entry.bar.remove(); active=null;
+            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.bar.remove(); active=null;
             document.body.classList.remove('member-canvas-view'); return true;
         },
         send(path,init={},transport=window.fetch.bind(window)) {
@@ -432,11 +470,11 @@
         const command=type==='keydown' && ((event.ctrlKey || event.metaKey) && ['v','x','z','y','g'].includes(key) || ['delete','backspace'].includes(key));
         if((target && type!=='keydown') || command || type==='drop') {event.preventDefault();event.stopImmediatePropagation();}
     },true);
-    window.addEventListener('member-session:paused',event => active?.lease.pause(event.detail?.message));
+    window.addEventListener('member-session:paused',event => {active?.subscription?.stop();active?.lease.pause(event.detail?.message);});
     window.addEventListener('member-session:maintenance',event => active?.lease.setMaintenance(event.detail.mode));
     window.addEventListener('pagehide',event => {
         persist();
-        if(active){active.reportSuspended=true;clearTimeout(active.reportTimer);}
+        if(active){active.subscription?.stop();active.reportSuspended=true;clearTimeout(active.reportTimer);}
         reportPage(active,!event.persisted);
         if(event.persisted) active?.lease.pause('页面已暂停，请保留草稿并重新确认编辑资格。');
         else active?.lease.dispose();
@@ -445,7 +483,7 @@
     window.addEventListener('pageshow',event => {
         if(!event.persisted || !active) return;
         active.reportSuspended=false;
-        tick(active);reportTick(active);
+        tick(active);reportTick(active);active.subscription?.start();
     });
     // A transport disconnect must not release a lease or erase local work.
     window.addEventListener('offline',() => active?.lease.pause('网络已断开，已停止编辑，请保留草稿。'));

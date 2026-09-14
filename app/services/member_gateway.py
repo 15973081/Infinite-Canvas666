@@ -61,7 +61,7 @@ def permissions(path, method):
         az.fail('local_asset_catalog_pending', 503)
     if path in {'/api/config', '/api/models', '/api/providers'} and method == 'GET':
         return ('provider.use',)
-    if path == '/ws/stats':
+    if path == '/ws/stats' or re.fullmatch(r'/ws/canvases/[^/]+', path):
         return ('canvas.read',)
     if path == '/api/maintenance/status' and method == 'GET':
         return ('canvas.read',)
@@ -135,7 +135,7 @@ def operation(path, method):
         return 'observe', None
     if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
         return 'observe', None  # Lease handlers enforce maintenance inside their transaction.
-    if path in {'/api/maintenance/status', '/ws/stats'}:
+    if path in {'/api/maintenance/status', '/ws/stats'} or re.fullmatch(r'/ws/canvases/[^/]+', path):
         return 'observe', None
     if method in {'GET', 'HEAD'} or path in {'/api/canvas-assets/check', '/api/canvas-assets/download', '/api/canvas-workflows/export', '/api/smart-canvas/group-export'}:
         return 'read', None
