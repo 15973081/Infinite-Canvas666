@@ -174,6 +174,14 @@ async def dispatch(app, scope, receive, send):
     scope['member_principal'] = actor
     scope['auth_user'] = actor.member_id
     try:
+        claimed_member = dict(scope.get('headers', [])).get(b'x-member-id', b'').decode('latin-1')
+        if scope['type'] == 'websocket':
+            identities = parse_qs(scope.get('query_string', b'').decode('latin-1')).get('member', [])
+            if len(identities) > 1 or (claimed_member and identities and claimed_member != identities[0]):
+                az.fail('member_identity_changed', 409)
+            claimed_member = claimed_member or (identities[0] if identities else '')
+        if claimed_member and claimed_member != actor.member_id:
+            az.fail('member_identity_changed', 409)
         if path in ACCOUNT:
             return await app(scope, receive, send)
         if path == '/' or path.startswith('/static/'):

@@ -4324,7 +4324,8 @@ function startCanvasMetaPoll(){
         } catch(e) {}
     }, 8000);
 }
-function connectAssetLibrarySyncSocket(){
+async function connectAssetLibrarySyncSocket(){
+    if(window.CanvasSession) await window.CanvasSession.ready;
     if(window.parent && window.parent !== window) return;
     const host = window.location.host;
     if(!host) return;
@@ -4334,7 +4335,8 @@ function connectAssetLibrarySyncSocket(){
     let retryTimer = null;
     const connect = () => {
         try {
-            socket = new WebSocket(`${protocol}://${host}/ws/stats?client_id=${clientId}`);
+            const address = `${protocol}://${host}/ws/stats?client_id=${clientId}`;
+            socket = new WebSocket(window.CanvasSession ? window.CanvasSession.socketUrl(address) : address);
         } catch(e) {
             retryTimer = setTimeout(connect, 3000);
             return;
@@ -15287,6 +15289,7 @@ window.addEventListener('message', event => {
 });
 
 window.onload = async () => {
+    if(window.CanvasSession) await window.CanvasSession.ready;
     applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light');
     loadPromptPresets();
     loadPromptTemplateGroups();

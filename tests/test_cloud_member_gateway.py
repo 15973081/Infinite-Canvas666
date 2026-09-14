@@ -37,7 +37,11 @@ def world(operator, monkeypatch):
     members.assign_roles(operator, people[0]['id'], [a['roles']['editor']], a['id'])
     members.assign_roles(operator, people[1]['id'], [a['roles']['viewer']], a['id'])
     members.assign_roles(operator, people[2]['id'], [b['roles']['editor']], b['id'])
-    with TestClient(app) as editor, TestClient(app) as viewer, TestClient(app) as outsider:
+    # Isolate login-rate budgets between scenarios; all three members within
+    # one scenario still share the same source address, as behind a NAT.
+    source = uuid.uuid4().bytes
+    peer = (f'198.18.{source[0]}.{source[1]}', 50000)
+    with TestClient(app, client=peer) as editor, TestClient(app, client=peer) as viewer, TestClient(app, client=peer) as outsider:
         for client, person in zip((editor, viewer, outsider), people):
             response = client.post('/api/auth/login', json={'username': person['username'], 'password': PASSWORD})
             assert response.status_code == 200, response.text
@@ -47,6 +51,33 @@ def world(operator, monkeypatch):
 
 def headers(space):
     return {'X-Workspace-ID': space['id']}
+
+
+def test_page_member_binding_rejects_account_switch_for_reads_writes_logout_and_socket(world):
+    from starlette.websockets import WebSocketDisconnect
+    client, space = world['editor'], world['a']
+    bound = {**headers(space), 'X-Member-ID': world['people'][0]['id']}
+    assert client.get('/api/canvases', headers=bound).status_code == 200
+    assert client.post('/api/auth/login', json={'username': world['people'][1]['username'], 'password': PASSWORD}).status_code == 200
+    for method, path, payload in [('GET', '/api/canvases', None), ('POST', '/api/canvases', {'title': 'old page'}),
+                                  ('POST', '/api/auth/logout', None), ('PATCH', '/api/auth/profile', {'display_name': 'wrong account'})]:
+        result = client.request(method, path, headers=bound, json=payload)
+        assert result.status_code == 409 and result.json()['detail']['code'] == 'member_identity_changed'
+    assert client.get('/api/auth/status').json()['member']['id'] == world['people'][1]['id']
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect('/ws/stats?workspace=' + space['id'] + '&member=' + world['people'][0]['id']):
+            pass
+
+
+def test_member_pages_install_workspace_gate_before_other_scripts(world):
+    for path in ('/', '/static/canvas.html', '/static/smart-canvas.html'):
+        page = world['editor'].get(path)
+        assert page.status_code == 200, page.text[:200]
+        script = page.text.index('/static/js/member-session.js')
+        assert script < page.text.index('/static/js/auth-session.js')
+        assert 'defer' not in page.text[page.text.rfind('<script', 0, script):page.text.index('</script>', script)]
+    login = world['editor'].get('/login')
+    assert 'activation-token' in login.text and '/static/js/member-session.js' not in login.text
 
 
 def test_member_mode_drops_shared_cookie_basic_and_public_setup(world):

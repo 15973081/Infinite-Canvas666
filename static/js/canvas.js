@@ -15528,6 +15528,7 @@ function escapeHtml(str){ return window.CanvasCore?.escapeHtml(str) || ''; }
 function escapeAttr(str){ return escapeHtml(str); }
 
 window.onload = async () => {
+    if(window.CanvasSession) await window.CanvasSession.ready;
     applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem(CANVAS_THEME_KEY) || 'light');
     applyQuickToolbarState();
     updateCanvasIdentityButton();

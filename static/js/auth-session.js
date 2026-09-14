@@ -1,5 +1,6 @@
 (() => {
     'use strict';
+    if (window.CanvasSession?.enabled) return;
     if (location.pathname === '/login' || location.pathname === '/static/login.html') return;
     const nativeFetch = window.fetch.bind(window);
     let expired = false;

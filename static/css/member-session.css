@@ -1,0 +1,18 @@
+.member-session-pending body > :not(.member-session-panel) { visibility:hidden !important; }
+.member-session-panel { visibility:visible; position:fixed; inset:0; z-index:2147483640; display:grid; place-items:center; background:#eef2ed; color:#203b2d; font:14px/1.6 system-ui,sans-serif; padding:24px; }
+.member-session-card { width:min(460px,100%); max-height:85vh; overflow:auto; border:1px solid #dbe4d8; border-radius:20px; background:#fff; padding:30px; box-shadow:0 14px 48px #254f3012; }
+.member-session-card h1 { font-size:25px; margin:10px 0; }
+.member-session-card p { color:#526457; }
+.member-session-eyebrow { color:#5b7756; font-size:12px; letter-spacing:.1em; }
+.member-session-card button,.member-session-bar button,.member-session-banner button { cursor:pointer; border:1px solid #cbd8c8; background:#f5f8f3; color:#203b2d; border-radius:9px; padding:9px 12px; font:inherit; margin:5px; }
+.member-session-card button:disabled { opacity:.55; cursor:wait; }
+.member-session-card .member-space-choice { display:block; text-align:left; width:calc(100% - 10px); padding:14px; font-weight:600; }
+.member-space-choice small { display:block; color:#657264; font-weight:400; margin-top:3px; }
+.member-session-card label { display:block; margin:14px 0; }
+.member-session-card input,.member-session-card select { box-sizing:border-box; display:block; width:100%; padding:10px; margin-top:6px; border:1px solid #bdcdbc; border-radius:8px; font:inherit; }
+.member-session-card .member-session-error { color:#a72d36; }
+.member-session-bar { position:fixed; right:14px; bottom:12px; z-index:100000; display:flex; align-items:center; background:#ffffffed; border:1px solid #dbe4d8; border-radius:12px; box-shadow:0 3px 18px #0001; font:12px system-ui,sans-serif; }
+.member-session-bar button { max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:0; margin:3px; }
+.member-session-banner { position:fixed; bottom:68px; left:50%; transform:translateX(-50%); z-index:2147483645; background:#fff8e7; color:#4b3f25; box-shadow:0 4px 20px #0002; border:1px solid #e7d4a0; border-radius:12px; padding:16px; width:min(560px,90vw); font:14px/1.5 system-ui,sans-serif; }
+.member-session-banner a { margin:8px; color:#225536; }
+.member-session-maintenance { position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:100001; display:grid; gap:4px; width:min(600px,90vw); padding:12px 16px; border-radius:12px; background:#fff8e7; color:#4b3f25; border:1px solid #e7d4a0; font:13px/1.5 system-ui,sans-serif; box-shadow:0 3px 14px #0001; }

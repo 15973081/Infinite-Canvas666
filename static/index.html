@@ -1523,7 +1523,7 @@
             document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
             const target = document.getElementById('frame-' + id);
             target.classList.add('active');
-            if (!target.src) target.src = target.dataset.src;
+            if (!target.src) target.src = window.CanvasSession ? window.CanvasSession.url(target.dataset.src) : target.dataset.src;
             if(!options.skipRemember) localStorage.setItem(ACTIVE_PAGE_KEY, id);
             // sync theme to newly activated iframe
             syncThemeToFrame(target);
@@ -1562,7 +1562,8 @@
             studioApiChannel.onmessage = event => forwardStudioApiChange(event.data);
         } catch(e) {}
 
-        function restoreActivePage() {
+        async function restoreActivePage() {
+            if (window.CanvasSession) await window.CanvasSession.ready;
             restoreSidebarPinned();
             const savedId = localStorage.getItem(ACTIVE_PAGE_KEY);
             const id = PAGE_IDS.includes(savedId) && !LOCAL_PAGE_IDS.includes(savedId) ? savedId : DEFAULT_PAGE_ID;
@@ -1814,7 +1815,8 @@
                     const snapshot = await response.json();
                     const disconnected = document.getElementById('service-disconnected');
                     if(disconnected) disconnected.hidden = true;
-                    handleMaintenanceSnapshot(snapshot);
+                    if(window.CanvasSession) window.CanvasSession.observeStatus(snapshot);
+                    else handleMaintenanceSnapshot(snapshot);
                     return snapshot;
                 } catch(error) {
                     if(!studioSocket || studioSocket.readyState !== WebSocket.OPEN) showServiceDisconnected();
@@ -1850,10 +1852,12 @@
             }, delay);
         }
 
-        function connectStudioWebSocket() {
+        async function connectStudioWebSocket() {
+            if (window.CanvasSession) await window.CanvasSession.ready;
             if(!host || (studioSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(studioSocket.readyState))) return;
             const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-            const socket = new WebSocket(`${protocol}://${host}/ws/stats?client_id=${encodeURIComponent(CID)}`);
+            const socketAddress = `${protocol}://${host}/ws/stats?client_id=${encodeURIComponent(CID)}`;
+            const socket = new WebSocket(window.CanvasSession ? window.CanvasSession.socketUrl(socketAddress) : socketAddress);
             studioSocket = socket;
             socket.onopen = () => {
                 const reconnected = studioHasConnected;
@@ -1867,7 +1871,8 @@
                 let data = null;
                 try { data = JSON.parse(event.data); } catch(e) { return; }
                 if(data.type === 'stats') {
-                    document.getElementById('online-val').innerText = data.online_count;
+                    document.getElementById('online-val').innerText = data.online_members ?? data.online_count ?? 0;
+                    if(window.CanvasSession) window.CanvasSession.observeStatus(data);
                 } else if(data.type === 'maintenance_changed') {
                     handleMaintenanceSnapshot(data.data || {});
                 } else if(data.type === 'cloud_status' || data.type === 'canvas_updated') {

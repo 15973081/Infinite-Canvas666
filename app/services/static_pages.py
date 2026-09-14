@@ -152,6 +152,13 @@ def versioned_static_html(html: str) -> str:
         )
     if "/static/js/auth-session.js" not in versioned and 'id="login-form"' not in versioned:
         versioned = versioned.replace("</head>", '<script src="/static/js/auth-session.js" defer></script>\n</head>', 1)
+    from app.storage.settings import member_auth_enabled
+    if member_auth_enabled() and 'id="login-form"' not in versioned and '/static/js/member-session.js' not in versioned:
+        # Blocking script installs the request gate before inline scripts or
+        # iframes can start business requests without a selected workspace.
+        versioned = re.sub(r'(<head(?:\s[^>]*)?>)',
+            r'\1\n<link rel="stylesheet" href="/static/css/member-session.css">\n<script src="/static/js/member-session.js"></script>',
+            versioned, count=1, flags=re.I)
     return versioned_static_references(versioned, build_id)
 
 
