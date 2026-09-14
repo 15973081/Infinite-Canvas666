@@ -148,6 +148,7 @@ class ProviderSave(Input):
 
 
 class ProviderProbe(Input):
+    mode: Literal['models', 'protocols'] = 'models'
     expected_version: int = Field(strict=True, ge=1)
     reason: str = Field(min_length=1, max_length=1000)
 

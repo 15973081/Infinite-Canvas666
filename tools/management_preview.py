@@ -21,10 +21,16 @@ def provider_stub():
     key = 'synthetic-probe-preview-never-use-outside-tests'
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            ok = self.path == '/v1/models' and self.headers.get('Authorization') == 'Bearer ' + key
-            status = 200 if ok else 401
+            authorized = self.headers.get('Authorization') == 'Bearer ' + key
+            if self.path == '/v1/models' and authorized:
+                status, payload = 200, {'data': [{'id': 'gpt-preview'}, {'id': 'flux-preview'}, {'id': 'veo-preview'}]}
+            elif self.path.startswith('/v1/tasks/healthcheck_probe_do_not_submit_') and authorized:
+                status, payload = 400, {'error': {'code': 400, 'type': 'invalid_request_error', 'message': 'Invalid task ID'}}
+            elif self.path.startswith('/denied/') or not authorized:
+                status, payload = 401, {'error': 'synthetic secret reflection: ' + key}
+            else:
+                status, payload = 404, {'error': {'code': 'not_found', 'message': 'generic route'}}
             requests.append({'method': 'GET', 'path': self.path, 'status': status})
-            payload = {'data': [{'id': 'gpt-preview'}, {'id': 'flux-preview'}, {'id': 'veo-preview'}]} if ok else {'error': 'synthetic secret reflection: ' + key}
             body = json.dumps(payload).encode()
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')

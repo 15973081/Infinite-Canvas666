@@ -16,6 +16,7 @@ function fixture() {
   const context = vm.createContext({serial: 1, me: {member: {id: 'admin'}},
     $: selector => selector === '#dialog' ? modal : confirm,
     el: (tag, text) => new Element(tag, text),
+    table: () => new Element('table'),
     field: () => {const element = new Element('label'); element.input = {value: '模型检测与选择', reportValidity: () => true}; return element;},
     button: (name, run) => {const button = new Element('button', name); button.run = run; buttons.push(button); return button;},
     choices: (name, models) => {selections.push({name, models}); return new Element('choices');},
@@ -73,4 +74,41 @@ test('model import preserves the configured per-category limit', async () => {
   const check = f.buttons[0].run(); f.pending[0].resolve(success); await check;
   assert.throws(() => f.dialogs[0].submit(form({image_models: ['new-image']})), /500/);
   assert.equal(f.calls.length, 1);
+});
+
+const diagnosis = {ok: true, code: 'protocol_candidates', version: 7, checks: [], suggestions: [
+  {protocol: 'openai', base_url: 'https://example.test/v1'},
+  {protocol: 'apimart', base_url: 'https://example.test/v1'}]};
+const diagnosticForm = value => ({get: name => name === 'suggestion' ? value : '确认采用诊断建议'});
+
+test('diagnostic suggestions require an explicit choice and preserve other provider settings', async () => {
+  const f = fixture(); f.context.diagnoseProvider(f.row);
+  const request = f.buttons.at(-1).run(); f.pending[0].resolve(diagnosis); await request;
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0].payload.mode, 'protocols');
+  assert.throws(() => f.dialogs.at(-1).submit(diagnosticForm('')), /请选择/);
+  await f.dialogs.at(-1).submit(diagnosticForm('1'));
+  const saved = f.calls[1].payload;
+  assert.equal(saved.expected_version, 7); assert.equal(saved.config.protocol, 'apimart');
+  assert.equal(saved.config.base_url, 'https://example.test/v1');
+  assert.deepEqual(Array.from(saved.config.image_models), ['existing']);
+  assert.equal(saved.config.model_prices, undefined); assert.equal(saved.secrets, undefined);
+});
+
+test('late diagnostics cannot reopen or change a closed or replaced dialog', async () => {
+  for(const change of [f => {f.modal.open = false;}, f => {f.context.me = null;},
+    f => {f.context.serial++;}, f => {f.context.diagnoseProvider(f.row);}]) {
+    const f = fixture(); f.context.diagnoseProvider(f.row);
+    const request = f.buttons.at(-1).run(); change(f);
+    f.pending[0].resolve(diagnosis); await request;
+    assert.equal(f.confirm.hidden, true); assert.equal(f.calls.length, 1);
+  }
+});
+
+test('an inconclusive retry removes previous protocol suggestions', async () => {
+  const f = fixture(); f.context.diagnoseProvider(f.row); const start = f.buttons.at(-1);
+  let request = start.run(); f.pending[0].resolve(diagnosis); await request;
+  request = start.run(); f.pending[1].resolve({ok: false, checks: [], suggestions: [], code: 'protocol_inconclusive'}); await request;
+  assert.equal(f.confirm.hidden, true);
+  assert.throws(() => f.dialogs.at(-1).submit(diagnosticForm('0')), /重新诊断/);
+  assert.equal(f.calls.length, 2);
 });

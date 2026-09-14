@@ -274,6 +274,46 @@
     }, '追加所选模型', true);
     $('#confirm-dialog').hidden = true;
   }
+  const diagnosticMessages = {
+    task_id_validation: '返回任务 ID 校验错误，可能兼容该任务协议；仍需核对供应商文档。',
+    task_error_response: '返回结构化任务错误；不足以判断协议或凭证是否可用。',
+    task_endpoint_inconclusive: '无法根据此响应判断任务协议。',
+    unexpected_task_response: '虚拟任务查询意外成功；未展示任务内容，无法据此确认协议。',
+    models_available: '模型列表格式兼容；不代表生成接口已经验证。',
+    models_empty: '返回空模型列表；可以作为入口候选，模型需另行核对。'
+  };
+  function diagnoseProvider(row) {
+    const stamp = serial, member = me.member.id, results = el('div'), reason = field('reason', '诊断与修改原因');
+    reason.querySelector('input').maxLength = 1000;
+    let detected = null, select;
+    const current = () => results.isConnected && $('#dialog').open && serial === stamp && me?.member.id === member;
+    const start = button('开始只读诊断', async () => {
+      const input = reason.querySelector('input'); if(!input.reportValidity()) return;
+      detected = null; $('#confirm-dialog').hidden = true; results.replaceChildren(el('p', '正在检测模型和虚拟任务查询入口…'));
+      try {
+        const result = await call('/api/providers/' + encodeURIComponent(row.id) + '/probe', 'POST', {mode: 'protocols', expected_version: row.version, reason: input.value});
+        if(!current()) return;
+        results.replaceChildren(el('p', result.suggestions?.length ? '发现候选入口。请按供应商文档确认后选择，诊断不会自动修改配置。' : '本次未能确定候选协议。可以核对供应商文档后手动编辑配置。'));
+        if(result.checks?.length) results.append(table(['入口', 'HTTP', '诊断结果'], result.checks.map(check => [check.protocol + ' · ' + check.path, check.status || '—', diagnosticMessages[check.code] || probeMessages[check.code] || '未完成诊断'])));
+        else results.append(el('p', probeMessages[result.code] || '诊断未完成，请重试。', 'error'));
+        if(!result.suggestions?.length) return;
+        detected = result;
+        const label = el('label', '采用配置建议'), blank = el('option', '请选择要采用的协议'); select = el('select'); select.name = 'suggestion'; blank.value = ''; select.append(blank);
+        result.suggestions.forEach((item, index) => {const option = el('option', item.protocol + ' · ' + item.base_url); option.value = String(index); select.append(option);});
+        label.append(select); results.append(label, el('p', '保存会改变协议和基础地址，影响使用此配置的所有空间；原任务的账号绑定将重新核对。模型、空间分配和启用状态保留。', 'muted'));
+        $('#confirm-dialog').hidden = false;
+      } catch(error) {if(current()) results.replaceChildren(el('p', error.message, 'error'));}
+    });
+    dialog('协议与任务端点 · ' + row.config.name, [el('p', '在当前供应商地址下读取三类模型列表，并用随机虚拟任务 ID 检查两类查询入口。诊断请求只使用 GET，不创建生成任务。'), reason, start, results], form => {
+      if(!detected || !current()) throw new Error('请先重新诊断供应商。');
+      const value = form.get('suggestion');
+      if(value === '' || value == null || !detected.suggestions[Number(value)]) throw new Error('请选择要采用的配置建议。');
+      const config = Object.fromEntries(Object.entries(row.config).filter(([key]) => !['id','model_prices'].includes(key)));
+      const selected = detected.suggestions[Number(value)]; config.protocol = selected.protocol; config.base_url = selected.base_url;
+      return call('/api/providers/' + encodeURIComponent(row.id), 'PUT', {expected_version: detected.version, config, reason: form.get('reason')});
+    }, '确认采用建议', true);
+    $('#confirm-dialog').hidden = true;
+  }
   async function providerView() {
     if(!me.permissions.includes('provider.configure')) return denied();
     const scope = workspace;
@@ -292,7 +332,7 @@
     const rows = data.providers.map(row => [labelText(row.config.name, row.id), row.config.protocol, row.config.enabled ? '启用' : '停用',
       row.configured_secrets.length ? '已配置 ' + row.configured_secrets.length + ' 项凭证' : '尚未配置凭证',
       scope ? assigned.provider_ids.includes(row.id) ? assigned.primary_provider_id === row.id ? '已分配 · 默认' : '已分配' : '未分配' : '请选择空间查看分配',
-      actions(button('编辑 · ' + row.config.name, () => editProvider(row)), button('检测与模型 · ' + row.config.name, () => probeProvider(row)))]);
+      actions(button('编辑 · ' + row.config.name, () => editProvider(row)), button('检测与模型 · ' + row.config.name, () => probeProvider(row)), button('协议与任务端点 · ' + row.config.name, () => diagnoseProvider(row)))]);
     return [el('p', '供应商配置由平台管理员维护，成员仅能使用分配到所在空间的服务。'), toolbar,
       rows.length ? table(['供应商', '协议', '状态', '凭证', '空间分配', '操作'], rows) : el('p', '尚未配置供应商。新增并分配后，成员才能选择模型。')];
   }

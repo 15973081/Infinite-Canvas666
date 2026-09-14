@@ -14,7 +14,9 @@ MAX_MODELS = 1500
 TOTAL_TIMEOUT = 20
 
 
-def begin(actor, provider_id, expected_version, reason):
+def begin(actor, provider_id, expected_version, reason, mode='models'):
+    if mode not in {'models', 'protocols'}:
+        az.fail('invalid_provider_probe', 400)
     if not isinstance(reason, str) or not reason.strip() or len(reason) > 1000:
         az.fail('provider_reason_required', 400)
     with az.policy_transaction() as conn:
@@ -31,8 +33,8 @@ def begin(actor, provider_id, expected_version, reason):
             az.fail('provider_key_required', 400)
         probe_id = uuid.uuid4().hex
         az.audit(conn, actor, 'provider.probe.started', provider_id,
-                 details={'probe_id': probe_id, 'version': expected_version, 'reason': reason.strip()})
-        return {'id': provider_id, 'version': expected_version, 'config': row['config'], 'key': key, 'probe_id': probe_id}
+                 details={'probe_id': probe_id, 'version': expected_version, 'reason': reason.strip(), 'mode': mode})
+        return {'id': provider_id, 'version': expected_version, 'config': row['config'], 'key': key, 'probe_id': probe_id, 'mode': mode}
 
 
 def failure(code, status=0):
@@ -109,15 +111,21 @@ def finish(actor, snapshot, result, elapsed_ms):
             az.fail('provider_version_conflict', 409)
         az.audit(conn, actor, 'provider.probe.finished', snapshot['id'], details={
             'probe_id': snapshot['probe_id'], 'version': snapshot['version'], 'code': result['code'],
-            'status': result['status'], 'model_count': result['model_count'], 'elapsed_ms': elapsed_ms})
+            'status': result['status'], 'model_count': result['model_count'], 'elapsed_ms': elapsed_ms, 'mode': snapshot['mode'],
+            'checks': [{key: check[key] for key in ('id', 'status', 'code')} for check in result.get('checks', [])]})
         return {**result, 'provider_id': snapshot['id'], 'version': snapshot['version'], 'elapsed_ms': elapsed_ms}
 
 
-async def probe(actor, provider_id, expected_version, reason):
-    snapshot = await asyncio.to_thread(begin, actor, provider_id, expected_version, reason)
+async def probe(actor, provider_id, expected_version, reason, mode='models'):
+    snapshot = await asyncio.to_thread(begin, actor, provider_id, expected_version, reason, mode)
     started = time.monotonic()
     try:
-        result = await asyncio.wait_for(fetch_models(snapshot), timeout=TOTAL_TIMEOUT)
+        if mode == 'protocols':
+            from app.services.provider_diagnostics import diagnose
+            operation = diagnose(snapshot)
+        else:
+            operation = fetch_models(snapshot)
+        result = await asyncio.wait_for(operation, timeout=TOTAL_TIMEOUT)
     except (asyncio.TimeoutError, httpx.TimeoutException):
         result = failure('upstream_timeout')
     except (httpx.HTTPError, ValueError):
