@@ -4082,7 +4082,7 @@ function updateSmartCanvasLockUi(){
     if(wasLocked && !locked && smartCanvasDirty) scheduleSave();
 }
 function editSmartCanvasUserName(){
-    if(window.CanvasSession?.enabled) return toast('请在工作台右下角“成员与空间”中修改昵称');
+    if(window.CanvasSession?.enabled) return toast('请在顶部账号菜单的“成员资料”中修改昵称');
     const next = prompt('设置我的名称，用于别人看到画布锁是谁占用', smartCanvasUserName());
     if(next === null) return;
     const name = String(next || '').trim().replace(/\s+/g, ' ').slice(0, 32);

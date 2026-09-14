@@ -3026,7 +3026,7 @@ function updateCanvasIdentityButton(){
 }
 
 function editCanvasUserName(){
-    if(window.CanvasSession?.enabled) { setStatus('请在工作台右下角“成员与空间”中修改昵称'); return; }
+    if(window.CanvasSession?.enabled) { setStatus('请在顶部账号菜单的“成员资料”中修改昵称'); return; }
     const current = getCanvasUserName();
     const next = window.prompt('设置我的名称，用于别人看到画布锁是谁占用', current || '');
     if(next === null) return;

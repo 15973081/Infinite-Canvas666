@@ -294,7 +294,7 @@
         const context=window.CanvasSession.context;
         const fresh=entry.presence && !window.CanvasSession.paused && context?.member.id===entry.memberId &&
             context?.workspace.id===entry.workspaceId && Date.now()-entry.presenceReceivedAt<35000;
-        entry.presenceSummary.textContent=fresh ? '本画布在线 '+entry.presence.online_members+' 人' : '在线名单暂不可用';
+        entry.presenceSummary.textContent=fresh ? '◉ '+entry.presence.online_members+' 人在线' : '在线名单暂不可用';
         entry.presenceList.replaceChildren();
         if(fresh) for(const member of entry.presence.members) {
             const name=String(member.display_name || '成员')+' · '+String(member.id).slice(-6)+(member.is_self ? '（你）' : '');
@@ -334,6 +334,9 @@
         end.hidden=!lease.canSave; end.disabled=lease.finishing;
         save.hidden=!lease.canSave; save.disabled=lease.finishing;
         notice.textContent=[...new Set([lease.message,active.feedback,active.streamMessage,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
+        bar.setAttribute('data-state', lease.canSave ? 'editing' : 'view');
+        notice.setAttribute('data-tone', lease.state==='paused' || ['draining','read_only','offline','recovering'].includes(lease.maintenance) || active.feedback || active.streamMessage || active.reportMessage ? 'warning' : 'quiet');
+        if(!notice.textContent) notice.textContent=lease.canSave ? '更改已保存' : '查看中 · 开始编辑后可修改';
         renderRequests(active);
         renderPresence(active);
         active.mediaPreview?.sync();
@@ -454,7 +457,13 @@
             }});
             const maintenance=window.CanvasSession.maintenance || window.parent?.CanvasSession?.maintenance;
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
-            bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),button('生成结果',showTaskResults),presencePanel,notice,requestList);
+            const more=element('details'), moreSummary=element('summary','更多'), moreItems=element('div');
+            more.className='member-canvas-more'; moreItems.className='member-canvas-menu';
+            moreItems.append(button('本地草稿',() => {more.open=false;return showDrafts();}),
+                button('导出当前草稿',() => {more.open=false;download(draftRecord(entry));}),force);
+            more.append(moreSummary,moreItems);
+            begin.className=end.className=ask.className='member-canvas-primary';
+            bar.append(label,begin,ask,save,end,button('生成结果',showTaskResults),more,presencePanel,notice,requestList);
             entry.mediaPreview=window.MemberMediaPreview?.create({entry,valid:()=>validEntry(entry)});
             if(entry.mediaPreview)bar.insertBefore(entry.mediaPreview.trigger,presencePanel);
             document.body.append(bar); render(); tick(entry); reportTick(entry); subscribe(entry);

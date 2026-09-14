@@ -136,12 +136,24 @@
         bar?.remove();
         if (window.parent !== window && window.parent.CanvasSession?.enabled) return;
         bar = element('nav', undefined, 'member-session-bar'); bar.setAttribute('aria-label', '成员与空间');
-        bar.append(button(context.workspace.name + ' ▾', async () => {
+        document.documentElement.classList.add('member-workspace-shell');
+        const brand=element('span','无限画布','member-session-brand');
+        const space=button(context.workspace.name + ' ▾', async () => {
             try { await choose(context.member, (await json('/api/auth/workspaces', {headers:{'X-Member-ID':context.member.id}})).workspaces); }
             catch (error) { await pause(error.message); }
-        }), button(context.member.display_name, profile), button('退出登录', async () => {
-            try { await logout(); } catch (error) { window.alert(error.message); }
-        }));
+        });
+        space.className='member-session-space'; space.title='切换工作空间';
+        const account=element('details',undefined,'member-session-account');
+        const summary=element('summary'); summary.setAttribute('aria-label','账号：'+context.member.display_name);
+        const avatar=element('span',Array.from(context.member.display_name || '成员')[0],'member-session-avatar');
+        summary.append(avatar,element('span',context.member.display_name),element('span','⌄'));
+        const menu=element('div',undefined,'member-session-account-menu');
+        menu.append(element('small','当前账号'),element('strong',context.member.display_name),
+            button('成员资料',() => {account.open=false;return profile();}),button('退出登录',async () => {
+                account.open=false;
+                try { await logout(); } catch (error) { window.alert(error.message); }
+            }));
+        account.append(summary,menu); bar.append(brand,space,account);
         document.body.append(bar);
     }
     async function initialize() {

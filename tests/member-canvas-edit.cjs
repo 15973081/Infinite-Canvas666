@@ -149,7 +149,7 @@ test('paused editing does not resume after maintenance returns to normal',async(
 });
 test('draft listing queries only the exact member, workspace and canvas key range',async()=>{
     const f=fixture();await f.mount();
-    await f.api.active.bar.children.find(node=>node.textContent==='本地草稿').onclick();
+    await action(f.api.active.bar,'本地草稿').onclick();
     assert.equal(f.queries.length,1);
     assert.deepEqual(f.queries[0],{lower:'["member","space","a",',upper:'["member","space","a",\uffff'});
     for(const ids of [['other','space','a'],['member','other','a'],['member','space','ab']]) {
@@ -186,7 +186,7 @@ function seedDraft(f,extra={}) {
         document:{id:'a',kind:'classic',revision:3,nodes:[{id:'saved',prompt:'recover'}],connections:[]},...extra};
     row.key=JSON.stringify([row.member_id,row.workspace_id,row.canvas_id,row.page]);f.records.set(row.key,structuredClone(row));return row;
 }
-const action=(node,label)=>node.children.find(child=>child.textContent===label);
+const action=(node,label)=>node.children.find(child=>child.textContent===label) || node.children.map(child=>action(child,label)).find(Boolean);
 async function draftLine(f) {
     await action(f.api.active.bar,'本地草稿').onclick();
     return f.context.document.body.children.at(-1).children.find(node=>node.children.some(child=>child.textContent==='恢复到本页'));
@@ -334,7 +334,7 @@ test('canvas roster renders trusted names as text and expires without changing t
         {id:'member_111111',display_name:'<img src=x onerror=alert(1)>',activity:'editing',is_self:true},
         {id:'member_222222',display_name:'同名',activity:'viewing',is_self:false}]}});
     await f.timers.get(entry.reportTimer)();
-    assert.equal(entry.presenceSummary.textContent,'本画布在线 2 人');
+    assert.equal(entry.presenceSummary.textContent,'◉ 2 人在线');
     assert.equal(entry.presenceList.children[0].textContent,'<img src=x onerror=alert(1)> · 111111（你） · 编辑中');
     assert.equal(entry.presenceList.children[0].children.length,0);
     assert.equal(entry.presenceList.children[1].textContent,'同名 · 222222 · 查看中');
