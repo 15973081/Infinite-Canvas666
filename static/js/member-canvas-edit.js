@@ -332,6 +332,7 @@
         notice.textContent=[...new Set([lease.message,active.feedback,active.streamMessage,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
         renderRequests(active);
         renderPresence(active);
+        active.mediaPreview?.sync();
         bar.hidden=false;
     }
     async function start() {
@@ -449,6 +450,8 @@
             const maintenance=window.CanvasSession.maintenance || window.parent?.CanvasSession?.maintenance;
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
             bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),button('生成结果',showTaskResults),presencePanel,notice,requestList);
+            entry.mediaPreview=window.MemberMediaPreview?.create({entry,valid:()=>validEntry(entry)});
+            if(entry.mediaPreview)bar.insertBefore(entry.mediaPreview.trigger,presencePanel);
             document.body.append(bar); render(); tick(entry); reportTick(entry); subscribe(entry);
             return entry;
         },
@@ -482,7 +485,7 @@
                 assertDraftScope(entry);download(draftRecord(entry));
             }
             reportPage(entry,true);
-            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.bar.remove(); active=null;
+            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.mediaPreview?.dispose(); entry.bar.remove(); active=null;
             document.body.classList.remove('member-canvas-view'); return true;
         },
         send(path,init={},transport=window.fetch.bind(window)) {
@@ -514,7 +517,7 @@
     window.addEventListener('member-session:maintenance',event => active?.lease.setMaintenance(event.detail.mode));
     window.addEventListener('pagehide',event => {
         persist();
-        if(active){active.subscription?.stop();active.reportSuspended=true;clearTimeout(active.reportTimer);}
+        if(active){active.mediaPreview?.close();active.subscription?.stop();active.reportSuspended=true;clearTimeout(active.reportTimer);}
         reportPage(active,!event.persisted);
         if(event.persisted) active?.lease.pause('页面已暂停，请保留草稿并重新确认编辑资格。');
         else active?.lease.dispose();

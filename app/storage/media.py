@@ -72,12 +72,21 @@ def scratch_directory(category="output"):
 def check_budget(additional=0):
     root = temp_root()
     used = 0
-    for path in root.rglob("*"):
-        try:
-            if path.is_file():
-                used += path.stat().st_size
-        except FileNotFoundError:
-            pass  # Another completed operation may be cleaning its directory.
+
+    def scan_error(error):
+        # Completed requests remove their operation directories concurrently.
+        # Keep scanning siblings, but do not hide permission or disk failures.
+        if not isinstance(error, FileNotFoundError):
+            raise error
+
+    for directory, _, names in os.walk(root, onerror=scan_error):
+        for name in names:
+            path = Path(directory) / name
+            try:
+                if path.is_file():
+                    used += path.stat().st_size
+            except FileNotFoundError:
+                pass  # A completed operation may also remove an individual file.
     limit = int(os.getenv("MEDIA_TEMP_MAX_BYTES", str(10 * 1024 ** 3)))
     if used + additional > limit or shutil.disk_usage(root).free < additional + 128 * 1024 ** 2:
         raise HTTPException(507, "媒体临时空间不足，请稍后重试")

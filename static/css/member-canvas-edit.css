@@ -9,3 +9,10 @@ body:has(.member-canvas-edit) #canvasLockOverlay,body:has(.member-canvas-edit) #
 .member-canvas-presence summary{cursor:pointer;padding:6px 10px;white-space:nowrap}.member-canvas-presence ul{list-style:none;margin:6px 0 0;padding:8px 12px;max-height:180px;overflow:auto;border-top:1px solid #596476}.member-canvas-presence li{padding:3px 0;overflow-wrap:anywhere}
 
 .member-canvas-drafts button:disabled{opacity:.45;cursor:default}.member-canvas-result-row{padding:14px 0;border-bottom:1px solid #465064;overflow-wrap:anywhere}.member-canvas-result-row p{margin:6px 0}.member-canvas-drafts h2{margin:0 0 12px}
+
+body.member-canvas-view [data-member-preview]{pointer-events:auto;cursor:zoom-in}
+body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #60a5fa;outline-offset:3px}
+.member-media-preview{width:min(1100px,94vw);max-width:94vw;max-height:92vh;padding:16px;border:1px solid #64748b;border-radius:16px;background:#151b27;color:#edf2fa;font:14px/1.5 system-ui,sans-serif}
+.member-media-preview::backdrop{background:#000b}.member-media-preview header,.member-media-preview footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.member-media-preview header{justify-content:space-between}.member-media-preview header strong{overflow-wrap:anywhere;flex:1;min-width:0}
+.member-media-preview button,.member-media-preview a{font:inherit;color:inherit;background:#293449;border:1px solid #64748b;border-radius:8px;padding:7px 12px;cursor:pointer;text-decoration:none}.member-media-preview button:disabled{opacity:.45;cursor:default}.member-media-preview [hidden]{display:none}
+.member-media-preview-stage{height:min(64vh,720px);overflow:auto;display:flex;align-items:safe center;justify-content:safe center;margin:14px 0;background:#0b1019;border-radius:10px}.member-media-preview-stage img,.member-media-preview-stage video{max-width:100%;max-height:100%;object-fit:contain;flex-shrink:0}.member-media-preview-stage audio{width:min(560px,90%)}.member-media-preview [role=status]{min-height:1.5em;color:#cbd5e1;margin:8px 0}

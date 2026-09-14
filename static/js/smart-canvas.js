@@ -6700,32 +6700,40 @@ function measureSmartNodeImages(root=world){
         if(!node || !image || image.natural_w || image.natural_h) return;
         const isPreview = isSmartPreviewImage(imgEl);
         if(isPreview && image.layout_w && image.layout_h) return;
+        const entry=window.MemberCanvasEdit?.active, epoch=entry?.lease.epoch;
+        const startedEditable=Boolean(window.MemberCanvasEdit?.canEdit);
         const apply = () => {
+            if(!nodes.includes(node) || node.images?.[index]!==image || imgEl.isConnected===false) return;
+            // Viewer measurements are display metadata, not a document edit.
+            // A late load may not save through a different editing session.
+            const writable=!window.CanvasSession?.enabled || (startedEditable && window.MemberCanvasEdit?.canEdit && entry===window.MemberCanvasEdit.active && epoch===entry?.lease.epoch);
+            const measuredImage=writable ? image : {...image};
+            const measuredNode=writable ? node : {...node,images:node.images.map((value,i)=>i===index ? measuredImage : value)};
             const w = imgEl.naturalWidth || imgEl.videoWidth || 0;
             const h = imgEl.naturalHeight || imgEl.videoHeight || 0;
-            if(w <= 0 || h <= 0 || image.natural_w || image.natural_h) return;
-            const prevW = Number(image.layout_w || 0);
-            const prevH = Number(image.layout_h || 0);
+            if(w <= 0 || h <= 0 || measuredImage.natural_w || measuredImage.natural_h) return;
+            const prevW = Number(measuredImage.layout_w || 0);
+            const prevH = Number(measuredImage.layout_h || 0);
             if(isPreview){
                 if(prevW === w && prevH === h) return;
-                image.layout_w = w;
-                image.layout_h = h;
+                measuredImage.layout_w = w;
+                measuredImage.layout_h = h;
             } else {
-                image.natural_w = w;
-                image.natural_h = h;
-                delete image.layout_w;
-                delete image.layout_h;
+                measuredImage.natural_w = w;
+                measuredImage.natural_h = h;
+                delete measuredImage.layout_w;
+                delete measuredImage.layout_h;
             }
-            applyThumbDisplaySizeToElement(itemEl, image, Math.max(itemEl?.clientWidth || 0, itemEl?.clientHeight || 0));
-            updateImageResolutionBadgeElement(itemEl, image);
-            if((node.images || []).length === 1 && !node.w && !node.h){
-                const layout = singleImageLayout(image, node, mediaNodeDefaultScale(node));
-                node.w = layout.width;
-                node.h = layout.height;
+            applyThumbDisplaySizeToElement(itemEl, measuredImage, Math.max(itemEl?.clientWidth || 0, itemEl?.clientHeight || 0));
+            updateImageResolutionBadgeElement(itemEl, measuredImage);
+            if((measuredNode.images || []).length === 1 && !measuredNode.w && !measuredNode.h){
+                const layout = singleImageLayout(measuredImage, measuredNode, mediaNodeDefaultScale(measuredNode));
+                measuredNode.w = layout.width;
+                measuredNode.h = layout.height;
             }
-            updateNodeElementDuringResize(node);
-            if(isNodeSelected(node.id)) updateComposer();
-            scheduleSave();
+            updateNodeElementDuringResize(measuredNode);
+            if(isNodeSelected(measuredNode.id)) updateComposer();
+            if(writable) scheduleSave();
         };
         const isVideo = imgEl.tagName?.toLowerCase() === 'video';
         if(!isVideo && imgEl.complete && imgEl.naturalWidth) apply();
