@@ -88,11 +88,17 @@ def normalize(value, strict=False):
             return [walk(child, is_media) for child in item]
         return canonical_ref(item, strict) if is_media else item
     result = walk(value)
-    if isinstance(result, dict) and result.get("provider_id"):
+    if isinstance(result, dict) and "provider_id" in result:
         # Resolve the legacy default/fallback once and persist the concrete id.
-        from app.providers.registry import load_api_providers, get_primary_provider_id
+        from app.providers.registry import load_api_providers, get_primary_provider_id, managed_providers_enabled
+        if not result.get("provider_id") and not managed_providers_enabled():
+            return result
         providers = load_api_providers()
-        requested = result["provider_id"].strip().lower()
+        requested = str(result.get("provider_id") or "").strip().lower()
+        if not requested:
+            requested = get_primary_provider_id(providers)
+        if managed_providers_enabled() and not any(p['id'] == requested for p in providers):
+            raise HTTPException(403, '供应商未分配或已停用')
         result["provider_id"] = requested if any(p["id"] == requested for p in providers) else get_primary_provider_id(providers)
     return result
 
@@ -126,7 +132,10 @@ def lock_ready(conn, ids):
 def account_ref(provider_id):
     if not provider_id:
         return None
-    from app.providers.registry import provider_key_env, provider_env_key_value
+    from app.providers.registry import provider_key_env, provider_env_key_value, managed_providers_enabled
+    if managed_providers_enabled():
+        from app.services.provider_control import account_ref as managed_account_ref
+        return managed_account_ref(provider_id)
     key_name = provider_key_env(provider_id)
     explicit = os.getenv(key_name + "_ACCOUNT_REF", "").strip()
     if explicit:

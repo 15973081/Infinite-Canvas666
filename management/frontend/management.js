@@ -2,7 +2,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', serial = 0, reportRequest = 0;
-  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', audit: '操作审计'};
+  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计'};
   const errors = {
     authentication_required: '登录已失效，请重新登录。', management_permission_required: '此账号尚未获授管理权限。',
     invalid_credentials: '账号或密码不正确。', login_rate_limited: '登录尝试过多，请稍后重试。',
@@ -13,6 +13,15 @@
     role_impact_changed: '受影响成员已变化，请重新预览。', member_not_found: '未找到此成员。',
     workspace_unavailable: '空间已归档或不可访问。', username_exists: '账号已存在。', role_name_exists: '此范围内已有同名角色。',
     active_administrator_required: '请填写已激活成员的登录账号。',
+    provider_version_conflict: '供应商配置或分配已变化，请刷新后重新编辑。',
+    provider_secret_key_unavailable: '服务端未配置凭证加密密钥，请由维护人员配置后重试。',
+    provider_secret_unavailable: '服务端暂时无法解密凭证，请核对加密密钥与备份。',
+    invalid_provider_config: '供应商配置格式不正确，请检查字段和协议。',
+    invalid_provider_models: '模型列表格式不正确，每行填写一个模型。',
+    invalid_provider_endpoint: '接口地址不能包含密码、查询参数、片段或空白字符。',
+    invalid_provider_secrets: '凭证替换与清除不能同时选择，请检查输入。',
+    invalid_provider_assignment: '默认供应商必须同时勾选分配，且不能重复分配。',
+    provider_reason_required: '请填写操作原因。', provider_not_found: '供应商不存在，请刷新。',
     page_report_not_found: '未找到当前管理范围内的报告，请刷新。',
     page_report_changed: '报告已更新或已经核对，请刷新列表后重新确认。',
     page_report_not_reviewable: '页面已重新在线或正常关闭，请刷新列表。',
@@ -53,7 +62,7 @@
   function actions(...buttons) { const e = el('div'); e.append(...buttons); return e; }
   function field(name, label, value = '', type = 'text') {
     const l = el('label', label), i = el('input'); i.name = name; i.value = value; i.type = type; i.required = true;
-    i.maxLength = name === 'username' ? 64 : name === 'description' ? 1000 : 80; l.append(i); return l;
+    i.maxLength = name === 'username' ? 64 : name === 'description' ? 1000 : name === 'base_url' ? 2000 : 80; l.append(i); return l;
   }
   function choices(name, catalog, selected = []) {
     const d = el('div', undefined, 'permissions'); catalog.forEach(p => {
@@ -98,7 +107,7 @@
     const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, audit: auditView}[view])();
+    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView}[view])();
     if (stamp === serial) content.replaceChildren(...result);
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
@@ -180,6 +189,62 @@
     const toolbar = el('div', undefined, 'toolbar'); toolbar.append(button('最新记录', () => { auditBefore = ''; return render(); }));
     if (data.next) toolbar.append(button('更早记录', () => { auditBefore = data.next; return render(); }));
     return [toolbar, data.events.length ? table(['时间', '操作人', '操作', '目标', '详情'], data.events.map(e => [new Date(e.created_at).toLocaleString(), e.actor_name || '系统初始化', e.action, labelText(e.target_id || '—', e.workspace_id), el('div', JSON.stringify(e.details), 'details')])) : el('div', '当前范围暂无审计记录。', 'empty')];
+  }
+  function editProvider(row) {
+    const config = row?.config || {}, controls = [];
+    const id = field('id', '供应商 ID（创建后固定）', row?.id || '');
+    id.querySelector('input').disabled = Boolean(row); id.querySelector('input').maxLength = 40;
+    controls.push(id, field('name', '显示名称', config.name || ''), field('base_url', 'API Base URL', config.base_url || '', 'url'));
+    const protocolLabel = el('label', '协议'), protocol = el('select'); protocol.name = 'protocol';
+    for(const value of ['openai', 'apimart', 'gemini', 'volcengine']) {const option = el('option', value); option.value = value; protocol.append(option);}
+    protocol.value = config.protocol || 'openai'; protocolLabel.append(protocol); controls.push(protocolLabel);
+    const enabledLabel = el('label', undefined, 'check'), enabled = el('input'); enabled.type = 'checkbox'; enabled.name = 'enabled'; enabled.checked = config.enabled !== false;
+    enabledLabel.append(enabled, document.createTextNode('启用供应商（仍需分配到空间才能使用）')); controls.push(enabledLabel);
+    for(const [key, label] of [['image_models','图片模型'], ['video_models','视频模型'], ['chat_models','对话模型']]) {
+      const holder = el('label', label + '（每行一个）'), input = el('textarea'); input.name = key; input.value = (config[key] || []).join('\n'); holder.append(input); controls.push(holder);
+    }
+    const advanced = el('details'), details = el('textarea'); details.name = 'advanced';
+    const extras = Object.fromEntries(Object.entries(config).filter(([key]) => !['id','name','base_url','protocol','enabled','image_models','video_models','chat_models'].includes(key)));
+    details.value = JSON.stringify(extras, null, 2); const advancedLabel = el('label', '高级配置 JSON'); advancedLabel.append(details);
+    advanced.append(el('summary', '高级配置：端口、代理、模型价格与协议覆盖'), advancedLabel); controls.push(advanced);
+    for(const [key, label] of [['api_key','API Key'], ['volcengine_access_key_id','火山素材 AK'], ['volcengine_secret_access_key','火山素材 SK']]) {
+      const input = field(key, label + ((row?.configured_secrets || []).includes(key) ? '（已配置，留空保留）' : '（尚未配置）'), '', 'password');
+      input.querySelector('input').required = false; input.querySelector('input').maxLength = 8192; input.querySelector('input').autocomplete = 'off';
+      const clear = el('label', undefined, 'check'), check = el('input'); check.type = 'checkbox'; check.name = 'clear_' + key;
+      clear.append(check, document.createTextNode('清除 ' + label)); controls.push(input, clear);
+    }
+    const reason = field('reason', '操作原因'); reason.querySelector('input').maxLength = 1000; controls.push(reason);
+    dialog(row ? '编辑供应商 · ' + config.name : '新增供应商', [el('p', '配置由全平台共享。凭证只写入，不回显；修改账号或接口后，原任务可能需要核对。'), ...controls], form => {
+      let extra; try {extra = JSON.parse(form.get('advanced'));} catch {throw new Error('高级配置不是有效 JSON。');}
+      if(!extra || Array.isArray(extra) || typeof extra !== 'object') throw new Error('高级配置应为 JSON 对象。');
+      const next = {...extra, name: form.get('name'), base_url: form.get('base_url'), protocol: form.get('protocol'), enabled: form.has('enabled')};
+      for(const key of ['image_models','video_models','chat_models']) next[key] = String(form.get(key)).split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+      const secrets = {}, clear_secrets = [];
+      for(const key of ['api_key','volcengine_access_key_id','volcengine_secret_access_key']) {if(form.get(key)) secrets[key] = form.get(key); if(form.has('clear_' + key)) clear_secrets.push(key);}
+      return call('/api/providers/' + encodeURIComponent(row?.id || form.get('id')), 'PUT', {config: next, expected_version: row?.version || 0, secrets, clear_secrets, reason: form.get('reason')});
+    });
+  }
+  async function providerView() {
+    if(!me.permissions.includes('provider.configure')) return denied();
+    const scope = workspace;
+    const [data, assigned] = await Promise.all([api('/api/providers'), scope ? api('/api/provider-assignments?workspace=' + encodeURIComponent(scope)) : Promise.resolve(null)]);
+    const toolbar = el('div', undefined, 'toolbar'); toolbar.append(button('新增供应商', () => editProvider(), 'primary'), button('刷新配置', refresh));
+    if(scope && me.permissions.includes('space.assign')) toolbar.append(button('分配到本空间', () => {
+      const primaryLabel = el('label', '默认供应商'), primary = el('select'); primary.name = 'primary';
+      const none = el('option', '不指定默认'); none.value = ''; primary.append(none);
+      data.providers.forEach(row => {const option = el('option', row.config.name); option.value = row.id; primary.append(option);});
+      primary.value = assigned.primary_provider_id || ''; primaryLabel.append(primary);
+      const reason = field('reason', '分配原因'); reason.querySelector('input').maxLength = 1000;
+      dialog('分配供应商 · ' + me.workspaces.find(item => item.id === scope)?.name, [el('p', '取消分配后不能发起新的供应商调用。已提交任务可凭原账号继续查询；账号变化时仍需人工核对。'),
+        choices('provider_ids', data.providers.map(row => ({id: row.id, name: row.config.name + (row.config.enabled ? '' : '（已停用）')})), assigned.provider_ids), primaryLabel, reason],
+        form => call('/api/provider-assignments?workspace=' + encodeURIComponent(scope), 'PUT', {provider_ids: form.getAll('provider_ids'), primary_provider_id: form.get('primary') || null, expected_version: assigned.version, reason: form.get('reason')}));
+    }));
+    const rows = data.providers.map(row => [labelText(row.config.name, row.id), row.config.protocol, row.config.enabled ? '启用' : '停用',
+      row.configured_secrets.length ? '已配置 ' + row.configured_secrets.length + ' 项凭证' : '尚未配置凭证',
+      scope ? assigned.provider_ids.includes(row.id) ? assigned.primary_provider_id === row.id ? '已分配 · 默认' : '已分配' : '未分配' : '请选择空间查看分配',
+      button('编辑 · ' + row.config.name, () => editProvider(row))]);
+    return [el('p', '供应商配置由平台管理员维护，成员仅能使用分配到所在空间的服务。'), toolbar,
+      rows.length ? table(['供应商', '协议', '状态', '凭证', '空间分配', '操作'], rows) : el('p', '尚未配置供应商。新增并分配后，成员才能选择模型。')];
   }
   const reviewOutcomes = {member_confirmed_saved: '已向成员确认保存', draft_exported: '已确认草稿导出', member_discarded: '成员确认无需保留'};
   async function showPageReports(reviewed = false, after = '', scope = workspace) {

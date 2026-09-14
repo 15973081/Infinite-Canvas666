@@ -34,6 +34,13 @@ def world(operator, monkeypatch):
         people.append(members.activate(invited['activation_token'], PASSWORD))
     a = members.create_workspace(operator, '浏览器空间 A', operator.member_id)
     b = members.create_workspace(operator, '浏览器空间 B', operator.member_id)
+    from app.services import provider_control
+    if not any(p['id'] == 'comfly' for p in provider_control.catalog(operator)['providers']):
+        provider_control.save(operator, 'comfly', {'name': '测试供应商', 'base_url': 'https://provider.test',
+                              'image_models': ['test'], 'video_models': ['test']}, 0,
+                              secrets={'api_key': 'test-only-provider-key'}, reason='隔离成员验收夹具')
+    for space in (a, b):
+        provider_control.assign(operator, space['id'], ['comfly'], 'comfly', 0, reason='隔离成员验收夹具')
     members.assign_roles(operator, people[0]['id'], [a['roles']['editor']], a['id'])
     members.assign_roles(operator, people[1]['id'], [a['roles']['viewer']], a['id'])
     members.assign_roles(operator, people[2]['id'], [b['roles']['editor']], b['id'])

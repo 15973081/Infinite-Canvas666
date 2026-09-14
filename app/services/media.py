@@ -167,9 +167,13 @@ def log_net_error(context, exc, url=""):
             pass
 
 def api_headers(json_body=True, provider=None, model=""):
+    from app.providers.registry import managed_providers_enabled, get_api_provider
+    managed = managed_providers_enabled()
+    if managed and not provider:
+        provider = get_api_provider('')
     if provider:
         key_env = provider_key_env(provider["id"])
-        api_key = os.getenv(key_env, "")
+        api_key = provider_env_key_value(provider["id"]) if managed else os.getenv(key_env, "")
         provider_name = provider.get("name") or provider["id"]
         if not api_key:
             raise HTTPException(status_code=400, detail=f"未配置 {provider_name} 的 API Key，请在 API 平台管理中填写。")

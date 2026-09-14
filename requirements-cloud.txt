@@ -2,3 +2,4 @@
 psycopg[binary]==3.3.5
 psycopg-pool==3.3.1
 tos==2.9.2
+cryptography==50.0.1

@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -138,6 +139,21 @@ class Retirement(Input):
     revoke: bool = False
 
 
+class ProviderSave(Input):
+    expected_version: int = Field(strict=True, ge=0)
+    config: dict = Field(max_length=30)
+    secrets: dict[str, str] = Field(default_factory=dict, max_length=3)
+    clear_secrets: list[Literal['api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key']] = Field(default_factory=list, max_length=3)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class ProviderAssignment(Input):
+    expected_version: int = Field(strict=True, ge=0)
+    provider_ids: list[str] = Field(max_length=100)
+    primary_provider_id: str | None = None
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class PageReview(Input):
     expected_sequence: int = Field(strict=True, ge=1, le=9007199254740991)
     outcome: Literal['member_confirmed_saved', 'draft_exported', 'member_discarded']
@@ -174,6 +190,11 @@ def create_app(static_dir=None):
 
     app = FastAPI(title='Canvas Management', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(Admission)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_input(request, error):
+        # Pydantic normally includes the submitted value, which may contain keys.
+        return JSONResponse({'detail': {'code': 'invalid_request'}}, 422)
 
     @app.get('/')
     def index():
@@ -302,6 +323,26 @@ def create_app(static_dir=None):
     def review_page_report(report_id: UUID, request: Request, data: PageReview, workspace: str | None = None):
         from app.services.canvas_page_reports import review
         return review(actor(request), report_id, data.expected_sequence, data.outcome, data.note, workspace)
+
+    @app.get('/api/providers')
+    def provider_catalog(request: Request):
+        from app.services.provider_control import catalog
+        return catalog(actor(request))
+
+    @app.put('/api/providers/{provider_id}')
+    def provider_save(provider_id: str, request: Request, data: ProviderSave):
+        from app.services.provider_control import save
+        return save(actor(request), provider_id, **data.model_dump())
+
+    @app.get('/api/provider-assignments')
+    def provider_assignments(request: Request, workspace: str):
+        from app.services.provider_control import assignments
+        return assignments(actor(request), workspace)
+
+    @app.put('/api/provider-assignments')
+    def provider_assign(request: Request, workspace: str, data: ProviderAssignment):
+        from app.services.provider_control import assign
+        return assign(actor(request), workspace, **data.model_dump())
 
     # Only the management artifact is mounted, never workbench static or data.
     app.mount('/static', StaticFiles(directory=directory, check_dir=False), name='management-static')

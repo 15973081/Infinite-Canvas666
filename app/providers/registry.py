@@ -108,6 +108,11 @@ def merge_model_price_history(existing_rows, desired_rows, effective_at=None):
     return history
 
 
+def managed_providers_enabled():
+    from app.storage.settings import postgres_enabled, member_auth_enabled
+    return postgres_enabled() and member_auth_enabled()
+
+
 def provider_key_env(provider_id):
     if provider_id == "comfly":
         return "COMFLY_API_KEY"
@@ -145,6 +150,9 @@ def read_api_env_value(key: str) -> str:
 
 
 def provider_env_key_value(provider_id: str) -> str:
+    if managed_providers_enabled():
+        from app.services.provider_control import credential
+        return credential(provider_id)
     provider_id = str(provider_id or "").strip().lower()
     env_key = provider_key_env(provider_id)
     key = os.getenv(env_key, "") or read_api_env_value(env_key)
@@ -156,16 +164,24 @@ def provider_env_key_value(provider_id: str) -> str:
 
 
 def volcengine_access_key_value() -> str:
+    if managed_providers_enabled():
+        from app.services.provider_control import credential
+        return credential('volcengine', 'volcengine_access_key_id')
     env_key = volcengine_access_key_env()
     return os.getenv(env_key, "") or read_api_env_value(env_key)
 
 
 def volcengine_secret_key_value() -> str:
+    if managed_providers_enabled():
+        from app.services.provider_control import credential
+        return credential('volcengine', 'volcengine_secret_access_key')
     env_key = volcengine_secret_key_env()
     return os.getenv(env_key, "") or read_api_env_value(env_key)
 
 
 def volcengine_provider_api_key(explicit_key: str = "") -> str:
+    if managed_providers_enabled():
+        return provider_env_key_value('volcengine')
     explicit_key = str(explicit_key or "").strip()
     if explicit_key:
         return explicit_key
@@ -475,6 +491,9 @@ def httpx_provider_kwargs(provider=None, proxy_url=None):
 
 
 def load_api_providers():
+    if managed_providers_enabled():
+        from app.services.provider_control import workspace_providers
+        return workspace_providers()
     from app.storage.settings import postgres_enabled
     if postgres_enabled():
         from app.storage.documents import get
@@ -499,6 +518,8 @@ def load_api_providers():
 
 
 def save_api_providers(providers):
+    if managed_providers_enabled():
+        raise HTTPException(403, '请通过独立管理平台配置供应商')
     from app.storage.settings import postgres_enabled
     if postgres_enabled():
         from app.storage.documents import put
@@ -558,6 +579,8 @@ def get_primary_provider_id(providers=None):
 def get_api_provider(provider_id="comfly"):
     providers = load_api_providers()
     target = (provider_id or "").strip().lower()
+    if target and managed_providers_enabled() and not any(p['id'] == target for p in providers):
+        raise HTTPException(403, '供应商未分配或已停用')
     if not target or not any(p["id"] == target for p in providers):
         target = get_primary_provider_id(providers)
     provider = next((p for p in providers if p["id"] == target), None)
@@ -584,6 +607,8 @@ def modelscope_provider_config():
 
 
 def modelscope_api_key(explicit_key: str = ""):
+    if managed_providers_enabled():
+        return strip_auth_scheme(provider_env_key_value('modelscope'), 'Bearer')
     return (
         strip_auth_scheme(explicit_key, "Bearer")
         or strip_auth_scheme(provider_env_key_value("modelscope"), "Bearer")

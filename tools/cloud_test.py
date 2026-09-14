@@ -38,6 +38,8 @@ def main(argv=None):
         os.environ["DATABASE_BACKEND"] = "postgres"
         os.environ["CLOUD_EMBEDDED_WORKER"] = "false"
         os.environ["CLOUD_INTEGRATION_TEST"] = "1"
+        from cryptography.fernet import Fernet
+        os.environ["PROVIDER_SECRET_KEY"] = Fernet.generate_key().decode("ascii")
         os.environ["APP_RUNTIME_DIR"] = str(Path(directory) / "runtime")
         os.environ["AUTH_DB_PATH"] = str(Path(directory) / "auth.sqlite3")
         os.environ["OBJECT_STORE_ROOT"] = str(Path(directory) / "objects")
@@ -55,7 +57,7 @@ def main(argv=None):
             suites = ["test_cloud_storage.py", "test_cloud_uploads.py", "test_cloud_finalization.py",
                       "test_cloud_task_requests.py", "test_cloud_paging.py", "test_cloud_members.py",
                       "test_cloud_workspaces.py", "test_cloud_member_gateway.py", "test_cloud_management.py",
-                      "test_cloud_maintenance_control.py", "test_cloud_canvas_leases.py", "test_cloud_draft_copies.py", "test_cloud_page_reports.py"]
+                      "test_cloud_maintenance_control.py", "test_cloud_canvas_leases.py", "test_cloud_draft_copies.py", "test_cloud_page_reports.py", "test_cloud_managed_providers.py"]
             return pytest.main([*(str(ROOT / "tests" / name) for name in suites), "-q", *(argv or [])])
         finally:
             try:
