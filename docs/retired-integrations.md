@@ -43,3 +43,11 @@ ComfyUI 连接迁移、空间分配和 ModelScope 专用功能不再属于交付
 重启前未发现运行/排队任务、上传、有效租约或已上报未保存页面；先创建当前 schema 的 pg_dump 自定义格式备份及目录副本，再核对旧进程身份并结束旧 wrapper 与两个子进程，避免触发旧脚本的删除清理。PostgreSQL 未停止。重启前后核对 38 张表的内容摘要，仅页面报告和服务心跳变化；3 个空间、3 名成员、5 张画布及其他业务数据保留。页面报告仅覆盖已上报页面，本次本地预览更新不代表完成全平台停库/恢复验收。
 
 证据保存在 .local/cloud/backups/member-preview-2026-09-14T06-03-31-413Z/：preview.dump、files/、table-checks.json、after-restart-check.json、runtime-check.json、resume-tests.log。已验证备份目录清单可读取，本次没有执行全量恢复演练。新增 7 项恢复模式测试，联合既有测试运行 15 通过。当前服务清单位于 .local/cloud/runtime/active-member-preview.json，persistent=true；后续启动方式见[本地运行说明](management-platform-local.md)。
+
+## 残留清理（2026-09-14）
+
+进一步删除独立对话页的 ModelScope 模型状态、标签和请求分支，以及双画布发送的 ms_model 参数。后端聊天、画布 LLM、素材反推统一使用通用 provider/model，删除不再消费的请求字段；旧请求的额外字段仍按既有 Pydantic 默认行为忽略，旧供应商仍明确拒绝。
+
+删除已无调用的 ComfyUI WorkflowField、后端负载字典，以及 LTX Director 时间轴编辑器文件及页面加载引用。历史节点的展示、原始参数、费用记录与拒绝执行的兼容代码保留。没有修改数据库、.local 对象或用户原始配置。
+
+验收：Python 132 通过、268 云测试跳过、7 subtest 通过；PostgreSQL 删除边界专项 4 通过；前端 CJS 256 通过；对话、在线生图和经典画布内联脚本解析通过。日志为 .local/cloud/acceptance/retirement-cleanup-{python,postgres,frontend}.log。本批没有重启现有服务，静态页面刷新即可加载前端清理，后端残留字段删除随下一次服务启动生效。

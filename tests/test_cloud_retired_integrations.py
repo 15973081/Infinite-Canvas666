@@ -25,7 +25,7 @@ def test_retired_provider_cannot_be_created_or_resolved(platform, monkeypatch, p
     response = platform['client'].put('/api/providers/' + pid, json={'config':config, 'expected_version':0, 'reason':'测试已移除集成'})
     assert response.status_code == 400
     monkeypatch.setattr(registry, 'load_api_providers', lambda: [{'id':'available','enabled':True,'primary':True}])
-    for fn in (lambda: registry.get_api_provider(pid), lambda: registry.get_api_provider_exact(pid), lambda: resolve_chat_provider(pid, 'old-model', '')):
+    for fn in (lambda: registry.get_api_provider(pid), lambda: registry.get_api_provider_exact(pid), lambda: resolve_chat_provider(pid, 'old-model')):
         with pytest.raises(HTTPException) as error:
             fn()
         assert error.value.status_code == 410

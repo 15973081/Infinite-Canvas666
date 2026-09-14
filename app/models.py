@@ -157,11 +157,6 @@ class ChatRequest(BaseModel):
     quality: str = "auto"
     reference_images: List[AIReference] = []
     provider: str = "comfly"
-    ms_model: str = ""
-
-
-# ── ModelScope ──
-
 
 
 # ── Canvas LLM ──
@@ -172,7 +167,6 @@ class CanvasLLMRequest(BaseModel):
     model: str = ""
     messages: List[Dict[str, Any]] = []
     provider: str = "comfly"
-    ms_model: str = ""
     images: List[str] = []   # 可以是 /output/*.png、/assets/*.png 本地路径 或 http(s) URL 或 data URL
     videos: List[str] = []   # 可以是 /output/*.mp4、/assets/*.mp4 本地路径 或 http(s) URL 或 data URL
 
@@ -277,7 +271,6 @@ class LocalAssetCaptionRequest(BaseModel):
     names: List[str] = []
     provider: str = "comfly"
     model: str = ""
-    ms_model: str = ""
     prompt: str = "描述图片"
 
 
@@ -402,30 +395,6 @@ class TestConnectionPayload(BaseModel):
     proxy_url: str = ""
 
 
-# ── ComfyUI / Workflow ──
-
-class WorkflowField(BaseModel):
-    id: str
-    node: str = ""
-    input: str = ""
-    name: str = ""
-    type: str = "text"
-    default: Any = None
-    min: Optional[float] = None
-    max: Optional[float] = None
-    step: Optional[float] = None
-    options: List[str] = []
-    random_enabled: bool = False
-
-
-
-
-
-
-
-
-
-
 # ── Export all names for easy import ──
 __all__ = [
     "MaintenanceStartRequest",
@@ -454,6 +423,5 @@ __all__ = [
     "PromptLibraryRequest", "PromptLibraryItemRequest",
     "PromptLibraryBatchDeleteRequest", "PromptLibraryCategoryRequest",
     "TestConnectionPayload",
-    "WorkflowField",
 
 ]

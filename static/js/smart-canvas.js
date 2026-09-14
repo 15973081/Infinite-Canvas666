@@ -13228,7 +13228,6 @@ async function runPromptLLMNode(nodeId){
                 videos,
                 model,
                 provider,
-                ms_model: provider === 'modelscope' ? model : '',
                 system_prompt:node.llmSystemEnabled ? (systemPrompt || 'You are a helpful prompt assistant.') : ''
             })
         }).then(async r => {

@@ -2226,16 +2226,6 @@ try {
         }
     };
 } catch(e) { /* 不支持 BroadcastChannel 的旧浏览器忽略 */ }
-function msChatModelOptions(selected){
-    // 单一数据源：从 API 设置里 modelscope 平台的 chat_models 取
-    const msProvider = apiProviders.find(p => p.id === 'modelscope');
-    const list = uniqueModels(msProvider?.chat_models || []);
-    if(!list.length){
-        return `<option value="" disabled selected>${tr('canvas.noModelsHint') || '暂无模型，请到 API 设置添加'}</option>`;
-    }
-    const sel = selected && list.includes(selected) ? selected : list[0];
-    return list.map(m => `<option value="${escapeHtml(m)}" ${m === sel ? 'selected' : ''}>${escapeHtml(m.split('/').pop().split(':')[0])}</option>`).join('');
-}
 async function loadCanvasList(openFirst=true, options={}){
     try {
         const refreshFolders = options.refreshFolders === true;
@@ -8546,7 +8536,6 @@ function renderLLMBody(node){
     const mode = node.mode || 'node';
     node.llmProvider = resolveChatProviderId(node.llmProvider || 'comfly');
     const llmProv = node.llmProvider;
-    if(llmProv === 'modelscope') node.model = node.llmMsModel || node.model;
     if(!providerChatModels(llmProv).includes(node.model)) node.model = providerChatModels(llmProv)[0] || node.model;
     const modelOpts = chatModelOptions(node.model, llmProv);
     const imgs = llmInputImages(node);
@@ -8582,14 +8571,12 @@ function renderLLMBody(node){
         node.llmProvider = e.target.value;
         const models = providerChatModels(node.llmProvider);
         node.model = models[0] || '';
-        if(node.llmProvider === 'modelscope') node.llmMsModel = node.model;
         render();
         scheduleSave();
     };
     modelSelect.onchange = e => {
         e.stopPropagation();
         node.model = e.target.value;
-        if((node.llmProvider||'comfly') === 'modelscope') node.llmMsModel = e.target.value;
         scheduleSave();
     };
     wrap.querySelector('.llm-sys-toggle').onclick = e => { e.stopPropagation(); node.showSystem = !node.showSystem; render(); scheduleSave(); };
@@ -10773,7 +10760,6 @@ async function callCanvasLLM(node, message, messages=[], options={}){
     const result = await window.CanvasApi.canvasLLMRequest({
         message,
         model,
-        ms_model: llmProv === 'modelscope' ? model : '',
         provider: llmProv,
         system_prompt:node.systemPrompt || 'You are a helpful assistant.',
         messages,

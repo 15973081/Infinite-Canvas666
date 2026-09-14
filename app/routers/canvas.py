@@ -841,7 +841,7 @@ async def recover_durable_canvas_video_tasks():
 
 @router.post("/api/canvas-llm")
 async def canvas_llm(payload: CanvasLLMRequest):
-    chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model, payload.ms_model)
+    chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model)
     # 判断协议：APIMart 异步 vs 标准 OpenAI
     _llm_provider = get_api_provider(payload.provider)
     _is_apimart = is_apimart_provider(_llm_provider)

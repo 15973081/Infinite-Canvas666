@@ -247,11 +247,6 @@ SHARED_FOLDERS_LOCK = Lock()
 CLIENT_ID = str(uuid.uuid4())
 
 
-# ── ComfyUI backend load tracking ──
-
-BACKEND_LOCAL_LOAD = {}
-
-
 # ── Canvas task tracking ──
 
 CANVAS_TASKS: Dict[str, Dict[str, any]] = {}
@@ -289,7 +284,6 @@ __all__ = [
     "HISTORY_LOCK", "GLOBAL_CONFIG_LOCK", "CONVERSATION_LOCK",
     "CANVAS_LOCK", "CANVAS_FOLDERS_LOCK", "LOAD_LOCK",
     "NEXT_TASK_ID",
-    "BACKEND_LOCAL_LOAD",
     "CANVAS_TASKS", "CANVAS_TASK_LOCK",
     "CANVAS_TASK_MAINTENANCE", "set_canvas_task_maintenance", "canvas_task_maintenance",
     "SHARED_FOLDERS_LOCK",

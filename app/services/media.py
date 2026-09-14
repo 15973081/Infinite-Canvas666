@@ -99,7 +99,7 @@ def load_asset_library():
     return _f()
 
 
-def resolve_chat_provider(provider: str, model: str, ms_model: str):
+def resolve_chat_provider(provider: str, model: str):
     api_provider = get_api_provider(provider or "")
     base_root = (api_provider.get("base_url") or AI_BASE_URL).rstrip("/")
     if not base_root:

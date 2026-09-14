@@ -142,7 +142,6 @@ async def caption_local_assets(payload: LocalAssetCaptionRequest):
                 prompt,
                 payload.provider,
                 payload.model,
-                payload.ms_model,
             )
             txt_path = _local_upload_caption_path(filename)
             with open(txt_path, "w", encoding="utf-8", newline="") as f:
@@ -436,8 +435,8 @@ async def import_shared_folder_files(payload: SharedFolderImport):
     save_asset_library(lib)
     return {"library": lib, "items": added}
 
-async def caption_image_with_provider(abs_path, prompt, provider_id, model, ms_model=""):
-    chat_base, chat_hdrs, resolved_model = resolve_chat_provider(provider_id, model, ms_model)
+async def caption_image_with_provider(abs_path, prompt, provider_id, model):
+    chat_base, chat_hdrs, resolved_model = resolve_chat_provider(provider_id, model)
     llm_provider = get_api_provider(provider_id)
     is_apimart = is_apimart_provider(llm_provider)
     prompt_text = (prompt or "描述图片").strip() or "描述图片"
