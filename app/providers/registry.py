@@ -447,7 +447,9 @@ def provider_endpoint_url(provider, key, default_path):
 def httpx_provider_kwargs(provider=None, proxy_url=None):
     proxy = str(proxy_url or "").strip() if proxy_url is not None else provider_proxy_url(provider)
     if not proxy:
-        return {}
+        # Managed connections follow the saved platform configuration, not a
+        # desktop proxy inherited from the previous local deployment.
+        return {"trust_env": False} if managed_providers_enabled() else {}
     return {"proxy": proxy, "trust_env": False}
 
 
