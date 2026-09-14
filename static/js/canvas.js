@@ -2615,6 +2615,12 @@ async function createCanvas(){
             openSmartCanvasPage(data.canvas?.id);
             return;
         }
+        if(window.CanvasSession?.enabled){
+            setCreateMode(false);
+            await loadCanvasList(false);
+            await openCanvas(data.canvas.id);
+            return;
+        }
         resetCascadeRuntimeState();
         canvas = data.canvas;
         canvas.logs = canvas.logs || [];
@@ -2762,6 +2768,7 @@ async function openCanvas(id){
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvas.id, dirty:() => localCanvasDirty || savingCanvasNow || saveCanvasAgain,
                 snapshot:() => ({...canvas, ...canvasSavePayload()}), flush:flushClassicCanvasBeforeFrontendReload,
+                restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed)),
                 reload:async () => { const loaded=await openCanvas(id); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } }
             });
@@ -2776,6 +2783,24 @@ async function openCanvas(id){
         setStatus(tr('canvas.openFailed'));
         console.error(e);
     }
+}
+function restoreClassicMemberDraft(draft){
+    if(!canvas || draft.id!==canvas.id || (draft.kind || 'classic')!=='classic' || !Array.isArray(draft.nodes) || !Array.isArray(draft.connections)) throw new Error('经典画布草稿格式不完整，请先导出保留。');
+    const restoredNodes=JSON.parse(JSON.stringify(draft.nodes)).map(serializableCanvasNode);
+    restoredNodes.forEach(node => {delete node._pending;});
+    clearTimeout(saveTimer); saveTimer=null;
+    resetCascadeRuntimeState(); resetCanvasHistory();
+    // Retain server identity, revision and billing logs. Restoring local graph
+    // content must not replay old task state or import an old billing snapshot.
+    canvas.title=draft.title || canvas.title;
+    canvas.icon=draft.icon || canvas.icon;
+    canvas.nodes=nodes=restoredNodes;
+    canvas.connections=connections=JSON.parse(JSON.stringify(draft.connections));
+    resetTransientRunState(nodes); sanitizeConnections(); selected.clear();
+    localCanvasDirty=true;
+    render(); renderCanvasList();
+    window.MemberCanvasEdit.markDirty();
+    setStatus('草稿已恢复，请检查后保存');
 }
 function applyRemoteCanvasData(remote){
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canRefresh) return false;
@@ -2802,7 +2827,7 @@ function applyRemoteCanvasData(remote){
         resetCanvasSaveSnapshot();
         resetTransientRunState(nodes);
         sanitizeConnections();
-        pruneMissingComfyWorkflows();
+        if(!window.CanvasSession?.enabled) pruneMissingComfyWorkflows();
         refreshMissingCanvasAssets().then(() => render());
         selected = new Set([...localSelectedIds].filter(id => nodes.some(node => node.id === id)));
         renderCanvasList();

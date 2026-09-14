@@ -4890,6 +4890,7 @@ async function loadCanvas(){
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvasId,dirty:() => smartCanvasDirty || Boolean(smartSaveInFlight) || smartSaveAgain,
                 snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
+                restore:restoreSmartMemberDraft,busy:() => Boolean(smartSaveInFlight) || smartSaveAgain || smartCascadeAnyRunning() || nodes.some(smartNodeInFlight),
                 reload:async () => { const loaded=await loadCanvas(); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 flush:async () => {
                     clearTimeout(saveTimer); saveTimer=null;
@@ -4906,6 +4907,26 @@ async function loadCanvas(){
         } else { await checkSmartCanvasLock(); startSmartCanvasLockPolling(); }
         return canvas;
     } catch(e) { toast(e?.message || tr('smart.toastCanvasFail')); }
+}
+function restoreSmartMemberDraft(draft){
+    if(!canvas || draft.id!==canvas.id || draft.kind!=='smart' || !Array.isArray(draft.nodes) || !Array.isArray(draft.connections)) throw new Error('智能画布草稿格式不完整，请先导出保留。');
+    const restoredNodes=JSON.parse(JSON.stringify(draft.nodes)).map(serializableSmartNode);
+    clearTimeout(saveTimer); saveTimer=null;
+    undoStack.length=0; pendingUndoSnapshot=null;
+    canvas.title=draft.title || canvas.title;
+    canvas.icon=draft.icon || canvas.icon;
+    canvas.nodes=nodes=restoredNodes;
+    canvas.connections=JSON.parse(JSON.stringify(draft.connections));
+    canvasUsesConnections=true;
+    if(draft.settings){
+        canvasDefaultSmartSettings=settingsForStorage(draft.settings);
+        settings=cloneSmartSettings(canvasDefaultSmartSettings);
+        canvas.settings=canvasDefaultSmartSettings;
+    }
+    selectedId=''; selectedIds=[];
+    smartCanvasDirty=true; smartSaveErrorNotified=false;
+    updateProviderModels(); updateSmartCanvasNav(); render();
+    window.MemberCanvasEdit.markDirty();
 }
 async function createSmartCanvasBackup(){
     if(!canvasId) return;

@@ -177,3 +177,41 @@ test('closing a canvas prevents queued or delayed dialogs from reacquiring it',a
     await assert.rejects(start,/关闭/);await assert.rejects(f.lease.requestTransfer(),/关闭/);
     assert.equal(f.calls.length,0);
 });
+
+test('draft restore revalidates the private proof and keeps the acknowledged revision without writing', async () => {
+    const f=fixture(() => json(publicLease({edit_token:'private'})));
+    let applied=false;
+    await assert.rejects(f.lease.restoreDraft(3,()=>{applied=true;}),/开始编辑/);
+    await f.start();
+    await f.lease.restoreDraft(3,()=>{assert.equal(f.lease.canEdit,false);applied=true;});
+    assert.equal(applied,true);assert.equal(f.lease.revision,3);assert.equal(f.lease.canEdit,true);
+    assert.equal(f.calls.at(-1)[0],'/api/canvases/a/edit-lease/renew');
+    assert.equal(f.calls.at(-1)[1].headers['X-Canvas-Edit-Token'],'private');
+    assert.equal(f.calls.some(([,init])=>init.method==='PUT'),false);
+});
+test('old or unknown draft revisions cannot overwrite the current document', async () => {
+    const f=fixture(() => json(publicLease({edit_token:'private'})));
+    await f.start();const count=f.calls.length;
+    for(const revision of [null,2,4,'3']) await assert.rejects(f.lease.restoreDraft(revision,()=>assert.fail('applied')),/版本/);
+    assert.equal(f.calls.length,count);assert.equal(f.lease.canEdit,true);
+});
+test('draft restore rejects stale server versions, revoked proofs and maintenance during verification', async () => {
+    for(const outcome of ['revision','revoked','maintenance','paused']) {
+        const f=fixture(path => {
+            if(path.endsWith('/acquire')) return json(publicLease({edit_token:'private'}));
+            if(outcome==='revoked') return json({detail:{code:'canvas_lease_lost'}},409);
+            if(outcome==='maintenance') f.lease.setMaintenance('draining');
+            if(outcome==='paused') f.lease.pause('offline');
+            return json(publicLease(outcome==='revision' ? {revision:4} : {}));
+        });
+        await f.start();await assert.rejects(f.lease.restoreDraft(3,()=>assert.fail('applied')));
+        assert.equal(f.lease.canEdit,false);assert.equal(f.lease.revision,3);
+    }
+});
+test('a save already in the queue completes before checking a draft base revision', async () => {
+    const f=fixture(path => path.endsWith('/acquire') ? json(publicLease({edit_token:'private'})) : json({canvas:{revision:4}}));
+    await f.start();
+    const save=f.lease.write('/api/canvases/a',{method:'PUT',body:'{}'});
+    const restoring=f.lease.restoreDraft(3,()=>assert.fail('applied'));
+    await save;await assert.rejects(restoring,/版本/);assert.equal(f.lease.revision,4);
+});

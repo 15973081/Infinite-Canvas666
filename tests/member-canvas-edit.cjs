@@ -9,11 +9,15 @@ const apiSource=fs.readFileSync('static/js/canvas-api.js','utf8');
 const status={canvas_id:'a',generation:1,revision:3,holder:{id:'member',display_name:'甲',is_self:true},server_time:'2026-09-14T00:00:00Z',expires_at:'2026-09-14T00:01:00Z'};
 const reply=(data,code=200)=>new Response(JSON.stringify(data),{status:code});
 function fixture() {
-    const calls=[],records=new Map(),queries=[],listeners=new Map(),timers=new Map(); let sequence=0;
-    const element=(tag='div')=>({tagName:tag.toUpperCase(),value:'',children:[],classList:{toggle(){}},setAttribute(){},append(...items){this.children.push(...items);},addEventListener(){},remove(){},showModal(){},close(){},querySelectorAll(selector){return this.children.filter(node=>node.tagName===selector.toUpperCase());}});
+    const calls=[],records=new Map(),queries=[],listeners=new Map(),timers=new Map(),downloads=[]; let sequence=0;
+    const element=(tag='div')=>({tagName:tag.toUpperCase(),value:'',children:[],classList:{toggle(){},remove(){}},setAttribute(){},append(...items){this.children.push(...items);},addEventListener(){},remove(){this.removed=true;},click(){downloads.push(this.download);},showModal(){},close(){},querySelectorAll(selector){return this.children.filter(node=>node.tagName===selector.toUpperCase());}});
     const database={transaction(){
-        const transaction={objectStore:()=>({put(value){records.set(value.key,structuredClone(value));return {result:value.key};},getAll(range){queries.push(range);return {result:[...records.values()].filter(row=>row.key>=range.lower && row.key<=range.upper)};}})};
-        queueMicrotask(()=>transaction.oncomplete?.());return transaction;
+        const transaction={abort(){this.aborted=true;queueMicrotask(()=>this.onabort?.());},objectStore:()=>({
+            put(value){records.set(value.key,structuredClone(value));return {result:value.key};},
+            get(key){const request={result:structuredClone(records.get(key))};queueMicrotask(()=>request.onsuccess?.());return request;},
+            delete(key){records.delete(key);return {};},
+            getAll(range){queries.push(range);return {result:structuredClone([...records.values()].filter(row=>row.key>=range.lower && row.key<=range.upper))};}})};
+        queueMicrotask(()=>queueMicrotask(()=>{if(!transaction.aborted)transaction.oncomplete?.();}));return transaction;
     }};
     const context={window:null,module:undefined,URL,Headers,AbortSignal,Blob,console,crypto:webcrypto,queueMicrotask,
         location:{origin:'http://canvas.local',href:'http://canvas.local/static/canvas.html'},
@@ -25,6 +29,7 @@ function fixture() {
         CanvasSession:{enabled:true,context:{member:{id:'member'},workspace:{id:'space',permissions:['canvas.read','canvas.edit']}}},
         fetch:async(path,init={})=>{calls.push([path,init]);
             if(path.endsWith('/acquire'))return reply({...status,edit_token:'secret-lease-proof'});
+            if(path.endsWith('/renew'))return reply(status);
             if(path.endsWith('/edit-lease/transfers'))return reply({lease:{...status,holder:null},requests:[]});
             if(path.endsWith('/edit-lease'))return reply({...status,holder:null});
             if(init.method==='PUT')return reply({canvas:{revision:4}});
@@ -33,7 +38,7 @@ function fixture() {
     context.window=context;context.parent=context;
     context.CanvasEditLease=class extends Lease {constructor(options){super({...options,fetch:context.fetch,now:()=>0});}};
     vm.createContext(context);vm.runInContext(source,context);vm.runInContext(apiSource,context);
-    return {context,calls,records,queries,listeners,timers,api:context.MemberCanvasEdit,
+    return {context,calls,records,queries,listeners,timers,downloads,api:context.MemberCanvasEdit,
         mount:()=>context.MemberCanvasEdit.mount({id:'a',dirty:()=>false,snapshot:()=>({revision:3,nodes:[]}),reload:async()=>({revision:3}),flush:async()=>true})};
 }
 test('opening a member canvas only observes; saves require explicit start',async()=>{
@@ -69,7 +74,9 @@ test('draft persistence is bound to member, workspace, canvas and page; it exclu
     assert.deepEqual(JSON.parse(draft.key),['member','space','a',draft.page]);
     assert.equal(draft.document.nodes[0].prompt,'keep this');
     assert.equal(JSON.stringify(draft).includes('secret-lease-proof'),false);
-    assert.equal(await f.api.leave(),false);assert.ok(f.api.active);
+    const leaving=f.api.leave();await new Promise(setImmediate);
+    await f.context.document.body.children.at(-1).children.find(node=>node.textContent==='取消').onclick();
+    assert.equal(await leaving,false);assert.ok(f.api.active);
 });
 test('paused editing does not resume after maintenance returns to normal',async()=>{
     const f=fixture();await f.mount();await f.api.active.lease.start(async()=>({revision:3}));
@@ -111,4 +118,85 @@ test('force dialog requires a reason, permits correcting an empty reason, and su
     dialog.children.find(node=>node.tagName==='TEXTAREA').value='维护检查需要';
     await confirm.onclick();await operation;
     assert.deepEqual(JSON.parse(f.calls.at(-1)[1].body),{takeover:'force',expected_generation:1,confirm:true,reason:'维护检查需要'});
+});
+
+function seedDraft(f,extra={}) {
+    const row={member_id:'member',workspace_id:'space',canvas_id:'a',page:'old-page',base_revision:3,saved_at:'2026-09-14T01:00:00Z',
+        document:{id:'a',kind:'classic',revision:3,nodes:[{id:'saved',prompt:'recover'}],connections:[]},...extra};
+    row.key=JSON.stringify([row.member_id,row.workspace_id,row.canvas_id,row.page]);f.records.set(row.key,structuredClone(row));return row;
+}
+const action=(node,label)=>node.children.find(child=>child.textContent===label);
+async function draftLine(f) {
+    await action(f.api.active.bar,'本地草稿').onclick();
+    return f.context.document.body.children.at(-1).children.find(node=>node.children.some(child=>child.textContent==='恢复到本页'));
+}
+async function confirmLatest(f,label) {
+    await new Promise(setImmediate);await action(f.context.document.body.children.at(-1),label).onclick();
+}
+test('restoring a scoped draft requires confirmation and proof verification, and keeps the original',async()=>{
+    const f=fixture();await f.mount();seedDraft(f);let restored;
+    f.api.active.options.restore=value=>{restored=value;f.api.active.options.dirty=()=>true;f.api.active.options.snapshot=()=>value;};
+    const line=await draftLine(f);await action(line,'恢复到本页').onclick();
+    assert.equal(restored,undefined);assert.match(line.children.at(-1).textContent,/开始编辑/);
+    await f.api.active.lease.start(async()=>({revision:3}));
+    const operation=action(line,'恢复到本页').onclick();await confirmLatest(f,'确认恢复到本页');await operation;
+    assert.equal(restored.nodes[0].prompt,'recover');assert.equal(f.records.size,2);
+    assert.equal(f.calls.at(-1)[0],'/api/canvases/a/edit-lease/renew');
+    assert.equal(f.calls.some(([,init])=>init.method==='PUT'),false);
+    assert.equal(JSON.stringify([...f.records.values()]).includes('secret-lease-proof'),false);
+});
+test('mismatched revisions and a busy canvas leave the current graph intact',async()=>{
+    const f=fixture();await f.mount();await f.api.active.lease.start(async()=>({revision:3}));
+    seedDraft(f,{base_revision:2});f.api.active.options.restore=()=>assert.fail('restored');
+    const line=await draftLine(f),operation=action(line,'恢复到本页').onclick();
+    await confirmLatest(f,'确认恢复到本页');await operation;
+    assert.match(line.children.at(-1).textContent,/版本不一致/);assert.equal(f.records.size,1);
+    f.api.active.options.busy=()=>true;await action(line,'恢复到本页').onclick();
+    assert.match(line.children.at(-1).textContent,/保存或生成/);
+});
+test('draft deletion is confirmed, scope checked and does not delete a newer record',async()=>{
+    const f=fixture();await f.mount();const row=seedDraft(f),foreign=seedDraft(f,{member_id:'other'});
+    const line=await draftLine(f),operation=action(line,'删除草稿').onclick();
+    await new Promise(setImmediate);
+    f.records.set(row.key,{...row,record_id:'newer'});
+    await confirmLatest(f,'确认删除草稿');await operation;
+    assert.equal(f.records.has(row.key),true);assert.match(line.children.at(-1).textContent,/草稿已变化/);
+    const freshLine=await draftLine(f),removing=action(freshLine,'删除草稿').onclick();
+    await confirmLatest(f,'确认删除草稿');await removing;
+    assert.equal(f.records.has(row.key),false);assert.equal(f.records.has(foreign.key),true);assert.equal(freshLine.removed,true);
+});
+test('an account switch blocks a draft dialog and never relabels old-page persistence',async()=>{
+    const f=fixture();await f.mount();seedDraft(f);const line=await draftLine(f);
+    f.context.CanvasSession.context.member.id='new-member';
+    await action(line,'导出').onclick();assert.equal(f.downloads.length,0);assert.match(line.children.at(-1).textContent,/成员或空间/);
+    f.api.active.options.dirty=()=>true;f.api.active.lease.pause('account changed');await new Promise(setImmediate);
+    assert.equal([...f.records.values()].every(row=>row.member_id==='member'),true);
+});
+test('an unsaved paused page can leave only after explicit export confirmation',async()=>{
+    const f=fixture();await f.mount();f.api.active.options.dirty=()=>true;
+    f.api.active.lease.pause('offline');
+    const operation=f.api.leave();await confirmLatest(f,'导出并离开');
+    assert.equal(await operation,true);assert.equal(f.api.active,null);assert.equal(f.downloads.length,1);assert.equal(f.records.size,1);
+    assert.equal(f.calls.some(([,init])=>init.method==='PUT'),false);
+});
+
+test('restoring the current page draft archives the selected content before replacing its live record',async()=>{
+    const f=fixture();await f.mount();await f.api.active.lease.start(async()=>({revision:3}));
+    f.api.active.options.dirty=()=>true;
+    f.api.active.options.snapshot=()=>({id:'a',kind:'classic',revision:3,nodes:[{prompt:'original'}],connections:[]});
+    f.api.active.lease.pause('offline');await new Promise(setImmediate);
+    f.api.active.options.dirty=()=>false;
+    await f.api.active.lease.start(async()=>({revision:3}));
+    f.api.active.options.restore=value=>{f.api.active.options.snapshot=()=>value;f.api.active.options.dirty=()=>true;};
+    const line=await draftLine(f),operation=action(line,'恢复到本页').onclick();
+    await confirmLatest(f,'确认恢复到本页');await operation;
+    assert.equal(f.records.size,2);
+    const archived=[...f.records.values()].find(row=>row.page.includes('/restored/'));
+    assert.equal(archived.document.nodes[0].prompt,'original');
+    const live=[...f.records.values()].find(row=>!row.page.includes('/restored/'));
+    assert.equal(live.base_generation,1);assert.notEqual(live.record_id,archived.record_id);
+    await draftLine(f);
+    const currentLine=f.context.document.body.children.at(-1).children.find(node=>node.tagName==='P' && node.textContent.includes('· 本页'));
+    await action(currentLine,'删除草稿').onclick();
+    assert.match(currentLine.children.at(-1).textContent,/未保存内容/);assert.equal(f.records.size,2);
 });

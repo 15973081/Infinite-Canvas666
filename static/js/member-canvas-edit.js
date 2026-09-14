@@ -30,10 +30,10 @@
         return node;
     }
     function draftRecord(entry) {
-        const context=window.CanvasSession.context;
-        return {key:JSON.stringify([context.member.id,context.workspace.id,entry.id,page]), member_id:context.member.id,
-            workspace_id:context.workspace.id,canvas_id:entry.id,page,base_revision:entry.lease.revision ?? entry.options.snapshot()?.revision,
-            saved_at:new Date().toISOString(),document:entry.options.snapshot()};
+        const document=JSON.parse(JSON.stringify(entry.options.snapshot()));
+        return {key:JSON.stringify([entry.memberId,entry.workspaceId,entry.id,page]), member_id:entry.memberId,
+            workspace_id:entry.workspaceId,canvas_id:entry.id,page,base_revision:entry.lease.revision ?? document.revision,
+            base_generation:entry.lease.generation,record_id:crypto.randomUUID(),saved_at:new Date().toISOString(),document};
     }
     function persist(entry=active) {
         if (!entry || !entry.options.dirty()) return Promise.resolve();
@@ -50,18 +50,74 @@
         setTimeout(() => URL.revokeObjectURL(href),1000);
     }
     async function showDrafts() {
-        const entry=active, context=window.CanvasSession.context;
-        const prefix=JSON.stringify([context.member.id,context.workspace.id,entry.id]).slice(0,-1)+',';
+        const entry=active;
+        assertDraftScope(entry);
+        const prefix=JSON.stringify([entry.memberId,entry.workspaceId,entry.id]).slice(0,-1)+',';
         const rows=await storage('readonly',store => store.getAll(IDBKeyRange.bound(prefix,prefix+'\uffff')));
+        assertDraftScope(entry);
         const dialog=element('dialog'); dialog.className='member-canvas-drafts';
-        dialog.append(element('h2','本地草稿'),element('p','这里只显示当前成员、空间和画布的草稿。草稿不会自动覆盖服务器。'));
-        const own=rows.filter(row => row.member_id===context.member.id && row.workspace_id===context.workspace.id && row.canvas_id===entry.id);
+        dialog.append(element('h2','本地草稿'),element('p','这里只显示当前成员、空间和画布的草稿。先开始编辑，才能恢复同版本草稿。版本不同请导出保留。恢复不会立即提交到服务器，也不会重启生成任务。'));
+        const own=rows.filter(row => ownsDraft(entry,row));
         if(!own.length) dialog.append(element('p','暂无本地草稿。'));
         for(const row of own.sort((a,b) => b.saved_at.localeCompare(a.saved_at))) {
-            const line=element('p',`${new Date(row.saved_at).toLocaleString()} · 基于版本 ${row.base_revision ?? '未知'} `);
-            line.append(button('导出',() => download(row))); dialog.append(line);
+            const origin=row.page===page ? '本页' : row.page.includes('/restored/') ? '恢复前留存' : '其他页面';
+            const line=element('p',`${new Date(row.saved_at).toLocaleString()} · 基于版本 ${row.base_revision ?? '未知'} · ${origin} `);
+            const error=element('span'); error.setAttribute('role','status');
+            const action=fn => async () => {try {assertDraftScope(entry,row);await fn();} catch(e) {error.textContent=e.message;}};
+            line.append(button('导出',action(() => download(row))),button('恢复到本页',action(async () => {
+                if(!entry.lease.canEdit) throw new Error('请先关闭此窗口并开始编辑，再打开草稿恢复。');
+                if(!entry.options.restore || entry.options.busy?.()) throw new Error('请等待当前保存或生成结束后再恢复。');
+                if(!await confirmAction('恢复本地草稿','恢复将替换本页内容；当前未保存内容会先导出。服务器版本必须与草稿一致，恢复后请检查并保存。','确认恢复到本页')) return;
+                assertDraftScope(entry,row);
+                if(!row.document || row.document.id!==entry.id || (row.document.kind || 'classic')!==(entry.options.snapshot().kind || 'classic')) throw new Error('草稿画布类型或身份不匹配，不能恢复。');
+                if(row.page===page) {
+                    const archive={...row,page:page+'/restored/'+crypto.randomUUID()};
+                    archive.key=JSON.stringify([entry.memberId,entry.workspaceId,entry.id,archive.page]);
+                    await storage('readwrite',store => store.put(archive));
+                }
+                if(entry.options.dirty()) {await persist(entry);download(draftRecord(entry));}
+                await entry.lease.restoreDraft(row.base_revision,() => {
+                    assertDraftScope(entry,row);
+                    if(entry.options.busy?.()) throw new Error('当前保存或生成尚未结束，请稍后恢复。');
+                    entry.options.restore(JSON.parse(JSON.stringify(row.document)));
+                });
+                await persist(entry);entry.feedback='草稿已恢复到本页，请检查后保存。原草稿仍保留在列表中。';
+                dialog.close();dialog.remove();
+            })),button('删除草稿',action(async () => {
+                if(row.page===page && entry.options.dirty()) throw new Error('本页还有未保存内容，请先保存或导出并离开，再清理这份草稿。');
+                if(!await confirmAction('删除本地草稿','这只删除此条本地草稿，无法撤销。需要保留时请先取消并导出。','确认删除草稿')) return;
+                await deleteDraft(entry,row);line.remove();
+            })),error); dialog.append(line);
         }
         dialog.append(button('关闭',() => {dialog.close();dialog.remove();})); document.body.append(dialog); dialog.showModal();
+    }
+    function ownsDraft(entry,row) {
+        return row && row.member_id===entry.memberId && row.workspace_id===entry.workspaceId && row.canvas_id===entry.id &&
+            typeof row.page==='string' && row.key===JSON.stringify([entry.memberId,entry.workspaceId,entry.id,row.page]);
+    }
+    function assertDraftScope(entry,row) {
+        const context=window.CanvasSession.context;
+        if(entry!==active || context.member.id!==entry.memberId || context.workspace.id!==entry.workspaceId || (row && !ownsDraft(entry,row))) throw new Error('页面成员或空间已变化，请重新打开画布。');
+    }
+    async function deleteDraft(entry,row) {
+        await entry.draftTail;
+        const database=await db;
+        return new Promise((resolve,reject) => {
+            const transaction=database.transaction('drafts','readwrite'), store=transaction.objectStore('drafts');
+            const request=store.get(row.key); let failure;
+            request.onsuccess=() => {
+                try {
+                    assertDraftScope(entry,row);
+                    if(row.page===page && entry.options.dirty()) throw new Error('本页产生了新更改，请先保留草稿。');
+                    // Read and compare in the same transaction: another tab may have
+                    // replaced this record while the confirmation dialog was open.
+                    if(JSON.stringify(request.result)!==JSON.stringify(row)) throw new Error('草稿已变化，请重新打开列表后再清理。');
+                    store.delete(row.key);
+                } catch(error) {failure=error;transaction.abort();}
+            };
+            transaction.oncomplete=resolve;
+            transaction.onerror=transaction.onabort=() => reject(failure || transaction.error || new Error('草稿未删除'));
+        });
     }
     function confirmAction(title,message,label) {
         return new Promise(resolve => {
@@ -208,7 +264,8 @@
             });
             const ask=button('申请接手',askTransfer), force=button('管理员强制接管',forceTakeover), requestList=element('div');
             requestList.className='member-canvas-transfer-list';requestList.setAttribute('aria-label','待处理接手申请');
-            active={id:options.id,options,bar,label,notice,begin,save,end,ask,force,requestList,requestNodes:new Map()};
+            const context=window.CanvasSession.context;
+            active={id:options.id,memberId:context.member.id,workspaceId:context.workspace.id,options,bar,label,notice,begin,save,end,ask,force,requestList,requestNodes:new Map()};
             const entry=active;
             entry.lease=new window.CanvasEditLease({id:options.id,changed:lease => {
                 if(entry!==active) return;
@@ -226,7 +283,11 @@
             const entry=active;
             if(!entry) return true;
             if(entry.lease.canSave) { if(!await entry.lease.finish(entry.options.flush)) return false; }
-            else if(entry.options.dirty()) { await persist(entry); entry.feedback='请先导出草稿；未保存的页面不会自动关闭。'; render(); return false; }
+            else if(entry.options.dirty()) {
+                await persist(entry);
+                if(!await confirmAction('保留草稿并离开','当前内容尚未保存到服务器。继续会先导出本页草稿，再离开画布；本地暂存也会保留。','导出并离开')) return false;
+                assertDraftScope(entry);download(draftRecord(entry));
+            }
             clearTimeout(timer); clearTimeout(draftTimer); entry.lease.dispose(); entry.bar.remove(); active=null;
             document.body.classList.remove('member-canvas-view'); return true;
         },

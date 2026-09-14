@@ -1,6 +1,6 @@
 # 双画布成员编辑：首批实现与验收
 
-2026-09-14，C3 进行中。后续指定交接与强制接管进展见[交接实现记录](member-canvas-transfers-local.md)。使用 `.local/cloud` PostgreSQL 的隔离验收 schema；本批没有应用开发库迁移或启用真实成员模式。
+2026-09-14，C3 进行中。后续指定交接与强制接管进展见[交接实现记录](member-canvas-transfers-local.md)，同版本恢复和清理进展见[草稿恢复记录](member-canvas-drafts-local.md)。使用 `.local/cloud` PostgreSQL 的隔离验收 schema；本批没有应用开发库迁移或启用真实成员模式。
 
 ## 已实现
 

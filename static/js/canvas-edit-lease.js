@@ -105,6 +105,27 @@
                 } catch (error) { if (epoch === this.epoch) this.pause(error.message); throw error; }
             });
         }
+        async restoreDraft(baseRevision, apply) {
+            if (!this.canEdit) throw new Error('请先开始编辑，再恢复草稿。');
+            this.finishing = true; this.emit();
+            try {
+                return await this.enqueue(async () => {
+                    if (!this.canSave || !['normal','scheduled'].includes(this.maintenance)) throw new Error('编辑资格已变化，请保留草稿。');
+                    if (!Number.isSafeInteger(baseRevision) || baseRevision !== this.revision) throw new Error('草稿与服务器版本不一致，请导出保留，不能覆盖原画布。');
+                    const epoch = this.epoch, sentAt = this.now();
+                    try {
+                        const data = await this.request('/renew', {method:'POST', headers:this.headers()});
+                        if (epoch !== this.epoch || !this.canSave || !['normal','scheduled'].includes(this.maintenance)) throw new Error('恢复期间编辑资格已变化，请保留草稿。');
+                        this.accept(data, sentAt);
+                        if (data.revision !== baseRevision) throw new Error('服务器版本已改变，请保留草稿后重新载入。');
+                        // Apply synchronously inside the write queue. No saved credentials or
+                        // public presence can authorize a restore, and no PUT is sent here.
+                        apply();
+                        return true;
+                    } catch (error) { if (epoch === this.epoch) this.pause(error.message); throw error; }
+                });
+            } finally { this.finishing = false; this.emit(); }
+        }
         requestTransfer() {
             return this.enqueue(async () => {
                 if (this.state === 'closed') throw new Error('画布页面已关闭，请重新打开。');
