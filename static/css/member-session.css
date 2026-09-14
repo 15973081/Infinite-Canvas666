@@ -42,3 +42,10 @@ html.member-workspace-shell.theme-dark,html.member-workspace-shell:has(body.them
 html.member-workspace-shell body:has(>.app-shell),html.member-workspace-shell body:has(>.shell){padding-top:0!important}
 html.member-workspace-shell body>.app-shell,html.member-workspace-shell body>.shell{margin-top:56px;height:calc(100vh - 56px)!important}
 html.member-workspace-shell .app-shell>.sidebar{height:100%;max-height:100%}
+
+/* Font-independent chevrons, aligned with the label rather than its baseline. */
+.member-session-bar .member-session-space{display:flex;align-items:center;gap:8px}
+.member-session-space>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.member-session-space::after,.member-session-account summary::after{content:'';display:block;flex:none;width:6px;height:6px;margin:-3px 2px 0 4px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .15s;opacity:.65}
+.member-session-account[open] summary::after{transform:translateY(3px) rotate(225deg)}
+@media(prefers-reduced-motion:reduce){.member-session-space::after,.member-session-account summary::after{transition:none}}

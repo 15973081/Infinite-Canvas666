@@ -12,7 +12,8 @@
 .member-canvas-edit :is(button,summary):focus-visible{outline:2px solid #658dc2;outline-offset:2px}
 .member-canvas-edit summary{list-style:none;display:flex;align-items:center;gap:6px}
 .member-canvas-edit summary::-webkit-details-marker{display:none}
-.member-canvas-edit summary::after{content:'⌄';color:var(--mc-muted)}
+.member-canvas-edit summary::after{content:'';display:block;flex:none;width:6px;height:6px;margin:-3px 2px 0 4px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .15s;opacity:.65}
+.member-canvas-edit details[open]>summary::after{transform:translateY(3px) rotate(225deg)}
 .member-canvas-more,.member-canvas-presence{position:relative}
 .member-canvas-edit .member-canvas-menu,.member-canvas-edit .member-canvas-presence ul{position:absolute;bottom:calc(100% + 14px);right:0;min-width:180px;max-width:min(300px,80vw);max-height:240px;overflow:auto;margin:0;padding:6px;background:var(--mc-bg);color:var(--mc-text);border:1px solid var(--mc-border);border-radius:12px;box-shadow:0 8px 28px #26324718;list-style:none}
 .member-canvas-menu button{display:block;width:100%;text-align:left}
@@ -48,3 +49,5 @@ body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #6
 .member-canvas-result-row{border-color:#e3e8ef}
 :is(html,body).theme-dark .member-canvas-drafts{background:#1c2532;color:#e2e8f0;border-color:#344153}
 :is(html,body).theme-dark .member-canvas-drafts :is(button,textarea){background:#293449;color:#e2e8f0;border-color:#344153}
+
+@media(prefers-reduced-motion:reduce){.member-canvas-edit summary::after{transition:none}}
