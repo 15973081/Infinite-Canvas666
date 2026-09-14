@@ -1,4 +1,6 @@
 # Infinite-Canvas
+
+当前 PostgreSQL + 本地 TOS 模拟版本的启动、配置、运行、备份与项目搬迁，请阅读 [项目操作手册](docs/project-operations-manual.md)。下方旧版介绍保留历史背景。
 Supports comfyui/API calls/modelscope calls
 
 详细教程：[https://youtu.be/1y9ShTvgC_w](https://youtu.be/r_y_9ALr7fg)

@@ -1,5 +1,7 @@
 # PostgreSQL + 本地 TOS 模拟迁移交付
 
+日常启动、配置、备份、旧数据导入与换电脑搬迁，统一见 [项目操作手册](project-operations-manual.md)。
+
 交付日期：2026-09-15。按精简计划的八项检查完成本轮交付；实际环境为本机 PostgreSQL 和 .local 文件对象模拟。没有部署云端 PostgreSQL 或真实 TOS Bucket。
 
 ## 使用入口
