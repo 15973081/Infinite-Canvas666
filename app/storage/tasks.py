@@ -114,6 +114,9 @@ def save(task, request_payload=None, *, historical=False):
             row = conn.execute("UPDATE tasks SET status=%s,legacy_metadata=%s,result=%s,upstream_task_id=%s,error_message=%s,updated_at=to_timestamp(%s),completed_at=CASE WHEN %s THEN now() ELSE NULL END,output_asset_ids=%s WHERE id=%s RETURNING *",
                                (status, Jsonb(value), Jsonb(value.get("result")), value.get("upstream_task_id") or None, value.get("error") or None, now, status in TERMINAL, Jsonb(sorted(referenced_ids(value.get("result")))), task_id)).fetchone()
         else:
+            if not historical:
+                from app.services.maintenance_control import ensure
+                ensure(conn, workspace, 'write')
             payload = clean_request(request_payload or {}) if historical else normalize(clean_request(request_payload or {}), strict=True)
             inputs = asset_ids(payload)
             if not historical:
@@ -148,10 +151,12 @@ def recover_expired(*, all_workspaces=False):
 
 
 def claim(owner, seconds=90, *, all_workspaces=False):
+    from app.storage.settings import member_auth_enabled
+    legacy = "" if member_auth_enabled() else " AND NOT EXISTS (SELECT 1 FROM workspace_documents d WHERE d.workspace_id=q.workspace_id AND d.kind='maintenance' AND d.id='default' AND d.value->>'mode'='draining')"
     with connection() as conn:
         scope = "" if all_workspaces else "q.workspace_id=%s AND "
         args = () if all_workspaces else (current_workspace(),)
-        return conn.execute("WITH candidate AS (SELECT q.id FROM tasks q JOIN workspaces w ON w.id=q.workspace_id WHERE " + scope + "(q.status IN ('polling','finalizing') OR (w.status='active' AND NOT EXISTS (SELECT 1 FROM workspace_documents d WHERE d.workspace_id=q.workspace_id AND d.kind='maintenance' AND d.id='default' AND d.value->>'mode'='draining'))) AND q.kind IN ('video','online-image') AND q.status IN ('queued','polling','finalizing') AND q.available_at<=now() AND (q.lease_until IS NULL OR q.lease_until<now()) ORDER BY q.available_at,q.created_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (*args, owner, seconds)).fetchone()
+        return conn.execute("WITH candidate AS (SELECT q.id FROM tasks q JOIN workspaces w ON w.id=q.workspace_id WHERE " + scope + "(q.status IN ('polling','finalizing') OR (w.status='active' AND NOT EXISTS (SELECT 1 FROM maintenance_controls m WHERE (m.workspace_id IS NULL OR m.workspace_id=q.workspace_id) AND (m.mode IN ('draining','read_only','offline','recovering') OR (m.mode='scheduled' AND m.planned_at<=clock_timestamp())))" + legacy + ")) AND q.kind IN ('video','online-image') AND q.status IN ('queued','polling','finalizing') AND q.available_at<=now() AND (q.lease_until IS NULL OR q.lease_until<now()) ORDER BY q.available_at,q.created_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (*args, owner, seconds)).fetchone()
 
 
 def heartbeat(task_id, token, seconds=90):

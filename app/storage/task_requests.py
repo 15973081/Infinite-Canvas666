@@ -140,6 +140,10 @@ def account_ref(provider_id):
 
 def validate_execution(row):
     """A changed credential slot must not silently query/submit as another account."""
+    if not row.get('upstream_task_id'):
+        from app.services.maintenance_control import ensure
+        with connection() as conn:
+            ensure(conn, row['workspace_id'], 'write')
     if row.get("requested_by") and not row.get("upstream_task_id"):
         from app.services import authorization as az
         with az.policy_transaction() as conn:

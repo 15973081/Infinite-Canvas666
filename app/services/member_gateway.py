@@ -123,10 +123,23 @@ def permissions(path, method):
     return None
 
 
-def preflight(actor, workspace, actions):
+def operation(path, method):
+    if path in {'/api/maintenance/status', '/ws/stats'}:
+        return 'observe', None
+    if method in {'GET', 'HEAD'} or path in {'/api/canvas-assets/check', '/api/canvas-assets/download', '/api/canvas-workflows/export', '/api/smart-canvas/group-export'}:
+        return 'read', None
+    upload = re.fullmatch(r'/api/media/uploads/(ast_[a-f0-9]{32})(?:/parts/[0-9]+(?:/complete)?|/complete)?', path)
+    if upload:
+        return 'upload.finish', upload[1]
+    return 'write', None
+
+
+def preflight(actor, workspace, actions, operation='read', resource_id=None):
     with az.policy_transaction() as conn:
         for action in actions:
             az.require(conn, actor, action, workspace)
+        from app.services.maintenance_control import ensure
+        ensure(conn, workspace, operation, resource_id)
 
 
 def public_provider_config():
@@ -166,8 +179,9 @@ async def dispatch(app, scope, receive, send):
         if not actions:
             az.fail('route_not_migrated')
         workspace = selected_workspace(scope)
-        await asyncio.to_thread(preflight, actor, workspace, actions)
-        with workspace_scope(workspace), access_scope(actor, workspace, actions):
+        action_kind, resource_id = operation(path, method)
+        await asyncio.to_thread(preflight, actor, workspace, actions, action_kind, resource_id)
+        with workspace_scope(workspace), access_scope(actor, workspace, actions, action_kind, resource_id):
             scope['workspace_id'] = workspace
             if path in {'/api/config', '/api/providers', '/api/models'}:
                 config = await asyncio.to_thread(public_provider_config)
@@ -184,4 +198,4 @@ async def dispatch(app, scope, receive, send):
 async def reject(scope, receive, send, exc):
     if scope['type'] == 'websocket':
         return await send({'type': 'websocket.close', 'code': 1008})
-    return await JSONResponse({'detail': exc.detail}, exc.status_code, headers={'Cache-Control': 'no-store'})(scope, receive, send)
+    return await JSONResponse({'detail': exc.detail}, exc.status_code, headers={**(exc.headers or {}), 'Cache-Control': 'no-store'})(scope, receive, send)

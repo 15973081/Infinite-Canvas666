@@ -205,6 +205,9 @@ async def run_canvas_video_task(task_id: str, payload: CanvasVideoRequest):
         detail = getattr(exc, "detail", None) or str(exc)
         status_code = getattr(exc, "status_code", 500)
         if postgres_enabled():
+            from app.storage.submission import pause_unsubmitted
+            if pause_unsubmitted(task_id, exc):
+                return
             from app.storage.finalization import defer
             if defer(task_id, exc):
                 return
@@ -601,7 +604,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                 submit_headers = api_headers(provider=provider)
                 if payload.client_task_id:
                     submit_headers.setdefault("Idempotency-Key", payload.client_task_id)
-                response = await client.post(submit_url, headers=submit_headers, json=body)
+                response = await paid_post(client, submit_url, headers=submit_headers, json=body)
                 last_response = response
                 if response.status_code >= 400:
                     # 404/405（或直接返回网页 HTML）通常表示该平台不支持这个端点路径——

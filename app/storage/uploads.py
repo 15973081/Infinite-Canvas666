@@ -68,6 +68,8 @@ def create(name, size, idempotency_key):
         raise HTTPException(413, "素材分片数量超出限制")
     backend = media.media_backend()
     with connection() as conn:
+        from app.services.maintenance_control import ensure
+        ensure(conn, current_workspace(), 'write')
         conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ("upload:" + current_workspace() + ":" + idempotency_key,))
         old = conn.execute("SELECT * FROM media_uploads WHERE workspace_id=%s AND idempotency_key=%s", (current_workspace(), idempotency_key)).fetchone()
         if old:
@@ -163,6 +165,9 @@ async def receive_part(asset_id, number, expires, signature, request):
     expected = part_signature(asset_id, number, part["sha256"], part["size_bytes"], expires)
     if not hmac.compare_digest(signature, expected):
         raise HTTPException(403, "上传凭证无效")
+    from app.services.maintenance_control import ensure
+    with connection() as conn:
+        ensure(conn, current_workspace(), 'upload.finish', asset_id)
     path = media.operation()["root"] / "upload-part"
     size, digest = 0, hashlib.sha256()
     with path.open("xb") as stream:
@@ -180,6 +185,7 @@ async def receive_part(asset_id, number, expires, signature, request):
         # Only this bounded local copy holds the row lock, preventing expiry
         # cleanup from racing a late writer and recreating a cleaned directory.
         with connection() as conn:
+            ensure(conn, current_workspace(), 'upload.finish', asset_id)
             current = conn.execute("SELECT * FROM media_uploads WHERE asset_id=%s FOR UPDATE", (asset_id,)).fetchone()
             writable(current)
             old = conn.execute("SELECT object_version_id FROM media_upload_parts WHERE asset_id=%s AND part_number=%s", (asset_id, number)).fetchone()

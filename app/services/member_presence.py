@@ -16,16 +16,16 @@ def status(actor):
     with connection() as conn:
         member = az.require(conn, actor, 'canvas.read', workspace)
         allowed = az.effective_permissions(conn, actor.member_id, workspace)
+        from app.services.maintenance_control import effective
+        state = effective(conn, workspace)
         tasks = {}
-        if 'task.read' in allowed:
+        if 'task.read' in allowed and state['mode'] not in {'offline', 'recovering'}:
             tasks = {r['status']: r['count'] for r in conn.execute(
                 "SELECT status,count(*) AS count FROM tasks WHERE workspace_id=%s GROUP BY status", (workspace,))}
-        row = conn.execute("SELECT value FROM workspace_documents WHERE workspace_id=%s AND kind='maintenance' AND id='default'", (workspace,)).fetchone()
-        state = row['value'] if row else {}
     return {'type': 'stats', 'workspace_id': workspace, 'member': {'id': member['id'], 'display_name': member['display_name'], 'avatar': member['avatar']},
             'online_members': len({v[1] for v in _connections.copy().values() if v[0] == workspace}),
-            'task_counts': tasks, 'maintenance': {'mode': state.get('mode', 'normal'), 'message': state.get('message', ''),
-                                                 'planned_at': state.get('planned_at', 0)}, 'admin_allowed': False}
+            'task_counts': tasks, 'maintenance': {key: (value.isoformat() if hasattr(value, 'isoformat') else value)
+                for key, value in state.items() if key in {'mode', 'message', 'planned_at', 'drain_deadline', 'server_time', 'versions'}}, 'admin_allowed': False}
 
 
 def queue(actor):

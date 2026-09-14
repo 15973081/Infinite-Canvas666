@@ -4,6 +4,7 @@ import os
 from contextlib import asynccontextmanager
 from http.cookies import SimpleCookie
 from pathlib import Path
+from datetime import datetime
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -135,6 +136,16 @@ class Retirement(Input):
     revoke: bool = False
 
 
+class MaintenanceChange(Input):
+    mode: str
+    expected_version: int = Field(ge=0)
+    message: str = Field(default='', max_length=1000)
+    reason: str = Field(min_length=1, max_length=1000)
+    planned_at: datetime | None = None
+    grace_seconds: int = Field(default=300, ge=0, le=3600)
+    confirm_recovery: bool = False
+
+
 def create_app(static_dir=None):
     load_storage_env()
     directory = Path(static_dir or os.getenv('MANAGEMENT_STATIC_DIR', ROOT / '.local/management-dist'))
@@ -148,8 +159,10 @@ def create_app(static_dir=None):
         await asyncio.to_thread(database.check)
         if not (directory / 'index.html').is_file():
             raise ValueError('Run python tools/build_management.py before management startup')
-        # No worker, scheduler, legacy startup, migration, or maintenance reset.
-        yield
+        # Reconcile persisted schedules, without starting generation consumers.
+        from app.services.maintenance_control import scheduler
+        async with scheduler():
+            yield
 
     app = FastAPI(title='Canvas Management', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_middleware(Admission)
@@ -259,6 +272,17 @@ def create_app(static_dir=None):
     @app.get('/api/audit')
     def audit(request: Request, workspace: str | None = None, before: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=100)):
         return queries.events(actor(request), workspace, before, limit)
+
+    @app.get('/api/maintenance')
+    def maintenance_snapshot(request: Request, workspace: str | None = None):
+        from app.services.maintenance_control import snapshot
+        return snapshot(actor(request), workspace)
+
+    @app.patch('/api/maintenance')
+    def maintenance_change(request: Request, data: MaintenanceChange, workspace: str | None = None):
+        from app.services.maintenance_control import change
+        payload = data.model_dump()
+        return change(actor(request), workspace, **payload)
 
     # Only the management artifact is mounted, never workbench static or data.
     app.mount('/static', StaticFiles(directory=directory, check_dir=False), name='management-static')

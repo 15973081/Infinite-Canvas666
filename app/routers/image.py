@@ -100,6 +100,9 @@ async def run_canvas_image_task(task_id: str, payload: OnlineImageRequest):
             save_durable_canvas_task(CANVAS_TASKS[task_id])
     except Exception as exc:
         if postgres_enabled():
+            from app.storage.submission import pause_unsubmitted
+            if pause_unsubmitted(task_id, exc):
+                return
             from app.storage.finalization import defer
             if defer(task_id, exc):
                 return

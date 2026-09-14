@@ -1,5 +1,6 @@
 import os
 from app.storage.settings import postgres_enabled
+from app.storage.submission import paid_post
 import re
 import json
 import time
@@ -2122,7 +2123,7 @@ async def generate_modelscope_provider_image(prompt, size, model, reference_imag
 
     api_root = modelscope_image_api_root()
     async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
-        submit_res = await client.post(f"{api_root}/images/generations", headers=headers, json=payload)
+        submit_res = await paid_post(client, f"{api_root}/images/generations", headers=headers, json=payload)
         submit_res.raise_for_status()
         raw = submit_res.json()
         task_id = raw.get("task_id")
@@ -2202,7 +2203,7 @@ async def generate_gemini_provider_image(prompt, size, model, reference_images=N
         },
     }
     async with httpx.AsyncClient(timeout=httpx.Timeout(connect=20.0, read=1800.0, write=120.0, pool=20.0)) as client:
-        response = await client.post(endpoint, headers=api_headers(provider=provider), json=body)
+        response = await paid_post(client, endpoint, headers=api_headers(provider=provider), json=body)
         response.raise_for_status()
         raw = response.json()
         return extract_image(raw), raw
@@ -2231,7 +2232,7 @@ async def generate_volcengine_provider_image(prompt, size, model, reference_imag
     if images:
         body["image"] = images
     async with httpx.AsyncClient(timeout=httpx.Timeout(connect=20.0, read=1800.0, write=120.0, pool=20.0)) as client:
-        response = await client.post(endpoint, headers=api_headers(provider=provider), json=body)
+        response = await paid_post(client, endpoint, headers=api_headers(provider=provider), json=body)
         response.raise_for_status()
         raw = response.json()
         return extract_image(raw), raw
@@ -2374,7 +2375,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
             data = {"model": model, "prompt": prompt, "size": size}
             if quality:
                 data["quality"] = quality
-            return await client.post(
+            return await paid_post(client,
                 edit_url,
                 headers=api_headers(json_body=False, provider=provider, model=model),
                 data=data,
@@ -2389,7 +2390,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
             if image_refs:
                 extra_body["image"] = [reference_to_data_url(ref, max_size=1536) for ref in image_refs[:16]]
             body = {"model": model, "prompt": prompt, "size": size, "extra_body": extra_body}
-            response = await client.post(gen_url, headers=api_headers(provider=provider, model=model), json=body)
+            response = await paid_post(client, gen_url, headers=api_headers(provider=provider, model=model), json=body)
         elif is_apimart:
             apimart_size, resolution = apimart_size_resolution(size)
             # APIMart 的 GPT-Image-2 图生图仍走 /images/generations，
@@ -2404,12 +2405,12 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
             }
             if image_refs:
                 body["image_urls"] = [reference_to_data_url(ref, max_size=1536) for ref in image_refs[:16]]
-            response = await client.post(gen_url, headers=api_headers(provider=provider, model=model), json=body)
+            response = await paid_post(client, gen_url, headers=api_headers(provider=provider, model=model), json=body)
         elif is_gpt2 and not image_refs and not mask_refs:
             body = {"model": model, "prompt": prompt, "size": size}
             if quality:
                 body["quality"] = quality
-            response = await client.post(gen_url, headers=api_headers(provider=provider, model=model), json=body)
+            response = await paid_post(client, gen_url, headers=api_headers(provider=provider, model=model), json=body)
             if response.status_code >= 400 and images_api_unsupported(response):
                 response = await post_openai_edits()
         elif image_refs:
@@ -2436,10 +2437,14 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
                 try:
                     response = await post_openai_edits(files)
                     if response.status_code >= 400:
+                        if postgres_enabled() and response.status_code not in {404, 405}:
+                            response.raise_for_status()
                         edit_failed_status = response.status_code
                         edit_failed_text = response.text[:500]
                         response = None
                 except httpx.HTTPError as e:
+                    if postgres_enabled():
+                        raise
                     edit_failed_status = -1
                     edit_failed_text = str(e)
                     response = None
@@ -2462,7 +2467,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
                 }
                 if quality:
                     body["quality"] = quality
-                response = await client.post(gen_url, headers=api_headers(provider=provider, model=model), json=body)
+                response = await paid_post(client, gen_url, headers=api_headers(provider=provider, model=model), json=body)
                 if response.status_code >= 400 and images_api_unsupported(response):
                     raise HTTPException(
                         status_code=502,
@@ -2472,7 +2477,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
             body = {"model": model, "prompt": prompt, "size": size, "response_format": "url", "n": 1}
             if quality:
                 body["quality"] = quality
-            response = await client.post(
+            response = await paid_post(client,
                 gen_url,
                 headers=api_headers(provider=provider, model=model),
                 json=body,
@@ -2816,7 +2821,7 @@ async def generate_agnes_video(client, payload, provider, base_url, requested_mo
     headers = api_headers(provider=provider, model=model)
     if payload.client_task_id:
         headers.setdefault("Idempotency-Key", payload.client_task_id)
-    response = await client.post(submit_url, headers=headers, json=body)
+    response = await paid_post(client, submit_url, headers=headers, json=body)
     response.raise_for_status()
     raw = response.json()
     video_id = str(raw.get("video_id") or "").strip()
@@ -2923,12 +2928,12 @@ async def generate_yuli_openai_video(client, payload, provider, base_url, reques
     if payload.client_task_id:
         headers.setdefault("Idempotency-Key", payload.client_task_id)
     if files:
-        response = await client.post(submit_url, headers=headers, data=data, files=files)
+        response = await paid_post(client, submit_url, headers=headers, data=data, files=files)
     else:
         # 文生视频无垫图时，仍以 multipart/form-data 提交（把文本字段作为表单分块），
         # 避免 httpx 在只有 data 时退化成 application/x-www-form-urlencoded。
         multipart_fields = {key: (None, value) for key, value in data.items()}
-        response = await client.post(submit_url, headers=headers, files=multipart_fields)
+        response = await paid_post(client, submit_url, headers=headers, files=multipart_fields)
     response.raise_for_status()
     try:
         raw = response.json()

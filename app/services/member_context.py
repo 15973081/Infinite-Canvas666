@@ -9,14 +9,16 @@ class Access:
     principal: object
     workspace: str
     actions: tuple
+    operation: str = 'read'
+    resource_id: str | None = None
 
 
 current_access = ContextVar('member_request_access', default=None)
 
 
 @contextmanager
-def access_scope(principal, workspace, actions):
-    token = current_access.set(Access(principal, workspace, tuple(actions)))
+def access_scope(principal, workspace, actions, operation='read', resource_id=None):
+    token = current_access.set(Access(principal, workspace, tuple(actions), operation, resource_id))
     try:
         yield
     finally:
@@ -34,3 +36,5 @@ def check_storage_access(conn):
     conn.execute('SELECT pg_advisory_xact_lock_shared(%s)', (az.AUTH_LOCK,))
     for action in access.actions:
         az.require(conn, access.principal, action, access.workspace)
+    from app.services.maintenance_control import ensure
+    ensure(conn, access.workspace, access.operation, access.resource_id)

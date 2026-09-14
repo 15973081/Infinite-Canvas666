@@ -434,7 +434,11 @@ async def build_online_image_result(payload: OnlineImageRequest):
         local_url = image_data if cloud_task else await save_ai_image_to_output(image_data, prefix="online_", provider=provider)
         return local_url, raw_item
     try:
-        generated = await asyncio.gather(*(generate_one() for _ in range(count)))
+        generated = await asyncio.gather(*(generate_one() for _ in range(count)), return_exceptions=cloud_task)
+        failures = [item for item in generated if isinstance(item, BaseException)]
+        generated = [item for item in generated if not isinstance(item, BaseException)]
+        if not generated and failures:
+            raise failures[0]
     except httpx.HTTPStatusError as exc:
         log_net_error(f"生图 HTTP状态错误 provider={provider.get('id')} model={model} size={payload.size}", exc)
         text = exc.response.text or ''
@@ -461,10 +465,13 @@ async def build_online_image_result(payload: OnlineImageRequest):
         "provider_name": provider.get("name") or provider["id"],
         "task_id": extract_task_id(raw) if isinstance(raw, dict) else None,
         "request_id": raw.get("id") if isinstance(raw, dict) else None,
-        "params": {"provider_id": provider["id"], "model": model, "size": payload.size, "quality": payload.quality, "n": count, "reference_images": refs},
+        "params": {"provider_id": provider["id"], "model": model, "size": payload.size, "quality": payload.quality, "n": len(generated), "requested_n": count, "reference_images": refs},
         "raw_usage": raw.get("usage") if isinstance(raw, dict) else None,
     }
     if cloud_task:
+        if failures:
+            result.update(partial=True, incomplete_count=len(failures),
+                          incomplete_reason='部分生成未完成；已有结果已保留，请核对任务后再决定是否补充生成')
         from app.storage.finalization import publish_result
         sources = result["images"]
         result["images"] = []

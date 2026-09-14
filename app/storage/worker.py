@@ -75,6 +75,14 @@ async def _execute_scoped(row):
     except asyncio.CancelledError:
         raise
     except Exception as exc:
+        if isinstance(getattr(exc, 'detail', None), dict) and exc.detail.get('code') == 'maintenance_restricted':
+            # A claimed but not submitted task is paused safely, not failed or
+            # re-issued. The claim query will skip it until maintenance clears.
+            current = tasks.get(task_id)
+            if current.get('status') == 'running' and not current.get('upstream_task_id'):
+                current.update(status='queued', error='维护中，等待恢复后提交')
+                tasks.save(current)
+                return
         logging.exception("Cloud task worker failed for %s", task_id)
         from app.storage.finalization import defer
         if defer(task_id, exc):
@@ -91,6 +99,12 @@ async def _execute_scoped(row):
 
 
 async def consume(stop):
+    from app.services.maintenance_control import service_presence
+    async with service_presence('worker'):
+        await _consume(stop)
+
+
+async def _consume(stop):
     owner = socket.gethostname() + ":" + str(os.getpid()) + ":" + uuid.uuid4().hex[:8]
     while not stop.is_set():
         try:

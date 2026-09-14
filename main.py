@@ -66,7 +66,9 @@ async def lifespan(_app: FastAPI):
         cleanup_orphaned_operations()
         handle = worker.start() if os.getenv("CLOUD_EMBEDDED_WORKER", "true").lower() == "true" else None
         try:
-            yield
+            from app.services.maintenance_control import scheduler, service_presence
+            async with scheduler(), service_presence('workbench'):
+                yield
         finally:
             if handle:
                 await worker.shutdown(handle)
