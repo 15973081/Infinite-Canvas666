@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>画布 · 管理平台</title><link rel="stylesheet" href="/static/management.css"><script src="/static/management.js" defer></script></head>
+<body>
+<section id="login" class="login" hidden><form id="login-form" class="card">
+<p class="eyebrow">CANVAS ADMIN</p><h1>管理平台</h1><p class="muted">使用获授权的成员账号登录。</p>
+<label>账号<input name="username" autocomplete="username" required maxlength="64"></label>
+<label>密码<input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+<label class="check"><input name="remember" type="checkbox"> 保持登录</label><button type="submit" class="primary">登录管理平台</button>
+</form></section>
+<section id="unavailable" class="login" hidden><div class="card"><h1>暂时无法访问管理平台</h1><p id="unavailable-reason"></p><div class="actions"><button id="retry">重新检查</button><button id="unavailable-logout">退出登录</button></div></div></section>
+<div id="shell" class="shell" hidden>
+<aside><div class="brand">画布 <span>管理平台</span></div><nav aria-label="管理导航">
+<button data-view="overview">概览</button><button data-view="members">成员与分配</button><button data-view="spaces">空间</button><button data-view="roles">角色与权限</button><button data-view="audit">操作审计</button>
+</nav><div class="aside-bottom"><span id="identity"></span><button id="logout">退出登录</button></div></aside>
+<main><header><div><p class="eyebrow">组织与协作</p><h1 id="title">概览</h1></div><label class="scope">管理范围<select id="scope" aria-label="管理范围"></select></label></header>
+<div id="content" aria-live="polite"></div></main>
+</div>
+<div id="message" role="status" hidden></div>
+<dialog id="dialog"><form id="dialog-form"><div id="dialog-body"></div><div class="actions"><button type="button" id="cancel-dialog">取消</button><button class="primary" id="confirm-dialog" type="submit">确认保存</button></div></form></dialog>
+</body></html>
