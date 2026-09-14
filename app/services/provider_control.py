@@ -100,7 +100,7 @@ def catalog(actor):
         return {'providers': [public(row) for row in conn.execute('SELECT * FROM managed_providers ORDER BY id') if not retired(row['id'])]}
 
 
-def save(actor, provider_id, config, expected_version, *, secrets=None, clear_secrets=None, reason):
+def save(actor, provider_id, config, expected_version, *, secrets=None, clear_secrets=None, reason, preserve_price_history=False):
     secrets, clear_secrets = secrets or {}, set(clear_secrets or [])
     if not isinstance(secrets, dict) or set(secrets) - SECRET_FIELDS or clear_secrets - SECRET_FIELDS or set(secrets) & clear_secrets:
         az.fail('invalid_provider_secrets', 400)
@@ -113,7 +113,18 @@ def save(actor, provider_id, config, expected_version, *, secrets=None, clear_se
         old = conn.execute('SELECT * FROM managed_providers WHERE id=%s FOR UPDATE', (provider_id,)).fetchone()
         if expected_version != (old['version'] if old else 0):
             az.fail('provider_version_conflict', 409)
+        if preserve_price_history and old:
+            az.fail('provider_version_conflict', 409)
+        initial_prices = config.get('model_prices', []) if isinstance(config, dict) else []
         config = normalized(provider_id, config, old['config'] if old else None)
+        if preserve_price_history:
+            # Internal create-only migration mode. The ordinary editor merges
+            # desired current prices; import must retain every original interval.
+            from app.providers.registry import normalize_model_prices
+            prices = normalize_model_prices(initial_prices)
+            if len(prices) != len(initial_prices) or any(p.get('currency', 'CNY') != 'CNY' for p in initial_prices):
+                az.fail('invalid_provider_config', 400)
+            config['model_prices'] = prices
         values = decrypt(old) if old else {}
         values.update({k: v.strip() for k, v in secrets.items()})
         for field in clear_secrets:

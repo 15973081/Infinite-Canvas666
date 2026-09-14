@@ -13,6 +13,16 @@
     role_impact_changed: '受影响成员已变化，请重新预览。', member_not_found: '未找到此成员。',
     workspace_unavailable: '空间已归档或不可访问。', username_exists: '账号已存在。', role_name_exists: '此范围内已有同名角色。',
     active_administrator_required: '请填写已激活成员的登录账号。',
+    provider_import_source_unconfigured: '尚未指定旧配置文件，请由维护人员配置来源路径。',
+    provider_import_source_unavailable: '无法读取指定的旧配置文件，请由维护人员检查。',
+    provider_import_source_too_large: '旧配置文件超过 2 MiB，请拆分后重试。',
+    provider_import_source_invalid: '旧配置格式不正确，应为最多 100 项的供应商列表。',
+    provider_import_source_changed: '旧配置或凭证文件已变化，请重新预览。',
+    provider_import_target_changed: '所选供应商已存在或不再可导入，请重新预览。',
+    provider_import_expired: '导入预览已过期，请重新读取。',
+    provider_import_not_found: '找不到此会话的导入预览，请重新读取。',
+    provider_import_selection_changed: '此预览已经完成另一组导入，请重新读取。',
+    invalid_provider_import: '请选择有效的供应商及对应凭证。',
     provider_version_conflict: '供应商配置或分配已变化，请刷新后重新编辑。',
     provider_secret_key_unavailable: '服务端未配置凭证加密密钥，请由维护人员配置后重试。',
     provider_secret_unavailable: '服务端暂时无法解密凭证，请核对加密密钥与备份。',
@@ -80,9 +90,10 @@
       error.hidden = true;
       try { await submit(new FormData(f)); }
       catch (failure) {
-        if (!d.open) throw failure;
+        if (!error.isConnected || !d.open) return;
         error.textContent = failure.message; error.hidden = false; return;
       }
+      if (!error.isConnected || !d.open) return;
       $('#message').hidden = true; d.close(); await refresh();
     }, $('#confirm-dialog')); };
     if (!d.open) d.showModal();
@@ -314,11 +325,66 @@
     }, '确认采用建议', true);
     $('#confirm-dialog').hidden = true;
   }
+  function importProviders() {
+    const stamp = serial, member = me.member.id, resultBox = el('div'), reason = field('reason', '导入原因');
+    reason.querySelector('input').maxLength = 1000;
+    const sourceLabel = el('label', '旧配置来源'), source = el('select'); source.name = 'source';
+    for(const [value, text] of [['default_workspace','原共享空间中的配置'], ['local_file','维护人员指定的旧配置文件']]) {
+      const option = el('option', text); option.value = value; source.append(option);
+    }
+    sourceLabel.append(source);
+    let preview = null, generation = 0;
+    const current = () => resultBox.isConnected && $('#dialog').open && serial === stamp && me?.member.id === member;
+    const reset = () => {generation++; preview = null; resultBox.replaceChildren(); $('#confirm-dialog').hidden = true;};
+    source.onchange = reset; reason.querySelector('input').oninput = reset;
+    const load = button('读取导入预览', async () => {
+      const input = reason.querySelector('input'); if(!input.reportValidity()) return;
+      reset(); resultBox.append(el('p', '正在读取旧配置…'));
+      const selectedSource = source.value, selectedReason = input.value, attempt = generation;
+      try {
+        const result = await call('/api/provider-imports/preview', 'POST', {source: selectedSource, reason: selectedReason});
+        if(!current() || attempt !== generation || source.value !== selectedSource || input.value !== selectedReason) return;
+        preview = result;
+        const statuses = {available:'可导入', existing:'已存在，跳过', retired:'已弃用，跳过', duplicate:'ID 重复，跳过', invalid:'格式不兼容，跳过', credential_conflict:'凭证冲突或格式错误，跳过'};
+        const rows = result.items.map(item => {
+          const choose = el('input'); choose.type = 'checkbox'; choose.name = 'provider_ids'; choose.value = item.id || '';
+          choose.disabled = item.status !== 'available'; choose.setAttribute('aria-label', '导入 ' + (item.id || '第 ' + (item.index + 1) + ' 项'));
+          const credentials = el('input'); credentials.type = 'checkbox'; credentials.name = 'credential_provider_ids'; credentials.value = item.id || '';
+          credentials.disabled = true; credentials.setAttribute('aria-label', '同时迁移凭证 ' + (item.id || '第 ' + (item.index + 1) + ' 项'));
+          choose.onchange = () => {credentials.disabled = !choose.checked || !item.configured_secrets.length; if(credentials.disabled) credentials.checked = false;};
+          const details = el('details'); details.append(el('summary', '查看配置摘要'));
+          if(item.config) details.append(el('pre', JSON.stringify(item.config, null, 2), 'details'));
+          if(item.was_primary) details.append(el('p', '原默认供应商；导入后仍需单独分配空间及默认项。'));
+          if(item.normalized) details.append(el('p', '摘要已按当前格式整理，请核对模型、价格及高级配置。'));
+          return [choose, labelText(item.config?.name || item.id || '无法识别', item.id), statuses[item.status] || '不可导入',
+            item.configured_secrets.join('、') || '无', credentials, item.config ? details : '请核对原文件'];
+        });
+        resultBox.replaceChildren(el('p', '预览有效至 ' + new Date(result.expires_at).toLocaleTimeString() + '。勾选要创建的配置；需要复制密钥时另行勾选“迁移凭证”。'));
+        resultBox.append(rows.length ? table(['选择','供应商','结果','可用凭证','迁移凭证','摘要'], rows) : el('p', '此来源没有旧供应商配置。'));
+        $('#confirm-dialog').hidden = !result.items.some(item => item.status === 'available');
+      } catch(error) {if(current() && attempt === generation) resultBox.replaceChildren(el('p', error.message, 'error'));}
+    });
+    dialog('导入旧供应商配置', [el('p', '仅创建勾选的供应商，不覆盖现有配置。凭证只在服务端复制并加密；原文件保留。导入后请单独选择空间进行分配。'), sourceLabel, reason, load, resultBox], async form => {
+      if(!preview || !current()) throw new Error('请重新读取导入预览。');
+      const provider_ids = form.getAll('provider_ids'), credential_provider_ids = form.getAll('credential_provider_ids');
+      if(!provider_ids.length) throw new Error('请勾选需要导入的供应商。');
+      const result = await call('/api/provider-imports/' + encodeURIComponent(preview.id) + '/confirm', 'POST', {provider_ids, credential_provider_ids});
+      if(!current()) return;
+      setTimeout(() => {
+        if(me?.member.id === member && !$('#dialog').open && view === 'providers') dialog('供应商导入完成', [
+          el('p', '已创建 ' + result.imported.length + ' 个供应商。空间分配未改变，请在供应商列表中选择目标空间后分配。'),
+          table(['供应商','已迁移凭证'], result.imported.map(item => [item.id, item.configured_secrets.join('、') || '无'])),
+          el('p', '导入记录：' + result.id, 'muted')
+        ], null, '关闭', true);
+      }, 0);
+    }, '确认导入所选配置', true);
+    $('#confirm-dialog').hidden = true;
+  }
   async function providerView() {
     if(!me.permissions.includes('provider.configure')) return denied();
     const scope = workspace;
     const [data, assigned] = await Promise.all([api('/api/providers'), scope ? api('/api/provider-assignments?workspace=' + encodeURIComponent(scope)) : Promise.resolve(null)]);
-    const toolbar = el('div', undefined, 'toolbar'); toolbar.append(button('新增供应商', () => editProvider(), 'primary'), button('刷新配置', refresh));
+    const toolbar = el('div', undefined, 'toolbar'); toolbar.append(button('新增供应商', () => editProvider(), 'primary'), button('导入旧配置', importProviders), button('刷新配置', refresh));
     if(scope && me.permissions.includes('space.assign')) toolbar.append(button('分配到本空间', () => {
       const primaryLabel = el('label', '默认供应商'), primary = el('select'); primary.name = 'primary';
       const none = el('option', '不指定默认'); none.value = ''; primary.append(none);

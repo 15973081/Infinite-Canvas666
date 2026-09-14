@@ -153,6 +153,16 @@ class ProviderProbe(Input):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class ProviderImportPreview(Input):
+    source: Literal['local_file', 'default_workspace']
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class ProviderImportConfirm(Input):
+    provider_ids: list[str] = Field(min_length=1, max_length=100)
+    credential_provider_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
 class ProviderAssignment(Input):
     expected_version: int = Field(strict=True, ge=0)
     provider_ids: list[str] = Field(max_length=100)
@@ -344,6 +354,16 @@ def create_app(static_dir=None):
     async def provider_probe(provider_id: str, request: Request, data: ProviderProbe):
         from app.services.provider_probes import probe
         return await probe(actor(request), provider_id, **data.model_dump())
+
+    @app.post('/api/provider-imports/preview')
+    def provider_import_preview(request: Request, data: ProviderImportPreview):
+        from app.services.provider_imports import preview
+        return preview(actor(request), **data.model_dump())
+
+    @app.post('/api/provider-imports/{preview_id}/confirm')
+    def provider_import_confirm(preview_id: UUID, request: Request, data: ProviderImportConfirm):
+        from app.services.provider_imports import confirm
+        return confirm(actor(request), preview_id, **data.model_dump())
 
     @app.get('/api/provider-assignments')
     def provider_assignments(request: Request, workspace: str):
