@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const $ = (s) => document.querySelector(s);
-  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', serial = 0;
+  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', serial = 0, reportRequest = 0;
   const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', audit: '操作审计'};
   const errors = {
     authentication_required: '登录已失效，请重新登录。', management_permission_required: '此账号尚未获授管理权限。',
@@ -13,6 +13,10 @@
     role_impact_changed: '受影响成员已变化，请重新预览。', member_not_found: '未找到此成员。',
     workspace_unavailable: '空间已归档或不可访问。', username_exists: '账号已存在。', role_name_exists: '此范围内已有同名角色。',
     active_administrator_required: '请填写已激活成员的登录账号。',
+    page_report_not_found: '未找到当前管理范围内的报告，请刷新。',
+    page_report_changed: '报告已更新或已经核对，请刷新列表后重新确认。',
+    page_report_not_reviewable: '页面已重新在线或正常关闭，请刷新列表。',
+    invalid_page_report_review: '请选择核对结果并填写处理说明。',
     maintenance_version_conflict: '维护状态已发生变化，请刷新后重新操作。',
     maintenance_transition_invalid: '当前状态不允许此项切换，请刷新后重新选择。',
     maintenance_recovery_confirmation_required: '恢复开放前请确认已完成运行与数据检查。',
@@ -57,10 +61,20 @@
       i.checked = selected.includes(p.id); i.disabled = p.delegatable === false; l.append(i, document.createTextNode(p.name)); d.append(l);
     }); return d;
   }
-  function dialog(title, elements, submit, confirmText = '确认保存') {
-    const d = $('#dialog'), f = $('#dialog-form'); f.reset(); $('#dialog-body').replaceChildren(el('h2', title), ...elements);
+  function dialog(title, elements, submit, confirmText = '确认保存', wide = false) {
+    const d = $('#dialog'), f = $('#dialog-form'), error = el('p', '', 'dialog-error');
+    error.setAttribute('role', 'alert'); error.hidden = true;
+    d.classList.toggle('wide', wide); f.reset(); $('#dialog-body').replaceChildren(el('h2', title), ...elements, error);
     $('#confirm-dialog').textContent = confirmText; $('#confirm-dialog').hidden = !submit; $('#cancel-dialog').textContent = submit ? '取消' : '关闭';
-    f.onsubmit = e => { e.preventDefault(); execute(async () => { await submit(new FormData(f)); $('#message').hidden = true; d.close(); await refresh(); }, $('#confirm-dialog')); };
+    f.onsubmit = e => { e.preventDefault(); execute(async () => {
+      error.hidden = true;
+      try { await submit(new FormData(f)); }
+      catch (failure) {
+        if (!d.open) throw failure;
+        error.textContent = failure.message; error.hidden = false; return;
+      }
+      $('#message').hidden = true; d.close(); await refresh();
+    }, $('#confirm-dialog')); };
     if (!d.open) d.showModal();
   }
   function tokenDialog(token) {
@@ -167,6 +181,40 @@
     if (data.next) toolbar.append(button('更早记录', () => { auditBefore = data.next; return render(); }));
     return [toolbar, data.events.length ? table(['时间', '操作人', '操作', '目标', '详情'], data.events.map(e => [new Date(e.created_at).toLocaleString(), e.actor_name || '系统初始化', e.action, labelText(e.target_id || '—', e.workspace_id), el('div', JSON.stringify(e.details), 'details')])) : el('div', '当前范围暂无审计记录。', 'empty')];
   }
+  const reviewOutcomes = {member_confirmed_saved: '已向成员确认保存', draft_exported: '已确认草稿导出', member_discarded: '成员确认无需保留'};
+  async function showPageReports(reviewed = false, after = '', scope = workspace) {
+    const stamp = serial, request = ++reportRequest, memberId = me?.member.id;
+    const params = new URLSearchParams({reviewed: String(reviewed)});
+    if (scope) params.set('workspace', scope);
+    if (after) params.set('after', after);
+    const data = await api('/api/maintenance/page-reports?' + params);
+    if (stamp !== serial || request !== reportRequest || memberId !== me?.member.id || scope !== workspace || view !== 'maintenance') return;
+    const toolbar = el('div', undefined, 'toolbar');
+    toolbar.append(button('返回首批', () => showPageReports(reviewed, '', scope)));
+    if (data.next) toolbar.append(button('下一批', () => showPageReports(reviewed, data.next, scope)));
+    const rows = data.reports.map(row => {
+      const state = row.closed ? '关闭时未保存' : row.dirty ? '失联 · 最后报告未保存' : '失联 · 最后报告已保存';
+      const result = el('div');
+      if (row.reviewed_at) result.append(el('p', (reviewed ? '' : '此前核对：') + reviewOutcomes[row.review_outcome]),
+        el('p', row.review_note, 'details'), el('small', row.reviewer_name + ' · ' + new Date(row.reviewed_at).toLocaleString()));
+      if (!reviewed) result.append(button('核对 · ' + row.canvas_title, () => {
+        const label = el('label', '核对结果'), select = el('select'); select.name = 'outcome'; select.required = true;
+        const placeholder = el('option', '请选择实际核对结果'); placeholder.value = ''; select.append(placeholder);
+        Object.entries(reviewOutcomes).forEach(([value, text]) => { const option = el('option', text); option.value = value; select.append(option); }); label.append(select);
+        const note = el('label', '处理说明'), text = el('textarea'); text.name = 'note'; text.required = true; text.maxLength = 1000; note.append(text);
+        const query = scope ? '?workspace=' + encodeURIComponent(scope) : '';
+        dialog('核对页面 · ' + row.canvas_title, [el('p', row.workspace_name + ' · ' + row.member_name + ' · ' + state),
+          el('p', '请先与成员核实。此操作只记录本次报告的处理结论，不会保存或删除草稿，也不代表可以停止数据库。'), label, note],
+          form => call('/api/maintenance/page-reports/' + row.id + '/review' + query, 'POST', {
+            expected_sequence: row.sequence, outcome: form.get('outcome'), note: form.get('note')
+          }), '记录核对结果');
+      }));
+      return [labelText(row.canvas_title, row.workspace_name), labelText(row.member_name, row.member_id),
+        new Date(row.seen_at).toLocaleString(), state, result];
+    });
+    dialog(reviewed ? '已核对的页面报告' : '待核对的页面报告', [el('p', '仅列出失联或关闭时未保存的页面。新报告会重新判定，旧核对不覆盖新状态。'), toolbar,
+      rows.length ? table(['画布 / 空间', '成员', '最后报告', '报告状态', '核对结果'], rows) : el('p', '当前范围暂无此类报告。')], null, '确认保存', true);
+  }
   async function maintenanceView() {
     if (!allowed(workspace ? 'maintenance.space' : 'maintenance.platform')) return denied();
     const data = await api(scoped('/api/maintenance')), control = data.control, activity = data.activity;
@@ -207,6 +255,8 @@
     if(reports) pages.append(el('p',`在线上报 ${reports.online_pages} 页；失联 ${reports.stale_pages} 页，其中最后报告未保存 ${reports.stale_unsaved_pages} 页；关闭时未保存 ${reports.closed_unsaved_pages} 页。`),
       el('p',`超过 ${reports.stale_after_seconds} 秒未收到报告或成员授权已失效的页面列为失联。报告不包含草稿正文，后台不能代替成员保存。`,'muted'));
     else pages.append(el('p','页面报告暂不可用，不能据此确认已保存。'));
+    if(reports) pages.append(el('p', '待人工核对 ' + reports.pending_review_pages + ' 页；当前报告已核对 ' + reports.reviewed_pages + ' 页。核对后保留原报告状态。'),
+      actions(button('查看待核对页面', () => showPageReports()), button('查看已核对页面', () => showPageReports(true))));
     return [summary, toolbar, metrics, pages, services];
   }
   $('#cancel-dialog').onclick = () => $('#dialog').close();

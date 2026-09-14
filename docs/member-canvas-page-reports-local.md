@@ -36,3 +36,5 @@
 截图为 .local/cloud/acceptance/maintenance-page-reports.png、page-reports-closed.png；数据库证据为 page-reports-db.json。预览通过 tools/workbench_preview.py --two-members --management 启动，新增可选管理进程端口 8770，与两个工作台端口 8768/8769 共用隔离 schema。验收结束已关闭页面、写入该预览 stop 文件；父进程正常退出（0），子进程及临时 schema 按清理流程移除。
 
 M3 尚未完成：失联/关闭报告的人工核对、完整排空与故障恢复、任务处置、受控维护工具、备份发布门槛及完整迁移演练继续保留。开发环境未切换成员模式，本地 TOS 模拟与私有数据不变。
+
+后续更新：第十六批已接入失联/关闭报告的[人工核对与审计](member-canvas-page-reviews-local.md)，以上为第十五批交付时的证据与边界；报告保留策略及完整 M3 门槛仍在实施。

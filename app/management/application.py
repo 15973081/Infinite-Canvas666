@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from http.cookies import SimpleCookie
 from pathlib import Path
 from datetime import datetime
+from typing import Literal
+from uuid import UUID
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -134,6 +136,12 @@ class Retirement(Input):
     confirmation: str = Field(max_length=64)
     replacement: str | None = None
     revoke: bool = False
+
+
+class PageReview(Input):
+    expected_sequence: int = Field(strict=True, ge=1, le=9007199254740991)
+    outcome: Literal['member_confirmed_saved', 'draft_exported', 'member_discarded']
+    note: str = Field(min_length=1, max_length=1000)
 
 
 class MaintenanceChange(Input):
@@ -283,6 +291,17 @@ def create_app(static_dir=None):
         from app.services.maintenance_control import change
         payload = data.model_dump()
         return change(actor(request), workspace, **payload)
+
+    @app.get('/api/maintenance/page-reports')
+    def page_reports(request: Request, workspace: str | None = None, reviewed: bool = False,
+                     after: UUID | None = None, limit: int = Query(50, ge=1, le=100)):
+        from app.services.canvas_page_reports import review_list
+        return review_list(actor(request), workspace, reviewed=reviewed, after=after, limit=limit)
+
+    @app.post('/api/maintenance/page-reports/{report_id}/review')
+    def review_page_report(report_id: UUID, request: Request, data: PageReview, workspace: str | None = None):
+        from app.services.canvas_page_reports import review
+        return review(actor(request), report_id, data.expected_sequence, data.outcome, data.note, workspace)
 
     # Only the management artifact is mounted, never workbench static or data.
     app.mount('/static', StaticFiles(directory=directory, check_dir=False), name='management-static')

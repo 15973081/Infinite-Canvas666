@@ -101,7 +101,7 @@ def counts(conn, workspace=None):
             'services': services, 'canvas_locks': active_count(conn, workspace), 'unsaved_pages': pages['unsaved_pages'],
             'page_reports': pages, 'database_stop_ready': False,
             'pending_checks': ['unreported_pages', 'operator_backup_and_recovery_check'] +
-                (['stale_or_closed_unsaved_pages'] if pages['stale_pages'] or pages['closed_unsaved_pages'] else [])}
+                (['stale_or_closed_unsaved_pages'] if pages['pending_review_pages'] else [])}
 
 
 def snapshot(actor, workspace=None):

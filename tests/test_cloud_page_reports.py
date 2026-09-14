@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from test_cloud_member_gateway import operator, world, headers, PASSWORD
 from test_cloud_maintenance_control import change, reset_maintenance
+from test_cloud_management import platform
 
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
@@ -130,3 +131,177 @@ def test_parallel_page_reports_keep_highest_sequence(world):
     with connection() as conn:
         row = conn.execute('SELECT sequence,dirty FROM canvas_page_reports WHERE canvas_id=%s', (canvas['id'],)).fetchone()
     assert row == {'sequence': 8, 'dirty': False}
+
+
+
+def reported(world, *, closed=True, dirty=True):
+    from app.storage.database import connection
+    canvas, path = setup(world)
+    body = payload(closed=closed, dirty=dirty)
+    assert world['editor'].post(path, headers=headers(world['a']), json=body).status_code == 200
+    with connection() as conn:
+        row = conn.execute('SELECT * FROM canvas_page_reports WHERE canvas_id=%s', (canvas['id'],)).fetchone()
+    return row, path, body
+
+
+def review_body(sequence=1):
+    return {'expected_sequence': sequence, 'outcome': 'draft_exported', 'note': '已与成员核实，草稿已导出并保留。'}
+
+
+def test_management_reviews_are_audited_without_changing_report_or_canvas(world, platform):
+    from app.storage.database import connection
+    row, _, _ = reported(world)
+    c, scope = platform['client'], {'workspace': world['a']['id']}
+    endpoint = '/api/maintenance/page-reports'
+    before = c.get(endpoint, params=scope).json()
+    assert len(before['reports']) == 1 and before['reports'][0]['id'] == str(row['id'])
+    assert not {'login_session_id', 'page_id', 'member_auth_version', 'document', 'token'} & before['reports'][0].keys()
+    result = c.post(endpoint + '/' + str(row['id']) + '/review', params=scope, json=review_body())
+    assert result.status_code == 200, result.text
+    assert c.get(endpoint, params=scope).json()['reports'] == []
+    reviewed = c.get(endpoint, params={**scope, 'reviewed': True}).json()['reports']
+    assert len(reviewed) == 1 and reviewed[0]['review_note'] == review_body()['note']
+    state = activity(world)
+    assert state['page_reports']['pending_review_pages'] == 0 and state['page_reports']['reviewed_pages'] == 1
+    assert state['page_reports']['closed_unsaved_pages'] == 1
+    assert state['database_stop_ready'] is False and 'unreported_pages' in state['pending_checks']
+    assert 'stale_or_closed_unsaved_pages' not in state['pending_checks']
+    with connection() as conn:
+        after = conn.execute('SELECT * FROM canvas_page_reports WHERE id=%s', (row['id'],)).fetchone()
+        assert all(after[key] == row[key] for key in ('sequence', 'dirty', 'closed', 'seen_at', 'member_auth_version'))
+        assert conn.execute('SELECT revision FROM canvases WHERE id=%s', (row['canvas_id'],)).fetchone()['revision'] == 1
+        assert conn.execute('SELECT count(*) AS n FROM canvas_edit_leases WHERE canvas_id=%s', (row['canvas_id'],)).fetchone()['n'] == 0
+    events = c.get('/api/audit', params=scope).json()['events']
+    event = next(e for e in events if e['action'] == 'maintenance.page.review')
+    assert event['target_id'] == str(row['id']) and event['details']['sequence'] == 1
+    assert event['details']['dirty'] is True and event['details']['note'] == review_body()['note']
+
+
+def test_review_lists_page_within_scope_without_duplicate_rows(world, platform):
+    rows = [reported(world)[0] for _ in range(3)]
+    c, endpoint = platform['client'], '/api/maintenance/page-reports'
+    scope = {'workspace': world['a']['id'], 'limit': 2}
+    first = c.get(endpoint, params=scope).json()
+    second = c.get(endpoint, params={**scope, 'after': first['next']}).json()
+    assert len(first['reports']) == 2 and len(second['reports']) == 1 and second['next'] is None
+    assert {r['id'] for r in first['reports'] + second['reports']} == {str(r['id']) for r in rows}
+    assert c.get(endpoint, params={'workspace': world['b']['id'], 'after': first['next']}).json()['reports'] == []
+    for params in ({'limit': 0}, {'limit': 101}, {'after': 'bad'}, {'reviewed': 'bad'}):
+        assert c.get(endpoint, params=params).status_code == 422
+
+
+def test_review_rejects_live_clean_closed_and_outdated_reports(world, platform):
+    from app.storage.database import connection
+    row, path, body = reported(world, closed=False)
+    c, scope = platform['client'], {'workspace': world['a']['id']}
+    endpoint = '/api/maintenance/page-reports/' + str(row['id']) + '/review'
+    assert c.post(endpoint, params=scope, json=review_body()).json()['detail']['code'] == 'page_report_not_reviewable'
+    with connection() as conn:
+        conn.execute("UPDATE canvas_page_reports SET seen_at=clock_timestamp()-interval '36 seconds' WHERE id=%s", (row['id'],))
+    assert c.post(endpoint, params=scope, json=review_body()).status_code == 200
+    assert c.post(endpoint, params=scope, json=review_body()).json()['detail']['code'] == 'page_report_changed'
+    assert world['editor'].post(path, headers=headers(world['a']), json={**body, 'sequence': 2}).status_code == 200
+    assert c.post(endpoint, params=scope, json=review_body()).status_code == 409
+    assert activity(world)['page_reports']['reviewed_pages'] == 0
+    with connection() as conn:
+        conn.execute("UPDATE canvas_page_reports SET seen_at=clock_timestamp()-interval '36 seconds' WHERE id=%s", (row['id'],))
+    assert activity(world)['page_reports']['pending_review_pages'] == 1
+    again = c.get('/api/maintenance/page-reports', params=scope).json()['reports'][0]
+    assert again['sequence'] == 2 and again['reviewed_sequence'] == 1
+    assert c.post(endpoint, params=scope, json=review_body(2)).status_code == 200
+    clean, _, _ = reported(world, closed=True, dirty=False)
+    assert c.post('/api/maintenance/page-reports/' + str(clean['id']) + '/review', params=scope, json=review_body()).status_code == 409
+
+
+def test_review_scope_audience_origin_and_payload_boundaries(world, platform):
+    from fastapi.testclient import TestClient
+    from fastapi import HTTPException
+    from app.services import members, canvas_page_reports
+    from app.services.member_gateway import COOKIE
+    row, _, _ = reported(world)
+    endpoint = '/api/maintenance/page-reports'
+    review_path = endpoint + '/' + str(row['id']) + '/review'
+    role = members.create_role(world['operator'], '维护核对员', ['maintenance.space'], world['a']['id'])
+    members.assign_roles(world['operator'], world['people'][1]['id'], [role], world['a']['id'])
+    with TestClient(platform['app'], base_url='http://localhost:8766', headers={'Origin': 'http://localhost:8766'}) as manager:
+        assert manager.post('/api/auth/login', json={'username': world['people'][1]['username'], 'password': PASSWORD}).status_code == 200
+        for params in ({}, {'workspace': world['b']['id']}):
+            assert manager.get(endpoint, params=params).status_code == 403
+            assert manager.post(review_path, params=params, json=review_body()).status_code == 403
+        assert manager.get(endpoint, params={'workspace': world['a']['id']}).status_code == 200
+        assert manager.post(review_path, params={'workspace': world['a']['id']}, json=review_body(), headers={'Origin': 'https://wrong.test'}).status_code == 403
+        assert manager.post(review_path, params={'workspace': world['a']['id']}, json=review_body()).status_code == 200
+        members.remove_workspace_member(world['operator'], world['people'][1]['id'], world['a']['id'])
+        assert manager.get(endpoint, params={'workspace': world['a']['id']}).status_code == 403
+    actor = members.resolve_session(world['editor'].cookies.get(COOKIE))
+    with pytest.raises(HTTPException) as failure:
+        canvas_page_reports.review_list(actor, world['a']['id'])
+    assert failure.value.detail['code'] == 'management_session_required'
+    c = platform['client']
+    assert c.post(review_path, params={'workspace': world['b']['id']}, json=review_body()).status_code == 404
+    for change in ({'expected_sequence': True}, {'expected_sequence': 0}, {'outcome': 'saved'}, {'note': ''}, {'note': 'x' * 1001}, {'dirty': False}):
+        assert c.post(review_path, json={**review_body(), **change}).status_code == 422
+    assert c.post(review_path, json={**review_body(), 'note': '   '}).status_code == 400
+
+
+def test_review_and_audit_rollback_together(world, monkeypatch):
+    from app.services import authorization as az, canvas_page_reports
+    from app.storage.database import connection
+    row, _, _ = reported(world)
+    def unavailable(*args, **kwargs):
+        raise RuntimeError('audit unavailable')
+    with monkeypatch.context() as patcher:
+        patcher.setattr(az, 'audit', unavailable)
+        with pytest.raises(RuntimeError, match='audit unavailable'):
+            canvas_page_reports.review(world['operator'], row['id'], 1, 'draft_exported', '已核对', world['a']['id'])
+    with connection() as conn:
+        assert conn.execute('SELECT reviewed_sequence FROM canvas_page_reports WHERE id=%s', (row['id'],)).fetchone()['reviewed_sequence'] is None
+    assert activity(world)['page_reports']['pending_review_pages'] == 1
+
+
+def test_parallel_reviews_record_exactly_one_audit(world):
+    from fastapi import HTTPException
+    from app.services import canvas_page_reports
+    from app.storage.database import connection
+    row, _, _ = reported(world)
+    def resolve(_):
+        try:
+            canvas_page_reports.review(world['operator'], row['id'], 1, 'draft_exported', '已核对', world['a']['id'])
+            return 200
+        except HTTPException as failure:
+            return failure.status_code
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        assert sorted(pool.map(resolve, range(4))) == [200, 409, 409, 409]
+    with connection() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM management_events WHERE target_id=%s AND action='maintenance.page.review'", (str(row['id']),)).fetchone()['n'] == 1
+
+
+def test_new_report_racing_review_is_never_covered_by_old_acknowledgement(world):
+    from fastapi import HTTPException
+    from app.services import members, canvas_page_reports
+    from app.services.member_gateway import COOKIE
+    from app.storage.workspace import workspace_scope
+    from app.storage.database import connection
+    row, _, body = reported(world, closed=False)
+    actor = members.resolve_session(world['editor'].cookies.get(COOKIE))
+    with connection() as conn:
+        conn.execute("UPDATE canvas_page_reports SET seen_at=clock_timestamp()-interval '36 seconds' WHERE id=%s", (row['id'],))
+    def review():
+        try:
+            canvas_page_reports.review(world['operator'], row['id'], 1, 'draft_exported', '已核对', world['a']['id'])
+            return 200
+        except HTTPException as failure:
+            return failure.status_code
+    def report():
+        with workspace_scope(world['a']['id']):
+            return canvas_page_reports.report(actor, row['canvas_id'], uuid.UUID(body['page_id']), 2, True)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        reviewing, reporting = pool.submit(review), pool.submit(report)
+        assert reviewing.result() in {200, 409}
+        assert reporting.result()['accepted']
+    with connection() as conn:
+        latest = conn.execute('SELECT sequence,reviewed_sequence FROM canvas_page_reports WHERE id=%s', (row['id'],)).fetchone()
+        assert latest['sequence'] == 2 and latest['reviewed_sequence'] in {None, 1}
+        conn.execute("UPDATE canvas_page_reports SET seen_at=clock_timestamp()-interval '36 seconds' WHERE id=%s", (row['id'],))
+    assert activity(world)['page_reports']['pending_review_pages'] == 1
+    assert activity(world)['page_reports']['reviewed_pages'] == 0
