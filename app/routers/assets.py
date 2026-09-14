@@ -13,8 +13,6 @@ from app.services.assets import *
 from app.services.prompt import *
 from app.services.media import *
 from app.services.chat import *
-from app.services.comfyui import *
-from app.services.workflow import *
 
 
 router = APIRouter()
@@ -440,7 +438,7 @@ async def import_shared_folder_files(payload: SharedFolderImport):
 
 async def caption_image_with_provider(abs_path, prompt, provider_id, model, ms_model=""):
     chat_base, chat_hdrs, resolved_model = resolve_chat_provider(provider_id, model, ms_model)
-    llm_provider = get_api_provider(provider_id) if provider_id not in ("modelscope",) else {}
+    llm_provider = get_api_provider(provider_id)
     is_apimart = is_apimart_provider(llm_provider)
     prompt_text = (prompt or "描述图片").strip() or "描述图片"
     data_url = image_path_to_data_url(abs_path, max_size=1024)

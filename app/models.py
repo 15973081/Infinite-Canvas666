@@ -24,15 +24,6 @@ class MaintenanceStartRequest(BaseModel):
 
 # ── Generate / Cloud ──
 
-class GenerateRequest(BaseModel):
-    prompt: str = ""
-    width: int = 1024
-    height: int = 1024
-    workflow_json: str = "Z-Image.json"
-    params: Dict[str, Any] = {}
-    type: str = "zimage"
-    client_id: str = ""
-    convert_to_jpg: bool = False
 
 
 class DeleteHistoryRequest(BaseModel):
@@ -43,21 +34,8 @@ class TokenRequest(BaseModel):
     token: str
 
 
-class CloudGenRequest(BaseModel):
-    prompt: str
-    api_key: str = ""
-    model: str = ""
-    resolution: str = "1024x1024"
-    type: str = "zimage"
-    image_urls: List[str] = []
-    loras: Optional[Any] = None
-    client_id: Optional[str] = None
 
 
-class CloudPollRequest(BaseModel):
-    task_id: str
-    api_key: str = ""
-    client_id: Optional[str] = None
 
 
 # ── AI Reference ──
@@ -184,16 +162,6 @@ class ChatRequest(BaseModel):
 
 # ── ModelScope ──
 
-class MsGenerateRequest(BaseModel):
-    prompt: str
-    api_key: str = ""
-    model: str = "black-forest-labs/FLUX.2-klein-9B"
-    image_urls: List[str] = []
-    width: int = 0
-    height: int = 0
-    size: str = ""
-    loras: Optional[Any] = None
-    client_id: Optional[str] = None
 
 
 # ── Canvas LLM ──
@@ -450,37 +418,24 @@ class WorkflowField(BaseModel):
     random_enabled: bool = False
 
 
-class WorkflowConfig(BaseModel):
-    title: str = ""
-    fields: List[WorkflowField] = []
-    mini_cards: Dict[str, Any] = {}
 
 
-class WorkflowUploadRequest(BaseModel):
-    name: str
-    workflow: Dict[str, Any]
 
 
-class WorkflowRunRequest(BaseModel):
-    fields: Dict[str, Any] = {}
-    config: WorkflowConfig
-    client_id: str = ""
 
 
-class ComfyInstancesPayload(BaseModel):
-    instances: List[str] = []
 
 
 # ── Export all names for easy import ──
 __all__ = [
     "MaintenanceStartRequest",
-    "GenerateRequest", "DeleteHistoryRequest", "TokenRequest",
-    "CloudGenRequest", "CloudPollRequest",
+     "DeleteHistoryRequest", "TokenRequest",
+
     "AIReference",
     "OnlineImageRequest", "ImageTaskQueryRequest",
     "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
-    "ChatRequest", "MsGenerateRequest", "CanvasLLMRequest",
+    "ChatRequest",  "CanvasLLMRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
     "CanvasFolderUpdateRequest", "CanvasMoveRequest", "CanvasLockRequest",
@@ -499,7 +454,6 @@ __all__ = [
     "PromptLibraryRequest", "PromptLibraryItemRequest",
     "PromptLibraryBatchDeleteRequest", "PromptLibraryCategoryRequest",
     "TestConnectionPayload",
-    "WorkflowField", "WorkflowConfig",
-    "WorkflowUploadRequest", "WorkflowRunRequest",
-    "ComfyInstancesPayload",
+    "WorkflowField",
+
 ]

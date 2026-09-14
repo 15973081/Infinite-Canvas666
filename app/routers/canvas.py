@@ -13,8 +13,6 @@ from app.services.assets import *
 from app.services.prompt import *
 from app.services.media import *
 from app.services.chat import *
-from app.services.comfyui import *
-from app.services.workflow import *
 from app.services.canvas_tasks import (
     ACTIVE_CANVAS_TASK_STATUSES,
     get_canvas_task as load_durable_canvas_task,
@@ -845,7 +843,7 @@ async def recover_durable_canvas_video_tasks():
 async def canvas_llm(payload: CanvasLLMRequest):
     chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model, payload.ms_model)
     # 判断协议：APIMart 异步 vs 标准 OpenAI
-    _llm_provider = get_api_provider(payload.provider) if payload.provider not in ("modelscope",) else {}
+    _llm_provider = get_api_provider(payload.provider)
     _is_apimart = is_apimart_provider(_llm_provider)
     system_prompt = (payload.system_prompt or "").strip()
     upstream_messages = [{"role": "system", "content": system_prompt}] if system_prompt else []

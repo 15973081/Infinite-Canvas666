@@ -21,6 +21,8 @@ def begin(actor, provider_id, expected_version, reason, mode='models'):
         az.fail('provider_reason_required', 400)
     with az.policy_transaction() as conn:
         provider_control.require_admin(conn, actor)
+        if provider_control.retired(provider_id):
+            az.fail('provider_integration_removed', 410)
         row = conn.execute('SELECT * FROM managed_providers WHERE id=%s', (provider_id,)).fetchone()
         if not row:
             az.fail('provider_not_found', 404)

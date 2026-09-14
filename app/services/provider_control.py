@@ -89,10 +89,15 @@ def public(row):
             'configured_secrets': row['secret_fields'], 'updated_at': row['updated_at']}
 
 
+def retired(provider_id):
+    from app.providers.registry import REMOVED_PROVIDER_IDS
+    return str(provider_id or '').strip().lower() in REMOVED_PROVIDER_IDS
+
+
 def catalog(actor):
     with az.policy_transaction() as conn:
         require_admin(conn, actor)
-        return {'providers': [public(row) for row in conn.execute('SELECT * FROM managed_providers ORDER BY id')]}
+        return {'providers': [public(row) for row in conn.execute('SELECT * FROM managed_providers ORDER BY id') if not retired(row['id'])]}
 
 
 def save(actor, provider_id, config, expected_version, *, secrets=None, clear_secrets=None, reason):
@@ -131,10 +136,16 @@ def assignments(actor, workspace):
             az.fail('workspace_not_found', 404)
         row = conn.execute('SELECT version,primary_provider_id FROM workspace_provider_sets WHERE workspace_id=%s', (workspace,)).fetchone()
         providers = [r['provider_id'] for r in conn.execute('SELECT provider_id FROM workspace_provider_grants WHERE workspace_id=%s ORDER BY provider_id', (workspace,))]
-        return {**(row or {'version': 0, 'primary_provider_id': None}), 'provider_ids': providers}
+        providers = [pid for pid in providers if not retired(pid)]
+        result = {**(row or {'version': 0, 'primary_provider_id': None}), 'provider_ids': providers}
+        if retired(result['primary_provider_id']):
+            result['primary_provider_id'] = None
+        return result
 
 
 def assign(actor, workspace, provider_ids, primary_provider_id, expected_version, *, reason):
+    if any(retired(pid) for pid in provider_ids):
+        az.fail('provider_integration_removed', 410)
     if len(provider_ids) > 100 or len(set(provider_ids)) != len(provider_ids) or (primary_provider_id and primary_provider_id not in provider_ids):
         az.fail('invalid_provider_assignment', 400)
     if not isinstance(reason, str) or not reason.strip() or len(reason) > 1000:
@@ -165,7 +176,7 @@ def workspace_providers():
         rows = conn.execute('''SELECT p.config,p.secret_fields,(s.primary_provider_id=p.id) AS primary FROM managed_providers p
             JOIN workspace_provider_grants g ON g.provider_id=p.id JOIN workspace_provider_sets s ON s.workspace_id=g.workspace_id
             WHERE g.workspace_id=%s AND p.config->>'enabled'='true' ORDER BY p.id''', (current_workspace(),))
-        result = [{**row['config'], 'primary': bool(row['primary']), 'has_key': 'api_key' in row['secret_fields']} for row in rows]
+        result = [{**row['config'], 'primary': bool(row['primary']), 'has_key': 'api_key' in row['secret_fields']} for row in rows if not retired(row['config'].get('id'))]
         recovery = recovery_provider(conn)
         if recovery:
             result = [p for p in result if p['id'] != recovery['id']]
@@ -190,6 +201,8 @@ def recovery_provider(conn):
         AND status IN ('polling','finalizing')''', (current_workspace(), *lease)).fetchone()
     if not task:
         return None
+    if retired(task['provider_id']):
+        az.fail('provider_integration_removed', 410)
     row = conn.execute('SELECT * FROM managed_providers WHERE id=%s', (task['provider_id'],)).fetchone()
     if not row or task['provider_account_ref'] != binding(row):
         az.fail('provider_account_changed', 409)
@@ -197,6 +210,8 @@ def recovery_provider(conn):
 
 
 def configured(conn, provider_id):
+    if retired(provider_id):
+        az.fail('provider_integration_removed', 410)
     recovery = recovery_provider(conn)
     if recovery and recovery['id'] == provider_id:
         return recovery

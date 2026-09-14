@@ -45,8 +45,6 @@ let rhWorkflowEditorZoom = document.getElementById('rhWorkflowEditorZoom');
 const imageModelList = document.getElementById('imageModelList');
 const chatModelList = document.getElementById('chatModelList');
 const videoModelList = document.getElementById('videoModelList');
-const msLoraBlock = document.getElementById('msLoraBlock');
-const msLoraList = document.getElementById('msLoraList');
 const recommendApiOverlay = document.getElementById('recommendApiOverlay');
 const recommendApiList = document.getElementById('recommendApiList');
 const VOLCENGINE_DEFAULT_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
@@ -62,25 +60,10 @@ const VOLCENGINE_DEFAULT_VIDEO_MODELS = [
     'doubao-seedance-1-0-lite-t2v-250428',
     'doubao-seedance-1-0-lite-i2v-250428'
 ];
-const MS_BUILTIN_IMAGE_MODELS = [
-    'Tongyi-MAI/Z-Image-Turbo',
-    'Qwen/Qwen-Image-2512',
-    'Qwen/Qwen-Image-Edit-2511',
-    'black-forest-labs/FLUX.2-klein-9B'
-];
-const MS_DEFAULT_BASE_URL = 'https://api-inference.modelscope.cn/v1';
 const RH_DEFAULT_BASE_URL = 'https://www.runninghub.cn';
 const EXAMPLE_BASE_URL = 'https://api.example.com/v1';
 const RH_DEFAULT_IMAGE_MODELS = ['/openapi/v2/text2image'];
 const ONBOARDING_GUIDES = {
-    modelscope:{
-        titleKey:'api.msOnboardingTitle',
-        descKey:'api.msOnboardingDesc',
-        primaryLabelKey:'api.msGetTokenCn',
-        secondaryLabelKey:'api.msGetTokenGlobal',
-        primaryUrl:'https://www.modelscope.cn/my/access/token',
-        secondaryUrl:'https://www.modelscope.ai/my/access/token'
-    },
     runninghub:{
         titleKey:'api.rhOnboardingTitle',
         descKey:'api.rhOnboardingDesc',
@@ -191,12 +174,6 @@ const LOCAL_I18N = {
     "api.protocolGemini": "Gemini 协议",
     "api.protocolVolcengine": "火山引擎协议",
     "api.key": "API Key",
-    "api.msNotes": "ModelScope 使用提示",
-    "api.msChinaEndpoint": "国内默认请求地址：",
-    "api.msGlobalEndpoint": "国外使用请求地址：",
-    "api.msCnModels": "中文模型库：",
-    "api.msEnModels": "英文模型库：",
-    "api.msModelExample": "模型名称示意：",
     "api.imageModels": "生图模型",
     "api.imageHint": "在线生图和无限画布 API 生成使用。",
     "api.chatModels": "聊天模型",
@@ -253,19 +230,9 @@ const LOCAL_I18N = {
     "api.setPrimary": "设为首选",
     "api.currentPrimary": "当前首选",
     "api.primaryBadge": "首选",
-    "api.modelscopeOnlyDelete": "ModelScope 是默认平台，不可删除",
     "api.confirmClearKey": "确认清除当前 Key？",
     "api.enterKeyAlert": "请输入 Key",
-    "api.msTokenCn": "获取 Token · 国内：",
-    "api.msTokenGlobal": "获取 Token · 国外：",
     "api.onboardingNew": "NEW",
-    "api.msOnboardingTitle": "ModelScope 新手引导",
-    "api.msOnboardingDesc": "先获取 Token，填入 API Key 并保存后，右侧完整设置会自动显示。",
-    "api.msGetTokenCn": "获取 Token · 国内",
-    "api.msGetTokenGlobal": "获取 Token · 国外",
-    "api.msOnboardingStep": "获取 Token 后填写并保存",
-    "api.msTokenLabel": "ModelScope Token",
-    "api.msTokenPlaceholder": "粘贴 ModelScope Token",
     "api.rhOnboardingTitle": "RunningHub 新手引导",
     "api.rhOnboardingDesc": "RH 有 RH币和账户余额两种 Key，RH币必填，账户余额可选。",
     "api.rhGetKeyCn": "获取 Key · 国内",
@@ -404,7 +371,7 @@ function deriveIdFromName(name, existingId){
 function updateIdPreview(){
     const item = provider();
     if(!item) return;
-    const isBuiltin = item.id === 'comfly' || item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine';
+    const isBuiltin = item.id === 'comfly' || item.id === 'runninghub' || item.id === 'volcengine';
     const idPreview = document.getElementById('idPreview');
     if(!idPreview) return;
     if(isBuiltin){
@@ -424,7 +391,7 @@ function visibleProviders(){
 }
 function isFixedProvider(itemOrId){
     const id = typeof itemOrId === 'string' ? itemOrId : itemOrId?.id;
-    return id === 'modelscope' || id === 'runninghub' || id === 'volcengine';
+    return id === 'runninghub' || id === 'volcengine';
 }
 function unique(values){
     const seen = new Set();
@@ -595,7 +562,6 @@ function volcengineAssetKeyHintText(item){
 }
 function isNewUserProvider(item){
     if(!item) return false;
-    if(item.id === 'modelscope') return !item.has_key;
     if(item.id === 'runninghub') return !item.has_key && !item.has_wallet_key;
     return false;
 }
@@ -607,46 +573,6 @@ function renderProviderOnboarding(item){
     document.body.classList.toggle('show-provider-onboarding', visible);
     if(!visible){
         providerOnboardingCard.innerHTML = '';
-        return;
-    }
-    if(item.id === 'modelscope'){
-        providerOnboardingCard.innerHTML = `
-            <div class="onboarding-head">
-                <div>
-                    <div class="onboarding-title">${escapeHtml(tr(guide.titleKey))}</div>
-                    <div class="onboarding-desc">${escapeHtml(tr(guide.descKey))}</div>
-                </div>
-                <span class="onboarding-badge">${escapeHtml(tr('api.onboardingNew'))}</span>
-            </div>
-            <div class="onboarding-step-panel onboarding-rh-linear-panel onboarding-ms-linear-panel">
-                <div class="onboarding-rh-panel-head">
-                    <div>
-                        <div class="onboarding-step-title">${escapeHtml(tr('api.msOnboardingStep'))}</div>
-                    </div>
-                    <i data-lucide="key-round" class="onboarding-rh-icon w-4 h-4"></i>
-                </div>
-                <div class="onboarding-rh-linear-rows">
-                    <div class="onboarding-rh-linear-row onboarding-ms-linear-row">
-                        <div class="onboarding-rh-source-group">
-                            <div class="onboarding-rh-source-label">${escapeHtml(tr('api.msTokenLabel'))}</div>
-                            <div class="onboarding-key-actions onboarding-rh-key-actions">
-                                <a class="onboarding-key-btn" href="${escapeAttr(guide.primaryUrl)}" target="_blank" rel="noopener noreferrer"><i data-lucide="key-round" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr(guide.primaryLabelKey))}</span></a>
-                                <a class="onboarding-key-btn" href="${escapeAttr(guide.secondaryUrl)}" target="_blank" rel="noopener noreferrer"><i data-lucide="globe-2" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr(guide.secondaryLabelKey))}</span></a>
-                            </div>
-                        </div>
-                        <div class="recommend-flow-arrow onboarding-flow-arrow onboarding-rh-row-arrow" aria-hidden="true"><span></span><b></b></div>
-                        <label class="onboarding-key-field onboarding-rh-row-field">
-                            <span>API Key</span>
-                            <input type="password" value="${escapeAttr(keyInput?.value || '')}" placeholder="${escapeAttr(tr('api.msTokenPlaceholder'))}" oninput="syncOnboardingKeyInput('standard', this.value)">
-                        </label>
-                    </div>
-                </div>
-                <div class="onboarding-rh-save-line">
-                    <button class="onboarding-save-btn onboarding-rh-save-all" type="button" onclick="saveKeyOnly()"><i data-lucide="check" class="w-3.5 h-3.5"></i><span>${escapeHtml(tr('api.save'))}</span></button>
-                </div>
-            </div>
-        `;
-        refreshIcons();
         return;
     }
     if(item.id === 'runninghub'){
@@ -723,24 +649,6 @@ async function saveOnboardingRunningHubKey(){
 function applyProviderOnboardingDefaults(id){
     const item = providers.find(provider => provider.id === id);
     if(!item) return;
-    if(id === 'modelscope'){
-        item.base_url = MS_DEFAULT_BASE_URL;
-        item.protocol = 'openai';
-        item.image_models = unique([...MS_BUILTIN_IMAGE_MODELS, ...(item.image_models || [])]);
-        item.chat_models = unique([...(item.chat_models || [])]);
-        item.ms_defaults_version = Math.max(3, Number(item.ms_defaults_version || 0));
-    } else if(id === 'runninghub'){
-        item.base_url = RH_DEFAULT_BASE_URL;
-        item.protocol = 'runninghub';
-        item.image_models = unique([...(item.image_models || []), ...RH_DEFAULT_IMAGE_MODELS]);
-        ensureRunningHubLists(item);
-    } else if(id === 'volcengine'){
-        item.base_url = VOLCENGINE_DEFAULT_BASE_URL;
-        item.protocol = 'volcengine';
-        item.video_models = unique([...(item.video_models || []), ...VOLCENGINE_DEFAULT_VIDEO_MODELS]);
-        item.volcengine_project_name = item.volcengine_project_name || VOLCENGINE_DEFAULT_PROJECT_NAME;
-        item.volcengine_region = item.volcengine_region || VOLCENGINE_DEFAULT_REGION;
-    }
     selectedId = item.id;
     renderEditor();
     setStatus('已显示默认配置，填写 Key 后点击保存生效');
@@ -753,19 +661,19 @@ function syncEditor(){
     const item = provider();
     if(!item) return;
     const oldId = item.id;
-    const isBuiltin = item.id === 'comfly' || item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine';
+    const isBuiltin = item.id === 'comfly' || item.id === 'runninghub' || item.id === 'volcengine';
     // 内置和自定义平台的 ID 都保持稳定；新建时若没有 ID 才生成一次。
     const nextId = isBuiltin ? item.id : deriveIdFromName(nameInput.value, item.id);
     item.id = nextId;
     if(oldId !== item.id) selectedId = item.id;
     item.name = nameInput.value.trim() || item.id;
-    const selectedProtocol = item.id === 'modelscope' ? 'openai' : item.id === 'runninghub' ? 'runninghub' : item.id === 'volcengine' ? 'volcengine' : (protocolInput?.value || 'openai');
+    const selectedProtocol = item.id === 'runninghub' ? 'runninghub' : item.id === 'volcengine' ? 'volcengine' : (protocolInput?.value || 'openai');
     item.base_url = baseInput.value.trim();
     item.proxy_url = providerSupportsProxy(item) ? (proxyInput?.value.trim() || '') : '';
     // 固定平台不从协议下拉读取
     item.protocol = selectedProtocol;
     item.image_request_mode = normalizeImageRequestMode(
-        item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine'
+        item.id === 'runninghub' || item.id === 'volcengine'
             ? 'openai'
             : (imageRequestModeInput?.value || item.image_request_mode)
     );
@@ -797,7 +705,7 @@ function ensureRunningHubLists(item){
 }
 function updateProtocolFromInput(){
     const item = provider();
-    if(!item || !protocolInput || item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine') return;
+    if(!item || !protocolInput || item.id === 'runninghub' || item.id === 'volcengine') return;
     const value = String(protocolInput.value || 'openai').toLowerCase();
     item.protocol = ['openai', 'apimart', 'gemini', 'volcengine'].includes(value) ? value : 'openai';
     clearVerifyResult();
@@ -2223,7 +2131,7 @@ async function saveRecommendedApi(index){
     if(ok) setStatus(trf('api.recommendSaved', {name:api.name}));
 }
 function sortedProviders(){
-    const order = ['modelscope', 'runninghub', 'volcengine'];
+    const order = ['runninghub', 'volcengine'];
     return visibleProviders().sort((a, b) => {
         const ai = order.indexOf(a.id);
         const bi = order.indexOf(b.id);
@@ -2243,20 +2151,6 @@ function renderProviderList(){
         const active = item.id === selectedId ? 'active' : '';
         const stateClass = item.enabled === false ? 'is-disabled' : (item.has_key || item.has_wallet_key ? 'has-key' : 'missing-key');
         const protocolLabel = item.id === 'runninghub' ? 'RH' : String(item.protocol || 'openai').toUpperCase();
-        if(item.id === 'modelscope'){
-            return `
-                <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
-                    <span class="provider-banner-inner">
-                        <span class="provider-logo-wrap">
-                            <img src="/static/images/modelscope.gif" alt="ModelScope" class="ms-icon-light">
-                            <img src="/static/images/modelscope-1.gif" alt="ModelScope" class="ms-icon-dark">
-                            <span class="provider-logo-fallback">ModelScope</span>
-                        </span>
-                        <span class="provider-protocol-pill">OpenAI</span>
-                    </span>
-                </button>
-            `;
-        }
         if(item.id === 'runninghub'){
             return `
                 <button class="provider-card provider-card-banner ${active} ${stateClass}" type="button" onclick="selectProvider('${escapeHtml(item.id)}')">
@@ -2357,7 +2251,6 @@ function renderEditor(){
     keyInput.value = '';
     keyInput.placeholder = item.has_key ? `${tr('api.keepCurrentKey')} ${item.key_preview || ''}` : tr('api.enterKey');
     keyHint.textContent = item.has_key ? `${tr('api.keySaved')}${item.key_env || 'API/.env'}` : tr('api.noKey');
-    const isModelScope = item.id === 'modelscope';
     const isRunningHub = item.id === 'runninghub';
     const isVolcengine = item.id === 'volcengine' || String(protocolInput?.value || item.protocol || '').toLowerCase() === 'volcengine';
     const isStandaloneVolcengine = item.id === 'volcengine';
@@ -2396,7 +2289,6 @@ function renderEditor(){
         if(volcProjectInput) volcProjectInput.value = item.volcengine_project_name || VOLCENGINE_DEFAULT_PROJECT_NAME;
         if(volcRegionInput) volcRegionInput.value = item.volcengine_region || VOLCENGINE_DEFAULT_REGION;
     }
-    document.body.classList.toggle('show-ms', isModelScope);
     document.body.classList.toggle('show-runninghub', isRunningHub);
     document.body.classList.toggle('show-volcengine', isVolcengine);
     document.body.classList.toggle('show-volcengine-standalone', isStandaloneVolcengine);
@@ -2414,14 +2306,11 @@ function renderEditor(){
         if(rhAppsCount) rhAppsCount.textContent = '0';
         if(rhWorkflowsCount) rhWorkflowsCount.textContent = '0';
     }
-    if(msLoraBlock) msLoraBlock.style.display = isModelScope ? 'flex' : 'none';
     const deleteBtn = document.getElementById('deleteBtn');
     if(deleteBtn) deleteBtn.style.display = isFixedProvider(item) ? 'none' : 'inline-flex';
     renderModels('image');
     renderModels('chat');
     renderModels('video');
-    if(isModelScope) renderMsLoras();
-    else if(msLoraList) msLoraList.innerHTML = '';
     renderProviderList();
 }
 function showVerifyResult(html){ const el = document.getElementById('verifyResult'); if(el){ el.style.display = 'block'; el.innerHTML = html; } }
@@ -2768,8 +2657,8 @@ async function clearKeyOnly(){
     const ok = await saveProviders();
     if(ok) keyInput.value = '';
 }
-const FIXED_PROTOCOL_PROVIDER_IDS = new Set(['modelscope', 'volcengine', 'runninghub']);
-const PROXY_DISABLED_PROVIDER_IDS = new Set(['modelscope', 'volcengine', 'runninghub']);
+const FIXED_PROTOCOL_PROVIDER_IDS = new Set(['volcengine', 'runninghub']);
+const PROXY_DISABLED_PROVIDER_IDS = new Set(['volcengine', 'runninghub']);
 function providerSupportsProxy(item){
     const protocol = String(item?.protocol || '').toLowerCase();
     return Boolean(item) && !PROXY_DISABLED_PROVIDER_IDS.has(item.id) && !PROXY_DISABLED_PROVIDER_IDS.has(protocol);
@@ -2871,77 +2760,12 @@ function updateVolcengineVideoPrice(index, resolution, hasVideo, value){
     if(text !== '') item.model_prices.push({kind:'video', model, billing_type:'per_million_tokens', resolution,
         has_video_input:hasVideo, service_tier:'default', unit_price:text, currency:'CNY', effective_from:0, effective_to:0});
 }
-function msLoraTargetOptions(selected){
-    const item = provider();
-    const models = unique([selected, ...MS_BUILTIN_IMAGE_MODELS, ...((item?.image_models) || [])]);
-    return models.filter(Boolean).map(model => `<option value="${escapeAttr(model)}" ${model === selected ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
-}
-function normalizeLoraStrength(value){
-    const n = Number(value);
-    if(!Number.isFinite(n)) return 0.8;
-    return Math.max(0, Math.min(2, n));
-}
-function renderMsLoras(){
-    const item = provider();
-    if(!msLoraList || !item || item.id !== 'modelscope') return;
-    item.ms_loras = Array.isArray(item.ms_loras) ? item.ms_loras : [];
-    if(!item.ms_loras.length){
-        msLoraList.innerHTML = `<div class="lora-empty">${tr('api.loraEmpty')}</div>`;
-        return;
-    }
-    msLoraList.innerHTML = item.ms_loras.map((lora, index) => {
-        const target = lora.target_model || lora.model || MS_BUILTIN_IMAGE_MODELS[0];
-        const strength = normalizeLoraStrength(lora.strength ?? lora.default_strength ?? 0.8);
-        return `
-            <div class="lora-row">
-                <label class="lora-field">
-                    <span>${tr('api.loraId')}</span>
-                    <input value="${escapeAttr(lora.id || '')}" placeholder="${escapeAttr(tr('api.loraIdPlaceholder'))}" oninput="updateMsLora(${index}, 'id', this.value)">
-                </label>
-                <label class="lora-field">
-                    <span>${tr('api.loraTargetModel')}</span>
-                    <select onchange="updateMsLora(${index}, 'target_model', this.value)">${msLoraTargetOptions(target)}</select>
-                </label>
-                <label class="lora-field">
-                    <span>${tr('api.loraDefaultStrength')}</span>
-                    <input type="number" min="0" max="2" step="0.05" value="${strength}" oninput="updateMsLora(${index}, 'strength', this.value)">
-                </label>
-                <button class="icon-btn" type="button" onclick="removeMsLora(${index})" title="${escapeAttr(tr('common.delete'))}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-            </div>
-        `;
-    }).join('');
-    refreshIcons();
-}
-function addMsLora(){
-    const item = provider();
-    if(!item || item.id !== 'modelscope') return;
-    item.ms_loras = Array.isArray(item.ms_loras) ? item.ms_loras : [];
-    item.ms_loras.push({
-        id:'',
-        name:'',
-        target_model: (item.image_models || [])[0] || MS_BUILTIN_IMAGE_MODELS[0],
-        strength:0.8,
-        enabled:true,
-        note:''
-    });
-    renderMsLoras();
-}
-function updateMsLora(index, field, value){
-    const item = provider();
-    if(!item || item.id !== 'modelscope') return;
-    item.ms_loras = Array.isArray(item.ms_loras) ? item.ms_loras : [];
-    const lora = item.ms_loras[index];
-    if(!lora) return;
-    if(field === 'strength') lora.strength = normalizeLoraStrength(value);
-    else lora[field] = value;
-}
-function removeMsLora(index){
-    const item = provider();
-    if(!item || item.id !== 'modelscope') return;
-    item.ms_loras = Array.isArray(item.ms_loras) ? item.ms_loras : [];
-    item.ms_loras.splice(index, 1);
-    renderMsLoras();
-}
+
+
+
+
+
+
 function selectProvider(id){
     if(isProviderTemporarilyHidden(providers.find(item => item.id === id))) return;
     recommendInlineOpen = false;
@@ -3134,7 +2958,7 @@ async function saveProviders(){
             ? 'volcengine'
             : ['openai', 'apimart', 'gemini', 'volcengine'].includes(String(item.protocol || '').toLowerCase()) ? String(item.protocol).toLowerCase() : 'openai';
         item.image_request_mode = normalizeImageRequestMode(
-            item.id === 'modelscope' || item.id === 'runninghub' || item.id === 'volcengine'
+            item.id === 'runninghub' || item.id === 'volcengine'
                 ? 'openai'
                 : item.image_request_mode
         );
@@ -3146,14 +2970,6 @@ async function saveProviders(){
         item.video_models = unique(item.video_models || []);
         item.rh_apps = normalizeRhEntries(item.rh_apps || [], 'app');
         item.rh_workflows = normalizeRhEntries(item.rh_workflows || [], 'workflow');
-        item.ms_loras = (Array.isArray(item.ms_loras) ? item.ms_loras : []).map(lora => ({
-            id:String(lora.id || '').trim(),
-            name:String(lora.name || lora.id || '').trim(),
-            target_model:String(lora.target_model || '').trim(),
-            strength:normalizeLoraStrength(lora.strength ?? 0.8),
-            enabled:lora.enabled !== false,
-            note:String(lora.note || '').trim()
-        })).filter(lora => lora.id && lora.target_model);
     });
     if(new Set(providers.map(item => item.id)).size !== providers.length){
         alert(tr('api.duplicateId'));
@@ -3168,7 +2984,7 @@ async function saveProviders(){
                 id:item.id,
                 name:item.name,
                 base_url:item.base_url,
-                protocol:(item.id === 'modelscope') ? 'openai' : item.id === 'runninghub' ? 'runninghub' : item.id === 'volcengine' ? 'volcengine' : (item.protocol || 'openai'),
+                protocol:item.id === 'runninghub' ? 'runninghub' : item.id === 'volcengine' ? 'volcengine' : (item.protocol || 'openai'),
                 image_request_mode:item.image_request_mode || 'openai',
                 image_generation_endpoint:item.image_generation_endpoint || '',
                 image_edit_endpoint:item.image_edit_endpoint || '',
@@ -3180,8 +2996,6 @@ async function saveProviders(){
                 video_models:item.video_models || [],
                 model_prices:(item.model_prices || []).filter(price => !Number(price.effective_to || 0)),
                 model_protocols:(item.model_protocols && typeof item.model_protocols === 'object') ? item.model_protocols : {},
-                ms_loras:item.id === 'modelscope' ? (item.ms_loras || []) : [],
-                ms_defaults_version:item.id === 'modelscope' ? (item.ms_defaults_version || 1) : 0,
                 rh_apps:item.id === 'runninghub' ? (item.rh_apps || []) : [],
                 rh_workflows:item.id === 'runninghub' ? (item.rh_workflows || []) : [],
                 volcengine_project_name:item.id === 'volcengine' ? (item.volcengine_project_name || VOLCENGINE_DEFAULT_PROJECT_NAME) : '',

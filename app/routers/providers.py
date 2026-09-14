@@ -13,8 +13,6 @@ from app.services.assets import *
 from app.services.prompt import *
 from app.services.media import *
 from app.services.chat import *
-from app.services.comfyui import *
-from app.services.workflow import *
 router = APIRouter()
 
 @router.get("/api/config")
@@ -28,11 +26,8 @@ async def ai_config():
         "chat_models": CHAT_MODELS,
         "image_models": IMAGE_MODELS,
         "video_models": VIDEO_MODELS,
-        "comfy_instances": COMFYUI_INSTANCES,
         "api_providers": providers,
         "has_api_key": bool(AI_API_KEY),
-        "ms_chat_models": MODELSCOPE_CHAT_MODELS,
-        "has_ms_key": bool(modelscope_api_key()),
     }
 
 @router.get("/api/models")
@@ -82,8 +77,6 @@ async def save_providers(payload: List[ApiProviderPayload]):
             env_updates["IMAGE_MODELS"] = ",".join(provider["image_models"])
             env_updates["CHAT_MODELS"] = ",".join(provider["chat_models"])
             env_updates["VIDEO_MODELS"] = ",".join(provider.get("video_models") or [])
-        if provider["id"] == "modelscope":
-            env_updates["MODELSCOPE_CHAT_MODELS"] = ",".join(provider["chat_models"])
         if provider["id"] == "volcengine":
             provider["protocol"] = "volcengine"
     if not providers:
@@ -100,20 +93,6 @@ async def save_providers(payload: List[ApiProviderPayload]):
         reload_env_globals()   # 立即将最新 env 值同步回模块全局变量，无需重启
     return {"providers": [public_provider(p) for p in providers]}
 
-@router.get("/api/config/token")
-async def get_global_token():
-    # 优先读 env，回退到 global_config.json（兼容旧数据）
-    saved_token = modelscope_api_key()
-    if saved_token:
-        return {"token": saved_token}
-    if os.path.exists(GLOBAL_CONFIG_FILE):
-        try:
-            with open(GLOBAL_CONFIG_FILE, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                return {"token": config.get("modelscope_token", "")}
-        except:
-            pass
-    return {"token": ""}
 
 @router.post("/api/providers/test-connection")
 async def test_provider_connection(payload: TestConnectionPayload):

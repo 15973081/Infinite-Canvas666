@@ -12,7 +12,6 @@ from typing import List, Dict
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from app.config import COMFYUI_INSTANCES
 from app.utils import now_ms
 
 
@@ -250,7 +249,7 @@ CLIENT_ID = str(uuid.uuid4())
 
 # ── ComfyUI backend load tracking ──
 
-BACKEND_LOCAL_LOAD = {addr: 0 for addr in COMFYUI_INSTANCES}
+BACKEND_LOCAL_LOAD = {}
 
 
 # ── Canvas task tracking ──

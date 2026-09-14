@@ -13,10 +13,6 @@ from fastapi import HTTPException
 
 from app.config import (
     API_PROVIDERS_FILE, API_ENV_FILE, DATA_DIR, GLOBAL_CONFIG_FILE,
-    MODELSCOPE_CHAT_BASE_URL,
-    MODELSCOPE_DEFAULT_IMAGE_MODELS, MODELSCOPE_DEFAULT_CHAT_MODELS,
-    MODELSCOPE_DEFAULT_LORAS, MODELSCOPE_DEFAULTS_VERSION,
-    MODELSCOPE_API_KEY, MODELSCOPE_CHAT_MODELS,
     VOLCENGINE_DEFAULT_BASE_URL, VOLCENGINE_DEFAULT_PROJECT_NAME,
     VOLCENGINE_DEFAULT_REGION, VOLCENGINE_DEFAULT_VIDEO_MODELS,
     AI_BASE_URL,
@@ -31,7 +27,7 @@ from app.state import GLOBAL_CONFIG_LOCK
 from app.utils import model_list_from_values, mask_secret, strip_auth_scheme, bearer_auth_value, env_quote, now_ms
 from app.models import ApiProviderPayload
 
-REMOVED_PROVIDER_IDS = {"runninghub"}
+REMOVED_PROVIDER_IDS = {"runninghub", "modelscope", "comfyui", "comfy"}
 MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call", "per_million_tokens"}
 
 
@@ -116,8 +112,6 @@ def managed_providers_enabled():
 def provider_key_env(provider_id):
     if provider_id == "comfly":
         return "COMFLY_API_KEY"
-    if provider_id == "modelscope":
-        return "MODELSCOPE_API_KEY"
     if provider_id == "volcengine":
         return "ARK_API_KEY"
     return f"API_PROVIDER_{re.sub(r'[^A-Za-z0-9]', '_', provider_id).upper()}_KEY"
@@ -158,8 +152,6 @@ def provider_env_key_value(provider_id: str) -> str:
     key = os.getenv(env_key, "") or read_api_env_value(env_key)
     if key:
         return key
-    if provider_id == "modelscope":
-        return MODELSCOPE_API_KEY or ""
     return ""
 
 
@@ -210,7 +202,7 @@ def provider_protocol(provider):
 # 单模型可覆盖的协议（仅 OpenAI / Gemini，二者可共用同一站点的 Base URL + Key）
 PER_MODEL_PROTOCOL_OPTIONS = {"openai", "gemini"}
 # 协议固定、不支持单模型覆盖的内置平台
-FIXED_PROTOCOL_PROVIDER_IDS = {"modelscope", "volcengine"}
+FIXED_PROTOCOL_PROVIDER_IDS = {"volcengine"}
 
 def normalize_model_protocols(value):
     """规整 {模型名: 协议} 覆盖表，仅保留 openai/gemini。"""
@@ -337,6 +329,8 @@ def provider_proxy_url(provider):
 
 
 def normalize_provider(item):
+    if str(item.get("id") or "").strip().lower() in REMOVED_PROVIDER_IDS:
+        raise HTTPException(410, "该供应商集成已移除")
     provider_id = str(item.get("id") or "").strip().lower()
     if not PROVIDER_ID_RE.fullmatch(provider_id):
         raise HTTPException(status_code=400, detail=f"API 平台 ID 不合法：{provider_id or '(empty)'}")
@@ -384,22 +378,6 @@ def normalize_provider(item):
 def default_api_providers():
     return [
         {
-            "id": "modelscope",
-            "name": "ModelScope",
-            "base_url": MODELSCOPE_CHAT_BASE_URL,
-            "protocol": "openai",
-            "image_request_mode": "openai",
-            "image_generation_endpoint": "",
-            "image_edit_endpoint": "",
-            "enabled": True,
-            "primary": False,
-            "image_models": MODELSCOPE_DEFAULT_IMAGE_MODELS,
-            "chat_models": MODELSCOPE_CHAT_MODELS,
-            "video_models": [],
-            "ms_loras": MODELSCOPE_DEFAULT_LORAS,
-            "ms_defaults_version": MODELSCOPE_DEFAULTS_VERSION,
-        },
-        {
             "id": "volcengine",
             "name": "火山引擎",
             "base_url": VOLCENGINE_DEFAULT_BASE_URL,
@@ -421,24 +399,7 @@ def default_api_providers():
 
 
 def merge_default_api_providers(providers):
-    merged = [dict(item) for item in providers]
-    ms_default = next((d for d in default_api_providers() if d["id"] == "modelscope"), None)
-    if ms_default:
-        current = next((item for item in merged if item.get("id") == "modelscope"), None)
-        if not current:
-            merged.append(ms_default)
-        else:
-            if not current.get("base_url"):
-                current["base_url"] = ms_default["base_url"]
-            seeded_version = int(current.get("ms_defaults_version") or 0)
-            if seeded_version < MODELSCOPE_DEFAULTS_VERSION:
-                image_models = model_list_from_values([*MODELSCOPE_DEFAULT_IMAGE_MODELS, *(current.get("image_models") or [])])
-                chat_models = model_list_from_values([*MODELSCOPE_DEFAULT_CHAT_MODELS, *(current.get("chat_models") or [])])
-                loras = normalize_ms_loras([*MODELSCOPE_DEFAULT_LORAS, *(current.get("ms_loras") or [])])
-                current["image_models"] = image_models
-                current["chat_models"] = chat_models
-                current["ms_loras"] = loras
-                current["ms_defaults_version"] = MODELSCOPE_DEFAULTS_VERSION
+    merged = [dict(item) for item in providers if str(item.get("id") or "").strip().lower() not in REMOVED_PROVIDER_IDS]
     volc_default = next((d for d in default_api_providers() if d["id"] == "volcengine"), None)
     if volc_default:
         current = next((item for item in merged if item.get("id") == "volcengine"), None)
@@ -498,7 +459,7 @@ def load_api_providers():
     if postgres_enabled():
         from app.storage.documents import get
         raw = get("api_providers", default=default_api_providers())
-        return merge_default_api_providers([normalize_provider(item) for item in raw if isinstance(item, dict) and str(item.get("id") or "").lower() not in REMOVED_PROVIDER_IDS])
+        return merge_default_api_providers([normalize_provider(item) for item in raw if isinstance(item, dict) and str(item.get("id") or "").strip().lower() not in REMOVED_PROVIDER_IDS])
     defaults = default_api_providers()
     if not os.path.exists(API_PROVIDERS_FILE):
         return merge_default_api_providers(defaults)
@@ -567,18 +528,21 @@ def public_api_providers():
 
 def get_primary_provider_id(providers=None):
     providers = providers if providers is not None else load_api_providers()
+    providers = [p for p in providers if str(p.get("id") or "").strip().lower() not in REMOVED_PROVIDER_IDS]
     primary = next((p for p in providers if p.get("primary") and p.get("enabled", True)), None)
     if primary:
         return primary["id"]
-    non_ms = next((p for p in providers if p["id"] != "modelscope" and p.get("enabled", True)), None)
-    if non_ms:
-        return non_ms["id"]
-    return providers[0]["id"] if providers else "modelscope"
+    available = next((p for p in providers if p.get("enabled", True) and p["id"] not in REMOVED_PROVIDER_IDS), None)
+    if available:
+        return available["id"]
+    return ""
 
 
 def get_api_provider(provider_id="comfly"):
     providers = load_api_providers()
     target = (provider_id or "").strip().lower()
+    if target in REMOVED_PROVIDER_IDS:
+        raise HTTPException(410, "该供应商集成已移除，请明确选择其他供应商")
     if target and managed_providers_enabled() and not any(p['id'] == target for p in providers):
         raise HTTPException(403, '供应商未分配或已停用')
     if not target or not any(p["id"] == target for p in providers):
@@ -594,6 +558,8 @@ def get_api_provider(provider_id="comfly"):
 def get_api_provider_exact(provider_id: str):
     providers = load_api_providers()
     target = (provider_id or "").strip().lower()
+    if target in REMOVED_PROVIDER_IDS:
+        raise HTTPException(410, "该供应商集成已移除，请明确选择其他供应商")
     provider = next((p for p in providers if p["id"] == target), None)
     if not provider:
         raise HTTPException(status_code=400, detail=f"未找到 API 平台：{target or '(empty)'}。新增平台未保存时请使用当前表单拉取模型。")
@@ -602,30 +568,12 @@ def get_api_provider_exact(provider_id: str):
     return provider
 
 
-def modelscope_provider_config():
-    return get_api_provider_exact("modelscope")
 
 
-def modelscope_api_key(explicit_key: str = ""):
-    if managed_providers_enabled():
-        return strip_auth_scheme(provider_env_key_value('modelscope'), 'Bearer')
-    return (
-        strip_auth_scheme(explicit_key, "Bearer")
-        or strip_auth_scheme(provider_env_key_value("modelscope"), "Bearer")
-        or strip_auth_scheme(MODELSCOPE_API_KEY, "Bearer")
-    )
 
 
-def modelscope_api_root(provider=None):
-    provider = provider or modelscope_provider_config()
-    base_root = str((provider or {}).get("base_url") or MODELSCOPE_CHAT_BASE_URL).strip().rstrip("/")
-    if not base_root:
-        base_root = MODELSCOPE_CHAT_BASE_URL
-    return base_root if base_root.endswith("/v1") else f"{base_root}/v1"
 
 
-def modelscope_image_api_root():
-    return MODELSCOPE_CHAT_BASE_URL.rstrip("/")
 
 
 def update_env_values(updates):

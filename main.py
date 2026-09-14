@@ -20,8 +20,8 @@ from app.config import ensure_runtime_config_files, load_env_file, FIELD_LABELS
 from app.services.static_pages import VersionedStaticFiles
 # Routers — extracted to app/routers/
 from app.routers import (
-    angle, assets, canvas, canvas_ledger, chat, comfyui, conversation,
-    generate, history, image, prompt,
+    assets, canvas, canvas_ledger, chat, conversation,
+    history, image, prompt,
     providers, maintenance, upload, video, websocket,
 )
 from app.services.maintenance import begin_transient_generation, end_transient_generation, mark_service_started
@@ -91,10 +91,7 @@ app.add_middleware(
 )
 
 TRANSIENT_GENERATION_PATHS = {
-    "/generate": "online-image",
-    "/api/ms/generate": "online-image",
     "/api/online-image": "online-image",
-    "/api/angle/generate": "online-image",
     "/api/canvas-llm": "llm",
     "/api/canvas-video": "video",
 }
@@ -122,16 +119,13 @@ app.add_middleware(AuthenticationMiddleware)
 app.include_router(auth_router)
 
 # --- Register all routers ---
-app.include_router(angle.router)
 app.include_router(assets.router)
 app.include_router(canvas.router)
 from app.routers.collaboration import router as collaboration_router
 app.include_router(collaboration_router)
 app.include_router(canvas_ledger.router)
 app.include_router(chat.router)
-app.include_router(comfyui.router)
 app.include_router(conversation.router)
-app.include_router(generate.router)
 app.include_router(history.router)
 app.include_router(image.router)
 app.include_router(prompt.router)
@@ -184,5 +178,5 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("SERVER_PORT", "6003"))
-    print(f"Starting ComfyUI-API-Modelscope on http://127.0.0.1:{port}/")
+    print(f"Starting Infinite Canvas on http://127.0.0.1:{port}/")
     uvicorn.run(app, host=os.getenv("SERVER_HOST", "0.0.0.0"), port=port)

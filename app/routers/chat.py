@@ -13,8 +13,6 @@ from app.services.assets import *
 from app.services.prompt import *
 from app.services.media import *
 from app.services.chat import *
-from app.services.comfyui import *
-from app.services.workflow import *
 
 
 router = APIRouter()
@@ -45,7 +43,7 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
     save_conversation(user_id, conversation)
 
     chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model, payload.ms_model)
-    _conv_provider = get_api_provider(payload.provider) if payload.provider not in ("modelscope",) else {}
+    _conv_provider = get_api_provider(payload.provider)
     _conv_is_apimart = is_apimart_provider(_conv_provider)
     history = conversation["messages"][-MAX_HISTORY_MESSAGES:]
     upstream_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -111,7 +109,7 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
     save_conversation(user_id, conversation)
 
     chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model, payload.ms_model)
-    _stream_provider = get_api_provider(payload.provider) if payload.provider not in ("modelscope",) else {}
+    _stream_provider = get_api_provider(payload.provider)
     history = conversation["messages"][-MAX_HISTORY_MESSAGES:]
     upstream_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for item in history:

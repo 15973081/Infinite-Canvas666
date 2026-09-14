@@ -114,7 +114,7 @@ python\python.exe tools\cloud_storage.py restore-objects --source .local\cloud\b
 
 云端启动前先执行 `init-db`，再执行 `check`。运行账户建议与建表账户分开，数据库使用验证服务器证书的 TLS，示例密码必须替换。共享入口经 HTTPS 反向代理访问，模型密钥通过环境变量或独立运行目录提供。
 
-首版保持一个 Web 进程。需要独立任务进程时，把 Web 的 `CLOUD_EMBEDDED_WORKER=false`，另运行 `tools/cloud_storage.py worker`。任务领取已支持多个数据库连接竞争；编辑锁、WebSocket 广播和部分旧 ComfyUI 队列仍是进程内实现，所以不能宣称增加多个 Web 实例即可完整扩容。ComfyUI、第三方素材注册和供应商实际拉取私有素材仍需对应服务的真实联调。
+首版保持一个 Web 进程。需要独立任务进程时，把 Web 的 `CLOUD_EMBEDDED_WORKER=false`，另运行 `tools/cloud_storage.py worker`。任务领取已支持多个数据库连接竞争；此处是存储基线说明；升级中的编辑租约已迁入数据库，WebSocket 广播等剩余跨进程联动仍待完成，所以不能宣称增加多个 Web 实例即可完整扩容。ComfyUI 与 ModelScope 已按 2026-09-14 用户要求移除；第三方素材注册和保留供应商实际拉取私有素材仍需对应服务的真实联调。
 
 ## 验收记录
 

@@ -2489,11 +2489,7 @@ function normalizeApiSizeSettings(prefix=''){
     const resKey = prefix ? `${prefix}Resolution` : 'resolution';
 }
 async function ensureComfyWorkflow(name){
-    if(!name) return null;
-    if(comfyWorkflowCache[name]) return comfyWorkflowCache[name];
-    const data = await window.CanvasApi.getWorkflow(name, null);
-    if(data) comfyWorkflowCache[name] = data;
-    return data;
+    return null;
 }
 function currentComfyFields(){
     return comfyWorkflowCache[settings.comfyWorkflow]?.config?.fields || [];
@@ -2610,60 +2606,10 @@ function renderVolcengineVideoParams(){
     `;
 }
 function renderMsParams(){
-    settings.msgenModel = MS_GEN_MODELS[settings.msgenModel] ? settings.msgenModel : 'zimage';
-    if(!settings.msCustomModel) settings.msCustomModel = modelscopeImageModels()[0] || 'Tongyi-MAI/Z-Image-Turbo';
-    normalizeApiSizeSettings('ms');
-    dynamicParams.innerHTML = `
-        ${renderMsFunctionControl()}
-        ${renderMsCustomModelPill()}
-        ${renderResolutionControl('ms')}
-        ${renderRatioControl('ms', false)}
-        ${renderInlineCustomSizeFields('ms')}
-        ${renderInlineCustomRatioFields('ms')}
-        ${renderCountVisualControl()}
-    `;
+    dynamicParams.textContent = "此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。";
 }
 function renderComfyParams(){
-    settings.comfyMode = ['text','enhance','edit','custom'].includes(settings.comfyMode) ? settings.comfyMode : 'text';
-    const modeOptions = [
-        ['text', tr('canvas.comfyModeText') || '文生图'],
-        ['enhance', tr('canvas.comfyModeEnhance') || '图片增强'],
-        ['edit', tr('canvas.comfyModeEdit') || '图片编辑'],
-        ['custom', tr('canvas.comfyModeCustom') || '自定义']
-    ];
-    if(settings.comfyMode === 'custom'){
-        if(!settings.comfyWorkflow || !comfyWorkflows.some(w => w.name === settings.comfyWorkflow)) settings.comfyWorkflow = comfyWorkflows[0]?.name || '';
-        if(settings.comfyWorkflow && !comfyWorkflowCache[settings.comfyWorkflow]) ensureComfyWorkflow(settings.comfyWorkflow).then(renderDynamicParams);
-    }
-    let html = '';
-    if(settings.comfyMode === 'text'){
-        html += `<div class="num-compact"><span class="num-label">${escapeHtml(tr('smart.width'))}</span><input type="number" data-param="width" value="${Number(settings.width || 1024)}"></div>
-            <div class="num-compact"><span class="num-label">${escapeHtml(tr('smart.height'))}</span><input type="number" data-param="height" value="${Number(settings.height || 1024)}"></div>`;
-    } else if(settings.comfyMode === 'enhance'){
-        html += `<div class="num-compact"><span class="num-label">${escapeHtml(tr('smart.strength'))}</span><input type="number" min="0.1" max="1" step="0.05" data-param="enhanceStrength" value="${Number(settings.enhanceStrength ?? 0.5)}"></div>
-            <button type="button" class="setting-check ${settings.enhanceUpscale ? 'active' : ''}" data-toggle-param="enhanceUpscale"><span class="check-box"></span><span>${escapeHtml(tr('smart.superResolution'))}</span></button>
-            ${settings.enhanceUpscale ? renderUpscalePill('enhanceUpscaleRes', Number(settings.enhanceUpscaleRes || 2048)) : ''}`;
-    } else if(settings.comfyMode === 'edit'){
-        html += `<button type="button" class="setting-check ${settings.editUpscale ? 'active' : ''}" data-toggle-param="editUpscale"><span class="check-box"></span><span>${escapeHtml(tr('smart.superResolution'))}</span></button>
-            ${settings.editUpscale ? renderUpscalePill('editUpscaleRes', Number(settings.editUpscaleRes || 2048)) : ''}`;
-    } else {
-        const wf = comfyWorkflowCache[settings.comfyWorkflow];
-        const fields = (wf?.config?.fields || []).filter(f => comfyFieldKind(f) === 'setting');
-        html += renderComfyWorkflowControl();
-        html += fields.length ? fields.map(renderComfySettingField).join('') : (settings.comfyWorkflow ? '' : `<div class="muted-note">${escapeHtml(tr('smart.noWorkflow'))}</div>`);
-    }
-    dynamicParams.innerHTML = `
-        <div class="smart-control comfy-mode-control">
-            <button class="smart-pill" type="button"><i data-lucide="workflow"></i><span>${escapeHtml(modeOptions.find(([v]) => v === settings.comfyMode)?.[1] || 'ComfyUI')}</span></button>
-            <div class="smart-popover compact-popover">
-                <div class="smart-popover-title">${escapeHtml(tr('smart.comfyMode'))}</div>
-                <div class="model-list">
-                    ${modeOptions.map(([value, label]) => `<button type="button" class="direct-option ${value === settings.comfyMode ? 'active' : ''}" data-smart-param="comfyMode" data-smart-value="${escapeHtml(value)}"><span>${escapeHtml(label)}</span></button>`).join('')}
-                </div>
-            </div>
-        </div>
-        ${html}
-    `;
+    dynamicParams.textContent = "此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。";
 }
 function renderUpscalePill(paramKey, current){
     const opts = [2048, 4096];
@@ -3329,11 +3275,8 @@ async function loadConfig(){
         const cfg = await window.CanvasApi.getConfig();
         apiProviders = Array.isArray(cfg.api_providers) ? cfg.api_providers : [];
         updateSmartCanvasCostButton();
-        comfyInstanceCount = Math.max(1, (Array.isArray(cfg.comfy_instances) ? cfg.comfy_instances : []).filter(Boolean).length || 1);
         sanitizeSmartApiSelection(settings);
         updateProviderModels();
-        const wf = await window.CanvasApi.getWorkflows();
-        comfyWorkflows = Array.isArray(wf.workflows) ? wf.workflows : [];
         lastConfigRefreshAt = Date.now();
         sanitizeSmartApiSelection(settings);
         updateProviderModels();
@@ -12565,77 +12508,6 @@ function buildPromptRequestForNode(node, defaultImages, ctx=smartLoopContext){
 async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=settings){
     const activeSettings = runSettings || settings;
     if(activeSettings.engine === 'comfy') return generateComfyUrlsWithSettings(activeSettings, prompt, refs);
-    if(activeSettings.engine === 'comfy'){
-        const allRefs = refs || [];
-        const imageRefs = imageRefsOnly(allRefs);
-        const mode = settings.comfyMode || 'text';
-        if(mode === 'text'){
-            const data = await fetch('/api/generate', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({prompt, width:Number(settings.width || 1024), height:Number(settings.height || 1024), workflow_json:'Z-Image.json', type:'zimage'})
-            }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-            const urls = resultMediaUrls(data);
-            return {urls, kind:mediaKindForUrls(urls, 'image')};
-        }
-        if(mode === 'enhance'){
-            if(!imageRefs.length) throw new Error(tr('smart.errEnhanceNeedRefs'));
-            const inputName = await comfyNameForRef(imageRefs[0]);
-            const data = await fetch('/api/generate', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({workflow_json:'Z-Image-Enhance.json', type:'enhance', params:{"15":{image:inputName},"204":{value:Number(settings.enhanceStrength ?? 0.5)}}})
-            }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-            const urls = resultMediaUrls(data);
-            return {urls, kind:mediaKindForUrls(urls, 'image')};
-        }
-        if(mode === 'edit'){
-            if(!imageRefs.length) throw new Error(tr('smart.errEditNeedRefs'));
-            const names = [];
-            for(const ref of imageRefs.slice(0, 3)) names.push(await comfyNameForRef(ref));
-            const data = await fetch('/api/generate', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({prompt, workflow_json:'Flux2-Klein.json', type:'klein', params:{"168":{text:prompt},"158":{noise_seed:Math.floor(Math.random()*1000000)},"278":{image:names[0] || ""},"270":{image:names[1] || ""},"292":{image:names[2] || ""},"313":{value:Boolean(names[1])},"314":{value:Boolean(names[2])}}})
-            }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-            const urls = resultMediaUrls(data);
-            return {urls, kind:mediaKindForUrls(urls, 'image')};
-        }
-        const workflowName = settings.comfyWorkflow || comfyWorkflows[0]?.name || '';
-        if(!workflowName) throw new Error(tr('smart.errNeedWorkflow'));
-        const wf = await fetch(`/api/workflows/${encodeURIComponent(workflowName)}`).then(async r => {
-            if(!r.ok) throw new Error(await r.text());
-            return r.json();
-        });
-        const fields = wf.config?.fields || [];
-        const values = {};
-        fields.filter(f => comfyFieldKind(f) === 'prompt').forEach((field, index) => {
-            values[field.id] = index === 0 ? prompt : (field.default ?? '');
-        });
-        const assignMediaFields = async (mediaFields, mediaRefs) => {
-            for(let i = 0; i < mediaFields.length && i < mediaRefs.length; i++){
-                values[mediaFields[i].id] = await comfyNameForRef(mediaRefs[i]);
-            }
-        };
-        await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'image'), imageRefs);
-        await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'video'), videoRefsOnly(allRefs));
-        await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'audio'), audioRefsOnly(allRefs));
-        fields.filter(f => comfyFieldKind(f) === 'setting').forEach(field => {
-            if(comfyRandomEnabledField(field) && smartComfyRandomActive(field.id)){
-                values[field.id] = smartComfyRandomValue(field);
-            } else {
-                values[field.id] = settings.comfyParams?.[field.id] ?? field.default;
-            }
-        });
-        const result = await fetch(`/api/workflows/${encodeURIComponent(workflowName)}/run`, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({config:wf.config || {fields:[]}, fields:values})
-        }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-        const urls = resultMediaUrls(result);
-        const fallbackKind = result.videos?.length ? 'video' : result.audios?.length ? 'audio' : result.texts?.length ? 'text' : 'image';
-        return {urls, kind:mediaKindForUrls(urls, fallbackKind)};
-    }
     if(isApiLikeEngine(activeSettings.engine) && activeSettings.apiKind === 'video'){
         const taskResult = await runApiVideoGeneration(prompt, refs, activeSettings);
         const pendingResult = await queueAndResumeSmartApiTasks(node, taskResult, {
@@ -12668,75 +12540,7 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
     return {urls, kind:mediaKindForUrls(urls, 'image')};
 }
 async function generateComfyUrlsWithSettings(runSettings, prompt, refs){
-    const allRefs = refs || [];
-    const imageRefs = imageRefsOnly(allRefs);
-    const mode = runSettings.comfyMode || 'text';
-    if(mode === 'text'){
-        const data = await fetch('/api/generate', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({prompt, width:Number(runSettings.width || 1024), height:Number(runSettings.height || 1024), workflow_json:'Z-Image.json', type:'zimage'})
-        }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-        const urls = resultMediaUrls(data);
-        return {urls, kind:mediaKindForUrls(urls, 'image')};
-    }
-    if(mode === 'enhance'){
-        if(!imageRefs.length) throw new Error(tr('smart.errEnhanceNeedRefs'));
-        const inputName = await comfyNameForRef(imageRefs[0]);
-        const data = await fetch('/api/generate', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({workflow_json:'Z-Image-Enhance.json', type:'enhance', params:{"15":{image:inputName},"204":{value:Number(runSettings.enhanceStrength ?? 0.5)}}})
-        }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-        const urls = resultMediaUrls(data);
-        return {urls, kind:mediaKindForUrls(urls, 'image')};
-    }
-    if(mode === 'edit'){
-        if(!imageRefs.length) throw new Error(tr('smart.errEditNeedRefs'));
-        const names = [];
-        for(const ref of imageRefs.slice(0, 3)) names.push(await comfyNameForRef(ref));
-        const data = await fetch('/api/generate', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({prompt, workflow_json:'Flux2-Klein.json', type:'klein', params:{"168":{text:prompt},"158":{noise_seed:Math.floor(Math.random()*1000000)},"278":{image:names[0] || ""},"270":{image:names[1] || ""},"292":{image:names[2] || ""},"313":{value:Boolean(names[1])},"314":{value:Boolean(names[2])}}})
-        }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-        const urls = resultMediaUrls(data);
-        return {urls, kind:mediaKindForUrls(urls, 'image')};
-    }
-    const workflowName = runSettings.comfyWorkflow || comfyWorkflows[0]?.name || '';
-    if(!workflowName) throw new Error(tr('smart.errNeedWorkflow'));
-    const wf = await fetch(`/api/workflows/${encodeURIComponent(workflowName)}`).then(async r => {
-        if(!r.ok) throw new Error(await r.text());
-        return r.json();
-    });
-    const fields = wf.config?.fields || [];
-    const values = {};
-    fields.filter(f => comfyFieldKind(f) === 'prompt').forEach((field, index) => {
-        values[field.id] = index === 0 ? prompt : (field.default ?? '');
-    });
-    const assignMediaFields = async (mediaFields, mediaRefs) => {
-        for(let i = 0; i < mediaFields.length && i < mediaRefs.length; i++){
-            values[mediaFields[i].id] = await comfyNameForRef(mediaRefs[i]);
-        }
-    };
-    await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'image'), imageRefs);
-    await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'video'), videoRefsOnly(allRefs));
-    await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'audio'), audioRefsOnly(allRefs));
-    fields.filter(f => comfyFieldKind(f) === 'setting').forEach(field => {
-        if(comfyRandomEnabledField(field) && smartComfyRandomActiveFor(runSettings, field.id)){
-            values[field.id] = smartComfyRandomValue(field);
-        } else {
-            values[field.id] = runSettings.comfyParams?.[field.id] ?? field.default;
-        }
-    });
-    const result = await fetch(`/api/workflows/${encodeURIComponent(workflowName)}/run`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({config:wf.config || {fields:[]}, fields:values})
-    }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-    const urls = resultMediaUrls(result);
-    const fallbackKind = result.videos?.length ? 'video' : result.audios?.length ? 'audio' : result.texts?.length ? 'text' : 'image';
-    return {urls, kind:mediaKindForUrls(urls, fallbackKind)};
+    throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=smartLoopContext){
     const outputNode = targetNode || sourceNode;
@@ -13227,6 +13031,7 @@ function runSmartCascadeFromLoop(loopId){
     runSmartCascade(tail);
 }
 async function runGeneration(){
+    if(['comfy', 'modelscope'].includes(settings.engine)) { toast("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。"); return; }
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();
     if(!node) return;
@@ -13524,34 +13329,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings){
     }
 }
 async function runModelscopeGeneration(prompt, refs, runSettings=settings){
-    refs = imageRefsOnly(refs);
-    const modelKey = runSettings.msgenModel || 'zimage';
-    const msModel = MS_GEN_MODELS[modelKey] || MS_GEN_MODELS.zimage;
-    if(msModel.supportsImage && !refs.length) throw new Error(tr('smart.errMsNeedRefs'));
-    const size = apiImageSize(runSettings.msRatio || 'square', runSettings.msResolution || '1k', runSettings.msCustomRatio || '', runSettings.msCustomSize || '');
-    const parsed = parseSizeValue(size);
-    const width = Number(parsed?.width) || 1024;
-    const height = Number(parsed?.height) || 1024;
-    const imageUrls = [];
-    if(msModel.supportsImage || msModel.acceptsImage){
-        for(const ref of refs.slice(0, 3)){
-            if(ref.url) imageUrls.push(await urlToBase64(ref.url).catch(() => ref.url));
-        }
-    }
-    const count = Math.max(1, Math.min(8, Number(runSettings.count || 1)));
-    const submit = async () => {
-        let body;
-        if(modelKey === 'zimage') body = {prompt, resolution:`${width}x${height}`};
-        else if(modelKey === 'qwen_edit') body = {prompt, image_urls:imageUrls, resolution:`${width}x${height}`};
-        else body = {prompt, model:modelKey === 'custom' ? (runSettings.msCustomModel || modelscopeImageModels()[0]) : msModel.modelId, image_urls:imageUrls, width, height, size:`${width}x${height}`};
-        const data = await fetch(msModel.endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}).then(async r => {
-            if(!r.ok) throw new Error(await r.text());
-            return r.json();
-        });
-        return data.url || data.images?.[0] || '';
-    };
-    const results = await Promise.all(Array.from({length:count}, submit));
-    return results.filter(Boolean);
+    throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 async function urlToBase64(url){
     const res = await fetch(url);
@@ -13566,135 +13344,19 @@ async function urlToBase64(url){
 }
 function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
 async function runComfyGeneration(node, prompt, refs, pendingNode, meta){
-    const allRefs = refs || [];
-    refs = imageRefsOnly(allRefs);
-    const mode = settings.comfyMode || 'text';
-    if(mode === 'text') return runComfyText(node, prompt, pendingNode, meta);
-    if(mode === 'enhance') return runComfyEnhance(node, refs, pendingNode, meta);
-    if(mode === 'edit') return runComfyEdit(node, prompt, refs, pendingNode, meta);
-    const workflowName = settings.comfyWorkflow || comfyWorkflows[0]?.name || '';
-    if(!workflowName) throw new Error(tr('smart.errNeedWorkflow'));
-    const wf = await fetch(`/api/workflows/${encodeURIComponent(workflowName)}`).then(async r => {
-        if(!r.ok) throw new Error(await r.text());
-        return r.json();
-    });
-    const fields = wf.config?.fields || [];
-    const values = {};
-    fields.filter(f => comfyFieldKind(f) === 'prompt').forEach((field, index) => {
-        values[field.id] = index === 0 ? prompt : (field.default ?? '');
-    });
-    const assignMediaFields = async (mediaFields, mediaRefs) => {
-        for(let i = 0; i < mediaFields.length && i < mediaRefs.length; i++){
-            values[mediaFields[i].id] = await comfyNameForRef(mediaRefs[i]);
-        }
-    };
-    await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'image'), refs);
-    await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'video'), videoRefsOnly(allRefs));
-    await assignMediaFields(fields.filter(f => comfyFieldKind(f) === 'audio'), audioRefsOnly(allRefs));
-    fields.filter(f => comfyFieldKind(f) === 'setting').forEach(field => {
-        if(comfyRandomEnabledField(field) && smartComfyRandomActive(field.id)){
-            values[field.id] = smartComfyRandomValue(field);
-        } else {
-            values[field.id] = settings.comfyParams?.[field.id] ?? field.default;
-        }
-    });
-    const result = await fetch(`/api/workflows/${encodeURIComponent(workflowName)}/run`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({config:wf.config || {fields:[]}, fields:values})
-    }).then(async r => {
-        if(!r.ok) throw new Error(await r.text());
-        return r.json();
-    });
-    const urls = resultMediaUrls(result);
-    if(!urls.length) throw new Error(tr('smart.errComfyNoImages'));
-    const kind = mediaKindForUrls(urls, result.videos?.length ? 'video' : result.audios?.length ? 'audio' : result.texts?.length ? 'text' : 'image');
-    const ext = kind === 'video' ? 'mp4' : kind === 'audio' ? 'mp3' : 'png';
-    const out = urls.map((url, i) => ({url, name:`comfy-${i + 1}.${ext}`, kind})).filter(x => x.url);
-    if(!out.length) throw new Error(tr('smart.errComfyEmpty'));
-    const outputUrls = out.map(o => o.url);
-    if(pendingNode){
-        finalizePendingNode(pendingNode, outputUrls, meta, kind);
-    } else {
-        const created = createNode((node.x || 0) + nodeRect(node).width + 40, node.y || 0, out);
-        attachRunMeta(created, meta);
-        addConnection(node.id, created.id);
-    }
-    clearPromptInput({preserveDraft:true});
-    scheduleSave();
+    throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 async function runComfyText(node, prompt, pendingNode, meta){
-    const data = await fetch('/api/generate', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({prompt, width:Number(settings.width || 1024), height:Number(settings.height || 1024), workflow_json:'Z-Image.json', type:'zimage'})
-    }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-    const out = data.outputs || data.images || [];
-    if(!out.length) throw new Error(tr('smart.errComfyNoImages'));
-    if(pendingNode){
-        finalizePendingNode(pendingNode, out, meta);
-    } else {
-        const created = createNode((node.x || 0) + nodeRect(node).width + 40, node.y || 0, out.map((url, i) => ({url, name:`comfy-${i + 1}.png`})));
-        attachRunMeta(created, meta);
-        addConnection(node.id, created.id);
-    }
-    clearPromptInput({preserveDraft:true});
-    scheduleSave();
+    throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 async function runComfyEnhance(node, refs, pendingNode, meta){
-    if(!refs.length) throw new Error(tr('smart.errEnhanceNeedRefs'));
-    const inputName = await comfyNameForRef(refs[0]);
-    const data = await fetch('/api/generate', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({workflow_json:'Z-Image-Enhance.json', type:'enhance', params:{"15":{image:inputName},"204":{value:Number(settings.enhanceStrength ?? 0.5)}}})
-    }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-    const out = data.outputs || data.images || [];
-    if(!out.length) throw new Error(tr('smart.errComfyNoImages'));
-    if(pendingNode){
-        finalizePendingNode(pendingNode, out, meta);
-    } else {
-        const created = createNode((node.x || 0) + nodeRect(node).width + 40, node.y || 0, out.map((url, i) => ({url, name:`enhance-${i + 1}.png`})));
-        attachRunMeta(created, meta);
-        addConnection(node.id, created.id);
-    }
-    scheduleSave();
+    throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 async function runComfyEdit(node, prompt, refs, pendingNode, meta){
-    if(!refs.length) throw new Error(tr('smart.errEditNeedRefs'));
-    const names = [];
-    for(const ref of refs.slice(0, 3)) names.push(await comfyNameForRef(ref));
-    const data = await fetch('/api/generate', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({prompt, workflow_json:'Flux2-Klein.json', type:'klein', params:{"168":{text:prompt},"158":{noise_seed:Math.floor(Math.random()*1000000)},"278":{image:names[0] || ""},"270":{image:names[1] || ""},"292":{image:names[2] || ""},"313":{value:Boolean(names[1])},"314":{value:Boolean(names[2])}}})
-    }).then(async r => { if(!r.ok) throw new Error(await r.text()); return r.json(); });
-    const out = data.outputs || data.images || [];
-    if(!out.length) throw new Error(tr('smart.errComfyNoImages'));
-    if(pendingNode){
-        finalizePendingNode(pendingNode, out, meta);
-    } else {
-        const created = createNode((node.x || 0) + nodeRect(node).width + 40, node.y || 0, out.map((url, i) => ({url, name:`edit-${i + 1}.png`})));
-        attachRunMeta(created, meta);
-        addConnection(node.id, created.id);
-    }
-    clearPromptInput({preserveDraft:true});
-    scheduleSave();
+    throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 async function comfyNameForRef(ref){
-    if(ref.comfy_name) return ref.comfy_name;
-    const response = await fetch(ref.url);
-    if(!response.ok) return ref.name || ref.url;
-    const blob = await response.blob();
-    const form = new FormData();
-    form.append('files', blob, ref.name || 'smart-ref.png');
-    const data = await window.CanvasApi.uploadGeneric(form);
-    const name = data.files?.[0]?.comfy_name || ref.name || ref.url;
-    const node = selectedNode();
-    const image = node?.images?.find(img => img.url === ref.url);
-    if(image) image.comfy_name = name;
-    ref.comfy_name = name;
-    return name;
+    throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 function smartPendingTasks(node){
     if(!node || !Array.isArray(node.pendingTasks)) return [];

@@ -38,17 +38,11 @@
         return json('/api/config');
     }
 
-    function getWorkflows(fallback={workflows:[]}){
-        return jsonOr('/api/workflows', fallback);
-    }
 
-    function getWorkflow(name, fallback=null){
-        return jsonOr(`/api/workflows/${encodeURIComponent(name)}`, fallback);
-    }
 
-    function runWorkflow(name, payload, options={}){
-        return json(`/api/workflows/${encodeURIComponent(name)}/run`, jsonBodyInit('POST', payload), {checkOk:true, ...options});
-    }
+
+
+
 
     function getAssetLibrary(){
         return json('/api/asset-library');
@@ -434,17 +428,11 @@
         return json('/api/cloud-video/upload', bodyInit(payload), {checkOk:true, ...options});
     }
 
-    function uploadGeneric(form, options={}){
-        return json('/api/upload', {method:'POST', body:form}, {checkOk:true, ...options});
-    }
 
-    function generate(payload, options={}){
-        return json('/api/generate', jsonBodyInit('POST', payload), {checkOk:true, ...options});
-    }
 
-    function generateRequest(payload, options={}){
-        return request('/api/generate', jsonBodyInit('POST', payload), options);
-    }
+
+
+
 
     function onlineImage(payload, options={}){
         return json('/api/online-image', jsonBodyInit('POST', payload), {checkOk:true, ...options});
@@ -495,9 +483,6 @@
         json,
         jsonOr,
         getConfig,
-        getWorkflows,
-        getWorkflow,
-        runWorkflow,
         getAssetLibrary,
         getLocalAssets,
         getAssetLibraries,
@@ -554,9 +539,6 @@
         importCanvasWorkflow,
         trimSmartCanvasVideo,
         uploadCloudVideo,
-        uploadGeneric,
-        generate,
-        generateRequest,
         onlineImage,
         canvasLLM,
         canvasLLMRequest,

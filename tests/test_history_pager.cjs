@@ -30,7 +30,7 @@ test('history pager fetches only requested pages and retries the same cursor', a
 });
 
 test('all history pages load shared pager and inline scripts remain parseable', () => {
-    for (const name of ['online', 'zimage', 'klein', 'angle', 'enhance', 'gpt-chat']) {
+    for (const name of ['online', 'gpt-chat']) {
         const html = fs.readFileSync(path.join(__dirname, '../static/' + name + '.html'), 'utf8');
         if (name !== 'gpt-chat') assert.ok(html.includes('/static/js/history-pager.js'));
         for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {

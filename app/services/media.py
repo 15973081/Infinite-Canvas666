@@ -36,7 +36,6 @@ from app.config import (
     STATIC_DIR, MEDIA_PREVIEW_DIR,
     AI_BASE_URL, AI_API_KEY,
     PUBLIC_BASE_URL, PUBLIC_MEDIA_BASE_URL,
-    MODELSCOPE_API_KEY, MODELSCOPE_CHAT_BASE_URL,
     CHAT_MODEL, IMAGE_MODEL,
     AI_REQUEST_TIMEOUT, IMAGE_POLL_INTERVAL, IMAGE_TASK_TIMEOUT,
     APIMART_IMAGE_TASK_TIMEOUT, APIMART_IMAGE_POLL_INTERVAL,
@@ -48,7 +47,6 @@ from app.config import (
     VOLCENGINE_DEFAULT_BASE_URL, VOLCENGINE_DEFAULT_PROJECT_NAME,
     VOLCENGINE_DEFAULT_REGION,
     CHAT_MODELS, IMAGE_MODELS, VIDEO_MODELS,
-    MODELSCOPE_CHAT_MODELS,
 )
 from app.state import HISTORY_LOCK, GLOBAL_LOOP, manager
 from app.utils import mask_secret, bearer_auth_value, now_ms, selected_model, sanitize_export_filename
@@ -90,19 +88,10 @@ def get_api_provider_exact(provider_id):
     return _f(provider_id)
 
 
-def modelscope_api_key(explicit_key=""):
-    from app.providers.registry import modelscope_api_key as _f
-    return _f(explicit_key)
 
 
-def modelscope_api_root(provider=None):
-    from app.providers.registry import modelscope_api_root as _f
-    return _f(provider)
 
 
-def modelscope_image_api_root():
-    from app.providers.registry import modelscope_image_api_root as _f
-    return _f()
 
 
 def load_asset_library():
@@ -111,14 +100,6 @@ def load_asset_library():
 
 
 def resolve_chat_provider(provider: str, model: str, ms_model: str):
-    if provider == "modelscope":
-        clean_token = modelscope_api_key()
-        if not clean_token:
-            raise HTTPException(status_code=400, detail="未配置 ModelScope API Key，请在 API 设置中填写。")
-        base = modelscope_api_root()
-        hdrs = {"Authorization": bearer_auth_value(clean_token), "Content-Type": "application/json"}
-        mdl = selected_model(ms_model or model, MODELSCOPE_CHAT_MODELS[0] if MODELSCOPE_CHAT_MODELS else "MiniMax/MiniMax-M2.7")
-        return base, hdrs, mdl
     api_provider = get_api_provider(provider or "")
     base_root = (api_provider.get("base_url") or AI_BASE_URL).rstrip("/")
     if not base_root:
@@ -213,11 +194,6 @@ def preferred_chat_model(provider):
             return text_like_models[0]
     return models[0]
 
-def modelscope_size(value, fallback="1024x1024"):
-    size = str(value or fallback).strip().lower().replace("*", "x")
-    if re.fullmatch(r"\d{2,5}x\d{2,5}", size):
-        return size
-    raise HTTPException(status_code=400, detail=f"ModelScope size 格式不正确：{value or fallback}，应为 WxH，例如 1024x1024")
 
 def unwrap_apimart_response(raw):
     """APIMart 将标准 OpenAI 响应包在 {"code":200,"data":{...}} 里；如果检测到就解包。"""
@@ -1006,12 +982,6 @@ def compress_data_url_image(value, max_size=1536, jpeg_quality=88):
         print(f"data url image compress failed, fallback to raw: {e}")
         return value
 
-def modelscope_image_url(value, max_size=1536):
-    if not value:
-        return value
-    if isinstance(value, str) and (value.startswith("/output/") or value.startswith("/assets/")):
-        return reference_to_data_url({"url": value}, max_size=max_size)
-    return value
 
 def valid_video_image_input(value: str) -> bool:
     if not isinstance(value, str):
@@ -2098,66 +2068,6 @@ def friendly_chat_error_detail(text, model="", provider=None):
 
 
 
-async def generate_modelscope_provider_image(prompt, size, model, reference_images=None, provider=None):
-    clean_token = modelscope_api_key()
-    if not clean_token:
-        raise HTTPException(status_code=400, detail="未配置 ModelScope API Key，请在 API 设置中填写。")
-    width, height = parse_size_pair(size)
-    refs = []
-    for ref in (reference_images or [])[:4]:
-        if not ref.get("url"):
-            continue
-        # 本地参考图转为 data URL；前端已生成的 data URL 保持原样，贴近旧版稳定链路。
-        refs.append(modelscope_image_url(ref.get("url", ""), max_size=1536))
-    headers = {
-        "Authorization": f"Bearer {clean_token}",
-        "Content-Type": "application/json",
-        "X-ModelScope-Async-Mode": "true",
-    }
-    payload = {
-        "model": selected_model(model, "Tongyi-MAI/Z-Image-Turbo"),
-        "prompt": prompt.strip(),
-    }
-    if width and height:
-        payload["width"] = width
-        payload["height"] = height
-        payload["size"] = f"{width}x{height}"
-    if refs:
-        payload["image_url"] = refs
-
-    api_root = modelscope_image_api_root()
-    async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
-        submit_res = await paid_post(client, f"{api_root}/images/generations", headers=headers, json=payload)
-        submit_res.raise_for_status()
-        raw = submit_res.json()
-        task_id = raw.get("task_id")
-        if not task_id:
-            try:
-                return extract_image(raw), raw
-            except HTTPException:
-                raise HTTPException(status_code=502, detail=f"ModelScope 未返回 task_id：{raw}")
-
-        deadline = time.monotonic() + AI_REQUEST_TIMEOUT
-        last_payload = raw
-        while time.monotonic() < deadline:
-            await asyncio.sleep(IMAGE_POLL_INTERVAL)
-            result = await client.get(
-                f"{api_root}/tasks/{task_id}",
-                headers={**headers, "X-ModelScope-Task-Type": "image_generation"},
-            )
-            result.raise_for_status()
-            data = result.json()
-            last_payload = data
-            status = str(data.get("task_status") or "").upper()
-            if status == "SUCCEED":
-                images = data.get("output_images") or []
-                if not images:
-                    raise HTTPException(status_code=502, detail=f"ModelScope 成功但没有返回图片：{data}")
-                return {"type": "url", "value": images[0]}, data
-            if status in {"FAILED", "FAIL", "ERROR", "CANCELED", "CANCELLED", "TIMEOUT", "REVOKED"}:
-                detail = data.get("error_info") or data.get("message") or data.get("detail") or str(data)
-                raise HTTPException(status_code=502, detail=f"ModelScope 任务失败：{detail}")
-        raise HTTPException(status_code=504, detail=f"ModelScope 生图任务超时：{last_payload}")
 
 def gemini_model_name(model):
     value = selected_model(model, "gemini-3-pro-image-preview").strip()
@@ -2350,8 +2260,6 @@ def rh_random_field_value(field):
 
 async def generate_ai_image(prompt, size, quality, model, reference_images=None, provider_id="comfly"):
     provider = get_api_provider(provider_id)
-    if provider["id"] == "modelscope":
-        return await generate_modelscope_provider_image(prompt, size, model, reference_images, provider)
     if effective_protocol(provider, model) == "gemini":
         return await generate_gemini_provider_image(prompt, size, model, reference_images, provider)
     if is_volcengine_provider(provider):

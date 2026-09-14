@@ -20,7 +20,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--two-members', action='store_true', help='Use separate localhost/127.0.0.1 cookies for two synthetic browser members')
     parser.add_argument('--management', action='store_true', help='Start independent management on port 8770 against this same disposable schema')
+    parser.add_argument('--port', type=int, default=8768, help='Primary isolated workbench port')
+    parser.add_argument('--browser-host', choices=['127.0.0.1', 'localhost'], default='127.0.0.1')
     args = parser.parse_args()
+    if not 1024 <= args.port <= 65535 or (args.port in {8769, 8770} and (args.two_members or args.management)):
+        parser.error('Use an unoccupied, distinct workbench port')
+    public_url = f'http://{args.browser_host}:{args.port}'
     from app.storage import database
     from app.storage.settings import load_storage_env
     from tools.cloud_test import test_database_url
@@ -41,7 +46,7 @@ def main():
     management = None
     management_log = None
     os.environ.update(DATABASE_URL=target, DATABASE_SCHEMA=schema, DATABASE_BACKEND='postgres',
-                      PUBLIC_BASE_URL='http://127.0.0.1:8768', AUTH_MODE='members', CLOUD_EMBEDDED_WORKER='false',
+                      PUBLIC_BASE_URL=public_url, AUTH_MODE='members', CLOUD_EMBEDDED_WORKER='false',
                       MEDIA_BACKEND='filesystem', OBJECT_STORE_ROOT=str(acceptance / 'objects'),
                       MEDIA_TEMP_DIR=str(acceptance / 'tmp'), APP_RUNTIME_DIR=str(acceptance / 'runtime'))
     database.close()
@@ -74,7 +79,7 @@ def main():
                 cwd=ROOT, env={**os.environ, 'PUBLIC_BASE_URL': 'http://localhost:8769'},
                 stdout=second_log, stderr=subprocess.STDOUT, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         from main import app
-        server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=8768, log_level='warning'))
+        server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=args.port, log_level='warning'))
         finished = threading.Event()
 
         def stop_watch():
@@ -85,7 +90,7 @@ def main():
 
         thread = threading.Thread(target=stop_watch, daemon=True)
         thread.start()
-        print(json.dumps({'url': 'http://127.0.0.1:8768', 'second_url': 'http://localhost:8769' if args.two_members else None,
+        print(json.dumps({'url': public_url, 'second_url': 'http://localhost:8769' if args.two_members else None,
                           'management_url': 'http://127.0.0.1:8770' if args.management else None,
                           'stop_file': str(stop), 'schema': schema, 'activation_token': None if args.two_members else invited['activation_token'],
                           'spaces': [s['id'] for s in spaces]}, ensure_ascii=False), flush=True)
