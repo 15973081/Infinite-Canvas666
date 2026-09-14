@@ -55,29 +55,26 @@ def generate_video_preview_image(path: str, width: int) -> Image.Image:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("未找到 ffmpeg，无法生成视频预览图")
-    fd, frame_path = tempfile.mkstemp(prefix="media_preview_frame_", suffix=".jpg")
-    os.close(fd)
-    try:
+    # Prefer a frame past a possible opening fade, but short clips may end before
+    # that timestamp. PNG avoids JPEG range negotiation and a global temp file.
+    for seek in ("0.5", "0"):
         cmd = [
-            ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
-            "-ss", "0.5",
-            "-i", path,
-            "-frames:v", "1",
+            ffmpeg, "-hide_banner", "-loglevel", "error",
+            "-ss", seek, "-i", path, "-frames:v", "1",
             "-vf", f"scale='min({width},iw)':-2",
-            frame_path,
+            "-c:v", "png", "-pix_fmt", "rgb24", "-f", "image2pipe", "-",
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        if proc.returncode != 0 or not os.path.exists(frame_path) or os.path.getsize(frame_path) <= 0:
-            raise RuntimeError((proc.stderr or "ffmpeg 未能抽取视频首帧").strip()[:300])
-        with Image.open(frame_path) as frame:
+        proc = subprocess.run(cmd, capture_output=True, timeout=60)
+        if proc.returncode != 0:
+            detail = proc.stderr.decode("utf-8", errors="replace").strip()
+            raise RuntimeError((detail or "ffmpeg 未能抽取视频首帧")[:300])
+        if not proc.stdout:
+            continue
+        with Image.open(BytesIO(proc.stdout)) as frame:
             img = ImageOps.exif_transpose(frame).copy()
             img.thumbnail((width, width), Image.LANCZOS)
             return img.convert("RGB")
-    finally:
-        try:
-            os.remove(frame_path)
-        except OSError:
-            pass
+    raise RuntimeError("视频中没有可供预览的画面")
 
 
 def generate_media_preview_file(path: str, width: int, webp_path: str, png_path: str) -> Tuple[str, str]:

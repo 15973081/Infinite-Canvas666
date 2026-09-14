@@ -246,3 +246,79 @@ def test_activation_profile_and_internal_checkpoint_are_not_identity_or_media_sh
     assert world['editor'].get(media.stable_url(asset), headers=headers(a)).status_code == 404
     assert world['editor'].get(signed).status_code == 404
     assert world['editor'].get('/api/media-preview', params={'url': media.stable_url(asset)}, headers=headers(a)).status_code == 404
+
+
+@pytest.mark.parametrize('kind', ['image', 'webp', 'short-video'])
+def test_member_preview_long_paths_concurrency_and_original_integrity(world, tmp_path, monkeypatch, kind):
+    import hashlib
+    import io
+    import shutil
+    import subprocess
+    from concurrent.futures import ThreadPoolExecutor
+    from pathlib import Path
+    from PIL import Image
+    from app.storage import database, media
+    from app.storage.workspace import workspace_scope
+
+    # Match the long, space-qualified keys used by the actual local preview.
+    object_root = tmp_path / ('member-preview-objects-' + 'r' * 80)
+    monkeypatch.setenv('OBJECT_STORE_ROOT', str(object_root))
+    if kind in {'image', 'webp'}:
+        buffer = io.BytesIO()
+        Image.new('RGB', (480, 270), 'blue').save(buffer, 'WEBP' if kind == 'webp' else 'PNG')
+        raw, name, mime = buffer.getvalue(), '原始图片.' + ('webp' if kind == 'webp' else 'png'), 'image/webp' if kind == 'webp' else 'image/png'
+    else:
+        ffmpeg = shutil.which('ffmpeg')
+        assert ffmpeg, 'FFmpeg is required for cloud preview acceptance'
+        source = tmp_path / 'short.mp4'
+        subprocess.run([ffmpeg, '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i',
+                        'color=c=blue:s=480x270:d=0.1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(source)],
+                       check=True, capture_output=True, timeout=20)
+        raw, name, mime = source.read_bytes(), '短视频.mp4', 'video/mp4'
+    editor, viewer, outsider = (world[k] for k in ('editor', 'viewer', 'outsider'))
+    space = world['a']['id']
+    try:
+        uploaded = editor.post('/api/ai/upload', files={'files': (name, raw, mime)}, headers=headers(world['a']))
+        assert uploaded.status_code == 200, uploaded.text
+        item = uploaded.json()['files'][0]
+        with workspace_scope(space):
+            original = media.get_asset(item['media_asset_id'])
+            assert len(str(object_root / original['object_key'] / original['object_version_id'])) > 260
+        params = {'url': item['url'], 'w': 160, 'workspace': space, 'member': world['people'][1]['id']}
+        def preview(_):
+            response = viewer.get('/api/media-preview', params=params)
+            assert response.status_code == 200, response.text[:300]
+            assert response.headers['content-type'].startswith('image/')
+            with Image.open(io.BytesIO(response.content)) as thumbnail:
+                assert thumbnail.size == (160, 90)
+                red, green, blue = thumbnail.convert('RGB').getpixel((40, 40))
+                assert blue > 220 and red < 30 and green < 30
+            return response.content
+        with ThreadPoolExecutor(4) as pool:
+            previews = list(pool.map(preview, range(8)))
+        assert all(value == previews[0] for value in previews)
+        with database.connection() as conn:
+            rows = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND parent_asset_id=%s AND role='preview'", (space, original['id'])).fetchall()
+        assert len(rows) == 1 and rows[0]['status'] == 'ready'
+        assert rows[0]['object_version_id'] and rows[0]['sha256'] == hashlib.sha256(previews[0]).hexdigest()
+        with workspace_scope(space):
+            assert media.get_asset(original['id']) == original
+            assert media.store().path(original['object_key'], original['object_version_id']).read_bytes() == raw
+        redirect = viewer.get('/api/media-preview', params=params, follow_redirects=False)
+        assert redirect.status_code == 307
+        assert viewer.get(redirect.headers['location']).content == previews[0]
+        assert editor.get(redirect.headers['location']).status_code in {401, 409}
+        assert outsider.get('/api/media-preview', params={**params, 'member': world['people'][2]['id']}).status_code == 403
+        assert viewer.get(item['url'], params={'workspace': space, 'member': world['people'][1]['id']}).content == raw
+        # Old previews already stored with the missing Windows MIME mapping also render.
+        with database.connection() as conn:
+            conn.execute("UPDATE assets SET content_type='application/octet-stream' WHERE id=%s", (rows[0]['id'],))
+        legacy = viewer.get(redirect.headers['location'])
+        assert legacy.status_code == 200 and legacy.content == previews[0]
+        assert legacy.headers['content-type'] == 'image/webp'
+        assert not list(media.temp_root().iterdir())
+    finally:
+        # This test alone changes the local store root; don't leave DB rows that
+        # later backup tests would try to read from the suite's normal root.
+        with database.connection() as conn:
+            conn.execute('DELETE FROM assets WHERE workspace_id=%s', (space,))

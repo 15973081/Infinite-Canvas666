@@ -2,7 +2,6 @@
 import hashlib
 import hmac
 import json
-import mimetypes
 import os
 from pathlib import Path
 import re
@@ -80,7 +79,7 @@ def create(name, size, idempotency_key):
             asset_id = old["asset_id"]
         else:
             asset_id = "ast_" + uuid.uuid4().hex
-            mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+            mime = media.guess_content_type(name)
             kind = mime.split("/")[0]
             kind = kind if kind in {"image", "audio", "video"} else "workflow" if name.endswith(".zip") else "file"
             bucket = os.environ["TOS_BUCKET"] if backend == "tos" else "local-simulation"

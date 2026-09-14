@@ -438,7 +438,7 @@ def test_real_pg_dump_restore_keeps_object_versions_readable(tmp_path):
                 database.check()
                 assert canvases.get(value["id"])["nodes"][0]["id"] == "restored-node"
                 assert media.get_asset(aid)["object_version_id"] == asset["object_version_id"]
-                assert media.store().root == restored_objects.resolve()
+                assert media.store().root.samefile(restored_objects)
                 with media.operation_scope():
                     assert Path(media.materialize(aid)).read_bytes() == path.read_bytes()
                 auth = (os.environ["CLOUD_ACCESS_USER"], os.environ["CLOUD_ACCESS_PASSWORD"])

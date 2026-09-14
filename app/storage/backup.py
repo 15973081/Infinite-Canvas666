@@ -145,11 +145,10 @@ def restore_objects(path, destination):
     objects_dir = path.with_suffix(".objects")
     if destination == objects_dir or objects_dir in destination.parents:
         raise ValueError("Object restore destination overlaps backup")
-    with tempfile.TemporaryDirectory(prefix=".restore-", dir=destination.parent) as temp:
+    with tempfile.TemporaryDirectory(prefix=".restore-", dir=media.filesystem_path(destination.parent)) as temp:
         # Reuse exactly the live store's path validation without changing env or
         # instantiating a store at the production path.
-        restored = media.FilesystemStore.__new__(media.FilesystemStore)
-        restored.root = Path(temp).resolve()
+        restored = media.FilesystemStore(temp)
         count, total = 0, 0
         for asset in manifest["objects"]:
             if asset["status"] != "ready":

@@ -80,9 +80,10 @@ def test_upload_declaration_and_part_bounds(client):
     assert not list(media.temp_root().iterdir())
 
 
-def test_staged_content_is_validated_before_publication(client):
+@pytest.mark.parametrize("extension", ["png", "webp"])
+def test_staged_content_is_validated_before_publication(client, extension):
     from app.storage import media
-    base, upload = start(client, b"not an image", name="fake.png")
+    base, upload = start(client, b"not an image", name="fake." + extension)
     send_part(client, base, b"not an image")
     assert client.post(base + "/complete").status_code == 422
     assert media.get_asset(upload["media_asset_id"], ready=False)["status"] == "verifying"
@@ -245,3 +246,24 @@ def test_tos_lost_complete_response_recovers_staging_without_resubmission(client
             assert ready["sha256"] == hashlib.sha256(raw).hexdigest()
             assert store.client.complete_multipart_upload.call_count == 1
             assert store.download.call_args.args[0]["object_version_id"] == "staging-v1"
+
+
+def test_staged_webp_keeps_image_type_and_fixed_version(client):
+    import io
+    from PIL import Image
+    from app.storage import media
+    buffer = io.BytesIO()
+    Image.new('RGB', (16, 12), 'blue').save(buffer, 'WEBP')
+    raw = buffer.getvalue()
+    base, upload = start(client, raw, name='image.WEBP')
+    pending = media.get_asset(upload['media_asset_id'], ready=False)
+    assert pending['kind'] == 'image' and pending['content_type'] == 'image/webp'
+    send_part(client, base, raw)
+    ready = client.post(base + '/complete')
+    assert ready.status_code == 200, ready.text
+    asset = media.get_asset(upload['media_asset_id'])
+    response = client.get(ready.json()['url'])
+    assert response.status_code == 200 and response.content == raw
+    assert response.headers['content-type'] == 'image/webp'
+    assert client.post(base + '/complete').json() == ready.json()
+    assert media.get_asset(upload['media_asset_id'])['object_version_id'] == asset['object_version_id']

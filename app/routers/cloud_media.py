@@ -170,6 +170,9 @@ def _signed_content(asset_id, expires, signature, member=""):
         raise HTTPException(403, "素材链接已过期或无效")
     path = media.materialize(asset_id)
     mime = asset["content_type"]
+    if mime == "application/octet-stream" and Path(asset["display_name"]).suffix.lower() == ".webp":
+        # Keep existing object versions readable without rewriting their bytes.
+        mime = media.guess_content_type(asset["display_name"])
     inline = mime in {"image/png", "image/jpeg", "image/webp", "image/gif"} or mime.startswith(("video/", "audio/"))
     return FileResponse(path, media_type=mime, filename=None if inline else asset["display_name"],
                         headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"})

@@ -149,15 +149,29 @@ def stable_url(asset):
     return "/assets/cloud/" + asset["id"] + "/" + quote(asset["display_name"] or "media", safe="")
 
 
+def filesystem_path(value):
+    path = Path(value).resolve()
+    if os.name == "nt":
+        # Object keys add several levels to the configured root. The extended
+        # namespace supports those paths without rewriting keys or versions.
+        value = str(path)
+        prefix = "\\\\?\\"
+        if not value.startswith(prefix):
+            path = Path(prefix + ("UNC\\" + value[2:] if value.startswith("\\\\") else value))
+    return path
+
+
 class FilesystemStore:
-    def __init__(self):
-        self.root = Path(os.environ["OBJECT_STORE_ROOT"]).resolve()
+    def __init__(self, root=None):
+        self.root = filesystem_path(root if root is not None else os.environ["OBJECT_STORE_ROOT"])
         self.root.mkdir(parents=True, exist_ok=True)
 
     def path(self, key, version):
         # Object keys and version identifiers only originate from this service.
         if not re.fullmatch(r"[a-zA-Z0-9_/.-]+", key) or not re.fullmatch(r"[a-f0-9]{32}", version):
             raise ValueError("Invalid object key/version")
+        if any(part in {"", ".", ".."} for part in key.split("/")):
+            raise ValueError("Object escaped private root")
         path = (self.root / key / version).resolve()
         if self.root not in path.parents:
             raise ValueError("Object escaped private root")
@@ -265,6 +279,13 @@ def cleanup_orphaned_operations(min_age_seconds=3600):
     return removed
 
 
+def guess_content_type(name):
+    # Python 3.10 on Windows may omit WebP from its OS-dependent MIME table.
+    if Path(name).suffix.lower() == ".webp":
+        return "image/webp"
+    return mimetypes.guess_type(name)[0] or "application/octet-stream"
+
+
 def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asset_id=None, role="original"):
     path = Path(path)
     size, digest = file_digest(path)
@@ -277,7 +298,7 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
     if not ASSET_ID.fullmatch(media_id):
         raise ValueError("Invalid media id")
     name = Path(display_name or path.name).name[:240]
-    mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+    mime = guess_content_type(name)
     kind = mime.split("/")[0] if mime.split("/")[0] in {"image", "video", "audio"} else "workflow" if name.lower().endswith(".zip") else "file"
     # Every attempt owns a separate key. Failed attempts cannot overwrite ready data.
     workspace = current_workspace()
