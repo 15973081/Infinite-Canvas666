@@ -2054,11 +2054,15 @@ function refreshGeometryAfterLayout(){
 }
 function scheduleSave(){
     if(!canvas || applyingRemoteCanvas) return;
+    if(window.CanvasSession?.enabled && window.MemberCanvasEdit?.active && window.MemberCanvasEdit.active.lease.state !== 'starting'){
+        localCanvasDirty=true; window.MemberCanvasEdit.markDirty();
+    }
     if(isCanvasLockedByOther()){
-        setStatus('画布正被其他人编辑中，无法保存');
+        setStatus('当前为查看模式，更改尚未保存');
         return;
     }
     localCanvasDirty = true;
+    window.MemberCanvasEdit?.markDirty();
     setStatus('Saving...');
     clearTimeout(saveTimer);
     if(savingCanvasNow){
@@ -2138,6 +2142,7 @@ function resetCanvasSaveSnapshot(){
 }
 async function saveCanvas(){
     if(!canvas || applyingRemoteCanvas) return;
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canSave) return;
     if(savingCanvasNow){
         saveCanvasAgain = true;
         return;
@@ -2716,6 +2721,9 @@ async function setCanvasTitle(id, title){
     }
 }
 async function openCanvas(id){
+    if(window.MemberCanvasEdit?.active && window.MemberCanvasEdit.active.id !== id){
+        if(!await window.MemberCanvasEdit.leave()) return;
+    }
     const openSeq = ++openCanvasRequestSeq;
     setStatus('Opening...');
     try {
@@ -2742,7 +2750,7 @@ async function openCanvas(id){
         resetCanvasSaveSnapshot();
         resetTransientRunState(nodes);
         sanitizeConnections();
-        pruneMissingComfyWorkflows();
+        if(!window.CanvasSession?.enabled) pruneMissingComfyWorkflows();
         await refreshMissingCanvasAssets();
         selected.clear();
         setCanvasMode(true);
@@ -2751,19 +2759,26 @@ async function openCanvas(id){
         resumeCanvasImageTasks();
         startCanvasRemotePolling();
         setStatus('Ready');
-        // Acquire canvas lock
-        checkCanvasLock().then(() => {
+        if(window.CanvasSession?.enabled){
+            await window.MemberCanvasEdit.mount({id:canvas.id, dirty:() => localCanvasDirty || savingCanvasNow || saveCanvasAgain,
+                snapshot:() => ({...canvas, ...canvasSavePayload()}), flush:flushClassicCanvasBeforeFrontendReload,
+                reload:async () => { const loaded=await openCanvas(id); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
+                changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } }
+            });
+        } else checkCanvasLock().then(() => {
             if(!canvasLockedByOther && !canvasLockHolder){
                 acquireCanvasLock();
             }
             startCanvasLockPolling();
         });
+        return canvas;
     } catch(e) {
         setStatus(tr('canvas.openFailed'));
         console.error(e);
     }
 }
 function applyRemoteCanvasData(remote){
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canRefresh) return false;
     if(!remote || !canvas || remote.id !== canvas.id) return;
     if(localCanvasDirty || saveTimer || savingCanvasNow || saveCanvasAgain){
         clearTimeout(remoteSyncTimer);
@@ -2849,6 +2864,7 @@ async function refreshMissingCanvasAssets(){
     }
 }
 async function syncRemoteCanvasNow(){
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canRefresh) return;
     if(!canvas) return;
     try {
         const data = await window.CanvasApi.getCanvas(canvas.id, {errorFallback:tr('canvas.openFailed')});
@@ -2891,6 +2907,7 @@ function stopCanvasRemotePolling(){
     }
 }
 function handleCanvasUpdatedMessage(data){
+    if(window.CanvasSession?.enabled) return;
     if(!canvas || !data || data.type !== 'canvas_updated') return;
     if(data.client_id && data.client_id === CLIENT_ID) return;
     if(data.canvas_id !== canvas.id) return;
@@ -2906,6 +2923,7 @@ function handleCanvasUpdatedMessage(data){
     setStatus('Syncing...');
 }
 async function returnToCanvasManager(){
+    if(window.MemberCanvasEdit && !await window.MemberCanvasEdit.leave()) return;
     openCanvasRequestSeq++;
     clearTimeout(saveTimer);
     clearTimeout(remoteSyncTimer);
@@ -2930,10 +2948,12 @@ async function returnToCanvasManager(){
 // ── Canvas Lock (collaborative editing) ──
 
 function isCanvasLockedByOther(){
+    if(window.CanvasSession?.enabled) return !window.MemberCanvasEdit?.canEdit;
     return canvasLockedByOther;
 }
 
 function getCanvasUserName(){
+    if(window.CanvasSession?.enabled) return window.CanvasSession.context?.member.display_name || '';
     try {
         return (localStorage.getItem(CANVAS_USER_NAME_KEY) || '').trim();
     } catch(e){
@@ -2988,10 +3008,12 @@ function updateCanvasIdentityButton(){
     if(!canvasIdentityBtn || !canvasIdentityLabel) return;
     const name = canvasUserDisplayName();
     canvasIdentityLabel.textContent = name;
-    canvasIdentityBtn.title = `我的名称：${name}`;
+    canvasIdentityBtn.title = window.CanvasSession?.enabled ? `成员昵称：${name}` : `我的名称：${name}`;
+    if(window.CanvasSession?.enabled) canvasIdentityBtn.setAttribute('aria-label', '成员昵称');
 }
 
 function editCanvasUserName(){
+    if(window.CanvasSession?.enabled) { setStatus('请在工作台右下角“成员与空间”中修改昵称'); return; }
     const current = getCanvasUserName();
     const next = window.prompt('设置我的名称，用于别人看到画布锁是谁占用', current || '');
     if(next === null) return;
@@ -3044,6 +3066,7 @@ function clearLocalCanvasLock(){
 }
 
 async function checkCanvasLock(){
+    if(window.CanvasSession?.enabled) return window.MemberCanvasEdit?.active?.lease.refresh();
     if(!canvas) return;
     const canvasId = canvas.id;
     try {
@@ -3072,6 +3095,7 @@ async function checkCanvasLock(){
 }
 
 async function acquireCanvasLock(){
+    if(window.CanvasSession?.enabled) return false;
     if(!canvas) return false;
     const canvasId = canvas.id;
     try {
@@ -3122,6 +3146,7 @@ async function tryAcquireCanvasLock(){
 }
 
 async function releaseCanvasLock(){
+    if(window.CanvasSession?.enabled) return;
     if(!canvas) {
         clearLocalCanvasLock();
         return;
@@ -3139,6 +3164,7 @@ async function releaseCanvasLock(){
 }
 
 function releaseCanvasLockOnExit(){
+    if(window.CanvasSession?.enabled) return;
     if(!canvas || !(canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID)) return;
     const releaseUrl = `/api/canvases/${canvas.id}/lock/release`;
     const payload = JSON.stringify({client_id: CLIENT_ID, username: getCanvasUserName()});
@@ -3157,6 +3183,7 @@ function releaseCanvasLockOnExit(){
 }
 
 function startCanvasLockPolling(){
+    if(window.CanvasSession?.enabled) return;
     stopCanvasLockPolling();
     if(!canvas) return;
     canvasLockPollTimer = setInterval(async () => {
@@ -3173,6 +3200,7 @@ function stopCanvasLockPolling(){
 }
 
 function handleCanvasLockedMessage(data){
+    if(window.CanvasSession?.enabled) return;
     if(!canvas || !data || data.canvas_id !== canvas.id) return;
     if(data.holder?.client_id === CLIENT_ID) return; // it's us
     canvasLockHolder = data.holder || null;
@@ -3183,6 +3211,7 @@ function handleCanvasLockedMessage(data){
 }
 
 function handleCanvasUnlockedMessage(data){
+    if(window.CanvasSession?.enabled) return;
     if(!canvas || !data || data.canvas_id !== canvas.id) return;
     if(data.released_by === CLIENT_ID) return; // we released it
     clearLocalCanvasLock();

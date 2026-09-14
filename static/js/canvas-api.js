@@ -1,6 +1,9 @@
 (function(){
+    function send(path, init={}, transport=fetch){
+        return window.MemberCanvasEdit ? window.MemberCanvasEdit.send(path, init, transport) : transport(path, init);
+    }
     async function json(path, init={}, options={}){
-        const response = await fetch(path, init);
+        const response = await send(path, init);
         if(options.checkOk && !response.ok){
             const message = await window.CanvasCore?.responseErrorMessage(response, options.errorFallback || '请求失败');
             throw new Error(message || options.errorFallback || '请求失败');
@@ -10,7 +13,7 @@
 
     async function jsonOr(path, fallback, init={}){
         try {
-            const response = await fetch(path, init);
+            const response = await send(path, init);
             if(!response.ok) return fallback;
             return await response.json();
         } catch(e) {
@@ -20,7 +23,7 @@
 
     function request(path, init={}, options={}){
         const transport = options.transport || fetch;
-        return transport(path, init, options.transportOptions || {});
+        return send(path, init, (url, settings) => transport(url, settings, options.transportOptions || {}));
     }
 
     function jsonBodyInit(method, payload){

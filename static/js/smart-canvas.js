@@ -1577,6 +1577,7 @@ function persistActiveSmartSettings(){
     rememberRecentSmartSettings(settings, subject);
 }
 async function backToCanvasList(){
+    if(window.MemberCanvasEdit && !await window.MemberCanvasEdit.leave()) return;
     savePromptDraftForCurrent();
     clearTimeout(saveTimer);
     saveTimer = null;
@@ -4088,8 +4089,9 @@ let smartServerNodeIds = new Set();
 let smartServerConnectionKeys = new Set();
 let smartCanvasLockHolder = null;
 let smartCanvasLockPollTimer = null;
-function isSmartCanvasLocked(){ return Boolean(smartCanvasLockHolder && smartCanvasLockHolder.client_id !== smartClientId); }
+function isSmartCanvasLocked(){ return window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canEdit : Boolean(smartCanvasLockHolder && smartCanvasLockHolder.client_id !== smartClientId); }
 function smartCanvasUserName(){
+    if(window.CanvasSession?.enabled) return window.CanvasSession.context?.member.display_name || '';
     try { return (localStorage.getItem('canvasUserName') || '').trim(); } catch(e) { return ''; }
 }
 function smartCanvasLockDisplay(holder=smartCanvasLockHolder){
@@ -4134,6 +4136,7 @@ function updateSmartCanvasLockUi(){
     if(wasLocked && !locked && smartCanvasDirty) scheduleSave();
 }
 function editSmartCanvasUserName(){
+    if(window.CanvasSession?.enabled) return toast('请在工作台右下角“成员与空间”中修改昵称');
     const next = prompt('设置我的名称，用于别人看到画布锁是谁占用', smartCanvasUserName());
     if(next === null) return;
     const name = String(next || '').trim().replace(/\s+/g, ' ').slice(0, 32);
@@ -4142,6 +4145,7 @@ function editSmartCanvasUserName(){
     if(smartCanvasLockHolder?.client_id === smartClientId) acquireSmartCanvasLock();
 }
 async function acquireSmartCanvasLock(){
+    if(window.CanvasSession?.enabled) return false;
     if(!canvasId) return false;
     try {
         const response = await window.CanvasApi.acquireCanvasLock(canvasId, {client_id:smartClientId, username:smartCanvasUserName()});
@@ -4152,6 +4156,7 @@ async function acquireSmartCanvasLock(){
     } catch(e) { return false; }
 }
 async function checkSmartCanvasLock(){
+    if(window.CanvasSession?.enabled) return window.MemberCanvasEdit?.active?.lease.refresh().catch(() => {});
     if(!canvasId) return;
     const data = await window.CanvasApi.checkCanvasLock(canvasId);
     if(!data) return;
@@ -4167,10 +4172,12 @@ async function tryAcquireSmartCanvasLock(){
     toast(isSmartCanvasLocked() ? '画布仍在被其他人编辑中' : '已获得编辑权限');
 }
 function startSmartCanvasLockPolling(){
+    if(window.CanvasSession?.enabled) return;
     clearInterval(smartCanvasLockPollTimer);
     smartCanvasLockPollTimer = setInterval(checkSmartCanvasLock, 5000);
 }
 function releaseSmartCanvasLockOnExit(){
+    if(window.CanvasSession?.enabled) return;
     if(!canvasId || smartCanvasLockHolder?.client_id !== smartClientId) return;
     const payload = {client_id:smartClientId, username:smartCanvasUserName()};
     try {
@@ -4179,11 +4186,13 @@ function releaseSmartCanvasLockOnExit(){
     window.CanvasApi.releaseCanvasLockKeepalive(canvasId, payload);
 }
 function handleSmartCanvasLocked(data){
+    if(window.CanvasSession?.enabled) return;
     if(data?.canvas_id !== canvasId || data.holder?.client_id === smartClientId) return;
     smartCanvasLockHolder = data.holder || null;
     updateSmartCanvasLockUi();
 }
 function handleSmartCanvasUnlocked(data){
+    if(window.CanvasSession?.enabled) return;
     if(data?.canvas_id !== canvasId || data.released_by === smartClientId) return;
     smartCanvasLockHolder = null;
     updateSmartCanvasLockUi();
@@ -4264,6 +4273,7 @@ function mergeSmartConnections(localConns, remoteConns, nodeIds){
     return out;
 }
 function applyMergedServerCanvas(serverCanvas){
+    if(window.CanvasSession?.enabled) return false;
     if(!serverCanvas || !canvas) return false;
     const remoteNodes = (Array.isArray(serverCanvas.nodes) ? serverCanvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
     const mergedNodes = mergeSmartNodeLists(nodes, remoteNodes);
@@ -4286,6 +4296,10 @@ function applyMergedServerCanvas(serverCanvas){
     return true;
 }
 async function mergeReloadCanvasNow(){
+    if(window.CanvasSession?.enabled){
+        if(window.MemberCanvasEdit?.canRefresh) await loadCanvas();
+        return;
+    }
     if(!canvasId) return;
     if(dragState || selectionState){
         // 用户正在拖拽/框选，稍后再合并，别打断操作
@@ -4303,6 +4317,7 @@ function scheduleCanvasMergeReload(delay=200){
     canvasSyncTimer = setTimeout(() => { mergeReloadCanvasNow(); }, delay);
 }
 function handleCanvasUpdatedMessage(data={}){
+    if(window.CanvasSession?.enabled) return;
     if(!data || data.type !== 'canvas_updated') return;
     if(!canvasId || data.canvas_id !== canvasId) return;
     if(data.client_id && data.client_id === smartClientId) return; // 自己发的，忽略
@@ -4872,8 +4887,24 @@ async function loadCanvas(){
         resumeSmartPendingTasks();
         startCanvasMetaPoll();
         document.getElementById('smartIdentityLabel').textContent = smartCanvasUserName() || '未命名用户';
-        await checkSmartCanvasLock();
-        startSmartCanvasLockPolling();
+        if(window.CanvasSession?.enabled){
+            await window.MemberCanvasEdit.mount({id:canvasId,dirty:() => smartCanvasDirty || Boolean(smartSaveInFlight) || smartSaveAgain,
+                snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
+                reload:async () => { const loaded=await loadCanvas(); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
+                flush:async () => {
+                    clearTimeout(saveTimer); saveTimer=null;
+                    if(smartCanvasDirty || smartSaveInFlight) await saveCanvas({force:true});
+                    return !smartCanvasDirty && !smartSaveInFlight && !smartSaveAgain;
+                },
+                changed:lease => {
+                    document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
+                    if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;}
+                    if(runBtn) runBtn.disabled=!lease.canEdit || smartCascadeAnyRunning();
+                    if(cascadeRunBtn) cascadeRunBtn.disabled=!lease.canEdit;
+                }
+            });
+        } else { await checkSmartCanvasLock(); startSmartCanvasLockPolling(); }
+        return canvas;
     } catch(e) { toast(e?.message || tr('smart.toastCanvasFail')); }
 }
 async function createSmartCanvasBackup(){
@@ -4956,8 +4987,12 @@ function renderSmartCanvasBackups(backups){
 }
 function closeSmartCanvasBackups(){ document.getElementById('smartBackupModal')?.remove(); }
 function scheduleSave(){
+    if(window.CanvasSession?.enabled && window.MemberCanvasEdit?.active && window.MemberCanvasEdit.active.lease.state !== 'starting'){
+        smartCanvasDirty=true; window.MemberCanvasEdit.markDirty();
+    }
     if(isSmartCanvasLocked()) return;
     smartCanvasDirty = true;
+    window.MemberCanvasEdit?.markDirty();
     clearTimeout(saveTimer);
     if(smartSaveInFlight){
         smartSaveAgain = true;
@@ -4970,7 +5005,7 @@ function scheduleSave(){
 }
 async function saveCanvas(options={}){
     const force = options.force === true;
-    if(!canvasId || !canvas || isSmartCanvasLocked()) return false;
+    if(!canvasId || !canvas || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canSave : isSmartCanvasLocked())) return false;
     if(smartSaveInFlight){
         smartSaveAgain = true;
         const result = await smartSaveInFlight;
@@ -5008,6 +5043,7 @@ async function saveCanvas(options={}){
                 const data = await res.json().catch(() => ({}));
                 if(data.canvas && data.canvas.updated_at){
                     canvas.updated_at = data.canvas.updated_at;
+                    if(window.CanvasSession?.enabled) canvas.revision=data.canvas.revision;
                     updateSmartCanvasNav();
                 }
                 if(!smartSaveAgain){
@@ -5019,6 +5055,10 @@ async function saveCanvas(options={}){
                 }
                 smartSaveErrorNotified = false;
                 return true;
+            }
+            if(window.CanvasSession?.enabled){
+                smartCanvasDirty=true; smartSaveAgain=false;
+                return false;
             }
             if(res.status === 409) {
                 // 冲突：别人先保存了。合并对方的状态，再以最新 updated_at 重试。
@@ -15318,6 +15358,7 @@ window.addEventListener('pagehide', () => {
 window.addEventListener('frontend:before-reload', event => {
     if(typeof event.detail?.waitUntil !== 'function') return;
     event.detail.waitUntil((async () => {
+        if(window.CanvasSession?.enabled && !smartCanvasDirty && !smartSaveInFlight && !smartSaveAgain) return true;
         clearTimeout(saveTimer);
         saveTimer = null;
         const saved = await saveCanvas({force:true});

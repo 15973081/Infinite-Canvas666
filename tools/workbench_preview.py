@@ -46,6 +46,7 @@ def main():
             members.assign_roles(actor, invited['member']['id'], [space['roles']['editor']], space['id'])
             with workspace_scope(space['id']):
                 canvases.save({'id': 'canvas_' + space['id'], 'title': space['name'] + '的画布', 'kind': 'classic', 'nodes': [], 'connections': []})
+                canvases.save({'id': 'smart_' + space['id'], 'title': space['name'] + '的智能画布', 'kind': 'smart', 'nodes': [], 'connections': []})
         members.logout(actor)
         from main import app
         server = uvicorn.Server(uvicorn.Config(app, host='127.0.0.1', port=8768, log_level='warning'))

@@ -5,7 +5,7 @@
     const domReady = document.readyState === 'loading'
         ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once:true})) : Promise.resolve();
     document.documentElement.classList.add('member-session-pending');
-    let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0;
+    let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0, maintenance = null;
     const accountPaths = new Set(['/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
@@ -169,7 +169,7 @@
             throw error;
         }
     }
-    const session = {enabled:true, get context(){return context;}, get paused(){return blocked;}, url:scopedUrl,
+    const session = {enabled:true, get context(){return context;}, get paused(){return blocked;}, get maintenance(){return maintenance;}, url:scopedUrl,
         socketUrl(value) {
             if (!context) throw new Error('尚未选择空间。');
             const url = new URL(value, location.href);
@@ -184,7 +184,11 @@
             const timestamp = Date.parse(state?.server_time);
             if (!state || !Number.isFinite(timestamp) || timestamp < maintenanceTime) return;
             maintenanceTime = timestamp;
+            maintenance = state;
             window.dispatchEvent(new CustomEvent('member-session:maintenance', {detail:state}));
+            for(const frame of document.querySelectorAll('iframe')) {
+                try { frame.contentWindow.dispatchEvent(new CustomEvent('member-session:maintenance', {detail:state})); } catch(_) {}
+            }
             await domReady;
             maintenanceBanner?.remove(); maintenanceBanner = null;
             if (state.mode === 'normal') return;
