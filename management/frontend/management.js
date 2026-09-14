@@ -1,9 +1,13 @@
 (() => {
   'use strict';
   const $ = (s) => document.querySelector(s);
-  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', serial = 0, reportRequest = 0;
-  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置'};
+  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', serial = 0, reportRequest = 0;
+  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录'};
   const errors = {
+    backup_storage_unconfigured:'运维尚未配置有效的备份目录。',
+    backup_already_pending:'当前范围已有排队或执行中的备份，请刷新记录。',
+    backup_request_conflict:'此请求编号已用于其他备份，请重新打开。',
+    invalid_backup_request:'请填写备份说明并核对空间。',
     authentication_required: '登录已失效，请重新登录。', management_permission_required: '此账号尚未获授管理权限。',
     invalid_credentials: '账号或密码不正确。', login_rate_limited: '登录尝试过多，请稍后重试。',
     permission_denied: '当前账号没有此项权限。', cannot_delegate_permission: '不能授予超出你权限范围的角色。',
@@ -127,7 +131,7 @@
     const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView}[view])();
+    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView}[view])();
     if (stamp === serial) content.replaceChildren(...result);
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
@@ -410,6 +414,47 @@
     return [el('p', '供应商配置由平台管理员维护，成员仅能使用分配到所在空间的服务。'), toolbar,
       rows.length ? table(['供应商', '协议', '状态', '凭证', '空间分配', '操作'], rows) : el('p', '尚未配置供应商。新增并分配后，成员才能选择模型。')];
   }
+  const backupStates = {queued:'等待备份执行器',running:'正在备份',succeeded:'已完成并校验',failed:'备份失败',cancelled:'权限变化，已取消'};
+  const backupFailures = {backup_export_failed:'导出或校验失败，请运维检查备份目录、对象存储和磁盘空间。',backup_interrupted:'执行器中断，未完成的文件已保留。请检查后重新发起。',backup_authorization_changed:'发起者会话或权限已变化，请重新登录并核实授权。'};
+  function requestBackup(scope) {
+    const member = me.member.id, requestId = crypto.randomUUID();
+    let sent;
+    const reason = field('reason','备份说明'); reason.querySelector('input').maxLength=1000;
+    const label = el('label',undefined,'check'), confirm=el('input');confirm.type='checkbox';confirm.name='confirmed';confirm.required=true;
+    label.append(confirm,document.createTextNode(scope ? '确认导出所选空间的共享数据' : '确认创建包含全部空间和成员数据的平台备份'));
+    dialog(scope ? '请求空间数据导出' : '请求全库备份',[
+      el('p',scope ? '包含共享画布、素材、目录、提示词和费用；私人对话、登录会话、供应商配置和任务执行状态不在此导出中。灾难恢复需要全库备份。' : '创建数据库一致性快照并复制固定版本对象。未完成的上传不算已备份；本操作不会停止服务或执行恢复。'),
+      el('p','完成的归档由运维从受控备份目录取用，页面仅展示执行记录。','muted'),reason,label
+    ],async data=>{
+      if(!me || me.member.id!==member || workspace!==scope)throw new Error('管理范围已变化，请重新打开。');
+      const note=String(data.get('reason')||'').trim();
+      if(!note || !data.has('confirmed'))throw new Error('请填写说明并确认备份范围。');
+      const payload={request_id:requestId,reason:note};
+      if(sent && JSON.stringify(sent)!==JSON.stringify(payload))throw new Error('重试不能更改已发送内容，请关闭后重新发起。');
+      sent=payload;
+      await call('/api/backups'+(scope?'?workspace='+encodeURIComponent(scope):''),'POST',sent);
+    },'确认请求');
+  }
+  async function backupView() {
+    const canRead=allowed(workspace?'backup.read':'backup.platform'),canRequest=allowed(workspace?'backup.request':'backup.platform');
+    if(!canRead && !canRequest)return denied();
+    const scope=workspace;
+    const data=canRead?await api(scoped('/api/backups',{...(backupAfter?{after:backupAfter}:{})})):{jobs:[],configured:true};
+    const toolbar=el('div',undefined,'toolbar');
+    if(canRequest){const create=button(scope?'请求空间导出':'请求全库备份',()=>requestBackup(scope));create.disabled=!data.configured;toolbar.append(create);}
+    toolbar.append(button('刷新记录',refresh));
+    const note=el('p',data.configured?'备份任务由独立执行器处理。归档完成且校验通过后显示成功；此处不执行数据库恢复。':'运维尚未配置备份存储目录，暂不能发起备份。','muted');
+    const records=table(['请求时间','类型','状态','结果','说明'],data.jobs.map(row=>[
+      labelText(new Date(row.created_at).toLocaleString(),row.id),row.kind==='workspace_export'?'空间共享数据导出':'平台全库备份',
+      backupStates[row.status]||row.status,
+      row.status==='succeeded'?String(row.summary.objects||0)+' 个对象 · '+String(row.summary.object_bytes||0)+' 字节 · '+String(row.summary.unfinished_assets||0)+' 项未完成素材':(backupFailures[row.error_code]||'—'),
+      row.reason
+    ]));
+    const pages=actions(button('返回首批',()=>{backupAfter='';return render();}));
+    if(data.next)pages.append(button('下一批',()=>{backupAfter=data.next;return render();}));
+    return [toolbar,note,...(canRead?[records,pages]:[el('p','已获备份请求权限；查看执行记录还需要备份记录权限。','muted')])];
+  }
+
   const taskStates = {needs_review:'待核对',queued:'排队中',running:'准备执行',submitting:'提交中',polling:'查询中',finalizing:'结果入库中',succeeded:'已完成',failed:'已失败',cancelled:'已取消'};
   const taskActions = {retry_finalization:'重试结果入库',resume_polling:'恢复原任务查询',cancel_unsubmitted:'取消未提交任务',confirm_failed:'核对后标记失败'};
   const taskExplanations = {
@@ -548,7 +593,7 @@
     return [summary, toolbar, metrics, pages, services];
   }
   $('#cancel-dialog').onclick = () => $('#dialog').close();
-  $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
+  $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { view = b.dataset.view; pageAfter = auditBefore = ''; return render(); }, b));
   $('#logout').onclick = () => execute(async () => { await call('/api/auth/logout', 'POST'); showLogin(); });
   $('#unavailable-logout').onclick = $('#logout').onclick;

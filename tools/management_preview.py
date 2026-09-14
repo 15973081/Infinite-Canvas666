@@ -49,6 +49,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--provider-probe', action='store_true', help='Seed a local-only mock supplier for connection/model UI acceptance')
     parser.add_argument('--task-review', action='store_true', help='Seed isolated pending tasks for management review acceptance')
+    parser.add_argument('--backup', action='store_true', help='Seed isolated shared data and run a separate backup executor')
     args = parser.parse_args()
     from app.storage import database
     from app.storage.settings import load_storage_env
@@ -66,9 +67,10 @@ def main():
     stop = acceptance / 'stop'
     os.environ.update(DATABASE_URL=target, DATABASE_SCHEMA=schema, DATABASE_BACKEND='postgres',
                       # Use a distinct host from the user-facing 127.0.0.1 management preview.
-                      MANAGEMENT_BASE_URL=('http://localhost:8767' if (args.provider_probe or args.task_review) else 'http://127.0.0.1:8767'),
+                      MANAGEMENT_BASE_URL=('http://localhost:8767' if (args.provider_probe or args.task_review or args.backup) else 'http://127.0.0.1:8767'),
                       CLOUD_EMBEDDED_WORKER='false')
     database.close()
+    executor = executor_log = None
     mock = None
     probe_base_url = None
     try:
@@ -102,6 +104,26 @@ def main():
                         conn.execute('UPDATE tasks SET requested_by=%s WHERE id=%s', (member['id'],task_id))
                         if paid:
                             conn.execute("INSERT INTO task_submissions(id,task_id,workspace_id,outcome) VALUES(%s,%s,%s,'uncertain')", (uuid.uuid4(),task_id,space['id']))
+        if args.backup:
+            from app.storage import media, canvases, documents
+            from app.storage.workspace import workspace_scope
+            # Keep Windows immutable-object paths below legacy MAX_PATH.
+            backup_data=ROOT/'.local/cloud/backup-preview'/schema[-8:]
+            os.environ.update(MANAGEMENT_BACKUP_ROOT=str(backup_data/'backups'),
+                              OBJECT_STORE_ROOT=str(backup_data/'objects'), MEDIA_BACKEND='filesystem')
+            source=acceptance/'synthetic.txt'
+            source.write_text('isolated backup acceptance object',encoding='utf-8')
+            with workspace_scope(space['id']):
+                asset=media.publish(source)
+                canvases.save({'id':'backup-preview-canvas','title':'备份验收画布',
+                               'nodes':[{'id':'file','url':media.stable_url(asset)}],'connections':[]})
+                documents.put('canvas_folders','default',{'folders':[]})
+            import subprocess
+            executor_log=(acceptance/'backup-worker.log').open('w',encoding='utf-8')
+            executor=subprocess.Popen([sys.executable,str(ROOT/'tools/management_backup_worker.py'),
+                                       '--watch','--stop-file',str(stop)],env=os.environ.copy(),
+                                      stdout=executor_log,stderr=subprocess.STDOUT,
+                                      creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         members.logout(actor)
         from app.management.application import create_app
         app = create_app(build(acceptance / 'dist'))
@@ -123,6 +145,10 @@ def main():
             finished.set()
             thread.join(2)
     finally:
+        if executor:
+            stop.touch(exist_ok=True)
+            executor.wait(timeout=30)
+            executor_log.close()
         if mock:
             mock[0].shutdown()
             mock[0].server_close()

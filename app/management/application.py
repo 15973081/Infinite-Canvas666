@@ -170,6 +170,11 @@ class ProviderAssignment(Input):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class BackupRequest(Input):
+    request_id: UUID
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class TaskReview(Input):
     request_id: UUID
     expected_version: int = Field(strict=True, ge=1)
@@ -347,6 +352,17 @@ def create_app(static_dir=None):
     def review_page_report(report_id: UUID, request: Request, data: PageReview, workspace: str | None = None):
         from app.services.canvas_page_reports import review
         return review(actor(request), report_id, data.expected_sequence, data.outcome, data.note, workspace)
+
+    @app.get('/api/backups')
+    def backup_list(request: Request, workspace: str | None = None, after: UUID | None = None,
+                    limit: int = Query(50, ge=1, le=100)):
+        from app.services.backup_control import listing
+        return listing(actor(request), workspace, after, limit)
+
+    @app.post('/api/backups')
+    def backup_request(request: Request, data: BackupRequest, workspace: str | None = None):
+        from app.services.backup_control import request as create_request
+        return create_request(actor(request), data.request_id, data.reason, workspace)
 
     @app.get('/api/tasks')
     def task_list(request: Request, workspace: str, status: str = 'needs_review',
