@@ -61,8 +61,9 @@ body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #6
 .member-canvas-layout{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;width:max-content;max-width:calc(100vw - 50px)}
 @media(max-width:640px){.member-canvas-layout{gap:3px;max-width:calc(100vw - 46px)}}
 
-/* Status belongs to the canvas identity, not the action toolbar. */
-.canvas-nav-meta:has(.member-canvas-title-status),.smart-nav-meta:has(.member-canvas-title-status){width:clamp(120px,20vw,220px);min-width:0;max-width:220px}
+/* A separate caption beneath the title capsule; never changes its size. */
+.canvas-nav:has(.member-canvas-title-status){position:relative}
+#memberCanvasStatus:has(.member-canvas-title-status){position:absolute;top:calc(100% + 8px);left:16px;right:0;height:18px;background:none;border:0;box-shadow:none}
 .member-canvas-title-status{display:block;height:18px;line-height:18px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/18px system-ui,sans-serif;color:var(--muted,#7a879a)}
 .member-canvas-title-status[data-tone=warning]{color:#b77928}
 :is(html,body).theme-dark .member-canvas-title-status[data-tone=warning]{color:#edbc76}
