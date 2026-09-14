@@ -70,6 +70,9 @@ async def _execute_scoped(row):
                     await resume_canvas_video_task(task_id, payload)
                 else:
                     await run_canvas_video_task(task_id, payload)
+            elif row["kind"] == "llm":
+                from app.services.canvas_llm_tasks import run_task
+                await run_task(task_id, request)
             else:
                 await run_canvas_image_task(task_id, OnlineImageRequest(**request))
     except asyncio.CancelledError:

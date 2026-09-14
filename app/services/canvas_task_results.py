@@ -32,6 +32,9 @@ def outputs(conn, task):
     result = task.get('result') or {}
     if not isinstance(result, dict):
         return []
+    if task['kind'] == 'llm':
+        text = result.get('text')
+        return [{'kind': 'text', 'text': text}] if isinstance(text, str) and text else []
     values = result.get('videos' if task['kind'] == 'video' else 'images') or []
     if not isinstance(values, list) or not values or len(values) > 100:
         return []
@@ -49,6 +52,10 @@ def outputs(conn, task):
 def included(document, task_id, items):
     if not items:
         return False
+    if items[0].get('kind') == 'text':
+        return any(node.get('result_task_id') == task_id and
+                   node.get('text' if node.get('type') in {'prompt', 'smart-prompt'} else 'outputText') == items[0]['text']
+                   for node in (document.get('nodes') or []))
     wanted = {item['media_asset_id'] for item in items}
     nodes = document.get('nodes') or []
     def images(node):
@@ -73,7 +80,7 @@ def catalog(canvas_id, after=''):
         az.fail('task_result_cursor_invalid', 400)
     with az.policy_transaction() as conn:
         canvas = require(conn, canvas_id)
-        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at,request FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image') AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
+        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at,request FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image','llm') AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
         from app.storage.task_canvas_bindings import stored, state
         result = []
         for task in rows[:30]:
@@ -95,7 +102,7 @@ def join(canvas_id, task_id):
         task = conn.execute("SELECT * FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND id=%s FOR SHARE", (current_workspace(), canvas_id, task_id)).fetchone()
         if not task:
             az.fail('task_result_not_found', 404)
-        if task['status'] != 'succeeded' or task['kind'] not in {'video', 'online-image'}:
+        if task['status'] != 'succeeded' or task['kind'] not in {'video', 'online-image', 'llm'}:
             az.fail('task_result_not_ready', 409)
         items = outputs(conn, task)
         if not items:
@@ -116,6 +123,9 @@ def join(canvas_id, task_id):
         node = {'id': node_id, 'type': 'smart-image' if canvas['kind'] == 'smart' else 'output',
                 'x': x, 'y': 120, 'images': items, 'result_task_id': task_id,
                 'title': '生成结果', 'outputKind': 'video' if task['kind'] == 'video' else 'image'}
+        if task['kind'] == 'llm':
+            node = {'id': node_id, 'type': 'smart-prompt' if canvas['kind'] == 'smart' else 'prompt',
+                    'x': x, 'y': 120, 'text': items[0]['text'], 'result_task_id': task_id, 'title': '对话生成结果'}
         # Only remove this task's stale progress indicator; other tasks and graph data stay intact.
         for old in nodes:
             if isinstance(old.get('_pending'), list):

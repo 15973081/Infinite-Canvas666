@@ -367,17 +367,20 @@ def task_log(task):
     if task.get("status") not in ("succeeded", "failed") and task.get("upstream_status") != "succeeded":
         return None
     request = task.get("billing_request") or {}
-    kind = "video" if task.get("type") == "video" else "image"
+    kind = "chat" if task.get("type") == "llm" else "video" if task.get("type") == "video" else "image"
     log = {"id": "task-log:" + str(task["id"]), "canvas_task_id": task["id"],
            "createdAt": int(float(task.get("created_at") or 0) * 1000),
            "_task_updated_at": task.get("updated_at") or task.get("created_at") or 0,
            "status": "failed" if task.get("status") == "failed" else "success",
-           "nodeType": "video" if kind == "video" else "generator", "billingKind": kind,
+           "nodeType": "llm" if kind == "chat" else "video" if kind == "video" else "generator", "billingKind": kind,
            "providerId": task.get("provider_id", ""), "platform": task.get("provider_name") or task.get("provider_id", ""),
            "billingModel": task.get("model", ""), "model": task.get("model", ""),
            "request": {**request, "canvas_task_id": task["id"], "task_id": result.get("task_id") or task.get("upstream_task_id") or ""},
            "prompt": request.get("prompt", ""), "outputs": result.get("videos") or result.get("images") or [],
            "error": task.get("error", ""), "durationSeconds": (result.get("video_info") or {}).get("duration") or request.get("duration") or 0}
+    if kind == "chat":
+        log["text"] = result.get("text", "")
+        log["raw_usage"] = copy.deepcopy(result.get("raw_usage"))
     for key in ("cost", "usage", "video_info"):
         if key in result:
             log[key] = copy.deepcopy(result[key])
@@ -398,6 +401,8 @@ def task_billing_fields(payload, kind):
     data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
     info = {"providerId": data.get("provider_id", ""), "kind": kind, "model": data.get("model", "")}
     request = {key: data[key] for key in ("prompt", "provider_id", "model", "duration", "resolution", "size", "quality", "n") if key in data}
+    if kind == "chat":
+        request["prompt"] = data.get("message", "")
     request["has_video_input"] = bool(data.get("videos"))
     return {"canvas_id": data.get("canvas_id", ""), "billing_request": request,
             "billing_price": historical_price(info, int(time.time() * 1000), provider_list(), request)}

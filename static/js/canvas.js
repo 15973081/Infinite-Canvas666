@@ -10864,6 +10864,12 @@ async function callCanvasLLM(node, message, messages=[], options={}){
     const model = resolveChatModel(node.model || node.llmMsModel, llmProv);
     const images = llmInputImages(node);
     const videos = llmInputVideos(node);
+    if(window.CanvasSession?.enabled){
+        if(!window.CanvasLLMTasks)throw new Error('对话组件已更新，请保存并刷新页面。');
+        return window.CanvasLLMTasks.run({message,model,provider_id:llmProv,
+            system_prompt:node.systemPrompt || 'You are a helpful assistant.',messages:messages.slice(-100),images:images.slice(0,8),videos:videos.slice(0,3)},
+            {binding:options.inputBinding,canvasId:canvas.id,transport:(path,init)=>cascadeFetch(path,init,options)});
+    }
     const result = await window.CanvasApi.canvasLLMRequest({
         message,
         model,
@@ -10878,37 +10884,30 @@ async function callCanvasLLM(node, message, messages=[], options={}){
         }
         return r.json();
     });
-    return result.text || '';
+    return {result:{text:result.text || ''}};
 }
 async function runLLMNode(nodeId, opts={}){
-    const node = nodes.find(n => n.id === nodeId);
-    if(!node || (node.running && !opts.cascade)) return;
-    const cascadeTargetId = cascadeTargetIdFromOptions(opts);
-    const input = llmInputText(node, opts.loopContext) || node.userInput || '';
-    if(!input){
-        if(opts.cascade) throw new Error('LLM 缺少提示词输入');
-        alert(tr('canvas.needPromptToLLM')); return;
-    }
-    if(!opts.cascade){ node.running = true; refreshNodes([node.id]); }
+    const node=nodes.find(n=>n.id===nodeId);
+    if(!node || (node.running && !opts.cascade))return;
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
+    const input=llmInputText(node, opts.loopContext)||node.userInput||'';
+    if(!input){if(opts.cascade)throw new Error('LLM 缺少提示词输入');alert(tr('canvas.needPromptToLLM'));return;}
+    const writeGuard=canvasTaskWriteGuard(node);
+    const inputBinding=classicTaskInputBinding(node,node,writeGuard);
+    if(!opts.cascade){node.running=true;refreshNodes([node.id]);}
     try {
-        node.outputText = await callCanvasLLM(node, input, [], {cascadeTargetId});
-        if(!opts.cascade) node.running = false;
-        node.runStatus = 'done'; node.runError = '';
-        refreshNodes([node.id]);
-        scheduleSave();
-    } catch(err) {
-        if(!opts.cascade) node.running = false;
-        if(isCascadeAbortError(err)){
-            refreshNodes([node.id]);
-            if(opts.cascade) throw err;
-            return;
-        }
-        node.runStatus = 'failed'; node.runError = err.message || String(err);
-        refreshNodes([node.id]);
-        if(opts.cascade) throw err;
-        alert(err.message || 'LLM 运行失败');
+        const task=await callCanvasLLM(node,input,[],{cascadeTargetId:cascadeTargetIdFromOptions(opts),inputBinding});
+        const apply=()=>{node.outputText=task.result.text;if(task.id)node.result_task_id=task.id;
+            if(!opts.cascade)node.running=false;node.runStatus='done';node.runError='';};
+        if(inputBinding)inputBinding.apply(task,apply,task.id);else {writeGuard.check();apply();}
+        refreshNodes([node.id]);scheduleSave();
+    } catch(error){
+        if(writeGuard.valid()){if(!opts.cascade)node.running=false;refreshNodes([node.id]);}
+        if(opts.cascade)throw error;
+        if(writeGuard.valid())showErrorModal(error.message || 'LLM 运行失败','对话生成');
     }
 }
+
 // 判断是不是「链尾」节点：没有下游生成节点（直接相连或经 Output 中转都算）
 function isTerminalGenerator(nodeId){
     const GEN_TYPES = canvasRunTypes();
@@ -11283,27 +11282,24 @@ function cancelCascade(nodeId){
 }
 
 async function runLLMChat(nodeId){
-    const node = nodes.find(n => n.id === nodeId);
-    if(!node || node.running) return;
-    const message = (node.chatInput || '').trim();
-    if(!message) return;
-    node.messages = node.messages || [];
-    const history = node.messages.slice();
-    node.messages.push({role:'user', content:message});
-    node.chatInput = '';
-    node.running = true;
+    const node=nodes.find(n=>n.id===nodeId);
+    if(!node || node.running)return;
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
+    const message=(node.chatInput||'').trim();if(!message)return;
+    const writeGuard=canvasTaskWriteGuard(node);
+    node.messages=node.messages||[];
+    const history=node.messages.slice();
+    node.messages.push({role:'user',content:message});node.chatInput='';node.running=true;
     refreshNodes([node.id]);
     try {
-        const text = await callCanvasLLM(node, message, history);
-        node.messages.push({role:'assistant', content:text});
-        node.outputText = text;
-        node.running = false;
-        refreshNodes([node.id]);
-        scheduleSave();
-    } catch(err) {
-        node.running = false;
-        refreshNodes([node.id]);
-        alert(err.message || 'LLM 运行失败');
+        const inputBinding=classicTaskInputBinding(node,node,writeGuard);
+        const task=await callCanvasLLM(node,message,history,{inputBinding});
+        const apply=()=>{node.messages.push({role:'assistant',content:task.result.text});
+            node.outputText=task.result.text;if(task.id)node.result_task_id=task.id;node.running=false;};
+        if(inputBinding)inputBinding.apply(task,apply,task.id);else {writeGuard.check();apply();}
+        refreshNodes([node.id]);scheduleSave();
+    } catch(error){
+        if(writeGuard.valid()){node.running=false;refreshNodes([node.id]);showErrorModal(error.message || 'LLM 运行失败','对话生成');}
     }
 }
 

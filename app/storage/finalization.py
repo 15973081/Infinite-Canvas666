@@ -33,8 +33,10 @@ def checkpoint(result, sources, field, provider_id):
     if not lease:
         raise RuntimeError("Result checkpoint requires a task lease")
     task_id = lease[0]
-    if field not in {"images", "videos"} or not sources:
-        raise ValueError("A result must contain image or video sources")
+    if field not in {"images", "videos", "text"} or not sources:
+        raise ValueError("A result must contain media or text sources")
+    if field == "text" and (not isinstance(result.get("text"), str) or not result["text"] or sources != [result["text"]]):
+        raise ValueError("Invalid text result")
     if not has_source(task_id):
         packet = {"task_id": task_id, "field": field, "provider_id": provider_id,
                   "result": tasks.clean_request(result), "sources": sources,
@@ -59,10 +61,15 @@ async def resume(task_id):
     if not path:
         raise HTTPException(404, "结果来源尚未持久化，需人工核对")
     packet = json.loads(Path(path).read_text(encoding="utf-8"))
-    if packet["task_id"] != task_id or packet["field"] not in {"images", "videos"}:
+    if packet["task_id"] != task_id or packet["field"] not in {"images", "videos", "text"}:
         raise ValueError("Invalid task result checkpoint")
     if packet["outputs"] != [output_id(task_id, i) for i in range(len(packet["sources"]))]:
         raise ValueError("Invalid task output slots")
+    if packet["field"] == "text":
+        result = copy.deepcopy(packet["result"])
+        if not isinstance(result.get("text"), str) or not result["text"] or packet["sources"] != [result["text"]]:
+            raise ValueError("Invalid text result checkpoint")
+        return result
     from app.services.media import save_ai_image_to_output, save_remote_video_to_output
     from app.providers.registry import get_api_provider
     result = copy.deepcopy(packet["result"])

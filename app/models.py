@@ -2,7 +2,7 @@
 
 Extracted from main.py — Phase 1 physical split, no behavior changes.
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from fastapi import UploadFile
 
@@ -179,6 +179,26 @@ class CanvasLLMRequest(BaseModel):
     provider: str = "comfly"
     images: List[str] = []   # 可以是 /output/*.png、/assets/*.png 本地路径 或 http(s) URL 或 data URL
     videos: List[str] = []   # 可以是 /output/*.mp4、/assets/*.mp4 本地路径 或 http(s) URL 或 data URL
+
+
+class CanvasLLMTaskMessage(BaseModel):
+    model_config = {'extra': 'forbid'}
+    role: Literal['user', 'assistant']
+    content: str = Field(min_length=1, max_length=LLM_MESSAGE_MAX_LENGTH)
+
+
+class CanvasLLMTaskRequest(BaseModel):
+    model_config = {'extra': 'forbid'}
+    canvas_id: str = Field(min_length=1, max_length=96)
+    client_task_id: str = Field(pattern=r'^canvas_llm_[A-Za-z0-9_-]{8,80}$')
+    canvas_target: CanvasTaskTarget
+    provider_id: str = Field(min_length=1, max_length=96)
+    model: str = Field(min_length=1, max_length=240)
+    message: str = Field(min_length=1, max_length=LLM_MESSAGE_MAX_LENGTH)
+    system_prompt: str = Field(default='', max_length=LLM_MESSAGE_MAX_LENGTH)
+    messages: List[CanvasLLMTaskMessage] = Field(default_factory=list, max_length=100)
+    images: List[str] = Field(default_factory=list, max_length=8)
+    videos: List[str] = Field(default_factory=list, max_length=3)
 
 
 # ── Conversation ──
@@ -414,7 +434,7 @@ __all__ = [
     "OnlineImageRequest", "ImageTaskQueryRequest",
     "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
-    "ChatRequest",  "CanvasLLMRequest",
+    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
     "CanvasFolderUpdateRequest", "CanvasMoveRequest", "CanvasLockRequest",

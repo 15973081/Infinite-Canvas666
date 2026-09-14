@@ -72,7 +72,7 @@ def permissions(path, method):
     if path == '/api/canvas-draft-copies' and method == 'POST':
         from app.services.canvas_draft_copies import PERMISSIONS
         return PERMISSIONS
-    if re.fullmatch(r'/api/canvas-(?:image|video)-tasks(?:/[^/]+)?', path):
+    if re.fullmatch(r'/api/canvas-(?:image|video|llm)-tasks(?:/[^/]+)?', path):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:
         return ('canvas.read',) if method == 'GET' else ('canvas.create',) if method == 'POST' and path == '/api/canvases' else None

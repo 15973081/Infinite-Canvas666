@@ -843,8 +843,24 @@ async def recover_durable_canvas_video_tasks():
             )
 
 
+@router.post("/api/canvas-llm-tasks")
+def create_canvas_llm_task(payload: CanvasLLMTaskRequest):
+    from app.services.canvas_llm_tasks import create
+    return create(payload)
+
+
+@router.get("/api/canvas-llm-tasks/{task_id}")
+def get_canvas_llm_task(task_id: str):
+    from app.services.canvas_llm_tasks import get
+    return get(task_id)
+
+
 @router.post("/api/canvas-llm")
 async def canvas_llm(payload: CanvasLLMRequest):
+    return await execute_canvas_llm(payload)
+
+
+async def execute_canvas_llm(payload: CanvasLLMRequest, *, durable=False):
     chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model)
     # 判断协议：APIMart 异步 vs 标准 OpenAI
     _llm_provider = get_api_provider(payload.provider)
@@ -896,7 +912,9 @@ async def canvas_llm(payload: CanvasLLMRequest):
             req_body = {"model": model, "messages": upstream_messages}
             if _is_apimart:
                 req_body["stream"] = False   # APIMart 默认流式，强制关闭
-            response = await client.post(
+            from app.storage.submission import paid_post
+            post = (lambda *args, **kwargs: paid_post(client, *args, **kwargs)) if durable else client.post
+            response = await post(
                 f"{chat_base}/chat/completions",
                 headers=chat_hdrs,
                 json=req_body,

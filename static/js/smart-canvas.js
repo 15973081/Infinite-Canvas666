@@ -1191,6 +1191,7 @@ function canvasForStorage(source=canvas){
     const clean = JSON.parse(JSON.stringify(source || {}));
     clean.settings = settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings);
     (clean.nodes || []).forEach(node => {
+        if(node.type==='smart-prompt')delete node.running;
         node.images = (node.images || []).map(img=>mediaItemForStorage(stripImageGenerationMeta(img)));
         if(node.runSettings) node.runSettings = settingsForStorage(node.runSettings);
     });
@@ -1441,6 +1442,7 @@ function smartImageUsesWorkflowInput(node, ctx=smartLoopContext){
 }
 function normalizeLegacySmartNode(node){
     if(!node || typeof node !== 'object') return node;
+    if(node.type==='smart-prompt')delete node.running;
     if(node.type === 'smart-container'){
         const fallbackImage = node.inputImage?.url ? stripImageGenerationMeta({
             url:node.inputImage.url,
@@ -13353,47 +13355,40 @@ async function runGeneration(){
 }
 
 async function runPromptLLMNode(nodeId){
-    const node = nodes.find(n => n.id === nodeId);
-    if(!node || node.type !== 'smart-prompt') return;
-    const message = (node.llmInstruction || node.text || '').trim();
-    if(!message){ toast(tr('smart.promptLlmNeedText')); return; }
-    const systemPrompt = (node.llmSystemPrompt || '').trim();
-    node.llmEnabled = true;
-    node.running = true;
-    render();
+    const node=nodes.find(n=>n.id===nodeId);
+    if(!node || node.type!=='smart-prompt' || node.running)return;
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
+    const message=(node.llmInstruction||node.text||'').trim();
+    if(!message){toast(tr('smart.promptLlmNeedText'));return;}
+    const writeGuard=canvasTaskWriteGuard(node);
+    node.llmEnabled=true;node.running=true;render();
     try {
-        const provider = resolveChatProviderId(node.llmProvider || '');
-        const model = resolveChatModel(node.llmModel || '', provider);
-        const mediaRefs = promptNodeInputMediaForLLM(node);
-        const images = imageRefsOnly(mediaRefs).map(img => img.url).filter(Boolean);
-        const videos = videoRefsOnly(mediaRefs).map(video => video.url).filter(Boolean);
-        const result = await fetch('/api/canvas-llm', {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({
-                message,
-                messages:[],
-                images,
-                videos,
-                model,
-                provider,
-                system_prompt:node.llmSystemEnabled ? (systemPrompt || 'You are a helpful prompt assistant.') : ''
-            })
-        }).then(async r => {
-            if(!r.ok) throw new Error(await r.text());
-            return r.json();
-        });
-        node.text = (result.text || '').trim();
-        node.llmProvider = provider;
-        node.llmModel = model;
+        const provider=resolveChatProviderId(node.llmProvider||'');
+        const model=resolveChatModel(node.llmModel||'',provider);
+        const mediaRefs=promptNodeInputMediaForLLM(node);
+        const payload={message,messages:[],model,provider,
+            images:imageRefsOnly(mediaRefs).map(img=>img.url).filter(Boolean).slice(0,8),
+            videos:videoRefsOnly(mediaRefs).map(video=>video.url).filter(Boolean).slice(0,3),
+            system_prompt:node.llmSystemEnabled ? ((node.llmSystemPrompt||'').trim()||'You are a helpful prompt assistant.') : ''};
+        const inputBinding=smartTaskInputBinding(node,node,writeGuard);
+        let task;
+        if(inputBinding){
+            if(!window.CanvasLLMTasks)throw new Error('对话组件已更新，请保存并刷新页面。');
+            const {provider,...body}=payload;
+            task=await window.CanvasLLMTasks.run({...body,provider_id:provider},{binding:inputBinding,canvasId:canvas.id});
+        } else {
+            const response=await fetch('/api/canvas-llm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+            if(!response.ok)throw new Error(await response.text());
+            task={result:await response.json()};
+        }
+        const apply=()=>{node.text=task.result.text.trim();node.llmProvider=provider;node.llmModel=model;
+            if(task.id)node.result_task_id=task.id;node.running=false;};
+        if(inputBinding)inputBinding.apply(task,apply,task.id);else {writeGuard.check();apply();}
         scheduleSave();
-    } catch(e) {
-        toast((e.message || tr('smart.promptLlmFailed')).slice(0, 160));
-    } finally {
-        node.running = false;
-        render();
-    }
+    } catch(error){if(writeGuard.valid())toast((error.message||tr('smart.promptLlmFailed')).slice(0,240));}
+    finally {if(writeGuard.valid()){node.running=false;render();}}
 }
+
 function comfyFieldKind(field){
     if(['image','video','audio'].includes(field?.type)) return field.type;
     const key = `${field?.input || ''} ${field?.name || ''}`.toLowerCase();
