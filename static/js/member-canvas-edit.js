@@ -304,6 +304,8 @@
     function render() {
         if(!active) return;
         const {lease,options,bar,label,begin,end,save,notice}=active;
+        const previousWidth=bar.getBoundingClientRect?.().width;
+        active.widthAnimation?.cancel();
         const editable=lease.canEdit;
         document.body.classList.toggle('member-canvas-view',!editable);
         document.querySelectorAll('#nodes input,#nodes textarea,.image-node input,.image-node textarea,.composer input,.composer textarea,.composer [contenteditable]').forEach(node => {
@@ -341,6 +343,11 @@
         renderPresence(active);
         active.mediaPreview?.sync();
         bar.hidden=false;
+        const nextWidth=bar.getBoundingClientRect?.().width;
+        if(previousWidth>0 && nextWidth>0 && Math.abs(nextWidth-previousWidth)>1 && bar.animate && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+            active.widthAnimation=bar.animate([{width:previousWidth+'px'},{width:nextWidth+'px'}],
+                {duration:260,easing:'cubic-bezier(.22,1,.36,1)'});
+        }
     }
     async function start() {
         const entry=active;
@@ -463,9 +470,11 @@
                 button('导出当前草稿',() => {more.open=false;download(draftRecord(entry));}),force);
             more.append(moreSummary,moreItems);
             begin.className=end.className=ask.className='member-canvas-primary';
-            bar.append(label,begin,ask,save,end,button('生成结果',showTaskResults),more,presencePanel,notice,requestList);
+            const layout=element('div'); layout.className='member-canvas-layout';
+            layout.append(label,begin,ask,save,end,button('生成结果',showTaskResults),more,presencePanel,notice,requestList);
+            bar.append(layout);
             entry.mediaPreview=window.MemberMediaPreview?.create({entry,valid:()=>validEntry(entry)});
-            if(entry.mediaPreview)bar.insertBefore(entry.mediaPreview.trigger,presencePanel);
+            if(entry.mediaPreview)layout.insertBefore(entry.mediaPreview.trigger,presencePanel);
             document.body.append(bar); render(); tick(entry); reportTick(entry); subscribe(entry);
             return entry;
         },
@@ -499,7 +508,7 @@
                 assertDraftScope(entry);download(draftRecord(entry));
             }
             reportPage(entry,true);
-            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.mediaPreview?.dispose(); entry.bar.remove(); active=null;
+            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.mediaPreview?.dispose(); entry.widthAnimation?.cancel(); entry.bar.remove(); active=null;
             document.body.classList.remove('member-canvas-view'); return true;
         },
         send(path,init={},transport=window.fetch.bind(window)) {
