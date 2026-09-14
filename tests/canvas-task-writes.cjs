@@ -4,8 +4,17 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const api=require('../static/js/canvas-task-results.js');
+// These matrices isolate identity/scope guards. Semantic binding is exercised
+// with the real protocol in classic-task-input-bindings.cjs.
+const scopeOnlyBinding=()=>({check(){},verify(){},prepare:async()=>({}),beginSubmission(){},remember(){},mutate:fn=>fn(),apply:(task,fn)=>fn()});
 const sources=Object.fromEntries(['canvas.js','smart-canvas.js'].map(file=>[file,fs.readFileSync(path.join(__dirname,'../static/js',file),'utf8').replace(/\r\n/g,'\n')]));
 function install(context,file,...names){
+ if(file==='canvas.js'){
+  context.classicTaskInputBinding ||= scopeOnlyBinding;
+  context.classicPendingInputBinding ||= ()=>scopeOnlyBinding();
+  context.attachClassicTaskBinding ||= pending=>pending;
+  context.pauseClassicTaskInput ||= ()=>{};
+ }
  if(!vm.isContext(context))vm.createContext(context);
  for(const name of names){
   const source=sources[file], match=new RegExp('(?:async )?function '+name+'\\(').exec(source);

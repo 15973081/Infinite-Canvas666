@@ -71,7 +71,7 @@ def test_bound_request_persists_input_and_target_under_current_lease(world, tmp_
     with workspace_scope(world['a']['id']), database.connection() as conn:
         row = conn.execute('SELECT * FROM tasks WHERE id=%s', (tid,)).fetchone()
         binding = row['request']['_canvas_binding']
-        assert created.json()['canvas_binding'] == binding and binding['version'] == 2
+        assert created.json()['canvas_binding'] == binding and binding['version'] == 3
         assert binding['source_node_id'] == 'source' and binding['target_node_id'] == 'target'
         assert binding['graph_sha256'] == graph_fingerprint(canvas, 'source', 'target')
         from app.models import OnlineImageRequest, CanvasVideoRequest

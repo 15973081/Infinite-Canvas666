@@ -1,4 +1,4 @@
-/* Shared semantic input protocol v2. Receipts are evidence, never edit permission. */
+/* Shared semantic input protocol v3. Receipts are evidence, never edit permission. */
 (() => {
     'use strict';
     const NODE_DISPLAY=new Set(['x','y','w','h','width','height','scale','selected','expanded','collapsed',
@@ -40,12 +40,20 @@
     // Match the existing server's empty optional JSON fields, including []/{}.
     const optional=(value,fallback)=>value==null || value===false || value===0 || value==='' ||
         (Array.isArray(value) && !value.length) || (object(value) && !Object.keys(value).length) ? fallback : value;
+    function semanticMedia(value) {
+        if(Array.isArray(value))return value.map(semanticMedia);
+        if(object(value)){
+            const local=typeof value.url==='string' && /^\/(?:assets\/cloud|api\/media)\/ast_[A-Za-z0-9_-]+(?:\/|$)/.test(value.url);
+            return Object.fromEntries(Object.entries(value).filter(([key])=>!(key==='media_asset_id' && local)).map(([key,item])=>[key,semanticMedia(item)]));
+        }
+        return value;
+    }
     function nodeInput(node) {
         const result=without(node,NODE_DISPLAY);
         for(const key of ['images','refs','runInputRefs','runPromptRefs']){
             if(Array.isArray(result[key]))result[key]=result[key].map(item=>object(item)?without(item,MEDIA_DISPLAY):item);
         }
-        return result;
+        return semanticMedia(result);
     }
     function graphValue(document,sourceId,targetId) {
         if(!object(document))invalid();
@@ -116,14 +124,20 @@
         }
         function receipt(task) {
             const binding=task?.canvas_binding,id=task?.task_id||task?.id;
-            if(!prepared || !id || binding?.version!==2 || binding.canvas_id!==canvasId || binding.canvas_kind!==kind ||
+            if(!prepared || !id || binding?.version!==3 || binding.canvas_id!==canvasId || binding.canvas_kind!==kind ||
                 binding.source_node_id!==sourceId || binding.target_node_id!==targetId ||
                 binding.submitted_revision!==prepared.base_revision || binding.graph_sha256!==prepared.input_sha256 ||
                 !/^[0-9a-f]{64}$/.test(binding.request_sha256||''))throw pause();
             return {id,key:canonical(binding)};
         }
+        function verify(task,expectedTaskId) {
+            check();
+            const saved=receipt(task);
+            if((expectedTaskId && saved.id!==expectedTaskId) || receipts.get(saved.id)!==saved.key)throw pause();
+            return saved;
+        }
         return {
-            check,pause,mutate,
+            check,pause,mutate,verify,
             async prepare() {
                 check();
                 if(submitted)throw new Error('生成任务已提交，不能重新绑定输入。');
@@ -148,10 +162,8 @@
                 if(existing && existing!==saved.key)throw pause();
                 receipts.set(saved.id,saved.key);
             },
-            apply(task,write) {
-                check();
-                const saved=receipt(task);
-                if(receipts.get(saved.id)!==saved.key)throw pause();
+            apply(task,write,expectedTaskId) {
+                const saved=verify(task,expectedTaskId);
                 // No await between input/receipt verification and the write. Advance
                 // only after this batch's own write, so later siblings remain valid.
                 const result=mutate(write);

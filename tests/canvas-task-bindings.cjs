@@ -20,7 +20,7 @@ function fixture(options={}) {
 }
 async function submitted(f,count=2) {
     const target=await f.op.prepare();f.op.beginSubmission();
-    const tasks=Array.from({length:count},(_,index)=>({id:'task-'+index,canvas_binding:{version:2,canvas_id:'c',canvas_kind:'classic',
+    const tasks=Array.from({length:count},(_,index)=>({id:'task-'+index,canvas_binding:{version:3,canvas_id:'c',canvas_kind:'classic',
         source_node_id:'s',target_node_id:'o',submitted_revision:target.base_revision,graph_sha256:target.input_sha256,
         request_sha256:String(index+1).repeat(64)}}));
     tasks.forEach(task=>f.op.remember({...task,task_id:task.id}));
@@ -136,4 +136,21 @@ test('a failed second preflight cannot reuse a previous successful preparation',
     let saved=true;const f=fixture({flush:async()=>saved});await f.op.prepare();saved=false;
     await assert.rejects(f.op.prepare(),/尚未保存/);
     assert.throws(()=>f.op.beginSubmission(),e=>e.resultPending && !e.submitted);
+});
+
+test('v3 ignores save-derived local asset IDs but binds actual URLs and ID-only references',()=>{
+    const doc=clone(golden.graphs[0].document);
+    doc.nodes[2].images=[{url:'/assets/cloud/ast_result/one.png',run:{refs:[{url:'/api/media/ast_ref/content'}]}}];
+    const before=api.graphCanonical(doc,'s','o');
+    doc.nodes[2].images[0].media_asset_id='ast_result';doc.nodes[2].images[0].run.refs[0].media_asset_id='ast_ref';
+    assert.equal(api.graphCanonical(doc,'s','o'),before);
+    doc.nodes[2].images[0].url='/assets/cloud/ast_other/two.png';assert.notEqual(api.graphCanonical(doc,'s','o'),before);
+    for(const item of [{media_asset_id:'ast_only'},{url:'https://provider.test/image',media_asset_id:'ast_external'}]){
+        doc.nodes[2].images=[item];const first=api.graphCanonical(doc,'s','o');item.media_asset_id+='_changed';
+        assert.notEqual(api.graphCanonical(doc,'s','o'),first);
+    }
+});
+test('a receipt for another task in the same batch cannot satisfy a requested task ID',async()=>{
+    const f=fixture(),tasks=await submitted(f);let writes=0;
+    assert.throws(()=>f.op.apply(tasks[1],()=>writes++,tasks[0].id),e=>e.resultPending);assert.equal(writes,0);
 });

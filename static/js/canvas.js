@@ -10022,6 +10022,30 @@ function canvasTaskWriteGuard(...targets){
     return {valid,pause,check(){if(!valid())throw pause();}};
 }
 
+function classicTaskInputBinding(source,target,writeGuard){
+    if(!window.CanvasSession?.enabled)return null;
+    if(!window.CanvasTaskBindings?.operation)throw new Error('生成校验组件尚未加载，请保存并刷新页面后重试。');
+    return window.CanvasTaskBindings.operation({canvasId:canvas.id,kind:'classic',sourceId:source.id,targetId:target.id,
+        read:()=>JSON.parse(JSON.stringify(canvasSavePayload())),valid:writeGuard.valid,
+        revision:()=>window.MemberCanvasEdit?.active?.lease?.revision,
+        flush:async()=>{scheduleSave();return flushClassicCanvasBeforeFrontendReload();}});
+}
+function attachClassicTaskBinding(pending,inputBinding){
+    if(inputBinding)Object.defineProperty(pending,'_inputBinding',{value:inputBinding,configurable:true});
+    return pending;
+}
+function pauseClassicTaskInput(node,out,writeGuard,error,runToken){
+    if(!error?.inputChanged || !writeGuard.valid() || node._taskRunToken!==runToken)return;
+    // Release only this run's visual busy flag; leave pending tasks and inputs intact.
+    node.running=false;
+    refreshRunNodes(node,out);
+    setStatus(error.message);
+}
+function classicPendingInputBinding(found,options){
+    const binding=options?.inputBinding || found?.pending?._inputBinding;
+    if(window.CanvasSession?.enabled && (!binding || typeof binding.check!=='function' || typeof binding.apply!=='function'))return null;
+    return binding;
+}
 async function runGenerator(genId, opts={}){
     const gen = nodes.find(n => n.id === genId);
     if(!gen || (gen.running && !opts.cascade)) return;
@@ -10034,12 +10058,17 @@ async function runGenerator(genId, opts={}){
     const count = Math.max(1, Math.min(8, Number(gen.count || 1)));
     let out = outputForNode(gen, 460);
     const writeGuard=canvasTaskWriteGuard(gen,out);
+    const runToken={};
+    Object.defineProperty(gen,'_taskRunToken',{value:runToken,writable:true,configurable:true});
+    let inputBinding;
+    try {inputBinding=classicTaskInputBinding(gen,out||gen,writeGuard);}
+    catch(error){showErrorModal(error.message);if(opts.cascade)throw error;return;}
     const run = runSnapshot(gen, prompt || 'Edit the reference images.', refs);
     const payload = {
         prompt: prompt || 'Edit the reference images.',
         provider_id:resolveImageProviderId(gen.apiProvider || 'comfly'),
         model:resolveImageModel(gen.model),
-        size:await generatorSizeForRun(gen, refs),
+        size:'',
         reference_images:refs
     };
     if(!writeGuard.valid()){if(opts.cascade)throw writeGuard.pause();return;}
@@ -10053,22 +10082,33 @@ async function runGenerator(genId, opts={}){
         gen.running = true;
         refreshRunNodes(gen, out);
         // API 支持并发：2s 后即可再次点击，任务仍由 pending 卡片继续追踪
-        setTimeout(() => { if(!writeGuard.valid())return; gen.running = false; refreshRunNodes(gen, out); }, 2000);
+        setTimeout(() => { if(!writeGuard.valid() || gen._taskRunToken!==runToken)return; gen.running = false; refreshRunNodes(gen, out); }, 2000);
     }
     try {
-        const taskInfos = await Promise.all(Array.from({length:count}, () => createCanvasImageTask(payload, {cascadeTargetId})));
-        writeGuard.check();
+        payload.size=await generatorSizeForRun(gen,refs);
+        writeGuard.check();inputBinding?.check();
+        if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
+        const taskInfos = await Promise.all(Array.from({length:count}, async () => {
+            const task=await createCanvasImageTask(payload,{cascadeTargetId});
+            inputBinding?.remember(task);return task;
+        }));
+        writeGuard.check();inputBinding?.check();
         if(!out){
             let outputs = [];
             for(const task of taskInfos){
-                const result = await waitCanvasImageTaskResult(task.task_id, {cascadeTargetId});
-                writeGuard.check();
-                outputs.push(...(result.images || []));
-                run.request = requestMetaFromResult(result);
-                addGenerationLog({run:{...run, canvasTaskId:task.task_id}, outputs:result.images || [], runMs:nowMs() - startedAt});
+                const record = await waitCanvasImageTaskResult(task.task_id, {cascadeTargetId,inputBinding,returnRecord:Boolean(inputBinding)});
+                const result=inputBinding ? record.result||{} : record;
+                writeGuard.check();inputBinding?.check();
+                const accept=()=>{
+                    outputs.push(...(result.images || []));
+                    run.request = requestMetaFromResult(result);
+                    addGenerationLog({run:{...run, canvasTaskId:task.task_id}, outputs:result.images || [], runMs:nowMs() - startedAt});
+                };
+                if(inputBinding)inputBinding.apply(record,accept,task.task_id);else accept();
             }
             if(!outputs.length) throw new Error(tr('canvas.generationFailed'));
-            mergeGeneratedOutputs(gen, outputs, Boolean(opts.cascade));
+            if(inputBinding)inputBinding.mutate(()=>mergeGeneratedOutputs(gen,outputs,Boolean(opts.cascade)));
+            else mergeGeneratedOutputs(gen, outputs, Boolean(opts.cascade));
             gen.runStatus = 'done';
             gen.runError = '';
             gen.running = false;
@@ -10079,24 +10119,26 @@ async function runGenerator(genId, opts={}){
         pendingIds = taskInfos.map(() => uid('p'));
         if(out) out._pending = [
             ...(out._pending || []),
-            ...taskInfos.map((task, index) => makePendingForRun(pendingIds[index], run, gen, {refs, requestSize:payload.size, cascadeTargetId}, {
+            ...taskInfos.map((task, index) => attachClassicTaskBinding(makePendingForRun(pendingIds[index], run, gen, {refs, requestSize:payload.size, cascadeTargetId}, {
                 canvasTaskId:task.task_id,
                 canvasTaskType:'online-image',
                 providerId:payload.provider_id,
                 model:payload.model,
                 appendGenerated:Boolean(opts.cascade)
-            }))
+            }),inputBinding))
         ];
         refreshRunNodes(gen, out);
         scheduleSave();
         await saveCanvas();
-        writeGuard.check();
-        const statuses = await Promise.all(taskInfos.map(task => pollCanvasImageTask(task.task_id, {cascadeTargetId})));
-        writeGuard.check();
+        writeGuard.check();inputBinding?.check();
+        const statuses = await Promise.all(taskInfos.map(task => pollCanvasImageTask(task.task_id, {cascadeTargetId,inputBinding})));
+        writeGuard.check();inputBinding?.check();
         if(statuses.includes('paused'))throw writeGuard.pause();
         if(statuses.includes('aborted')) throw cascadeAbortError(cascadeStopMessage());
         if(statuses.includes('failed')) throw new Error(gen.runError || tr('canvas.generationFailed'));
     } catch(err) {
+        if(inputBinding){try {inputBinding.check();}catch(changed){err=changed;}}
+        pauseClassicTaskInput(gen,out,writeGuard,err,runToken);
         if(err?.resultPending || !writeGuard.valid()){const paused=writeGuard.pause();if(opts.cascade)throw paused;return;}
         const remainingPending = pendingIds.map(id => pendingById(out, id)).filter(Boolean);
         if(isCascadeAbortError(err)){
@@ -10202,6 +10244,11 @@ async function runVideoNode(nodeId, opts={}){
     let out = outputForNode(node, 460);
     const writeGuard=canvasTaskWriteGuard(node,out);
     writeGuard.check();
+    const runToken={};
+    Object.defineProperty(node,'_taskRunToken',{value:runToken,writable:true,configurable:true});
+    let inputBinding;
+    try {inputBinding=classicTaskInputBinding(node,out||node,writeGuard);}
+    catch(error){showErrorModal(error.message);if(opts.cascade)throw error;return;}
     const run = runSnapshot(node, prompt, refs);
     const payload = {
         prompt,
@@ -10231,17 +10278,21 @@ async function runVideoNode(nodeId, opts={}){
     let handledTaskFailure = false;
     let pendingId = '';
     try {
+        if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
         const task = await createCanvasVideoTask(payload, {cascadeTargetId});
-        writeGuard.check();
+        inputBinding?.remember(task);
+        writeGuard.check();inputBinding?.check();
         if(!out){
-            const result = await waitCanvasVideoTaskResult(task.task_id, {cascadeTargetId});
-            writeGuard.check();
+            const record = await waitCanvasVideoTaskResult(task.task_id, {cascadeTargetId,inputBinding,returnRecord:Boolean(inputBinding)});
+            const result=inputBinding ? record.result||{} : record;
+            writeGuard.check();inputBinding?.check();
             const outputUrls = videoOutputsFromResult(result);
             if(!outputUrls.length) throw new Error(tr('canvas.videoFailed'));
             run.request = requestMetaFromResult(result);
             run.canvasTaskId = task.task_id;
             Object.assign(run, window.VolcengineVideoBilling?.metadata(result));
-            mergeGeneratedOutputs(node, outputUrls, Boolean(opts.cascade));
+            if(inputBinding)inputBinding.apply(record,()=>mergeGeneratedOutputs(node,outputUrls,Boolean(opts.cascade)),task.task_id);
+            else mergeGeneratedOutputs(node, outputUrls, Boolean(opts.cascade));
             addGenerationLog({run, outputs:outputUrls, runMs:0});
             node.runStatus = 'done';
             node.runError = '';
@@ -10251,19 +10302,19 @@ async function runVideoNode(nodeId, opts={}){
             return;
         }
         pendingId = uid('p');
-        out._pending = [...(out._pending || []), makePendingForRun(pendingId, run, node, {refs, cascadeTargetId}, {
+        out._pending = [...(out._pending || []), attachClassicTaskBinding(makePendingForRun(pendingId, run, node, {refs, cascadeTargetId}, {
             canvasTaskId:task.task_id,
             canvasTaskType:'video',
             providerId,
             model:payload.model,
             appendGenerated:Boolean(opts.cascade)
-        })];
+        }),inputBinding)];
         refreshRunNodes(node, out);
         scheduleSave();
         await saveCanvas();
-        writeGuard.check();
-        const status = await pollCanvasVideoTask(task.task_id, {cascadeTargetId});
-        writeGuard.check();
+        writeGuard.check();inputBinding?.check();
+        const status = await pollCanvasVideoTask(task.task_id, {cascadeTargetId,inputBinding});
+        writeGuard.check();inputBinding?.check();
         if(status==='paused')throw writeGuard.pause();
         if(status === 'aborted') throw cascadeAbortError(cascadeStopMessage());
         if(status === 'failed'){
@@ -10271,6 +10322,8 @@ async function runVideoNode(nodeId, opts={}){
             throw new Error(node.runError || tr('canvas.videoFailed'));
         }
     } catch(err) {
+        if(inputBinding){try {inputBinding.check();}catch(changed){err=changed;}}
+        pauseClassicTaskInput(node,out,writeGuard,err,runToken);
         if(err?.resultPending || !writeGuard.valid()){const paused=writeGuard.pause();if(opts.cascade)throw paused;return;}
         const currentNode = nodes.find(n => n.id === nodeId) || node;
         const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
@@ -10291,7 +10344,7 @@ async function runVideoNode(nodeId, opts={}){
         if(opts.cascade) throw err;
         alert(err.message || tr('canvas.videoFailed'));
     } finally {
-        if(writeGuard.valid()){
+        if(writeGuard.valid() && node._taskRunToken===runToken){
             node.running = false;
             refreshRunNodes(node, out);
         }
@@ -11976,6 +12029,8 @@ async function pollCanvasImageTask(taskId, options={}){
     if(!validResult()) return 'paused';
     const found=findPendingTask(taskId);
     if(!found)return 'missing';
+    const inputBinding=classicPendingInputBinding(found,options);
+    if(window.CanvasSession?.enabled && !inputBinding)return 'paused';
     const sourceId=found.pending.run?.node?.id, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
     const targetsCurrent=()=>canvas?.id===originCanvas && validResult() && findPendingTask(taskId)?.pending===found.pending &&
         (!window.CanvasSession?.enabled || ((!found.out || nodes.includes(found.out)) && (!sourceId || Boolean(source && nodes.includes(source)))));
@@ -11984,6 +12039,7 @@ async function pollCanvasImageTask(taskId, options={}){
     try {
         while(true){
             if(!targetsCurrent())return 'paused';
+            inputBinding?.check();
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
             const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
@@ -11994,17 +12050,21 @@ async function pollCanvasImageTask(taskId, options={}){
             const data = await res.json();
             if(!targetsCurrent() ||
                 (window.CanvasSession?.enabled && data.canvas_edit_generation!==window.MemberCanvasEdit.active.lease.generation)) return 'paused';
+            inputBinding?.verify(data,taskId);
             if(data.status === 'succeeded'){
-                completeCanvasImageTask(taskId, data.result || {});
+                if(inputBinding)inputBinding.apply(data,()=>completeCanvasImageTask(taskId,data.result||{}),taskId);
+                else completeCanvasImageTask(taskId, data.result || {});
                 return 'succeeded';
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
-                failCanvasImageTask(taskId, data.error || tr('canvas.generationFailed'), data);
+                const fail=()=>failCanvasImageTask(taskId,data.error||tr('canvas.generationFailed'),data);
+                if(inputBinding)inputBinding.apply(data,fail,taskId);else fail();
                 return 'failed';
             }
             await sleep(1800);
         }
     } catch(err) {
+        if(inputBinding){try{inputBinding.check();}catch(_){return 'paused';}}
         if(err?.resultPending || !targetsCurrent()) return 'paused';
         const message = normalizeCanvasTaskError(err, tr('canvas.generationFailed'));
         if(isCascadeAbortError(err)) return 'aborted';
@@ -12017,6 +12077,7 @@ async function pollCanvasImageTask(taskId, options={}){
 async function waitCanvasImageTaskResult(taskId, options={}){
     if(!taskId) throw new Error(tr('canvas.generationFailed'));
     while(true){
+        options.inputBinding?.check();
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
         if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
         const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
@@ -12025,7 +12086,9 @@ async function waitCanvasImageTaskResult(taskId, options={}){
             throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
         }
         const data = await res.json();
-        if(data.status === 'succeeded') return data.result || {};
+        options.inputBinding?.verify(data,taskId);
+        if(options.inputBinding && data.canvas_edit_generation!==window.MemberCanvasEdit?.active?.lease?.generation)throw options.inputBinding.pause();
+        if(data.status === 'succeeded') return options.returnRecord ? data : data.result || {};
         if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')) throw new Error(data.error || tr('canvas.generationFailed'));
         await sleep(1800);
     }
@@ -12156,6 +12219,8 @@ async function pollCanvasVideoTask(taskId, options={}){
     if(!validResult()) return 'paused';
     const found=findPendingTask(taskId);
     if(!found)return 'missing';
+    const inputBinding=classicPendingInputBinding(found,options);
+    if(window.CanvasSession?.enabled && !inputBinding)return 'paused';
     const sourceId=found.pending.run?.node?.id, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
     const targetsCurrent=()=>canvas?.id===originCanvas && validResult() && findPendingTask(taskId)?.pending===found.pending &&
         (!window.CanvasSession?.enabled || ((!found.out || nodes.includes(found.out)) && (!sourceId || Boolean(source && nodes.includes(source)))));
@@ -12166,6 +12231,7 @@ async function pollCanvasVideoTask(taskId, options={}){
     try {
         while(true){
             if(!targetsCurrent())return 'paused';
+            inputBinding?.check();
             const cascadeTargetId = String(options?.cascadeTargetId || found?.pending?.cascadeTargetId || '');
             if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
             let res;
@@ -12173,6 +12239,7 @@ async function pollCanvasVideoTask(taskId, options={}){
                 res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
             } catch(error) {
                 if(error?.resultPending || !targetsCurrent())return 'paused';
+                inputBinding?.check();
                 if(isCascadeAbortError(error)) throw error;
                 const retryWindow = canvasTaskPollRetryWindow(0, error);
                 if(retryWindow){
@@ -12201,22 +12268,27 @@ async function pollCanvasVideoTask(taskId, options={}){
             const data = await res.json();
             if(!targetsCurrent() ||
                 (window.CanvasSession?.enabled && data.canvas_edit_generation!==window.MemberCanvasEdit.active.lease.generation)) return 'paused';
+            inputBinding?.verify(data,taskId);
             if(data.status === 'succeeded'){
                 const result = data.result || {};
                 if(!videoOutputsFromResult(result).length){
-                    failCanvasVideoTask(taskId, tr('canvas.videoFailed'), data);
+                    if(inputBinding)inputBinding.apply(data,()=>failCanvasVideoTask(taskId,tr('canvas.videoFailed'),data),taskId);
+                    else failCanvasVideoTask(taskId, tr('canvas.videoFailed'), data);
                     return 'failed';
                 }
-                completeCanvasVideoTask(taskId, result);
+                if(inputBinding)inputBinding.apply(data,()=>completeCanvasVideoTask(taskId,result),taskId);
+                else completeCanvasVideoTask(taskId, result);
                 return 'succeeded';
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
-                failCanvasVideoTask(taskId, data.error || tr('canvas.videoFailed'), data);
+                const fail=()=>failCanvasVideoTask(taskId,data.error||tr('canvas.videoFailed'),data);
+                if(inputBinding)inputBinding.apply(data,fail,taskId);else fail();
                 return 'failed';
             }
             await sleep(2500);
         }
     } catch(err) {
+        if(inputBinding){try{inputBinding.check();}catch(_){return 'paused';}}
         if(err?.resultPending || !targetsCurrent()) return 'paused';
         if(isCascadeAbortError(err)) return 'aborted';
         failCanvasVideoTask(taskId, normalizeCanvasTaskError(err, tr('canvas.videoFailed')));
@@ -12229,12 +12301,14 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
     if(!taskId) throw new Error(tr('canvas.videoFailed'));
     let unavailableSince = 0;
     while(true){
+        options.inputBinding?.check();
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
         if(cascadeTargetId) ensureCascadeActive(cascadeTargetId);
         let res;
         try {
             res = await window.CanvasApi.getCanvasVideoTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
         } catch(error) {
+            options.inputBinding?.check();
             if(isCascadeAbortError(error)) throw error;
             const retryWindow = canvasTaskPollRetryWindow(0, error);
             if(retryWindow){
@@ -12260,7 +12334,9 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
         }
         unavailableSince = 0;
         const data = await res.json();
-        if(data.status === 'succeeded') return data.result || {};
+        options.inputBinding?.verify(data,taskId);
+        if(options.inputBinding && data.canvas_edit_generation!==window.MemberCanvasEdit?.active?.lease?.generation)throw options.inputBinding.pause();
+        if(data.status === 'succeeded') return options.returnRecord ? data : data.result || {};
         if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
             const error = new Error(data.error || tr('canvas.videoFailed'));
             error.videoResult = data.result;

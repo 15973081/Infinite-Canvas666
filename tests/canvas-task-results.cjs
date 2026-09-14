@@ -29,7 +29,7 @@ for(const kind of ['Image','Video']) {
    const arrived=new Promise(resolve=>release=resolve);
    const request=async()=>{await arrived;return {ok:true,json:async()=>response};};
    w.CanvasApi={getCanvasImageTaskRequest:request,getCanvasVideoTaskRequest:request};
-   const context={window:w,canvas:{id:'c'},activeCanvasTaskPolls:new Set(),findPendingTask:()=>pending?{pending}:null,
+   const context={window:w,classicPendingInputBinding:()=>({check(){},verify(){},apply:(task,fn)=>fn()}),canvas:{id:'c'},activeCanvasTaskPolls:new Set(),findPendingTask:()=>pending?{pending}:null,
     cascadeFetch:()=>{},completeCanvasImageTask:()=>finish++,completeCanvasVideoTask:()=>finish++,
     failCanvasImageTask:()=>fail++,failCanvasVideoTask:()=>fail++,videoOutputsFromResult:r=>r.videos,
     tr:s=>s,normalizeCanvasTaskError:e=>e.message,isCascadeAbortError:()=>false};

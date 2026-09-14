@@ -3,6 +3,7 @@ import copy
 import hashlib
 import json
 import math
+import re
 import struct
 
 from fastapi import HTTPException
@@ -60,7 +61,17 @@ def portable_digest(value):
     return digest(portable_value(value))
 
 
-def node_input(node):
+def semantic_media(value):
+    """A saved local URL determines its asset ID; the added ID is not an edit."""
+    if isinstance(value, list):
+        return [semantic_media(item) for item in value]
+    if isinstance(value, dict):
+        local_url = isinstance(value.get('url'), str) and re.match(r'^/(?:assets/cloud|api/media)/ast_[A-Za-z0-9_-]+(?:/|$)', value['url'])
+        return {key: semantic_media(item) for key, item in value.items() if not (key == 'media_asset_id' and local_url)}
+    return value
+
+
+def node_input(node, version=3):
     result = {key: value for key, value in node.items() if key not in NODE_DISPLAY}
     # Preview generation/measurement must not invalidate the original media.
     for key in ('images', 'refs', 'runInputRefs', 'runPromptRefs'):
@@ -68,10 +79,10 @@ def node_input(node):
         if isinstance(values, list):
             result[key] = [{k: v for k, v in item.items() if k not in MEDIA_DISPLAY}
                            if isinstance(item, dict) else item for item in values]
-    return result
+    return semantic_media(result) if version >= 3 else result
 
 
-def graph_fingerprint(document, source_id, target_id, version=2):
+def graph_fingerprint(document, source_id, target_id, version=3):
     """Bind both nodes and their full upstream graph, with deterministic ordering."""
     if not isinstance(document, dict):
         invalid('task_binding_document_invalid', 400)
@@ -104,17 +115,17 @@ def graph_fingerprint(document, source_id, target_id, version=2):
         node = nodes[node_id]
         if node.get('type') in {'group', 'promptGroup'}:
             items = node.get('items') or []
-            if version == 2 and not isinstance(items, list):
+            if version >= 2 and not isinstance(items, list):
                 invalid('task_binding_document_invalid', 400)
             pending.extend(item for item in items if isinstance(item, str))
         for position, edge in enumerate(incoming.get(node_id, [])):
             edges.append({'position': position, 'connection': {k: v for k, v in edge.items() if k not in EDGE_DISPLAY}})
             pending.append(edge['from'])
-    if version not in (1, 2):
+    if version not in (1, 2, 3):
         invalid('task_binding_version_unsupported', 400)
     edges.sort(key=digest if version == 1 else lambda edge: (edge['connection']['to'], edge['position']))
     encode = digest if version == 1 else portable_digest
-    return encode({'nodes': [node_input(nodes[key]) for key in sorted(visited)], 'connections': edges,
+    return encode({'nodes': [node_input(nodes[key], version) for key in sorted(visited)], 'connections': edges,
                    'settings': document.get('settings') or {}})
 
 
@@ -133,7 +144,7 @@ def capture(canvas, target, request_sha256):
         invalid('task_binding_target_invalid', 400)
     if expected is not None and expected != current:
         invalid('task_binding_input_conflict')
-    return {'version': 2, 'canvas_id': canvas['id'], 'canvas_kind': canvas['kind'],
+    return {'version': 3, 'canvas_id': canvas['id'], 'canvas_kind': canvas['kind'],
             'source_node_id': target['source_node_id'], 'target_node_id': target['target_node_id'],
             'submitted_revision': canvas['revision'], 'request_sha256': request_sha256,
             'graph_sha256': current}
@@ -148,7 +159,7 @@ def state(canvas, binding):
     """Read-only observation, not permission to write or submit a paid request."""
     if not binding:
         return {'state': 'unbound'}
-    if binding.get('version') not in (1, 2):
+    if binding.get('version') not in (1, 2, 3):
         return {'state': 'unsupported'}
     summary = {'source_node_id': binding.get('source_node_id'), 'target_node_id': binding.get('target_node_id'),
                'submitted_revision': binding.get('submitted_revision')}

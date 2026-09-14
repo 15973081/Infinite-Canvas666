@@ -114,7 +114,7 @@ def test_client_input_digest_is_an_expectation_not_authority():
     row = {'id': 'c', 'kind': 'smart', 'revision': 2, 'document': document()}
     target = {'source_node_id': 'src', 'target_node_id': 'out', 'base_revision': 2,
               'input_sha256': graph_fingerprint(row['document'], 'src', 'out')}
-    assert capture(row, target, 'a' * 64)['version'] == 2
+    assert capture(row, target, 'a' * 64)['version'] == 3
     row['document']['nodes'][0]['text'] = 'server has different input at same revision'
     with pytest.raises(HTTPException, match='task_binding_input_conflict'):
         capture(row, target, 'a' * 64)
@@ -161,3 +161,24 @@ def test_portable_number_types_unicode_and_shared_golden_vectors():
 def test_portable_fingerprint_rejects_lossy_or_invalid_values(value):
     from app.storage.task_canvas_bindings import portable_digest
     with pytest.raises(HTTPException): portable_digest(value)
+
+
+def test_v3_ignores_only_asset_ids_derived_from_local_urls_and_keeps_v2_readable():
+    doc = document()
+    doc['nodes'][2]['images'] = [{'url': '/assets/cloud/ast_result/one.png', 'run': {'refs': [{'url': '/api/media/ast_ref/content'}]}}]
+    before = graph_fingerprint(doc, 'src', 'out')
+    old_v2 = graph_fingerprint(doc, 'src', 'out', version=2)
+    doc['nodes'][2]['images'][0]['media_asset_id'] = 'ast_result'
+    doc['nodes'][2]['images'][0]['run']['refs'][0]['media_asset_id'] = 'ast_ref'
+    assert graph_fingerprint(doc, 'src', 'out') == before
+    assert graph_fingerprint(doc, 'src', 'out', version=2) != old_v2
+    old_binding = {'version': 2, 'canvas_id': 'c', 'canvas_kind': 'classic', 'source_node_id': 'src', 'target_node_id': 'out',
+                   'graph_sha256': graph_fingerprint(doc, 'src', 'out', version=2)}
+    assert state({'id': 'c', 'kind': 'classic', 'revision': 2, 'document': doc}, old_binding)['state'] == 'unchanged'
+    doc['nodes'][2]['images'][0]['url'] = '/assets/cloud/ast_new/two.png'
+    assert graph_fingerprint(doc, 'src', 'out') != before
+    for item in ({'media_asset_id': 'ast_only'}, {'url': 'https://provider.test/image', 'media_asset_id': 'ast_external'}):
+        doc['nodes'][2]['images'] = [item]
+        first = graph_fingerprint(doc, 'src', 'out')
+        item['media_asset_id'] += '_different'
+        assert graph_fingerprint(doc, 'src', 'out') != first
