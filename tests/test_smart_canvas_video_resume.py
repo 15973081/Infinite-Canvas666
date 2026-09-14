@@ -55,7 +55,7 @@ class SmartCanvasVideoResumeTest(unittest.TestCase):
 
         self.assertIn("const taskKind = kind === 'video' ? 'video' : 'image'", poll_task)
         self.assertIn("`/api/canvas-${taskKind}-tasks/", poll_task)
-        self.assertIn("pollSmartCanvasTask(task.taskId, kind)", resume_node)
+        self.assertIn("pollSmartCanvasTask(task.taskId,kind,{inputBinding,returnRecord:Boolean(inputBinding)})", resume_node)
         self.assertIn("kind === 'video' ? resultMediaUrls(result)", resume_node)
 
     def test_regular_and_cascade_video_runs_persist_pending_tasks(self):

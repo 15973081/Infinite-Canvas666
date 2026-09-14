@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {capture}=require('../static/js/canvas-task-results.js');
+const {capture,pending:pendingError}=require('../static/js/canvas-task-results.js');
 function fixture(){const entry={memberId:'m',workspaceId:'w',lease:{epoch:1,generation:2,canEdit:true}};return {CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}},MemberCanvasEdit:{active:entry}};}
 test('late task result is rejected after transfer, pause, same-user reentry, or scope switch',()=>{
  for(const change of [w=>w.MemberCanvasEdit.active.lease.epoch++,w=>w.MemberCanvasEdit.active.lease.generation++,w=>w.MemberCanvasEdit.active.lease.canEdit=false,w=>w.CanvasSession.paused=true,w=>w.CanvasSession.context.member.id='other',w=>w.CanvasSession.context.workspace.id='other',w=>w.MemberCanvasEdit.active={...w.MemberCanvasEdit.active}]){
@@ -23,7 +23,7 @@ function sourceFunction(file,name){
 for(const kind of ['Image','Video']) {
  test('classic '+kind+' actual polling rejects handoff, deleted target and changed persisted generation',async()=>{
   for(const scenario of ['unchanged','handoff','deleted','generation','canvas']) {
-   const w=fixture();w.CanvasTaskResults={capture:()=>capture(w)};
+   const w=fixture();w.CanvasTaskResults={capture:()=>capture(w),pending:pendingError};
    let pending={},finish=0,fail=0,release;
    const response={status:'succeeded',canvas_edit_generation:2,result:{images:['image'],videos:['video']}};
    const arrived=new Promise(resolve=>release=resolve);
@@ -48,7 +48,7 @@ for(const kind of ['Image','Video']) {
 }
 test('smart actual task polling leaves old generation and lost edit responses pending',async()=>{
  for(const scenario of ['unchanged','handoff','generation']) {
-  const w=fixture();w.CanvasTaskResults={capture:()=>capture(w)};
+  const w=fixture();w.CanvasTaskResults={capture:()=>capture(w),pending:pendingError};
   let release;const arrived=new Promise(resolve=>release=resolve);
   const response={status:'succeeded',canvas_edit_generation:2,result:{images:['image']}};
   const context={window:w,activeSmartTaskPolls:new Map(),setTimeout:fn=>{queueMicrotask(fn);return 1;},

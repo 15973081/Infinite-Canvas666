@@ -5,7 +5,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const api=require('../static/js/canvas-task-results.js');
 // These matrices isolate identity/scope guards. Semantic binding is exercised
-// with the real protocol in classic-task-input-bindings.cjs.
+// with the real protocol in classic-task-input-bindings.cjs and smart-task-input-bindings.cjs.
 const scopeOnlyBinding=()=>({check(){},verify(){},prepare:async()=>({}),beginSubmission(){},remember(){},mutate:fn=>fn(),apply:(task,fn)=>fn()});
 const sources=Object.fromEntries(['canvas.js','smart-canvas.js'].map(file=>[file,fs.readFileSync(path.join(__dirname,'../static/js',file),'utf8').replace(/\r\n/g,'\n')]));
 function install(context,file,...names){
@@ -14,6 +14,11 @@ function install(context,file,...names){
   context.classicPendingInputBinding ||= ()=>scopeOnlyBinding();
   context.attachClassicTaskBinding ||= pending=>pending;
   context.pauseClassicTaskInput ||= ()=>{};
+ }
+ if(file==='smart-canvas.js'){
+  context.smartTaskInputBinding ||= scopeOnlyBinding;
+  context.smartTaskUiGuard ||= ()=>()=>true;
+  context.attachSmartTaskBinding ||= (task,binding)=>Object.defineProperty(task,'_inputBinding',{value:binding,enumerable:false});
  }
  if(!vm.isContext(context))vm.createContext(context);
  for(const name of names){
@@ -111,7 +116,7 @@ function smartRun(stage,outcome){
   pushUndo:()=>{},stripRunInputMeta:m=>m,undoSuppressed:false,createPendingOutputFromSource:()=>{c.nodes.push(out);return out;},coolNodeRunningState:()=>{},coolRunButton:()=>{},render:()=>counts.render++,runBtn:{},
   runApiGeneration:async()=>{await boundary('submit');return {taskIds:['t'],providerId:'p',model:'model'};},
   smartPendingTasks:n=>n.pendingTasks||[],activeSmartNodeResumes:new Map(),refreshSmartNodes:()=>counts.render++,scheduleSave:()=>counts.save++,saveCanvas:async()=>{},
-  pollSmartCanvasTask:async()=>{await boundary('poll');if(outcome==='old-generation')throw api.pending();return {images:['new']};},resultMediaUrls:r=>r,
+  pollSmartCanvasTask:async()=>{await boundary('poll');if(outcome==='old-generation')throw api.pending();return {result:{images:['new']}};},resultMediaUrls:r=>r,
   finalizeSmartPendingTask:(n,id,outputs)=>{n.images=outputs;n.pendingTasks=[];n.pending=0;counts.finish++;},smartRecoverableImageTask:()=>null,
   restoreSourceVisualState:()=>counts.restore++,clearPromptInput:()=>{},addSmartGenerationLog:()=>counts.log++,toast:()=>counts.error++,tr:s=>s};
  install(c,'smart-canvas.js','canvasTaskWriteGuard','resumeSmartPendingNode','runGeneration');
