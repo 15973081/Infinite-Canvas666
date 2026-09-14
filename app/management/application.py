@@ -183,6 +183,13 @@ class TaskReview(Input):
     upstream_verified: bool = Field(default=False, strict=True)
 
 
+class CanvasOccupancyRevoke(Input):
+    expected_generation: int = Field(strict=True, ge=1, le=9007199254740991)
+    expected_revision: int = Field(strict=True, ge=1, le=9007199254740991)
+    confirm: bool = Field(strict=True)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class PageReview(Input):
     expected_sequence: int = Field(strict=True, ge=1, le=9007199254740991)
     outcome: Literal['member_confirmed_saved', 'draft_exported', 'member_discarded']
@@ -363,6 +370,17 @@ def create_app(static_dir=None):
     def backup_request(request: Request, data: BackupRequest, workspace: str | None = None):
         from app.services.backup_control import request as create_request
         return create_request(actor(request), data.request_id, data.reason, workspace)
+
+    @app.get('/api/canvas-occupancy')
+    def canvas_occupancy(request: Request, workspace: str, after: str = Query('', max_length=200),
+                         limit: int = Query(50, ge=1, le=100)):
+        from app.services.canvas_occupancy import listing
+        return listing(actor(request), workspace, after, limit)
+
+    @app.post('/api/canvas-occupancy/{canvas_id}/revoke')
+    def revoke_canvas_occupancy(canvas_id: str, request: Request, data: CanvasOccupancyRevoke, workspace: str):
+        from app.services.canvas_occupancy import revoke
+        return revoke(actor(request), workspace, canvas_id, **data.model_dump())
 
     @app.get('/api/tasks')
     def task_list(request: Request, workspace: str, status: str = 'needs_review',

@@ -2,7 +2,7 @@
 from app.services import authorization as az, members
 
 SPACE_MANAGEMENT = {'space.members.manage', 'space.roles.manage', 'maintenance.space',
-                    'audit.read', 'backup.read', 'backup.request', 'task.review'}
+                    'audit.read', 'backup.read', 'backup.request', 'task.review', 'canvas.lock.takeover'}
 
 
 def snapshot(actor):
@@ -18,7 +18,7 @@ def snapshot(actor):
         for row in rows:
             permissions = az.effective_permissions(conn, actor.member_id, row['id'])
             if is_super:
-                permissions |= SPACE_MANAGEMENT - {'task.review'}
+                permissions |= SPACE_MANAGEMENT - {'task.review', 'canvas.lock.takeover'}
             if permissions & SPACE_MANAGEMENT or platform & {'space.assign', 'space.archive'}:
                 spaces.append({**row, 'permissions': sorted(permissions)})
         if not platform and not spaces:

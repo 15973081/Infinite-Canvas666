@@ -1,9 +1,12 @@
 (() => {
   'use strict';
   const $ = (s) => document.querySelector(s);
-  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', serial = 0, reportRequest = 0;
-  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录'};
+  let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
+  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   const errors = {
+    canvas_occupancy_changed:'画布已保存、被接管或占用已失效，请关闭弹窗并刷新列表后重新确认。',
+    canvas_occupancy_confirmation_required:'请填写原因并明确确认结束当前占用。',
+    canvas_not_found:'当前空间中找不到此画布，请刷新。',
     backup_storage_unconfigured:'运维尚未配置有效的备份目录。',
     backup_already_pending:'当前范围已有排队或执行中的备份，请刷新记录。',
     backup_request_conflict:'此请求编号已用于其他备份，请重新打开。',
@@ -131,7 +134,7 @@
     const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView}[view])();
+    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
     if (stamp === serial) content.replaceChildren(...result);
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
@@ -484,6 +487,45 @@
     return [toolbar,note,...(canRead?[records,pages]:[el('p','已获备份请求权限；查看执行记录还需要备份记录权限。','muted')])];
   }
 
+  const occupancyStates = {active:'正在编辑', released:'已结束', expired:'已到期', invalid:'资格已失效'};
+  function revokeOccupancy(row, scope) {
+    const stamp=serial, memberId=me?.member.id;
+    if(scope!==workspace || !memberId || row.state!=='active')return;
+    const reason=field('reason','结束占用的原因');reason.querySelector('input').maxLength=1000;
+    const confirmation=choices('confirm',[{id:'yes',name:'已联系编辑者或核对情况，确认结束此次占用'}]);
+    dialog('结束画布占用',[
+      el('p', '空间：'+(me.workspaces.find(w=>w.id===scope)?.name || scope)),
+      labelText(row.title || '未命名画布',row.canvas_id),
+      el('p', '当前编辑者：'+row.holder.display_name+' · '+row.holder.id),
+      el('p', '确认的编辑代次 '+row.generation+'，画布版本 '+row.revision+'。'),
+      el('p','结束后原页面不能继续保存；后台不会保存未提交的修改。请成员保留或导出草稿。其他成员需在工作台重新开始编辑。'),
+      reason,confirmation
+    ],f=>{
+      if(serial!==stamp || workspace!==scope || me?.member.id!==memberId)throw new Error('管理范围或账号已变化，请重新打开。');
+      const note=String(f.get('reason') || '').trim();
+      if(!note || !f.has('confirm'))throw new Error('请填写原因并勾选确认。');
+      return call('/api/canvas-occupancy/'+encodeURIComponent(row.canvas_id)+'/revoke?'+new URLSearchParams({workspace:scope}),
+        'POST',{expected_generation:row.generation,expected_revision:row.revision,confirm:true,reason:note});
+    },'确认结束占用');
+  }
+  async function occupancyView() {
+    if(!workspace)return [el('div','请选择一个空间查看画布占用。','empty')];
+    if(!allowed('canvas.read') || !allowed('canvas.lock.takeover'))return denied();
+    const scope=workspace, data=await api('/api/canvas-occupancy?'+new URLSearchParams({workspace:scope,after:occupancyAfter}));
+    const toolbar=el('div',undefined,'toolbar');toolbar.append(button('刷新占用',refresh));
+    const rows=data.canvases.map(row=>[
+      labelText(row.title || '未命名画布',row.canvas_id), (row.kind==='smart'?'智能画布':'经典画布')+(row.trashed?' · 回收站':''),
+      occupancyStates[row.state] || '未知',row.holder?labelText(row.holder.display_name,row.holder.id):'—',
+      row.generation+' / '+row.revision,new Date(row.expires_at).toLocaleString(),
+      row.state==='active'?button('结束占用',()=>revokeOccupancy(row,scope),'danger'):'—'
+    ]);
+    const pages=el('div',undefined,'toolbar');
+    if(occupancyAfter)pages.append(button('回到首页',()=>{occupancyAfter='';return render();}));
+    if(data.next)pages.append(button('下一页',()=>{occupancyAfter=data.next;return render();}));
+    return [el('p','显示此空间有过编辑记录的画布及其最近一次占用。此列表是查询时的状态；确认时若画布已保存或编辑资格改变，操作将被拒绝。','muted'),
+      toolbar,rows.length?table(['画布','类型','占用状态','当前编辑者','代次 / 版本','到期时间','操作'],rows):el('div','此页没有画布占用记录。','empty'),pages,
+      el('p','占用结束不表示页面草稿已保存，也不会停止已提交的生成任务。维护前仍需核对页面报告和任务状态。','muted')];
+  }
   const taskStates = {needs_review:'待核对',queued:'排队中',running:'准备执行',submitting:'提交中',polling:'查询中',finalizing:'结果入库中',succeeded:'已完成',failed:'已失败',cancelled:'已取消'};
   const taskActions = {retry_finalization:'重试结果入库',resume_polling:'恢复原任务查询',cancel_unsubmitted:'取消未提交任务',confirm_failed:'核对后标记失败'};
   const taskExplanations = {
@@ -660,8 +702,8 @@
     return [summary, toolbar, metrics, pages, releaseChecksPanel(activity.release_checks), services];
   }
   $('#cancel-dialog').onclick = () => $('#dialog').close();
-  $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
-  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { view = b.dataset.view; pageAfter = auditBefore = ''; return render(); }, b));
+  $('#scope').onchange = () => execute(() => { workspace = $('#scope').value; occupancyAfter = ''; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
+  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { view = b.dataset.view; occupancyAfter = ''; pageAfter = auditBefore = ''; return render(); }, b));
   $('#logout').onclick = () => execute(async () => { await call('/api/auth/logout', 'POST'); showLogin(); });
   $('#unavailable-logout').onclick = $('#logout').onclick;
   $('#retry').onclick = () => execute(refresh);
