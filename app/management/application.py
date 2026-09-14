@@ -147,6 +147,11 @@ class ProviderSave(Input):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class ProviderProbe(Input):
+    expected_version: int = Field(strict=True, ge=1)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class ProviderAssignment(Input):
     expected_version: int = Field(strict=True, ge=0)
     provider_ids: list[str] = Field(max_length=100)
@@ -333,6 +338,11 @@ def create_app(static_dir=None):
     def provider_save(provider_id: str, request: Request, data: ProviderSave):
         from app.services.provider_control import save
         return save(actor(request), provider_id, **data.model_dump())
+
+    @app.post('/api/providers/{provider_id}/probe')
+    async def provider_probe(provider_id: str, request: Request, data: ProviderProbe):
+        from app.services.provider_probes import probe
+        return await probe(actor(request), provider_id, **data.model_dump())
 
     @app.get('/api/provider-assignments')
     def provider_assignments(request: Request, workspace: str):

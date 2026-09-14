@@ -22,6 +22,7 @@
     invalid_provider_secrets: '凭证替换与清除不能同时选择，请检查输入。',
     invalid_provider_assignment: '默认供应商必须同时勾选分配，且不能重复分配。',
     provider_reason_required: '请填写操作原因。', provider_not_found: '供应商不存在，请刷新。',
+    provider_endpoint_required: '请先编辑并保存供应商的 API Base URL。', provider_key_required: '请先编辑并保存供应商的 API Key。',
     page_report_not_found: '未找到当前管理范围内的报告，请刷新。',
     page_report_changed: '报告已更新或已经核对，请刷新列表后重新确认。',
     page_report_not_reviewable: '页面已重新在线或正常关闭，请刷新列表。',
@@ -224,6 +225,55 @@
       return call('/api/providers/' + encodeURIComponent(row?.id || form.get('id')), 'PUT', {config: next, expected_version: row?.version || 0, secrets, clear_secrets, reason: form.get('reason')});
     });
   }
+  const probeMessages = {
+    models_available: '模型列表接口可用。请核对分类，勾选需要追加的模型。', models_empty: '模型列表接口已响应，但没有可导入的模型；请检查配置或手动填写模型。',
+    upstream_redirect: '接口返回跳转。请核对已保存的 API Base URL。',
+    upstream_auth_rejected: '供应商拒绝了凭证，请核对 API Key 和供应商账号权限。',
+    upstream_models_unavailable: '供应商不支持此模型列表入口。可核对协议或手动配置模型；本次不能确认生成能力。',
+    upstream_rate_limited: '供应商限流，请稍后重试。', upstream_error: '供应商接口返回错误，请稍后重试。',
+    upstream_response_too_large: '模型列表响应过大，请手动配置所需模型。', upstream_invalid_response: '返回内容不是支持的模型列表，请核对接口地址。',
+    upstream_timeout: '连接检测超时，请检查地址、代理或网络后重试。', upstream_connection_failed: '无法连接供应商，请检查地址、代理和网络。'
+  };
+  function probeProvider(row) {
+    const scopeStamp = serial, memberId = me.member.id, resultBox = el('div'), reason = field('reason', '检测与导入原因');
+    reason.querySelector('input').maxLength = 1000;
+    let discovered = null;
+    const current = () => resultBox.isConnected && $('#dialog').open && serial === scopeStamp && me?.member.id === memberId;
+    const probeButton = button('开始检测并拉取模型', async () => {
+      const input = reason.querySelector('input'); if(!input.reportValidity()) return;
+      discovered = null; $('#confirm-dialog').hidden = true; resultBox.replaceChildren(el('p', '正在检测已保存的配置…'));
+      try {
+        const result = await call('/api/providers/' + encodeURIComponent(row.id) + '/probe', 'POST', {expected_version: row.version, reason: input.value});
+        if(!current()) return;
+        resultBox.replaceChildren(el('p', probeMessages[result.code] || '检测未完成。', result.ok ? '' : 'error'));
+        resultBox.append(el('p', 'HTTP ' + (result.status || '—') + ' · ' + result.elapsed_ms + ' ms', 'muted'));
+        if(result.truncated) resultBox.append(el('p', '这里只显示部分模型；请核对供应商列表，其他模型可手动填写。', 'muted'));
+        if(result.filtered) resultBox.append(el('p', '已忽略不符合模型标识格式的内容。', 'muted'));
+        if(!result.ok || !result.model_count) return;
+        discovered = result;
+        resultBox.append(el('p', '分类按模型名称推测，可在编辑供应商时调整。确认后追加到现有列表，模型费用需另行配置。'));
+        for(const [key, label] of [['image_models','图片模型'], ['video_models','视频模型'], ['chat_models','对话模型']]) {
+          if(result[key]?.length) resultBox.append(el('h3', label + ' · ' + result[key].length), choices(key, result[key].map(id => ({id, name: id + ((row.config[key] || []).includes(id) ? '（已配置）' : '')}))));
+        }
+        $('#confirm-dialog').hidden = false;
+      } catch(error) {
+        if(current()) resultBox.replaceChildren(el('p', error.message, 'error'));
+      }
+    });
+    dialog('检测与模型 · ' + row.config.name, [el('p', '使用已保存的地址、协议、代理和凭证访问模型列表。检测结果不代表生成已验证，拉取不会自动修改配置。'), reason, probeButton, resultBox], form => {
+      if(!discovered || !current()) throw new Error('请先重新检测供应商。');
+      const config = Object.fromEntries(Object.entries(row.config).filter(([key]) => !['id','model_prices'].includes(key)));
+      let selected = 0;
+      for(const key of ['image_models','video_models','chat_models']) {
+        const picked = form.getAll(key); selected += picked.length;
+        config[key] = [...new Set([...(config[key] || []), ...picked])];
+        if(config[key].length > 500) throw new Error('每类最多保留 500 个模型，请减少选择。');
+      }
+      if(!selected) throw new Error('请勾选需要追加的模型。');
+      return call('/api/providers/' + encodeURIComponent(row.id), 'PUT', {expected_version: discovered.version, config, reason: form.get('reason')});
+    }, '追加所选模型', true);
+    $('#confirm-dialog').hidden = true;
+  }
   async function providerView() {
     if(!me.permissions.includes('provider.configure')) return denied();
     const scope = workspace;
@@ -242,7 +292,7 @@
     const rows = data.providers.map(row => [labelText(row.config.name, row.id), row.config.protocol, row.config.enabled ? '启用' : '停用',
       row.configured_secrets.length ? '已配置 ' + row.configured_secrets.length + ' 项凭证' : '尚未配置凭证',
       scope ? assigned.provider_ids.includes(row.id) ? assigned.primary_provider_id === row.id ? '已分配 · 默认' : '已分配' : '未分配' : '请选择空间查看分配',
-      button('编辑 · ' + row.config.name, () => editProvider(row))]);
+      actions(button('编辑 · ' + row.config.name, () => editProvider(row)), button('检测与模型 · ' + row.config.name, () => probeProvider(row)))]);
     return [el('p', '供应商配置由平台管理员维护，成员仅能使用分配到所在空间的服务。'), toolbar,
       rows.length ? table(['供应商', '协议', '状态', '凭证', '空间分配', '操作'], rows) : el('p', '尚未配置供应商。新增并分配后，成员才能选择模型。')];
   }

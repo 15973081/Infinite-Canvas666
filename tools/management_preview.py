@@ -3,6 +3,7 @@
 Run with the bundled Python, then create the printed stop_file to shut down and
 drop only this run's test schema. Credentials are synthetic and local-only.
 """
+import argparse
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,34 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
+def provider_stub():
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    requests = []
+    key = 'synthetic-probe-preview-never-use-outside-tests'
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            ok = self.path == '/v1/models' and self.headers.get('Authorization') == 'Bearer ' + key
+            status = 200 if ok else 401
+            requests.append({'method': 'GET', 'path': self.path, 'status': status})
+            payload = {'data': [{'id': 'gpt-preview'}, {'id': 'flux-preview'}, {'id': 'veo-preview'}]} if ok else {'error': 'synthetic secret reflection: ' + key}
+            body = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        def log_message(self, *args):
+            pass
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread, requests, key
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--provider-probe', action='store_true', help='Seed a local-only mock supplier for connection/model UI acceptance')
+    args = parser.parse_args()
     from app.storage import database
     from app.storage.settings import load_storage_env
     from tools.cloud_test import test_database_url
@@ -30,14 +58,27 @@ def main():
     acceptance.mkdir(parents=True)
     stop = acceptance / 'stop'
     os.environ.update(DATABASE_URL=target, DATABASE_SCHEMA=schema, DATABASE_BACKEND='postgres',
-                      MANAGEMENT_BASE_URL='http://127.0.0.1:8767', CLOUD_EMBEDDED_WORKER='false')
+                      # Use a distinct host from the user-facing 127.0.0.1 management preview.
+                      MANAGEMENT_BASE_URL=('http://localhost:8767' if args.provider_probe else 'http://127.0.0.1:8767'),
+                      CLOUD_EMBEDDED_WORKER='false')
     database.close()
+    mock = None
+    probe_base_url = None
     try:
         database.migrate()
         member = members.bootstrap('preview-admin', '验收管理员', 'preview-only-password-12345')
         login = members.login(member['username'], 'preview-only-password-12345', audience='management')
         actor = members.resolve_session(login['token'], 'management')
         members.create_workspace(actor, '设计空间', member['id'], '独立管理平台浏览器验收')
+        if args.provider_probe:
+            from cryptography.fernet import Fernet
+            from app.services import provider_control
+            os.environ['PROVIDER_SECRET_KEY'] = Fernet.generate_key().decode('ascii')
+            mock = provider_stub()
+            probe_base_url = 'http://127.0.0.1:' + str(mock[0].server_port)
+            provider_control.save(actor, 'probe-preview', {'name': '本地模拟供应商', 'base_url': probe_base_url,
+                'protocol': 'openai', 'enabled': True, 'image_models': ['existing-image']}, 0,
+                secrets={'api_key': mock[3]}, reason='本地模型检测浏览器验收')
         members.logout(actor)
         from app.management.application import create_app
         app = create_app(build(acceptance / 'dist'))
@@ -52,13 +93,18 @@ def main():
 
         thread = threading.Thread(target=stop_watch, daemon=True)
         thread.start()
-        print(json.dumps({'url': os.environ['MANAGEMENT_BASE_URL'], 'stop_file': str(stop), 'schema': schema}, ensure_ascii=False), flush=True)
+        print(json.dumps({'url': os.environ['MANAGEMENT_BASE_URL'], 'stop_file': str(stop), 'schema': schema, 'probe_base_url': probe_base_url}, ensure_ascii=False), flush=True)
         try:
             server.run()
         finally:
             finished.set()
             thread.join(2)
     finally:
+        if mock:
+            mock[0].shutdown()
+            mock[0].server_close()
+            mock[1].join(2)
+            (acceptance / 'probe-requests.json').write_text(json.dumps(mock[2], indent=2), encoding='utf-8')
         if database.schema_name() != schema or os.environ['DATABASE_URL'] != target:
             raise RuntimeError('Refusing cleanup outside the isolated management acceptance schema')
         with database.connection() as conn:
