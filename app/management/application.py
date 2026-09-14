@@ -267,6 +267,11 @@ def create_app(static_dir=None):
     def me(request: Request):
         return queries.snapshot(actor(request))
 
+    @app.get('/api/overview')
+    def overview(request: Request, workspace: str | None = Query(None, min_length=1, max_length=80, pattern=r'^[A-Za-z0-9_-]+$')):
+        from app.management.resources import overview
+        return overview(actor(request), workspace)
+
     @app.get('/api/members')
     def directory_members(request: Request, workspace: str | None = None, search: str = Query('', max_length=80),
                           after: str = Query('', max_length=80), limit: int = Query(50, ge=1, le=100)):

@@ -138,13 +138,72 @@
     if (stamp === serial) content.replaceChildren(...result);
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
-  function overview() {
-    const cards = el('div', undefined, 'metrics');
-    for (const [title, number] of [['可管理空间', me.workspaces.length], ['平台权限', me.permissions.length], ['当前范围权限', workspace ? me.workspaces.find(w => w.id === workspace)?.permissions.length || 0 : me.permissions.length]]) {
-      const c = el('section', undefined, 'card'); c.append(el('div', title, 'muted'), el('p', number, 'metric')); cards.append(c);
+  function overviewBytes(value) {
+    if (value == null) return '未授权';
+    const bytes = BigInt(value), units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB'];
+    let divisor = 1n, unit = 0;
+    while (bytes >= divisor * 1024n && unit < units.length - 1) { divisor *= 1024n; unit++; }
+    const tenths = bytes * 10n / divisor;
+    return unit ? String(tenths / 10n) + '.' + String(tenths % 10n) + ' ' + units[unit] : String(bytes) + ' B';
+  }
+  function overviewMetric(title, value, detail) {
+    const card = el('section', undefined, 'card');
+    card.append(el('h2', title), el('p', value == null ? '未授权' : String(value), 'metric'));
+    if (detail) card.append(el('p', detail, 'muted'));
+    return card;
+  }
+  async function overview() {
+    const scope = workspace, stamp = serial, memberId = me?.member.id;
+    const current = () => workspace === scope && serial === stamp && me?.member.id === memberId;
+    let data;
+    try { data = await api('/api/overview' + (scope ? '?' + new URLSearchParams({workspace: scope}) : '')); }
+    catch (error) {
+      if (!current()) return [];
+      const failed = el('section', undefined, 'card');
+      failed.append(el('h2', '概览暂不可用'), el('p', error.message), button('重试读取', refresh));
+      return [failed];
     }
-    const note = el('section', undefined, 'card'); note.append(el('h2', '管理协作空间'), el('p', '创建成员和空间，按职责配置角色，再将成员分配到对应空间。角色名称由你定义，实际可执行的操作由权限点决定。'), el('p', '维护中心可设置公告、计划、排空与恢复。供应商迁移、任务处置和画布租约仍在接入中。', 'muted'));
-    return [cards, note];
+    if (!current()) return [];
+    if ((data.workspace?.id || '') !== scope) throw new Error('概览范围已变化，请刷新后重试。');
+    const toolbar = el('div', undefined, 'toolbar');
+    toolbar.append(button('刷新概览', refresh), el('span', '更新于 ' + new Date(data.observed_at).toLocaleString(), 'muted'));
+    const summary = el('section', undefined, 'card');
+    summary.append(el('h2', data.workspace?.name || '平台概览'), el('p', scope ? '查看当前空间的资源和运行状态。各项数据按你的权限展示。' : '选择具体空间查看画布、素材容量与任务统计。'));
+    if (data.workspace?.status === 'archived') {
+      summary.append(el('p', '此空间已归档，资源统计暂停展示。已有数据仍保留。', 'muted'));
+      return [toolbar, summary];
+    }
+    const cards = el('div', undefined, 'metrics');
+    if (!scope) cards.append(overviewMetric('可管理空间', data.manageable_spaces));
+    cards.append(overviewMetric(scope ? '空间成员' : '平台成员', data.members?.total,
+      data.members ? '已激活 ' + data.members.active + ' · 待激活 ' + data.members.invited + ' · 已停用 ' + data.members.disabled : '需要成员管理权限。'));
+    if (scope) {
+      cards.append(overviewMetric('画布', data.canvases?.total, data.canvases ? '经典 ' + data.canvases.classic + ' · 智能 ' + data.canvases.smart + ' · 回收站 ' + data.canvases.recycled : '需要画布读取权限。'));
+      cards.append(overviewMetric('素材原件', data.assets?.originals, data.assets ? '派生预览 ' + data.assets.previews + ' 份' : '需要素材读取权限。'));
+      cards.append(overviewMetric('已登记素材容量', data.assets ? overviewBytes(data.assets.ready_bytes) : null,
+        '已就绪原件与预览的合计；未完成上传、内部缓存和备份不在其中，实际磁盘占用可能更高。'));
+      cards.append(overviewMetric('任务总数', data.tasks?.total, data.tasks ? '排队 ' + data.tasks.queued + ' · 执行中 ' + data.tasks.active + ' · 待核对 ' + data.tasks.needs_review : '需要任务核对权限。'));
+    }
+    const maintenance = el('section', undefined, 'card'); maintenance.append(el('h2', '维护与服务'));
+    const modes = {normal:'正常开放',scheduled:'已计划维护',draining:'正在排空',read_only:'只读',offline:'暂停访问',recovering:'恢复检查'};
+    if (data.maintenance) {
+      maintenance.append(el('p', modes[data.maintenance.mode] || data.maintenance.mode));
+      if (data.maintenance.message) maintenance.append(el('p', data.maintenance.message));
+      if (data.maintenance.planned_at) maintenance.append(el('p', '计划时间：' + new Date(data.maintenance.planned_at).toLocaleString(), 'muted'));
+      if (data.maintenance.drain_deadline) maintenance.append(el('p', '收尾截止：' + new Date(data.maintenance.drain_deadline).toLocaleString(), 'muted'));
+      const services = data.services || [];
+      if (!services.length) maintenance.append(el('p', '尚无业务服务心跳记录。', 'muted'));
+      services.forEach(service => maintenance.append(el('p', (service.kind === 'workbench' ? '工作台' : '生成执行服务') + '：在线 ' + service.online + ' · 失联未确认 ' + service.unknown + ' · 已记录停止 ' + service.stopped)));
+      maintenance.append(el('p', '服务心跳反映最近上报状态。维护发布前仍需完成维护中心的逐项核对。', 'muted'), button('打开维护中心', () => { view='maintenance'; return render(); }));
+    } else maintenance.append(el('p', '未授权，需要当前范围的维护权限。', 'muted'));
+    const backup = el('section', undefined, 'card'); backup.append(el('h2', '最近备份'));
+    if (data.backup) {
+      const latest=data.backup.latest, states={queued:'排队中',running:'执行中',succeeded:'成功',failed:'失败',cancelled:'已取消'};
+      backup.append(el('p', '记录 ' + data.backup.total + ' · 待完成 ' + data.backup.pending));
+      backup.append(el('p', latest ? (states[latest.status] || latest.status) + ' · ' + new Date(latest.completed_at || latest.created_at).toLocaleString() : '尚无备份记录。', 'muted'));
+      backup.append(button('查看备份记录', () => { view='backups'; backupAfter=''; return render(); }));
+    } else backup.append(el('p', '未授权，需要当前范围的备份读取权限。', 'muted'));
+    return [toolbar, summary, cards, maintenance, backup];
   }
   async function memberView() {
     if (!(workspace ? allowed('space.members.manage') || me.permissions.includes('space.assign') : allowed('member.manage'))) return denied();
@@ -190,6 +249,7 @@
       dialog('创建协作空间', [field('name', '空间名称'), description, field('administrator_username', '初始管理员账号', me.member.username)], f => call('/api/workspaces', 'POST', Object.fromEntries(f)), '创建空间');
     }, 'primary'));
     const rows = me.workspaces.map(w => [labelText(w.name, w.id), w.description || '—', w.status === 'active' ? '已启用' : '已归档', actions(
+      button('资源概览', () => { workspace = w.id; view = 'overview'; return refresh(); }),
       button('管理此空间', () => { workspace = w.id; view = 'members'; pageAfter = ''; return refresh(); }),
       ...(me.permissions.includes('space.archive') ? [button(w.status === 'active' ? '归档' : '重新启用', () => dialog('更改空间状态', [el('p', `${w.name}：${w.status === 'active' ? '归档后成员将无法访问，已有数据保留' : '恢复成员访问'}。`)], () => call('/api/workspaces/' + w.id, 'PATCH', {archived: w.status === 'active'})))] : [])
     )]);
