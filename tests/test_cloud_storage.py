@@ -620,3 +620,37 @@ def test_expired_worker_cannot_publish_ready_object(tmp_path):
         tasks.lease_context.reset(context)
         with database.connection() as conn:
             conn.execute("UPDATE tasks SET status='cancelled',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=%s", (tid,))
+
+
+def test_migration_preserves_json_only_tasks_and_sqlite_precedence(tmp_path):
+    import sqlite3
+    from app.storage import tasks, documents
+    from app.storage.migration import migrate_legacy
+    source = tmp_path / "legacy"
+    (source / "data").mkdir(parents=True)
+    identity = uuid.uuid4().hex
+    json_id, shared_id = "json-" + identity, "shared-" + identity
+    cached = {"id": shared_id, "type": "video", "status": "failed", "error": "old cache"}
+    only_json = {"id": json_id, "type": "online-image", "status": "queued", "api_key": "must-not-import", "model": "old-model"}
+    (source / "data/canvas_tasks.json").write_text(json.dumps({"tasks": [only_json, cached]}), encoding="utf8")
+    with sqlite3.connect(source / "data/canvas_tasks.sqlite3") as conn:
+        conn.execute("CREATE TABLE canvas_tasks (id TEXT,created_at REAL,task_json TEXT,request_json TEXT)")
+        conn.execute("INSERT INTO canvas_tasks VALUES (?,1,?,?)", (shared_id, json.dumps(dict(cached, status="succeeded", error="")), json.dumps({"prompt": "original request"})))
+    report_path = tmp_path / "migration.json"
+    migrate_legacy(source, apply=True, report_path=report_path)
+    report = json.loads(report_path.read_text(encoding="utf8"))
+    assert "data/canvas_tasks.json" not in report["unknown_json"]
+    assert report["tasks"] == [shared_id, json_id]
+    assert report["task_json_shadowed"] == [shared_id]
+    assert tasks.get(json_id)["status"] == "needs_review"
+    assert tasks.get(json_id)["legacy_status"] == "queued"
+    assert tasks.get(json_id)["model"] == "old-model"
+    assert "api_key" not in tasks.get(json_id)
+    assert tasks.get(shared_id)["status"] == "succeeded"
+    assert tasks.request(shared_id)["prompt"] == "original request"
+    from app.storage.migration import digest
+    source_id = digest({"source": str(source.resolve()), "namespace": os.getenv("ASSET_SOURCE_NAMESPACE", "local")})[:24]
+    assert documents.get("legacy_task_snapshot", source_id + ":" + shared_id)["error"] == "old cache"
+    before = tasks.get(json_id)
+    migrate_legacy(source, apply=True, report_path=tmp_path / "again.json")
+    assert tasks.get(json_id) == before

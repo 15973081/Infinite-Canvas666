@@ -9,7 +9,7 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 from app.storage import canvases, database, documents, media, tasks
 from app.storage.ledger import COLUMNS
-from app.storage.migration_audit import Audit, DOCUMENTS, checked_path, read_json
+from app.storage.migration_audit import Audit, DOCUMENTS, checked_path, read_json, read_json_tasks
 
 
 def digest(value):
@@ -186,6 +186,33 @@ def migrate_legacy(source, apply=False, report_path=None):
                     report["tasks"].append(row["id"])
             finally:
                 snapshot.close()
+        # Some older releases kept independent task history only in JSON.
+        # SQLite wins for shared ids; retain the JSON snapshot separately.
+        sqlite_ids = set(report["tasks"])
+        report["task_json_shadowed"] = []
+        for original in read_json_tasks(source):
+            tid = original["id"]
+            if tid in sqlite_ids:
+                import_document("legacy_task_snapshot", source_id + ":" + tid, tasks.clean_request(original))
+                report["task_json_shadowed"].append(tid)
+                continue
+            if apply:
+                with database.connection():
+                    marker = "json-task:" + tid
+                    sha = digest(original)
+                    previous = documents.get("migration_item:" + source_id, marker)
+                    if previous:
+                        if previous["sha256"] != sha:
+                            raise ValueError("JSON task source changed since import: " + tid)
+                    else:
+                        if tasks.get(tid):
+                            raise ValueError("Target task already exists: " + tid)
+                        value = dict(original)
+                        if value.get("status") not in tasks.TERMINAL:
+                            value.update(legacy_status=value.get("status"), status="needs_review", submission_unknown=True)
+                        tasks.save(value, {}, historical=True)
+                        documents.put("migration_item:" + source_id, marker, {"sha256": sha})
+            report["tasks"].append(tid)
         report["status"] = "needs_review" if audit.needs_review() else "complete"
         report["total_file_bytes"] = sum(entry["size"] for entry in report["files"])
     except Exception as exc:

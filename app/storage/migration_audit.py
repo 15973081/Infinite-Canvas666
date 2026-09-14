@@ -28,6 +28,24 @@ def read_json(root, path):
     return json.loads(checked_path(root, path).read_text(encoding="utf-8-sig"))
 
 
+def read_json_tasks(root):
+    path = root / "data/canvas_tasks.json"
+    if not path.exists():
+        return []
+    envelope = read_json(root, path)
+    values = envelope.get("tasks") if isinstance(envelope, dict) else envelope
+    if not isinstance(values, list):
+        raise ValueError("Legacy JSON tasks must be a list")
+    seen = set()
+    for value in values:
+        if not isinstance(value, dict) or not isinstance(value.get("id"), str) or not value["id"].strip():
+            raise ValueError("Legacy JSON task needs an id")
+        if value["id"] in seen:
+            raise ValueError("Duplicate legacy JSON task id")
+        seen.add(value["id"])
+    return values
+
+
 class Audit:
     def __init__(self, root, report):
         self.root, self.report = root, report
@@ -117,6 +135,12 @@ class Audit:
                 self.references(value, relative)
                 if category == "browser_local_storage":
                     self.report["browser_local_storage"].update(status="requires_manual_review", source=relative)
+        json_tasks = read_json_tasks(self.root)
+        json_path = self.root / "data/canvas_tasks.json"
+        if json_path.exists():
+            self.record("tasks", json_path, len(json_tasks))
+            for index, value in enumerate(json_tasks):
+                self.references(value, "data/canvas_tasks.json", "/tasks/" + str(index))
         for filename, category in (("canvas_tasks.sqlite3", "tasks"), ("canvas_ledger.sqlite3", "ledger")):
             path = self.root / "data" / filename
             if not path.exists():
