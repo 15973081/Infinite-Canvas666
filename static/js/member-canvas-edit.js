@@ -57,10 +57,16 @@
                 body:JSON.stringify({page_id:entry.reportId,sequence,dirty:Boolean(entry.options.dirty()),closed})
             });
             if(!response.ok) throw new Error('维护页面状态暂未上报，后台可能显示本页失联。');
-            if(sequence===entry.reportSequence) entry.reportMessage='';
+            const data=await response.json();
+            if(sequence===entry.reportSequence && entry===active && !closed && !window.CanvasSession.paused &&
+                window.CanvasSession.context?.member.id===entry.memberId && window.CanvasSession.context?.workspace.id===entry.workspaceId) {
+                entry.reportMessage='';
+                entry.presence=Array.isArray(data.presence?.members) ? data.presence : null;
+                entry.presenceReceivedAt=Date.now();
+            }
             return true;
         } catch(error) {
-            if(sequence===entry.reportSequence) entry.reportMessage='维护页面状态暂未上报，后台可能显示本页失联。';
+            if(sequence===entry.reportSequence) {entry.presence=null;entry.reportMessage='维护页面状态暂未上报，后台可能显示本页失联。';}
             return false;
         } finally {if(entry===active && !closed) render();}
     }
@@ -240,6 +246,17 @@
         }
         entry.requestList.hidden=rows.length===0;
     }
+    function renderPresence(entry) {
+        const context=window.CanvasSession.context;
+        const fresh=entry.presence && !window.CanvasSession.paused && context?.member.id===entry.memberId &&
+            context?.workspace.id===entry.workspaceId && Date.now()-entry.presenceReceivedAt<35000;
+        entry.presenceSummary.textContent=fresh ? '本画布在线 '+entry.presence.online_members+' 人' : '在线名单暂不可用';
+        entry.presenceList.replaceChildren();
+        if(fresh) for(const member of entry.presence.members) {
+            const name=String(member.display_name || '成员')+' · '+String(member.id).slice(-6)+(member.is_self ? '（你）' : '');
+            entry.presenceList.append(element('li',name+' · '+(member.activity==='editing' ? '编辑中' : '查看中')));
+        }
+    }
     function render() {
         if(!active) return;
         const {lease,options,bar,label,begin,end,save,notice}=active;
@@ -274,6 +291,7 @@
         save.hidden=!lease.canSave; save.disabled=lease.finishing;
         notice.textContent=[...new Set([lease.message,active.feedback,active.reportMessage,options.dirty() ? active.draftMessage || '当前更改尚未保存到服务器' : ''].filter(Boolean))].join(' · ');
         renderRequests(active);
+        renderPresence(active);
         bar.hidden=false;
     }
     async function start() {
@@ -338,9 +356,12 @@
             });
             const ask=button('申请接手',askTransfer), force=button('管理员强制接管',forceTakeover), requestList=element('div');
             requestList.className='member-canvas-transfer-list';requestList.setAttribute('aria-label','待处理接手申请');
+            const presencePanel=element('details'), presenceSummary=element('summary'), presenceList=element('ul');
+            presencePanel.className='member-canvas-presence';presencePanel.setAttribute('aria-label','当前画布在线成员');
+            presencePanel.append(presenceSummary,presenceList);
             const context=window.CanvasSession.context;
             active={id:options.id,memberId:context.member.id,workspaceId:context.workspace.id,reportId:crypto.randomUUID(),reportSequence:0,
-                options,bar,label,notice,begin,save,end,ask,force,requestList,requestNodes:new Map()};
+                options,bar,label,notice,begin,save,end,ask,force,requestList,presencePanel,presenceSummary,presenceList,requestNodes:new Map()};
             const entry=active;
             entry.lease=new window.CanvasEditLease({id:options.id,changed:lease => {
                 if(entry!==active) return;
@@ -349,7 +370,7 @@
             }});
             const maintenance=window.CanvasSession.maintenance || window.parent?.CanvasSession?.maintenance;
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
-            bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),notice,requestList);
+            bar.append(label,begin,ask,force,save,end,button('导出当前草稿',() => download(draftRecord(entry))),button('本地草稿',showDrafts),presencePanel,notice,requestList);
             document.body.append(bar); render(); tick(entry); reportTick(entry);
             return entry;
         },

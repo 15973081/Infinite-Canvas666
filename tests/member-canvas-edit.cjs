@@ -10,7 +10,7 @@ const status={canvas_id:'a',generation:1,revision:3,holder:{id:'member',display_
 const reply=(data,code=200)=>new Response(JSON.stringify(data),{status:code});
 function fixture() {
     const calls=[],records=new Map(),queries=[],listeners=new Map(),timers=new Map(),downloads=[]; let sequence=0;
-    const element=(tag='div')=>({tagName:tag.toUpperCase(),value:'',children:[],classList:{toggle(){},remove(){}},setAttribute(){},append(...items){this.children.push(...items);},addEventListener(){},remove(){this.removed=true;},click(){downloads.push(this.download);},showModal(){},close(){},querySelectorAll(selector){return this.children.filter(node=>node.tagName===selector.toUpperCase());}});
+    const element=(tag='div')=>({tagName:tag.toUpperCase(),value:'',children:[],classList:{toggle(){},remove(){}},setAttribute(){},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},addEventListener(){},remove(){this.removed=true;},click(){downloads.push(this.download);},showModal(){},close(){},querySelectorAll(selector){return this.children.filter(node=>node.tagName===selector.toUpperCase());}});
     const database={transaction(){
         const transaction={abort(){this.aborted=true;queueMicrotask(()=>this.onabort?.());},objectStore:()=>({
             put(value){records.set(value.key,structuredClone(value));return {result:value.key};},
@@ -325,4 +325,34 @@ test('opening drafts immediately after typing flushes the latest text before lis
     f.api.markDirty();await draftLine(f);
     assert.equal([...f.records.values()][0].document.nodes[0].prompt,'typed just now');
     assert.equal(f.records.size,1);
+});
+
+
+test('canvas roster renders trusted names as text and expires without changing the edit lease',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active;
+    f.context.fetch=async()=>reply({accepted:true,presence:{online_members:2,members:[
+        {id:'member_111111',display_name:'<img src=x onerror=alert(1)>',activity:'editing',is_self:true},
+        {id:'member_222222',display_name:'同名',activity:'viewing',is_self:false}]}});
+    await f.timers.get(entry.reportTimer)();
+    assert.equal(entry.presenceSummary.textContent,'本画布在线 2 人');
+    assert.equal(entry.presenceList.children[0].textContent,'<img src=x onerror=alert(1)> · 111111（你） · 编辑中');
+    assert.equal(entry.presenceList.children[0].children.length,0);
+    assert.equal(entry.presenceList.children[1].textContent,'同名 · 222222 · 查看中');
+    assert.equal(entry.lease.canSave,false);
+    entry.presenceReceivedAt=0;entry.lease.emit();
+    assert.equal(entry.presenceSummary.textContent,'在线名单暂不可用');
+    assert.equal(entry.presenceList.children.length,0);
+});
+
+test('late roster responses cannot restore an older list or leak across account changes',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active;
+    const pending=[];f.context.fetch=()=>new Promise(resolve=>pending.push(resolve));
+    const tick=f.timers.get(entry.reportTimer),one=tick(),two=tick();
+    const roster=name=>reply({accepted:true,presence:{online_members:1,members:[{id:'member',display_name:name,activity:'viewing'}]}});
+    pending[1](roster('新名单'));await two;pending[0](roster('旧名单'));await one;
+    assert.match(entry.presenceList.children[0].textContent,/新名单/);
+    const three=f.timers.get(entry.reportTimer)();
+    f.context.CanvasSession.context.member.id='other';pending[2](roster('旧账号的名单'));await three;
+    assert.equal(entry.presenceList.children.length,0);
+    assert.equal(entry.presenceSummary.textContent,'在线名单暂不可用');
 });

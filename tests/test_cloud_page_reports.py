@@ -32,14 +32,14 @@ def test_page_reports_preserve_newest_state_and_closed_pages_are_terminal(world)
     canvas, path = setup(world)
     client, head = world['viewer'], headers(world['a'])
     body = payload()
-    assert client.post(path, headers=head, json=body).json() == {'accepted': True}
+    assert client.post(path, headers=head, json=body).json()['accepted'] is True
     state = activity(world)
     assert state['unsaved_pages'] == state['page_reports']['online_pages'] == 1
     assert state['database_stop_ready'] is False
     assert state['page_reports']['coverage'] == 'reported_pages_only'
     with connection() as conn:
         seen = conn.execute('SELECT seen_at FROM canvas_page_reports WHERE canvas_id=%s', (canvas['id'],)).fetchone()['seen_at']
-    assert client.post(path, headers=head, json=body).json() == {'accepted': False}
+    assert client.post(path, headers=head, json=body).json()['accepted'] is False
     with connection() as conn:
         assert conn.execute('SELECT seen_at FROM canvas_page_reports WHERE canvas_id=%s', (canvas['id'],)).fetchone()['seen_at'] == seen
     assert client.post(path, headers=head, json={**body, 'sequence': 3, 'dirty': False}).json()['accepted']

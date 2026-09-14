@@ -59,6 +59,9 @@ def bundle(tmp_path):
                 with workspace_scope(spaces[0]['id']):
                     asset=media.publish(path);old_signed=media.browser_url(asset)
                     lease=canvas_leases.acquire(actor,canvases_data[0])
+                    from app.services import member_presence, canvas_page_reports
+                    member_presence.status(actor,uuid.uuid4())
+                    canvas_page_reports.report(actor,canvases_data[0],uuid.uuid4(),1,False)
                     unfinished=media.publish(path)
                 with database.connection() as c:
                     c.execute("UPDATE assets SET status='uploading' WHERE id=%s",(unfinished['id'],))
@@ -121,6 +124,7 @@ def test_real_restore_preserves_business_data_and_invalidates_every_old_session(
             assert c.execute('SELECT status FROM media_uploads').fetchone()['status']=='aborted'
             assert c.execute('SELECT status FROM backup_jobs').fetchone()['status']=='failed'
             assert c.execute('SELECT count(*) AS n FROM service_heartbeats').fetchone()['n']==0
+            assert c.execute('SELECT count(*) AS n FROM member_presence_sockets').fetchone()['n']==0
             assert c.execute("SELECT count(*) AS n FROM management_events WHERE action='database.restore'").fetchone()['n']==1
         assert members.resolve_session(bundle['admin_token'],'management') is None
         assert members.resolve_session(bundle['member_token']) is None
@@ -142,6 +146,8 @@ def test_real_restore_preserves_business_data_and_invalidates_every_old_session(
             assert client.get(bundle['old_signed'],headers={'X-Workspace-ID':bundle['spaces'][0]['id']}).status_code==403
             actor=members.resolve_session(client.cookies.get(COOKIE))
             with workspace_scope(bundle['spaces'][0]['id']):
+                from app.services.member_presence import status
+                assert status(actor)['online_members']==0
                 with pytest.raises(HTTPException):
                     canvas_leases.renew(actor,bundle['canvases'][0],canvas_leases.Proof(bundle['lease']['edit_token'],bundle['lease']['generation']))
                 assert canvas_leases.acquire(actor,bundle['canvases'][0])['generation']>bundle['lease']['generation']

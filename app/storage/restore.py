@@ -87,6 +87,7 @@ UPDATE media_uploads SET lease_token=NULL,lease_until=NULL,expires_at=LEAST(expi
 UPDATE backup_jobs SET status=CASE WHEN status='queued' THEN 'cancelled' ELSE 'failed' END,
  error_code='database_restored_requires_review',completed_at=clock_timestamp() WHERE status IN ('queued','running');
 DELETE FROM service_heartbeats;
+DELETE FROM member_presence_sockets;
 INSERT INTO maintenance_controls(scope_key,mode,version,message,reason,updated_at)
  VALUES('platform','recovering',1,'数据库已恢复，等待运维检查',{literal(reason)},clock_timestamp())
  ON CONFLICT(scope_key) DO UPDATE SET mode='recovering',version=maintenance_controls.version+1,

@@ -21,7 +21,8 @@ def report(actor, canvas_id, page_id, sequence, dirty, closed=False):
             WHERE NOT canvas_page_reports.closed AND canvas_page_reports.sequence<excluded.sequence
             RETURNING sequence,closed''',
             (workspace, canvas_id, actor.member_id, actor.session_id, page_id, sequence, member['auth_version'], dirty, closed)).fetchone()
-        return {'accepted': row is not None}
+        from app.services.member_presence import roster
+        return {'accepted': row is not None, 'presence': roster(conn, actor, workspace, canvas_id)}
 
 
 # Shared classification keeps management lists, counts and review eligibility
