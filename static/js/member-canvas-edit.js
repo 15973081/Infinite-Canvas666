@@ -339,6 +339,7 @@
         bar.setAttribute('data-state', lease.canSave ? 'editing' : 'view');
         notice.setAttribute('data-tone', lease.state==='paused' || ['draining','read_only','offline','recovering'].includes(lease.maintenance) || active.feedback || active.streamMessage || active.reportMessage ? 'warning' : 'quiet');
         if(!notice.textContent) notice.textContent=lease.canSave ? '更改已保存' : '查看中 · 开始编辑后可修改';
+        notice.title=notice.textContent;
         renderRequests(active);
         renderPresence(active);
         active.mediaPreview?.sync();
@@ -475,7 +476,12 @@
             more.append(moreSummary,moreItems);
             begin.className=end.className=ask.className='member-canvas-primary';
             const layout=element('div'); layout.className='member-canvas-layout'; entry.layout=layout;
-            layout.append(label,begin,ask,save,end,button('生成结果',showTaskResults),more,presencePanel,notice,requestList);
+            layout.append(label,begin,ask,save,end,button('生成结果',showTaskResults),more,presencePanel,requestList);
+            const statusHost=document.getElementById?.('memberCanvasStatus');
+            if(statusHost) {
+                notice.className='member-canvas-title-status';
+                statusHost.append(notice);
+            } else layout.append(notice);
             bar.append(layout);
             entry.mediaPreview=window.MemberMediaPreview?.create({entry,valid:()=>validEntry(entry)});
             if(entry.mediaPreview)layout.insertBefore(entry.mediaPreview.trigger,presencePanel);
@@ -512,7 +518,7 @@
                 assertDraftScope(entry);download(draftRecord(entry));
             }
             reportPage(entry,true);
-            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.mediaPreview?.dispose(); entry.widthAnimation?.cancel(); entry.bar.remove(); active=null;
+            clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.mediaPreview?.dispose(); entry.widthAnimation?.cancel(); entry.notice.remove(); entry.bar.remove(); active=null;
             document.body.classList.remove('member-canvas-view'); return true;
         },
         send(path,init={},transport=window.fetch.bind(window)) {
