@@ -61,6 +61,11 @@ def lease_row(conn, workspace, canvas_id):
 def holder_active(conn, row):
     if not row['token_hash'] or row['released_at'] or row['expires_at'] <= row['server_time']:
         return False
+    return holder_authorized(conn, row)
+
+
+def holder_authorized(conn, row):
+    """Use the same current identity/grant checks for leases and accounting."""
     try:
         member = az.require(conn, az.Principal(row['member_id'], row['login_session_id'], 'workbench'), 'canvas.edit', row['workspace_id'])
         if member['auth_version'] != row['member_auth_version']:
@@ -69,6 +74,20 @@ def holder_active(conn, row):
         return True
     except HTTPException:
         return False
+
+
+def active_count(conn, workspace=None):
+    """Snapshot of occupied canvases, not proof that browser drafts are saved.
+
+    Caller holds the policy transaction. Group before rechecking authorization
+    so many canvases owned by one login do not repeat the same grant queries.
+    No row locks or lease mutations: management inspection cannot renew a lease.
+    """
+    rows = conn.execute('''SELECT workspace_id,member_id,login_session_id,member_auth_version,count(*) AS total
+        FROM canvas_edit_leases WHERE (%s::text IS NULL OR workspace_id=%s)
+        AND token_hash IS NOT NULL AND released_at IS NULL AND expires_at>statement_timestamp()
+        GROUP BY workspace_id,member_id,login_session_id,member_auth_version''', (workspace, workspace)).fetchall()
+    return sum(row['total'] for row in rows if holder_authorized(conn, row))
 
 
 def public(conn, row, actor, revision):

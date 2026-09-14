@@ -176,7 +176,7 @@
     const summary = el('section', undefined, 'card');
     summary.append(el('h2', scopeName + ' · ' + modes[control.mode]), el('p', '成员当前限制：' + modes[data.effective.mode]), el('p', data.effective.message || '暂无维护公告。', 'muted'));
     if (control.planned_at) summary.append(el('p', '计划开始：' + new Date(control.planned_at).toLocaleString()));
-    if (data.effective.drain_deadline) summary.append(el('p', '已有上传收尾截止：' + new Date(data.effective.drain_deadline).toLocaleString()));
+    if (data.effective.drain_deadline) summary.append(el('p', '已有编辑和上传收尾截止：' + new Date(data.effective.drain_deadline).toLocaleString()));
     if (workspace) summary.append(el('p', '本空间恢复不会解除仍有效的平台维护。', 'muted'));
     const toolbar = el('div', undefined, 'toolbar');
     toolbar.append(button('刷新状态', refresh), button('更改维护状态', () => {
@@ -185,23 +185,23 @@
       const message = field('message', '向成员展示的公告', control.message); message.querySelector('input').required = false; message.querySelector('input').maxLength = 1000;
       const reason = field('reason', '操作原因'); reason.querySelector('input').maxLength = 1000;
       const planned = field('planned_at', '计划开始时间（本地时间）', '', 'datetime-local'); planned.querySelector('input').required = false;
-      const grace = field('grace_seconds', '已有上传收尾宽限（秒，最长 3600）', String(control.grace_seconds), 'number'); grace.querySelector('input').min = '0'; grace.querySelector('input').max = '3600';
+      const grace = field('grace_seconds', '已有编辑和上传收尾宽限（秒，最长 3600）', String(control.grace_seconds), 'number'); grace.querySelector('input').min = '0'; grace.querySelector('input').max = '3600';
       const confirm = el('label', undefined, 'check'), check = el('input'); check.type = 'checkbox'; check.name = 'confirm_recovery'; confirm.append(check, document.createTextNode('已完成运行、数据和备份检查，确认恢复开放'));
       select.onchange = () => { planned.hidden = select.value !== 'scheduled'; planned.querySelector('input').required = select.value === 'scheduled'; confirm.hidden = !(control.mode === 'recovering' && select.value === 'normal'); };
       select.onchange();
-      dialog('更改维护 · ' + scopeName, [el('p', `当前有 ${activity.active_tasks} 个执行中任务、${activity.queued_tasks} 个排队任务。更改访问限制不会取消已提交任务或替成员保存未上传内容。`), modeLabel, message, reason, planned, grace, confirm], f => call(scoped('/api/maintenance'), 'PATCH', {
+      dialog('更改维护 · ' + scopeName, [el('p', `当前有 ${activity.canvas_locks ?? '未知数量的'} 个画布占用、${activity.active_tasks} 个执行中任务、${activity.queued_tasks} 个排队任务。更改访问限制不会取消已提交任务或替成员保存未上传内容。`), modeLabel, message, reason, planned, grace, confirm], f => call(scoped('/api/maintenance'), 'PATCH', {
         mode: f.get('mode'), expected_version: control.version, message: f.get('message'), reason: f.get('reason'),
         planned_at: f.get('mode') === 'scheduled' ? new Date(f.get('planned_at')).toISOString() : null,
         grace_seconds: Number(f.get('grace_seconds')), confirm_recovery: f.has('confirm_recovery')
       }), '确认更改');
     }, 'primary'));
     const metrics = el('div', undefined, 'metrics');
-    for (const [title, number] of [['执行中任务', activity.active_tasks], ['等待提交', activity.queued_tasks], ['待核对任务', activity.needs_review], ['未完成上传', activity.uploads.pending]]) {
+    for (const [title, number] of [['执行中任务', activity.active_tasks], ['等待提交', activity.queued_tasks], ['待核对任务', activity.needs_review], ['未完成上传', activity.uploads.pending], ['有效画布占用', activity.canvas_locks ?? '未知'], ['未保存页面', activity.unsaved_pages ?? '未知']]) {
       const card = el('div', undefined, 'card'); card.append(el('div', title, 'muted'), el('p', number, 'metric')); metrics.append(card);
     }
     const services = el('section', undefined, 'card'); services.append(el('h2', '服务与发布检查'));
     for (const [kind, name] of [['workbench', '工作台服务'], ['worker', '任务消费者']]) { const row = activity.services.find(s => s.kind === kind); services.append(el('p', name + '：' + (row?.online ? '有在线心跳' : '当前无有效在线心跳'))); }
-    services.append(el('p', '画布租约与未保存页面统计尚未接入。当前状态不能作为可以停止数据库或发布服务的确认；已有付费任务仍可能写入结果与费用。', 'muted'));
+    services.append(el('p', '画布占用按当前范围的有效编辑租约统计，不代表未保存草稿数量。未保存页面报告尚未接入；即使占用为零，也不能据此确认可以停止数据库或发布服务。已有付费任务仍可能写入结果与费用。', 'muted'));
     return [summary, toolbar, metrics, services];
   }
   $('#cancel-dialog').onclick = () => $('#dialog').close();

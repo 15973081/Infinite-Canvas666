@@ -36,6 +36,95 @@ def recover(actor, workspace):
     return change(actor, workspace, 'normal', confirm_recovery=True)
 
 
+def test_maintenance_lease_counts_scope_expiry_release_and_read_only(world):
+    from app.services import maintenance_control as control
+    from app.storage.database import connection
+    from test_cloud_canvas_leases import setup_canvas, acquire, proof
+    op, a, b = world['operator'], world['a'], world['b']
+    baseline = control.snapshot(op)['activity']['canvas_locks']
+    path, canvas = setup_canvas(world)
+    first = acquire(world, path)
+    second_path, second_canvas = setup_canvas(world, 'smart')
+    acquire(world, second_path)
+    other = world['outsider'].post('/api/canvases', headers=headers(b), json={'title': '其他空间'}).json()['canvas']
+    assert world['outsider'].post('/api/canvases/' + other['id'] + '/edit-lease/acquire', headers=headers(b), json={}).status_code == 200
+    assert control.snapshot(op)['activity']['canvas_locks'] == baseline + 3
+    state = control.snapshot(op, a['id'])['activity']
+    assert state['canvas_locks'] == 2
+    assert state['unsaved_pages'] is None and state['database_stop_ready'] is False
+    assert 'unsaved_page_reporting' in state['pending_checks']
+    assert 'canvas_lease_accounting' not in state['pending_checks']
+    assert control.snapshot(op, b['id'])['activity']['canvas_locks'] == 1
+    with connection() as conn:
+        before = conn.execute('SELECT * FROM canvas_edit_leases WHERE canvas_id=%s', (canvas['id'],)).fetchone()
+    control.snapshot(op, a['id'])
+    with connection() as conn:
+        assert conn.execute('SELECT * FROM canvas_edit_leases WHERE canvas_id=%s', (canvas['id'],)).fetchone() == before
+        conn.execute("UPDATE canvas_edit_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE canvas_id=%s", (second_canvas['id'],))
+    assert control.snapshot(op, a['id'])['activity']['canvas_locks'] == 1
+    assert world['editor'].post(path + '/edit-lease/release', headers=proof(world, first)).status_code == 200
+    assert control.snapshot(op, a['id'])['activity']['canvas_locks'] == 0
+    acquire(world, path)
+    assert change(op, a['id'], 'draining')['activity']['canvas_locks'] == 1
+    assert change(op, a['id'], 'read_only')['activity']['canvas_locks'] == 0
+    assert control.snapshot(op, b['id'])['activity']['canvas_locks'] == 1
+    assert control.snapshot(op)['activity']['canvas_locks'] == baseline + 1
+
+
+@pytest.mark.parametrize('platform_grace,space_grace', [(30, 300), (300, 30)])
+def test_maintenance_announces_earliest_applicable_drain_deadline(world, platform_grace, space_grace):
+    from app.services import maintenance_control as control
+    from test_cloud_canvas_leases import setup_canvas, acquire, proof
+    op, a, b = world['operator'], world['a'], world['b']
+    path, _ = setup_canvas(world)
+    lease = acquire(world, path)
+    space_state = change(op, a['id'], 'draining', grace_seconds=space_grace)
+    platform_state = change(op, None, 'draining', grace_seconds=platform_grace)
+    expected = min(space_state['control']['drain_deadline'], platform_state['control']['drain_deadline'])
+    effective = control.snapshot(op, a['id'])['effective']
+    assert effective['mode'] == 'draining' and effective['drain_deadline'] == expected
+    assert control.snapshot(op, b['id'])['effective']['drain_deadline'] == platform_state['control']['drain_deadline']
+    public = world['editor'].get('/api/maintenance/status', headers=headers(a))
+    assert public.status_code == 200
+    assert datetime.fromisoformat(public.json()['maintenance']['drain_deadline']) == expected
+    renewed = world['editor'].post(path + '/edit-lease/renew', headers=proof(world, lease))
+    assert renewed.status_code == 200, renewed.text
+    assert datetime.fromisoformat(renewed.json()['expires_at']) <= expected
+
+
+@pytest.mark.parametrize('revocation', ['session', 'expired_session', 'member', 'membership', 'role', 'version', 'archive'])
+def test_maintenance_lease_count_excludes_invalid_holder(world, revocation):
+    from app.services import members, maintenance_control as control
+    from app.services.member_gateway import COOKIE
+    from app.storage.database import connection
+    from test_cloud_canvas_leases import setup_canvas, acquire
+    op, a = world['operator'], world['a']
+    path, _ = setup_canvas(world)
+    acquire(world, path)
+    assert control.snapshot(op, a['id'])['activity']['canvas_locks'] == 1
+    baseline = control.snapshot(op)['activity']['canvas_locks']
+    actor = members.resolve_session(world['editor'].cookies.get(COOKIE))
+    if revocation == 'session':
+        members.logout(actor)
+    elif revocation == 'expired_session':
+        with connection() as conn:
+            conn.execute("UPDATE member_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id=%s", (actor.session_id,))
+    elif revocation == 'member':
+        members.set_member_status(op, actor.member_id, 'disabled')
+    elif revocation == 'membership':
+        members.remove_workspace_member(op, actor.member_id, a['id'])
+    elif revocation == 'role':
+        members.assign_roles(op, actor.member_id, [a['roles']['viewer']], a['id'])
+    elif revocation == 'version':
+        # A grant change invalidates the old lease even if editing stays allowed.
+        members.assign_roles(op, actor.member_id, [a['roles']['admin']], a['id'])
+    else:
+        members.archive_workspace(op, a['id'], archived=True)
+    assert control.snapshot(op)['activity']['canvas_locks'] == baseline - 1
+    if revocation != 'archive':
+        assert control.snapshot(op, a['id'])['activity']['canvas_locks'] == 0
+
+
 def test_http_space_maintenance_platform_precedence_and_minimal_status(world):
     from app.services import maintenance_control as control
     op, a, b = world['operator'], world['a'], world['b']
@@ -262,7 +351,7 @@ def test_independent_management_scope_permissions_restart_and_service_presence(w
         assert 'reason' not in status['effective']['sources'][0]
         result = client.patch('/api/maintenance', params={'workspace': world['a']['id']}, json={'mode': 'draining', 'expected_version': status['control']['version'], 'reason': '维护验证'})
         assert result.status_code == 200, result.text
-        assert result.json()['activity']['canvas_locks'] is None
+        assert result.json()['activity']['canvas_locks'] == 0
         assert result.json()['activity']['database_stop_ready'] is False
     # Fresh workbench lifespan and independent management lifespan preserve it.
     with TestClient(workbench):

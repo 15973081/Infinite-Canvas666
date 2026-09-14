@@ -44,8 +44,11 @@ def effective(conn, workspace):
     strongest = max(rows, key=lambda r: (RANK[r['mode']], r['mode'] == 'scheduled', r['workspace_id'] is None))
     if strongest['mode'] == 'scheduled':
         strongest = min((r for r in rows if r['mode'] == 'scheduled'), key=lambda r: r['planned_at'])
+    # Both scopes constrain finish/renew. Announce the first applicable
+    # deadline, even when the platform notice wins the display precedence.
+    deadline = min((r['drain_deadline'] for r in rows if r['mode'] == 'draining'), default=None)
     return {'mode': strongest['mode'], 'message': strongest['message'],
-            'planned_at': strongest['planned_at'], 'drain_deadline': strongest['drain_deadline'],
+            'planned_at': strongest['planned_at'], 'drain_deadline': deadline if strongest['mode'] == 'draining' else strongest['drain_deadline'],
             'server_time': strongest['server_time'],
             'versions': {r['scope_key']: r['version'] for r in rows}, 'sources': rows}
 
@@ -83,6 +86,7 @@ def public_effective(state):
 
 
 def counts(conn, workspace=None):
+    from app.services.canvas_leases import active_count
     tasks = {r['status']: r['count'] for r in conn.execute('SELECT status,count(*) AS count FROM tasks WHERE (%s::text IS NULL OR workspace_id=%s) GROUP BY status', (workspace, workspace))}
     uploads = conn.execute("""SELECT count(*) FILTER (WHERE status IN ('initiating','uploading','verifying') AND expires_at>clock_timestamp()) AS pending,
         count(*) FILTER (WHERE lease_until>clock_timestamp()) AS processing FROM media_uploads
@@ -92,8 +96,8 @@ def counts(conn, workspace=None):
     active = sum(tasks.get(s, 0) for s in ('running', 'submitting', 'polling', 'finalizing'))
     return {'task_counts': tasks, 'active_tasks': active, 'queued_tasks': tasks.get('queued', 0),
             'needs_review': tasks.get('needs_review', 0), 'uploads': uploads,
-            'services': services, 'canvas_locks': None, 'unsaved_pages': None,
-            'database_stop_ready': False, 'pending_checks': ['canvas_lease_accounting', 'operator_backup_and_recovery_check']}
+            'services': services, 'canvas_locks': active_count(conn, workspace), 'unsaved_pages': None,
+            'database_stop_ready': False, 'pending_checks': ['unsaved_page_reporting', 'operator_backup_and_recovery_check']}
 
 
 def snapshot(actor, workspace=None):
