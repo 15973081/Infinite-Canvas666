@@ -15379,8 +15379,11 @@ window.addEventListener('pagehide', () => {
 });
 window.addEventListener('frontend:before-reload', event => {
     if(typeof event.detail?.waitUntil !== 'function') return;
+    if(window.CanvasSession?.enabled){
+        event.detail.waitUntil(window.MemberCanvasEdit.prepareReload());
+        return;
+    }
     event.detail.waitUntil((async () => {
-        if(window.CanvasSession?.enabled && !smartCanvasDirty && !smartSaveInFlight && !smartSaveAgain) return true;
         clearTimeout(saveTimer);
         saveTimer = null;
         const saved = await saveCanvas({force:true});

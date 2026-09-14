@@ -3250,17 +3250,29 @@ function handleCanvasUnlockedMessage(data){
 
 async function flushClassicCanvasBeforeFrontendReload(){
     if(!canvas) return true;
-    clearTimeout(saveTimer);
-    saveTimer = null;
-    if(localCanvasDirty || savingCanvasNow || saveCanvasAgain) await saveCanvas();
     const deadline = Date.now() + 10000;
-    while((savingCanvasNow || saveCanvasAgain) && Date.now() < deadline){
-        await new Promise(resolve => setTimeout(resolve, 80));
+    while(localCanvasDirty || savingCanvasNow || saveCanvasAgain){
+        if(Date.now() >= deadline) return false;
+        clearTimeout(saveTimer); saveTimer = null;
+        if(savingCanvasNow){
+            await new Promise(resolve => setTimeout(resolve, 80));
+            continue;
+        }
+        if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canSave) return false;
+        await saveCanvas();
+        // Follow actual edits made during the write immediately, without
+        // waiting for a timer that the finishing UI may cancel.
+        if(localCanvasDirty && !saveTimer && !saveCanvasAgain) return false;
     }
-    return !localCanvasDirty && !savingCanvasNow && !saveCanvasAgain;
+    clearTimeout(saveTimer); saveTimer = null;
+    return true;
 }
 window.addEventListener('frontend:before-reload', event => {
     if(typeof event.detail?.waitUntil === 'function'){
+        if(window.CanvasSession?.enabled){
+            event.detail.waitUntil(window.MemberCanvasEdit.prepareReload());
+            return;
+        }
         event.detail.waitUntil(flushClassicCanvasBeforeFrontendReload());
     }
 });

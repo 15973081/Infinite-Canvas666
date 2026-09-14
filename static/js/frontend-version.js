@@ -11,6 +11,7 @@
     let checkRequest = null;
     let checkTimer = null;
     let updateBanner = null;
+    let reloadRequest = null;
 
     function createUpdateBanner(){
         if(updateBanner) return updateBanner;
@@ -18,7 +19,7 @@
         banner.id = 'frontendUpdateBanner';
         banner.setAttribute('role', 'alert');
         banner.style.cssText = [
-            'position:fixed', 'left:50%', 'bottom:24px', 'z-index:2147483647',
+            'position:fixed', 'left:50%', 'bottom:112px', 'z-index:2147483647',
             'transform:translateX(-50%)', 'display:flex', 'align-items:center', 'gap:12px',
             'max-width:min(560px,calc(100vw - 32px))', 'padding:12px 14px',
             'border:1px solid rgba(255,255,255,.22)', 'border-radius:12px',
@@ -81,34 +82,59 @@
 
     async function runReloadGuards(){
         const pending = [];
+        const visited = new Set();
         const detail = {
             loadedBuildId,
             latestBuildId,
-            waitUntil(value){ pending.push(Promise.resolve(value)); }
+            waitUntil(value){
+                const promise=Promise.resolve(value);
+                promise.catch(() => {}); // Also handled if collecting a later frame fails.
+                pending.push(promise);
+            }
         };
-        window.dispatchEvent(new CustomEvent('frontend:before-reload', {detail}));
-        if(!pending.length) return true;
-        const results = await Promise.allSettled(pending);
-        return results.every(result => result.status === 'fulfilled' && result.value !== false);
+        function collect(win){
+            if(!win || visited.has(win)) return;
+            visited.add(win);
+            win.dispatchEvent(new win.CustomEvent('frontend:before-reload', {detail}));
+            for(const frame of win.document.querySelectorAll('iframe')) collect(frame.contentWindow);
+        }
+        let timer;
+        try {
+            collect(window);
+            const result = Promise.allSettled(pending).then(results => results.every(result => result.status === 'fulfilled' && result.value !== false));
+            return await Promise.race([result, new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error('保存等待超时。页面尚未刷新，请检查画布状态并保留草稿后重试。')), 45000);
+            })]);
+        } finally { clearTimeout(timer); }
     }
 
-    async function refreshToLatestBuild(){
+    function refreshToLatestBuild(){
+        if(reloadRequest) return reloadRequest;
+        reloadRequest = performRefresh().finally(() => { reloadRequest = null; });
+        return reloadRequest;
+    }
+    async function performRefresh(){
         const button = updateBanner?.querySelector('button');
         if(button){
             button.disabled = true;
             button.textContent = '正在保存…';
         }
-        const canReload = await runReloadGuards();
-        if(!canReload){
+        try {
+            if(!await runReloadGuards()) throw new Error('保存尚未完成。页面尚未刷新，请检查画布状态并保留草稿后重试。');
+            const url = new URL(window.location.href);
+            url.searchParams.set('__frontend_build', latestBuildId);
+            window.location.replace(url.toString());
+            return true;
+        } catch(error) {
+            const message = updateBanner?.querySelector('span');
+            if(message) message.textContent = error.message || '无法确认页面已保存，请保留草稿后重试。';
+            return false;
+        } finally {
             if(button){
                 button.disabled = false;
-                button.textContent = '保存失败，重试';
+                button.textContent = '保存并刷新';
             }
-            return;
         }
-        const url = new URL(window.location.href);
-        url.searchParams.set('__frontend_build', latestBuildId);
-        window.location.replace(url.toString());
     }
 
     function versionedUrl(value, buildId=latestBuildId){
@@ -144,6 +170,7 @@
         loadedBuildId,
         checkForUpdate,
         refreshToLatestBuild,
+        flushPages:runReloadGuards,
         versionedUrl
     });
 })();

@@ -35,7 +35,7 @@ function setup(){
     });
     for(const name of [
         'serializableCanvasNode', 'serializableCanvasNodes', 'canvasSavePayload', 'canvasSaveSnapshot',
-        'scheduleSave', 'saveCanvas', 'billingIdentity', 'modelPriceAt', 'calculateGenerationCost',
+        'scheduleSave', 'saveCanvas', 'flushClassicCanvasBeforeFrontendReload', 'billingIdentity', 'modelPriceAt', 'calculateGenerationCost',
         'generationLogCost', 'canvasCostTotals', 'addGenerationLog'
     ]){
         const start = source.search(new RegExp(`^(?:async )?function ${name}\\(`, 'm'));
@@ -124,4 +124,28 @@ test('a save conflict retains new logs and does not acknowledge the rejected sna
     assert.equal(h.ctx.lastCanvasUpdatedAt, 1);
     assert.equal(h.ctx.lastSavedCanvasSnapshot, '');
     assert.equal(h.timers.size, 0, 'conflicts still require reconciliation');
+});
+
+for(const concurrentEdit of [false,true]) test(`reload flush awaits the current save without deferred-save starvation (edit=${concurrentEdit})`,async()=>{
+    const h=setup(),waits=[],schedule=h.ctx.setTimeout;
+    h.ctx.setTimeout=(fn,ms)=>ms===80?(waits.push(fn),-1):schedule(fn,ms);
+    const first=h.ctx.saveCanvas();
+    if(concurrentEdit)h.ctx.canvas.title='Latest edit';
+    const flushed=h.ctx.flushClassicCanvasBeforeFrontendReload();
+    assert.equal(h.ctx.saveCanvasAgain,false,'waiting does not enqueue a redundant save');
+    h.acknowledge(0,2);await first;
+    waits.shift()();await new Promise(setImmediate);
+    if(concurrentEdit){
+        assert.equal(h.requests.length,2,'new content saves immediately without the 1500 ms timer');
+        assert.equal(h.requests[1].payload.title,'Latest edit');h.acknowledge(1,3);
+    }
+    assert.equal(await flushed,true);assert.equal(h.timers.size,0);assert.equal(h.ctx.localCanvasDirty,false);
+    assert.equal(h.requests.length,concurrentEdit?2:1);
+});
+
+test('reload flush retains dirty contents on a failed save without retrying it',async()=>{
+    const h=setup();const flushed=h.ctx.flushClassicCanvasBeforeFrontendReload();
+    h.requests[0].resolve({ok:false,status:409});
+    assert.equal(await flushed,false);assert.equal(h.ctx.localCanvasDirty,true);
+    assert.equal(h.requests.length,1);assert.equal(h.timers.size,0);
 });

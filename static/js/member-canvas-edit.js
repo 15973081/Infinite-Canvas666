@@ -328,6 +328,24 @@
             return entry;
         },
         markDirty() { clearTimeout(draftTimer); const entry=active; draftTimer=setTimeout(() => persist(entry),150); },
+        prepareReload() {
+            const entry=active;
+            if(!entry) return Promise.resolve(true);
+            if(entry.reloadRequest) return entry.reloadRequest;
+            entry.reloadRequest=(async () => {
+                try {
+                    // Snapshot before attempting the final write. A failed or uncertain
+                    // save never authorizes navigation or removes the draft.
+                    await persist(entry);
+                    if(entry!==active) return false;
+                    if(entry.lease.canSave) return await entry.lease.finish(entry.options.flush);
+                    return !entry.options.dirty();
+                } catch(error) {
+                    entry.feedback=error.message; render(); return false;
+                }
+            })().finally(() => {entry.reloadRequest=null;});
+            return entry.reloadRequest;
+        },
         async leave() {
             const entry=active;
             if(!entry) return true;

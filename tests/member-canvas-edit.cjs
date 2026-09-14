@@ -52,6 +52,28 @@ test('opening a member canvas only observes; saves require explicit start',async
     const init=f.calls.at(-1)[1];assert.equal(new Headers(init.headers).get('X-Canvas-Edit-Token'),'secret-lease-proof');
     assert.equal(JSON.parse(init.body).base_revision,3);assert.equal(f.api.active.lease.revision,4);
 });
+
+test('reload snapshots dirty content, flushes and confirms release before allowing navigation',async()=>{
+    const f=fixture();await f.mount();await f.api.active.lease.start(async()=>({revision:3}));
+    const entry=f.api.active;let dirty=true,complete;
+    entry.options.dirty=()=>dirty;
+    entry.options.flush=async()=>{assert.equal(f.records.size,1);await new Promise(r=>complete=r);dirty=false;return true;};
+    entry.lease.transport=async(path)=>{assert.ok(path.endsWith('/release'));assert.equal(dirty,false);return reply({released:true,revision:3});};
+    const pending=f.api.prepareReload();assert.equal(f.api.prepareReload(),pending);
+    await new Promise(setImmediate);assert.equal(entry.lease.canEdit,false);complete();
+    assert.equal(await pending,true);assert.equal(entry.lease.state,'view');assert.equal(f.records.size,1);
+});
+
+test('reload refuses failed or unowned dirty pages and preserves their scoped drafts',async()=>{
+    for(const owner of [false,true]){
+        const f=fixture();await f.mount();
+        if(owner)await f.api.active.lease.start(async()=>({revision:3}));
+        f.api.active.options.dirty=()=>true;f.api.active.options.flush=async()=>false;
+        assert.equal(await f.api.prepareReload(),false);assert.equal(f.records.size,1);
+        assert.equal(f.calls.some(([path])=>path.endsWith('/release')),false);
+        assert.equal(f.api.active.lease.state,owner?'editing':'view');
+    }
+});
 test('canvas tasks carry the active proof and reject another canvas',async()=>{
     const f=fixture();await f.mount();await f.api.active.lease.start(async()=>({revision:3}));
     const before=f.calls.length;

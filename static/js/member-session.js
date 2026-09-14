@@ -62,6 +62,9 @@
         return url.href;
     }
     async function flushPages() {
+        if(window.FrontendVersion?.flushPages) {
+            try { return await window.FrontendVersion.flushPages(); } catch (_) { return false; }
+        }
         const pending = [];
         for (const win of [window, ...Array.from(document.querySelectorAll('iframe'), frame => frame.contentWindow)]) {
             try { win.dispatchEvent(new CustomEvent('frontend:before-reload', {detail:{waitUntil:value => pending.push(Promise.resolve(value))}})); }
