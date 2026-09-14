@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--report")
     parser.add_argument("--destination")
     parser.add_argument("--task-id")
+    parser.add_argument("--workspace", help="Existing target workspace for legacy migration")
     args = parser.parse_args()
     # Offline operations must remain usable when the original DB/store is lost.
     if args.command in {"verify-backup", "restore-objects"}:
@@ -81,7 +82,15 @@ def main():
         if not args.source:
             parser.error("migrate requires --source (a consistent legacy backup directory)")
         from app.storage.migration import migrate_legacy
-        print(migrate_legacy(Path(args.source), apply=args.apply, report_path=args.report))
+        from app.storage.workspace import workspace_scope
+        if os.getenv("AUTH_MODE") == "members" and not args.workspace:
+            parser.error("member-mode migration requires --workspace (existing target space)")
+        with workspace_scope(args.workspace or "default") as workspace:
+            if args.apply:
+                with database.connection() as conn:
+                    if not conn.execute("SELECT 1 FROM workspaces WHERE id=%s AND status='active'", (workspace,)).fetchone():
+                        parser.error("migration target workspace must exist and be active")
+            print(migrate_legacy(Path(args.source), apply=args.apply, report_path=args.report))
     database.close()
 
 

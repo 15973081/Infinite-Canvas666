@@ -9,6 +9,7 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 from app.storage import canvases, database, documents, media, tasks
 from app.storage.ledger import COLUMNS
+from app.storage.workspace import current_workspace
 from app.storage.migration_audit import Audit, DOCUMENTS, checked_path, read_json, read_json_tasks
 
 
@@ -42,11 +43,12 @@ def ledger_import(path, apply):
                     parsed = {k: json.loads(v) if k.endswith("_json") else v for k, v in raw.items()}
                     if apply:
                         primary = ["id"] if table == "ledger_entries" else ["canvas_id", "alias"] if table == "ledger_aliases" else ["canvas_id", "entry_id", "fingerprint"] if table == "ledger_conflicts" else ["canvas_id", "source"] if table == "ledger_imports" else ["canvas_id"]
-                        params = [Jsonb(v) if k.endswith("_json") else v for k, v in parsed.items()]
-                        statement = sql.SQL("INSERT INTO {} ({}) VALUES ({}) ON CONFLICT DO NOTHING").format(sql.Identifier(table), sql.SQL(",").join(map(sql.Identifier, parsed)), sql.SQL(",").join([sql.Placeholder()] * len(parsed)))
+                        scoped = {"workspace_id": current_workspace(), **parsed}
+                        params = [Jsonb(v) if k.endswith("_json") else v for k, v in scoped.items()]
+                        statement = sql.SQL("INSERT INTO {} ({}) VALUES ({}) ON CONFLICT DO NOTHING").format(sql.Identifier(table), sql.SQL(",").join(map(sql.Identifier, scoped)), sql.SQL(",").join([sql.Placeholder()] * len(scoped)))
                         conn.execute(statement, params)
                         where = sql.SQL(" AND ").join(sql.SQL("{}=%s").format(sql.Identifier(k)) for k in primary)
-                        existing = conn.execute(sql.SQL("SELECT {} FROM {} WHERE workspace_id='default' AND ").format(sql.SQL(",").join(map(sql.Identifier, parsed)), sql.Identifier(table)) + where, [parsed[k] for k in primary]).fetchone()
+                        existing = conn.execute(sql.SQL("SELECT {} FROM {} WHERE workspace_id=%s AND ").format(sql.SQL(",").join(map(sql.Identifier, parsed)), sql.Identifier(table)) + where, [current_workspace(), *[parsed[k] for k in primary]]).fetchone()
                         if existing != parsed:
                             raise ValueError("Ledger row conflict: " + table + " (historical values were not overwritten)")
                     count += 1
@@ -54,7 +56,7 @@ def ledger_import(path, apply):
             if apply:
                 # A nonempty target may have additional records; every imported row
                 # was compared above, so do not claim whole-target totals must match.
-                result["target_totals"] = conn.execute(totals_query).fetchall()
+                result["target_totals"] = conn.execute(totals_query.replace(" GROUP BY", " WHERE workspace_id=%s GROUP BY"), (current_workspace(),)).fetchall()
     finally:
         snapshot.close()
     return result
@@ -118,7 +120,10 @@ def migrate_legacy(source, apply=False, report_path=None):
                 entry = {"legacy_ref": ref, "size": size, "sha256": sha, "status": "planned", "namespace": report["namespace"]}
                 report["files"].append(entry)
                 if apply:
-                    asset_id = "ast_" + digest({"namespace": os.getenv("ASSET_SOURCE_NAMESPACE", "local"), "ref": ref})[:32]
+                    identity = {"namespace": os.getenv("ASSET_SOURCE_NAMESPACE", "local"), "ref": ref}
+                    if current_workspace() != "default":
+                        identity["workspace"] = current_workspace()
+                    asset_id = "ast_" + digest(identity)[:32]
                     try:
                         asset = media.publish(path, path.name, legacy_ref=ref, asset_id=asset_id)
                     except Exception:
@@ -181,6 +186,8 @@ def migrate_legacy(source, apply=False, report_path=None):
                                 existing = tasks.get(row["id"])
                                 if existing:
                                     raise ValueError("Target task already exists: " + row["id"])
+                                if value.get("status") not in tasks.TERMINAL:
+                                    value.update(legacy_status=value.get("status"), status="needs_review", submission_unknown=True)
                                 tasks.save(value, payload, historical=True)
                                 documents.put("migration_item:" + source_id, marker, {"sha256": sha})
                     report["tasks"].append(row["id"])

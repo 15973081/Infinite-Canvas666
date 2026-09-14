@@ -331,6 +331,8 @@ def test_repeatable_migration_keeps_five_ledger_tables_and_legacy_aliases(tmp_pa
     assert tasks.request(legacy_task_id)["prompt"] == "legacy request"
     assert tasks.get(legacy_task_id)["created_at"] == 1789000000.25
     assert tasks.get(legacy_task_id)["billing_price"]["unit_price"] == "0.030001"
+    assert tasks.get(legacy_task_id)["status"] == "needs_review"
+    assert tasks.get(legacy_task_id)["legacy_status"] == "running"
     tasks.recover_expired()
     assert tasks.get(legacy_task_id)["status"] == "needs_review"
     report = json.loads((tmp_path / "again.json").read_text(encoding="utf-8"))
@@ -635,9 +637,10 @@ def test_migration_preserves_json_only_tasks_and_sqlite_precedence(tmp_path):
     (source / "data/canvas_tasks.json").write_text(json.dumps({"tasks": [only_json, cached]}), encoding="utf8")
     with sqlite3.connect(source / "data/canvas_tasks.sqlite3") as conn:
         conn.execute("CREATE TABLE canvas_tasks (id TEXT,created_at REAL,task_json TEXT,request_json TEXT)")
-        conn.execute("INSERT INTO canvas_tasks VALUES (?,1,?,?)", (shared_id, json.dumps(dict(cached, status="succeeded", error="")), json.dumps({"prompt": "original request"})))
+        conn.execute("INSERT INTO canvas_tasks VALUES (?,1,?,?)", (shared_id, json.dumps(dict(cached, status="succeeded", error="")), json.dumps({"prompt": "original request", "provider_id": "retired-provider"})))
     report_path = tmp_path / "migration.json"
-    migrate_legacy(source, apply=True, report_path=report_path)
+    with patch("app.providers.registry.managed_providers_enabled", return_value=True), patch("app.providers.registry.load_api_providers", return_value=[]):
+        migrate_legacy(source, apply=True, report_path=report_path)
     report = json.loads(report_path.read_text(encoding="utf8"))
     assert "data/canvas_tasks.json" not in report["unknown_json"]
     assert report["tasks"] == [shared_id, json_id]
@@ -648,6 +651,7 @@ def test_migration_preserves_json_only_tasks_and_sqlite_precedence(tmp_path):
     assert "api_key" not in tasks.get(json_id)
     assert tasks.get(shared_id)["status"] == "succeeded"
     assert tasks.request(shared_id)["prompt"] == "original request"
+    assert tasks.request(shared_id)["provider_id"] == "retired-provider"
     from app.storage.migration import digest
     source_id = digest({"source": str(source.resolve()), "namespace": os.getenv("ASSET_SOURCE_NAMESPACE", "local")})[:24]
     assert documents.get("legacy_task_snapshot", source_id + ":" + shared_id)["error"] == "old cache"

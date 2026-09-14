@@ -47,3 +47,5 @@
 需要从备份重建时，使用现有 tools/cloud_restore.py，RESTORE_DATABASE_URL 指向一个独立空数据库，source 指向上述 dump，destination 使用新目录；从受控 private 备份恢复供应商解密密钥，配置业务与管理入口，完成维护恢复再开放。不得覆盖现有库。
 
 切换后回退前先停写并备份候选库新增数据，再恢复原入口；不直接用旧快照覆盖新写入。
+
+后续：旧快照已追加到候选库的独立历史空间，实际数量与保留检查见[追加导入记录](migration-delivery-import.md)。本页上文“尚未 apply”为备份准备时的历史状态；入口仍未切换。

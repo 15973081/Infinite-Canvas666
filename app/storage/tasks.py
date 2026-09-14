@@ -27,10 +27,12 @@ def clean_request(value):
     return value
 
 
-def fingerprint(request):
+def fingerprint(request, *, historical=False):
     from app.storage.task_requests import normalize
     public = {k: v for k, v in request.items() if k != '_canvas_binding'} if isinstance(request, dict) else request
-    return hashlib.sha256(json.dumps(normalize(clean_request(public)), ensure_ascii=False, sort_keys=True,
+    # Historical records are archived evidence, not newly authorized submissions.
+    value = clean_request(public) if historical else normalize(clean_request(public))
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                      separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
@@ -103,7 +105,7 @@ def save(task, request_payload=None, *, historical=False):
             raise HTTPException(409, "任务 ID 不可用于当前空间")
         if old:
             if request_payload is not None:
-                if fingerprint(old["request"]) != fingerprint(request_payload):
+                if fingerprint(old["request"], historical=historical) != fingerprint(request_payload, historical=historical):
                     raise HTTPException(409, "相同任务 ID 的请求内容不同")
                 return decode(old)
             lease = lease_context.get()
@@ -147,7 +149,7 @@ def save(task, request_payload=None, *, historical=False):
                     raise HTTPException(404, "画布不存在")
                 canvas_id = None  # Historical/orphan id remains in legacy_metadata.
             row = conn.execute("INSERT INTO tasks(workspace_id,id,canvas_id,kind,status,provider_id,provider_account_ref,model,upstream_task_id,request,result,legacy_metadata,idempotency_key,request_sha256,created_at,updated_at,input_asset_ids,output_asset_ids) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),%s,%s) RETURNING *",
-                               (workspace, task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
+                               (workspace, task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload, historical=historical), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
             if requester:
                 row = conn.execute("UPDATE tasks SET requested_by=%s WHERE workspace_id=%s AND id=%s RETURNING *", (requester, workspace, task_id)).fetchone()
             if canvas_admission:

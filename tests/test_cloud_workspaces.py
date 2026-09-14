@@ -372,3 +372,39 @@ def test_upload_migration_backfills_space_without_changing_keys_or_versions():
         assert row == {'workspace_id': 'default', 'idempotency_key': 'same-client-key', 'status': 'ready',
                        'object_key': 'media/default/retained', 'object_version_id': 'fixed-original-version'}
         conn.execute(sql.SQL('DROP SCHEMA {} CASCADE').format(sql.Identifier(name)))
+
+
+def test_legacy_import_scopes_ledger_and_same_path_media(tmp_path):
+    import json
+    from app.storage import database, media
+    from app.storage.migration import migrate_legacy
+    from app.storage.workspace import workspace_scope
+    from app.services import canvas_ledger as ledger
+    ids, canvas_ids = [], []
+    for index, wid in enumerate(spaces()):
+        source = tmp_path / wid
+        (source / 'data').mkdir(parents=True)
+        (source / 'assets').mkdir()
+        (source / 'assets/same.png').write_bytes(b'legacy media')
+        cid = uuid.uuid4().hex
+        canvas_ids.append(cid)
+        amount = 912345 + index
+        log = {'id': 'legacy', 'createdAt': 1789000000000, 'status': 'success',
+               'billingKind': 'image', 'cost': {'status': 'priced', 'kind': 'image',
+               'currency': 'CNY', 'amount_micros': amount}}
+        with patch.dict(os.environ, {'DATABASE_BACKEND': 'local',
+             'CANVAS_LEDGER_DB_PATH': str(source / 'data/canvas_ledger.sqlite3')}), patch.object(ledger, 'provider_list', return_value=[]):
+            ledger.import_canvas_logs(cid, [log])
+        with workspace_scope(wid):
+            migrate_legacy(source, apply=True, report_path=tmp_path / (wid + '.json'))
+            migrate_legacy(source, apply=True, report_path=tmp_path / (wid + '.json'))
+            ids.append(media.get_asset('/assets/same.png')['id'])
+            assert ledger.read_page(cid)['totals']['total'] == amount
+            report = json.loads((tmp_path / (wid + '.json')).read_text(encoding='utf-8'))
+            target = report['ledger']['target_totals']
+            assert len(target) == 1 and target[0]['records'] == 1
+            assert int(target[0]['amount_micros']) == amount
+            assert target[0]['currency'] == 'CNY'
+    assert ids[0] != ids[1]
+    with database.connection() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM ledger_entries WHERE canvas_id=ANY(%s) AND workspace_id='default'", (canvas_ids,)).fetchone()['n'] == 0
