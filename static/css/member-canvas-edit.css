@@ -1,5 +1,5 @@
 /* Shared collaboration surface for classic and smart canvas. */
-.member-canvas-edit{--mc-bg:#ffffff;--mc-text:#263247;--mc-muted:#7a879a;--mc-border:#e3e8ef;--mc-hover:#f3f6fa;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:3000;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;padding:8px;border:1px solid var(--mc-border);border-radius:18px;background:var(--mc-bg);color:var(--mc-text);box-shadow:0 8px 32px #26324712,0 2px 6px #26324706;font:13px/1.5 system-ui,sans-serif}
+.member-canvas-edit{--mc-bg:#ffffff;--mc-glass:rgba(255,255,255,.82);--mc-text:#263247;--mc-muted:#7a879a;--mc-border:#e3e8ef;--mc-hover:#f3f6fa;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:3000;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;padding:8px;border:1px solid var(--mc-border);border-radius:18px;background:var(--mc-bg);color:var(--mc-text);box-shadow:0 8px 32px #26324712,0 2px 6px #26324706;font:13px/1.5 system-ui,sans-serif}
 .member-canvas-edit>strong{font-size:12px;font-weight:500;padding:0 10px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .member-canvas-edit>strong::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#94a3b8;margin-right:7px;vertical-align:middle}
 .member-canvas-edit[data-state=editing]>strong::before{background:#28a279}
@@ -23,7 +23,7 @@
 .member-canvas-edit-notice[data-tone=warning]{color:#a96320;background:#fff7e8;border-radius:7px;padding:5px 8px}
 .member-canvas-edit-notice:empty{display:none}
 .member-canvas-edit .member-canvas-transfer-list{border-color:var(--mc-border)}
-:is(html,body).theme-dark .member-canvas-edit,:is(html,body).dark .member-canvas-edit,html[data-theme=dark] .member-canvas-edit{--mc-bg:#1c2532;--mc-text:#e2e8f0;--mc-muted:#a2b0c3;--mc-border:#344153;--mc-hover:#2c384b}
+:is(html,body).theme-dark .member-canvas-edit,:is(html,body).dark .member-canvas-edit,html[data-theme=dark] .member-canvas-edit{--mc-bg:#1c2532;--mc-glass:rgba(28,37,50,.84);--mc-text:#e2e8f0;--mc-muted:#a2b0c3;--mc-border:#344153;--mc-hover:#2c384b}
 @media(max-width:640px){.member-canvas-edit{bottom:10px;gap:3px;padding:6px;border-radius:14px}.member-canvas-edit>strong{max-width:180px}.member-canvas-edit button,.member-canvas-edit summary{font-size:12px;padding:7px 9px}.member-canvas-edit .member-canvas-presence ul{right:0}.member-canvas-transfer-row{flex-wrap:wrap}}
 .member-canvas-drafts{max-width:min(640px,90vw);max-height:80vh;overflow:auto;background:#151b27;color:#edf2fa;border:1px solid #596476;border-radius:16px;padding:24px;font:14px/1.6 system-ui,sans-serif}.member-canvas-drafts::backdrop{background:#0009}
 body.member-canvas-view #nodes,body.member-canvas-view .image-node,body.member-canvas-view .composer,body.member-canvas-view .create-menu{pointer-events:none}
@@ -51,3 +51,8 @@ body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #6
 :is(html,body).theme-dark .member-canvas-drafts :is(button,textarea){background:#293449;color:#e2e8f0;border-color:#344153}
 
 @media(prefers-reduced-motion:reduce){.member-canvas-edit summary::after{transition:none}}
+
+/* Frost only the floating surface; menu panels and text stay fully opaque. */
+@supports ((backdrop-filter:blur(10px)) or (-webkit-backdrop-filter:blur(10px))){
+    .member-canvas-edit{background:var(--mc-glass);backdrop-filter:blur(10px) saturate(115%);-webkit-backdrop-filter:blur(10px) saturate(115%)}
+}
