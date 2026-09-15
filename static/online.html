@@ -450,7 +450,7 @@
                 const img = new Image();
                 img.onload = () => resolve({width:img.naturalWidth, height:img.naturalHeight});
                 img.onerror = reject;
-                img.src = src;
+                img.src = onlineMediaUrl(src);
             });
         }
         function firstReferenceDimension(){
@@ -634,10 +634,10 @@
                         currentResult = result;
                         const out = document.getElementById('outputImg');
                         document.getElementById('placeholder').classList.add('hidden');
-                        out.src = result.images[0];
+                        out.src = onlineMediaUrl(result.images[0]);
                         out.classList.remove('hidden');
                         const dl = document.getElementById('downloadBtn');
-                        dl.href = result.images[0];
+                        dl.href = onlineMediaUrl(result.images[0]);
                         dl.classList.remove('hidden');
                         renderImageCard(result, true);
                         return;
@@ -676,6 +676,9 @@
             }
         }
 
+        function onlineMediaUrl(url){
+            return window.MemberMediaUrl ? window.MemberMediaUrl(url) : (window.CanvasSession?.enabled ? '' : url);
+        }
         function renderImageCard(data, isNew=false){
             if(!data.images?.[0] || document.getElementById(`history-${data.timestamp}`)) return;
             const originalUrl = data.images[0];
@@ -687,15 +690,16 @@
             card.onclick = () => { if(document.body.classList.contains('history-bulk-selecting')) return; openLightbox(data); };
             const multi = Array.isArray(data.images) && data.images.length > 1
                 ? `<div class="absolute top-3 right-3 bg-black/60 text-white text-[10px] font-black px-2 py-0.5 rounded-full pointer-events-none">×${data.images.length}</div>` : '';
-            card.innerHTML = `<img src="${thumbnailUrl}" class="w-full h-full object-cover block group-hover:scale-105 transition-transform duration-1000" loading="lazy" decoding="async" fetchpriority="low" alt="">${multi}
+            card.innerHTML = `<img class="w-full h-full object-cover block group-hover:scale-105 transition-transform duration-1000" loading="lazy" decoding="async" fetchpriority="low" alt="">${multi}
                 <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 p-6 flex flex-col justify-end"><p class="text-white text-[10px] font-medium line-clamp-2 uppercase tracking-wider">${data.prompt || tr('online.onlineImageFallback')}</p></div>`;
             const thumbnail = card.querySelector('img');
             thumbnail.dataset.originalSrc = originalUrl;
             thumbnail.addEventListener('error', () => {
                 if(thumbnail.dataset.originalFallback === '1') return;
                 thumbnail.dataset.originalFallback = '1';
-                thumbnail.src = originalUrl;
+                thumbnail.src = onlineMediaUrl(originalUrl);
             });
+            thumbnail.src = onlineMediaUrl(thumbnailUrl);
             isNew ? document.getElementById('masonry').prepend(card) : document.getElementById('masonry').appendChild(card);
             lucide.createIcons();
         }
@@ -741,7 +745,7 @@
             ensureLightboxPreview();
             if(lightboxPreview) lightboxPreview.reset();
             img.onload = () => { res.textContent = img.naturalWidth && img.naturalHeight ? `${img.naturalWidth} x ${img.naturalHeight}` : (data.params?.size || '--'); };
-            img.src = data.images[0];
+            img.src = onlineMediaUrl(data.images[0]);
             document.getElementById('lightboxPrompt').textContent = data.prompt || '';
             document.getElementById('lightbox').classList.replace('hidden','flex');
             document.body.style.overflow='hidden';
@@ -755,7 +759,7 @@
         function handleOutsideClick(e){ if(e.target.id === 'lightbox') closeLightbox(); }
         async function downloadLightboxImage(e){
             e.stopPropagation();
-            const url = currentLightboxData?.images?.[0];
+            const url = onlineMediaUrl(currentLightboxData?.images?.[0]);
             if(!url) return;
             const res = await fetch(url);
             if(!res.ok) return alert('下载失败');
@@ -777,7 +781,7 @@
             [1,2,3,4].forEach(id => clearSlot(id));
             (currentLightboxData.params?.reference_images || []).slice(0,4).forEach((ref,i) => {
                 refs[i+1] = ref; const prev = document.getElementById(`prev${i+1}`);
-                prev.src = ref.url; prev.classList.remove('hidden'); document.getElementById(`del${i+1}`).classList.remove('hidden');
+                prev.src = onlineMediaUrl(ref.url); prev.classList.remove('hidden'); document.getElementById(`del${i+1}`).classList.remove('hidden');
                 getImageDimensions(ref.url).then(dim => {
                     refDims[i+1] = dim;
                     updateSizeUI();
