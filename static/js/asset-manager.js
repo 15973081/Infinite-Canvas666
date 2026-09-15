@@ -127,7 +127,6 @@ let managerTabSwitchToken = 0;
 const managerDataLoaded = {
     assets:false,
     prompts:false,
-    local:false,
     'canvas-assets':false,
     providers:false
 };
@@ -141,7 +140,7 @@ let managerDeleteConfirmation = '';
 let managerDeleteBusy = false;
 
 function managerTabLabel(tab){
-    return {assets:'图片资产',workflows:'工作流',prompts:'提示词',local:'本地素材','canvas-assets':'画布资产'}[tab] || '素材';
+    return {assets:'图片资产',workflows:'工作流',prompts:'提示词','canvas-assets':'画布资产'}[tab] || '素材';
 }
 function showManagerLoadState(tab,error=''){
     ++assetViewRestoreToken; ++managerRestoreToken;
@@ -1266,8 +1265,7 @@ async function loadManagerData(tab, {refresh=false, reset=false}={}){
         } else if(key === 'prompts') {
             const data = await apiJson('/api/prompt-libraries');
             promptLibrary = data.library || {libraries:[]};
-        } else if(key === 'local') {
-            await Promise.all([loadSharedFolders(), loadLocalAssets()]);
+
         } else if(key === 'canvas-assets') {
             const data = await apiJson('/api/canvas-assets');
             canvasAssetsData = {
@@ -1300,7 +1298,7 @@ async function loadInitialAssetManager(){
     await loadManagerData('assets', {reset:true});
     if(token!==managerTabSwitchToken) return;
     Object.values(managerViews.tabs).forEach(restoreManagerDescriptor);
-    if(['assets','workflows','prompts','local','canvas-assets'].includes(managerViews.activeTab)) activeTab=managerViews.activeTab;
+    if(['assets','workflows','prompts','canvas-assets'].includes(managerViews.activeTab)) activeTab=managerViews.activeTab;
     await loadManagerData(activeTab);
     if(token!==managerTabSwitchToken) return;
     render();
@@ -1314,7 +1312,7 @@ async function loadInitialAssetManager(){
 async function switchManagerTab(tab){
     rememberManagerView(captureManagerView());
     clearTimeout(searchRenderTimer);
-    const nextTab = tab || 'assets';
+    const nextTab = ['assets','workflows','prompts','canvas-assets'].includes(tab) ? tab : 'assets';
     const token = ++managerTabSwitchToken;
     activeTab = nextTab;
     selectedAssetIds.clear();
@@ -1373,7 +1371,6 @@ function render({resetScroll=false}={}){
     document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
     if(activeTab === 'prompts') renderPromptManager();
     else if(activeTab === 'workflows') renderWorkflowManager();
-    else if(activeTab === 'local') renderLocalManager();
     else if(activeTab === 'canvas-assets') renderCanvasAssetsManager();
     else {
         renderAssetManager();
