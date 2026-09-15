@@ -1689,3 +1689,6 @@ body.studio-theme-dark .canvas-lock-badge.unlocked {
 .generation-node-body .gen-run-row{margin-top:12px!important;gap:6px;flex-shrink:0}
 .generation-node-body .gen-run-row>.gen-btn{border-radius:11px;height:40px;font-size:12px}
 .generation-node-body .gen-run-row>:not(.gen-btn){border-color:var(--line);background:transparent;color:var(--muted);box-shadow:none;font-size:11px}
+
+.generation-node-body .input-item.input-reordering{opacity:.5;cursor:grabbing}
+.generation-node-body .input-item.input-reorder-target{outline:2px solid var(--muted);outline-offset:2px}

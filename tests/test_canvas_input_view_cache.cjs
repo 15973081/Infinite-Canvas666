@@ -13,10 +13,12 @@ function load(context, names) {
 }
 class Element {
     constructor() { this.children = []; this.parts = new Map(); this.dataset = {}; this.writes = 0;
-        this.classList = {add() {}, contains: () => false}; }
+        this.classList = {add() {}, remove() {}, contains: () => false}; }
     set innerHTML(value) { this.html = value; this.children = []; this.parts.clear(); this.writes++; }
     get innerHTML() { return this.html || ''; }
     appendChild(child) { this.children.push(child); }
+    contains(child) { return this.children.includes(child) || this.children.some(item => item.contains(child)) || [...this.parts.values()].some(item => item.contains(child)); }
+    closest() { return this; }
     setAttribute(key, value) { this[key] = value; }
     querySelector(selector) {
         if (!this.parts.has(selector)) this.parts.set(selector, new Element());
@@ -24,8 +26,10 @@ class Element {
     }
 }
 function setup() {
-    const missing = new Set(), opened = [], reordered = [];
+    const missing = new Set(), opened = [], reordered = [], events = new Map();
     const context = vm.createContext({
+        window: {addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name)},
+        isCanvasLockedByOther: () => false,
         canvasInputViewCache: new WeakMap(), document: {createElement: () => new Element()},
         escapeHtml: String, escapeAttr: String, tr: key => key,
         isMissingAssetUrl: url => missing.has(url),
@@ -40,7 +44,7 @@ function setup() {
         openOutputLightbox: (...args) => opened.push(args),
         reorderInput: (...args) => reordered.push(args),
     });
-    load(context, ['isCanvasInputViewCurrent', 'rememberCanvasInputView', 'renderPromptPreview',
+    load(context, ['bindCanvasInputReorder', 'isCanvasInputViewCurrent', 'rememberCanvasInputView', 'renderPromptPreview',
         'renderImageInputList', 'renderVideoImageInputs', 'videoInputMediaGroups', 'renderComfyImages']);
     const node = {id: 'gen', type: 'video'};
     const sources = [
@@ -48,7 +52,7 @@ function setup() {
         {id: 'audio', label: '声音', preview: '/a.mp3', refs: [{url: '/a.mp3', kind: 'audio', name: '声音'}]},
         {id: 'video', label: '动作', preview: '/a.mp4', refs: [{url: '/a.mp4', kind: 'video', name: '动作'}]},
     ];
-    return {context, node, sources, missing, opened, reordered};
+    return {context, node, sources, missing, opened, reordered, events};
 }
 function entries(list) {
     return list.children.filter(child => child.dataset.mediaKind)
@@ -116,11 +120,16 @@ test('manual video override, names, frame roles, kind and missing-file status in
 });
 
 test('a replacement node object rebinds drag handlers even with identical id and media', () => {
-    const {context, node, sources, reordered} = setup(), list = new Element();
+    const {context, node, sources, reordered, events} = setup(), list = new Element();
     context.renderImageInputList(list, node, sources);
     const replacement = {...node};
     context.renderImageInputList(list, replacement, sources);
-    list.children[0].ondrop({preventDefault() {}, stopPropagation() {}, dataTransfer: {getData: () => 'audio'}});
+    context.document.elementFromPoint = () => list.children[0];
+    list.children[1].onmousedown({button:0, clientX:0, clientY:0, target:{closest:()=>null}, preventDefault() {}, stopPropagation() {}});
+    events.get('mousemove')({clientX:20, clientY:0});
+    events.get('mouseup')({clientX:20, clientY:0});
+    assert.equal(events.size, 0);
+    assert.equal(context.internalDrag, false);
     assert.equal(reordered.at(-1)[0], replacement);
     assert.deepEqual(reordered.at(-1).slice(1), ['audio', 'image']);
 });
@@ -174,4 +183,38 @@ test('local refresh preserves custom Comfy audio/video and skips offscreen place
     const first = customList.children[0];
     context.refreshGeneratorInputViews();
     assert.equal(customList.children[0], first);
+});
+
+for (const cancelBy of ['blur', 'Escape', 'outside', 'other-kind']) {
+    test('video sorting cleans up without reordering on ' + cancelBy, () => {
+        const {context, node, sources, reordered, events} = setup(), list = new Element();
+        context.renderVideoImageInputs(list, node, sources);
+        const item = entries(list)[0];
+        assert.equal(item.draggable, false);
+        context.document.elementFromPoint = () => cancelBy === 'other-kind' ? entries(list)[1] : null;
+        item.onmousedown({button:0, clientX:0, clientY:0, target:{closest:()=>null}, preventDefault() {}, stopPropagation() {}});
+        events.get('mousemove')({clientX:20, clientY:0});
+        assert.equal(context.internalDrag, true);
+        if(cancelBy === 'blur') events.get('blur')();
+        else if(cancelBy === 'Escape') events.get('keydown')({key:'Escape'});
+        else events.get('mouseup')({clientX:20, clientY:0});
+        assert.equal(context.internalDrag, false);
+        assert.equal(events.size, 0);
+        assert.equal(reordered.length, 0);
+    });
+}
+
+test('video sorting commits only on release over another same-kind source', () => {
+    const {context, node, sources, reordered, events} = setup(), list = new Element();
+    sources.push({id:'image2', refs:[{url:'/b.png', kind:'image'}]});
+    context.renderVideoImageInputs(list, node, sources);
+    const [item, destination] = entries(list);
+    context.document.elementFromPoint = () => destination;
+    item.onmousedown({button:0, clientX:0, clientY:0, target:{closest:()=>null}, preventDefault() {}, stopPropagation() {}});
+    events.get('mousemove')({clientX:20, clientY:0});
+    assert.equal(reordered.length, 0);
+    events.get('mouseup')({clientX:20, clientY:0});
+    assert.deepEqual(reordered[0], [node, 'image', 'image2']);
+    assert.equal(events.size, 0);
+    assert.equal(context.internalDrag, false);
 });

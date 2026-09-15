@@ -9278,6 +9278,57 @@ function renderPromptPreview(container, promptInputs){
     container.innerHTML = html;
     rememberCanvasInputView(container, null, html);
 }
+function bindCanvasInputReorder(item, list, node, sourceId, kind='image'){
+    // Keep sorting inside the canvas; native OS drag sessions can retain the source
+    // while a refreshed input list removes it from the document.
+    item.draggable = false;
+    item.ondragstart = event => { event.preventDefault(); event.stopPropagation(); };
+    item.onmousedown = event => {
+        event.stopPropagation();
+        if(event.button !== 0 || !sourceId || event.target.closest('button,input,select,textarea') || isCanvasLockedByOther()) return;
+        event.preventDefault();
+        const startX = event.clientX, startY = event.clientY;
+        let moving = false, target = null;
+        const findTarget = event => {
+            const candidate = document.elementFromPoint(event.clientX, event.clientY)?.closest('.input-item');
+            return candidate && candidate !== item && list.contains(candidate)
+                && (candidate.dataset.mediaKind || 'image') === kind
+                && candidate.dataset.sourceId && candidate.dataset.sourceId !== sourceId ? candidate : null;
+        };
+        const move = event => {
+            if(!moving && Math.hypot(event.clientX-startX, event.clientY-startY) < 5) return;
+            moving = true; internalDrag = true;
+            item.classList.add('input-reordering');
+            const next = findTarget(event);
+            if(next !== target){
+                target?.classList.remove('input-reorder-target');
+                target = next; target?.classList.add('input-reorder-target');
+            }
+        };
+        const cleanup = () => {
+            internalDrag = false;
+            item.classList.remove('input-reordering');
+            target?.classList.remove('input-reorder-target');
+            window.removeEventListener('mousemove', move, true);
+            window.removeEventListener('mouseup', finish, true);
+            window.removeEventListener('blur', cleanup);
+            window.removeEventListener('keydown', cancel, true);
+        };
+        const finish = event => {
+            const destination = moving ? findTarget(event) : null;
+            cleanup();
+            if(destination && !isCanvasLockedByOther()){
+                reorderInput(node, sourceId, destination.dataset.sourceId);
+                setStatus('素材顺序已更新，请检查提示词中的同类编号');
+            }
+        };
+        const cancel = event => { if(event.key === 'Escape') cleanup(); };
+        window.addEventListener('mousemove', move, true);
+        window.addEventListener('mouseup', finish, true);
+        window.addEventListener('blur', cleanup);
+        window.addEventListener('keydown', cancel, true);
+    };
+}
 function renderImageInputList(list, node, imageInputs, emptyText=null){
     if(!list) return;
     const signature = JSON.stringify(['images', emptyText || tr('canvas.inputImagesEmpty'), imageInputs.map(src => [
@@ -9288,27 +9339,14 @@ function renderImageInputList(list, node, imageInputs, emptyText=null){
     imageInputs.forEach((src, i) => {
         const item = document.createElement('div');
         item.className = 'input-item';
-        item.draggable = true;
+        item.draggable = false;
         item.dataset.sourceId = src.id;
         const mediaKind = mediaKindForRef(src.refs?.[0] || src.preview);
         const previewHtml = src.preview && !isMissingAssetUrl(src.preview)
             ? (mediaKind === 'video' ? canvasVideoPreviewHtml(src.preview, 256) : canvasPreviewImgHtml(src.preview, 256))
             : (src.preview ? missingAssetHtml(src.preview, true) : '<i data-lucide="image" class="w-6 h-6 text-slate-400"></i>');
         item.innerHTML = `<span class="input-index">${i + 1}</span>${previewHtml}<span class="input-label">${escapeHtml(src.label)}</span>`;
-        item.ondragstart = e => {
-            e.stopPropagation();
-            internalDrag = true;
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('application/x-canvas-input', src.id);
-        };
-        item.ondragend = () => { internalDrag = false; };
-        item.ondragover = e => { e.preventDefault(); e.stopPropagation(); };
-        item.ondrop = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            reorderInput(node, e.dataTransfer.getData('application/x-canvas-input'), src.id);
-            internalDrag = false;
-        };
+        bindCanvasInputReorder(item, list, node, src.id);
         list.appendChild(item);
     });
     refreshIcons();
@@ -9345,7 +9383,7 @@ function renderVideoImageInputs(list, node, imageInputs){
             item.dataset.sourceId = sourceId;
             item.dataset.mediaKind = kind;
             item.dataset.referenceLabel = referenceLabel;
-            item.draggable = Boolean(sourceId);
+            item.draggable = false;
             const unavailable = isMissingAssetUrl(ref.url) || String(ref.url).startsWith('asset://');
             const referenceButton = `<button type="button" class="media-reference-label" title="复制提示词引用：${referenceLabel}" aria-label="复制${referenceLabel}">${referenceLabel}</button>`;
             const name = `<span class="media-reference-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>`;
@@ -9386,25 +9424,7 @@ function renderVideoImageInputs(list, node, imageInputs){
                 e.stopPropagation();
                 if(!unavailable) openOutputLightbox(ref.url, {type:'image', url:ref.url, mediaKind:kind, name:label});
             };
-            item.ondragstart = e => {
-                e.stopPropagation();
-                if(!sourceId || e.target.closest('button')){ e.preventDefault(); return; }
-                internalDrag = true;
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('application/x-canvas-input', sourceId);
-                e.dataTransfer.setData('application/x-canvas-input-kind', kind);
-            };
-            item.ondragend = () => { internalDrag = false; };
-            item.ondragover = e => { e.preventDefault(); e.stopPropagation(); };
-            item.ondrop = e => {
-                e.preventDefault(); e.stopPropagation(); internalDrag = false;
-                if(!sourceId || e.dataTransfer.getData('application/x-canvas-input-kind') !== kind) return;
-                const movedId = e.dataTransfer.getData('application/x-canvas-input');
-                if(movedId && movedId !== sourceId){
-                    reorderInput(node, movedId, sourceId);
-                    setStatus('素材顺序已更新，请检查提示词中的同类编号');
-                }
-            };
+            bindCanvasInputReorder(item, list, node, sourceId, kind);
             row.appendChild(item);
         }
         list.appendChild(section);
