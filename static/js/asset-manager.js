@@ -996,7 +996,7 @@ function canvasAssetViewTitle(){
 }
 function canvasAssetViewSubtitle(items){
     const canvas = activeCanvasAssetCanvas();
-    if(canvas) return `${canvasKindLabel(canvas.kind)} / ${items.length} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
+    if(canvas) return `${canvasKindLabel(canvas.kind)} / ${canvasSourceStateLabel(canvas.asset_source_state)} / ${items.length} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
     const activeCat = activeCanvasAssetCategoryInfo();
     return `${Number(activeCat.canvas_count || 0)} 个画布 / ${items.length} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
 }
@@ -1018,6 +1018,8 @@ function currentCanvasAssetItems(){
     return cachedManagerItems('canvas-assets',canvasAssetsData,JSON.stringify([activeCanvasAssetCategory,activeCanvasAssetCanvasId,canvasAssetQuery,canvasAssetSort]),computeCanvasAssetItems);
 }
 let canvasAssetTrashMode = false;
+let canvasAssetSourceState = 'active';
+function canvasSourceStateLabel(state){ return state === 'purged' ? '来源画布已清理' : state === 'deleted' ? '画布已回收' : '使用中'; }
 function computeCanvasAssetItems(){
     const q = String(canvasAssetQuery || '').trim().toLowerCase();
     let list = uniqueCanvasAssets(canvasAssetsData.items || []).filter(item => {
@@ -1268,7 +1270,7 @@ async function loadManagerData(tab, {refresh=false, reset=false}={}){
             promptLibrary = data.library || {libraries:[]};
 
         } else if(key === 'canvas-assets') {
-            const data = await apiJson('/api/canvas-assets?trash=' + canvasAssetTrashMode);
+            const data = await apiJson('/api/canvas-assets?trash=' + canvasAssetTrashMode + '&source_state=' + canvasAssetSourceState);
             canvasAssetsData = {
                 ...data,
                 categories:Array.isArray(data.categories) ? data.categories : [],
@@ -1412,8 +1414,13 @@ function renderCanvasAssetsManager(){
                     <span>${canvasAssetViewSubtitle(items)}</span>
                 </div>
                 <div class="asset-tools">
+                    <div class="canvas-source-filters" role="group" aria-label="来源画布状态">
+                        <button type="button" class="asset-btn ${canvasAssetSourceState === 'active' ? 'primary' : ''}" data-canvas-source="active" aria-pressed="${canvasAssetSourceState === 'active'}">使用中的画布</button>
+                        <button type="button" class="asset-btn ${canvasAssetSourceState === 'deleted' ? 'primary' : ''}" data-canvas-source="deleted" aria-pressed="${canvasAssetSourceState === 'deleted'}">已删除画布</button>
+                        <button type="button" class="asset-btn ${canvasAssetSourceState === 'all' ? 'primary' : ''}" data-canvas-source="all" aria-pressed="${canvasAssetSourceState === 'all'}">全部画布</button>
+                    </div>
                     ${canvasAssetsData.catalog_enabled ? `<button class="asset-btn ${canvasAssetTrashMode ? 'primary' : ''}" type="button" data-catalog-toggle>${canvasAssetTrashMode ? '返回资产' : '回收站 (' + Number(canvasAssetsData.trash_count || 0) + ')'}</button>` : ''}
-                    <label class="asset-search-wrap"><i data-lucide="search"></i><input id="canvasAssetSearch" class="asset-search" type="search" value="${escapeAttr(canvasAssetQuery)}" placeholder="搜索画布资产"></label>
+                    <label class="asset-search-wrap"><i data-lucide="search"></i><input id="canvasAssetSearch" class="asset-search" type="search" value="${escapeAttr(canvasAssetQuery)}" placeholder="搜索画布名称或素材"></label>
                     <select id="canvasAssetSort" class="manage-select canvas-sort-select" title="排序方法">
                         <option value="canvas_asc" ${canvasAssetSort === 'canvas_asc' ? 'selected' : ''}>画布名称</option>
                         <option value="updated_desc" ${canvasAssetSort === 'updated_desc' ? 'selected' : ''}>最近更新</option>
@@ -1459,7 +1466,7 @@ function renderCanvasAssetTreeBranch(cat){
                 return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-canvas-asset-canvas="${escapeAttr(canvas.id)}" data-canvas-asset-canvas-cat="${escapeAttr(cat.id)}">
                     <span class="tree-elbow"></span>
                     <span class="tree-row-icon"><i data-lucide="${canvas.kind === 'smart' ? 'sparkles' : 'file-image'}"></i></span>
-                    <span class="tree-row-name" title="${escapeAttr(canvas.title || '未命名画布')}">${escapeHtml(canvas.title || '未命名画布')}</span>
+                    <span class="tree-row-name" title="${escapeAttr(canvas.title || '未命名画布')}">${escapeHtml(canvas.title || '未命名画布')}${canvas.asset_source_state && canvas.asset_source_state !== 'active' ? '<small class="canvas-source-status">'+canvasSourceStateLabel(canvas.asset_source_state)+'</small>' : ''}</span>
                     <span class="tree-row-count">${count}</span>
                 </button>`;
             }).join('') : '<div class="tree-empty">暂无画布</div>'}
@@ -1497,7 +1504,7 @@ function renderCanvasAssetKindBadge(item){
     return `<span class="asset-kind-badge ${escapeAttr(kind)}" title="${escapeAttr(canvasAssetKindLabel(item))}"><i data-lucide="${icon}"></i></span>`;
 }
 async function reloadCanvasCatalog(){
-    canvasAssetsData=await apiJson('/api/canvas-assets?trash='+canvasAssetTrashMode);
+    canvasAssetsData=await apiJson('/api/canvas-assets?trash='+canvasAssetTrashMode+'&source_state='+canvasAssetSourceState);
     selectedCanvasAssetIds.clear();selectedCanvasAssetId="";render();
 }
 async function openCanvasCatalog(action,ids){
@@ -1554,6 +1561,7 @@ function renderCanvasAssetDetail(item){
                 <div class="detail-meta-grid">
                     <div class="detail-meta"><span>类型</span><strong>${escapeHtml(canvasAssetKindLabel(item))}</strong></div>
                     <div class="detail-meta"><span>画布分类</span><strong>${escapeHtml(canvasKindLabel(item.canvas_kind))}</strong></div>
+                    <div class="detail-meta"><span>来源状态</span><strong>${escapeHtml(canvasSourceStateLabel(item.canvas_state))}</strong></div>
                     <div class="detail-meta"><span>来源画布</span><strong title="${escapeAttr(item.canvas_title || '')}">${escapeHtml(item.canvas_title || '未命名画布')}</strong></div>
                     <div class="detail-meta"><span>更新时间</span><strong>${escapeHtml(formatDate(item.canvas_updated_at || item.created_at))}</strong></div>
                     <div class="detail-meta"><span>来源节点</span><strong title="${escapeAttr(item.node_title || item.node_type || '')}">${escapeHtml(item.node_title || item.node_type || '节点')}</strong></div>
@@ -3025,6 +3033,8 @@ async function handleClick(event){
         render();
         return;
     }
+    const sourceFilter=target.closest?.('[data-canvas-source]');
+    if(sourceFilter){canvasAssetSourceState=sourceFilter.dataset.canvasSource;activeCanvasAssetCanvasId='';selectedCanvasAssetId='';selectedCanvasAssetIds.clear();await reloadCanvasCatalog();return;}
     if(target.closest?.('[data-catalog-toggle]')){ canvasAssetTrashMode=!canvasAssetTrashMode;activeCanvasAssetCanvasId='';selectedCanvasAssetIds.clear();await reloadCanvasCatalog();return; }
     const catalogAction=target.closest?.('[data-catalog-action]');
     if(catalogAction){await openCanvasCatalog(catalogAction.dataset.catalogAction,[catalogAction.dataset.catalogId]);return;}

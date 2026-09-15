@@ -1069,8 +1069,10 @@ async def touch_canvas(canvas_id: str):
     return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
 @router.get("/api/canvas-assets")
-async def list_canvas_assets(trash: bool = False):
-    return await asyncio.to_thread(canvas_assets_index, trash=trash)
+async def list_canvas_assets(trash: bool = False, source_state: str = "active"):
+    if source_state not in {"active", "deleted", "all"}:
+        raise HTTPException(400, "无效的画布状态")
+    return await asyncio.to_thread(canvas_assets_index, trash=trash, source_state=source_state)
 
 @router.get("/api/smart-canvas/prompt-templates")
 async def smart_canvas_prompt_templates():

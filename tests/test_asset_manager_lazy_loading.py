@@ -77,7 +77,7 @@ class AssetManagerLazyLoadingTest(unittest.TestCase):
         route_end = router.index('@router.', route_start + 1)
         route = router[route_start:route_end]
 
-        self.assertIn("await asyncio.to_thread(canvas_assets_index, trash=trash)", route)
+        self.assertIn("await asyncio.to_thread(canvas_assets_index, trash=trash, source_state=source_state)", route)
 
 
 if __name__ == "__main__":

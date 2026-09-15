@@ -22,7 +22,7 @@ def test_trash_snapshot_survives_canvas_removal():
     @contextmanager
     def connection(): yield conn
     with patch.object(catalog,'connection',connection),patch.object(catalog,'aliases_for',return_value={}),patch.object(catalog,'current_workspace',return_value='workspace'):
-        result=catalog.decorate({'items':[],'canvases':[],'categories':[]},trash=True)
+        result=catalog.decorate({'items':[],'canvases':[{'id':'canvas'}],'categories':[]},trash=True)
     assert result['items'][0]['name']=='saved'
     assert result['trash_count']==1
 

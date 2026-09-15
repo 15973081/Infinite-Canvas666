@@ -31,7 +31,7 @@ def decorate(data, trash=False):
             item.update(record['metadata']); item['trashed']=bool(record['trashed_at'])
         if bool(item.get('trashed')) == trash: items.append(item)
     for key,record in records.items():
-        if key not in live_keys and (bool(record['trashed_at'])==trash):
+        if key not in live_keys and (bool(record['trashed_at'])==trash) and record['snapshot'].get('canvas_id') in {c['id'] for c in data['canvases']}:
             item=dict(record['snapshot']); item.update(record['metadata']);item.update(asset_key=key,catalog_version=record['version'],trashed=bool(record['trashed_at']))
             items.append(item)
     data['items']=items
@@ -98,7 +98,7 @@ def mutate(payload):
             az.require(conn,access.principal,'asset.manage',current_workspace())
         conn.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',('canvas-asset-catalog:'+current_workspace(),))
         aliases=aliases_for(conn)
-        raw=canvas_assets_index(managed=False)
+        raw=canvas_assets_index(managed=False, source_state="all")
         live={key_for(i['url'],aliases):i for i in raw['items']}
         rows={r['asset_key']:r for r in conn.execute('SELECT * FROM canvas_asset_catalog WHERE workspace_id=%s FOR UPDATE',(current_workspace(),))}
         for selected in selections:

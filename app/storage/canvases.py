@@ -94,6 +94,8 @@ def save(canvas, touch=True):
         conn.execute("DELETE FROM canvas_assets WHERE workspace_id=%s AND canvas_id=%s", (current_workspace(), value["id"]))
         for asset_id in ids:
             conn.execute("INSERT INTO canvas_assets(workspace_id,canvas_id,asset_id) VALUES(%s,%s,%s)", (current_workspace(), value["id"], asset_id))
+        from app.storage.canvas_asset_groups import save_group
+        save_group(conn, _document(row))
     canvas.clear()
     canvas.update(_document(row))
     return canvas

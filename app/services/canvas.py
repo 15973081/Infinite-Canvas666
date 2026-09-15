@@ -386,17 +386,30 @@ def extract_canvas_assets(canvas):
             items.append(item)
     return items
 
-def canvas_assets_index(managed=True, trash=False):
+def canvas_assets_index(managed=True, trash=False, source_state="active"):
     canvases = []
     items = []
     canvas_counts = {"all": 0, "smart": 0, "classic": 0}
     item_counts = {"all": 0, "smart": 0, "classic": 0}
     cleanup_expired_canvas_trash()
-    for canvas in iter_canvas_documents():
-        if canvas.get("deleted_at"):
+    if postgres_enabled():
+        from app.storage.canvas_asset_groups import documents
+        source = documents()
+    else:
+        source = iter_canvas_documents()
+    for canvas in source:
+        state = canvas.get("asset_source_state") or ("purged" if canvas.get("purged_at") else "deleted" if canvas.get("deleted_at") else "active")
+        if source_state == "active" and state != "active":
+            continue
+        if source_state == "deleted" and state == "active":
             continue
         record = canvas_record(canvas)
-        canvas_items = extract_canvas_assets(canvas)
+        record["asset_source_state"] = state
+        canvas_items = canvas.get("_asset_group_items")
+        if canvas_items is None:
+            canvas_items = extract_canvas_assets(canvas)
+        for item in canvas_items:
+            item["canvas_state"] = state
         record["asset_count"] = len(canvas_items)
         canvases.append(record)
         items.extend(canvas_items)
