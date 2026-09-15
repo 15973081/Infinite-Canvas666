@@ -3025,18 +3025,6 @@ function updateCanvasIdentityButton(){
     if(window.CanvasSession?.enabled) canvasIdentityBtn.setAttribute('aria-label', '成员昵称');
 }
 
-function editCanvasUserName(){
-    if(window.CanvasSession?.enabled) { setStatus('请在顶部账号菜单的“成员资料”中修改昵称'); return; }
-    const current = getCanvasUserName();
-    const next = window.prompt('设置我的名称，用于别人看到画布锁是谁占用', current || '');
-    if(next === null) return;
-    const clean = setCanvasUserName(next);
-    setStatus(clean ? `我的名称已设置为 ${clean}` : '我的名称已清空');
-    if(canvas && canvasLockHolder && canvasLockHolder.client_id === CLIENT_ID){
-        acquireCanvasLock();
-    }
-}
-
 function updateCanvasLockBadge(){
     if(!canvasLockBadge || !canvasLockLabel) return;
     if(!canvas){
@@ -14792,9 +14780,6 @@ document.addEventListener('visibilitychange', () => {
         checkCanvasLock();
     }
 });
-if(canvasIdentityBtn){
-    canvasIdentityBtn.addEventListener('click', editCanvasUserName);
-}
 window.addEventListener('blur', () => {
     if(selectDrag){
         selectionBox.style.display = 'none';

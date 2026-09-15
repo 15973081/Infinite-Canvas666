@@ -4081,15 +4081,6 @@ function updateSmartCanvasLockUi(){
     refreshIcons();
     if(wasLocked && !locked && smartCanvasDirty) scheduleSave();
 }
-function editSmartCanvasUserName(){
-    if(window.CanvasSession?.enabled) return toast('请在顶部账号菜单的“成员资料”中修改昵称');
-    const next = prompt('设置我的名称，用于别人看到画布锁是谁占用', smartCanvasUserName());
-    if(next === null) return;
-    const name = String(next || '').trim().replace(/\s+/g, ' ').slice(0, 32);
-    try { if(name) localStorage.setItem('canvasUserName', name); else localStorage.removeItem('canvasUserName'); } catch(e) {}
-    document.getElementById('smartIdentityLabel').textContent = name || '未命名用户';
-    if(smartCanvasLockHolder?.client_id === smartClientId) acquireSmartCanvasLock();
-}
 async function acquireSmartCanvasLock(){
     if(window.CanvasSession?.enabled) return false;
     if(!canvasId) return false;
@@ -4837,7 +4828,6 @@ async function loadCanvas(options={}){
         if(cleanedDetachedInputs) scheduleSave();
         resumeSmartPendingTasks();
         startCanvasMetaPoll();
-        document.getElementById('smartIdentityLabel').textContent = smartCanvasUserName() || '未命名用户';
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvasId,dirty:() => smartCanvasDirty || Boolean(smartSaveInFlight) || smartSaveAgain,
                 snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
