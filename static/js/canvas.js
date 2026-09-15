@@ -8816,18 +8816,38 @@ function llmInputVideos(node){
     });
     return urls;
 }
+function labelGenerationControls(wrap){
+    const fields=[['.provider-select,.video-provider','供应商'],['.model-select,.video-model','模型'],
+        ['.video-task-mode','生成方式'],['.resolution','清晰度'],['.ratio','画面比例'],
+        ['.quality-select','生成质量'],['.gen-count-row','生成数量']];
+    fields.forEach(([selector,title]) => {
+        const control=wrap.querySelector(selector);
+        if(!control) return;
+        const label=document.createElement('label'); label.className='generation-field';
+        const caption=document.createElement('span'); caption.className='setting-title'; caption.textContent=title;
+        control.replaceWith(label); label.append(caption,control);
+        const input=control.matches('select,input') ? control : control.querySelector('input');
+        input?.setAttribute('aria-label',title);
+        if(input?.tagName==='SELECT'){
+            const updateTitle=() => { input.title=input.selectedOptions[0]?.textContent || title; };
+            updateTitle(); input.addEventListener('change',updateTitle);
+        }
+    });
+}
 function renderGeneratorBody(node){
     const wrap = document.createElement('div');
-    wrap.className = 'generator-body';
+    wrap.className = 'generator-body generation-node-body';
     const inputSources = generatorSources(node);
     const ordered = orderedSources(node, inputSources);
     const imageInputs = ordered.filter(src => src.refs?.length);
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
     sanitizeImageNodeProviderModel(node);
     wrap.innerHTML = `
+        <div class="generation-section-title"><span>01</span> 提示词</div>
         <div class="prompt-list mb-3"></div>
-        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">${tr('canvas.images')}</div>
+        <div class="generation-section-title"><span>02</span> 输入素材</div>
         <div class="input-list"></div>
+        <div class="generation-section-title"><span>03</span> 生成设置</div>
         <div class="gen-settings">
             <div class="gen-settings-row">
                 <select class="select-lite provider-select">${providerOptions(node.apiProvider)}</select>
@@ -8854,10 +8874,10 @@ function renderGeneratorBody(node){
                     <option value="custom">${tr('canvas.custom')}</option>
                 </select>
                 <select class="select-lite quality-select">
-                    <option value="auto">Q auto</option>
-                    <option value="low">Q low</option>
-                    <option value="medium">Q med</option>
-                    <option value="high">Q high</option>
+                    <option value="auto">自动</option>
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
                 </select>
                 <div class="gen-count-row">
                     <div class="gen-stepper">
@@ -9111,11 +9131,12 @@ function renderGeneratorBody(node){
     renderPromptPreview(wrap.querySelector('.prompt-list'), promptInputs);
     wrap.querySelector('.gen-btn').onclick = e => { e.stopPropagation(); runCanvasGenerate(node.id); };
     bindCascadeButtons(wrap, node.id);
+    labelGenerationControls(wrap);
     return wrap;
 }
 function renderVideoBody(node){
     const wrap = document.createElement('div');
-    wrap.className = 'generator-body';
+    wrap.className = 'generator-body generation-node-body';
     const inputSources = generatorSources(node);
     const ordered = orderedSources(node, inputSources);
     const imageInputs = ordered.filter(src => src.refs?.length);
@@ -9127,15 +9148,11 @@ function renderVideoBody(node){
     if(isVolcengineVideoNode) node.useFrameRoles = false;
     node.model = node.model || 'veo3-fast';
     wrap.innerHTML = `
+        <div class="generation-section-title"><span>01</span> 提示词</div>
         <div class="prompt-list mb-3"></div>
-        <div class="video-input-head">
-            <div class="media-input-heading">输入素材</div>
-            <div class="video-input-actions">
-                <button type="button" class="tool-btn" data-video-manual-url title="手动输入视频 URL"><i data-lucide="link" class="w-4 h-4"></i><span>输入网址</span></button>
-                <button type="button" class="tool-btn" data-video-temp-sh ${node.tempShUploading ? 'disabled' : ''} title="上传当前输入视频到云端直链"><i data-lucide="upload-cloud" class="w-4 h-4"></i><span>${node.tempShUploading ? '上传中...' : '上传云端'}</span></button>
-            </div>
-        </div>
+        <div class="generation-section-title"><span>02</span> 输入素材</div>
         <div class="input-list video-img-list"></div>
+        <div class="generation-section-title"><span>03</span> 生成设置</div>
         <div class="gen-settings">
             <div class="gen-settings-row">
                 <select class="select-lite video-provider" style="flex:1">${videoProviderOptions(node.apiProvider)}</select>
@@ -9237,33 +9254,12 @@ function renderVideoBody(node){
             scheduleSave();
         };
     });
-    wrap.querySelectorAll('[data-video-temp-sh]').forEach(btn => {
-        btn.onmousedown = e => e.stopPropagation();
-        btn.onclick = async e => {
-            e.stopPropagation();
-            try {
-                await uploadCanvasVideosToCloud(node.id);
-            } catch(err) {
-                showErrorModal(err.message || '云端上传失败', '上传云端');
-            }
-        };
-    });
-    wrap.querySelectorAll('[data-video-manual-url]').forEach(btn => {
-        btn.onmousedown = e => e.stopPropagation();
-        btn.onclick = async e => {
-            e.stopPropagation();
-            try {
-                await setCanvasManualVideoUrl(node.id);
-            } catch(err) {
-                showErrorModal(err.message || '设置视频网址失败', '输入网址');
-            }
-        };
-    });
     const list = wrap.querySelector('.video-img-list');
     renderVideoImageInputs(list, node, imageInputs);
     renderPromptPreview(wrap.querySelector('.prompt-list'), promptInputs);
     wrap.querySelector('.gen-btn').onclick = e => { e.stopPropagation(); runCanvasGenerate(node.id); };
     bindCascadeButtons(wrap, node.id);
+    labelGenerationControls(wrap);
     return wrap;
 }
 const canvasInputViewCache = new WeakMap();
