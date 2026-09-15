@@ -10,7 +10,7 @@
         request.onupgradeneeded = () => request.result.createObjectStore('drafts',{keyPath:'key'});
         request.onsuccess = () => {request.result.onversionchange=() => request.result.close();resolve(request.result);};
         request.onerror = () => reject(request.error);
-        request.onblocked = () => reject(new Error('请关闭其他旧页面后重试本地草稿，或先导出当前草稿。'));
+        request.onblocked = () => reject(new Error('请关闭其他旧页面后重试草稿暂存。当前页面请保持打开。'));
     });
     db.catch(() => {});
     async function storage(mode, operation) {
@@ -40,8 +40,8 @@
         const record=draftRecord(entry);
         // Store only documents and scope IDs; lease tokens never enter browser storage.
         entry.draftTail=(entry.draftTail || Promise.resolve()).catch(() => {}).then(() => storage('readwrite',store => store.put(record)));
-        return entry.draftTail.then(() => { entry.draftMessage='本页更改已暂存为本地草稿'; if(entry===active) render(); }, () => {
-            entry.draftMessage='本地草稿暂存失败，请立即导出'; if(entry===active) render();
+        return entry.draftTail.then(() => { entry.draftMessage='本页更改已暂存为自动草稿'; if(entry===active) render(); }, () => {
+            entry.draftMessage='草稿暂存失败，请保持页面打开并重试'; if(entry===active) render();
         });
     }
     async function reportPage(entry=active, closed=false) {
@@ -75,10 +75,21 @@
         await reportPage(entry);
         if(entry===active && !entry.reportClosed && !entry.reportSuspended) entry.reportTimer=setTimeout(() => reportTick(entry),10000);
     }
-    function download(record) {
-        const href=URL.createObjectURL(new Blob([JSON.stringify(record,null,2)],{type:'application/json'}));
-        const link=element('a'); link.href=href; link.download=`canvas-draft-${record.canvas_id}-${Date.now()}.json`; link.click();
-        setTimeout(() => URL.revokeObjectURL(href),1000);
+    async function preserveDraft(entry) {
+        assertDraftScope(entry);
+        if(!entry.options.dirty()) return;
+        const record=draftRecord(entry);
+        // A separate checkpoint survives future edits to this page's live draft.
+        record.page=page+'/restored/'+crypto.randomUUID();
+        record.key=JSON.stringify([entry.memberId,entry.workspaceId,entry.id,record.page]);
+        try {
+            await entry.draftTail;
+            assertDraftScope(entry);
+            await storage('readwrite',store => store.put(record));
+            assertDraftScope(entry);
+        } catch(error) {
+            throw new Error('草稿暂存未完成，已保留当前页面。请稍后重试，不要刷新或关闭。');
+        }
     }
     async function showDrafts() {
         const entry=active;
@@ -89,9 +100,9 @@
         const rows=await storage('readonly',store => store.getAll(IDBKeyRange.bound(prefix,prefix+'\uffff')));
         assertDraftScope(entry);
         const dialog=element('dialog'); dialog.className='member-canvas-drafts';
-        dialog.append(element('h2','本地草稿'),element('p','这里只显示当前成员、空间和画布的草稿。先开始编辑，才能恢复同版本草稿。版本不同可另存副本或导出。恢复不会立即提交到服务器；副本会创建新画布，均不会重启生成任务。'));
+        dialog.append(element('h2','自动草稿'),element('p','这里只显示当前成员、空间和画布的草稿。先开始编辑，才能恢复同版本草稿。版本不同可另存副本。草稿保存在当前浏览器，未同步到云端。恢复不会立即提交到服务器；副本会创建新画布，均不会重启生成任务。'));
         const own=rows.filter(row => ownsDraft(entry,row));
-        if(!own.length) dialog.append(element('p','暂无本地草稿。'));
+        if(!own.length) dialog.append(element('p','暂无自动草稿。'));
         for(const row of own.sort((a,b) => b.saved_at.localeCompare(a.saved_at))) {
             const origin=row.copy_request_id ? '副本请求' : row.page===page ? '本页' : row.page.includes('/restored/') ? '恢复前留存' : '其他页面';
             const line=element('p',`${new Date(row.saved_at).toLocaleString()} · 基于版本 ${row.base_revision ?? '未知'} · ${origin} `);
@@ -111,10 +122,10 @@
                 error.textContent='已创建副本：'+copyResult.title;
             }));
             copyButton.disabled=!['canvas.create','canvas.read','asset.read'].every(p => window.CanvasSession.context.workspace.permissions?.includes(p));
-            line.append(button('导出',action(() => download(row))),button('恢复到本页',action(async () => {
+            line.append(button('恢复到本页',action(async () => {
                 if(!entry.lease.canEdit) throw new Error('请先关闭此窗口并开始编辑，再打开草稿恢复。');
                 if(!entry.options.restore || entry.options.busy?.()) throw new Error('请等待当前保存或生成结束后再恢复。');
-                if(!await confirmAction('恢复本地草稿','恢复将替换本页内容；当前未保存内容会先导出。服务器版本必须与草稿一致，恢复后请检查并保存。','确认恢复到本页')) return;
+                if(!await confirmAction('恢复自动草稿','恢复将替换本页内容；当前未保存内容会先自动留存。服务器版本必须与草稿一致，恢复后请检查并保存。','确认恢复到本页')) return;
                 assertDraftScope(entry,row);
                 if(!row.document || row.document.id!==entry.id || (row.document.kind || 'classic')!==(entry.options.snapshot().kind || 'classic')) throw new Error('草稿画布类型或身份不匹配，不能恢复。');
                 if(row.page===page) {
@@ -122,7 +133,7 @@
                     archive.key=JSON.stringify([entry.memberId,entry.workspaceId,entry.id,archive.page]);
                     await storage('readwrite',store => store.put(archive));
                 }
-                if(entry.options.dirty()) {await persist(entry);download(draftRecord(entry));}
+                if(entry.options.dirty()) await preserveDraft(entry);
                 await entry.lease.restoreDraft(row.base_revision,() => {
                     assertDraftScope(entry,row);
                     if(entry.options.busy?.()) throw new Error('当前保存或生成尚未结束，请稍后恢复。');
@@ -131,8 +142,8 @@
                 await persist(entry);entry.feedback='草稿已恢复到本页，请检查后保存。原草稿仍保留在列表中。';
                 dialog.close();dialog.remove();
             })),button('删除草稿',action(async () => {
-                if(row.page===page && entry.options.dirty()) throw new Error('本页还有未保存内容，请先保存或导出并离开，再清理这份草稿。');
-                if(!await confirmAction('删除本地草稿','这只删除此条本地草稿，无法撤销。需要保留时请先取消并导出。','确认删除草稿')) return;
+                if(row.page===page && entry.options.dirty()) throw new Error('本页还有未保存内容，请先保存或保留草稿并离开，再清理这份草稿。');
+                if(!await confirmAction('删除自动草稿','这只删除此条自动草稿，无法撤销。需要保留时请取消，或先另存副本。','确认删除草稿')) return;
                 await deleteDraft(entry,row);line.remove();
             })),copyButton,openCopy,error); dialog.append(line);
         }
@@ -191,7 +202,7 @@
         if(window.CanvasSession.paused || !['normal','scheduled'].includes(entry.lease.maintenance)) throw new Error('会话暂停或维护期间不能新建副本，请保留草稿。');
         if(!['canvas.create','canvas.read','asset.read'].every(p => window.CanvasSession.context.workspace.permissions?.includes(p))) throw new Error('当前角色没有创建副本或读取素材的权限。');
         const source=row.document;
-        if(!source || source.id!==entry.id || (source.kind || 'classic')!==(entry.options.snapshot().kind || 'classic')) throw new Error('草稿身份或类型不匹配，请导出保留。');
+        if(!source || source.id!==entry.id || (source.kind || 'classic')!==(entry.options.snapshot().kind || 'classic')) throw new Error('草稿身份或类型不匹配，请保留当前草稿。');
         const document={title:source.title || '未命名画布',icon:source.icon || (source.kind==='smart' ? 'sparkles' : '🧩'),kind:source.kind || 'classic',
             nodes:source.nodes,connections:source.connections || [],settings:source.settings || {},viewport:source.viewport || {}};
         // A content-derived ID survives reloads and concurrent tabs even if the
@@ -212,7 +223,7 @@
         assertDraftScope(entry,row);
         if(!response.ok) throw new Error({draft_copy_request_conflict:'同一请求的草稿内容已变化，请保留原稿并重新打开列表。',
             draft_copy_unavailable:'此前创建的副本已在回收站，请先到画布列表恢复；此次不会重复新建。',
-            draft_copy_assets_unavailable:'草稿包含当前空间不可用的素材，请导出保留并检查素材。',
+            draft_copy_assets_unavailable:'草稿包含当前空间不可用的素材，请保留当前草稿并检查素材。',
             permission_denied:'当前角色没有创建副本的权限。'}[data.detail?.code] || '副本创建未确认，请保留草稿并重试同一请求。');
         if(!data.canvas?.id || data.canvas.id===entry.id || data.canvas.kind!==document.kind || !Number.isSafeInteger(data.canvas.revision)) throw new Error('副本响应不完整，请重试确认。');
         attempt.copy_result=data.canvas;
@@ -359,13 +370,13 @@
         entry.feedback='';
         if(entry.options.dirty()) {
             await persist(entry);
-            if(!await confirmAction('保留草稿并开始编辑','本页有未保存的修改。继续将导出草稿备份，再载入服务器版本。','导出并开始编辑')) return;
+            if(!await confirmAction('保留草稿并开始编辑','本页有未保存的修改。继续将自动留存草稿，再载入服务器版本。可在“自动草稿”中恢复或另存副本。','保留草稿并开始编辑')) return;
             assertDraftScope(entry);
-            download(draftRecord(entry));
+            await preserveDraft(entry);
         }
         let options={};
         if(entry.lease.status?.holder?.is_self) {
-            if(!await confirmAction('接管编辑','接管到本页后，你的其他页面将停止编辑。请先确认其他页面的更改已保存或导出。','确认接管到本页')) return;
+            if(!await confirmAction('接管编辑','接管到本页后，你的其他页面将停止编辑。请先确认其他页面的更改已保存或暂存。','确认接管到本页')) return;
             options={takeover:'self',expected_generation:entry.lease.status.generation,confirm:true};
         }
         await entry.lease.start(entry.options.reload,options);
@@ -374,15 +385,15 @@
         const entry=active;
         if(entry.options.dirty()) {
             await persist(entry);
-            if(!await confirmAction('申请接手','本页有未保存的修改。继续将导出草稿备份，再载入服务器版本。','导出并申请')) return;
-            assertDraftScope(entry);download(draftRecord(entry));
+            if(!await confirmAction('申请接手','本页有未保存的修改。继续将自动留存草稿，再载入服务器版本。可在“自动草稿”中恢复或另存副本。','保留草稿并申请')) return;
+            await preserveDraft(entry);
             if(!await entry.options.reload()) throw new Error('重载失败，请重试。');
         }
         entry.feedback=''; await entry.lease.requestTransfer();
     }
     async function forceTakeover() {
         const entry=active, generation=entry.lease.status?.generation;
-        if(entry.options.dirty()) {await persist(entry);download(draftRecord(entry));}
+        if(entry.options.dirty()) await preserveDraft(entry);
         const reason=await takeoverReason();
         if(reason===null || entry!==active) return;
         entry.feedback='';
@@ -401,7 +412,7 @@
                 entry.refreshAgain=false;
                 await entry.lease.refreshTransfers(async () => {
                     if(!validEntry(entry)) throw new Error('页面身份已变化，请保留草稿。');
-                    if(entry.options.dirty()) {await persist(entry);throw new Error('交接已批准，但本页有未保存内容，请先导出草稿再接管。');}
+                    if(entry.options.dirty()) {await persist(entry);throw new Error('交接已批准，但本页有未保存内容，请点击开始编辑，保留草稿后再接管。');}
                     return entry.options.reload();
                 });
                 if(validEntry(entry) && api.canRefresh && !entry.options.busy?.() && entry.options.refresh &&
@@ -472,8 +483,8 @@
             if(maintenance) entry.lease.setMaintenance(maintenance.mode);
             const more=element('details'), moreSummary=element('summary','更多'), moreItems=element('div');
             more.className='member-canvas-more'; moreItems.className='member-canvas-menu';
-            moreItems.append(button('本地草稿',() => {more.open=false;return showDrafts();}),
-                button('导出当前草稿',() => {more.open=false;download(draftRecord(entry));}),force);
+            moreItems.append(button('自动草稿',() => {more.open=false;return showDrafts();}),
+                force);
             more.append(moreSummary,moreItems);
             begin.className=end.className=ask.className='member-canvas-primary';
             const layout=element('div'); layout.className='member-canvas-layout'; entry.layout=layout;
@@ -515,8 +526,8 @@
             if(entry.lease.canSave) { if(!await entry.lease.finish(entry.options.flush)) return false; }
             else if(entry.options.dirty()) {
                 await persist(entry);
-                if(!await confirmAction('保留草稿并离开','当前内容尚未保存到服务器。继续会先导出本页草稿，再离开画布；本地暂存也会保留。','导出并离开')) return false;
-                assertDraftScope(entry);download(draftRecord(entry));
+                if(!await confirmAction('保留草稿并离开','当前内容尚未保存到服务器。继续将自动留存本页草稿，再离开画布。稍后可在当前浏览器的“自动草稿”中恢复或另存副本。','保留草稿并离开')) return false;
+                await preserveDraft(entry);
             }
             reportPage(entry,true);
             clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.mediaPreview?.dispose(); entry.widthAnimation?.cancel(); entry.notice.remove(); entry.bar.remove(); active=null;

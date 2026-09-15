@@ -149,7 +149,7 @@ test('paused editing does not resume after maintenance returns to normal',async(
 });
 test('draft listing queries only the exact member, workspace and canvas key range',async()=>{
     const f=fixture();await f.mount();
-    await action(f.api.active.bar,'本地草稿').onclick();
+    await action(f.api.active.bar,'自动草稿').onclick();
     assert.equal(f.queries.length,1);
     assert.deepEqual(f.queries[0],{lower:'["member","space","a",',upper:'["member","space","a",\uffff'});
     for(const ids of [['other','space','a'],['member','other','a'],['member','space','ab']]) {
@@ -186,9 +186,9 @@ function seedDraft(f,extra={}) {
         document:{id:'a',kind:'classic',revision:3,nodes:[{id:'saved',prompt:'recover'}],connections:[]},...extra};
     row.key=JSON.stringify([row.member_id,row.workspace_id,row.canvas_id,row.page]);f.records.set(row.key,structuredClone(row));return row;
 }
-const action=(node,label)=>node.children.find(child=>child.textContent===label) || node.children.map(child=>action(child,label)).find(Boolean);
+const action=(node,label)=>node.children.find(child=>child.tagName==='BUTTON' && child.textContent===label) || node.children.map(child=>action(child,label)).find(Boolean);
 async function draftLine(f) {
-    await action(f.api.active.bar,'本地草稿').onclick();
+    await action(f.api.active.bar,'自动草稿').onclick();
     return f.context.document.body.children.at(-1).children.find(node=>node.children.some(child=>child.textContent==='恢复到本页'));
 }
 async function confirmLatest(f,label) {
@@ -229,15 +229,15 @@ test('draft deletion is confirmed, scope checked and does not delete a newer rec
 test('an account switch blocks a draft dialog and never relabels old-page persistence',async()=>{
     const f=fixture();await f.mount();seedDraft(f);const line=await draftLine(f);
     f.context.CanvasSession.context.member.id='new-member';
-    await action(line,'导出').onclick();assert.equal(f.downloads.length,0);assert.match(line.children.at(-1).textContent,/成员或空间/);
+    await action(line,'恢复到本页').onclick();assert.equal(f.downloads.length,0);assert.match(line.children.at(-1).textContent,/成员或空间/);
     f.api.active.options.dirty=()=>true;f.api.active.lease.pause('account changed');await new Promise(setImmediate);
     assert.equal([...f.records.values()].every(row=>row.member_id==='member'),true);
 });
-test('an unsaved paused page can leave only after explicit export confirmation',async()=>{
+test('an unsaved paused page can leave only after confirmed automatic preservation',async()=>{
     const f=fixture();await f.mount();f.api.active.options.dirty=()=>true;
     f.api.active.lease.pause('offline');
-    const operation=f.api.leave();await confirmLatest(f,'导出并离开');
-    assert.equal(await operation,true);assert.equal(f.api.active,null);assert.equal(f.downloads.length,1);assert.equal(f.records.size,1);
+    const operation=f.api.leave();await confirmLatest(f,'保留草稿并离开');
+    assert.equal(await operation,true);assert.equal(f.api.active,null);assert.equal(f.downloads.length,0);assert.equal(f.records.size,2);
     assert.equal(f.calls.some(([,init])=>init.method==='PUT'),false);
 });
 
@@ -298,15 +298,15 @@ test('copy refuses storage failure, missing permission or maintenance before pos
         assert.ok(line.children.at(-1).textContent);assert.equal(action(line,'打开副本').hidden,true);
     }
 });
-test('opening a confirmed copy preserves and exports unsaved original-page changes first',async()=>{
+test('opening a confirmed copy automatically preserves unsaved original-page changes first',async()=>{
     const f=fixture();await f.mount();enableCopy(f);seedDraft(f);let opened;
     f.api.active.options.dirty=()=>true;f.api.active.options.openCopy=async copy=>{opened=copy;};
     f.context.fetch=async()=>copyReply();
     const line=await draftLine(f),operation=action(line,'另存副本').onclick();
     await confirmLatest(f,'确认另存副本');await operation;
     assert.equal(opened,undefined);assert.ok(f.api.active);assert.equal(f.api.active.options.dirty(),true);
-    const opening=action(line,'打开副本').onclick();await confirmLatest(f,'导出并离开');await opening;
-    assert.equal(opened.id,'new-copy');assert.equal(f.api.active,null);assert.equal(f.downloads.length,1);
+    const opening=action(line,'打开副本').onclick();await confirmLatest(f,'保留草稿并离开');await opening;
+    assert.equal(opened.id,'new-copy');assert.equal(f.api.active,null);assert.equal(f.downloads.length,0);
     assert.ok([...f.records.values()].some(row=>row.page!=='old-page' && !row.copy_request_id));
 });
 test('copy request identity is reproducible for the same source and changes with edited content',async()=>{
@@ -398,4 +398,22 @@ test('canceling start with unsaved work never downloads a draft',async()=>{
  await dialog.children.find(n=>n.textContent==='取消').onclick();
  await pending;assert.equal(f.downloads.length,0);
  assert.equal(f.calls.some(([path])=>path.endsWith('/acquire')),false);
+});
+
+test('storage failure blocks leaving and retains the current document without downloads',async()=>{
+ const f=fixture();await f.mount();const entry=f.api.active;
+ entry.options.dirty=()=>true;entry.options.snapshot=()=>({id:'a',revision:3,nodes:[{text:'keep me'}]});
+ f.database.transaction=()=>{throw new Error('storage unavailable');};
+ const leaving=f.api.leave();const rejected=assert.rejects(leaving,/暂存未完成/);
+ await confirmLatest(f,'保留草稿并离开');await rejected;
+ assert.equal(f.api.active,entry);assert.equal(entry.options.snapshot().nodes[0].text,'keep me');assert.equal(f.downloads.length,0);
+});
+test('start checkpoints survive later edits to the live draft without exporting',async()=>{
+ const f=fixture();await f.mount();await new Promise(setImmediate);const entry=f.api.active;
+ entry.options.dirty=()=>true;entry.options.snapshot=()=>({id:'a',revision:3,nodes:[{text:'original'}]});
+ const starting=entry.begin.onclick();await confirmLatest(f,'保留草稿并开始编辑');await starting;
+ entry.options.snapshot=()=>({id:'a',revision:3,nodes:[{text:'later'}]});entry.lease.pause('offline');await new Promise(setImmediate);
+ const checkpoint=[...f.records.values()].find(row=>row.page.includes('/restored/'));
+ assert.equal(checkpoint.document.nodes[0].text,'original');assert.equal(f.downloads.length,0);
+ assert.equal(action(entry.bar,'导出当前草稿'),undefined);
 });
