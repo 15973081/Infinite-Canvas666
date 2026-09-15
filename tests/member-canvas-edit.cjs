@@ -387,3 +387,15 @@ test('subscription loss pauses editing without release; reconnect cannot auto-re
     await entry.subscription.options.onChange({maintenance:{mode:'normal'}});
     assert.equal(entry.lease.state,'paused');assert.equal(entry.lease.canSave,false);
 });
+
+test('canceling start with unsaved work never downloads a draft',async()=>{
+ const f=fixture();await f.mount();await new Promise(setImmediate);
+ f.api.active.options.dirty=()=>true;
+ const pending=f.api.active.begin.onclick();await new Promise(setImmediate);
+ assert.equal(f.downloads.length,0);
+ const dialog=f.context.document.body.children.find(n=>n.tagName==='DIALOG');
+ assert.ok(dialog);
+ await dialog.children.find(n=>n.textContent==='取消').onclick();
+ await pending;assert.equal(f.downloads.length,0);
+ assert.equal(f.calls.some(([path])=>path.endsWith('/acquire')),false);
+});

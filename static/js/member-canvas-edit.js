@@ -359,9 +359,9 @@
         entry.feedback='';
         if(entry.options.dirty()) {
             await persist(entry);
-            // Explicit export before reloading prevents mistaking an unacknowledged save for success.
+            if(!await confirmAction('保留草稿并开始编辑','本页有未保存的修改。继续将导出草稿备份，再载入服务器版本。','导出并开始编辑')) return;
+            assertDraftScope(entry);
             download(draftRecord(entry));
-            if(!await confirmAction('重新开始编辑','已导出当前草稿。继续将重新载入服务器版本。','重新载入并编辑')) return;
         }
         let options={};
         if(entry.lease.status?.holder?.is_self) {
@@ -373,8 +373,9 @@
     async function askTransfer() {
         const entry=active;
         if(entry.options.dirty()) {
-            await persist(entry);download(draftRecord(entry));
-            if(!await confirmAction('申请接手','已导出当前草稿。申请前会重新载入服务器版本。','重新载入并申请')) return;
+            await persist(entry);
+            if(!await confirmAction('申请接手','本页有未保存的修改。继续将导出草稿备份，再载入服务器版本。','导出并申请')) return;
+            assertDraftScope(entry);download(draftRecord(entry));
             if(!await entry.options.reload()) throw new Error('重载失败，请重试。');
         }
         entry.feedback=''; await entry.lease.requestTransfer();

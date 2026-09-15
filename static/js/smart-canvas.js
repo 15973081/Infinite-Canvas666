@@ -4951,9 +4951,9 @@ function renderSmartCanvasBackups(backups){
 }
 function closeSmartCanvasBackups(){ document.getElementById('smartBackupModal')?.remove(); }
 function scheduleSave(){
-    if(window.CanvasSession?.enabled && window.MemberCanvasEdit?.active && window.MemberCanvasEdit.active.lease.state !== 'starting'){
-        smartCanvasDirty=true; window.MemberCanvasEdit.markDirty();
-    }
+    // Loading/normalizing a read-only canvas is not a user edit. Keep any
+    // existing dirty state after lease loss, but do not create a false draft.
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     if(isSmartCanvasLocked()) return;
     smartCanvasDirty = true;
     window.MemberCanvasEdit?.markDirty();

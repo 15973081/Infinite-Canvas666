@@ -2055,9 +2055,9 @@ function refreshGeometryAfterLayout(){
 }
 function scheduleSave(){
     if(!canvas || applyingRemoteCanvas) return;
-    if(window.CanvasSession?.enabled && window.MemberCanvasEdit?.active && window.MemberCanvasEdit.active.lease.state !== 'starting'){
-        localCanvasDirty=true; window.MemberCanvasEdit.markDirty();
-    }
+    // Loading/normalizing a read-only canvas is not a user edit. Keep any
+    // existing dirty state after lease loss, but do not create a false draft.
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     if(isCanvasLockedByOther()){
         setStatus('当前为查看模式，更改尚未保存');
         return;
