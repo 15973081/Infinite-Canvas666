@@ -27,7 +27,7 @@
 <div class="input-wrap"><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" placeholder="输入密码" required disabled><button id="toggle-password" type="button" aria-label="显示密码" aria-pressed="false">显示</button></div>
 <div id="confirm-wrap" hidden><label for="confirm-password">确认密码</label><div class="input-wrap"><input id="confirm-password" type="password" autocomplete="new-password" maxlength="256" placeholder="再次输入密码"></div></div>
 <label class="remember"><input id="remember" type="checkbox"><span>保持登录 30 天</span></label>
-<div class="message" id="form-message" role="alert" hidden></div>
+<div class="message-slot"><div class="message" id="form-message" role="alert" aria-atomic="true" hidden></div></div>
 <button class="submit-button" id="submit-button" type="submit" disabled><span id="submit-label">正在连接工作区…</span></button>
 </form>
 <button id="activation-button" class="text-button" type="button" hidden>首次使用或重置密码？激活账号</button>
