@@ -11,12 +11,16 @@
     }
     function notify(id){ root.dispatchEvent(new CustomEvent('canvas-ledger-updated', {detail:{canvasId:id}})); }
     async function request(path, body){
-        const res = await fetch(path, body === undefined ? {cache:'no-store'} : {
+        const init = body === undefined ? {cache:'no-store'} : {
             method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
-        });
+        };
+        const res = root.MemberCanvasEdit
+            ? await root.MemberCanvasEdit.send(path, init, fetch)
+            : await fetch(path, init);
         const data = await res.json().catch(()=> ({}));
         if(!res.ok){
-            const error = new Error(typeof data.detail === 'string' ? data.detail : `流水请求失败（${res.status}）`);
+            const messages = {canvas_protocol_required:'请先开始编辑，再进行日志恢复', canvas_lease_lost:'编辑资格已失效，请重新取得编辑权后再试', canvas_revision_conflict:'画布版本已变化，请重新载入后再核对日志'};
+            const error = new Error(typeof data.detail === 'string' ? data.detail : messages[data.detail?.code] || data.detail?.message || `流水请求失败（${res.status}）`);
             error.status = res.status;
             throw error;
         }
@@ -133,7 +137,11 @@
         dialog.addEventListener('close',()=>dialog.remove());
         document.body.append(dialog); dialog.showModal();
         const text=dialog.querySelector('pre'), apply=dialog.querySelector('[data-apply]');
+        if(root.CanvasSession?.enabled) dialog.querySelector('p').textContent='从当前空间云端保存的画布日志、备份和关联任务中核对补录。请先保存尚未提交的画布更改；补录不会恢复布局、重新生成或覆盖已有费用。';
         try {
+            if(root.CanvasSession?.enabled && (!root.MemberCanvasEdit?.canEdit || root.MemberCanvasEdit.active?.id !== id)){
+                throw new Error('当前为查看模式，请关闭此窗口并开始编辑，再进行日志恢复。');
+            }
             while(state(id).queue.size) {
                 if(!await flush(id)) throw new Error('请等待尚未保存的流水写入后重试');
             }

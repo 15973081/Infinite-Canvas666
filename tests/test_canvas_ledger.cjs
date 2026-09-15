@@ -12,7 +12,7 @@ function setup(fetcher) {
         CustomEvent:class {constructor(type, options){this.type=type;this.detail=options.detail;}},
         document:{visibilityState:'visible'}, setTimeout:fn=>timers.push(fn), setInterval(){}});
     vm.runInContext(source, ctx);
-    return {api:window.CanvasLedger, events, timers};
+    return {api:window.CanvasLedger, events, timers, window, ctx};
 }
 const response = (data, status=200) => ({ok:status===200, status, json:async()=>data});
 const page = (logs=[], totals={total:60000, records:2}, revision=1) => ({logs, totals, page:1, pages:1, revision});
@@ -106,4 +106,34 @@ test('both canvas clients use ledger totals and preserve ledger snapshots withou
         assert.equal(ctx[cost]({_ledger:{},_ledger_cost:{status:'priced',amount_micros:222}}).amount_micros,222);
         assert.equal(ctx[cost]({_ledger:{},_ledger_cost:{status:'excluded'}}),null);
     }
+});
+
+function recoveryDialog(ctx){
+    const parts={pre:{},p:{},'[data-apply]':{},'[data-close]':{}};
+    const dialog={querySelector:key=>parts[key],addEventListener(){},showModal(){},close(){},remove(){}};
+    ctx.document={getElementById:()=>true,createElement:()=>dialog,body:{append(){}},visibilityState:'visible'};
+    return parts;
+}
+test('member recovery preview and apply pass through the edit transport',async()=>{
+    const calls=[];
+    const report={added:1,updated:0,duplicate:0,conflicts:0,invalid:0,issues:[]};
+    const {api,window,ctx}=setup(async(path,init)=>{
+        calls.push({path,init});
+        if(!path.includes('/recovery/'))return response(page());
+        assert.equal(init.headers['X-Canvas-Edit-Token'],'proof');
+        return response({report,before:{records:0,total:0},after:{records:1,total:0},sources:{backups:1,tasks:1},source_errors:[],coverage_note:'cloud',preview_token:'reviewed'});
+    });
+    window.CanvasSession={enabled:true};
+    window.MemberCanvasEdit={canEdit:true,active:{id:'c'},send:(path,init,transport)=>transport(path,{...init,headers:{...init.headers,'X-Canvas-Edit-Token':'proof'}})};
+    const parts=recoveryDialog(ctx);
+    await api.recover('c');
+    await parts['[data-apply]'].onclick();
+    assert.equal(calls[0].path,'/api/canvases/c/ledger/recovery/preview');
+    assert.equal(calls[1].path,'/api/canvases/c/ledger/recovery/apply');
+    assert.equal(JSON.parse(calls[1].init.body).preview_token,'reviewed');
+});
+test('view mode recovery explains edit requirement without sending requests',async()=>{
+    const {api,window,ctx}=setup(async()=>{throw Error('unexpected request');});
+    window.CanvasSession={enabled:true};window.MemberCanvasEdit={canEdit:false,active:{id:'c'}};
+    const parts=recoveryDialog(ctx);await api.recover('c');assert.match(parts.pre.textContent,/开始编辑/);
 });
