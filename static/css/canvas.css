@@ -1700,3 +1700,7 @@ body.studio-theme-dark .canvas-lock-badge.unlocked {
 .gate-canvas-pane .gate-list{min-height:220px;align-content:start;scrollbar-gutter:stable}
 @keyframes canvas-gate-reveal{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.canvas-gate.gate-ready .gate-panel{animation:none}}
+
+/* Selected light surfaces need dark badges even in the dark theme. */
+.theme-dark .gate-folder-count{background:rgba(148,163,184,.16);color:#b0bdd0}
+.theme-dark .gate-folder-node.active .gate-folder-count{background:rgba(15,23,42,.10);color:#334155}
