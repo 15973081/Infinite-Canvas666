@@ -56,3 +56,30 @@ def test_new_objects_have_explicit_private_cache_metadata(tmp_path):
     args = store.client.put_object_from_file.call_args.kwargs
     assert args['cache_control'] == BROWSER_MEDIA_CACHE_CONTROL
     assert args['forbid_overwrite'] is True
+
+@patch.dict('os.environ', {'TOS_PUBLIC_ENDPOINT': 'https://example.invalid'})
+def test_preview_cache_is_five_minutes_and_url_renews_before_safety_window():
+    store = make_store()
+    asset = {'object_key': 'preview', 'object_version_id': 'v1', 'role': 'preview'}
+    with patch('app.storage.media.time.monotonic', return_value=100):
+        first = store.signed_url(asset, 900, ('space', 'member'))
+    assert store.client.pre_signed_url.call_args.kwargs['query']['response-cache-control'] == 'private, max-age=300, must-revalidate'
+    with patch('app.storage.media.time.monotonic', return_value=400):
+        assert store.signed_url(asset, 900, ('space', 'member')) == first
+    with patch('app.storage.media.time.monotonic', return_value=700):
+        assert store.signed_url(asset, 900, ('space', 'member')) != first
+    store.signed_url(asset, 120, ('space', 'member'))
+    assert 'max-age=60' in store.client.pre_signed_url.call_args.kwargs['query']['response-cache-control']
+
+
+def test_browser_preview_signature_default_is_fifteen_minutes():
+    from app.storage import media
+    store = Mock()
+    with patch.dict('os.environ', {}, clear=True), patch.object(media, 'current_workspace', return_value='space'), patch.object(media, 'media_backend', return_value='tos'), patch.object(media, 'store', return_value=store):
+        media.browser_url({'workspace_id': 'space', 'role': 'preview'})
+        assert store.signed_url.call_args.args[1] == 900
+        media.browser_url({'workspace_id': 'space', 'role': 'original'})
+        assert store.signed_url.call_args.args[1] == 300
+        media.browser_url({'workspace_id': 'space', 'role': 'preview'}, provider=True)
+        assert store.signed_url.call_args.args[1] == 3600
+        assert store.signed_url.call_args.kwargs['cache_scope'] is None

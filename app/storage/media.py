@@ -230,9 +230,9 @@ class TosStore:
         from tos.enum import HttpMethodType
         # Keep authorization at the application entry point. Reuse only the
         # resulting object URL, so redirects do not bust the browser's byte cache.
-        max_age = min(60, max(0, seconds // 2))
+        max_age = min(300 if asset.get("role") == "preview" else 60, max(0, seconds // 2))
         policy = f"private, max-age={max_age}, must-revalidate" if cache_scope else "private, no-store"
-        key = (cache_scope, self.bucket, asset["object_key"], asset["object_version_id"], seconds)
+        key = (cache_scope, self.bucket, asset["object_key"], asset["object_version_id"], seconds, policy)
         now = time.monotonic()
         with self._browser_urls_lock:
             if cache_scope:
@@ -404,7 +404,12 @@ def browser_url(asset, provider=False):
         raise HTTPException(404, "内部任务检查点不可分享")
     if asset.get("workspace_id", "default") != current_workspace():
         raise HTTPException(404, "素材不属于当前空间")
-    ttl = int(os.getenv("MEDIA_PROVIDER_URL_TTL" if provider else "MEDIA_BROWSER_URL_TTL", "3600" if provider else "300"))
+    if provider:
+        ttl = int(os.getenv("MEDIA_PROVIDER_URL_TTL", "3600"))
+    elif asset.get("role") == "preview":
+        ttl = int(os.getenv("MEDIA_PREVIEW_URL_TTL", "900"))
+    else:
+        ttl = int(os.getenv("MEDIA_BROWSER_URL_TTL", "300"))
     ttl = min(max(ttl, 30), 86400)
     if media_backend() == "tos":
         from app.services.member_context import current_access
