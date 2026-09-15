@@ -4,6 +4,8 @@ filesystem is a private local simulator, not an S3/TOS compatibility claim. Both
 backends use the same metadata, checksum validation and immutable object contract.
 """
 import copy
+from collections import OrderedDict
+from threading import Lock
 import hashlib
 import hmac
 import mimetypes
@@ -193,16 +195,21 @@ class FilesystemStore:
             shutil.copyfileobj(src, dst, 1024 * 1024)
 
 
+BROWSER_MEDIA_CACHE_CONTROL = "private, max-age=60, must-revalidate"
+
+
 class TosStore:
     def __init__(self):
         import tos
         self.bucket = os.environ["TOS_BUCKET"]
+        self._browser_urls = OrderedDict()
+        self._browser_urls_lock = Lock()
         self.client = tos.TosClientV2(os.environ["TOS_ACCESS_KEY"], os.environ["TOS_SECRET_KEY"],
                                       os.environ["TOS_INTERNAL_ENDPOINT"], os.environ["TOS_REGION"],
                                       security_token=os.getenv("TOS_SECURITY_TOKEN"), connection_time=10, socket_timeout=120, max_connections=20)
 
     def put(self, key, path, content_type):
-        result = self.client.put_object_from_file(self.bucket, key, str(path), content_type=content_type, forbid_overwrite=True)
+        result = self.client.put_object_from_file(self.bucket, key, str(path), content_type=content_type, cache_control=BROWSER_MEDIA_CACHE_CONTROL, forbid_overwrite=True)
         version = result.version_id
         if not version or version == "null":
             raise RuntimeError("TOS Bucket must have versioning enabled")
@@ -219,12 +226,30 @@ class TosStore:
             raise HTTPException(502, "TOS 对象大小校验失败")
         self.client.get_object_to_file(self.bucket, asset["object_key"], str(path), version_id=asset["object_version_id"])
 
-    def signed_url(self, asset, seconds):
+    def signed_url(self, asset, seconds, cache_scope=None):
         from tos.enum import HttpMethodType
-        result = self.client.pre_signed_url(HttpMethodType.Http_Method_Get, self.bucket, asset["object_key"],
-                                            expires=seconds, query={"versionId": asset["object_version_id"]},
-                                            alternative_endpoint=os.environ["TOS_PUBLIC_ENDPOINT"])
-        return result.signed_url
+        # Keep authorization at the application entry point. Reuse only the
+        # resulting object URL, so redirects do not bust the browser's byte cache.
+        max_age = min(60, max(0, seconds // 2))
+        policy = f"private, max-age={max_age}, must-revalidate" if cache_scope else "private, no-store"
+        key = (cache_scope, self.bucket, asset["object_key"], asset["object_version_id"], seconds)
+        now = time.monotonic()
+        with self._browser_urls_lock:
+            if cache_scope:
+                cached = self._browser_urls.get(key)
+                if cached and cached[0] - now > max_age + 5:
+                    self._browser_urls.move_to_end(key)
+                    return cached[1]
+            result = self.client.pre_signed_url(HttpMethodType.Http_Method_Get, self.bucket, asset["object_key"],
+                expires=seconds, query={"versionId": asset["object_version_id"], "response-cache-control": policy},
+                alternative_endpoint=os.environ["TOS_PUBLIC_ENDPOINT"])
+            if cache_scope:
+                self._browser_urls[key] = (now + seconds, result.signed_url)
+                self._browser_urls.move_to_end(key)
+                while len(self._browser_urls) > 2048:
+                    self._browser_urls.popitem(last=False)
+            return result.signed_url
+
 
 
 def store():
@@ -382,7 +407,10 @@ def browser_url(asset, provider=False):
     ttl = int(os.getenv("MEDIA_PROVIDER_URL_TTL" if provider else "MEDIA_BROWSER_URL_TTL", "3600" if provider else "300"))
     ttl = min(max(ttl, 30), 86400)
     if media_backend() == "tos":
-        return store().signed_url(asset, ttl)
+        from app.services.member_context import current_access
+        access = current_access.get()
+        scope = None if provider else (current_workspace(), access.principal.member_id if access else "shared")
+        return store().signed_url(asset, ttl, cache_scope=scope)
     expires = int(time.time()) + ttl
     member = ""
     if not provider:

@@ -106,7 +106,7 @@ def initialize(asset_id):
         return
     row = get(asset_id)
     store = media.store()
-    upload_id = (store.client.create_multipart_upload(store.bucket, row["staging_key"], content_type=row["content_type"]).upload_id
+    upload_id = (store.client.create_multipart_upload(store.bucket, row["staging_key"], content_type=row["content_type"], cache_control=media.BROWSER_MEDIA_CACHE_CONTROL).upload_id
                  if row["backend"] == "tos" else uuid.uuid4().hex)
     with connection() as conn:
         conn.execute("UPDATE media_uploads SET upload_id=%s,status='uploading',lease_token=NULL,lease_until=NULL,updated_at=now() "
