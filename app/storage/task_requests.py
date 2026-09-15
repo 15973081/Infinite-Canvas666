@@ -172,7 +172,11 @@ def validate_execution(row):
         raise HTTPException(409, "供应商账号配置已变化，请核对原任务账号后继续")
     if row.get("provider_id"):
         from app.providers.registry import get_api_provider_exact
-        get_api_provider_exact(row["provider_id"])
+        provider = get_api_provider_exact(row["provider_id"])
+        if not recovery:
+            from app.services.model_commercial import enforce
+            kind = "image" if row["kind"] == "online-image" else "chat" if row["kind"] == "llm" else "video"
+            enforce(provider, kind, row["request"])
     payload = normalize(row["request"], strict=True)
     with connection() as conn:
         lock_ready(conn, asset_ids(payload))

@@ -11,7 +11,7 @@ from app.storage.workspace import current_workspace
 SECRET_FIELDS = {'api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key'}
 CONFIG_FIELDS = {'name', 'base_url', 'protocol', 'image_request_mode', 'image_generation_endpoint',
                  'image_edit_endpoint', 'proxy_url', 'enabled', 'image_models', 'chat_models', 'video_models',
-                 'model_prices', 'model_protocols', 'ms_loras', 'ms_defaults_version',
+                 'model_prices', 'model_policies', 'model_discounts', 'model_protocols', 'ms_loras', 'ms_defaults_version',
                  'volcengine_project_name', 'volcengine_region'}
 
 
@@ -72,11 +72,24 @@ def normalized(provider_id, value, previous=None):
     for field in ('model_prices', 'ms_loras'):
         if field in value and (not isinstance(value[field], list) or len(value[field]) > 1000 or any(not isinstance(item, dict) for item in value[field])):
             az.fail('invalid_provider_config', 400)
+    from app.services.model_commercial import policies, discounts
+    try:
+        policies(value.get('model_policies') or {})
+    except ValueError:
+        az.fail('invalid_model_policy', 400)
+    try:
+        discounts(value.get('model_discounts') or [])
+    except ValueError:
+        az.fail('invalid_model_discount', 400)
     try:
         result = normalize_provider({'id': provider_id, **value})
         if result['id'] != provider_id:
             az.fail('invalid_provider_config', 400)
         result.pop('primary', None)
+        if 'model_prices' in value and len(result['model_prices']) != len(value['model_prices']):
+            az.fail('invalid_provider_prices', 400)
+        for field in ('model_policies', 'model_discounts'):
+            if field not in value and previous and field in previous: result[field] = previous[field]
         result['model_prices'] = (list((previous or {}).get('model_prices') or []) if 'model_prices' not in value
                                   else merge_model_price_history((previous or {}).get('model_prices'), value['model_prices']))
         return result
@@ -137,7 +150,11 @@ def save(actor, provider_id, config, expected_version, *, secrets=None, clear_se
             secret_ciphertext=excluded.secret_ciphertext,secret_fields=excluded.secret_fields,
             updated_by=excluded.updated_by,updated_at=clock_timestamp() RETURNING *''',
             (provider_id, Jsonb(config), expected_version + 1, encrypted, sorted(values), actor.member_id)).fetchone()
+        commercial_changes = {field: {'before': (old['config'] if old else {}).get(field), 'after': config.get(field)}
+                              for field in ('model_prices', 'model_discounts', 'model_policies')
+                              if (old['config'] if old else {}).get(field) != config.get(field)}
         az.audit(conn, actor, 'provider.save', provider_id, details={'version': row['version'],
+                 'commercial_changes': commercial_changes,
                  'secret_fields_changed': sorted(set(secrets) | clear_secrets), 'reason': reason.strip()})
         return public(row)
 

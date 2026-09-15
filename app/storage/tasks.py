@@ -143,6 +143,21 @@ def save(task, request_payload=None, *, historical=False):
                 lock_ready(conn, inputs)
             provider_id = payload.get("provider_id") or value.get("provider_id")
             provider_account = None if historical else account_ref(provider_id)
+            if not historical and provider_id:
+                from app.providers.registry import managed_providers_enabled, get_api_provider_exact
+                if managed_providers_enabled():
+                    from app.services.model_commercial import enforce
+                    from app.services.canvas_ledger import historical_price
+                    from app.services.volcengine_billing import pricing_context
+                    provider = get_api_provider_exact(provider_id)
+                    kind = "image" if value.get("type") == "online-image" else "chat" if value.get("type") == "llm" else "video"
+                    enforce(provider, kind, payload)
+                    at = int(time.time() * 1000)
+                    now = at / 1000
+                    value["created_at"] = value["updated_at"] = now
+                    value["billing_price"] = historical_price({"providerId":provider_id,"kind":kind,"model":payload.get("model", "")}, at, [provider], payload)
+                    value["billing_basis_at"] = at
+                    if kind == "video": value["video_pricing"] = pricing_context(provider, at)
             canvas_id = value.get("canvas_id") or None
             if canvas_id and not conn.execute("SELECT 1 FROM canvases WHERE workspace_id=%s AND id=%s", (workspace, canvas_id)).fetchone():
                 if conn.execute("SELECT 1 FROM canvases WHERE id=%s", (canvas_id,)).fetchone():

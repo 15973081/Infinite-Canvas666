@@ -60,6 +60,9 @@ def report(actor, *, personal=False, workspace=None, member_id='', from_ms=0, to
             count(*) FILTER(WHERE e.cost_status='unknown') AS unknown,
             count(*) FILTER(WHERE coalesce(a.member_id,o.member_id) IS NULL) AS unassigned,
             coalesce(sum(e.amount_micros) FILTER(WHERE e.cost_status='priced'),0)::text AS amount_micros,
+            coalesce(sum(CASE WHEN e.cost_json->>'base_amount_micros' ~ '^[0-9]+$' THEN (e.cost_json->>'base_amount_micros')::numeric ELSE 0 END) FILTER(WHERE e.cost_status='priced'),0)::text AS base_amount_micros,
+            coalesce(sum(CASE WHEN e.cost_json->>'discount_amount_micros' ~ '^[0-9]+$' THEN (e.cost_json->>'discount_amount_micros')::numeric ELSE 0 END) FILTER(WHERE e.cost_status='priced'),0)::text AS discount_amount_micros,
+            count(*) FILTER(WHERE e.cost_status='priced' AND NOT (e.cost_json ? 'base_amount_micros')) AS missing_breakdown,
             coalesce(sum(e.amount_micros) FILTER(WHERE e.cost_status='priced' AND e.estimated=1),0)::text AS estimated_micros
             ''' + scope + ' GROUP BY e.currency ORDER BY e.currency',args).fetchall()
         count = sum(row['records'] for row in totals)
@@ -77,6 +80,10 @@ def report(actor, *, personal=False, workspace=None, member_id='', from_ms=0, to
             nullif(e.canvas_id,'__account_tasks__') AS canvas_id,
             coalesce(g.document->>'title',nullif(e.canvas_id,'__account_tasks__'),'独立生成任务') AS canvas_title,
             e.created_at,e.kind,e.status,e.cost_status,e.estimated,e.currency,e.amount_micros::text,
+            e.cost_json->>'base_amount_micros' AS base_amount_micros,e.cost_json->>'discount_amount_micros' AS discount_amount_micros,
+            e.cost_json->>'discount_rate' AS discount_rate,e.cost_json->'discount_snapshot' AS discount_snapshot,
+            e.cost_json->>'unit_price' AS unit_price,e.cost_json->>'quantity' AS quantity,
+            e.cost_json->>'resolution' AS resolution,e.cost_json->>'price_effective_from' AS price_effective_from,
             coalesce(e.log_json->>'providerId','') AS provider,
             coalesce(e.log_json->>'billingModel',e.log_json->>'model','') AS model,
             o.task_id,coalesce(a.member_id,o.member_id) AS member_id,o.member_id AS original_member_id,a.reason AS assignment_reason,a.actor_id AS assigned_by,o.username AS account_at_creation,o.display_name AS name_at_creation,

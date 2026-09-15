@@ -2641,6 +2641,12 @@ function renderComfyWorkflowControl(){
         </div>
     </div>`;
 }
+function smartImageResolutions(prefix=''){
+    if(prefix)return ['1k','2k','4k','custom'];
+    const allowed=apiProviderById(settings.provider_id)?.model_policies?.['image:'+settings.model]?.resolutions;
+    if(allowed?.length){if(!allowed.includes(settings.resolution))settings.resolution=allowed[0];return allowed;}
+    return ['1k','2k','4k','custom'];
+}
 function renderSizeControls(prefix='', includeSource=false){
     const ratioKey = prefix ? `${prefix}Ratio` : 'ratio';
     const resKey = prefix ? `${prefix}Resolution` : 'resolution';
@@ -2650,7 +2656,7 @@ function renderSizeControls(prefix='', includeSource=false){
         ['custom', tr('canvas.custom') || '自定义']
     ];
     return `<select data-param="${resKey}">
-            ${['1k','2k','4k','custom'].map(v => optionHtml(v, v === 'custom' ? (tr('canvas.custom') || '自定义') : v.toUpperCase(), settings[resKey] || '1k')).join('')}
+            ${smartImageResolutions(prefix).map(v => optionHtml(v, v === 'custom' ? (tr('canvas.custom') || '自定义') : v.toUpperCase(), settings[resKey] || '1k')).join('')}
         </select>
         <select data-param="${ratioKey}" ${settings[resKey] === 'custom' ? 'disabled' : ''}>
             ${ratios.map(([v,l]) => `<option value="${escapeHtml(v)}" ${v === (settings[ratioKey] || 'square') ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}
@@ -2807,7 +2813,7 @@ function renderResolutionControl(prefix=''){
         <div class="smart-popover compact-popover">
             <div class="smart-popover-title">${escapeHtml(tr('smart.resolution'))}</div>
             <div class="seg-row">
-                ${['1k','2k','4k','custom'].map(value => `<button type="button" class="${value === (settings[resKey] || '1k') ? 'active' : ''}" data-smart-param="${resKey}" data-smart-value="${value}">${value === 'custom' ? escapeHtml(tr('smart.custom')) : value.toUpperCase()}</button>`).join('')}
+                ${smartImageResolutions(prefix).map(value => `<button type="button" class="${value === (settings[resKey] || '1k') ? 'active' : ''}" data-smart-param="${resKey}" data-smart-value="${value}">${value === 'custom' ? escapeHtml(tr('smart.custom')) : value.toUpperCase()}</button>`).join('')}
             </div>
         </div>
     </div>`;
@@ -5993,6 +5999,7 @@ function calculateSmartGenerationCost({run={}, log={}, outputs=[], createdAt=Dat
     if(volcCost !== undefined) return volcCost;
     if(log.status === 'failed') return null;
     if(!identity.kind || !identity.providerId || !identity.model) return {status:'unknown', source, ...identity};
+    if(apiProviders.find(p=>p.id===identity.providerId)?.billing_authority==='server') return {status:'unknown', source, ...identity, reason:'awaiting_server_ledger'};
     const price = smartModelPriceAt(identity.providerId, identity.kind, identity.model, createdAt);
     if(!price) return {status:'unknown', source, ...identity};
     let quantity = 1;

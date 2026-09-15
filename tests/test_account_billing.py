@@ -169,3 +169,63 @@ def test_standalone_backfill_reuses_existing_canvas_log(world):
         complete(conn,spaces[0],actors[0],prefix+'task')
     data=report(actors[0],personal=True)
     assert data['records']==1 and data['entries'][0]['canvas_id']==prefix+'canvas'
+
+
+def test_real_provider_snapshot_discount_and_time_report(world):
+    from psycopg.types.json import Jsonb
+    from app.services.provider_control import normalized
+    conn,spaces,actors,prefix=world
+    pid='price-'+uuid.uuid4().hex[:16]
+    config=normalized(pid,{'name':'Discount test','base_url':'https://no-network.invalid','protocol':'openai','enabled':True,'image_models':['m'],
+        'model_prices':[{'kind':'image','model':'m','billing_type':'per_image','unit_price':'2','resolution':'2k'}],
+        'model_policies':{'image:m':{'resolutions':['2k']}},
+        'model_discounts':[{'kind':'image','model':'m','rate':'0.8','effective_from':1,'effective_to':0}]})
+    conn.execute('INSERT INTO managed_providers(id,config,updated_by) VALUES(%s,%s,%s)',(pid,Jsonb(config),actors[2].member_id))
+    conn.execute('INSERT INTO workspace_provider_sets(workspace_id,primary_provider_id) VALUES(%s,%s)',(spaces[0],pid))
+    conn.execute('INSERT INTO workspace_provider_grants(workspace_id,provider_id) VALUES(%s,%s)',(spaces[0],pid))
+    tid=prefix+'priced'
+    payload={'provider_id':pid,'model':'m','size':'2048x2048','prompt':'test only'}
+    with workspace_scope(spaces[0]),access_scope(actors[0],spaces[0],()):
+        task=tasks.save({'id':tid,'type':'online-image','provider_id':pid,'model':'m','status':'queued','created_at':time.time()},payload)
+        assert task['billing_price']['commercial_discount']['rate']=='0.8'
+        with pytest.raises(HTTPException): tasks.save({'id':tid+'denied','type':'online-image','provider_id':pid,'model':'m'},dict(payload,size='4096x4096'))
+        config['model_prices'][0]['unit_price']='100'
+        config['model_discounts'][0]['rate']='0.1'
+        config['model_policies']['image:m']['enabled']=False
+        conn.execute('UPDATE managed_providers SET config=%s WHERE id=%s',(Jsonb(config),pid))
+        assert tasks.save(task,payload)['id']==tid
+        with pytest.raises(HTTPException): tasks.save({'id':tid+'new','type':'online-image','provider_id':pid,'model':'m'},payload)
+        token=uuid.uuid4();conn.execute("UPDATE tasks SET lease_owner='billing-test',lease_token=%s,lease_until=now()+interval '1 hour' WHERE id=%s",(token,tid))
+        lease=tasks.lease_context.set((tid,token))
+        try:
+            task.update(status='succeeded',result={'images':['test-only-image-a','test-only-image-b']})
+            save_canvas_task(task)
+        finally: tasks.lease_context.reset(lease)
+    mine=report(actors[0],personal=True)
+    entry=mine['entries'][0]
+    assert entry['base_amount_micros']=='4000000' and entry['amount_micros']=='3200000'
+    assert entry['discount_rate']=='0.8' and mine['totals'][0]['discount_amount_micros']=='800000'
+    assert mine['totals'][0]['missing_breakdown']==0
+    assert report(actors[0],personal=True,from_ms=entry['created_at'],to_ms=entry['created_at']+1)['records']==1
+    assert report(actors[0],personal=True,to_ms=entry['created_at'])['records']==0
+
+
+def test_commercial_config_save_permissions_version_and_audit(world):
+    from app.services import provider_control
+    conn,spaces,actors,prefix=world
+    conn.execute("INSERT INTO role_permissions VALUES(%s,'provider.configure','platform')",(prefix+'role',))
+    pid='price-'+uuid.uuid4().hex[:16]
+    config={'name':'Config test','protocol':'openai','base_url':'https://no-network.invalid','enabled':True,'image_models':['m'],
+        'model_prices':[{'kind':'image','model':'m','resolution':'4k','billing_type':'per_image','unit_price':'4'}],
+        'model_discounts':[{'kind':'image','model':'m','rate':'0.8','effective_from':100,'effective_to':200}],
+        'model_policies':{'image:m':{'enabled':False,'visible':False,'resolutions':['1k','2k']}}}
+    with pytest.raises(HTTPException): provider_control.save(actors[3],pid,config,0,reason='no rights')
+    saved=provider_control.save(actors[2],pid,config,0,reason='test pricing')
+    assert saved['version']==1 and saved['config']['model_prices'][0]['resolution']=='4k'
+    with pytest.raises(HTTPException): provider_control.save(actors[2],pid,config,0,reason='stale version')
+    bad=dict(config,model_discounts=config['model_discounts']*2)
+    with pytest.raises(HTTPException) as err: provider_control.save(actors[2],pid,bad,1,reason='overlap')
+    assert err.value.detail['code']=='invalid_model_discount'
+    saved=provider_control.save(actors[2],pid,config,1,reason='second save')
+    assert saved['version']==2
+    assert saved['config']['model_prices'][0]['effective_from']>0

@@ -40,6 +40,11 @@ def admit():
         from app.storage.task_requests import account_ref
         if row['provider_account_ref'] and row['provider_account_ref'] != account_ref(row['provider_id']):
             az.fail('provider_account_changed', 409)
+        if row["provider_id"]:
+            from app.providers.registry import get_api_provider_exact
+            from app.services.model_commercial import enforce
+            kind = "image" if row["kind"] == "online-image" else "chat" if row["kind"] == "llm" else "video"
+            enforce(get_api_provider_exact(row["provider_id"]), kind, row["request"])
         identity = uuid.uuid4()
         conn.execute('INSERT INTO task_submissions(id,task_id,workspace_id) VALUES(%s,%s,%s)', (identity, row['id'], workspace))
         return identity

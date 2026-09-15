@@ -107,7 +107,9 @@ def _amount(value):
 
 
 def historical_price(info, at, providers, request=None):
-    request = request or {}
+    request = dict(request or {})
+    from app.services.model_commercial import specification
+    request["resolution"] = specification(info["kind"], request)
     provider = next((p for p in providers if p.get("id") == info["providerId"]), {})
     prices = []
     for price in provider.get("model_prices") or []:
@@ -125,7 +127,9 @@ def historical_price(info, at, providers, request=None):
         if price.get("service_tier") and price["service_tier"] != request.get("service_tier", "default"):
             continue
         prices.append(price)
-    return copy.deepcopy(max(prices, key=lambda p: float(p.get("effective_from") or 0))) if prices else None
+    from app.services.model_commercial import attach_discount
+    price = max(prices, key=lambda p: (bool(p.get("resolution")), float(p.get("effective_from") or 0))) if prices else None
+    return attach_discount(price, provider, info["kind"], info["model"], at)
 
 
 def price_log(log, providers=(), frozen_price=None):
@@ -158,14 +162,17 @@ def price_log(log, providers=(), frozen_price=None):
         qty = Decimal(str(quantity))
         if not unit.is_finite() or unit < 0 or not qty.is_finite() or qty <= 0:
             return unknown
-        micros = int(((unit * 1000000).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * qty).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        from app.services.model_commercial import amounts
+        breakdown = amounts((unit * 1000000).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * qty, price)
+        micros = breakdown["amount_micros"]
         if _amount(micros) is None:
             return {**unknown, "reason": "invalid_amount"}
     except (InvalidOperation, ValueError, TypeError, KeyError):
         return unknown
     return {**info, "status": "priced", "source": "actual" if frozen_price is not None else "estimated", "currency": price.get("currency") or "CNY",
             "billing_type": billing_type, "quantity": float(qty), "unit_price": str(price["unit_price"]),
-            "amount_micros": micros, "price_effective_from": price.get("effective_from", 0)}
+            **breakdown, "resolution": price.get("resolution", ""), "price_snapshot": copy.deepcopy(price),
+            "price_effective_from": price.get("effective_from", 0)}
 
 
 def aliases(log, providers=()):

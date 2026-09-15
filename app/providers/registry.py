@@ -47,7 +47,7 @@ def normalize_model_prices(rows):
             price = Decimal(str(raw.get("unit_price") or "0"))
         except (InvalidOperation, ValueError):
             continue
-        if not price.is_finite() or price < 0 or (price == 0 and billing_type != "per_million_tokens"):
+        if not price.is_finite() or price < 0 :
             continue
         conditions = {}
         if billing_type == "per_million_tokens":
@@ -57,6 +57,10 @@ def normalize_model_prices(rows):
             if kind != "video" or resolution not in {"480p", "720p", "1080p", "4k"} or not isinstance(has_video, bool) or tier not in {"default", "flex"}:
                 continue
             conditions = {"resolution": resolution, "has_video_input": has_video, "service_tier": tier}
+        if billing_type != "per_million_tokens" and raw.get("resolution"):
+            resolution = str(raw["resolution"]).lower()
+            if resolution not in ({"1k", "2k", "4k"} if kind == "image" else {"480p", "720p", "1080p", "4k"}): continue
+            conditions["resolution"] = resolution
         normalized.append({
             **conditions,
             "kind": kind,
@@ -100,7 +104,7 @@ def merge_model_price_history(existing_rows, desired_rows, effective_at=None):
         if old and all(old[field] == new[field] for field in comparable):
             continue
         had_history = any(model_price_key(row) == key for row in existing)
-        history.append({**new, "effective_from": now if had_history or new["billing_type"] == "per_million_tokens" else 0, "effective_to": 0})
+        history.append({**new, "effective_from": now, "effective_to": 0})
     return history
 
 
@@ -329,6 +333,7 @@ def provider_proxy_url(provider):
 
 
 def normalize_provider(item):
+    from app.services.model_commercial import policies, discounts
     if str(item.get("id") or "").strip().lower() in REMOVED_PROVIDER_IDS:
         raise HTTPException(410, "该供应商集成已移除")
     provider_id = str(item.get("id") or "").strip().lower()
@@ -367,6 +372,8 @@ def normalize_provider(item):
         "chat_models": model_list_from_values(item.get("chat_models") or []),
         "video_models": model_list_from_values(item.get("video_models") or []),
         "model_prices": normalize_model_prices(item.get("model_prices") or []),
+        "model_policies": policies(item.get("model_policies") or {}),
+        "model_discounts": discounts(item.get("model_discounts") or []),
         "model_protocols": normalize_model_protocols(item.get("model_protocols")),
         "ms_loras": normalize_ms_loras(item.get("ms_loras") or []),
         "ms_defaults_version": int(item.get("ms_defaults_version") or 0),

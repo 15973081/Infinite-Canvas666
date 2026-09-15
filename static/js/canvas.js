@@ -1298,12 +1298,16 @@ function providerImageModels(providerId){
     const provider = apiProviders.find(p => p.id === providerId);
     return uniqueModels(provider?.image_models || []);
 }
+function allowedImageResolutions(node){
+    return apiProviders.find(p=>p.id===node.apiProvider)?.model_policies?.['image:'+resolveImageModel(node.model)]?.resolutions || ['1k','2k','4k','custom'];
+}
 function sanitizeImageNodeProviderModel(node){
     if(!node || node.type !== 'generator') return;
     node.apiProvider = resolveImageProviderId(node.apiProvider || '');
     const models = providerImageModels(node.apiProvider);
     if(!models.length) node.model = '';
     else if(!models.includes(resolveImageModel(node.model))) node.model = models[0] || '';
+    const sizes=allowedImageResolutions(node);if(!sizes.includes(node.resolution))node.resolution=sizes[0];
 }
 function videoApiProviders(){
     const providers = (apiProviders.length ? apiProviders : defaultApiProviders())
@@ -8928,10 +8932,7 @@ function renderGeneratorBody(node){
             </div>
             <div class="gen-settings-row api-size-row">
                 <select class="select-lite resolution compact-select" data-field="resolution">
-                    <option value="1k">1K</option>
-                    <option value="2k">2K</option>
-                    <option value="4k">4K</option>
-                    <option value="custom">${tr('canvas.custom')}</option>
+                    ${allowedImageResolutions(node).map(s=>`<option value="${s}">${s==='custom'?tr('canvas.custom'):s.toUpperCase()}</option>`).join('')}
                 </select>
                 <select class="select-lite ratio compact-select" data-field="ratio">
                     <option value="square">1:1</option>
@@ -11621,6 +11622,7 @@ function calculateGenerationCost({run={}, log={}, outputs=[], createdAt=Date.now
     if(volcCost !== undefined) return volcCost;
     if(log.status === 'failed') return null;
     if(!identity.kind || !identity.providerId || !identity.model) return {status:'unknown', source, ...identity};
+    if(apiProviders.find(p=>p.id===identity.providerId)?.billing_authority==='server') return {status:'unknown', source, ...identity, reason:'awaiting_server_ledger'};
     const price = modelPriceAt(identity.providerId, identity.kind, identity.model, createdAt);
     if(!price) return {status:'unknown', source, ...identity};
     let quantity = 1;

@@ -263,6 +263,7 @@
         window.addEventListener('studio-lang-change', () => {
             document.title = tr('online.title');
             updateAdaptivePanel();
+            updateSizeUI();
         });
         let refs = {1:null,2:null,3:null,4:null};
         let refDims = {1:null,2:null,3:null,4:null};
@@ -329,7 +330,7 @@
             const list = (apiProviders || []).filter(p => p.enabled !== false && p.has_key && (
                 (p.image_models || []).length
             ));
-            return list.length ? list : [{id:'comfly', name:'Comfly', image_models:[models.gpt, models.nano]}];
+            return list.length || apiProviders.length ? list : [{id:'comfly', name:'Comfly', image_models:[models.gpt, models.nano]}];
         }
         function providerById(id){
             return imageProviders().find(p => p.id === id) || imageProviders()[0];
@@ -428,6 +429,7 @@
         }
         function setModel(next){
             selectedModel = next;
+            updateSizeUI();
         }
         function escapeHtml(str){ return String(str || '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 
@@ -498,6 +500,10 @@
         }
 
         function updateSizeUI(){
+            const allowed=providerById(provider)?.model_policies?.['image:'+selectedModel]?.resolutions || ['1k','2k','4k','custom'];
+            const choices=document.getElementById('resolutionSelect');
+            choices.replaceChildren(...allowed.map(s=>new Option(s==='custom'?'自定义尺寸':s.toUpperCase(),s)));
+            if(!allowed.includes(resolution))resolution=allowed[0];
             const ratioSelect = document.getElementById('ratioSelect');
             const ratioField = document.getElementById('ratioField');
             const ratioCustomWidthInput = document.getElementById('ratioCustomWidth');

@@ -115,7 +115,7 @@ class VolcengineAccountingTests(unittest.TestCase):
         self.assertEqual(normalize_model_prices([row])[0]["unit_price"], "0")
         self.assertEqual(merge_model_price_history([], [row], NOW)[0]["effective_from"], NOW)
         legacy = dict(kind="video", model="other", billing_type="per_second", unit_price="1")
-        self.assertEqual(merge_model_price_history([], [legacy], NOW)[0]["effective_from"], 0)
+        self.assertEqual(merge_model_price_history([], [legacy], NOW)[0]["effective_from"], NOW)
         for invalid in (None, "", " ", False):
             self.assertEqual(normalize_model_prices([custom_price(price=invalid)]), [])
 

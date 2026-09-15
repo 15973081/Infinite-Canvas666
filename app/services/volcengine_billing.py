@@ -65,6 +65,7 @@ def pricing_context(provider, at_ms=None):
     return {"at": int(at_ms if at_ms is not None else time.time() * 1000),
             "custom_prices": deepcopy(provider.get("model_prices") or []),
             "official_prices": official_video_prices() if official_ark(provider) else [],
+            "discounts": deepcopy(provider.get("model_discounts") or []),
             "version": PRICE_VERSION}
 
 
@@ -117,15 +118,20 @@ def video_accounting(raw, request, provider, context):
         cost["reason"] = "missing_price"
         return {"usage": usage, "video_info": info, "cost": cost}
     price = max(candidates, key=lambda r: int(r.get("effective_from") or 0))
+    from app.services.model_commercial import attach_discount, amounts
+    price = attach_discount(price, {"model_discounts": context.get("discounts", [])}, "video", info["requested_model"], context["at"])
     try:
         unit_price = Decimal(str(price["unit_price"]))
         if not unit_price.is_finite() or unit_price < 0:
             raise ValueError("invalid price")
         # CNY / 1M tokens × tokens × 1M micros / CNY: only round the final amount.
-        amount = int((unit_price * tokens).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        breakdown = amounts(unit_price * tokens, price)
+        amount = breakdown["amount_micros"]
     except (InvalidOperation, ValueError, OverflowError):
         cost["reason"] = "invalid_price"
         return {"usage": usage, "video_info": info, "cost": cost}
+    cost.update(breakdown)
+    cost["resolution"] = resolution
     cost.update(status="priced", reason="", unit_price=str(unit_price), amount_micros=amount,
                 price_effective_from=price.get("effective_from", 0),
                 price_effective_to=price.get("effective_to", 0),
