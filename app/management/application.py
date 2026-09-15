@@ -93,6 +93,21 @@ class Input(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+class StorageSave(Input):
+    bucket: str = Field(max_length=63)
+    region: str = Field(max_length=40)
+    internal_endpoint: str = Field(max_length=200)
+    public_endpoint: str = Field(max_length=200)
+    access_key: str = Field(default="", max_length=256)
+    secret_key: str = Field(default="", max_length=256)
+    security_token: str = Field(default="", max_length=8192)
+    expected_version: int = Field(ge=0)
+
+
+class StorageProbe(Input):
+    expected_version: int = Field(ge=1)
+
+
 class Login(Input):
     username: str = Field(max_length=64)
     password: str = Field(max_length=256)
@@ -402,6 +417,21 @@ def create_app(static_dir=None):
     def task_review(task_id: str, request: Request, data: TaskReview, workspace: str):
         from app.services.task_reviews import review
         return review(actor(request), workspace, task_id, **data.model_dump())
+
+    @app.get('/api/storage/tos')
+    def storage_read(request: Request):
+        from app.services.storage_control import read
+        return read(actor(request))
+
+    @app.put('/api/storage/tos')
+    def storage_save(request: Request, data: StorageSave):
+        from app.services.storage_control import save
+        return save(actor(request), data.model_dump())
+
+    @app.post('/api/storage/tos/probe')
+    def storage_probe(request: Request, data: StorageProbe):
+        from app.services.storage_control import probe
+        return probe(actor(request), data.expected_version)
 
     @app.get('/api/providers')
     def provider_catalog(request: Request):

@@ -4,6 +4,10 @@
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
   const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   const errors = {
+    invalid_tos_config: '请检查桶名称与地域。',
+    invalid_tos_endpoint: '请填写与地域一致的官方 TOS HTTPS Endpoint。',
+    tos_credentials_required: '首次配置请填写 AK 和 SK；替换凭证时两者必须一起填写。',
+    tos_config_changed: '配置已变更，请关闭后重新打开。',
     canvas_occupancy_changed:'画布已保存、被接管或占用已失效，请关闭弹窗并刷新列表后重新确认。',
     canvas_occupancy_confirmation_required:'请填写原因并明确确认结束当前占用。',
     canvas_not_found:'当前空间中找不到此画布，请刷新。',
@@ -255,12 +259,46 @@
     )]);
     return [toolbar, rows.length ? table(['空间', '说明', '状态', '操作'], rows) : el('div', '尚无可管理空间。', 'empty')];
   }
+  async function storageDialog() {
+    const data = await api('/api/storage/tos');
+    const status = el('section', undefined, 'tos-status');
+    status.append(el('h3', '对象存储 · TOS'), el('p', '当前后端：' + data.active_backend + ' · ' + (data.version ? '已保存待启用配置' : '尚未配置')), el('p', '保存后用于连接检查。完成现有素材迁移并统一更新工作台与任务服务配置后，才能启用云端存储。', 'muted'));
+    const fields = [['bucket', '桶名称', 'canvas-media'], ['region', '地域', 'cn-beijing'], ['internal_endpoint', '服务端 Endpoint', 'https://tos-cn-beijing.volces.com'], ['public_endpoint', '浏览器 / 模型 Endpoint', 'https://tos-cn-beijing.volces.com']].map(([name, label, value]) => {
+      const control = field(name, label, data.config[name] || value);
+      control.querySelector('input').maxLength = 200; return control;
+    });
+    const secrets = [['access_key', 'Access Key'], ['secret_key', 'Secret Key'], ['security_token', 'STS Token（可选）']].map(([name, label]) => {
+      const control = field(name, label, '', 'password'), input = control.querySelector('input');
+      input.required = !data.credentials_configured && name !== 'security_token'; input.maxLength = name === 'security_token' ? 8192 : 256; input.autocomplete = 'new-password';
+      input.placeholder = data.credentials_configured ? '留空保留已保存凭证' : '仅加密保存，不会回显'; return control;
+    });
+    const help = el('p', '桶保持私有，并开启版本控制。AK/SK 需要该桶的上传、分片上传、对象及指定版本读取权限；检查还需要读取桶信息、版本控制、ACL 与桶策略的权限。修改 AK/SK 时会同时替换或清空 STS Token。', 'muted');
+    const results = el('div'); results.setAttribute('aria-live', 'polite');
+    const probe = button('检查已保存配置', async () => {
+      if (fields.concat(secrets).some(c => { const i = c.querySelector('input'); return i.value !== i.defaultValue; })) {
+        results.replaceChildren(el('p', '请先保存修改，再重新打开检查。', 'muted')); return;
+      }
+      results.replaceChildren(el('p', '正在检查，通常需要数秒…', 'muted'));
+      try { const result = await call('/api/storage/tos/probe', 'POST', {expected_version: data.version});
+        results.replaceChildren(table(['检查项', '结果', '说明'], result.checks.map(c => [c.name, {pass: '通过', fail: '需配置', unknown: '待核对'}[c.state], c.message])), el('p', result.note, 'muted'));
+      } catch(e) { results.replaceChildren(el('p', e.message, 'dialog-error')); }
+    });
+    probe.disabled = !data.version;
+    fields.concat(secrets).forEach(c => { const i = c.querySelector('input'); i.defaultValue = i.value; });
+    const grid = el('div', undefined, 'tos-fields'); grid.append(...fields, ...secrets);
+    dialog('TOS 配置与权限检查', [status, grid, help, probe, results], async form => {
+      const payload = Object.fromEntries(form.entries()); payload.expected_version = data.version;
+      await call('/api/storage/tos', 'PUT', payload);
+    }, '加密保存配置', true);
+  }
   async function roleView() {
+    if (!workspace && !allowed('role.manage') && allowed('maintenance.platform')) return [button('TOS 配置与权限检查', storageDialog)];
     if (!(workspace ? allowed('space.roles.manage') || allowed('space.members.manage') || me.permissions.includes('space.assign') : allowed('role.manage'))) return denied();
     const data = await api(scoped('/api/roles')), canEdit = allowed(workspace ? 'space.roles.manage' : 'role.manage');
     const toolbar = el('div', undefined, 'toolbar');
     function edit(r) { dialog(r ? '编辑自定义角色' : '创建自定义角色', [field('name', '角色名称', r?.name), el('p', '只能选择你有权授予的权限。', 'muted'), choices('permissions', data.catalog, r?.permissions)], f => call(scoped('/api/roles' + (r ? '/' + r.id : '')), r ? 'PATCH' : 'POST', {name: f.get('name'), permissions: f.getAll('permissions'), ...(r ? {expected_version: r.version} : {})})); }
     if (canEdit) toolbar.append(button('新增角色', () => edit(), 'primary'));
+    if (!workspace && me.permissions.includes('maintenance.platform')) toolbar.append(button('TOS 配置与权限检查', storageDialog));
     const rows = data.roles.map(r => [labelText(r.name, r.builtin_key ? '内置模板' : '自定义角色'), r.active ? '启用' : '已停用', r.permissions.length,
       actions(...(canEdit && r.active && !r.builtin_key && r.delegatable ? [button('编辑', () => edit(r)), button('停用', async () => {
         const impact = await api(scoped('/api/roles/' + r.id + '/impact'));
