@@ -93,6 +93,19 @@ class Input(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+class DatabaseConnectionSave(Input):
+    name: str = Field(min_length=1,max_length=100)
+    host: str = Field(min_length=1,max_length=253)
+    hostaddr: str = Field(default="",max_length=45)
+    port: int = Field(default=5432,ge=1,le=65535)
+    database: str = Field(min_length=1,max_length=63)
+    username: str = Field(min_length=1,max_length=63)
+    schema_name: str = Field(default="canvas_cloud",min_length=1,max_length=63)
+    password: str = Field(default="",max_length=1024)
+    ca_pem: str = Field(min_length=1,max_length=65536)
+    expected_version: int = Field(ge=0)
+
+
 class StorageSave(Input):
     bucket: str = Field(max_length=63)
     region: str = Field(max_length=40)
@@ -417,6 +430,31 @@ def create_app(static_dir=None):
     def task_review(task_id: str, request: Request, data: TaskReview, workspace: str):
         from app.services.task_reviews import review
         return review(actor(request), workspace, task_id, **data.model_dump())
+
+    @app.get('/api/database-connections')
+    def database_connections(request: Request):
+        from app.services.database_control import catalog
+        return catalog(actor(request))
+
+    @app.post('/api/database-connections')
+    def database_connection_create(request: Request, data: DatabaseConnectionSave):
+        from app.services.database_control import save
+        return save(actor(request),data.model_dump())
+
+    @app.put('/api/database-connections/{profile_id}')
+    def database_connection_save(profile_id: str,request: Request,data: DatabaseConnectionSave):
+        from app.services.database_control import save
+        return save(actor(request),data.model_dump(),profile_id)
+
+    @app.delete('/api/database-connections/{profile_id}')
+    def database_connection_delete(profile_id: str,request: Request,data: StorageProbe):
+        from app.services.database_control import remove
+        return remove(actor(request),profile_id,data.expected_version)
+
+    @app.post('/api/database-connections/{profile_id}/probe')
+    def database_connection_probe(profile_id: str,request: Request,data: StorageProbe):
+        from app.services.database_control import probe
+        return probe(actor(request),profile_id,data.expected_version)
 
     @app.get('/api/storage/tos')
     def storage_read(request: Request):

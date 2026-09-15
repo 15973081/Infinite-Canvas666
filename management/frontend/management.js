@@ -2,8 +2,13 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
-  const names = {overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  const names = {databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   const errors = {
+    invalid_database_config: '请检查数据库地址、端口和必填信息；地址只填主机名或 IP。',
+    invalid_database_certificate: '请粘贴有效的 PEM 格式 CA 证书，不要填写私钥。',
+    database_password_required: '首次创建连接需要填写密码。',
+    database_connection_changed: '连接配置已被修改，请刷新后重试。',
+    database_connection_not_found: '该连接已被删除，请刷新列表。',
     invalid_tos_config: '请检查桶名称与地域。',
     invalid_tos_endpoint: '请填写与地域一致的官方 TOS HTTPS Endpoint。',
     tos_credentials_required: '首次配置请填写 AK 和 SK；替换凭证时两者必须一起填写。',
@@ -138,7 +143,7 @@
     const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
+    const result = await ({databases: databaseView, overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
     if (stamp === serial) content.replaceChildren(...result);
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
@@ -258,6 +263,45 @@
       ...(me.permissions.includes('space.archive') ? [button(w.status === 'active' ? '归档' : '重新启用', () => dialog('更改空间状态', [el('p', `${w.name}：${w.status === 'active' ? '归档后成员将无法访问，已有数据保留' : '恢复成员访问'}。`)], () => call('/api/workspaces/' + w.id, 'PATCH', {archived: w.status === 'active'})))] : [])
     )]);
     return [toolbar, rows.length ? table(['空间', '说明', '状态', '操作'], rows) : el('div', '尚无可管理空间。', 'empty')];
+  }
+  async function databaseView() {
+    if (workspace || !me.permissions.includes('maintenance.platform')) return denied();
+    const data = await api('/api/database-connections');
+    const intro = el('section', undefined, 'card');
+    intro.append(el('h2', 'PostgreSQL 连接'), el('p', '集中管理连接信息，测试网络、账号及证书。'), el('p', '保存配置不会切换当前服务。删除仅移除连接配置，不会删除远端数据库或表。', 'muted'));
+    const toolbar = actions(button('新增连接', () => databaseEdit(), 'primary'), button('刷新', render));
+    const cards = el('div', undefined, 'database-grid');
+    for (const item of data.items) {
+      const card = el('section', undefined, 'card'), c = item.config, result = el('div', undefined, 'database-result');
+      result.setAttribute('aria-live', 'polite');
+      card.append(el('h2', c.name), el('p', c.host + ':' + c.port), el('p', c.database + ' / ' + c.schema_name + ' · ' + c.username, 'muted'), el('p', 'TLS 证书校验 · 密码已加密保存', 'muted'));
+      card.append(actions(button('查看', () => databaseDetails(item)), button('编辑', () => databaseEdit(item)), button('测试连接', async () => {
+        result.replaceChildren(el('p', '正在连接…'));
+        try { const r = await call('/api/database-connections/' + item.id + '/probe', 'POST', {expected_version:item.version});
+          result.replaceChildren(el('p', r.state === 'connected' ? '连接成功 · PostgreSQL ' + r.server_version + ' · ' + r.tls + ' · 可见表 ' + r.tables + ' 张' : r.message, r.state === 'connected' ? 'database-success' : 'dialog-error'));
+        } catch(e) { result.replaceChildren(el('p', e.message, 'dialog-error')); }
+      }), button('删除', () => dialog('删除连接配置', [el('p', '删除“' + c.name + '”的已保存连接信息？远端数据库和表保持不变。')], () => call('/api/database-connections/' + item.id, 'DELETE', {expected_version:item.version}), '删除配置'), 'danger')) , result);
+      cards.append(card);
+    }
+    if (!data.items.length) cards.append(el('div', '尚未添加数据库连接。点击“新增连接”开始配置。', 'empty'));
+    return [intro, toolbar, cards];
+  }
+  function databaseDetails(item) {
+    const c=item.config;
+    dialog('连接详情 · ' + c.name, [table(['配置项','值'], [['主机',c.host],['连接 IP（可选）',c.hostaddr || '使用 DNS 解析'],['端口',c.port],['数据库',c.database],['Schema',c.schema_name],['账号',c.username],['密码','已加密保存，不回显'],['TLS','verify-full：校验 CA 与主机名'],['更新时间',new Date(item.updated_at).toLocaleString()]] )],null,'确认保存',true);
+  }
+  function databaseEdit(item) {
+    const c=item?.config || {}, grid=el('div',undefined,'tos-fields');
+    const specs=[['name','连接名称',''],['host','数据库主机名',''],['port','端口','5432'],['database','数据库名','canvans'],['username','数据库账号',''],['schema_name','Schema','canvas_cloud'],['hostaddr','连接 IP（可选）','']];
+    specs.forEach(([name,label,value])=>{
+      const f=field(name,label,c[name] ?? value,name==='port' ? 'number':'text'), i=f.querySelector('input'); i.required=name!=='hostaddr'; i.maxLength=name==='host' ? 253 : name==='name' ? 100 : 63; if(name==='port'){i.min='1';i.max='65535';} grid.append(f);
+    });
+    const pw=field('password','数据库密码','','password'), pi=pw.querySelector('input'); pi.required=!item;pi.maxLength=1024;pi.autocomplete='new-password';pi.placeholder=item ? '留空保留原密码' : '仅加密保存，不会回显';grid.append(pw);
+    const ca=el('label','CA 证书（PEM）'), area=el('textarea');area.name='ca_pem';area.required=true;area.maxLength=65536;area.rows=5;area.value=c.ca_pem || '';area.placeholder='-----BEGIN CERTIFICATE-----';ca.append(area);
+    dialog(item ? '编辑数据库连接' : '新增数据库连接', [el('p','连接测试从管理服务器发起，请在数据库白名单中放行管理服务器的出口 IP。','muted'),grid,el('p','通常只需主机名；连接 IP 可留空。指定 IP 时仍按主机名验证证书。','muted'),ca], form=>{
+      const payload=Object.fromEntries(form.entries());payload.port=Number(payload.port);payload.expected_version=item?.version || 0;
+      return call('/api/database-connections' + (item ? '/' + item.id : ''),item ? 'PUT' : 'POST',payload);
+    },'保存连接',true);
   }
   async function storageDialog() {
     const data = await api('/api/storage/tos');

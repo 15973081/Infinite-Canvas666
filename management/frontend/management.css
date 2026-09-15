@@ -11,3 +11,5 @@ dialog.wide{width:min(1080px,92vw)}
 .tos-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
 .tos-fields label{margin:0}.tos-fields label:last-child{grid-column:1/-1}
 @media(max-width:640px){.tos-fields{grid-template-columns:1fr}}
+
+.database-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:18px;margin-top:18px}.database-grid .card{overflow-wrap:anywhere}.database-grid button{margin:0 6px 6px 0}.database-success{color:#17734a}.database-result{margin-top:12px}
