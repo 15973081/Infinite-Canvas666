@@ -6454,7 +6454,7 @@ function restoreOutputScrolls(state){
     });
 }
 function isNodeControl(target){
-    return !!target.closest('textarea, input, select, option, button, audio, video, [contenteditable="true"], .seg, .gen-btn, .comfy-run, .input-item, .blank-image, .mode-tabs, .ms-model-tabs, .llm-provider, .llm-output, .llm-chat-log, .llm-bubble, .llm-pane-resizer, .loop-preview, .ltx-director-timeline-host, .pr-wrapper, .pr-toolbar, .pr-viewport, .pr-canvas, .pr-player-controls, .pr-prompt-area');
+    return !!target.closest('textarea, input, select, option, button, summary, audio, video, [contenteditable="true"], .seg, .gen-btn, .comfy-run, .input-item, .blank-image, .mode-tabs, .ms-model-tabs, .llm-provider, .llm-output, .llm-chat-log, .llm-bubble, .llm-pane-resizer, .loop-preview, .ltx-director-timeline-host, .pr-wrapper, .pr-toolbar, .pr-viewport, .pr-canvas, .pr-player-controls, .pr-prompt-area');
 }
 function destroyLTXEditor(node){
     if(!node?._ltxEditor) return;
@@ -6488,7 +6488,8 @@ function renderNode(node){
     normalizeApiNodeLayout(node);
     const el = document.createElement('div');
     const nodeMediaKind = node.type === 'image' && node.url ? mediaKindForNode(node) : '';
-    const size = nodeMediaKind === 'audio' ? {w:280, h:204} : defaultNodeSize(node.type);
+    const size = nodeMediaKind === 'audio' ? {w:280, h:204}
+        : nodeMediaKind === 'image' && !node.h ? {w:260, h:0} : defaultNodeSize(node.type);
     const hasFixedSize = Boolean(node.h || size.h);
     const faceVerified = node.type === 'image' && canvasAssetUrisFaceVerified(node.asset_uris);
     const faceVerifying = node.type === 'image' && !faceVerified && node.face_auth_status === 'Processing';
@@ -6513,7 +6514,7 @@ function renderNode(node){
         if(node.type === 'output') openOutputNodeMenu(node.id, e.clientX, e.clientY);
         else openGeneratorNodeMenu(node.id, e.clientX, e.clientY);
     };
-    const title = node.type === 'image' ? 'Image' : node.type === 'prompt' ? 'Prompt' : node.type === 'loop' ? tr('canvas.loopNode') : node.type === 'promptGroup' ? 'Prompts' : node.type === 'group' ? 'Group' : node.type === 'output' ? 'Output' : node.type === 'llm' ? 'LLM' : node.type === 'comfy' ? 'ComfyUI' : node.type === 'ltxDirector' ? tr('canvas.ltxDirector') : node.type === 'msgen' ? tr('canvas.modelscopeGenerate') : node.type === 'video' ? tr('canvas.videoGenerateNode') : tr('canvas.apiGenerate');
+    const title = node.type === 'image' ? 'Image' : node.type === 'prompt' ? (langIsEn() ? 'Prompt' : '提示词') : node.type === 'loop' ? tr('canvas.loopNode') : node.type === 'promptGroup' ? 'Prompts' : node.type === 'group' ? 'Group' : node.type === 'output' ? 'Output' : node.type === 'llm' ? 'LLM' : node.type === 'comfy' ? 'ComfyUI' : node.type === 'ltxDirector' ? tr('canvas.ltxDirector') : node.type === 'msgen' ? tr('canvas.modelscopeGenerate') : node.type === 'video' ? tr('canvas.videoGenerateNode') : tr('canvas.apiGenerate');
     const displayTitle = node.type === 'image' && node.url ? nodeTitleForMedia(node) : title;
     // 失败徽章只在一键运行模式中显示，单节点失败已通过 alert 提示
     const showStatus = ['generator','msgen','comfy','ltxDirector','llm','video'].includes(node.type) && node.runStatus
@@ -6522,7 +6523,7 @@ function renderNode(node){
         const label = { queued:'排队中', running:'运行中', done:'完成', failed:'失败' }[node.runStatus] || '';
         return `<span class="node-run-status ${node.runStatus}"><span class="dot"></span>${escapeHtml(label)}${node._cascadeIdx?' '+node._cascadeIdx:''}</span>`;
     })() : '';
-    el.innerHTML = `<div class="node-head"><span class="node-title">${displayTitle}</span><div style="display:flex;align-items:center;gap:8px">${statusHtml}<button onclick="deleteNodeFromButton('${node.id}', event)" class="text-gray-300 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button></div></div>`;
+    el.innerHTML = `<div class="node-head"><span class="node-title">${displayTitle}</span><div class="node-head-actions">${statusHtml}<button type="button" title="${langIsEn() ? 'Delete node' : '删除节点'}" aria-label="${langIsEn() ? 'Delete node' : '删除节点'}" onclick="deleteNodeFromButton('${node.id}', event)" class="node-delete-btn text-gray-300 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button></div></div>`;
     const body = document.createElement('div');
     body.className = 'node-body';
     if(node.type === 'image') {
@@ -6530,14 +6531,14 @@ function renderNode(node){
             const missing = isMissingAssetUrl(node.url);
             const mediaKind = nodeMediaKind;
             const isEditableImage = mediaKind === 'image' && !missing;
-            body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="true"')}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || 'image')}${missing ? ` · ${langIsEn() ? 'missing' : '文件缺失'}` : ''}</div>`;
+            body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="true"')}</div><div class="image-caption text-[11px] text-gray-400 truncate" title="${escapeAttr(node.name || nodeTitleForMedia(node))}">${escapeHtml(node.name || 'image')}${missing ? ` · ${langIsEn() ? 'missing' : '文件缺失'}` : ''}</div>`;
             if(!missing && mediaKind !== 'image'){
                 const mediaHtml = mediaKind === 'video'
                     ? `<div class="media-card video-card">${canvasVideoPreviewHtml(node.url, 768, 'draggable="false"')}<button class="canvas-video-play" type="button" title="打开视频灯箱" aria-label="打开视频灯箱"><i data-lucide="play"></i></button></div>`
                     : `<div class="media-card audio-card"><div class="audio-card-copy"><div class="audio-title" title="${escapeAttr(node.name || 'Audio')}">${escapeHtml(node.name || 'Audio')}</div><div class="audio-meta">${escapeHtml(audioFormatLabel(node.name, node.url))} · 音频素材</div></div><div class="audio-player-row"><button class="audio-card-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button>${audioWaveformSvg()}</div></div>`;
                 body.innerHTML = mediaKind === 'audio'
                     ? `<div class="image-preview-wrap">${mediaHtml}</div>`
-                    : `<div class="image-preview-wrap">${mediaHtml}</div><div class="image-caption text-[11px] text-gray-400 truncate">${escapeHtml(node.name || nodeTitleForMedia(node))}</div>`;
+                    : `<div class="image-preview-wrap">${mediaHtml}</div><div class="image-caption text-[11px] text-gray-400 truncate" title="${escapeAttr(node.name || nodeTitleForMedia(node))}">${escapeHtml(node.name || nodeTitleForMedia(node))}</div>`;
             }
             const previewWrap = body.querySelector('.image-preview-wrap');
             const loadedImg = body.querySelector('img');
@@ -6616,9 +6617,10 @@ function renderNode(node){
     }
     if(node.type === 'prompt') {
         const templateActive = promptTemplateModal?.classList.contains('open') && promptTemplateNodeId === node.id;
-        body.innerHTML = `<div class="prompt-editor"><div class="prompt-toolbar"><button class="prompt-template-btn ${templateActive ? 'active' : ''}" type="button" data-prompt-template-open data-prompt-template-node-id="${escapeAttr(node.id)}" aria-pressed="${templateActive ? 'true' : 'false'}" title="${escapeAttr(tr('canvas.promptTemplateLibrary'))}"><i data-lucide="library"></i><span>${escapeHtml(tr('canvas.promptTemplateShort'))}</span></button>${promptCounterHtml(node.text || '')}</div><textarea placeholder="${tr('canvas.promptPlaceholder')}">${escapeHtml(node.text || '')}</textarea></div>`;
+        el.querySelector('.node-head-actions').insertAdjacentHTML('afterbegin', `<button class="prompt-template-btn ${templateActive ? 'active' : ''}" type="button" data-prompt-template-open data-prompt-template-node-id="${escapeAttr(node.id)}" aria-pressed="${templateActive ? 'true' : 'false'}" title="${escapeAttr(tr('canvas.promptTemplateLibrary'))}"><i data-lucide="library"></i><span>${escapeHtml(tr('canvas.promptTemplateShort'))}</span></button>`);
+        body.innerHTML = `<div class="prompt-editor"><textarea aria-label="${langIsEn() ? 'Prompt' : '提示词'}" placeholder="${tr('canvas.promptPlaceholder')}">${escapeHtml(node.text || '')}</textarea>${promptCounterHtml(node.text || '')}</div>`;
         const textarea = body.querySelector('textarea');
-        const templateBtn = body.querySelector('[data-prompt-template-open]');
+        const templateBtn = el.querySelector('[data-prompt-template-open]');
         templateBtn.onclick = e => {
             e.preventDefault();
             e.stopPropagation();
@@ -7099,6 +7101,7 @@ function refreshPromptCounter(container, text){
     if(!counter) return;
     const count = promptTextLength(text);
     counter.classList.toggle('over', count > PROMPT_TEXT_MAX_LENGTH);
+    counter.classList.toggle('near-limit', count >= PROMPT_TEXT_MAX_LENGTH * 0.9);
     counter.innerHTML = `<span>${count.toLocaleString()}</span><span>/ ${PROMPT_TEXT_MAX_LENGTH.toLocaleString()}</span>`;
 }
 function canvasAssetLibraries(){
@@ -8838,6 +8841,73 @@ function labelGenerationControls(wrap){
         }
     });
 }
+const generationSettingsOpen = new WeakMap();
+function generationSettingsSummary(wrap){
+    const label = selector => {
+        const control = wrap.querySelector(selector);
+        if(!control) return '';
+        return control.tagName === 'SELECT' ? (control.selectedOptions[0]?.textContent || '').trim()
+            : String(control.value ?? '').trim();
+    };
+    const model = label('.video-model,.model-select');
+    const provider = label('.video-provider,.provider-select');
+    const values = [];
+    const duration = label('.video-duration');
+    if(duration) values.push(duration === '-1' ? '自动时长' : duration + ' 秒');
+    let aspect = label('.video-aspect,.ratio');
+    if(wrap.querySelector('.ratio')?.value === 'custom'){
+        const width = label('.custom-ratio-w-input'), height = label('.custom-ratio-h-input');
+        if(width && height) aspect = width + ':' + height;
+    }
+    if(aspect) values.push(aspect);
+    let resolution = label('.video-resolution,.resolution');
+    if(wrap.querySelector('.resolution')?.value === 'custom'){
+        const width = label('.custom-w-input'), height = label('.custom-h-input');
+        if(width && height) resolution = width + ' × ' + height;
+    }
+    if(resolution) values.push(resolution);
+    const quality = label('.quality-select');
+    if(quality) values.push('质量 ' + quality);
+    const count = label('.gen-count-input');
+    if(count) values.push(count + ' 张');
+    const mode = label('.video-task-mode');
+    if(mode) values.push(mode);
+    // Reflect the controls as they are; a summary never assigns generation defaults.
+    return {title:[model, provider].filter(Boolean).join(' · ') || '选择模型与供应商',
+        detail:values.join(' · ')};
+}
+function attachGenerationSettingsDisclosure(wrap, node){
+    const settings = wrap.querySelector('.gen-settings');
+    if(!settings) return;
+    const details = document.createElement('details');
+    details.className = 'generation-settings-disclosure';
+    details.open = generationSettingsOpen.get(node) === true;
+    const summary = document.createElement('summary');
+    summary.innerHTML = '<span class="generation-settings-copy"><span class="generation-settings-caption">生成设置</span><span class="generation-settings-model"></span><span class="generation-settings-meta"></span></span><span class="generation-settings-chevron" aria-hidden="true"></span>';
+    settings.replaceWith(details);
+    details.append(summary, settings);
+    const refresh = () => {
+        const current = generationSettingsSummary(settings);
+        summary.querySelector('.generation-settings-model').textContent = current.title;
+        summary.querySelector('.generation-settings-meta').textContent = current.detail;
+        summary.title = [current.title, current.detail, '点击展开或收起设置'].filter(Boolean).join(' · ');
+    };
+    settings.querySelectorAll('input,select,button').forEach(control => {
+        control.addEventListener('input', refresh);
+        control.addEventListener('change', refresh);
+        control.addEventListener('click', refresh);
+        control.addEventListener('blur', refresh);
+    });
+    summary.onmousedown = event => event.stopPropagation();
+    summary.onclick = event => event.stopPropagation();
+    details.ontoggle = () => {
+        generationSettingsOpen.set(node, details.open);
+        scheduleGeometryRefresh();
+        scheduleMinimapRender();
+    };
+    refresh();
+}
+
 function renderGeneratorBody(node){
     const wrap = document.createElement('div');
     wrap.className = 'generator-body generation-node-body';
@@ -8847,11 +8917,10 @@ function renderGeneratorBody(node){
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
     sanitizeImageNodeProviderModel(node);
     wrap.innerHTML = `
-        <div class="generation-section-title"><span>01</span> 提示词</div>
+        <div class="generation-section-title">提示词</div>
         <div class="prompt-list mb-3"></div>
-        <div class="generation-section-title"><span>02</span> 输入素材</div>
+        <div class="generation-section-title">输入素材</div>
         <div class="input-list"></div>
-        <div class="generation-section-title"><span>03</span> 生成设置</div>
         <div class="gen-settings">
             <div class="gen-settings-row">
                 <select class="select-lite provider-select">${providerOptions(node.apiProvider)}</select>
@@ -9136,6 +9205,7 @@ function renderGeneratorBody(node){
     wrap.querySelector('.gen-btn').onclick = e => { e.stopPropagation(); runCanvasGenerate(node.id); };
     bindCascadeButtons(wrap, node.id);
     labelGenerationControls(wrap);
+    attachGenerationSettingsDisclosure(wrap, node);
     return wrap;
 }
 function renderVideoBody(node){
@@ -9152,11 +9222,10 @@ function renderVideoBody(node){
     if(isVolcengineVideoNode) node.useFrameRoles = false;
     node.model = node.model || 'veo3-fast';
     wrap.innerHTML = `
-        <div class="generation-section-title"><span>01</span> 提示词</div>
+        <div class="generation-section-title">提示词</div>
         <div class="prompt-list mb-3"></div>
-        <div class="generation-section-title"><span>02</span> 输入素材</div>
+        <div class="generation-section-title">输入素材</div>
         <div class="input-list video-img-list"></div>
-        <div class="generation-section-title"><span>03</span> 生成设置</div>
         <div class="gen-settings">
             <div class="gen-settings-row">
                 <select class="select-lite video-provider" style="flex:1">${videoProviderOptions(node.apiProvider)}</select>
@@ -9264,6 +9333,7 @@ function renderVideoBody(node){
     wrap.querySelector('.gen-btn').onclick = e => { e.stopPropagation(); runCanvasGenerate(node.id); };
     bindCascadeButtons(wrap, node.id);
     labelGenerationControls(wrap);
+    attachGenerationSettingsDisclosure(wrap, node);
     return wrap;
 }
 const canvasInputViewCache = new WeakMap();
@@ -9389,7 +9459,7 @@ function renderVideoImageInputs(list, node, imageInputs){
             item.dataset.referenceLabel = referenceLabel;
             item.draggable = false;
             const unavailable = isMissingAssetUrl(ref.url) || String(ref.url).startsWith('asset://');
-            const referenceButton = `<button type="button" class="media-reference-label" title="复制提示词引用：${referenceLabel}" aria-label="复制${referenceLabel}">${referenceLabel}</button>`;
+            const referenceButton = `<button type="button" class="media-reference-label" title="复制提示词引用：${referenceLabel}；拖动素材可调整同类顺序" aria-label="复制${referenceLabel}">${referenceLabel}</button>`;
             const name = `<span class="media-reference-name" title="${escapeAttr(label)}">${escapeHtml(label)}</span>`;
             const previewButton = `<button type="button" class="media-reference-preview" title="${unavailable ? '该素材暂不支持预览' : `预览${referenceLabel}`}" aria-label="预览${referenceLabel}" ${unavailable ? 'disabled' : ''}><i data-lucide="${kind === 'image' ? 'maximize-2' : 'play'}"></i></button>`;
             if(kind === 'audio'){
@@ -9438,7 +9508,9 @@ function renderVideoImageInputs(list, node, imageInputs){
     hint.textContent = manualVideoUrlForNode(node)
         ? '手动网址作为视频1，替代连入的视频。点击编号复制引用。'
         : '各类独立编号 · 点击编号复制 · 拖动调整同类顺序';
-    list.appendChild(hint);
+    list.title = hint.textContent;
+    // A manually supplied URL changes the input meaning, so retain that status.
+    if(manualVideoUrlForNode(node)) list.appendChild(hint);
     refreshIcons();
     rememberCanvasInputView(list, node, signature);
 }
@@ -14870,7 +14942,7 @@ window.onload = async () => {
 function promptCounterHtml(text){
     const count = promptTextLength(text);
     const over = count > PROMPT_TEXT_MAX_LENGTH;
-    return `<div class="prompt-counter ${over ? 'over' : ''}"><span>${count.toLocaleString()}</span><span>/ ${PROMPT_TEXT_MAX_LENGTH.toLocaleString()}</span></div>`;
+    return `<div class="prompt-counter ${over ? 'over' : ''} ${count >= PROMPT_TEXT_MAX_LENGTH * 0.9 ? 'near-limit' : ''}"><span>${count.toLocaleString()}</span><span>/ ${PROMPT_TEXT_MAX_LENGTH.toLocaleString()}</span></div>`;
 }
 
 function retryBarHtml(node){

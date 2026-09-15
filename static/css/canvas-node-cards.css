@@ -1,0 +1,60 @@
+/* Content-first classic canvas cards. Manual node sizes remain user-controlled. */
+.shell .node .node-head{padding:11px 13px;min-height:42px}
+.shell .node .node-title{font-size:11px;font-weight:600;letter-spacing:.04em}
+.node-head-actions{display:flex;align-items:center;gap:8px;min-width:0}
+.node-delete-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:0 0 24px;border-radius:7px;opacity:0;pointer-events:none;transition:opacity .14s ease}
+.node:hover .node-delete-btn,.node:focus-within .node-delete-btn{opacity:1;pointer-events:auto}
+.node-delete-btn:focus-visible,.link-delete:focus-visible{outline:2px solid var(--muted);outline-offset:3px}
+.shell .link-delete.visible{opacity:0;pointer-events:none}
+.shell .link-delete.hover,.shell .link-delete:hover,.shell .link-delete:focus,.shell .link-delete:focus-visible{opacity:1;pointer-events:auto}
+
+.shell .image-node.has-image .node-body{display:flex;flex-direction:column;gap:7px;padding:9px 10px 10px}
+.shell .image-node:not(.sized) .image-preview-wrap{flex:none;min-height:0}
+.shell .image-node:not(.sized) .image-preview-wrap>img{height:auto;max-height:none;flex:none;object-fit:contain;border-radius:11px;background:transparent!important}
+.shell .image-node .image-caption{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;color:var(--faint)!important;font-size:10px;line-height:15px}
+.shell .image-node.sized .image-preview-wrap>img{border-radius:11px}
+
+.shell .prompt-node .node-title{text-transform:none;font-size:12px;font-weight:500;letter-spacing:0}
+.shell .prompt-node .node-head{border-bottom-color:transparent!important}
+.shell .prompt-node .node-body{padding:0 12px 12px}
+.shell .prompt-node .prompt-template-btn{border-color:transparent;background:transparent;box-shadow:none;font-weight:500;font-size:10px}
+.shell .prompt-node .prompt-template-btn.active,.shell .prompt-node .prompt-template-btn:hover,.shell .prompt-node .prompt-template-btn:focus-visible{background:var(--soft-2);color:var(--text)}
+.shell .prompt-node .prompt-editor{position:relative;gap:0}
+.shell .prompt-node textarea{border-radius:11px;padding:11px 12px 28px;font-size:12px;line-height:1.65}
+.shell .prompt-node .prompt-counter{position:absolute;right:10px;bottom:8px;font-size:9px;font-weight:500;opacity:0;pointer-events:none;padding:2px 4px;border-radius:4px;background:var(--card-solid)}
+.shell .prompt-node .prompt-editor:focus-within .prompt-counter,.shell .prompt-node .prompt-counter.near-limit{opacity:1}
+
+.shell .generation-node-body .generation-section-title{margin:12px 0 7px;font-size:10px;font-weight:500;color:var(--muted)}
+.shell .generation-node-body .generation-section-title:first-child{margin-top:0}
+.shell .generation-node-body .prompt-list:empty::after{content:'未连接提示词';border:0;border-radius:0;padding:3px 0 5px;font-size:11px}
+.shell .node .node-body .generation-node-body .prompt-list>div{border:0!important;background:transparent!important;padding:2px 0!important;border-radius:0!important;font-size:11px;line-height:1.6}
+.shell .generation-node-body .input-list.media-input-groups{gap:9px;padding:0 0 2px}
+.shell .generation-node-body .media-input-group-head{font-size:10px;font-weight:500;margin-bottom:5px}
+.shell .generation-node-body .media-input-group-head>span{padding:0 3px;background:transparent;color:var(--faint)}
+.shell .generation-node-body .media-input-items{gap:8px}
+.shell .generation-node-body .media-reference-item:not(.media-reference-audio){width:72px;gap:3px;background:transparent!important;border:0!important}
+.shell .generation-node-body .media-reference-thumb{height:58px;border-radius:8px}
+.shell .generation-node-body .media-reference-name{font-size:9px;line-height:14px;color:var(--faint)}
+.shell .generation-node-body .media-reference-label{font-size:9px;padding:0 4px;line-height:17px;border-radius:5px}
+.shell .generation-node-body .media-reference-thumb .media-reference-preview{opacity:0;pointer-events:none;transition:opacity .14s ease}
+.shell .generation-node-body .media-reference-item:hover .media-reference-preview,.shell .generation-node-body .media-reference-item:focus-within .media-reference-preview{opacity:1;pointer-events:auto}
+.shell .generation-node-body .media-input-hint{font-size:10px;line-height:1.5;margin:3px 0 0}
+
+.generation-settings-disclosure{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;flex-shrink:0;min-width:0}
+.generation-settings-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;cursor:pointer;border-radius:8px;padding:2px 0;user-select:none}
+.generation-settings-disclosure>summary::-webkit-details-marker{display:none}
+.generation-settings-disclosure>summary:focus-visible{outline:2px solid var(--muted);outline-offset:4px}
+.generation-settings-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.generation-settings-caption{font-size:10px;color:var(--muted);font-weight:500}
+.generation-settings-model{font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.generation-settings-meta{font-size:10px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
+.generation-settings-meta:empty{display:none}
+.generation-settings-chevron{width:7px;height:7px;flex:0 0 7px;margin-right:4px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg);transition:transform .15s ease}
+.generation-settings-disclosure[open] .generation-settings-chevron{transform:rotate(225deg)}
+.shell .generation-node-body .generation-settings-disclosure .gen-settings{margin:12px 0 0;padding:0;border:0!important;background:transparent!important;box-shadow:none}
+.shell .generation-node-body .gen-run-row{margin-top:14px!important}
+@media(hover:none){
+    .node.selected .node-delete-btn,.shell .link-delete.visible{opacity:1;pointer-events:auto}
+    .shell .generation-node-body .media-reference-thumb .media-reference-preview{opacity:1;pointer-events:auto}
+}
+@media(prefers-reduced-motion:reduce){.node-delete-btn,.generation-settings-chevron,.media-reference-preview{transition:none!important}}
