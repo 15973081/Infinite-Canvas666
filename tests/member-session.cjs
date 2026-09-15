@@ -8,6 +8,11 @@ class Node {
     constructor(tag) { this.tag = tag; this.children = []; this.events = {}; this.classList = {add(){},remove(){}}; }
     append(...nodes) { for (const node of nodes) { this.children.push(node); if (node && typeof node === 'object') node.parent = this; } }
     setAttribute() {}
+    removeAttribute() {}
+    focus() {}
+    contains(target) { return target===this || this.children.some(child=>child.contains?.(target)); }
+    querySelectorAll(selector) { return this.children.flatMap(child=>[...(selector==='button' && child.tag==='button' ? [child] : []),...(child.querySelectorAll?.(selector)||[])]); }
+    querySelector() { return null; }
     addEventListener(name, fn) { this.events[name] = fn; }
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); }
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
@@ -17,8 +22,8 @@ function harness({member='alice', selected='space_a', parent, search='', failBus
     if (selected) store.set('canvas:workspace:' + member, selected);
     const spaces = [{id:'space_a',name:'A',permissions:['canvas.read']},{id:'space_b',name:'B',permissions:['canvas.edit']}];
     const location = {href:'http://localhost/static/canvas.html' + search, origin:'http://localhost',host:'localhost',pathname:'/static/canvas.html',search,replace(){},assign(){},reload(){}};
-    const document = {readyState:'complete',body,documentElement:new Node('html'),createElement(tag){const node = new Node(tag);nodes.push(node);return node;}, querySelectorAll(){return [];}};
-    const window = {location,document,events:{},addEventListener(name,fn){this.events[name]=fn;},dispatchEvent(){},alert(){},fetch:async (url,init={}) => {
+    const document = {addEventListener(){},removeEventListener(){},readyState:'complete',body,documentElement:new Node('html'),createElement(tag){const node = new Node(tag);nodes.push(node);return node;}, querySelectorAll(){return [];}};
+    const window = {location,document,events:{},addEventListener(name,fn){this.events[name]=fn;},removeEventListener(){},dispatchEvent(){},alert(){},fetch:async (url,init={}) => {
         calls.push({url:String(url),init});
         const path = new URL(url instanceof Request ? url.url : String(url),location.href).pathname;
         if (path === '/api/auth/status') return Response.json({authenticated:true,mode:'members',member:{id:member,display_name:member,avatar:''}});
@@ -86,4 +91,20 @@ test('account mismatch response pauses later calls without erasing the page', as
     await assert.rejects(h.window.fetch('/api/canvases',{method:'PUT'}),/暂停/);
     assert.equal(h.calls.length,count);
     assert.ok(h.nodes.some(n=>n.className==='member-session-banner'));
+});
+
+test('space dropdown preserves the page until saving succeeds and drops old canvas IDs',async()=>{
+    const h=harness({search:'?workspace=space_a&id=old&canvas_id=old'});await h.window.CanvasSession.ready;
+    let destination='',saves=0;
+    h.window.location.assign=value=>destination=value;
+    h.window.FrontendVersion={flushPages:async()=>{saves++;return false;}};
+    const menu=h.nodes.find(n=>n.className==='member-session-spaces');
+    menu.open=true;menu.events.toggle();await settle();
+    assert.equal(h.nodes.some(n=>n.className==='member-session-panel'),false);
+    const options=h.nodes.filter(n=>n.className==='member-space-option');
+    await options[0].events.click();assert.equal(saves,0);assert.equal(destination,'');
+    await options[1].events.click();assert.equal(destination,'');assert.equal(h.store.get('canvas:workspace:alice'),'space_a');
+    assert.match(h.nodes.find(n=>n.className==='member-space-message').textContent,/保存尚未完成/);
+    h.window.FrontendVersion.flushPages=async()=>true;
+    await options[1].events.click();assert.equal(destination,'/static/canvas.html?workspace=space_b');
 });

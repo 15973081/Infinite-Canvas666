@@ -132,18 +132,75 @@
             } catch (error) { message.textContent = error.message; submit.disabled = false; }
         });
     }
+    function createSpaceMenu() {
+        const menu=element('details',undefined,'member-session-spaces');
+        const summary=element('summary',undefined,'member-session-space');
+        summary.title='切换工作空间'; summary.setAttribute('aria-label','切换工作空间');
+        summary.append(element('span',context.workspace.name));
+        const dropdown=element('div',undefined,'member-space-menu');
+        const heading=element('strong','工作空间'), list=element('div',undefined,'member-space-list');
+        const message=element('p','', 'member-space-message'); message.setAttribute('role','status');
+        let loading=false, switching=false;
+        const close=() => {menu.open=false;};
+        const refresh=button('刷新空间列表',async () => load());
+        async function load(){
+            if(loading || switching) return;
+            loading=true; refresh.disabled=true; message.textContent='正在加载…';
+            try {
+                const data=await json('/api/auth/workspaces',{headers:{'X-Member-ID':context.member.id}});
+                list.replaceChildren();
+                for(const workspace of data.workspaces){
+                    const current=workspace.id===context.workspace.id;
+                    const item=button('',async () => {
+                        if(switching) return;
+                        if(current){close();summary.focus();return;}
+                        switching=true; refresh.disabled=true;
+                        for(const choice of list.querySelectorAll('button')) choice.disabled=true;
+                        message.textContent='正在保存并切换…';
+                        try {
+                            if(!await flushPages()) throw new Error('当前画布保存尚未完成，请处理后再切换空间。');
+                            const target=new URL(location.href);target.searchParams.set('workspace',workspace.id);
+                            target.searchParams.delete('id');target.searchParams.delete('canvas_id');
+                            try {sessionStorage.setItem('canvas:workspace:'+context.member.id,workspace.id);} catch(_) {}
+                            location.assign(target.pathname+target.search);
+                        } catch(error){
+                            message.textContent=error.message; switching=false;refresh.disabled=false;
+                            for(const choice of list.querySelectorAll('button')) choice.disabled=false;
+                        }
+                    });
+                    item.className='member-space-option';
+                    item.setAttribute('aria-current',current ? 'true' : 'false');
+                    const copy=element('span',undefined,'member-space-copy');
+                    copy.append(element('span',workspace.name));
+                    const description=workspace.description || (workspace.permissions.includes('canvas.edit') ? '可编辑' : '查看空间');
+                    const detail=element('small',description);detail.title=description;copy.append(detail);
+                    item.append(copy);
+                    if(current) item.append(element('span','✓','member-space-check'));
+                    list.append(item);
+                }
+                message.textContent=data.workspaces.length ? '' : '暂未分配空间，请联系管理员。';
+            } catch(error){message.textContent=error.message;}
+            finally {loading=false;refresh.disabled=false;}
+        }
+        const outside=event => {if(!menu.contains(event.target)) close();};
+        const escape=event => {if(event.key==='Escape'){close();summary.focus();}};
+        menu.addEventListener('toggle',() => {
+            if(menu.open){
+                bar?.querySelector('.member-session-account')?.removeAttribute('open');
+                void load();document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape,true);window.addEventListener('blur',close);
+            } else {
+                document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape,true);window.removeEventListener('blur',close);
+            }
+        });
+        dropdown.append(heading,list,message,refresh);menu.append(summary,dropdown);return menu;
+    }
     function renderBar() {
         bar?.remove();
         if (window.parent !== window && window.parent.CanvasSession?.enabled) return;
         bar = element('nav', undefined, 'member-session-bar'); bar.setAttribute('aria-label', '成员与空间');
         document.documentElement.classList.add('member-workspace-shell');
         const brand=element('span','无限画布','member-session-brand');
-        const space=button('', async () => {
-            try { await choose(context.member, (await json('/api/auth/workspaces', {headers:{'X-Member-ID':context.member.id}})).workspaces); }
-            catch (error) { await pause(error.message); }
-        });
-        space.append(element('span',context.workspace.name));
-        space.className='member-session-space'; space.title='切换工作空间';
+        const space=createSpaceMenu();
         const account=element('details',undefined,'member-session-account');
         const summary=element('summary'); summary.setAttribute('aria-label','账号：'+context.member.display_name);
         const avatar=element('span',Array.from(context.member.display_name || '成员')[0],'member-session-avatar');
