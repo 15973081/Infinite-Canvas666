@@ -386,7 +386,7 @@ def extract_canvas_assets(canvas):
             items.append(item)
     return items
 
-def canvas_assets_index():
+def canvas_assets_index(managed=True, trash=False):
     canvases = []
     items = []
     canvas_counts = {"all": 0, "smart": 0, "classic": 0}
@@ -412,7 +412,11 @@ def canvas_assets_index():
         {"id": "smart", "name": "智能画布", "count": item_counts.get("smart", 0), "canvas_count": canvas_counts.get("smart", 0)},
         {"id": "classic", "name": "普通画布", "count": item_counts.get("classic", 0), "canvas_count": canvas_counts.get("classic", 0)},
     ]
-    return {"categories": categories, "canvases": canvases, "items": items}
+    result = {"categories": categories, "canvases": canvases, "items": items}
+    if managed and postgres_enabled():
+        from app.services.canvas_asset_catalog import decorate
+        return decorate(result, trash)
+    return result
 
 def display_title(text):
     title = re.sub(r"\s+", " ", text or "").strip()

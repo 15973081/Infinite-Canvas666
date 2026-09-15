@@ -103,6 +103,12 @@ def permissions(path, method):
         return ('asset.manage',)
     if path.startswith('/api/prompt-libraries'):
         return ('canvas.read',) if method == 'GET' else ('prompt.manage',) if method in {'POST', 'PATCH', 'DELETE'} else None
+    if path == '/api/canvas-assets/references' and method == 'POST':
+        return ('asset.read', 'canvas.read')
+    if path == '/api/canvas-assets/catalog' and method == 'POST':
+        return ('asset.manage', 'asset.read', 'canvas.read')
+    if path.startswith('/api/canvas-assets/references/') and method == 'GET':
+        return ('asset.read', 'canvas.read')
     if path == '/api/canvas-assets' and method == 'GET':
         return ('asset.read', 'canvas.read')
     if path == '/api/smart-canvas/prompt-templates' and method == 'GET':
@@ -140,7 +146,7 @@ def operation(path, method):
         return 'observe', None  # Lease handlers enforce maintenance inside their transaction.
     if path in {'/api/maintenance/status', '/ws/stats'} or re.fullmatch(r'/ws/canvases/[^/]+', path):
         return 'observe', None
-    if method in {'GET', 'HEAD'} or path in {'/api/canvas-assets/check', '/api/canvas-assets/download', '/api/canvas-workflows/export', '/api/smart-canvas/group-export'}:
+    if method in {'GET', 'HEAD'} or path in {'/api/canvas-assets/references', '/api/canvas-assets/check', '/api/canvas-assets/download', '/api/canvas-workflows/export', '/api/smart-canvas/group-export'}:
         return 'read', None
     upload = re.fullmatch(r'/api/media/uploads/(ast_[a-f0-9]{32})(?:/parts/[0-9]+(?:/complete)?|/complete)?', path)
     if upload:

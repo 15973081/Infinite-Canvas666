@@ -73,11 +73,11 @@ class AssetManagerLazyLoadingTest(unittest.TestCase):
 
     def test_canvas_asset_scan_runs_off_event_loop(self):
         router = CANVAS_ROUTER.read_text(encoding="utf-8")
-        route_start = router.index('async def list_canvas_assets():')
+        route_start = router.index('async def list_canvas_assets(')
         route_end = router.index('@router.', route_start + 1)
         route = router[route_start:route_end]
 
-        self.assertIn("await asyncio.to_thread(canvas_assets_index)", route)
+        self.assertIn("await asyncio.to_thread(canvas_assets_index, trash=trash)", route)
 
 
 if __name__ == "__main__":

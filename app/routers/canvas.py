@@ -1069,8 +1069,8 @@ async def touch_canvas(canvas_id: str):
     return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
 @router.get("/api/canvas-assets")
-async def list_canvas_assets():
-    return await asyncio.to_thread(canvas_assets_index)
+async def list_canvas_assets(trash: bool = False):
+    return await asyncio.to_thread(canvas_assets_index, trash=trash)
 
 @router.get("/api/smart-canvas/prompt-templates")
 async def smart_canvas_prompt_templates():
@@ -1575,3 +1575,34 @@ def list_completed_canvas_results(canvas_id: str, after: str = ''):
 def join_completed_canvas_result(canvas_id: str, task_id: str):
     from app.services.canvas_task_results import join
     return join(canvas_id, task_id)
+
+from pydantic import BaseModel, Field, ConfigDict
+class CatalogSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: str = Field(min_length=1,max_length=80)
+    version: int = Field(ge=0)
+class CatalogMutation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    action: str
+    items: list[CatalogSelection] = Field(min_length=1,max_length=200)
+    metadata: dict = Field(default_factory=dict)
+
+@router.post("/api/canvas-assets/catalog")
+async def edit_canvas_asset_catalog(payload: CatalogMutation):
+    from app.services.canvas_asset_catalog import mutate
+    return await asyncio.to_thread(mutate,payload.model_dump())
+
+@router.get("/api/canvas-assets/references/{asset_key}")
+async def canvas_asset_references(asset_key: str):
+    if not postgres_enabled(): raise HTTPException(409,"引用检查需要 PostgreSQL 模式")
+    from app.services.canvas_asset_catalog import references
+    return {"references":await asyncio.to_thread(references,asset_key)}
+
+class CatalogReferences(BaseModel):
+    keys: list[str] = Field(min_length=1,max_length=200)
+
+@router.post("/api/canvas-assets/references")
+async def batch_canvas_asset_references(payload: CatalogReferences):
+    if not postgres_enabled(): raise HTTPException(409,"引用检查需要 PostgreSQL 模式")
+    from app.services.canvas_asset_catalog import references_many
+    return {"references":await asyncio.to_thread(references_many,payload.keys)}
