@@ -56,15 +56,15 @@ function init(){
  'vHighlight=step(.925,aSeed.z);',
  'float size=mix(1.1,2.,aSeed.y)+vHighlight*.9;',
  'if(layer>1.5)size=2.3*(1.-tail*.45);',
- 'gl_PointSize=clamp(size*uPixelRatio*(1.+pulse*.65)*(5.8/-mv.z),1.,7.);',
- 'vAlpha=(layer>1.5?.6*(1.-tail):layer>.5?.10:.25)*(1.+pulse*.85);',
+ 'gl_PointSize=clamp(size*uPixelRatio*(1.+pulse*.65)*(1.0+clamp(8.0/-mv.z,0.0,1.0)*.15),1.,7.);',
+ 'vAlpha=(layer>1.5?.6*(1.-tail):layer>.5?.14:.52)*(1.+pulse*.85);',
  'vAlpha*=.94+.06*sin(uTime*.9+aSeed.y);',
  '}'].join('\n'),
  fragmentShader:[
  'precision highp float;varying float vAlpha,vHighlight;',
  'void main(){float r=length(gl_PointCoord-.5)*2.;if(r>1.)discard;',
  'float core=exp(-r*r*7.5),halo=pow(1.-r,2.)*.22;',
- 'vec3 color=mix(vec3(.52,.61,.74),vec3(.91,.94,1.),vHighlight);',
+ 'vec3 color=mix(vec3(.62,.70,.82),vec3(.91,.94,1.),vHighlight);',
  'gl_FragColor=vec4(color,(core+halo)*vAlpha);}'].join('\n')});
  const points=new T.Points(geometry,material);points.frustumCulled=false;scene.add(points);
  canvas.setAttribute('aria-hidden','true');host.append(canvas);
@@ -74,7 +74,11 @@ function init(){
  function draw(){renderer.render(scene,camera);if(!lost&&!host.classList.contains('infinity-ready'))host.classList.add('infinity-ready');}
  function resize(){
   const r=host.getBoundingClientRect();if(!r.width||!r.height)return;
-  camera.aspect=r.width/r.height;camera.updateProjectionMatrix();
+  camera.aspect=r.width/r.height;
+  const narrow=r.width<=760,halfWidth=narrow?3.35:3.65;
+  camera.position.z=halfWidth/camera.aspect/Math.tan(36*Math.PI/360);
+  camera.far=Math.max(30,camera.position.z+10);camera.updateProjectionMatrix();
+  points.position.set(narrow?0:-.55,narrow?halfWidth/camera.aspect*.52:0,0);
   renderer.setSize(r.width,r.height,false);uniforms.uPixelRatio.value=renderer.getPixelRatio();
   if(reduced.matches&&!lost)draw();
  }
@@ -92,20 +96,20 @@ function init(){
  function move(e){
   if(reduced.matches)return;
   const r=host.getBoundingClientRect(),half=Math.tan(36*Math.PI/360)*camera.position.z;
-  target.set(((e.clientX-r.left)/r.width*2-1)*half*camera.aspect,(1-(e.clientY-r.top)/r.height*2)*half);targetPower=1;
+  target.set(((e.clientX-r.left)/r.width*2-1)*half*camera.aspect,(1-(e.clientY-r.top)/r.height*2)*half);target.sub(points.position);targetPower=1;
  }
  function leave(){targetPower=0;}
  function visibility(){document.hidden?pause():resume();}
  function motion(){pause();targetPower=0;resume();}
  const observer=new IntersectionObserver(entries=>{visible=entries[0].isIntersecting;visible?resume():pause();});observer.observe(host);
  const resizer=new ResizeObserver(resize);resizer.observe(host);
- host.addEventListener('pointermove',move,{passive:true});host.addEventListener('pointerleave',leave);
+ window.addEventListener('pointermove',move,{passive:true});document.documentElement.addEventListener('pointerleave',leave);
  document.addEventListener('visibilitychange',visibility);reduced.addEventListener('change',motion);
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();lost=true;pause();host.classList.remove('infinity-ready');});
  canvas.addEventListener('webglcontextrestored',()=>{lost=false;resize();resume();});
  window.addEventListener('pagehide',e=>{
   pause();if(e.persisted)return;disposed=true;observer.disconnect();resizer.disconnect();
-  host.removeEventListener('pointermove',move);host.removeEventListener('pointerleave',leave);
+  window.removeEventListener('pointermove',move);document.documentElement.removeEventListener('pointerleave',leave);
   document.removeEventListener('visibilitychange',visibility);reduced.removeEventListener('change',motion);
   geometry.dispose();material.dispose();renderer.dispose();
  });

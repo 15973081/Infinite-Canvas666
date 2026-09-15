@@ -10,9 +10,23 @@ form>label,.password-label label,#activation-wrap>label,#confirm-wrap>label{disp
 @media(max-width:600px){.auth-brand{padding:24px}.auth-brand-caption{display:none}.form-panel{padding-top:12px}.form-content{padding-top:0}.welcome-icon{width:128px;height:72px;margin-bottom:22px}h2{font-size:28px}.panel-footer{font-size:10px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
-/* GPU hero: the vector mark remains available without WebGL. */
-.welcome-icon{position:relative;width:100%;height:200px;max-width:420px;margin:0 auto 28px;border-radius:22px;overflow:hidden;filter:none;background:#0d1016;box-shadow:0 15px 40px #10151d0b}
-.welcome-icon>svg{position:absolute;width:140px;height:80px;inset:0;margin:auto;filter:brightness(2)}
-.welcome-icon canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 350ms ease-out}
+/* Full-viewport particle stage; foreground remains independently scrollable. */
+:root{color-scheme:dark;color:#f4f5f7;background:#0d1016}
+.login-shell{isolation:isolate;background:#0d1016;overflow:hidden}
+.welcome-icon{position:fixed;inset:0;width:100%;height:100svh;max-width:none;margin:0;overflow:hidden;filter:none;pointer-events:none;z-index:-2}
+.welcome-icon>svg{position:absolute;width:74vw;height:auto;left:0;top:50%;transform:translateY(-50%);filter:brightness(2);opacity:.4}
+.welcome-icon canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 650ms ease-out}
 .welcome-icon.infinity-ready canvas{opacity:1}.welcome-icon.infinity-ready>svg{visibility:hidden}
-@media(max-width:600px){.welcome-icon{height:180px;border-radius:18px;margin-bottom:24px}}
+.login-shell::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,transparent 30%,#0d101640 48%,#0d1016ec 74%,#0d1016 100%)}
+.auth-brand{padding:32px 4vw}.auth-brand a{color:#f2f3f5}.auth-brand-caption{color:#939aa7}
+.form-panel{align-items:flex-end;padding:24px max(5vw,24px) 0;justify-content:center}
+.form-content{max-width:360px;margin:auto 0;padding:32px 0}.form-content h2,.subtitle{text-align:left}
+h2{font-size:34px;letter-spacing:-.06em}.subtitle{color:#a0a8b6;margin-bottom:36px}
+form>label,.password-label label,#activation-wrap>label,#confirm-wrap>label{color:#d6dae2}
+.input-wrap{background:#ffffff06;border-color:#ffffff26}.input-wrap:focus-within{border-color:#9aa9bf;box-shadow:0 0 0 3px #ffffff09}.input-wrap input{color:#f1f4fa}.input-wrap input::placeholder{color:#7f899b}
+#toggle-password,.text-button{color:#a8b1bf}.text-button:hover{color:#fff}.remember{color:#a8b1bf!important}.remember input{accent-color:#e9edf4}
+.submit-button{background:#edf0f5;color:#11151d;border-color:#edf0f5}.submit-button:hover{background:#fff}.submit-button:active{background:#cbd2df}
+.workspace-note{border-color:#ffffff14;text-align:left}.workspace-note p{color:#a0a8b6}.workspace-note small{color:#818b9c}
+.panel-footer{width:360px;max-width:100%;text-align:left;color:#818b9c}.help-message{color:#c4ccd9;background:#1b222d;border-color:#384252}
+@media(min-width:1500px){.form-panel{padding-right:9vw}.form-content{max-width:380px}.panel-footer{width:380px}}
+@media(max-width:760px){.auth-brand{padding:24px}.welcome-icon>svg{width:95vw;top:23%;left:2.5vw}.login-shell::before{background:linear-gradient(180deg,transparent 12%,#0d101620 27%,#0d1016eb 43%,#0d1016 65%)}.form-panel{align-items:center;padding:29svh 24px 0}.form-content{max-width:380px;margin:0 auto;padding:20px 0 28px}.form-content h2{font-size:30px}.subtitle{margin-bottom:26px}.panel-footer{width:380px;padding:18px 0}.auth-brand-caption{display:none}}
