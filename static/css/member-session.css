@@ -111,3 +111,24 @@ html.member-session-pending:is(.theme-dark,.studio-theme-dark,.dark,[data-theme=
 .member-space-onboarding .member-initial-actions button:hover{color:#17191d}
 @media(max-width:600px){.member-space-onboarding{padding:90px 24px 32px}.member-space-onboarding::before{left:24px;top:24px}.member-space-onboarding .member-session-card{padding-top:12px}.member-space-onboarding .member-session-card h1{font-size:28px}.member-initial-spaces{grid-template-columns:1fr}.member-space-onboarding .member-space-choice{min-height:148px;padding:20px}}
 @media(prefers-reduced-motion:reduce){.member-space-onboarding .member-session-card{animation:none}.member-space-onboarding .member-space-choice{transition:none}}
+
+/* Profile editing stays above the current canvas without replacing the workspace. */
+.member-profile-dialog{box-sizing:border-box;width:440px;max-width:calc(100vw - 40px);max-height:85vh;overflow:auto;padding:26px;border:1px solid var(--ms-border);border-radius:18px;background:var(--ms-bg);color:var(--ms-text);font:14px/1.5 system-ui,sans-serif;box-shadow:0 20px 70px #0003;color-scheme:light}
+html:is(.dark,.theme-dark,.studio-theme-dark,[data-theme=dark]) .member-profile-dialog,html:has(body.theme-dark) .member-profile-dialog{color-scheme:dark}
+.member-profile-dialog::backdrop{background:#080d1859;backdrop-filter:blur(3px)}
+.member-profile-dialog *{box-sizing:border-box}
+.member-profile-dialog header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.member-profile-dialog h2{font-size:20px;line-height:1.4;font-weight:600;margin:0}
+.member-profile-description{font-size:12px;color:var(--ms-muted);margin:10px 0 24px}
+.member-profile-dialog label{display:grid;gap:8px;margin:18px 0;color:var(--ms-muted);font-size:12px}
+.member-profile-dialog input,.member-profile-dialog select{display:block;width:100%;min-height:42px;padding:10px 12px;border:1px solid var(--ms-border);border-radius:9px;background:var(--ms-hover);color:var(--ms-text);font:14px/1.5 system-ui,sans-serif}
+.member-profile-dialog button{border:1px solid var(--ms-border);border-radius:9px;padding:9px 16px;background:transparent;color:var(--ms-text);font:13px/1.5 system-ui,sans-serif;cursor:pointer}
+.member-profile-dialog button:hover:not(:disabled){background:var(--ms-hover)}
+.member-profile-dialog .member-profile-close{border:0;padding:0;width:32px;height:32px;font-size:23px;line-height:1;color:var(--ms-muted)}
+.member-profile-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:26px;padding-top:18px;border-top:1px solid var(--ms-border)}
+.member-profile-dialog .member-profile-save{background:var(--ms-text);border-color:var(--ms-text);color:var(--ms-bg);font-weight:600}
+.member-profile-dialog .member-profile-save:hover:not(:disabled){background:var(--ms-text);filter:brightness(.92)}
+.member-profile-dialog :is(button,input,select):disabled{opacity:.55;cursor:wait}
+.member-profile-dialog :is(button,input,select):focus-visible{outline:2px solid #658dc2;outline-offset:2px}
+.member-profile-error{color:#cf6773;font-size:12px;margin:12px 0;overflow-wrap:anywhere}
+.member-profile-error:empty{display:none}

@@ -117,25 +117,52 @@
         });
     }
     async function profile() {
-        const card = await showPanel('成员资料', '昵称与头像会用于画布协作；账号标识保持不变。');
+        await domReady;
+        if (document.querySelector('.member-profile-dialog')) return;
+        const dialog = element('dialog', undefined, 'member-profile-dialog');
+        dialog.setAttribute('aria-label', '成员资料');
+        const head = element('header'), close = button('×', () => dialog.close());
+        close.className = 'member-profile-close'; close.setAttribute('aria-label', '关闭成员资料');
+        head.append(element('h2', '成员资料'), close);
         const form = element('form'), nameLabel = element('label', '昵称'), name = element('input');
-        name.value = context.member.display_name; name.required = true; name.maxLength = 80; nameLabel.append(name);
+        name.value = context.member.display_name; name.required = true; name.maxLength = 80; name.autofocus = true;
+        nameLabel.append(name);
         const avatarLabel = element('label', '头像颜色'), avatar = element('select');
         for (const [value, text] of [['','默认'],['blue','蓝色'],['green','绿色'],['purple','紫色'],['orange','橙色'],['pink','粉色']]) {
             const option = element('option', text); option.value = value; avatar.append(option);
         }
         avatar.value = context.member.avatar; avatarLabel.append(avatar);
-        const message = element('p', '', 'member-session-error'); message.setAttribute('role', 'alert');
-        const submit = element('button', '保存资料'); submit.type = 'submit';
-        form.append(nameLabel, avatarLabel, message, submit, button('取消', () => { panel.remove(); panel = null; })); card.append(form);
+        const message = element('p', '', 'member-profile-error'); message.setAttribute('role', 'alert');
+        const submit = element('button', '保存资料'); submit.type = 'submit'; submit.className = 'member-profile-save';
+        const cancel = button('取消', () => dialog.close()), actions = element('div', undefined, 'member-profile-actions');
+        actions.append(cancel, submit);
+        form.append(nameLabel, avatarLabel, message, actions);
+        dialog.append(head, element('p', '昵称与头像用于画布协作，账号标识保持不变。', 'member-profile-description'), form);
+        let saving = false;
+        dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
+        dialog.addEventListener('close', () => {
+            dialog.remove();
+            bar?.querySelector('.member-session-account > summary')?.focus();
+        }, {once:true});
         form.addEventListener('submit', async event => {
-            event.preventDefault(); submit.disabled = true;
+            event.preventDefault();
+            if (saving) return;
+            if (!name.value.trim()) { name.setCustomValidity('请输入昵称'); name.reportValidity(); return; }
+            saving = true; message.textContent = ''; submit.textContent = '保存中…';
+            form.setAttribute('aria-busy', 'true');
+            for (const control of [name, avatar, submit, cancel, close]) control.disabled = true;
             try {
                 const data = await json('/api/auth/profile', {method:'PATCH', headers:{'Content-Type':'application/json','X-Member-ID':context.member.id}, body:JSON.stringify({display_name:name.value,avatar:avatar.value})});
                 context = Object.freeze({...context, member:Object.freeze(data.member)});
-                panel.remove(); panel = null; renderBar(); window.dispatchEvent(new CustomEvent('member-session:profile', {detail:context.member}));
-            } catch (error) { message.textContent = error.message; submit.disabled = false; }
+                renderBar(); dialog.close(); window.dispatchEvent(new CustomEvent('member-session:profile', {detail:context.member}));
+            } catch (error) {
+                message.textContent = error.message; submit.textContent = '保存资料'; saving = false;
+                form.setAttribute('aria-busy', 'false');
+                for (const control of [name, avatar, submit, cancel, close]) control.disabled = false;
+            }
         });
+        name.addEventListener('input', () => name.setCustomValidity(''));
+        document.body.append(dialog); dialog.showModal();
     }
     window.addEventListener('pageshow',()=>{
         document.querySelectorAll('.member-space-transition').forEach(node=>node.remove());
