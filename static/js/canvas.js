@@ -2246,6 +2246,11 @@ async function loadCanvasList(openFirst=true, options={}){
     } catch(e) {
         setStatus(tr('canvas.canvasListFailed'));
         console.error(e);
+    } finally {
+        if(canvasGate.classList.contains('gate-loading')){
+            canvasGate.classList.remove('gate-loading');
+            canvasGate.classList.add('gate-ready');
+        }
     }
 }
 async function loadTrashList(){
@@ -2281,7 +2286,18 @@ async function setTrashMode(active){
     refreshIcons();
 }
 function renderCanvasList(){
+    const panel = canvasGate.querySelector('.gate-panel');
+    const visible = panel && panel.getClientRects().length && !canvasGate.classList.contains('gate-loading');
+    const before = visible ? panel.getBoundingClientRect().height : 0;
+    panel?._gateResize?.cancel();
     renderCanvasListInto(gateCanvasList);
+    if(!visible || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const after = panel.getBoundingClientRect().height;
+    if(Math.abs(after - before) > 1){
+        panel._gateResize = panel.animate([{height:before+'px'},{height:after+'px'}],{duration:200,easing:'ease-out'});
+    }
+    gateCanvasList._gateFade?.cancel();
+    gateCanvasList._gateFade = gateCanvasList.animate([{opacity:.5},{opacity:1}],{duration:180,easing:'ease-out'});
 }
 function compareCanvasRecords(a, b){
     // 置顶始终排在最前；其余按当前排序模式（最近编辑 / 名称）。

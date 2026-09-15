@@ -1692,3 +1692,11 @@ body.studio-theme-dark .canvas-lock-badge.unlocked {
 
 .generation-node-body .input-item.input-reordering{opacity:.5;cursor:grabbing}
 .generation-node-body .input-item.input-reorder-target{outline:2px solid var(--muted);outline-offset:2px}
+
+/* Reveal the selector after its first response; keep refreshes in place. */
+.gate-panel{box-sizing:border-box}
+.canvas-gate.gate-loading .gate-panel{visibility:hidden;opacity:0}
+.canvas-gate.gate-ready .gate-panel{animation:canvas-gate-reveal 200ms ease-out both}
+.gate-canvas-pane .gate-list{min-height:220px;align-content:start;scrollbar-gutter:stable}
+@keyframes canvas-gate-reveal{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.canvas-gate.gate-ready .gate-panel{animation:none}}
