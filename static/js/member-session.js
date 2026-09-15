@@ -6,6 +6,7 @@
         ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once:true})) : Promise.resolve();
     document.documentElement.classList.add('member-session-pending');
     let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0, maintenance = null;
+    let workspaceChoices = null;
     const accountPaths = new Set(['/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
@@ -132,6 +133,9 @@
             } catch (error) { message.textContent = error.message; submit.disabled = false; }
         });
     }
+    window.addEventListener('pageshow',()=>{
+        document.querySelectorAll('.member-space-transition').forEach(node=>node.remove());
+    });
     function createSpaceMenu() {
         const menu=element('details',undefined,'member-session-spaces');
         const summary=element('summary',undefined,'member-session-space');
@@ -142,12 +146,14 @@
         const message=element('p','', 'member-space-message'); message.setAttribute('role','status');
         let loading=false, switching=false;
         const close=() => {menu.open=false;};
-        const refresh=button('刷新空间列表',async () => load());
-        async function load(){
+        const refresh=button('刷新空间列表',async () => load(true));
+        async function load(force=false){
             if(loading || switching) return;
             loading=true; refresh.disabled=true; message.textContent='正在加载…';
             try {
-                const data=await json('/api/auth/workspaces',{headers:{'X-Member-ID':context.member.id}});
+                const data = !force && workspaceChoices ? {workspaces:workspaceChoices}
+                    : await json('/api/auth/workspaces',{headers:{'X-Member-ID':context.member.id}});
+                workspaceChoices=data.workspaces;
                 list.replaceChildren();
                 for(const workspace of data.workspaces){
                     const current=workspace.id===context.workspace.id;
@@ -156,14 +162,20 @@
                         if(current){close();summary.focus();return;}
                         switching=true; refresh.disabled=true;
                         for(const choice of list.querySelectorAll('button')) choice.disabled=true;
-                        message.textContent='正在保存并切换…';
+                        message.textContent='正在保存，准备切换到 '+workspace.name+'…';
+                        let veil=null;
                         try {
                             if(!await flushPages()) throw new Error('当前画布保存尚未完成，请处理后再切换空间。');
                             const target=new URL(location.href);target.searchParams.set('workspace',workspace.id);
                             target.searchParams.delete('id');target.searchParams.delete('canvas_id');
                             try {sessionStorage.setItem('canvas:workspace:'+context.member.id,workspace.id);} catch(_) {}
+                            veil=element('div','正在切换到 '+workspace.name+'…','member-space-transition');
+                            veil.setAttribute('role','status');document.body.append(veil);
+                            // Paint the handoff before navigation without adding a fixed delay.
+                            if(window.requestAnimationFrame) await new Promise(resolve=>window.requestAnimationFrame(()=>window.requestAnimationFrame(resolve)));
                             location.assign(target.pathname+target.search);
                         } catch(error){
+                            veil?.remove();
                             message.textContent=error.message; switching=false;refresh.disabled=false;
                             for(const choice of list.querySelectorAll('button')) choice.disabled=false;
                         }
@@ -227,13 +239,15 @@
             if (inherited && requested && requested !== inherited.workspace.id) throw new Error('嵌入页面的空间与工作台不一致。');
             let saved = '';
             try { saved = sessionStorage.getItem('canvas:workspace:' + status.member.id) || ''; } catch (_) {}
+            workspaceChoices=spaces;
             const selected = inherited?.workspace.id || requested || saved;
             let workspace = spaces.find(space => space.id === selected);
             if (requested && !workspace) throw new Error('你未被分配到链接指定的空间。请返回工作台选择可用空间。');
             if (!workspace) workspace = await choose(status.member, spaces, true);
             context = Object.freeze({member:Object.freeze(status.member), workspace:Object.freeze(workspace)});
             await domReady;
-            document.documentElement.classList.remove('member-session-pending'); renderBar();
+            document.documentElement.classList.remove('member-session-pending');
+            document.documentElement.classList.add('member-session-enter'); renderBar();
             window.dispatchEvent(new CustomEvent('member-session:ready', {detail:context}));
             return context;
         } catch (error) {
