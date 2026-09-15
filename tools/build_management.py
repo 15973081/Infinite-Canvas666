@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ('index.html', 'management.css', 'management.js', 'provider-prices.js', 'provider-editor.js')
+FILES = ('index.html', 'management.css', 'management.js', 'provider-prices.js', 'provider-editor.js', 'billing-view.js', 'billing-view.css')
 
 
 def build(destination=None):
@@ -12,7 +12,8 @@ def build(destination=None):
     destination.mkdir(parents=True, exist_ok=True)
     manifest = {}
     for name in FILES:
-        data = (ROOT / 'management/frontend' / name).read_bytes()
+        source = ROOT / ('static/js' if name == 'billing-view.js' else 'static/css' if name == 'billing-view.css' else 'management/frontend') / name
+        data = source.read_bytes()
         (destination / name).write_bytes(data)
         manifest[name] = hashlib.sha256(data).hexdigest()
     (destination / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')

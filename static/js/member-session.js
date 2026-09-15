@@ -7,7 +7,7 @@
     document.documentElement.classList.add('member-session-pending');
     let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0, maintenance = null;
     let workspaceChoices = null;
-    const accountPaths = new Set(['/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
+    const accountPaths = new Set(['/api/account/billing','/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
         if (text !== undefined) node.textContent = text;
@@ -223,7 +223,7 @@
         summary.append(avatar,element('span',context.member.display_name));
         const menu=element('div',undefined,'member-session-account-menu');
         menu.append(element('small','当前账号'),element('strong',context.member.display_name),
-            button('成员资料',() => {account.open=false;return profile();}),button('退出登录',async () => {
+            button('我的费用',async () => {account.open=false;try {await import('/static/js/billing-view.js');await window.CanvasBillingUI.showPersonal();}catch(error){window.alert(error.message);}}),button('成员资料',() => {account.open=false;return profile();}),button('退出登录',async () => {
                 account.open=false;
                 try { await logout(); } catch (error) { window.alert(error.message); }
             }));

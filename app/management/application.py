@@ -93,6 +93,17 @@ class Input(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+class BillingAssignment(Input):
+    canvas_id: str = Field(min_length=1,max_length=200)
+    member_id: str = Field(min_length=1,max_length=80)
+    reason: str = Field(min_length=1,max_length=1000)
+    include_assigned: bool = False
+
+
+class BillingAssignmentApply(BillingAssignment):
+    preview_token: str = Field(min_length=64,max_length=64)
+
+
 class DatabaseConnectionSave(Input):
     name: str = Field(min_length=1,max_length=100)
     host: str = Field(min_length=1,max_length=253)
@@ -366,6 +377,30 @@ def create_app(static_dir=None):
     def retire(request: Request, role_id: str, data: Retirement, workspace: str | None = None):
         members.retire_role(actor(request), role_id, data.confirmation, workspace=workspace, replacement=data.replacement, revoke=data.revoke)
         return {'ok': True}
+
+    @app.get('/api/billing/assignment/choices')
+    def billing_choices(request: Request, workspace: str = Query(min_length=1,max_length=80), query: str = Query('',max_length=100)):
+        from app.services.billing_assignment import choices
+        return choices(actor(request),workspace,query)
+
+    @app.post('/api/billing/assignment/preview')
+    def billing_assignment_preview(request: Request,data: BillingAssignment,workspace: str = Query(min_length=1,max_length=80)):
+        from app.services.billing_assignment import assign
+        return assign(actor(request),workspace,**data.model_dump())
+
+    @app.post('/api/billing/assignment/apply')
+    def billing_assignment_apply(request: Request,data: BillingAssignmentApply,workspace: str = Query(min_length=1,max_length=80)):
+        from app.services.billing_assignment import assign
+        return assign(actor(request),workspace,**data.model_dump())
+
+    @app.get('/api/billing')
+    def billing(request: Request, workspace: str | None = Query(None,max_length=80),
+                member_id: str = Query('',max_length=80), account_query: str = Query('',max_length=80),
+                canvas_query: str = Query('',max_length=100), from_ms: int = Query(0,ge=0,le=8640000000000000),
+                to_ms: int = Query(0,ge=0,le=8640000000000000), page: int = Query(1,ge=1), page_size: int = Query(50,ge=1,le=100)):
+        from app.services.account_billing import report
+        return report(actor(request),workspace=workspace,member_id=member_id,account_query=account_query,
+                      canvas_query=canvas_query,from_ms=from_ms,to_ms=to_ms,page=page,page_size=page_size)
 
     @app.get('/api/audit')
     def audit(request: Request, workspace: str | None = None, before: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=100)):

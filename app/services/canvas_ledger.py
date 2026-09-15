@@ -224,6 +224,18 @@ def ingest(conn, canvas_id, candidates, providers):
             continue
         matched = conn.execute("SELECT DISTINCT entry_id FROM ledger_aliases WHERE canvas_id=? AND alias IN (%s)" % ",".join("?" for _ in keys), (canvas_id, *keys)).fetchall()
         ids = [row[0] for row in matched]
+        if not ids and hasattr(conn, "conn"):
+            # A trusted task can be surfaced later in a canvas after standalone completion.
+            known = conn.conn.execute("""SELECT DISTINCT e.id,e.canvas_id FROM ledger_aliases a
+                JOIN ledger_entries e ON e.id=a.entry_id AND e.workspace_id=a.workspace_id
+                JOIN ledger_owners o ON o.entry_id=e.id AND o.workspace_id=e.workspace_id
+                WHERE a.workspace_id=%s AND a.alias=ANY(%s)""", (conn.workspace, keys)).fetchall()
+            ids = [row['id'] for row in known]
+            if len(known) == 1 and known[0]['canvas_id'] == '__account_tasks__' and canvas_id != '__account_tasks__':
+                conn.conn.execute('UPDATE ledger_entries SET canvas_id=%s WHERE workspace_id=%s AND id=%s',
+                                  (canvas_id, conn.workspace, known[0]['id']))
+                _bump(conn, '__account_tasks__')
+                _bump(conn, canvas_id)
         if len(ids) > 1:
             report["conflicts"] += 1
             if len(report["issues"]) < 20:
@@ -279,6 +291,9 @@ def ingest(conn, canvas_id, candidates, providers):
                 _bump(conn, canvas_id)
             else:
                 report["duplicate"] += 1
+        if source == "task" and hasattr(conn, "conn"):
+            from app.services.account_billing import bind_entry
+            bind_entry(conn.conn, entry_id, canvas_id, log.get("canvas_task_id"))
         for alias in keys:
             change = conn.execute("INSERT OR IGNORE INTO ledger_aliases VALUES(?,?,?)", (canvas_id, alias, entry_id))
             if ids and change.rowcount:
@@ -391,10 +406,27 @@ def task_log(task):
 
 
 def record_task(task):
-    if task.get("canvas_id"):
+    from app.storage.settings import postgres_enabled
+    if task.get("canvas_id") or postgres_enabled():
         log = task_log(task)
         if log:
-            append_logs(task["canvas_id"], [log], "task", providers=[])
+            canvas_id = task.get("canvas_id") or "__account_tasks__"
+            if postgres_enabled() and not task.get("canvas_id"):
+                from app.storage.database import connection as pg_connection
+                from app.storage.workspace import current_workspace
+                with pg_connection() as conn:
+                    # Older standalone results may already have a canvas ledger entry.
+                    conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", ("ledger:" + current_workspace(),))
+                    matches = conn.execute("SELECT DISTINCT e.id AS entry_id,e.canvas_id FROM ledger_aliases a JOIN ledger_entries e ON e.id=a.entry_id AND e.workspace_id=a.workspace_id WHERE a.workspace_id=%s AND a.alias=ANY(%s)",
+                                           (current_workspace(), aliases(log, ()))).fetchall()
+                    if len(matches) > 1:
+                        # Ambiguous historical copies need reconciliation, never another charge.
+                        return
+                    if matches:
+                        canvas_id = matches[0]["canvas_id"]
+                    append_logs(canvas_id, [log], "task", providers=[])
+            else:
+                append_logs(canvas_id, [log], "task", providers=[])
 
 
 def task_billing_fields(payload, kind):

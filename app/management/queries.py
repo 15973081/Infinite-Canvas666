@@ -1,7 +1,7 @@
 """Management read models. Every query checks grants in the same transaction."""
 from app.services import authorization as az, members
 
-SPACE_MANAGEMENT = {'space.members.manage', 'space.roles.manage', 'maintenance.space',
+SPACE_MANAGEMENT = {'billing.assign', 'billing.read', 'space.members.manage', 'space.roles.manage', 'maintenance.space',
                     'audit.read', 'backup.read', 'backup.request', 'task.review', 'canvas.lock.takeover'}
 
 
@@ -13,10 +13,14 @@ def snapshot(actor):
         rows = conn.execute('''SELECT w.id,w.name,w.description,w.status FROM workspaces w
             WHERE %s OR EXISTS (SELECT 1 FROM workspace_members m
                 WHERE m.workspace_id=w.id AND m.member_id=%s) ORDER BY w.name,w.id''',
-            (bool(platform & {'space.assign', 'space.archive'}) or is_super, actor.member_id)).fetchall()
+            (bool(platform & {'space.assign', 'space.archive', 'billing.platform', 'billing.assign.platform'}) or is_super, actor.member_id)).fetchall()
         spaces = []
         for row in rows:
             permissions = az.effective_permissions(conn, actor.member_id, row['id'])
+            if 'billing.platform' in platform:
+                permissions.add('billing.read')
+            if 'billing.assign.platform' in platform:
+                permissions.add('billing.assign')
             if is_super:
                 permissions |= SPACE_MANAGEMENT - {'task.review', 'canvas.lock.takeover'}
             if permissions & SPACE_MANAGEMENT or platform & {'space.assign', 'space.archive'}:

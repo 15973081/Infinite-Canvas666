@@ -124,6 +124,8 @@ app.include_router(canvas.router)
 from app.routers.collaboration import router as collaboration_router
 app.include_router(collaboration_router)
 app.include_router(canvas_ledger.router)
+from app.routers.account_billing import router as account_billing_router
+app.include_router(account_billing_router)
 app.include_router(chat.router)
 app.include_router(conversation.router)
 app.include_router(history.router)

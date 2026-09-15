@@ -2,8 +2,9 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
-  const names = {databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  const names = {billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   const errors = {
+    billing_assignment_changed:'流水或归属已变化，请重新预览。',billing_target_unavailable:'目标账号不是本空间的有效成员。',billing_reason_required:'请填写补录原因。',billing_assignment_empty:'没有需要调整的流水。',billing_assignment_too_large:'该画布流水超过 2000 条，请联系维护人员分批处理。',invalid_billing_query:'请检查日期范围。',
     invalid_database_config: '请检查数据库地址、端口和必填信息；地址只填主机名或 IP。',
     invalid_database_certificate: '请粘贴有效的 PEM 格式 CA 证书，不要填写私钥。',
     database_password_required: '首次创建连接需要填写密码。',
@@ -143,8 +144,15 @@
     const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({databases: databaseView, overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
+    const result = await ({billing: billingView, databases: databaseView, overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
     if (stamp === serial) content.replaceChildren(...result);
+  }
+  async function billingView(){
+    if(!allowed(workspace?'billing.read':'billing.platform'))return denied();
+    const scope=workspace,canAssign=scope&&(allowed('billing.assign')||me.permissions.includes('billing.assign.platform'));
+    const assignmentApi=canAssign?(path,options)=>{const [route,extra]=path.split('&');return api('/api/billing/'+route+'?workspace='+encodeURIComponent(scope)+(extra?'&'+extra:''),options);}:null;
+    const hint=!scope&&me.permissions.includes('billing.assign.platform')?[el('p','补录整张画布的账单，请先在右上角管理范围选择具体空间。','muted')]:[];
+    return [...hint,await window.CanvasBillingUI.create({assignmentApi,fetchReport:params=>api('/api/billing?'+new URLSearchParams({...params,...(scope?{workspace:scope}:{})}))})];
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
   function overviewBytes(value) {

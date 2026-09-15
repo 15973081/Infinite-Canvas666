@@ -14,6 +14,8 @@ from app.storage.database import connection
 
 AUTH_LOCK = 642193004
 PLATFORM_PERMISSIONS = {
+    'billing.platform': '查看平台账号费用',
+    'billing.assign.platform': '调整平台费用归属',
     'member.manage': '管理平台成员',
     'role.manage': '管理平台角色',
     'space.create': '创建空间',
@@ -25,6 +27,8 @@ PLATFORM_PERMISSIONS = {
     'backup.platform': '全库备份',
 }
 WORKSPACE_PERMISSIONS = {
+    'billing.read': '查看本空间账号费用',
+    'billing.assign': '调整本空间费用归属',
     'space.members.manage': '管理本空间成员',
     'space.roles.manage': '管理本空间角色',
     'canvas.read': '查看画布', 'canvas.create': '新建画布',
@@ -111,7 +115,7 @@ def require(conn, principal, action, workspace=None):
             fail('workspace_unavailable')
         # Cross-space management is explicit; superadmin is not blanket access
         # to every member's canvas, private conversation, or media contents.
-        management = action in {'space.members.manage', 'space.roles.manage', 'maintenance.space', 'audit.read', 'backup.read', 'backup.request'}
+        management = action in {'space.members.manage', 'space.roles.manage', 'maintenance.space', 'audit.read', 'backup.read', 'backup.request', 'billing.read', 'billing.assign'}
         if management and superadmin(conn, principal.member_id):
             return member
         if not conn.execute('SELECT 1 FROM workspace_members WHERE workspace_id=%s AND member_id=%s',

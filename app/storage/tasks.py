@@ -92,7 +92,7 @@ def save(task, request_payload=None, *, historical=False):
     value["workspace_id"] = workspace
     from app.services.member_context import current_access
     access = current_access.get()
-    requester = access.principal.member_id if access else None
+    requester = access.principal.member_id if access and not historical else None
     with connection() as conn:
         canvas_admission = None
         if value.get('canvas_id') and access and not historical:
@@ -151,7 +151,7 @@ def save(task, request_payload=None, *, historical=False):
             row = conn.execute("INSERT INTO tasks(workspace_id,id,canvas_id,kind,status,provider_id,provider_account_ref,model,upstream_task_id,request,result,legacy_metadata,idempotency_key,request_sha256,created_at,updated_at,input_asset_ids,output_asset_ids) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),%s,%s) RETURNING *",
                                (workspace, task_id, canvas_id, value.get("type") or "unknown", status, provider_id, provider_account, value.get("model") or payload.get("model"), value.get("upstream_task_id") or None, Jsonb(payload), Jsonb(value.get("result")), Jsonb(value), task_id, fingerprint(payload, historical=historical), float(value.get("created_at") or now), now, Jsonb(inputs), Jsonb(sorted(referenced_ids(value.get("result")))))).fetchone()
             if requester:
-                row = conn.execute("UPDATE tasks SET requested_by=%s WHERE workspace_id=%s AND id=%s RETURNING *", (requester, workspace, task_id)).fetchone()
+                row = conn.execute("UPDATE tasks SET requested_by=%s,requester_snapshot=(SELECT jsonb_build_object('username',username,'display_name',display_name) FROM members WHERE id=%s) WHERE workspace_id=%s AND id=%s RETURNING *", (requester, requester, workspace, task_id)).fetchone()
             if canvas_admission:
                 canvas, edit_lease = canvas_admission
                 row = conn.execute('UPDATE tasks SET canvas_revision=%s,canvas_edit_generation=%s WHERE workspace_id=%s AND id=%s RETURNING *',
