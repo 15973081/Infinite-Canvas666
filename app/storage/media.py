@@ -331,6 +331,7 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
     bucket = os.getenv("TOS_BUCKET", "local-simulation") if media_backend() == "tos" else "local-simulation"
     region = os.getenv("TOS_REGION", "local") if media_backend() == "tos" else "local"
     with connection() as conn:
+        lock_retained_references(conn, [media_id, parent_asset_id])
         conn.execute("INSERT INTO assets(workspace_id,id,kind,status,display_name,bucket,region,object_key,parent_asset_id,role) VALUES(%s,%s,%s,'uploading',%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING", (workspace, media_id, kind, name, bucket, region, key, parent_asset_id, role))
         if not conn.execute("SELECT 1 FROM assets WHERE workspace_id=%s AND id=%s", (workspace, media_id)).fetchone():
             raise HTTPException(409, "素材 ID 不可用于当前空间")
@@ -341,6 +342,8 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
         if lease and not conn.execute("SELECT id FROM tasks WHERE workspace_id=%s AND id=%s AND lease_token=%s AND lease_until>now() FOR SHARE", (workspace, *lease)).fetchone():
             raise HTTPException(409, "任务租约已失效，拒绝发布旧执行者的输出")
         row = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=%s FOR UPDATE", (workspace, media_id)).fetchone()
+        if row["status"] in ("deleting", "deleted"):
+            raise HTTPException(409, "素材正在删除或已彻底删除")
         if row["status"] == "ready":
             if row["sha256"] != digest:
                 raise HTTPException(409, "输出槽位已被另一份内容占用")
@@ -511,3 +514,25 @@ async def download_remote(url, prefix="media_", category="output", provider=None
                     raise HTTPException(502, "供应商返回了空素材")
                 return await asyncio.to_thread(publish_output, name, category)
     raise HTTPException(502, "远程素材重定向次数过多")
+
+
+def lock_retained_references(conn, value):
+    """Coordinate document publication with permanent asset deletion."""
+    ids = set(referenced_ids(value))
+    # Legacy aliases are still present in retained library and backup documents.
+    aliases = {r['legacy_ref']:r['asset_id'] for r in conn.execute(
+        'SELECT legacy_ref,asset_id FROM asset_aliases WHERE workspace_id=%s', (current_workspace(),))}
+    def walk(v):
+        if isinstance(v,str):
+            if v.startswith('ast_'): ids.add(v)
+            alias=aliases.get(canonical_legacy(v))
+            if alias: ids.add(alias)
+        elif isinstance(v,dict):
+            for child in v.values(): walk(child)
+        elif isinstance(v,list):
+            for child in v: walk(child)
+    walk(value)
+    if ids:
+        rows=conn.execute('SELECT id,status FROM assets WHERE workspace_id=%s AND id=ANY(%s) ORDER BY id FOR SHARE', (current_workspace(),sorted(ids))).fetchall()
+        if any(r['status'] in ('deleting','deleted') for r in rows):
+            raise HTTPException(409, '引用的素材正在删除或已彻底删除，请刷新后重试')

@@ -94,6 +94,8 @@ def save(task, request_payload=None, *, historical=False):
     access = current_access.get()
     requester = access.principal.member_id if access and not historical else None
     with connection() as conn:
+        from app.storage.media import lock_retained_references
+        lock_retained_references(conn, [value, request_payload])
         canvas_admission = None
         if value.get('canvas_id') and access and not historical:
             from app.services.canvas_leases import request_write

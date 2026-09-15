@@ -1586,6 +1586,7 @@ class CatalogSelection(BaseModel):
 class CatalogMutation(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: str
+    confirm_permanent: bool = False
     items: list[CatalogSelection] = Field(min_length=1,max_length=200)
     metadata: dict = Field(default_factory=dict)
 

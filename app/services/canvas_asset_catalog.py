@@ -1,4 +1,4 @@
-"""Workspace-scoped asset organization; never deletes objects or edits canvas nodes."""
+"""Workspace-scoped asset organization with explicit guarded permanent deletion."""
 import hashlib
 import os
 from fastapi import HTTPException
@@ -21,21 +21,26 @@ def decorate(data, trash=False):
     with connection() as conn:
         aliases=aliases_for(conn)
         records={r['asset_key']:r for r in conn.execute('SELECT * FROM canvas_asset_catalog WHERE workspace_id=%s',(current_workspace(),))}
+        states={r['id']:r['status'] for r in conn.execute("SELECT id,status FROM assets WHERE workspace_id=%s AND status IN ('deleting','deleted')",(current_workspace(),))}
     live_keys=set()
     items=[]
     for original in data['items']:
         item=dict(original); key=key_for(item['url'],aliases); live_keys.add(key)
+        if states.get(key)=='deleted': continue
+        item['deleting']=states.get(key)=='deleting'
         record=records.get(key)
         item.update(asset_key=key,catalog_version=record['version'] if record else 0)
         if record:
             item.update(record['metadata']); item['trashed']=bool(record['trashed_at'])
         if bool(item.get('trashed')) == trash: items.append(item)
     for key,record in records.items():
+        if states.get(key)=='deleted': continue
         if key not in live_keys and (bool(record['trashed_at'])==trash) and record['snapshot'].get('canvas_id') in {c['id'] for c in data['canvases']}:
             item=dict(record['snapshot']); item.update(record['metadata']);item.update(asset_key=key,catalog_version=record['version'],trashed=bool(record['trashed_at']))
+            item['deleting']=states.get(key)=='deleting'
             items.append(item)
     data['items']=items
-    data['trash_count']=sum(bool(r['trashed_at']) for r in records.values())
+    data['trash_count']=sum(bool(r['trashed_at']) and states.get(k)!='deleted' for k,r in records.items())
     data['catalog_enabled']=True
     from app.services.member_context import current_access
     access=current_access.get()
@@ -75,6 +80,9 @@ def references(asset_key):
 def mutate(payload):
     from app.storage.settings import postgres_enabled
     if not postgres_enabled(): raise HTTPException(409,"素材整理需要 PostgreSQL 存储模式")
+    if payload['action']=='purge':
+        from app.services.canvas_asset_purge import purge
+        return purge(payload)
     from app.services.canvas import canvas_assets_index
     action=payload['action']; selections=payload['items']
     if action not in {'edit','trash','restore'} or not selections or len(selections)>200:
@@ -105,6 +113,8 @@ def mutate(payload):
             key=selected['key']; row=rows.get(key)
             if selected['version']!=(row['version'] if row else 0): raise HTTPException(409,'素材已被修改，请刷新后重试')
             if key not in live and not row: raise HTTPException(404,'当前空间未找到素材')
+            state=conn.execute("SELECT status FROM assets WHERE workspace_id=%s AND id=%s",(current_workspace(),key)).fetchone()
+            if state and state['status'] in ('deleting','deleted'): raise HTTPException(409,'素材正在删除或已彻底删除，无法恢复或编辑')
             snapshot=live.get(key) or row['snapshot']
             merged=dict(row['metadata']) if row else {}
             if action=='edit': merged.update(metadata)
