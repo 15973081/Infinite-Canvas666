@@ -1,6 +1,6 @@
 # Private media browser cache
 
-TOS uploads, including multipart staging uploads, set private, max-age=60, must-revalidate. Browser signed GETs override response-cache-control, so existing objects also benefit without rewriting metadata or versions. Preview-role signed GETs use 300 seconds of freshness and default to a 900-second signature (MEDIA_PREVIEW_URL_TTL). Original images, video and audio retain 60 seconds of freshness and the existing browser signature TTL. Short signing TTLs cap freshness at half the TTL. Upload metadata remains the conservative 60-second default; signed responses override it for previews. Provider URLs use no-store.
+All TOS browser media (previews, original images, video and audio) use private, max-age=300, must-revalidate. Single and multipart uploads set this metadata; signed GET response overrides also cover existing objects. Browser signatures default to 900 seconds (MEDIA_BROWSER_URL_TTL for originals, MEDIA_PREVIEW_URL_TTL for previews). Explicit shorter TTLs cap freshness at half the signing TTL. Provider URLs remain no-store. Video/audio Range cache behavior needs separate live browser validation; five-minute freshness does not guarantee that every range or playback is cached.
 
 Application redirects remain private/no-store and still require member and workspace authorization. Each process reuses signed URLs in a bounded 2048-entry LRU keyed by workspace/member, bucket, object key, version and TTL. URLs renew before remaining lifetime approaches cache freshness. Authorization decisions are not cached.
 

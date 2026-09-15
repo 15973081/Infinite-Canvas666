@@ -1,4 +1,5 @@
 import sys
+import pytest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from collections import OrderedDict
@@ -23,16 +24,16 @@ def test_reuses_url_without_crossing_member_workspace_or_version():
     store = make_store()
     asset = {'object_key': 'image', 'object_version_id': 'v1'}
     with patch('app.storage.media.time.monotonic', return_value=100):
-        one = store.signed_url(asset, 300, ('space-a', 'member-a'))
-        assert store.signed_url(asset, 300, ('space-a', 'member-a')) == one
-        assert store.signed_url(asset, 300, ('space-a', 'member-b')) != one
-        assert store.signed_url(asset, 300, ('space-b', 'member-a')) != one
-        assert store.signed_url({**asset, 'object_version_id': 'v2'}, 300, ('space-a', 'member-a')) != one
+        one = store.signed_url(asset, 900, ('space-a', 'member-a'))
+        assert store.signed_url(asset, 900, ('space-a', 'member-a')) == one
+        assert store.signed_url(asset, 900, ('space-a', 'member-b')) != one
+        assert store.signed_url(asset, 900, ('space-b', 'member-a')) != one
+        assert store.signed_url({**asset, 'object_version_id': 'v2'}, 900, ('space-a', 'member-a')) != one
     query = store.client.pre_signed_url.call_args.kwargs['query']
     assert query['response-cache-control'] == BROWSER_MEDIA_CACHE_CONTROL
     assert query['versionId'] == 'v2'
-    with patch('app.storage.media.time.monotonic', return_value=340):
-        assert store.signed_url(asset, 300, ('space-a', 'member-a')) != one
+    with patch('app.storage.media.time.monotonic', return_value=740):
+        assert store.signed_url(asset, 900, ('space-a', 'member-a')) != one
 
 
 @patch.dict('os.environ', {'TOS_PUBLIC_ENDPOINT': 'https://example.invalid'})
@@ -58,9 +59,10 @@ def test_new_objects_have_explicit_private_cache_metadata(tmp_path):
     assert args['forbid_overwrite'] is True
 
 @patch.dict('os.environ', {'TOS_PUBLIC_ENDPOINT': 'https://example.invalid'})
-def test_preview_cache_is_five_minutes_and_url_renews_before_safety_window():
+@pytest.mark.parametrize('role,mime', [('preview','image/webp'),('original','image/png'),('original','video/mp4'),('original','audio/mpeg')])
+def test_media_cache_is_five_minutes_and_url_renews_before_safety_window(role,mime):
     store = make_store()
-    asset = {'object_key': 'preview', 'object_version_id': 'v1', 'role': 'preview'}
+    asset = {'object_key': 'preview', 'object_version_id': 'v1', 'role': role, 'content_type': mime}
     with patch('app.storage.media.time.monotonic', return_value=100):
         first = store.signed_url(asset, 900, ('space', 'member'))
     assert store.client.pre_signed_url.call_args.kwargs['query']['response-cache-control'] == 'private, max-age=300, must-revalidate'
@@ -79,7 +81,7 @@ def test_browser_preview_signature_default_is_fifteen_minutes():
         media.browser_url({'workspace_id': 'space', 'role': 'preview'})
         assert store.signed_url.call_args.args[1] == 900
         media.browser_url({'workspace_id': 'space', 'role': 'original'})
-        assert store.signed_url.call_args.args[1] == 300
+        assert store.signed_url.call_args.args[1] == 900
         media.browser_url({'workspace_id': 'space', 'role': 'preview'}, provider=True)
         assert store.signed_url.call_args.args[1] == 3600
         assert store.signed_url.call_args.kwargs['cache_scope'] is None

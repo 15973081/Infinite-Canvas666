@@ -195,7 +195,7 @@ class FilesystemStore:
             shutil.copyfileobj(src, dst, 1024 * 1024)
 
 
-BROWSER_MEDIA_CACHE_CONTROL = "private, max-age=60, must-revalidate"
+BROWSER_MEDIA_CACHE_CONTROL = "private, max-age=300, must-revalidate"
 
 
 class TosStore:
@@ -230,7 +230,7 @@ class TosStore:
         from tos.enum import HttpMethodType
         # Keep authorization at the application entry point. Reuse only the
         # resulting object URL, so redirects do not bust the browser's byte cache.
-        max_age = min(300 if asset.get("role") == "preview" else 60, max(0, seconds // 2))
+        max_age = min(300, max(0, seconds // 2))
         policy = f"private, max-age={max_age}, must-revalidate" if cache_scope else "private, no-store"
         key = (cache_scope, self.bucket, asset["object_key"], asset["object_version_id"], seconds, policy)
         now = time.monotonic()
@@ -409,7 +409,7 @@ def browser_url(asset, provider=False):
     elif asset.get("role") == "preview":
         ttl = int(os.getenv("MEDIA_PREVIEW_URL_TTL", "900"))
     else:
-        ttl = int(os.getenv("MEDIA_BROWSER_URL_TTL", "300"))
+        ttl = int(os.getenv("MEDIA_BROWSER_URL_TTL", "900"))
     ttl = min(max(ttl, 30), 86400)
     if media_backend() == "tos":
         from app.services.member_context import current_access
