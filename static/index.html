@@ -26,6 +26,7 @@
     </script>
     <script src="/static/vendor/js/tailwindcss-cdn.js?v=2026.06.15.1781457289"></script>
     <script src="/static/js/theme.js?v=2026.06.15.1781457289"></script>
+    <script src="/static/js/theme-transition.js?v=2026.09.16.2"></script>
     <style>
         @import url('/static/vendor/css/fonts.css?v=2026.06.15.1781457289');
 
@@ -160,7 +161,7 @@
             overflow: hidden;
         }
 
-        .sidebar:hover {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) {
             width: 220px;
             transition-delay: 0s;
         }
@@ -191,7 +192,7 @@
             transition: transform 0.6s var(--fluid-ease) 0.5s, border-radius 0.6s var(--fluid-ease) 0.5s, border-color 0.3s, background-color .18s, box-shadow .2s;
         }
 
-        .sidebar:hover .logo-ring {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .logo-ring {
             transform: rotate(90deg);
             border-radius: 50%;
             transition-delay: 0s;
@@ -215,7 +216,7 @@
             transition-delay: 0s;
         }
 
-        .sidebar:hover .logo-ring:active {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .logo-ring:active {
             transform: rotate(90deg) scale(.94);
         }
 
@@ -242,7 +243,7 @@
             padding-left: 14px;
         }
 
-        .sidebar:hover .nav-item {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .nav-item {
             width: 190px;
             transition-delay: 0s;
         }
@@ -272,7 +273,7 @@
             transition: opacity 0.3s 0.5s;
         }
 
-        .sidebar:hover .nav-text {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .nav-text {
             opacity: 1;
             transition-delay: 0.1s;
         }
@@ -296,7 +297,7 @@
             transition: width 0.3s var(--fluid-ease) 0.5s, background-color 0.2s, color 0.2s, border-color 0.2s;
         }
 
-        .sidebar:hover .nav-fold-toggle {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .nav-fold-toggle {
             width: 190px;
             transition-delay: 0s;
         }
@@ -510,13 +511,13 @@
         .letter-d { transform: translateX(-8px); }
         .letter-x { transform: translateX(8px); }
 
-        .sidebar:hover .letter-d {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .letter-d {
             transform: translateX(-120px);
             opacity: 0;
             transition-delay: 0s;
         }
 
-        .sidebar:hover .letter-x {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .letter-x {
             transform: translateX(120px);
             opacity: 0;
             transition-delay: 0s;
@@ -532,7 +533,7 @@
             pointer-events: none;
         }
 
-        .sidebar:hover .author-content-wrap {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .author-content-wrap {
             opacity: 1;
             transform: scale(1);
             transition-delay: 0.2s;
@@ -588,7 +589,7 @@
             position:relative;
         }
 
-        .sidebar:hover .side-pill {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .side-pill {
             width: 170px;
             transition-delay: 0s;
         }
@@ -655,7 +656,7 @@
             overflow: hidden;
             transition: opacity 0.3s 0.5s, max-width 0.3s var(--fluid-ease) 0.5s, transform .22s var(--fluid-ease);
         }
-        .sidebar:hover .settings-fold-chevron,
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .settings-fold-chevron,
         .sidebar.is-pinned .settings-fold-chevron {
             opacity: .72;
             max-width: 16px;
@@ -691,14 +692,14 @@
             overflow:hidden;
             transition: opacity 0.3s 0.5s, max-width 0.3s var(--fluid-ease) 0.5s;
         }
-        .sidebar:hover .side-pill-text {
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .side-pill-text {
             opacity:1;
             max-width:120px;
             transition-delay:.15s;
         }
         /* 折叠态去除 gap，避免图标被推偏 */
         .side-pill { gap:0; }
-        .sidebar:hover .side-pill { gap:8px; }
+        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .side-pill { gap:8px; }
 
         @media (max-height: 760px) {
             .sidebar {
@@ -1125,7 +1126,7 @@
 <body>
 
     <div class="app-shell">
-        <aside class="sidebar" id="studioSidebar">
+        <aside data-theme-transition-hover="" class="sidebar" id="studioSidebar">
             <button class="logo-ring mb-12" id="sidebarLogoToggle" type="button" onclick="toggleSidebarPinned(event)" aria-pressed="false" title="固定导航栏">
                 <div class="w-1.5 h-1.5 rounded-full transition-colors" id="logo-dot" style="background:var(--text)"></div>
             </button>
@@ -1182,7 +1183,7 @@
             </nav>
 
             <div class="side-actions">
-                <button class="side-pill" onclick="toggleTheme()" id="theme-toggle-btn" type="button" title="切换夜间模式">
+                <button class="side-pill" onclick="toggleTheme(event)" id="theme-toggle-btn" type="button" title="切换夜间模式">
                     <svg id="icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                     </svg>
@@ -1476,6 +1477,13 @@
             const theme = (window.StudioTheme || {get: () => 'light'}).get();
             try {
                 if (iframe && iframe.contentWindow) {
+                    // Update same-origin contents before the host captures its new theme snapshot.
+                    try {
+                        if(iframe.contentWindow.StudioTheme){
+                            iframe.contentWindow.StudioTheme.apply(theme);
+                            return;
+                        }
+                    } catch(e) {}
                     iframe.contentWindow.postMessage({ type: 'studio-theme', theme }, '*');
                 }
             } catch (e) {}
@@ -1501,9 +1509,13 @@
             }
         }
 
-        function toggleTheme() {
+        function toggleTheme(event) {
             const current = window.StudioTheme ? window.StudioTheme.get() : 'light';
-            broadcastTheme(current === 'dark' ? 'light' : 'dark');
+            const next = current === 'dark' ? 'light' : 'dark';
+            if(window.StudioThemeTransition){
+                return window.StudioThemeTransition.run(() => broadcastTheme(next), event);
+            }
+            broadcastTheme(next);
         }
 
         function toggleLanguage() {

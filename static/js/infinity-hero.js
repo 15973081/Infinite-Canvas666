@@ -2,14 +2,15 @@ import * as T from '/static/vendor/js/three-0.160.0.module.js';
 const host=document.querySelector('.welcome-icon');
 if(host)try{init();}catch(e){host.classList.remove('infinity-ready');console.warn('Infinity hero fallback:',e.message);}
 function init(){
- const canvas=document.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:false,antialias:false,powerPreference:'low-power'});
+ const canvas=document.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:true,antialias:false,powerPreference:'low-power'});
  if(!gl){console.info('Infinity hero: WebGL2 unavailable; using static fallback.');return;}
  const coarse=matchMedia('(pointer:coarse)').matches,mobile=coarse&&innerWidth<700;
  const memory=navigator.deviceMemory||4,cores=navigator.hardwareConcurrency||4;
  const count=memory<=2||cores<=2?1500:mobile?3000:coarse?6000:memory>=8&&cores>=8?22000:11000;
  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
- const renderer=new T.WebGLRenderer({canvas,context:gl,alpha:false,antialias:false});
- renderer.setClearColor(0x0d1016);renderer.setPixelRatio(Math.min(devicePixelRatio||1,mobile?1.5:1.75));
+ const renderer=new T.WebGLRenderer({canvas,context:gl,alpha:true,antialias:false});
+ // Transparent stage lets the artwork mask fade without blending the dark page background.
+ renderer.setClearColor(0x0d1016,0);renderer.setPixelRatio(Math.min(devicePixelRatio||1,mobile?1.5:1.75));
  const scene=new T.Scene(),camera=new T.PerspectiveCamera(36,1,.1,30);camera.position.z=5.8;
  const geometry=new T.BufferGeometry(),seeds=new Float32Array(count*4);
  const rand=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);};
