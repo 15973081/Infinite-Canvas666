@@ -11361,6 +11361,7 @@ function deleteNodeFromButton(id, event){
 function deleteConnection(id, event){
     event?.preventDefault();
     event?.stopPropagation();
+    if(isCanvasLockedByOther()) return;
     pushUndo();
     connections = connections.filter(c => c.id !== id);
     if(hoveredConnectionId === id) hoveredConnectionId = '';
@@ -14007,6 +14008,7 @@ function startLink(e, originId, originKind){
         tempLink.y2 = p.y;
         renderLinks();
     }, e2 => {
+        if(isCanvasLockedByOther()){ tempLink = null; renderLinks(); return; }
         const targetKind = originKind === 'out' ? 'in' : 'out';
         const targetPort = nearestPort(e2.clientX, e2.clientY, targetKind);
         const target = targetPort?.closest('.node');
@@ -14457,6 +14459,7 @@ function knifeHitsConnection(a, b, connection){
     return false;
 }
 function applyKnifeCut(from, to){
+    if(isCanvasLockedByOther()) return;
     if(!canvas || !connections.length || !from || !to) return;
     const nodeHits = new Set();
     nodes.forEach(n => {
@@ -14478,6 +14481,7 @@ function applyKnifeCut(from, to){
     scheduleSave();
 }
 function setKnifeMode(active){
+    if(active && isCanvasLockedByOther()) active = false;
     const needsCleanup = knifeActive || knifePoint || knifeTrail.length
         || knifeChanged || knifeNeedsRender || document.body.classList.contains('canvas-knife');
     document.body.classList.toggle('canvas-knife', Boolean(active && canvas));
@@ -14491,6 +14495,7 @@ function setKnifeMode(active){
     }
 }
 function startKnifeDrag(e){
+    if(isCanvasLockedByOther()) return false;
     if(!canvas || e.button !== 0 || !e.shiftKey || isEditableTarget(e.target)) return false;
     e.preventDefault();
     e.stopPropagation();

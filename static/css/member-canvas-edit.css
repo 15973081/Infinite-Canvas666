@@ -78,3 +78,5 @@ body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #6
 /* Media editing takes priority over canvas collaboration controls. */
 body :is(.output-lightbox,.image-edit-modal,.smart-audio-lightbox).open{z-index:4000}
 body:has(:is(.output-lightbox,.image-edit-modal,.smart-audio-lightbox).open,.member-media-preview[open]) .member-canvas-edit{display:none!important;pointer-events:none!important}
+
+body.member-canvas-view .link-delete{display:none!important;pointer-events:none!important}
