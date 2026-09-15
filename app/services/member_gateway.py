@@ -18,7 +18,7 @@ from app.services.member_context import access_scope
 from app.storage.workspace import workspace_scope
 
 COOKIE = 'canvas_member_session'
-PUBLIC = {'/login', '/api/auth/login', '/api/auth/status', '/api/auth/activate',
+PUBLIC = {'/static/js/infinity-hero.js', '/static/vendor/js/three-0.160.0.module.js', '/login', '/api/auth/login', '/api/auth/status', '/api/auth/activate',
           '/static/login.html', '/static/css/login.css', '/static/js/login.js',
           '/static/js/frontend-version.js', '/api/frontend/version'}
 ACCOUNT = {'/api/management-entry', '/api/auth/logout', '/api/auth/workspaces', '/api/auth/profile'}

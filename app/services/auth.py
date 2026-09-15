@@ -20,7 +20,7 @@ from app.services.static_pages import static_html_response
 
 router = APIRouter()
 COOKIE = "canvas_session"
-PUBLIC = {"/login", "/static/login.html", "/static/css/login.css",
+PUBLIC = {'/static/js/infinity-hero.js', '/static/vendor/js/three-0.160.0.module.js', "/login", "/static/login.html", "/static/css/login.css",
           "/static/js/login.js", "/static/js/frontend-version.js",
           "/api/frontend/version", "/api/auth/status", "/api/auth/login",
           "/api/auth/setup"}
