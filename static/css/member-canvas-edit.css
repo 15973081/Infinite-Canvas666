@@ -74,3 +74,7 @@ body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #6
 @supports ((backdrop-filter:blur(10px)) or (-webkit-backdrop-filter:blur(10px))){
     body :is(.canvas-nav,.smart-nav,#quickToolbar,.smart-workflow-toggle,.smart-shortcut-toggle,.smart-cost-toggle,.smart-log-toggle,.smart-backup-toggle,.asset-toggle):not(.active){background:var(--member-capsule-glass);backdrop-filter:blur(10px) saturate(115%);-webkit-backdrop-filter:blur(10px) saturate(115%)}
 }
+
+/* Media editing takes priority over canvas collaboration controls. */
+body :is(.output-lightbox,.image-edit-modal,.smart-audio-lightbox).open{z-index:4000}
+body:has(:is(.output-lightbox,.image-edit-modal,.smart-audio-lightbox).open,.member-media-preview[open]) .member-canvas-edit{display:none!important;pointer-events:none!important}
