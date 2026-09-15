@@ -67,3 +67,10 @@ body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #6
 .member-canvas-title-status{display:block;height:18px;line-height:18px;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 11px/18px system-ui,sans-serif;color:var(--muted,#7a879a)}
 .member-canvas-title-status[data-tone=warning]{color:#b77928}
 :is(html,body).theme-dark .member-canvas-title-status[data-tone=warning]{color:#edbc76}
+
+/* Match the upper canvas capsules to the floating collaboration surface. */
+:root{--member-capsule-glass:rgba(255,255,255,.82)}
+:is(html,body).theme-dark,:is(html,body).studio-theme-dark,:is(html,body).dark,html[data-theme=dark]{--member-capsule-glass:rgba(28,37,50,.84)}
+@supports ((backdrop-filter:blur(10px)) or (-webkit-backdrop-filter:blur(10px))){
+    body :is(.canvas-nav,.smart-nav,#quickToolbar,.smart-workflow-toggle,.smart-shortcut-toggle,.smart-cost-toggle,.smart-log-toggle,.smart-backup-toggle,.asset-toggle):not(.active){background:var(--member-capsule-glass);backdrop-filter:blur(10px) saturate(115%);-webkit-backdrop-filter:blur(10px) saturate(115%)}
+}

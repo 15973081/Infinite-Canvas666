@@ -49,3 +49,10 @@ html.member-workspace-shell .app-shell>.sidebar{height:100%;max-height:100%}
 .member-session-space::after,.member-session-account summary::after{content:'';display:block;flex:none;width:6px;height:6px;margin:-3px 2px 0 4px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .15s;opacity:.65}
 .member-session-account[open] summary::after{transform:translateY(3px) rotate(225deg)}
 @media(prefers-reduced-motion:reduce){.member-session-space::after,.member-session-account summary::after{transition:none}}
+
+/* The workspace header and account menu share the canvas glass finish. */
+html.member-workspace-shell{--ms-glass:rgba(255,255,255,.82)}
+html.member-workspace-shell.theme-dark,html.member-workspace-shell:has(body.theme-dark),html.member-workspace-shell.studio-theme-dark,html.member-workspace-shell.dark,html.member-workspace-shell[data-theme=dark]{--ms-glass:rgba(28,37,50,.84)}
+@supports ((backdrop-filter:blur(10px)) or (-webkit-backdrop-filter:blur(10px))){
+    .member-session-bar,.member-session-account-menu{background:var(--ms-glass);backdrop-filter:blur(10px) saturate(115%);-webkit-backdrop-filter:blur(10px) saturate(115%)}
+}
