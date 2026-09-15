@@ -27,9 +27,9 @@
         password.minLength = creating ? 12 : 1;
         password.autocomplete = creating ? 'new-password' : 'current-password';
         password.placeholder = creating ? '设置至少 12 位密码' : '输入密码';
-        document.getElementById('form-title').textContent = activating ? '激活成员账号' : setup ? '开启你的创作空间' : '欢迎回来';
-        document.getElementById('form-subtitle').textContent = activating ? '输入管理员提供的一次性凭证，设置你自己的密码。' : members ? '使用个人成员账号登录，进入分配给你的空间。' : setup ? '首次使用，先为工作区设置访问账号与密码。' : '登录工作区，继续未完成的灵感。';
-        label.textContent = activating ? '激活并登录' : setup ? '创建账号，进入画布' : '登录，进入画布';
+        document.getElementById('form-title').textContent = activating ? '激活成员账号' : setup ? '开启你的创作空间' : '进入无限画布';
+        document.getElementById('form-subtitle').textContent = activating ? '输入管理员提供的一次性凭证，设置你自己的密码。' : members ? '登录，继续你的创作。' : setup ? '首次使用，先为工作区设置访问账号与密码。' : '登录工作区，继续未完成的灵感。';
+        label.textContent = activating ? '激活并登录' : setup ? '创建账号，进入画布' : '登录';
         activationButton.textContent = activating ? '已有密码，返回登录' : '首次使用或重置密码？激活账号';
     }
     function destination() {

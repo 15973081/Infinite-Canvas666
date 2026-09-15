@@ -81,8 +81,11 @@
     }
     async function choose(member, spaces, initial=false) {
         const card = await showPanel(initial ? '选择工作空间' : '切换工作空间', `${member.display_name}，请选择管理员分配给你的空间。`);
+        if(initial) panel.classList.add('member-space-onboarding');
         const message = element('p', '', 'member-session-error'); message.setAttribute('role', 'alert');
-        card.append(message);
+        const choices=element('div',undefined,'member-initial-spaces');
+        const actions=element('div',undefined,'member-initial-actions');
+        card.append(message,choices,actions);
         if (!spaces.length) card.append(element('p', '暂未分配任何空间，请联系管理员。'));
         return new Promise(resolve => {
             for (const space of spaces) {
@@ -101,12 +104,13 @@
                     } catch (error) { message.textContent = error.message; item.disabled = false; }
                 });
                 item.className = 'member-space-choice';
-                item.append(element('small', space.description || (space.permissions.includes('canvas.edit') ? '可编辑' : '查看空间')));
-                card.append(item);
+                item.append(element('small', space.description || '你的创作工作空间'));
+                item.append(element('span',space.permissions.includes('canvas.edit') ? '可编辑' : '仅查看','member-space-permission'));
+                choices.append(item);
             }
-            card.append(button('刷新空间列表', () => location.reload()));
+            actions.append(button('刷新空间列表', () => location.reload()));
             if (!initial) card.append(button('取消', () => { panel.remove(); panel = null; resolve(null); }));
-            card.append(button('退出登录', async () => {
+            actions.append(button('退出登录', async () => {
                 try { if (initial) { await json('/api/auth/logout', {method:'POST', headers:{'X-Member-ID':member.id}}); location.assign('/login'); } else await logout(); }
                 catch (error) { message.textContent = error.message; }
             }));
@@ -243,7 +247,7 @@
             const selected = inherited?.workspace.id || requested || saved;
             let workspace = spaces.find(space => space.id === selected);
             if (requested && !workspace) throw new Error('你未被分配到链接指定的空间。请返回工作台选择可用空间。');
-            if (!workspace) workspace = await choose(status.member, spaces, true);
+            if (!workspace) workspace = spaces.length === 1 ? spaces[0] : await choose(status.member, spaces, true);
             context = Object.freeze({member:Object.freeze(status.member), workspace:Object.freeze(workspace)});
             await domReady;
             document.documentElement.classList.remove('member-session-pending');
