@@ -1224,3 +1224,7 @@ input[type=range].smart-range::-webkit-slider-thumb { -webkit-appearance:none; w
 .theme-dark .image-edit-tools input[type="range"]::-moz-range-track { background:#334155; }
 @media (max-width:980px) { .video-trim-editor { flex-wrap:wrap; } .video-trim-range { order:3; flex-basis:100%; } .video-trim-actions { margin-left:auto; } }
 @media (max-width:760px) { .composer { width:min(540px, calc(100vw - 28px)); } .composer-card { grid-template-columns:minmax(0, 1fr) auto; } .smart-minimap { width:148px; height:98px; } .video-frame-tools .image-edit-btn { min-width:0; } .video-frame-tools .image-edit-btn span { display:none; } .video-trim-point { grid-template-columns:auto 74px; } .video-trim-current-btn { grid-column:1 / -1; } .video-trim-actions { width:100%; justify-content:flex-end; } }
+
+/* Connection controls live outside image nodes and need their own view-mode guard. */
+body:is(.member-canvas-view,.smart-canvas-readonly) .connection-layer .conn-cut{display:none!important;pointer-events:none!important}
+body:is(.member-canvas-view,.smart-canvas-readonly) .connection-layer .conn-hit{pointer-events:none!important;cursor:default}

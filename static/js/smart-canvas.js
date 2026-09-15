@@ -7579,6 +7579,7 @@ function deleteNodeFromButton(id){
     deleteNode(id);
 }
 function disconnectConnection(index){
+    if(isSmartCanvasLocked()) return;
     if(!canvas || !Array.isArray(canvas.connections)) return;
     const conn = canvas.connections[index];
     if(!conn) return;
