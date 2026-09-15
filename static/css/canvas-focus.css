@@ -1,0 +1,11 @@
+/* Keep the existing iframe alive while expanding its surrounding layout. */
+html.canvas-focus-host .member-session-bar,html.canvas-focus-mode .member-session-bar,
+html.canvas-focus-host .sidebar,html.canvas-focus-host .nano-monitor{display:none!important}
+html.canvas-focus-host body,html.canvas-focus-mode body{padding-top:0!important}
+html.canvas-focus-host body>.app-shell,html.canvas-focus-mode body>.shell{margin-top:0!important;height:100vh!important}
+html.canvas-focus-host .stage{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;margin:0!important;border:0!important;box-sizing:border-box!important;border-radius:0!important}
+html.canvas-focus-host #frame-canvas{inset:0!important;width:100%!important;height:100%!important;border-radius:0!important;transition:none!important}
+.canvas-focus-toggle{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.canvas-focus-toggle:focus-visible{outline:2px solid #658dc2;outline-offset:3px}
+.smart-focus-toggle{position:absolute;top:22px;right:686px;z-index:56;width:40px;height:40px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--text);backdrop-filter:blur(12px)}
+@media(max-width:900px){.smart-focus-toggle{right:302px}}
