@@ -16,7 +16,11 @@
                     transition: none !important;
                     view-transition-name: none !important;
                 }
-                html.${CLASS}::view-transition-group(root) { animation: none; }
+                html.${CLASS}::view-transition-group(root) {
+                    animation: none;
+                    overflow: clip;
+                    contain: paint;
+                }
                 html.${CLASS}::view-transition-image-pair(root) { isolation: auto; }
                 html.${CLASS}::view-transition-old(root),
                 html.${CLASS}::view-transition-new(root) {
@@ -25,7 +29,12 @@
                     opacity: 1;
                 }
                 html.${CLASS}::view-transition-old(root) { z-index: 1; }
-                html.${CLASS}::view-transition-new(root) { z-index: 2; }
+                html.${CLASS}::view-transition-new(root) {
+                    z-index: 2;
+                    will-change: clip-path;
+                    transform: translateZ(0);
+                    backface-visibility: hidden;
+                }
             `;
             doc.head.appendChild(style);
         }
@@ -39,24 +48,51 @@
         return prepared;
     }
 
-    function originFor(event){
+    function circleFor(event){
+        // Measure after freezing layout. DOM rects and client coordinates are both
+        // viewport CSS pixels: never multiply either by devicePixelRatio.
+        const rect = (event?.currentTarget || event?.target)?.getBoundingClientRect?.();
         const touch = event?.changedTouches?.[0] || event?.touches?.[0];
         const pointer = touch || (event?.detail !== 0 ? event : null);
-        if(Number.isFinite(pointer?.clientX) && Number.isFinite(pointer?.clientY)){
-            return {x:pointer.clientX, y:pointer.clientY};
-        }
-        const rect = (event?.currentTarget || event?.target)?.getBoundingClientRect?.();
-        return rect ? {x:rect.left + rect.width / 2, y:rect.top + rect.height / 2}
-            : {x:window.innerWidth / 2, y:window.innerHeight / 2};
+        const width = window.innerWidth, height = window.innerHeight;
+        const x = rect?.width > 0 && rect?.height > 0 ? rect.left + rect.width / 2
+            : Number.isFinite(pointer?.clientX) ? pointer.clientX : width / 2;
+        const y = rect?.width > 0 && rect?.height > 0 ? rect.top + rect.height / 2
+            : Number.isFinite(pointer?.clientY) ? pointer.clientY : height / 2;
+        const radius = Math.hypot(Math.max(Math.abs(x), Math.abs(width - x)),
+            Math.max(Math.abs(y), Math.abs(height - y)));
+        // circle() radius percentages use the normalized diagonal, not width.
+        // Relative geometry survives uniform snapshot scaling; one CSS pixel
+        // of overscan hides antialiasing at the farthest corner.
+        const diagonal = Math.hypot(width, height) / Math.SQRT2;
+        const center = (100 * x / width) + '% ' + (100 * y / height) + '%';
+        return ['circle(0% at ' + center + ')',
+            'circle(' + (100 * (radius + 1) / diagonal) + '% at ' + center + ')'];
+    }
+
+    function waitForLivePage(){
+        // finished resolves before the browser paints the live page and restores :hover.
+        // Keep the snapshot's layout until that handoff has crossed a paint boundary.
+        if(document.hidden || !window.requestAnimationFrame) return Promise.resolve();
+        return new Promise(resolve => {
+            let frame;
+            const finish = () => {
+                window.cancelAnimationFrame(frame);
+                document.removeEventListener('visibilitychange', onVisibility);
+                resolve();
+            };
+            const onVisibility = () => { if(document.hidden) finish(); };
+            document.addEventListener('visibilitychange', onVisibility);
+            frame = window.requestAnimationFrame(() => {
+                frame = window.requestAnimationFrame(finish);
+            });
+        });
     }
 
     async function run(update, event){
         // Ignore a second activation until the current snapshot has been released.
         if(busy) return false;
         busy = true;
-        const origin = originFor(event);
-        const radius = Math.hypot(Math.max(origin.x, window.innerWidth - origin.x),
-            Math.max(origin.y, window.innerHeight - origin.y));
         const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
         const prepared = [], frozenHovers = [];
         let transition, animation, committed = false, interrupted = false;
@@ -86,6 +122,7 @@
         motion.addEventListener?.('change', onMotion);
         try {
             prepareDocuments(document, prepared, frozenHovers);
+            const circle = circleFor(event);
             if(motion.matches){ commit(); return true; }
             if(!document.startViewTransition || !document.documentElement.animate ||
                 !window.CSS?.supports('clip-path', 'circle(1px at 0px 0px)')){
@@ -100,10 +137,9 @@
                 try {
                     await transition.ready;
                     if(!interrupted && !motion.matches){
-                        animation = document.documentElement.animate({clipPath:[
-                            `circle(0px at ${origin.x}px ${origin.y}px)`,
-                            `circle(${radius}px at ${origin.x}px ${origin.y}px)`
-                        ]}, {duration:520, easing:'cubic-bezier(0.4, 0, 0.2, 1)',
+                        // r(t) = R * t/T: the edge never eases into a near-stop.
+                        animation = document.documentElement.animate({clipPath:circle}, {
+                            duration:520, easing:'linear',
                             fill:'both', pseudoElement:'::view-transition-new(root)'});
                         await animation.finished;
                     }
@@ -120,6 +156,7 @@
             return true;
         } finally {
             animation?.cancel();
+            if(transition && !interrupted && !motion.matches) await waitForLivePage();
             prepared.forEach(doc => doc.documentElement.classList.remove(CLASS));
             frozenHovers.forEach(({element, value}) => element.setAttribute('data-theme-transition-hover', value));
             window.removeEventListener('resize', interrupt);
