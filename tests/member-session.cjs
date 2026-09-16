@@ -33,7 +33,7 @@ function harness({member='alice', selected='space_a', parent, search='', failBus
     window.parent=parent || window;
     const context={window,document,location,URL,URLSearchParams,Request,Headers,Response,AbortSignal,Promise,
         CustomEvent:class {constructor(type,init){this.type=type;this.detail=init?.detail;}},
-        sessionStorage:{getItem:key=>store.get(key),setItem:(key,value)=>store.set(key,value)}};
+        sessionStorage:{getItem:key=>store.get(key),setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)}};
     vm.runInNewContext(source,context);
     return {window,calls,nodes,store};
 }
@@ -107,4 +107,26 @@ test('space dropdown preserves the page until saving succeeds and drops old canv
     assert.match(h.nodes.find(n=>n.className==='member-space-message').textContent,/保存尚未完成/);
     h.window.FrontendVersion.flushPages=async()=>true;
     await options[1].events.click();assert.equal(destination,'/static/canvas.html?workspace=space_b');
+});
+
+test('logout forgets the space only after saving succeeds; refresh still restores selection',async()=>{
+    const h=harness({selected:'space_b'});
+    assert.equal((await h.window.CanvasSession.ready).workspace.id,'space_b');
+    assert.equal(h.nodes.some(n=>n.className==='member-session-panel'),false);
+    let destination='';
+    h.window.location.assign=value=>destination=value;
+    const logout=h.nodes.find(n=>n.tag==='button'&&n.textContent==='退出登录');
+    h.window.FrontendVersion={flushPages:async()=>false};
+    await logout.events.click();
+    assert.equal(h.store.get('canvas:workspace:alice'),'space_b');
+    assert.equal(h.calls.some(c=>c.url==='/api/auth/logout'),false);
+    h.window.FrontendVersion.flushPages=async()=>true;
+    await logout.events.click();
+    assert.equal(h.store.has('canvas:workspace:alice'),false);
+    assert.equal(destination,'/login');
+    const next=harness({selected:h.store.get('canvas:workspace:alice') || null});
+    await settle();
+    assert.ok(next.nodes.some(n=>n.tag==='h1'&&n.textContent==='选择工作空间'));
+    await next.nodes.find(n=>n.tag==='button'&&n.textContent==='A').events.click();
+    assert.equal((await next.window.CanvasSession.ready).workspace.id,'space_a');
 });

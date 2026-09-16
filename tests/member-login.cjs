@@ -6,6 +6,7 @@ const source = fs.readFileSync('static/js/login.js','utf8');
 
 async function page({failFirstLogin=false}={}) {
     const nodes = new Map(), calls=[];
+    const store = new Map([['canvas:workspace:member-test','space_b'],['canvas:workspace:other','space_a'],['canvas-member:member-test:space_b:draft','unsaved draft']]);
     const get = id => {
         if (!nodes.has(id)) nodes.set(id,{value:'',textContent:'',hidden:false,checked:false,parentElement:{hidden:false},events:{},
             addEventListener(name,fn){this.events[name]=fn;},setAttribute(){},removeAttribute(){},focus(){}});
@@ -13,6 +14,7 @@ async function page({failFirstLogin=false}={}) {
     };
     const location={origin:'http://localhost',search:'',replace(value){this.destination=value;}};
     vm.runInNewContext(source,{document:{getElementById:get},location,URL,URLSearchParams,AbortSignal,
+        sessionStorage:{removeItem:key=>store.delete(key)},
         fetch:async (url,init={}) => {
             calls.push({url,body:init.body && JSON.parse(init.body)});
             if(url==='/api/auth/status') return Response.json({mode:'members',authenticated:false,setup_required:false});
@@ -24,7 +26,7 @@ async function page({failFirstLogin=false}={}) {
     get('activation-button').events.click();
     get('activation-token').value='synthetic-activation-token-only';
     get('password').value=get('confirm-password').value='synthetic-long-password';
-    return {get,calls,location,submit:()=>get('login-form').events.submit({preventDefault(){}})};
+    return {get,calls,location,store,submit:()=>get('login-form').events.submit({preventDefault(){}})};
 }
 
 test('activation signs in using the server assigned username and clears the one time token',async()=>{
@@ -43,5 +45,19 @@ test('a login failure after successful activation retries login without consumin
     await p.submit();
     assert.equal(p.calls.filter(c=>c.url==='/api/auth/activate').length,1);
     assert.equal(p.calls.filter(c=>c.url==='/api/auth/login').length,2);
+    assert.equal(p.location.destination,'/');
+});
+
+test('a fresh login forgets only this member workspace while failed login preserves it',async()=>{
+    const p=await page({failFirstLogin:true});
+    p.get('activation-button').events.click();
+    p.get('username').value='assigned-artist';
+    await p.submit();
+    assert.equal(p.store.get('canvas:workspace:member-test'),'space_b');
+    assert.equal(p.location.destination,undefined);
+    await p.submit();
+    assert.equal(p.store.has('canvas:workspace:member-test'),false);
+    assert.equal(p.store.get('canvas:workspace:other'),'space_a');
+    assert.equal(p.store.get('canvas-member:member-test:space_b:draft'),'unsaved draft');
     assert.equal(p.location.destination,'/');
 });

@@ -77,6 +77,7 @@
     async function logout() {
         if (!await flushPages()) throw new Error('画布保存尚未完成。请先保留草稿或完成保存，再退出。');
         await json('/api/auth/logout', {method:'POST', headers:{'X-Member-ID':context.member.id}});
+        try { sessionStorage.removeItem('canvas:workspace:' + context.member.id); } catch (_) {}
         location.assign('/login');
     }
     async function choose(member, spaces, initial=false) {

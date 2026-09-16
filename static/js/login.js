@@ -119,11 +119,15 @@
                 username.value = activated.member.username;
                 activationToken.value = ''; activating = false; mode();
             }
-            await request(setup ? '/api/auth/setup' : '/api/auth/login', {
+            const signedIn = await request(setup ? '/api/auth/setup' : '/api/auth/login', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({username: username.value.trim(), password: password.value, remember: document.getElementById('remember').checked})
             });
+            // A fresh member login starts with a fresh workspace choice.
+            if (members && signedIn.member?.id) {
+                try { sessionStorage.removeItem('canvas:workspace:' + signedIn.member.id); } catch (_) {}
+            }
             label.textContent = '准备就绪，正在进入…';
             location.replace(destination());
         } catch (error) {
