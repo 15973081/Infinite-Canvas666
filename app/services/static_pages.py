@@ -10,7 +10,8 @@ import time
 import urllib.parse
 
 from fastapi import HTTPException
-from fastapi.responses import Response
+from fastapi.responses import Response, RedirectResponse
+from starlette.datastructures import Headers
 from fastapi.staticfiles import StaticFiles
 
 from app.config import APP_VERSION, BASE_DIR, STATIC_DIR
@@ -20,10 +21,12 @@ _FRONTEND_REWRITE_EXTENSIONS = {".html", ".css"}
 _FRONTEND_EXCLUDED_PREFIXES = ("runninghub/thumbnails/",)
 _FRONTEND_EXCLUDED_NAMES = {".gitkeep"}
 _FRONTEND_BUILD_QUERY = "__frontend_build"
+_ASSET_VERSION_QUERY = "__asset_version"
+_ASSET_SOURCE_CACHE = {}
 _FRONTEND_BUILD_SCAN_INTERVAL_SECONDS = 1.0
 _FRONTEND_BUILD_LOCK = threading.Lock()
 _FRONTEND_BUILD_CACHE = {"snapshot": None, "build_id": "", "checked_at": 0.0}
-_STATIC_URL_PATTERN = re.compile(r"(?P<url>/static/[^\s\"'`<>()]+)", re.I)
+_STATIC_URL_PATTERN = re.compile(r"(?<![\w/.:~-])(?P<url>/static/[^\s\"'`<>()]+)", re.I)
 
 
 def current_app_version() -> str:
@@ -117,13 +120,97 @@ def _with_frontend_build(url: str, build_id: str) -> str:
     return f"{result}{marker}{fragment}" if marker else result
 
 
+def _asset_path(url):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme or parsed.netloc or not _is_versioned_frontend_path(url):
+        return None
+    relative = urllib.parse.unquote(parsed.path)[len('/static/'):]
+    base = os.path.realpath(STATIC_DIR)
+    path = os.path.realpath(os.path.join(base, relative))
+    try:
+        if os.path.commonpath([base, path]) != base or not os.path.isfile(path):
+            return None
+    except ValueError:
+        return None
+    return path
+
+
+def _asset_source(path):
+    info = os.stat(path)
+    signature = (info.st_mtime_ns, info.st_ctime_ns, info.st_size, info.st_ino)
+    cached = _ASSET_SOURCE_CACHE.get(path)
+    if cached and cached[0] == signature:
+        return cached[1], cached[2]
+    with open(path, 'rb') as stream:
+        content = stream.read()
+    digest = hashlib.sha256(content).hexdigest()[:20]
+    # Keep CSS bytes for dependency rewriting; large binary payloads are not retained.
+    css = content.decode('utf-8') if path.lower().endswith('.css') else None
+    _ASSET_SOURCE_CACHE[path] = (signature, digest, css)
+    return digest, css
+
+
+_CSS_REFERENCE_PATTERN = re.compile(
+    r'''url\(\s*(?P<quote>['"]?)(?P<url>[^'"()\s]+)(?P=quote)\s*\)|@import\s+(?P<iq>['"])(?P<import>[^'"]+)(?P=iq)''', re.I)
+
+
+def _css_references(content, source_url, replace):
+    def visit(match):
+        raw = match.group('url') or match.group('import')
+        parsed = urllib.parse.urlsplit(raw)
+        if raw.startswith('#') or parsed.scheme or parsed.netloc:
+            return match.group(0)
+        absolute = urllib.parse.urljoin(source_url, raw)
+        if not _asset_path(absolute):
+            return match.group(0)
+        value = replace(absolute)
+        key = 'url' if match.group('url') is not None else 'import'
+        start, end = match.span(key)
+        return match.group(0)[:start-match.start()] + value + match.group(0)[end-match.start():]
+    return _CSS_REFERENCE_PATTERN.sub(visit, content)
+
+
+def asset_version(url):
+    path = _asset_path(url)
+    if path is None or path.lower().endswith('.html'):
+        return ''
+    own, css = _asset_source(path)
+    if css is None:
+        return own
+    # Hash the dependency closure, not the deployment id. A visited set handles
+    # cyclic imports deterministically without recursive version substitution.
+    dependencies = {}
+    def collect(value):
+        target = _asset_path(value)
+        if target is None or target in dependencies:
+            return value
+        digest, nested = _asset_source(target)
+        dependencies[target] = digest
+        if nested is not None:
+            _css_references(nested, urllib.parse.urlsplit(value).path, collect)
+        return value
+    collect(url)
+    content = '\n'.join(os.path.relpath(p, STATIC_DIR).replace(os.sep, '/') + ':' + h
+                        for p, h in sorted(dependencies.items()))
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()[:20]
+
+
+def _with_asset_version(url, version):
+    parsed = urllib.parse.urlsplit(url)
+    query = [(k, v) for k, v in urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+             if k.lower() not in {'v', _FRONTEND_BUILD_QUERY, _ASSET_VERSION_QUERY}]
+    query.append((_ASSET_VERSION_QUERY, version))
+    return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
+
+
 def versioned_static_references(content: str, build_id: str | None = None) -> str:
-    """Attach the current aggregate build id to every app-owned /static URL."""
-    active_build_id = build_id or frontend_build_id()
-    return _STATIC_URL_PATTERN.sub(
-        lambda match: _with_frontend_build(match.group("url"), active_build_id),
-        content,
-    )
+    def rewrite(match):
+        url = match.group('url')
+        if urllib.parse.urlsplit(url).path.lower().endswith('.html'):
+            return _with_frontend_build(url, build_id or frontend_build_id())
+        version = asset_version(url)
+        return _with_asset_version(url, version) if version else url
+    return _STATIC_URL_PATTERN.sub(rewrite, content)
 
 
 def versioned_static_html(html: str) -> str:
@@ -163,11 +250,11 @@ def versioned_static_html(html: str) -> str:
     return versioned_static_references(versioned, build_id)
 
 
-def _static_cache_headers(scope, build_id: str) -> dict[str, str]:
+def _static_cache_headers(scope, asset_id: str) -> dict[str, str]:
     raw_query = scope.get("query_string", b"") or b""
     query = urllib.parse.parse_qs(raw_query.decode("utf-8", errors="replace"))
-    requested_build = str((query.get(_FRONTEND_BUILD_QUERY) or [""])[0])
-    if requested_build and requested_build == build_id:
+    requested_asset = str((query.get(_ASSET_VERSION_QUERY) or [""])[0])
+    if requested_asset and requested_asset == asset_id:
         return {"Cache-Control": "public, max-age=31536000, immutable"}
     return {
         "Cache-Control": "no-cache, must-revalidate",
@@ -196,34 +283,42 @@ def static_html_response(filename: str) -> Response:
 
 
 class VersionedStaticFiles(StaticFiles):
-    """Serve every app-owned static dependency through one build fingerprint."""
+    """Content-addressed assets; HTML remains fresh and carries deployment metadata."""
 
     async def get_response(self, path, scope):
         if str(path).replace('\\','/').rsplit('/',1)[-1].lower() in {'api-settings.html','api-settings.js','api-settings.css'}:
             raise HTTPException(404)
-        response = await super().get_response(path, scope)
-        if response.status_code != 200:
-            return response
-        suffix = os.path.splitext(str(path))[1].lower()
-        build_id = frontend_build_id()
-        if suffix == ".html":
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-        else:
-            response.headers.update(_static_cache_headers(scope, build_id))
-        if scope.get("method") != "GET" or suffix not in _FRONTEND_REWRITE_EXTENSIONS:
-            return response
         full_path, file_stat = self.lookup_path(path)
-        if file_stat is None or not stat.S_ISREG(file_stat.st_mode):
+        if file_stat is None or not stat.S_ISREG(file_stat.st_mode) or scope.get('method') not in {'GET', 'HEAD'}:
+            return await super().get_response(path, scope)
+        suffix = os.path.splitext(str(path))[1].lower()
+        if suffix == '.html':
+            response = _no_store_html_response(full_path)
+            if scope.get('method') == 'HEAD': response.body = b''
             return response
-        if suffix == ".html":
-            return _no_store_html_response(full_path)
-        with open(full_path, "r", encoding="utf-8") as file:
-            content = versioned_static_references(file.read(), build_id)
-        media_type = mimetypes.guess_type(full_path)[0] or "text/plain"
-        return Response(
-            content,
-            media_type=media_type,
-            headers=_static_cache_headers(scope, build_id),
-        )
+        url = '/static/' + str(path).replace('\\', '/')
+        version = asset_version(url)
+        if not version:
+            return await super().get_response(path, scope)
+        query = scope.get('query_string', b'').decode('utf-8', errors='replace')
+        canonical = _with_asset_version(url + ('?' + query if query else ''), version)
+        requested = urllib.parse.parse_qs(query)
+        if requested.get(_ASSET_VERSION_QUERY) != [version] or _FRONTEND_BUILD_QUERY in requested or 'v' in requested:
+            return RedirectResponse(canonical, status_code=307, headers={'Cache-Control':'no-cache'})
+        headers = {**_static_cache_headers(scope, version), 'ETag': '"' + version + '"'}
+        request_headers = Headers(scope=scope)
+        if self.is_not_modified(Headers(headers), request_headers):
+            return Response(status_code=304, headers=headers)
+        if suffix == '.css':
+            _, content = _asset_source(full_path)
+            content = _css_references(content, url,
+                lambda ref: _with_asset_version(ref, asset_version(ref)))
+            response = Response(content, media_type='text/css', headers=headers)
+            if scope.get('method') == 'HEAD': response.body = b''
+            return response
+        # Conditional handling above uses the content ETag, not file timestamps.
+        clean_scope = dict(scope, headers=[(k,v) for k,v in scope.get('headers', [])
+                           if k.lower() not in {b'if-none-match', b'if-modified-since'}])
+        response = await super().get_response(path, clean_scope)
+        response.headers.update(headers)
+        return response

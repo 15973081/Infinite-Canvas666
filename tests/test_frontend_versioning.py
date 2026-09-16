@@ -22,7 +22,7 @@ SMART_CLIENT = (ROOT / "static" / "js" / "smart-canvas.js").read_text(encoding="
 
 
 class FrontendVersioningTests(unittest.TestCase):
-    def test_server_uses_one_content_fingerprint_for_all_frontend_assets(self):
+    def test_server_keeps_deployment_fingerprint_for_update_detection(self):
         self.assertIn("def frontend_build_id()", STATIC_PAGES)
         self.assertIn("hashlib.sha256()", STATIC_PAGES)
         self.assertIn('_FRONTEND_REWRITE_EXTENSIONS = {".html", ".css"}', STATIC_PAGES)
@@ -54,7 +54,7 @@ class FrontendVersioningTests(unittest.TestCase):
             page = static_pages.versioned_static_html(path.read_text(encoding="utf-8"))
             self.assertIn(f'name="frontend-build-id" content="{build_id}"', page, path.name)
             self.assertIn(
-                f'/static/js/frontend-version.js?__frontend_build={build_id}',
+                f'/static/js/frontend-version.js?__asset_version={static_pages.asset_version("/static/js/frontend-version.js")}',
                 page,
                 path.name,
             )
@@ -69,11 +69,12 @@ class FrontendVersioningTests(unittest.TestCase):
             const thumbnail = '/static/runninghub/thumbnails/live.jpg';
             const staticRoot = '/static/runninghub/';
         """
-        result = static_pages.versioned_static_references(source, "build-123")
+        with mock.patch.object(static_pages, "asset_version", side_effect=lambda url: "file-123" if static_pages._is_versioned_frontend_path(url) else ""):
+            result = static_pages.versioned_static_references(source, "build-123")
         self.assertIn('/static/canvas.html?id=abc&__frontend_build=build-123', result)
-        self.assertIn('/static/vendor/three.js?__frontend_build=build-123', result)
-        self.assertIn('/static/vendor/fonts.css?__frontend_build=build-123', result)
-        self.assertIn('/static/js/module.js?__frontend_build=build-123', result)
+        self.assertIn('/static/vendor/three.js?__asset_version=file-123', result)
+        self.assertIn('/static/vendor/fonts.css?__asset_version=file-123', result)
+        self.assertIn('/static/js/module.js?__asset_version=file-123', result)
         self.assertIn('/static/runninghub/thumbnails/live.jpg', result)
         self.assertNotIn('thumbnails/live.jpg?__frontend_build', result)
         self.assertIn("'/static/runninghub/'", result)
@@ -82,11 +83,11 @@ class FrontendVersioningTests(unittest.TestCase):
         build_id = static_pages.frontend_build_id()
         unversioned = static_pages._static_cache_headers({"query_string": b""}, build_id)
         current = static_pages._static_cache_headers(
-            {"query_string": f"__frontend_build={build_id}".encode()},
+            {"query_string": f"__asset_version={build_id}".encode()},
             build_id,
         )
         stale = static_pages._static_cache_headers(
-            {"query_string": b"__frontend_build=stale"},
+            {"query_string": b"__asset_version=stale"},
             build_id,
         )
         self.assertEqual("no-cache, must-revalidate", unversioned["Cache-Control"])
@@ -142,7 +143,96 @@ def test_member_canvas_pages_load_binding_protocol_before_business_scripts():
             binding = names.index('/static/js/canvas-task-bindings.js')
             assert names.index('/static/js/canvas-task-results.js') < binding < names.index('/static/js/' + business)
             assert names.count('/static/js/canvas-task-bindings.js') == 1
-            assert '__frontend_build=' in scripts[binding]
+            assert '__asset_version=' in scripts[binding]
             assert 'defer' not in re.search(r'<script[^>]*canvas-task-bindings.js[^>]*>', page).group()
         login = static_pages.versioned_static_html('<html><head></head><body><form id="login-form"></form></body></html>')
         assert 'canvas-task-bindings.js' not in login
+
+
+class IndependentAssetCacheTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.base = Path(self.directory.name)
+        self.patch = mock.patch.object(static_pages, 'STATIC_DIR', self.directory.name)
+        self.patch.start()
+        self.addCleanup(self.directory.cleanup)
+        self.addCleanup(self.patch.stop)
+        self.addCleanup(static_pages._ASSET_SOURCE_CACHE.clear)
+        self.write('app.js', 'console.log(1)')
+        self.write('other.js', 'console.log(2)')
+        self.write('font.woff2', 'font-one')
+        self.write('fonts.css', "@font-face{src:url('./font.woff2')}")
+        self.write('app.css', '@import "fonts.css";body{color:red}')
+
+    def write(self, name, content):
+        (self.base / name).write_text(content, encoding='utf-8')
+
+    def url(self, name):
+        return static_pages.versioned_static_references('/static/' + name)
+
+    def test_only_changed_js_changes_its_url_even_across_deployments(self):
+        names = ['app.js', 'other.js', 'app.css', 'fonts.css', 'font.woff2']
+        before = {name:self.url(name) for name in names}
+        self.write('app.js', 'console.log(100)')
+        after = {name:self.url(name) for name in names}
+        self.assertNotEqual(before.pop('app.js'), after.pop('app.js'))
+        self.assertEqual(before, after)
+        self.assertEqual(static_pages.versioned_static_references('/static/other.js','deploy-a'),
+                         static_pages.versioned_static_references('/static/other.js','deploy-b'))
+        os.utime(self.base / 'other.js', None)
+        self.assertEqual(before['other.js'], self.url('other.js'))
+
+    def test_font_update_invalidates_only_dependent_css(self):
+        names=['font.woff2','fonts.css','app.css','app.js']
+        before={n:self.url(n) for n in names}
+        self.write('font.woff2','font-two')
+        for n in names[:3]: self.assertNotEqual(before[n],self.url(n))
+        self.assertEqual(before['app.js'],self.url('app.js'))
+
+    def test_css_cycles_are_stable_and_external_urls_are_untouched(self):
+        self.write('fonts.css','@import "app.css";')
+        self.assertEqual(self.url('app.css'), self.url('app.css'))
+        source='https://cdn.example/static/app.js /static/../secret.js /static/missing.js'
+        self.assertEqual(source, static_pages.versioned_static_references(source))
+        self.assertIsNone(static_pages._asset_path('/static/%2e%2e/secret.js'))
+
+    def test_http_caching_etags_head_and_legacy_urls(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        app=FastAPI()
+        app.mount('/static', static_pages.VersionedStaticFiles(directory=self.directory.name))
+        with TestClient(app) as client:
+            url=self.url('app.css')
+            response=client.get(url)
+            self.assertEqual(response.status_code,200)
+            self.assertIn('immutable',response.headers['cache-control'])
+            self.assertIn(self.url('fonts.css'),response.text)
+            font_css=client.get(self.url('fonts.css'))
+            self.assertIn(self.url('font.woff2'),font_css.text)
+            cached=client.get(url,headers={'If-None-Match':response.headers['etag']})
+            self.assertEqual(cached.status_code,304)
+            self.assertEqual(cached.content,b'')
+            self.assertIn('immutable',cached.headers['cache-control'])
+            head=client.head(url)
+            self.assertEqual(head.content,b'')
+            self.assertEqual(head.headers['content-length'],response.headers['content-length'])
+            js=client.get(self.url('app.js'))
+            self.assertEqual(client.get(self.url('app.js'),headers={'If-None-Match':js.headers['etag']}).status_code,304)
+            for legacy in ['/static/app.js','/static/app.js?v=old&__frontend_build=old']:
+                redirect=client.get(legacy,follow_redirects=False)
+                self.assertEqual(redirect.status_code,307)
+                self.assertEqual(redirect.headers['location'],self.url('app.js'))
+                self.assertNotIn('immutable',redirect.headers['cache-control'])
+            self.write('font.woff2','new-font-version')
+            stale=client.get(url,headers={'If-None-Match':response.headers['etag']},follow_redirects=False)
+            self.assertEqual(stale.status_code,307)
+            current=client.get(stale.headers['location'],headers={'If-None-Match':response.headers['etag']})
+            self.assertEqual(current.status_code,200)
+            self.assertNotEqual(current.headers['etag'],response.headers['etag'])
+
+    def test_query_and_fragment_preserved_without_global_version(self):
+        value=static_pages.versioned_static_references('/static/app.js?v=old&member=one#section')
+        self.assertIn('member=one',value)
+        self.assertTrue(value.endswith('#section'))
+        self.assertNotIn('__frontend_build',value)
+        self.assertIn('__asset_version=',value)

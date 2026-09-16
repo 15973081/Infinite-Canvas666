@@ -140,7 +140,12 @@
     function versionedUrl(value, buildId=latestBuildId){
         const url = new URL(value, window.location.href);
         url.searchParams.delete('v');
-        url.searchParams.set('__frontend_build', buildId || latestBuildId || loadedBuildId);
+        if(url.pathname.startsWith('/static/') && !url.pathname.endsWith('.html')){
+            // The server resolves lazy assets to their own content-addressed URL.
+            url.searchParams.delete('__frontend_build');
+        } else {
+            url.searchParams.set('__frontend_build', buildId || latestBuildId || loadedBuildId);
+        }
         return url.toString();
     }
 
