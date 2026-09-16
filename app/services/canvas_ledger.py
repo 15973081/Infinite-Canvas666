@@ -129,7 +129,7 @@ def historical_price(info, at, providers, request=None):
         prices.append(price)
     from app.services.model_commercial import attach_discount
     price = max(prices, key=lambda p: (bool(p.get("resolution")), float(p.get("effective_from") or 0))) if prices else None
-    return attach_discount(price, provider, info["kind"], info["model"], at)
+    return attach_discount(price, provider, info["kind"], info["model"], at, request)
 
 
 def price_log(log, providers=(), frozen_price=None):

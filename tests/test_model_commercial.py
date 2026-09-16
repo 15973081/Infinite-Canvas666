@@ -77,3 +77,89 @@ def test_video_usage_additional_discount_is_frozen_once():
     context=pricing_context(p,15);p['model_discounts'][0]['rate']='0.2'
     result=video_accounting({'usage':{'completion_tokens':1000},'resolution':'720p'},{'model':'v'},p,context)['cost']
     assert result['base_amount_micros']==10000 and result['amount_micros']==8000
+
+
+@pytest.mark.parametrize('at,expected',[
+    (99, (10000000,10000000,10000000)),
+    (100,(8000000,10000000,10000000)),
+    (150,(8000000,5000000,10000000)),
+    (200,(10000000,5000000,10000000)),
+    (250,(10000000,10000000,10000000)),
+])
+def test_each_model_has_its_own_discount_window_and_rate(at,expected):
+    p={'id':'demo','model_prices':normalize_model_prices([
+        {'kind':'image','model':m,'billing_type':'per_image','unit_price':'10'}
+        for m in ('a','b','c')]),'model_discounts':discounts([
+        {'kind':'image','model':'a','rate':'0.8','effective_from':100,'effective_to':200},
+        {'kind':'image','model':'b','rate':'0.5','effective_from':150,'effective_to':250},
+    ])}
+    # Another provider exposes the same IDs but has independent commercial terms.
+    other={**deepcopy(p),'id':'other','model_discounts':[]}
+    for model,amount in zip(('a','b','c'),expected):
+        log={'createdAt':at,'providerId':'demo','billingKind':'image',
+             'billingModel':model,'outputs':['one'],'request':{}}
+        snapshot=historical_price({'providerId':'demo','kind':'image','model':model},at,[p,other],{})
+        assert price_log(log,[],snapshot)['amount_micros']==amount
+        other_price=historical_price({'providerId':'other','kind':'image','model':model},at,[p,other],{})
+        assert price_log({**log,'providerId':'other'},[],other_price)['amount_micros']==10000000
+
+
+from app.services.model_commercial import attach_discount
+
+
+def scoped_rule(**extra):
+    return dict(kind='video', model='v', rate='0.9', effective_from=100, effective_to=200, **extra)
+
+
+@pytest.mark.parametrize('resolution,video,expected',[
+    ('480p',False,'0.9'),('720p',False,'0.8'),('720p',True,'0.6'),('1080p',True,'0.9')])
+def test_specific_discount_overrides_without_multiplication(resolution,video,expected):
+    rules=[scoped_rule(),{**scoped_rule(resolution='720p'),'rate':'0.8'},
+           {**scoped_rule(resolution='720p',has_video_input=True),'rate':'0.6'}]
+    for ordered in (rules,list(reversed(rules))):
+        p={'model_discounts':discounts(ordered)}
+        price=attach_discount({'unit_price':'10'},p,'video','v',100,
+                              {'resolution':resolution,'has_video_input':video})
+        assert price['commercial_discount']['rate']==expected
+        assert amounts(1000000,price)['amount_micros']==int(Decimal(expected)*1000000)
+        assert 'commercial_discount' not in attach_discount({'unit_price':'10'},p,'video','v',200)
+
+
+@pytest.mark.parametrize('second',[
+    scoped_rule(resolution='720p'), scoped_rule(has_video_input=True)])
+def test_ambiguous_scope_overlap_is_rejected(second):
+    with pytest.raises(ValueError): discounts([scoped_rule(resolution='720p'),second])
+
+
+def test_disjoint_specs_and_adjacent_times_are_allowed():
+    discounts([scoped_rule(resolution='720p'),scoped_rule(resolution='1080p')])
+    discounts([scoped_rule(has_video_input=False),scoped_rule(has_video_input=True)])
+    discounts([scoped_rule(),{**scoped_rule(),'effective_from':200,'effective_to':300}])
+
+
+@pytest.mark.parametrize('extra',[{'resolution':'8k'},{'has_video_input':'false'},
+                                  {'kind':'image','has_video_input':False}])
+def test_discount_specs_are_validated(extra):
+    with pytest.raises(ValueError): discounts([{**scoped_rule(),**extra}])
+
+
+def test_volcengine_uses_actual_resolution_and_frozen_rules():
+    p={'id':'demo','model_prices':[dict(kind='video',model='v',resolution=r,
+       has_video_input=True,billing_type='per_million_tokens',unit_price='10') for r in ['720p','1080p']],
+       'model_discounts':discounts([scoped_rule(),
+           {**scoped_rule(resolution='1080p',has_video_input=True),'rate':'0.6'}])}
+    context=pricing_context(p,150)
+    p['model_discounts']=[]
+    result=video_accounting({'usage':{'completion_tokens':1000},'resolution':'1080p'},
+        {'model':'v','resolution':'720p','videos':['reference']},p,context)['cost']
+    assert result['amount_micros']==6000
+    assert result['discount_snapshot']['resolution']=='1080p'
+    assert result['discount_snapshot']['has_video_input'] is True
+
+
+def test_resolution_discount_matches_request_even_with_generic_base_price():
+    p={'id':'demo','model_prices':normalize_model_prices([dict(kind='image',model='m',
+        billing_type='per_image',unit_price='10')]),'model_discounts':discounts([
+        dict(kind='image',model='m',resolution='2k',rate='0.5',effective_from=100,effective_to=200)])}
+    snapshot=historical_price(dict(providerId='demo',kind='image',model='m'),150,[p],{'size':'2048x2048'})
+    assert snapshot['commercial_discount']['rate']=='0.5'

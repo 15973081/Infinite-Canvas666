@@ -39,11 +39,21 @@ def policies(value):
     return out
 
 
+def _discount_scope(row):
+    return {key: row[key] for key in ('resolution', 'has_video_input')
+            if key in row and row[key] is not None and row[key] != ''}
+
+
+def _more_specific(a, b):
+    a, b = _discount_scope(a), _discount_scope(b)
+    return len(a) > len(b) and all(a.get(k) == v for k, v in b.items())
+
+
 def discounts(value):
     if not isinstance(value,list) or len(value)>1000: raise ValueError('invalid discounts')
     result=[]
     for row in value:
-        if not isinstance(row,dict) or set(row)-{'kind','model','rate','effective_from','effective_to','label'}: raise ValueError('invalid discount')
+        if not isinstance(row,dict) or set(row)-{'kind','model','rate','effective_from','effective_to','label','resolution','has_video_input'}: raise ValueError('invalid discount')
         kind,model=row.get('kind'),row.get('model')
         if kind not in {'image','video'} or not isinstance(model,str) or not model.strip() or len(model)>180: raise ValueError('invalid discount model')
         try:
@@ -52,17 +62,36 @@ def discounts(value):
         except (InvalidOperation,TypeError,ValueError): raise ValueError('invalid discount value')
         if not rate.is_finite() or not 0<=rate<=1 or rate.as_tuple().exponent < -6 or start<0 or end<0 or (end and end<=start): raise ValueError('invalid discount range')
         item={'kind':kind,'model':model.strip(),'rate':format(rate,'f'),'effective_from':start,'effective_to':end,'label':str(row.get('label') or '')[:120]}
+        resolution = row.get('resolution')
+        allowed = {'1k', '2k', '4k'} if kind == 'image' else {'480p', '720p', '1080p', '4k'}
+        if resolution not in (None, ''):
+            if not isinstance(resolution, str) or resolution.lower() not in allowed:
+                raise ValueError('invalid discount resolution')
+            item['resolution'] = resolution.lower()
+        if row.get('has_video_input') is not None:
+            if kind != 'video' or not isinstance(row['has_video_input'], bool):
+                raise ValueError('invalid discount video input')
+            item['has_video_input'] = row['has_video_input']
         for old in result:
-            if (old['kind'],old['model'])==(kind,model.strip()) and start<(old['effective_to'] or float('inf')) and old['effective_from']<(end or float('inf')): raise ValueError('overlapping discounts')
+            if (old['kind'],old['model']) != (kind,model.strip()): continue
+            if start >= (old['effective_to'] or float('inf')) or old['effective_from'] >= (end or float('inf')): continue
+            a, b = _discount_scope(old), _discount_scope(item)
+            if any(k in b and b[k] != v for k, v in a.items()): continue
+            if not (_more_specific(old, item) or _more_specific(item, old)):
+                raise ValueError('overlapping discount scopes')
         result.append(item)
     return result
 
 
-def attach_discount(price, provider, kind, model, at):
+def attach_discount(price, provider, kind, model, at, specification=None):
     if not price: return price
     result=deepcopy(price)
     matches=[r for r in provider.get('model_discounts',[]) if r['kind']==kind and r['model']==model and r['effective_from']<=at and (not r['effective_to'] or at<r['effective_to'])]
-    if len(matches)>1: raise ValueError('overlapping discounts')
+    spec = specification if specification is not None else price
+    matches = [r for r in matches if all(spec.get(k) == v for k, v in _discount_scope(r).items())]
+    winners = [r for r in matches if all(r is other or _more_specific(r, other) for other in matches)]
+    if matches and len(winners) != 1: raise ValueError('overlapping discount scopes')
+    matches = winners
     # Independent discount is applied on the existing base billing rate, once.
     if matches: result['commercial_discount']=deepcopy(matches[0])
     return result

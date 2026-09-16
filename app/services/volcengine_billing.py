@@ -119,7 +119,8 @@ def video_accounting(raw, request, provider, context):
         return {"usage": usage, "video_info": info, "cost": cost}
     price = max(candidates, key=lambda r: int(r.get("effective_from") or 0))
     from app.services.model_commercial import attach_discount, amounts
-    price = attach_discount(price, {"model_discounts": context.get("discounts", [])}, "video", info["requested_model"], context["at"])
+    price = attach_discount(price, {"model_discounts": context.get("discounts", [])}, "video", info["requested_model"], context["at"],
+                            {"resolution": resolution, "has_video_input": info["has_video_input"]})
     try:
         unit_price = Decimal(str(price["unit_price"]))
         if not unit_price.is_finite() or unit_price < 0:

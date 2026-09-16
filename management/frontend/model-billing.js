@@ -45,11 +45,23 @@
       }
       const discountInputs=[];
       if(k!=='chat'){
-        const block=node('section',undefined,'provider-block'),list=node('div');block.append(node('h3','独立折扣'),node('p','按任务提交时刻匹配，开始时间包含、结束时间不含。支付比例 80% = 八折；100% = 不打折。相同模型的时间段不能重叠。不与账号折扣叠加。时间使用当前浏览器时区。','muted'),list);
-        function add(row={}){const line=node('div',undefined,'provider-fields');const [sl,start]=input('开始时间',localTime(row.effective_from),'datetime-local'),[tl,end]=input('结束时间（不含）',localTime(row.effective_to),'datetime-local'),[pl,rate]=input('支付比例（%）',row.rate!=null?String(Number(row.rate)*100):'100','number'),[nl,label]=input('折扣说明',row.label||'');rate.min='0';rate.max='100';rate.step='0.0001';start.required=true;label.maxLength=120;const remove=node('button','删除此时段');remove.type='button';const record={line,start,end,rate,label};remove.onclick=()=>{line.remove();discountInputs.splice(discountInputs.indexOf(record),1);dirty=true;};line.append(sl,tl,pl,nl,remove);list.append(line);discountInputs.push(record);}
+        const block=node('section',undefined,'provider-block'),list=node('div');block.append(node('h3','当前模型的限时折扣'),node('p',`仅适用于 ${row.config.name||row.id} / ${m}（${k==='image'?'图片':'视频'}）。其他模型的优惠时段与支付比例分别配置；未配置或不在优惠时段时按基础价格计费。`,'muted'),node('p','按任务提交时刻匹配，开始时间包含、结束时间不含。支付比例 80% = 八折；100% = 不打折。具体规格优先于通用折扣，只应用一条；同规格时段重叠或交叉范围不明确时不能保存。不与账号折扣叠加。时间使用当前浏览器时区。','muted'),list);
+        function add(row={}){const line=node('div',undefined,'provider-fields');const [sl,start]=input('开始时间',localTime(row.effective_from),'datetime-local'),[tl,end]=input('结束时间（不含）',localTime(row.effective_to),'datetime-local'),[pl,rate]=input('支付比例（%）',row.rate!=null?String(Number(row.rate)*100):'100','number'),[nl,label]=input('折扣说明',row.label||'');rate.min='0';rate.max='100';rate.step='0.0001';start.required=true;label.maxLength=120;const remove=node('button','删除此时段');remove.type='button';const [resLabel,resolution]=select('适用分辨率',[['','全部'],...(k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']).map(s=>[s,s.toUpperCase()])],row.resolution||'');
+          const [videoLabel,video]=select('视频输入',[['','全部'],['false','无视频输入'],['true','有视频输入']],typeof row.has_video_input==='boolean'?String(row.has_video_input):'');
+          const preview=node('p','','muted');
+          function refreshPreview(){
+            const percent=Number(rate.value);
+            if(!rate.value.trim()||!Number.isFinite(percent)||percent<0||percent>100){preview.textContent='请输入 0–100 的支付比例。';return;}
+            const prices=priceInputs.filter(p=>(!resolution.value||!p.resolution||p.resolution===resolution.value)&&(!video.value||p.hasVideo===null||String(p.hasVideo)===video.value));
+            preview.textContent='本条规则折后单价预览：'+prices.filter(p=>p.e.value.trim()!==''&&Number.isFinite(Number(p.e.value))).map(p=>
+              (p.resolution?p.resolution.toUpperCase():'通用')+(p.hasVideo===null?'':p.hasVideo?'·有视频输入':'·无视频输入')+' '+Number((Number(p.e.value)*percent/100).toFixed(6))
+            ).join('；')+'（单位同基础价格；实际按时段及最具体规则匹配，不叠加。基础价已含优惠时会再次打折。）';
+          }
+          line.append(resLabel);if(k==='video')line.append(videoLabel);
+          const record={line,start,end,rate,label,resolution,video,refreshPreview};remove.onclick=()=>{line.remove();discountInputs.splice(discountInputs.indexOf(record),1);dirty=true;};rate.required=true;line.append(sl,tl,pl,nl,preview,remove);list.append(line);discountInputs.push(record);refreshPreview();}
         (config.model_discounts||[]).filter(r=>r.kind===k&&r.model===m).forEach(add);const plus=node('button','添加折扣时段');plus.type='button';plus.onclick=()=>{add({effective_from:Date.now()});dirty=true;};block.append(plus);form.append(block);
       }
-      const [reasonLabel,reason]=input('修改原因');reason.required=true;reason.maxLength=1000;const submit=node('button','保存模型与计费配置','primary'),status=node('p','','muted');status.setAttribute('role','status');const footer=node('section',undefined,'provider-block');footer.append(reasonLabel,submit,status);form.append(footer);form.oninput=form.onchange=()=>{dirty=true;};
+      const [reasonLabel,reason]=input('修改原因');reason.required=true;reason.maxLength=1000;const submit=node('button','保存当前模型配置','primary'),status=node('p','','muted');status.setAttribute('role','status');const footer=node('section',undefined,'provider-block');footer.append(reasonLabel,submit,status);form.append(footer);form.oninput=form.onchange=()=>{dirty=true;discountInputs.forEach(r=>r.refreshPreview());};
       form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;status.textContent='正在保存…';try{
         const next=structuredClone(config);delete next.id;delete next.primary;
         next.model_policies={...next.model_policies,[key]:{visible:visible.checked,enabled:enabled.checked,...(k!=='chat'&&restricted.checked?{resolutions:sizeChecks.filter(([,c])=>c.checked).map(([s])=>s)}:{})}};
@@ -57,11 +69,11 @@
           next.model_prices=[...(next.model_prices||[])];
           for(const p of priceInputs){next.model_prices=next.model_prices.filter(r=>r.effective_to||!p.match(r));const text=p.e.value.trim();if(text!==''){if(!/^\d+(?:\.\d{1,6})?$/.test(text))throw Error('单价最多六位小数。');next.model_prices.push({kind:k,model:m,billing_type:form.billingSelect.value,unit_price:text,currency:'CNY',effective_from:0,effective_to:0,...(p.resolution?{resolution:p.resolution}:{}),...(p.hasVideo!==null?{has_video_input:p.hasVideo,service_tier:'default'}:{})});}}
           next.model_discounts=(next.model_discounts||[]).filter(r=>r.kind!==k||r.model!==m);
-          for(const r of discountInputs){const start=new Date(r.start.value).getTime(),end=r.end.value?new Date(r.end.value).getTime():0;if(!Number.isFinite(start)||end&&end<=start)throw Error('请检查折扣起止时间。');next.model_discounts.push({kind:k,model:m,rate:(Number(r.rate.value)/100).toFixed(6),effective_from:start,effective_to:end,label:r.label.value.trim()});}
+          for(const r of discountInputs){const start=new Date(r.start.value).getTime(),end=r.end.value?new Date(r.end.value).getTime():0;if(!Number.isFinite(start)||!Number.isFinite(end)||end&&end<=start)throw Error('请检查折扣起止时间。');next.model_discounts.push({kind:k,model:m,rate:(Number(r.rate.value)/100).toFixed(6),effective_from:start,effective_to:end,label:r.label.value.trim(),...(r.resolution.value?{resolution:r.resolution.value}:{}),...(k==='video'&&r.video.value!==''?{has_video_input:r.video.value==='true'}:{})});}
         }
         const saved=await save(row,{config:next,expected_version:row.version,reason:reason.value});
         row.version=saved.version;row.config=saved.config;config=structuredClone(saved.config);
-        status.textContent='已保存。历史任务费用保持原快照。';dirty=false;
+        status.textContent=`已保存 ${m} 的配置；其他模型配置不变，历史任务费用保持原快照。`;dirty=false;
         submit.disabled=false;
       }catch(error){status.textContent=error.message;submit.disabled=false;}};
     }
