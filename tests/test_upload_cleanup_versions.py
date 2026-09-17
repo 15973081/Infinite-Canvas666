@@ -130,3 +130,29 @@ def test_invalid_pagination_fails_closed(stage,monkeypatch):
     row,store=stage
     monkeypatch.setattr(store,'list_object_versions',lambda *a,**k:NS(versions=[],delete_markers=[],is_truncated=True,next_key_marker=row['staging_key'],next_version_id_marker='same'))
     with pytest.raises(cleanup.CleanupError,match='advance'): cleanup.inventory(row,store)
+
+
+def test_empty_head_error_code_requires_independent_version_listing(stage,monkeypatch):
+    row,store=stage;key=row['staging_key']
+    store.add(key,'recorded',10);store.add(key,'marker',marker=True)
+    original_head=store.head_object
+    def head(*args,**kwargs):
+        try: return original_head(*args,**kwargs)
+        except StoreError: raise StoreError('')
+    monkeypatch.setattr(store,'head_object',head)
+    r=report();cleanup.clean_objects(row,store,r)
+    assert r['bytes']==10 and len(r['deleted'])==2 and not store.entries
+    cleanup.clean_objects(row,store,report())
+
+
+@pytest.mark.parametrize('failure',[StoreError('NoSuchBucket'),StoreError('AccessDenied',403),TimeoutError('network')])
+def test_empty_head_404_cannot_hide_listing_failures(stage,failure):
+    row,store=stage;store.fail['list']=failure
+    with pytest.raises(type(failure)):
+        cleanup.version_absent(StoreError(''),store,row['staging_key'],'recorded')
+
+
+def test_empty_head_404_does_not_override_present_version(stage):
+    row,store=stage;key=row['staging_key'];store.add(key,'recorded')
+    assert not cleanup.version_absent(StoreError(''),store,key,'recorded')
+    assert not cleanup.version_absent(StoreError('NoSuchBucket'),store,key,'recorded')

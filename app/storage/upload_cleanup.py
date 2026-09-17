@@ -89,6 +89,18 @@ def exact_versions(store, key, heartbeat=lambda: None):
     raise CleanupError('listing_limit', 'Version listing exceeded safety limit')
 
 
+def version_absent(exc, store, key, version, heartbeat=lambda: None):
+    if missing(exc):
+        return True
+    # HEAD responses have no body; TOS can return 404 with an empty error code.
+    # Never infer absence from that alone: a successful, complete version list
+    # must independently confirm this exact version is absent. Bucket, access,
+    # network and pagination failures propagate instead of becoming success.
+    if getattr(exc, 'status_code', None) == 404 and not getattr(exc, 'code', None):
+        return not any(item['version'] == version for item in exact_versions(store, key, heartbeat))
+    return False
+
+
 def inventory(row, store, heartbeat=lambda: None):
     validate_row(row, store)
     key = row['staging_key']
@@ -100,7 +112,7 @@ def inventory(row, store, heartbeat=lambda: None):
             try:
                 head = store.client.head_object(store.bucket, key, version_id=recorded)
             except Exception as exc:
-                if not missing(exc): raise
+                if not version_absent(exc, store, key, recorded, heartbeat): raise
             else:
                 values.append({'key': key, 'version': recorded, 'delete_marker': False, 'bytes': head.content_length})
         if recorded == 'null':
@@ -146,7 +158,7 @@ def clean_objects(row, store, report, heartbeat=lambda: None):
                 try:
                     store.client.head_object(store.bucket, value['key'], version_id=value['version'])
                 except Exception as exc:
-                    if not missing(exc): raise
+                    if not version_absent(exc, store, value['key'], value['version'], heartbeat): raise
                 else:
                     raise CleanupError('version_still_present', 'Deleted data version is still readable')
         else:
