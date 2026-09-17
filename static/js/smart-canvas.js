@@ -2379,23 +2379,26 @@ function renderSeedance25TaskModeControl(){
         </div>
     </div>`;
 }
+function smartVideoDurationRange(value=settings){
+    const seedance=isSeedance25VideoModel(value.videoModel);
+    return window.VideoDurationPolicy.bounds((apiProviders || []).find(p=>p.id===(value.videoProvider || 'comfly')),value.videoModel,{min:seedance?4:1,max:seedance?30:60,auto:seedance});
+}
 function renderVideoDurationControl(){
     const seedance25 = isSeedance25VideoModel();
-    const min = seedance25 ? 4 : 1;
-    const max = seedance25 ? 30 : 60;
-    const raw = Number(settings.videoDuration);
-    const v = seedance25 && raw === -1 ? -1 : Math.max(min, Math.min(max, raw || 5));
-    const quick = seedance25 ? [-1, 4, 5, 6, 8, 10, 12, 15, 20, 30] : [3, 4, 5, 6, 8, 10, 12, 15];
+    const range = smartVideoDurationRange();
+    const {min,max} = range;
+    const v = window.VideoDurationPolicy.clamp(settings.videoDuration,range);
+    const quick = window.VideoDurationPolicy.choices(range,seedance25 ? [-1,4,5,6,8,10,12,15,20,30] : [3,4,5,6,8,10,12,15]);
     return `<div class="smart-control duration-control" title="${escapeHtml(tr('smart.videoDurationTip'))}">
         <button class="smart-pill" type="button"><i data-lucide="timer"></i><span>${v === -1 ? '自动' : `${v}s`}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.videoDuration'))}</div>
+            <div class="smart-popover-title">${escapeHtml(tr('smart.videoDuration'))} · ${min}–${max} 秒</div>
             <div class="duration-grid">
                 ${quick.map(n => `<button type="button" class="duration-option ${n === v ? 'active' : ''}" data-smart-param="videoDuration" data-smart-value="${n}">${n === -1 ? '自动' : `${n}s`}</button>`).join('')}
             </div>
             <label class="duration-custom">
                 <span>${escapeHtml(tr('smart.custom'))}</span>
-                <input type="number" min="${seedance25 ? -1 : min}" max="${max}" step="1" data-param="videoDuration" value="${v}">
+                <input type="number" min="${range.auto ? -1 : min}" max="${max}" step="1" data-param="videoDuration" value="${v}">
             </label>
         </div>
     </div>`;
@@ -3126,7 +3129,7 @@ function setDynamicSetting(key, value){
     if(key === 'provider_id') settings.model = '';
     if(key === 'videoProvider') settings.videoModel = '';
     if(key === 'videoModel' && isSeedance25VideoModel()){
-        if(Number(settings.videoDuration) !== -1) settings.videoDuration = Math.max(4, Math.min(30, Number(settings.videoDuration) || 5));
+
         if(!['', '480p', '720p', '1080p'].includes(settings.videoResolution)) settings.videoResolution = '';
         if(['9:21', 'keep_ratio'].includes(settings.videoAspect)) settings.videoAspect = 'adaptive';
     }
@@ -3134,6 +3137,7 @@ function setDynamicSetting(key, value){
         settings.videoAspect = 'adaptive';
         if(settings.videoTaskMode === 'edit') settings.videoDuration = -1;
     }
+    if(['videoDuration','videoModel','videoProvider','videoTaskMode'].includes(key)) settings.videoDuration=window.VideoDurationPolicy.clamp(settings.videoDuration,smartVideoDurationRange());
     if(key === 'videoMultimodal' && settings.videoMultimodal) settings.videoUseFrameRoles = false;
     if(key === 'videoUseFrameRoles' && settings.videoUseFrameRoles) settings.videoMultimodal = false;
     if(key === 'comfyMode') applyRecentSmartSettingsForCurrentMode();
@@ -6935,8 +6939,16 @@ function bindLoopNodeControls(el, node){
         btn.onclick = e => {
             e.preventDefault();
             e.stopPropagation();
+            const previousMode = node.mode === 'parallel' ? 'parallel' : 'serial';
             node.mode = btn.dataset.loopMode === 'parallel' ? 'parallel' : 'serial';
             render();
+            if(previousMode !== node.mode && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+                const segment = world.querySelector('.image-node[data-id="' + CSS.escape(node.id) + '"] .loop-smart-seg');
+                if(segment){
+                    segment.classList.add('studio-switch-motion');
+                    segment.addEventListener('animationend',()=>segment.classList.remove('studio-switch-motion'),{once:true});
+                }
+            }
             scheduleSave();
         };
     });
@@ -13437,9 +13449,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             prompt,
             provider_id: runSettings.videoProvider || 'comfly',
             model: runSettings.videoModel || 'veo3-fast',
-            duration: isSeedance25VideoModel(runSettings.videoModel) && Number(runSettings.videoDuration) === -1
-                ? -1
-                : Math.max(isSeedance25VideoModel(runSettings.videoModel) ? 4 : 1, Math.min(isSeedance25VideoModel(runSettings.videoModel) ? 30 : 60, Number(runSettings.videoDuration) || 5)),
+            duration: window.VideoDurationPolicy.clamp(runSettings.videoDuration,smartVideoDurationRange(runSettings)),
             aspect_ratio: runSettings.videoAspect || '16:9',
             resolution: runSettings.videoResolution || '',
             images: refImages,
@@ -15297,3 +15307,15 @@ function smartNodeToolbarHtml(node){
             <i data-lucide="${escapeAttr(action.icon)}"></i><span>${escapeHtml(action.label)}</span>
         </button>`).join('')}</div>`;
 }
+
+window.VideoDurationPolicy.watch({read:()=>window.CanvasApi.getConfig(),apply:cfg=>{
+    if(!Array.isArray(cfg.api_providers))return;
+    let changed=false;
+    for(const provider of apiProviders){
+        const fresh=cfg.api_providers.find(p=>p.id===provider.id);
+        if(fresh && JSON.stringify(provider.model_policies || {})!==JSON.stringify(fresh.model_policies || {})){
+            provider.model_policies=fresh.model_policies || {};changed=true;
+        }
+    }
+    if(changed)renderDynamicParams();
+}});

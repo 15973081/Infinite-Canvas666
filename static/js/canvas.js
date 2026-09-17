@@ -4165,10 +4165,15 @@ function isSeedance20VideoModel(model){
 function isVolcengineSeedance25VideoNode(node){
     return resolveVideoProviderId(node?.apiProvider || 'comfly') === 'volcengine' && isSeedance25VideoModel(node?.model);
 }
+function videoNodeDurationRange(node){
+    const seedance=isVolcengineSeedance25VideoNode(node);
+    return window.VideoDurationPolicy.bounds(apiProviders.find(p=>p.id===resolveVideoProviderId(node.apiProvider || 'comfly')),node.model,{min:seedance?4:1,max:seedance?30:60,auto:seedance});
+}
 function normalizeVideoNodeSelection(node){
     if(!node) return;
+    node.duration = window.VideoDurationPolicy.clamp(node.duration,videoNodeDurationRange(node));
     if(isVolcengineSeedance25VideoNode(node)){
-        if(Number(node.duration) !== -1) node.duration = Math.max(4, Math.min(30, Number(node.duration) || 5));
+
         if(!['', '480p', '720p', '1080p'].includes(node.resolution)) node.resolution = '';
         if(['9:21', 'keep_ratio'].includes(node.aspectRatio)) node.aspectRatio = 'adaptive';
         return;
@@ -9218,6 +9223,7 @@ function renderVideoBody(node){
     normalizeVideoNodeSelection(node);
     const isVolcengineVideoNode = resolveVideoProviderId(node.apiProvider || 'comfly') === 'volcengine';
     const isSeedance25 = isVolcengineSeedance25VideoNode(node);
+    const durationRange = videoNodeDurationRange(node);
     if(isVolcengineVideoNode) node.useFrameRoles = false;
     node.model = node.model || 'veo3-fast';
     wrap.innerHTML = `
@@ -9236,8 +9242,8 @@ function renderVideoBody(node){
             </div>
             <div class="gen-settings-row">
                 <label class="field" style="flex:1">
-                    <div class="setting-title">${tr('canvas.videoDuration')}</div>
-                    <input class="setting-input video-duration" type="number" min="${isSeedance25 ? -1 : 1}" max="${isSeedance25 ? 30 : 60}" step="1" value="${Number(node.duration ?? 5)}">
+                    <div class="setting-title">${tr('canvas.videoDuration')} · ${durationRange.min}–${durationRange.max} 秒</div>
+                    <input class="setting-input video-duration" type="number" min="${durationRange.auto ? -1 : durationRange.min}" max="${durationRange.max}" title="${durationRange.min}–${durationRange.max} 秒" step="1" value="${Number(node.duration ?? 5)}">
                 </label>
                 <label class="field" style="flex:1">
                     <div class="setting-title">${tr('canvas.videoAspect')}</div>
@@ -9302,7 +9308,7 @@ function renderVideoBody(node){
         render();
         scheduleSave();
     };
-    durationSelect.oninput = e => { e.stopPropagation(); const seedance25 = isVolcengineSeedance25VideoNode(node), value = Number(e.target.value || 5); node.duration = seedance25 && value === -1 ? -1 : Math.max(seedance25 ? 4 : 1, Math.min(seedance25 ? 30 : 60, value)); scheduleSave(); };
+    durationSelect.onchange = e => { e.stopPropagation(); node.duration=window.VideoDurationPolicy.clamp(e.target.value,videoNodeDurationRange(node)); e.target.value=String(node.duration); scheduleSave(); };
     durationSelect.onblur = e => { e.target.value = String(node.duration || 5); };
     aspectSelect.onchange = e => { e.stopPropagation(); node.aspectRatio = e.target.value; scheduleSave(); };
     resolutionSelect.onchange = e => { e.stopPropagation(); node.resolution = e.target.value; scheduleSave(); };
@@ -10345,7 +10351,7 @@ async function runVideoNode(nodeId, opts={}){
         prompt,
         provider_id:providerId,
         model:node.model || 'veo3-fast',
-        duration:Number(node.duration || 5),
+        duration:window.VideoDurationPolicy.clamp(node.duration,videoNodeDurationRange(node)),
         aspect_ratio:node.aspectRatio || '16:9',
         resolution:node.resolution || '',
         images:refs,
@@ -14997,3 +15003,19 @@ function openCanvasCoverStyle(item){
     };
     document.body.append(dialog);dialog.showModal();
 }
+
+// Refresh administrative duration policies without rebuilding nodes or saving the canvas.
+window.VideoDurationPolicy.watch({read:()=>window.CanvasApi.getConfig(),apply:cfg=>{
+    if(!Array.isArray(cfg.api_providers))return;
+    for(const provider of apiProviders){const fresh=cfg.api_providers.find(p=>p.id===provider.id);if(fresh)provider.model_policies=fresh.model_policies || {};}
+    for(const input of nodesEl.querySelectorAll('.video-duration')){
+        const element=input.closest('.node[data-id]');
+        const node=canvas?.nodes?.find(n=>n.id===element?.dataset.id);
+        if(!node)continue;
+        const range=videoNodeDurationRange(node);
+        input.min=String(range.auto?-1:range.min);input.max=String(range.max);input.title=range.min+'–'+range.max+' 秒';
+        const label=input.parentElement.querySelector('.setting-title');
+        if(label)label.textContent=tr('canvas.videoDuration')+' · '+range.min+'–'+range.max+' 秒';
+        if(document.activeElement!==input)input.value=String(window.VideoDurationPolicy.clamp(node.duration,range));
+    }
+}});

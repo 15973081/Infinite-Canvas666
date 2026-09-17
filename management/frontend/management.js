@@ -4,7 +4,7 @@
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
   const names = {modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   const errors = {
-    invalid_model_policy:'请至少开放一种有效规格，并检查模型开关配置。',
+    invalid_model_policy:'请检查模型开关、开放规格和视频秒数范围（正整数，最短不大于最长）。',
     invalid_model_discount:'折扣支付比例须为 0–100%，结束时间须晚于开始时间，同一规格的时段不能重叠；交叉规格必须有明确包含关系，具体规格覆盖通用规则。',
     invalid_provider_prices:'价格配置无效，请检查金额、规格和计费单位。',
     billing_assignment_changed:'流水或归属已变化，请重新预览。',billing_target_unavailable:'目标账号不是本空间的有效成员。',billing_reason_required:'请填写补录原因。',billing_assignment_empty:'没有需要调整的流水。',billing_assignment_too_large:'该画布流水超过 2000 条，请联系维护人员分批处理。',invalid_billing_query:'请检查日期范围。',

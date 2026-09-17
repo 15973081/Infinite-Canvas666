@@ -12,6 +12,35 @@ from app.services.canvas_ledger import historical_price, price_log
 from app.services.volcengine_billing import pricing_context, video_accounting
 
 
+@pytest.mark.parametrize('lo,hi', [(4,15),(4,30),(7,15),(7,7)])
+def test_video_duration_policy_roundtrip_and_enforcement(lo, hi):
+    rule = {'duration_min':lo,'duration_max':hi}
+    p = {'video_models':['v'], 'model_policies':policies({'video:v':rule})}
+    assert public_models(p)['model_policies']['video:v']['duration_max'] == hi
+    for value in [lo, hi, str(lo)]:
+        enforce(p,'video',{'model':'v','duration':value})
+    for value in [lo-1, hi+1, -1, None, True, 'NaN', 'Infinity', lo+.5]:
+        with pytest.raises(HTTPException) as exc:
+            enforce(p,'video',{'model':'v','duration':value})
+        assert exc.value.status_code == 400
+
+
+@pytest.mark.parametrize('key,rule', [
+    ('image:m',{'duration_min':4,'duration_max':15}),
+    ('video:v',{'duration_min':4}),
+    ('video:v',{'duration_min':15,'duration_max':4}),
+    ('video:v',{'duration_min':0,'duration_max':15}),
+    ('video:v',{'duration_min':True,'duration_max':15}),
+    ('video:v',{'duration_min':4.5,'duration_max':15}),
+])
+def test_invalid_video_duration_configuration(key, rule):
+    with pytest.raises(ValueError): policies({key:rule})
+
+
+def test_unconfigured_video_duration_keeps_legacy_auto():
+    enforce({'video_models':['v']},'video',{'model':'v','duration':-1})
+
+
 def provider():
     return {'id':'demo','image_models':['m','old'], 'model_prices':normalize_model_prices([
         {'kind':'image','model':'m','billing_type':'per_image','unit_price':p,'resolution':s}

@@ -526,6 +526,13 @@
         window.addEventListener('resize', () => {
             if(document.getElementById('modelPicker')?.classList.contains('open')) positionModelPicker();
         });
+        window.addEventListener('scroll', positionModelPicker, true);
+        document.addEventListener('keydown', event => {
+            if(event.key === 'Escape' && document.getElementById('modelPickerPopover')?.classList.contains('open')) {
+                toggleModelPicker(false);
+                document.getElementById('modelPickerBtn')?.focus();
+            }
+        });
         function uuid(){
             if(crypto?.randomUUID) return crypto.randomUUID();
             return 'u-' + Math.random().toString(16).slice(2) + Date.now();
@@ -730,6 +737,7 @@
             const shouldOpen = typeof force === 'boolean' ? force : !picker.classList.contains('open');
             picker.classList.toggle('open', shouldOpen);
             pop?.classList.toggle('open', shouldOpen);
+            document.getElementById('modelPickerBtn')?.setAttribute('aria-expanded', String(shouldOpen));
             if(shouldOpen) {
                 if(pop && pop.parentElement !== document.body) {
                     modelPickerHome = picker;
@@ -748,28 +756,24 @@
         function positionModelPicker(){
             const btn = document.getElementById('modelPickerBtn');
             const pop = document.getElementById('modelPickerPopover');
-            if(!btn || !pop) return;
+            if(!btn || !pop?.classList.contains('open')) return;
             const rect = btn.getBoundingClientRect();
-            const viewportW = (window.visualViewport?.width || window.innerWidth);
-            const viewportH = (window.visualViewport?.height || window.innerHeight);
-            const width = Math.min(380, Math.max(300, viewportW - 32));
-            const estimatedHeight = Math.min(390, Math.max(260, viewportH * .62));
-            const availableAbove = Math.max(180, rect.top - 14);
-            const maxHeight = Math.min(390, availableAbove, viewportH - 32);
-            const left = Math.min(Math.max(16, rect.left), Math.max(16, viewportW - width - 16));
-            const top = Math.max(12, rect.top - maxHeight - 10);
-            pop.style.setProperty('--model-picker-left', `${Math.round(left)}px`);
-            pop.style.setProperty('--model-picker-top', `${Math.round(Math.max(16, top))}px`);
-            pop.style.setProperty('--model-picker-width', `${Math.round(width)}px`);
-            pop.style.setProperty('--model-picker-max-height', `${Math.round(maxHeight)}px`);
-            requestAnimationFrame(() => {
-                const box = pop.getBoundingClientRect();
-                const nextLeft = box.right > viewportW - 12 ? (left - (box.right - viewportW + 12)) : left;
-                const overlap = box.bottom - (rect.top - 8);
-                const nextTop = overlap > 0 ? (top - overlap - 2) : top;
-                pop.style.setProperty('--model-picker-left', `${Math.round(Math.max(12, nextLeft))}px`);
-                pop.style.setProperty('--model-picker-top', `${Math.round(Math.max(12, nextTop))}px`);
-            });
+            const viewportW = window.innerWidth;
+            const viewportH = window.innerHeight;
+            // Fixed coordinates inherit the page's UI zoom. Measure in viewport pixels.
+            const scale = pop.getBoundingClientRect().width / pop.offsetWidth || 1;
+            const margin = 12, gap = 8;
+            const above = Math.max(0, rect.top - gap - margin);
+            const below = Math.max(0, viewportH - rect.bottom - gap - margin);
+            const placeAbove = above >= Math.min(260 * scale, below);
+            const width = Math.min(380 * scale, viewportW - margin * 2);
+            pop.style.setProperty('--model-picker-width', `${width / scale}px`);
+            pop.style.setProperty('--model-picker-max-height', `${Math.min(390 * scale, placeAbove ? above : below) / scale}px`);
+            const height = pop.getBoundingClientRect().height;
+            const left = Math.max(margin, Math.min(rect.left, viewportW - width - margin));
+            const top = placeAbove ? rect.top - gap - height : rect.bottom + gap;
+            pop.style.setProperty('--model-picker-left', `${left / scale}px`);
+            pop.style.setProperty('--model-picker-top', `${Math.max(margin, top) / scale}px`);
         }
 
         function setModelPickerScope(kind){

@@ -27,6 +27,15 @@
       const [vl,visible]=check('向成员显示',policy.visible!==false),[el,enabled]=check('允许新任务',policy.enabled!==false);access.append(vl,el);
       const [rl,restricted]=check('限制开放规格',Array.isArray(policy.resolutions));const sizeChecks=[];
       if(k!=='chat'){access.append(rl);const sizes=node('div',undefined,'toolbar');for(const s of k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']){const [l,c]=check(s.toUpperCase(),policy.resolutions?policy.resolutions.includes(s):true);sizes.append(l);sizeChecks.push([s,c]);}access.append(sizes);}
+      let durationMin, durationMax;
+      if(k==='video'){
+        const block=node('section',undefined,'provider-block'),grid=node('div',undefined,'provider-fields');
+        block.append(node('h3','视频时长范围'),node('p','两项均留空时沿用模型默认规则。设置后前端和新任务按此范围限制，单位为整数秒；自动时长不可选。','muted'));
+        const [minLabel,minInput]=input('最短秒数',policy.duration_min??'','number'),[maxLabel,maxInput]=input('最长秒数',policy.duration_max??'','number');
+        durationMin=minInput;durationMax=maxInput;
+        for(const field of [durationMin,durationMax]){field.min='1';field.step='1';field.placeholder='未设置';}
+        grid.append(minLabel,maxLabel);block.append(grid);access.append(block);
+      }
       form.append(access);const priceInputs=[];
       if(k!=='chat'){
         const priceBlock=node('section',undefined,'provider-block');priceBlock.append(node('h3','基础价格 · CNY'),node('p','先按规格单价 × 数量计算基础金额，再应用下面的折扣。空白表示未配置；0 表示免费。分档价优先于通用价。保存后只影响新任务，历史金额不重算。','muted'));
@@ -65,6 +74,11 @@
       form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;status.textContent='正在保存…';try{
         const next=structuredClone(config);delete next.id;delete next.primary;
         next.model_policies={...next.model_policies,[key]:{visible:visible.checked,enabled:enabled.checked,...(k!=='chat'&&restricted.checked?{resolutions:sizeChecks.filter(([,c])=>c.checked).map(([s])=>s)}:{})}};
+        if(k==='video' && (durationMin.value!=='' || durationMax.value!=='')){
+          const min=Number(durationMin.value),max=Number(durationMax.value);
+          if(!Number.isSafeInteger(min)||!Number.isSafeInteger(max)||min<1||max<min)throw Error('请填写完整的整数秒数范围，最短秒数不得大于最长秒数。');
+          Object.assign(next.model_policies[key],{duration_min:min,duration_max:max});
+        }
         if(k!=='chat'){
           next.model_prices=[...(next.model_prices||[])];
           for(const p of priceInputs){next.model_prices=next.model_prices.filter(r=>r.effective_to||!p.match(r));const text=p.e.value.trim();if(text!==''){if(!/^\d+(?:\.\d{1,6})?$/.test(text))throw Error('单价最多六位小数。');next.model_prices.push({kind:k,model:m,billing_type:form.billingSelect.value,unit_price:text,currency:'CNY',effective_from:0,effective_to:0,...(p.resolution?{resolution:p.resolution}:{}),...(p.hasVideo!==null?{has_video_input:p.hasVideo,service_tier:'default'}:{})});}}

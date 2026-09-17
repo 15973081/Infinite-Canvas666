@@ -54,7 +54,6 @@
         .size-pair.with-fit { grid-template-columns:1fr 1fr auto; align-items:center; }
         .size-fit-btn { height:34px; border:1px solid #edf2f7; border-radius:14px; background:#fff; color:#111827; padding:0 10px; font-size:10px; font-weight:800; white-space:nowrap; }
         .size-fit-btn:disabled { opacity:.45; cursor:not-allowed; }
-        .mode-badge { font-size:9px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0f172a; background:#eef2ff; border:1px solid #e0e7ff; padding:2px 8px; border-radius:999px; }
         .masonry-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; }
         @media (min-width:768px){ .masonry-grid{ grid-template-columns:repeat(4,1fr); } }
         @media (max-width:640px){ .size-row{ grid-template-columns:1fr; } }
@@ -128,7 +127,6 @@
                     <div class="control-label">
                         <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>
                         <span>模型</span>
-                        <span id="providerModeBadge" class="mode-badge" style="margin-left:auto;display:none;"></span>
                     </div>
                     <div class="size-row">
                         <label class="size-field">
@@ -364,19 +362,10 @@
             if(proto === 'apimart' || base.includes('apimart.ai')) return 'apimart';
             return 'api';
         }
-        const PROTOCOL_BADGE = {
-            api:'online.modeApi', apimart:'online.modeApi',
-            volcengine:'online.modeVolcengine', gemini:'online.modeGemini'
-        };
         // 仅 OpenAI / APIMart（gpt-image 系）后端会消费 quality；其它协议忽略，隐藏以免误导。
         const QUALITY_PROTOCOLS = new Set(['api','apimart']);
         function updateAdaptivePanel(){
             const proto = providerProtocol(provider);
-            const badge = document.getElementById('providerModeBadge');
-            if(badge){
-                badge.textContent = tr(PROTOCOL_BADGE[proto] || 'online.modeApi');
-                badge.style.display = '';
-            }
             const qf = document.getElementById('qualityField');
             if(qf) qf.style.display = QUALITY_PROTOCOLS.has(proto) ? '' : 'none';
             const qs = document.getElementById('qualitySelect');

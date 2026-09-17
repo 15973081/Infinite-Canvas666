@@ -30,12 +30,18 @@ def policies(value):
     out = {}
     for key, rule in value.items():
         if not isinstance(key,str) or not re.fullmatch(r'(image|video|chat):.{1,180}',key) or not isinstance(rule,dict): raise ValueError('invalid model policy')
-        if set(rule)-{'visible','enabled','resolutions'}: raise ValueError('invalid model policy field')
+        if set(rule)-{'visible','enabled','resolutions','duration_min','duration_max'}: raise ValueError('invalid model policy field')
+        duration = {}
+        if 'duration_min' in rule or 'duration_max' in rule:
+            lo, hi = rule.get('duration_min'), rule.get('duration_max')
+            if not key.startswith('video:') or type(lo) is not int or type(hi) is not int or not 1 <= lo <= hi:
+                raise ValueError('invalid video duration range')
+            duration = {'duration_min': lo, 'duration_max': hi}
         if any(k in rule and not isinstance(rule[k],bool) for k in ('visible','enabled')): raise ValueError('invalid model switch')
         sizes=rule.get('resolutions')
         allowed={'1k','2k','4k'} if key.startswith('image:') else RESOLUTIONS
         if sizes is not None and (not isinstance(sizes,list) or not sizes or any(s not in allowed for s in sizes) or key.startswith('chat:')): raise ValueError('invalid resolutions')
-        out[key]={'visible':rule.get('visible',True),'enabled':rule.get('enabled',True),**({'resolutions':sorted(set(sizes))} if sizes is not None else {})}
+        out[key]={'visible':rule.get('visible',True),'enabled':rule.get('enabled',True),**duration,**({'resolutions':sorted(set(sizes))} if sizes is not None else {})}
     return out
 
 
@@ -115,6 +121,14 @@ def enforce(provider, kind, request):
         raise HTTPException(403,'该模型已隐藏或停用，不能提交新任务；历史记录保留。')
     if 'resolutions' in rule and specification(kind,request) not in rule['resolutions']:
         raise HTTPException(403,'该模型未开放所选规格，请选择：'+', '.join(rule['resolutions']))
+    if kind == 'video' and 'duration_min' in rule:
+        try:
+            duration = Decimal(str(request.get('duration')))
+            valid = duration.is_finite() and duration == duration.to_integral_value() and rule['duration_min'] <= duration <= rule['duration_max']
+        except (InvalidOperation, ValueError, TypeError):
+            valid = False
+        if not valid:
+            raise HTTPException(400, f"该模型的视频时长须为 {rule['duration_min']}–{rule['duration_max']} 秒的整数，请调整后重试。")
 
 
 def public_models(provider):

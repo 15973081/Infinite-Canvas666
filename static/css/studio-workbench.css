@@ -142,7 +142,7 @@ body.studio-canvas #canvasGate .gate-panel{position:relative}
 body.studio-canvas #canvasGate .gate-folder-bar{min-height:30px;padding-right:250px;margin-bottom:17px}
 body.studio-canvas #canvasGate.trash-mode .studio-library-tools{position:relative;margin-bottom:17px}
 html.member-workspace-shell body.studio-home>.app-shell{margin-top:76px;height:calc(100vh - 76px)!important}
-body.studio-home .member-session-bar{height:76px;padding:0 4vw 0 calc(80px + 4vw);background:var(--st-bg)!important;backdrop-filter:none;-webkit-backdrop-filter:none}
+body.studio-home .member-session-bar{height:76px;padding:0 4vw 0 32px;background:var(--st-bg)!important;backdrop-filter:none;-webkit-backdrop-filter:none}
 body.studio-home .member-session-avatar{background:var(--st-soft);color:var(--st-text);border:1px solid var(--st-line)}
 @media(max-width:720px){body.studio-canvas #canvasGate .gate-folder-bar{padding-right:0}.studio-library-tools{position:relative;margin-bottom:17px}body.studio-home .member-session-bar{height:64px;padding:0 16px}html.member-workspace-shell body.studio-home>.app-shell{margin-top:64px;height:calc(100vh - 64px)!important}}
 
@@ -450,3 +450,73 @@ html body.studio-skin .shadox-wordmark{font-family:var(--shadox-brand-font);font
 .studio-directory-footer .shadox-wordmark{font-size:15px}
 .studio-cover-title{font-family:var(--shadox-brand-font),'Microsoft YaHei',sans-serif}
 [data-cover-style=editorial] .studio-cover-title{font-family:var(--shadox-display-font),'Songti SC','SimSun',serif;font-weight:500}
+/* Media preview follows the surrounding studio instead of a separate navy theme. */
+html body.studio-skin .member-media-preview{width:min(1040px,92vw);max-width:92vw;max-height:90vh;box-sizing:border-box;padding:0;border:1px solid var(--st-line);border-radius:18px;background:var(--st-panel);color:var(--st-text);box-shadow:0 24px 80px #0003;overflow:auto;font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+html body.studio-skin .member-media-preview[open]{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0}
+html body.studio-skin .member-media-preview::backdrop{background:rgba(25,29,27,.46);backdrop-filter:blur(4px)}
+html body.studio-skin .member-media-preview header{grid-column:1/-1;min-height:62px;padding:12px 18px;border-bottom:1px solid var(--st-line);gap:20px}
+html body.studio-skin .member-media-preview header strong{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body.studio-skin .member-media-preview-stage{grid-column:1/-1;height:min(60vh,640px);min-height:180px;margin:0;padding:20px;background:var(--st-bg);border-radius:0;box-sizing:border-box}
+html body.studio-skin .member-media-preview :is(button,a){display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;border:1px solid var(--st-line);border-radius:9px;background:transparent;color:var(--st-text);font-size:12px;font-weight:500;transition:background .15s,border-color .15s}
+html body.studio-skin .member-media-preview :is(button,a):hover:not(:disabled){background:var(--st-soft);border-color:var(--st-muted)}
+html body.studio-skin .member-media-preview :is(button,a):focus-visible{outline:2px solid var(--st-muted);outline-offset:2px;box-shadow:none}
+html body.studio-skin .member-media-preview [role=status]{margin:0;padding:18px;max-width:260px;align-self:stretch;display:flex;align-items:center;color:var(--st-muted);font-size:12px;font-variant-numeric:tabular-nums;border-top:1px solid var(--st-line)}
+html body.studio-skin .member-media-preview footer{padding:12px 18px 12px 0;justify-content:flex-end;gap:8px;border-top:1px solid var(--st-line)}
+html body.studio-skin .member-media-preview footer a{background:var(--st-soft)}
+html body.studio-skin .member-media-preview button:disabled{opacity:.35}
+html body.studio-skin .member-media-preview [hidden]{display:none}
+@media(prefers-reduced-motion:reduce){html body.studio-skin .member-media-preview :is(button,a){transition:none}}
+/* Both canvas editors use the same return card and backup surface. */
+html body.studio-canvas #shell>.topbar{left:22px;top:22px}
+html body.studio-skin #shell :is(.canvas-nav,.smart-nav){width:max-content;min-width:188px;max-width:320px;min-height:58px;padding:8px;gap:8px;border:1px solid var(--st-line)!important;border-radius:14px;background:var(--st-panel)!important;color:var(--st-text)!important;box-shadow:0 6px 20px #00000012!important;backdrop-filter:none!important;box-sizing:border-box}
+html body.studio-smart-canvas #shell .smart-nav{left:22px;top:22px}
+html body.studio-skin #shell :is(.canvas-nav-meta,.smart-nav-meta){min-width:120px;max-width:180px;display:flex;flex-direction:column;gap:2px}
+html body.studio-skin #shell :is(#backToManagerBtn,.smart-nav-back){width:40px;height:40px;min-width:40px;flex:0 0 40px;padding:0;display:flex;align-items:center;justify-content:center;border:0!important;border-radius:8px;background:transparent!important;color:var(--st-muted)!important;box-shadow:none!important}
+html body.studio-skin #shell :is(#backToManagerBtn,.smart-nav-back):hover{background:var(--st-soft)!important;color:var(--st-text)!important}
+html body.studio-skin #shell :is(#backToManagerBtn,.smart-nav-back) svg{width:18px;height:18px}
+html body.studio-skin #shell :is(.current-canvas-title,.smart-title){font-size:12px;line-height:18px;font-weight:600;color:var(--st-text)!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body.studio-skin #shell :is(.current-canvas-time,.smart-canvas-time){font-size:10px;line-height:15px;font-weight:400;color:var(--st-muted)!important}
+html body.studio-skin #shell #memberCanvasStatus:has(.member-canvas-title-status){left:16px;right:auto;width:260px;top:calc(100% + 8px)}
+html body.studio-skin #shell :is(#backupModal,#smartBackupModal){background:rgba(25,29,27,.46)!important;backdrop-filter:blur(4px)!important}
+html body.studio-skin #shell :is(#backupModal .log-modal-panel,#smartBackupModal .backup-panel){width:min(520px,94vw);max-height:72vh;border-radius:18px;background:var(--st-panel)!important;color:var(--st-text)!important;border:1px solid var(--st-line);box-shadow:0 24px 70px #0003;overflow:hidden}
+html body.studio-skin #shell :is(#backupModal .log-modal-head,#smartBackupModal .log-head){height:58px;min-height:58px;padding:0 16px;border-bottom:1px solid var(--st-line)}
+html body.studio-skin #shell :is(#backupModal h3,#smartBackupModal .log-title){font-size:14px;font-weight:600;line-height:20px;color:var(--st-text)!important;margin:0}
+html body.studio-skin #shell :is(#backupModal .log-modal-close,#smartBackupModal .log-head .preview-icon-btn){width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--st-line)!important;border-radius:9px;background:var(--st-soft)!important;color:var(--st-muted)!important}
+html body.studio-skin #shell :is(#backupModal .log-modal-close,#smartBackupModal .log-head .preview-icon-btn) svg{width:18px;height:18px}
+html body.studio-skin #shell :is(#backupModal,#smartBackupModal) :is(.backup-create-btn,.backup-create){display:flex;align-items:center;justify-content:center;gap:8px;height:42px;min-height:42px;flex-shrink:0;padding:0 16px;border:1px solid var(--st-line)!important;border-radius:10px;background:var(--st-soft)!important;color:var(--st-text)!important;font-family:inherit;font-size:13px;font-weight:600;line-height:1.4;box-shadow:none!important}
+html body.studio-skin #shell :is(#backupModal,#smartBackupModal) :is(.backup-create-btn,.backup-create):hover:not(:disabled){background:var(--st-accent)!important;color:var(--st-ink)!important}
+html body.studio-skin #shell :is(#backupModal,#smartBackupModal) :is(.backup-create-btn,.backup-create) svg{width:18px;height:18px}
+html body.studio-skin #shell #backupModal .log-modal-body{padding:16px;gap:12px}
+html body.studio-skin #shell #smartBackupModal .backup-create{margin:16px 16px 0;width:auto}
+html body.studio-skin #shell #smartBackupModal .log-list{padding:12px 16px 16px}
+html body.studio-skin #shell :is(.backup-empty,#smartBackupModal .log-empty){min-height:96px;padding:24px;display:grid;place-items:center;font-size:12px;font-weight:400;color:var(--st-muted)}
+/* Smart loop switches share the classic editor's 220ms sliding highlight. */
+html body.studio-smart-canvas #shell .loop-smart-seg{position:relative;isolation:isolate}
+html body.studio-smart-canvas #shell .loop-smart-seg::before{content:'';position:absolute;z-index:-1;left:2px;top:2px;bottom:2px;width:calc((100% - 6px)/2);border-radius:8px;background:var(--st-accent);transform:translateX(0)}
+html body.studio-smart-canvas #shell .loop-smart-seg:has(>button:nth-child(2).active)::before{transform:translateX(calc(100% + 2px))}
+html body.studio-smart-canvas #shell .loop-smart-seg>button,html body.studio-smart-canvas #shell .loop-smart-seg>button.active{position:relative;background:transparent!important;border-color:transparent!important;box-shadow:none!important;transition:color .18s ease}
+html body.studio-smart-canvas #shell .loop-smart-seg>button.active{color:var(--st-ink)!important}
+html body.studio-smart-canvas #shell .loop-smart-seg.studio-switch-motion::before{animation:studio-switch-left .22s cubic-bezier(.22,.68,0,1)}
+html body.studio-smart-canvas #shell .loop-smart-seg.studio-switch-motion:has(>button:nth-child(2).active)::before{animation-name:studio-switch-right}
+@media(prefers-reduced-motion:reduce){html body.studio-smart-canvas #shell .loop-smart-seg.studio-switch-motion::before{animation:none}html body.studio-smart-canvas #shell .loop-smart-seg>button{transition:none}}
+/* Creation lives in the context menu; the top bar only contains canvas utilities. */
+html body.studio-canvas #shell #quickToolbar{flex:0 0 auto;max-width:calc(100% - 210px);padding:6px!important;border-radius:14px;gap:0;align-self:flex-start}
+html body.studio-canvas #shell #quickToolbar .toolbar-fixed{display:flex;align-items:center;gap:4px;flex-wrap:nowrap}
+html body.studio-canvas #shell #quickToolbar .tool-btn{height:36px;min-width:36px;padding:0 11px;border-radius:8px;white-space:nowrap}
+html body.studio-canvas #shell #createMenu .menu-btn:last-child{margin-top:5px;border-top:1px solid var(--st-line);border-radius:0 0 8px 8px}
+
+
+/* Keep the chat model menu attached to its trigger and on the shared palette. */
+html body.studio-skin :is(.model-picker-button,.model-picker-button:hover,.model-picker-popover,.model-picker-scope){
+ background:var(--st-panel)!important;color:var(--st-text)!important;border-color:var(--st-line)!important;
+ box-shadow:none!important;
+}
+html body.studio-skin .model-picker-button{border-radius:10px;transform:none!important}
+html body.studio-skin .model-picker-button:hover{background:var(--st-soft)!important}
+html body.studio-skin .model-picker-popover{border-radius:14px;box-shadow:0 10px 30px #0002!important;backdrop-filter:none}
+html body.studio-skin .model-picker-popover.open{animation:studio-model-menu-in .14s ease-out}
+html body.studio-skin .model-picker-option{flex-shrink:0;transition:background .14s ease,color .14s ease}
+html body.studio-skin .model-picker-option.active{background:var(--st-accent)!important;color:var(--st-ink)!important}
+html body.studio-skin .model-picker-head{background:var(--st-panel)!important}
+@keyframes studio-model-menu-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){html body.studio-skin .model-picker-popover.open{animation:none}}
