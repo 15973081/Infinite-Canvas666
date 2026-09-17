@@ -25,6 +25,7 @@
     <link rel="stylesheet" href="/static/css/canvas-focus.css">
     <link rel="stylesheet" href="/static/css/canvas-node-cards.css?v=2026.09.16.1">
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
+<link rel="stylesheet" href="/static/css/canvas-name-dialog.css">
 </head>
 <body class="studio-skin studio-canvas">
     <div id="shell" class="shell no-canvas">
@@ -96,11 +97,6 @@
                     </div>
                 </div>
                 <div id="gateStatus" class="gate-status">正在加载画布列表...</div>
-                <div class="gate-create-row">
-                    <input id="gateTitleInput" class="gate-name-input" type="text" maxlength="80" placeholder="新画布名称（可留空使用默认）">
-                    <button id="gateConfirmBtn" class="create-confirm" type="button" title="确定" aria-label="确定"><i data-lucide="check" class="w-4 h-4"></i></button>
-                    <button id="gateCancelBtn" class="create-cancel" type="button" title="取消" aria-label="取消"><i data-lucide="x" class="w-4 h-4"></i></button>
-                </div>
                 <div class="trash-note"><i data-lucide="info" class="w-3.5 h-3.5 inline-block align-text-bottom mr-1"></i><span>回收站中的画布会在 30 天后自动清理。</span></div>
                 <div class="studio-library-tools"><div id="gateSortSwitch" class="gate-sort" role="group" aria-label="排序方式">
                             <button type="button" class="gate-sort-btn active" data-sort="recent">最近编辑</button>
@@ -435,6 +431,7 @@
     <script src="/static/js/canvas-api.js?v=2026.07.06.1"></script>
     <script src="/static/js/frontend-version.js"></script>
     <script src="/static/js/member-media-preview.js"></script>
+    <script src="/static/js/canvas-name-dialog.js"></script>
     <script src="/static/js/canvas.js?v=2026.09.16.1"></script>
     <script src="/static/js/canvas-focus.js"></script>
 </body>

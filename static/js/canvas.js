@@ -800,9 +800,6 @@ const gateSearchClear = document.getElementById('gateSearchClear');
 const gateFolderTree = document.getElementById('gateFolderTree');
 const gateFolderBar = document.getElementById('gateFolderBar');
 const gateNewFolderBtn = document.getElementById('gateNewFolderBtn');
-const gateTitleInput = document.getElementById('gateTitleInput');
-const gateConfirmBtn = document.getElementById('gateConfirmBtn');
-const gateCancelBtn = document.getElementById('gateCancelBtn');
 const backToManagerBtn = document.getElementById('backToManagerBtn');
 const canvasLockBadge = document.getElementById('canvasLockBadge');
 const canvasLockLabel = document.getElementById('canvasLockLabel');
@@ -1739,38 +1736,23 @@ function setActiveFolder(folderId){
     renderCanvasList();
     refreshGateViewControls();
 }
-async function createCanvasFolder(parentId=''){
-    const name = prompt(trDefault('canvas.folderNamePrompt', '文件夹名称'));
-    if(name === null) return;
-    const trimmed = name.trim();
-    if(!trimmed) return;
-    try {
-        const data = await window.CanvasApi.createCanvasFolder({name:trimmed, parent_id:normalizeCanvasFolderId(parentId)});
+function createCanvasFolder(parentId=''){
+    window.CanvasNameDialog.open({title:'新建文件夹', label:'文件夹名称', placeholder:'例如：品牌设计', confirm:'创建', description:'将相关画布收纳在一起，方便查找。', onSubmit:async name => {
+        const data = await window.CanvasApi.createCanvasFolder({name, parent_id:normalizeCanvasFolderId(parentId)});
         canvasFolders = data.folders || canvasFolders;
         activeFolderId = data.folder?.id || activeFolderId;
-        renderFolderTree();
-        renderCanvasList();
-        refreshGateViewControls();
-    } catch(e) {
-        setStatus(trDefault('canvas.folderCreateFailed', '新建文件夹失败'));
-        console.error(e);
-    }
+        renderFolderTree(); renderCanvasList(); refreshGateViewControls();
+    }});
 }
-async function renameCanvasFolder(folderId){
+function renameCanvasFolder(folderId){
     const folder = canvasFolders.find(item => item.id === folderId);
     if(!folder) return;
-    const name = prompt(trDefault('canvas.folderNamePrompt', '文件夹名称'), folder.name || '');
-    if(name === null) return;
-    const trimmed = name.trim();
-    if(!trimmed || trimmed === folder.name) return;
-    try {
-        const data = await window.CanvasApi.updateCanvasFolder(folderId, {name:trimmed});
+    window.CanvasNameDialog.open({title:'重命名文件夹', label:'文件夹名称', value:folder.name, description:'修改名称不会影响文件夹中的画布。', onSubmit:async name => {
+        if(name === folder.name) return;
+        const data = await window.CanvasApi.updateCanvasFolder(folderId, {name});
         canvasFolders = data.folders || canvasFolders;
         renderFolderTree();
-    } catch(e) {
-        setStatus(trDefault('canvas.folderRenameFailed', '重命名文件夹失败'));
-        console.error(e);
-    }
+    }});
 }
 async function deleteCanvasFolder(folderId){
     const folder = canvasFolders.find(item => item.id === folderId);
@@ -1832,7 +1814,7 @@ async function moveCanvasToFolder(id, folderId){
     } catch(e) {
         if(item) item.folder_id = prev;
         if(canvas?.id === id) canvas.folder_id = prev;
-        setStatus(trDefault('canvas.moveFolderFailed', '移动画布失败'));
+        setStatus(e?.message || trDefault('canvas.moveFolderFailed', '移动画布失败'));
         console.error(e);
         await loadCanvasList(false);
     }
@@ -1896,22 +1878,9 @@ function ensureCanvas(){
 }
 function setCreateMode(active, kind='classic'){
     creatingCanvas = active;
-    createCanvasKind = active ? ((kind === 'smart') ? 'smart' : 'classic') : 'classic';
-    if(active) trashMode = false;
-    canvasGate.classList.toggle('creating', active);
+    createCanvasKind = active && kind === 'smart' ? 'smart' : 'classic';
     refreshGateViewControls();
-    setStatus(active ? tr('canvas.enterCanvasName') : (canvases.length ? tr('canvas.chooseFirst') : tr('canvas.noCanvasCreateFirst')));
-    if(active) {
-        gateTitleInput.placeholder = createCanvasKind === 'smart'
-            ? (tr('canvas.newSmartCanvasPlaceholder') || tr('canvas.newCanvasPlaceholder'))
-            : tr('canvas.newCanvasPlaceholder');
-        gateTitleInput.focus();
-        gateTitleInput.select();
-    } else {
-        gateTitleInput.value = '';
-        gateTitleInput.placeholder = tr('canvas.newCanvasPlaceholder');
-    }
-    refreshIcons();
+    if(active) window.CanvasNameDialog.open({title:kind === 'smart' ? '新建智能画布' : '新建画布', label:'画布名称', placeholder:'例如：秋季视觉探索', confirm:'创建画布', allowEmpty:true, onSubmit:name => createCanvas(name)});
 }
 function screenToWorld(clientX, clientY){
     const rect = board.getBoundingClientRect();
@@ -2603,9 +2572,9 @@ function positionCanvasMetaPopover(){
     pop.style.left = `${Math.round(left)}px`;
     pop.style.top = `${Math.round(top)}px`;
 }
-async function createCanvas(){
+async function createCanvas(customTitle = ''){
     openCanvasRequestSeq++;
-    const customTitle = gateTitleInput?.value.trim();
+
     const isSmart = createCanvasKind === 'smart';
     const titleBase = isSmart ? tr('canvas.newSmartCanvas') : tr('canvas.newCanvas');
     const title = customTitle || `${titleBase} ${new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
@@ -2645,6 +2614,7 @@ async function createCanvas(){
     } catch(e) {
         setStatus(tr('canvas.createFailed'));
         console.error(e);
+        throw e;
     }
 }
 async function createSmartCanvas(){
@@ -2685,52 +2655,15 @@ async function setCanvasIcon(id, icon, event){
     }
 }
 function startTitleEdit(id, titleEl){
-    if(!titleEl || titleEl.querySelector('input')) return;
     const item = canvases.find(c => c.id === id);
-    const current = item?.title || titleEl.textContent || '';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.maxLength = 80;
-    input.value = current;
-    input.className = 'canvas-card-title-input';
-    titleEl.innerHTML = '';
-    titleEl.appendChild(input);
-    input.onmousedown = e => e.stopPropagation();
-    input.onclick = e => e.stopPropagation();
-    input.focus();
-    input.select();
-    let done = false;
-    const finish = async (commit) => {
-        if(done) return;
-        done = true;
-        const newTitle = input.value.trim();
-        if(commit && newTitle && newTitle !== current){
-            await setCanvasTitle(id, newTitle);
-        } else {
-            renderCanvasList();
-        }
-    };
-    input.onblur = () => finish(true);
-    input.onkeydown = e => {
-        e.stopPropagation();
-        if(e.key === 'Enter'){ e.preventDefault(); finish(true); }
-        if(e.key === 'Escape'){ e.preventDefault(); finish(false); }
-    };
-}
-async function setCanvasTitle(id, title){
-    const item = canvases.find(c => c.id === id);
-    if(item) item.title = title;
-    if(canvas?.id === id) canvas.title = title;
-    renderCanvasList();
-    try {
+    if(!item) return;
+    window.CanvasNameDialog.open({title:'重命名画布', label:'画布名称', value:item.title || '', description:'修改名称不会影响画布内容和连接。', onSubmit:async title => {
+        if(title === item.title) return;
         const data = await window.CanvasApi.patchCanvasMeta(id, {title});
         if(data.canvas) updateCanvasListRecord(data.canvas);
-        if(currentCanvasTitle && canvas?.id === id) currentCanvasTitle.textContent = title;
-    } catch(e){
-        setStatus('重命名失败');
-        console.error(e);
-        await loadCanvasList(false);
-    }
+        if(canvas?.id === id) { canvas.title = title; if(currentCanvasTitle) currentCanvasTitle.textContent = title; }
+        renderCanvasList();
+    }});
 }
 async function openCanvas(id){
     if(window.MemberCanvasEdit?.active && window.MemberCanvasEdit.active.id !== id){
@@ -3401,12 +3334,7 @@ gateSearchClear?.addEventListener('click', () => {
     renderCanvasList();
     gateSearchInput?.focus();
 });
-gateConfirmBtn.addEventListener('click', createCanvas);
-gateCancelBtn.addEventListener('click', () => setCreateMode(false));
-gateTitleInput.addEventListener('keydown', e => {
-    if(e.key === 'Enter') createCanvas();
-    if(e.key === 'Escape') setCreateMode(false);
-});
+
 document.addEventListener('mousedown', e => {
     if(movingCanvasId && !e.target.closest('.canvas-folder-menu') && !e.target.closest('.canvas-folder-btn')){
         movingCanvasId = null;

@@ -449,6 +449,39 @@
         catch(error) {if(entry===active){entry.feedback=error.message;render();}}
         if(entry===active) timer=setTimeout(() => tick(entry),Math.min(5000,(entry.lease.status?.heartbeat_seconds || 5)*1000));
     }
+    // Directory metadata changes need a short lease, not a mounted canvas editor.
+    const directoryWrites = new Map();
+    function writeFromList(id, path, init, transport) {
+        const previous = directoryWrites.get(id) || Promise.resolve();
+        const operation = previous.catch(() => {}).then(async () => {
+            if (active?.id === id && active.lease.canSave) return active.lease.write(path, init, transport);
+            const lease = new window.CanvasEditLease({id, fetch:transport});
+            let proof = null;
+            try {
+                // Only metadata is submitted; the server loads the document
+                // under the revision proof, so no editor snapshot is needed here.
+                await lease.start(async () => ({revision:lease.revision}));
+                proof = lease.headers();
+                return await lease.write(path, init, transport);
+            } finally {
+                if (proof) {
+                    try {
+                        // A failed response may have paused the helper. Recheck ownership
+                        // before releasing, including when the write result was lost.
+                        const state = await lease.request('');
+                        if (state.holder?.is_self && state.generation === lease.generation) {
+                            await lease.request('/release', {method:'POST', headers:{...proof, 'X-Canvas-Revision':String(state.revision)}});
+                        }
+                    } catch (error) { console.warn('目录操作的编辑资格释放未确认，将自动到期。', error); }
+                }
+                lease.dispose();
+            }
+        });
+        directoryWrites.set(id, operation);
+        const clear = () => { if (directoryWrites.get(id) === operation) directoryWrites.delete(id); };
+        operation.then(clear, clear);
+        return operation;
+    }
     const api={
         openTaskResults:showTaskResults,
         get active(){return active;},
@@ -541,6 +574,9 @@
                     if(!active || id!==active.id) return Promise.reject(new Error('生成任务与当前编辑画布不一致。'));
                     return active.lease.write(path,init,transport);
                 }
+            }
+            if(url.origin===location.origin && match && ((match[2]==='/folder' && init.method?.toUpperCase()==='PATCH') || (match[2]==='/meta' && init.method?.toUpperCase()==='POST'))) {
+                return writeFromList(decodeURIComponent(match[1]), path, init, transport);
             }
             if(url.origin===location.origin && match && !['GET','HEAD'].includes((init.method || 'GET').toUpperCase()) && !match[2].startsWith('/edit-lease') && match[2]!=='/touch') {
                 if(!active || decodeURIComponent(match[1])!==active.id) return Promise.reject(new Error('请先打开画布并开始编辑。'));

@@ -374,3 +374,44 @@ def test_folder_delete_cannot_partially_move_canvases_without_their_lease(world)
     lease = acquire(world, path)
     assert client.patch(path + '/folder', headers=proof(world, lease), json={'folder_id': ''}).status_code == 200
     assert client.delete('/api/canvas-folders/' + folder['id'], headers=head).status_code == 200
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_directory_folder_move_returns_revision_and_preserves_canvas(world, kind):
+    client, head = world['editor'], headers(world['a'])
+    path, original = setup_canvas(world, kind)
+    folder = client.post('/api/canvas-folders', headers=head, json={'name': '移动验收'}).json()['folder']
+    for target in (folder['id'], ''):
+        lease = acquire(world, path)
+        moved = client.patch(path + '/folder', headers=proof(world, lease), json={'folder_id': target})
+        assert moved.status_code == 200, moved.text
+        record = moved.json()['canvas']
+        assert record['folder_id'] == target
+        assert record['revision'] == lease['revision'] + 1
+        released = client.post(path + '/edit-lease/release', headers=proof(world, lease, record['revision']))
+        assert released.status_code == 200, released.text
+        persisted = client.get(path, headers=head).json()['canvas']
+        assert persisted['folder_id'] == target
+        for key in ('title', 'kind', 'nodes', 'connections', 'updated_at'):
+            assert persisted[key] == original[key]
+        rows = client.get('/api/canvases', headers=head).json()['canvases']
+        assert next(row for row in rows if row['id'] == original['id'])['folder_id'] == target
+        assert client.get(path + '/edit-lease', headers=head).json()['holder'] is None
+    denied = world['viewer'].post(path + '/edit-lease/acquire', headers=head, json={})
+    assert denied.status_code == 403
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_directory_rename_returns_revision_and_preserves_content(world, kind):
+    client, head = world['editor'], headers(world['a'])
+    path, original = setup_canvas(world, kind)
+    lease = acquire(world, path)
+    result = client.post(path + '/meta', headers=proof(world, lease), json={'title': '新的画布名称'})
+    assert result.status_code == 200, result.text
+    record = result.json()['canvas']
+    assert record['title'] == '新的画布名称'
+    assert record['revision'] == lease['revision'] + 1
+    assert client.post(path + '/edit-lease/release', headers=proof(world, lease, record['revision'])).status_code == 200
+    saved = client.get(path, headers=head).json()['canvas']
+    for key in ('kind', 'nodes', 'connections', 'updated_at'):
+        assert saved[key] == original[key]

@@ -1047,7 +1047,7 @@ async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
     if payload.pinned is not None:
         canvas["pinned"] = bool(payload.pinned)
     save_canvas_without_touch(canvas)
-    return {"canvas": canvas_record(canvas)}
+    return {"canvas": {**canvas_record(canvas), "revision": canvas.get("revision")}}
 
 @router.patch("/api/canvases/{canvas_id}/folder")
 async def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
@@ -1057,7 +1057,7 @@ async def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
         raise HTTPException(status_code=404, detail="文件夹不存在")
     canvas["folder_id"] = folder_id
     save_canvas_without_touch(canvas)
-    return {"canvas": canvas_record(canvas)}
+    return {"canvas": {**canvas_record(canvas), "revision": canvas.get("revision")}}
 
 @router.get("/api/canvases/{canvas_id}")
 async def get_canvas(canvas_id: str):

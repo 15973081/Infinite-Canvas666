@@ -417,3 +417,59 @@ test('start checkpoints survive later edits to the live draft without exporting'
  assert.equal(checkpoint.document.nodes[0].text,'original');assert.equal(f.downloads.length,0);
  assert.equal(action(entry.bar,'导出当前草稿'),undefined);
 });
+
+function folderFixture({locked=false,writeStatus=200}={}) {
+    const f=fixture();let revision=3,held=false;
+    f.context.fetch=async(path,init={})=>{
+        f.calls.push([path,init]);
+        if(path.endsWith('/acquire')) {
+            if(locked)return reply({detail:{code:'canvas_locked'}},409);
+            held=true;return reply({...status,revision,edit_token:'folder-proof'});
+        }
+        if(path.endsWith('/edit-lease'))return reply({...status,revision,holder:held?status.holder:null});
+        if(path.endsWith('/release')) {assert.equal(new Headers(init.headers).get('X-Canvas-Revision'),String(revision));held=false;return reply({released:true,revision});}
+        if(path.endsWith('/folder') || path.endsWith('/meta')) {
+            assert.equal(new Headers(init.headers).get('X-Canvas-Edit-Token'),'folder-proof');
+            assert.equal(new Headers(init.headers).get('X-Canvas-Revision'),String(revision));
+            if(writeStatus!==200)return reply({detail:'missing folder'},writeStatus);
+            revision++;return reply({canvas:{id:'a',...JSON.parse(init.body),revision}});
+        }
+        throw new Error('Unexpected request '+path);
+    };
+    return {...f,held:()=>held};
+}
+test('folder move from the directory acquires and releases a short lease without opening an editor',async()=>{
+    const f=folderFixture();const result=await f.context.CanvasApi.moveCanvasToFolder('a','folder-one');
+    assert.equal(result.canvas.folder_id,'folder-one');assert.equal(result.canvas.revision,4);
+    assert.equal(f.api.active,null);assert.equal(f.held(),false);
+    assert.deepEqual(f.calls.map(([path])=>path),['/api/canvases/a/edit-lease/acquire','/api/canvases/a/folder','/api/canvases/a/edit-lease','/api/canvases/a/edit-lease/release']);
+    await assert.rejects(f.context.CanvasApi.saveCanvas('a',{nodes:[]}));
+});
+test('folder moves never take over another editor and preserve errors',async()=>{
+    const f=folderFixture({locked:true});await assert.rejects(f.context.CanvasApi.moveCanvasToFolder('a','folder-one'),/已有成员正在编辑/);
+    assert.equal(f.calls.length,1);assert.deepEqual(JSON.parse(f.calls[0][1].body),{});
+});
+test('rejected folder writes release the temporary lease',async()=>{
+    const f=folderFixture({writeStatus:403});await assert.rejects(f.context.CanvasApi.moveCanvasToFolder('a','missing'));
+    assert.equal(f.held(),false);assert.ok(f.calls.at(-1)[0].endsWith('/release'));
+});
+test('consecutive folder moves are serialized and release each lease',async()=>{
+    const f=folderFixture();await Promise.all([f.context.CanvasApi.moveCanvasToFolder('a','one'),f.context.CanvasApi.moveCanvasToFolder('a','')]);
+    assert.deepEqual(f.calls.filter(([p])=>p.endsWith('/folder')).map(([,i])=>JSON.parse(i.body).folder_id),['one','']);
+    assert.equal(f.held(),false);assert.equal(f.calls.filter(([p])=>p.endsWith('/release')).length,2);
+});
+test('moving an actively edited canvas reuses its lease and does not release editing',async()=>{
+    const f=fixture();await f.mount();await f.api.active.lease.start(async()=>({revision:3}));const entry=f.api.active;
+    f.context.fetch=async(path,init)=>{f.calls.push([path,init]);return reply({canvas:{id:'a',folder_id:'one',revision:4}});};
+    await f.context.CanvasApi.moveCanvasToFolder('a','one');
+    assert.equal(f.api.active,entry);assert.equal(entry.lease.canEdit,true);assert.equal(entry.lease.revision,4);
+    assert.equal(f.calls.filter(([p])=>p.endsWith('/acquire')).length,1);assert.equal(f.calls.some(([p])=>p.endsWith('/release')),false);
+});
+
+test('directory rename acquires a lease and returns the saved title',async()=>{
+ const f=folderFixture();const result=await f.context.CanvasApi.patchCanvasMeta('a',{title:'新名称'});
+ assert.equal(result.canvas.title,'新名称');assert.equal(result.canvas.revision,4);assert.equal(f.held(),false);assert.equal(f.api.active,null);
+});
+test('directory rename cannot take over an active editor',async()=>{
+ const f=folderFixture({locked:true});await assert.rejects(f.context.CanvasApi.patchCanvasMeta('a',{title:'新名称'}),/已有成员正在编辑/);assert.equal(f.calls.length,1);
+});
