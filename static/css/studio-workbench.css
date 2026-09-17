@@ -520,3 +520,23 @@ html body.studio-skin .model-picker-option.active{background:var(--st-accent)!im
 html body.studio-skin .model-picker-head{background:var(--st-panel)!important}
 @keyframes studio-model-menu-in{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){html body.studio-skin .model-picker-popover.open{animation:none}}
+
+/* Output progress uses the same quiet studio palette as the workbench. */
+body.studio-canvas .output-img-wrap.loading-wrap{
+    background:var(--st-panel);border-color:var(--st-line);
+}
+body.studio-canvas .output-time-pill{
+    background:var(--st-panel);color:var(--st-muted);border:1px solid var(--st-line);
+    box-shadow:none;font-weight:500;font-variant-numeric:tabular-nums;
+    letter-spacing:.02em;border-radius:7px;box-sizing:border-box;
+}
+body.studio-canvas .output-time-pill.running{
+    background:var(--st-accent);color:var(--st-ink);border-color:var(--st-accent);
+}
+body.studio-canvas .output-time-pill.failed{
+    background:var(--st-soft);color:var(--st-text);border-color:var(--st-line);
+}
+body.studio-canvas .output-spinner{
+    width:26px;height:26px;border-width:2px;
+    border-color:var(--st-line);border-top-color:var(--st-muted);
+}
