@@ -20,6 +20,7 @@ from contextvars import ContextVar
 from urllib.parse import quote, unquote, urlsplit
 import uuid
 import json
+import logging
 from functools import lru_cache
 
 from fastapi import HTTPException
@@ -31,6 +32,7 @@ from app.storage.workspace import current_workspace
 _scope = ContextVar("media_operation", default=None)
 result_slot = ContextVar("media_result_slot", default=None)
 ASSET_ID = re.compile(r"ast_[a-f0-9]{32}")
+logger = logging.getLogger(__name__)
 
 
 def max_file_bytes():
@@ -311,6 +313,29 @@ def guess_content_type(name):
     return mimetypes.guess_type(name)[0] or "application/octet-stream"
 
 
+def _discard_unpublished_object(storage, workspace, media_id, key, version):
+    """Delete only this attempt's exact version, after checking commit outcome."""
+    try:
+        # A commit may have succeeded even if its acknowledgement was lost. If
+        # the DB cannot confirm ownership, leave the object intact and log it.
+        with connection() as conn:
+            row = conn.execute("SELECT object_key,object_version_id FROM assets WHERE workspace_id=%s AND id=%s",
+                               (workspace, media_id)).fetchone()
+        if row and row['object_key'] == key and row['object_version_id'] == version:
+            return
+        if not version or version == 'null':
+            raise ValueError('Missing immutable object version')
+        if isinstance(storage, TosStore):
+            storage.client.delete_object(storage.bucket, key, version_id=version)
+        else:
+            storage.path(key, version).unlink(missing_ok=True)
+    except Exception:
+        # Preserve the original upload result/error; never turn a successful
+        # publication into a retry just because surplus-object cleanup failed.
+        logger.warning('Unpublished media cleanup incomplete: workspace=%s asset=%s key=%s version=%s',
+                       workspace, media_id, key, version, exc_info=True)
+
+
 def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asset_id=None, role="original"):
     path = Path(path)
     size, digest = file_digest(path)
@@ -335,28 +360,35 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
         conn.execute("INSERT INTO assets(workspace_id,id,kind,status,display_name,bucket,region,object_key,parent_asset_id,role) VALUES(%s,%s,%s,'uploading',%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING", (workspace, media_id, kind, name, bucket, region, key, parent_asset_id, role))
         if not conn.execute("SELECT 1 FROM assets WHERE workspace_id=%s AND id=%s", (workspace, media_id)).fetchone():
             raise HTTPException(409, "素材 ID 不可用于当前空间")
-    version = store().put(key, path, mime)
-    with connection() as conn:
-        from app.storage.tasks import lease_context
-        lease = lease_context.get()
-        if lease and not conn.execute("SELECT id FROM tasks WHERE workspace_id=%s AND id=%s AND lease_token=%s AND lease_until>now() FOR SHARE", (workspace, *lease)).fetchone():
-            raise HTTPException(409, "任务租约已失效，拒绝发布旧执行者的输出")
-        row = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=%s FOR UPDATE", (workspace, media_id)).fetchone()
-        if row["status"] in ("deleting", "deleted"):
-            raise HTTPException(409, "素材正在删除或已彻底删除")
-        if row["status"] == "ready":
-            if row["sha256"] != digest:
-                raise HTTPException(409, "输出槽位已被另一份内容占用")
-        else:
-            row = conn.execute("UPDATE assets SET status='ready',object_key=%s,object_version_id=%s,size_bytes=%s,sha256=%s,content_type=%s,updated_at=now() WHERE workspace_id=%s AND id=%s RETURNING *", (key, version, size, digest, mime, workspace, media_id)).fetchone()
-        if legacy_ref:
-            canonical = canonical_legacy(legacy_ref)
-            if not canonical:
-                raise ValueError("Legacy alias must be a complete /assets/ or /output/ path")
-            conn.execute("INSERT INTO asset_aliases(workspace_id,source_namespace,legacy_ref,asset_id,source_sha256) VALUES(%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING", (workspace, os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical, media_id, digest))
-            alias = conn.execute("SELECT asset_id,source_sha256 FROM asset_aliases WHERE workspace_id=%s AND source_namespace=%s AND legacy_ref=%s", (workspace, os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical)).fetchone()
-            if alias["asset_id"] != media_id or alias["source_sha256"] != digest:
-                raise HTTPException(409, "素材迁移映射冲突")
+    storage = store()
+    version = storage.put(key, path, mime)
+    try:
+        with connection() as conn:
+            from app.storage.tasks import lease_context
+            lease = lease_context.get()
+            if lease and not conn.execute("SELECT id FROM tasks WHERE workspace_id=%s AND id=%s AND lease_token=%s AND lease_until>now() FOR SHARE", (workspace, *lease)).fetchone():
+                raise HTTPException(409, "任务租约已失效，拒绝发布旧执行者的输出")
+            row = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=%s FOR UPDATE", (workspace, media_id)).fetchone()
+            if row["status"] in ("deleting", "deleted"):
+                raise HTTPException(409, "素材正在删除或已彻底删除")
+            if row["status"] == "ready":
+                if row["sha256"] != digest:
+                    raise HTTPException(409, "输出槽位已被另一份内容占用")
+            else:
+                row = conn.execute("UPDATE assets SET status='ready',object_key=%s,object_version_id=%s,size_bytes=%s,sha256=%s,content_type=%s,updated_at=now() WHERE workspace_id=%s AND id=%s RETURNING *", (key, version, size, digest, mime, workspace, media_id)).fetchone()
+            if legacy_ref:
+                canonical = canonical_legacy(legacy_ref)
+                if not canonical:
+                    raise ValueError("Legacy alias must be a complete /assets/ or /output/ path")
+                conn.execute("INSERT INTO asset_aliases(workspace_id,source_namespace,legacy_ref,asset_id,source_sha256) VALUES(%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING", (workspace, os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical, media_id, digest))
+                alias = conn.execute("SELECT asset_id,source_sha256 FROM asset_aliases WHERE workspace_id=%s AND source_namespace=%s AND legacy_ref=%s", (workspace, os.getenv("ASSET_SOURCE_NAMESPACE", "local"), canonical)).fetchone()
+                if alias["asset_id"] != media_id or alias["source_sha256"] != digest:
+                    raise HTTPException(409, "素材迁移映射冲突")
+    except Exception:
+        _discard_unpublished_object(storage, workspace, media_id, key, version)
+        raise
+    if row['object_key'] != key or row['object_version_id'] != version:
+        _discard_unpublished_object(storage, workspace, media_id, key, version)
     return row
 
 

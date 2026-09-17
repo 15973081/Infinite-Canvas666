@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 import time
 import uuid
+from weakref import WeakValueDictionary
 from fastapi import APIRouter, File, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -13,6 +14,7 @@ from app.storage import media
 from app.storage.settings import postgres_enabled
 
 router = APIRouter()
+_preview_locks = WeakValueDictionary()
 
 
 def enabled():
@@ -203,10 +205,15 @@ async def preview(ref, width):
         raise HTTPException(404, "素材不存在")
     width = max(64, min(2048, int(width or 512)))
     media_id = "ast_" + hashlib.sha256(f"preview-v1:{asset['id']}:{width}".encode()).hexdigest()[:32]
-    existing = media.get_asset(media_id, ready=False)
-    if not existing or existing["status"] != "ready":
-        path = await asyncio.to_thread(media.materialize, asset["id"])
-        root = media.operation()["root"]
-        target, _ = await asyncio.to_thread(generate_media_preview_file, path, width, str(root / "preview.webp"), str(root / "preview.png"))
-        existing = await asyncio.to_thread(media.publish, target, Path(target).name, asset_id=media_id, parent_asset_id=asset["id"], role="preview")
+    # Keep waiting requests in their own authorization/operation contexts. Weak
+    # values release idle locks; separate event loops must never share a lock.
+    lock_key = (asyncio.get_running_loop(), media.current_workspace(), media_id)
+    lock = _preview_locks.setdefault(lock_key, asyncio.Lock())
+    async with lock:
+        existing = media.get_asset(media_id, ready=False)
+        if not existing or existing["status"] != "ready":
+            path = await asyncio.to_thread(media.materialize, asset["id"])
+            root = media.operation()["root"]
+            target, _ = await asyncio.to_thread(generate_media_preview_file, path, width, str(root / "preview.webp"), str(root / "preview.png"))
+            existing = await asyncio.to_thread(media.publish, target, Path(target).name, asset_id=media_id, parent_asset_id=asset["id"], role="preview")
     return RedirectResponse(media.browser_url(existing), 307, headers={"Cache-Control": "private, no-store"})
