@@ -2,7 +2,7 @@
 
 Extracted from main.py — Phase 1 physical split, no behavior changes.
 """
-from typing import List, Dict, Any, Optional, Literal
+from typing import Literal, List, Dict, Any, Optional, Literal
 from pydantic import BaseModel, Field
 from fastapi import UploadFile
 
@@ -237,6 +237,7 @@ class CanvasLockRequest(BaseModel):
 
 
 class CanvasMetaUpdate(BaseModel):
+    cover_style: Optional[Literal["type", "editorial", "sage", "ink"]] = None
     title: Optional[str] = None
     icon: Optional[str] = None
     owner: Optional[str] = None

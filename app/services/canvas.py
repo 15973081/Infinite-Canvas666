@@ -214,6 +214,7 @@ def normalize_canvas_color(value):
 
 def canvas_record(data):
     return {
+        "cover_style": data.get("cover_style") or "type",
         "id": data.get("id"),
         "title": data.get("title", "未命名画布"),
         "icon": data.get("icon", "🧩"),

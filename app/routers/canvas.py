@@ -1036,6 +1036,8 @@ async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
     """更新画布的轻量元数据（标题/图标/负责人/颜色/置顶）。
     刻意不走 save_canvas（它会刷新 updated_at），以免打标签/置顶把画布顶到列表最前。"""
     canvas = load_canvas(canvas_id)
+    if payload.cover_style is not None:
+        canvas["cover_style"] = payload.cover_style
     if payload.title is not None:
         canvas["title"] = (payload.title or canvas.get("title") or "未命名画布")[:80]
     if payload.icon is not None:

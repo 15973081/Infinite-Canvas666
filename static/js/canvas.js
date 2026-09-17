@@ -731,7 +731,7 @@ function bindCanvasPreviewImageFallbacks(root=document){
     });
 }
 function applyLanguage(lang){
-    
+
     document.title = tr('canvas.title');
     refreshGateViewControls();
     if(canvas) {
@@ -2373,19 +2373,19 @@ function renderCanvasListInto(list){
         const pinned = !!item.pinned && !trashMode;
         row.className = `canvas-item ${isSmartCanvas ? 'smart-canvas' : ''} ${canvas?.id === item.id ? 'active' : ''} ${pinned ? 'pinned' : ''} ${color ? 'has-color' : ''}`;
         row.dataset.canvasId = item.id;
-        row.dataset.studioCover = String([...String(item.id)].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0) % 3);
+        row.dataset.coverStyle = ["type","editorial","sage","ink"].includes(item.cover_style) ? item.cover_style : "type";
         const ownerChip = owner
             ? `<span class="canvas-owner-chip" role="button" tabindex="0" title="${escapeAttr(owner)}"><i data-lucide="user-round" class="w-3 h-3"></i><span class="canvas-owner-text">${escapeHtml(owner)}</span></span>`
             : '';
         row.innerHTML = `
             <div class="canvas-open" role="button" tabindex="${trashMode ? '-1' : '0'}">
-                <div class="studio-canvas-cover" aria-hidden="true"><span>${isSmartCanvas ? 'SMART CANVAS' : 'CANVAS'}</span></div>
+                <div class="studio-canvas-cover studio-neutral-cover" aria-hidden="true"><strong class="studio-cover-title">${escapeHtml(item.title || '未命名画布')}</strong></div><div class="studio-card-type">${isSmartCanvas ? '智能画布' : '普通画布'}${pinned ? ' · 已置顶' : ''}</div>
                 <div class="canvas-card-icon-row">
                     <span class="canvas-preview-mark ${color ? `icon-has-color cc-${escapeAttr(color)}` : ''}" role="button" tabindex="0" title="${trashMode ? tr('canvas.deletedCanvas') : (tr('canvas.editMeta') || '编辑图标 / 颜色 / 负责人')}">${renderCanvasIcon(isSmartCanvas && /[^\x00-\x7F]/.test(item.icon || '') ? 'sparkles' : item.icon, 16)}</span>
                     ${isSmartCanvas ? `<span class="canvas-kind-chip">${tr('canvas.smartCanvasShort')}</span>` : ''}
                 </div>
                 <div class="canvas-card-title">${escapeHtml(item.title)}</div>
-                ${ownerChip}
+
                 <div class="canvas-card-meta">
                     <span class="canvas-card-meta-dot"></span>
                     <div class="canvas-card-time">${trashMode ? `${tr('canvas.deletedAt')} ${formatCanvasTime(item.deleted_at)}` : formatCanvasTime(item.updated_at || item.created_at)}</div>
@@ -2493,6 +2493,51 @@ function renderCanvasListInto(list){
         if(restoreBtn) restoreBtn.onclick = e => restoreCanvas(item.id, e);
         const purgeBtn = row.querySelector('.canvas-purge');
         if(purgeBtn) purgeBtn.onclick = e => requestPurgeCanvas(item.id, e);
+        if(!trashMode){
+            const menu = document.createElement('details');
+            menu.className = 'studio-card-menu';
+            const summary = document.createElement('summary');
+            summary.setAttribute('aria-label', '画布操作：' + item.title);
+            summary.title = '更多操作';
+            summary.innerHTML = '<i data-lucide="ellipsis"></i>';
+            menu.appendChild(summary);
+            const actions = document.createElement('div');
+            actions.className = 'studio-card-menu-items';
+            for(const [selector, label] of [['.canvas-card-edit','重命名'],['.canvas-folder-btn','移动到文件夹'],['.canvas-preview-mark','封面样式'],['.canvas-pin-btn',pinned ? '取消置顶' : '置顶'],['.canvas-delete','移入回收站']]){
+                const control = row.querySelector(selector);
+                if(!control) continue;
+                if(control.tagName !== 'BUTTON') {
+                    const button = document.createElement('button');
+                    button.type = 'button'; button.className = 'studio-card-meta-action';
+                    button.innerHTML = '<i data-lucide="panels-top-left"></i>';
+                    button.onclick = e => {e.stopPropagation(); menu.open=false; openCanvasCoverStyle(item);};
+                    actions.appendChild(button);
+                    button.appendChild(document.createTextNode(label));
+                    control.remove();
+                } else {
+                    control.appendChild(document.createTextNode(label));
+                    actions.appendChild(control);
+                }
+            }
+            menu.appendChild(actions);
+            menu.addEventListener('click', e => e.stopPropagation());
+            menu.addEventListener('pointerdown', e => e.stopPropagation());
+            menu.addEventListener('dragstart', e => e.preventDefault());
+            menu.addEventListener('toggle', () => {
+                if(menu.open) {
+                    document.querySelectorAll('.studio-card-menu[open]').forEach(other => {if(other !== menu) other.open = false;});
+                    const rect = summary.getBoundingClientRect();
+                    actions.style.position = 'fixed'; actions.style.right = 'auto';
+                    actions.style.left = Math.max(12, Math.min(rect.right - 200, window.innerWidth - 212)) + 'px';
+                    actions.style.top = Math.max(12, rect.bottom + actions.offsetHeight + 8 > window.innerHeight ? rect.top - actions.offsetHeight - 6 : rect.bottom + 6) + 'px';
+                }
+            });
+            menu.addEventListener('keydown', e => {if(e.key === 'Escape'){menu.open=false;summary.focus();e.stopPropagation();}});
+            row.appendChild(menu);
+            row.querySelector('.canvas-open').addEventListener('keydown', e => {
+                if(e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')){e.preventDefault();openCanvas(item.id);}
+            });
+        }
         list.appendChild(row);
     });
     refreshIcons();
@@ -2559,7 +2604,7 @@ function positionCanvasMetaPopover(){
     const pop = document.querySelector('.canvas-meta-pop');
     const anchorId = canvasMetaAnchorId || emojiPickerCanvasId;
     const row = document.querySelector(`.canvas-item[data-canvas-id="${CSS.escape(anchorId)}"]`);
-    const icon = row?.querySelector('.canvas-preview-mark') || row?.querySelector('.canvas-owner-chip');
+    const icon = row?.querySelector('.studio-card-menu summary') || row?.querySelector('.canvas-preview-mark') || row?.querySelector('.canvas-owner-chip');
     if(!pop || !icon) return;
     const iconRect = icon.getBoundingClientRect();
     const width = pop.offsetWidth || 212;
@@ -14860,7 +14905,7 @@ window.onload = async () => {
     applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem(CANVAS_THEME_KEY) || 'light');
     applyQuickToolbarState();
     updateCanvasIdentityButton();
-    
+
     document.title = tr('canvas.title');
     initOutputCompareEvents();
     initOutputPreviewZoomEvents();
@@ -14885,4 +14930,47 @@ function retryBarHtml(node){
         <button class="node-retry-btn" type="button" data-retry="${node.id}">重试</button>
         <button class="node-stop-btn" type="button" data-stop="${node.id}">停止</button>
     </div>`;
+}
+
+document.addEventListener('click', event => { if(!event.target.closest('.studio-card-menu')) document.querySelectorAll('.studio-card-menu[open]').forEach(menu => {menu.open=false;}); });
+
+document.addEventListener('scroll', event => { if(event.target instanceof Element && event.target.closest('.studio-card-menu-items')) return; document.querySelectorAll('.studio-card-menu[open]').forEach(menu => {menu.open=false;}); }, true);
+window.addEventListener('resize', () => document.querySelectorAll('.studio-card-menu[open]').forEach(menu => {menu.open=false;}));
+
+function openCanvasCoverStyle(item){
+    if(document.querySelector('.studio-cover-dialog')) return;
+    const origin = document.activeElement;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'studio-cover-dialog';
+    dialog.setAttribute('aria-labelledby','coverStyleTitle');
+    dialog.innerHTML = '<h2 id="coverStyleTitle">封面样式</h2><p>用画布名称作为封面，选择适合这份创作的排版。</p><div class="studio-cover-options" role="group" aria-label="封面风格"></div><p class="studio-cover-error" role="alert" hidden></p><footer><button type="button" class="cover-cancel">取消</button><button type="button" class="cover-save">保存样式</button></footer>';
+    let choice = item.cover_style || 'type', busy = false;
+    const options = dialog.querySelector('.studio-cover-options');
+    for(const [key,label] of [['type','经典大字'],['editorial','杂志衬线'],['sage','鼠尾草'],['ink','墨色']]){
+        const button = document.createElement('button');button.type='button';button.dataset.coverStyle=key;
+        const sample=document.createElement('strong');sample.className='studio-cover-title';sample.textContent=item.title || '未命名画布';
+        const caption=document.createElement('span');caption.textContent=label;
+        button.append(sample,caption);button.setAttribute('aria-pressed',String(choice===key));
+        button.onclick=()=>{choice=key;options.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));};options.append(button);
+    }
+    dialog.querySelector('.cover-cancel').onclick=()=>dialog.close();
+    dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
+    dialog.addEventListener('keydown',e=>e.stopPropagation());
+    dialog.addEventListener('close',()=>{dialog.remove();if(origin?.isConnected)origin.focus();});
+    dialog.querySelector('.cover-save').onclick=async()=>{
+        if(busy)return;busy=true;
+        dialog.querySelectorAll('button').forEach(b=>b.disabled=true);
+        const error=dialog.querySelector('.studio-cover-error');error.hidden=true;
+        try{
+            if(choice!== (item.cover_style || 'type')){
+                const data=await window.CanvasApi.patchCanvasMeta(item.id,{cover_style:choice});
+                if(data.canvas)updateCanvasListRecord(data.canvas);
+                if(canvas?.id===item.id)canvas.cover_style=choice;
+                renderCanvasList();
+            }
+            dialog.close();
+        }catch(e){error.textContent=e.message || '保存失败，请重试';error.hidden=false;}
+        finally{busy=false;dialog.querySelectorAll('button').forEach(b=>b.disabled=false);}
+    };
+    document.body.append(dialog);dialog.showModal();
 }

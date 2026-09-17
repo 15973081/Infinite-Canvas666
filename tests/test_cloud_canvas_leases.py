@@ -415,3 +415,22 @@ def test_directory_rename_returns_revision_and_preserves_content(world, kind):
     saved = client.get(path, headers=head).json()['canvas']
     for key in ('kind', 'nodes', 'connections', 'updated_at'):
         assert saved[key] == original[key]
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_directory_cover_style_persists_without_changing_content(world, kind):
+    client, head = world['editor'], headers(world['a'])
+    path, original = setup_canvas(world, kind)
+    lease = acquire(world, path)
+    result = client.post(path + '/meta', headers=proof(world, lease), json={'cover_style': 'editorial'})
+    assert result.status_code == 200, result.text
+    record = result.json()['canvas']
+    assert record['cover_style'] == 'editorial'
+    assert record['revision'] == lease['revision'] + 1
+    assert client.post(path + '/edit-lease/release', headers=proof(world, lease, record['revision'])).status_code == 200
+    saved = client.get(path, headers=head).json()['canvas']
+    for key in ('title', 'kind', 'nodes', 'connections', 'updated_at'):
+        assert saved[key] == original[key]
+    rows = client.get('/api/canvases', headers=head).json()['canvases']
+    assert next(row for row in rows if row['id'] == original['id'])['cover_style'] == 'editorial'
+    assert client.post(path + '/meta', headers=head, json={'cover_style': 'invalid'}).status_code == 422

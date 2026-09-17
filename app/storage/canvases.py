@@ -43,7 +43,7 @@ def list_records(include_deleted=False):
         with connection() as conn:
             rows = conn.execute("""SELECT id,title,kind,revision,created_at,updated_at,deleted_at,
                 jsonb_build_object('icon',document->'icon','owner',document->'owner','color',document->'color',
-                'pinned',document->'pinned','folder_id',document->'folder_id',
+                'cover_style',document->'cover_style','pinned',document->'pinned','folder_id',document->'folder_id',
                 'node_count',jsonb_array_length(coalesce(document->'nodes','[]'::jsonb))) AS document
                 FROM canvases WHERE workspace_id=%s AND id>%s AND (deleted_at IS NOT NULL)=%s
                 AND coalesce(document->>'purged_at','0') IN ('0','') ORDER BY id LIMIT 100""", (current_workspace(), after, include_deleted)).fetchall()
