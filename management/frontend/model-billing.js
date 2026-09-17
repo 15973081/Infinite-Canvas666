@@ -9,11 +9,11 @@
     const root=node('section',undefined,'provider-editor'),pick=node('div',undefined,'provider-fields'),body=node('div');
     root.append(node('p','供应商连接与凭证在“供应商与分配”中维护；此处单独配置模型开放范围、分档单价与有效期折扣。','muted'),pick,body);
     if(!catalog.providers.length){body.append(node('p','请先保存一个供应商。'));return root;}
-    let rows=catalog.providers,dirty=false;
+    let rows=catalog.providers,dirty=false,saving=false;
     const [pl,provider]=select('供应商',rows.map(r=>[r.id,r.config.name||r.id]),rows[0].id);
     const [kl,kind]=select('类型',[['image','图片'],['video','视频'],['chat','对话']],'image');
     const [ml,model]=select('模型',[],'');pick.append(pl,kl,ml);
-    const guard=()=>!dirty||window.confirm('当前模型配置未保存，是否放弃修改？');
+    const guard=()=>!saving&&(!dirty||window.confirm('当前模型配置未保存，是否放弃修改？'));
     let previousProvider=provider.value,previousKind=kind.value,previousModel='';
     function models(){const row=rows.find(r=>r.id===provider.value);model.replaceChildren(...(row.config[kind.value+'_models']||[]).map(m=>new Option(m,m)));previousModel=model.value;render();}
     provider.onchange=()=>{if(!guard()){provider.value=previousProvider;return;}previousProvider=provider.value;models();};
@@ -21,7 +21,7 @@
     model.onchange=()=>{if(!guard()){model.value=previousModel;return;}previousModel=model.value;render();};
     function render(){
       dirty=false;body.replaceChildren();if(!model.value){body.append(node('p','该分类暂无模型，请到供应商页面添加。'));return;}
-      const row=rows.find(r=>r.id===provider.value),k=kind.value,m=model.value,key=k+':'+m;let config=structuredClone(row.config);
+      const row=rows.find(r=>r.id===provider.value),k=kind.value,m=model.value,key=k+':'+m;let config=structuredClone(row.config),version=row.version;
       const form=node('form'),policy=config.model_policies?.[key]||{},access=node('section',undefined,'provider-block');body.append(form);
       access.append(node('h3','模型使用范围'),node('p','隐藏或停用后不能发起新任务，模型配置与历史账单保留。已提交到上游的任务仍可取回结果。','muted'));
       const [vl,visible]=check('向成员显示',policy.visible!==false),[el,enabled]=check('允许新任务',policy.enabled!==false);access.append(vl,el);
@@ -71,7 +71,9 @@
         (config.model_discounts||[]).filter(r=>r.kind===k&&r.model===m).forEach(add);const plus=node('button','添加折扣时段');plus.type='button';plus.onclick=()=>{add({effective_from:Date.now()});dirty=true;};block.append(plus);form.append(block);
       }
       const [reasonLabel,reason]=input('修改原因');reason.required=true;reason.maxLength=1000;const submit=node('button','保存当前模型配置','primary'),status=node('p','','muted');status.setAttribute('role','status');const footer=node('section',undefined,'provider-block');footer.append(reasonLabel,submit,status);form.append(footer);form.oninput=form.onchange=()=>{dirty=true;discountInputs.forEach(r=>r.refreshPreview());};
-      form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;status.textContent='正在保存…';try{
+      form.onsubmit=async event=>{event.preventDefault();if(saving)return;saving=true;
+        const controls=[...root.querySelectorAll('input,select,button')].map(control=>[control,control.disabled]);
+        controls.forEach(([control])=>{control.disabled=true;});status.textContent='正在保存，请稍候再编辑或切换模型…';try{
         const next=structuredClone(config);delete next.id;delete next.primary;
         next.model_policies={...next.model_policies,[key]:{visible:visible.checked,enabled:enabled.checked,...(k!=='chat'&&restricted.checked?{resolutions:sizeChecks.filter(([,c])=>c.checked).map(([s])=>s)}:{})}};
         if(k==='video' && (durationMin.value!=='' || durationMax.value!=='')){
@@ -85,11 +87,10 @@
           next.model_discounts=(next.model_discounts||[]).filter(r=>r.kind!==k||r.model!==m);
           for(const r of discountInputs){const start=new Date(r.start.value).getTime(),end=r.end.value?new Date(r.end.value).getTime():0;if(!Number.isFinite(start)||!Number.isFinite(end)||end&&end<=start)throw Error('请检查折扣起止时间。');next.model_discounts.push({kind:k,model:m,rate:(Number(r.rate.value)/100).toFixed(6),effective_from:start,effective_to:end,label:r.label.value.trim(),...(r.resolution.value?{resolution:r.resolution.value}:{}),...(k==='video'&&r.video.value!==''?{has_video_input:r.video.value==='true'}:{})});}
         }
-        const saved=await save(row,{config:next,expected_version:row.version,reason:reason.value});
-        row.version=saved.version;row.config=saved.config;config=structuredClone(saved.config);
+        const saved=await save(row,{config:next,expected_version:version,reason:reason.value});
+        row.version=saved.version;row.config=saved.config;config=structuredClone(saved.config);version=saved.version;
         status.textContent=`已保存 ${m} 的配置；其他模型配置不变，历史任务费用保持原快照。`;dirty=false;
-        submit.disabled=false;
-      }catch(error){status.textContent=error.message;submit.disabled=false;}};
+      }catch(error){status.textContent=error.message;}finally{saving=false;controls.forEach(([control,disabled])=>{control.disabled=disabled;});}};
     }
     models();return root;
   }

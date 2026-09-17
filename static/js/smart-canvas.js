@@ -2664,10 +2664,28 @@ function smartImageResolutions(prefix=''){
 }
 function normalizeSmartImageResolution(prefix=''){
     const options = smartImageResolutions(prefix), key = prefix ? `${prefix}Resolution` : 'resolution';
+    // An outpaint canvas has an explicit size; model policy must not relabel it.
+    if(!prefix && settings.outpaintResolutionLocked === true){
+        settings.resolution = 'custom';
+        settings.ratio = '';
+        return options;
+    }
     if(!options.includes(settings[key])) settings[key] = options[0] || '';
     const ratioKey = prefix ? `${prefix}Ratio` : 'ratio';
     if(settings[key] !== 'custom' && !settings[ratioKey]) settings[ratioKey] = 'square';
     return options;
+}
+function smartOutpaintResolutionError(sourceSettings=settings){
+    const size = sizeForRun(sourceSettings);
+    const match = /^(\d+)\s*[x×]\s*(\d+)$/.exec(size);
+    if(!match || Math.min(Number(match[1]), Number(match[2])) <= 0) return '扩图尺寸无效，请重新调整扩图区域。';
+    const w = Number(match[1]), h = Number(match[2]);
+    // Keep tier boundaries aligned with model_commercial.image_resolution.
+    const tier = Math.max(w,h) >= 3000 || w*h > 4500000 ? '4k' : Math.max(w,h) >= 1800 || w*h > 1800000 ? '2k' : '1k';
+    const provider = (apiProviders || []).find(p=>p.id === sourceSettings.provider_id);
+    const allowed = window.CanvasCore.modelResolutions(provider, 'image', sourceSettings.model, ['1k','2k','4k']);
+    if(!allowed.length) return '当前模型暂无可用规格，请重新选择模型后扩图。';
+    return allowed.includes(tier) ? '' : `扩图尺寸 ${size} 属于 ${tier.toUpperCase()}，当前模型仅开放 ${allowed.map(v=>v.toUpperCase()).join(' / ')}。请缩小扩图区域或切换模型。`;
 }
 function renderSizeControls(prefix='', includeSource=false){
     const resolutions = normalizeSmartImageResolution(prefix);
@@ -2832,8 +2850,11 @@ function renderRatioControl(prefix='', includeSource=false){
 function renderResolutionControl(prefix=''){
     const resKey = prefix ? `${prefix}Resolution` : 'resolution';
     const resolutions = normalizeSmartImageResolution(prefix);
+    const outpaint = !prefix && settings.outpaintResolutionLocked === true;
+    const error = outpaint ? smartOutpaintResolutionError() : '';
     return `<div class="smart-control resolution-control">
-        <button class="smart-pill" type="button" ${resolutions.length ? '' : 'disabled'}><i data-lucide="monitor"></i><span>${escapeHtml(resolutions.length ? resolutionLabel(prefix) : '暂无可用规格')}</span></button>
+        <button class="smart-pill" type="button" ${resolutions.length ? '' : 'disabled'}><i data-lucide="monitor"></i><span>${escapeHtml(outpaint || resolutions.length ? resolutionLabel(prefix) : '暂无可用规格')}</span></button>
+        ${error ? `<div class="smart-ref-error" role="status" style="max-width:240px;white-space:normal">${escapeHtml(error)}</div>` : ''}
         <div class="smart-popover compact-popover">
             <div class="smart-popover-title">${escapeHtml(tr('smart.resolution'))}</div>
             <div class="seg-row">
@@ -13261,6 +13282,8 @@ async function runGeneration(){
             customHeight:outpaintSize.height,
             customSize:`${outpaintSize.width}x${outpaintSize.height}`
         };
+        const error = smartOutpaintResolutionError(settings);
+        if(error){ settings = previousSettings; toast(error); return; }
     }
     const meta = snapshotRunMeta(prompt, node.id, request.displayPrompt, refs);
     const logKind = isApiLikeEngine(settings.engine) && settings.apiKind === 'video' ? 'video' : 'image';
@@ -13459,6 +13482,10 @@ function comfyFieldKind(field){
 }
 async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=null){
     if(!runSettings.provider_id || !runSettings.model) throw new Error(tr('smart.errNoApiModel'));
+    if(runSettings.outpaintResolutionLocked === true){
+        const error = smartOutpaintResolutionError(runSettings);
+        if(error) throw new Error(error);
+    }
     const count = Math.max(1, Math.min(8, Number(runSettings.count || 1)));
     const payload = {prompt, provider_id:runSettings.provider_id, model:runSettings.model, size:sizeForRun(runSettings), quality:runSettings.quality || 'auto', n:1, reference_images:imageRefsOnly(refs)};
     if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}

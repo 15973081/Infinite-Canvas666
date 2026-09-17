@@ -24,6 +24,80 @@ const providers = () => [{id:'p',enabled:true,has_key:true,image_models:['limite
     {id:'other',enabled:true,has_key:true,image_models:['open'],video_models:[],model_policies:{}}];
 const array = value => Array.from(value);
 
+function outpaintContext(size,allowed=['1k']){
+    const catalog=providers();catalog[0].model_policies['image:limited']={resolutions:allowed};
+    const c=context(smart,['validOutpaintSize','withOutpaintDisplaySettings','smartImageResolutions','normalizeSmartImageResolution',
+        'smartOutpaintResolutionError','resolutionLabel','renderResolutionControl','sizeForRun','apiImageSize'],{
+        apiProviders:catalog,settings:{},escapeHtml:x=>x,tr:x=>x,isApiLikeEngine:e=>e==='api',
+        imageRefsOnly:x=>x,canvasId:'canvas',submitted:[],SIZE_MAP:{square:{'1k':'1024x1024'}},
+    });
+    c.settings=c.withOutpaintDisplaySettings({outpaintSize:size},{engine:'api',provider_id:'p',model:'limited'});
+    c.window.CanvasApi={createCanvasImageTaskRequest:async payload=>{c.submitted.push(payload);return {ok:true,json:async()=>({task_id:'task'})};}};
+    vm.runInContext('async '+sourceFunction(smart,'runApiGeneration'),c);
+    return c;
+}
+
+test('restricted outpaint keeps its real size visible and blocks before binding or POST',async()=>{
+    const c=outpaintContext({width:4096,height:4096});
+    const html=c.renderResolutionControl();
+    assert.match(html,/<span>4096x4096<\/span>/);
+    assert.match(html,/属于 4K，当前模型仅开放 1K/);
+    assert.equal(c.settings.resolution,'custom');assert.equal(c.settings.ratio,'');
+    const binding={prepare(){assert.fail('invalid outpaint must not save/prepare a task');}};
+    await assert.rejects(c.runApiGeneration('expand',[],c.settings,binding),/属于 4K/);
+    assert.equal(c.submitted.length,0);
+});
+
+test('the generate button rejects incompatible outpaint before creating output nodes',async()=>{
+    const c=outpaintContext({width:4096,height:4096});
+    const node={id:'source',outpaintSize:{width:4096,height:4096}};
+    const previous=c.settings;
+    Object.assign(c,{nodes:[node],selectedNode:()=>node,isSmartCanvasLocked:()=>false,cloneSmartSettings:x=>({...x}),
+        smartSettingsForNode:n=>c.withOutpaintDisplaySettings(n,c.settings),smartLoopContext:null,
+        buildPromptRequest:()=>({prompt:'expand',refs:[]}),smartRunNeedsPrompt:()=>true,toast:message=>{c.message=message;},
+        snapshotRunMeta(){assert.fail('rejected outpaint must stop before creating run metadata or outputs');}});
+    vm.runInContext('async '+sourceFunction(smart,'runGeneration'),c);
+    await c.runGeneration();
+    assert.match(c.message,/属于 4K/);assert.equal(c.nodes.length,1);
+    assert.deepEqual({...c.settings},{...previous});assert.equal(c.submitted.length,0);
+});
+
+test('explicitly choosing an allowed tier exits locked outpaint and submits that size',async()=>{
+    const c=outpaintContext({width:4096,height:4096});
+    const node={outpaintSize:{width:4096,height:4096}};
+    Object.assign(c,{activeSettingsSubject:()=>node,persistActiveSmartSettings(){},rememberRecentSmartSettings(){},
+        renderDynamicParams:()=>c.renderResolutionControl(),scheduleSave(){}});
+    vm.runInContext(sourceFunction(smart,'setDynamicSetting'),c);
+    c.setDynamicSetting('resolution','1k');
+    assert.equal(node.outpaintSize,undefined);assert.equal(c.settings.outpaintResolutionLocked,undefined);
+    assert.match(c.renderResolutionControl(),/<span>1K<\/span>/);
+    await c.runApiGeneration('expand',[]);assert.equal(c.submitted[0].size,'1024x1024');
+});
+
+for(const [size,tier] of [[1024,'1k'],[2048,'2k'],[4096,'4k']])test(`allowed ${tier} outpaint submits the exact displayed dimensions`,async()=>{
+    const c=outpaintContext({width:size,height:size},[tier]);
+    assert.match(c.renderResolutionControl(),new RegExp(`<span>${size}x${size}</span>`));
+    assert.equal(c.smartOutpaintResolutionError(),'');
+    await c.runApiGeneration('expand',[]);
+    assert.equal(c.submitted[0].size,`${size}x${size}`);
+});
+
+test('outpaint respects area-based tiers and recovers when switching to an unrestricted model',async()=>{
+    const c=outpaintContext({width:1500,height:1500});
+    assert.match(c.smartOutpaintResolutionError(),/属于 2K/);
+    c.settings.model='open';assert.equal(c.smartOutpaintResolutionError(),'');
+    assert.match(c.renderResolutionControl(),/<span>1500x1500<\/span>/);
+    await c.runApiGeneration('expand',[]);assert.equal(c.submitted[0].size,'1500x1500');
+});
+
+test('revoked outpaint model retains dimensions but cannot submit',async()=>{
+    const c=outpaintContext({width:1024,height:1024});
+    c.apiProviders[0].model_policies['image:limited'].enabled=false;
+    assert.match(c.renderResolutionControl(),/<span>1024x1024<\/span>/);
+    await assert.rejects(c.runApiGeneration('expand',[]),/暂无可用规格/);
+    assert.equal(c.submitted.length,0);
+});
+
 test('policies are scoped to exact provider/model and unconfigured models regain all resolutions',()=>{
     const [p,other] = providers();
     assert.deepEqual(array(core.modelResolutions(p,'image','limited',['1k','2k','4k','custom'])),['1k']);
