@@ -6869,7 +6869,7 @@ function defaultNodeSize(type){
     if(type === 'video') return {w:400, h:0};
     if(type === 'comfy') return {w:420, h:460};
     if(type === 'ltxDirector') return {w:1000, h:800};
-    if(type === 'output') return {w:460, h:0};
+    if(type === 'output') return {w:300, h:0};
     return {w:260, h:0};
 }
 function loopCount(node){
@@ -8433,8 +8433,10 @@ function renderLoopBody(node){
     wrap.querySelectorAll('[data-loop-mode]').forEach(btn => {
         btn.onclick = e => {
             e.stopPropagation();
+            const previousMode = node.mode;
             node.mode = btn.dataset.loopMode === 'parallel' ? 'parallel' : 'serial';
             render();
+            if(previousMode !== node.mode) animateNodeModeSwitch(node.id, '.loop-mode');
             scheduleSave();
         };
     });
@@ -8574,7 +8576,7 @@ function renderLLMBody(node){
     if(sysEl){ sysEl.oninput = e => { node.systemPrompt = e.target.value; scheduleSave(); }; bindScrollableText(sysEl); }
     wrap.querySelectorAll('[data-mode]').forEach(btn => {
         btn.classList.toggle('active', mode === btn.dataset.mode);
-        btn.onclick = e => { e.stopPropagation(); node.mode = btn.dataset.mode; render(); scheduleSave(); };
+        btn.onclick = e => { e.stopPropagation(); const previousMode = node.mode; node.mode = btn.dataset.mode; render(); if(previousMode !== node.mode) animateNodeModeSwitch(node.id, '.llm-mode'); scheduleSave(); };
     });
     const nodePane = wrap.querySelector('.llm-node-pane');
     const chatPane = wrap.querySelector('.llm-chat-pane');
@@ -8586,6 +8588,13 @@ function renderLLMBody(node){
         renderLLMNodePane(nodePane, node);
     }
     return wrap;
+}
+function animateNodeModeSwitch(id, selector){
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const segment = nodesEl.querySelector('[data-id="' + CSS.escape(id) + '"] ' + selector);
+    if(!segment) return;
+    segment.classList.add('studio-switch-motion');
+    segment.addEventListener('animationend', () => segment.classList.remove('studio-switch-motion'), {once:true});
 }
 function renderLLMNodePane(container, node){
     const connectedInput = llmInputText(node);

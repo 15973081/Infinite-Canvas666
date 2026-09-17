@@ -83,10 +83,10 @@ html.member-workspace-shell.theme-dark,html.member-workspace-shell:has(body.them
 html:is(.theme-dark,.studio-theme-dark,.dark,[data-theme=dark]) .member-space-menu{background:rgba(28,37,50,.97)}
 .member-session-spaces[open] .member-space-menu{animation:member-space-open 150ms ease-out}
 @keyframes member-space-open{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
-.member-space-transition{position:fixed;inset:0;z-index:2147483641;display:grid;place-items:center;background:#f8fafc;color:#64748b;font:14px/1.6 system-ui,sans-serif;animation:member-space-fade 140ms ease-out}
-.member-session-pending::after{content:'正在加载工作空间…';position:fixed;inset:0;z-index:2147483639;display:grid;place-items:center;background:#f8fafc;color:#64748b;font:14px/1.6 system-ui,sans-serif;pointer-events:none}
+.member-space-transition{position:fixed;inset:0;z-index:2147483641;display:grid;place-items:center;background:var(--st-bg,#f3f2ed);color:var(--st-muted,#70756d);font:14px/1.6 system-ui,sans-serif;animation:member-space-fade 140ms ease-out}
+.member-session-pending::after{content:'正在加载工作空间…';position:fixed;inset:0;z-index:2147483639;display:grid;place-items:center;background:var(--st-bg,#f3f2ed);color:var(--st-muted,#70756d);font:14px/1.6 system-ui,sans-serif;pointer-events:none}
 html:is(.theme-dark,.studio-theme-dark,.dark,[data-theme=dark]) .member-space-transition,
-html.member-session-pending:is(.theme-dark,.studio-theme-dark,.dark,[data-theme=dark])::after{background:#111722;color:#a2b0c3}
+html.member-session-pending:is(.theme-dark,.studio-theme-dark,.dark,[data-theme=dark])::after{background:var(--st-bg,#23272b);color:var(--st-muted,#a5ada7)}
 .member-session-enter body>.app-shell,.member-session-enter body>.shell{animation:member-space-fade 200ms ease-out}
 @keyframes member-space-fade{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.member-session-spaces[open] .member-space-menu,.member-space-transition,.member-session-enter body>.app-shell,.member-session-enter body>.shell{animation:none}}

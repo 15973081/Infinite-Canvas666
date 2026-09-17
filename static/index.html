@@ -8,6 +8,9 @@
     <link rel="icon" href="/static/images/logo.png" type="image/png">
     <title>AI Studio</title>
     <style>
+        /* Match the destination before external styles and workspace data load. */
+        html { background:#f3f2ed; }
+        html:is(.studio-theme-dark,.theme-dark) { background:#23272b; }
         html.studio-route-booting body {
             visibility: hidden !important;
         }

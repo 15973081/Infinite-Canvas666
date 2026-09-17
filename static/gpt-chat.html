@@ -856,6 +856,7 @@
                 const del = document.createElement('button');
                 del.className = 'thread-delete';
                 del.title = tr('chat.deleteTitle');
+                del.setAttribute('aria-label', tr('chat.deleteTitle'));
                 del.onclick = (event) => deleteConversation(item.id, event);
                 del.innerHTML = '<i data-lucide="x" class="w-3.5 h-3.5"></i>';
                 row.appendChild(btn);
@@ -899,12 +900,51 @@
 
         async function deleteConversation(id, event){
             event.stopPropagation();
-            if(!confirm(tr('chat.deleteConfirm'))) return;
-            await fetch(`/api/conversations/${id}`, {method:'DELETE', headers:{'X-User-ID':userId}});
-            const deletedCurrent = currentConversation?.id === id;
-            if(deletedCurrent){ currentConversation = null; rememberConversation(''); setChatTitle(''); renderMessages([]); }
-            await loadConversations();
-            if(deletedCurrent && conversations[0]) await openConversation(conversations[0].id);
+            if(document.getElementById('chatDeleteDialog')) return;
+            const dialog = document.createElement('dialog');
+            dialog.id = 'chatDeleteDialog';
+            dialog.className = 'chat-delete-dialog';
+            dialog.setAttribute('aria-labelledby','chatDeleteTitle');
+            dialog.setAttribute('aria-describedby','chatDeleteDescription');
+            dialog.innerHTML = '<h2 id="chatDeleteTitle">删除对话？</h2><p id="chatDeleteDescription"></p><p class="delete-error" role="alert" hidden></p><footer><button type="button" data-cancel autofocus>取消</button><button type="button" data-delete>删除对话</button></footer>';
+            const item = conversations.find(item => item.id === id);
+            dialog.querySelector('#chatDeleteDescription').textContent = '“' + (item?.title || defaultTitle()) + '”及其中的消息将被删除，此操作无法撤销。';
+            const cancel = dialog.querySelector('[data-cancel]');
+            const remove = dialog.querySelector('[data-delete]');
+            let busy = false;
+            cancel.onclick = () => dialog.close();
+            dialog.addEventListener('cancel', e => { if(busy) e.preventDefault(); });
+            dialog.addEventListener('close', () => dialog.remove(), {once:true});
+            remove.onclick = async () => {
+                if(busy) return;
+                busy = true;
+                cancel.disabled = remove.disabled = true;
+                remove.textContent = '正在删除…';
+                const error = dialog.querySelector('.delete-error');
+                error.hidden = true;
+                try {
+                    const response = await fetch('/api/conversations/' + encodeURIComponent(id), {method:'DELETE', headers:{'X-User-ID':userId}});
+                    if(!response.ok) throw new Error('删除失败，请稍后重试。');
+                } catch(e) {
+                    error.textContent = e.message || '删除失败，请稍后重试。';
+                    error.hidden = false;
+                    busy = false;
+                    cancel.disabled = remove.disabled = false;
+                    remove.textContent = '重试删除';
+                    return;
+                }
+                dialog.close();
+                const deletedCurrent = currentConversation?.id === id;
+                if(deletedCurrent){ currentConversation = null; rememberConversation(''); setChatTitle(''); renderMessages([]); }
+                conversations = conversations.filter(item => item.id !== id);
+                renderThreads();
+                try {
+                    await loadConversations();
+                    if(deletedCurrent && conversations[0]) await openConversation(conversations[0].id);
+                } catch(e) { console.error('刷新历史对话失败', e); }
+            };
+            document.body.append(dialog);
+            dialog.showModal();
         }
 
         function toggleHistory(force){

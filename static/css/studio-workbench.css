@@ -299,3 +299,132 @@ body.studio-canvas #canvasGate .gate-search input::placeholder{color:var(--st-mu
 body.studio-canvas #canvasGate .gate-search>svg{width:15px;height:15px;flex-shrink:0}
 body.studio-canvas #canvasGate .gate-search-clear{color:var(--st-muted);border-radius:6px}
 body.studio-canvas #canvasGate .gate-search-clear:hover{background:var(--st-soft);color:var(--st-text)}
+
+/* Classic editor internals share the studio palette, including legacy dark rules. */
+body.studio-canvas #shell .node,body.studio-canvas #shell .node-head,body.studio-canvas #shell .node-body{background:var(--st-panel)!important;color:var(--st-text)!important;border-color:var(--st-line)!important}
+body.studio-canvas #shell :is(.blank-image,.llm-output,.llm-chat-log,.llm-system,.llm-chat-input,.llm-input-area,.input-item,.loop-count-row,.loop-image-panel,.loop-preview,.loop-variable-editor,.gen-settings,.comfy-settings,.setting-row,.gen-count-row,.seg,.llm-mode,.mode-tabs,.llm-provider){background:var(--st-bg)!important;color:var(--st-text)!important;border-color:var(--st-line)!important;box-shadow:none!important}
+body.studio-canvas #shell :is(.select-lite,.setting-input,.setting-check,.gen-count-input,.loop-count-input,.loop-toggle,.llm-sys-toggle,.llm-output-copy,.loop-token-btn){background:var(--st-soft)!important;color:var(--st-text)!important;border-color:var(--st-line)!important;box-shadow:none!important}
+body.studio-canvas #shell :is(.seg,.llm-mode,.mode-tabs,.llm-provider) button{background:transparent!important;color:var(--st-muted)!important;border-color:transparent!important;box-shadow:none!important}
+body.studio-canvas #shell :is(.seg,.llm-mode,.mode-tabs,.llm-provider) button.active,body.studio-canvas #shell :is(.loop-toggle.active,.llm-sys-toggle.active,.llm-run,.loop-counter-token-btn){background:var(--st-accent)!important;color:var(--st-ink)!important;border-color:var(--st-accent)!important;box-shadow:none!important}
+body.studio-canvas #shell .llm-run:disabled{background:var(--st-soft)!important;color:var(--st-muted)!important;border-color:var(--st-line)!important;opacity:.6}
+body.studio-canvas #shell :is(.blank-image:hover,.blank-image.drag-over){background:var(--st-soft)!important;border-color:var(--st-muted)!important}
+body.studio-canvas #shell :is(.node-title,.llm-pane-label,.setting-title,.node label){color:var(--st-muted)!important}
+body.studio-canvas #shell .llm-pane-resizer::before{background:var(--st-line)!important}
+body.studio-canvas #shell .llm-bubble.assistant{background:var(--st-soft)!important;color:var(--st-text)!important;border-color:var(--st-line)!important}
+body.studio-canvas #shell .llm-bubble.user{background:var(--st-accent)!important;color:var(--st-ink)!important}
+body.studio-canvas #shell .create-menu{background:var(--st-panel)!important;border-color:var(--st-line)!important;box-shadow:0 8px 28px #0002!important}
+body.studio-canvas #shell .create-menu .menu-btn{color:var(--st-muted)!important}
+body.studio-canvas #shell .create-menu .menu-btn:hover,body.studio-canvas #shell .create-menu .menu-btn:focus-visible{background:var(--st-soft)!important;color:var(--st-text)!important}
+
+body.studio-canvas #shell .node-body{background:transparent!important}
+body.studio-canvas #shell .node-head{border-radius:inherit;border-bottom-left-radius:0;border-bottom-right-radius:0}
+body.studio-canvas #shell .create-menu .menu-btn{background:transparent!important;border:0}
+body.studio-canvas #shell .create-menu .menu-btn:hover,body.studio-canvas #shell .create-menu .menu-btn:focus-visible{background:var(--st-soft)!important}
+
+/* Generation controls and connection handles use the same restrained palette. */
+body.studio-canvas #shell .generation-settings-disclosure>summary{padding:8px 10px;border-radius:9px;background:var(--st-soft);outline:none;outline-offset:0;transition:background .15s,box-shadow .15s}
+body.studio-canvas #shell .generation-settings-disclosure>summary:hover{background:var(--st-bg)}
+body.studio-canvas #shell .generation-settings-disclosure>summary:focus-visible{outline:none;box-shadow:inset 0 0 0 1.5px var(--st-muted)}
+body.studio-canvas #shell :is(.gen-btn,.comfy-run){background:var(--st-accent)!important;color:var(--st-ink)!important;border:1px solid var(--st-accent)!important;box-shadow:none!important;font-weight:600}
+body.studio-canvas #shell :is(.gen-btn,.comfy-run):hover:not(:disabled){filter:brightness(.96)}
+body.studio-canvas #shell :is(.gen-btn,.comfy-run):disabled{background:var(--st-soft)!important;color:var(--st-muted)!important;border-color:var(--st-line)!important;opacity:.6;filter:none}
+body.studio-canvas #shell .port::after{background:var(--st-panel)!important;border:2px solid var(--st-muted)!important;box-shadow:0 0 0 2px var(--st-panel)!important;transition:background .14s,border-color .14s,transform .14s,box-shadow .14s}
+body.studio-canvas #shell .port:hover::after,body.studio-canvas #shell .port:active::after{background:var(--st-accent)!important;border-color:var(--st-ink)!important;box-shadow:0 0 0 3px var(--st-soft)!important;transform:scale(1.15)}
+@media(prefers-reduced-motion:reduce){body.studio-canvas #shell .port::after,body.studio-canvas #shell .generation-settings-disclosure>summary{transition:none}}
+
+/* Small editor controls share the palette without changing their hit areas. */
+body.studio-canvas #shell .resize-handle{background:var(--st-soft)!important;color:var(--st-muted)!important;border:1px solid var(--st-line)!important;border-radius:5px;box-shadow:none!important}
+body.studio-canvas #shell .resize-handle::before{width:6px;height:6px;border-width:1.5px}
+body.studio-canvas #shell .resize-handle:hover{background:var(--st-accent)!important;color:var(--st-ink)!important;border-color:var(--st-accent)!important}
+html body.studio-skin .member-canvas-edit :is(button,summary):focus-visible{outline:none;box-shadow:inset 0 0 0 1.5px var(--st-muted)}
+html body.studio-skin .member-canvas-presence summary{border-radius:8px;color:var(--st-text);font-weight:400;gap:8px}
+html body.studio-skin .member-canvas-presence summary::before{content:'';width:7px;height:7px;flex:0 0 7px;box-sizing:border-box;border:1px solid var(--st-muted);border-radius:50%;background:transparent}
+html body.studio-skin .member-canvas-presence summary[data-presence=fresh]::before{background:var(--st-muted);border-color:var(--st-muted);box-shadow:0 0 0 3px var(--st-soft)}
+html body.studio-skin .member-canvas-presence[open]>summary{background:var(--st-soft)}
+
+/* The themed shell owns legacy tokens; node ::before paints above its background. */
+body.studio-canvas #shell{--page:var(--st-bg);--panel:var(--st-panel);--card:var(--st-panel);--card-solid:var(--st-panel);--soft:var(--st-bg);--soft-2:var(--st-soft);--line:var(--st-line);--line-2:var(--st-line);--text:var(--st-text);--muted:var(--st-muted);--faint:var(--st-muted);--strong:var(--st-accent);--strong-text:var(--st-ink)}
+body.studio-canvas #shell .node::before{background:var(--st-panel)!important}
+
+/* Smart editor: replace its independent blue-gray controls with studio tokens. */
+body.studio-smart-canvas #shell{--page:var(--st-bg);--panel:var(--st-panel);--card:var(--st-panel);--card-solid:var(--st-panel);--soft:var(--st-bg);--soft-2:var(--st-soft);--line:var(--st-line);--line-2:var(--st-line);--text:var(--st-text);--muted:var(--st-muted);--faint:var(--st-muted);--strong:var(--st-accent);--strong-text:var(--st-ink)}
+body.studio-smart-canvas #shell :is(.smart-nav,.smart-top-tools,.prompt-smart-node,.loop-smart-node,.composer-card,.create-menu,.create-card,.smart-node-floating-menu){background:var(--st-panel)!important;border-color:var(--st-line)!important;color:var(--st-text)!important}
+body.studio-smart-canvas #shell .smart-top-tools>button{background:transparent!important;border-color:transparent!important;color:var(--st-muted)!important}
+body.studio-smart-canvas #shell .smart-top-tools>button:hover{background:var(--st-soft)!important;color:var(--st-text)!important}
+body.studio-smart-canvas #shell :is(.prompt-node-text,.prompt-input,.prompt-node-llm select,.prompt-node-llm textarea,.loop-smart-text,.loop-smart-panel,.loop-smart-upstream,.loop-smart-seg,.loop-smart-mini>input,.smart-node-input-thumb){background:var(--st-bg)!important;border-color:var(--st-line)!important;color:var(--st-text)!important;box-shadow:none!important}
+body.studio-smart-canvas #shell :is(.prompt-node-pill,.loop-smart-count,.loop-smart-toggle,.loop-number-trigger,.loop-smart-token,.loop-smart-add-prompt,.composer-template-btn,.engine-select,.smart-pill,.node-resize-handle){background:var(--st-soft)!important;border-color:var(--st-line)!important;color:var(--st-text)!important;box-shadow:none!important}
+body.studio-smart-canvas #shell .loop-smart-seg button{background:transparent!important;color:var(--st-muted)!important}
+body.studio-smart-canvas #shell .loop-smart-seg button.active,body.studio-smart-canvas #shell :is(.loop-smart-toggle.active,.prompt-node-pill.active,.loop-smart-counter-token,.loop-smart-token-chip,.run-btn,.smart-top-tools>button.active){background:var(--st-accent)!important;border-color:var(--st-accent)!important;color:var(--st-ink)!important;box-shadow:none!important}
+body.studio-smart-canvas #shell :is(.prompt-node-text,.prompt-input,.loop-smart-text):focus{border-color:var(--st-muted)!important;box-shadow:0 0 0 2px var(--st-soft)!important}
+body.studio-smart-canvas #shell .loop-smart-count input{background:transparent!important;color:var(--st-text)!important}
+body.studio-smart-canvas #shell .run-btn:disabled{background:var(--st-soft)!important;border-color:var(--st-line)!important;color:var(--st-muted)!important;opacity:.6}
+
+/* Shared auxiliary surfaces: assets, expenses and native selection controls. */
+html body.studio-skin :is(.billing-view,.billing-dialog){--bill-bg:var(--st-panel)!important;--bill-surface:var(--st-bg)!important;--bill-text:var(--st-text)!important;--bill-muted:var(--st-muted)!important;--bill-border:var(--st-line)!important;--bill-hover:var(--st-soft)!important;--bill-accent:var(--st-accent)!important;--bill-on-accent:var(--st-ink)!important}
+html body.studio-skin :is(.ledger-controls,.ledger-dialog){--ledger-surface:var(--st-soft)!important;--ledger-text:var(--st-text)!important;--ledger-border:var(--st-line)!important;--ledger-disabled-bg:var(--st-bg)!important;--ledger-disabled-text:var(--st-muted)!important;color:var(--st-text)!important;border-color:var(--st-line)!important}
+html body.studio-skin :is(.billing-dialog,.ledger-dialog)::backdrop{background:rgba(20,23,22,.6);backdrop-filter:blur(8px)}
+html body.studio-skin #shell .log-modal{background:rgba(20,23,22,.5)!important}
+html body.studio-skin #shell :is(.asset-panel,.canvas-asset-panel,.log-panel){background:var(--st-panel)!important;border-color:var(--st-line)!important;color:var(--st-text)!important}
+html body.studio-skin #shell :is(.log-head button,.ledger-controls button,.ledger-controls input){background:var(--st-soft)!important;border-color:var(--st-line)!important;color:var(--st-text)!important}
+html body.studio-skin #shell .ledger-controls button:disabled{background:var(--st-bg)!important;color:var(--st-muted)!important;opacity:.5}
+html body.studio-skin #shell :is(.ledger-note,.cost-card span,.cost-card small){color:var(--st-muted)!important}
+html body.studio-skin #shell .cost-card-total strong{color:var(--st-text)!important}
+html body.studio-skin :is(.asset-name-search,.canvas-asset-search,.asset-search-wrap){background:var(--st-bg)!important;border-color:var(--st-line)!important;color:var(--st-muted)!important}
+html body.studio-skin :is(.asset-name-search,.canvas-asset-search,.asset-search-wrap) input{background:transparent!important;color:var(--st-text)!important;box-shadow:none!important;outline:none!important}
+html body.studio-skin :is(.asset-name-search,.canvas-asset-search,.asset-search-wrap):focus-within{border-color:var(--st-muted)!important;box-shadow:0 0 0 2px var(--st-soft)!important}
+html body.studio-skin #nano-monitor{background:var(--st-panel)!important;border:1px solid var(--st-line)!important;color:var(--st-text)!important;box-shadow:none!important}
+html body.studio-skin #nano-monitor .label-nano{color:var(--st-muted)!important}
+html body.studio-skin #nano-monitor .pulse-dot{background:var(--st-accent)!important;box-shadow:0 0 0 3px var(--st-soft)!important;animation:none}
+html body.studio-skin select,html body.studio-skin #shell select{background-color:var(--st-soft)!important;color:var(--st-text)!important;border:1px solid var(--st-line)!important;border-radius:10px;padding-inline:12px 30px;min-height:32px;font-weight:500;outline:none!important;box-shadow:none!important;accent-color:var(--st-accent)}
+html body.studio-skin select:hover,html body.studio-skin #shell select:hover{border-color:var(--st-muted)!important}
+html body.studio-skin select:focus-visible,html body.studio-skin #shell select:focus-visible{border-color:var(--st-muted)!important;box-shadow:0 0 0 2px var(--st-soft)!important}
+html body.studio-skin select option{background:var(--st-panel);color:var(--st-text)}
+html body.studio-skin :is(.billing-view,.ledger-controls,.ledger-dialog) :is(input,button):focus-visible{outline:1px solid var(--st-muted)!important;outline-offset:2px}
+/* Customizable native selects retain keyboard/form behavior; older browsers keep native menus. */
+@supports (appearance:base-select){
+ html body.studio-skin select,html body.studio-skin #shell select{appearance:base-select;padding-inline:12px;align-items:center;gap:12px}
+ html body.studio-skin select::picker(select){appearance:base-select;background:var(--st-panel);color:var(--st-text);border:1px solid var(--st-line);border-radius:12px;padding:5px;margin-block:6px;box-shadow:0 12px 32px #0003;max-height:320px;overflow:auto}
+ html body.studio-skin select::picker-icon{color:var(--st-muted);transition:rotate .15s}
+ html body.studio-skin select:open::picker-icon{rotate:180deg}
+ html body.studio-skin select option{padding:8px 10px;border-radius:7px;min-height:32px;font-weight:400}
+ html body.studio-skin select option:is(:hover,:focus){background:var(--st-soft);color:var(--st-text);outline:none}
+ html body.studio-skin select option:checked{background:var(--st-accent);color:var(--st-ink)}
+}
+html body.studio-skin .billing-view input,html body.studio-skin .ledger-controls input{background:var(--st-bg)!important;color:var(--st-text)!important;border-color:var(--st-line)!important}
+html body.studio-skin :is(.billing-view,.ledger-controls,.asset-name-search,.canvas-asset-search,.asset-search-wrap) input::placeholder{color:var(--st-muted)!important}
+html body.studio-skin .billing-dialog .billing-close{background:var(--st-soft)!important;color:var(--st-muted)!important;border-color:var(--st-line)!important}
+html body.studio-skin .thread-item{background:transparent!important;color:var(--st-text)!important;border-color:transparent!important;box-shadow:none!important;padding-right:44px}
+html body.studio-skin .thread-item:hover{background:var(--st-soft)!important;border-color:var(--st-line)!important}
+html body.studio-skin .thread-item.active{background:var(--st-soft)!important;border-color:var(--st-muted)!important}
+html body.studio-skin .thread-delete{width:28px;height:28px;top:10px;right:8px;background:transparent!important;color:var(--st-muted)!important;border:0;border-radius:8px;opacity:.65}
+html body.studio-skin .thread-delete:hover{background:var(--st-bg)!important;color:var(--st-text)!important;opacity:1}
+html body.studio-skin :is(.thread-delete,.thread-item):focus-visible{outline:1px solid var(--st-muted)!important;outline-offset:1px;box-shadow:none!important}
+html body.studio-skin .chat-delete-dialog{width:400px;max-width:calc(100vw - 48px);padding:24px;background:var(--st-panel)!important;color:var(--st-text)!important;border:1px solid var(--st-line);border-radius:18px;box-shadow:0 24px 70px #0003}
+html body.studio-skin .chat-delete-dialog::backdrop{background:rgba(20,23,22,.5);backdrop-filter:blur(5px)}
+html body.studio-skin .chat-delete-dialog h2{margin:0 0 12px;font-size:18px;font-weight:600;color:var(--st-text)!important}
+html body.studio-skin .chat-delete-dialog p{margin:0;color:var(--st-muted);font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+html body.studio-skin .chat-delete-dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+html body.studio-skin .chat-delete-dialog button{padding:9px 18px;border:1px solid var(--st-line);border-radius:9px;background:var(--st-soft);color:var(--st-text);font-size:13px}
+html body.studio-skin .chat-delete-dialog button[data-delete]{background:#a94f45;color:#fff;border-color:transparent}
+html body.studio-skin .chat-delete-dialog button:disabled{opacity:.5;cursor:wait}
+html body.studio-skin .chat-delete-dialog button:focus-visible{outline:2px solid var(--st-muted);outline-offset:3px}
+html body.studio-skin .chat-delete-dialog .delete-error{color:#c5786e;margin-top:12px}
+/* Prompt library creation/editing shares the studio field palette. */
+html body.studio-skin .inline-edit-field :is(input,textarea){background:var(--st-bg)!important;color:var(--st-text)!important;border:1px solid var(--st-line)!important;border-radius:10px;box-shadow:none!important;outline:none!important;font-weight:400;line-height:1.6;caret-color:var(--st-text)}
+html body.studio-skin .inline-edit-field :is(input,textarea)::placeholder{color:var(--st-muted)!important;opacity:.8}
+html body.studio-skin .inline-edit-field>span{color:var(--st-muted)!important;font-weight:500}
+html body.studio-skin .inline-edit-field :is(input,textarea):hover{border-color:var(--st-muted)!important}
+html body.studio-skin .inline-edit-field :is(input,textarea):focus{border-color:var(--st-muted)!important;box-shadow:0 0 0 2px var(--st-soft)!important}
+/* LLM content wrappers must not retain the legacy navy surface. */
+html body.studio-canvas #shell :is(.llm-chat-pane,.llm-node-pane,.llm-output-wrap){background:transparent!important;color:var(--st-text)!important}
+html body.studio-canvas #shell :is(.llm-chat-input,.llm-system,.llm-input-area)::placeholder{color:var(--st-muted)!important}
+html body.studio-canvas #shell :is(.loop-mode,.llm-mode){position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px;padding:3px}
+html body.studio-canvas #shell :is(.loop-mode,.llm-mode)::before{content:'';position:absolute;z-index:-1;left:3px;top:3px;bottom:3px;width:calc((100% - 8px)/2);border-radius:inherit;background:var(--st-accent);transform:translateX(0)}
+html body.studio-canvas #shell :is(.loop-mode,.llm-mode):has(>button:nth-child(2).active)::before{transform:translateX(calc(100% + 2px))}
+html body.studio-canvas #shell :is(.loop-mode,.llm-mode)>button{position:relative;background:transparent!important;border-color:transparent!important;box-shadow:none!important;transition:color .18s ease;min-width:0}
+html body.studio-canvas #shell :is(.loop-mode,.llm-mode)>button.active{color:var(--st-ink)!important}
+html body.studio-canvas #shell .studio-switch-motion::before{animation:studio-switch-left .22s cubic-bezier(.22,.68,0,1)}
+html body.studio-canvas #shell .studio-switch-motion:has(>button:nth-child(2).active)::before{animation-name:studio-switch-right}
+@keyframes studio-switch-right{from{transform:translateX(0)}to{transform:translateX(calc(100% + 2px))}}
+@keyframes studio-switch-left{from{transform:translateX(calc(100% + 2px))}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){html body.studio-canvas #shell .studio-switch-motion::before{animation:none}html body.studio-canvas #shell :is(.loop-mode,.llm-mode)>button{transition:none}}

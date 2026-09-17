@@ -305,7 +305,8 @@
         const context=window.CanvasSession.context;
         const fresh=entry.presence && !window.CanvasSession.paused && context?.member.id===entry.memberId &&
             context?.workspace.id===entry.workspaceId && Date.now()-entry.presenceReceivedAt<35000;
-        entry.presenceSummary.textContent=fresh ? '◉ '+entry.presence.online_members+' 人在线' : '在线名单暂不可用';
+        entry.presenceSummary.textContent=fresh ? entry.presence.online_members+' 人在线' : '在线名单暂不可用';
+        entry.presenceSummary.setAttribute('data-presence', fresh ? 'fresh' : 'stale');
         entry.presenceList.replaceChildren();
         if(fresh) for(const member of entry.presence.members) {
             const name=String(member.display_name || '成员')+' · '+String(member.id).slice(-6)+(member.is_self ? '（你）' : '');

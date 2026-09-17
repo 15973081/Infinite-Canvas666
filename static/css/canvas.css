@@ -603,7 +603,7 @@ input[type=range].canvas-range::-webkit-slider-runnable-track { height:3px; bord
 .gen-step-btn { width:26px; height:100%; display:flex; align-items:center; justify-content:center; color:var(--muted); }
 .gen-step-btn:hover { color:var(--text); background:var(--soft-2); }
 .gen-count-input { width:30px; height:100%; border:0; border-left:1px solid var(--line); border-right:1px solid var(--line); background:var(--card-solid); outline:none; padding:0; color:var(--text); font-size:12px; font-weight:800; text-align:center; }
-.output-node { width:460px; --output-thumb-max:180px; --output-thumb-min:150px; }
+.output-node { width:300px; --output-thumb-max:180px; --output-thumb-min:150px; }
 .output-node .node-body { overscroll-behavior:contain; }
 .output-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(var(--output-thumb-min), var(--output-thumb-max))); gap:10px; justify-content:start; align-content:start; }
 .output-grid.grid-layout { grid-template-columns:repeat(var(--grid-cols), minmax(0, 1fr)); justify-content:stretch; }
