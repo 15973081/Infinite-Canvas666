@@ -120,7 +120,31 @@
         return nested.flat();
     }
 
+    function modelResolutions(provider, kind, model, defaults){
+        if(!provider || provider.enabled === false) return [];
+        const models = provider[kind + '_models'];
+        if(Array.isArray(models) && !models.includes(model)) return [];
+        const rule = provider.model_policies?.[kind + ':' + model];
+        if(rule?.visible === false || rule?.enabled === false) return [];
+        return defaults.filter(value => !Array.isArray(rule?.resolutions) || rule.resolutions.includes(value.toLowerCase()));
+    }
+
+    function availableModelProviders(providers){
+        return providers.filter(provider => provider.enabled !== false).map(provider => {
+            const result = {...provider};
+            for(const kind of ['image','video','chat']){
+                result[kind + '_models'] = (provider[kind + '_models'] || []).filter(model => {
+                    const rule = provider.model_policies?.[kind + ':' + model];
+                    return rule?.visible !== false && rule?.enabled !== false;
+                });
+            }
+            return result;
+        });
+    }
+
     window.CanvasCore = {
+        modelResolutions,
+        availableModelProviders,
         apiErrorMessage,
         responseErrorMessage,
         safeFileName,

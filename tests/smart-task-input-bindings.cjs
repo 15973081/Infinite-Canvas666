@@ -34,6 +34,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   snapshotRunMeta:()=>({}),smartRunSnapshot:n=>({nodeId:n.id,settings:clone(c.settings)}),rememberRecentSmartSettings(){},isApiLikeEngine:e=>e==='api',smartImageUsesWorkflowInput:()=>false,
   stripRunInputMeta:m=>m,attachRunMeta(){},pendingBoxSize:()=>({w:200,h:200}),coolNodeRunningState(){},coolRunButton(){},runBtn:{},
   createPendingOutputFromSource:()=>{c.nodes.push(target);return target;},restoreSourceVisualState:(n,s)=>Object.assign(n,s),clearPromptInput:()=>{c.promptInput.innerHTML='';},
+  smartVideoResolutions:()=>['','480p','720p','1080p'],
   smartVideoDurationRange:()=>({min:1,max:60,auto:false}),sizeForRun:()=> '1024x1024',imageRefsOnly:r=>r,videoRefsOnly:()=>[],audioRefsOnly:()=>[],applyUploadedUrlsToSmartRefs:r=>r,videoProviderPlatform:()=> 'p',manualSmartVideoLink:()=>null,isSeedance25VideoModel:()=>false,
   uid:()=> 'video-'+(requests.length+1),smartResponseErrorMessage:async()=> 'submission failed',smartTaskPollRetryWindow:()=>0,extractUpstreamTaskId:()=>'',
   smartPendingTasks:n=>n.pendingTasks||[],smartRecoverableImageTask:()=>null,smartPendingTaskRun:(n,t)=>t?.run||{nodeId:n.id,settings:config},

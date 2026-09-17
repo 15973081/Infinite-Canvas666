@@ -35,6 +35,7 @@ function fixture(kind='Image',{count=2,noOutput=false,stage='poll',status='succe
         setStatus:message=>c.message=message,showErrorModal:message=>c.error=message,alert:message=>c.error=message,tr:s=>s,nowMs:()=>1000,
         uid:prefix=>prefix+'-'+Math.random(),cascadeTargetIdFromOptions:()=>'',cascadeFetch(){},ensureCascadeActive(){},isCascadeAbortError:()=>false,
         shouldCreateOutputForNode:()=>!noOutput,apiProviders:[],orderedSources:(node,items)=>items,generatorSources:()=>[{prompt:prompt.text,refs:[]}],
+        allowedImageResolutions:()=>['1k','2k','4k','custom'],allowedVideoResolutions:()=>['','480p','720p','1080p'],
         imageRefsOnly:r=>r,videoRefsOnly:()=>[],audioRefsOnly:()=>[],applyUploadedUrlToRefs:r=>r,resolveImageProviderId:p=>p,resolveVideoProviderId:p=>p,
         canvasAvatarPlatform:()=>'',resolveImageModel:m=>m,generatorSizeForRun:async()=>{await boundary('size');return '1024x1024';},normalizedImageQuality:()=>'',
         videoNodeDurationRange:()=>({min:1,max:60,auto:false}),manualVideoUrlForNode:()=>'',refreshRunNodes(){},requestMetaFromResult:()=>({}),addGenerationLog:entry=>c.canvas.logs.push(entry),

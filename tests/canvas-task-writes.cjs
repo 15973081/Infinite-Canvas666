@@ -83,7 +83,8 @@ function classicRun(kind,stage,outcome){
  let reached=false;
  const boundary=async at=>{if(at===stage){reached=true;await gate.promise;if(outcome==='failure')throw Error('upstream failed');}};
  const c={window:w,nodes:[source,out],canvas:{id:'c'},apiProviders:[],nowMs:()=>1000,uid:()=> 'pending',tr:s=>s,alert:()=>counts.error++,showErrorModal:()=>counts.error++,
-  cascadeTargetIdFromOptions:()=>'',orderedSources:(n,s)=>s,generatorSources:()=>[{prompt:'hello',refs:[]}],imageRefsOnly:r=>r,videoRefsOnly:()=>[],audioRefsOnly:()=>[],
+   allowedImageResolutions:()=>['1k','2k','4k','custom'],allowedVideoResolutions:()=>['','480p','720p','1080p'],
+   cascadeTargetIdFromOptions:()=>'',orderedSources:(n,s)=>s,generatorSources:()=>[{prompt:'hello',refs:[]}],imageRefsOnly:r=>r,videoRefsOnly:()=>[],audioRefsOnly:()=>[],
   applyUploadedUrlToRefs:r=>r,resolveImageProviderId:p=>p,resolveVideoProviderId:p=>p,canvasAvatarPlatform:()=>'',resolveImageModel:()=> 'model',generatorSizeForRun:async()=> 'auto',normalizedImageQuality:()=>'',manualVideoUrlForNode:()=>'',
   outputForNode:()=>out,runSnapshot:()=>({node:{id:'src'}}),refreshRunNodes:()=>counts.render++,scheduleSave:()=>counts.save++,saveCanvas:async()=>{},setTimeout:fn=>timers.push(fn),
   createCanvasImageTask:async()=>{await boundary('submit');return {task_id:'t'};},createCanvasVideoTask:async()=>{await boundary('submit');return {task_id:'t'};},

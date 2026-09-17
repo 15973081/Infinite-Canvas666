@@ -2728,7 +2728,8 @@ function copySelectedAssetsToCanvas(){
     if(!items.length){ setStatus('没有可复制的素材'); return; }
     try {
         // 写入跨页剪贴板，画布页按 Ctrl+V 读取并批量粘贴
-        localStorage.setItem(SMART_CANVAS_ASSET_INBOX_KEY, JSON.stringify({items, ts: Date.now()}));
+        const key = window.CanvasSession?.enabled ? window.CanvasSession.storageKey(SMART_CANVAS_ASSET_INBOX_KEY) : SMART_CANVAS_ASSET_INBOX_KEY;
+        localStorage.setItem(key, JSON.stringify({items, ts: Date.now()}));
     } catch(err){
         setStatus('复制失败：' + (err?.message || err));
         return;

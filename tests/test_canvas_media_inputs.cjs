@@ -30,6 +30,7 @@ function setup(){
     const noop = () => {};
     const ctx = loadFunctions(functions, {
         window:{}, // Optional billing integration is absent in this fixture.
+        allowedVideoResolutions:()=>['','480p','720p','1080p'],
         nodes:[node], generatorSources:() => sources, isVideoUrl:url => /\.mp4$/.test(url),
         render:noop, refreshGeneratorInputViews:noop, refreshGeometryAfterLayout:noop, scheduleSave:noop, cascadeTargetIdFromOptions:()=>'',
         resolveVideoProviderId:id=>id, apiProviders:[], canvasAvatarPlatform:()=> 'volcengine',

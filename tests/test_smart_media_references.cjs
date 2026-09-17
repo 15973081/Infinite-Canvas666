@@ -9,6 +9,7 @@ function setup(){
     const node = {id:'generator'};
     const ctx = vm.createContext({
         window:{},canvasId:'smart-reference-test',
+        smartVideoResolutions:()=>['','480p','720p','1080p'],
         nodes:[], settings:{engine:'volcengine', apiKind:'video', videoModel:'doubao-seedance-2-5-260628'}, smartLoopContext:null,
         isApiLikeEngine:engine=>['api','volcengine'].includes(engine),
         manualSmartMediaLinks:settings=>settings.videoTempShLinks || [],

@@ -1247,6 +1247,7 @@ function uniqueModels(list){
     });
 }
 function defaultApiProviders(){
+    if(window.CanvasSession?.enabled) return [];
     return [{id:'comfly', name:'Comfly', base_url:'', enabled:true, image_models:imageModels, chat_models:chatModels, video_models:videoModels.length ? videoModels : DEFAULT_VIDEO_MODELS, has_key:false, key_preview:''}];
 }
 function normalizeProviderId(value){
@@ -1296,7 +1297,7 @@ function providerImageModels(providerId){
     return uniqueModels(provider?.image_models || []);
 }
 function allowedImageResolutions(node){
-    return apiProviders.find(p=>p.id===node.apiProvider)?.model_policies?.['image:'+resolveImageModel(node.model)]?.resolutions || ['1k','2k','4k','custom'];
+    return window.CanvasCore.modelResolutions(apiProviders.find(p=>p.id===node.apiProvider), 'image', resolveImageModel(node.model), ['1k','2k','4k','custom']);
 }
 function sanitizeImageNodeProviderModel(node){
     if(!node || node.type !== 'generator') return;
@@ -1304,7 +1305,7 @@ function sanitizeImageNodeProviderModel(node){
     const models = providerImageModels(node.apiProvider);
     if(!models.length) node.model = '';
     else if(!models.includes(resolveImageModel(node.model))) node.model = models[0] || '';
-    const sizes=allowedImageResolutions(node);if(!sizes.includes(node.resolution))node.resolution=sizes[0];
+    const sizes=allowedImageResolutions(node);if(!sizes.includes(node.resolution))node.resolution=sizes[0] || '';
 }
 function videoApiProviders(){
     const providers = (apiProviders.length ? apiProviders : defaultApiProviders())
@@ -1391,6 +1392,7 @@ function normalizedImageQuality(value){
 }
 function resolveChatModel(value, providerId=''){
     const providerModels = providerId ? providerChatModels(providerId) : [];
+    if(window.CanvasSession?.enabled) return providerModels.includes(value) ? value : providerModels[0] || '';
     return value || providerModels[0] || allChatModels()[0] || chatModels[0] || 'gpt-4o-mini';
 }
 function showErrorModal(message, title=tr('canvas.generationFailed')){
@@ -2197,7 +2199,7 @@ async function loadConfig(){
         imageModels = cfg.image_models?.length ? cfg.image_models : imageModels;
         chatModels = cfg.chat_models?.length ? cfg.chat_models : chatModels;
         videoModels = cfg.video_models?.length ? cfg.video_models : DEFAULT_VIDEO_MODELS;
-        apiProviders = Array.isArray(cfg.api_providers) && cfg.api_providers.length ? cfg.api_providers : defaultApiProviders();
+        apiProviders = window.CanvasCore.availableModelProviders(Array.isArray(cfg.api_providers) ? cfg.api_providers : defaultApiProviders());
         models.nano = imageModels.find(m => m.toLowerCase().includes('nano')) || 'nano-banana-pro';
         models.gpt = imageModels.find(m => !m.toLowerCase().includes('nano')) || cfg.image_model || 'gpt-image-2';
     } catch(e) {
@@ -4172,6 +4174,8 @@ function videoNodeDurationRange(node){
 function normalizeVideoNodeSelection(node){
     if(!node) return;
     node.duration = window.VideoDurationPolicy.clamp(node.duration,videoNodeDurationRange(node));
+    const resolutions = allowedVideoResolutions(node);
+    if(!resolutions.includes(node.resolution || '')) node.resolution = resolutions[0] || '';
     if(isVolcengineSeedance25VideoNode(node)){
 
         if(!['', '480p', '720p', '1080p'].includes(node.resolution)) node.resolution = '';
@@ -4180,6 +4184,11 @@ function normalizeVideoNodeSelection(node){
     }
     node.taskMode = 'auto';
     if(Number(node.duration) === -1) node.duration = 5;
+}
+function allowedVideoResolutions(node){
+    const defaults = ['', '480p', '720p', '1080p', ...(isSeedance20VideoModel(node.model) ? ['4k'] : []),
+        ...(isVolcengineSeedance25VideoNode(node) ? [] : ['780P'])];
+    return window.CanvasCore.modelResolutions(apiProviders.find(p=>p.id===node.apiProvider), 'video', node.model, defaults);
 }
 function videoNodeMediaRefs(refs){
     return (refs || []).filter(ref => ref?.url && ['image','video','audio'].includes(mediaKindForRef(ref)));
@@ -8559,7 +8568,7 @@ function renderLLMBody(node){
     const mode = node.mode || 'node';
     node.llmProvider = resolveChatProviderId(node.llmProvider || 'comfly');
     const llmProv = node.llmProvider;
-    if(!providerChatModels(llmProv).includes(node.model)) node.model = providerChatModels(llmProv)[0] || node.model;
+    if(!providerChatModels(llmProv).includes(node.model)) node.model = providerChatModels(llmProv)[0] || (window.CanvasSession?.enabled ? '' : node.model);
     const modelOpts = chatModelOptions(node.model, llmProv);
     const imgs = llmInputImages(node);
     const videos = llmInputVideos(node);
@@ -9014,7 +9023,7 @@ function renderGeneratorBody(node){
         const providerModels = providerImageModels(node.apiProvider);
         if(!providerModels.includes(resolveImageModel(node.model))) node.model = providerModels[0] || '';
         modelSelect.innerHTML = imageModelOptions(node.model, node.apiProvider);
-        syncQualityControls();
+        syncSizeControls();
         scheduleSave();
     };
     modelSelect.onmousedown = e => e.stopPropagation();
@@ -9022,7 +9031,7 @@ function renderGeneratorBody(node){
     modelSelect.onchange = e => {
         e.stopPropagation();
         node.model = e.target.value;
-        syncQualityControls();
+        syncSizeControls();
         scheduleSave();
     };
     const ratioSelect = wrap.querySelector('.ratio');
@@ -9083,6 +9092,11 @@ function renderGeneratorBody(node){
         } catch(_) {}
     };
     const syncSizeControls = () => {
+        const sizes = allowedImageResolutions(node);
+        if(!sizes.includes(node.resolution)) node.resolution = sizes[0] || '';
+        resolutionSelect.innerHTML = sizes.map(value => `<option value="${value}">${value === 'custom' ? tr('canvas.custom') : value.toUpperCase()}</option>`).join('');
+        resolutionSelect.disabled = !sizes.length;
+        if(node.resolution !== 'custom' && !node.ratio) node.ratio = 'square';
         normalizeApiNodeSizeChoice(node);
         const squareOption = ratioSelect.querySelector('option[value="square"]');
         if(squareOption){
@@ -9237,7 +9251,7 @@ function renderVideoBody(node){
     const isSeedance25 = isVolcengineSeedance25VideoNode(node);
     const durationRange = videoNodeDurationRange(node);
     if(isVolcengineVideoNode) node.useFrameRoles = false;
-    node.model = node.model || 'veo3-fast';
+    if(!node.model && !window.CanvasSession?.enabled) node.model = 'veo3-fast';
     wrap.innerHTML = `
         <div class="generation-section-title">提示词</div>
         <div class="prompt-list mb-3"></div>
@@ -9273,12 +9287,7 @@ function renderVideoBody(node){
                 <label class="field" style="flex:1">
                     <div class="setting-title">${tr('canvas.videoResolution')}</div>
                     <select class="select-lite video-resolution compact-select">
-                        <option value="">Auto</option>
-                        <option value="480p">480p</option>
-                        <option value="720p">720p</option>
-                        <option value="1080p">1080p</option>
-                        ${isSeedance20VideoModel(node.model) ? '<option value="4k">4K</option>' : ''}
-                        ${isSeedance25 ? '' : '<option value="780P">780P</option>'}
+                        ${allowedVideoResolutions(node).map(value => `<option value="${value}">${value ? value.toUpperCase() : 'Auto'}</option>`).join('')}
                     </select>
                 </label>
             </div>
@@ -9299,6 +9308,7 @@ function renderVideoBody(node){
     durationSelect.value = String(node.duration || 5);
     aspectSelect.value = node.aspectRatio || '16:9';
     resolutionSelect.value = node.resolution || '';
+    resolutionSelect.disabled = !allowedVideoResolutions(node).length;
     if(taskModeSelect) taskModeSelect.value = node.taskMode || 'auto';
     [providerSelect, modelSelect, durationSelect, aspectSelect, resolutionSelect, taskModeSelect].filter(Boolean).forEach(input => {
         input.onmousedown = e => e.stopPropagation();
@@ -10168,6 +10178,11 @@ async function runGenerator(genId, opts={}){
     const gen = nodes.find(n => n.id === genId);
     if(!gen || (gen.running && !opts.cascade)) return;
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
+    if(!allowedImageResolutions(gen).includes(gen.resolution || '1k')){
+        const error = new Error('图片规格已变化，请重新选择模型和分辨率后生成。');
+        if(opts.cascade) throw error;
+        showErrorModal(error.message); return;
+    }
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
     const sources = orderedSources(gen, generatorSources(gen, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
@@ -10337,6 +10352,11 @@ async function runVideoNode(nodeId, opts={}){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || (node.running && !opts.cascade)) return;
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
+    if(!allowedVideoResolutions(node).includes(node.resolution || '')){
+        const error = new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
+        if(opts.cascade) throw error;
+        showErrorModal(error.message); return;
+    }
     const cascadeTargetId = cascadeTargetIdFromOptions(opts);
     const sources = orderedSources(node, generatorSources(node, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
@@ -15032,18 +15052,32 @@ function openCanvasCoverStyle(item){
     document.body.append(dialog);dialog.showModal();
 }
 
-// Refresh administrative duration policies without rebuilding nodes or saving the canvas.
-window.VideoDurationPolicy.watch({read:()=>window.CanvasApi.getConfig(),apply:cfg=>{
-    if(!Array.isArray(cfg.api_providers))return;
-    for(const provider of apiProviders){const fresh=cfg.api_providers.find(p=>p.id===provider.id);if(fresh)provider.model_policies=fresh.model_policies || {};}
-    for(const input of nodesEl.querySelectorAll('.video-duration')){
-        const element=input.closest('.node[data-id]');
-        const node=canvas?.nodes?.find(n=>n.id===element?.dataset.id);
-        if(!node)continue;
-        const range=videoNodeDurationRange(node);
-        input.min=String(range.auto?-1:range.min);input.max=String(range.max);input.title=range.min+'–'+range.max+' 秒';
-        const label=input.parentElement.querySelector('.setting-title');
-        if(label)label.textContent=tr('canvas.videoDuration')+' · '+range.min+'–'+range.max+' 秒';
-        if(document.activeElement!==input)input.value=String(window.VideoDurationPolicy.clamp(node.duration,range));
+// Apply availability and policies together; never rebuild a field while it is being edited.
+function refreshCanvasModelControls(){
+    if(!canvas) return;
+    const ids = [];
+    for(const node of nodes){
+        if(!['generator','video','llm'].includes(node.type)) continue;
+        const element = nodesEl.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
+        if(!element) continue;
+        const active = document.activeElement;
+        if(element.contains(active) && active?.matches('input,textarea,select,[contenteditable="true"]')){
+            if(!element.dataset.modelRefreshPending){
+                element.dataset.modelRefreshPending = 'true';
+                element.addEventListener('focusout', () => {
+                    delete element.dataset.modelRefreshPending;
+                    setTimeout(refreshCanvasModelControls, 0);
+                }, {once:true});
+            }
+        } else ids.push(node.id);
     }
-}});
+    refreshNodes(ids);
+}
+function applyCanvasModelConfig(cfg){
+    if(!Array.isArray(cfg.api_providers)) return;
+    const providers = window.CanvasCore.availableModelProviders(cfg.api_providers);
+    if(JSON.stringify(providers) === JSON.stringify(apiProviders)) return;
+    apiProviders = providers;
+    refreshCanvasModelControls();
+}
+window.VideoDurationPolicy.watch({read:()=>window.CanvasApi.getConfig(),apply:applyCanvasModelConfig});

@@ -1356,6 +1356,9 @@ async function importSmartWorkflowFile(file){
     }
 }
 const RECENT_SMART_SETTINGS_KEY = 'smart_canvas_recent_run_settings_v1';
+function smartScopedStorageKey(key){
+    return window.CanvasSession?.enabled ? window.CanvasSession.storageKey(key) : key;
+}
 const initialSmartSettings = cloneSmartSettings(settings);
 let canvasDefaultSmartSettings = cloneSmartSettings(settings);
 let recentSmartSettingsByMode = {};
@@ -1368,14 +1371,14 @@ function smartSettingsModeKey(source=settings){
 }
 function loadRecentSmartSettings(){
     try {
-        const data = JSON.parse(localStorage.getItem(RECENT_SMART_SETTINGS_KEY) || '{}');
+        const data = JSON.parse(localStorage.getItem(smartScopedStorageKey(RECENT_SMART_SETTINGS_KEY)) || '{}');
         recentSmartSettingsByMode = data && typeof data === 'object' ? data : {};
     } catch(e) {
         recentSmartSettingsByMode = {};
     }
 }
 function saveRecentSmartSettings(){
-    localStorage.setItem(RECENT_SMART_SETTINGS_KEY, JSON.stringify(recentSmartSettingsByMode));
+    localStorage.setItem(smartScopedStorageKey(RECENT_SMART_SETTINGS_KEY), JSON.stringify(recentSmartSettingsByMode));
 }
 function recentSmartSettingsForMode(modeKey=''){
     const key = modeKey || recentSmartSettingsByMode.__lastKey || smartSettingsModeKey(settings);
@@ -2237,7 +2240,7 @@ function volcengineProvider(){
         id:'volcengine',
         name:'火山引擎',
         image_models:[],
-        video_models:DEFAULT_VIDEO_MODELS,
+        video_models:window.CanvasSession?.enabled ? [] : DEFAULT_VIDEO_MODELS,
         enabled:true
     };
 }
@@ -2260,6 +2263,7 @@ function providerChatModels(providerId){
 }
 function resolveChatModel(model='', providerId=''){
     const models = providerChatModels(resolveChatProviderId(providerId));
+    if(window.CanvasSession?.enabled) return models.includes(model) ? model : models[0] || '';
     return models.includes(model) ? model : (models[0] || model || 'gpt-4o-mini');
 }
 function chatProviderOptions(selectedId=''){
@@ -2270,6 +2274,7 @@ function chatModelOptions(selectedModel='', providerId=''){
     const selectedProvider = resolveChatProviderId(providerId);
     const models = providerChatModels(selectedProvider);
     const selected = resolveChatModel(selectedModel, selectedProvider);
+    if(!models.length && window.CanvasSession?.enabled) return '<option value="" disabled selected>暂无可用模型</option>';
     return [...new Set([selected, ...models].filter(Boolean))].map(model => `<option value="${escapeHtml(model)}" ${model === selected ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
 }
 function apiProviderById(providerId){
@@ -2321,7 +2326,7 @@ function modelscopeImageModels(){
 const DEFAULT_VIDEO_MODELS = ['veo3-fast','veo3','sora','runway','kling','pika','minimax-video','wan-v2','seedance-1.0-pro'];
 function videoApiProviders(){
     const fromConfig = (apiProviders || []).filter(p => p.enabled !== false && p.has_key && p.id !== 'volcengine' && (p.video_models || []).length);
-    if(fromConfig.length) return fromConfig;
+    if(fromConfig.length || window.CanvasSession?.enabled) return fromConfig;
     return [{id:'comfly', name:'Comfly', video_models:DEFAULT_VIDEO_MODELS, enabled:true}];
 }
 function videoProviderById(providerId){
@@ -2331,12 +2336,12 @@ function videoProviderById(providerId){
 function providerVideoModels(providerId){
     if(providerId === 'volcengine') return volcengineVideoModels();
     const provider = videoApiProviders().find(p => p.id === providerId);
-    const models = provider?.video_models || DEFAULT_VIDEO_MODELS;
+    const models = provider?.video_models || (window.CanvasSession?.enabled ? [] : DEFAULT_VIDEO_MODELS);
     return [...new Set(models)];
 }
 function volcengineVideoModels(){
     const provider = (apiProviders || []).find(p => p.id === 'volcengine');
-    return [...new Set(provider?.video_models || DEFAULT_VIDEO_MODELS)];
+    return [...new Set(provider?.video_models || (window.CanvasSession?.enabled ? [] : DEFAULT_VIDEO_MODELS))];
 }
 function renderVideoProviderControl(providers){
     const current = (providers || []).find(p => p.id === settings.videoProvider) || videoProviderById(settings.videoProvider);
@@ -2421,12 +2426,21 @@ function renderVideoAspectControl(){
         </div>
     </div>`;
 }
+function smartVideoResolutions(value=settings){
+    return window.CanvasCore.modelResolutions((apiProviders || []).find(p=>p.id===value.videoProvider), 'video', value.videoModel,
+        ['', '480p', '720p', '1080p', ...(isSeedance20VideoModel(value.videoModel) ? ['4k'] : [])]);
+}
+function normalizeSmartVideoResolution(value=settings){
+    const options = smartVideoResolutions(value);
+    if(!options.includes(value.videoResolution || '')) value.videoResolution = options[0] || '';
+    return options;
+}
 function renderVideoResolutionControl(){
-    const options = [['', tr('smart.videoResAuto')], ['480p','480P'], ['720p','720P'], ['1080p','1080P'], ...(isSeedance20VideoModel() ? [['4k','4K']] : [])];
+    const options = normalizeSmartVideoResolution().map(value => [value, value ? value.toUpperCase() : tr('smart.videoResAuto')]);
     const value = settings.videoResolution || '';
     const labelMap = Object.fromEntries(options);
     return `<div class="smart-control resolution-control">
-        <button class="smart-pill" type="button"><i data-lucide="monitor"></i><span>${escapeHtml(labelMap[value] || value || tr('smart.videoResAuto'))}</span></button>
+        <button class="smart-pill" type="button" ${options.length ? '' : 'disabled'}><i data-lucide="monitor"></i><span>${escapeHtml(options.length ? (labelMap[value] || value || tr('smart.videoResAuto')) : '暂无可用规格')}</span></button>
         <div class="smart-popover compact-popover">
             <div class="smart-popover-title">${escapeHtml(tr('smart.videoResolution'))}</div>
             <div class="model-list">
@@ -2549,9 +2563,9 @@ function renderApiParams(){
 }
 function renderApiVideoParams(){
     const providers = videoApiProviders();
-    if(!settings.videoProvider || !providers.some(p => p.id === settings.videoProvider)) settings.videoProvider = providers[0]?.id || 'comfly';
+    if(!settings.videoProvider || !providers.some(p => p.id === settings.videoProvider)) settings.videoProvider = providers[0]?.id || '';
     const models = providerVideoModels(settings.videoProvider);
-    if(!settings.videoModel || !models.includes(settings.videoModel)) settings.videoModel = models[0] || 'veo3-fast';
+    if(!settings.videoModel || !models.includes(settings.videoModel)) settings.videoModel = models[0] || '';
     dynamicParams.innerHTML = `
         ${renderVideoProviderControl(providers)}
         ${renderVideoModelControl(models)}
@@ -2594,7 +2608,7 @@ function renderVolcengineVideoParams(){
     const models = volcengineVideoModels();
     settings.videoProvider = 'volcengine';
     settings.videoUseFrameRoles = false;
-    if(!settings.videoModel || !models.includes(settings.videoModel)) settings.videoModel = models[0] || 'seedance-1.0-pro';
+    if(!settings.videoModel || !models.includes(settings.videoModel)) settings.videoModel = models[0] || '';
     dynamicParams.innerHTML = `
         ${renderVideoProviderControl(providers)}
         ${renderVideoModelControl(models)}
@@ -2646,11 +2660,17 @@ function renderComfyWorkflowControl(){
 }
 function smartImageResolutions(prefix=''){
     if(prefix)return ['1k','2k','4k','custom'];
-    const allowed=apiProviderById(settings.provider_id)?.model_policies?.['image:'+settings.model]?.resolutions;
-    if(allowed?.length){if(!allowed.includes(settings.resolution))settings.resolution=allowed[0];return allowed;}
-    return ['1k','2k','4k','custom'];
+    return window.CanvasCore.modelResolutions((apiProviders || []).find(p=>p.id===settings.provider_id), 'image', settings.model, ['1k','2k','4k','custom']);
+}
+function normalizeSmartImageResolution(prefix=''){
+    const options = smartImageResolutions(prefix), key = prefix ? `${prefix}Resolution` : 'resolution';
+    if(!options.includes(settings[key])) settings[key] = options[0] || '';
+    const ratioKey = prefix ? `${prefix}Ratio` : 'ratio';
+    if(settings[key] !== 'custom' && !settings[ratioKey]) settings[ratioKey] = 'square';
+    return options;
 }
 function renderSizeControls(prefix='', includeSource=false){
+    const resolutions = normalizeSmartImageResolution(prefix);
     const ratioKey = prefix ? `${prefix}Ratio` : 'ratio';
     const resKey = prefix ? `${prefix}Resolution` : 'resolution';
     const ratios = [
@@ -2659,7 +2679,7 @@ function renderSizeControls(prefix='', includeSource=false){
         ['custom', tr('canvas.custom') || '自定义']
     ];
     return `<select data-param="${resKey}">
-            ${smartImageResolutions(prefix).map(v => optionHtml(v, v === 'custom' ? (tr('canvas.custom') || '自定义') : v.toUpperCase(), settings[resKey] || '1k')).join('')}
+            ${resolutions.map(v => optionHtml(v, v === 'custom' ? (tr('canvas.custom') || '自定义') : v.toUpperCase(), settings[resKey] || '1k')).join('')}
         </select>
         <select data-param="${ratioKey}" ${settings[resKey] === 'custom' ? 'disabled' : ''}>
             ${ratios.map(([v,l]) => `<option value="${escapeHtml(v)}" ${v === (settings[ratioKey] || 'square') ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}
@@ -2811,12 +2831,13 @@ function renderRatioControl(prefix='', includeSource=false){
 }
 function renderResolutionControl(prefix=''){
     const resKey = prefix ? `${prefix}Resolution` : 'resolution';
+    const resolutions = normalizeSmartImageResolution(prefix);
     return `<div class="smart-control resolution-control">
-        <button class="smart-pill" type="button"><i data-lucide="monitor"></i><span>${escapeHtml(resolutionLabel(prefix))}</span></button>
+        <button class="smart-pill" type="button" ${resolutions.length ? '' : 'disabled'}><i data-lucide="monitor"></i><span>${escapeHtml(resolutions.length ? resolutionLabel(prefix) : '暂无可用规格')}</span></button>
         <div class="smart-popover compact-popover">
             <div class="smart-popover-title">${escapeHtml(tr('smart.resolution'))}</div>
             <div class="seg-row">
-                ${smartImageResolutions(prefix).map(value => `<button type="button" class="${value === (settings[resKey] || '1k') ? 'active' : ''}" data-smart-param="${resKey}" data-smart-value="${value}">${value === 'custom' ? escapeHtml(tr('smart.custom')) : value.toUpperCase()}</button>`).join('')}
+                ${resolutions.map(value => `<button type="button" class="${value === (settings[resKey] || '1k') ? 'active' : ''}" data-smart-param="${resKey}" data-smart-value="${value}">${value === 'custom' ? escapeHtml(tr('smart.custom')) : value.toUpperCase()}</button>`).join('')}
             </div>
         </div>
     </div>`;
@@ -3286,13 +3307,11 @@ function bindDynamicParams(){
 async function loadConfig(){
     try {
         const cfg = await window.CanvasApi.getConfig();
-        apiProviders = Array.isArray(cfg.api_providers) ? cfg.api_providers : [];
+        apiProviders = window.CanvasCore.availableModelProviders(Array.isArray(cfg.api_providers) ? cfg.api_providers : []);
         updateSmartCanvasCostButton();
         sanitizeSmartApiSelection(settings);
-        updateProviderModels();
+        refreshSmartModelControls();
         lastConfigRefreshAt = Date.now();
-        sanitizeSmartApiSelection(settings);
-        updateProviderModels();
     } catch(e) {
         toast(tr('smart.toastApiSettingsFail'));
     }
@@ -3300,7 +3319,7 @@ async function loadConfig(){
 async function refreshSmartConfigFromSettings(){
     await loadConfig();
     updateSmartCanvasCostButton();
-    renderDynamicParams();
+    refreshSmartModelControls();
     const node = selectedNode();
     if(node?.type === 'smart-prompt') {
         applySettingsToNode(node);
@@ -5211,7 +5230,7 @@ function pasteNodes(){
 const SMART_CANVAS_ASSET_INBOX_KEY = 'smart_canvas_asset_inbox';
 function readAssetInbox(){
     try {
-        const data = JSON.parse(localStorage.getItem(SMART_CANVAS_ASSET_INBOX_KEY) || 'null');
+        const data = JSON.parse(localStorage.getItem(smartScopedStorageKey(SMART_CANVAS_ASSET_INBOX_KEY)) || 'null');
         const items = Array.isArray(data?.items) ? data.items.filter(it => it && it.url) : [];
         if(!items.length) return null;
         if(data.ts && (Date.now() - Number(data.ts)) > 30 * 60 * 1000) return null; // 30 分钟内有效
@@ -5239,7 +5258,7 @@ function pasteAssetsFromInbox(){
     selectedIds = created.length > 1 ? created : [];
     selectedImage = {nodeId:'', index:-1};
     lastNodePasteAt = Date.now();
-    try { localStorage.removeItem(SMART_CANVAS_ASSET_INBOX_KEY); } catch(e){}
+    try { localStorage.removeItem(smartScopedStorageKey(SMART_CANVAS_ASSET_INBOX_KEY)); } catch(e){}
     render();
     scheduleSave();
     toast(`已粘贴 ${created.length} 个素材到画布`);
@@ -13454,6 +13473,7 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
 
 async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null){
     if(!runSettings.videoModel) throw new Error(tr('smart.errNoVideoModel'));
+    if(!smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
     try {
         const uploadedRefs = applyUploadedUrlsToSmartRefs(refs, runSettings);
         const targetPlatform = videoProviderPlatform(runSettings.videoProvider || 'comfly');
@@ -15242,9 +15262,7 @@ try {
         if(event.data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(event.data);
     };
 } catch(e) {}
-window.addEventListener('focus', () => {
-    if(Date.now() - lastConfigRefreshAt > 1200) refreshSmartConfigFromSettings();
-});
+// Focus refresh is shared with the policy watcher below.
 window.addEventListener('message', event => {
     if(event.origin && event.origin !== location.origin) return;
     if(event.data?.type === 'studio-theme') applyTheme(event.data.theme || 'light');
@@ -15343,14 +15361,27 @@ function smartNodeToolbarHtml(node){
         </button>`).join('')}</div>`;
 }
 
-window.VideoDurationPolicy.watch({read:()=>window.CanvasApi.getConfig(),apply:cfg=>{
-    if(!Array.isArray(cfg.api_providers))return;
-    let changed=false;
-    for(const provider of apiProviders){
-        const fresh=cfg.api_providers.find(p=>p.id===provider.id);
-        if(fresh && JSON.stringify(provider.model_policies || {})!==JSON.stringify(fresh.model_policies || {})){
-            provider.model_policies=fresh.model_policies || {};changed=true;
+function refreshSmartModelControls(){
+    const active = document.activeElement;
+    const editing = dynamicParams?.contains(active) ? dynamicParams : null;
+    if(editing && active?.matches('input,textarea,select,[contenteditable="true"]')){
+        if(!editing.dataset.modelRefreshPending){
+            editing.dataset.modelRefreshPending = 'true';
+            editing.addEventListener('focusout', () => {
+                delete editing.dataset.modelRefreshPending;
+                setTimeout(refreshSmartModelControls, 0);
+            }, {once:true});
         }
+        return;
     }
-    if(changed)renderDynamicParams();
-}});
+    renderDynamicParams();
+    refreshSmartNodes(nodes.filter(node=>node.type === 'smart-prompt').map(node=>node.id));
+}
+function applySmartModelConfig(cfg){
+    if(!Array.isArray(cfg.api_providers)) return;
+    const providers = window.CanvasCore.availableModelProviders(cfg.api_providers);
+    if(JSON.stringify(providers) === JSON.stringify(apiProviders)) return;
+    apiProviders = providers;
+    refreshSmartModelControls();
+}
+window.VideoDurationPolicy.watch({read:()=>window.CanvasApi.getConfig(),apply:applySmartModelConfig});
