@@ -26,3 +26,12 @@ test('clear and replace conflict is rejected, explicit clearing is preserved and
  assert.throws(()=>editor.payload({id:'x'},form({advanced:'{"base_url":"https://wrong.test"}'})),/基础字段/);
  assert.throws(()=>editor.payload({},form({id:'Bad ID'})),/平台 ID/);
 });
+
+test('media transport defaults to URL and saves independent selections',()=>{
+  const editor=require('../management/frontend/provider-editor.js');
+  const values=new Map([['id','unit'],['name','Unit'],['advanced','{}'],['media_mode_image','base64'],['media_mode_video','url'],['media_mode_audio','base64']]);
+  const result=editor.payload({id:'unit',config:{}},values);
+  assert.deepEqual(result.body.config.media_input_modes,{image:'base64',video:'url',audio:'base64'});
+  for(const kind of ['image','video','audio'])values.delete('media_mode_'+kind);
+  assert.deepEqual(editor.payload({id:'unit',config:{}},values).body.config.media_input_modes,{image:'url',video:'url',audio:'url'});
+});

@@ -1,5 +1,5 @@
 import os
-from app.storage.settings import postgres_enabled
+from app.storage.settings import postgres_enabled, media_backend
 from app.storage.submission import paid_post
 import re
 import json
@@ -636,6 +636,48 @@ def convert_output_to_jpg(url, quality=88):
         print(f"转换 JPG 失败: {e}")
         return url
 
+def bucket_reference_url(value, max_image_size=None):
+    """Resolve owned media to a fresh TOS URL; retain image preprocessing."""
+    if not postgres_enabled() or media_backend() != "tos":
+        return ""
+    from app.storage import media as storage
+    asset = storage.get_asset(value)
+    if not asset:
+        return ""
+    if max_image_size and asset.get("kind") == "image":
+        # Reuse an immutable resized copy instead of re-uploading it per request.
+        fingerprint = f"{asset['id']}:{asset['object_version_id']}:{max_image_size}:provider-image-v1"
+        derived_id = "ast_" + hashlib.sha256(fingerprint.encode()).hexdigest()[:32]
+        derived = storage.get_asset(derived_id, ready=False)
+        if not derived or derived["status"] != "ready":
+            data = reference_to_data_url({"url": value}, max_size=max_image_size)
+            header, encoded = data.split(";base64,", 1)
+            ext = ".png" if "image/png" in header else ".jpg"
+            path = os.path.join(storage.scratch_directory("input"), uuid.uuid4().hex + ext)
+            try:
+                with open(path, "wb") as target:
+                    target.write(base64.b64decode(encoded))
+                derived = storage.publish(path, asset_id=derived_id,
+                                          parent_asset_id=asset["id"], role="provider-reference")
+            finally:
+                if os.path.exists(path):
+                    os.remove(path)
+        asset = derived
+    return storage.browser_url(asset, provider=True)
+
+
+def media_input_mode(provider, kind):
+    return (provider or {}).get("media_input_modes", {}).get(kind, "url")
+
+
+def image_reference_for_provider(ref, max_size=1536, provider=None):
+    if media_input_mode(provider, "image") == "url":
+        public = bucket_reference_url(ref.get("url", ""), max_image_size=max_size)
+        if public:
+            return public
+    return reference_to_data_url(ref, max_size=max_size)
+
+
 def reference_to_data_url(ref, max_size=None):
     """把本地输出文件转为 data URL（base64）。max_size 限制最长边像素，避免 payload 过大。"""
     path = output_file_from_url(ref.get("url", ""))
@@ -724,6 +766,9 @@ def attachment_text_blocks(refs, limit_each=MAX_ATTACHMENT_TEXT_CHARS):
 def media_reference_to_url(value, max_image_size=None):
     if not isinstance(value, str) or not value:
         return ""
+    public = bucket_reference_url(value, max_image_size=max_image_size)
+    if public:
+        return public
     if value.startswith("/output/") or value.startswith("/assets/"):
         return reference_to_data_url({"url": value}, max_size=max_image_size)
     return value
@@ -771,7 +816,7 @@ async def ensure_volcengine_asset_active(value: str, project_name: str = "defaul
         raise HTTPException(status_code=400, detail=f"Volcengine asset {asset_id} status is {status or 'Unknown'}, cannot be used for video generation yet.")
     return f"asset://{asset_id}"
 
-async def volcengine_video_media_reference_url(value, project_name: str = "default", max_image_size=1536):
+async def volcengine_video_media_reference_url(value, project_name: str = "default", max_image_size=1536, provider=None, kind="image"):
     if not isinstance(value, str):
         return ""
     value = value.strip()
@@ -782,9 +827,9 @@ async def volcengine_video_media_reference_url(value, project_name: str = "defau
     library_asset_uri = volcengine_asset_uri_for_library_url(value)
     if library_asset_uri:
         return await ensure_volcengine_asset_active(library_asset_uri, project_name)
-    return volcengine_media_reference_url(value, max_image_size=max_image_size)
+    return volcengine_media_reference_url(value, max_image_size=max_image_size, provider=provider, kind=kind)
 
-def volcengine_media_reference_url(value, max_image_size=1536):
+def volcengine_media_reference_url(value, max_image_size=1536, provider=None, kind="image"):
     if not isinstance(value, str):
         return ""
     value = value.strip()
@@ -792,6 +837,9 @@ def volcengine_media_reference_url(value, max_image_size=1536):
         return ""
     if is_private_asset_url(value):
         return value
+    public = bucket_reference_url(value, max_image_size=max_image_size) if media_input_mode(provider, kind) == "url" else ""
+    if public:
+        return public
     if value.startswith("/output/") or value.startswith("/assets/"):
         return reference_to_data_url({"url": value}, max_size=max_image_size)
     return value
@@ -880,7 +928,7 @@ async def volcengine_video_reference_content_items(value, max_frames=4, max_size
     text = str(value or "").strip()
     if not text:
         return []
-    if is_private_asset_url(text) or (direct_video and text.startswith(("http://", "https://"))):
+    if is_private_asset_url(text) or (direct_video and text.startswith(("http://", "https://", "data:video/"))):
         return [{
             "type": "video_url",
             "video_url": {"url": text},
@@ -1254,6 +1302,9 @@ async def upload_image_for_apimart(client, provider, ref_url: str) -> str:
     # 已经是网络 URL 或 asset:// → 直接可用，无需上传
     if ref_url.startswith("http://") or ref_url.startswith("https://") or ref_url.startswith("asset://"):
         return ref_url
+    public = bucket_reference_url(ref_url)
+    if public:
+        return public
     base_url = video_api_root(provider)
     upload_url = f"{base_url}/v1/uploads/images"
     # data URL: 解码后直接上传到 APIMart
@@ -1630,7 +1681,7 @@ def volcengine_public_asset_url(url: str) -> str:
     public = local_asset_public_url(text)
     if public:
         return public
-    return "ERR:火山要求素材是公网可访问的 http/https URL；本地画布文件需配置 PUBLIC_BASE_URL/PUBLIC_MEDIA_BASE_URL 暴露为公网地址。"
+    return "ERR:火山要求素材是公网可访问的 http/https URL；请检查存储桶素材及公网访问配置，未启用存储桶时需配置 PUBLIC_BASE_URL/PUBLIC_MEDIA_BASE_URL。"
 
 def local_media_path_for_cloud_upload(ref_url: str, allowed_prefixes=("image/", "video/")) -> str:
     ref_url = str(ref_url or "").strip()
@@ -2126,8 +2177,8 @@ async def generate_gemini_provider_image(prompt, size, model, reference_images=N
 def volcengine_endpoint_url(provider):
     return provider_endpoint_url(provider, "image_generation_endpoint", "/api/v3/images/generations")
 
-def volcengine_image_payload(ref):
-    value = reference_to_data_url(ref, max_size=1536)
+def volcengine_image_payload(ref, provider=None):
+    value = image_reference_for_provider(ref, max_size=1536, provider=provider)
     if not value:
         return None
     return value
@@ -2142,7 +2193,7 @@ async def generate_volcengine_provider_image(prompt, size, model, reference_imag
         "response_format": "url",
         "watermark": False,
     }
-    images = [volcengine_image_payload(ref) for ref in (reference_images or [])[:10]]
+    images = [volcengine_image_payload(ref, provider=provider) for ref in (reference_images or [])[:10]]
     images = [value for value in images if value]
     if images:
         body["image"] = images
@@ -2301,7 +2352,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
             # 文生图只传 extra_body.response_format，图生图把参考图放进 extra_body.image。
             extra_body = {"response_format": "url"}
             if image_refs:
-                extra_body["image"] = [reference_to_data_url(ref, max_size=1536) for ref in image_refs[:16]]
+                extra_body["image"] = [image_reference_for_provider(ref, max_size=1536, provider=provider) for ref in image_refs[:16]]
             body = {"model": model, "prompt": prompt, "size": size, "extra_body": extra_body}
             response = await paid_post(client, gen_url, headers=api_headers(provider=provider, model=model), json=body)
         elif is_apimart:
@@ -2317,7 +2368,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
                 "official_fallback": False,
             }
             if image_refs:
-                body["image_urls"] = [reference_to_data_url(ref, max_size=1536) for ref in image_refs[:16]]
+                body["image_urls"] = [image_reference_for_provider(ref, max_size=1536, provider=provider) for ref in image_refs[:16]]
             response = await paid_post(client, gen_url, headers=api_headers(provider=provider, model=model), json=body)
         elif is_gpt2 and not image_refs and not mask_refs:
             body = {"model": model, "prompt": prompt, "size": size}
@@ -2372,7 +2423,7 @@ async def generate_ai_image(prompt, size, quality, model, reference_images=None,
                         detail=f"GPT-Image-2 编辑接口 /images/edits 调用失败：{edit_failed_text[:300] or edit_failed_status}。已停止自动重试，避免上游可能已扣费后再次请求。"
                     )
                 print(f"/images/edits failed ({edit_failed_status}): {edit_failed_text[:200]} → 回退到 /images/generations + image:[] JSON")
-                image_payload = [reference_to_data_url(ref, max_size=1536) for ref in image_refs[:4]]
+                image_payload = [image_reference_for_provider(ref, max_size=1536, provider=provider) for ref in image_refs[:4]]
                 body = {
                     "model": model, "prompt": prompt, "size": size,
                     "response_format": "url", "n": 1,

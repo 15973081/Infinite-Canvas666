@@ -453,7 +453,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                     project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
                     image_like_urls = set()
                     for ref in payload.images[:image_limit]:
-                        url = await volcengine_video_media_reference_url(ref.url, project_name, max_image_size=1536)
+                        url = await volcengine_video_media_reference_url(ref.url, project_name, max_image_size=1536, provider=provider, kind="image")
                         if not url:
                             continue
                         body["content"].append({
@@ -466,7 +466,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         text_url = str(url or "").strip()
                         if not text_url:
                             continue
-                        media_url = await volcengine_video_media_reference_url(text_url, project_name, max_image_size=1536 if looks_like_image_media_url(text_url) else None)
+                        media_url = await volcengine_video_media_reference_url(text_url, project_name, max_image_size=1536 if looks_like_image_media_url(text_url) else None, provider=provider, kind="image" if looks_like_image_media_url(text_url) else "video")
                         if not media_url:
                             continue
                         if media_url in image_like_urls or looks_like_image_media_url(media_url):
@@ -482,7 +482,7 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         video_items = await volcengine_video_reference_content_items(media_url, direct_video=is_seedance_multimodal)
                         body["content"].extend(video_items)
                     for url in (payload.audios or [])[:audio_limit]:
-                        audio_url = await volcengine_video_media_reference_url(url, project_name, max_image_size=None)
+                        audio_url = await volcengine_video_media_reference_url(url, project_name, max_image_size=None, provider=provider, kind="audio")
                         if not audio_url:
                             continue
                         body["content"].append({

@@ -2,12 +2,13 @@
   'use strict';
   const modelKeys=['image_models','video_models','chat_models'];
   const secretKeys=['api_key','volcengine_access_key_id','volcengine_secret_access_key'];
-  const explicit=['id','name','base_url','protocol','enabled',...modelKeys,'proxy_url','image_request_mode','image_generation_endpoint','image_edit_endpoint','volcengine_project_name','volcengine_region'];
+  const explicit=['media_input_modes','id','name','base_url','protocol','enabled',...modelKeys,'proxy_url','image_request_mode','image_generation_endpoint','image_edit_endpoint','volcengine_project_name','volcengine_region'];
   function payload(row,values) {
     let extra;try{extra=JSON.parse(values.get('advanced') || '{}');}catch{throw new Error('高级配置不是有效 JSON。');}
     if(!extra || Array.isArray(extra) || typeof extra!=='object' || Object.keys(extra).some(k=>explicit.includes(k)))throw new Error('高级配置只填写模型价格、逐模型协议等附加选项；基础字段请在表单中修改。');
     const config={...extra};
     for(const key of ['name','base_url','protocol','proxy_url','image_request_mode','image_generation_endpoint','image_edit_endpoint'])config[key]=String(values.get(key) || '').trim();
+    config.media_input_modes=Object.fromEntries(['image','video','audio'].map(kind=>[kind,String(values.get('media_mode_'+kind)||'url')]));
     config.enabled=values.has('enabled');
     for(const key of modelKeys)config[key]=[...new Set(String(values.get(key)||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean))];
     for(const key of ['volcengine_project_name','volcengine_region'])config[key]=String(values.get(key)||row.config?.[key]||'').trim();
@@ -71,6 +72,9 @@
     modelKeys.forEach((key,index)=>{const panel=node('div'),tab=action(labels[index]+' · '+(config[key]||[]).length,()=>{panels.forEach((p,i)=>p.hidden=i!==index);for(const b of modelTabs.children)b.classList.toggle('active',b===tab);});
       panel.hidden=index!==0;tab.classList.toggle('active',index===0);field(panel,key,labels[index],(config[key]||[]).join('\n'),{type:'textarea',hint:hints[index]+' 每行一个模型 ID。',placeholder:'从上游拉取，或粘贴模型 ID'}).maxLength=100000;
       modelTabs.append(tab);models.append(panel);panels.push(panel);});
+    const mediaModes=node('section',undefined,'provider-block');mediaModes.append(node('h3','参考素材传输方式'),node('p','按素材类型选择，默认 URL。适用于支持对应格式的生成接口；已认证素材优先 asset://。认证及 APIMart 视频等仅接受 URL 的接口仍使用 URL，文件编辑与 Gemini 内联接口保留其必需格式。未配置可访问的存储地址时 URL 模式兼容原有传输方式。','muted'));
+    for(const [kind,label] of [['image','图片'],['video','视频'],['audio','音频']])select(mediaModes,'media_mode_'+kind,label,[['url','URL（默认）'],['base64','Base64']],config.media_input_modes?.[kind]||'url');
+    form.append(mediaModes);
     const advanced=node('details',undefined,'provider-block');advanced.append(node('summary','高级连接与模型配置'));form.append(advanced);
     select(advanced,'image_request_mode','图片请求格式',[['openai','自动 / OpenAI'],['openai-json','OpenAI JSON']],config.image_request_mode||'openai');
     field(advanced,'proxy_url','代理地址',config.proxy_url||'',{type:'url',placeholder:'http://127.0.0.1:7890',hint:'按供应商支持情况使用；留空不单独指定。'});

@@ -302,6 +302,16 @@ def normalize_ms_loras(values):
     return normalized
 
 
+def normalize_media_input_modes(value):
+    if value is None:
+        value = {}
+    if not isinstance(value, dict) or set(value) - {"image", "video", "audio"}:
+        raise ValueError("invalid media input modes")
+    if any(mode not in ("url", "base64") for mode in value.values()):
+        raise ValueError("invalid media input mode")
+    return {kind: value.get(kind, "url") for kind in ("image", "video", "audio")}
+
+
 def normalize_image_request_mode(value):
     mode = str(value or "").strip().lower()
     return mode if mode in SUPPORTED_IMAGE_REQUEST_MODES else "openai"
@@ -363,6 +373,7 @@ def normalize_provider(item):
         "base_url": base_url,
         "protocol": protocol,
         "image_request_mode": image_request_mode,
+        "media_input_modes": normalize_media_input_modes(item.get("media_input_modes")),
         "image_generation_endpoint": image_generation_endpoint,
         "image_edit_endpoint": image_edit_endpoint,
         "proxy_url": proxy_url,

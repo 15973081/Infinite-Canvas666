@@ -9,7 +9,7 @@ from app.services import authorization as az
 from app.storage.workspace import current_workspace
 
 SECRET_FIELDS = {'api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key'}
-CONFIG_FIELDS = {'name', 'base_url', 'protocol', 'image_request_mode', 'image_generation_endpoint',
+CONFIG_FIELDS = {'media_input_modes', 'name', 'base_url', 'protocol', 'image_request_mode', 'image_generation_endpoint',
                  'image_edit_endpoint', 'proxy_url', 'enabled', 'image_models', 'chat_models', 'video_models',
                  'model_prices', 'model_policies', 'model_discounts', 'model_protocols', 'ms_loras', 'ms_defaults_version',
                  'volcengine_project_name', 'volcengine_region'}
@@ -88,7 +88,7 @@ def normalized(provider_id, value, previous=None):
         result.pop('primary', None)
         if 'model_prices' in value and len(result['model_prices']) != len(value['model_prices']):
             az.fail('invalid_provider_prices', 400)
-        for field in ('model_policies', 'model_discounts'):
+        for field in ('model_policies', 'model_discounts', 'media_input_modes'):
             if field not in value and previous and field in previous: result[field] = previous[field]
         result['model_prices'] = (list((previous or {}).get('model_prices') or []) if 'model_prices' not in value
                                   else merge_model_price_history((previous or {}).get('model_prices'), value['model_prices']))
