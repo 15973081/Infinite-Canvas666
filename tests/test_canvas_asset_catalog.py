@@ -18,7 +18,7 @@ def test_external_urls_are_not_fetched_or_stripped():
 
 def test_trash_snapshot_survives_canvas_removal():
     row={"asset_key":"url_x","metadata":{"name":"saved"},"snapshot":{"id":"one","url":"https://test/x.png","name":"old","canvas_id":"canvas","canvas_kind":"classic"},"version":2,"trashed_at":"today"}
-    conn=Mock();conn.execute.side_effect=[[row],[]]
+    conn=Mock();conn.execute.side_effect=[[row],[],[]]
     @contextmanager
     def connection(): yield conn
     with patch.object(catalog,'connection',connection),patch.object(catalog,'aliases_for',return_value={}),patch.object(catalog,'current_workspace',return_value='workspace'):

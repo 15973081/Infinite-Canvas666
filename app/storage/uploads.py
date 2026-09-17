@@ -337,52 +337,7 @@ def abort(asset_id):
     return {"status": "aborted", "media_asset_id": asset_id}
 
 
-def cleanup(grace_seconds=3600, *, all_workspaces=False):
-    if all_workspaces:
-        # Trusted maintenance CLI only; HTTP cleanup must retain its space scope.
-        with connection() as conn:
-            workspaces = [r["workspace_id"] for r in conn.execute(
-                "SELECT DISTINCT workspace_id FROM media_uploads WHERE cleaned_at IS NULL")]
-        total = 0
-        for workspace in workspaces:
-            with workspace_scope(workspace):
-                total += cleanup(grace_seconds)
-        return total
-    # Wait past the entire credential lifetime, including already signed PUTs.
-    with connection() as conn:
-        ids = [r["asset_id"] for r in conn.execute("SELECT asset_id FROM media_uploads WHERE workspace_id=%s AND cleaned_at IS NULL "
-              "AND expires_at<now()-make_interval(secs=>%s) AND (lease_until IS NULL OR lease_until<now())", (current_workspace(), grace_seconds))]
-    cleaned = 0
-    for asset_id in ids:
-        row = get(asset_id)
-        if row["status"] not in {"ready", "aborted"}:
-            abort(asset_id)
-        if row["staging_key"] != "staging/" + current_workspace() + "/" + asset_id:
-            raise RuntimeError("Refusing cleanup outside upload staging prefix")
-        store = media.store()
-        if row["backend"] == "filesystem":
-            target = (store.root / row["staging_key"]).resolve()
-            if target.parent != (store.root / "staging" / current_workspace()).resolve() or target.name != asset_id:
-                raise RuntimeError("Staging path escaped private root")
-            if target.exists():
-                shutil.rmtree(target)
-        else:
-            from tos.exceptions import TosServerError
-            if row["upload_id"]:
-                try:
-                    store.client.abort_multipart_upload(store.bucket, row["staging_key"], row["upload_id"])
-                except TosServerError as exc:
-                    if exc.status_code != 404:
-                        raise
-            try:
-                head = store.client.head_object(store.bucket, row["staging_key"], version_id=row["staging_version_id"])
-                if not head.version_id or head.version_id == "null":
-                    raise RuntimeError("Staging cleanup requires an immutable version")
-                store.client.delete_object(store.bucket, row["staging_key"], version_id=head.version_id)
-            except TosServerError as exc:
-                if exc.status_code != 404:
-                    raise
-        with connection() as conn:
-            conn.execute("UPDATE media_uploads SET cleaned_at=now() WHERE asset_id=%s", (asset_id,))
-        cleaned += 1
-    return cleaned
+def cleanup(grace_seconds=3600, *, all_workspaces=False, apply=False, asset_ids=None, limit=200):
+    """Dry-run by default; the same fenced cleanup is used by purge and CLI."""
+    from app.storage.upload_cleanup import cleanup as run
+    return run(grace_seconds, all_workspaces=all_workspaces, apply=apply, asset_ids=asset_ids, limit=limit)

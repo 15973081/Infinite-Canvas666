@@ -22,25 +22,36 @@ def decorate(data, trash=False):
         aliases=aliases_for(conn)
         records={r['asset_key']:r for r in conn.execute('SELECT * FROM canvas_asset_catalog WHERE workspace_id=%s',(current_workspace(),))}
         states={r['id']:r['status'] for r in conn.execute("SELECT id,status FROM assets WHERE workspace_id=%s AND status IN ('deleting','deleted')",(current_workspace(),))}
+        pending = {r['root_id']:r['cleanup_failed'] for r in conn.execute('''WITH RECURSIVE family AS (
+            SELECT c.asset_key AS root_id,a.id FROM canvas_asset_catalog c JOIN assets a
+              ON a.id=c.asset_key AND a.workspace_id=c.workspace_id WHERE c.workspace_id=%s
+            UNION SELECT f.root_id,a.id FROM family f JOIN assets a ON a.parent_asset_id=f.id WHERE a.workspace_id=%s)
+            SELECT f.root_id,bool_or(u.cleanup_state='failed') AS cleanup_failed FROM family f
+            JOIN media_uploads u ON u.asset_id=f.id AND u.workspace_id=%s
+            WHERE u.cleaned_at IS NULL GROUP BY f.root_id''', (current_workspace(),)*3)}
+    def annotate(item, key):
+        item['deleting'] = states.get(key)=='deleting' or (states.get(key)=='deleted' and key in pending)
+        if states.get(key)=='deleted' and key in pending:
+            item.update(staging_pending=True,cleanup_failed=pending[key],storage_status='正式文件已删除，暂存清理待完成')
     live_keys=set()
     items=[]
     for original in data['items']:
         item=dict(original); key=key_for(item['url'],aliases); live_keys.add(key)
-        if states.get(key)=='deleted': continue
-        item['deleting']=states.get(key)=='deleting'
+        if states.get(key)=='deleted' and key not in pending: continue
+        annotate(item,key)
         record=records.get(key)
         item.update(asset_key=key,catalog_version=record['version'] if record else 0)
         if record:
             item.update(record['metadata']); item['trashed']=bool(record['trashed_at'])
         if bool(item.get('trashed')) == trash: items.append(item)
     for key,record in records.items():
-        if states.get(key)=='deleted': continue
+        if states.get(key)=='deleted' and key not in pending: continue
         if key not in live_keys and (bool(record['trashed_at'])==trash) and record['snapshot'].get('canvas_id') in {c['id'] for c in data['canvases']}:
             item=dict(record['snapshot']); item.update(record['metadata']);item.update(asset_key=key,catalog_version=record['version'],trashed=bool(record['trashed_at']))
-            item['deleting']=states.get(key)=='deleting'
+            annotate(item,key)
             items.append(item)
     data['items']=items
-    data['trash_count']=sum(bool(r['trashed_at']) and states.get(k)!='deleted' for k,r in records.items())
+    data['trash_count']=sum(bool(r['trashed_at']) and (states.get(k)!='deleted' or k in pending) for k,r in records.items())
     data['catalog_enabled']=True
     from app.services.member_context import current_access
     access=current_access.get()

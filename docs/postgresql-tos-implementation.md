@@ -83,7 +83,7 @@ python\python.exe tools\cloud_storage.py migrate --source D:\canvas-backup --app
 ```bat
 python\python.exe tools\cloud_storage.py backup
 python\python.exe tools\cloud_storage.py cleanup-temp
-python\python.exe tools\cloud_storage.py cleanup-uploads
+python\python.exe tools\cloud_storage.py cleanup-uploads --all-workspaces
 ```
 
 备份产生 `.dump`、`.objects.json` 和同名 `.objects/` 目录，三者一起保留。数据库导出和对象清单使用同一 PostgreSQL snapshot，随后按固定 version ID 下载全部 ready 对象（包括保留的原件），逐个校验大小和 SHA-256。清单最后发布，代表备份完成；对象读取失败不会生成完成清单。旧版只有 dump/清单的备份不具备独立对象恢复能力，新校验命令会拒绝将它当作完整备份。
@@ -175,3 +175,6 @@ node --check static\js\smart-canvas.js
 - 图片和视频创建接口都接受对应前缀的 `client_task_id`；同 ID、同规范请求返回已有任务，内容变化返回 409。省略 ID 时仍由服务端生成。失败的任务创建不会提前写入内存任务缓存。
 
 验收：新增 **9 项**实库测试，总计 **45 项通过**。覆盖签名/别名等价、TOS 固定版本、输入 ready/删除/缺失、两种任务 API 幂等、凭证或输入变化时禁止调用供应商、上游轮询账号保护、并发素材行锁与未完成输出拒绝。全量 Python 回归 **117 项通过、45 项云测试跳过、7 项 subtest 通过**；云测试通过专用隔离 runner 单独执行。已提交上一阶段结果恢复：`3f54aca`。
+
+
+暂存清理入口默认只读 dry-run；删除必须增加 `--apply`。生产必须配置定时任务，具体版本清理、部署和历史补清理见 [上传暂存清理操作说明](upload-staging-cleanup.md)。

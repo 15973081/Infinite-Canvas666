@@ -204,12 +204,13 @@ def test_upload_idempotency_signatures_completion_and_cleanup_are_scoped():
                 assert client.get(media.browser_url(asset)).content == raw
     with database.connection() as conn:
         conn.execute("UPDATE media_uploads SET expires_at=now()-interval '2 hours' WHERE asset_id=ANY(%s)", ([v[0] for v in values],))
+        conn.execute("UPDATE assets SET upload_expires_at=now()-interval '2 hours' WHERE id=ANY(%s)", ([v[0] for v in values],))
     with workspace_scope(a):
-        assert uploads.cleanup() == 1
+        assert uploads.cleanup(apply=True)['completed'] == 1
         assert media.get_asset(values[0][0])['status'] == 'ready'
     with workspace_scope(b):
         assert uploads.get(values[1][0])['cleaned_at'] is None
-    assert uploads.cleanup(all_workspaces=True) == 1
+    assert uploads.cleanup(all_workspaces=True,apply=True)['completed'] == 1
 
 
 def test_ledger_aliases_amounts_revisions_and_updates_are_scoped():

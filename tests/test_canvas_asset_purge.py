@@ -40,6 +40,7 @@ def setup_purge(monkeypatch, *, version=2, trash=True, state='ready'):
     monkeypatch.setattr(purge,'connection',connection)
     monkeypatch.setattr(catalog,'aliases_for',lambda c:{})
     monkeypatch.setattr(purge,'check_references',Mock())
+    monkeypatch.setattr('app.storage.uploads.cleanup',lambda **kwargs:{'failed':0,'remaining':0,'items':[]})
     return queries,commits
 
 

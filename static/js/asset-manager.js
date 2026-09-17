@@ -1507,6 +1507,13 @@ async function reloadCanvasCatalog(){
     canvasAssetsData=await apiJson('/api/canvas-assets?trash='+canvasAssetTrashMode+'&source_state='+canvasAssetSourceState);
     selectedCanvasAssetIds.clear();selectedCanvasAssetId="";render();
 }
+function canvasCatalogMutationMessage(action, result){
+    if(action !== 'purge') return '素材整理已保存';
+    const parts = [`已完成彻底删除 ${result.changed || 0} 项`];
+    if(result.pending?.length) parts.push(`正式文件已删除，暂存清理待完成 ${result.pending.length} 项`);
+    if(result.failures?.length) parts.push(`文件清理失败 ${result.failures.length} 项：${result.failures[0].message}`);
+    return parts.join('；');
+}
 async function openCanvasCatalog(action,ids){
     const unique=new Map();
     ids.map(findCanvasAssetItem).filter(Boolean).forEach(i=>{if(i.asset_key)unique.set(i.asset_key,i);});
@@ -1520,7 +1527,7 @@ async function openCanvasCatalog(action,ids){
     }
     const dialog=document.createElement('dialog');dialog.className='catalog-dialog';
     const form=document.createElement('form');const title=document.createElement('h2');title.textContent={references:'素材引用',edit:'编辑素材信息',trash:'移入素材回收站',restore:'恢复素材',purge:'彻底删除'}[action];form.append(title);
-    const note=document.createElement('p');note.textContent=action==='edit' ? '修改当前空间中该素材的展示信息，不更改画布节点或原文件。批量编辑会统一设置所选素材的分类和标签。' : action==='trash' ? '从资产列表移入回收站，可随时恢复。画布中的引用和原文件继续保留，不会立即释放存储空间。' : action==='purge' ? '将永久删除所选素材及其派生预览文件，释放存储空间，操作无法恢复。仍被画布、素材库、任务或备份引用的素材会被阻止删除。' : action==='restore' ? '将所选素材恢复到资产列表。' : '以下为当前空间的画布节点引用，包含回收站内的画布；不代表全部历史任务和备份引用。';form.append(note);
+    const note=document.createElement('p');note.textContent=action==='edit' ? '修改当前空间中该素材的展示信息，不更改画布节点或原文件。批量编辑会统一设置所选素材的分类和标签。' : action==='trash' ? '从资产列表移入回收站，可随时恢复。画布中的引用和原文件继续保留，不会立即释放存储空间。' : action==='purge' ? '将永久删除所选素材及其派生预览文件，操作无法恢复。上传暂存须等待凭证和安全宽限期结束后清理，待完成项会保留在回收站。仍被画布、素材库、任务或备份引用的素材会被阻止删除。' : action==='restore' ? '将所选素材恢复到资产列表。' : '以下为当前空间的画布节点引用，包含回收站内的画布；不代表全部历史任务和备份引用。';form.append(note);
     let permanentConfirmed=false;
     if(action==='purge'){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.required=true;input.onchange=()=>{permanentConfirmed=input.checked;};label.append(input,document.createTextNode('我确认永久删除所选 '+items.length+' 个素材，删除后无法恢复'));form.append(label);}
     const fields={};
@@ -1534,7 +1541,7 @@ async function openCanvasCatalog(action,ids){
     }
     const error=document.createElement('p');error.setAttribute('role','alert');error.className='catalog-error';form.append(error);
     const footer=document.createElement('div');footer.className='catalog-detail-actions';const cancel=document.createElement('button');cancel.className='asset-btn';cancel.type='button';cancel.textContent=action==='references' ? '关闭':'取消';cancel.onclick=()=>dialog.close();footer.append(cancel);
-    if(action!=='references'){const submit=document.createElement('button');submit.type='submit';submit.className='asset-btn primary';submit.textContent={edit:'保存信息',trash:'移入回收站',restore:'恢复素材',purge:'彻底删除'}[action];footer.append(submit);form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;error.textContent='';try{const metadata={};for(const [name,input] of Object.entries(fields))metadata[name]=name==='tags' ? input.value.split(/[,，]/).map(t=>t.trim()).filter(Boolean) : input.value;const result=await apiJson('/api/canvas-assets/catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,confirm_permanent:action==='purge' && permanentConfirmed,items:items.map(i=>({key:i.asset_key,version:i.catalog_version})),metadata})});await reloadCanvasCatalog();if(result.failures?.length){error.textContent='已删除 '+result.changed+' 项，'+result.failures.length+' 项未完成：'+result.failures[0].message;setStatus(error.textContent);}else{dialog.close();setStatus(action==='purge' ? '已彻底删除 '+result.changed+' 个素材' : '素材整理已保存');}}catch(e){error.textContent=e.message;}finally{submit.disabled=false;}};}else form.onsubmit=e=>e.preventDefault();
+    if(action!=='references'){const submit=document.createElement('button');submit.type='submit';submit.className='asset-btn primary';submit.textContent={edit:'保存信息',trash:'移入回收站',restore:'恢复素材',purge:'彻底删除'}[action];footer.append(submit);form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;error.textContent='';try{const metadata={};for(const [name,input] of Object.entries(fields))metadata[name]=name==='tags' ? input.value.split(/[,，]/).map(t=>t.trim()).filter(Boolean) : input.value;const result=await apiJson('/api/canvas-assets/catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,confirm_permanent:action==='purge' && permanentConfirmed,items:items.map(i=>({key:i.asset_key,version:i.catalog_version})),metadata})});await reloadCanvasCatalog();const message=canvasCatalogMutationMessage(action,result);if(result.failures?.length || result.pending?.length){error.textContent=message;setStatus(message);}else{dialog.close();setStatus(message);}}catch(e){error.textContent=e.message;}finally{submit.disabled=false;}};}else form.onsubmit=e=>e.preventDefault();
     form.append(footer);dialog.append(form);dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
 }
 function renderCanvasAssetDetail(item){
@@ -1559,7 +1566,7 @@ function renderCanvasAssetDetail(item){
             </div>
             <div class="detail-body">
                 <div class="detail-name">${escapeHtml(item.name || '画布资产')}</div>
-                ${canvasAssetsData.catalog_enabled ? `<div class="catalog-detail-actions"><button class="asset-btn" data-catalog-action="references" data-catalog-id="${escapeAttr(item.id)}">查看引用</button>${canvasAssetsData.can_manage ? `<button class="asset-btn" data-catalog-action="edit" data-catalog-id="${escapeAttr(item.id)}">编辑信息</button><button class="asset-btn" data-catalog-action="${item.trashed ? 'restore' : 'trash'}" data-catalog-id="${escapeAttr(item.id)}">${item.trashed ? '恢复素材' : '移入回收站'}</button>${item.trashed ? `<button class="asset-btn" data-catalog-action="purge" data-catalog-id="${escapeAttr(item.id)}">${item.deleting ? '重试彻底删除' : '彻底删除'}</button>` : ''}` : ''}</div><p>${escapeHtml(item.category || '未分类')} · ${escapeHtml((item.tags || []).join('、') || '无标签')}</p>` : ''}
+                ${canvasAssetsData.catalog_enabled ? `<div class="catalog-detail-actions">${item.staging_pending ? `<p role="status">${escapeHtml(item.storage_status)}${item.cleanup_failed ? '（上次清理失败，可重试）' : ''}</p>` : ''}<button class="asset-btn" data-catalog-action="references" data-catalog-id="${escapeAttr(item.id)}">查看引用</button>${canvasAssetsData.can_manage ? `<button class="asset-btn" data-catalog-action="edit" ${item.staging_pending ? 'disabled' : ''} data-catalog-id="${escapeAttr(item.id)}">编辑信息</button><button class="asset-btn" data-catalog-action="${item.trashed ? 'restore' : 'trash'}" ${item.staging_pending ? 'disabled' : ''} data-catalog-id="${escapeAttr(item.id)}">${item.trashed ? '恢复素材' : '移入回收站'}</button>${item.trashed ? `<button class="asset-btn" data-catalog-action="purge" data-catalog-id="${escapeAttr(item.id)}">${item.deleting ? '重试彻底删除' : '彻底删除'}</button>` : ''}` : ''}</div><p>${escapeHtml(item.category || '未分类')} · ${escapeHtml((item.tags || []).join('、') || '无标签')}</p>` : ''}
                 <div class="detail-meta-grid">
                     <div class="detail-meta"><span>类型</span><strong>${escapeHtml(canvasAssetKindLabel(item))}</strong></div>
                     <div class="detail-meta"><span>画布分类</span><strong>${escapeHtml(canvasKindLabel(item.canvas_kind))}</strong></div>

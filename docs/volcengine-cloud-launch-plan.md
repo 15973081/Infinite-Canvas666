@@ -42,6 +42,8 @@
 
 ## 核心技术文档
 
+- [上传暂存清理、systemd 定时任务与历史残留操作步骤](upload-staging-cleanup.md)：部署与后续升级必须安装/核对清理 timer；CLI 默认 dry-run，删除需显式 `--apply`。
+
 - [ECS](https://www.volcengine.com/docs/6396?lang=zh)
 - [PostgreSQL 创建实例](https://www.volcengine.com/docs/6438/79254?lang=zh)
 - [TOS Python 上传](https://www.volcengine.com/docs/6349/92800?lang=zh)

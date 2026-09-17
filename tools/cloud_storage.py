@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import os
+import json
 from pathlib import Path
 import sys
 
@@ -19,6 +20,9 @@ def main():
     parser.add_argument("--destination")
     parser.add_argument("--task-id")
     parser.add_argument("--workspace", help="Existing target workspace for legacy migration")
+    parser.add_argument("--asset-id", action="append", help="Exact staging upload asset ID (repeatable)")
+    parser.add_argument("--all-workspaces", action="store_true", help="Explicitly select every workspace for cleanup")
+    parser.add_argument("--limit", type=int, default=200)
     args = parser.parse_args()
     # Offline operations must remain usable when the original DB/store is lost.
     if args.command in {"verify-backup", "restore-objects"}:
@@ -53,7 +57,19 @@ def main():
         print({"removed_operation_directories": cleanup_orphaned_operations()})
     elif args.command == "cleanup-uploads":
         from app.storage.uploads import cleanup
-        print({"cleaned_staging_uploads": cleanup(all_workspaces=True)})
+        from app.storage.workspace import workspace_scope
+        if bool(args.workspace) == args.all_workspaces:
+            parser.error('cleanup-uploads requires exactly one of --workspace or --all-workspaces')
+        database.check()
+        with workspace_scope(args.workspace or 'default'):
+            value = cleanup(all_workspaces=args.all_workspaces, apply=args.apply, asset_ids=args.asset_id, limit=args.limit)
+        output = json.dumps(value, ensure_ascii=False, indent=2)
+        print(output)
+        if args.report:
+            Path(args.report).write_text(output+'\n', encoding='utf-8')
+        if value['failed']:
+            database.close()
+            raise SystemExit(2)
     elif args.command == "retry-finalization":
         if not args.task_id:
             parser.error("retry-finalization requires --task-id")

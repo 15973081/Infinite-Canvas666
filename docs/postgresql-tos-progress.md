@@ -52,8 +52,11 @@ node --test tests/test_canvas_resumable_upload.cjs
 node --test tests/*.cjs
 python\python.exe tools\cloud_storage.py init-db
 python\python.exe tools\cloud_storage.py check
-python\python.exe tools\cloud_storage.py cleanup-uploads
+python\python.exe tools\cloud_storage.py cleanup-uploads --all-workspaces
 python\python.exe tools\cloud_storage.py retry-finalization --task-id <已有结果来源的待核对任务ID>
 ```
 
 验收服务若使用回环地址，与 `PUBLIC_BASE_URL` 同时指定为该地址，避免与私有配置中的局域网入口混用。私有配置及原始用户素材没有在本轮修改或迁移。
+
+
+暂存清理入口默认只读 dry-run；删除必须增加 `--apply`。生产必须配置定时任务，具体版本清理、部署和历史补清理见 [上传暂存清理操作说明](upload-staging-cleanup.md)。

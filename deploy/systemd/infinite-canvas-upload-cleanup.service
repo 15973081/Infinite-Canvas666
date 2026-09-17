@@ -1,0 +1,24 @@
+[Unit]
+Description=Infinite Canvas expired upload staging cleanup
+After=network-online.target infinite-canvas-workbench.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=canvas
+Group=canvas
+RuntimeDirectory=infinite-canvas-upload-cleanup
+RuntimeDirectoryPreserve=yes
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+# Resolve the live service's release on EVERY run; never pin an old release.
+# systemd uses $$ to pass literal $ to the shell. The environment file is read
+# by the application parser; do not source it or print it in the journal.
+ExecStart=/bin/sh -c 'release=$$(/usr/bin/systemctl show infinite-canvas-workbench.service -p WorkingDirectory --value); test -n "$$release" && cd "$$release" && exec /usr/bin/flock -n -E 75 /run/infinite-canvas-upload-cleanup/cleanup.lock /srv/projects/infinite-canvas/venv/bin/python tools/cloud_storage.py cleanup-uploads --env /srv/projects/infinite-canvas/shared/production.env --all-workspaces --apply --limit 200'
+SuccessExitStatus=75
+TimeoutStartSec=15min
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+

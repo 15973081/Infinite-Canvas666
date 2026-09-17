@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically reclaim expired Infinite Canvas upload staging
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=10min
+RandomizedDelaySec=60
+Unit=infinite-canvas-upload-cleanup.service
+
+[Install]
+WantedBy=timers.target

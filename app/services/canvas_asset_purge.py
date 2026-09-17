@@ -84,7 +84,7 @@ def purge(payload):
         if access:
             az.audit(conn,access.principal,'canvas.assets.purge_requested',workspace=current_workspace(),details={'keys':[s['key'] for s in selections]})
     # Persist 'deleting' before touching storage. Failures stay retryable and unreadable.
-    failures = []; changed = 0
+    failures = []; changed = 0; pending = []
     for key, assets in groups:
         try:
             for asset in assets:
@@ -92,10 +92,18 @@ def purge(payload):
                 delete_object(asset)
             with connection() as conn:
                 conn.execute("UPDATE assets SET status='deleted',updated_at=now() WHERE workspace_id=%s AND id=ANY(%s)", (current_workspace(),[a['id'] for a in assets]))
-            changed += 1
+            # Ready immutable objects and upload staging have different lifetimes.
+            # Reuse the maintenance cleaner; never shorten signed PUT expiry.
+            from app.storage.uploads import cleanup
+            staging = cleanup(apply=True, asset_ids=[a['id'] for a in assets], limit=1000)
+            if staging['failed'] or staging['remaining']:
+                pending.append({'key':key, 'state':'failed' if staging['failed'] else 'pending',
+                                'message':'正式文件已删除，暂存清理待完成', 'uploads':staging['items']})
+            else:
+                changed += 1
         except Exception:
             failures.append({'key':key,'message':'文件清理未完成，请检查存储删除权限后重试'})
     with connection() as conn:
         if access:
             az.audit(conn,access.principal,'canvas.assets.purge',workspace=current_workspace(),details={'changed':changed,'failed_keys':[f['key'] for f in failures]})
-    return {'changed':changed,'failures':failures}
+    return {'changed':changed,'failures':failures, **({'pending':pending} if pending else {})}

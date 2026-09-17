@@ -148,8 +148,10 @@ def test_expired_staging_cleanup_preserves_originals(client):
         conn.execute("UPDATE media_uploads SET expires_at=now()-interval '2 hours' WHERE asset_id=ANY(%s)",
                      ([value["media_asset_id"], pending["media_asset_id"]],))
     assert client.put(signed["url"], content=b"expire", auth=None).status_code == 410
-    assert uploads.cleanup() == 2
-    assert uploads.cleanup() == 0
+    with database.connection() as conn:
+        conn.execute("UPDATE assets SET upload_expires_at=now()-interval '2 hours' WHERE id=ANY(%s)", ([value['media_asset_id'],pending['media_asset_id']],))
+    assert uploads.cleanup(apply=True)['completed'] == 2
+    assert uploads.cleanup(apply=True)['completed'] == 0
     assert client.get(ready["url"]).content == b"keep original"
     assert client.get(unfinished).json()["status"] == "aborted"
     assert not (media.store().root / "staging/default" / value["media_asset_id"]).exists()
