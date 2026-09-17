@@ -161,7 +161,7 @@
             overflow: hidden;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) {
+        .sidebar.is-pinned {
             width: 220px;
             transition-delay: 0s;
         }
@@ -192,7 +192,7 @@
             transition: transform 0.6s var(--fluid-ease) 0.5s, border-radius 0.6s var(--fluid-ease) 0.5s, border-color 0.3s, background-color .18s, box-shadow .2s;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .logo-ring {
+        .sidebar.is-pinned .logo-ring {
             transform: rotate(90deg);
             border-radius: 50%;
             transition-delay: 0s;
@@ -216,7 +216,7 @@
             transition-delay: 0s;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .logo-ring:active {
+        .sidebar.is-pinned .logo-ring:active {
             transform: rotate(90deg) scale(.94);
         }
 
@@ -243,7 +243,7 @@
             padding-left: 14px;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .nav-item {
+        .sidebar.is-pinned .nav-item {
             width: 190px;
             transition-delay: 0s;
         }
@@ -273,7 +273,7 @@
             transition: opacity 0.3s 0.5s;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .nav-text {
+        .sidebar.is-pinned .nav-text {
             opacity: 1;
             transition-delay: 0.1s;
         }
@@ -297,7 +297,7 @@
             transition: width 0.3s var(--fluid-ease) 0.5s, background-color 0.2s, color 0.2s, border-color 0.2s;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .nav-fold-toggle {
+        .sidebar.is-pinned .nav-fold-toggle {
             width: 190px;
             transition-delay: 0s;
         }
@@ -511,13 +511,13 @@
         .letter-d { transform: translateX(-8px); }
         .letter-x { transform: translateX(8px); }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .letter-d {
+        .sidebar.is-pinned .letter-d {
             transform: translateX(-120px);
             opacity: 0;
             transition-delay: 0s;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .letter-x {
+        .sidebar.is-pinned .letter-x {
             transform: translateX(120px);
             opacity: 0;
             transition-delay: 0s;
@@ -533,7 +533,7 @@
             pointer-events: none;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .author-content-wrap {
+        .sidebar.is-pinned .author-content-wrap {
             opacity: 1;
             transform: scale(1);
             transition-delay: 0.2s;
@@ -589,7 +589,7 @@
             position:relative;
         }
 
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .side-pill {
+        .sidebar.is-pinned .side-pill {
             width: 170px;
             transition-delay: 0s;
         }
@@ -656,7 +656,6 @@
             overflow: hidden;
             transition: opacity 0.3s 0.5s, max-width 0.3s var(--fluid-ease) 0.5s, transform .22s var(--fluid-ease);
         }
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .settings-fold-chevron,
         .sidebar.is-pinned .settings-fold-chevron {
             opacity: .72;
             max-width: 16px;
@@ -692,14 +691,14 @@
             overflow:hidden;
             transition: opacity 0.3s 0.5s, max-width 0.3s var(--fluid-ease) 0.5s;
         }
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .side-pill-text {
+        .sidebar.is-pinned .side-pill-text {
             opacity:1;
             max-width:120px;
             transition-delay:.15s;
         }
         /* 折叠态去除 gap，避免图标被推偏 */
         .side-pill { gap:0; }
-        .sidebar:is(:hover:where(:not([data-theme-transition-hover="off"])), [data-theme-transition-hover="on"]) .side-pill { gap:8px; }
+        .sidebar.is-pinned .side-pill { gap:8px; }
 
         @media (max-height: 760px) {
             .sidebar {
@@ -1042,42 +1041,6 @@
             max-width: 120px;
             transition-delay: .15s;
         }
-        .sidebar.is-collapsing:hover {
-            width: 80px;
-        }
-        .sidebar.is-collapsing:hover .logo-ring {
-            transform: none;
-            border-radius: 12px;
-            background: transparent;
-        }
-        .sidebar.is-collapsing:hover .nav-item,
-        .sidebar.is-collapsing:hover .nav-fold-toggle {
-            width: 48px;
-        }
-        .sidebar.is-collapsing:hover .nav-text {
-            opacity: 0;
-        }
-        .sidebar.is-collapsing:hover .letter-d {
-            transform: translateX(-8px);
-            opacity: 1;
-        }
-        .sidebar.is-collapsing:hover .letter-x {
-            transform: translateX(8px);
-            opacity: 1;
-        }
-        .sidebar.is-collapsing:hover .author-content-wrap {
-            opacity: 0;
-            transform: scale(0.9);
-            pointer-events: none;
-        }
-        .sidebar.is-collapsing:hover .side-pill {
-            width: 44px;
-            gap: 0;
-        }
-        .sidebar.is-collapsing:hover .side-pill-text {
-            opacity: 0;
-            max-width: 0;
-        }
         .maintenance-banner {
             position:fixed;
             top:14px;
@@ -1127,8 +1090,8 @@
 <body class="studio-skin studio-home">
 
     <div class="app-shell">
-        <aside data-theme-transition-hover="" class="sidebar" id="studioSidebar">
-            <button class="logo-ring mb-12" id="sidebarLogoToggle" aria-label="固定或收起导航栏" type="button" onclick="toggleSidebarPinned(event)" aria-pressed="false" title="固定导航栏">
+        <aside class="sidebar" id="studioSidebar">
+            <button class="logo-ring mb-12" id="sidebarLogoToggle" aria-label="展开导航栏" aria-controls="studioSidebar" aria-expanded="false" type="button" onclick="toggleSidebarPinned(event)" aria-pressed="false" title="展开导航栏">
                 <div class="w-1.5 h-1.5 rounded-full transition-colors" id="logo-dot" style="background:var(--text)"></div>
             </button>
 
@@ -1318,15 +1281,12 @@
             const logo = document.getElementById('sidebarLogoToggle');
             if(!sidebar) return;
             sidebar.classList.toggle('is-pinned', pinned);
-            if(!pinned) {
-                sidebar.classList.add('is-collapsing');
-                window.setTimeout(() => sidebar.classList.remove('is-collapsing'), 360);
-            } else {
-                sidebar.classList.remove('is-collapsing');
-            }
+
             if(logo) {
                 logo.setAttribute('aria-pressed', pinned ? 'true' : 'false');
-                logo.title = pinned ? '收起导航栏' : '固定导航栏';
+                logo.setAttribute('aria-expanded', pinned ? 'true' : 'false');
+                logo.title = pinned ? '收起导航栏' : '展开导航栏';
+                logo.setAttribute('aria-label', logo.title);
             }
             if(!options.skipRemember) localStorage.setItem(SIDEBAR_PINNED_KEY, pinned ? '1' : '0');
         }
@@ -1335,7 +1295,14 @@
             event?.preventDefault?.();
             event?.stopPropagation?.();
             const sidebar = document.getElementById('studioSidebar');
-            setSidebarPinned(!sidebar?.classList.contains('is-pinned'));
+            const expanding = !sidebar?.classList.contains('is-pinned');
+            setSidebarPinned(expanding);
+            const logo = document.getElementById('sidebarLogoToggle');
+            if(logo && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                logo.classList.remove('logo-opening', 'logo-closing');
+                void logo.offsetWidth; // Restart the feedback on each deliberate click.
+                logo.classList.add(expanding ? 'logo-opening' : 'logo-closing');
+            }
         }
 
         function restoreSidebarPinned() {

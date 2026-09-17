@@ -144,3 +144,11 @@ html.member-workspace-shell body.studio-home>.app-shell{margin-top:76px;height:c
 body.studio-home .member-session-bar{height:76px;padding:0 4vw 0 calc(80px + 4vw);background:var(--st-bg)!important;backdrop-filter:none;-webkit-backdrop-filter:none}
 body.studio-home .member-session-avatar{background:var(--st-soft);color:var(--st-text);border:1px solid var(--st-line)}
 @media(max-width:720px){body.studio-canvas #canvasGate .gate-folder-bar{padding-right:0}.studio-library-tools{position:relative;margin-bottom:17px}body.studio-home .member-session-bar{height:64px;padding:0 16px}html.member-workspace-shell body.studio-home>.app-shell{margin-top:64px;height:calc(100vh - 64px)!important}}
+
+/* Feedback stays on the infinity mark; sidebar geometry uses its own transition. */
+body.studio-home .logo-ring::before{display:inline-block;transform-origin:50% 55%}
+body.studio-home .logo-ring.logo-opening::before{animation:studio-infinity-open 520ms cubic-bezier(.22,.68,.25,1) both}
+body.studio-home .logo-ring.logo-closing::before{animation:studio-infinity-close 460ms cubic-bezier(.22,.68,.25,1) both}
+@keyframes studio-infinity-open{0%{transform:rotate(0) scale(1)}22%{transform:rotate(-12deg) scale(.86)}65%{transform:rotate(18deg) scale(1.12)}84%{transform:rotate(-5deg) scale(.98)}100%{transform:rotate(0) scale(1)}}
+@keyframes studio-infinity-close{0%{transform:rotate(0) scale(1)}24%{transform:rotate(12deg) scale(.88)}65%{transform:rotate(-16deg) scale(1.08)}84%{transform:rotate(4deg) scale(.98)}100%{transform:rotate(0) scale(1)}}
+@media(prefers-reduced-motion:reduce){body.studio-home .logo-ring.logo-opening::before,body.studio-home .logo-ring.logo-closing::before{animation:none}}
