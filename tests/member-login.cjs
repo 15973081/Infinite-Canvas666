@@ -9,11 +9,11 @@ async function page({failFirstLogin=false}={}) {
     const store = new Map([['canvas:workspace:member-test','space_b'],['canvas:workspace:other','space_a'],['canvas-member:member-test:space_b:draft','unsaved draft']]);
     const get = id => {
         if (!nodes.has(id)) nodes.set(id,{value:'',textContent:'',hidden:false,checked:false,parentElement:{hidden:false},events:{},
-            addEventListener(name,fn){this.events[name]=fn;},setAttribute(){},removeAttribute(){},focus(){}});
+            append(node){this.textContent+=node.textContent;},addEventListener(name,fn){this.events[name]=fn;},setAttribute(){},removeAttribute(){},focus(){}});
         return nodes.get(id);
     };
     const location={origin:'http://localhost',search:'',replace(value){this.destination=value;}};
-    vm.runInNewContext(source,{document:{getElementById:get},location,URL,URLSearchParams,AbortSignal,
+    vm.runInNewContext(source,{document:{getElementById:get,createElement:()=>({textContent:'',className:''})},location,URL,URLSearchParams,AbortSignal,
         sessionStorage:{removeItem:key=>store.delete(key)},
         fetch:async (url,init={}) => {
             calls.push({url,body:init.body && JSON.parse(init.body)});

@@ -1,4 +1,5 @@
-/* Infinite Canvas studio skin. Shared, local and free of persistent animation. */
+@import url('/static/css/shadox-brand.css');
+/* shadox studio skin. Shared, local and free of persistent animation. */
 :root,body.studio-skin{--st-bg:#f3f2ed;--st-panel:#faf9f5;--st-text:#242724;--st-muted:#70756d;--st-line:#d9dcd2;--st-soft:#e7e9e1;--st-accent:#d2e5b5;--st-ink:#152017}
 html.theme-dark,html.studio-theme-dark,body.studio-skin.theme-dark,body.studio-skin.studio-theme-dark{--st-bg:#23272b;--st-panel:#2b3035;--st-text:#d9ded8;--st-muted:#a5ada7;--st-line:#3b4247;--st-soft:#30373b;--st-accent:#b8cca3;--st-ink:#1d291f}
 html:has(body.studio-skin),body.studio-skin{--page:var(--st-bg);--bg:var(--st-bg);--bg-base:var(--st-bg);--panel:var(--st-panel);--card:var(--st-panel);--card-solid:var(--st-panel);--soft:var(--st-soft);--text:var(--st-text);--text-main:var(--st-text);--muted:var(--st-muted);--faint:var(--st-muted);--line:var(--st-line);--border:var(--st-line);--ms-bg:var(--st-bg);--ms-text:var(--st-text);--ms-muted:var(--st-muted);--ms-border:var(--st-line);--ms-hover:var(--st-soft)}
@@ -440,3 +441,12 @@ html body.studio-canvas #shell #errorModal .error-btn.primary{background:var(--s
 html body.studio-canvas #shell #errorModal.open .error-panel{animation:canvas-notice-enter .18s ease-out}
 @keyframes canvas-notice-enter{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){html body.studio-canvas #shell #errorModal.open .error-panel{animation:none}}
+
+/* shadox: compact geometric identity, expressive editorial display. */
+html body.studio-skin .member-session-brand{font-family:var(--shadox-brand-font);font-size:19px;font-weight:600;letter-spacing:-.055em}
+html body.studio-skin .shadox-wordmark{font-family:var(--shadox-brand-font);font-weight:600;letter-spacing:-.055em}
+.studio-directory-hero .studio-eyebrow{display:flex;align-items:center;gap:16px}
+.studio-directory-hero .studio-eyebrow .shadox-display{font-size:32px;line-height:1;letter-spacing:-.045em;color:var(--st-text)}
+.studio-directory-footer .shadox-wordmark{font-size:15px}
+.studio-cover-title{font-family:var(--shadox-brand-font),'Microsoft YaHei',sans-serif}
+[data-cover-style=editorial] .studio-cover-title{font-family:var(--shadox-display-font),'Songti SC','SimSun',serif;font-weight:500}

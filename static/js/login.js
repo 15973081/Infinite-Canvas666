@@ -27,7 +27,9 @@
         password.minLength = creating ? 12 : 1;
         password.autocomplete = creating ? 'new-password' : 'current-password';
         password.placeholder = creating ? '设置至少 12 位密码' : '输入密码';
-        document.getElementById('form-title').textContent = activating ? '激活成员账号' : setup ? '开启你的创作空间' : '进入无限画布';
+        const title = document.getElementById('form-title');
+        title.textContent = activating ? '激活成员账号' : setup ? '开启你的创作空间' : '进入 ';
+        if(!creating){const brand=document.createElement('span');brand.className='shadox-display';brand.textContent='shadox';title.append(brand);}
         document.getElementById('form-subtitle').textContent = activating ? '输入管理员提供的一次性凭证，设置你自己的密码。' : members ? '登录，继续你的创作。' : setup ? '首次使用，先为工作区设置访问账号与密码。' : '登录工作区，继续未完成的灵感。';
         label.textContent = activating ? '激活并登录' : setup ? '创建账号，进入画布' : '登录';
         activationButton.textContent = activating ? '已有密码，返回登录' : '首次使用或重置密码？激活账号';

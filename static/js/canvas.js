@@ -75,7 +75,7 @@ const LOCAL_I18N = {
     "canvas.noApiProvidersHint": "暂无 API 平台，请到 API 设置添加",
     "canvas.noImageModelsHint": "暂无生图模型，请到 API 设置添加",
     "canvas.noModelsHint": "暂无模型，请到 API 设置添加",
-    "canvas.title": "无限画布",
+    "canvas.title": "shadox",
     "canvas.backToManager": "返回画布管理",
     "canvas.untitled": "未命名画布",
     "canvas.chooseFirst": "请选择或新建画布",

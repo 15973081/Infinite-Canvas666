@@ -34,7 +34,7 @@
         panel = element('section', undefined, 'member-session-panel'); panel.setAttribute('role', 'dialog');
         panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-label', title);
         const card = element('div', undefined, 'member-session-card');
-        card.append(element('div', '无限画布 · 成员空间', 'member-session-eyebrow'), element('h1', title), element('p', description));
+        card.append(element('div', 'shadox · 成员空间', 'member-session-eyebrow'), element('h1', title), element('p', description));
         panel.append(card); document.body.append(panel);
         return card;
     }
@@ -243,7 +243,7 @@
         if (window.parent !== window && window.parent.CanvasSession?.enabled) return;
         bar = element('nav', undefined, 'member-session-bar'); bar.setAttribute('aria-label', '成员与空间');
         document.documentElement.classList.add('member-workspace-shell');
-        const brand=element('span','无限画布','member-session-brand');
+        const brand=element('span','shadox','member-session-brand');
         const space=createSpaceMenu();
         const account=element('details',undefined,'member-session-account');
         const summary=element('summary'); summary.setAttribute('aria-label','账号：'+context.member.display_name);
