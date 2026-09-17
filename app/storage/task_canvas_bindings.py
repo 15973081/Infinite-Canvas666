@@ -73,11 +73,12 @@ def semantic_media(value):
 
 def node_input(node, version=3):
     result = {key: value for key, value in node.items() if key not in NODE_DISPLAY}
-    # Preview generation/measurement must not invalidate the original media.
+    # Preview/view state is presentation only. Preserve legacy v2 fingerprints.
+    media_display = MEDIA_DISPLAY | {'viewed'} if version >= 3 else MEDIA_DISPLAY
     for key in ('images', 'refs', 'runInputRefs', 'runPromptRefs'):
         values = result.get(key)
         if isinstance(values, list):
-            result[key] = [{k: v for k, v in item.items() if k not in MEDIA_DISPLAY}
+            result[key] = [{k: v for k, v in item.items() if k not in media_display}
                            if isinstance(item, dict) else item for item in values]
     return semantic_media(result) if version >= 3 else result
 

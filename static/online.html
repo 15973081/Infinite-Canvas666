@@ -634,6 +634,7 @@
                         out.classList.remove('hidden');
                         const dl = document.getElementById('downloadBtn');
                         dl.href = onlineMediaUrl(result.images[0]);
+                        dl.onclick = event => {event.preventDefault();event.stopPropagation();void downloadOnlineImage(result.images[0]);};
                         dl.classList.remove('hidden');
                         renderImageCard(result, true);
                         return;
@@ -753,22 +754,28 @@
             document.body.style.overflow='auto';
         }
         function handleOutsideClick(e){ if(e.target.id === 'lightbox') closeLightbox(); }
-        async function downloadLightboxImage(e){
-            e.stopPropagation();
-            const url = onlineMediaUrl(currentLightboxData?.images?.[0]);
+        async function downloadOnlineImage(value){
+            const url = onlineMediaUrl(value);
             if(!url) return;
-            const res = await fetch(url);
-            if(!res.ok) return alert('下载失败');
-            const blob = await res.blob();
             const clean = url.split('?')[0];
             const ext = clean.includes('.') ? clean.split('.').pop() : 'png';
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `online-image-${Date.now()}.${ext || 'png'}`;
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+            const filename = `online-image-${Date.now()}.${ext || 'png'}`;
+            try {
+                if(window.MemberMediaDownload?.(value,filename))return;
+                const res = await fetch(url);
+                if(!res.ok) throw new Error('下载失败');
+                const blob = await res.blob();
+                const href = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = href;link.download = filename;
+                document.body.appendChild(link);
+                link.click();link.remove();
+                setTimeout(() => URL.revokeObjectURL(href), 1000);
+            } catch(error){alert(error.message || '下载失败');}
+        }
+        async function downloadLightboxImage(e){
+            e.preventDefault?.();e.stopPropagation();
+            return downloadOnlineImage(currentLightboxData?.images?.[0]);
         }
         function zoomImage(){ if(currentResult) openLightbox(currentResult); }
         function applySameStyle(){

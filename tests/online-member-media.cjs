@@ -28,3 +28,16 @@ for (const paused of [false,true]) test('online thumbnail and original fallback 
 test('online inline scripts parse',()=>{
     for(const match of page.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
 });
+
+test('online lightbox downloads cloud originals without fetch, retaining member scope',async()=>{
+ const links=[];
+ const win={location:{href:'https://studio.example/static/online.html'},CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w',permissions:['canvas.export']}}},
+ document:{createElement:()=>({click(){this.clicked=true;},remove(){}}),body:{appendChild:a=>links.push(a)}}};
+ win.MemberMediaDownload=(url,name)=>mediaUrl.download(url,name,win);
+ const context=vm.createContext({window:win,onlineMediaUrl:url=>mediaUrl(url,win.CanvasSession,win.location.href),
+ currentLightboxData:{images:['/assets/cloud/ast_image/original.png']},Date,alert:msg=>assert.fail(msg),fetch:()=>assert.fail('cloud download must not fetch a blob')});
+ const start=page.indexOf('        async function downloadOnlineImage('),end=page.indexOf('        function zoomImage()',start);
+ vm.runInContext(page.slice(start,end),context);
+ await context.downloadLightboxImage({preventDefault(){},stopPropagation(){}});
+ assert.equal(links.length,1);assert.match(links[0].href,/workspace=w&member=m/);assert.ok(links[0].clicked);
+});

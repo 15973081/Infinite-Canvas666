@@ -6,13 +6,13 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../static/js/canvas-ledger.js'), 'utf8');
 const turn = () => new Promise(resolve => setImmediate(resolve));
 function setup(fetcher) {
-    const events = [], timers = [];
+    const events = [], timers = [], intervals = [];
     const window = {dispatchEvent:e => events.push(e)};
     const ctx = vm.createContext({window, fetch:fetcher, URLSearchParams, Intl,
         CustomEvent:class {constructor(type, options){this.type=type;this.detail=options.detail;}},
-        document:{visibilityState:'visible'}, setTimeout:fn=>timers.push(fn), setInterval(){}});
+        document:{visibilityState:'visible',getElementById:()=>null}, setTimeout:fn=>timers.push(fn), setInterval(fn,ms){intervals.push({fn,ms});}});
     vm.runInContext(source, ctx);
-    return {api:window.CanvasLedger, events, timers, window, ctx};
+    return {api:window.CanvasLedger, events, timers, intervals, window, ctx};
 }
 const response = (data, status=200) => ({ok:status===200, status, json:async()=>data});
 const page = (logs=[], totals={total:60000, records:2}, revision=1) => ({logs, totals, page:1, pages:1, revision});
@@ -136,4 +136,25 @@ test('view mode recovery explains edit requirement without sending requests',asy
     const {api,window,ctx}=setup(async()=>{throw Error('unexpected request');});
     window.CanvasSession={enabled:true};window.MemberCanvasEdit={canEdit:false,active:{id:'c'}};
     const parts=recoveryDialog(ctx);await api.recover('c');assert.match(parts.pre.textContent,/开始编辑/);
+});
+
+test('idle totals do not poll; only a visible open panel refreshes every 30 seconds',async()=>{
+    let reads=0,open=false;
+    const {api,intervals,ctx}=setup(async()=>{reads++;return response(page());});
+    ctx.document.getElementById=()=>({classList:{contains:()=>open}});
+    api.view('c');await turn();assert.equal(reads,1);
+    for(let i=0;i<12;i++){intervals[0].fn();await turn();}
+    assert.equal(reads,1,'closed panel must not download ledger pages');
+    assert.equal(intervals[0].ms,30000);
+    open=true;intervals[0].fn();await turn();assert.equal(reads,2);
+    ctx.document.visibilityState='hidden';intervals[0].fn();await turn();assert.equal(reads,2);
+    ctx.document.visibilityState='visible';open=false;intervals[0].fn();await turn();assert.equal(reads,2);
+    await api.refresh('c');assert.equal(reads,3,'explicit refresh remains immediate');
+});
+test('timer does not enqueue redundant refresh while a ledger request is in flight',async()=>{
+    let reads=0,release;
+    const {api,intervals,ctx}=setup(()=>{reads++;return new Promise(r=>release=()=>r(response(page())));});
+    ctx.document.getElementById=()=>({classList:{contains:()=>true}});
+    api.view('c');intervals[0].fn();intervals[0].fn();
+    release();await turn();await turn();assert.equal(reads,1);
 });

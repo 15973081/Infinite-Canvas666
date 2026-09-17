@@ -208,5 +208,10 @@
         if(Object.keys(other).length) note.textContent+=' 其他币种未折算进人民币合计。';
     }
     root.CanvasLedger={view, record, refresh, readAll, mount, recover, revision:id=>state(id).result?.revision ?? -1};
-    setInterval(()=>{if(activeId && document.visibilityState !== 'hidden') void refresh(activeId);},5000);
+    // A totals label calling view() must not subscribe the entire page to
+    // perpetual full-ledger downloads. Poll only an explicitly open panel.
+    setInterval(()=>{
+        const panelOpen=['logModal','smartLogModal'].some(id=>document.getElementById(id)?.classList.contains('open'));
+        if(activeId && panelOpen && document.visibilityState !== 'hidden' && !state(activeId).loading) void refresh(activeId);
+    },30000);
 })(window);

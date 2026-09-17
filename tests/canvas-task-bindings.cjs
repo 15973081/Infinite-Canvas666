@@ -154,3 +154,19 @@ test('a receipt for another task in the same batch cannot satisfy a requested ta
     const f=fixture(),tasks=await submitted(f);let writes=0;
     assert.throws(()=>f.op.apply(tasks[1],()=>writes++,tasks[0].id),e=>e.resultPending);assert.equal(writes,0);
 });
+
+// Reproduce previewing an already-completed sibling while the batch is running.
+test('viewing completed batch images does not invalidate remaining receipts',async()=>{
+    const f=fixture(),tasks=await submitted(f,3),out=f.doc.nodes.find(n=>n.id==='o');
+    f.op.apply(tasks[0],()=>{out.images=[{url:'/first.png',viewed:false}];},tasks[0].id);
+    f.op.apply(tasks[1],()=>{out.images.push({url:'/second.png',viewed:false});},tasks[1].id);
+    const ui={render(){},scheduleSave(){}};
+    const source=fs.readFileSync(path.join(__dirname,'../static/js/canvas.js'),'utf8');
+    const start=source.indexOf('function markOutputViewed('),end=source.indexOf('function outputLightboxItems(',start);
+    require('node:vm').runInNewContext(source.slice(start,end)+';this.mark=markOutputViewed;',ui);
+    ui.mark(out,'/second.png');
+    assert.equal(out.images[1].viewed,true);
+    assert.doesNotThrow(()=>f.op.check());
+    f.op.apply(tasks[2],()=>out.images.push({url:'/third.png',viewed:false}),tasks[2].id);
+    assert.equal(out.images.length,3);
+});

@@ -11858,6 +11858,7 @@ function openCanvasLog(event, mode='logs'){
     const title = document.getElementById('canvasLogTitle');
     if(title) title.textContent = mode === 'cost' ? '费用仪表盘' : '生成日志';
     modal?.classList.add('open');
+    if(canvas?.id)void window.CanvasLedger?.refresh(canvas.id);
     if(list && !list.innerHTML) list.innerHTML = `<div class="log-empty">${tr('canvas.noLogs')}</div>`;
     try {
         renderCanvasLog();
@@ -12651,6 +12652,7 @@ function createImageCardFromOutput(url, point){
     scheduleSave();
 }
 async function downloadUrl(url, filename){
+    if(window.MemberMediaDownload?.(url,filename))return;
     const res = await fetch(url);
     if(!res.ok) throw new Error('下载失败');
     const blob = await res.blob();

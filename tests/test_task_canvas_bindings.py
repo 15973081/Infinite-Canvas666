@@ -182,3 +182,15 @@ def test_v3_ignores_only_asset_ids_derived_from_local_urls_and_keeps_v2_readable
         first = graph_fingerprint(doc, 'src', 'out')
         item['media_asset_id'] += '_different'
         assert graph_fingerprint(doc, 'src', 'out') != first
+
+@pytest.mark.parametrize('field', ['images', 'refs', 'runInputRefs', 'runPromptRefs'])
+def test_viewed_is_presentation_but_media_identity_remains_bound(field):
+    doc = document()
+    doc['nodes'][2][field] = [{'url': '/second.png', 'viewed': False}]
+    expected = graph_fingerprint(doc, 'src', 'out')
+    doc['nodes'][2][field][0]['viewed'] = True
+    assert graph_fingerprint(doc, 'src', 'out') == expected
+    del doc['nodes'][2][field][0]['viewed']
+    assert graph_fingerprint(doc, 'src', 'out') == expected
+    doc['nodes'][2][field][0]['url'] = '/different.png'
+    assert graph_fingerprint(doc, 'src', 'out') != expected

@@ -5837,6 +5837,7 @@ function downloadPreviewImage(){
     const image = node?.images?.[previewNavState.index];
     if(!image?.url) return;
     const name = downloadNameForMediaItem(image, 'image');
+    try{if(window.MemberMediaDownload?.(image.url,name))return;}catch(error){toast(error.message || 'Download failed');return;}
     const link = document.createElement('a');
     link.href = `/api/download-output?url=${encodeURIComponent(image.url)}&name=${encodeURIComponent(name)}`;
     link.download = name;
@@ -5847,6 +5848,7 @@ function downloadPreviewImage(){
 function downloadPreviewFile(item){
     if(!item?.url) return;
     const name = downloadNameForMediaItem(item, 'output');
+    try{if(window.MemberMediaDownload?.(item.url,name))return;}catch(error){toast(error.message || 'Download failed');return;}
     const link = document.createElement('a');
     link.href = `/api/download-output?url=${encodeURIComponent(item.url)}&name=${encodeURIComponent(name)}`;
     link.download = name;
@@ -6176,6 +6178,7 @@ function openSmartCanvasLog(mode='logs'){
     document.getElementById('smartLogPanel')?.classList.toggle('cost-mode', mode === 'cost');
     const title = document.getElementById('smartLogTitle');
     if(title) title.textContent = mode === 'cost' ? '费用仪表盘' : '生成日志';
+    void window.CanvasLedger?.refresh(canvas.id);
     renderSmartCanvasLog();
     smartLogModal.classList.add('open');
 }

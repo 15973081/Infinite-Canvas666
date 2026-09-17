@@ -4,7 +4,7 @@
     const NODE_DISPLAY=new Set(['x','y','w','h','width','height','scale','selected','expanded','collapsed',
         'running','queued','pending','pendingTasks','_pending','runStatus','runError','_cascadeIdx','_cascadeFailed',
         'runStartedAt','runFinishedAt','runElapsedMs','runTimerHidden','updated_at']);
-    const MEDIA_DISPLAY=new Set(['w','h','width','height','preview_url','thumbnail','thumbnail_url']);
+    const MEDIA_DISPLAY=new Set(['w','h','width','height','preview_url','thumbnail','thumbnail_url','viewed']);
     const EDGE_DISPLAY=new Set(['id','selected','hovered','color']);
     const object=value=>value!==null && typeof value==='object' && !Array.isArray(value);
     const invalid=()=>{throw new Error('画布输入格式无法核对，请检查后重试。');};

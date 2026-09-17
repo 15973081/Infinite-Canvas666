@@ -2633,6 +2633,7 @@ async function uploadWorkflowFiles(files){
     setStatus(`已上传 ${data.items?.length || 0} 个工作流`);
 }
 function downloadUrl(url, filename='download'){
+    try{if(window.MemberMediaDownload?.(url,filename))return;}catch(error){setStatus(error.message || 'Download failed');return;}
     url = assetDisplayMediaUrl(url);
     if(!url) return;
     const link = document.createElement('a');
@@ -2710,6 +2711,10 @@ function downloadAssetItem(id){
     const item = findAssetItem(id);
     if(!item || !item.url){ setStatus('没有可下载的素材'); return; }
     const name = assetDownloadName(item);
+    try{
+        if(window.MemberMediaDownload?.(item.url,name)){setStatus('已开始下载');return;}
+    }catch(error){setStatus(error.message || '下载失败');return;}
+
     // 走 /api/download-output 强制以附件形式下载（带正确文件名/后缀），而不是在浏览器里打开预览。
     downloadUrl(`/api/download-output?url=${encodeURIComponent(item.url)}&name=${encodeURIComponent(name)}`, name);
     setStatus('已开始下载');
