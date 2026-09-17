@@ -2766,7 +2766,7 @@ async function openCanvas(id){
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvas.id, dirty:() => localCanvasDirty || savingCanvasNow || saveCanvasAgain,
                 snapshot:() => ({...canvas, ...canvasSavePayload()}), flush:flushClassicCanvasBeforeFrontendReload,
-                refresh:syncRemoteCanvasNow, restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed)),
+                refresh:syncRemoteCanvasNow, restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed && !task.paused)),
                 openCopy:async copy => {await loadCanvasList(false);await openCanvas(copy.id);},
                 reload:async () => { const loaded=await openCanvas(id); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } else resumeCanvasImageTasks(); }
@@ -6399,6 +6399,18 @@ function pendingOutputStyle(pending){
     return ` style="aspect-ratio:${Math.max(1, size.w)}/${Math.max(1, size.h)}"`;
 }
 function renderPendingOutput(pending){
+    if(pending?.paused){
+        return `<div class="output-img-wrap loading-wrap recoverable" data-pending-id="${escapeAttr(pending.id)}"${pendingOutputStyle(pending)}>
+            <span class="output-time-pill">已暂停回填</span>
+            <div class="output-recover-state">
+                <i data-lucide="pause"></i>
+                <div class="output-recover-title">自动回填已暂停</div>
+                <div class="output-recover-sub">输入已变化。后台任务不会因此取消，请到生成结果查看进度并确认加入。</div>
+                <button class="output-recover-query" type="button">查看生成结果</button>
+            </div>
+            <button class="output-del" title="${tr('common.delete')}">×</button>
+        </div>`;
+    }
     if(pending?.failed){
         const taskId = pending.recoverTaskId || '';
         const querying = Boolean(pending.querying);
@@ -10131,10 +10143,19 @@ function attachClassicTaskBinding(pending,inputBinding){
     if(inputBinding)Object.defineProperty(pending,'_inputBinding',{value:inputBinding,configurable:true});
     return pending;
 }
-function pauseClassicTaskInput(node,out,writeGuard,error,runToken){
+function pauseClassicTaskInput(node,out,writeGuard,error,runToken,inputBinding){
     if(!error?.inputChanged || !writeGuard.valid() || node._taskRunToken!==runToken)return;
-    // Release only this run's visual busy flag; leave pending tasks and inputs intact.
+    // Only settle placeholders owned by this operation. Keep task IDs for manual
+    // recovery; this is not a backend failure and must not create a failure log.
+    for(const pending of out?._pending || []){
+        if(!inputBinding || pending._inputBinding!==inputBinding)continue;
+        pending.paused=true;
+        pending.querying=false;
+    }
     node.running=false;
+    node.runStatus='paused';
+    node.runError=error.message;
+    scheduleSave();
     refreshRunNodes(node,out);
     setStatus(error.message);
 }
@@ -10235,7 +10256,7 @@ async function runGenerator(genId, opts={}){
         if(statuses.includes('failed')) throw new Error(gen.runError || tr('canvas.generationFailed'));
     } catch(err) {
         if(inputBinding){try {inputBinding.check();}catch(changed){err=changed;}}
-        pauseClassicTaskInput(gen,out,writeGuard,err,runToken);
+        pauseClassicTaskInput(gen,out,writeGuard,err,runToken,inputBinding);
         if(err?.resultPending || !writeGuard.valid()){const paused=writeGuard.pause();if(opts.cascade)throw paused;return;}
         const remainingPending = pendingIds.map(id => pendingById(out, id)).filter(Boolean);
         if(isCascadeAbortError(err)){
@@ -10420,7 +10441,7 @@ async function runVideoNode(nodeId, opts={}){
         }
     } catch(err) {
         if(inputBinding){try {inputBinding.check();}catch(changed){err=changed;}}
-        pauseClassicTaskInput(node,out,writeGuard,err,runToken);
+        pauseClassicTaskInput(node,out,writeGuard,err,runToken,inputBinding);
         if(err?.resultPending || !writeGuard.valid()){const paused=writeGuard.pause();if(opts.cascade)throw paused;return;}
         const currentNode = nodes.find(n => n.id === nodeId) || node;
         const currentOut = out?.id ? nodes.find(n => n.id === out.id) || out : out;
@@ -12077,6 +12098,11 @@ async function queryRecoverPendingOutput(pendingId){
     const out = findOutputByPendingId(pendingId);
     const pending = pendingById(out, pendingId);
     if(!out || !pending || pending.querying) return;
+    if(pending.paused){
+        if(window.MemberCanvasEdit?.openTaskResults)await window.MemberCanvasEdit.openTaskResults();
+        else setStatus('请打开生成结果列表查看原任务，不需要重新生成。');
+        return;
+    }
     const memberMode=Boolean(window.CanvasSession?.enabled);
     const sourceId=pending.run?.node?.id, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
     if(memberMode && sourceId && !source)return;
@@ -12461,8 +12487,8 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
 function resumeCanvasImageTasks(){
     nodes.filter(n => n.type === 'output').forEach(out => {
         (out._pending || []).forEach(p => {
-            if(p.canvasTaskType === 'online-image' && p.canvasTaskId && !p.failed) pollCanvasImageTask(p.canvasTaskId, {cascadeTargetId:p.cascadeTargetId || ''});
-            if(p.canvasTaskType === 'video' && p.canvasTaskId && !p.failed) pollCanvasVideoTask(p.canvasTaskId, {cascadeTargetId:p.cascadeTargetId || ''});
+            if(p.canvasTaskType === 'online-image' && p.canvasTaskId && !p.failed && !p.paused) pollCanvasImageTask(p.canvasTaskId, {cascadeTargetId:p.cascadeTargetId || ''});
+            if(p.canvasTaskType === 'video' && p.canvasTaskId && !p.failed && !p.paused) pollCanvasVideoTask(p.canvasTaskId, {cascadeTargetId:p.cascadeTargetId || ''});
         });
     });
 }

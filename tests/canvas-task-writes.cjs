@@ -10,12 +10,15 @@ const scopeOnlyBinding=()=>({check(){},verify(){},prepare:async()=>({}),beginSub
 const sources=Object.fromEntries(['canvas.js','smart-canvas.js'].map(file=>[file,fs.readFileSync(path.join(__dirname,'../static/js',file),'utf8').replace(/\r\n/g,'\n')]));
 function install(context,file,...names){
  if(file==='canvas.js'){
+  context.window.VideoDurationPolicy ||= require('../static/js/video-duration-policy.js');
+  context.videoNodeDurationRange ||= ()=>({min:1,max:60,auto:false});
   context.classicTaskInputBinding ||= scopeOnlyBinding;
   context.classicPendingInputBinding ||= ()=>scopeOnlyBinding();
   context.attachClassicTaskBinding ||= pending=>pending;
   context.pauseClassicTaskInput ||= ()=>{};
  }
  if(file==='smart-canvas.js'){
+  context.pauseSmartTaskInput ||= ()=>{};
   context.smartTaskInputBinding ||= scopeOnlyBinding;
   context.smartTaskUiGuard ||= ()=>()=>true;
   context.attachSmartTaskBinding ||= (task,binding)=>Object.defineProperty(task,'_inputBinding',{value:binding,enumerable:false});

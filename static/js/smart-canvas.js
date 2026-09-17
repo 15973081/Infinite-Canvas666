@@ -4163,7 +4163,7 @@ function mergeSmartImageLists(localImgs, remoteImgs){
     return out;
 }
 function smartNodeInFlight(node){
-    return Boolean(node && (node.running || node.pending || node.queued || smartPendingTasks(node).length));
+    return Boolean(node && (node.running || node.pending || node.queued || smartPendingTasks(node).some(task=>!task.paused)));
 }
 function mergeSmartNode(local, remote){
     // 本地正在生成/排队的节点完全以本地为准，只把对方可能多出来的图并进来，绝不被对方旧状态冲掉
@@ -4816,7 +4816,7 @@ async function loadCanvas(options={}){
         nodes.forEach(n => {
             const pendingTasks = smartPendingTasks(n);
             if(pendingTasks.length){
-                n.pending = Math.max(pendingTasks.length, Number(n.pending || 0) || pendingTasks.length);
+                n.pending = pendingTasks.filter(task=>!task.paused).length;
                 n.running = false;
             } else if(n.pending){
                 n.pending = 0;
@@ -6363,6 +6363,8 @@ function nodeBodyHtml(node, layout){
     if(recoverTask && imgs.length === 0){
         return imageTaskRecoverBodyHtml(node, recoverTask, layout);
     }
+    const pausedTask=smartPendingTasks(node).find(task=>task.paused);
+    if(pausedTask && imgs.length === 0 && !pendingCount)return imageTaskRecoverBodyHtml(node,pausedTask,layout);
     if(node.queued && imgs.length === 0 && !pendingCount){
         return `<div class="loading-cell single queued" style="width:${layout.width}px;height:${layout.height}px"></div>`;
     }
@@ -6396,6 +6398,11 @@ async function querySmartImageTaskNow(nodeId, localTaskId){
     if(!node) return;
     const task = localTaskId ? smartPendingTasks(node).find(item => item.taskId === localTaskId) : smartRecoverableImageTask(node);
     if(!task || task.querying) return;
+    if(task.paused){
+        if(window.MemberCanvasEdit?.openTaskResults)await window.MemberCanvasEdit.openTaskResults();
+        else toast('请打开生成结果列表查看原任务，不需要重新生成。');
+        return;
+    }
     const memberMode=Boolean(window.CanvasSession?.enabled);
     const sourceId=task.run?.nodeId, source=sourceId ? nodes.find(n=>n.id===sourceId) : null;
     if(memberMode && sourceId && !source)return;
@@ -6456,6 +6463,12 @@ async function querySmartImageTaskNow(nodeId, localTaskId){
     }
 }
 function imageTaskRecoverBodyHtml(node, task, layout){
+    if(task.paused)return `<div class="image-task-pending-cell" style="width:${layout.width}px;height:${layout.height}px">
+        <div class="image-task-pending-overlay">
+            <div class="image-task-pending-text">自动回填已暂停</div>
+            <div class="image-task-pending-sub">输入已变化。后台任务不会因此取消，请到生成结果查看进度并确认加入。</div>
+            <button class="image-task-pending-query" type="button" data-image-task-query="${escapeAttr(node.id)}" data-task-id="${escapeAttr(task.taskId)}">查看生成结果</button>
+        </div></div>`;
     const querying = Boolean(task.querying);
     const failedCount = smartPendingTasks(node).filter(item => item.failed && item.recoverTaskId).length;
     const title = querying ? '查询中' : '任务未丢失';
@@ -12724,6 +12737,7 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
         return additions;
     } catch(e) {
         try{inputBinding?.check();}catch(changed){e=changed;}
+        pauseSmartTaskInput(outputNode,inputBinding,writeGuard,e);
         if(e?.resultPending || !writeGuard.valid())throw e?.inputChanged ? e : writeGuard.pause();
         outputNode.running = false;
         addSmartGenerationLog({run:runLog, outputs:[], runMs:nowMs() - runLogStart, error:e.message || String(e)});
@@ -12824,6 +12838,7 @@ async function runLoopRoundIntoSlot(loopNode, rootNode, outputSlot, loopIndex, c
         return additions;
     } catch(e) {
         try{inputBinding?.check();}catch(changed){e=changed;}
+        pauseSmartTaskInput(outputSlot,inputBinding,writeGuard,e);
         if(e?.resultPending || !writeGuard.valid())throw e?.inputChanged ? e : writeGuard.pause();
         outputSlot.queued = false;
         outputSlot.pending = 0;
@@ -13174,6 +13189,21 @@ function attachSmartTaskBinding(task,inputBinding){
     if(inputBinding)Object.defineProperty(task,'_inputBinding',{value:inputBinding,enumerable:false,configurable:true});
     return task;
 }
+function pauseSmartTaskInput(node,inputBinding,writeGuard,error){
+    if(!error?.inputChanged || !inputBinding || !writeGuard.valid() || !nodes.includes(node))return;
+    const tasks=smartPendingTasks(node);
+    const owned=tasks.filter(task=>task._inputBinding===inputBinding);
+    if(!owned.length)return;
+    owned.forEach(task=>{task.paused=true;task.querying=false;});
+    node.pending=tasks.filter(task=>!task.paused).length;
+    if(!node.pending){
+        node.running=false;
+        node.queued=false;
+        node.runTimerHidden=true;
+    }
+    refreshSmartNodes([node.id]);
+    scheduleSave();
+}
 function smartTaskUiGuard(){
     const selection=selectedId,composer=activeComposerNode(),html=promptInput?.innerHTML;
     const config=JSON.stringify(settingsForStorage(settings));
@@ -13333,7 +13363,7 @@ async function runGeneration(){
         scheduleSave();
     } catch(e) {
         try{inputBinding?.check();}catch(changed){e=changed;}
-        if(e?.inputChanged && writeGuard.valid())toast(e.message);
+        if(e?.inputChanged && writeGuard.valid()){pauseSmartTaskInput(pendingNode,inputBinding,writeGuard,e);toast(e.message);}
         if(e?.resultPending || !writeGuard.valid()){writeGuard.pause();return;}
         restoreUi();
         pendingNode.pending = 0;
@@ -13522,7 +13552,7 @@ function smartPendingTasks(node){
     return node.pendingTasks.filter(task => task && task.taskId);
 }
 function smartNodePendingCount(node){
-    return Math.max(0, Number(node?.pending || 0), smartPendingTasks(node).length);
+    return Math.max(0, Number(node?.pending || 0), smartPendingTasks(node).filter(task=>!task.paused).length);
 }
 function archiveSmartOutputsBeforePending(node){
     const existing = cleanHistoryImages(node?.images || []);
@@ -13744,7 +13774,7 @@ async function resumeSmartPendingNode(node){
     const existing = activeSmartNodeResumes.get(node);
     if(existing) return existing;
     const promise = (async () => {
-        const tasks = smartPendingTasks(node);
+        const tasks = smartPendingTasks(node).filter(task=>!task.paused);
         if(!tasks.length) return;
         if(window.CanvasSession?.enabled && !tasks.some(task=>typeof task._inputBinding?.check==='function'))throw writeGuard.pause();
         node.pending = tasks.length;
@@ -13770,7 +13800,9 @@ async function resumeSmartPendingNode(node){
                 if(inputBinding)inputBinding.apply(record,apply,task.taskId);else apply();
             } catch(e) {
                 if(inputBinding){try{inputBinding.check();if(e.canvasTaskRecord)inputBinding.verify(e.canvasTaskRecord,task.taskId);}catch(changed){e=changed;}}
-                if(e?.inputChanged)deferredError=e;
+                if(e?.inputChanged){deferredError=e;
+                    if(targetStillCurrent() && canvas===originCanvas && validResult() && smartPendingTasks(node).includes(task))pauseSmartTaskInput(node,inputBinding,writeGuard,e);
+                }
                 if(e?.resultPending || !targetStillCurrent() || canvas!==originCanvas || !validResult() || !nodes.includes(node) || !smartPendingTasks(node).includes(task)){deferred=true;return;}
                 const handleFailure=()=>{
                 if(e && e.imageTaskRecover && e.recoverTaskId){
@@ -13824,7 +13856,7 @@ async function resumeSmartPendingNode(node){
     }
 }
 function resumeSmartPendingTasks(){
-    nodes.filter(node => smartPendingTasks(node).length).forEach(node => {
+    nodes.filter(node => smartPendingTasks(node).some(task=>!task.paused)).forEach(node => {
         resumeSmartPendingNode(node).catch(() => {}); // Each task reports its failure; deferred results remain available.
     });
 }

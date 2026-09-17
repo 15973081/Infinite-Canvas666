@@ -24,6 +24,7 @@ function fixture(kind='Image',{count=2,noOutput=false,stage='poll',status='succe
         active:{memberId:'m',workspaceId:'w',lease},get canEdit(){return lease.canEdit;},get canSave(){return lease.canEdit;},markDirty(){}}};
     win.CanvasTaskResults={guard:(targets,read)=>guards.guard(targets,read,win),capture:()=>guards.capture(win)};
     win.CanvasTaskBindings=bindings;
+    win.VideoDurationPolicy=require('../static/js/video-duration-policy.js');
     const counts={saved:0,submitted:0,completed:0,failed:0},requests=[],records=new Map(),timers=[];
     let reached=false,serverDocument=null;
     const boundary=async where=>{if(where===stage){reached=true;await gate.promise;}};
@@ -36,7 +37,7 @@ function fixture(kind='Image',{count=2,noOutput=false,stage='poll',status='succe
         shouldCreateOutputForNode:()=>!noOutput,apiProviders:[],orderedSources:(node,items)=>items,generatorSources:()=>[{prompt:prompt.text,refs:[]}],
         imageRefsOnly:r=>r,videoRefsOnly:()=>[],audioRefsOnly:()=>[],applyUploadedUrlToRefs:r=>r,resolveImageProviderId:p=>p,resolveVideoProviderId:p=>p,
         canvasAvatarPlatform:()=>'',resolveImageModel:m=>m,generatorSizeForRun:async()=>{await boundary('size');return '1024x1024';},normalizedImageQuality:()=>'',
-        manualVideoUrlForNode:()=>'',refreshRunNodes(){},requestMetaFromResult:()=>({}),addGenerationLog:entry=>c.canvas.logs.push(entry),
+        videoNodeDurationRange:()=>({min:1,max:60,auto:false}),manualVideoUrlForNode:()=>'',refreshRunNodes(){},requestMetaFromResult:()=>({}),addGenerationLog:entry=>c.canvas.logs.push(entry),
         appendOutputImages:(out,images)=>{out.images.push(...images.map(url=>({url})));counts.completed++;},
         mergeGeneratedOutputs:(node,images)=>node.generatedOutputs=[...images],activeCanvasTaskPolls:new Set(),
         videoOutputsFromResult:r=>r.videos||[],normalizeCanvasTaskError:e=>e.message,canvasTaskPollRetryWindow:()=>0,
@@ -102,7 +103,15 @@ for(const kind of ['Image','Video']){
             if(edit==='prompt')assert.equal(f.prompt.text,'keep newer input');
             if(edit==='model')assert.equal(f.source.model,'new model');
             if(['prompt','model'].includes(edit)){assert.equal(f.source.running,false);assert.match(f.c.message,/输入|编辑资格/);}
-            if(stage==='poll')assert.equal(f.out._pending.length,kind==='Image'?2:1);
+            if(stage==='poll'){
+                assert.equal(f.out._pending.length,kind==='Image'?2:1);
+                for(const task of f.out._pending){
+                    assert.equal(Boolean(task.paused),['prompt','model'].includes(edit));
+                    assert.equal(task.failed,undefined);
+                    assert.ok(task.canvasTaskId);
+                }
+                if(['prompt','model'].includes(edit))assert.equal(f.source.runStatus,'paused');
+            }
         });
     }
     test('classic '+kind+' chained generation without output node also checks receipts',async()=>{
@@ -140,4 +149,31 @@ test('classic subsequent generation survives actual save enrichment of previous 
     assert.ok(f.c.canvas.nodes.find(n=>n.type==='output').images[0].media_asset_id);
     assert.equal(f.out.images[0].media_asset_id,undefined);
     await f.start();assert.equal(f.counts.completed,2);assert.equal(f.out.images.length,2);assert.equal(f.c.error,undefined);
+});
+
+test('paused placeholder shows manual results instead of a spinner or failure',()=>{
+    const c={escapeAttr:String,tr:s=>s,pendingOutputStyle:()=>''};
+    install(c,'renderPendingOutput');
+    const html=c.renderPendingOutput({id:'p',paused:true,canvasTaskId:'original'});
+    assert.match(html,/查看生成结果/);
+    assert.doesNotMatch(html,/output-spinner|running|失败/);
+});
+test('paused recovery opens saved task results without querying or resubmitting',async()=>{
+    let opened=0;
+    const pending={id:'p',paused:true},out={_pending:[pending]};
+    const c={findOutputByPendingId:()=>out,pendingById:()=>pending,
+        window:{MemberCanvasEdit:{openTaskResults:async()=>{opened++;}}}};
+    install(c,'queryRecoverPendingOutput');
+    await c.queryRecoverPendingOutput('p');
+    assert.equal(opened,1);
+});
+test('pause only settles its own batch, and an old run cannot stop a newer run',()=>{
+    const binding={},other={},token={},own={_inputBinding:binding},foreign={_inputBinding:other};
+    const node={running:true,_taskRunToken:token},out={_pending:[own,foreign]};
+    const c={scheduleSave(){},refreshRunNodes(){},setStatus(){}};
+    install(c,'pauseClassicTaskInput');
+    c.pauseClassicTaskInput(node,out,{valid:()=>true},{inputChanged:true}, {},binding);
+    assert.equal(node.running,true);assert.equal(own.paused,undefined);
+    c.pauseClassicTaskInput(node,out,{valid:()=>true},{inputChanged:true},token,binding);
+    assert.equal(own.paused,true);assert.equal(foreign.paused,undefined);
 });

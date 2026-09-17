@@ -17,7 +17,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
  const target={id:'out',type:'smart-image',images:[]};
  const loop={id:'loop',type:'smart-loop',images:[],prompt:'loop input',loopStart:1};
  const win={CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}},MemberCanvasEdit:{active:{memberId:'m',workspaceId:'w',lease},get canSave(){return lease.canEdit;},get canEdit(){return lease.canEdit;},markDirty(){}}};
- win.CanvasTaskBindings=bindings;win.CanvasTaskResults={guard:(targets,read)=>guards.guard(targets,read,win),capture:()=>guards.capture(win),pending:guards.pending};
+ win.VideoDurationPolicy=require('../static/js/video-duration-policy.js');win.CanvasTaskBindings=bindings;win.CanvasTaskResults={guard:(targets,read)=>guards.guard(targets,read,win),capture:()=>guards.capture(win),pending:guards.pending};
  const requests=[],records=new Map(),counts={save:0,submit:0},timers=[];
  let reached=false,serverDocument=null;
  const boundary=async where=>{if(stage===where){reached=true;await gate.promise;}};
@@ -34,7 +34,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   snapshotRunMeta:()=>({}),smartRunSnapshot:n=>({nodeId:n.id,settings:clone(c.settings)}),rememberRecentSmartSettings(){},isApiLikeEngine:e=>e==='api',smartImageUsesWorkflowInput:()=>false,
   stripRunInputMeta:m=>m,attachRunMeta(){},pendingBoxSize:()=>({w:200,h:200}),coolNodeRunningState(){},coolRunButton(){},runBtn:{},
   createPendingOutputFromSource:()=>{c.nodes.push(target);return target;},restoreSourceVisualState:(n,s)=>Object.assign(n,s),clearPromptInput:()=>{c.promptInput.innerHTML='';},
-  sizeForRun:()=> '1024x1024',imageRefsOnly:r=>r,videoRefsOnly:()=>[],audioRefsOnly:()=>[],applyUploadedUrlsToSmartRefs:r=>r,videoProviderPlatform:()=> 'p',manualSmartVideoLink:()=>null,isSeedance25VideoModel:()=>false,
+  smartVideoDurationRange:()=>({min:1,max:60,auto:false}),sizeForRun:()=> '1024x1024',imageRefsOnly:r=>r,videoRefsOnly:()=>[],audioRefsOnly:()=>[],applyUploadedUrlsToSmartRefs:r=>r,videoProviderPlatform:()=> 'p',manualSmartVideoLink:()=>null,isSeedance25VideoModel:()=>false,
   uid:()=> 'video-'+(requests.length+1),smartResponseErrorMessage:async()=> 'submission failed',smartTaskPollRetryWindow:()=>0,extractUpstreamTaskId:()=>'',
   smartPendingTasks:n=>n.pendingTasks||[],smartRecoverableImageTask:()=>null,smartPendingTaskRun:(n,t)=>t?.run||{nodeId:n.id,settings:config},
   resultMediaUrls:r=>Array.isArray(r)?r:r.images||r.videos||[],copyMediaSizeFields:(item,base)=>base,mediaNodeDefaultScale:()=>1,
@@ -57,7 +57,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   }
   await boundary('poll');return {ok:true,json:async()=>clone(records.get(url.split('/').at(-1)))};
  };
- install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','canvasForStorage','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',
+ install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','pauseSmartTaskInput','canvasForStorage','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',
   'savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode','runLoopRoundIntoSlot');
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
  return {c,src,target,loop,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):entry==='loop'?c.runLoopRoundIntoSlot(loop,src,target,1,{}):c.runGeneration()};
@@ -125,4 +125,32 @@ test('smart media parser accepts the image array handed off by task polling',()=
  assert.deepEqual(clone(f.c.resultMediaUrls('one')),['one']);
  assert.deepEqual(clone(f.c.resultMediaUrls({videos:['video']})),['video']);
  assert.equal(f.c.resultMediaUrls([{url:'image',width:480,height:270}])[0].width,480);
+});
+
+for(const kind of ['image','video'])test('smart '+kind+' edited model settles visual state and retains original tasks',async()=>{
+ const f=fixture(kind),waiting=f.start();await until(f.reached);
+ f.c.settings.model='new model';f.gate.resolve();await waiting;
+ assert.equal(f.out.pending,0);assert.equal(f.out.running,false);assert.equal(f.out.runTimerHidden,true);
+ assert.ok(f.out.pendingTasks.length);assert.ok(f.out.pendingTasks.every(t=>t.paused && !t.failed && t.taskId));
+ const submitted=f.counts.submit;
+ await f.c.resumeSmartPendingNode(f.out);
+ assert.equal(f.counts.submit,submitted);assert.equal(f.out.images.length,0);
+});
+test('smart paused placeholder is static and opens saved results without another task request',async()=>{
+ let opened=0;const task={taskId:'t',paused:true},node={id:'n',pendingTasks:[task]};
+ const c={nodes:[node],smartPendingTasks:n=>n.pendingTasks,escapeAttr:String,
+ window:{MemberCanvasEdit:{openTaskResults:async()=>opened++}}};
+ install(c,'imageTaskRecoverBodyHtml','querySmartImageTaskNow');
+ const html=c.imageTaskRecoverBodyHtml(node,task,{width:200,height:200});
+ assert.match(html,/查看生成结果/);assert.doesNotMatch(html,/loading-cell|spinner|失败/);
+ await c.querySmartImageTaskNow('n','t');assert.equal(opened,1);
+});
+test('smart pause does not settle another batch or mutate a replacement node',()=>{
+ const binding={},other={},task={taskId:'t',_inputBinding:binding},newer={taskId:'n',_inputBinding:other};
+ const node={id:'n',running:true,pendingTasks:[task,newer]};
+ const c={nodes:[node],smartPendingTasks:n=>n.pendingTasks,refreshSmartNodes(){},scheduleSave(){}};
+ install(c,'pauseSmartTaskInput');
+ c.pauseSmartTaskInput(node,binding,{valid:()=>false},{inputChanged:true});assert.equal(task.paused,undefined);
+ c.pauseSmartTaskInput(node,binding,{valid:()=>true},{inputChanged:true});
+ assert.equal(task.paused,true);assert.equal(newer.paused,undefined);assert.equal(node.pending,1);assert.equal(node.running,true);
 });
