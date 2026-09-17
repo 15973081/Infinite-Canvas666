@@ -428,3 +428,15 @@ html body.studio-canvas #shell .studio-switch-motion:has(>button:nth-child(2).ac
 @keyframes studio-switch-right{from{transform:translateX(0)}to{transform:translateX(calc(100% + 2px))}}
 @keyframes studio-switch-left{from{transform:translateX(calc(100% + 2px))}to{transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){html body.studio-canvas #shell .studio-switch-motion::before{animation:none}html body.studio-canvas #shell :is(.loop-mode,.llm-mode)>button{transition:none}}
+/* Non-blocking canvas notifications stay at the right edge without a backdrop. */
+html body.studio-canvas #shell #errorModal{position:absolute;inset:78px 18px auto auto;width:360px;max-width:calc(100% - 36px);padding:0;z-index:90;background:transparent!important;backdrop-filter:none!important;pointer-events:none;align-items:flex-start;justify-content:flex-end}
+html body.studio-canvas #shell #errorModal .error-panel{width:100%;max-height:calc(100vh - 110px);overflow:auto;pointer-events:auto;padding:16px;gap:12px;border-radius:14px;background:var(--st-panel)!important;color:var(--st-text)!important;border:1px solid var(--st-line)!important;box-shadow:0 10px 30px #0002}
+html body.studio-canvas #shell #errorModal .error-title{font-size:13px;font-weight:600;color:var(--st-text)!important}
+html body.studio-canvas #shell #errorModal .error-summary{margin:0;font-size:12px;line-height:1.7;color:var(--st-muted);overflow-wrap:anywhere}
+html body.studio-canvas #shell #errorModal .error-details summary{font-size:12px;color:var(--st-muted);cursor:pointer;padding:4px 0}
+html body.studio-canvas #shell #errorModal .error-message{min-height:0;max-height:240px;margin-top:8px;padding:10px;border-radius:9px;background:var(--st-bg)!important;color:var(--st-text)!important;border-color:var(--st-line)!important;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;font-size:11px}
+html body.studio-canvas #shell #errorModal :is(.error-btn,.preview-icon-btn){background:var(--st-soft)!important;color:var(--st-text)!important;border-color:var(--st-line)!important;border-radius:8px;box-shadow:none!important}
+html body.studio-canvas #shell #errorModal .error-btn.primary{background:var(--st-accent)!important;color:var(--st-ink)!important;border-color:var(--st-accent)!important}
+html body.studio-canvas #shell #errorModal.open .error-panel{animation:canvas-notice-enter .18s ease-out}
+@keyframes canvas-notice-enter{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){html body.studio-canvas #shell #errorModal.open .error-panel{animation:none}}

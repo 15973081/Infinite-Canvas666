@@ -1395,11 +1395,25 @@ function resolveChatModel(value, providerId=''){
 }
 function showErrorModal(message, title=tr('canvas.generationFailed')){
     if(!errorModal || !errorMessage){
-        alert(message || title);
+        console.error(message || title);
         return;
     }
     errorTitle.textContent = title || tr('canvas.generationFailed');
-    errorMessage.textContent = message || title;
+    const raw = String(message || title || '');
+    errorMessage.textContent = raw;
+    const summary = document.getElementById('errorSummary');
+    let brief = raw;
+    const jsonStart = raw.indexOf('{');
+    if(jsonStart >= 0){
+        try {
+            const data = JSON.parse(raw.slice(jsonStart));
+            brief = data.error?.message || data.message || raw.slice(0,jsonStart).trim() || title;
+        } catch(e) { brief = raw.slice(0,jsonStart).trim() || title; }
+    }
+    if(/image area must be at most/i.test(raw)) brief = '图片尺寸超出接口限制，请减小宽高后重试。';
+    if(summary) summary.textContent = brief.length > 140 ? brief.slice(0,140) + '…' : brief;
+    const details = errorModal.querySelector('.error-details');
+    if(details) details.open = false;
     errorModal.classList.add('open');
     refreshIcons();
 }

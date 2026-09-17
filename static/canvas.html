@@ -399,19 +399,20 @@
                 </div>
             </div>
         </div>
-        <div id="errorModal" class="error-modal" onclick="closeErrorModal()">
+        <aside id="errorModal" class="error-modal" aria-label="画布通知">
             <div class="error-panel" onclick="event.stopPropagation()">
                 <div class="error-head">
                     <div id="errorTitle" class="error-title">生成失败</div>
                     <button class="preview-icon-btn" type="button" title="关闭" aria-label="关闭" onclick="closeErrorModal()"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
-                <div id="errorMessage" class="error-message"></div>
+                <p id="errorSummary" class="error-summary" role="status" aria-live="polite"></p>
+                <details class="error-details"><summary>查看详情</summary><div id="errorMessage" class="error-message"></div></details>
                 <div class="error-actions">
                     <button class="error-btn" type="button" onclick="copyErrorMessage()"><i data-lucide="copy" class="w-4 h-4"></i><span>复制</span></button>
                     <button class="error-btn primary" type="button" onclick="closeErrorModal()">关闭</button>
                 </div>
             </div>
-        </div>
+        </aside>
         <div id="canvasLockOverlay" class="canvas-lock-overlay" style="display:none">
             <div class="canvas-lock-overlay-card">
                 <i data-lucide="lock" class="w-6 h-6 canvas-lock-overlay-icon"></i>
