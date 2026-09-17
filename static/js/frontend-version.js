@@ -17,17 +17,19 @@
         if(updateBanner) return updateBanner;
         const banner = document.createElement('div');
         banner.id = 'frontendUpdateBanner';
-        banner.setAttribute('role', 'alert');
+        banner.setAttribute('role', 'status');
+        banner.setAttribute('aria-live', 'polite');
         banner.style.cssText = [
             'position:fixed', 'left:50%', 'bottom:112px', 'z-index:2147483647',
             'transform:translateX(-50%)', 'display:flex', 'align-items:center', 'gap:12px',
-            'max-width:min(560px,calc(100vw - 32px))', 'padding:12px 14px',
-            'border:1px solid rgba(255,255,255,.22)', 'border-radius:12px',
-            'background:rgba(15,23,42,.96)', 'box-shadow:0 18px 54px rgba(15,23,42,.34)',
-            'color:#fff', 'font:600 13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
+            'width:max-content', 'max-width:min(560px,calc(100vw - 32px))', 'box-sizing:border-box', 'padding:14px 16px',
+            'border:1px solid var(--st-line,#d9dcd2)', 'border-radius:14px',
+            'background:var(--st-panel,#faf9f5)', 'box-shadow:0 8px 28px rgba(0,0,0,.12)',
+            'color:var(--st-text,#242724)', 'font:400 13px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
         ].join(';');
-        banner.innerHTML = '<span style="flex:1;min-width:0">检测到前端已更新。请刷新以避免继续使用旧界面。</span>'
-            + '<button type="button" style="flex:0 0 auto;border:0;border-radius:8px;padding:8px 12px;background:#fff;color:#0f172a;font:800 12px system-ui;cursor:pointer">保存并刷新</button>';
+        banner.innerHTML = '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;color:var(--st-muted,#70756d)"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg>'
+            + '<div style="flex:1;min-width:0"><strong style="display:block;font-size:13px;font-weight:600;margin-bottom:3px">有新版本可用</strong><span style="display:block;color:var(--st-muted,#70756d);font-size:12px">保存当前内容后，刷新体验最新界面。</span></div>'
+            + '<button type="button" style="flex:0 0 auto;border:1px solid var(--st-accent,#d2e5b5);border-radius:8px;padding:9px 14px;background:var(--st-accent,#d2e5b5);color:var(--st-ink,#152017);font:600 12px/1.5 system-ui;cursor:pointer">保存并刷新</button>';
         banner.querySelector('button').addEventListener('click', refreshToLatestBuild);
         document.body.appendChild(banner);
         updateBanner = banner;

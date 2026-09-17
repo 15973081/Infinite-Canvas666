@@ -1,6 +1,6 @@
 /* Infinite Canvas studio skin. Shared, local and free of persistent animation. */
 :root,body.studio-skin{--st-bg:#f3f2ed;--st-panel:#faf9f5;--st-text:#242724;--st-muted:#70756d;--st-line:#d9dcd2;--st-soft:#e7e9e1;--st-accent:#d2e5b5;--st-ink:#152017}
-html.theme-dark,html.studio-theme-dark,body.studio-skin.theme-dark,body.studio-skin.studio-theme-dark{--st-bg:#101216;--st-panel:#171a1f;--st-text:#ecede9;--st-muted:#a0a79f;--st-line:#30343a;--st-soft:#20252b;--st-accent:#d4edaa;--st-ink:#152017}
+html.theme-dark,html.studio-theme-dark,body.studio-skin.theme-dark,body.studio-skin.studio-theme-dark{--st-bg:#23272b;--st-panel:#2b3035;--st-text:#d9ded8;--st-muted:#a5ada7;--st-line:#3b4247;--st-soft:#30373b;--st-accent:#b8cca3;--st-ink:#1d291f}
 html:has(body.studio-skin),body.studio-skin{--page:var(--st-bg);--bg:var(--st-bg);--bg-base:var(--st-bg);--panel:var(--st-panel);--card:var(--st-panel);--card-solid:var(--st-panel);--soft:var(--st-soft);--text:var(--st-text);--text-main:var(--st-text);--muted:var(--st-muted);--faint:var(--st-muted);--line:var(--st-line);--border:var(--st-line);--ms-bg:var(--st-bg);--ms-text:var(--st-text);--ms-muted:var(--st-muted);--ms-border:var(--st-line);--ms-hover:var(--st-soft)}
 html body.studio-skin{background:var(--st-bg)!important;color:var(--st-text)!important;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif}
 body.studio-skin :is(button,[role=button],a,input,select):focus-visible{outline:2px solid var(--st-muted);outline-offset:3px}
@@ -152,3 +152,84 @@ body.studio-home .logo-ring.logo-closing::before{animation:studio-infinity-close
 @keyframes studio-infinity-open{0%{transform:rotate(0) scale(1)}22%{transform:rotate(-12deg) scale(.86)}65%{transform:rotate(18deg) scale(1.12)}84%{transform:rotate(-5deg) scale(.98)}100%{transform:rotate(0) scale(1)}}
 @keyframes studio-infinity-close{0%{transform:rotate(0) scale(1)}24%{transform:rotate(12deg) scale(.88)}65%{transform:rotate(-16deg) scale(1.08)}84%{transform:rotate(4deg) scale(.98)}100%{transform:rotate(0) scale(1)}}
 @media(prefers-reduced-motion:reduce){body.studio-home .logo-ring.logo-opening::before,body.studio-home .logo-ring.logo-closing::before{animation:none}}
+
+/* A quieter, three-line mark for the charcoal theme. */
+:is(html.theme-dark,html.studio-theme-dark,body.theme-dark,body.studio-theme-dark) .studio-directory-art path{display:none;transform-origin:170px 100px;stroke:var(--st-muted);stroke-width:1.1;opacity:.38}
+:is(html.theme-dark,html.studio-theme-dark,body.theme-dark,body.studio-theme-dark) .studio-directory-art path:nth-child(3){display:block;transform:scale(.94)}
+:is(html.theme-dark,html.studio-theme-dark,body.theme-dark,body.studio-theme-dark) .studio-directory-art path:nth-child(6){display:block;transform:scale(.84);stroke:var(--st-accent);opacity:.65}
+:is(html.theme-dark,html.studio-theme-dark,body.theme-dark,body.studio-theme-dark) .studio-directory-art path:nth-child(9){display:block;transform:scale(.74);opacity:.28}
+
+/* Shared work surfaces: canvas, collaboration, image studio and chat. */
+html body.studio-skin {
+ --soft-2:var(--st-soft);--line-2:var(--st-line);--strong:var(--st-accent);--strong-text:var(--st-ink);
+ --chat-bg:var(--st-bg);--chat-panel:var(--st-panel);--chat-panel-2:var(--st-bg);--chat-soft:var(--st-soft);
+ --chat-line:var(--st-line);--chat-line-2:var(--st-line);--chat-text:var(--st-text);--chat-muted:var(--st-muted);--chat-faint:var(--st-muted);
+ --chat-strong:var(--st-accent);--chat-strong-text:var(--st-ink);--chat-strong-hover:var(--st-accent);
+ --chat-active-bg:var(--st-soft);--chat-active-text:var(--st-text);--chat-active-border:var(--st-line);--chat-user-bg:var(--st-soft);--chat-user-text:var(--st-text);
+ --ms-glass:var(--st-panel);
+}
+html body.studio-skin .shell {
+ --page:var(--st-bg);--panel:var(--st-panel);--card:var(--st-panel);--card-solid:var(--st-panel);--soft:var(--st-bg);--soft-2:var(--st-soft);
+ --line:var(--st-line);--line-2:var(--st-line);--text:var(--st-text);--muted:var(--st-muted);--faint:var(--st-muted);--strong:var(--st-accent);--strong-text:var(--st-ink);
+ background-color:var(--st-bg)!important;
+}
+html body.studio-skin .shell .board {background-color:var(--st-bg)!important;background-image:radial-gradient(color-mix(in srgb,var(--st-muted) 20%,transparent) .8px,transparent .8px)!important}
+html body.studio-skin .shell :is(.panel,.node,.node-head) {background:var(--st-panel)!important;border-color:var(--st-line)!important;color:var(--st-text)!important;box-shadow:0 6px 20px #00000012!important}
+html body.studio-skin .shell :is(.node input,.node textarea,.node select) {background:var(--st-bg)!important;border-color:var(--st-line)!important;color:var(--st-text)!important}
+html body.studio-skin .shell .node-title {color:var(--st-muted)!important}
+html body.studio-skin .shell .toolbar {border-radius:14px;padding:6px;gap:4px}
+html body.studio-skin .shell .tool-btn {background:transparent!important;border-color:transparent!important;color:var(--st-muted)!important;border-radius:8px;font-weight:500;box-shadow:none!important}
+html body.studio-skin .shell .tool-btn:hover {background:var(--st-soft)!important;color:var(--st-text)!important}
+html body.studio-skin .shell .tool-btn.active {background:var(--st-accent)!important;color:var(--st-ink)!important}
+html body.studio-skin .shell .canvas-nav {border-radius:14px}
+html body.studio-skin .shell .current-canvas-title {font-weight:600;color:var(--st-text)!important}
+html body.studio-skin .member-canvas-edit {
+ --mc-bg:var(--st-panel);--mc-glass:var(--st-panel);--mc-text:var(--st-text);--mc-muted:var(--st-muted);--mc-border:var(--st-line);--mc-hover:var(--st-soft);
+ border-radius:14px;box-shadow:0 6px 24px #00000016;backdrop-filter:none;
+}
+html body.studio-skin .member-canvas-edit button.member-canvas-primary {background:var(--st-accent);border-color:var(--st-accent);color:var(--st-ink)}
+html body.studio-skin .member-canvas-edit button.member-canvas-primary:hover {filter:brightness(.95)}
+html body.studio-skin :is(.member-session-account-menu,.member-space-menu,.member-profile-dialog) {background:var(--st-panel);color:var(--st-text);border-color:var(--st-line);--ms-bg:var(--st-panel);--ms-text:var(--st-text);--ms-muted:var(--st-muted);--ms-border:var(--st-line);--ms-hover:var(--st-soft);box-shadow:0 8px 28px #00000020;backdrop-filter:none}
+html body.studio-skin :is(.chat-shell,.chat-main,.chat-main>.topbar) {background:var(--st-bg)!important;color:var(--st-text)!important}
+html body.studio-skin :is(.composer,.composer-body,.chat-rail,.nano-input,.upload-item,.result-frame,.tool-panel,.control-panel) {background:var(--st-panel)!important;border-color:var(--st-line)!important;color:var(--st-text)!important;border-radius:14px;box-shadow:none!important}
+html body.studio-skin .composer-body {background:transparent!important;border:0!important;border-radius:0}
+html body.studio-skin :is(.composer textarea,.composer-body textarea) {background:transparent!important;color:var(--st-text)!important}
+html body.studio-skin :is(.nano-input,.composer textarea)::placeholder {color:var(--st-muted)!important;opacity:.8}
+html body.studio-skin :is(.nano-input:focus,.upload-item:hover,.upload-item.drag-over) {border-color:var(--st-muted)!important;box-shadow:0 0 0 2px var(--st-soft)!important}
+html body.studio-skin :is(.model-pill,.size-select,.size-custom,.model-trigger,.mini-select,.action-btn,.attach-btn) {background:var(--st-soft)!important;border-color:var(--st-line)!important;color:var(--st-text)!important;border-radius:8px;box-shadow:none!important}
+html body.studio-skin :is(.model-option.active,.glass-btn,.send-btn) {background:var(--st-accent)!important;border-color:var(--st-accent)!important;color:var(--st-ink)!important;box-shadow:none!important}
+html body.studio-skin .container-box h1 {font-style:normal;font-weight:600;letter-spacing:-.035em;color:var(--st-text)!important}
+
+html body.studio-skin .chat-main .messages {background:var(--st-bg)!important}
+html body.studio-skin .chat-main :is(.action-btn,.attach-btn,.model-trigger) {background:var(--st-soft)!important;border-color:var(--st-line)!important;color:var(--st-text)!important}
+html body.studio-skin .shell .minimap {background:var(--st-panel)!important;border-color:var(--st-line)!important;box-shadow:0 6px 20px #00000012!important}
+html body.studio-skin .shell .minimap-content {background:var(--st-bg)!important}
+html body.studio-skin .shell .minimap-viewport {border-color:var(--st-accent)!important;background:color-mix(in srgb,var(--st-accent) 10%,transparent)!important}
+html body.studio-skin .shell .hint {color:var(--st-muted)!important}
+
+html:has(>body.studio-skin){background:var(--st-bg)!important}
+html body.studio-skin .container-box .nano-input{color:var(--st-text)!important}
+html body.studio-skin .chat-main .title-block h1{font-weight:600;color:var(--st-text)!important}
+
+/* Smart canvas uses the same compact controls as the classic editor. */
+html body.studio-smart-canvas .shell{background-image:radial-gradient(color-mix(in srgb,var(--st-muted) 20%,transparent) .8px,transparent .8px)!important}
+html body.studio-smart-canvas .smart-nav{border-radius:14px;background:var(--st-panel);border-color:var(--st-line);box-shadow:0 6px 20px #00000012;backdrop-filter:none}
+html body.studio-smart-canvas .smart-nav-back{border-radius:8px;border-color:transparent;background:transparent;color:var(--st-muted)}
+html body.studio-smart-canvas .smart-nav-back:hover{background:var(--st-soft);color:var(--st-text)}
+html body.studio-smart-canvas .smart-title{font-weight:600}
+html body.studio-smart-canvas .smart-top-tools{position:absolute;right:22px;top:22px;z-index:56;display:flex;align-items:center;gap:4px;padding:6px;border:1px solid var(--st-line);border-radius:14px;background:var(--st-panel);box-shadow:0 6px 20px #00000012}
+html body.studio-smart-canvas .smart-top-tools>button{position:static;inset:auto;width:auto;min-width:38px;height:38px;padding:0 12px;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--st-muted);font-size:12px;font-weight:500;box-shadow:none;backdrop-filter:none;transform:none}
+html body.studio-smart-canvas .smart-top-tools>button:hover{background:var(--st-soft);color:var(--st-text);border-color:transparent;transform:none}
+html body.studio-smart-canvas .smart-top-tools>button.active{background:var(--st-accent);color:var(--st-ink)}
+html body.studio-smart-canvas :is(.composer-card,.create-menu,.asset-panel){background:var(--st-panel);border-color:var(--st-line);border-radius:14px;box-shadow:0 6px 20px #00000012}
+
+/* One continuous upload card; keep ports and floating actions outside unclipped. */
+html body.studio-smart-canvas .image-node.empty-node{border-radius:18px;background:var(--st-panel);border-color:var(--st-line);box-shadow:0 6px 20px #00000012;overflow:visible}
+html body.studio-smart-canvas .image-node.empty-node>.node-head{border-radius:17px 17px 0 0;background:transparent!important;border-bottom-color:transparent!important;box-shadow:none!important;padding:0 14px;flex-shrink:0}
+html body.studio-smart-canvas .image-node.empty-node>.node-head .node-title{font-weight:500;letter-spacing:0}
+html body.studio-smart-canvas .image-node.empty-node>.node-body{padding:0 10px 8px}
+html body.studio-smart-canvas .image-node.empty-node .node-drop{border-radius:12px;background:var(--st-bg);border-color:var(--st-line);font-weight:400}
+html body.studio-smart-canvas .image-node.empty-node .upload-node-main{border-radius:12px;box-shadow:none;background:var(--st-panel);border-color:var(--st-line)}
+html body.studio-smart-canvas .image-node.empty-node .upload-node-title{font-weight:600}
+html body.studio-smart-canvas .image-node.empty-node>.node-hint{padding:0 14px 12px;color:var(--st-muted);font-weight:400}
+html body.studio-smart-canvas .image-node.empty-node:focus-within .node-delete{opacity:1;pointer-events:auto}
