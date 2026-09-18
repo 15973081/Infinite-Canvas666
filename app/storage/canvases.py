@@ -5,6 +5,11 @@ from psycopg.types.json import Jsonb
 from app.storage.database import connection
 from app.storage.workspace import current_workspace
 
+_RECORD_COLUMNS = """id,title,kind,revision,created_at,updated_at,deleted_at,
+    jsonb_build_object('icon',document->'icon','owner',document->'owner','color',document->'color',
+    'cover_style',document->'cover_style','pinned',document->'pinned','folder_id',document->'folder_id',
+    'node_count',jsonb_array_length(coalesce(document->'nodes','[]'::jsonb))) AS document"""
+
 
 def _document(row):
     value = copy.deepcopy(row["document"])
@@ -17,9 +22,10 @@ def _document(row):
     return value
 
 
-def get(canvas_id, include_deleted=False):
+def get(canvas_id, include_deleted=False, *, metadata_only=False):
     with connection() as conn:
-        row = conn.execute("SELECT * FROM canvases WHERE workspace_id=%s AND id=%s", (current_workspace(), canvas_id)).fetchone()
+        columns = _RECORD_COLUMNS if metadata_only else '*'
+        row = conn.execute(f"SELECT {columns} FROM canvases WHERE workspace_id=%s AND id=%s", (current_workspace(), canvas_id)).fetchone()
         if not row or (row["deleted_at"] and not include_deleted):
             raise HTTPException(404, "画布不存在或已在回收站")
         return _document(row)
@@ -41,16 +47,39 @@ def list_records(include_deleted=False):
     after = ""
     while True:
         with connection() as conn:
-            rows = conn.execute("""SELECT id,title,kind,revision,created_at,updated_at,deleted_at,
-                jsonb_build_object('icon',document->'icon','owner',document->'owner','color',document->'color',
-                'cover_style',document->'cover_style','pinned',document->'pinned','folder_id',document->'folder_id',
-                'node_count',jsonb_array_length(coalesce(document->'nodes','[]'::jsonb))) AS document
+            rows = conn.execute(f"""SELECT {_RECORD_COLUMNS}
                 FROM canvases WHERE workspace_id=%s AND id>%s AND (deleted_at IS NOT NULL)=%s
                 AND coalesce(document->>'purged_at','0') IN ('0','') ORDER BY id LIMIT 100""", (current_workspace(), after, include_deleted)).fetchall()
         if not rows:
             return
         yield from (_document(row) for row in rows)
         after = rows[-1]["id"]
+
+
+def save_metadata(canvas):
+    """Patch directory fields without revisiting nodes, media or historical logs."""
+    from app.services.member_context import current_access
+    fields = {'title', 'icon', 'owner', 'color', 'cover_style', 'pinned', 'folder_id'}
+    patch = {key: canvas[key] for key in fields if canvas.get(key) is not None}
+    workspace = current_workspace()
+    with connection() as conn:
+        access = current_access.get()
+        if access:
+            from app.services.canvas_leases import request_write
+            request_write(conn, canvas['id'])
+        row = conn.execute(f"""UPDATE canvases SET title=coalesce(%s,title),
+            document=document || %s,revision=revision+1,updated_by=coalesce(%s,updated_by)
+            WHERE workspace_id=%s AND id=%s AND revision=%s
+            RETURNING {_RECORD_COLUMNS}""",
+            (patch.get('title'), Jsonb(patch), access.principal.member_id if access else None,
+             workspace, canvas['id'], canvas.get('revision'))).fetchone()
+        if not row:
+            raise HTTPException(409, {'code': 'canvas_revision_conflict', 'message': '画布已更新，请重新加载后合并'})
+        # Asset membership is unchanged; keep the asset library's label in sync.
+        conn.execute("""UPDATE canvas_asset_groups SET document=document || %s,updated_at=now()
+            WHERE workspace_id=%s AND canvas_id=%s""", (Jsonb(patch), workspace, canvas['id']))
+    canvas.update(_document(row))
+    return canvas
 
 
 def save(canvas, touch=True):

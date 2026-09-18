@@ -1019,9 +1019,16 @@ async def delete_canvas_folder(folder_id: str):
 async def create_canvas(payload: CanvasCreateRequest):
     return {"canvas": new_canvas(payload.title, payload.icon, payload.kind, payload.folder_id)}
 
+def _load_canvas_metadata(canvas_id):
+    if postgres_enabled():
+        from app.storage.canvases import get
+        return get(canvas_id, metadata_only=True)
+    return load_canvas(canvas_id)
+
+
 @router.get("/api/canvases/{canvas_id}/meta")
-async def get_canvas_meta(canvas_id: str):
-    canvas = load_canvas(canvas_id)
+def get_canvas_meta(canvas_id: str):
+    canvas = _load_canvas_metadata(canvas_id)
     return {
         "id": canvas.get("id"),
         "updated_at": canvas.get("updated_at", 0),
@@ -1032,10 +1039,10 @@ async def get_canvas_meta(canvas_id: str):
     }
 
 @router.post("/api/canvases/{canvas_id}/meta")
-async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
+def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
     """更新画布的轻量元数据（标题/图标/负责人/颜色/置顶）。
     刻意不走 save_canvas（它会刷新 updated_at），以免打标签/置顶把画布顶到列表最前。"""
-    canvas = load_canvas(canvas_id)
+    canvas = _load_canvas_metadata(canvas_id)
     if payload.cover_style is not None:
         canvas["cover_style"] = payload.cover_style
     if payload.title is not None:
@@ -1052,8 +1059,8 @@ async def update_canvas_meta(canvas_id: str, payload: CanvasMetaUpdate):
     return {"canvas": {**canvas_record(canvas), "revision": canvas.get("revision")}}
 
 @router.patch("/api/canvases/{canvas_id}/folder")
-async def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
-    canvas = load_canvas(canvas_id)
+def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
+    canvas = _load_canvas_metadata(canvas_id)
     folder_id = normalize_canvas_folder_id(payload.folder_id)
     if folder_id and not canvas_folder_exists(folder_id):
         raise HTTPException(status_code=404, detail="文件夹不存在")

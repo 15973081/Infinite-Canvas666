@@ -49,8 +49,8 @@ def save_canvas(canvas):
 
 def save_canvas_without_touch(canvas):
     if postgres_enabled():
-        from app.storage.canvases import save
-        return save(canvas, touch=False)
+        from app.storage.canvases import save_metadata
+        return save_metadata(canvas)
     with CANVAS_LOCK:
         with open(canvas_path(canvas["id"]), 'w', encoding='utf-8') as f:
             json.dump(canvas, f, ensure_ascii=False, indent=2)
