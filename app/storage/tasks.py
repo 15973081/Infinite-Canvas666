@@ -99,7 +99,7 @@ def save(task, request_payload=None, *, historical=False):
         canvas_admission = None
         if value.get('canvas_id') and access and not historical:
             from app.services.canvas_leases import request_write
-            canvas_admission = request_write(conn, value['canvas_id'], operation='write')
+            canvas_admission = request_write(conn, value['canvas_id'], operation='write', include_document=True)
         # The lock also serializes two initial requests with the same id.
         conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (task_id,))
         old = conn.execute("SELECT * FROM tasks WHERE id=%s FOR UPDATE", (task_id,)).fetchone()
