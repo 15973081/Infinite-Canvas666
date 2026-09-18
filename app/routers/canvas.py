@@ -1087,7 +1087,13 @@ async def smart_canvas_prompt_templates():
         return {"templates": []}
 
 @router.post("/api/canvas-assets/check")
-async def check_canvas_assets(payload: CanvasAssetCheckRequest):
+def check_canvas_assets(payload: CanvasAssetCheckRequest):
+    if postgres_enabled():
+        from app.storage.media_presence import existing_references
+        from app.storage.media import id_from_ref
+        urls = {str(url or "").strip() for url in payload.urls[:3000]} - {""}
+        local = {url for url in urls if url.startswith(("/output/", "/assets/")) or id_from_ref(url)}
+        return {"exists": {**{url: True for url in urls - local}, **existing_references(local)}}
     result = {}
     for url in payload.urls[:3000]:
         text = str(url or "").strip()
