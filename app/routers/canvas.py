@@ -1,5 +1,5 @@
 """Auto-generated router."""
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Request
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Request, Query
 from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from typing import List, Dict, Any, Optional
@@ -1089,9 +1089,20 @@ def touch_canvas(canvas_id: str):
     return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
 @router.get("/api/canvas-assets")
-async def list_canvas_assets(trash: bool = False, source_state: str = "active"):
+async def list_canvas_assets(trash: bool = False, source_state: str = "active",
+                             limit: Optional[int] = Query(None, ge=1, le=100),
+                             offset: int = Query(0, ge=0, le=10000000),
+                             category: str = 'smart', canvas_id: str = Query('', max_length=160),
+                             query: str = Query('', max_length=240), sort: str = 'canvas_asc'):
     if source_state not in {"active", "deleted", "all"}:
         raise HTTPException(400, "无效的画布状态")
+    if category not in {'all', 'smart', 'classic'} or sort not in {'canvas_asc','updated_desc','updated_asc','name_asc','kind'}:
+        raise HTTPException(400, "无效的素材筛选或排序")
+    if limit is not None:
+        from app.services.canvas_asset_page import page, local_page
+        return await asyncio.to_thread(page if postgres_enabled() else local_page,
+            trash=trash, source_state=source_state, category=category, canvas_id=canvas_id,
+            query=query, sort=sort, offset=offset, limit=limit)
     return await asyncio.to_thread(canvas_assets_index, trash=trash, source_state=source_state)
 
 @router.get("/api/smart-canvas/prompt-templates")

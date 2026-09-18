@@ -2037,9 +2037,9 @@ function flushScheduledGeometryRefresh(){
     if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses, geometryRefreshAll ? null : geometryRefreshNodes);
     else { geometryRefreshAll = false; geometryRefreshNodes.clear(); }
 }
-function refreshGeometryAfterLayout(){
+function refreshGeometryAfterLayout(nodeIds=null){
     // Coalesce image/node layout notifications, retaining the second-frame correction.
-    scheduleGeometryRefresh(2);
+    scheduleGeometryRefresh(2, nodeIds);
     scheduleMinimapRender();
 }
 function scheduleSave(){
@@ -6339,8 +6339,8 @@ function refreshNodes(ids=[]){
         current.replaceWith(fresh);
     }
     restoreOutputScrolls(outputScrolls);
-    refreshGeometry();
-    refreshGeometryAfterLayout();
+    refreshGeometry(uniqueIds);
+    refreshGeometryAfterLayout(uniqueIds);
     refreshIcons();
     bindCanvasPreviewImageFallbacks(nodesEl);
     refreshOutputTimer();
@@ -7563,13 +7563,13 @@ function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
             if(registration.status === 'Active') {
                 node.face_auth_status = 'Active';
                 node.asset_uris = canvasAssetRegisteredUris(data.item);
-                render();
+                refreshNodes([node.id]);
                 scheduleSave();
                 if(canvasAssetLibraryOpen) renderCanvasAssetLibrary();
                 setStatus('人脸认证已通过，可直接用于视频生成');
             } else if(registration.status === 'Failed') {
                 node.face_auth_status = 'Failed';
-                render();
+                refreshNodes([node.id]);
                 scheduleSave();
                 setStatus(registration.detail || '人脸认证未通过');
             } else pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt + 1);
@@ -8412,7 +8412,7 @@ function renderLoopBody(node){
         e.target.value = node.count;
         refreshPreview();
         /* 同步底部级联按钮上的轮数文字，避免输入循环次数后下游"× N 轮"残留旧值
-           不直接 render() 是为了不破坏当前正在输入的 input 焦点 */
+           不直接 refreshNodes([node.id]) 是为了不破坏当前正在输入的 input 焦点 */
         const loopCascadeBtn = wrap.querySelector('[data-loop-cascade]');
         if(loopCascadeBtn){
             const span = loopCascadeBtn.querySelector('span');
@@ -8475,7 +8475,7 @@ function renderLoopBody(node){
             e.stopPropagation();
             const previousMode = node.mode;
             node.mode = btn.dataset.loopMode === 'parallel' ? 'parallel' : 'serial';
-            render();
+            refreshNodes([node.id]);
             if(previousMode !== node.mode) animateNodeModeSwitch(node.id, '.loop-mode');
             scheduleSave();
         };
@@ -8489,7 +8489,7 @@ function renderLoopBody(node){
         if(!opening){
             connections = connections.filter(c => c.to !== node.id || canConnect(c.from, node.id));
         }
-        render();
+        refreshNodes([node.id]);
         scheduleSave();
         syncGeneratorInputs();
         refreshGeneratorInputViews();
@@ -8540,7 +8540,7 @@ function renderLoopBody(node){
                 connections = connections.filter(c => c.to !== node.id || canConnect(c.from, node.id));
             }
             autoSizeLoopForPanels(node);
-            render();
+            refreshNodes([node.id]);
             scheduleSave();
             syncGeneratorInputs();
             refreshGeneratorInputViews();
@@ -8603,7 +8603,7 @@ function renderLLMBody(node){
         node.llmProvider = e.target.value;
         const models = providerChatModels(node.llmProvider);
         node.model = models[0] || '';
-        render();
+        refreshNodes([node.id]);
         scheduleSave();
     };
     modelSelect.onchange = e => {
@@ -8611,12 +8611,12 @@ function renderLLMBody(node){
         node.model = e.target.value;
         scheduleSave();
     };
-    wrap.querySelector('.llm-sys-toggle').onclick = e => { e.stopPropagation(); node.showSystem = !node.showSystem; render(); scheduleSave(); };
+    wrap.querySelector('.llm-sys-toggle').onclick = e => { e.stopPropagation(); node.showSystem = !node.showSystem; refreshNodes([node.id]); scheduleSave(); };
     const sysEl = wrap.querySelector('.llm-system');
     if(sysEl){ sysEl.oninput = e => { node.systemPrompt = e.target.value; scheduleSave(); }; bindScrollableText(sysEl); }
     wrap.querySelectorAll('[data-mode]').forEach(btn => {
         btn.classList.toggle('active', mode === btn.dataset.mode);
-        btn.onclick = e => { e.stopPropagation(); const previousMode = node.mode; node.mode = btn.dataset.mode; render(); if(previousMode !== node.mode) animateNodeModeSwitch(node.id, '.llm-mode'); scheduleSave(); };
+        btn.onclick = e => { e.stopPropagation(); const previousMode = node.mode; node.mode = btn.dataset.mode; refreshNodes([node.id]); if(previousMode !== node.mode) animateNodeModeSwitch(node.id, '.llm-mode'); scheduleSave(); };
     });
     const nodePane = wrap.querySelector('.llm-node-pane');
     const chatPane = wrap.querySelector('.llm-chat-pane');
@@ -9320,14 +9320,14 @@ function renderVideoBody(node){
         const models = providerVideoModels(node.apiProvider);
         if(!models.includes(node.model)) node.model = models[0] || '';
         normalizeVideoNodeSelection(node);
-        render();
+        refreshNodes([node.id]);
         scheduleSave();
     };
     modelSelect.onchange = e => {
         e.stopPropagation();
         node.model = e.target.value;
         normalizeVideoNodeSelection(node);
-        render();
+        refreshNodes([node.id]);
         scheduleSave();
     };
     durationSelect.onchange = e => { e.stopPropagation(); node.duration=window.VideoDurationPolicy.clamp(e.target.value,videoNodeDurationRange(node)); e.target.value=String(node.duration); scheduleSave(); };
@@ -9339,7 +9339,7 @@ function renderVideoBody(node){
         node.taskMode = e.target.value;
         if(node.taskMode !== 'auto') node.aspectRatio = 'adaptive';
         if(node.taskMode === 'edit') node.duration = -1;
-        render();
+        refreshNodes([node.id]);
         scheduleSave();
     };
     wrap.querySelectorAll('[data-video-toggle]').forEach(btn => {
@@ -9350,7 +9350,7 @@ function renderVideoBody(node){
             node[field] = !node[field];
             if(field === 'multimodal' && node.multimodal) node.useFrameRoles = false;
             if(field === 'useFrameRoles' && node.useFrameRoles) node.multimodal = false;
-            render();
+            refreshNodes([node.id]);
             scheduleSave();
         };
     });
@@ -9721,7 +9721,7 @@ function renderComfySettings(container, node){
             ${!selected ? `<div class="text-[11px] text-slate-400">${tr('canvas.comfyNoWorkflow')}</div>` : (!data ? `<div class="text-[11px] text-slate-400">${tr('canvas.comfyLoadingWorkflow')}</div>` : '')}
             ${data ? settingFields.map(f => renderComfyCustomField(node, f)).join('') || `<div class="text-[11px] text-slate-400">${tr('canvas.comfyNoExtraParams')}</div>` : ''}
         `;
-        if(selected && !data) ensureComfyWorkflow(selected).then(() => render());
+        if(selected && !data) ensureComfyWorkflow(selected).then(() => refreshNodes([node.id]));
     } else {
         container.innerHTML = '';
     }
@@ -9731,7 +9731,7 @@ function renderComfySettings(container, node){
             e.stopPropagation();
             const field = btn.dataset.toggleField;
             node[field] = !node[field];
-            render();
+            refreshNodes([node.id]);
             scheduleSave();
         };
     });
@@ -9808,7 +9808,7 @@ function updateComfyField(node, input, event){
         else node.comfyParams[paramId] = input.value;
         const val = input.closest('.field')?.querySelector('.comfy-param-val');
         if(val) val.textContent = node.comfyParams[paramId];
-        if(type === 'boolean') render();
+        if(type === 'boolean') refreshNodes([node.id]);
         scheduleSave();
         return;
     }
@@ -9817,13 +9817,13 @@ function updateComfyField(node, input, event){
     if(field === 'comfyWorkflow'){
         node.comfyWorkflow = validComfyWorkflowName(input.value);
         node.comfyParams = {};
-        ensureComfyWorkflow(node.comfyWorkflow).then(() => render());
+        ensureComfyWorkflow(node.comfyWorkflow).then(() => refreshNodes([node.id]));
         scheduleSave();
         return;
     }
     if(input.type === 'checkbox') {
         node[field] = input.checked;
-        if(field === 'enhanceUpscale') render();
+        if(field === 'enhanceUpscale') refreshNodes([node.id]);
     }
     else if(field === 'enhanceStrength') {
         node[field] = Number(input.value) || 0.5;

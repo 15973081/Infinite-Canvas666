@@ -1,0 +1,39 @@
+<!doctype html><meta charset="utf-8"><title>Canvas reconciliation regression</title>
+<div id="world"></div><pre id="result">running</pre>
+<script>
+const world=document.getElementById('world'),composer=null,smartWorkflowTransferModal=null,portDragState=null;
+const smartRenderedNodes=new WeakMap(),smartViewportScrolls=new WeakMap();
+let nodes=Array.from({length:2000},(_,i)=>({id:String(i),x:i,title:'Node '+i}));
+let selectedId='',bound=0,rebuilt=0,scheduled=[];
+const noop=()=>{},cancelSmartGeometryRefresh=noop,releaseSmartGroupPreviews=noop,selectedNodeIds=()=>[],
+captureMediaPlaybackStates=()=>[],restoreMediaPlaybackStates=noop,smartNodeHasLiveMedia=()=>false,
+transplantSmartMediaElements=noop,restoreSmartNodeScroll=noop,updateComposer=noop,renderMinimap=noop,
+scheduleSmartMinimapRender=noop,bindSmartPreviewImageFallbacks=noop,measureSmartNodeImages=noop,
+refreshRunTimerPills=noop,refreshIcons=noop,bindConnectionEvents=noop,smartChangedConnectionNodes=()=>[],
+scheduleSmartGeometryRefresh=ids=>scheduled.push(ids),refreshConnectionLayer=noop,
+withSmartComputation=fn=>fn(),isSmartNodeInViewport=()=>true,
+renderConnections=()=>'<svg class="connection-layer"></svg>',
+renderSmartNodeHtml=n=>`<div class="image-node" data-id="${n.id}" style="left:${n.x}px"><input value="${n.title}"><video preload="none"></video></div>`,
+bindNodeEvents=elements=>(elements||world.querySelectorAll('.image-node')).forEach(el=>{bound++;el.onclick=()=>{selectedId=el.dataset.id;};});
+(async()=>{
+ try{
+  const source=await (await fetch('/source.js'+location.search)).text();
+  const start=source.indexOf('function render(){');
+  const render=(0,eval)('('+source.slice(start,source.indexOf('\n}',start)+2)+')');
+  render();
+  const unrelated=world.querySelector('[data-id="1999"]'),input=unrelated.querySelector('input'),video=unrelated.querySelector('video');
+  input.focus();input.value='unsaved typing';input.setSelectionRange(3,6);
+  let records=[];
+  const observer=new MutationObserver(entries=>records.push(...entries));observer.observe(world,{childList:true,subtree:true});
+  bound=0;scheduled=[];const timings=[];
+  for(let i=0;i<7;i++){nodes[0].title='Changed '+i;const start=performance.now();render();timings.push(performance.now()-start);}
+  await new Promise(requestAnimationFrame);observer.disconnect();
+  const result={medianMs:timings.sort((a,b)=>a-b)[3],bound,addedNodes:records.reduce((n,r)=>n+r.addedNodes.length,0),
+    retainedNode:world.querySelector('[data-id="1999"]')===unrelated,retainedMedia:world.querySelector('[data-id="1999"] video')===video,
+    retainedInput:document.activeElement===input&&input.value==='unsaved typing'&&input.selectionStart===3,
+    relatedScopes:scheduled.every(ids=>ids.length===1&&ids[0]==='0'),nodes:world.querySelectorAll('.image-node').length};
+  unrelated.click();result.bindingWorks=selectedId==='1999';
+  document.getElementById('result').textContent=JSON.stringify(result);
+ }catch(error){document.getElementById('result').textContent=JSON.stringify({error:String(error.stack)});}
+})();
+</script>

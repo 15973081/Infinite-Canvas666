@@ -53,8 +53,8 @@ class AssetManagerLazyLoadingTest(unittest.TestCase):
 
         self.assertIn("/api/prompt-libraries", loader)
         self.assertIn("/api/canvas-assets", loader)
-        self.assertIn("loadSharedFolders()", loader)
-        self.assertIn("loadLocalAssets()", loader)
+        self.assertIn("await loadCanvasAssetPage(0)", loader)
+        self.assertNotIn("canvasAssetsData =", loader)
         self.assertIn("await loadManagerData(nextTab)", switcher)
         self.assertIn("managerLoadPromises", loader)
 

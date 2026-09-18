@@ -6631,101 +6631,65 @@ function refreshRunTimerPills(){
     if(active && !runTimerInterval) runTimerInterval = setInterval(refreshRunTimerPills, 1000);
     if(!active && runTimerInterval){ clearInterval(runTimerInterval); runTimerInterval = null; }
 }
+const smartRenderedNodes = new WeakMap();
+let smartRenderedConnectionStates = new Map();
+function smartChangedConnectionNodes(){
+    const next = new Map(), changed = new Set(), cascadeKeys = cascadeConnectionKeys();
+    const byId = new Map(nodes.map(n => [n.id,n]));
+    (canvas?.connections || []).forEach((conn,index) => {
+        const key = `${conn.from}->${conn.to}`;
+        const state = JSON.stringify([conn.from,conn.to,conn.kind,cascadeKeys.has(key),
+            smartCascadeEdgeState(key),loopInsertPreview?.index === index,Boolean(byId.get(conn.to)?.pending)]);
+        next.set(index,state);
+        if(smartRenderedConnectionStates.get(index) !== state){changed.add(conn.from);changed.add(conn.to);}
+    });
+    smartRenderedConnectionStates = next;
+    return [...changed];
+}
 function render(){
     cancelSmartGeometryRefresh();
-    releaseSmartGroupPreviews(world);
     if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
     world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
-    const composerEl = composer;
-    const mediaStates = captureMediaPlaybackStates();
-    const reusableNodes = new Map();
-    world.querySelectorAll('.image-node').forEach(el => {
-        const node = nodes.find(n => n.id === el.dataset.id);
-        const scroller = el.querySelector('[data-thumb-scroll]');
-        if(node && scroller) smartViewportScrolls.set(node, scroller.scrollTop);
-        if(smartNodeHasLiveMedia(node)) reusableNodes.set(node.id, el);
-    });
-    const nodeHtmlEntries = nodes.map(node => {
-        if(!isSmartNodeInViewport(node, 400)){
-            return {node, html: renderSmartNodePlaceholderHtml(node), placeholder: true};
-        }
-        return {node, html: renderSmartNodeHtml(node), placeholder: false};
-    });
-    const tpl = document.createElement('template');
-    tpl.innerHTML = nodeHtmlEntries.map(entry => entry.html).join('');
-    const renderedNodeEls = new Map();
-    nodeHtmlEntries.forEach(entry => {
-        const fresh = tpl.content.querySelector(`.image-node[data-id="${CSS.escape(entry.node.id)}"]`);
-        if(fresh) renderedNodeEls.set(entry.node.id, fresh);
-    });
-    const keepEls = new Set();
-    reusableNodes.forEach(el => keepEls.add(el));
-    if(composerEl) keepEls.add(composerEl);
-    [...world.childNodes].forEach(child => {
-        if(!keepEls.has(child)) child.remove();
-    });
-    if(composerEl) world.appendChild(composerEl);
-    world.insertAdjacentHTML('beforeend', renderConnections());
-    nodeHtmlEntries.forEach(entry => {
-        const fresh = renderedNodeEls.get(entry.node.id);
+    const existing = new Map([...world.querySelectorAll('.image-node')].map(el => [el.dataset.id, el]));
+    const changed = smartChangedConnectionNodes();
+    withSmartComputation(() => nodes.forEach(node => {
+        const html = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+        const current = existing.get(node.id);
+        existing.delete(node.id);
+        const previous = current && smartRenderedNodes.get(current);
+        // Object identity also matters: controls close over their node object.
+        if(previous?.node === node && previous.html === html) return;
+        const tpl = document.createElement('template');
+        tpl.innerHTML = html;
+        const fresh = tpl.content.firstElementChild;
         if(!fresh) return;
-        world.appendChild(fresh);
-        const reusable = reusableNodes.get(entry.node.id);
-        if(reusable){
-            transplantSmartMediaElements(reusable, fresh);
-            if(reusable !== fresh) reusable.remove();
-        }
-        restoreSmartNodeScroll(fresh, entry.node);
-    });
-    restoreMediaPlaybackStates(mediaStates);
-    bindNodeEvents();
-    bindConnectionEvents();
+        if(current){
+            const scroll = current.querySelector('[data-thumb-scroll]');
+            if(scroll) smartViewportScrolls.set(node, scroll.scrollTop);
+            releaseSmartGroupPreviews(current);
+            transplantSmartMediaElements(current, fresh);
+            current.replaceWith(fresh);
+        } else world.appendChild(fresh);
+        smartRenderedNodes.set(fresh, {node,html});
+        bindNodeEvents([fresh]);
+        restoreSmartNodeScroll(fresh, node);
+        bindSmartPreviewImageFallbacks(fresh);
+        measureSmartNodeImages(fresh);
+        changed.push(node.id);
+    }));
+    existing.forEach((el,id) => {releaseSmartGroupPreviews(el);el.remove();changed.push(id);});
+    if(!world.querySelector('svg.connection-layer')){
+        world.insertAdjacentHTML('afterbegin', renderConnections());
+        bindConnectionEvents();
+    } else refreshConnectionLayer(changed);
+    if(!portDragState) world.querySelector('path.port-drag-temp')?.remove();
+    if(changed.length) scheduleSmartGeometryRefresh(changed,2);
     updateComposer();
-    renderMinimap();
-    if(window.lucide) lucide.createIcons();
-    bindSmartPreviewImageFallbacks(world);
-    measureSmartNodeImages();
-    refreshRunTimerPills();
-    return;
-    world.innerHTML = '';
-    if(composerEl) world.appendChild(composerEl);
-    world.insertAdjacentHTML('beforeend', renderConnections());
-    const nodesHtml = nodes.map(node => {
-        const imgs = node.images || [];
-        const scale = nodeScale(node);
-        const layout = imageLayout(imgs, scale, node);
-        const isPrompt = node.type === 'smart-prompt';
-        const isLoop = node.type === 'smart-loop';
-        const isImageNode = node.type === 'smart-image' || !node.type;
-        const pendingCount = smartNodePendingCount(node);
-        const isQueued = Boolean(node.queued && imgs.length === 0 && !pendingCount);
-        const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued;
-        const isGroup = isImageNode && imgs.length > 1;
-        const isPending = (pendingCount || isQueued) && imgs.length === 0;
-        const title = isPending ? escapeHtml(tr('canvas.generating')) : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : 'Image'));
-        const body = nodeBodyHtml(node, layout);
-        const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
-        return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
-            <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
-            ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
-            ${smartNodeToolbarHtml(node)}
-            ${runTimePillHtml(node)}
-            <div class="node-body">${body}</div>
-            <div class="node-hint">${isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')))}</div>
-            ${imgs.length || pendingCount || isQueued || isPrompt || isLoop ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
-            <div class="node-port port-in" data-port="in" title="输入"></div>
-            <div class="node-port port-out" data-port="out" title="输出"></div>
-        </div>`;
-    }).join('');
-    world.insertAdjacentHTML('beforeend', nodesHtml);
-    bindNodeEvents();
-    bindConnectionEvents();
-    updateComposer();
-    renderMinimap();
-    if(window.lucide) lucide.createIcons();
-    measureSmartNodeImages();
+    scheduleSmartMinimapRender();
+    refreshIcons();
     refreshRunTimerPills();
 }
+
 function smartAffectedNodeIds(ids){
     const affected = new Set(ids.filter(Boolean)), outgoing = new Map();
     (canvas?.connections || []).forEach(conn => {
@@ -6901,7 +6865,7 @@ function bindPromptNodeControls(el, node){
             node.h = 194;
             node.w = Math.max(Number(node.w) || 0, 316);
         }
-        render();
+        refreshSmartNodes([node.id], {forceIds:[node.id]});
         scheduleSave();
     };
     const providerEl = el.querySelector('.prompt-llm-provider');
@@ -6909,7 +6873,7 @@ function bindPromptNodeControls(el, node){
         e.stopPropagation();
         node.llmProvider = resolveChatProviderId(e.target.value);
         node.llmModel = resolveChatModel('', node.llmProvider);
-        render();
+        refreshSmartNodes([node.id], {forceIds:[node.id]});
         scheduleSave();
     };
     const modelEl = el.querySelector('.prompt-llm-model');
@@ -6922,7 +6886,7 @@ function bindPromptNodeControls(el, node){
         node.llmSystemEnabled = !node.llmSystemEnabled;
         if(node.llmSystemEnabled) node.h = Math.max(prevHeight, promptNodeExpandedHeight(node));
         else if(prevHeight <= 364) node.h = promptNodeExpandedHeight(node);
-        render();
+        refreshSmartNodes([node.id], {forceIds:[node.id]});
         scheduleSave();
     };
     const systemEl = el.querySelector('.prompt-llm-system');
@@ -6971,7 +6935,7 @@ function bindLoopNodeControls(el, node){
         if(key === 'loopStart') node.loopStart = value;
         if(key === 'imageBatchSize') node.imageBatchSize = value;
         scheduleSave();
-        if(rerender) render();
+        if(rerender) refreshSmartNodes([node.id], {forceIds:[node.id]});
         else syncLoopNumberUi(source, key, value);
     };
     el.querySelectorAll('[data-loop-number]').forEach(btn => {
@@ -6997,7 +6961,7 @@ function bindLoopNodeControls(el, node){
             e.stopPropagation();
             const previousMode = node.mode === 'parallel' ? 'parallel' : 'serial';
             node.mode = btn.dataset.loopMode === 'parallel' ? 'parallel' : 'serial';
-            render();
+            refreshSmartNodes([node.id], {forceIds:[node.id]});
             if(previousMode !== node.mode && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
                 const segment = world.querySelector('.image-node[data-id="' + CSS.escape(node.id) + '"] .loop-smart-seg');
                 if(segment){
@@ -7018,7 +6982,7 @@ function bindLoopNodeControls(el, node){
                 if(node.showPrompt && !smartLoopActivePromptFieldValues(node).length) setSmartLoopPromptFieldValues(node, [tr('smart.loopDefaultPrompt') || '现在生成第《计数》张卖点图片']);
             }
             fitSmartLoopNode(node);
-            render();
+            refreshSmartNodes([node.id], {forceIds:[node.id]});
             scheduleSave();
         };
     });
@@ -7051,7 +7015,7 @@ function bindLoopNodeControls(el, node){
             const values = smartLoopPromptFieldValues(node);
             setSmartLoopPromptFieldValues(node, [...values, '']);
             fitSmartLoopNode(node);
-            render();
+            refreshSmartNodes([node.id], {forceIds:[node.id]});
             scheduleSave();
         };
     });
@@ -7066,7 +7030,7 @@ function bindLoopNodeControls(el, node){
             values.splice(removeIndex, 1);
             setSmartLoopPromptFieldValues(node, values);
             fitSmartLoopNode(node);
-            render();
+            refreshSmartNodes([node.id], {forceIds:[node.id]});
             scheduleSave();
         };
     });

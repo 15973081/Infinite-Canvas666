@@ -5,7 +5,7 @@ Serves the real static UI with synthetic lists; never reads or modifies business
 import http.server
 import json
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urlsplit, parse_qs
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,7 +28,7 @@ LOCAL = {"items": [dict(item, file=f"{item['id']}.png", folder="") for item in i
 PROMPTS = {"library": {"libraries": [{"id": "custom", "name": "Review Prompts", "categories": [{"id": "custom", "name": "Custom"}],
              "items": [dict(item, title=item["name"], category="custom", content="Review prompt text") for item in items("prompt", 100)]}]}}
 CANVAS = {"categories": [{"id": "smart", "name": "Smart", "count": 1000, "canvas_count": 4}],
-          "canvases": [{"id": f"canvas-{g}", "kind": "smart", "title": f"Canvas {g}"} for g in range(4)],
+          "canvases": [{"id": f"canvas-{g}", "kind": "smart", "title": f"Canvas {g}", "asset_count": 250} for g in range(4)],
           "items": [item for g in range(4) for item in items(f"canvas-{g}", 250, canvas_id=f"canvas-{g}", canvas_kind="smart", canvas_title=f"Canvas {g}")]}
 
 
@@ -45,6 +45,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
+        query = parse_qs(urlsplit(self.path).query)
+        if route == '/api/canvas-assets' and 'limit' in query:
+            offset,limit = int(query.get('offset',['0'])[0]),min(100,int(query['limit'][0]))
+            needle = query.get('query',[''])[0].lower()
+            selected = [i for i in CANVAS['items'] if
+                query.get('category',['smart'])[0] in ('smart','all') and
+                (not query.get('canvas_id') or i['canvas_id']==query['canvas_id'][0]) and
+                (not needle or needle in (i['name']+' '+i['canvas_title']).lower())]
+            payload={**CANVAS,'items':selected[offset:offset+limit], 'total':len(selected),
+                     'limit':limit,'offset':offset,'has_more':offset+limit<len(selected)}
+            self.respond(json.dumps(payload).encode(),'application/json')
+            return
         payloads = {"/api/asset-library": ASSETS, "/api/providers": {"providers": []},
                     "/api/local-assets": LOCAL, "/api/shared-folders": {"folders": []},
                     "/api/prompt-libraries": PROMPTS, "/api/canvas-assets": CANVAS}

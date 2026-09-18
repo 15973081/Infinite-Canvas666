@@ -986,6 +986,7 @@ function uniqueCanvasAssets(items){
     return result;
 }
 function canvasAssetCountForCanvas(canvasId){
+    if(canvasAssetsData.limit) return Number(canvasAssetsData.canvases?.find(c => c.id === canvasId)?.asset_count || 0);
     return uniqueCanvasAssets(canvasAssetsData.items || []).filter(item => item.canvas_id === canvasId).length;
 }
 function canvasAssetsForCategory(categoryId=activeCanvasAssetCategory){
@@ -1001,10 +1002,11 @@ function canvasAssetViewTitle(){
     return activeCanvasAssetCanvas()?.title || activeCanvasAssetCategoryInfo().name || '画布资产';
 }
 function canvasAssetViewSubtitle(items){
+    const count = canvasAssetsData.limit ? Number(canvasAssetsData.total || 0) : items.length;
     const canvas = activeCanvasAssetCanvas();
-    if(canvas) return `${canvasKindLabel(canvas.kind)} / ${canvasSourceStateLabel(canvas.asset_source_state)} / ${items.length} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
+    if(canvas) return `${canvasKindLabel(canvas.kind)} / ${canvasSourceStateLabel(canvas.asset_source_state)} / ${count} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
     const activeCat = activeCanvasAssetCategoryInfo();
-    return `${Number(activeCat.canvas_count || 0)} 个画布 / ${items.length} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
+    return `${Number(activeCat.canvas_count || 0)} 个画布 / ${count} 个资产 / ${escapeHtml(canvasAssetSortLabel())}`;
 }
 function canvasAssetKindLabel(item){
     const kind = assetKind(item);
@@ -1027,6 +1029,7 @@ let canvasAssetTrashMode = false;
 let canvasAssetSourceState = 'active';
 function canvasSourceStateLabel(state){ return state === 'purged' ? '来源画布已清理' : state === 'deleted' ? '画布已回收' : '使用中'; }
 function computeCanvasAssetItems(){
+    if(canvasAssetsData.limit) return canvasAssetsData.items || [];
     const q = String(canvasAssetQuery || '').trim().toLowerCase();
     let list = uniqueCanvasAssets(canvasAssetsData.items || []).filter(item => {
         if((item.canvas_kind || 'classic') !== activeCanvasAssetCategory) return false;
@@ -1276,13 +1279,7 @@ async function loadManagerData(tab, {refresh=false, reset=false}={}){
             promptLibrary = data.library || {libraries:[]};
 
         } else if(key === 'canvas-assets') {
-            const data = await apiJson('/api/canvas-assets?trash=' + canvasAssetTrashMode + '&source_state=' + canvasAssetSourceState);
-            canvasAssetsData = {
-                ...data,
-                categories:Array.isArray(data.categories) ? data.categories : [],
-                canvases:Array.isArray(data.canvases) ? data.canvases : [],
-                items:Array.isArray(data.items) ? data.items : []
-            };
+            await loadCanvasAssetPage(0); // /api/canvas-assets, bounded server query
         } else if(key === 'providers') {
             const data = await apiJson('/api/providers');
             apiProviders = Array.isArray(data.providers) ? data.providers : [];
@@ -1401,7 +1398,7 @@ function renderCanvasAssetsManager(){
     normalizeCanvasAssetState();
     const items = currentCanvasAssetItems();
     const groups = groupCanvasAssetItems(items);
-    const total = (canvasAssetsData.items || []).length;
+    const total = canvasAssetsData.limit ? (canvasAssetsData.categories || []).find(c => c.id === 'all')?.count || 0 : (canvasAssetsData.items || []).length;
     const detail = selectedCanvasAsset();
     root.innerHTML = `
         <aside class="asset-panel asset-nav">
@@ -1440,7 +1437,7 @@ function renderCanvasAssetsManager(){
             <div class="manage-tools">
                 <span>已选择 ${selectedCanvasAssetIds.size} 个画布资产，支持拖拽框选或逐个勾选。</span>
                 <div class="asset-tools">
-                    <button class="asset-btn" type="button" data-canvas-asset-select-all ${items.length ? '' : 'disabled'}><i data-lucide="check-square"></i><span>全选</span></button>
+                    <button class="asset-btn" type="button" data-canvas-asset-select-all ${items.length ? '' : 'disabled'}><i data-lucide="check-square"></i><span>本页全选</span></button>
                     <button class="asset-btn" type="button" data-canvas-asset-clear-selection ${selectedCanvasAssetIds.size ? '' : 'disabled'}><i data-lucide="square"></i><span>清空</span></button>
                     ${canvasAssetsData.can_manage ? `<button class="asset-btn" type="button" data-catalog-batch="edit">批量分类 / 标签</button><button class="asset-btn" type="button" data-catalog-batch="${canvasAssetTrashMode ? 'restore' : 'trash'}">${canvasAssetTrashMode ? '恢复所选' : '移入回收站'}</button>${canvasAssetTrashMode ? '<button class="asset-btn" type="button" data-catalog-batch="purge">批量彻底删除</button>' : ''}` : ''}
                     <button class="asset-btn primary" type="button" data-canvas-asset-download-selected ${selectedCanvasAssetIds.size ? '' : 'disabled'}><i data-lucide="download"></i><span>下载所选</span></button>
@@ -1449,6 +1446,12 @@ function renderCanvasAssetsManager(){
             <div class="content-scroll">
                 ${items.length ? renderManagerVirtualGrid(groups,renderCanvasAssetCard) : managerEmptyState(canvasAssetQuery,canvasAssetTrashMode ? '当前分类的回收站为空。回收的素材可在这里恢复。' : '当前分类没有可下载的画布资产。可以切换分类，或在画布中生成、导入素材。')}
             </div>
+            ${canvasAssetsData.limit ? `<nav class="content-toolbar" aria-label="素材分页">
+                <button class="asset-btn" data-canvas-page="${Math.max(0,canvasAssetsData.offset-canvasAssetsData.limit)}" ${canvasAssetsData.offset ? '' : 'disabled'}>上一页</button>
+                <span>第 ${Math.floor(canvasAssetsData.offset/canvasAssetsData.limit)+1} / ${Math.max(1,Math.ceil(canvasAssetsData.total/canvasAssetsData.limit))} 页 · 共 ${canvasAssetsData.total} 个</span>
+                <button class="asset-btn" data-canvas-page="${canvasAssetsData.offset+canvasAssetsData.limit}" ${canvasAssetsData.has_more ? '' : 'disabled'}>下一页</button>
+                <button class="asset-btn" data-canvas-page="${canvasAssetsData.offset}">刷新</button>
+            </nav>` : ''}
         </section>
         <aside class="asset-panel asset-detail">
             ${renderCanvasAssetDetail(detail)}
@@ -1509,9 +1512,59 @@ function renderCanvasAssetKindBadge(item){
     const icon = kind === 'video' ? 'play' : kind === 'audio' ? 'file-audio' : kind === 'text' ? 'file-text' : 'image';
     return `<span class="asset-kind-badge ${escapeAttr(kind)}" title="${escapeAttr(canvasAssetKindLabel(item))}"><i data-lucide="${icon}"></i></span>`;
 }
-async function reloadCanvasCatalog(){
-    canvasAssetsData=await apiJson('/api/canvas-assets?trash='+canvasAssetTrashMode+'&source_state='+canvasAssetSourceState);
-    selectedCanvasAssetIds.clear();selectedCanvasAssetId="";render();
+let canvasAssetRequest = null;
+let canvasAssetRequestToken = 0;
+function canvasAssetPageUrl(offset=0){
+    return '/api/canvas-assets?' + new URLSearchParams({trash:canvasAssetTrashMode,source_state:canvasAssetSourceState,
+        category:activeCanvasAssetCategory,canvas_id:activeCanvasAssetCanvasId,query:canvasAssetQuery,
+        sort:canvasAssetSort,offset,limit:60});
+}
+async function loadCanvasAssetPage(offset=0){
+    canvasAssetRequest?.abort();
+    const controller = new AbortController();
+    canvasAssetRequest = controller;
+    const token = ++canvasAssetRequestToken, url = canvasAssetPageUrl(offset);
+    let timedOut = false;
+    const timeout = setTimeout(() => {timedOut=true;controller.abort();},20000);
+    try {
+        const data = await apiJson(url,{signal:controller.signal});
+        if(token !== canvasAssetRequestToken || url !== canvasAssetPageUrl(offset)) return false;
+        if(timedOut) throw new Error('请求超时');
+        if(controller.signal.aborted) return false;
+        canvasAssetsData = {...data,items:data.items || [],canvases:data.canvases || [],categories:data.categories || []};
+        if(activeCanvasAssetCanvasId && !canvasAssetsData.canvases.some(c => c.id === activeCanvasAssetCanvasId)){
+            activeCanvasAssetCanvasId='';
+            return loadCanvasAssetPage(0);
+        }
+        return true;
+    } catch(err){
+        if(token !== canvasAssetRequestToken || url !== canvasAssetPageUrl(offset)) return false;
+        if(timedOut) throw new Error('请求超时');
+        if(controller.signal.aborted) return false;
+        throw err;
+    } finally {clearTimeout(timeout);}
+}
+async function reloadCanvasCatalog(offset=0){
+    clearTimeout(searchRenderTimer);
+    selectedCanvasAssetIds.clear();selectedCanvasAssetId='';
+    root.querySelectorAll('.content-scroll,.asset-detail,.manage-tools').forEach(el => el.inert=true);
+    setStatus('正在加载画布素材…');
+    try {
+        if(!await loadCanvasAssetPage(offset)) return;
+        if(canvasAssetsData.offset && !canvasAssetsData.items.length && canvasAssetsData.total){
+            return reloadCanvasCatalog(Math.floor((canvasAssetsData.total-1)/60)*60);
+        }
+        if(activeTab !== 'canvas-assets') return;
+        const focus = document.activeElement?.id === 'canvasAssetSearch';
+        const position = document.activeElement?.selectionStart;
+        render({resetScroll:true});
+        if(focus){ const input=document.getElementById('canvasAssetSearch');input?.focus();input?.setSelectionRange?.(position,position); }
+        setStatus('准备就绪');
+    } catch(err){
+        if(activeTab !== 'canvas-assets') return;
+        canvasAssetsData={...canvasAssetsData,items:[],total:0,offset:0,limit:60,has_more:false};
+        render();setStatus('加载失败：'+err.message+'，请点击刷新重试');
+    }
 }
 function canvasCatalogMutationMessage(action, result){
     if(action !== 'purge') return '素材整理已保存';
@@ -2962,7 +3015,12 @@ async function handleClick(event){
     const target = event.target;
     if(target.closest?.('[data-manager-retry]')){ await switchManagerTab(activeTab); return; }
     if(target.closest?.('[data-manager-cancel-delete]')){ cancelManagerDelete();setStatus('已取消删除');return; }
-    if(target.closest?.('[data-manager-clear-search]')){ restoreManagerDescriptor({...managerViewDescriptor(),query:'',selectedId:''});render({resetScroll:true});return; }
+    if(target.closest?.('[data-manager-clear-search]')){
+        restoreManagerDescriptor({...managerViewDescriptor(),query:'',selectedId:''});
+        if(activeTab === 'canvas-assets') await reloadCanvasCatalog();
+        else render({resetScroll:true});
+        return;
+    }
     const navToggle=target.closest?.('[data-manager-toggle]');
     if(navToggle){
         const key=navToggle.dataset.managerToggle;
@@ -3042,7 +3100,7 @@ async function handleClick(event){
         activeCanvasAssetCanvasId = '';
         selectedCanvasAssetId = '';
         selectedCanvasAssetIds.clear();
-        render();
+        await reloadCanvasCatalog();
         return;
     }
     const canvasAssetCanvas = target.closest?.('[data-canvas-asset-canvas]');
@@ -3051,9 +3109,11 @@ async function handleClick(event){
         activeCanvasAssetCanvasId = canvasAssetCanvas.dataset.canvasAssetCanvas || '';
         selectedCanvasAssetId = '';
         selectedCanvasAssetIds.clear();
-        render();
+        await reloadCanvasCatalog();
         return;
     }
+    const pageButton=target.closest?.('[data-canvas-page]');
+    if(pageButton){await reloadCanvasCatalog(Number(pageButton.dataset.canvasPage));return;}
     const sourceFilter=target.closest?.('[data-canvas-source]');
     if(sourceFilter){canvasAssetSourceState=sourceFilter.dataset.canvasSource;activeCanvasAssetCanvasId='';selectedCanvasAssetId='';selectedCanvasAssetIds.clear();await reloadCanvasCatalog();return;}
     if(target.closest?.('[data-catalog-toggle]')){ canvasAssetTrashMode=!canvasAssetTrashMode;activeCanvasAssetCanvasId='';selectedCanvasAssetIds.clear();await reloadCanvasCatalog();return; }
@@ -4473,7 +4533,9 @@ root.addEventListener('input', event => {
         const pos = event.target.selectionStart || 0;
         canvasAssetQuery = event.target.value || '';
         selectedCanvasAssetId = '';
-        scheduleSearchRender('canvasAssetSearch', pos);
+        canvasAssetRequest?.abort();
+        clearTimeout(searchRenderTimer);
+        searchRenderTimer=setTimeout(() => reloadCanvasCatalog(),250);
     }
     if(event.target?.id === 'localCaptionPrompt'){
         localCaptionPrompt = event.target.value || '';
@@ -4557,7 +4619,7 @@ root.addEventListener('change', event => {
     if(event.target?.id === 'canvasAssetSort'){
         canvasAssetSort = event.target.value || 'canvas_asc';
         selectedCanvasAssetId = '';
-        render({resetScroll:true});
+        reloadCanvasCatalog();
     }
     if(event.target?.id === 'assetMoveTarget'){
         assetMoveTarget = event.target.value || '';

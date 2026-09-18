@@ -20,6 +20,7 @@ function setup() {
         geometryRefreshFrame: null, geometryRefreshPasses: 0,
         geometryRefreshAll: false, geometryRefreshNodes: new Set(),
         canvas: {}, viewport: {scale: 2},
+        isCanvasLockedByOther: () => false,
         knifeActive: false, knifePoint: null, knifeTrail: [], knifeChanged: false, knifeNeedsRender: false,
         dragNode: null, resizeNode: null, dragBoard: null, minimapDrag: null, llmPaneDrag: null,
         tempLink: null, textSelectionGuard: null, workflowTransferModal: null,
