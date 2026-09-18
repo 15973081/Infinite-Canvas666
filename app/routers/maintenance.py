@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/api/frontend/version")
-async def get_frontend_version():
+def get_frontend_version():
     return JSONResponse(
         {"build_id": frontend_build_id(), "version": current_app_version()},
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
@@ -23,7 +23,7 @@ def require_local_operator(request: Request) -> None:
 
 
 @router.get("/api/maintenance/status")
-async def get_maintenance_status(request: Request):
+def get_maintenance_status(request: Request):
     return maintenance_snapshot(admin_allowed=False)
 
 

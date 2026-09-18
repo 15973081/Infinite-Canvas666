@@ -47,9 +47,15 @@ def list_records(include_deleted=False):
     after = ""
     while True:
         with connection() as conn:
-            rows = conn.execute(f"""SELECT {_RECORD_COLUMNS}
-                FROM canvases WHERE workspace_id=%s AND id>%s AND (deleted_at IS NOT NULL)=%s
-                AND coalesce(document->>'purged_at','0') IN ('0','') ORDER BY id LIMIT 100""", (current_workspace(), after, include_deleted)).fetchall()
+            # Expand JSON once per row: separate document-> expressions repeatedly
+            # decompress large historical canvases even though only labels are returned.
+            rows = conn.execute("""SELECT c.id,c.title,c.kind,c.revision,c.created_at,c.updated_at,c.deleted_at,
+                jsonb_build_object('icon',m.icon,'owner',m.owner,'color',m.color,'cover_style',m.cover_style,
+                    'pinned',m.pinned,'folder_id',m.folder_id,'node_count',jsonb_array_length(coalesce(m.nodes,'[]'::jsonb))) AS document
+                FROM canvases c CROSS JOIN LATERAL jsonb_to_record(c.document) AS m(
+                    icon jsonb,owner jsonb,color jsonb,cover_style jsonb,pinned jsonb,folder_id jsonb,nodes jsonb,purged_at text)
+                WHERE c.workspace_id=%s AND c.id>%s AND (c.deleted_at IS NOT NULL)=%s
+                    AND coalesce(m.purged_at,'0') IN ('0','') ORDER BY c.id LIMIT 100""", (current_workspace(), after, include_deleted)).fetchall()
         if not rows:
             return
         yield from (_document(row) for row in rows)
@@ -121,8 +127,9 @@ def save(canvas, touch=True):
             if {r["id"] for r in ready} != set(ids):
                 raise HTTPException(400, "画布引用了尚未就绪或不存在的素材")
         conn.execute("DELETE FROM canvas_assets WHERE workspace_id=%s AND canvas_id=%s", (current_workspace(), value["id"]))
-        for asset_id in ids:
-            conn.execute("INSERT INTO canvas_assets(workspace_id,canvas_id,asset_id) VALUES(%s,%s,%s)", (current_workspace(), value["id"], asset_id))
+        if ids:
+            conn.execute("INSERT INTO canvas_assets(workspace_id,canvas_id,asset_id) SELECT %s,%s,unnest(%s::text[])",
+                         (current_workspace(), value["id"], ids))
         from app.storage.canvas_asset_groups import save_group
         save_group(conn, _document(row))
     canvas.clear()

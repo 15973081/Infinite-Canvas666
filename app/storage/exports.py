@@ -1,5 +1,5 @@
 """Disk-backed exports and bounded workflow import for cloud media."""
-import asyncio
+from starlette.concurrency import run_in_threadpool
 import json
 from pathlib import Path
 import shutil
@@ -37,13 +37,13 @@ def build_workflow(payload):
 
 
 async def workflow_response(payload):
-    target, asset, _ = await asyncio.to_thread(build_workflow, payload)
+    target, asset, _ = await run_in_threadpool(build_workflow, payload)
     return FileResponse(target, media_type="application/zip", filename=asset["display_name"], headers={"X-Media-Asset-Id": asset["id"]})
 
 
-async def workflow_to_library(payload):
+def workflow_to_library(payload):
     from app.services.assets import load_asset_library, asset_library_workflow_category, save_asset_library
-    _, asset, meta = await asyncio.to_thread(build_workflow, payload)
+    _, asset, meta = build_workflow(payload)
     lib = load_asset_library()
     _, category = asset_library_workflow_category(lib, payload.library_id, payload.category_id)
     item = {"id": "wf_" + uuid.uuid4().hex[:12], "name": payload.name or asset["display_name"], "url": media.stable_url(asset),
@@ -54,7 +54,7 @@ async def workflow_to_library(payload):
     return {"library": lib, "item": item}
 
 
-async def download_assets(payload):
+def download_assets(payload):
     from app.utils import sanitize_export_filename, canvas_workflow_unique_archive_name
     target = Path(media.scratch_directory()) / (uuid.uuid4().hex + ".zip")
     used, count = set(), 0
@@ -64,23 +64,23 @@ async def download_assets(payload):
             asset = media.get_asset(ref)
             if not asset:
                 raise HTTPException(404, "素材不存在或尚未迁移")
-            path = await asyncio.to_thread(media.materialize, ref)
+            path = media.materialize(ref)
             media.check_budget(asset["size_bytes"])
             name = item.get("name") if isinstance(item, dict) else ""
             archive.write(path, canvas_workflow_unique_archive_name(sanitize_export_filename(name or asset["display_name"], "media.bin"), used))
             count += 1
     if not count:
         raise HTTPException(404, "没有可下载的素材")
-    asset = await asyncio.to_thread(media.publish, target, payload.filename or "canvas-assets.zip", role="export")
+    asset = media.publish(target, payload.filename or "canvas-assets.zip", role="export")
     return FileResponse(target, media_type="application/zip", filename=asset["display_name"], headers={"X-Media-Asset-Id": asset["id"]})
 
 
-async def import_workflow(file):
+def import_workflow(file):
     from app.services.canvas import canvas_workflow_replace_strings, canvas_workflow_payload
     target = Path(media.scratch_directory("input")) / (uuid.uuid4().hex + ".zip")
     total = 0
     with target.open("xb") as stream:
-        while chunk := await file.read(1024 * 1024):
+        while chunk := file.file.read(1024 * 1024):
             total += len(chunk)
             if total > media.max_file_bytes():
                 raise HTTPException(413, "工作流包超过单文件限制")
@@ -104,7 +104,7 @@ async def import_workflow(file):
                     output = target.parent / (uuid.uuid4().hex + Path(name).suffix[:12])
                     with archive.open(name) as src, output.open("xb") as dst:
                         shutil.copyfileobj(src, dst, 1024 * 1024)
-                    asset = await asyncio.to_thread(media.publish, output, resource.get("name") or Path(name).name)
+                    asset = media.publish(output, resource.get("name") or Path(name).name)
                     url = media.stable_url(asset)
                     for old in (resource.get("url"), name, "./" + name):
                         if old:
@@ -125,7 +125,7 @@ async def import_workflow(file):
             "nodes": nodes, "connections": connections, "resource_map": mapping}
 
 
-async def export_group(payload):
+def export_group(payload):
     from app.utils import sanitize_export_filename, canvas_workflow_unique_archive_name
     target = Path(media.scratch_directory()) / (uuid.uuid4().hex + ".zip")
     used, count = set(), 0
@@ -140,12 +140,12 @@ async def export_group(payload):
                 asset = media.get_asset(item.url)
                 if not asset:
                     raise HTTPException(404, "分组包含尚未迁移的素材")
-                path = await asyncio.to_thread(media.materialize, item.url)
+                path = media.materialize(item.url)
                 media.check_budget(asset["size_bytes"])
                 name = sanitize_export_filename(item.name or asset["display_name"], "media.bin")
                 archive.write(path, canvas_workflow_unique_archive_name(name, used))
             count += 1
     if not count:
         raise HTTPException(404, "没有可导出的内容")
-    asset = await asyncio.to_thread(media.publish, target, (payload.group_name or "group") + ".zip", role="export")
+    asset = media.publish(target, (payload.group_name or "group") + ".zip", role="export")
     return {"ok": True, "folder": media.stable_url(asset), "url": media.stable_url(asset), "media_asset_id": asset["id"], "count": count}

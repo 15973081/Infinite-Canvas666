@@ -112,7 +112,7 @@ def test_unknown_sibling_stays_reviewable_without_losing_completed_image():
             await asyncio.Event().wait()
         with patch.object(providers, "generate_ai_image", generate):
             execution = asyncio.create_task(worker.execute(claim(tid)))
-            await started.wait()
+            await asyncio.wait_for(started.wait(), 5)
             for _ in range(200):
                 if info(tid)["saved_results"] == 1:
                     break

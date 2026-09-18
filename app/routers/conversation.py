@@ -18,7 +18,7 @@ from app.services.chat import *
 router = APIRouter()
 
 @router.get("/api/conversations")
-async def conversations(request: Request, x_user_id: str = Header(default=""), limit: int = 100, offset: int = 0):
+def conversations(request: Request, x_user_id: str = Header(default=""), limit: int = 100, offset: int = 0):
     if not 1 <= limit <= 200 or offset < 0:
         raise HTTPException(400, "无效的对话分页参数")
     user_id = safe_user_id(x_user_id, request)
@@ -26,17 +26,17 @@ async def conversations(request: Request, x_user_id: str = Header(default=""), l
     return {"user_id": user_id, "conversations": records[:limit], "next_offset": offset + limit if len(records) > limit else None}
 
 @router.post("/api/conversations")
-async def create_conversation(payload: ConversationCreateRequest, request: Request, x_user_id: str = Header(default="")):
+def create_conversation(payload: ConversationCreateRequest, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
     return {"conversation": new_conversation(user_id, payload.title)}
 
 @router.get("/api/conversations/{conversation_id}")
-async def get_conversation(conversation_id: str, request: Request, x_user_id: str = Header(default="")):
+def get_conversation(conversation_id: str, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
     return {"conversation": load_conversation(user_id, conversation_id)}
 
 @router.delete("/api/conversations/{conversation_id}")
-async def delete_conversation(conversation_id: str, request: Request, x_user_id: str = Header(default="")):
+def delete_conversation(conversation_id: str, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
     if postgres_enabled():
         from app.storage.documents import delete

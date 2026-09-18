@@ -1,5 +1,6 @@
 """Auto-generated router."""
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Header, Request
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from typing import List, Dict, Any, Optional
 import json, os, time, re, uuid, shutil, asyncio, httpx, urllib.parse, hashlib, base64
@@ -57,6 +58,13 @@ def _update_video_task_record(task_id: str, **changes) -> dict:
 
 @router.post("/api/canvas-image-tasks")
 async def create_canvas_image_task(payload: OnlineImageRequest):
+    result, created = await run_in_threadpool(_prepare_canvas_image_task, payload)
+    if created and not postgres_enabled():
+        asyncio.create_task(run_canvas_image_task(result['task_id'], payload))
+    return result
+
+
+def _prepare_canvas_image_task(payload: OnlineImageRequest):
     if postgres_enabled():
         payload.provider_id = get_api_provider(payload.provider_id)["id"]
     if payload.canvas_id:
@@ -79,7 +87,7 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
             elif get_canvas_task_request(task_id) != _canvas_video_payload_dict(payload):
                 raise HTTPException(409, "相同任务 ID 的请求内容不同")
             return {"task_id": task_id, "status": existing.get("status") or "queued",
-                    **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}
+                    **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}, False
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
@@ -100,13 +108,11 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
         }
         stored = save_durable_canvas_task(task, _canvas_video_payload_dict(payload))
         CANVAS_TASKS[task_id] = stored
-    if not postgres_enabled():
-        asyncio.create_task(run_canvas_image_task(task_id, payload))
     return {"task_id": task_id, "status": stored.get("status") or "queued",
-            **({"canvas_binding": stored["canvas_binding"]} if stored.get("canvas_binding") else {})}
+            **({"canvas_binding": stored["canvas_binding"]} if stored.get("canvas_binding") else {})}, True
 
 @router.get("/api/canvas-image-tasks/{task_id}")
-async def get_canvas_image_task(task_id: str):
+def get_canvas_image_task(task_id: str):
     with CANVAS_TASK_LOCK:
         task = dict((load_durable_canvas_task(task_id) if postgres_enabled() else CANVAS_TASKS.get(task_id) or load_durable_canvas_task(task_id)) or {})
     if not task:
@@ -115,6 +121,13 @@ async def get_canvas_image_task(task_id: str):
 
 @router.post("/api/canvas-video-tasks")
 async def create_canvas_video_task(payload: CanvasVideoRequest):
+    result, created = await run_in_threadpool(_prepare_canvas_video_task, payload)
+    if created and not postgres_enabled():
+        asyncio.create_task(run_canvas_video_task(result['task_id'], payload))
+    return result
+
+
+def _prepare_canvas_video_task(payload: CanvasVideoRequest):
     if postgres_enabled():
         payload.provider_id = get_api_provider(payload.provider_id)["id"]
     if payload.canvas_id:
@@ -141,7 +154,7 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
                 raise HTTPException(status_code=409, detail="任务已关联其他画布")
             CANVAS_TASKS[task_id] = existing
             return {"task_id": task_id, "status": existing.get("status") or "queued",
-                    **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}
+                    **({"canvas_binding": existing["canvas_binding"]} if existing.get("canvas_binding") else {})}, False
         if CANVAS_TASK_MAINTENANCE.get("draining"):
             raise HTTPException(
                 status_code=503,
@@ -162,13 +175,11 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
         }
         stored = save_durable_canvas_task(task, _canvas_video_payload_dict(payload))
         CANVAS_TASKS[task_id] = stored
-    if not postgres_enabled():
-        asyncio.create_task(run_canvas_video_task(task_id, payload))
     return {"task_id": task_id, "status": stored.get("status") or "queued",
-            **({"canvas_binding": stored["canvas_binding"]} if stored.get("canvas_binding") else {})}
+            **({"canvas_binding": stored["canvas_binding"]} if stored.get("canvas_binding") else {})}, True
 
 @router.get("/api/canvas-video-tasks/{task_id}")
-async def get_canvas_video_task(task_id: str):
+def get_canvas_video_task(task_id: str):
     with CANVAS_TASK_LOCK:
         task = dict((load_durable_canvas_task(task_id) if postgres_enabled() else CANVAS_TASKS.get(task_id) or load_durable_canvas_task(task_id)) or {})
         if task:
@@ -942,19 +953,19 @@ async def execute_canvas_llm(payload: CanvasLLMRequest, *, durable=False):
     return {"text": text, "model": model, "raw_usage": raw_data.get("usage")}
 
 @router.get("/api/canvases")
-async def canvases():
+def canvases():
     return {"canvases": list_canvases()}
 
 @router.get("/api/canvases/trash")
-async def trashed_canvases():
+def trashed_canvases():
     return {"canvases": list_deleted_canvases(), "retention_days": 30}
 
 @router.get("/api/canvas-folders")
-async def list_canvas_folders():
+def list_canvas_folders():
     return {"folders": canvas_folder_records()}
 
 @router.post("/api/canvas-folders")
-async def create_canvas_folder(payload: CanvasFolderCreateRequest):
+def create_canvas_folder(payload: CanvasFolderCreateRequest):
     data = canvas_folders_load()
     folders = data.get("folders", [])
     parent_id = normalize_canvas_folder_id(payload.parent_id)
@@ -973,7 +984,7 @@ async def create_canvas_folder(payload: CanvasFolderCreateRequest):
     return {"folder": folder, "folders": canvas_folder_records()}
 
 @router.patch("/api/canvas-folders/{folder_id}")
-async def update_canvas_folder(folder_id: str, payload: CanvasFolderUpdateRequest):
+def update_canvas_folder(folder_id: str, payload: CanvasFolderUpdateRequest):
     target_id = normalize_canvas_folder_id(folder_id)
     data = canvas_folders_load()
     folders = data.get("folders", [])
@@ -995,7 +1006,7 @@ async def update_canvas_folder(folder_id: str, payload: CanvasFolderUpdateReques
     return {"folder": folder, "folders": canvas_folder_records()}
 
 @router.delete("/api/canvas-folders/{folder_id}")
-async def delete_canvas_folder(folder_id: str):
+def delete_canvas_folder(folder_id: str):
     from contextlib import nullcontext
     from app.storage.database import connection
     with connection() if postgres_enabled() else nullcontext():
@@ -1016,7 +1027,7 @@ async def delete_canvas_folder(folder_id: str):
 
 
 @router.post("/api/canvases")
-async def create_canvas(payload: CanvasCreateRequest):
+def create_canvas(payload: CanvasCreateRequest):
     return {"canvas": new_canvas(payload.title, payload.icon, payload.kind, payload.folder_id)}
 
 def _load_canvas_metadata(canvas_id):
@@ -1069,11 +1080,11 @@ def move_canvas_to_folder(canvas_id: str, payload: CanvasMoveRequest):
     return {"canvas": {**canvas_record(canvas), "revision": canvas.get("revision")}}
 
 @router.get("/api/canvases/{canvas_id}")
-async def get_canvas(canvas_id: str):
+def get_canvas(canvas_id: str):
     return {"canvas": load_canvas(canvas_id)}
 
 @router.post("/api/canvases/{canvas_id}/touch")
-async def touch_canvas(canvas_id: str):
+def touch_canvas(canvas_id: str):
     canvas = load_canvas(canvas_id)
     return {"canvas": canvas_record(canvas), "updated_at": canvas.get("updated_at", 0)}
 
@@ -1084,7 +1095,7 @@ async def list_canvas_assets(trash: bool = False, source_state: str = "active"):
     return await asyncio.to_thread(canvas_assets_index, trash=trash, source_state=source_state)
 
 @router.get("/api/smart-canvas/prompt-templates")
-async def smart_canvas_prompt_templates():
+def smart_canvas_prompt_templates():
     try:
         template_path = prompt_template_markdown_path()
         source = os.path.relpath(template_path, BASE_DIR).replace("\\", "/") if template_path else ""
@@ -1116,7 +1127,7 @@ def check_canvas_assets(payload: CanvasAssetCheckRequest):
 async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
     if postgres_enabled():
         from app.storage.exports import download_assets
-        return await download_assets(payload)
+        return await run_in_threadpool(download_assets, payload)
     buffer = BytesIO()
     used_names = set()
     count = 0
@@ -1189,7 +1200,7 @@ async def export_canvas_workflow(payload: CanvasWorkflowExportRequest):
 async def export_canvas_workflow_to_library(payload: CanvasWorkflowExportRequest):
     if postgres_enabled():
         from app.storage.exports import workflow_to_library
-        return await workflow_to_library(payload)
+        return await run_in_threadpool(workflow_to_library, payload)
     archive, meta = build_canvas_workflow_archive(payload)
     filename = sanitize_export_filename(payload.filename or "canvas-workflow.zip", "canvas-workflow.zip")
     if not filename.lower().endswith(".zip"):
@@ -1208,7 +1219,7 @@ async def export_canvas_workflow_to_library(payload: CanvasWorkflowExportRequest
 async def import_canvas_workflow(file: UploadFile = File(...)):
     if postgres_enabled():
         from app.storage.exports import import_workflow
-        return await import_workflow(file)
+        return await run_in_threadpool(import_workflow, file)
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="文件为空")
@@ -1277,7 +1288,7 @@ async def import_canvas_workflow(file: UploadFile = File(...)):
 async def export_smart_canvas_group(payload: SmartCanvasGroupExportRequest):
     if postgres_enabled():
         from app.storage.exports import export_group
-        return await export_group(payload)
+        return await run_in_threadpool(export_group, payload)
     target_dir = smart_group_export_folder(payload.folder, payload.group_name)
     used_names = set()
     count = 0
@@ -1340,6 +1351,12 @@ async def trim_smart_canvas_video(payload: SmartCanvasVideoTrimRequest):
 
 @router.put("/api/canvases/{canvas_id}")
 async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
+    canvas = await run_in_threadpool(_save_canvas_update, canvas_id, payload)
+    await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
+    return {"canvas": canvas}
+
+
+def _save_canvas_update(canvas_id: str, payload: CanvasSaveRequest):
     from app.storage.settings import member_auth_enabled
     if member_auth_enabled() and payload.base_revision is None:
         raise HTTPException(428, {'code': 'canvas_protocol_required'})
@@ -1371,11 +1388,10 @@ async def update_canvas(canvas_id: str, payload: CanvasSaveRequest):
     if "settings" in fields_set:
         canvas["settings"] = payload.settings or {}
     save_canvas(canvas)
-    await manager.broadcast_canvas_updated(canvas_id, int(canvas.get("updated_at") or now_ms()), payload.client_id)
-    return {"canvas": canvas}
+    return canvas
 
 @router.delete("/api/canvases/{canvas_id}")
-async def delete_canvas(canvas_id: str):
+def delete_canvas(canvas_id: str):
     canvas = load_canvas_any(canvas_id)
     if not canvas.get("deleted_at"):
         canvas["deleted_at"] = now_ms()
@@ -1383,7 +1399,7 @@ async def delete_canvas(canvas_id: str):
     return {"ok": True}
 
 @router.post("/api/canvases/{canvas_id}/restore")
-async def restore_canvas(canvas_id: str):
+def restore_canvas(canvas_id: str):
     canvas = load_canvas_any(canvas_id)
     if canvas.get("deleted_at"):
         canvas.pop("deleted_at", None)
@@ -1393,7 +1409,7 @@ async def restore_canvas(canvas_id: str):
     return {"canvas": canvas}
 
 @router.delete("/api/canvases/{canvas_id}/purge")
-async def purge_canvas(canvas_id: str):
+def purge_canvas(canvas_id: str):
     if postgres_enabled():
         from app.storage.canvases import purge
         purge(canvas_id)
@@ -1432,7 +1448,7 @@ def _prune_canvas_backups(backup_dir: str) -> None:
 
 
 @router.post("/api/canvases/{canvas_id}/backup")
-async def create_canvas_backup(canvas_id: str):
+def create_canvas_backup(canvas_id: str):
     if postgres_enabled():
         from app.storage.backups import create
         return create(canvas_id)
@@ -1451,7 +1467,7 @@ async def create_canvas_backup(canvas_id: str):
     return {"ok": True, "filename": filename, "updated_at": ts}
 
 @router.get("/api/canvases/{canvas_id}/backups")
-async def list_canvas_backups(canvas_id: str):
+def list_canvas_backups(canvas_id: str):
     if postgres_enabled():
         from app.storage.backups import list_backups
         return list_backups(canvas_id)
@@ -1481,7 +1497,7 @@ async def list_canvas_backups(canvas_id: str):
     return {"backups": files}
 
 @router.post("/api/canvases/{canvas_id}/backups/{filename}/restore")
-async def restore_canvas_backup(canvas_id: str, filename: str):
+def restore_canvas_backup(canvas_id: str, filename: str):
     if postgres_enabled():
         from app.storage.backups import restore
         return restore(canvas_id, filename)
@@ -1496,7 +1512,7 @@ async def restore_canvas_backup(canvas_id: str, filename: str):
     return {"canvas": backup}
 
 @router.delete("/api/canvases/{canvas_id}/backups/{filename}")
-async def delete_canvas_backup(canvas_id: str, filename: str):
+def delete_canvas_backup(canvas_id: str, filename: str):
     if postgres_enabled():
         from app.storage.documents import delete
         delete('canvas_backup', canvas_id + '/' + filename)

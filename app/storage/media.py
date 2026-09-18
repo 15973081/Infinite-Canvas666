@@ -127,25 +127,44 @@ def id_from_ref(value):
     return match.group(1) if match else ""
 
 
-def get_asset(ref, ready=True):
-    asset_id = id_from_ref(ref)
-    if not asset_id:
-        legacy = canonical_legacy(ref)
-        if not legacy:
-            return None
-        with connection() as conn:
-            alias = conn.execute("SELECT asset_id FROM asset_aliases WHERE workspace_id=%s AND source_namespace=%s AND legacy_ref=%s", (current_workspace(), os.getenv("ASSET_SOURCE_NAMESPACE", "local"), legacy)).fetchone()
-        asset_id = alias["asset_id"] if alias else None
-    if not asset_id:
-        return None
+def get_assets(refs, ready=True):
+    """Resolve one operation's references in batches, never across workspaces."""
+    ids = {ref: id_from_ref(ref) for ref in refs}
+    aliases = {ref: canonical_legacy(ref) for ref in ids if not ids[ref]}
+    workspace = current_workspace()
+    if not ids:
+        return {}
+    names = sorted(set(aliases.values()) - {""})
+    if not names and not any(ids.values()):
+        return dict.fromkeys(ids)
     with connection() as conn:
-        row = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=%s", (current_workspace(), asset_id)).fetchone()
+        if names:
+            rows = conn.execute("SELECT legacy_ref,asset_id FROM asset_aliases WHERE workspace_id=%s AND source_namespace=%s AND legacy_ref=ANY(%s)",
+                                (workspace, os.getenv("ASSET_SOURCE_NAMESPACE", "local"), names)).fetchall()
+            resolved = {row['legacy_ref']: row['asset_id'] for row in rows}
+            ids.update({ref: resolved.get(alias, '') for ref, alias in aliases.items()})
+        wanted = sorted(set(ids.values()) - {""})
+        rows = conn.execute("SELECT * FROM assets WHERE workspace_id=%s AND id=ANY(%s)",
+                            (workspace, wanted)).fetchall() if wanted else []
+    assets = {row['id']: row for row in rows}
     from app.services.member_context import current_access
-    if row and row["role"] == "task-result-source" and current_access.get() is not None:
-        raise HTTPException(404, "素材不存在")
-    if ready and (not row or row["status"] != "ready" or row["deleted_at"]):
-        raise HTTPException(404, "素材不存在或尚未就绪")
-    return row
+    result = {}
+    for ref, asset_id in ids.items():
+        row = assets.get(asset_id)
+        if row and row["role"] == "task-result-source" and current_access.get() is not None:
+            raise HTTPException(404, "素材不存在")
+        if ready and asset_id and (not row or row["status"] != "ready" or row["deleted_at"]):
+            raise HTTPException(404, "素材不存在或尚未就绪")
+        result[ref] = row
+    return result
+
+
+def get_asset(ref, ready=True):
+    if isinstance(ref, dict):
+        ref = ref.get('media_asset_id') or ref.get('url') or ''
+    if not isinstance(ref, str) or not ref:
+        return None
+    return get_assets([ref], ready=ready)[ref]
 
 
 def stable_url(asset):
@@ -484,7 +503,21 @@ def referenced_ids(value):
 
 def normalize_document(value):
     # Only structured media fields; never rewrite prompts, costs or supplier URIs.
-    fields = {"url", "src", "path", "image", "video", "output", "output_url", "outputUrl", "image_url", "video_url", "videoUrl", "thumbnail", "thumbnail_url", "images", "videos", "outputs", "references", "frames"}
+    fields = {"url", "src", "path", "image", "video", "audio", "audios", "audio_url", "preview_url", "reference_images", "output", "output_url", "outputUrl", "image_url", "video_url", "videoUrl", "thumbnail", "thumbnail_url", "images", "videos", "outputs", "references", "frames"}
+
+    refs = set()
+    def collect(item, field=""):
+        if isinstance(item, dict):
+            for key, child in item.items():
+                if key not in {"logs", "cost", "billing_price", "registrations"}:
+                    collect(child, key)
+        elif isinstance(item, list):
+            for child in item:
+                collect(child, field)
+        elif isinstance(item, str) and field in fields and item.startswith(("/assets/", "/output/", "/api/media/")):
+            refs.add(item)
+    collect(value)
+    assets = get_assets(refs)
 
     def walk(item, field=""):
         if isinstance(item, dict):
@@ -496,7 +529,7 @@ def normalize_document(value):
         if isinstance(item, list):
             return [walk(child, field) for child in item]
         if isinstance(item, str) and field in fields and item.startswith(("/assets/", "/output/", "/api/media/")):
-            asset = get_asset(item)
+            asset = assets[item]
             return stable_url(asset) if asset else item
         return item
 
@@ -551,19 +584,23 @@ async def download_remote(url, prefix="media_", category="output", provider=None
 def lock_retained_references(conn, value):
     """Coordinate document publication with permanent asset deletion."""
     ids = set(referenced_ids(value))
-    # Legacy aliases are still present in retained library and backup documents.
-    aliases = {r['legacy_ref']:r['asset_id'] for r in conn.execute(
-        'SELECT legacy_ref,asset_id FROM asset_aliases WHERE workspace_id=%s', (current_workspace(),))}
+    # Query only aliases mentioned by this document, rather than the entire
+    # workspace on every upload (legacy imports can contain tens of thousands).
+    legacy_refs = set()
     def walk(v):
         if isinstance(v,str):
             if v.startswith('ast_'): ids.add(v)
-            alias=aliases.get(canonical_legacy(v))
-            if alias: ids.add(alias)
+            legacy = canonical_legacy(v)
+            if legacy: legacy_refs.add(legacy)
         elif isinstance(v,dict):
             for child in v.values(): walk(child)
         elif isinstance(v,list):
             for child in v: walk(child)
     walk(value)
+    if legacy_refs:
+        ids.update(r['asset_id'] for r in conn.execute(
+            'SELECT asset_id FROM asset_aliases WHERE workspace_id=%s AND legacy_ref=ANY(%s)',
+            (current_workspace(), sorted(legacy_refs))))
     if ids:
         rows=conn.execute('SELECT id,status FROM assets WHERE workspace_id=%s AND id=ANY(%s) ORDER BY id FOR SHARE', (current_workspace(),sorted(ids))).fetchall()
         if any(r['status'] in ('deleting','deleted') for r in rows):

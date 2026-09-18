@@ -18,7 +18,7 @@ from app.services.chat import *
 router = APIRouter()
 
 @router.get("/api/history")
-async def get_history_api(type: str = None):
+def get_history_api(type: str = None):
     if postgres_enabled():
         from app.storage.history import legacy_list
         return legacy_list(type)
@@ -45,7 +45,7 @@ async def get_history_api(type: str = None):
 
 
 @router.get("/api/history/page")
-async def get_history_page(type: str = None, limit: int = 50, cursor: str = None):
+def get_history_page(type: str = None, limit: int = 50, cursor: str = None):
     if not 1 <= limit <= 200:
         raise HTTPException(400, "每页历史数量必须为 1–200")
     if postgres_enabled():
@@ -57,11 +57,11 @@ async def get_history_page(type: str = None, limit: int = 50, cursor: str = None
             raise ValueError()
     except ValueError:
         raise HTTPException(400, "无效的历史分页游标") from None
-    data = await get_history_api(type)
+    data = get_history_api(type)
     return {"items": data[offset:offset + limit], "next_cursor": str(offset + limit) if offset + limit < len(data) else None}
 
 @router.get("/api/queue_status")
-async def get_queue_status(client_id: str):
+def get_queue_status(client_id: str):
     with QUEUE_LOCK:
         total = len(QUEUE)
         positions = [i + 1 for i, t in enumerate(QUEUE) if t["client_id"] == client_id]
@@ -69,7 +69,7 @@ async def get_queue_status(client_id: str):
     return {"total": total, "position": position}
 
 @router.post("/api/history/delete")
-async def delete_history(req: DeleteHistoryRequest):
+def delete_history(req: DeleteHistoryRequest):
     if postgres_enabled():
         from app.storage.history import delete_timestamp
         return {"success": delete_timestamp(req.timestamp)}

@@ -20,7 +20,7 @@ def require(conn, canvas_id, write=False):
     for action in PERMISSIONS:
         az.require(conn, access.principal, action, current_workspace())
     if write:
-        return request_write(conn, canvas_id, operation='write')
+        return request_write(conn, canvas_id, operation='write', include_document=True)
     ensure(conn, current_workspace(), 'read')
     row = canvas_row(conn, current_workspace(), canvas_id)
     if row['deleted_at']:

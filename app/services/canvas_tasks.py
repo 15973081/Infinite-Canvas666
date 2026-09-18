@@ -12,6 +12,7 @@ import logging
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from threading import Lock
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -31,13 +32,18 @@ def canvas_task_db_path() -> str:
     return os.path.abspath(override or os.path.join(DATA_DIR, "canvas_tasks.sqlite3"))
 
 
-def _connect() -> sqlite3.Connection:
+@contextmanager
+def _connect():
     path = canvas_task_db_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     conn = sqlite3.connect(path, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=30000")
-    return conn
+    try:
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=30000")
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_canvas_task_store() -> str:

@@ -45,8 +45,9 @@ def digest(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def canvas_row(conn, workspace, canvas_id):
-    row = conn.execute('SELECT * FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE', (workspace, canvas_id)).fetchone()
+def canvas_row(conn, workspace, canvas_id, *, include_document=True):
+    columns = '*' if include_document else "id,workspace_id,revision,deleted_at,jsonb_build_object('purged_at',document->'purged_at') AS document"
+    row = conn.execute(f'SELECT {columns} FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE', (workspace, canvas_id)).fetchone()
     if not row or row['document'].get('purged_at'):
         az.fail('canvas_not_found', 404)
     return row
@@ -108,9 +109,9 @@ def authorize(conn, actor, workspace, action='canvas.edit'):
     az.require(conn, actor, action, workspace)
 
 
-def validate(conn, actor, workspace, canvas_id, proof, *, operation='write', revision=True):
+def validate(conn, actor, workspace, canvas_id, proof, *, operation='write', revision=True, include_document=True):
     authorize(conn, actor, workspace)
-    canvas = canvas_row(conn, workspace, canvas_id)
+    canvas = canvas_row(conn, workspace, canvas_id, include_document=include_document)
     row = lease_row(conn, workspace, canvas_id)
     if not proof or not proof.token or proof.generation is None or (revision and proof.revision is None):
         az.fail('canvas_protocol_required', 428)
@@ -124,13 +125,13 @@ def validate(conn, actor, workspace, canvas_id, proof, *, operation='write', rev
     return canvas, row
 
 
-def request_write(conn, canvas_id, *, operation=None):
+def request_write(conn, canvas_id, *, operation=None, include_document=False):
     from app.services.member_context import current_access
     access = current_access.get()
     if access is None:  # Trusted server work has its own durable task/migration checks.
         return None
     return validate(conn, access.principal, access.workspace, canvas_id, access.edit_proof,
-                    operation=operation or access.operation)
+                    operation=operation or access.operation, include_document=include_document)
 
 
 def event(conn, actor, row, action, previous, revision, reason=''):
@@ -144,7 +145,7 @@ def status(actor, canvas_id):
     with az.policy_transaction() as conn:
         authorize(conn, actor, workspace, 'canvas.read')
         ensure(conn, workspace, 'read')
-        canvas = canvas_row(conn, workspace, canvas_id)
+        canvas = canvas_row(conn, workspace, canvas_id, include_document=False)
         return public(conn, lease_row(conn, workspace, canvas_id), actor, canvas['revision'])
 
 
@@ -153,7 +154,7 @@ def acquire(actor, canvas_id, *, takeover='', expected_generation=None, confirm=
     with az.policy_transaction() as conn:
         authorize(conn, actor, workspace)
         ensure(conn, workspace, 'write')
-        canvas = canvas_row(conn, workspace, canvas_id)
+        canvas = canvas_row(conn, workspace, canvas_id, include_document=False)
         row = lease_row(conn, workspace, canvas_id)
         if takeover not in {'', 'self', 'force'}:
             az.fail('canvas_takeover_invalid', 400)
@@ -183,7 +184,7 @@ def acquire(actor, canvas_id, *, takeover='', expected_generation=None, confirm=
 def renew(actor, canvas_id, proof):
     workspace = current_workspace()
     with az.policy_transaction() as conn:
-        canvas, row = validate(conn, actor, workspace, canvas_id, proof, operation='canvas.finish', revision=False)
+        canvas, row = validate(conn, actor, workspace, canvas_id, proof, operation='canvas.finish', revision=False, include_document=False)
         # A renewal cannot extend editing past a maintenance drain deadline.
         from app.services.maintenance_control import effective
         deadlines = [r['drain_deadline'] for r in effective(conn, workspace)['sources'] if r['mode'] == 'draining']
@@ -217,7 +218,7 @@ def request_transfer(actor, canvas_id):
     with az.policy_transaction() as conn:
         authorize(conn, actor, workspace)
         ensure(conn, workspace, 'write')
-        canvas_row(conn, workspace, canvas_id)
+        canvas_row(conn, workspace, canvas_id, include_document=False)
         row = lease_row(conn, workspace, canvas_id)
         if not holder_active(conn, row):
             az.fail('canvas_transfer_no_holder', 409)
@@ -235,7 +236,7 @@ def transfers(actor, canvas_id):
     with az.policy_transaction() as conn:
         authorize(conn, actor, workspace, 'canvas.read')
         ensure(conn, workspace, 'read')
-        canvas = canvas_row(conn, workspace, canvas_id)
+        canvas = canvas_row(conn, workspace, canvas_id, include_document=False)
         row = lease_row(conn, workspace, canvas_id)
         return transfer_snapshot(conn, actor, workspace, canvas, row)
 

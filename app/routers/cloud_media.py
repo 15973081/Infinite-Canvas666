@@ -10,11 +10,13 @@ from weakref import WeakValueDictionary
 from fastapi import APIRouter, File, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 from app.storage import media
 from app.storage.settings import postgres_enabled
 
 router = APIRouter()
 _preview_locks = WeakValueDictionary()
+_preview_slots = WeakValueDictionary()
 
 
 def enabled():
@@ -23,6 +25,10 @@ def enabled():
 
 
 async def upload_files(files):
+    return await run_in_threadpool(_upload_files, files)
+
+
+def _upload_files(files):
     enabled()
     uploaded = []
     for file in files:
@@ -31,7 +37,7 @@ async def upload_files(files):
         total = 0
         try:
             with path.open("xb") as stream:
-                while chunk := await file.read(1024 * 1024):
+                while chunk := file.file.read(1024 * 1024):
                     total += len(chunk)
                     if total > media.max_file_bytes():
                         raise HTTPException(413, "素材超过单文件限制")
@@ -39,12 +45,12 @@ async def upload_files(files):
                     stream.write(chunk)
             if not total:
                 continue
-            asset = await asyncio.to_thread(media.publish, path, name)
+            asset = media.publish(path, name)
             uploaded.append({"url": media.stable_url(asset), "media_asset_id": asset["id"], "name": name,
                              "kind": asset["kind"], "size": total, "filename": path.name})
         finally:
             path.unlink(missing_ok=True)
-            await file.close()
+            file.file.close()
     return {"files": uploaded}
 
 
@@ -141,10 +147,10 @@ async def content(asset_id: str, variant: str = "original"):
         return await preview(asset_id, 512)
     if variant != "original":
         raise HTTPException(400, "未知媒体版本")
-    asset = media.get_asset(asset_id)
+    asset = await run_in_threadpool(media.get_asset, asset_id)
     if not asset:
         raise HTTPException(404, "素材不存在")
-    return RedirectResponse(media.browser_url(asset), status_code=307, headers={"Cache-Control": "private, no-store"})
+    return RedirectResponse(await run_in_threadpool(media.browser_url, asset), status_code=307, headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/api/media/{asset_id}/signed")
@@ -199,8 +205,7 @@ def legacy_content(ref):
 
 
 async def preview(ref, width):
-    from app.services.assets import generate_media_preview_file
-    asset = media.get_asset(ref)
+    asset = await run_in_threadpool(media.get_asset, ref)
     if not asset:
         raise HTTPException(404, "素材不存在")
     width = max(64, min(2048, int(width or 512)))
@@ -210,10 +215,18 @@ async def preview(ref, width):
     lock_key = (asyncio.get_running_loop(), media.current_workspace(), media_id)
     lock = _preview_locks.setdefault(lock_key, asyncio.Lock())
     async with lock:
-        existing = media.get_asset(media_id, ready=False)
+        existing = await run_in_threadpool(media.get_asset, media_id, ready=False)
         if not existing or existing["status"] != "ready":
-            path = await asyncio.to_thread(media.materialize, asset["id"])
-            root = media.operation()["root"]
-            target, _ = await asyncio.to_thread(generate_media_preview_file, path, width, str(root / "preview.webp"), str(root / "preview.png"))
-            existing = await asyncio.to_thread(media.publish, target, Path(target).name, asset_id=media_id, parent_asset_id=asset["id"], role="preview")
-    return RedirectResponse(media.browser_url(existing), 307, headers={"Cache-Control": "private, no-store"})
+            # All preview entry points share a bound, including content?variant=preview.
+            slots = _preview_slots.setdefault(asyncio.get_running_loop(), asyncio.Semaphore(4))
+            async with slots:
+                existing = await run_in_threadpool(_build_preview, asset, media_id, width)
+    return RedirectResponse(await run_in_threadpool(media.browser_url, existing), 307, headers={"Cache-Control": "private, no-store"})
+
+
+def _build_preview(asset, media_id, width):
+    from app.services.assets import generate_media_preview_file
+    path = media.materialize(asset["id"])
+    root = media.operation()["root"]
+    target, _ = generate_media_preview_file(path, width, str(root / "preview.webp"), str(root / "preview.png"))
+    return media.publish(target, Path(target).name, asset_id=media_id, parent_asset_id=asset["id"], role="preview")

@@ -176,7 +176,7 @@ async def save_local_asset_caption(payload: LocalAssetCaptionSaveRequest):
     return {"ok": True, "caption": caption, "caption_file": os.path.basename(txt_path)}
 
 @router.post("/api/asset-library/workflows/upload")
-async def upload_asset_library_workflows(
+def upload_asset_library_workflows(
     files: List[UploadFile] = File(...),
     library_id: str = Form(""),
     category_id: str = Form(""),
@@ -185,7 +185,7 @@ async def upload_asset_library_workflows(
     _, cat = asset_library_workflow_category(lib, library_id, category_id)
     added = []
     for file in files[:100]:
-        raw = await file.read()
+        raw = file.file.read()
         filename = file.filename or "canvas-workflow.zip"
         lower = filename.lower()
         if not (lower.endswith(".json") or lower.endswith(".zip") or raw[:2] == b"PK"):
@@ -203,7 +203,7 @@ async def get_asset_library():
     return {"library": await asyncio.to_thread(load_asset_library)}
 
 @router.post("/api/asset-library/libraries")
-async def create_asset_library(payload: AssetLibraryRequest):
+def create_asset_library(payload: AssetLibraryRequest):
     lib = load_asset_library()
     library = {"id": f"lib_{uuid.uuid4().hex[:12]}", "name": sanitize_asset_name(payload.name, "资产库"), "type": "asset", "categories": []}
     library["categories"].append({"id": f"cat_{uuid.uuid4().hex[:12]}", "name": "默认分组", "type": "image", "items": []})
@@ -214,7 +214,7 @@ async def create_asset_library(payload: AssetLibraryRequest):
     return {"library": lib, "asset_library": library}
 
 @router.patch("/api/asset-library/libraries/{library_id}")
-async def rename_asset_library(library_id: str, payload: AssetLibraryRenameRequest):
+def rename_asset_library(library_id: str, payload: AssetLibraryRenameRequest):
     lib = load_asset_library()
     library = find_asset_library(lib, library_id)
     if not library or library.get("id") != library_id:
@@ -224,7 +224,7 @@ async def rename_asset_library(library_id: str, payload: AssetLibraryRenameReque
     return {"library": lib, "asset_library": library}
 
 @router.delete("/api/asset-library/libraries/{library_id}")
-async def delete_asset_library(library_id: str):
+def delete_asset_library(library_id: str):
     lib = load_asset_library()
     libraries = lib.get("libraries") or []
     if len(libraries) <= 1:
@@ -247,7 +247,7 @@ async def delete_asset_library(library_id: str):
     return {"library": lib}
 
 @router.post("/api/asset-library/categories")
-async def create_asset_library_category(payload: AssetLibraryCategoryRequest):
+def create_asset_library_category(payload: AssetLibraryCategoryRequest):
     lib = load_asset_library()
     library = find_asset_library(lib, payload.library_id)
     if not library:
@@ -267,7 +267,7 @@ async def create_asset_library_category(payload: AssetLibraryCategoryRequest):
     return {"library": lib, "category": category}
 
 @router.patch("/api/asset-library/categories/{category_id}")
-async def rename_asset_library_category(category_id: str, payload: AssetLibraryRenameRequest):
+def rename_asset_library_category(category_id: str, payload: AssetLibraryRenameRequest):
     lib = load_asset_library()
     _, cat = find_asset_category_with_library(lib, category_id, payload.library_id)
     if not cat:
@@ -277,7 +277,7 @@ async def rename_asset_library_category(category_id: str, payload: AssetLibraryR
     return {"library": lib, "category": cat}
 
 @router.delete("/api/asset-library/categories/{category_id}")
-async def delete_asset_library_category(category_id: str, library_id: str = ""):
+def delete_asset_library_category(category_id: str, library_id: str = ""):
     lib = load_asset_library()
     library, cat = find_asset_category_with_library(lib, category_id, library_id)
     if not cat:
@@ -300,7 +300,7 @@ async def delete_asset_library_category(category_id: str, library_id: str = ""):
     return {"library": lib}
 
 @router.post("/api/asset-library/items")
-async def add_asset_library_item(payload: AssetLibraryAddRequest):
+def add_asset_library_item(payload: AssetLibraryAddRequest):
     lib = load_asset_library()
     cat = find_asset_category_in_library(lib, payload.category_id, payload.library_id)
     if not cat:
@@ -316,7 +316,7 @@ async def add_asset_library_item(payload: AssetLibraryAddRequest):
     return {"library": lib, "item": item}
 
 @router.post("/api/asset-library/items/batch")
-async def batch_add_asset_library_items(payload: AssetLibraryBatchAddRequest):
+def batch_add_asset_library_items(payload: AssetLibraryBatchAddRequest):
     added = []
     lib = load_asset_library()
     cat = find_asset_category_in_library(lib, payload.category_id, payload.library_id)
@@ -476,7 +476,7 @@ async def caption_image_with_provider(abs_path, prompt, provider_id, model):
     return text or "接口返回了空回复。", resolved_model
 
 @router.patch("/api/asset-library/items/{item_id}")
-async def rename_asset_library_item(item_id: str, payload: AssetLibraryRenameRequest):
+def rename_asset_library_item(item_id: str, payload: AssetLibraryRenameRequest):
     lib = load_asset_library()
     for library in lib.get("libraries", []):
         for cat in library.get("categories", []):
@@ -783,7 +783,7 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
         return {"library": latest_lib, "item": latest_item}
 
 @router.delete("/api/asset-library/items/{item_id}")
-async def delete_asset_library_item(item_id: str):
+def delete_asset_library_item(item_id: str):
     lib = load_asset_library()
     removed = None
     for library in lib.get("libraries", []):
@@ -802,7 +802,7 @@ async def delete_asset_library_item(item_id: str):
     return {"library": lib}
 
 @router.post("/api/asset-library/items/delete")
-async def batch_delete_asset_library_items(payload: AssetLibraryBatchDeleteRequest):
+def batch_delete_asset_library_items(payload: AssetLibraryBatchDeleteRequest):
     ids = {str(item) for item in (payload.ids or []) if str(item)}
     if not ids:
         raise HTTPException(status_code=400, detail="没有选择资产")
@@ -827,7 +827,7 @@ async def batch_delete_asset_library_items(payload: AssetLibraryBatchDeleteReque
     return {"library": lib, "removed": removed}
 
 @router.post("/api/asset-library/items/move")
-async def batch_move_asset_library_items(payload: AssetLibraryBatchMoveRequest):
+def batch_move_asset_library_items(payload: AssetLibraryBatchMoveRequest):
     ids = {str(item) for item in (payload.ids or []) if str(item)}
     if not ids:
         raise HTTPException(status_code=400, detail="没有选择资产")
@@ -886,7 +886,7 @@ async def batch_move_asset_library_items(payload: AssetLibraryBatchMoveRequest):
     return {"library": lib, "moved": len(moved)}
 
 @router.post("/api/asset-library/items/crop")
-async def batch_crop_asset_library_items(payload: AssetLibraryBatchCropRequest):
+def batch_crop_asset_library_items(payload: AssetLibraryBatchCropRequest):
     ids = {str(item) for item in (payload.ids or []) if str(item)}
     if not ids:
         raise HTTPException(status_code=400, detail="没有选择资产")

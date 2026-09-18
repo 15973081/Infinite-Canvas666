@@ -18,7 +18,7 @@ def snapshot(actor, canvas_id):
     workspace = current_workspace()
     with az.policy_transaction() as conn:
         canvas_leases.authorize(conn, actor, workspace, 'canvas.read')
-        canvas = canvas_leases.canvas_row(conn, workspace, canvas_id)
+        canvas = canvas_leases.canvas_row(conn, workspace, canvas_id, include_document=False)
         state = maintenance_control.effective(conn, workspace)
         mode = state['mode']
         # Observation stays available through maintenance, without streaming

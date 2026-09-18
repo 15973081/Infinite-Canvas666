@@ -591,11 +591,17 @@ async function copyTextToClipboard(text){
         return ok;
     } catch(_) { return false; }
 }
+function assetErrorText(data, fallback='操作失败'){
+    if(typeof data?.detail === 'string') return data.detail;
+    if(typeof data?.detail?.message === 'string') return data.detail.message;
+    if(typeof data?.message === 'string') return data.message;
+    return window.CanvasSession?.errorText(data) || fallback;
+}
 async function apiJson(url, options={}){
     const res = await fetch(url, options);
     const data = await res.json().catch(() => ({}));
     if(!res.ok){
-        const error = new Error(data.detail || data.message || '操作失败');
+        const error = new Error(assetErrorText(data));
         error.status = res.status;
         throw error;
     }
@@ -2666,7 +2672,7 @@ async function exportWorkflowItems(ids){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({filename:'workflows.zip', items:items.map(item => ({url:item.url, name:item.name || 'workflow'}))})
     });
-    if(!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || '导出工作流失败');
+    if(!res.ok) throw new Error(assetErrorText(await res.json().catch(() => ({})), '导出工作流失败'));
     const blob = await res.blob();
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -2695,7 +2701,7 @@ async function downloadCanvasAssetItems(ids){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({filename:'canvas-assets.zip', items:items.map(item => ({url:item.url, name:item.name || 'canvas-asset'}))})
     });
-    if(!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || '下载画布资产失败');
+    if(!res.ok) throw new Error(assetErrorText(await res.json().catch(() => ({})), '下载画布资产失败'));
     const blob = await res.blob();
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -2754,7 +2760,7 @@ async function downloadSelectedAssets(){
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({filename:'assets.zip', items:items.map(it => ({url:it.url, name:assetDownloadName(it)}))})
         });
-        if(!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || '下载失败');
+        if(!res.ok) throw new Error(assetErrorText(await res.json().catch(() => ({})), '下载失败'));
         const blob = await res.blob();
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);

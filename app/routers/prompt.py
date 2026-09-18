@@ -18,11 +18,11 @@ from app.services.chat import *
 router = APIRouter()
 
 @router.get("/api/prompt-libraries")
-async def get_prompt_libraries():
+def get_prompt_libraries():
     return {"library": public_prompt_libraries()}
 
 @router.post("/api/prompt-libraries")
-async def create_prompt_library(payload: PromptLibraryRequest):
+def create_prompt_library(payload: PromptLibraryRequest):
     data = load_prompt_libraries()
     library = {
         "id": f"lib_{uuid.uuid4().hex[:12]}",
@@ -38,7 +38,7 @@ async def create_prompt_library(payload: PromptLibraryRequest):
     return {"library": public_prompt_libraries(data), "prompt_library": new_lib}
 
 @router.patch("/api/prompt-libraries/{library_id}")
-async def rename_prompt_library(library_id: str, payload: PromptLibraryRequest):
+def rename_prompt_library(library_id: str, payload: PromptLibraryRequest):
     data = load_prompt_libraries()
     library = find_prompt_library(data, library_id)
     if not library or library.get("id") != library_id:
@@ -48,7 +48,7 @@ async def rename_prompt_library(library_id: str, payload: PromptLibraryRequest):
     return {"library": public_prompt_libraries(data), "prompt_library": library}
 
 @router.delete("/api/prompt-libraries/{library_id}")
-async def delete_prompt_library(library_id: str):
+def delete_prompt_library(library_id: str):
     if library_id == "system":
         raise HTTPException(status_code=400, detail="系统提示词库不能删除，可以删除其中的提示词")
     data = load_prompt_libraries()
@@ -63,7 +63,7 @@ async def delete_prompt_library(library_id: str):
     return {"library": public_prompt_libraries(data)}
 
 @router.post("/api/prompt-libraries/items")
-async def add_prompt_library_item(payload: PromptLibraryItemRequest):
+def add_prompt_library_item(payload: PromptLibraryItemRequest):
     data = load_prompt_libraries()
     library = find_prompt_library(data, payload.library_id)
     if not library:
@@ -86,7 +86,7 @@ async def add_prompt_library_item(payload: PromptLibraryItemRequest):
     return {"library": public_prompt_libraries(data), "item": item}
 
 @router.patch("/api/prompt-libraries/items/{item_id}")
-async def update_prompt_library_item(item_id: str, payload: PromptLibraryItemRequest):
+def update_prompt_library_item(item_id: str, payload: PromptLibraryItemRequest):
     data = load_prompt_libraries()
     for library in data.get("libraries", []) or []:
         if payload.library_id and library.get("id") != payload.library_id:
@@ -108,7 +108,7 @@ async def update_prompt_library_item(item_id: str, payload: PromptLibraryItemReq
     raise HTTPException(status_code=404, detail="提示词不存在")
 
 @router.delete("/api/prompt-libraries/items/{item_id}")
-async def delete_prompt_library_item(item_id: str):
+def delete_prompt_library_item(item_id: str):
     data = load_prompt_libraries()
     removed = None
     for library in data.get("libraries", []) or []:
@@ -125,7 +125,7 @@ async def delete_prompt_library_item(item_id: str):
     return {"library": public_prompt_libraries(data), "removed": 1}
 
 @router.post("/api/prompt-libraries/items/delete")
-async def batch_delete_prompt_library_items(payload: PromptLibraryBatchDeleteRequest):
+def batch_delete_prompt_library_items(payload: PromptLibraryBatchDeleteRequest):
     ids = {str(item) for item in (payload.ids or []) if str(item)}
     if not ids:
         raise HTTPException(status_code=400, detail="没有选择提示词")
@@ -145,7 +145,7 @@ async def batch_delete_prompt_library_items(payload: PromptLibraryBatchDeleteReq
 PROMPT_BUILTIN_CATEGORY_IDS = {"view", "storyboard", "character", "product", "lighting", "custom"}
 
 @router.post("/api/prompt-libraries/categories")
-async def add_prompt_library_category(payload: PromptLibraryCategoryRequest):
+def add_prompt_library_category(payload: PromptLibraryCategoryRequest):
     data = load_prompt_libraries()
     library = find_prompt_library(data, payload.library_id) or find_prompt_library(data, "system")
     if not library:
@@ -161,7 +161,7 @@ async def add_prompt_library_category(payload: PromptLibraryCategoryRequest):
     return {"library": public_prompt_libraries(data), "category": category}
 
 @router.patch("/api/prompt-libraries/categories/{category_id}")
-async def rename_prompt_library_category(category_id: str, payload: PromptLibraryCategoryRequest):
+def rename_prompt_library_category(category_id: str, payload: PromptLibraryCategoryRequest):
     # 系统库（内置）分组也允许重命名：分组的 id 不变，只改显示名，
     # 这样画布与素材库管理共用同一份分组数据，重命名两端实时同步。
     name = sanitize_asset_name(payload.name, "")
@@ -180,7 +180,7 @@ async def rename_prompt_library_category(category_id: str, payload: PromptLibrar
     return {"library": public_prompt_libraries(data)}
 
 @router.delete("/api/prompt-libraries/categories/{category_id}")
-async def delete_prompt_library_category(category_id: str):
+def delete_prompt_library_category(category_id: str):
     # 系统库（内置）分组也允许删除，与素材库管理/画布保持一致。
     data = load_prompt_libraries()
     found = False

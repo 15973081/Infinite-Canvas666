@@ -1,8 +1,8 @@
-import json
 import time
 from fastapi import HTTPException
 from app.storage import documents, canvases
 from app.storage.database import connection
+from app.storage.workspace import current_workspace
 
 
 def create(canvas_id, automatic=False):
@@ -17,15 +17,19 @@ def create(canvas_id, automatic=False):
 
 def list_backups(canvas_id):
     values = []
-    for row in documents.list_values("canvas_backup", prefix=canvas_id + "/"):
-        if not row["id"].startswith(canvas_id + "/"):
-            continue
+    with connection() as conn:
+        rows = conn.execute("""SELECT id,coalesce(value->>'title','') AS title,
+            octet_length(value::text) AS size,
+            CASE WHEN jsonb_typeof(value->'nodes')='array' THEN jsonb_array_length(value->'nodes') ELSE 0 END AS node_count
+            FROM workspace_documents WHERE workspace_id=%s AND kind='canvas_backup' AND starts_with(id,%s)
+                AND split_part(id,'/',2) ~ '^[0-9]+[.]json$'""",
+            (current_workspace(), canvas_id + '/')).fetchall()
+    for row in rows:
         filename = row["id"].split("/", 1)[1]
         if not filename[:-5].isdigit() or not filename.endswith(".json"):
             continue
-        value = row["value"]
-        values.append({"filename": filename, "timestamp": int(filename[:-5]), "title": value.get("title", ""),
-                       "size": len(json.dumps(value, ensure_ascii=False).encode()), "node_count": len(value.get("nodes") or [])})
+        values.append({"filename": filename, "timestamp": int(filename[:-5]), "title": row['title'],
+                       "size": row['size'], "node_count": row['node_count']})
     return {"backups": sorted(values, key=lambda v: v["timestamp"], reverse=True)}
 
 
