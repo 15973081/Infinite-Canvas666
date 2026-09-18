@@ -3767,7 +3767,7 @@ function openImageNodeMenu(nodeId, clientX, clientY){
         ${canEdit ? `<button class="menu-btn" data-image-edit="${escapeAttr(nodeId)}"><i data-lucide="pencil" class="w-4 h-4"></i><span>编辑</span></button>` : ''}
         <button class="menu-btn" data-image-replace="${escapeAttr(nodeId)}"><i data-lucide="image-plus" class="w-4 h-4"></i><span>替换</span></button>
         ${canUseAssetLibrary ? `<div class="menu-divider"></div><button class="menu-btn" data-image-save-asset="${escapeAttr(nodeId)}"><i data-lucide="library-big" class="w-4 h-4"></i><span>上传素材库</span></button>` : ''}
-        ${canUseAssetLibrary ? `<button class="menu-btn" data-image-face-auth="${escapeAttr(nodeId)}"><i data-lucide="shield-check" class="w-4 h-4"></i><span>快速人脸认证</span></button>` : ''}
+        ${canUseAssetLibrary ? `<button class="menu-btn" data-image-face-auth="${escapeAttr(nodeId)}"><i data-lucide="shield-check" class="w-4 h-4"></i><span>快速素材认证</span></button>` : ''}
     `;
     imageNodeMenu.style.left = `${clientX}px`;
     imageNodeMenu.style.top = `${clientY}px`;
@@ -6524,10 +6524,11 @@ function renderNode(node){
     const size = nodeMediaKind === 'audio' ? {w:280, h:204}
         : nodeMediaKind === 'image' && !node.h ? {w:260, h:0} : defaultNodeSize(node.type);
     const hasFixedSize = Boolean(node.h || size.h);
-    const faceVerified = node.type === 'image' && canvasAssetUrisFaceVerified(node.asset_uris);
-    const faceVerifying = node.type === 'image' && !faceVerified && node.face_auth_status === 'Processing';
+    const faceAuth = node.type === 'image' ? canvasFaceAuthState(node) : {};
+    const faceVerified = Boolean(faceAuth.ready);
+    const faceVerifying = ['Queued','Uploading','Processing'].includes(faceAuth.status);
     el.className = `node ${node.type}-node ${nodeMediaKind === 'audio' ? 'audio-node' : ''} ${node.url ? 'has-image' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${hasFixedSize ? 'sized' : ''} ${selected.has(node.id) ? 'selected' : ''}`;
-    if(faceVerifying) el.title = '人脸认证审核中';
+    if(faceVerifying) el.title = '素材认证审核中';
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
     el.style.width = `${node.w || size.w}px`;
@@ -7200,9 +7201,7 @@ function currentCanvasAssetItem(itemId){
         || null;
 }
 function canvasAssetRegisteredUris(item){
-    const regs = (item && item.registrations && typeof item.registrations === 'object') ? item.registrations : {};
-    const reg = regs.volcengine;
-    return reg?.status === 'Active' && reg.asset_uri ? {volcengine:reg.asset_uri} : {};
+    return window.CanvasAssetAuth.resolve({},item).uris;
 }
 function canvasAssetUrisFaceVerified(assetUris){
     return String(assetUris?.volcengine || '').startsWith('asset://');
@@ -7246,12 +7245,11 @@ function canvasAssetUrisForUrl(url){
     return {};
 }
 function canvasAssetUrisForNode(node){
-    if(node?.face_auth_status && node.face_auth_status !== 'Active') return {};
-    const cached = String(node?.asset_uris?.volcengine || '');
-    if(cached.startsWith('asset://')) return {volcengine:cached};
-    const linked = node?.asset_item_id && canvasAssetItemLocation(node.asset_item_id);
-    const linkedUris = canvasAssetRegisteredUris(linked?.item);
-    return linkedUris.volcengine ? linkedUris : canvasAssetUrisForUrl(node?.url);
+    return canvasFaceAuthState(node).uris;
+}
+function canvasFaceAuthState(ref, provider=null){
+    provider ||= (apiProviders || []).find(p => p.id === 'volcengine');
+    return window.CanvasAssetAuth.resolve(ref,window.CanvasAssetAuth.findItem(canvasAssetLibraries(),ref),provider);
 }
 function canvasAssetItemKind(item){
     const explicit = String(item?.kind || item?.mediaKind || '').toLowerCase();
@@ -7267,7 +7265,7 @@ function canvasAssetThumbHtml(item){
     const kind = canvasAssetItemKind(item);
     const url = escapeAttr(item?.url || '');
     const thumbUrl = item?.thumbnail || item?.url || '';
-    const faceBadge = canvasAssetFaceVerified(item) ? `<span class="canvas-face-verified-badge" title="\u5df2\u901a\u8fc7\u4eba\u8138\u8ba4\u8bc1" aria-label="\u5df2\u901a\u8fc7\u4eba\u8138\u8ba4\u8bc1"><i data-lucide="shield-check"></i></span>` : '';
+    const faceBadge = canvasAssetFaceVerified(item) ? `<span class="canvas-face-verified-badge" title="素材已就绪" aria-label="素材已就绪"><i data-lucide="shield-check"></i></span>` : '';
     if(kind === 'video'){
         return `<div class="canvas-asset-thumb-wrap">${canvasVideoPreviewHtml(item?.url || '', 512, 'class="canvas-asset-thumb" alt=""')}<div class="canvas-asset-video-badge"><i data-lucide="play"></i><span>VIDEO</span></div>${faceBadge}</div>`;
     }
@@ -7352,7 +7350,10 @@ async function deleteCanvasAssetItem(itemId){
 async function loadCanvasAssetLibrary({renderPanel=true}={}){
     try {
         const [data, localData] = await window.CanvasApi.getAssetLibraries();
+        const before = new Map(nodes.filter(node => node.type === 'image').map(node => [node.id,JSON.stringify(canvasFaceAuthState(node))]));
         canvasAssetLibrary = data.library || canvasAssetLibrary;
+        const changed = nodes.filter(node => node.type === 'image' && before.get(node.id) !== JSON.stringify(canvasFaceAuthState(node))).map(node => node.id);
+        if(changed.length) refreshNodes(changed);
         localCanvasAssetLibrary = {items:Array.isArray(localData.items) ? localData.items : [], tree:localData.tree || null};
         const libs = canvasAssetLibraries();
         if(!activeCanvasAssetLibraryId) activeCanvasAssetLibraryId = canvasAssetLibrary.active_library_id || libs[0]?.id || '';
@@ -7560,7 +7561,7 @@ function quickCanvasAvatarProvider(){
 }
 async function canvasAvatarRequest(path, libraryId, providerId){
     const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
-    if(!response.ok) throw new Error(await responseErrorMessage(response, '人脸认证失败'));
+    if(!response.ok) throw new Error(await responseErrorMessage(response, '素材认证失败'));
     return response.json();
 }
 function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
@@ -7583,13 +7584,13 @@ function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
                 refreshNodes([node.id]);
                 scheduleSave();
                 if(canvasAssetLibraryOpen) renderCanvasAssetLibrary();
-                setStatus('人脸认证已通过，可直接用于视频生成');
+                setStatus('素材认证已通过');
             } else if(registration.status === 'Failed') {
                 node.face_auth_status = 'Failed';
                 node.asset_uris = {};
                 refreshNodes([node.id]);
                 scheduleSave();
-                setStatus(registration.detail || '人脸认证未通过');
+                setStatus(registration.detail || '素材认证未通过');
             } else pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt + 1);
         } catch(err) {
             if(!isCurrent()) return;
@@ -7603,19 +7604,21 @@ async function quickFaceAuthImageNode(nodeId, target=null){
     if(!node?.url || !['image','video'].includes(mediaKindForNode(node))) return;
     const sourceUrl = node.url;
     const provider = quickCanvasAvatarProvider();
-    if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置火山引擎。', '快速人脸认证'); return; }
+    if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置火山引擎。', '快速素材认证'); return; }
     try {
-        setStatus('正在上传素材并提交人脸认证…');
+        setStatus('正在上传素材并提交素材认证…');
         const {item, libraryId} = await ensureImageNodeAsset(node, target);
         if(!nodes.includes(node) || node.url !== sourceUrl) return;
         const platform = canvasAvatarPlatform(provider);
         const registration = item?.registrations?.[platform] || {};
+        const auth = window.CanvasAssetAuth.resolve({},item,provider);
+        if(auth.status === 'ScopeMismatch'){ showErrorModal(window.CanvasAssetAuth.error(auth.status),'素材认证'); return; }
         if(registration.status === 'Active') {
             node.face_auth_status = 'Active';
             node.asset_uris = canvasAssetRegisteredUris(item);
             render();
             scheduleSave();
-            setStatus('该素材已通过人脸认证');
+            setStatus('该素材已通过素材认证');
             return;
         }
         if(registration.status === 'Processing') {
@@ -7641,7 +7644,7 @@ async function quickFaceAuthImageNode(nodeId, target=null){
         node.asset_uris = {};
         render();
         scheduleSave();
-        showErrorModal(err.message || '人脸认证提交失败', '快速人脸认证');
+        showErrorModal(err.message || '素材认证提交失败', '快速素材认证');
     }
 }
 async function uploadFilesToLibrary(files, libraryId, categoryId){
@@ -10391,12 +10394,14 @@ async function runVideoNode(nodeId, opts={}){
     const providerId = resolveVideoProviderId(node.apiProvider || 'comfly');
     const isVolcengineVideo = canvasAvatarPlatform(apiProviders.find(provider => provider.id === providerId)) === 'volcengine';
     const mediaRefs = applyUploadedUrlToRefs(allRefs, node).map(ref => {
-        const uris = (ref && ref.asset_uris && typeof ref.asset_uris === 'object') ? ref.asset_uris : {};
-        return isVolcengineVideo && uris.volcengine ? {...ref, url:uris.volcengine, originalLocalUrl:ref.originalLocalUrl || ref.url} : ref;
+        if(!isVolcengineVideo) return ref;
+        const auth = canvasFaceAuthState(ref,apiProviders.find(provider => provider.id === providerId));
+        return {...ref, asset_uris:auth.uris, face_auth_status:auth.status,
+            url:auth.uris.volcengine || ref.url, originalLocalUrl:ref.originalLocalUrl || ref.url};
     });
-    const unreadyVolcengineAsset = isVolcengineVideo && mediaRefs.find(ref => ref.face_auth_status && !String(ref.url || '').startsWith('asset://'));
+    const unreadyVolcengineAsset = isVolcengineVideo && mediaRefs.find(ref => ref.face_auth_status && ref.face_auth_status !== 'Active');
     if(unreadyVolcengineAsset){
-        showErrorModal(unreadyVolcengineAsset.face_auth_status === 'Failed' ? '火山素材认证未通过，请重新认证后再生成。' : '火山素材仍在认证中，请等待认证通过后再生成。', '火山素材认证');
+        showErrorModal(window.CanvasAssetAuth.error(unreadyVolcengineAsset.face_auth_status), '素材认证');
         return;
     }
     const refs = imageRefsOnly(mediaRefs);

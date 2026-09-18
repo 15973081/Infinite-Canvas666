@@ -6,6 +6,9 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../static/js/canvas.js'), 'utf8');
 function loadFunctions(names, globals={}){
+    globals.window.CanvasAssetAuth = require('../static/js/asset-auth.js');
+    globals.canvasAssetLibraries = () => [];
+    names = [...names,'canvasFaceAuthState'];
     const context = vm.createContext(globals);
     for(const name of names){
         const start = source.search(new RegExp(`^(?:async )?function ${name}\\(`, 'm'));

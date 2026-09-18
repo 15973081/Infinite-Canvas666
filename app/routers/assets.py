@@ -500,6 +500,8 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
         raise HTTPException(status_code=400, detail=f"「{name}」暂不支持数字人/真人认证（目前仅 APIMart 可用，火山等平台待接入官方资产 API）。")
     existing_regs = target_item.get("registrations") if isinstance(target_item.get("registrations"), dict) else {}
     existing_reg = existing_regs.get(platform) if isinstance(existing_regs.get(platform), dict) else {}
+    project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME) if platform == "volcengine" else str(payload.project_name or "default")
+    validate_avatar_registration_scope(existing_reg, provider, platform, project_name)
     existing_status = str(existing_reg.get("status") or "")
     if existing_status == "Active" or (existing_status == "Processing" and existing_reg.get("task_id")):
         return {"library": lib, "item": target_item, "skipped": True, "status": existing_status}
@@ -511,7 +513,7 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     avatar_registration_tasks[job_key] = current_task
     try:
         lib, target_item = await save_avatar_registration_state(payload.library_id, item_id, platform, {
-            "provider_id": provider["id"], "status": "Queued", "detail": "排队等待认证", "task_id": "",
+            "provider_id": provider["id"], "project_name": project_name, "status": "Queued", "detail": "排队等待认证", "task_id": "",
             "asset_uri": "", "asset_id": "", "registered_at": now_ms(),
         })
         if not target_item:
@@ -539,7 +541,7 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
                     raise HTTPException(status_code=400, detail=public_url[4:])
                 task_id = await submit_volcengine_avatar_asset(
                     public_url, target_item.get("name") or "asset", kind,
-                    project_name=project_name, group_name=payload.group_name or "",
+                    project_name=project_name, group_name=payload.group_name or "", provider=provider,
                 )
             else:
                 raise HTTPException(status_code=400, detail="该平台的认证后端尚未接入。")
@@ -602,6 +604,12 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
         else:
             regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
             reg = regs.get(platform) if isinstance(regs.get(platform), dict) else {}
+            project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME) if platform == "volcengine" else str(payload.project_name or "default")
+            try:
+                validate_avatar_registration_scope(reg, provider, platform, project_name)
+            except HTTPException as exc:
+                results[index] = {"item_id":item_id,"ok":False,"status":"Failed","detail":exc.detail}
+                continue
             status = str(reg.get("status") or "")
             if status == "Active" or (status == "Processing" and reg.get("task_id")):
                 results[index] = {
@@ -652,7 +660,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
         project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME
 
         async with httpx.AsyncClient(timeout=120) as client:
-            group_id = await volcengine_ensure_asset_group(client, project_name, payload.group_name or "")
+            group_id = await volcengine_ensure_asset_group(client, project_name, payload.group_name or "", provider=provider)
 
             async def register_one(index, item):
                 async with avatar_registration_semaphore:
@@ -667,7 +675,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
                             "AssetType": apimart_avatar_asset_type(kind),
                             "Name": (item.get("name") or "asset")[:60],
                             "ProjectName": project_name,
-                        })
+                        }, provider=provider)
                         task_id = str(created.get("Id") or "").strip()
                         if not task_id:
                             raise HTTPException(status_code=502, detail=f"Volcengine CreateAsset did not return Asset Id: {str(created)[:200]}")
@@ -728,6 +736,7 @@ async def cancel_asset_library_avatar(item_id: str, payload: AssetAvatarRegister
         raise HTTPException(status_code=404, detail="资产不存在")
     regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
     reg = regs.get(platform) if isinstance(regs.get(platform), dict) else {}
+    validate_avatar_registration_scope(reg,provider,platform,provider.get("volcengine_project_name") if platform == "volcengine" else payload.project_name)
     if str(reg.get("status") or "") == "Active":
         return {"library": lib, "item": item, "status": "Active", "cancelled": False}
     job_key = avatar_registration_key(payload.library_id, item_id, platform)
@@ -752,6 +761,7 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         raise HTTPException(status_code=400, detail="该平台暂不支持数字人/真人认证审核。")
     reg = regs.get(platform) if isinstance(regs.get(platform), dict) else {}
+    validate_avatar_registration_scope(reg,provider,platform,provider.get("volcengine_project_name") if platform == "volcengine" else payload.project_name)
     task_id = str(reg.get("task_id") or "").strip()
     if not task_id:
         raise HTTPException(status_code=400, detail="该素材还没有提交到这个平台的认证审核。")
@@ -759,7 +769,7 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
         result = await check_apimart_avatar_task(provider, task_id)
     elif platform == "volcengine":
         result = await check_volcengine_avatar_task(
-            task_id, str(reg.get("project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME,
+            task_id, str(reg.get("project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME).strip() or VOLCENGINE_DEFAULT_PROJECT_NAME, provider=provider,
         )
     else:
         raise HTTPException(status_code=400, detail="该平台的认证后端尚未接入。")
@@ -777,6 +787,8 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
         if result["status"] == "Active" and result.get("asset_uri"):
             latest_reg["asset_uri"] = result["asset_uri"]
             latest_reg["asset_id"] = result["asset_uri"].replace("asset://", "")
+        else:
+            latest_reg["asset_uri"] = ""
         latest_regs[platform] = latest_reg
         latest_item["registrations"] = latest_regs
         save_asset_library(latest_lib)

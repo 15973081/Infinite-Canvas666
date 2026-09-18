@@ -159,18 +159,22 @@ def provider_env_key_value(provider_id: str) -> str:
     return ""
 
 
-def volcengine_access_key_value() -> str:
+def volcengine_access_key_value(provider_id="volcengine") -> str:
     if managed_providers_enabled():
         from app.services.provider_control import credential
-        return credential('volcengine', 'volcengine_access_key_id')
+        return credential(provider_id, 'volcengine_access_key_id')
+    if provider_id != 'volcengine':
+        return ''
     env_key = volcengine_access_key_env()
     return os.getenv(env_key, "") or read_api_env_value(env_key)
 
 
-def volcengine_secret_key_value() -> str:
+def volcengine_secret_key_value(provider_id="volcengine") -> str:
     if managed_providers_enabled():
         from app.services.provider_control import credential
-        return credential('volcengine', 'volcengine_secret_access_key')
+        return credential(provider_id, 'volcengine_secret_access_key')
+    if provider_id != 'volcengine':
+        return ''
     env_key = volcengine_secret_key_env()
     return os.getenv(env_key, "") or read_api_env_value(env_key)
 

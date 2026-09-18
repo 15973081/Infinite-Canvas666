@@ -776,24 +776,44 @@ def media_reference_to_url(value, max_image_size=None):
 def is_private_asset_url(value: str) -> bool:
     return isinstance(value, str) and value.strip().startswith("asset://")
 
-def volcengine_asset_uri_for_library_url(value: str) -> str:
+def validate_avatar_registration_scope(reg, provider, platform="volcengine", project_name=None):
+    if not reg:
+        return
+    expected_provider = str((provider or {}).get("id") or platform)
+    expected_project = str(project_name or (provider or {}).get("volcengine_project_name") or "default").strip()
+    if str(reg.get("provider_id") or platform) != expected_provider or str(reg.get("project_name") or "default").strip() != expected_project:
+        raise HTTPException(status_code=409, detail="认证素材属于其他供应商或项目，请切回对应配置，或为目标项目新建素材后认证。")
+
+
+def volcengine_asset_uri_for_library_url(value: str, provider=None, project_name="default", library=None) -> str:
     target = str(value or "").strip()
     if not target:
         return ""
     try:
-        lib = load_asset_library()
-    except Exception:
-        return ""
+        lib = load_asset_library() if library is None else library
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="暂时无法核对素材认证状态，请稍后重试。") from exc
+    rejected = None
     for library in lib.get("libraries", []):
         for category in library.get("categories", []):
             for item in category.get("items", []):
-                if str(item.get("url") or "").strip() != target:
-                    continue
                 regs = item.get("registrations") if isinstance(item.get("registrations"), dict) else {}
                 reg = regs.get("volcengine") if isinstance(regs.get("volcengine"), dict) else {}
                 asset_uri = str(reg.get("asset_uri") or "").strip()
-                if str(reg.get("status") or "") == "Active" and asset_uri.startswith("asset://"):
+                known_uri = asset_uri or ("asset://" + str(reg.get("asset_id") or reg.get("task_id") or ""))
+                if str(item.get("url") or "").strip() != target and known_uri != target:
+                    continue
+                if not reg:
+                    continue
+                try:
+                    validate_avatar_registration_scope(reg, provider, project_name=project_name)
+                    if str(reg.get("status") or "") != "Active" or not asset_uri.startswith("asset://"):
+                        raise HTTPException(status_code=409, detail="素材认证未就绪或已失效，请刷新素材状态或重新认证，不能退回原图生成。")
                     return asset_uri
+                except HTTPException as exc:
+                    rejected = exc
+    if rejected:
+        raise rejected
     return ""
 
 def private_asset_id(value: str) -> str:
@@ -802,7 +822,7 @@ def private_asset_id(value: str) -> str:
 
 
 
-async def ensure_volcengine_asset_active(value: str, project_name: str = "default") -> str:
+async def ensure_volcengine_asset_active(value: str, project_name: str = "default", provider=None) -> str:
     asset_id = private_asset_id(value)
     if not asset_id:
         return ""
@@ -810,23 +830,23 @@ async def ensure_volcengine_asset_active(value: str, project_name: str = "defaul
         info = await volcengine_ark_asset_call(client, "GetAsset", {
             "Id": asset_id,
             "ProjectName": (project_name or "default").strip() or "default",
-        })
+        }, provider=provider)
     status = str(info.get("Status") or "").strip()
     if status != "Active":
         raise HTTPException(status_code=400, detail=f"Volcengine asset {asset_id} status is {status or 'Unknown'}, cannot be used for video generation yet.")
     return f"asset://{asset_id}"
 
-async def volcengine_video_media_reference_url(value, project_name: str = "default", max_image_size=1536, provider=None, kind="image"):
+async def volcengine_video_media_reference_url(value, project_name: str = "default", max_image_size=1536, provider=None, kind="image", library=None):
     if not isinstance(value, str):
         return ""
     value = value.strip()
     if not value:
         return ""
-    if is_private_asset_url(value):
-        return await ensure_volcengine_asset_active(value, project_name)
-    library_asset_uri = volcengine_asset_uri_for_library_url(value)
+    library_asset_uri = volcengine_asset_uri_for_library_url(value, provider=provider, project_name=project_name, library=library)
     if library_asset_uri:
-        return await ensure_volcengine_asset_active(library_asset_uri, project_name)
+        return await ensure_volcengine_asset_active(library_asset_uri, project_name, provider=provider)
+    if is_private_asset_url(value):
+        return await ensure_volcengine_asset_active(value, project_name, provider=provider)
     return volcengine_media_reference_url(value, max_image_size=max_image_size, provider=provider, kind=kind)
 
 def volcengine_media_reference_url(value, max_image_size=1536, provider=None, kind="image"):
@@ -1592,10 +1612,11 @@ def volcengine_sign_v4_headers(ak: str, sk: str, action: str, body_str: str,
         "Authorization": authorization,
     }
 
-async def volcengine_ark_asset_call(client, action: str, body: Dict[str, Any]) -> Dict[str, Any]:
+async def volcengine_ark_asset_call(client, action: str, body: Dict[str, Any], provider=None) -> Dict[str, Any]:
     """调用一次火山 Ark Assets OpenAPI，返回 Result 内容；出错抛 HTTPException。"""
-    ak = volcengine_access_key_value()
-    sk = volcengine_secret_key_value()
+    provider_id = str((provider or {}).get("id") or "volcengine")
+    ak = volcengine_access_key_value(provider_id)
+    sk = volcengine_secret_key_value(provider_id)
     if not ak or not sk:
         raise HTTPException(status_code=400, detail="未配置火山引擎 AK/SK，请在 API 设置中填写 Access Key ID / Secret Access Key。")
     body_str = json.dumps(body, ensure_ascii=False)
@@ -1617,7 +1638,7 @@ async def volcengine_ark_asset_call(client, action: str, body: Dict[str, Any]) -
     result = payload.get("Result") if isinstance(payload, dict) and isinstance(payload.get("Result"), dict) else None
     return result if result is not None else (payload if isinstance(payload, dict) else {})
 
-async def volcengine_ensure_asset_group(client, project_name: str, group_name: str) -> str:
+async def volcengine_ensure_asset_group(client, project_name: str, group_name: str, provider=None) -> str:
     """复用同名素材组合，没有则新建。返回 GroupId。"""
     name = (group_name or "可信素材").strip()[:60] or "可信素材"
     project_name = (project_name or "default").strip() or "default"
@@ -1626,7 +1647,7 @@ async def volcengine_ensure_asset_group(client, project_name: str, group_name: s
         listed = await volcengine_ark_asset_call(client, "ListAssetGroups", {
             "Filter": {"Name": name, "GroupType": "AIGC"},
             "PageNumber": 1, "PageSize": 10, "ProjectName": project_name,
-        })
+        }, provider=provider)
         for item in (listed.get("Items") or []):
             if str(item.get("Name") or "").strip() == name and str(item.get("ProjectName") or "default") == project_name:
                 gid = str(item.get("Id") or "").strip()
@@ -1636,36 +1657,36 @@ async def volcengine_ensure_asset_group(client, project_name: str, group_name: s
         pass  # 查询失败不致命，继续走新建
     created = await volcengine_ark_asset_call(client, "CreateAssetGroup", {
         "Name": name, "Description": name, "ProjectName": project_name,
-    })
+    }, provider=provider)
     gid = str(created.get("Id") or "").strip()
     if not gid:
         raise HTTPException(status_code=502, detail=f"火山 CreateAssetGroup 未返回 GroupId：{str(created)[:200]}")
     return gid
 
 async def submit_volcengine_avatar_asset(public_url: str, name: str, kind: str,
-                                         project_name: str = "default", group_name: str = "") -> str:
+                                         project_name: str = "default", group_name: str = "", provider=None) -> str:
     """把公网可访问素材提交到火山 Ark 私域素材库（异步）。返回 Asset Id 作为任务 ID。"""
     async with httpx.AsyncClient(timeout=120) as client:
-        group_id = await volcengine_ensure_asset_group(client, project_name, group_name)
+        group_id = await volcengine_ensure_asset_group(client, project_name, group_name, provider=provider)
         created = await volcengine_ark_asset_call(client, "CreateAsset", {
             "GroupId": group_id,
             "URL": public_url,
             "AssetType": apimart_avatar_asset_type(kind),
             "Name": (name or "asset")[:60],
             "ProjectName": (project_name or "default").strip() or "default",
-        })
+        }, provider=provider)
     asset_id = str(created.get("Id") or "").strip()
     if not asset_id:
         raise HTTPException(status_code=502, detail=f"火山 CreateAsset 未返回 Asset Id：{str(created)[:200]}")
     return asset_id
 
-async def check_volcengine_avatar_task(asset_id: str, project_name: str = "default") -> Dict[str, Any]:
+async def check_volcengine_avatar_task(asset_id: str, project_name: str = "default", provider=None) -> Dict[str, Any]:
     """查询一次火山素材状态。返回 {status: Active/Processing/Failed, asset_uri, detail}。"""
     async with httpx.AsyncClient(timeout=60) as client:
         info = await volcengine_ark_asset_call(client, "GetAsset", {
             "Id": asset_id,
             "ProjectName": (project_name or "default").strip() or "default",
-        })
+        }, provider=provider)
     status = str(info.get("Status") or "").strip()
     if status == "Active":
         return {"status": "Active", "asset_uri": f"asset://{asset_id}", "detail": ""}

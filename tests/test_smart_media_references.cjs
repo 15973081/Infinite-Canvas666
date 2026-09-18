@@ -8,7 +8,8 @@ function setup(){
     let parts = [], base = [], payload;
     const node = {id:'generator'};
     const ctx = vm.createContext({
-        window:{VideoDurationPolicy:{clamp:()=>5}},canvasId:'smart-reference-test',
+        window:{CanvasAssetAuth:require('../static/js/asset-auth.js'),VideoDurationPolicy:{clamp:()=>5}},canvasId:'smart-reference-test',
+        apiProviders:[],assetLibraries:()=>[],localDisplayUrlForMediaItem:img=>img.url,
         smartVideoDurationRange:()=>({}),
         smartVideoResolutions:()=>['','480p','720p','1080p'],
         nodes:[], settings:{engine:'volcengine', apiKind:'video', videoModel:'doubao-seedance-2-5-260628'}, smartLoopContext:null,
@@ -29,6 +30,10 @@ function setup(){
         vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
     }
     ctx.escapeAttr=ctx.escapeHtml;
+    for(const name of ['smartFaceAuthState','smartVolcengineAssetUrisForRef']){
+        const start=source.indexOf(`function ${name}(`);
+        vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
+    }
     return {ctx,node,setBase:value=>base=value,setParts:value=>parts=value,payload:()=>payload};
 }
 const mixed = () => [

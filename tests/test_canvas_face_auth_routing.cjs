@@ -5,6 +5,10 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 function load(file, context, names) {
+    context.window ||= {};
+    context.window.CanvasAssetAuth = require('../static/js/asset-auth.js');
+    context.apiProviders ||= [];
+    names = [...names, file === 'canvas.js' ? 'canvasFaceAuthState' : 'smartFaceAuthState'];
     const source = fs.readFileSync(path.join(__dirname, '../static/js', file), 'utf8').replace(/\r\n/g, '\n');
     for (const name of names) {
         const start = source.search(new RegExp(`^(?:async )?function ${name}\\(`, 'm'));
@@ -213,4 +217,66 @@ test('smart: quick authentication updates a mention created before upload',async
     await s.context.quickFaceAuthSmartImage('source',0);
     assert.equal(s.image.asset_uris.volcengine,'asset://verified');
     await s.run([mention]); assert.equal(s.payload().images[0].url,'asset://verified');
+});
+for(const mode of ['classic','smart']) test(`${mode}: current library failure overrides cached green binding`,async()=>{
+    const s=mode==='classic'?classic():smart();
+    const libraries=[{categories:[{items:[{...libraryItem(),registrations:{volcengine:{status:'Failed',asset_id:'verified'}}}]}]}];
+    s.context[mode==='classic'?'canvasAssetLibraries':'assetLibraries']=()=>libraries;
+    const state=s.context[mode==='classic'?'canvasFaceAuthState':'smartFaceAuthState'](s.image);
+    assert.equal(state.ready,false); assert.equal(state.status,'Failed');
+    if(mode==='classic') await s.run(); else await assert.rejects(s.run([s.image]),/认证/);
+    assert.equal(s.payload(),undefined);
+});
+for(const mode of ['classic','smart']) test(`${mode}: changing the configured project blocks an old binding`,async()=>{
+    const s=mode==='classic'?classic():smart();
+    s.context.apiProviders=[{id:'volcengine',protocol:'volcengine',volcengine_project_name:'different-project',video_models:['seedance']}];
+    const state=s.context[mode==='classic'?'canvasFaceAuthState':'smartFaceAuthState'](s.image);
+    assert.equal(state.ready,false); assert.equal(state.status,'ScopeMismatch');
+    if(mode==='classic') await s.run(); else await assert.rejects(s.run([s.image]),/供应商或项目/);
+    assert.equal(s.payload(),undefined);
+});
+test('smart: dedupe upgrades the original slot to the authenticated source without changing numbering',async()=>{
+    const s=smart(),other={id:'other',images:[{url:s.image.url,kind:'image'}]};
+    s.context.nodes.push(other);
+    Object.assign(s.context,{mediaKindForItem:r=>r.kind||'image',blockedInputRefKeys:()=>new Set(),inputRefKey:r=>r.url,manualSmartMediaLinks:()=>[]});
+    load('smart-canvas.js',s.context,['smartMediaRefKey','smartMediaReferencePlan']);
+    const plan=s.context.smartMediaReferencePlan({},[{url:s.image.url,kind:'image',nodeId:'other',imageIndex:0},{url:'/second.png',kind:'image'}],
+        [{...s.image,type:'image',nodeId:'source',imageIndex:0}]);
+    assert.equal(plan.refs.length,2); assert.equal(plan.refs[0].nodeId,'source');
+    assert.equal(plan.refs[0].referenceLabel,'图片1'); assert.equal(plan.refs[1].referenceLabel,'图片2');
+    await s.run(plan.refs); assert.equal(s.payload().images[0].url,'asset://verified');
+});
+test('smart: multi-image outer frame requires every image to be ready',()=>{
+    const s=smart();
+    const source=fs.readFileSync(path.join(__dirname,'../static/js/smart-canvas.js'),'utf8');
+    const statement=source.match(/const faceVerified = isImageNode[^\n]+/)[0];
+    const evaluate=images=>{s.context.imgs=images;s.context.isImageNode=true;return vm.runInContext(`(()=>{${statement};return faceVerified;})()`,s.context);};
+    assert.equal(evaluate([verified(),{url:'/pending.png',face_auth_status:'Processing'}]),false);
+    assert.equal(evaluate([verified(),verified()]),true);
+    assert.equal(evaluate([]),false);
+});
+test('classic: a literal asset URL cannot bypass a failed state',async()=>{
+    const s=classic(); s.image.url='asset://verified'; s.image.face_auth_status='Failed';
+    await s.run(); assert.equal(s.payload(),undefined); assert.equal(s.messages.length,1);
+});
+test('shared policy keeps live registration objects behind its lookup index',()=>{
+    const auth=require('../static/js/asset-auth.js'),item=libraryItem(),libraries=[{categories:[{items:[item]}]}];
+    assert.equal(auth.resolve(verified(),auth.findItem(libraries,verified())).ready,true);
+    item.registrations.volcengine.status='Cancelled';
+    assert.equal(auth.resolve(verified(),auth.findItem(libraries,verified())).ready,false);
+});
+test('smart: library updates refresh only nodes whose readiness changed',()=>{
+    const s=smart(),changed=[];
+    const active={libraries:[{id:'library',categories:[{items:[libraryItem()]}]}]};
+    Object.assign(s.context,{assetLibrary:active,assetLibraryUpdatedAt:0,activeAssetLibraryId:'',LOCAL_ASSET_LIBRARY_ID:'local',
+        activeAssetCategoryId:'',activeWorkflowAssetCategoryId:'',mentionAssetCategoryId:'',assetCategories:()=>[],
+        activeAssetCategory:()=>null,workflowAssetCategories:()=>[],activeWorkflowAssetCategory:()=>null,
+        assetLibraries:()=>s.context.assetLibrary.libraries,refreshSmartNodes:ids=>changed.push([...ids])});
+    load('smart-canvas.js',s.context,['setAssetLibraryFromResponse','smartVolcengineFaceVerified','smartFaceVerifiedBadgeHtml']);
+    const updated=JSON.parse(JSON.stringify(active));updated.libraries[0].categories[0].items[0].registrations.volcengine.status='Failed';
+    s.context.setAssetLibraryFromResponse({library:updated},{render:false});
+    assert.deepEqual(changed,[['source']]);
+    assert.equal(s.context.smartFaceVerifiedBadgeHtml(s.image.asset_uris,true,s.image),'');
+    s.context.setAssetLibraryFromResponse({library:updated},{render:false});
+    assert.equal(changed.length,1);
 });
