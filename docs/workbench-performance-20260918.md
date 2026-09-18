@@ -64,3 +64,40 @@ verifies the release snapshot, and rejects a stale editing lease.
 These changes address measured server bottlenecks and concurrency regressions;
 they do not establish a maximum supported concurrent-user count or guarantee
 that all browser-side rendering and network bottlenecks have been eliminated.
+
+## Release verification
+
+The workbench, management, task worker and backup worker were gracefully
+restarted with the same candidate source after confirming there were no active
+generation or backup jobs. All four services were active after the restart.
+Authenticated HTTPS probes measured directory reads at 444 ms (previously
+2,959 ms), backup listing at 60 ms (previously 1,153 ms), and a same-style cover
+save at 297 ms. The cover check compared the entire document excluding revision:
+content and timestamps were unchanged, revision advanced once, stale writes
+returned 409, and the probe's edit lease and login were released. Unauthenticated
+reads returned 401, foreign-workspace canvas reads 404, and original media used
+a private HTTPS redirect. Four concurrent directory reads after warming took
+746–812 ms; the first concurrent batch took 3.2–4.2 seconds, so these measurements
+are not a cold-start latency guarantee.
+
+Validation on Windows/Python 3.14:
+
+- 54 focused Python checks and 63 frontend checks passed.
+- The final isolated PostgreSQL run passed 354 tests and failed 26. Every failed
+  test also failed on the pre-change `c365908` baseline; the final run introduced
+  no additional failing test cases. This is **not an all-green full suite**.
+- Remaining failures concern simulated models missing from allowed catalogs,
+  recovery fixtures expecting historical mock billing amounts, and an old TOS
+  assertion that omits the existing private response-cache-control parameter.
+  Production model permissions and billing checks were not relaxed to make
+  these fixtures pass.
+- The run used `PYTHONIOENCODING=utf-8` for Windows CLI child processes; without
+  it, decoding failures caused misleading maintenance-recovery test failures.
+- Full regression caught a task-binding call that requires complete canvas
+  contents. It now explicitly requests them; all 17 binding-related checks in
+  the targeted rerun passed. The new large-canvas save/snapshot test also passed.
+
+The response hashes in the benchmark matched before and after. No test submitted
+a real generation request; provider execution was simulated in the disposable
+database. Existing migration-only working-tree changes were kept separate from
+this performance release.
