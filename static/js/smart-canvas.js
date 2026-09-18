@@ -4735,17 +4735,33 @@ function smartAuthenticatedUris(item){
     return registration?.status === 'Active' && registration.asset_uri ? {volcengine:registration.asset_uri} : {};
 }
 function smartVolcengineAssetUrisForRef(ref){
+    if(ref?.face_auth_status && ref.face_auth_status !== 'Active') return {};
     const cached = String(ref?.asset_uris?.volcengine || '');
     if(cached.startsWith('asset://')) return {volcengine:cached};
     const linked = ref?.asset_item_id && smartAssetItemLocation(ref.asset_item_id);
     return smartAuthenticatedUris(linked?.item);
 }
+function smartCurrentFaceAuthRef(ref){
+    if(!ref?.nodeId) return ref;
+    const owner = nodes.find(node => node.id === ref.nodeId);
+    const urls = [ref.url, ref.originalLocalUrl, ref.sourceUrl].filter(Boolean);
+    const matches = image => image && [image.url, image.originalLocalUrl, localDisplayUrlForMediaItem(image)]
+        .some(url => url && urls.includes(url));
+    const image = (matches(owner?.images?.[ref.imageIndex]) && owner.images[ref.imageIndex])
+        || owner?.images?.find(matches);
+    if(!image) throw new Error('引用的素材已被替换或删除，请重新选择后生成。');
+    // Mentions can predate authentication. Use the matching live image, never a stale index.
+    return {...ref, asset_uris:image.asset_uris || {}, asset_item_id:image.asset_item_id || '',
+        asset_library_id:image.asset_library_id || '', face_auth_status:image.face_auth_status || ''};
+}
 async function ensureSmartImageAsset(node, index, target){
     const image = node?.images?.[index];
+    const sourceUrl = image?.url;
     const linked = image?.asset_item_id && smartAssetItemLocation(image.asset_item_id);
     if(linked && linked.libraryId === target.libraryId && linked.categoryId === target.categoryId) return linked;
     const data = await window.CanvasApi.createAssetItem({library_id:target.libraryId, category_id:target.categoryId, url:image.url, name:image.name || smartImageNameFromUrl(image.url)}, {errorFallback:'上传素材库失败'});
     setAssetLibraryFromResponse(data);
+    if(!nodes.includes(node) || node.images[index] !== image || image.url !== sourceUrl) throw new Error('图片已更改，请重新认证。');
     image.asset_item_id = data.item?.id || '';
     image.asset_library_id = target.libraryId;
     image.asset_uris = smartAuthenticatedUris(data.item);
@@ -4779,12 +4795,17 @@ async function smartAvatarRequest(path, libraryId, providerId){
 }
 function pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt=0){
     if(attempt >= 100) return;
+    const source = nodes.find(node => node.id === nodeId)?.images?.[index];
+    const sourceUrl = source?.url;
+    const isCurrent = () => source && nodes.find(node => node.id === nodeId)?.images?.[index] === source
+        && source.url === sourceUrl && source.asset_item_id === itemId && source.asset_library_id === libraryId;
     setTimeout(async () => {
         const image = nodes.find(node => node.id === nodeId)?.images?.[index];
-        if(!image) return;
+        if(!isCurrent()) return;
         try {
             const data = await smartAvatarRequest(`/api/asset-library/items/${encodeURIComponent(itemId)}/avatar-status`, libraryId, provider.id);
             setAssetLibraryFromResponse(data);
+            if(!isCurrent()) return;
             const registration = data.item?.registrations?.[smartAvatarPlatform(provider)] || {};
             if(registration.status === 'Active'){
                 image.face_auth_status = 'Active';
@@ -4792,9 +4813,11 @@ function pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, atte
                 render(); scheduleSave(); toast('人脸认证已通过');
             } else if(registration.status === 'Failed'){
                 image.face_auth_status = 'Failed';
+                image.asset_uris = {};
                 render(); scheduleSave(); toast(registration.detail || '人脸认证未通过');
             } else pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt + 1);
         } catch(e) {
+            if(!isCurrent()) return;
             if(attempt < 2) pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt + 1);
             else toast(e.message || '认证状态查询失败');
         }
@@ -4804,23 +4827,28 @@ async function quickFaceAuthSmartImage(nodeId, index){
     const node = nodes.find(entry => entry.id === nodeId);
     const image = node?.images?.[index];
     if(!image?.url) return;
+    const sourceUrl = image.url;
+    const isCurrent = () => nodes.includes(node) && node.images[index] === image && image.url === sourceUrl;
     const provider = quickSmartAvatarProvider();
     if(!provider) return toast('请先在 API 平台管理中配置火山引擎');
     const target = await chooseSmartAssetTarget();
-    if(!target) return;
+    if(!target || !isCurrent()) return;
     try {
         toast('正在上传素材并提交人脸认证…');
         const {item, libraryId} = await ensureSmartImageAsset(node, index, target);
+        if(!isCurrent()) return;
         const registration = item?.registrations?.[smartAvatarPlatform(provider)] || {};
         if(registration.status === 'Active'){
             image.face_auth_status = 'Active'; image.asset_uris = smartAuthenticatedUris(item); render(); scheduleSave(); return toast('该素材已通过人脸认证');
         }
-        image.face_auth_status = 'Processing'; render(); scheduleSave();
+        image.face_auth_status = 'Processing'; image.asset_uris = {}; render(); scheduleSave();
         if(registration.status !== 'Processing') await smartAvatarRequest(`/api/asset-library/items/${encodeURIComponent(item.id)}/register-avatar`, libraryId, provider.id);
+        if(!isCurrent()) return;
         toast('已提交审核，稍后自动更新');
         pollSmartImageFaceAuth(nodeId, index, item.id, libraryId, provider);
     } catch(e) {
-        image.face_auth_status = 'Failed'; render(); scheduleSave(); toast(e.message || '人脸认证提交失败');
+        if(!isCurrent()) return;
+        image.face_auth_status = 'Failed'; image.asset_uris = {}; render(); scheduleSave(); toast(e.message || '人脸认证提交失败');
     }
 }
 function canvasImageDragPayload(node, index=0){
@@ -10043,7 +10071,8 @@ async function uploadImageBlobs(blobs){
 function replaceEditedImage(file){
     const {node, index} = currentEditImage();
     if(!node || !file) return false;
-    node.images[index] = {...(node.images[index] || {}), url:file.url, name:file.name, kind:file.kind || mediaKindForItem(file), natural_w:0, natural_h:0};
+    node.images[index] = {...(node.images[index] || {}), url:file.url, name:file.name, kind:file.kind || mediaKindForItem(file), natural_w:0, natural_h:0,
+        asset_uris:{}, asset_item_id:'', asset_library_id:'', face_auth_status:''};
     if((node.images || []).length === 1){ delete node.w; delete node.h; }
     selectedId = node.id; selectedImage = {nodeId:node.id, index};
     return true;
@@ -13466,13 +13495,14 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
     if(!runSettings.videoModel) throw new Error(tr('smart.errNoVideoModel'));
     if(!smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
     try {
-        const uploadedRefs = applyUploadedUrlsToSmartRefs(refs, runSettings);
         const targetPlatform = videoProviderPlatform(runSettings.videoProvider || 'comfly');
+        const currentRefs = targetPlatform === 'volcengine' ? (refs || []).map(smartCurrentFaceAuthRef) : refs;
+        const uploadedRefs = applyUploadedUrlsToSmartRefs(currentRefs, runSettings);
         const effUrl = ref => {
             if(targetPlatform !== 'volcengine') return ref?.url;
             return smartVolcengineAssetUrisForRef(ref).volcengine || ref?.url;
         };
-        const unreadyVolcengineAsset = targetPlatform === 'volcengine' && imageRefsOnly(uploadedRefs)
+        const unreadyVolcengineAsset = targetPlatform === 'volcengine' && uploadedRefs
             .find(ref => ref.face_auth_status && !smartVolcengineAssetUrisForRef(ref).volcengine);
         if(unreadyVolcengineAsset) throw new Error(unreadyVolcengineAsset.face_auth_status === 'Failed' ? '火山素材认证未通过，请重新认证后再生成。' : '火山素材仍在认证中，请等待认证通过后再生成。');
         const useFrameRoles = targetPlatform !== 'volcengine' && runSettings.videoUseFrameRoles;

@@ -8,7 +8,8 @@ function setup(){
     let parts = [], base = [], payload;
     const node = {id:'generator'};
     const ctx = vm.createContext({
-        window:{},canvasId:'smart-reference-test',
+        window:{VideoDurationPolicy:{clamp:()=>5}},canvasId:'smart-reference-test',
+        smartVideoDurationRange:()=>({}),
         smartVideoResolutions:()=>['','480p','720p','1080p'],
         nodes:[], settings:{engine:'volcengine', apiKind:'video', videoModel:'doubao-seedance-2-5-260628'}, smartLoopContext:null,
         isApiLikeEngine:engine=>['api','volcengine'].includes(engine),
@@ -22,7 +23,7 @@ function setup(){
         isSeedance25VideoModel:()=>true, uid:()=> 'canvas_vid_test', transientSmartCloudLinks:[],
         fetch:async (_url,options)=>{ payload=JSON.parse(options.body); return {ok:true,json:async()=>({task_id:'canvas_vid_test'})}; }
     });
-    for(const name of ['isFileMediaItem','isTextMediaItem','isAudioMediaItem','isVideoMediaItem','mediaKindForItem','imageRefsOnly','looksLikeImageMediaUrl','videoRefsOnly','audioRefsOnly','inputRefKey','blockedInputRefKeys','smartTypedVideoInputs','smartMediaRefKey','smartMediaReferencePlan','reorderSmartMediaReference','originalPromptTextFromParts','buildPromptRequest','smartReferencePreviewHtml','mentionTokenHtml','runApiVideoGeneration','uniqueReferenceImages','snapshotRunMeta']){
+    for(const name of ['isFileMediaItem','isTextMediaItem','isAudioMediaItem','isVideoMediaItem','mediaKindForItem','imageRefsOnly','looksLikeImageMediaUrl','videoRefsOnly','audioRefsOnly','inputRefKey','blockedInputRefKeys','smartTypedVideoInputs','smartMediaRefKey','smartMediaReferencePlan','reorderSmartMediaReference','originalPromptTextFromParts','buildPromptRequest','smartReferencePreviewHtml','mentionTokenHtml','smartCurrentFaceAuthRef','runApiVideoGeneration','uniqueReferenceImages','snapshotRunMeta']){
         const start=source.search(new RegExp(`^(?:async )?function ${name}\\(`,'m'));
         assert.notEqual(start,-1,name);
         vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);

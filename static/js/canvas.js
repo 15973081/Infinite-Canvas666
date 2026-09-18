@@ -4601,6 +4601,7 @@ async function applyImageDropPayloadToNode(nodeId, payload){
         const file = files[0];
         if(file?.url) {
             pushUndo();
+            clearCanvasFaceAuth(node);
             node.url = file.url;
             node.name = file.name || outputImageName(file.url);
             node.mediaKind = 'image';
@@ -4611,6 +4612,7 @@ async function applyImageDropPayloadToNode(nodeId, payload){
     }
     if(payload.type === 'url' && payload.url){
         pushUndo();
+        clearCanvasFaceAuth(node);
         node.url = payload.url;
         node.name = outputImageName(payload.url);
         node.mediaKind = isVideoUrl(payload.url) ? 'video' : isAudioUrl(payload.url) ? 'audio' : 'image';
@@ -4688,6 +4690,7 @@ async function fillImageNode(nodeId, files, opts={}){
     const file = data.files?.[0];
     const node = nodes.find(n => n.id === nodeId);
     if(file && node){
+        clearCanvasFaceAuth(node);
         node.url = file.url;
         node.name = file.name;
         node.mediaKind = file.kind || mediaKindForUpload(imgs[0]);
@@ -4699,11 +4702,18 @@ function setImageNodeFromOutput(nodeId, url){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || node.type !== 'image' || !url || isVideoUrl(url) || isAudioUrl(url)) return;
     pushUndo();
+    clearCanvasFaceAuth(node);
     node.url = url;
     node.name = outputImageName(url);
     node.mediaKind = 'image';
     render();
     scheduleSave();
+}
+function clearCanvasFaceAuth(node){
+    delete node.asset_uris;
+    delete node.asset_item_id;
+    delete node.asset_library_id;
+    delete node.face_auth_status;
 }
 function clearImageNode(nodeId, event=null){
     if(event){
@@ -4714,6 +4724,7 @@ function clearImageNode(nodeId, event=null){
     const node = nodes.find(n => n.id === nodeId);
     if(!node || node.type !== 'image') return;
     pushUndo();
+    clearCanvasFaceAuth(node);
     node.url = '';
     node.mediaKind = 'image';
     node.name = '空白图片';
@@ -5958,6 +5969,7 @@ async function applyImageCrop(){
     const base = (node.name || 'image').replace(/\.[^.]+$/, '');
     const file = await uploadCroppedBlob(blob, `${base}_crop.png`);
     if(file){
+        clearCanvasFaceAuth(node);
         node.url = file.url;
         node.name = file.name;
         closeImageEditor();
@@ -5989,6 +6001,7 @@ async function applyImageOutpaint(){
     const base = (node.name || 'image').replace(/\.[^.]+$/, '');
     const file = await uploadCroppedBlob(blob, `${base}_outpaint.png`);
     if(file){
+        clearCanvasFaceAuth(node);
         node.url = file.url;
         node.name = file.name;
         node.mediaKind = 'image';
@@ -6052,6 +6065,7 @@ async function applyImageBrush(){
     const base = (node.name || 'image').replace(/\.[^.]+$/, '');
     const file = await uploadCroppedBlob(blob, `${base}_paint.png`);
     if(file){
+        clearCanvasFaceAuth(node);
         node.url = file.url;
         node.name = file.name;
         closeImageEditor();
@@ -7014,13 +7028,7 @@ function loopInputImageRefs(node, ctx=null){
 }
 function videoRefsFromNode(node){
     if(!node) return [];
-    if(node.type === 'image' && node.url && mediaKindForNode(node) === 'video') return [{url:node.url, name:node.name || 'video', role:node.role || '', kind:'video'}];
-    if(node.type === 'group'){
-        return (node.items || [])
-            .map(id => nodes.find(x => x.id === id))
-            .filter(x => x?.type === 'image' && x?.url && mediaKindForNode(x) === 'video')
-            .map(vid => ({url:vid.url, name:vid.name || 'video', role:vid.role || '', kind:'video'}));
-    }
+    if(node.type === 'image' || node.type === 'group') return mediaRefsFromNode(node).filter(ref => ref.kind === 'video');
     if(node.type === 'output'){
         return (node.images || [])
             .map((item, i) => ({item, i}))
@@ -7238,6 +7246,7 @@ function canvasAssetUrisForUrl(url){
     return {};
 }
 function canvasAssetUrisForNode(node){
+    if(node?.face_auth_status && node.face_auth_status !== 'Active') return {};
     const cached = String(node?.asset_uris?.volcengine || '');
     if(cached.startsWith('asset://')) return {volcengine:cached};
     const linked = node?.asset_item_id && canvasAssetItemLocation(node.asset_item_id);
@@ -7505,7 +7514,9 @@ function canvasAssetItemLocation(itemId){
     return null;
 }
 async function ensureImageNodeAsset(node, target=null){
+    const sourceUrl = node.url;
     if(!canvasAssetLibraries().length || !activeCanvasAssetCategory()) await loadCanvasAssetLibrary({renderPanel:false});
+    if(!nodes.includes(node) || node.url !== sourceUrl) throw new Error('图片已更改，请重新认证。');
     const linked = node.asset_item_id && canvasAssetItemLocation(node.asset_item_id);
     if(linked && (!target || (linked.libraryId === target.libraryId && linked.categoryId === target.categoryId))) {
         activeCanvasAssetLibraryId = linked.libraryId;
@@ -7517,6 +7528,7 @@ async function ensureImageNodeAsset(node, target=null){
     if(!libraryId || !categoryId || libraryId === LOCAL_CANVAS_ASSET_LIBRARY_ID) throw new Error('请选择可编辑的素材库图片分组');
     const data = await window.CanvasApi.createAssetItem({library_id:libraryId, category_id:categoryId, url:node.url, name:node.name || outputImageName(node.url)}, {errorFallback:'上传素材库失败'});
     canvasAssetLibrary = data.library || canvasAssetLibrary;
+    if(!nodes.includes(node) || node.url !== sourceUrl) throw new Error('图片已更改，请重新认证。');
     activeCanvasAssetLibraryId = libraryId;
     activeCanvasAssetCategoryId = categoryId;
     node.asset_item_id = data.item?.id || '';
@@ -7553,12 +7565,17 @@ async function canvasAvatarRequest(path, libraryId, providerId){
 }
 function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
     if(attempt >= 100) return;
+    const source = nodes.find(entry => entry.id === nodeId);
+    const sourceUrl = source?.url;
+    const isCurrent = () => nodes.includes(source) && source.url === sourceUrl
+        && source.asset_item_id === itemId && source.asset_library_id === libraryId;
     setTimeout(async () => {
         const node = nodes.find(entry => entry.id === nodeId);
-        if(!node) return;
+        if(!isCurrent()) return;
         try {
             const data = await canvasAvatarRequest(`/api/asset-library/items/${encodeURIComponent(itemId)}/avatar-status`, libraryId, provider.id);
             canvasAssetLibrary = data.library || canvasAssetLibrary;
+            if(!isCurrent()) return;
             const registration = data.item?.registrations?.[canvasAvatarPlatform(provider)] || {};
             if(registration.status === 'Active') {
                 node.face_auth_status = 'Active';
@@ -7569,11 +7586,13 @@ function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
                 setStatus('人脸认证已通过，可直接用于视频生成');
             } else if(registration.status === 'Failed') {
                 node.face_auth_status = 'Failed';
+                node.asset_uris = {};
                 refreshNodes([node.id]);
                 scheduleSave();
                 setStatus(registration.detail || '人脸认证未通过');
             } else pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt + 1);
         } catch(err) {
+            if(!isCurrent()) return;
             if(attempt < 2) pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt + 1);
             else setStatus(err.message || '认证状态查询失败');
         }
@@ -7582,11 +7601,13 @@ function pollImageNodeFaceAuth(nodeId, itemId, libraryId, provider, attempt=0){
 async function quickFaceAuthImageNode(nodeId, target=null){
     const node = nodes.find(entry => entry.id === nodeId);
     if(!node?.url || !['image','video'].includes(mediaKindForNode(node))) return;
+    const sourceUrl = node.url;
     const provider = quickCanvasAvatarProvider();
     if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置火山引擎。', '快速人脸认证'); return; }
     try {
         setStatus('正在上传素材并提交人脸认证…');
         const {item, libraryId} = await ensureImageNodeAsset(node, target);
+        if(!nodes.includes(node) || node.url !== sourceUrl) return;
         const platform = canvasAvatarPlatform(provider);
         const registration = item?.registrations?.[platform] || {};
         if(registration.status === 'Active') {
@@ -7599,6 +7620,7 @@ async function quickFaceAuthImageNode(nodeId, target=null){
         }
         if(registration.status === 'Processing') {
             node.face_auth_status = 'Processing';
+            node.asset_uris = {};
             render();
             scheduleSave();
             setStatus('该素材正在审核，稍后自动更新');
@@ -7606,6 +7628,7 @@ async function quickFaceAuthImageNode(nodeId, target=null){
             return;
         }
         node.face_auth_status = 'Processing';
+        node.asset_uris = {};
         render();
         scheduleSave();
         const data = await canvasAvatarRequest(`/api/asset-library/items/${encodeURIComponent(item.id)}/register-avatar`, libraryId, provider.id);
@@ -7613,7 +7636,9 @@ async function quickFaceAuthImageNode(nodeId, target=null){
         setStatus(`已提交 ${provider.name || provider.id} 审核，稍后自动更新`);
         pollImageNodeFaceAuth(nodeId, item.id, libraryId, provider);
     } catch(err) {
+        if(!nodes.includes(node) || node.url !== sourceUrl) return;
         node.face_auth_status = 'Failed';
+        node.asset_uris = {};
         render();
         scheduleSave();
         showErrorModal(err.message || '人脸认证提交失败', '快速人脸认证');
@@ -9931,13 +9956,15 @@ function mediaRefsFromNode(node){
     if(!node) return [];
     if(node.type === 'image' && node.url){
         const kind = mediaKindForNode(node);
-        return [{url:node.url, name:node.name || kind, role:node.role || '', kind}];
+        return [{url:node.url, name:node.name || kind, role:node.role || '', kind,
+            asset_uris:canvasAssetUrisForNode(node), asset_item_id:node.asset_item_id || '',
+            asset_library_id:node.asset_library_id || '', face_auth_status:node.face_auth_status || ''}];
     }
     if(node.type === 'group'){
         return (node.items || [])
             .map(id => nodes.find(x => x.id === id))
             .filter(x => x?.type === 'image' && x?.url)
-            .map(item => ({url:item.url, name:item.name || mediaKindForNode(item), role:item.role || '', kind:mediaKindForNode(item)}));
+            .flatMap(mediaRefsFromNode);
     }
     if(node.type === 'output'){
         return (node.images || []).map((item, i) => {
@@ -10363,17 +10390,18 @@ async function runVideoNode(nodeId, opts={}){
     const allRefs = sources.flatMap(s => s.refs || []);
     const providerId = resolveVideoProviderId(node.apiProvider || 'comfly');
     const isVolcengineVideo = canvasAvatarPlatform(apiProviders.find(provider => provider.id === providerId)) === 'volcengine';
-    const refs = applyUploadedUrlToRefs(imageRefsOnly(allRefs), node).map(ref => {
+    const mediaRefs = applyUploadedUrlToRefs(allRefs, node).map(ref => {
         const uris = (ref && ref.asset_uris && typeof ref.asset_uris === 'object') ? ref.asset_uris : {};
         return isVolcengineVideo && uris.volcengine ? {...ref, url:uris.volcengine, originalLocalUrl:ref.originalLocalUrl || ref.url} : ref;
     });
-    const unreadyVolcengineAsset = isVolcengineVideo && refs.find(ref => ref.face_auth_status && !String(ref.url || '').startsWith('asset://'));
+    const unreadyVolcengineAsset = isVolcengineVideo && mediaRefs.find(ref => ref.face_auth_status && !String(ref.url || '').startsWith('asset://'));
     if(unreadyVolcengineAsset){
         showErrorModal(unreadyVolcengineAsset.face_auth_status === 'Failed' ? '火山素材认证未通过，请重新认证后再生成。' : '火山素材仍在认证中，请等待认证通过后再生成。', '火山素材认证');
         return;
     }
-    const videoRefs = applyUploadedUrlToRefs(videoRefsOnly(allRefs), node);
-    const audioRefs = applyUploadedUrlToRefs(audioRefsOnly(allRefs), node);
+    const refs = imageRefsOnly(mediaRefs);
+    const videoRefs = videoRefsOnly(mediaRefs);
+    const audioRefs = audioRefsOnly(mediaRefs);
     const usesTrustedVolcengineAssets = isVolcengineVideo && [...refs, ...videoRefs, ...audioRefs]
         .some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     if(!isVolcengineVideo && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
@@ -11456,6 +11484,7 @@ function clearNodeContentBeforeDelete(id){
     if(!node) return false;
     if(node.type === 'image' && node.url){
         pushUndo();
+        clearCanvasFaceAuth(node);
         node.url = '';
         node.mediaKind = 'image';
         node.name = tr('canvas.imageCard');

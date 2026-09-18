@@ -29,7 +29,8 @@ function setup(){
     let payload;
     const noop = () => {};
     const ctx = loadFunctions(functions, {
-        window:{}, // Optional billing integration is absent in this fixture.
+        window:{VideoDurationPolicy:{clamp:()=>5}}, // Optional billing integration is absent in this fixture.
+        videoNodeDurationRange:()=>({}),
         allowedVideoResolutions:()=>['','480p','720p','1080p'],
         nodes:[node], generatorSources:() => sources, isVideoUrl:url => /\.mp4$/.test(url),
         render:noop, refreshGeneratorInputViews:noop, refreshGeometryAfterLayout:noop, scheduleSave:noop, cascadeTargetIdFromOptions:()=>'',
