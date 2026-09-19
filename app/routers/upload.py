@@ -31,8 +31,9 @@ def upload_capabilities():
 async def media_preview(url: str, w: int = 512):
     if postgres_enabled():
         from app.routers.cloud_media import preview
-        async with _media_preview_semaphore:
-            return await preview(url, w)
+        # Cloud preview bounds only cache misses. Cached redirects must not wait
+        # behind downloads/decoding of unrelated images or video posters.
+        return await preview(url, w)
     path = output_file_from_url(url)
     if not path or not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="媒体文件不存在")

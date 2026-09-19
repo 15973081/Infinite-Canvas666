@@ -42,10 +42,12 @@
         const button=(name,action)=>{const value=el('button',name);value.type='button';value.onclick=action;return value;};
         const trigger=button('预览素材',()=>open());
         function release() {
+            win.CanvasMediaLoader?.unwatch(media);
             if(media){if(media.tagName!=='IMG'){media.pause();}media.removeAttribute('src');if(media.tagName!=='IMG')media.load();media.remove();media=null;}
             if(download)download.removeAttribute('href');
         }
         function close() {
+            win.CanvasMediaLoader?.end('member-preview');
             selected=null;openedEpoch=null;release();
             if(dialog?.open)dialog.close();
         }
@@ -60,7 +62,7 @@
             download.addEventListener('click',event=>{if(!permitted() || !win.CanvasSession.context.workspace.permissions.includes('canvas.export')){event.preventDefault();close();}});
             header.append(heading,button('关闭预览',close));controls.append(previous,next,smaller,larger,reset,download);
             dialog.append(header,stage,status,controls);doc.body.append(dialog);
-            dialog.addEventListener('close',()=>{selected=null;openedEpoch=null;release();});
+            dialog.addEventListener('close',()=>{win.CanvasMediaLoader?.end('member-preview');selected=null;openedEpoch=null;release();});
             dialog.addEventListener('cancel',close);
             dialog.addEventListener('keydown',event=>{if(event.key==='ArrowLeft' && event.target===dialog){event.preventDefault();step(-1);}if(event.key==='ArrowRight' && event.target===dialog){event.preventDefault();step(1);}});
         }
@@ -75,11 +77,14 @@
             release();selected=item;zoom=1;
             const url=win.MemberMediaUrl?.(item.url);
             if(!url){close();return;}
+            win.CanvasMediaLoader?.begin('member-preview');
             heading.textContent=item.name;status.textContent=(list.indexOf(item)+1)+' / '+list.length;
             media=el(item.kind==='image' ? 'img' : item.kind);media.setAttribute('aria-label',item.name);
             if(item.kind==='image')media.alt=item.name;else{media.controls=true;media.preload='metadata';}
             media.onerror=()=>{if(selected===item)status.textContent='素材加载失败，请确认素材仍可访问后重新打开。';};
-            media.src=url;stage.replaceChildren(media);stage.scrollTop=0;stage.scrollLeft=0;
+            stage.replaceChildren(media);
+            win.CanvasMediaLoader?.watch(media,stage,item.url);
+            media.src=url;stage.scrollTop=0;stage.scrollLeft=0;
             previous.disabled=list.indexOf(item)===0;next.disabled=list.indexOf(item)===list.length-1;
             smaller.hidden=larger.hidden=reset.hidden=item.kind!=='image';
             download.hidden=!win.CanvasSession.context.workspace.permissions.includes('canvas.export');

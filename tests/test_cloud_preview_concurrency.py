@@ -77,3 +77,18 @@ def test_failed_preview_releases_lock_and_waiter_can_retry(previews):
     del results
     gc.collect()
     assert not cloud_media._preview_locks
+
+
+def test_cached_preview_bypasses_busy_generation_slots_and_legacy_gate(previews, monkeypatch):
+    from app.routers import upload
+    monkeypatch.setattr(upload, 'postgres_enabled', lambda: True)
+    async def run():
+        with workspace_scope('space-a'):
+            await cloud_media.preview(PARENT, 512)
+            busy = asyncio.Semaphore(0)
+            cloud_media._preview_slots[asyncio.get_running_loop()] = busy
+            monkeypatch.setattr(upload, '_media_preview_semaphore', asyncio.Semaphore(0))
+            response = await asyncio.wait_for(upload.media_preview(PARENT, 512), timeout=2)
+            assert response.status_code == 307
+    asyncio.run(run())
+    assert previews['decoded'] == previews['uploaded'] == 1

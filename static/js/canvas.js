@@ -666,12 +666,14 @@ function canvasMediaPreviewUrl(url, size=512){
 function canvasPreviewImgHtml(url, size=512, attrs=''){
     const original = String(url || '');
     const preview = canvasMediaPreviewUrl(original, size);
-    return `<img src="${escapeAttr(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
+    const source = window.CanvasMediaLoader?.imageAttributes(preview) || `src="${escapeAttr(preview)}"`;
+    return `<img ${source} data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function canvasVideoPreviewHtml(url, size=512, attrs=''){
     const original = String(url || '');
     const preview = canvasMediaPreviewUrl(original, size);
-    return `<img src="${escapeAttr(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
+    const source = window.CanvasMediaLoader?.imageAttributes(preview) || `src="${escapeAttr(preview)}"`;
+    return `<img ${source} data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function canvasVideoFallbackHtml(url){
     const safe = escapeAttr(url || '');
@@ -689,6 +691,7 @@ function bindCanvasPreviewImageFallbacks(root=document){
     root.querySelectorAll?.('img[data-preview-src][data-original-src]:not([data-preview-fallback-bound])').forEach(img => {
         img.dataset.previewFallbackBound = '1';
         img.addEventListener('error', () => {
+            if(img.dataset.mediaPriorityPaused || img.dataset.canvasMediaSrc) return;
             // Removing an offscreen source must not fetch the original or replace its poster.
             if(img.dataset.canvasMediaSuspended) return;
             const original = img.dataset.originalSrc || img.dataset.url || '';
@@ -5801,6 +5804,7 @@ function openImageEditor(nodeId, initialMode='crop'){
     const node = nodes.find(n => n.id === nodeId);
     if(!node?.url) return;
     if(mediaKindForNode(node) !== 'image') return;
+    window.CanvasMediaLoader?.begin('image-editor');
     if(!['preview','crop','outpaint','mask','brush','grid'].includes(initialMode)) initialMode = 'crop';
     cropState = {nodeId, x:0, y:0, w:0, h:0};
     // 重置自定义宫格状态
@@ -5849,11 +5853,13 @@ function openImageEditor(nodeId, initialMode='crop'){
         refreshIcons();
     };
     img.crossOrigin = 'anonymous';
+    window.CanvasMediaLoader?.watch(img);
     img.src = canvasDisplayMediaUrl(node.url);
     setImageEditMode(initialMode);
     refreshIcons();
 }
 function closeImageEditor(){
+    window.CanvasMediaLoader?.end('image-editor');
     document.getElementById('imageEditModal').classList.remove('open');
     const img = document.getElementById('cropImage');
     img.onload = null;
@@ -13501,6 +13507,7 @@ async function applyOutputVideoTrim(){
     } finally { outputTrimJob = null; syncOutputTrimUi(); }
 }
 function releaseOutputLightboxVideo(){
+    window.CanvasMediaLoader?.unwatch(outputLightboxVideo);
     outputLightboxVideo.onloadedmetadata = null;
     outputLightboxVideo.pause();
     outputLightboxVideo.removeAttribute('src');
@@ -13517,6 +13524,7 @@ function releaseOutputLightboxAudio(){
 }
 function openOutputLightbox(url, out){
     if(!url) return;
+    window.CanvasMediaLoader?.begin('output-lightbox');
     resetOutputVideoTrim();
     resetOutputPreviewZoom();
     currentOutputLightboxOutId = out?.id || '';
@@ -13579,6 +13587,7 @@ function openOutputLightbox(url, out){
                 ? `${outputLightboxVideo.videoWidth} x ${outputLightboxVideo.videoHeight}`
                 : 'Video', meta);
         };
+        window.CanvasMediaLoader?.watch(outputLightboxVideo, outputPreview, url);
         outputLightboxVideo.src = canvasDisplayMediaUrl(url);
         outputPreview.ondblclick = null;
         outputDownloadBtn.onclick = e => {
@@ -13596,6 +13605,7 @@ function openOutputLightbox(url, out){
     outputLightboxImg.onload = () => {
         outputResolutionText(`${outputLightboxImg.naturalWidth} x ${outputLightboxImg.naturalHeight}`, meta);
     };
+    window.CanvasMediaLoader?.watch(outputLightboxImg);
     outputLightboxImg.src = canvasDisplayMediaUrl(url);
     outputCompareResult.src = canvasDisplayMediaUrl(url);
     outputCompareOriginal.src = canvasDisplayMediaUrl(currentOutputCompareUrl || '');
@@ -13612,6 +13622,7 @@ function openOutputLightbox(url, out){
     refreshIcons();
 }
 function closeOutputLightbox(){
+    window.CanvasMediaLoader?.end('output-lightbox');
     resetOutputVideoTrim();
     document.getElementById('outputTrimToggle').hidden = true;
     outputLightbox.classList.remove('open');

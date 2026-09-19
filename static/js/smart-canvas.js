@@ -1040,12 +1040,14 @@ function smartMediaPreviewUrl(itemOrUrl, size=512){
 function smartPreviewImgHtml(itemOrUrl, size=512, attrs=''){
     const original = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
     const preview = smartMediaPreviewUrl(itemOrUrl, size);
-    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
+    const source = window.CanvasMediaLoader?.imageAttributes(preview) || `src="${escapeHtml(preview)}"`;
+    return `<img ${source} data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function smartVideoPreviewHtml(itemOrUrl, size=512, attrs=''){
     const original = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
     const preview = smartMediaPreviewUrl(itemOrUrl, size);
-    return `<img src="${escapeHtml(preview)}" data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
+    const source = window.CanvasMediaLoader?.imageAttributes(preview) || `src="${escapeHtml(preview)}"`;
+    return `<img ${source} data-preview-src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" data-url="${escapeAttr(original)}" data-preview-kind="video" loading="lazy"${attrs ? ` ${attrs}` : ''}>`;
 }
 function smartVideoFallbackHtml(url, attrs=''){
     const safe = escapeHtml(url || '');
@@ -1117,6 +1119,7 @@ function bindSmartPreviewImageFallbacks(root=document){
     root.querySelectorAll?.('img[data-preview-src][data-original-src]:not([data-preview-fallback-bound])').forEach(img => {
         img.dataset.previewFallbackBound = '1';
         img.addEventListener('error', () => {
+            if(img.dataset.mediaPriorityPaused || img.dataset.canvasMediaSrc) return;
             if(img.dataset.smartGroupSrc && !img.hasAttribute('src')) return;
             const original = img.dataset.originalSrc || '';
             if(img.dataset.previewKind === 'video'){
@@ -5873,6 +5876,7 @@ function bindImageProxyFallback(imgEl, itemOrUrl){
     if(!imgEl || imgEl.dataset.proxyFallbackBound === '1') return;
     imgEl.dataset.proxyFallbackBound = '1';
     imgEl.addEventListener('error', () => {
+        if(imgEl.dataset.mediaPriorityPaused || imgEl.dataset.canvasMediaSrc) return;
         if(imgEl.dataset.smartGroupSrc && !imgEl.hasAttribute('src')) return;
         if(imgEl.dataset.proxyFallbackTried === '1') return;
         const fallback = proxiedMediaUrl(itemOrUrl);
@@ -8115,6 +8119,7 @@ function setImageEditMode(mode, userTouched=false){
         applyBtn.style.display = 'none';
         refreshComparePanel();
     } else {
+        ensureSmartEditableImage().catch(() => {});
         ensureImageEditBaseSize(true);
         applyImageEditZoom();
         applyBtn.style.display = '';
@@ -8187,10 +8192,6 @@ function panoramaSource(){
     if(mediaKindForItem(image) !== 'image') return '';
     return displayMediaUrl(image.url ? image : (image.url || ''));
 }
-function panoramaFallbackSource(){
-    const image = currentEditImage().image || {};
-    return image?.url ? proxiedMediaUrl(image) : '';
-}
 function isLikelyPanoramaImage(node, image, naturalW=0, naturalH=0){
     if(mediaKindForItem(image || {}) !== 'image') return false;
     const text = [
@@ -8219,7 +8220,8 @@ async function ensurePanoramaRenderer(){
         const threeModulePath = '/static/vendor/js/three-0.160.0.module.js';
         const threeModuleUrl = window.FrontendVersion?.versionedUrl(threeModulePath) || threeModulePath;
         panoramaState.threeLoadPromise = panoramaState.threeLoadPromise || import(threeModuleUrl);
-        panoramaState.three = await panoramaState.threeLoadPromise;
+        try { panoramaState.three = await panoramaState.threeLoadPromise; }
+        catch(error){ panoramaState.threeLoadPromise = null; throw error; }
     }
     const THREE = panoramaState.three;
     if(!panoramaState.renderer){
@@ -8337,56 +8339,27 @@ function disposePanoramaTexture(){
     }
     panoramaState.image = null;
 }
-async function loadPanoramaTexture(src, allowFallback=true){
+async function loadPanoramaTexture(src){
     if(!src) return;
     const token = ++panoramaState.loadToken;
     const stage = document.getElementById('panoramaStage');
     stage?.classList.remove('ready');
-    let ready = false;
     try {
-        ready = await ensurePanoramaRenderer();
-    } catch(e) {
-        console.warn('panorama renderer init failed', e);
-        ready = false;
-    }
-    if(!ready){
-        stage?.classList.add('ready');
-        toast(tr('smart.panoramaLoadFailed'));
-        return;
-    }
-    if(token !== panoramaState.loadToken) return;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const fallback = allowFallback ? panoramaFallbackSource() : '';
-    const done = () => {
-        if(token !== panoramaState.loadToken){
-            return;
-        }
+        const [ready, original] = await Promise.all([ensurePanoramaRenderer(), ensureSmartEditableImage()]);
+        if(token !== panoramaState.loadToken || !panoramaState.enabled || !original) return;
+        if(!ready) throw new Error('全景渲染器初始化失败');
         disposePanoramaTexture();
-        if(!applyPanoramaTexture(img)){
-            stage?.classList.add('ready');
-            toast(tr('smart.panoramaLoadFailed'));
-            return;
-        }
-        panoramaState.image = img;
+        if(!applyPanoramaTexture(original.image)) throw new Error('全景纹理加载失败');
+        panoramaState.image = original.image;
         panoramaState.loadedSrc = src;
         stage?.classList.add('ready');
         resizePanoramaViewer();
         startPanoramaLoop();
-    };
-    const fail = () => {
+    } catch(error) {
         if(token !== panoramaState.loadToken) return;
-        if(fallback && fallback !== src){
-            loadPanoramaTexture(fallback, false);
-            return;
-        }
         stage?.classList.add('ready');
         toast(tr('smart.panoramaLoadFailed'));
-    };
-    img.onload = done;
-    img.onerror = fail;
-    img.src = src;
-    if(img.complete && img.naturalWidth) done();
+    }
 }
 function refreshPanoramaControls(){
     const controls = document.getElementById('panoramaControls');
@@ -8643,6 +8616,7 @@ function refreshComparePanel(){
             currentVideo.onloadedmetadata = onCurrentLoaded;
             currentVideo.onloadeddata = onCurrentLoaded;
             if(currentVideo.getAttribute('src') !== previewSrc){
+                window.CanvasMediaLoader?.watch(currentVideo, stage, curUrl);
                 currentVideo.src = previewSrc;
                 currentVideo.load?.();
             }
@@ -8665,6 +8639,7 @@ function refreshComparePanel(){
         return;
     }
     if(currentVideo){
+        window.CanvasMediaLoader?.unwatch(currentVideo);
         currentVideo.pause?.();
         currentVideo.onloadedmetadata = null;
         currentVideo.onloadeddata = null;
@@ -8674,18 +8649,8 @@ function refreshComparePanel(){
     }
     currentImg.style.display = 'block';
     currentImg.onload = onCurrentLoaded;
-    currentImg.onerror = () => {
-        if(currentImg.dataset.proxyFallbackTried === '1') return;
-        const fallback = proxiedMediaUrl(editing.image || curUrl);
-        if(!fallback || fallback === currentImg.getAttribute('src')) return;
-        currentImg.dataset.proxyFallbackTried = '1';
-        currentImg.src = fallback;
-    };
-    const previewSrc = displayMediaUrl(editing.image || curUrl);
-    if(currentImg.getAttribute('src') !== previewSrc) {
-        currentImg.dataset.proxyFallbackTried = '';
-        currentImg.src = previewSrc;
-    }
+    currentImg.onerror = null;
+    ensureSmartEditableImage().catch(() => {});
     if(currentImg.complete && currentImg.naturalWidth) requestAnimationFrame(onCurrentLoaded);
     const sources = previewCompareSources();
     const hasSource = sources.length > 0;
@@ -9921,6 +9886,49 @@ function openImagePreview(nodeId, imageIndex=0){
     openImageEditor(nodeId, imageIndex);
     setImageEditMode('preview');
 }
+let smartEditableResource = null;
+let smartEditableJob = null;
+function clearSmartEditableImage(){
+    smartEditableJob = null;
+    smartEditableResource?.clear();
+    for(const id of ['cropImage','previewCurrentImage']){
+        const img = document.getElementById(id);
+        if(img){ img.onload = null; img.onerror = null; img.removeAttribute('src'); }
+    }
+}
+function ensureSmartEditableImage({retry=false}={}){
+    const editing = currentEditImage(), snapshot = cropState;
+    if(!snapshot || mediaKindForItem(editing.image || {}) !== 'image') return Promise.resolve(null);
+    const source = displayMediaUrl(editing.image);
+    if(!retry && smartEditableJob?.snapshot === snapshot && smartEditableJob.source === source && smartEditableJob.state !== 'failed') return smartEditableJob.promise;
+    if(smartEditableJob?.snapshot === snapshot && smartEditableJob.state === 'failed') retry = true;
+    smartEditableResource ||= window.CanvasEditableImage.create(window);
+    const job = {snapshot,source,state:'loading'};
+    smartEditableJob = job;
+    const crop = document.getElementById('cropImage'), preview = document.getElementById('previewCurrentImage');
+    const apply = document.getElementById('imageEditApplyBtn');
+    if(apply) apply.disabled = true;
+    window.CanvasMediaLoader?.watch(crop, document.getElementById('imageEditStage'), '', {
+        retry:() => ensureSmartEditableImage({retry:true}).then(result => {
+            if(result && panoramaState.enabled) loadPanoramaTexture(source);
+        }).catch(() => {})
+    });
+    job.promise = smartEditableResource.load(source, {retry}).then(result => {
+        if(smartEditableJob !== job || cropState !== snapshot) return null;
+        job.state = 'ready';
+        crop.crossOrigin = preview.crossOrigin = 'anonymous';
+        crop.src = preview.src = result.url;
+        return result;
+    }).catch(error => {
+        if(smartEditableJob === job && cropState === snapshot){
+            job.state = 'failed';
+            crop.dispatchEvent(new Event('error'));
+            updatePreviewMetaHint('原图加载失败，请重试。');
+        }
+        throw error;
+    });
+    return job.promise;
+}
 function openImageEditor(nodeId, imageIndex=0){
     const node = nodes.find(n => n.id === nodeId);
     const image = imageForDisplay(node?.images?.[imageIndex]);
@@ -9933,6 +9941,8 @@ function openImageEditor(nodeId, imageIndex=0){
         downloadPreviewFile(image);
         return;
     }
+    window.CanvasMediaLoader?.begin('image-editor');
+    clearSmartEditableImage();
     selectedId = nodeId;
     selectedImage = {nodeId, index:imageIndex};
     previewNavState = {nodeId, index:imageIndex, count:(node.images || []).filter(img => img?.url).length};
@@ -9968,34 +9978,35 @@ function openImageEditor(nodeId, imageIndex=0){
         return;
     }
     img.onload = () => {
+        if(!smartEditableJob || smartEditableJob.snapshot !== cropState || smartEditableJob.state !== 'ready') return;
+        document.getElementById('imageEditApplyBtn').disabled = false;
         const targetImage = node.images?.[imageIndex];
         if(targetImage && img.naturalWidth && img.naturalHeight && (!targetImage.natural_w || !targetImage.natural_h)){
             targetImage.natural_w = img.naturalWidth;
             targetImage.natural_h = img.naturalHeight;
             scheduleSave();
         }
-        imageEditBaseW = img.clientWidth; imageEditBaseH = img.clientHeight;
+        ensureImageEditBaseSize(true);
         updateZoomLabel(); resizeEditDrawCanvas(); resetEditDrawingHistory(); clearEditDrawing(true); resetCropBox();
         if(!imageEditModeTouched) setImageEditMode('preview');
-        else refreshComparePanel();
+        else setImageEditMode(imageEditMode);
         if(!panoramaState.enabled) updatePreviewMetaHint();
         syncImageEditOverflow(); refreshIcons();
     };
     img.onerror = () => {
-        if(img.dataset.proxyFallbackTried === '1') return;
-        const fallback = proxiedMediaUrl(image);
-        if(!fallback || fallback === img.getAttribute('src')) return;
-        img.dataset.proxyFallbackTried = '1';
-        img.src = fallback;
+        if(smartEditableJob?.snapshot === cropState){
+            smartEditableJob.state = 'failed';
+            document.getElementById('imageEditApplyBtn').disabled = true;
+        }
     };
-    img.dataset.proxyFallbackTried = '';
-    img.crossOrigin = 'anonymous';
-    img.src = displayMediaUrl(image);
+    ensureSmartEditableImage().catch(() => {});
     setImageEditMode('preview');
     updatePreviewNavButtons();
     refreshIcons();
 }
 function closeImageEditor(){
+    window.CanvasMediaLoader?.end('image-editor');
+    clearSmartEditableImage();
     resetVideoTrimState();
     detachedEditPreview = null;
     imageEditModal.classList.remove('open');
@@ -15322,15 +15333,15 @@ window.onload = async () => {
     loadPromptPresets();
     loadPromptTemplateGroups();
     loadPromptTemplateOverrides();
-    await loadPromptTemplates();
-
     if(window.lucide) lucide.createIcons();
     connectAssetLibrarySyncSocket();
     await loadConfig();
-    await loadAssetLibrary();
     await loadCanvas();
     syncApiKindToggleVisibility();
     render();
+    const background = () => Promise.all([loadPromptTemplates(), loadAssetLibrary()]);
+    if(window.CanvasMediaLoader) window.CanvasMediaLoader.defer(background);
+    else background();
 };
 window.addEventListener('beforeunload', event => {
     if(smartCanvasDirty || smartSaveInFlight || saveTimer){
