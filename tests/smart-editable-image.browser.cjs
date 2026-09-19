@@ -7,26 +7,37 @@ const source=fs.readFileSync(path.join(root,'static/js/smart-canvas.js'),'utf8')
 function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async ' ? 'async ' : '')+source.slice(start,source.indexOf('\n}',start)+2);}
 async function fixture(t){
     const hits=[],svg='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="green"/></svg>';
-    let allow=true,fail=false,delay=false;const held=[];
+    let allow=true,fail=false,delay=false;const held=[],gatewayHits=[];
     const objects=http.createServer((req,res)=>{
-        hits.push({url:req.url,origin:req.headers.origin||null});
+        hits.push({url:req.url,origin:req.headers.origin||null,method:req.method,member:req.headers['x-member-id'],workspace:req.headers['x-workspace-id']});
+        // Match production TOS: application identity headers are not allowed.
+        if(req.method==='OPTIONS'){res.writeHead(403);return res.end();}
         const send=()=>{res.setHeader('Cache-Control','private, max-age=600');res.setHeader('Content-Type',fail?'text/plain':'image/svg+xml');if(allow && req.headers.origin)res.setHeader('Access-Control-Allow-Origin',req.headers.origin);res.statusCode=fail?503:200;res.end(fail?'unavailable':svg);};
         if(delay)held.push(send);else send();
     });
     await new Promise(r=>objects.listen(0,'127.0.0.1',r));
     const objectUrl=`http://127.0.0.1:${objects.address().port}/image.svg?signature=unchanged`;
     const app=http.createServer((req,res)=>{
-        if(req.url==='/asset'){res.writeHead(307,{'Location':objectUrl,'Cache-Control':'no-store'});return res.end();}
+        const url=new URL(req.url,'http://app.test');
+        if(url.pathname==='/api/auth/status'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({authenticated:true,mode:'members',member:{id:'alice',display_name:'Alice'}}));}
+        if(url.pathname==='/api/auth/workspaces'){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({workspaces:[{id:'space-test',name:'Test',permissions:['canvas.read','asset.read']}]}));}
+        if(url.pathname==='/assets/cloud/sample.svg'){
+            gatewayHits.push({member:url.searchParams.get('member'),workspace:url.searchParams.get('workspace'),cookie:req.headers.cookie});
+            if(url.searchParams.get('member')!=='alice' || url.searchParams.get('workspace')!=='space-test' || req.headers.cookie!=='fixture_session=alice'){res.writeHead(403);return res.end();}
+            res.writeHead(307,{'Location':objectUrl,'Cache-Control':'no-store'});return res.end();
+        }
+        res.setHeader('Set-Cookie','fixture_session=alice; HttpOnly; SameSite=Lax; Path=/');
         res.setHeader('Content-Type','text/html');res.end('<div id="imageEditStage" style="position:relative"><img id="previewCurrentImage"><img id="cropImage"><div id="panoramaStage"></div></div><button id="imageEditApplyBtn">应用</button><canvas id="export"></canvas><canvas id="gl"></canvas>');
     });
     await new Promise(r=>app.listen(0,'127.0.0.1',r));
     const browser=await chromium.launch({channel:'chrome',headless:true});
     t.after(async()=>{held.splice(0).forEach(send=>send());await browser.close();app.closeAllConnections();objects.closeAllConnections();await Promise.all([new Promise(r=>app.close(r)),new Promise(r=>objects.close(r))]);});
     const page=await browser.newPage();await page.goto(`http://127.0.0.1:${app.address().port}`);
-    for(const name of ['canvas-media-loader.js','canvas-editable-image.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,'static/js',name),'utf8')});
+    for(const name of ['member-session.js','member-media.js','canvas-media-loader.js','canvas-editable-image.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,'static/js',name),'utf8')});
+    await page.evaluate(()=>CanvasSession.ready);
     await page.addScriptTag({content:`
         let smartEditableResource=null,smartEditableJob=null,cropState={nodeId:'a'};
-        let item={url:'/asset',kind:'image'};
+        let item={url:'/assets/cloud/sample.svg',kind:'image'};
         let panoramaState={enabled:true,loadToken:0,image:null};
         function currentEditImage(){return {node:{id:'a'},image:item};}
         window.exportsCaptured=[];
@@ -37,7 +48,7 @@ async function fixture(t){
         }
         function clampOutpaint(){}
         function mediaKindForItem(value){return value.kind;}
-        function displayMediaUrl(value){return value.url;}
+        function displayMediaUrl(value){return MemberMediaUrl(value.url);}
         function updatePreviewMetaHint(){}
         function tr(value){return value;}
         function toast(value){window.lastToast=value;}
@@ -58,7 +69,7 @@ async function fixture(t){
         ${fn('applyImageCrop')}
         ${fn('applyImageOutpaint')}
     `});
-    return {page,hits,objectUrl,allow(v){allow=v;},fail(v){fail=v;},delay(v){delay=v;},release(){held.splice(0).forEach(send=>send());}};
+    return {page,hits,gatewayHits,objectUrl,allow(v){allow=v;},fail(v){fail=v;},delay(v){delay=v;},release(){held.splice(0).forEach(send=>send());}};
 }
 test('old no-CORS cache reproduces broken crop; shared original fixes preview, crop export and WebGL without repeat download',async t=>{
     const f=await fixture(t),p=f.page;
@@ -89,6 +100,8 @@ test('old no-CORS cache reproduces broken crop; shared original fixes preview, c
         {name:'image_outpaint.png',width:300,height:150,type:'image/png'},
     ]);
     assert.equal(f.hits.length,2,'one CORS reload shared by all modes');assert.ok(f.hits[1].origin);
+    assert.ok(f.hits.every(hit=>hit.method==='GET' && !hit.member && !hit.workspace),'no preflight or leaked member headers at object store');
+    assert.deepEqual(f.gatewayHits,[{member:'alice',workspace:'space-test',cookie:'fixture_session=alice'}]);
     assert.equal(f.hits[0].url,f.hits[1].url,'signed target was never cache-busted');
     await p.evaluate(()=>clearSmartEditableImage());
     assert.equal(await p.locator('#cropImage').getAttribute('src'),null);

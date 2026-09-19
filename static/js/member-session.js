@@ -328,7 +328,21 @@
         const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
         const selected = headers.get('X-Workspace-ID') || url.searchParams.get('workspace');
         if (selected && selected !== bound.workspace.id) throw new Error('请求空间与当前页面不一致。');
-        headers.set('X-Workspace-ID', bound.workspace.id); headers.set('X-Member-ID', bound.member.id);
+        const method = String(init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+        const mediaRead = ['GET','HEAD'].includes(method) && /^\/(?:assets\/|output\/|api\/media-preview$|api\/media\/ast_[a-f0-9]{32}\/(?:content|signed)$)/.test(url.pathname);
+        const queryWorkspaces = url.searchParams.getAll('workspace'), queryMembers = url.searchParams.getAll('member');
+        if(mediaRead && (queryWorkspaces.some(value => value !== bound.workspace.id) || queryMembers.some(value => value !== bound.member.id) ||
+            queryWorkspaces.length > 1 || queryMembers.length > 1 || (headers.has('X-Member-ID') && headers.get('X-Member-ID') !== bound.member.id))) {
+            throw new Error('素材请求身份或空间与当前页面不一致。');
+        }
+        if(mediaRead && queryWorkspaces.length === 1 && queryMembers.length === 1){
+            // The same-origin gateway checks the cookie against BOTH URL selectors.
+            // Do not forward application headers through its TOS redirect: those
+            // headers trigger a preflight that the object store does not allow.
+            headers.delete('X-Workspace-ID'); headers.delete('X-Member-ID');
+        } else {
+            headers.set('X-Workspace-ID', bound.workspace.id); headers.set('X-Member-ID', bound.member.id);
+        }
         const response = await nativeFetch(input, {...init, headers, credentials:'same-origin'});
         if (response.status === 401) await pause('登录已失效，已暂停后续请求。');
         if ([403,409].includes(response.status)) {

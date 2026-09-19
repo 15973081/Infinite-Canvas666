@@ -39,6 +39,36 @@ function harness({member='alice', selected='space_a', parent, search='', failBus
 }
 async function settle(){for(let i=0;i<20;i++) await new Promise(resolve=>setImmediate(resolve));}
 
+test('query-bound media reads keep credentials and selectors without redirecting member headers',async()=>{
+    const h=harness();await h.window.CanvasSession.ready;
+    for(const path of ['/assets/cloud/photo.png','/output/photo.png','/api/media-preview','/api/media/ast_'+'a'.repeat(32)+'/content']){
+        const url=path+'?workspace=space_a&member=alice';
+        await h.window.fetch(new Request('http://localhost'+url),{headers:{'X-Member-ID':'alice','X-Workspace-ID':'space_a',Range:'bytes=0-9'}});
+        const call=h.calls.at(-1);
+        assert.equal(call.init.credentials,'same-origin');
+        assert.equal(call.init.headers.has('X-Member-ID'),false);
+        assert.equal(call.init.headers.has('X-Workspace-ID'),false);
+        assert.equal(call.init.headers.get('Range'),'bytes=0-9');
+    }
+    for(const [url,init] of [['/assets/cloud/photo.png',{}],['/api/canvases?workspace=space_a&member=alice',{}],['/assets/cloud/photo.png?workspace=space_a&member=alice',{method:'POST'}]]){
+        await h.window.fetch(url,init);
+        assert.equal(h.calls.at(-1).init.headers.get('X-Member-ID'),'alice');
+    }
+});
+
+test('media reads reject foreign or duplicate bindings and still pause on identity rejection',async()=>{
+    const h=harness();await h.window.CanvasSession.ready;
+    const count=h.calls.length;
+    for(const query of ['workspace=space_b&member=alice','workspace=space_a&member=bob','workspace=space_a&member=alice&member=alice','workspace=space_a&workspace=space_a&member=alice']){
+        await assert.rejects(h.window.fetch('/assets/cloud/photo.png?'+query,{headers:{'X-Workspace-ID':'space_a'}}),/不一致/);
+    }
+    assert.equal(h.calls.length,count);
+    const rejected=harness({failBusiness:true});await rejected.window.CanvasSession.ready;
+    await rejected.window.fetch('/assets/cloud/photo.png?workspace=space_a&member=alice');
+    assert.equal(rejected.window.CanvasSession.paused,true);
+    await assert.rejects(rejected.window.fetch('/assets/cloud/photo.png?workspace=space_a&member=alice'),/暂停/);
+});
+
 test('business calls wait for explicit first space selection and bind member and workspace', async () => {
     const h=harness({selected:null});
     const request=h.window.fetch('/api/canvases');
