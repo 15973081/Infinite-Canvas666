@@ -65,12 +65,12 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
 }
 for(const tool of ['panorama','depth'])for(const changed of [false,true])test('managed '+tool+' keeps real task receipts and '+(changed?'protects edited inputs':'joins its result'),async()=>{
  const f=fixture('image',{branch:true,count:1});
- f.c.document={getElementById:()=>({disabled:false})};
- f.c.cropState={};f.c.currentEditImage=()=>({node:f.src,image:f.src.images[0]});f.c.mediaKindForItem=()=> 'image';f.c.closeImageEditor=()=>{};
+ f.c.document={querySelectorAll:()=>[]};
+ f.c.imageForDisplay=i=>i;f.c.smartNodeToolbarImageIndex=()=>0;f.c.mediaKindForItem=()=> 'image';
  const ordinaryFetch=f.c.fetch;
  f.c.fetch=async(url,opts)=>url==='/api/image-tools'?{ok:true,json:async()=>({revision:5,tools:{[tool]:{enabled:true,provider_id:'p',model:'m',prompt:'Tool prompt',size:'2048x1024',quality:'auto'}}})}:ordinaryFetch(url,opts);
  vm.runInContext('let smartImageToolBusy=false;',f.c);install(f.c,'runManagedImageTool');
- const waiting=f.c.runManagedImageTool(tool);await until(f.reached);
+ const waiting=f.c.runManagedImageTool(tool,f.src.id,0);await until(f.reached);
  if(changed){f.c.promptInput.innerHTML='keep new prompt';f.src.promptDraftText='keep new prompt';}
  f.gate.resolve();await waiting;
  assert.equal(f.requests.length,1);assert.equal(f.requests[0].image_tool,tool);assert.equal(f.requests[0].image_tool_revision,5);

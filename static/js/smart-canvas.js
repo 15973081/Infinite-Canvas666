@@ -6619,6 +6619,9 @@ function runSmartNodeToolbarAction(nodeId, action){
         openImagePreview(nodeId, index);
         return;
     }
+    if(action === 'panorama' || action === 'depth'){
+        return runManagedImageTool(action, nodeId, index);
+    }
     const modeMap = {crop:'crop', outpaint:'outpaint', mask:'mask', brush:'brush', grid:'grid'};
     openImageEditor(nodeId, index);
     setImageEditMode(modeMap[action] || 'preview', true);
@@ -8110,10 +8113,6 @@ function setImageEditMode(mode, userTouched=false){
     syncGridGapValue();
     const applyBtn = document.getElementById('imageEditApplyBtn');
     document.getElementById('compareToggleBtn').style.display = isPreview && !isVideoPreview ? 'inline-flex' : 'none';
-    for(const id of ['smartImageToolPanoramaBtn','smartImageToolDepthBtn']){
-        const button=document.getElementById(id);
-        if(button){button.style.display=isPreview && !isVideoPreview && window.CanvasSession?.enabled ? '' : 'none';button.disabled=smartImageToolBusy;}
-    }
     document.getElementById('panoramaToggleBtn').style.display = isPreview && !isVideoPreview ? 'inline-flex' : 'none';
     document.getElementById('panoramaExportBtn').style.display = isPreview && !isVideoPreview && panoramaState.enabled ? 'inline-flex' : 'none';
     document.getElementById('compareThumbs').style.display = 'none';
@@ -9893,23 +9892,24 @@ function openImagePreview(nodeId, imageIndex=0){
 let smartEditableResource = null;
 let smartEditableJob = null;
 let smartImageToolBusy = false;
-async function runManagedImageTool(kind){
+async function runManagedImageTool(kind, nodeId, index){
     if(smartImageToolBusy || !['panorama','depth'].includes(kind)) return;
-    const source=currentEditImage(), editor=cropState;
+    const node=nodes.find(n=>n.id===nodeId);
+    const source={node,image:{...imageForDisplay(node?.images?.[index])}};
     if(!source.node || !source.image?.url || mediaKindForItem(source.image)!=='image')return;
     if(!window.CanvasSession?.enabled)return toast('请在成员空间中使用管理平台配置的图片工具。');
     const sourceGuard=canvasTaskWriteGuard(source.node);
     if(!sourceGuard.valid() || isSmartCanvasLocked())return toast('请先取得此画布的编辑权限。');
     smartImageToolBusy=true;
-    const buttons=['smartImageToolPanoramaBtn','smartImageToolDepthBtn'].map(id=>document.getElementById(id));
-    buttons.forEach(b=>{if(b)b.disabled=true;});
+    const toolButtons=()=>document.querySelectorAll('[data-smart-node-action="panorama"], [data-smart-node-action="depth"]');
+    toolButtons().forEach(b=>{b.disabled=true;});
     let output=null,binding=null,guard=sourceGuard;
     try{
         const response=await fetch('/api/image-tools');
         const data=await response.json();
         if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'无法读取图片工具配置，请检查权限。');
         guard.check();
-        if(cropState!==editor || currentEditImage().image?.url!==source.image.url)return;
+        if(selectedId!==nodeId || smartNodeToolbarImageIndex(source.node)!==index || imageForDisplay(source.node.images?.[index])?.url!==source.image.url)return;
         const config=data.tools[kind];
         if(!config?.enabled)throw new Error(config?.unavailable_reason || '此工具尚未在管理平台启用。');
         const refs=[{url:source.image.url,name:source.image.name || 'reference.png',kind:'image'}];
@@ -9921,7 +9921,7 @@ async function runManagedImageTool(kind){
         output=createPendingOutputFromSource(source.node,1,meta,{connectSource:false,selectOutput:true,refs});
         guard=canvasTaskWriteGuard(source.node,output);guard.check();
         binding=smartTaskInputBinding(source.node,output,guard);
-        closeImageEditor();render();scheduleSave();
+        render();scheduleSave();
         const task=await runApiGeneration(config.prompt,refs,runSettings,binding,{kind,revision:data.revision});
         guard.check();binding?.check();
         await queueAndResumeSmartApiTasks(output,task,{kind:'image',startedAt:started,archiveExisting:false,
@@ -9931,7 +9931,7 @@ async function runManagedImageTool(kind){
         if(output && guard.valid() && !error?.resultPending && !smartPendingTasks(output).length){output.pending=0;output.running=false;output.runError=error.message;render();scheduleSave();}
         toast(error.message || '图片工具生成失败，请查看任务记录。');
     }finally{
-        smartImageToolBusy=false;buttons.forEach(b=>{if(b)b.disabled=false;});
+        smartImageToolBusy=false;toolButtons().forEach(b=>{b.disabled=isSmartCanvasLocked();});
     }
 }
 function clearSmartEditableImage(){
@@ -15444,6 +15444,10 @@ function smartNodeToolbarHtml(node){
         {key:'mask', icon:'brush', label:'遮罩', enabled:canEditImage},
         {key:'brush', icon:'paintbrush', label:'画笔', enabled:canEditImage},
         {key:'grid', icon:'grid-3x3', label:gridLabel, enabled:canEditImage},
+        ...(canEditImage && window.CanvasSession?.enabled ? [
+            {key:'panorama', icon:'globe', label:'全景图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()},
+            {key:'depth', icon:'layers', label:'深度图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()}
+        ] : []),
         {key:'asset', icon:'library-big', label:'素材库', enabled:kind === 'image' || kind === 'video'},
         {key:'auth', icon:'shield-check', label:'认证', enabled:kind === 'image' || kind === 'video'},
         {key:'download', icon:'download', label:'下载', enabled:true}
