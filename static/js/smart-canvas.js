@@ -2454,7 +2454,24 @@ function renderVideoResolutionControl(){
 }
 function renderVideoToggleControl(key, label){
     const on = !!settings[key];
-    return `<button type="button" class="setting-check ${on ? 'active' : ''}" data-toggle-param="${escapeHtml(key)}"><span class="check-box"></span><span>${escapeHtml(label)}</span></button>`;
+    return `<button type="button" class="composer-option ${on ? 'active' : ''}" role="switch" aria-checked="${on}" data-toggle-param="${escapeHtml(key)}"><span>${escapeHtml(label)}</span><span class="composer-option-switch" aria-hidden="true"></span></button>`;
+}
+function renderVideoAdvancedControl(includeFrameRoles=false){
+    const options=[
+        ['videoEnhancePrompt','smart.videoEnhancePrompt'],['videoEnableUpsample','smart.videoUpsample'],
+        ['videoGenerateAudio','smart.videoGenerateAudio'],['videoCameraFixed','smart.videoCameraFixed'],
+        ['videoWatermark','smart.videoWatermark'],['videoMultimodal','smart.videoMultimodal'],
+        ...(includeFrameRoles ? [['videoUseFrameRoles','smart.videoUseFrameRoles']] : [])
+    ];
+    const enabled=options.filter(([key])=>settings[key]).length + Number(!!settings.videoTrustedAsset);
+    return `<details class="smart-control composer-advanced">
+        <summary><i data-lucide="sliders-horizontal"></i><span>更多设置</span>${enabled ? `<span class="composer-option-count">${enabled}</span>` : ''}</summary>
+        <div class="composer-advanced-panel">
+            <div class="composer-advanced-heading">视频设置<span>按需调整生成效果</span></div>
+            ${options.map(([key,label])=>renderVideoToggleControl(key,tr(label))).join('')}
+            <div class="composer-trusted-options">${renderVideoTrustedAssetControl()}</div>
+        </div>
+    </details>`;
 }
 function renderTempShUploadControl(){
     return `<button type="button" class="smart-pill cloud-upload-pill" data-temp-sh-upload-video title="上传当前输入图片或视频到云端直链"><i data-lucide="upload-cloud"></i><span>上传云端</span></button>`;
@@ -2525,6 +2542,7 @@ function comfyParamValue(field){
 function updateProviderModels(){ renderDynamicParams(); }
 function renderDynamicParams(){
     if(!dynamicParams) return;
+    const advancedOpen=!!dynamicParams.querySelector('.composer-advanced')?.open;
     settings.engine = ['api','volcengine','modelscope','comfy'].includes(settings.engine) ? settings.engine : 'api';
     settings.apiKind = settings.apiKind === 'video' ? 'video' : 'image';
     clearVolcengineSelectionOutsideVolcengine(settings);
@@ -2540,6 +2558,8 @@ function renderDynamicParams(){
     }
     else if(settings.engine === 'modelscope') renderMsParams();
     else renderComfyParams();
+    const advanced=dynamicParams.querySelector('.composer-advanced');
+    if(advanced) advanced.open=advancedOpen;
     bindDynamicParams();
     updatePromptPlaceholder();
     persistActiveSmartSettings();
@@ -2576,14 +2596,7 @@ function renderApiVideoParams(){
         ${renderVideoResolutionControl()}
         ${renderVideoAspectControl()}
         ${renderVideoDurationControl()}
-        ${renderVideoToggleControl('videoEnhancePrompt', tr('smart.videoEnhancePrompt'))}
-        ${renderVideoToggleControl('videoEnableUpsample', tr('smart.videoUpsample'))}
-        ${renderVideoToggleControl('videoGenerateAudio', tr('smart.videoGenerateAudio'))}
-        ${renderVideoToggleControl('videoCameraFixed', tr('smart.videoCameraFixed'))}
-        ${renderVideoToggleControl('videoWatermark', tr('smart.videoWatermark'))}
-        ${renderVideoToggleControl('videoMultimodal', tr('smart.videoMultimodal'))}
-        ${renderVideoToggleControl('videoUseFrameRoles', tr('smart.videoUseFrameRoles'))}
-        ${renderVideoTrustedAssetControl()}
+        ${renderVideoAdvancedControl(true)}
     `;
 }
 function renderVolcengineParams(){
@@ -2619,13 +2632,7 @@ function renderVolcengineVideoParams(){
         ${renderVideoResolutionControl()}
         ${renderVideoAspectControl()}
         ${renderVideoDurationControl()}
-        ${renderVideoToggleControl('videoEnhancePrompt', tr('smart.videoEnhancePrompt'))}
-        ${renderVideoToggleControl('videoEnableUpsample', tr('smart.videoUpsample'))}
-        ${renderVideoToggleControl('videoGenerateAudio', tr('smart.videoGenerateAudio'))}
-        ${renderVideoToggleControl('videoCameraFixed', tr('smart.videoCameraFixed'))}
-        ${renderVideoToggleControl('videoWatermark', tr('smart.videoWatermark'))}
-        ${renderVideoToggleControl('videoMultimodal', tr('smart.videoMultimodal'))}
-        ${renderVideoTrustedAssetControl()}
+        ${renderVideoAdvancedControl()}
     `;
 }
 function renderMsParams(){
@@ -3218,6 +3225,7 @@ function setDynamicSetting(key, value){
 }
 function closeAllSmartPopovers(){
     document.querySelectorAll('.smart-control.pinned').forEach(c => c.classList.remove('pinned'));
+    document.querySelectorAll('.composer-advanced[open]').forEach(c => {c.open=false;});
 }
 function bindDynamicParams(){
     dynamicParams.querySelectorAll('.smart-control > .smart-pill').forEach(pill => {
@@ -3255,6 +3263,7 @@ function bindDynamicParams(){
             if(btn.dataset.toggleParam === 'videoUseFrameRoles' && settings.videoUseFrameRoles) settings.videoMultimodal = false;
             persistActiveSmartSettings();
             renderDynamicParams();
+            dynamicParams.querySelector(`[data-toggle-param="${btn.dataset.toggleParam}"]`)?.focus({preventScroll:true});
             scheduleSave();
         };
     });
