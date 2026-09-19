@@ -59,6 +59,8 @@ class CanvasTaskTarget(BaseModel):
 
 
 class OnlineImageRequest(BaseModel):
+    image_tool: Literal['', 'panorama', 'depth'] = ''
+    image_tool_revision: int = Field(default=0, ge=0, strict=True)
     canvas_target: Optional[CanvasTaskTarget] = None
     canvas_id: str = Field(default="", max_length=96)
     client_task_id: str = Field(default="", max_length=96)

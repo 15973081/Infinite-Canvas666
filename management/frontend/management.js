@@ -2,7 +2,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
-  const names = {modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  const names = {imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   const errors = {
     invalid_model_policy:'请检查模型开关、开放规格和视频秒数范围（正整数，最短不大于最长）。',
     invalid_model_discount:'折扣支付比例须为 0–100%，结束时间须晚于开始时间，同一规格的时段不能重叠；交叉规格必须有明确包含关系，具体规格覆盖通用规则。',
@@ -147,8 +147,15 @@
     const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({modelBilling:modelBillingView,billing: billingView, databases: databaseView, overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
+    const result = await ({imageTools:imageToolsView,modelBilling:modelBillingView,billing: billingView, databases: databaseView, overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
     if (stamp === serial) content.replaceChildren(...result);
+  }
+  async function imageToolsView(){
+    if(!me.permissions.includes('provider.configure'))return denied();
+    if(!workspace)return [el('p','请在右上角选择要配置图片工具的空间。','muted')];
+    const path='/api/image-tools?workspace='+encodeURIComponent(workspace);
+    const data=await api(path);
+    return [window.ManagementImageTools.create({data,save:body=>call(path,'PUT',body)})];
   }
   async function modelBillingView(){
     if(!allowed('provider.configure'))return denied();

@@ -8110,6 +8110,10 @@ function setImageEditMode(mode, userTouched=false){
     syncGridGapValue();
     const applyBtn = document.getElementById('imageEditApplyBtn');
     document.getElementById('compareToggleBtn').style.display = isPreview && !isVideoPreview ? 'inline-flex' : 'none';
+    for(const id of ['smartImageToolPanoramaBtn','smartImageToolDepthBtn']){
+        const button=document.getElementById(id);
+        if(button){button.style.display=isPreview && !isVideoPreview && window.CanvasSession?.enabled ? '' : 'none';button.disabled=smartImageToolBusy;}
+    }
     document.getElementById('panoramaToggleBtn').style.display = isPreview && !isVideoPreview ? 'inline-flex' : 'none';
     document.getElementById('panoramaExportBtn').style.display = isPreview && !isVideoPreview && panoramaState.enabled ? 'inline-flex' : 'none';
     document.getElementById('compareThumbs').style.display = 'none';
@@ -9888,6 +9892,48 @@ function openImagePreview(nodeId, imageIndex=0){
 }
 let smartEditableResource = null;
 let smartEditableJob = null;
+let smartImageToolBusy = false;
+async function runManagedImageTool(kind){
+    if(smartImageToolBusy || !['panorama','depth'].includes(kind)) return;
+    const source=currentEditImage(), editor=cropState;
+    if(!source.node || !source.image?.url || mediaKindForItem(source.image)!=='image')return;
+    if(!window.CanvasSession?.enabled)return toast('请在成员空间中使用管理平台配置的图片工具。');
+    const sourceGuard=canvasTaskWriteGuard(source.node);
+    if(!sourceGuard.valid() || isSmartCanvasLocked())return toast('请先取得此画布的编辑权限。');
+    smartImageToolBusy=true;
+    const buttons=['smartImageToolPanoramaBtn','smartImageToolDepthBtn'].map(id=>document.getElementById(id));
+    buttons.forEach(b=>{if(b)b.disabled=true;});
+    let output=null,binding=null,guard=sourceGuard;
+    try{
+        const response=await fetch('/api/image-tools');
+        const data=await response.json();
+        if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'无法读取图片工具配置，请检查权限。');
+        guard.check();
+        if(cropState!==editor || currentEditImage().image?.url!==source.image.url)return;
+        const config=data.tools[kind];
+        if(!config?.enabled)throw new Error(config?.unavailable_reason || '此工具尚未在管理平台启用。');
+        const refs=[{url:source.image.url,name:source.image.name || 'reference.png',kind:'image'}];
+        const [w,h]=config.size.split('x').map(Number);
+        const runSettings={engine:'api',apiKind:'image',provider_id:config.provider_id,model:config.model,resolution:'custom',customWidth:w,customHeight:h,customSize:config.size,quality:config.quality,count:1};
+        const label=kind==='panorama'?'生成全景图':'生成深度图',started=nowMs();
+        const meta={prompt:config.prompt,displayPrompt:label,promptText:label,promptHtml:'',promptRefs:refs,inputRefs:refs,sourceNodeId:source.node.id,settings:runSettings,createdAt:Date.now()};
+        pushUndo();
+        output=createPendingOutputFromSource(source.node,1,meta,{connectSource:false,selectOutput:true,refs});
+        guard=canvasTaskWriteGuard(source.node,output);guard.check();
+        binding=smartTaskInputBinding(source.node,output,guard);
+        closeImageEditor();render();scheduleSave();
+        const task=await runApiGeneration(config.prompt,refs,runSettings,binding,{kind,revision:data.revision});
+        guard.check();binding?.check();
+        await queueAndResumeSmartApiTasks(output,task,{kind:'image',startedAt:started,archiveExisting:false,
+            run:{nodeId:source.node.id,nodeType:source.node.type,kind:'image',prompt:config.prompt,refs,size:config.size,settings:runSettings}});
+    }catch(error){
+        if(error?.inputChanged && output)pauseSmartTaskInput(output,binding,guard,error);
+        if(output && guard.valid() && !error?.resultPending && !smartPendingTasks(output).length){output.pending=0;output.running=false;output.runError=error.message;render();scheduleSave();}
+        toast(error.message || '图片工具生成失败，请查看任务记录。');
+    }finally{
+        smartImageToolBusy=false;buttons.forEach(b=>{if(b)b.disabled=false;});
+    }
+}
 function clearSmartEditableImage(){
     smartEditableJob = null;
     smartEditableResource?.clear();
@@ -13496,7 +13542,7 @@ function comfyFieldKind(field){
     if(field?.type === 'textarea' || /prompt|text|提示词|正向|负向/.test(key)) return 'prompt';
     return 'setting';
 }
-async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=null){
+async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=null,imageTool=null){
     if(!runSettings.provider_id || !runSettings.model) throw new Error(tr('smart.errNoApiModel'));
     if(runSettings.outpaintResolutionLocked === true){
         const error = smartOutpaintResolutionError(runSettings);
@@ -13504,6 +13550,7 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
     }
     const count = Math.max(1, Math.min(8, Number(runSettings.count || 1)));
     const payload = {prompt, provider_id:runSettings.provider_id, model:runSettings.model, size:sizeForRun(runSettings), quality:runSettings.quality || 'auto', n:1, reference_images:imageRefsOnly(refs)};
+    if(imageTool){payload.image_tool=imageTool.kind;payload.image_tool_revision=imageTool.revision;}
     if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
     const tasks = await Promise.all(Array.from({length:count}, () => (window.CanvasApi?.createCanvasImageTaskRequest
         ? window.CanvasApi.createCanvasImageTaskRequest({...payload,canvas_id:canvasId})

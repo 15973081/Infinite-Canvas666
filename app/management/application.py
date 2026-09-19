@@ -186,6 +186,12 @@ class ProviderSave(Input):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class ImageToolsSave(Input):
+    config: dict = Field(max_length=2)
+    expected_revision: int = Field(strict=True, ge=0)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class ProviderProbe(Input):
     mode: Literal['models', 'protocols'] = 'models'
     expected_version: int = Field(strict=True, ge=1)
@@ -405,6 +411,16 @@ def create_app(static_dir=None):
     @app.get('/api/audit')
     def audit(request: Request, workspace: str | None = None, before: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=100)):
         return queries.events(actor(request), workspace, before, limit)
+
+    @app.get('/api/image-tools')
+    def image_tools_read(request: Request, workspace: str = Query(min_length=1, max_length=80)):
+        from app.services.image_tools import management
+        return management(actor(request), workspace)
+
+    @app.put('/api/image-tools')
+    def image_tools_save(request: Request, data: ImageToolsSave, workspace: str = Query(min_length=1, max_length=80)):
+        from app.services.image_tools import management
+        return management(actor(request), workspace, **data.model_dump())
 
     @app.get('/api/maintenance')
     def maintenance_snapshot(request: Request, workspace: str | None = None):

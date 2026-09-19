@@ -113,6 +113,8 @@ def permissions(path, method):
         return ('asset.read', 'canvas.read')
     if path == '/api/smart-canvas/prompt-templates' and method == 'GET':
         return ('asset.read',)
+    if path == '/api/image-tools' and method == 'GET':
+        return ('canvas.read', 'provider.use')
     if path == '/api/media/uploads/capabilities' and method == 'GET':
         return ('asset.upload',)
     if path.startswith('/api/media/uploads'):

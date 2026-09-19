@@ -63,6 +63,22 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
  return {c,src,target,loop,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):entry==='loop'?c.runLoopRoundIntoSlot(loop,src,target,1,{}):c.runGeneration()};
 }
+for(const tool of ['panorama','depth'])for(const changed of [false,true])test('managed '+tool+' keeps real task receipts and '+(changed?'protects edited inputs':'joins its result'),async()=>{
+ const f=fixture('image',{branch:true,count:1});
+ f.c.document={getElementById:()=>({disabled:false})};
+ f.c.cropState={};f.c.currentEditImage=()=>({node:f.src,image:f.src.images[0]});f.c.mediaKindForItem=()=> 'image';f.c.closeImageEditor=()=>{};
+ const ordinaryFetch=f.c.fetch;
+ f.c.fetch=async(url,opts)=>url==='/api/image-tools'?{ok:true,json:async()=>({revision:5,tools:{[tool]:{enabled:true,provider_id:'p',model:'m',prompt:'Tool prompt',size:'2048x1024',quality:'auto'}}})}:ordinaryFetch(url,opts);
+ vm.runInContext('let smartImageToolBusy=false;',f.c);install(f.c,'runManagedImageTool');
+ const waiting=f.c.runManagedImageTool(tool);await until(f.reached);
+ if(changed){f.c.promptInput.innerHTML='keep new prompt';f.src.promptDraftText='keep new prompt';}
+ f.gate.resolve();await waiting;
+ assert.equal(f.requests.length,1);assert.equal(f.requests[0].image_tool,tool);assert.equal(f.requests[0].image_tool_revision,5);
+ assert.equal(f.requests[0].reference_images.length,1);assert.equal(f.src.images[0].url,'/assets/cloud/ast_original/original.png');
+ assert.equal(f.out.images.length,changed?0:1);
+ if(changed)assert.equal(f.c.promptInput.innerHTML,'keep new prompt');
+ else assert.equal(f.c.message,undefined);
+});
 for(const kind of ['image','video'])for(const entry of ['main','step','loop']){
  test('smart '+entry+' '+kind+' binds saved input through real POST, poll and result write',async()=>{
   const f=fixture(kind,{entry}),waiting=f.start();await until(f.reached);f.gate.resolve();await waiting;

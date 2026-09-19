@@ -30,9 +30,11 @@ _canvas_video_recovery_tasks = set()
 
 
 def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
-    if hasattr(payload, "model_dump"):
-        return payload.model_dump(mode="json")
-    return payload.dict()
+    data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
+    if not data.get('image_tool'):
+        data.pop('image_tool', None)
+        data.pop('image_tool_revision', None)
+    return data
 
 
 def _canvas_task_gate_error():
@@ -64,7 +66,16 @@ async def create_canvas_image_task(payload: OnlineImageRequest):
     return result
 
 
+@router.get('/api/image-tools')
+def image_tools_catalog():
+    from app.services.image_tools import catalog
+    return catalog()
+
+
 def _prepare_canvas_image_task(payload: OnlineImageRequest):
+    if payload.image_tool:
+        from app.services.image_tools import apply
+        apply(payload)
     if postgres_enabled():
         payload.provider_id = get_api_provider(payload.provider_id)["id"]
     if payload.canvas_id:
