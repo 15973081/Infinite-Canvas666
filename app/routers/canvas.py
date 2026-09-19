@@ -259,9 +259,9 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     base_url = video_api_root(provider)
     if not base_url:
         raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider['id']} 未配置 Base URL")
-    api_key = os.getenv(provider_key_env(provider["id"]), "")
+    api_key = provider_env_key_value(provider["id"])
     if not api_key:
-        raise HTTPException(status_code=400, detail=f"未配置 {provider.get('name') or provider['id']} 的 API Key，请在 API 设置中填写。")
+        raise HTTPException(status_code=400, detail=f"未配置 {provider.get('name') or provider['id']} 的 API Key，请在 API 平台管理中填写。")
     is_apimart = is_apimart_provider(provider)
     is_volcengine = is_volcengine_provider(provider)
     video_pricing = _volcengine_video_pricing(payload, provider) if is_volcengine else None

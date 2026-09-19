@@ -30,7 +30,7 @@ class SeedanceReferencePayloadTests(unittest.TestCase):
         patches = {
             'get_api_provider':lambda _:provider,
             'video_api_root':lambda _:'https://example.invalid',
-            'provider_key_env':lambda _:'UNIT_TEST_ARK_KEY',
+            'provider_env_key_value':lambda _:'not-a-real-key',
             'is_apimart_provider':lambda _:False,
             'is_volcengine_provider':lambda _:True,
             'is_yuli_provider':lambda _:False,
@@ -42,7 +42,6 @@ class SeedanceReferencePayloadTests(unittest.TestCase):
         }
         payload = CanvasVideoRequest(**{'prompt':'生成镜头', 'provider_id':'unit', 'model':'doubao-seedance-2-0-260128', **kwargs})
         with ExitStack() as stack:
-            stack.enter_context(patch.dict('os.environ', {'UNIT_TEST_ARK_KEY':'not-a-real-key'}))
             stack.enter_context(patch.object(canvas.httpx, 'AsyncClient', return_value=client))
             for name, value in patches.items():
                 stack.enter_context(patch.object(canvas, name, value))
