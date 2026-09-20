@@ -1109,6 +1109,7 @@ function computePromptItems(){
 const AVATAR_SUPPORTED_PLATFORMS = ['apimart', 'volcengine'];
 const AVATAR_PLATFORM_LABELS = {apimart:'APIMart', volcengine:'火山引擎'};
 function providerAvatarPlatform(p){
+    if(p?.avatar_registration) return String(p.avatar_registration.platform || '');
     const proto = String(p?.protocol || '').toLowerCase();
     const base = String(p?.base_url || '').toLowerCase();
     if(proto === 'apimart' || base.includes('apimart.ai')) return 'apimart';
@@ -1116,7 +1117,18 @@ function providerAvatarPlatform(p){
     return '';
 }
 function providerAvatarSupported(p){
+    if(p?.avatar_registration) return p.avatar_registration.supported === true && AVATAR_SUPPORTED_PLATFORMS.includes(providerAvatarPlatform(p));
     return AVATAR_SUPPORTED_PLATFORMS.includes(providerAvatarPlatform(p));
+}
+function providerAvatarCredentialMessage(p){
+    const volcengine = providerAvatarPlatform(p) === 'volcengine';
+    const missing = p?.avatar_registration
+        ? p.avatar_registration.credentials_configured !== true
+        : volcengine ? p?.has_volcengine_access_key === false || p?.has_volcengine_secret_key === false : p?.has_key === false;
+    if(!missing) return '';
+    return volcengine
+        ? '该平台尚未配齐资产认证所需的 AK/SK，请在 API 平台管理中填写 Access Key ID 和 Secret Access Key。'
+        : '该平台尚未配置 API Key，请在 API 平台管理中填写。';
 }
 function avatarPlatformLabel(platform){
     return AVATAR_PLATFORM_LABELS[String(platform || '')] || String(platform || '平台');
@@ -2330,7 +2342,8 @@ function renderAvatarSection(item){
     const selected = activeAvatarProvider();
     const selPlatform = providerAvatarPlatform(selected);
     const supported = providerAvatarSupported(selected);
-    const noKey = selected && selected.has_key === false;
+    const credentialMessage = providerAvatarCredentialMessage(selected);
+    const noKey = !!credentialMessage;
     const alreadyRegistered = supported && regs[selPlatform] && regs[selPlatform].task_id;
     const select = `<select class="avatar-provider-select" data-avatar-provider>${providers.map(p => `<option value="${escapeAttr(p.id)}" ${p.id === selected?.id ? 'selected' : ''}>${escapeHtml(avatarProviderOptionLabel(p))}</option>`).join('')}</select>`;
     let registerUI;
@@ -2340,7 +2353,7 @@ function renderAvatarSection(item){
         registerUI = `
             <div class="avatar-hint">提交到 ${escapeHtml(avatarPlatformLabel(selPlatform))} 私域素材审核，通过后生成 asset:// 地址，可在该平台的视频生成中通过 @ 直接调用（一个素材可注册到多个平台，平台间互相隔离）。</div>
             ${select}
-            ${noKey ? '<div class="avatar-hint warn">该平台尚未配置 API Key。</div>' : ''}
+            ${noKey ? `<div class="avatar-hint warn">${escapeHtml(credentialMessage)}</div>` : ''}
             ${alreadyRegistered ? '<div class="avatar-hint">该平台已注册，再次提交会覆盖该平台的认证。</div>' : ''}
             <button class="asset-btn primary" type="button" data-avatar-register="${escapeAttr(item.id)}" data-avatar-prov="${escapeAttr(selected?.id || '')}" ${busy || noKey ? 'disabled' : ''}><i data-lucide="user-round-plus"></i><span>${busy ? '注册中，请稍候…' : (alreadyRegistered ? '重新注册到该平台' : '注册并等待审核')}</span></button>`;
     }
@@ -3849,6 +3862,8 @@ async function registerSelectedAssetAvatars(providerId=''){
     const provider = (providerId && (apiProviders || []).find(p => p.id === providerId)) || activeAvatarProvider();
     if(!provider){ setStatus('请先在 API 平台管理中添加并启用 API 平台'); return; }
     if(!providerAvatarSupported(provider)){ setStatus(`「${avatarPlatformLabel(providerAvatarPlatform(provider))}」的资产认证 API 尚未接入`); return; }
+    const credentialMessage = providerAvatarCredentialMessage(provider);
+    if(credentialMessage){ setStatus(credentialMessage); return; }
     if(avatarBusyId) return;
     const batchLibraryId = activeAssetLibraryId;
     ids.forEach(id => avatarSubmittingItems.set(id, {providerId:provider.id, libraryId:batchLibraryId}));
@@ -3955,6 +3970,8 @@ async function registerAssetAvatar(id, providerId=''){
     const provider = (providerId && (apiProviders || []).find(p => p.id === providerId)) || activeAvatarProvider();
     if(!provider){ setStatus('请先在 API 平台管理中添加并启用 API 平台'); return; }
     if(!providerAvatarSupported(provider)){ setStatus(`「${avatarPlatformLabel(providerAvatarPlatform(provider))}」的资产认证 API 尚未接入`); return; }
+    const credentialMessage = providerAvatarCredentialMessage(provider);
+    if(credentialMessage){ setStatus(credentialMessage); return; }
     if(avatarBusyId) return;
     const cancelKey = `${provider.id}:${id}`;
     avatarSubmittingItems.set(id, {providerId:provider.id, libraryId:activeAssetLibraryId});

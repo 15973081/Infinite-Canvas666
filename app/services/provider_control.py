@@ -202,15 +202,27 @@ def assign(actor, workspace, provider_ids, primary_provider_id, expected_version
 
 
 def workspace_providers():
+    from app.services.media import avatar_platform_for_provider, provider_supports_avatar
+
+    def project(row, primary=False):
+        config = row['config']
+        fields = set(row['secret_fields'] or [])
+        platform = avatar_platform_for_provider(config)
+        supported = provider_supports_avatar(config)
+        required = {'volcengine_access_key_id', 'volcengine_secret_access_key'} if platform == 'volcengine' else {'api_key'}
+        return {**config, 'primary': primary, 'has_key': 'api_key' in fields,
+                'avatar_registration': {'platform': platform, 'supported': supported,
+                                        'credentials_configured': supported and required <= fields}}
+
     with az.policy_transaction() as conn:
         rows = conn.execute('''SELECT p.config,p.secret_fields,(s.primary_provider_id=p.id) AS primary FROM managed_providers p
             JOIN workspace_provider_grants g ON g.provider_id=p.id JOIN workspace_provider_sets s ON s.workspace_id=g.workspace_id
             WHERE g.workspace_id=%s AND p.config->>'enabled'='true' ORDER BY p.id''', (current_workspace(),))
-        result = [{**row['config'], 'primary': bool(row['primary']), 'has_key': 'api_key' in row['secret_fields']} for row in rows if not retired(row['config'].get('id'))]
+        result = [project(row, bool(row['primary'])) for row in rows if not retired(row['config'].get('id'))]
         recovery = recovery_provider(conn)
         if recovery:
             result = [p for p in result if p['id'] != recovery['id']]
-            result.append({**recovery['config'], 'enabled': True, 'primary': False, 'has_key': 'api_key' in recovery['secret_fields']})
+            result.append({**project(recovery), 'enabled': True})
         return result
 
 

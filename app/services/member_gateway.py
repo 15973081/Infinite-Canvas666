@@ -169,7 +169,7 @@ def preflight(actor, workspace, actions, operation='read', resource_id=None):
 
 def public_provider_config():
     from app.providers.registry import load_api_providers
-    keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'model_prices', 'model_policies'}
+    keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'model_prices', 'model_policies', 'avatar_registration'}
     from app.services.model_commercial import public_models
     providers = [{k: v for k, v in public_models(p).items() if k in keys} for p in load_api_providers()]
     for provider in providers: provider['billing_authority'] = 'server'
