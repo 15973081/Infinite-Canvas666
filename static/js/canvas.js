@@ -1512,11 +1512,7 @@ function apiImageSize(ratioValue, resolutionValue, customRatioValue = '', custom
         const longSide = RES_LONG_SIDE[resolutionKey] || 1024;
         if(parsed){
             const pixelLimit = RES_PIXEL_LIMIT[resolutionKey] || (longSide * longSide);
-            const rawWidth = parsed >= 1 ? longSide : Math.min(longSide * parsed, Math.sqrt(pixelLimit * parsed));
-            const rawHeight = parsed >= 1 ? Math.min(longSide / parsed, Math.sqrt(pixelLimit / parsed)) : longSide;
-            const width = Math.floor(rawWidth / 16) * 16;
-            const height = Math.floor(rawHeight / 16) * 16;
-            return `${Math.max(64, width)}x${Math.max(64, height)}`;
+            return window.CanvasCore.imageSizeForRatio(parsed, longSide, pixelLimit);
         }
     }
     const ratioKey = ratioValue && SIZE_MAP[ratioValue] ? ratioValue : 'square';
@@ -4556,7 +4552,14 @@ function createImageCardFromUrl(url, point, name='image', opts={}){
     if(opts.asset_item_id) node.asset_item_id = opts.asset_item_id;
     if(opts.asset_library_id) node.asset_library_id = opts.asset_library_id;
     nodes.push(node);
-    render();
+    // Library drops add one unconnected node. Keep existing editors, images
+    // and video playback mounted instead of rebuilding the entire canvas.
+    const element = isNodeInCanvasViewport(node, 400) ? renderNode(node) : renderNodePlaceholder(node);
+    nodesEl.appendChild(element);
+    refreshGeometry([node.id]);
+    refreshGeometryAfterLayout([node.id]);
+    refreshIcons();
+    bindCanvasPreviewImageFallbacks(element);
     scheduleSave();
 }
 async function createImageCardsFromLocalPaths(paths, point){
@@ -7283,7 +7286,11 @@ function canvasAssetThumbHtml(item){
     }
     return `<div class="canvas-asset-thumb-wrap">${canvasPreviewImgHtml(thumbUrl, 512, 'class="canvas-asset-thumb" alt=""')}${faceBadge}</div>`;
 }
-function positionCanvasAssetHoverPreview(event){
+const canvasAssetHover = window.CanvasCore.createAssetHoverController(showCanvasAssetHoverPreviewNow, hideCanvasAssetHoverPreviewNow, positionCanvasAssetHoverPreviewNow);
+function positionCanvasAssetHoverPreview(event){ canvasAssetHover.move(event); }
+function showCanvasAssetHoverPreview(event, item){ canvasAssetHover.enter(event, item); }
+function hideCanvasAssetHoverPreview(){ canvasAssetHover.hide(); }
+function positionCanvasAssetHoverPreviewNow(event){
     if(!canvasAssetHoverPreview || canvasAssetHoverPreview.hidden || canvasAssetHoverPreview.style.display === 'none') return;
     const pad = 14;
     const w = canvasAssetHoverPreview.offsetWidth || 280;
@@ -7295,7 +7302,7 @@ function positionCanvasAssetHoverPreview(event){
     canvasAssetHoverPreview.style.left = `${left}px`;
     canvasAssetHoverPreview.style.top = `${top}px`;
 }
-function showCanvasAssetHoverPreview(event, item){
+function showCanvasAssetHoverPreviewNow(event, item){
     if(!canvasAssetHoverPreview || !item?.url) return;
     if(canvasAssetItemKind(item) === 'workflow') return;
     const img = canvasAssetHoverPreview.querySelector('img');
@@ -7304,7 +7311,7 @@ function showCanvasAssetHoverPreview(event, item){
     const name = canvasAssetHoverPreview.querySelector('.canvas-asset-hover-name');
     if(img){
         img.style.display = 'block';
-        img.src = canvasMediaPreviewUrl(isVideo ? item.url : (item.thumbnail || item.url || ''), 768);
+        img.src = item.previewUrl || canvasMediaPreviewUrl(isVideo ? item.url : (item.thumbnail || item.url || ''), 512);
         img.dataset.previewSrc = img.src || '';
         img.dataset.originalSrc = item.url || item.thumbnail || '';
         img.dataset.url = item.url || item.thumbnail || '';
@@ -7321,7 +7328,7 @@ function showCanvasAssetHoverPreview(event, item){
     canvasAssetHoverPreview.style.display = 'block';
     positionCanvasAssetHoverPreview(event);
 }
-function hideCanvasAssetHoverPreview(){
+function hideCanvasAssetHoverPreviewNow(){
     if(!canvasAssetHoverPreview) return;
     canvasAssetHoverPreview.style.display = 'none';
     canvasAssetHoverPreview.hidden = true;
@@ -7440,7 +7447,7 @@ function renderCanvasAssetLibrary({preserveScroll=false}={}){
             }
         });
         const item = visibleItems.find(entry => entry.id === card.dataset.assetId);
-        card.addEventListener('mouseenter', event => showCanvasAssetHoverPreview(event, item));
+        card.addEventListener('mouseenter', event => showCanvasAssetHoverPreview(event, {...item, previewUrl:card.querySelector('img')?.currentSrc}));
         card.addEventListener('mousemove', positionCanvasAssetHoverPreview);
         card.addEventListener('mouseleave', hideCanvasAssetHoverPreview);
         card.querySelectorAll('.canvas-asset-action').forEach(btn => {
@@ -7559,11 +7566,10 @@ async function saveImageNodeToAssetLibrary(nodeId, target=null){
     }
 }
 function canvasAvatarPlatform(provider){
-    const protocol = String(provider?.protocol || '').toLowerCase();
-    return protocol === 'volcengine' || provider?.id === 'volcengine' ? 'volcengine' : '';
+    return window.CanvasAssetAuth.registrationPlatform(provider);
 }
 function quickCanvasAvatarProvider(){
-    return apiProviders.find(provider => provider?.id === 'volcengine' && provider.enabled !== false && provider.has_key !== false);
+    return window.CanvasAssetAuth.registrationProvider(apiProviders);
 }
 async function canvasAvatarRequest(path, libraryId, providerId){
     const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
@@ -7611,6 +7617,7 @@ async function quickFaceAuthImageNode(nodeId, target=null){
     const sourceUrl = node.url;
     const provider = quickCanvasAvatarProvider();
     if(!provider){ showErrorModal('请先在 API 平台管理中启用并配置火山引擎。', '快速素材认证'); return; }
+    if(!window.CanvasAssetAuth.registrationReady(provider)){ showErrorModal('火山引擎素材认证需要 AK/SK，请在管理平台补齐 Access Key ID 和 Secret Access Key。', '快速素材认证'); return; }
     try {
         setStatus('正在上传素材并提交素材认证…');
         const {item, libraryId} = await ensureImageNodeAsset(node, target);
@@ -10213,7 +10220,7 @@ function classicPendingInputBinding(found,options){
 async function runGenerator(genId, opts={}){
     const gen = nodes.find(n => n.id === genId);
     if(!gen || (gen.running && !opts.cascade)) return;
-    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
+    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit){showErrorModal('当前编辑已暂停，请先保留草稿并恢复编辑后再生成。');return;}
     if(!allowedImageResolutions(gen).includes(gen.resolution || '1k')){
         const error = new Error('图片规格已变化，请重新选择模型和分辨率后生成。');
         if(opts.cascade) throw error;
@@ -10308,7 +10315,14 @@ async function runGenerator(genId, opts={}){
     } catch(err) {
         if(inputBinding){try {inputBinding.check();}catch(changed){err=changed;}}
         pauseClassicTaskInput(gen,out,writeGuard,err,runToken,inputBinding);
-        if(err?.resultPending || !writeGuard.valid()){const paused=writeGuard.pause();if(opts.cascade)throw paused;return;}
+        if(err?.resultPending || !writeGuard.valid()){
+            const paused=writeGuard.pause();
+            if(nodes.includes(gen) && gen._taskRunToken===runToken){
+                gen.running=false;refreshRunNodes(gen,out);
+                showErrorModal(err.message || paused.message);
+            }
+            if(opts.cascade)throw paused;return;
+        }
         const remainingPending = pendingIds.map(id => pendingById(out, id)).filter(Boolean);
         if(isCascadeAbortError(err)){
             remainingPending.forEach(resumePendingAfterCascadeStop);

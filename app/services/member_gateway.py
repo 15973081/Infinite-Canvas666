@@ -85,6 +85,8 @@ def permissions(path, method):
         return PERMISSIONS if method == 'GET' and path.endswith('/task-results') else (*PERMISSIONS, 'canvas.edit') if method == 'POST' and path.endswith('/join') else None
     if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):
         return ('canvas.read',) if method == 'POST' else None
+    if re.fullmatch(r'/api/canvases/[^/]+/touch', path):
+        return ('canvas.read',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method == 'POST' else None
     if re.fullmatch(r'/api/canvases/[^/]+/ledger(?:/.*)?', path):
@@ -127,6 +129,9 @@ def permissions(path, method):
         return ('asset.upload',)
     if path == '/api/asset-library/items/crop' and method == 'POST':
         return ('asset.read', 'asset.upload', 'asset.manage')
+    if (re.fullmatch(r'/api/asset-library/items/[^/]+/(?:register-avatar|cancel-avatar|avatar-status)', path)
+            or path == '/api/asset-library/items/batch-register-avatar'):
+        return ('asset.read', 'asset.manage', 'provider.use', 'generation.submit') if method == 'POST' else None
     if path.startswith(('/api/asset-library', '/api/local-assets')):
         if path.endswith(('/register-avatar', '/batch-register-avatar', '/cancel-avatar', '/avatar-status', '/caption')):
             # Registration/caption can call paid services; migrate explicitly.
@@ -142,6 +147,8 @@ def permissions(path, method):
 
 
 def operation(path, method):
+    if re.fullmatch(r'/api/canvases/[^/]+/touch', path) and method == 'POST':
+        return 'read', None  # This endpoint only returns the existing canvas record.
     if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):
         return 'observe', None
     if re.fullmatch(r'/api/canvases/[^/]+/edit-lease(?:/(?:acquire|renew|release|transfers(?:/[^/]+)?))?', path):

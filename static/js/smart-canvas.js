@@ -2514,11 +2514,7 @@ function apiImageSize(ratioValue, resolutionValue, customRatioValue='', customSi
         const longSide = RES_LONG_SIDE[resolutionKey] || 1024;
         if(parsed){
             const pixelLimit = RES_PIXEL_LIMIT[resolutionKey] || (longSide * longSide);
-            const rawWidth = parsed >= 1 ? longSide : Math.min(longSide * parsed, Math.sqrt(pixelLimit * parsed));
-            const rawHeight = parsed >= 1 ? Math.min(longSide / parsed, Math.sqrt(pixelLimit / parsed)) : longSide;
-            const width = Math.floor(rawWidth / 16) * 16;
-            const height = Math.floor(rawHeight / 16) * 16;
-            return `${Math.max(64, width)}x${Math.max(64, height)}`;
+            return window.CanvasCore.imageSizeForRatio(parsed, longSide, pixelLimit);
         }
     }
     const ratioKey = ratioValue && SIZE_MAP[ratioValue] ? ratioValue : 'square';
@@ -4536,7 +4532,11 @@ function openAssetNameDialog({title='', value='', placeholder='', cancelValue=''
         };
     });
 }
-function positionAssetHoverPreview(event){
+const smartAssetHover = window.CanvasCore.createAssetHoverController(showAssetHoverPreviewNow, hideAssetHoverPreviewNow, positionAssetHoverPreviewNow);
+function positionAssetHoverPreview(event){ smartAssetHover.move(event); }
+function showAssetHoverPreview(event, item){ smartAssetHover.enter(event, item); }
+function hideAssetHoverPreview(){ smartAssetHover.hide(); }
+function positionAssetHoverPreviewNow(event){
     if(!assetHoverPreview || assetHoverPreview.hidden || assetHoverPreview.style.display === 'none') return;
     const pad = 14;
     const w = assetHoverPreview.offsetWidth || 260;
@@ -4548,39 +4548,27 @@ function positionAssetHoverPreview(event){
     assetHoverPreview.style.left = `${left}px`;
     assetHoverPreview.style.top = `${top}px`;
 }
-function showAssetHoverPreview(event, item){
+function showAssetHoverPreviewNow(event, item){
     if(!assetHoverPreview || !item?.url) return;
     let media = assetHoverPreview.querySelector('img,video');
     const name = assetHoverPreview.querySelector('.asset-hover-name');
-    const kind = assetMediaKind(item);
-    if(kind === 'video' && media?.tagName?.toLowerCase() !== 'video'){
-        media?.replaceWith(document.createElement('video'));
-        media = assetHoverPreview.querySelector('video');
-    } else if(kind !== 'video' && media?.tagName?.toLowerCase() !== 'img'){
+    if(media?.tagName?.toLowerCase() !== 'img'){
+        media?.pause?.();
+        media?.removeAttribute('src');
         media?.replaceWith(document.createElement('img'));
         media = assetHoverPreview.querySelector('img');
     }
-    if(kind === 'video'){
-        media.muted = true;
-        media.loop = true;
-        media.playsInline = true;
-        media.preload = 'metadata';
-        media.controls = false;
-        media.disablePictureInPicture = true;
-        media.setAttribute('disablepictureinpicture', '');
-        media.setAttribute('controlslist', 'nodownload noplaybackrate noremoteplayback');
-        media.src = item.url;
-        media.play?.().catch(() => {});
-    } else {
-        media.src = item.url;
-        media.alt = 'asset preview';
-    }
+    // Reuse the already loaded library thumbnail; hover must not fetch/play
+    // full originals while the user is trying to drag a card.
+    media.decoding = 'async';
+    media.src = item.previewUrl || smartMediaPreviewUrl(item, 512);
+    media.alt = 'asset preview';
     name.textContent = item.name || 'asset';
     assetHoverPreview.hidden = false;
     assetHoverPreview.style.display = 'block';
     positionAssetHoverPreview(event);
 }
-function hideAssetHoverPreview(){
+function hideAssetHoverPreviewNow(){
     if(!assetHoverPreview) return;
     assetHoverPreview.style.display = 'none';
     assetHoverPreview.hidden = true;
@@ -4647,7 +4635,7 @@ function beginAssetInlineRename(assetId){
 function bindAssetItemEvents(){
     assetGrid.querySelectorAll('.asset-item').forEach(el => {
         const thumb = el.querySelector('.asset-thumb');
-        thumb?.addEventListener('mouseenter', e => showAssetHoverPreview(e, {url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind}));
+        thumb?.addEventListener('mouseenter', e => showAssetHoverPreview(e, {url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind, previewUrl:thumb?.currentSrc || thumb?.querySelector('img')?.currentSrc}));
         thumb?.addEventListener('mousemove', e => positionAssetHoverPreview(e));
         thumb?.addEventListener('mouseleave', hideAssetHoverPreview);
         el.addEventListener('dragstart', e => {
@@ -4797,11 +4785,10 @@ async function saveSmartImageToAssetLibrary(nodeId, index){
     } catch(e) { toast(e.message || '上传素材库失败'); }
 }
 function smartAvatarPlatform(provider){
-    const protocol = String(provider?.protocol || '').toLowerCase();
-    return protocol === 'volcengine' || provider?.id === 'volcengine' ? 'volcengine' : '';
+    return window.CanvasAssetAuth.registrationPlatform(provider);
 }
 function quickSmartAvatarProvider(){
-    return apiProviders.find(provider => provider?.id === 'volcengine' && provider.enabled !== false && provider.has_key !== false);
+    return window.CanvasAssetAuth.registrationProvider(apiProviders);
 }
 async function smartAvatarRequest(path, libraryId, providerId){
     const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
@@ -4846,6 +4833,7 @@ async function quickFaceAuthSmartImage(nodeId, index){
     const isCurrent = () => nodes.includes(node) && node.images[index] === image && image.url === sourceUrl;
     const provider = quickSmartAvatarProvider();
     if(!provider) return toast('请先在 API 平台管理中配置火山引擎');
+    if(!window.CanvasAssetAuth.registrationReady(provider)) return toast('火山引擎素材认证需要 AK/SK，请在管理平台补齐 Access Key ID 和 Secret Access Key。');
     const target = await chooseSmartAssetTarget();
     if(!target || !isCurrent()) return;
     try {

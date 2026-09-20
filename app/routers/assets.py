@@ -21,7 +21,18 @@ avatar_registration_semaphore = asyncio.Semaphore(8)
 avatar_registration_tasks = {}
 
 def avatar_registration_key(library_id: str, item_id: str, platform: str) -> str:
-    return f"{library_id or 'default'}:{item_id}:{platform}"
+    from app.storage.workspace import current_workspace
+    return f"{current_workspace()}:{library_id or 'default'}:{item_id}:{platform}"
+
+def asset_registration_provider(provider_id):
+    provider = get_api_provider_exact(provider_id)
+    # Member routes use the workspace-assigned catalog; do not enable other
+    # legacy platform adapters through this newly migrated entry point.
+    from app.services.member_context import current_access
+    if current_access.get() and avatar_platform_for_provider(provider) != 'volcengine':
+        raise HTTPException(400, '素材库认证仅支持火山引擎。')
+    return provider
+
 
 async def save_avatar_registration_state(library_id: str, item_id: str, platform: str, values: dict, preserve_cancelled: bool = False):
     async with avatar_status_lock:
@@ -493,7 +504,7 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     target_item = find_asset_item_in_library(lib, item_id, payload.library_id)
     if not target_item:
         raise HTTPException(status_code=404, detail="资产不存在")
-    provider = get_api_provider_exact(payload.provider_id)
+    provider = asset_registration_provider(payload.provider_id)
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         name = (provider or {}).get("name") or (provider or {}).get("id") or "该平台"
@@ -586,7 +597,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
     if len(ids) > 100:
         raise HTTPException(status_code=400, detail="Too many assets selected; please submit at most 100 at a time")
 
-    provider = get_api_provider_exact(payload.provider_id)
+    provider = asset_registration_provider(payload.provider_id)
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         name = (provider or {}).get("name") or (provider or {}).get("id") or "provider"
@@ -726,7 +737,7 @@ async def batch_register_asset_library_avatar(payload: AssetAvatarBatchRegisterR
 
 @router.post("/api/asset-library/items/{item_id}/cancel-avatar")
 async def cancel_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterRequest):
-    provider = get_api_provider_exact(payload.provider_id)
+    provider = asset_registration_provider(payload.provider_id)
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         raise HTTPException(status_code=400, detail="该平台暂不支持认证取消")
@@ -756,7 +767,7 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
     if not target_item:
         raise HTTPException(status_code=404, detail="资产不存在")
     regs = target_item.get("registrations") if isinstance(target_item.get("registrations"), dict) else {}
-    provider = get_api_provider_exact(payload.provider_id or "")
+    provider = asset_registration_provider(payload.provider_id or "")
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         raise HTTPException(status_code=400, detail="该平台暂不支持数字人/真人认证审核。")

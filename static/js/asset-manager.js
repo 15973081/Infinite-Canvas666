@@ -1105,8 +1105,8 @@ function computePromptItems(){
         return [item.name, item.scene, item.positive, item.negative, item.category].join(' ').toLowerCase().includes(query);
     });
 }
-// 认证支持的平台键（与后端 AVATAR_SUPPORTED_PLATFORMS 保持一致；新增平台时同步）
-const AVATAR_SUPPORTED_PLATFORMS = ['apimart', 'volcengine'];
+// 当前素材库开放的认证平台
+const AVATAR_SUPPORTED_PLATFORMS = ['volcengine'];
 const AVATAR_PLATFORM_LABELS = {apimart:'APIMart', volcengine:'火山引擎'};
 function providerAvatarPlatform(p){
     if(p?.avatar_registration) return String(p.avatar_registration.platform || '');
@@ -1133,10 +1133,9 @@ function providerAvatarCredentialMessage(p){
 function avatarPlatformLabel(platform){
     return AVATAR_PLATFORM_LABELS[String(platform || '')] || String(platform || '平台');
 }
-// 列出 API 设置里所有启用的 provider 作为认证候选（以 API 设置为中心，由用户自己选平台）；
-// 不支持的平台也列出，在下拉里标注「待接入」，避免用户以为漏了。
+// 素材认证仅提供火山引擎；其他供应商仍可用于普通生成。
 function avatarCandidateProviders(){
-    return (apiProviders || []).filter(p => p && p.enabled !== false);
+    return (apiProviders || []).filter(p => p && p.enabled !== false && providerAvatarPlatform(p) === 'volcengine');
 }
 function activeAvatarProvider(){
     const list = avatarCandidateProviders();
@@ -2318,7 +2317,7 @@ function renderAvatarSection(item){
     const busy = avatarBusyId === item.id || avatarBusyId === '__batch__';
     const regs = (item.registrations && typeof item.registrations === 'object') ? item.registrations : {};
     const cards = Object.keys(regs)
-        .filter(platform => regs[platform] && (regs[platform].task_id || ['Queued','Uploading','Cancelled'].includes(regs[platform].status)))
+        .filter(platform => platform === 'volcengine' && regs[platform] && (regs[platform].task_id || ['Queued','Uploading','Cancelled'].includes(regs[platform].status)))
         .map(platform => renderAvatarRegistrationCard(item, platform, regs[platform], busy))
         .join('');
     const submitting = avatarSubmittingItems.get(item.id);
@@ -2336,7 +2335,7 @@ function renderAvatarSection(item){
         return `<div class="avatar-section" data-avatar-status-region="${escapeAttr(item.id)}">
             ${cards}
             <div class="avatar-head"><i data-lucide="user-round-cog"></i><span>注册为真人/数字人</span></div>
-            <div class="avatar-hint">未检测到可用平台。请先在「API 平台管理」中添加并启用 API 平台（如 APIMart）并填写 Key。</div>
+            <div class="avatar-hint">当前空间尚未分配可用的火山引擎。请在「API 平台管理」中启用并分配火山引擎，填写认证所需的 AK/SK。</div>
         </div>`;
     }
     const selected = activeAvatarProvider();
@@ -2351,7 +2350,7 @@ function renderAvatarSection(item){
         registerUI = `<div class="avatar-hint">认证是跨平台功能，但「${escapeHtml(selPlatform ? avatarPlatformLabel(selPlatform) : (selected?.name || selected?.id || '该平台'))}」的资产认证 API 尚未接入（待接入）。请选择已支持的平台，或继续使用官方控制台认证。</div>${select}`;
     } else {
         registerUI = `
-            <div class="avatar-hint">提交到 ${escapeHtml(avatarPlatformLabel(selPlatform))} 私域素材审核，通过后生成 asset:// 地址，可在该平台的视频生成中通过 @ 直接调用（一个素材可注册到多个平台，平台间互相隔离）。</div>
+            <div class="avatar-hint">提交到 ${escapeHtml(avatarPlatformLabel(selPlatform))} 私域素材审核，通过后生成 asset:// 地址，可在该平台的视频生成中通过 @ 直接调用。</div>
             ${select}
             ${noKey ? `<div class="avatar-hint warn">${escapeHtml(credentialMessage)}</div>` : ''}
             ${alreadyRegistered ? '<div class="avatar-hint">该平台已注册，再次提交会覆盖该平台的认证。</div>' : ''}

@@ -22,6 +22,25 @@ const verified = () => ({url:'/output/original.png', name:'person', kind:'image'
 const libraryItem = () => ({id:'item', url:'/assets/library/copied.png',
     registrations:{volcengine:{status:'Active', asset_uri:'asset://verified'}}});
 
+for(const mode of ['classic','smart']) for(const ready of [true,false]) test(`${mode}: quick certification uses AK/SK capability, ready=${ready}`,async()=>{
+    const image={id:'source',type:'image',url:'/original.png'},owner=mode==='classic'?image:{id:'source',images:[image]};
+    const provider={id:'custom-volc',enabled:true,has_key:!ready,avatar_registration:{platform:'volcengine',supported:true,credentials_configured:ready}};
+    let uploads=0,polls=0;const messages=[];
+    const item={id:'item',registrations:{volcengine:{status:'Processing',task_id:'remote',provider_id:provider.id,project_name:'default'}}};
+    const context=vm.createContext({nodes:[owner],apiProviders:[{id:'apimart',enabled:true,has_key:true},provider],
+        mediaKindForNode:()=> 'image',setStatus:m=>messages.push(m),toast:m=>messages.push(m),showErrorModal:m=>messages.push(m),
+        render(){},scheduleSave(){},chooseSmartAssetTarget:async()=>({libraryId:'lib',categoryId:'images'}),
+        ensureImageNodeAsset:async()=>{uploads++;return {item,libraryId:'lib'};},
+        ensureSmartImageAsset:async()=>{uploads++;return {item,libraryId:'lib'};},
+        pollImageNodeFaceAuth:()=>polls++,pollSmartImageFaceAuth:()=>polls++});
+    load(mode==='classic'?'canvas.js':'smart-canvas.js',context,mode==='classic'
+        ? ['canvasAvatarPlatform','quickCanvasAvatarProvider','quickFaceAuthImageNode']
+        : ['smartAvatarPlatform','quickSmartAvatarProvider','quickFaceAuthSmartImage']);
+    if(mode==='classic')await context.quickFaceAuthImageNode('source');else await context.quickFaceAuthSmartImage('source',0);
+    assert.equal(uploads,ready?1:0);assert.equal(polls,ready?1:0);
+    if(!ready)assert.match(messages[0],/AK\/SK/);
+});
+
 function classic({grouped=false, loop=false, provider='volcengine', kind='image'}={}) {
     const image = {...verified(), id:'image', type:'image', kind};
     const video = {id:'video', type:'video', apiProvider:provider, model:'doubao-seedance-2-5-260628',

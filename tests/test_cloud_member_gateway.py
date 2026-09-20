@@ -60,6 +60,68 @@ def headers(space):
     return {'X-Workspace-ID': space['id']}
 
 
+def test_avatar_member_routes_use_workspace_catalog_and_permissions(world, monkeypatch):
+    from unittest.mock import AsyncMock
+    from app.services import provider_control, assets
+    from app.storage.workspace import workspace_scope
+    from app.routers import assets as routes
+    a, b, operator = world['a'], world['b'], world['operator']
+    provider_id = 'cert-' + uuid.uuid4().hex[:12]
+    provider_control.save(operator, provider_id, {'name': '认证测试', 'protocol': 'volcengine',
+        'base_url': 'https://ark.cn-beijing.volces.com/api/v3', 'enabled': True}, 0,
+        secrets={'volcengine_access_key_id': 'fake-ak', 'volcengine_secret_access_key': 'fake-sk'}, reason='隔离认证测试')
+    assigned = provider_control.assignments(operator, a['id'])
+    provider_control.assign(operator, a['id'], ['comfly', provider_id], 'comfly', assigned['version'], reason='隔离认证测试')
+    for space in [a, b]:
+        with workspace_scope(space['id']):
+            library = assets.default_asset_library()
+            library['libraries'][0]['categories'][0]['items'] = [{'id': 'same-item', 'kind': 'image', 'name': 'test', 'url': 'https://example.invalid/image.png'}]
+            assets.save_asset_library(library)
+    submit = AsyncMock(return_value='test-upstream-id')
+    monkeypatch.setattr(routes, 'submit_volcengine_avatar_asset', submit)
+    monkeypatch.setattr(routes, 'check_volcengine_avatar_task', AsyncMock(return_value={'status': 'Active', 'asset_uri': 'asset://test-upstream-id'}))
+    payload = {'provider_id': provider_id, 'library_id': 'default'}
+    path = '/api/asset-library/items/same-item/'
+    for suffix in ['register-avatar', 'avatar-status', 'cancel-avatar']:
+        assert world['viewer'].post(path+suffix, headers=headers(a), json=payload).status_code == 403
+        assert world['outsider'].post(path+suffix, headers=headers(a), json=payload).status_code == 403
+    assert submit.await_count == 0
+    # A valid editor in another space cannot access A's assigned provider.
+    assert world['outsider'].post(path+'register-avatar', headers=headers(b), json=payload).status_code == 400
+    assert world['editor'].post(path+'register-avatar', headers=headers(a), json={**payload,'provider_id':'comfly'}).status_code == 400
+    response = world['editor'].post(path+'register-avatar', headers=headers(a), json=payload)
+    assert response.status_code == 200, response.text
+    assert submit.await_count == 1
+    repeated = world['editor'].post(path+'register-avatar', headers=headers(a), json=payload)
+    assert repeated.status_code == 200 and repeated.json()['skipped']
+    assert submit.await_count == 1
+    status = world['editor'].post(path+'avatar-status', headers=headers(a), json=payload)
+    assert status.status_code == 200, status.text
+    batch = world['editor'].post('/api/asset-library/items/batch-register-avatar', headers=headers(a), json={**payload,'ids':['same-item']})
+    assert batch.status_code == 200 and batch.json()['skipped'] == 1, batch.text
+    assert submit.await_count == 1
+    with workspace_scope(b['id']):
+        item = assets.load_asset_library()['libraries'][0]['categories'][0]['items'][0]
+        assert not item.get('registrations')
+        other_key = routes.avatar_registration_key('default','same-item','volcengine')
+    with workspace_scope(a['id']):
+        assert routes.avatar_registration_key('default','same-item','volcengine') != other_key
+
+
+def test_canvas_touch_reads_without_lease_or_revision_changes(world):
+    a = world['a']
+    created = world['editor'].post('/api/canvases', headers=headers(a), json={'title':'touch read', 'kind':'classic'})
+    assert created.status_code == 200, created.text
+    canvas = created.json()['canvas']
+    path = '/api/canvases/' + canvas['id']
+    response = world['viewer'].post(path+'/touch', headers=headers(a))
+    assert response.status_code == 200, response.text
+    assert response.json()['canvas']['id'] == canvas['id']
+    current = world['editor'].get(path, headers=headers(a)).json()['canvas']
+    assert current['revision'] == canvas['revision']
+    assert world['outsider'].post(path+'/touch', headers=headers(world['b'])).status_code == 404
+
+
 def test_page_member_binding_rejects_account_switch_for_reads_writes_logout_and_socket(world):
     from starlette.websockets import WebSocketDisconnect
     client, space = world['editor'], world['a']

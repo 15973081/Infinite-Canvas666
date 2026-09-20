@@ -4,6 +4,20 @@ const Lease = require('../static/js/canvas-edit-lease.js');
 const json = (data, status=200) => new Response(JSON.stringify(data), {status,headers:{'Content-Type':'application/json'}});
 const publicLease = (extra={}) => ({canvas_id:'a', generation:1, revision:3,holder:{id:'m',is_self:true,display_name:'甲'},
     server_time:'2026-09-14T00:00:00Z',expires_at:'2026-09-14T00:01:00Z',heartbeat_seconds:10,...extra});
+
+test('model validation rejection preserves editing; permission and lease failures still pause', async () => {
+    for(const code of ['model_not_available','model_resolution_not_allowed','permission_denied','workspace_forbidden','canvas_lease_lost']){
+        const f=fixture(path=>path.endsWith('/acquire') ? json(publicLease({edit_token:'private'})) : json({detail:{code,message:'模型规格不允许'}},403));
+        await f.start();
+        const response=await f.lease.write('/api/canvas-image-tasks',{method:'POST',body:'{}'});
+        assert.equal(response.status,403);
+        assert.equal(f.lease.canEdit,code.startsWith('model_'));
+        assert.equal(f.lease.revision,3);
+    }
+    const f=fixture(path=>path.endsWith('/acquire') ? json(publicLease({edit_token:'private'})) : json({detail:{code:'model_not_available'}},403));
+    await f.start();await f.lease.write('/api/canvases/a',{method:'PUT',body:'{}'});
+    assert.equal(f.lease.canEdit,false);
+});
 function fixture(handler) {
     let time = 0; const calls = [];
     const lease = new Lease({id:'a',now:() => time,fetch:async (path,init) => {

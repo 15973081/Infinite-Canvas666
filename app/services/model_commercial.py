@@ -115,12 +115,12 @@ def amounts(base_micros, price):
 def enforce(provider, kind, request):
     model=str(request.get('model') or '').strip()
     if kind+'_models' in provider and model not in provider[kind+'_models']:
-        raise HTTPException(403,'该模型未在管理员开放的模型列表中。')
+        raise HTTPException(403,{'code':'model_not_available','message':'该模型未在管理员开放的模型列表中。'})
     rule=provider.get('model_policies',{}).get(kind+':'+model,{})
     if rule.get('enabled') is False or rule.get('visible') is False:
-        raise HTTPException(403,'该模型已隐藏或停用，不能提交新任务；历史记录保留。')
+        raise HTTPException(403,{'code':'model_not_available','message':'该模型已隐藏或停用，不能提交新任务；历史记录保留。'})
     if 'resolutions' in rule and specification(kind,request) not in rule['resolutions']:
-        raise HTTPException(403,'该模型未开放所选规格，请选择：'+', '.join(rule['resolutions']))
+        raise HTTPException(403,{'code':'model_resolution_not_allowed','message':'该模型未开放所选规格，请选择：'+', '.join(rule['resolutions'])})
     if kind == 'video' and 'duration_min' in rule:
         try:
             duration = Decimal(str(request.get('duration')))

@@ -3,7 +3,7 @@ const source=fs.readFileSync('static/js/asset-manager.js','utf8').replace(/\r\n/
 function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0,name);return (source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);}
 function fixture(provider){
  const c={apiProviders:[provider],avatarRegisterProvider:'',avatarBusyId:'',avatarSubmittingItems:new Map(),managerDataLoaded:{providers:true},
-  AVATAR_SUPPORTED_PLATFORMS:['apimart','volcengine'],AVATAR_PLATFORM_LABELS:{apimart:'APIMart',volcengine:'火山引擎'},
+  AVATAR_SUPPORTED_PLATFORMS:['volcengine'],AVATAR_PLATFORM_LABELS:{apimart:'APIMart',volcengine:'火山引擎'},
   selectedAssetIds:new Set(['image']),findAssetItem:()=>({id:'image'}),assetKind:()=> 'image',ensureProvidersLoaded:async()=>{},
   setStatus:m=>{c.message=m;},apiJson:()=>{throw new Error('must not call upstream');}};
  vm.createContext(c);
@@ -24,11 +24,14 @@ test('missing AK/SK is explained and blocked in both single and batch submission
  c.message='';await c.registerSelectedAssetAvatars();assert.match(c.message,/AK\/SK/);
  assert.equal(c.avatarSubmittingItems.size,0);
 });
-test('APIMart and unsupported platforms use explicit backend capability',()=>{
+test('only assigned enabled Volcengine accounts can appear or be selected for certification',()=>{
  const p=provider('apimart',false),c=fixture(p);
- assert.equal(c.providerAvatarPlatform(p),'apimart');assert.match(c.renderAvatarSection({id:'image'}),/尚未配置 API Key/);
- p.protocol='volcengine';p.avatar_registration=provider('',false).avatar_registration;
- assert.equal(c.providerAvatarSupported(p),false);assert.match(c.renderAvatarSection({id:'image'}),/尚未接入/);
+ assert.equal(c.activeAvatarProvider(),null);assert.match(c.renderAvatarSection({id:'image'}),/火山引擎/);
+ assert.doesNotMatch(c.renderAvatarSection({id:'image'}),/APIMart/);
+ const v=provider();v.id='volc';c.apiProviders.push(v, {...v,id:'disabled',enabled:false}, {id:'grasi',enabled:true});
+ c.avatarRegisterProvider=p.id;
+ assert.deepEqual(Array.from(c.avatarCandidateProviders(),p=>p.id),['volc']);
+ assert.equal(c.activeAvatarProvider().id,'volc');
 });
 test('legacy local configuration keeps protocol/host detection and uses the right credential type',()=>{
  const c=fixture({});

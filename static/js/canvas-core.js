@@ -120,6 +120,41 @@
         return nested.flat();
     }
 
+    function imageSizeForRatio(ratio, longSide, pixelLimit){
+        if(!Number.isFinite(ratio) || ratio <= 0) return '';
+        // Scale BOTH sides together: clamping only the short side breaks the
+        // aspect ratio and can submit a higher (and more expensive) image tier.
+        const width = Math.min(longSide, longSide * ratio, Math.sqrt(pixelLimit * ratio));
+        const height = width / ratio;
+        return `${Math.max(64, Math.floor(width / 16) * 16)}x${Math.max(64, Math.floor(height / 16) * 16)}`;
+    }
+
+    function createAssetHoverController(show, hide, position){
+        let timer = 0, frame = 0, point, dragging = false;
+        const clear = () => {
+            clearTimeout(timer); timer = 0;
+            cancelAnimationFrame(frame); frame = 0;
+            hide();
+        };
+        const move = event => {
+            point = {clientX:event.clientX, clientY:event.clientY};
+            if(dragging || event.buttons){ clear(); return; }
+            if(!frame) frame = requestAnimationFrame(() => {frame = 0; position(point);});
+        };
+        document.addEventListener('dragstart', () => {dragging = true; clear();}, true);
+        for(const type of ['dragend','drop']) document.addEventListener(type, () => {dragging = false; clear();}, true);
+        document.addEventListener('pointerdown', clear, true);
+        window.addEventListener('blur', () => {dragging = false; clear();});
+        return {
+            enter(event, item){
+                clear();
+                if(dragging || event.buttons) return;
+                point = {clientX:event.clientX, clientY:event.clientY};
+                timer = setTimeout(() => {timer = 0; if(!dragging) show(point, item);}, 180);
+            }, move, hide:clear
+        };
+    }
+
     function modelResolutions(provider, kind, model, defaults){
         if(!provider || provider.enabled === false) return [];
         const models = provider[kind + '_models'];
@@ -143,6 +178,8 @@
     }
 
     window.CanvasCore = {
+        imageSizeForRatio,
+        createAssetHoverController,
         modelResolutions,
         availableModelProviders,
         apiErrorMessage,
