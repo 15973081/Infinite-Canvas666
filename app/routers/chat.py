@@ -17,9 +17,22 @@ from app.services.chat import *
 
 router = APIRouter()
 
+
+def prepare_chat(payload):
+    """Resolve the assigned provider and validate before writing conversation history."""
+    provider = get_api_provider(payload.provider)
+    model = selected_model(payload.model, preferred_chat_model(provider))
+    if managed_providers_enabled():
+        from app.services.model_commercial import enforce
+        enforce(provider, 'chat', {'model': model})
+    base, headers, model = resolve_chat_provider(provider['id'], model)
+    return provider, base, headers, model
+
+
 @router.post("/api/chat")
 async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
+    _conv_provider, chat_base, chat_hdrs, model = prepare_chat(payload)
     conversation = (
         load_conversation(user_id, payload.conversation_id)
         if payload.conversation_id
@@ -42,8 +55,6 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
     conversation["updated_at"] = now_ms()
     save_conversation(user_id, conversation)
 
-    chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model)
-    _conv_provider = get_api_provider(payload.provider)
     _conv_is_apimart = is_apimart_provider(_conv_provider)
     history = conversation["messages"][-MAX_HISTORY_MESSAGES:]
     upstream_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -87,6 +98,7 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
 @router.post("/api/chat/stream")
 async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
+    _stream_provider, chat_base, chat_hdrs, model = prepare_chat(payload)
     conversation = (
         load_conversation(user_id, payload.conversation_id)
         if payload.conversation_id
@@ -108,8 +120,6 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
     conversation["updated_at"] = now_ms()
     save_conversation(user_id, conversation)
 
-    chat_base, chat_hdrs, model = resolve_chat_provider(payload.provider, payload.model)
-    _stream_provider = get_api_provider(payload.provider)
     history = conversation["messages"][-MAX_HISTORY_MESSAGES:]
     upstream_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for item in history:

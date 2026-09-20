@@ -1157,7 +1157,7 @@
             const form = new FormData();
             [...files].slice(0, available).forEach(file => form.append('files', file));
             try {
-                const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(async r => { if(!r.ok) throw new Error((await r.json()).detail || '上传失败'); return r.json(); });
+                const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(async r => { if(!r.ok) throw new Error(chatErrorMessage((await r.json().catch(() => ({}))).detail, r.status)); return r.json(); });
                 refs.push(...(data.files || []));
                 renderRefs();
             } catch(e) {
@@ -1238,6 +1238,23 @@
             }
         }
 
+        function chatErrorMessage(detail, status){
+            if(typeof detail === 'string' && detail.trim()) return detail;
+            if(detail && typeof detail.message === 'string' && detail.message.trim()) return detail.message;
+            const messages = {
+                authentication_required:'登录已过期，请重新登录。',
+                workspace_required:'请先选择工作空间。',
+                workspace_forbidden:'无权访问当前空间，请检查空间授权。',
+                permission_denied:'没有发送对话的权限，请联系管理员。',
+                provider_not_assigned:'当前空间未分配该供应商，或供应商已停用。',
+                model_not_available:'该模型未开放或已停用，请重新选择模型。',
+                maintenance_restricted:'当前空间正在维护，请稍后再试。',
+                route_not_migrated:'聊天接口暂不可用，请联系管理员更新服务。'
+            };
+            const message = messages[detail?.code];
+            return typeof message === 'string' ? message : (status === 403 ? '没有发送对话的权限，请联系管理员。' : tr('chat.requestFailed'));
+        }
+
         async function streamChatMessage(message, pendingRefs, assistantBubble){
             const currentProvider = provider;
             const currentChatModel = activeChatModel || config.chat_model;
@@ -1254,7 +1271,7 @@
                     reference_images: pendingRefs
                 })
             });
-            if(!res.ok) throw new Error((await res.json()).detail || tr('chat.requestFailed'));
+            if(!res.ok) throw new Error(chatErrorMessage((await res.json().catch(() => ({}))).detail, res.status));
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -1279,7 +1296,7 @@
                         assistantBubble.text.textContent = fullText;
                         scrollBottom();
                     }
-                    if(event.type === 'error') throw new Error(event.detail || tr('chat.requestFailed'));
+                    if(event.type === 'error') throw new Error(chatErrorMessage(event.detail));
                     if(event.type === 'done'){
                         assistantBubble.bubble.classList.remove('streaming');
                         currentConversation = event.conversation;

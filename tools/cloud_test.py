@@ -60,6 +60,7 @@ def main(argv=None):
                       "test_cloud_maintenance_control.py", "test_cloud_canvas_leases.py", "test_cloud_draft_copies.py", "test_cloud_page_reports.py", "test_cloud_managed_providers.py", "test_cloud_provider_probes.py", "test_cloud_provider_diagnostics.py", "test_cloud_retired_integrations.py", "test_cloud_provider_imports.py", "test_cloud_task_reviews.py", "test_cloud_backup_control.py", "test_cloud_workbench_management.py", "test_cloud_maintenance_readiness.py", "test_cloud_maintenance_recovery.py", "test_cloud_database_restore.py", "test_cloud_member_presence.py", "test_cloud_canvas_subscriptions.py", "test_cloud_canvas_occupancy.py", "test_cloud_provider_presets.py", "test_cloud_canvas_task_results.py", "test_cloud_task_canvas_bindings.py", "test_cloud_management_overview.py", "test_cloud_llm_tasks.py", "test_cloud_image_receipts.py"]
             suites.append("test_cloud_workbench_performance.py")
             suites.append("test_cloud_canvas_asset_page.py")
+            suites.append("test_cloud_chat.py")
             return pytest.main([*(str(ROOT / "tests" / name) for name in suites), "-q", *(argv or [])])
         finally:
             try:
