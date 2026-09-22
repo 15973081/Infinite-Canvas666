@@ -59,7 +59,7 @@ for (const output of [false, true]) {
     });
 }
 
-test('releasing the shared video stops playback and unloads its source every time', () => {
+for (const withLoader of [false, true]) test(`releasing the shared video stops playback and unloads its source every time, media loader=${withLoader}`, () => {
     const calls = [];
     const video = {
         onloadedmetadata() {},
@@ -67,13 +67,21 @@ test('releasing the shared video stops playback and unloads its source every tim
         removeAttribute(name) { calls.push(`remove:${name}`); delete this[name]; },
         load() { calls.push('load'); },
     };
-    const context = load(['releaseOutputLightboxVideo'], {outputLightboxVideo: video});
+    const unobserved = [];
+    const window = withLoader ? {CanvasMediaLoader: {unwatch(element) {
+        unobserved.push(element);
+        calls.push('unwatch');
+    }}} : {};
+    const context = load(['releaseOutputLightboxVideo'], {window, outputLightboxVideo: video});
     for (let index = 0; index < 10; index++) {
+        const before = calls.length;
         video.src = `/video-${index}.mp4`;
         context.releaseOutputLightboxVideo();
         assert.equal(video.src, undefined);
         assert.equal(video.onloadedmetadata, null);
-        assert.deepEqual(calls.slice(-3), ['pause', 'remove:src', 'load']);
+        assert.deepEqual(calls.slice(before), [...(withLoader ? ['unwatch'] : []), 'pause', 'remove:src', 'load']);
+        assert.equal(unobserved.length, withLoader ? index + 1 : 0);
+        if(withLoader) assert.equal(unobserved.at(-1), video);
     }
 });
 

@@ -37,7 +37,9 @@ def world(operator, monkeypatch):
     from app.services import provider_control
     if not any(p['id'] == 'comfly' for p in provider_control.catalog(operator)['providers']):
         provider_control.save(operator, 'comfly', {'name': '测试供应商', 'base_url': 'https://provider.test',
-                              'image_models': ['test'], 'video_models': ['test']}, 0,
+                              'image_models': ['test'], 'video_models': ['test'], 'chat_models': ['test'],
+                              'model_prices': [{'kind': 'image', 'model': 'test', 'billing_type': 'per_image',
+                                                'unit_price': '0.05', 'currency': 'CNY'}]}, 0,
                               secrets={'api_key': 'test-only-provider-key'}, reason='隔离成员验收夹具')
     for space in (a, b):
         provider_control.assign(operator, space['id'], ['comfly'], 'comfly', 0, reason='隔离成员验收夹具')

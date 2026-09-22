@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import pytest
+from cloud_fixtures import fake_supplier_catalog
 
 pytestmark = pytest.mark.skipif(os.getenv("CLOUD_INTEGRATION_TEST") != "1", reason="Use tools/cloud_test.py for isolated PostgreSQL tests")
 
@@ -227,7 +228,7 @@ def test_real_ffmpeg_trim_and_workflow_zip_round_trip(tmp_path):
         assert not list(media.temp_root().iterdir())
 
 
-def test_worker_runs_fake_supplier_once_and_resumes_upstream_without_submission():
+def test_worker_runs_fake_supplier_once_and_resumes_upstream_without_submission(fake_supplier_catalog):
     from app.storage import tasks, worker, database
     from app.models import CanvasVideoRequest
     from app.routers import canvas as routes
@@ -550,14 +551,15 @@ def test_tos_adapter_uses_fixed_versions_and_public_signing_endpoint(tmp_path):
         store.download(asset, path)
         assert client.get_object_to_file.call_args.kwargs["version_id"] == "fixed-version"
         assert store.signed_url(asset, 3600).startswith("https://public.example/")
-        assert client.pre_signed_url.call_args.kwargs["query"] == {"versionId": "fixed-version"}
+        assert client.pre_signed_url.call_args.kwargs["query"] == {
+            "versionId": "fixed-version", "response-cache-control": "private, no-store"}
         assert client.pre_signed_url.call_args.kwargs["alternative_endpoint"] == "https://public.example"
         client.put_object_from_file.return_value = SimpleNamespace(version_id="null")
         with pytest.raises(RuntimeError, match="versioning"):
             store.put("key", path, "application/octet-stream")
 
 
-def test_image_worker_publishes_result_and_maintenance_blocks_claiming():
+def test_image_worker_publishes_result_and_maintenance_blocks_claiming(fake_supplier_catalog):
     from app.storage import tasks, worker, documents, media
     from app.routers import image as image_routes
     from app.models import OnlineImageRequest

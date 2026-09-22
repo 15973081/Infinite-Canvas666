@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from cloud_fixtures import fake_supplier_catalog
 from fastapi import HTTPException
 from test_cloud_finalization import new_task, claim, image_supplier, assert_committed
 from test_cloud_member_gateway import world, operator
@@ -17,7 +18,13 @@ pytestmark = pytest.mark.skipif(os.getenv("CLOUD_INTEGRATION_TEST") != "1", reas
 @pytest.fixture
 def image_space(world, platform):
     from app.storage.workspace import workspace_scope
-    pid, _, _ = create(platform)
+    pid, config, _ = create(platform)
+    config['image_models'].append('test')
+    config['model_prices'] = [{'kind': 'image', 'model': 'test', 'billing_type': 'per_image',
+                               'unit_price': '0.05', 'currency': 'CNY'}]
+    configured = platform['client'].put('/api/providers/' + pid, json={
+        'config': config, 'expected_version': 1, 'reason': '恢复验收模型与服务端价格'})
+    assert configured.status_code == 200, configured.text
     assert assign(platform, world, pid).status_code == 200
     with workspace_scope(world["a"]["id"]):
         yield pid
@@ -79,7 +86,7 @@ def test_each_upstream_receipt_survives_interruption_before_polling(image_space,
     assert all(slot["raw"]["usage"] == {"count": 1} for slot in slots)
 
 
-def test_all_saved_images_resume_without_generation_or_polling():
+def test_all_saved_images_resume_without_generation_or_polling(fake_supplier_catalog):
     from app.storage import worker, tasks, image_receipts, media, finalization
     from app.routers import providers
     tid, cid = new_task(count=2)
@@ -96,7 +103,7 @@ def test_all_saved_images_resume_without_generation_or_polling():
     assert_committed(tid, cid, 2)
 
 
-def test_unknown_sibling_stays_reviewable_without_losing_completed_image():
+def test_unknown_sibling_stays_reviewable_without_losing_completed_image(fake_supplier_catalog):
     from app.storage import worker, tasks, image_receipts, media
     from app.routers import providers
     tid, _ = new_task(count=2)
@@ -167,7 +174,7 @@ def test_receipts_are_immutable_private_and_fenced():
             conn.execute("UPDATE tasks SET status='needs_review',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=%s", (tid,))
 
 
-def test_partial_completed_task_keeps_each_receipt_without_rewriting_aggregate():
+def test_partial_completed_task_keeps_each_receipt_without_rewriting_aggregate(fake_supplier_catalog):
     from app.storage import worker, image_receipts, media, finalization
     from app.routers import providers
     tid, cid = new_task(count=2)

@@ -76,7 +76,13 @@ def test_bound_request_persists_input_and_target_under_current_lease(world, tmp_
         assert binding['graph_sha256'] == graph_fingerprint(canvas, 'source', 'target')
         from app.models import OnlineImageRequest, CanvasVideoRequest
         request_model = OnlineImageRequest if media_kind == 'image' else CanvasVideoRequest
-        assert binding['request_sha256'] == row['request_sha256'] == tasks.fingerprint(request_model(**body).model_dump())
+        expected_request = request_model(**body).model_dump()
+        if media_kind == 'image':
+            # Unused image-tool fields are omitted by the image submission API.
+            expected_request.pop('image_tool')
+            expected_request.pop('image_tool_revision')
+            assert 'image_tool' not in row['request'] and 'image_tool_revision' not in row['request']
+        assert binding['request_sha256'] == row['request_sha256'] == tasks.fingerprint(expected_request)
         assert row['canvas_revision'] == canvas['revision'] and row['canvas_edit_generation'] == lease['generation']
         assert row['requested_by'] == world['people'][0]['id']
         assert conn.execute('SELECT count(*) AS n FROM task_submissions WHERE task_id=%s', (tid,)).fetchone()['n'] == 0

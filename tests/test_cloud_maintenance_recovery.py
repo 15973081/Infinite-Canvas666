@@ -34,7 +34,9 @@ def recovery(operator,tmp_path):
             executable=['-c',"import sys;sys.path.insert(0,'.');from tools.maintenance_recovery import main;result=main(sys.argv[1:]);assert 'main' not in sys.modules;assert 'management_main' not in sys.modules;assert 'app.storage.worker' not in sys.modules;raise SystemExit(result)"]
         else:
             executable=['tools/maintenance_recovery.py']
-        result=subprocess.run([sys.executable,*executable,*args],cwd=ROOT,env=dict(os.environ),input=password+'\n',text=True,encoding='utf-8',capture_output=True,timeout=30)
+        # Match the child process encoding to the pipe decoder on Windows too.
+        child_env = {**os.environ, 'PYTHONIOENCODING': 'utf-8'}
+        result=subprocess.run([sys.executable,*executable,*args],cwd=ROOT,env=child_env,input=password+'\n',text=True,encoding='utf-8',capture_output=True,timeout=30)
         assert password not in result.stdout+result.stderr
         assert os.environ['DATABASE_URL'] not in result.stdout+result.stderr
         return result

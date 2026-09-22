@@ -8,6 +8,7 @@ import uuid
 from unittest.mock import patch
 
 import pytest
+from cloud_fixtures import fake_supplier_catalog
 from fastapi import HTTPException
 from PIL import Image
 
@@ -63,7 +64,7 @@ def assert_committed(tid, cid, count):
     assert totals["total"] == 50000 * count
 
 
-def test_interrupted_second_image_resumes_same_slots_without_generation():
+def test_interrupted_second_image_resumes_same_slots_without_generation(fake_supplier_catalog):
     from app.storage import media, tasks, worker, finalization
     from app.routers import providers
     from app.state import CANVAS_TASKS
@@ -89,7 +90,7 @@ def test_interrupted_second_image_resumes_same_slots_without_generation():
     assert_committed(tid, cid, 2)
 
 
-def test_result_and_ledger_rollback_together_then_reuse_ready_objects():
+def test_result_and_ledger_rollback_together_then_reuse_ready_objects(fake_supplier_catalog):
     from app.storage import worker, tasks, media, finalization, database
     from app.routers import providers
     from app.services import canvas_ledger
@@ -114,7 +115,7 @@ def test_result_and_ledger_rollback_together_then_reuse_ready_objects():
     assert_committed(tid, cid, 1)
 
 
-def test_checkpoint_survives_lost_task_status_commit():
+def test_checkpoint_survives_lost_task_status_commit(fake_supplier_catalog):
     from app.storage import tasks, worker, finalization
     from app.routers import providers
     tid, cid = new_task(count=1)

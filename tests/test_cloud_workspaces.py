@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import pytest
+from cloud_fixtures import fake_supplier_catalog
 from fastapi import HTTPException
 
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
@@ -277,7 +278,7 @@ def test_task_lookup_creation_heartbeat_and_recovery_reject_other_spaces():
             conn.execute("UPDATE tasks SET status='cancelled' WHERE id=%s", (tid,))
 
 
-def test_worker_restores_persisted_space_for_results_history_and_fees():
+def test_worker_restores_persisted_space_for_results_history_and_fees(fake_supplier_catalog):
     from app.storage import canvases, tasks, worker, media, database, documents
     from app.storage.workspace import workspace_scope, current_workspace
     from app.models import OnlineImageRequest

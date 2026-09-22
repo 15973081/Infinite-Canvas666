@@ -47,6 +47,9 @@ function change(c,scenario,source,out){
  if(scenario==='handoff')c.window.MemberCanvasEdit.active.lease.generation++;
  if(scenario==='reentry')c.window.MemberCanvasEdit.active={...c.window.MemberCanvasEdit.active};
  if(scenario==='paused')c.window.CanvasSession.paused=true;
+ if(scenario==='readonly')c.window.MemberCanvasEdit.active.lease.canEdit=false;
+ if(scenario==='member')c.window.CanvasSession.context.member={id:'another-member'};
+ if(scenario==='workspace')c.window.CanvasSession.context.workspace={id:'another-workspace'};
  if(scenario==='source')c.nodes=c.nodes.filter(n=>n!==source);
  if(scenario==='target')c.nodes=c.nodes.map(n=>n===out?{...clone(out),marker:'replacement'}:n);
  if(scenario==='canvas')c.canvas={id:'new'};
@@ -100,7 +103,7 @@ function classicRun(kind,stage,outcome){
  return {c,source,out,gate,counts,timers,reached:()=>reached,start:()=>c[kind==='Image'?'runGenerator':'runVideoNode']('src')};
 }
 for(const kind of ['Image','Video'])test('classic '+kind+' outer generation preserves nodes on late submission/poll success and failure',async()=>{
- for(const stage of ['submit','poll'])for(const outcome of ['success','failure'])for(const scenario of ['unchanged','handoff','reentry','source','target','canvas']){
+ for(const stage of ['submit','poll'])for(const outcome of ['success','failure'])for(const scenario of ['unchanged','handoff','reentry','source','target','canvas','paused','readonly','member','workspace']){
   const f=classicRun(kind,stage,outcome),waiting=f.start();await until(f.reached);change(f.c,scenario,f.source,f.out);
   const before=clone({nodes:f.c.nodes,source:f.source,out:f.out,counts:f.counts});f.gate.resolve();await waiting;
   if(scenario==='unchanged'){assert.equal(f.counts.finish,outcome==='success'?1:0);if(outcome==='failure')assert.ok(f.counts.error>0);}

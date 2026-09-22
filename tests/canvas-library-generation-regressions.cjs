@@ -41,17 +41,19 @@ test('a classic library drop mounts only its new node and retains original refer
  assert.equal(c.nodes[0],existing);assert.equal(renders,1);assert.equal(saves,1);assert.equal(mounted[0].url,'/original');assert.equal(mounted[0].asset_uris.volcengine,'asset://test');
 });
 
-for(const revoke of [false,true])test('generation rejection exits running and reports an error, revoke='+revoke,async()=>{
- const source=readCanvasSource('static/js/canvas.js','utf8').replace(/\r/g,'');let valid=true,saves=0;const messages=[];
+for(const revoke of [false,true])test(revoke ? 'generation rejection after revocation preserves the draft without stale UI updates' : 'generation rejection while still authorized exits running and reports an error',async()=>{
+ const source=readCanvasSource('static/js/canvas.js','utf8').replace(/\r/g,'');let valid=true,saves=0,renders=0,before;const messages=[];
  const gen={id:'g',type:'generator',resolution:'1k'},out={id:'o',type:'output'};
  const guard={valid:()=>valid,check:()=>{},pause:()=>Object.assign(new Error('保留草稿'),{resultPending:true})};
  const c={nodes:[gen,out],window:{CanvasSession:{enabled:true},MemberCanvasEdit:{canEdit:true}},
   allowedImageResolutions:()=>['1k'],cascadeTargetIdFromOptions:()=>'',orderedSources:()=>[{prompt:'test'}],generatorSources:()=>[],imageRefsOnly:()=>[],
   outputForNode:()=>out,canvasTaskWriteGuard:()=>guard,classicTaskInputBinding:()=>null,runSnapshot:()=>({}),resolveImageProviderId:()=> 'p',resolveImageModel:()=> 'm',
-  normalizedImageQuality:()=>'',nowMs:()=>1,refreshRunNodes:()=>{},setTimeout:()=>{},generatorSizeForRun:async()=> '1024x1024',
-  createCanvasImageTask:async()=>{if(revoke)valid=false;throw new Error('模型规格不允许');},pauseClassicTaskInput:()=>{},
+  normalizedImageQuality:()=>'',nowMs:()=>1,refreshRunNodes:()=>renders++,setTimeout:()=>{},generatorSizeForRun:async()=> '1024x1024',
+  createCanvasImageTask:async()=>{if(revoke)valid=false;before=JSON.stringify({gen,out,saves,renders,messages});throw new Error('模型规格不允许');},pauseClassicTaskInput:()=>{},
   isCascadeAbortError:()=>false,scheduleSave:()=>saves++,showErrorModal:m=>messages.push(m),tr:x=>x};
  vm.createContext(c);vm.runInContext('async '+fn(source,'runGenerator'),c);
- await c.runGenerator('g');assert.equal(gen.running,false);assert.equal(messages[0],'模型规格不允许');
+ await c.runGenerator('g');
+ if(revoke)assert.equal(JSON.stringify({gen,out,saves,renders,messages}),before);
+ else {assert.equal(gen.running,false);assert.equal(gen.runStatus,'failed');assert.equal(gen.runError,'模型规格不允许');assert.deepEqual(messages,['模型规格不允许']);}
  assert.equal(saves,revoke?0:1);assert.equal(out._pending,undefined);
 });

@@ -1021,10 +1021,8 @@ async function runGenerator(genId, opts={}){
         pauseClassicTaskInput(gen,out,writeGuard,err,runToken,inputBinding);
         if(err?.resultPending || !writeGuard.valid()){
             const paused=writeGuard.pause();
-            if(nodes.includes(gen) && gen._taskRunToken===runToken){
-                gen.running=false;refreshRunNodes(gen,out);
-                showErrorModal(err.message || paused.message);
-            }
+            // The old operation no longer owns this page's state. Preserve its
+            // draft and pending tasks; the current session handles recovery.
             if(opts.cascade)throw paused;return;
         }
         const remainingPending = pendingIds.map(id => pendingById(out, id)).filter(Boolean);
