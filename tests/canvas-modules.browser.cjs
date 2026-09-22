@@ -141,3 +141,88 @@ for(const kind of ['classic','smart']) {
         assert.deepEqual(errors,[]);
     });
 }
+
+test('classic: 420-node deletion and undo keep unrelated images and playing media mounted',async t=>{
+    const {page,errors,record}=await fixture(t,'classic',false);
+    await page.evaluate(async()=>{
+        nodes=Array.from({length:418},(_,i)=>({id:'image-'+i,type:'image',x:80+(i%12)*35,y:80+Math.floor(i/12)*12,
+            w:120,h:120,url:'/test-image.svg?image='+i,mediaKind:'image',name:'Image '+i}));
+        nodes.push({id:'group',type:'group',x:20,y:20,w:300,h:240,items:['image-0','image-1']},
+            {id:'generator',type:'generator',x:500,y:80,inputs:['group'],model:'gpt-image-2',count:1});
+        connections=[{id:'group-input',from:'group',to:'generator'}];
+        render();resetCanvasHistory();
+        window.deletionRefs=new Map([...nodesEl.querySelectorAll('.node')].filter(el=>!['image-0','image-1','group','generator'].includes(el.dataset.id))
+            .map(el=>[el.dataset.id,{el,img:el.querySelector('img')}]));
+        window.fullRenders=0;const original=render;render=()=>{window.fullRenders++;return original();};
+        const video=document.createElement('video'),surface=document.createElement('canvas');surface.width=surface.height=8;
+        surface.getContext('2d').fillRect(0,0,8,8);video.muted=true;video.srcObject=surface.captureStream(5);
+        nodesEl.querySelector('[data-id="image-2"] .node-body').append(video);
+        await video.play();window.deletionVideo=video;window.videoPauses=0;video.addEventListener('pause',()=>window.videoPauses++);
+    });
+    const stable=async()=>assert.deepEqual(await page.evaluate(()=>({
+        stable:[...window.deletionRefs].every(([id,ref])=>nodesEl.querySelector(`.node[data-id="${id}"]`)===ref.el &&
+            ref.el.isConnected && (!ref.img || ref.el.querySelector('img')===ref.img)),
+        fullRenders:window.fullRenders,playing:window.deletionVideo.isConnected && !window.deletionVideo.paused,pauses:window.videoPauses
+    })),{stable:true,fullRenders:0,playing:true,pauses:0});
+    await page.locator('.node[data-id="image-0"] .node-delete-btn').evaluate(button=>button.click());
+    assert.equal(await page.evaluate(()=>nodes.find(node=>node.id==='image-0').url),'');
+    assert.equal(await page.locator('.node[data-id="generator"] .input-list img').count(),1);
+    await stable();
+    await page.evaluate(()=>performUndo());await stable();
+    assert.equal(await page.locator('.node[data-id="generator"] .input-list img').count(),2);
+    await page.evaluate(()=>performRedo());await stable();
+    await page.locator('.node[data-id="image-0"] .node-delete-btn').evaluate(button=>button.click());
+    assert.deepEqual(await page.evaluate(()=>({exists:nodes.some(node=>node.id==='image-0'),items:nodes.find(node=>node.id==='group').items})),
+        {exists:false,items:['image-1']});
+    await stable();await page.evaluate(()=>performUndo());await stable();
+    assert.ok(await page.locator('.node[data-id="image-0"]').count());
+    await page.evaluate(()=>{selected=new Set(['group']);deleteSelectedNodes();});await stable();
+    assert.deepEqual(await page.evaluate(()=>({ids:nodes.filter(node=>['image-0','image-1','group'].includes(node.id)).map(node=>node.id),
+        connections:connections.length,inputs:nodes.find(node=>node.id==='generator').inputs,links:renderedCanvasLinks.size})),
+        {ids:[],connections:0,inputs:[],links:0});
+    await page.evaluate(()=>performUndo());await stable();
+    assert.equal(await page.evaluate(()=>renderedCanvasLinks.size),1);
+    await page.evaluate(()=>performRedo());await stable();
+    await page.evaluate(()=>saveCanvas());
+    assert.equal(record.nodes.length,417);assert.equal(record.connections.length,0);
+    await page.evaluate(()=>{window.deletionVideo.srcObject.getTracks().forEach(track=>track.stop());});
+    await page.evaluate(()=>openCanvas('canvas-test'));
+    assert.equal(await page.evaluate(()=>nodes.length),417);
+    assert.deepEqual(errors,[]);
+});
+
+test('classic: output deletion has undo and persistence, recovery buttons and read-only gates stay separate',async t=>{
+    const {page,errors}=await fixture(t,'classic',true);
+    await page.evaluate(()=>{
+        nodes=[{id:'out',type:'output',x:80,y:80,images:[{url:'/test-image.svg?1'},{url:'/test-image.svg?2'}],
+            _pending:[{id:'pending',canvasTaskId:'task',canvasTaskType:'video'}]},
+            {id:'other',type:'image',x:500,y:100,url:'/test-image.svg?other'}];
+        connections=[];render();resetCanvasHistory();
+        window.otherImage=nodesEl.querySelector('[data-id="other"] img');
+        window.resultsOpened=0;window.MemberCanvasEdit.taskState=()=>({status:'succeeded',label:'已完成，待加入'});
+        window.MemberCanvasEdit.openTaskResults=()=>window.resultsOpened++;
+        refreshNodes(['out']);
+    });
+    await page.locator('[data-pending-id="pending"] .output-recover-query').evaluate(button=>button.click());
+    assert.equal(await page.evaluate(()=>window.resultsOpened),1);
+    await page.locator('[data-pending-id="pending"] .output-del').evaluate(button=>button.click());
+    assert.deepEqual(await page.evaluate(()=>({pending:nodes[0]._pending.length,dirty:localCanvasDirty,undo:undoStack.length,opened:window.resultsOpened})),
+        {pending:0,dirty:true,undo:1,opened:1});
+    await page.evaluate(()=>performUndo());assert.equal(await page.locator('[data-pending-id="pending"]').count(),1);
+    // Retained output wrappers must bind to the current document object too.
+    await page.evaluate(()=>{nodes[0]={...nodes[0]};refreshNodes(['out']);});
+    await page.locator('[data-output-url="/test-image.svg?1"] .output-del').evaluate(button=>button.click());
+    assert.equal(await page.evaluate(()=>nodes[0].images.length),1);
+    await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes[0].images.length),2);
+    const position=await page.evaluate(()=>{
+        const old=nodes[0].x;pushUndo();nodes[0].x=700;refreshNodes(['out'],{rebuildOutputs:true});performUndo();
+        return {old,restored:Number.parseFloat(nodesEl.querySelector('[data-id="out"]').style.left)};
+    });
+    assert.equal(position.restored,position.old);
+    assert.equal(await page.evaluate(()=>window.otherImage===nodesEl.querySelector('[data-id="other"] img')),true);
+    const before=await page.evaluate(()=>{window.MemberCanvasEdit.setEditable(false);return JSON.stringify(canvasHistorySnapshot());});
+    await page.locator('[data-pending-id="pending"] .output-del').evaluate(button=>button.click());
+    await page.evaluate(()=>{clearNodeContentBeforeDelete('other');deleteNode('other');selected.add('out');deleteSelectedNodes();performUndo();performRedo();});
+    assert.equal(await page.evaluate(()=>JSON.stringify(canvasHistorySnapshot())),before);
+    assert.deepEqual(errors,[]);
+});

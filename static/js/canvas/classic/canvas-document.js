@@ -491,18 +491,56 @@ function canvasInputGraph(){
     return graph;
 }
 
+// Use the pre-edit graph as well: deleted edges and group memberships still
+// identify previews which must lose their old input.
+function refreshCanvasMutation(ids, before=canvasInputGraph(), options={}){
+    const current=canvasInputGraph(), redraw=new Set(ids), generators=new Set();
+    for(const graph of [before,current]){
+        const visited=new Set(),queue=[...ids];
+        for(let i=0;i<queue.length;i++){
+            const id=queue[i];if(visited.has(id))continue;visited.add(id);
+            for(const parent of graph.parents.get(id) || []){redraw.add(parent);queue.push(parent);}
+            for(const targetId of graph.outgoing.get(id) || []){
+                const target=current.nodeById.get(targetId);if(!target)continue;
+                if(CANVAS_GENERATOR_TYPES.includes(target.type))generators.add(targetId);
+                else if(['loop','llm','group','promptGroup'].includes(target.type)){redraw.add(targetId);queue.push(targetId);}
+            }
+        }
+    }
+    for(const id of redraw){
+        if(!current.nodeById.has(id))nodesEl.querySelector(`.node[data-id="${CSS.escape(id)}"]`)?.remove();
+    }
+    refreshNodes([...redraw].filter(id=>current.nodeById.has(id)),options);
+    refreshGeneratorInputViews(generators);
+    nodesEl.querySelectorAll('.node').forEach(el=>el.classList.toggle('selected',selected.has(el.dataset.id)));
+    if(hoveredConnectionId && !connections.some(connection=>connection.id===hoveredConnectionId))hoveredConnectionId='';
+    refreshGeometry();
+    refreshGeometryAfterLayout();
+    updateCanvasCostButton();
+}
+
+function removeCanvasNodes(ids){
+    const removed=new Set(ids),before=canvasInputGraph();
+    for(const node of nodes)if(removed.has(node.id))destroyLTXEditor(node);
+    nodes=nodes.filter(node=>!removed.has(node.id));
+    connections=connections.filter(connection=>!removed.has(connection.from) && !removed.has(connection.to));
+    for(const node of nodes){
+        if(['group','promptGroup'].includes(node.type) && node.items?.some(id=>removed.has(id)))node.items=node.items.filter(id=>!removed.has(id));
+    }
+    for(const id of removed)selected.delete(id);
+    refreshCanvasMutation([...removed],before);
+}
+
 function deleteNode(id, event){
     event?.stopPropagation();
+    if(isCanvasLockedByOther() || !nodes.some(node=>node.id===id))return;
     pushUndo();
-    destroyLTXEditor(nodes.find(n => n.id === id));
-    nodes = nodes.filter(n => n.id !== id);
-    connections = connections.filter(c => c.from !== id && c.to !== id);
-    selected.delete(id);
-    render();
+    removeCanvasNodes([id]);
     scheduleSave();
 }
 
 function clearNodeContentBeforeDelete(id){
+    if(isCanvasLockedByOther())return false;
     const node = nodes.find(n => n.id === id);
     if(!node) return false;
     if(node.type === 'image' && node.url){
@@ -511,7 +549,7 @@ function clearNodeContentBeforeDelete(id){
         node.url = '';
         node.mediaKind = 'image';
         node.name = tr('canvas.imageCard');
-        render();
+        refreshCanvasMutation([node.id]);
         scheduleSave();
         return true;
     }
@@ -520,7 +558,7 @@ function clearNodeContentBeforeDelete(id){
         node.images = [];
         node._pending = [];
         node.imageComparisons = {};
-        refreshNodes([node.id]);
+        refreshCanvasMutation([node.id]);
         scheduleSave();
         return true;
     }
@@ -800,10 +838,22 @@ function resetCanvasHistory(){
 
 function restoreCanvasHistoryState(state){
     if(!state) return false;
-    nodes = state.nodes;
+    const before=canvasInputGraph(),changed=new Set(),previous=new Map(nodes.map(node=>[node.id,node]));
+    nodes = state.nodes.map(saved=>{
+        const old=previous.get(saved.id);previous.delete(saved.id);
+        if(old && JSON.stringify(serializableCanvasNode(old))===JSON.stringify(saved))return old;
+        if(old)destroyLTXEditor(old);
+        changed.add(saved.id);return saved;
+    });
+    for(const [id,node] of previous){changed.add(id);destroyLTXEditor(node);}
+    const oldEdges=new Map(connections.map(edge=>[edge.id,JSON.stringify(edge)]));
+    const nextEdges=new Map(state.connections.map(edge=>[edge.id,JSON.stringify(edge)]));
+    for(const edge of [...connections,...state.connections]){
+        if(oldEdges.get(edge.id)!==nextEdges.get(edge.id))changed.add(edge.from);
+    }
     connections = state.connections;
     selected.clear();
-    render();
+    refreshCanvasMutation([...changed],before,{rebuildOutputs:true});
     scheduleSave();
     return true;
 }
@@ -817,14 +867,14 @@ function pushUndo(){
 }
 
 function performUndo(){
-    if(!canvas || !undoStack.length) return false;
+    if(!canvas || !undoStack.length || isCanvasLockedByOther()) return false;
     redoStack.push(canvasHistorySnapshot());
     trimCanvasHistory(redoStack);
     return restoreCanvasHistoryState(undoStack.pop());
 }
 
 function performRedo(){
-    if(!canvas || !redoStack.length) return false;
+    if(!canvas || !redoStack.length || isCanvasLockedByOther()) return false;
     undoStack.push(canvasHistorySnapshot());
     trimCanvasHistory(undoStack);
     return restoreCanvasHistoryState(redoStack.pop());
@@ -1237,10 +1287,6 @@ function deleteSelectedNodes(){
         }
     };
     selected.forEach(collect);
-    toDelete.forEach(id => destroyLTXEditor(nodes.find(n => n.id === id)));
-    nodes = nodes.filter(n => !toDelete.has(n.id));
-    connections = connections.filter(c => !toDelete.has(c.from) && !toDelete.has(c.to));
-    selected.clear();
-    render();
+    removeCanvasNodes(toDelete);
     scheduleSave();
 }

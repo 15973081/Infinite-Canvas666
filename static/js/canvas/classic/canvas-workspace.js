@@ -908,7 +908,7 @@ function render(){
     updateCanvasCostButton();
 }
 
-function refreshNodes(ids=[]){
+function refreshNodes(ids=[], {rebuildOutputs=false}={}){
     const uniqueIds = [...new Set((ids || []).filter(Boolean))];
     if(!uniqueIds.length) return;
     const outputScrolls = captureOutputScrolls();
@@ -917,15 +917,12 @@ function refreshNodes(ids=[]){
     for(const id of uniqueIds){
         const node = nodeById.get(id);
         if(!node) continue;
-        if(node.type === 'output' && refreshOutputNodeContent(node)) continue;
+        if(!rebuildOutputs && node.type === 'output' && refreshOutputNodeContent(node)) continue;
         const current = nodesEl.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
-        if(!current){
-            render();
-            return;
-        }
-        const fresh = renderNode(node);
-        if(nodeHasLiveMedia(node)) transplantNodeMediaElement(current, fresh);
-        current.replaceWith(fresh);
+        const fresh = !current && !isNodeInCanvasViewport(node,400) ? renderNodePlaceholder(node) : renderNode(node);
+        if(current && nodeHasLiveMedia(node)) transplantNodeMediaElement(current, fresh);
+        if(current) current.replaceWith(fresh);
+        else nodesEl.appendChild(fresh);
     }
     restoreOutputScrolls(outputScrolls);
     refreshGeometry(uniqueIds);
@@ -1436,21 +1433,19 @@ function bindOutputWrap(wrap, node){
         del.onmousedown = e => e.stopPropagation();
         del.onclick = e => {
             e.stopPropagation();
+            if(isCanvasLockedByOther())return;
+            pushUndo();
+            const graph=canvasInputGraph();
             const pid = wrap.dataset.pendingId;
-            if(wrap.dataset.taskRecovery){
-                if(wrap.dataset.taskRecovery==='succeeded')window.MemberCanvasEdit?.openTaskResults();
-                else window.MemberCanvasEdit?.refreshTasks();
-                return;
-            }
             if(pid){
                 node._pending = (node._pending || []).filter(p => p.id !== pid);
             } else {
                 const url = img?.dataset.url || video?.dataset.url || audio?.dataset.url || wrap.dataset.outputUrl || wrap.dataset.missingUrl || '';
                 node.images = (node.images || []).filter(item => outputUrlValue(item) !== url);
                 if(node.imageComparisons) delete node.imageComparisons[url];
-                scheduleSave();
             }
-            refreshNodes([node.id]);
+            refreshCanvasMutation([node.id],graph);
+            scheduleSave();
         };
     }
     if(recoverQuery){
@@ -1459,6 +1454,11 @@ function bindOutputWrap(wrap, node){
             e.preventDefault();
             e.stopPropagation();
             const pid = wrap.dataset.pendingId;
+            if(wrap.dataset.taskRecovery){
+                if(wrap.dataset.taskRecovery==='succeeded')window.MemberCanvasEdit?.openTaskResults();
+                else window.MemberCanvasEdit?.refreshTasks();
+                return;
+            }
             if(pid) queryRecoverPendingOutput(pid);
         };
     }
@@ -1498,14 +1498,13 @@ function refreshOutputNodeContent(node){
         if(!wanted.has(key)) child.remove();
         else child.dataset.outputKey = key;
     });
-    items.forEach(item => {
+    items.forEach((item,index) => {
         let child = [...grid.children].find(el => el.dataset.outputKey === item.key);
         if(!child){
             grid.insertAdjacentHTML('beforeend', item.html);
             child = grid.lastElementChild;
             child.dataset.outputKey = item.key;
             child.dataset.outputHtml = item.html;
-            bindOutputWrap(child, node);
         } else if(item.key.startsWith('pending:') && child.dataset.outputHtml !== item.html){
             const tpl = document.createElement('template');
             tpl.innerHTML = item.html.trim();
@@ -1515,10 +1514,12 @@ function refreshOutputNodeContent(node){
                 fresh.dataset.outputHtml = item.html;
                 child.replaceWith(fresh);
                 child = fresh;
-                bindOutputWrap(child, node);
             }
         }
-        grid.appendChild(child);
+        // Undo may replace the data object while retaining the media element.
+        // Refresh handlers against that object without remounting its siblings.
+        bindOutputWrap(child, node);
+        if(grid.children[index]!==child)grid.insertBefore(child,grid.children[index] || null);
     });
     refreshOutputTimer();
     return true;
