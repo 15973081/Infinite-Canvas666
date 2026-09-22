@@ -429,7 +429,7 @@ function renderSmartCanvasLog(){
         if(target) target.textContent = ledger && !ledger.ready ? '读取中…' : value;
     });
     if(summary && ledger && !ledger.ready) summary.textContent = '正在读取全部费用流水…';
-    smartLogList.innerHTML = logs.length ? logs.map(log => {
+    smartLogList.innerHTML = logs.length ? logs.map((log,index) => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = typeof item === 'string' ? item : (item?.url || '');
             if(!url) return '';
@@ -449,27 +449,26 @@ function renderSmartCanvasLog(){
             ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${escapeHtml(costAmount)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
             : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">${escapeHtml(window.VolcengineVideoBilling?.pendingLabel(cost) || '待核算')}</span>` : '';
         const subParts = [
-            date,
             ...(window.VolcengineVideoBilling?.details(log) || []),
             `${'输出'} ${(log.outputs || []).length}`,
             taskId ? `ID ${taskId}` : '',
-            backend
+            backend && backend!==log.platform ? backend : ''
         ].filter(Boolean);
-        return `<div class="log-item ${log.status === 'failed' ? 'failed' : ''}">
+        return `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
             <div class="log-main">
+                <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
+                    <time class="log-entry-date">${escapeHtml(date)}</time><span class="log-entry-cost">${costChip}</span></div>
                 <div class="log-meta">
-                    <span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
                     ${log.model ? `<span class="log-chip">${escapeHtml(log.model)}</span>` : ''}
-                    ${costChip}
                     <span class="log-chip">${escapeHtml(window.CanvasLedger.durationLabel(log.runMs,formatRunDuration))}</span>
                 </div>
                 <div class="log-subline">${subParts.map(part => `<span title="${escapeAttr(part)}">${escapeHtml(part)}</span>`).join('')}</div>
                 ${log.error ? `<div class="log-error" title="${escapeAttr(log.error)}">${escapeHtml(log.error)}</div>` : ''}
-                <div class="log-prompt" title="${escapeAttr(log.prompt || tr('canvas.noPromptMeta'))}" data-prompt="${escapeAttr(log.prompt || '')}">${escapeHtml(log.prompt || tr('canvas.noPromptMeta'))}</div>
+                ${window.CanvasLedger.promptMarkup(log.prompt,escapeHtml)}
             </div>
             <div class="log-thumbs">${thumbs}</div>
-        </div>`;
+        </article>`;
     }).join('') : `<div class="log-empty">${escapeHtml(tr('canvas.noLogs'))}</div>`;
     bindSmartPreviewImageFallbacks(smartLogList);
     smartLogList.querySelectorAll('[data-url]').forEach(el => {
@@ -478,20 +477,7 @@ function renderSmartCanvasLog(){
             smartLogPreviewNode(el.dataset.url, el.dataset.kind || 'image');
         };
     });
-    smartLogList.querySelectorAll('[data-prompt]').forEach(el => {
-        el.onclick = e => {
-            e.stopPropagation();
-            const text = el.dataset.prompt || '';
-            if(text) navigator.clipboard?.writeText(text).catch(() => {});
-            const oldText = el.textContent;
-            el.textContent = tr('canvas.copied');
-            el.classList.add('copied');
-            setTimeout(() => {
-                el.textContent = oldText;
-                el.classList.remove('copied');
-            }, 900);
-        };
-    });
+    window.CanvasLedger.bindLogPrompts(smartLogList,logs,formatRunDuration);
     refreshIcons();
     if(!ledger) void backfillSmartHistoricalVideoCosts();
 }

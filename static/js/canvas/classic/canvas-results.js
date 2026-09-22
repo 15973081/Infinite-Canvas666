@@ -480,7 +480,7 @@ function renderCanvasLog(){
         if(target) target.textContent = ledger && !ledger.ready ? '读取中…' : value;
     });
     if(summary && ledger && !ledger.ready) summary.textContent = '正在读取全部费用流水…';
-    list.innerHTML = logs.length ? logs.map(log => {
+    list.innerHTML = logs.length ? logs.map((log,index) => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = outputUrlValue(item);
             if(!url) return '';
@@ -506,27 +506,26 @@ function renderCanvasLog(){
         const idText = taskId || requestId || '';
         const backendText = workflow || backend || '';
         const subParts = [
-            date,
             ...(window.VolcengineVideoBilling?.details(log) || []),
             `${langIsEn() ? 'outputs' : '输出'} ${(log.outputs || []).length}`,
             idText ? `ID ${idText}` : '',
-            backendText,
+            backendText && backendText!==log.platform ? backendText : '',
         ].filter(Boolean);
-        return `<div class="log-item ${log.status === 'failed' ? 'failed' : ''}">
+        return `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
             <div class="log-main">
+                <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
+                    <time class="log-entry-date">${escapeHtml(date)}</time><span class="log-entry-cost">${costChip}</span></div>
                 <div class="log-meta">
-                    <span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
                     ${taskLabel ? `<span class="log-chip">${escapeHtml(taskLabel)}</span>` : ''}
-                    ${costChip}
                     <span class="log-chip">${escapeHtml(window.CanvasLedger.durationLabel(log.runMs,formatRunDuration,langIsEn()?'Duration unknown':'耗时未知'))}</span>
                 </div>
                 <div class="log-subline">${subParts.map(part => `<span title="${escapeAttr(part)}">${escapeHtml(part)}</span>`).join('')}</div>
                 ${log.error ? `<div class="log-error" title="${escapeAttr(log.error)}">${escapeHtml(log.error)}</div>` : ''}
-                <div class="log-prompt" title="${escapeAttr(log.prompt || tr('canvas.noPromptMeta'))}" data-prompt="${escapeAttr(log.prompt || '')}">${escapeHtml(log.prompt || tr('canvas.noPromptMeta'))}</div>
+                ${window.CanvasLedger.promptMarkup(log.prompt,escapeHtml)}
             </div>
             <div class="log-thumbs">${thumbs}</div>
-        </div>`;
+        </article>`;
     }).join('') : `<div class="log-empty">${tr('canvas.noLogs')}</div>`;
     bindCanvasPreviewImageFallbacks(list);
     list.querySelectorAll('[data-url]').forEach(el => {
@@ -535,20 +534,7 @@ function renderCanvasLog(){
             openOutputLightbox(el.dataset.url, null);
         };
     });
-    list.querySelectorAll('[data-prompt]').forEach(el => {
-        el.onclick = e => {
-            e.stopPropagation();
-            const text = el.dataset.prompt || '';
-            if(text) navigator.clipboard?.writeText(text).catch(() => {});
-            const oldText = el.textContent;
-            el.textContent = tr('canvas.copied');
-            el.classList.add('copied');
-            setTimeout(() => {
-                el.textContent = oldText;
-                el.classList.remove('copied');
-            }, 900);
-        };
-    });
+    window.CanvasLedger.bindLogPrompts(list,logs,formatRunDuration);
     refreshIcons();
     if(!ledger) void backfillHistoricalVideoCosts();
 }

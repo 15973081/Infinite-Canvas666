@@ -211,7 +211,67 @@
         if(typeof ms!=='number' || !Number.isFinite(ms) || ms<=0)return unknown;
         return ms<1000 ? '<1s' : format(ms);
     }
-    root.CanvasLedger={view, record, refresh, readAll, mount, recover, durationLabel, revision:id=>state(id).result?.revision ?? -1};
+    function promptMarkup(prompt,escape){
+        const value=typeof prompt==='string' ? prompt : '';
+        return `<div class="log-prompt${value?'':' is-empty'}">
+            <div class="log-prompt-head"><span>提示词</span><div class="log-prompt-actions">
+                ${value?'<button type="button" data-log-expand aria-expanded="false">展开全文</button><button type="button" data-log-copy="prompt">复制提示词</button>':''}
+                <button type="button" data-log-copy="record">复制记录</button>
+            </div></div>
+            <div class="log-prompt-text">${value?escape(value):'未记录提示词'}</div>
+            <span class="log-copy-feedback" role="status" aria-live="polite"></span>
+        </div>`;
+    }
+    function recordText(log,formatDuration){
+        const request=log.request || {},cost=log._ledger_cost || log.cost || {};
+        const micros=Number(cost.amount_micros),money=cost.status==='priced' && Number.isFinite(micros)
+            ? `${cost.currency || 'CNY'} ${new Intl.NumberFormat('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:6}).format(micros/1000000)}` : '待核算';
+        const taskId=log.canvas_task_id || request.canvas_task_id || request.task_id || request.taskId || '';
+        const outputs=(log.outputs || []).map(item=>typeof item==='string'?item:item?.url || '').filter(Boolean);
+        return [
+            `状态：${log.status==='failed'?'失败':'成功'}`,
+            `时间：${log.createdAt?new Date(log.createdAt).toLocaleString('zh-CN'):'未知'}`,
+            `平台：${log.platform || '-'}`,
+            `模型：${log.billingModel || log.model || '-'}`,
+            `费用：${money}`,
+            `耗时：${durationLabel(log.runMs,formatDuration)}`,
+            taskId?`任务 ID：${taskId}`:'',
+            log.error?`错误：${log.error}`:'',
+            `提示词：\n${log.prompt || ''}`,
+            `输出 (${outputs.length})：${outputs.length?'\n'+outputs.join('\n'):''}`
+        ].filter(Boolean).join('\n');
+    }
+    async function copyText(value){
+        if(root.navigator?.clipboard?.writeText){
+            try {await root.navigator.clipboard.writeText(value);return;} catch(_) {}
+        }
+        const field=document.createElement('textarea');
+        field.value=value;field.setAttribute('readonly','');field.style.cssText='position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(field);
+        try {field.focus();field.select();if(!document.execCommand?.('copy'))throw new Error('clipboard unavailable');}
+        finally {field.remove();}
+    }
+    function bindLogPrompts(list,logs,formatDuration){
+        list.querySelectorAll('.log-item[data-log-index]').forEach(item=>{
+            const log=logs[Number(item.dataset.logIndex)];if(!log)return;
+            const box=item.querySelector('.log-prompt'),expand=box?.querySelector('[data-log-expand]');
+            if(expand)expand.onclick=()=>{
+                const open=box.classList.toggle('expanded');
+                expand.textContent=open?'收起':'展开全文';expand.setAttribute('aria-expanded',String(open));
+            };
+            box?.querySelectorAll('[data-log-copy]').forEach(button=>{
+                button.onclick=async()=>{
+                    const feedback=box.querySelector('.log-copy-feedback');
+                    const value=button.dataset.logCopy==='prompt'?log.prompt:recordText(log,formatDuration);
+                    if(!value)return;
+                    try {await copyText(value);feedback.textContent='已复制完整内容';feedback.classList.remove('error');}
+                    catch(_) {feedback.textContent='复制失败，请展开后手动选择文字';feedback.classList.add('error');}
+                };
+            });
+        });
+    }
+    root.CanvasLedger={view, record, refresh, readAll, mount, recover, durationLabel,promptMarkup,recordText,copyText,bindLogPrompts,
+        revision:id=>state(id).result?.revision ?? -1};
     // A totals label calling view() must not subscribe the entire page to
     // perpetual full-ledger downloads. Poll only an explicitly open panel.
     setInterval(()=>{

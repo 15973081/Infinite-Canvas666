@@ -90,6 +90,49 @@ async function fixture(t, kind, member) {
 }
 
 for(const kind of ['classic','smart']) {
+    test(`${kind}: billing prompt expands and copies complete source text and all output links`,async t=>{
+        const {page,errors}=await fixture(t,kind,false);
+        const prompt='起点 <巴士> & 夜景\n'+('镜头和灯光细节，'.repeat(140))+'\n终点：保留这个收尾。';
+        const outputs=Array.from({length:12},(_,i)=>'/test-image.svg?output='+i);
+        await page.evaluate(({kind,prompt,outputs})=>{
+            window.copiedText=[];
+            Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>window.copiedText.push(text)}});
+            const logs=[{id:'long-prompt',createdAt:1789000000000,status:'success',runMs:129000,
+                platform:'api-40824715',model:'gpt-image-2.5',billingModel:'gpt-image-2.5',prompt,outputs,
+                request:{task_id:'task-full'},cost:{status:'priced',currency:'CNY',amount_micros:30000}}];
+            window.CanvasLedger.view=()=>({logs,ready:true,totals:{total:30000,image:30000,video:0,calls:1,unknown:0,estimated:0}});
+            window.CanvasLedger.mount=()=>{};
+            if(kind==='classic'){renderCanvasLog();document.getElementById('logModal').classList.add('open');}
+            else {renderSmartCanvasLog();document.getElementById('smartLogModal').classList.add('open');}
+        },{kind,prompt,outputs});
+        const root=page.locator(kind==='classic'?'#logList':'#smartLogList');
+        assert.equal(await root.locator('.log-prompt-text').textContent(),prompt);
+        assert.equal(await root.locator('[data-log-expand]').getAttribute('aria-expanded'),'false');
+        await root.locator('[data-log-expand]').click();
+        assert.equal(await root.locator('[data-log-expand]').getAttribute('aria-expanded'),'true');
+        await root.locator('[data-log-copy="prompt"]').click();
+        await page.waitForFunction(()=>window.copiedText.length===1);
+        assert.equal(await page.evaluate(()=>window.copiedText[0]),prompt);
+        await root.locator('[data-log-copy="record"]').click();
+        await page.waitForFunction(()=>window.copiedText.length===2);
+        const copied=await page.evaluate(()=>window.copiedText[1]);
+        assert.ok(copied.includes(prompt));
+        assert.ok(copied.includes(outputs[11]));
+        assert.ok(copied.includes('任务 ID：task-full'));
+        assert.match(await root.locator('.log-copy-feedback').textContent(),/已复制完整内容/);
+        await root.locator('[data-log-expand]').click();
+        await page.setViewportSize({width:390,height:844});
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
+        assert.equal(await root.locator('[data-log-copy="prompt"]').isVisible(),true);
+        await page.evaluate(()=>{
+            Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new Error('denied');}}});
+            document.execCommand=()=>false;
+        });
+        await root.locator('[data-log-copy="prompt"]').click();
+        await page.waitForFunction(()=>document.querySelector('.log-copy-feedback.error'));
+        assert.equal(await page.evaluate(()=>window.copiedText.length),2);
+        assert.deepEqual(errors,[]);
+    });
     test(`${kind}: history displays unknown duration instead of zero and formats backend duration`,async t=>{
         const {page,errors}=await fixture(t,kind,false);
         const labels=await page.evaluate(kind=>{
