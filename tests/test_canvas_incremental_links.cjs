@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync(require('node:path').join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
+const source = readCanvasSource(require('node:path').join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
 class Element {
     constructor() { this.children=[]; this.dataset={}; this.style={}; this.attrs={}; this.classList={toggle(){}}; }
     setAttribute(k,v){ this.attrs[k]=v; }

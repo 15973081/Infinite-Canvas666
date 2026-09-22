@@ -1,5 +1,6 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
 function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);}
 function fixture({enabled=true,wait=false}={}){
  const calls=[],notes=[],node={id:'source',type:'smart-image',images:[{url:'/assets/one.png'},{url:'/assets/two.png'}]},buttons=[{},{}];

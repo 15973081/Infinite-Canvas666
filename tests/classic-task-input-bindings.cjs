@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -5,7 +6,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const bindings=require('../static/js/canvas-task-bindings.js');
 const guards=require('../static/js/canvas-task-results.js');
-const source=fs.readFileSync(path.join(__dirname,'../static/js/canvas.js'),'utf8');
+const source=readCanvasSource(path.join(__dirname,'../static/js/canvas.js'),'utf8');
 const clone=value=>JSON.parse(JSON.stringify(value));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 async function until(check){const deadline=Date.now()+5000;while(!check()&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,5));assert.ok(check(),'reached async boundary');}

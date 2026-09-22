@@ -1,3 +1,4 @@
+from canvas_source import read_canvas_source
 from pathlib import Path
 import unittest
 
@@ -29,7 +30,7 @@ def _function_source(source: str, name: str) -> str:
 class ClassicCanvasAudioLightboxTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = CANVAS_JS.read_text(encoding="utf-8")
+        cls.source = read_canvas_source(CANVAS_JS)
         cls.page = CANVAS_HTML.read_text(encoding="utf-8")
 
     def test_audio_nodes_render_lightweight_cards_without_players(self):
@@ -64,11 +65,7 @@ class ClassicCanvasAudioLightboxTests(unittest.TestCase):
             "function releaseOutputLightboxAudio(",
             "function closeOutputLightbox(",
         )
-        close_lightbox = _source_between(
-            self.source,
-            "function closeOutputLightbox(",
-            "function groupSelectedImages(",
-        )
+        close_lightbox = _function_source(self.source, "closeOutputLightbox")
 
         self.assertIn("document.createElement('audio')", lightbox)
         self.assertIn("outputLightboxAudioHost.replaceChildren(audio)", lightbox)

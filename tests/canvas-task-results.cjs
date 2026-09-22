@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {capture,pending:pendingError}=require('../static/js/canvas-task-results.js');
@@ -14,7 +15,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 function sourceFunction(file,name){
- const source=fs.readFileSync(path.join(__dirname,'../static/js/',file),'utf8');
+ const source=readCanvasSource(path.join(__dirname,'../static/js/',file),'utf8');
  const start=source.indexOf('async function '+name+'(');
  assert.ok(start>=0);
  const next=source.slice(start+1).search(/\n(?:async )?function /);

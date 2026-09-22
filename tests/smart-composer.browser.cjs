@@ -1,6 +1,7 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {chromium}=require('playwright');
-const source=fs.readFileSync('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
 function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0,name);return (source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);}
 const labels=Object.fromEntries([...source.matchAll(/"(smart\.[^"]+)": "([^"]*)"/g)].map(m=>[m[1],m[2]]));
 async function fixture(t){
@@ -9,8 +10,8 @@ async function fixture(t){
  // All transport is blocked. The fixture renders production markup and event handlers.
  await page.route('**/*',route=>route.abort());
  await page.setContent('<body class="studio-skin studio-content studio-smart-canvas"><div id="shell"><div id="world"></div></div></body>');
- await page.evaluate(html=>{const doc=new DOMParser().parseFromString(html,'text/html');document.getElementById('world').append(doc.getElementById('composer'));},fs.readFileSync('static/smart-canvas.html','utf8'));
- for(const name of ['smart-canvas.css','studio-workbench.css','smart-composer.css'])await page.addStyleTag({content:fs.readFileSync('static/css/'+name,'utf8').replace(/^@import.*$/gm,'')});
+ await page.evaluate(html=>{const doc=new DOMParser().parseFromString(html,'text/html');document.getElementById('world').append(doc.getElementById('composer'));},readCanvasSource('static/smart-canvas.html','utf8'));
+ for(const name of ['smart-canvas.css','studio-workbench.css','smart-composer.css'])await page.addStyleTag({content:readCanvasSource('static/css/'+name,'utf8').replace(/^@import.*$/gm,'')});
  await page.addScriptTag({path:'static/vendor/js/lucide.js'});
  await page.addScriptTag({path:'static/js/video-duration-policy.js'});
  await page.evaluate(labels=>{

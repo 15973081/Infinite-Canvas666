@@ -1,5 +1,6 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test'), assert=require('node:assert/strict'), vm=require('node:vm');
-const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function setup(){
     const img={tagName:'IMG',dataset:{previewSrc:'/preview',originalSrc:'/original'},style:{width:'',height:'',visibility:''},
         attrs:{src:'/preview',srcset:'/preview2 2x'},complete:true,naturalWidth:640,offsetWidth:240,offsetHeight:180,

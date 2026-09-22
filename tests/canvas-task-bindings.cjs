@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -5,7 +6,7 @@ const path=require('node:path');
 const {createHash,webcrypto}=require('node:crypto');
 const api=require('../static/js/canvas-task-bindings.js');
 const taskResults=require('../static/js/canvas-task-results.js');
-const golden=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/task-input-bindings-v2.json'),'utf8'));
+const golden=JSON.parse(readCanvasSource(path.join(__dirname,'fixtures/task-input-bindings-v2.json'),'utf8'));
 const hash=text=>createHash('sha256').update(text,'utf8').digest('hex');
 const clone=value=>JSON.parse(JSON.stringify(value));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
@@ -161,7 +162,7 @@ test('viewing completed batch images does not invalidate remaining receipts',asy
     f.op.apply(tasks[0],()=>{out.images=[{url:'/first.png',viewed:false}];},tasks[0].id);
     f.op.apply(tasks[1],()=>{out.images.push({url:'/second.png',viewed:false});},tasks[1].id);
     const ui={render(){},scheduleSave(){}};
-    const source=fs.readFileSync(path.join(__dirname,'../static/js/canvas.js'),'utf8');
+    const source=readCanvasSource(path.join(__dirname,'../static/js/canvas.js'),'utf8');
     const start=source.indexOf('function markOutputViewed('),end=source.indexOf('function outputLightboxItems(',start);
     require('node:vm').runInNewContext(source.slice(start,end)+';this.mark=markOutputViewed;',ui);
     ui.mark(out,'/second.png');

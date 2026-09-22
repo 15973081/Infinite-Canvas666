@@ -1,3 +1,4 @@
+from canvas_source import read_canvas_source
 from pathlib import Path
 import unittest
 
@@ -13,7 +14,7 @@ def _source_between(source: str, start: str, end: str) -> str:
 class SmartCanvasVideoResumeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = SMART_CANVAS_JS.read_text(encoding="utf-8")
+        cls.source = read_canvas_source(SMART_CANVAS_JS)
 
     def test_video_submission_returns_a_background_task_id(self):
         video_submit = _source_between(

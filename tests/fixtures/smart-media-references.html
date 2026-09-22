@@ -11,6 +11,7 @@ button { font:inherit; } #promptInput { margin-top:12px; min-height:70px; paddin
 </style>
 <button id="theme">切换明暗</button><button id="reorder">交换两张图片</button><button id="submit">检查提交</button><button id="reload">保存并重开草稿</button><button id="picker">打开分类选择器</button>
 <div class="fixture"><div>视频生成 · 素材引用</div><div id="inputThumbsRow" class="input-thumbs-row typed-media-inputs"></div><div id="promptInput" contenteditable="true"></div><div id="mentionPicker" class="mention-picker"></div><pre id="result"></pre></div>
+<script src="./canvas-source.js"></script>
 <script>
 // Isolated UI harness: loads production functions, never calls a generation API.
 const settings={engine:'volcengine',apiKind:'video'};
@@ -31,7 +32,7 @@ const fileNameFromUrl=url=>url,toast=message=>document.getElementById('result').
 const assetLibraries=()=>[],assetCategories=()=>[],assetCategoryForMention=()=>null,assetMentionCandidateImages=()=>[],tr=key=>key;
 const inputMentionCandidateImages=()=>refs.map(ref=>({...ref,alias:ref.name}));
 const renderInputThumbsRow=()=>renderSmartMediaGroups(node),savePromptDraftForCurrent=noop;
-fetch('/static/js/smart-canvas.js').then(r=>r.text()).then(source=>{
+fetchCanvasSource().then(source=>{
  const names=['isFileMediaItem','isTextMediaItem','isAudioMediaItem','isVideoMediaItem','mediaKindForItem','inputRefKey','blockedInputRefKeys','smartTypedVideoInputs','smartMediaRefKey','smartMediaReferencePlan','smartReferencePreviewHtml','reorderSmartMediaReference','renderSmartMediaGroups','mentionTokenHtml','collectPromptParts','originalPromptTextFromParts','buildPromptRequest','saveMentionRange','insertMentionToken','renderMentionPicker'];
  const functions=names.map(name=>{const start=source.search(new RegExp(`^function ${name}\\(`,'m'));return source.slice(start,source.indexOf('\n}',start)+2);}).join('\n');
  (0,eval)(functions);

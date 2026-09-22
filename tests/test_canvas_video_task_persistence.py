@@ -1,3 +1,4 @@
+from canvas_source import read_canvas_source
 import asyncio
 import importlib
 import os
@@ -188,8 +189,8 @@ class CanvasVideoRecoveryWiringTests(unittest.TestCase):
         self.assertFalse((ROOT / "app" / "routers" / "update.py").exists())
 
     def test_both_canvases_keep_polling_through_a_temporary_backend_restart(self):
-        classic = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
-        smart = (ROOT / "static" / "js" / "smart-canvas.js").read_text(encoding="utf-8")
+        classic = read_canvas_source((ROOT / "static" / "js" / "canvas.js"))
+        smart = read_canvas_source((ROOT / "static" / "js" / "smart-canvas.js"))
         self.assertIn("function canvasTaskPollRetryWindow", classic)
         self.assertIn("function smartTaskPollRetryWindow", smart)
         self.assertIn("30 * 60 * 1000", classic)

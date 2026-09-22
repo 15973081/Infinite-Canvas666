@@ -1,9 +1,10 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
 for(const [file,dirty,lock] of [['canvas.js','localCanvasDirty','isCanvasLockedByOther'],['smart-canvas.js','smartCanvasDirty','isSmartCanvasLocked']]){
- const source=fs.readFileSync('static/js/'+file,'utf8');
+ const source=readCanvasSource('static/js/'+file,'utf8');
  const start=source.indexOf('function scheduleSave(){');
  const end=source.indexOf('\nfunction ',start+1);
  const fn=source.slice(start,end).split('\nasync function ')[0];

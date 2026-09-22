@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-function source(file,name){const text=fs.readFileSync(file,'utf8'),start=text.indexOf('async function '+name+'(');assert.ok(start>=0);return text.slice(start,text.indexOf('\n}',start)+2);}
+function source(file,name){const text=readCanvasSource(file,'utf8'),start=text.indexOf('async function '+name+'(');assert.ok(start>=0);return text.slice(start,text.indexOf('\n}',start)+2);}
 const classic=source('static/js/canvas.js','syncRemoteCanvasNow');
 const smart=source('static/js/smart-canvas.js','loadCanvas');
 for(const [kind,body,name,args] of [['classic',classic,'syncRemoteCanvasNow',[]],['smart',smart,'loadCanvas',[{observe:true}]]]){

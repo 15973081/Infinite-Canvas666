@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -9,7 +10,7 @@ function load(file, context, names) {
     context.window.CanvasAssetAuth = require('../static/js/asset-auth.js');
     context.apiProviders ||= [];
     names = [...names, file === 'canvas.js' ? 'canvasFaceAuthState' : 'smartFaceAuthState'];
-    const source = fs.readFileSync(path.join(__dirname, '../static/js', file), 'utf8').replace(/\r\n/g, '\n');
+    const source = readCanvasSource(path.join(__dirname, '../static/js', file), 'utf8').replace(/\r\n/g, '\n');
     for (const name of names) {
         const start = source.search(new RegExp(`^(?:async )?function ${name}\\(`, 'm'));
         assert.ok(start >= 0, name);
@@ -267,7 +268,7 @@ test('smart: dedupe upgrades the original slot to the authenticated source witho
 });
 test('smart: multi-image outer frame requires every image to be ready',()=>{
     const s=smart();
-    const source=fs.readFileSync(path.join(__dirname,'../static/js/smart-canvas.js'),'utf8');
+    const source=readCanvasSource(path.join(__dirname,'../static/js/smart-canvas.js'),'utf8');
     const statement=source.match(/const faceVerified = isImageNode[^\n]+/)[0];
     const evaluate=images=>{s.context.imgs=images;s.context.isImageNode=true;return vm.runInContext(`(()=>{${statement};return faceVerified;})()`,s.context);};
     assert.equal(evaluate([verified(),{url:'/pending.png',face_auth_status:'Processing'}]),false);

@@ -1,16 +1,26 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
+const source = readCanvasSource(path.join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
 function load(context, names) {
     for (const name of names) {
         const start = source.indexOf(`function ${name}(`);
         assert.ok(start >= 0, `${name} exists`);
         vm.runInContext(source.slice(start, source.indexOf('\n}', start) + 2), context);
     }
+}
+function eventStatement(startText, closing) {
+    const start = source.indexOf(startText);
+    assert.ok(start >= 0, startText);
+    const indent = source.slice(source.lastIndexOf('\n', start) + 1, start);
+    assert.match(indent, /^[ \t]*$/);
+    const end = source.indexOf('\n' + indent + closing, start);
+    assert.ok(end >= 0, 'event statement closes at its own indentation');
+    return source.slice(start, end + 1 + indent.length + closing.length);
 }
 function setup() {
     let frameId = 0;
@@ -188,8 +198,7 @@ test('wheel bursts preserve the world point under the cursor while drawing once 
         y: (y - context.viewport.y) / context.viewport.scale,
     });
     context.applyViewport = () => {};
-    const start = source.indexOf('board.onwheel = e => {');
-    vm.runInContext(source.slice(start, source.indexOf('\n};', start) + 3), context);
+    vm.runInContext(eventStatement('board.onwheel = e => {', '};'), context);
     const before = context.screenToWorld(400, 300);
     for (let i = 0; i < 8; i++) context.board.onwheel({
         clientX: 400, clientY: 300, deltaY: i % 2 ? 1 : -1, preventDefault() {},
@@ -210,8 +219,7 @@ test('the real ordinary-mousemove handler does not redraw when the knife is inac
     context.screenToWorld = (x, y) => ({x, y});
     context.scheduleConnectionHover = () => {};
     context.isEditableTarget = () => false;
-    const start = source.indexOf("board.addEventListener('mousemove', e => {");
-    vm.runInContext(source.slice(start, source.indexOf('\n});', start) + 4), context);
+    vm.runInContext(eventStatement("board.addEventListener('mousemove', e => {", '});'), context);
     for (let i = 0; i < 120; i++) move({clientX: i, clientY: 10, target: {}, shiftKey: false});
     assert.equal(calls.links, 0);
 });

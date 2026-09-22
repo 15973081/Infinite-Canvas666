@@ -1,10 +1,11 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
+const source = readCanvasSource(path.join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function setup(){

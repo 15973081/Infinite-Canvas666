@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {collect,matchTarget,create}=require('../static/js/member-media-preview.js');
@@ -69,7 +70,7 @@ test('media clicks are captured in view mode, invalid targets do not open unrela
 const vm=require('node:vm');
 const fs=require('node:fs');
 test('smart media measurement keeps viewer documents clean; late loads cannot save after handoff',()=>{
-    const source=fs.readFileSync('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
+    const source=readCanvasSource('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
     const start=source.indexOf('function measureSmartNodeImages('),end=source.indexOf('\nfunction bindConnectionEvents',start);
     for(const mode of ['view','editing','handoff','replaced']){
         const image={url:'/assets/photo.png'},node={id:'n',images:[image]},listeners={},draws=[];let saves=0;

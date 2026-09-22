@@ -1,7 +1,8 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const bindings=require('../static/js/canvas-task-bindings.js'),guards=require('../static/js/canvas-task-results.js');
 const clone=v=>JSON.parse(JSON.stringify(v));
-function install(c,file,...names){const source=fs.readFileSync('static/js/'+file,'utf8').replace(/\r\n/g,'\n');if(!vm.isContext(c))vm.createContext(c);for(const name of names){const start=source.search(new RegExp('(?:async )?function '+name+'\\('));assert.ok(start>=0,name);const next=source.slice(start+1).search(/\n(?:async )?function /);vm.runInContext(source.slice(start,next<0?undefined:start+1+next),c);}}
+function install(c,file,...names){const source=readCanvasSource('static/js/'+file,'utf8').replace(/\r\n/g,'\n');if(!vm.isContext(c))vm.createContext(c);for(const name of names){const start=source.search(new RegExp('(?:async )?function '+name+'\\('));assert.ok(start>=0,name);const next=source.slice(start+1).search(/\n(?:async )?function /);vm.runInContext(source.slice(start,next<0?undefined:start+1+next),c);}}
 async function fixture(kind){
  const prompt={id:'prompt',type:'prompt',text:'original'},source={id:'src',type:'generator'},out={id:'out',type:'output',images:[]};
  const pending={id:'pending',canvasTaskId:'local-task',taskId:'local-task',failed:true,recoverTaskId:'upstream-task',run:{node:{id:'src'},nodeId:'src'}};

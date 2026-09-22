@@ -1,3 +1,4 @@
+from canvas_source import read_canvas_source
 from pathlib import Path
 import unittest
 
@@ -26,7 +27,7 @@ def _source_between(source: str, start: str, end: str) -> str:
 
 class CanvasRunEntryTest(unittest.TestCase):
     def test_regular_run_does_not_trigger_connected_workflow(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         regular_run = _function_source(source, "runCanvasGenerate")
         cascade_run = _function_source(source, "runNodeCascade")
 
@@ -35,7 +36,7 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("computeCascadeOrder(nodeId)", cascade_run)
 
     def test_stopped_cascade_keeps_pending_tasks_tracked(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         image_run = _source_between(source, "async function runGenerator(", "async function runGeneratorLegacy(")
         video_run = _source_between(source, "async function runVideoNode(", "async function uploadCanvasUrlToComfy(")
         resume_pending = _function_source(source, "resumePendingAfterCascadeStop")
@@ -56,7 +57,7 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("pollCanvasVideoTask(pending.canvasTaskId)", resume_pending)
 
     def test_recoverable_failure_stops_cascade_before_downstream(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         image_run = _source_between(source, "async function runGenerator(", "async function runGeneratorLegacy(")
 
         cascade_throw = image_run.index("if(opts.cascade) throw err", image_run.index("const removableIds"))
@@ -64,7 +65,7 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertLess(cascade_throw, recoverable_return)
 
     def test_parallel_cascade_stops_scheduling_after_first_failure(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         scheduler = _function_source(source, "runLimitedCascadeRounds")
 
         self.assertIn("let failed = false", scheduler)
@@ -72,14 +73,14 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertLess(scheduler.index("failed = true"), scheduler.index("throw err"))
 
     def test_output_connections_cannot_bypass_cycle_detection(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         can_connect = _function_source(source, "canConnect")
 
         self.assertIn("if(to.type === 'output') return !wouldCreateGeneratorCycle(fromId, toId)", can_connect)
         self.assertIn("from.type !== 'output' || !wouldCreateGeneratorCycle(fromId, toId)", can_connect)
 
     def test_cascade_reserves_every_node_in_workflow(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         reset = _function_source(source, "resetCascadeRuntimeState")
         begin = _source_between(source, "function beginCascade(", "function queueCascadeCleanup(")
         finalize = _source_between(source, "function finalizeCascade(", "function cascadeTargetIdFromOptions(")
@@ -97,7 +98,7 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertIn("cascadeBusyNodeId(remain)", retry_run)
 
     def test_retry_runs_failed_node_and_reachable_downstream_in_order(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         retry_order = _function_source(source, "computeRetryCascadeOrder")
         retry_run = _source_between(source, "async function retryNodeAndDownstream(", "function cancelCascade(")
 
@@ -109,7 +110,7 @@ class CanvasRunEntryTest(unittest.TestCase):
         self.assertNotIn("computeCascadeOrder(nodeId)", retry_run)
 
     def test_parallel_loop_context_is_passed_per_run(self):
-        source = CANVAS_JS.read_text(encoding="utf-8")
+        source = read_canvas_source(CANVAS_JS)
         generator_sources = _function_source(source, "generatorSources")
         loop_prompt_items = _function_source(source, "loopInputPromptItems")
         context_run = _source_between(source, "function runCascadeNodeWithLoopContext(", "function cascadeParallelLimit(")

@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
-const source=fs.readFileSync(require('node:path').join(__dirname,'../static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource(require('node:path').join(__dirname,'../static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function setup(locked){
  const calls=[],node={id:'b',inputNodeIds:['a']};
  const c=vm.createContext({canvas:{connections:[{from:'a',to:'b',kind:'input'}]},nodes:[node],locked,

@@ -1,7 +1,8 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync(require('node:path').join(__dirname,'../static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource(require('node:path').join(__dirname,'../static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
 const plain=v=>JSON.parse(JSON.stringify(v));
 function setup(){
     const calls={save:0,refresh:[],links:0,composer:0,audio:0,video:0,release:[],correction:[]};

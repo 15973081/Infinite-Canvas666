@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -5,7 +6,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 const bindings=require('../static/js/canvas-task-bindings.js');
 const guards=require('../static/js/canvas-task-results.js');
-const source=fs.readFileSync(path.join(__dirname,'../static/js/smart-canvas.js'),'utf8');
+const source=readCanvasSource(path.join(__dirname,'../static/js/smart-canvas.js'),'utf8');
 const clone=v=>JSON.parse(JSON.stringify(v));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 async function until(check){const deadline=Date.now()+5000;while(!check()&&Date.now()<deadline)await new Promise(r=>setTimeout(r,5));assert.ok(check(),'reached async boundary');}
@@ -60,7 +61,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
  };
  install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','pauseSmartTaskInput','canvasForStorage','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',
   'savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode','runLoopRoundIntoSlot');
- vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
+ vm.runInContext(readCanvasSource(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
  return {c,src,target,loop,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):entry==='loop'?c.runLoopRoundIntoSlot(loop,src,target,1,{}):c.runGeneration()};
 }
 for(const tool of ['panorama','depth'])for(const changed of [false,true])test('managed '+tool+' keeps real task receipts and '+(changed?'protects edited inputs':'joins its result'),async()=>{

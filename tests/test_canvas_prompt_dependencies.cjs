@@ -1,5 +1,6 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test'), assert=require('node:assert/strict'), vm=require('node:vm');
-const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function setup(){
     const nodes=[{id:'p',type:'prompt',text:'first'},{id:'other',type:'prompt',text:'other'},
         {id:'group',type:'group',items:['p']},{id:'pg',type:'promptGroup',items:['p']},

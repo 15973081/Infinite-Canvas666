@@ -1,10 +1,11 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const coreSource=fs.readFileSync('static/js/canvas-core.js','utf8');
+const coreSource=readCanvasSource('static/js/canvas-core.js','utf8');
 function fn(source,name){const a=source.indexOf(`function ${name}(`);assert.ok(a>=0);return source.slice(a,source.indexOf('\n}',a)+2);}
 const ctx={window:{}};vm.runInNewContext(coreSource,ctx);const core=ctx.window.CanvasCore;
 function tier(size){const [w,h]=size.split('x').map(Number);return Math.max(w,h)>=3000||w*h>4500000?'4k':Math.max(w,h)>=1800||w*h>1800000?'2k':'1k';}
 for(const file of ['canvas','smart-canvas'])test(file+' source/custom ratios preserve the selected tier and aspect',()=>{
- const s=fs.readFileSync('static/js/'+file+'.js','utf8').replace(/\r/g,'');
+ const s=readCanvasSource('static/js/'+file+'.js','utf8').replace(/\r/g,'');
  const c={window:{CanvasCore:core},parseRatioValue:r=>{const [w,h]=r.split(':').map(Number);return w/h;}};
  vm.createContext(c);for(const name of ['SIZE_MAP','RES_LONG_SIDE','RES_PIXEL_LIMIT'])vm.runInContext(s.match(new RegExp(`const ${name} = [\\s\\S]*?;`))[0],c);
  vm.runInContext(fn(s,'apiImageSize'),c);
@@ -30,7 +31,7 @@ test('library hover delays loading, coalesces movement, and never reopens during
  hover.enter(e(7),{id:7});flush(timers);assert.equal(shown[1].id,7);
 });
 test('a classic library drop mounts only its new node and retains original references',()=>{
- const source=fs.readFileSync('static/js/canvas.js','utf8').replace(/\r/g,'');let renders=0,saves=0;const mounted=[];
+ const source=readCanvasSource('static/js/canvas.js','utf8').replace(/\r/g,'');let renders=0,saves=0;const mounted=[];
  const existing={id:'existing',type:'image'},c={nodes:[existing],ensureCanvas:()=>true,uid:()=> 'new',
   isVideoUrl:()=>false,isAudioUrl:()=>false,isNodeInCanvasViewport:()=>true,renderNode:n=>{renders++;return n;},
   nodesEl:{appendChild:n=>mounted.push(n)},refreshGeometry:()=>{},refreshGeometryAfterLayout:()=>{},refreshIcons:()=>{},bindCanvasPreviewImageFallbacks:()=>{},scheduleSave:()=>saves++,
@@ -41,7 +42,7 @@ test('a classic library drop mounts only its new node and retains original refer
 });
 
 for(const revoke of [false,true])test('generation rejection exits running and reports an error, revoke='+revoke,async()=>{
- const source=fs.readFileSync('static/js/canvas.js','utf8').replace(/\r/g,'');let valid=true,saves=0;const messages=[];
+ const source=readCanvasSource('static/js/canvas.js','utf8').replace(/\r/g,'');let valid=true,saves=0;const messages=[];
  const gen={id:'g',type:'generator',resolution:'1k'},out={id:'o',type:'output'};
  const guard={valid:()=>valid,check:()=>{},pause:()=>Object.assign(new Error('保留草稿'),{resultPending:true})};
  const c={nodes:[gen,out],window:{CanvasSession:{enabled:true},MemberCanvasEdit:{canEdit:true}},

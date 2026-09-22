@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-function load(ctx,file,name){const src=fs.readFileSync(require('node:path').join(__dirname,'../static/js/'+file),'utf8').replace(/\r\n/g,'\n');
+function load(ctx,file,name){const src=readCanvasSource(require('node:path').join(__dirname,'../static/js/'+file),'utf8').replace(/\r\n/g,'\n');
     const start=src.indexOf(`function ${name}(`);vm.runInContext(src.slice(start,src.indexOf('\n}',start)+2),ctx);}
 test('2000-node smart render retains unchanged DOM, bindings and media; only changed/deleted nodes affect links',()=>{
     const elements=new Map(),scopes=[];let built=0,bound=0;

@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync(require('node:path').join(__dirname, '../static/js/smart-canvas.js'), 'utf8');
+const source = readCanvasSource(require('node:path').join(__dirname, '../static/js/smart-canvas.js'), 'utf8');
 const plain = value => JSON.parse(JSON.stringify(value));
 function setup(){
     let parts = [], base = [], payload;

@@ -6,6 +6,7 @@ body{font:14px system-ui;margin:20px;background:#101620;color:#dce4ef}button,inp
 <button id="selection">检查选择不重建</button><button id="partial">检查焦点和局部更新</button><button id="geometry">检查120次几何刷新</button><button id="links">检查连线复用和删除</button><button id="recycle">检查视野回收和恢复</button><button id="group">检查100张分组资源</button>
 <button id="delete">检查删除和撤销</button><button id="clear">检查按钮先清空</button><button id="bulk">检查多选删除</button>
 <div id="shell"><div id="world"></div></div><div id="minimapContent"><div id="minimapViewport" class="smart-minimap-viewport"></div></div><pre id="result">加载中</pre>
+<script src="./canvas-source.js"></script>
 <script>
 // UI-only harness: production update/event functions, synthetic nodes; no backend writes.
 const world=document.getElementById('world'),shell=document.getElementById('shell'),minimapContent=document.getElementById('minimapContent');
@@ -31,7 +32,7 @@ function disconnectConnection(index){canvas.connections.splice(index,1);refreshC
 const escapeHtml=s=>String(s??'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 const isSmartNodeInViewport=n=>n.x<2000;
 function renderSmartNodeHtml(n){return `<div class="image-node" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px"><div class="node-head">节点${n.id} <span data-media-count>${n.images.length}</span><button class="node-delete" aria-label="删除${n.id}">×</button></div><input aria-label="编辑${n.id}" value="${escapeHtml(n.text||'草稿')}" oninput="nodes.find(n=>n.id==='${n.id}').text=this.value"><div class="thumb-grid" data-thumb-scroll="1">${Array.from({length:12},(_,i)=>`<div class="row">素材${i}<br>内容</div>`).join('')}</div></div>`;}
-fetch('/static/js/smart-canvas.js').then(r=>r.text()).then(source=>{
+fetchCanvasSource().then(source=>{
  const names=['scheduleSmartGeometryRefresh','cancelSmartGeometryRefresh','scheduleSmartMinimapRender','renderMinimap','renderConnections','refreshConnectionLayer','bindConnectionEvents','smartAffectedNodeIds','refreshSmartNodes','bindNodeEvents','bindSmartNodeEvents','syncSelectionUi','isNodeSelected','selectedNodeIds','renderSmartNodePlaceholderHtml'];
  names.push('snapshotForUndo','pushUndo','performUndo','deleteSmartNodes','deleteNode','deleteNodeFromButton','clearNodeMediaBeforeDelete','finishSmartNodeRemoval','historyGroupForNode','hasHistoryConnection','demoteHistoryGroupNode','isHistoryGroupNode','isSmartImageNode');
  for(const optional of ['withSmartComputation','smartConnectionTopology','renderSmartConnectionPaths','patchSmartConnectionGroup','canRecycleSmartMediaNode','renderSmartOffscreenPlaceholders','restoreSmartNodeScroll','manageSmartGroupPreviews','releaseSmartGroupPreviews'])if(source.includes('function '+optional+'('))names.push(optional);

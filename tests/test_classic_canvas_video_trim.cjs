@@ -1,5 +1,6 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test'), assert=require('node:assert/strict'), vm=require('node:vm');
-const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function setup(){
     const elements=new Map(), frames=new Map(), calls={requests:[],opened:[],errors:[],undo:0,save:0,appended:[]};let seq=0;
     const element=()=>({style:{},attrs:{},hidden:false,value:'',setAttribute(k,v){this.attrs[k]=v;},classList:{contains:()=>true,toggle(){}}});

@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source = fs.readFileSync(require('node:path').join(__dirname, '../static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
+const source = readCanvasSource(require('node:path').join(__dirname, '../static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function load(ctx,names){
     for(const name of names){
         const start=source.indexOf(`function ${name}(`);

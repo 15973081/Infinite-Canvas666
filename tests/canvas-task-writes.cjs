@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
@@ -7,7 +8,7 @@ const api=require('../static/js/canvas-task-results.js');
 // These matrices isolate identity/scope guards. Semantic binding is exercised
 // with the real protocol in classic-task-input-bindings.cjs and smart-task-input-bindings.cjs.
 const scopeOnlyBinding=()=>({check(){},verify(){},prepare:async()=>({}),beginSubmission(){},remember(){},mutate:fn=>fn(),apply:(task,fn)=>fn()});
-const sources=Object.fromEntries(['canvas.js','smart-canvas.js'].map(file=>[file,fs.readFileSync(path.join(__dirname,'../static/js',file),'utf8').replace(/\r\n/g,'\n')]));
+const sources=Object.fromEntries(['canvas.js','smart-canvas.js'].map(file=>[file,readCanvasSource(path.join(__dirname,'../static/js',file),'utf8').replace(/\r\n/g,'\n')]));
 function install(context,file,...names){
  if(file==='canvas.js'){
   context.window.VideoDurationPolicy ||= require('../static/js/video-duration-policy.js');

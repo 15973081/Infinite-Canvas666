@@ -1,10 +1,11 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const root = path.join(__dirname, '..');
-function source(file) { return fs.readFileSync(path.join(root,file),'utf8'); }
+function source(file) { return readCanvasSource(path.join(root,file),'utf8'); }
 function fn(text,name) {
     const start = text.indexOf('function '+name+'(');
     assert.ok(start >= 0, name);

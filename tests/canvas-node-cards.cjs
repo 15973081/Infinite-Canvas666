@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const source=fs.readFileSync('static/js/canvas.js','utf8');
+const source=readCanvasSource('static/js/canvas.js','utf8');
 const summarySource=source.slice(source.indexOf('function generationSettingsSummary('),source.indexOf('function attachGenerationSettingsDisclosure('));
 const context={};vm.runInNewContext(summarySource,context);
 function controls(values){

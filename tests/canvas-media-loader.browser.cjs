@@ -26,6 +26,11 @@ test('visible thumbnails are bounded; foreground bypasses queue; closing resumes
             `<img id="offscreen" ${CanvasMediaLoader.imageAttributes('/thumb-outside')} style="position:absolute;top:9000px;width:120px;height:90px">`;
     });
     await p.waitForFunction(()=>document.querySelectorAll('main img[src]').length===4);
+    // Setting src in the renderer precedes Playwright's Node-side route callback.
+    // Wait for that observation before asserting the actual request bound.
+    for(let attempt=0;attempt<100 && f.requests.filter(u=>u.startsWith('/thumb')).length<4;attempt++){
+        await new Promise(resolve=>setTimeout(resolve,10));
+    }
     assert.equal(f.requests.filter(u=>u.startsWith('/thumb')).length,4);
     await p.evaluate(()=>document.querySelector('main img[src]').remove());
     await p.waitForFunction(()=>document.querySelectorAll('main img[src]').length===4);

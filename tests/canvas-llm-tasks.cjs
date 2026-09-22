@@ -1,7 +1,8 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const bindings=require('../static/js/canvas-task-bindings.js'),guards=require('../static/js/canvas-task-results.js');
 const clone=x=>JSON.parse(JSON.stringify(x));
-function install(c,file,...names){const source=fs.readFileSync('static/js/'+file,'utf8').replace(/\r\n/g,'\n');for(const name of names){const start=source.search(new RegExp('(?:async )?function '+name+'\\('));assert.ok(start>=0,name);const next=source.slice(start+1).search(/\n(?:async )?function /);vm.runInContext(source.slice(start,next<0?undefined:start+1+next),c);}}
+function install(c,file,...names){const source=readCanvasSource('static/js/'+file,'utf8').replace(/\r\n/g,'\n');for(const name of names){const start=source.search(new RegExp('(?:async )?function '+name+'\\('));assert.ok(start>=0,name);const next=source.slice(start+1).search(/\n(?:async )?function /);vm.runInContext(source.slice(start,next<0?undefined:start+1+next),c);}}
 function fixture(entry){
  const kind=entry==='smart'?'smart':'classic',node={id:'source',type:entry==='smart'?'smart-prompt':'llm',userInput:'original',text:'original',chatInput:'question',messages:[],model:'test',llmModel:'test'},upstream={id:'upstream',type:'prompt',text:'reference'};
  const lease={epoch:1,generation:2,canEdit:true,revision:1},active={memberId:'member',workspaceId:'space',lease};
@@ -21,7 +22,7 @@ function fixture(entry){
    return {ok:true,json:async()=>({...clone(record),task_id:record.id})};
   }polled();await gate;return {ok:true,json:async()=>clone(record)};}};
  c.cascadeFetch=(...args)=>c.fetch(...args);win.fetch=(...args)=>c.fetch(...args);
- vm.createContext(c);vm.runInContext(fs.readFileSync('static/js/canvas-llm-tasks.js','utf8'),c);
+ vm.createContext(c);vm.runInContext(readCanvasSource('static/js/canvas-llm-tasks.js','utf8'),c);
  install(c,kind==='smart'?'smart-canvas.js':'canvas.js','canvasTaskWriteGuard',kind==='smart'?'smartTaskInputBinding':'classicTaskInputBinding');
  if(entry==='smart')install(c,'smart-canvas.js','runPromptLLMNode');else install(c,'canvas.js','callCanvasLLM',entry==='chat'?'runLLMChat':'runLLMNode');
  return {c,node,upstream,lease,calls,messages,atPoll,release,record:()=>record,flushFail:()=>failFlush=true,start:()=>entry==='smart'?c.runPromptLLMNode(node.id):entry==='chat'?c.runLLMChat(node.id):c.runLLMNode(node.id)};

@@ -1,8 +1,9 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
-const source=fs.readFileSync(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8');
+const source=readCanvasSource(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8');
 function setup(locked){
  const calls=[];
  const c=vm.createContext({locked,canvas:{id:'c'},connections:[{id:'edge'}],hoveredConnectionId:'edge',nodes:[{id:'a'}],

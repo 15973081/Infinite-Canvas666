@@ -1,9 +1,10 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 // Real HTTP cache/CORS test: Playwright routing disables cache, so use two local origins.
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
 const root=path.join(__dirname,'..');
-const source=fs.readFileSync(path.join(root,'static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
+const source=readCanvasSource(path.join(root,'static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async ' ? 'async ' : '')+source.slice(start,source.indexOf('\n}',start)+2);}
 async function fixture(t){
     const hits=[],svg='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="green"/></svg>';
@@ -33,7 +34,7 @@ async function fixture(t){
     const browser=await chromium.launch({channel:'chrome',headless:true});
     t.after(async()=>{held.splice(0).forEach(send=>send());await browser.close();app.closeAllConnections();objects.closeAllConnections();await Promise.all([new Promise(r=>app.close(r)),new Promise(r=>objects.close(r))]);});
     const page=await browser.newPage();await page.goto(`http://127.0.0.1:${app.address().port}`);
-    for(const name of ['member-session.js','member-media.js','canvas-media-loader.js','canvas-editable-image.js'])await page.addScriptTag({content:fs.readFileSync(path.join(root,'static/js',name),'utf8')});
+    for(const name of ['member-session.js','member-media.js','canvas-media-loader.js','canvas-editable-image.js'])await page.addScriptTag({content:readCanvasSource(path.join(root,'static/js',name),'utf8')});
     await page.evaluate(()=>CanvasSession.ready);
     await page.addScriptTag({content:`
         let smartEditableResource=null,smartEditableJob=null,cropState={nodeId:'a'};

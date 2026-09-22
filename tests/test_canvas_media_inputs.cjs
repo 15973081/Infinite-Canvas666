@@ -1,10 +1,11 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '../static/js/canvas.js'), 'utf8');
+const source = readCanvasSource(path.join(__dirname, '../static/js/canvas.js'), 'utf8');
 function loadFunctions(names, globals={}){
     globals.window.CanvasAssetAuth = require('../static/js/asset-auth.js');
     globals.canvasAssetLibraries = () => [];

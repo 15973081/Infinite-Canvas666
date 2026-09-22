@@ -1,12 +1,13 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const classic = fs.readFileSync('static/js/canvas.js', 'utf8').replace(/\r/g, '');
-const smart = fs.readFileSync('static/js/smart-canvas.js', 'utf8').replace(/\r/g, '');
-const assets = fs.readFileSync('static/js/asset-manager.js', 'utf8').replace(/\r/g, '');
+const classic = readCanvasSource('static/js/canvas.js', 'utf8').replace(/\r/g, '');
+const smart = readCanvasSource('static/js/smart-canvas.js', 'utf8').replace(/\r/g, '');
+const assets = readCanvasSource('static/js/asset-manager.js', 'utf8').replace(/\r/g, '');
 const coreContext = {window:{}};
-vm.runInNewContext(fs.readFileSync('static/js/canvas-core.js', 'utf8'), coreContext);
+vm.runInNewContext(readCanvasSource('static/js/canvas-core.js', 'utf8'), coreContext);
 const core = coreContext.window.CanvasCore;
 function sourceFunction(source, name){
     const start = source.indexOf('function ' + name + '(');

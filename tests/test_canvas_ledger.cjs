@@ -1,9 +1,10 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, '../static/js/canvas-ledger.js'), 'utf8');
+const source = readCanvasSource(path.join(__dirname, '../static/js/canvas-ledger.js'), 'utf8');
 const turn = () => new Promise(resolve => setImmediate(resolve));
 function setup(fetcher) {
     const events = [], timers = [], intervals = [];
@@ -96,7 +97,7 @@ test('newer payload for same queued ID survives an older append acknowledgment',
 
 test('both canvas clients use ledger totals and preserve ledger snapshots without recomputation', () => {
     for(const [file, sum, cost] of [['canvas.js','canvasCostTotals','generationLogCost'],['smart-canvas.js','smartCanvasCostTotals','smartGenerationLogCost']]){
-        const raw=fs.readFileSync(path.join(__dirname,'../static/js',file),'utf8').replace(/\r\n/g,'\n');
+        const raw=readCanvasSource(path.join(__dirname,'../static/js',file),'utf8').replace(/\r\n/g,'\n');
         const ctx=vm.createContext({canvas:{id:'c',logs:[]},window:{CanvasLedger:{view:()=>({allTotals:{total:987654,records:5001}})}}});
         for(const name of [sum,cost]){
             const start=raw.indexOf(`function ${name}(`);

@@ -1,6 +1,7 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
-const read = name => fs.readFileSync(path.join(__dirname, '../static/js', name), 'utf8').replace(/\r\n/g, '\n');
+const read = name => readCanvasSource(path.join(__dirname, '../static/js', name), 'utf8').replace(/\r\n/g, '\n');
 function load(ctx, source, names){
     for(const name of names){
         const start = source.search(new RegExp(`^(?:async )?function ${name}\\(`, 'm'));
@@ -74,7 +75,7 @@ test('smart completion preserves media token metadata and rejects duplicate fina
 });
 test('price editor changes only the selected specification and blank restores default',()=>{
     const c=setup();const p={id:'volcengine',video_models:['seedance-2.0'],model_prices:[]};
-    vm.runInContext(fs.readFileSync(path.join(__dirname,'../management/frontend/provider-prices.js'),'utf8'),c);
+    vm.runInContext(readCanvasSource(path.join(__dirname,'../management/frontend/provider-prices.js'),'utf8'),c);
     c.updateVolcengineVideoPrice=(...args)=>c.window.ManagementProviderPrices.update(p,...args);
     c.updateVolcengineVideoPrice(0,'720p',false,'46');c.updateVolcengineVideoPrice(0,'720p',true,'28');
     c.updateVolcengineVideoPrice(0,'1080p',false,'0');assert.equal(p.model_prices.length,3);

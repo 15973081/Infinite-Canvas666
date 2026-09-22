@@ -1,9 +1,10 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 function sourceFunction(path,name) {
-    const source=fs.readFileSync(path,'utf8'),start=source.indexOf('function '+name+'(');
+    const source=readCanvasSource(path,'utf8'),start=source.indexOf('function '+name+'(');
     assert.ok(start>=0,name);return source.slice(start,source.indexOf('\n}',start)+2);
 }
 function adapter(kind) {

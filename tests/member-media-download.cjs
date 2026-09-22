@@ -1,3 +1,4 @@
+const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const media=require('../static/js/member-media.js');
@@ -31,7 +32,7 @@ test('local and external downloads retain existing behavior',()=>{
 for(const [file,name,next] of [['canvas.js','downloadUrl','setOutputCompareMode'],['smart-canvas.js','downloadPreviewImage','downloadPreviewFile'],['smart-canvas.js','downloadPreviewFile','previewDownloadGroupItems']]){
  test(file+' '+name+' uses the scoped download path',async()=>{
   const {win,links}=fixture();win.MemberMediaDownload=(url,name)=>media.download(url,name,win);
-  const source=fs.readFileSync('static/js/'+file,'utf8');
+  const source=readCanvasSource('static/js/'+file,'utf8');
   const start=source.indexOf((name==='downloadUrl'?'async ':'')+'function '+name+'('),end=source.indexOf('function '+next+'(',start);
   const ctx={window:win,nodes:[{id:'n',images:[{url:'/assets/cloud/ast_abc/x.png'}]}],previewNavState:{nodeId:'n',index:0},downloadNameForMediaItem:()=> 'x.png'};
   vm.runInNewContext(source.slice(start,end),ctx);
@@ -43,7 +44,7 @@ for(const [file,name,next] of [['canvas.js','downloadUrl','setOutputCompareMode'
 
 for(const extension of ['png','mp4','mp3'])test('asset manager single '+extension+' uses scoped cloud media, not legacy proxy',()=>{
  const {win,links}=fixture();win.MemberMediaDownload=(url,name)=>media.download(url,name,win);
- const source=fs.readFileSync('static/js/asset-manager.js','utf8');
+ const source=readCanvasSource('static/js/asset-manager.js','utf8');
  const start=source.indexOf('function downloadAssetItem('),end=source.indexOf('const SMART_CANVAS_ASSET_INBOX_KEY',start);
  const item={url:'/assets/cloud/ast_abc/file.'+extension};
  const ctx={window:win,findAssetItem:()=>item,assetDownloadName:()=> 'file.'+extension,setStatus:s=>ctx.status=s,
@@ -54,7 +55,7 @@ for(const extension of ['png','mp4','mp3'])test('asset manager single '+extensio
  assert.notEqual(ctx.status,'已开始下载');
 });
 test('asset manager legacy download keeps attachment endpoint',()=>{
- const source=fs.readFileSync('static/js/asset-manager.js','utf8');
+ const source=readCanvasSource('static/js/asset-manager.js','utf8');
  const start=source.indexOf('function downloadAssetItem('),end=source.indexOf('const SMART_CANVAS_ASSET_INBOX_KEY',start);
  let requested='';const ctx={window:{},findAssetItem:()=>({url:'/assets/local.png'}),assetDownloadName:()=> 'local.png',setStatus(){},downloadUrl:url=>requested=url};
  vm.runInNewContext(source.slice(start,end),ctx);ctx.downloadAssetItem('asset');assert.match(requested,/^\/api\/download-output\?/);

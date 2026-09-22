@@ -1,3 +1,4 @@
+from canvas_source import read_canvas_source
 from pathlib import Path
 import os
 import re
@@ -17,8 +18,8 @@ STATIC_PAGES = (ROOT / "app" / "services" / "static_pages.py").read_text(encodin
 MAINTENANCE_ROUTER = (ROOT / "app" / "routers" / "maintenance.py").read_text(encoding="utf-8")
 MAIN = (ROOT / "main.py").read_text(encoding="utf-8")
 VERSION_CLIENT = (ROOT / "static" / "js" / "frontend-version.js").read_text(encoding="utf-8")
-CLASSIC_CLIENT = (ROOT / "static" / "js" / "canvas.js").read_text(encoding="utf-8")
-SMART_CLIENT = (ROOT / "static" / "js" / "smart-canvas.js").read_text(encoding="utf-8")
+CLASSIC_CLIENT = read_canvas_source((ROOT / "static" / "js" / "canvas.js"))
+SMART_CLIENT = read_canvas_source((ROOT / "static" / "js" / "smart-canvas.js"))
 
 
 class FrontendVersioningTests(unittest.TestCase):
@@ -142,6 +143,11 @@ def test_member_canvas_pages_load_binding_protocol_before_business_scripts():
             names = [url.split('?')[0] for url in scripts]
             binding = names.index('/static/js/canvas-task-bindings.js')
             assert names.index('/static/js/canvas-task-results.js') < binding < names.index('/static/js/' + business)
+            modules = re.findall(r'<script\b[^>]*data-canvas-module="[^"]+"[^>]*src="([^"]+)"[^>]*>', page)
+            assert len(modules) == 8
+            for module in modules:
+                assert names.index('/static/js/member-canvas-edit.js') < names.index(module.split('?')[0])
+                assert '__asset_version=' in module
             assert names.count('/static/js/canvas-task-bindings.js') == 1
             assert '__asset_version=' in scripts[binding]
             assert 'defer' not in re.search(r'<script[^>]*canvas-task-bindings.js[^>]*>', page).group()

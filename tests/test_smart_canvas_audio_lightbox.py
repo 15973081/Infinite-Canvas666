@@ -1,3 +1,4 @@
+from canvas_source import read_canvas_source, canvas_function_source
 from pathlib import Path
 import unittest
 
@@ -18,11 +19,11 @@ def _source_between(source: str, start: str, end: str) -> str:
 class SmartCanvasAudioLightboxTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = SMART_CANVAS_JS.read_text(encoding="utf-8")
+        cls.source = read_canvas_source(SMART_CANVAS_JS)
         cls.page = SMART_CANVAS_HTML.read_text(encoding="utf-8")
         cls.styles = SMART_CANVAS_CSS.read_text(encoding="utf-8")
         cls.main_source = MAIN_PY.read_text(encoding="utf-8")
-        cls.canvas_source = CANVAS_JS.read_text(encoding="utf-8")
+        cls.canvas_source = read_canvas_source(CANVAS_JS)
 
     def test_audio_nodes_render_lightweight_open_buttons(self):
         thumb_media = _source_between(
@@ -54,11 +55,9 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
         self.assertIn("height:180", layout)
 
     def test_audio_lightbox_owns_the_only_dynamic_player(self):
-        lightbox = _source_between(
-            self.source,
-            "let smartAudioLightboxState",
-            "function isSmartPreviewImage(",
-        )
+        lightbox = "\n".join(canvas_function_source(self.source, name) for name in (
+            "releaseSmartAudioLightboxPlayer", "openSmartAudioLightbox", "closeSmartAudioLightbox",
+        ))
 
         self.assertIn("document.createElement('audio')", lightbox)
         self.assertIn("smartAudioLightboxHost.replaceChildren(audio)", lightbox)
@@ -73,11 +72,7 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
             "function bindNodeEvents(",
             "function rectOverlapNode(",
         )
-        preview = _source_between(
-            self.source,
-            "function openImagePreview(",
-            "function openImageEditor(",
-        )
+        preview = canvas_function_source(self.source, "openImagePreview")
 
         self.assertIn("querySelectorAll('.smart-audio-open')", node_events)
         self.assertIn("openSmartAudioLightbox(id, imageIndex)", node_events)
