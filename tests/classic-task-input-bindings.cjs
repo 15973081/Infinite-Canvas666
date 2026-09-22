@@ -154,7 +154,7 @@ test('classic subsequent generation survives actual save enrichment of previous 
 });
 
 test('paused placeholder shows manual results instead of a spinner or failure',()=>{
-    const c={escapeAttr:String,tr:s=>s,pendingOutputStyle:()=>''};
+    const c={window:{},escapeAttr:String,tr:s=>s,pendingOutputStyle:()=>''};
     install(c,'renderPendingOutput');
     const html=c.renderPendingOutput({id:'p',paused:true,canvasTaskId:'original'});
     assert.match(html,/查看生成结果/);

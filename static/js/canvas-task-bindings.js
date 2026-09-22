@@ -172,7 +172,26 @@
             }
         };
     }
-    const api={portableValue,canonical,graphCanonical,graphFingerprint,operation};
+    // Reconnect a server receipt to current inputs, never to an expired lease.
+    // The caller supplies a fresh write guard and live (including unsaved) inputs.
+    async function recover({task,taskId,canvasId,kind,sourceId,targetId,read,valid,crypto}) {
+        const binding=task?.canvas_binding;
+        const reject=()=>{const error=new Error('原输入或编辑资格已变化，请从生成结果确认加入。');error.resultPending=true;return error;};
+        if(!valid() || (task?.id || task?.task_id)!==taskId || task.status!=='succeeded' ||
+            binding?.version!==3 || binding.canvas_id!==canvasId || binding.canvas_kind!==kind ||
+            binding.source_node_id!==sourceId || binding.target_node_id!==targetId ||
+            !Number.isSafeInteger(binding.submitted_revision) || binding.submitted_revision<1 ||
+            !/^[0-9a-f]{64}$/.test(binding.request_sha256 || ''))throw reject();
+        const expected=graphCanonical(read(),sourceId,targetId);
+        if(await sha256(expected,crypto)!==binding.graph_sha256)throw reject();
+        let consumed=false;
+        const check=()=>{
+            if(consumed || !valid() || graphCanonical(read(),sourceId,targetId)!==expected)throw reject();
+        };
+        check();
+        return {apply(write){check();consumed=true;return write();}};
+    }
+    const api={portableValue,canonical,graphCanonical,graphFingerprint,operation,recover};
     if(typeof module==='object' && module.exports)module.exports=api;
     else window.CanvasTaskBindings=api;
 })();

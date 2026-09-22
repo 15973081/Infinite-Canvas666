@@ -543,6 +543,7 @@ function nodeRunElapsedMs(node){
 
 function runTimePillHtml(node){
     if(!node || node.runTimerHidden || node.type === 'smart-prompt') return '';
+    if(window.CanvasSession?.enabled && smartPendingTasks(node).length)return '';
     const running = Boolean(smartNodePendingCount(node) || node.running);
     if(!running && !node.runFinishedAt) return '';
     const cls = running ? '' : ' done';

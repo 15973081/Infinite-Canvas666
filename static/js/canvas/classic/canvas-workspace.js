@@ -1005,6 +1005,16 @@ function pendingOutputStyle(pending){
 }
 
 function renderPendingOutput(pending){
+    if(window.CanvasSession?.enabled && pending?.canvasTaskId){
+        const state=window.MemberCanvasEdit?.taskState?.(pending) || {status:'checking',label:'正在核对后台任务'};
+        return `<div class="output-img-wrap loading-wrap recoverable" data-pending-id="${escapeAttr(pending.id)}" data-task-recovery="${state.status}"${pendingOutputStyle(pending)}>
+            <div class="output-recover-state">
+                <i data-lucide="${state.status==='running'?'loader-2':'info'}" class="${state.status==='running'?'spinning':''}"></i>
+                <div class="output-recover-title">${escapeHtml(state.label)}</div>
+                <div class="output-recover-sub">${state.status==='succeeded'?'结果已保存；开始编辑后核对回填，或从生成结果加入新节点。':'查询不会重新生成或产生费用。'}</div>
+                <button class="output-recover-query" type="button">${state.status==='succeeded'?'查看生成结果':'刷新状态'}</button>
+            </div><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+    }
     if(pending?.paused){
         return `<div class="output-img-wrap loading-wrap recoverable" data-pending-id="${escapeAttr(pending.id)}"${pendingOutputStyle(pending)}>
             <span class="output-time-pill">已暂停回填</span>
@@ -1427,6 +1437,11 @@ function bindOutputWrap(wrap, node){
         del.onclick = e => {
             e.stopPropagation();
             const pid = wrap.dataset.pendingId;
+            if(wrap.dataset.taskRecovery){
+                if(wrap.dataset.taskRecovery==='succeeded')window.MemberCanvasEdit?.openTaskResults();
+                else window.MemberCanvasEdit?.refreshTasks();
+                return;
+            }
             if(pid){
                 node._pending = (node._pending || []).filter(p => p.id !== pid);
             } else {

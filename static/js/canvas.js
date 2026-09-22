@@ -1957,6 +1957,7 @@ async function openCanvas(id){
         setStatus('Ready');
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvas.id, dirty:() => localCanvasDirty || savingCanvasNow || saveCanvasAgain,
+                taskRecovery:classicTaskRecovery(),
                 snapshot:() => ({...canvas, ...canvasSavePayload()}), flush:flushClassicCanvasBeforeFrontendReload,
                 refresh:syncRemoteCanvasNow, restore:restoreClassicMemberDraft, busy:() => savingCanvasNow || saveCanvasAgain || cascadeRunningIds.size>0 || nodes.some(n => n.running || (n._pending || []).some(task => !task.failed && !task.paused)),
                 openCopy:async copy => {await loadCanvasList(false);await openCanvas(copy.id);},

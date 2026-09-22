@@ -485,6 +485,8 @@
     }
     const api={
         openTaskResults:showTaskResults,
+        taskState:task=>active?.taskRecovery?.get(task) || {status:'checking',label:'正在核对后台任务'},
+        refreshTasks:()=>active?.taskRecovery?.refresh(),
         get active(){return active;},
         get canEdit(){return Boolean(active?.lease.canEdit);},
         get canSave(){return Boolean(active?.lease.canSave);},
@@ -532,6 +534,21 @@
             entry.mediaPreview=window.MemberMediaPreview?.create({entry,valid:()=>validEntry(entry)});
             if(entry.mediaPreview)layout.insertBefore(entry.mediaPreview.trigger,presencePanel);
             document.body.append(bar); render(); tick(entry); reportTick(entry); subscribe(entry);
+            if(options.taskRecovery && window.CanvasTaskResults?.recovery){
+                entry.taskRecovery=window.CanvasTaskResults.recovery({...options.taskRecovery,
+                    current:()=>active===entry,
+                    allowed:()=>validEntry(entry) && !window.CanvasSession.paused &&
+                        ['canvas.read','task.read','asset.read'].every(permission=>window.CanvasSession.context?.workspace?.permissions?.includes(permission)),
+                    read:async item=>{
+                        const response=await fetch('/api/canvas-'+item.kind+'-tasks/'+encodeURIComponent(item.id),{cache:'no-store',signal:AbortSignal.timeout(10000)});
+                        if(!response.ok){const error=new Error('任务查询失败');error.status=response.status;throw error;}
+                        return response.json();
+                    }});
+                entry.refreshTasks=()=>entry.taskRecovery.refresh();
+                window.addEventListener('online',entry.refreshTasks);
+                document.addEventListener('visibilitychange',entry.refreshTasks);
+                entry.refreshTasks();
+            }
             return entry;
         },
         markDirty() { clearTimeout(draftTimer); const entry=active; draftTimer=setTimeout(() => {persist(entry);reportPage(entry);},150); },
@@ -564,6 +581,11 @@
                 await preserveDraft(entry);
             }
             reportPage(entry,true);
+            entry.taskRecovery?.stop();
+            if(entry.refreshTasks){
+                window.removeEventListener('online',entry.refreshTasks);
+                document.removeEventListener('visibilitychange',entry.refreshTasks);
+            }
             clearTimeout(timer); clearTimeout(draftTimer); clearTimeout(entry.reportTimer); entry.subscription?.stop(); entry.lease.dispose(); entry.mediaPreview?.dispose(); entry.widthAnimation?.cancel(); entry.notice.remove(); entry.bar.remove(); active=null;
             document.body.classList.remove('member-canvas-view'); return true;
         },

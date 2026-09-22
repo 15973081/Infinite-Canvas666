@@ -2160,9 +2160,24 @@ function smartLoopBodyHtml(node){
 }
 
 function nodeBodyHtml(node, layout){
+    const tasks=window.CanvasSession?.enabled ? smartPendingTasks(node) : [];
+    const body=smartNodeMediaBodyHtml(node,layout);
+    if(!tasks.length)return body;
+    return body+tasks.map(task=>{
+        const state=window.MemberCanvasEdit?.taskState?.(task) || {status:'checking',label:'正在核对后台任务'};
+        return `<div class="image-task-pending-cell task-recovery-status" style="width:${layout.width}px;min-height:120px">
+            <div class="image-task-pending-text">${escapeHtml(state.label)}</div>
+            <div class="image-task-pending-sub">${state.status==='succeeded'?'结果已保存，可从生成结果加入；无需重新生成。':'查询不会重新生成或产生费用。'}</div>
+            <button class="image-task-pending-query" type="button" data-task-recovery="${state.status}" data-image-task-query="${escapeAttr(node.id)}" data-task-id="${escapeAttr(task.taskId)}">${state.status==='succeeded'?'查看生成结果':'刷新状态'}</button>
+        </div>`;
+    }).join('');
+}
+
+function smartNodeMediaBodyHtml(node, layout){
     if(node.type === 'smart-prompt') return promptNodeBodyHtml(node);
     if(node.type === 'smart-loop') return smartLoopBodyHtml(node);
     const imgs = (node.images || []).map(imageForDisplay);
+    if(window.CanvasSession?.enabled && smartPendingTasks(node).length && !imgs.length)return '';
     const pendingCount = smartNodePendingCount(node);
     const recoverTask = smartRecoverableImageTask(node);
     if(recoverTask && imgs.length === 0){
@@ -2903,6 +2918,11 @@ function bindNodeEvents(elements=null){
             btn.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); }, true);
             btn.addEventListener('click', e => {
                 e.preventDefault(); e.stopPropagation();
+                if(btn.dataset.taskRecovery){
+                    if(btn.dataset.taskRecovery==='succeeded')window.MemberCanvasEdit?.openTaskResults();
+                    else window.MemberCanvasEdit?.refreshTasks();
+                    return;
+                }
                 querySmartImageTaskNow(btn.dataset.imageTaskQuery, btn.dataset.taskId);
             });
         });

@@ -35,6 +35,10 @@ body:has(.member-canvas-edit) #canvasLockOverlay,body:has(.member-canvas-edit) #
 .member-canvas-drafts button:disabled{opacity:.45;cursor:default}.member-canvas-result-row{padding:14px 0;border-bottom:1px solid #465064;overflow-wrap:anywhere}.member-canvas-result-row p{margin:6px 0}.member-canvas-drafts h2{margin:0 0 12px}
 
 body.member-canvas-view [data-member-preview]{pointer-events:auto;cursor:zoom-in}
+/* These controls only read tasks or open the lease-protected result dialog. */
+body:is(.member-canvas-view,.smart-canvas-readonly) button[data-task-recovery],
+body.member-canvas-view [data-task-recovery] .output-recover-query{pointer-events:auto}
+.task-recovery-status{flex-direction:column;gap:8px;padding:14px;box-sizing:border-box;text-align:center}
 body.member-canvas-view [data-member-preview]:focus-visible{outline:3px solid #60a5fa;outline-offset:3px}
 .member-media-preview{width:min(1100px,94vw);max-width:94vw;max-height:92vh;padding:16px;border:1px solid #64748b;border-radius:16px;background:#151b27;color:#edf2fa;font:14px/1.5 system-ui,sans-serif}
 .member-media-preview::backdrop{background:#000b}.member-media-preview header,.member-media-preview footer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.member-media-preview header{justify-content:space-between}.member-media-preview header strong{overflow-wrap:anywhere;flex:1;min-width:0}

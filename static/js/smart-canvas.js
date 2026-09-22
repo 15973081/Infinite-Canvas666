@@ -1125,6 +1125,7 @@ async function loadCanvas(options={}){
         startCanvasMetaPoll();
         if(window.CanvasSession?.enabled){
             await window.MemberCanvasEdit.mount({id:canvasId,dirty:() => smartCanvasDirty || Boolean(smartSaveInFlight) || smartSaveAgain,
+                taskRecovery:smartTaskRecovery(),
                 snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
                 refresh:()=>loadCanvas({observe:true}),restore:restoreSmartMemberDraft,busy:() => Boolean(smartSaveInFlight) || smartSaveAgain || smartCascadeAnyRunning() || nodes.some(smartNodeInFlight),
                 openCopy:async copy => {window.location.assign('/static/smart-canvas.html?id='+encodeURIComponent(copy.id)+'&workspace='+encodeURIComponent(window.CanvasSession.context.workspace.id));},

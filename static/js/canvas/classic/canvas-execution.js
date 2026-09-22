@@ -2585,6 +2585,27 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
     }
 }
 
+function classicTaskRecovery(){
+    return {
+        list:()=>nodes.filter(node=>node.type==='output').flatMap(out=>(out._pending || []).filter(task=>task.canvasTaskId && ['online-image','video'].includes(task.canvasTaskType))
+            .map(task=>({id:task.canvasTaskId,canvasId:canvas.id,kind:task.canvasTaskType==='video'?'video':'image',task,out}))),
+        changed:item=>{if(item)refreshRunNodes(null,item.out);else nodes.filter(node=>node.type==='output' && node._pending?.length).forEach(out=>refreshRunNodes(null,out));},
+        apply:async(item,record,current)=>{
+            const source=nodes.find(node=>node.id===item.task.run?.node?.id),writeGuard=canvasTaskWriteGuard(source,item.out);
+            const valid=()=>current() && Boolean(source) && writeGuard.valid() && findPendingTask(item.id)?.pending===item.task;
+            if(!valid())return;
+            // A live writer owns its receipt. Recovery takes over only after it
+            // stops, or after a reload loses that in-memory operation.
+            if(activeCanvasTaskPolls.has(item.kind==='video'?'video:'+item.id:item.id))return;
+            const binding=await window.CanvasTaskBindings.recover({task:record,taskId:item.id,canvasId:canvas.id,kind:'classic',
+                sourceId:source.id,targetId:item.out.id,read:()=>JSON.parse(JSON.stringify(canvasSavePayload())),valid});
+            const result=record.result || {};
+            if(item.kind==='video' ? !videoOutputsFromResult(result).length : !result.images?.length)return;
+            binding.apply(()=>item.kind==='video' ? completeCanvasVideoTask(item.id,result) : completeCanvasImageTask(item.id,result));
+        }
+    };
+}
+
 function resumeCanvasImageTasks(){
     nodes.filter(n => n.type === 'output').forEach(out => {
         (out._pending || []).forEach(p => {

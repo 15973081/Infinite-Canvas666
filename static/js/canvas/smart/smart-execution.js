@@ -3313,6 +3313,24 @@ async function resumeSmartPendingNode(node){
     }
 }
 
+function smartTaskRecovery(){
+    return {
+        list:()=>nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video'].includes(task.kind || 'image'))
+            .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),
+        changed:item=>refreshSmartNodes(item ? [item.node.id] : nodes.filter(node=>smartPendingTasks(node).length).map(node=>node.id)),
+        apply:async(item,record,current)=>{
+            const source=nodes.find(node=>node.id===item.task.run?.nodeId),writeGuard=canvasTaskWriteGuard(source,item.node);
+            const valid=()=>current() && Boolean(source) && writeGuard.valid() && smartPendingTasks(item.node).includes(item.task);
+            if(!valid() || activeSmartTaskPolls.has(item.kind+':'+item.id))return;
+            const binding=await window.CanvasTaskBindings.recover({task:record,taskId:item.id,canvasId:canvas.id,kind:'smart',
+                sourceId:source.id,targetId:item.node.id,read:smartTaskInputDocument,valid});
+            const result=record.result || {},outputs=item.kind==='video' ? resultMediaUrls(result) : resultMediaUrls(result.images || result);
+            if(!outputs.length)return;
+            binding.apply(()=>{finalizeSmartPendingTask(item.node,item.id,outputs,item.kind,result);refreshSmartNodes([item.node.id]);scheduleSave();});
+        }
+    };
+}
+
 function resumeSmartPendingTasks(){
     nodes.filter(node => smartPendingTasks(node).some(task=>!task.paused)).forEach(node => {
         resumeSmartPendingNode(node).catch(() => {}); // Each task reports its failure; deferred results remain available.
