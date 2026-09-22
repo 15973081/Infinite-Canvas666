@@ -29,6 +29,33 @@ def result_task(world, canvas, tmp_path, kind='online-image'):
     return tid, asset
 
 
+@pytest.mark.parametrize('kind', ['online-image', 'video'])
+def test_historical_duration_read_uses_server_timestamps_without_edit_or_fee_changes(world, tmp_path, kind):
+    from app.storage import database, tasks
+    from app.storage.workspace import workspace_scope
+    from app.services import canvas_ledger
+    path, canvas = setup_canvas(world)
+    tid, _ = result_task(world, canvas, tmp_path, kind)
+    with workspace_scope(world['a']['id']):
+        canvas_ledger.record_task(tasks.get(tid))
+        with database.connection() as conn:
+            conn.execute("UPDATE tasks SET created_at=to_timestamp(1789000000),completed_at=to_timestamp(1789000129),updated_at=to_timestamp(1789003600) WHERE id=%s", (tid,))
+            conn.execute("UPDATE ledger_entries SET log_json=log_json || '{\"runMs\":0}'::jsonb WHERE canvas_id=%s", (canvas['id'],))
+            before = conn.execute('SELECT * FROM ledger_entries WHERE canvas_id=%s ORDER BY id', (canvas['id'],)).fetchall()
+            before_task = conn.execute('SELECT * FROM tasks WHERE id=%s', (tid,)).fetchone()
+    response = world['viewer'].get(path + '/ledger', headers=headers(world['a']))
+    assert response.status_code == 200, response.text
+    assert response.json()['logs'][0]['runMs'] == 129000
+    endpoint = 'video' if kind == 'video' else 'image'
+    task_response = world['viewer'].get('/api/canvas-' + endpoint + '-tasks/' + tid, headers=headers(world['a']))
+    assert task_response.status_code == 200, task_response.text
+    assert task_response.json()['completed_at'] - task_response.json()['created_at'] == 129
+    assert world['outsider'].get(path + '/ledger', headers=headers(world['b'])).status_code == 404
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        assert conn.execute('SELECT * FROM ledger_entries WHERE canvas_id=%s ORDER BY id', (canvas['id'],)).fetchall() == before
+        assert conn.execute('SELECT * FROM tasks WHERE id=%s', (tid,)).fetchone() == before_task
+
+
 @pytest.mark.parametrize('kind', ['classic', 'smart'])
 @pytest.mark.parametrize('media_kind', ['online-image', 'video'])
 def test_result_join_after_target_deleted_preserves_graph_assets_task_and_fees(world, tmp_path, kind, media_kind):

@@ -93,6 +93,26 @@ def test_task_claim_concurrency_fencing_idempotency_and_recovery():
         tasks.lease_context.reset(context)
 
 
+def test_task_completion_timestamp_survives_repeated_terminal_save():
+    from app.storage import tasks, database
+    tid, token = 'duration-' + uuid.uuid4().hex, uuid.uuid4()
+    tasks.save({'id': tid, 'type': 'video', 'status': 'queued'}, {'prompt': 'test'})
+    with database.connection() as conn:
+        conn.execute("UPDATE tasks SET lease_owner='duration-test',lease_token=%s,lease_until=now()+interval '1 minute' WHERE id=%s", (token, tid))
+    context = tasks.lease_context.set((tid, token))
+    try:
+        first = tasks.save({**tasks.get(tid), 'status': 'failed', 'error': 'test failure'})
+        assert first['completed_at'] >= first['created_at']
+        second = tasks.save({**first, 'updated_at': first['updated_at'] + 3600})
+        assert second['completed_at'] == first['completed_at']
+        resumed = tasks.save({**second, 'status': 'running'})
+        assert resumed['completed_at'] is None
+    finally:
+        tasks.lease_context.reset(context)
+        with database.connection() as conn:
+            conn.execute("UPDATE tasks SET status='cancelled',lease_owner=NULL,lease_until=NULL,lease_token=NULL WHERE id=%s", (tid,))
+
+
 def test_upload_preview_references_range_expiry_and_temp_cleanup():
     from fastapi.testclient import TestClient
     from PIL import Image

@@ -441,7 +441,7 @@ function addGenerationLog({run, outputs=[], runMs=0, error=''}) {
         prompt:run?.prompt || '',
         outputs:(outputs || []).filter(Boolean),
         refs:run?.refs || [],
-        runMs:Number(runMs || 0),
+        runMs:typeof runMs==='number' && Number.isFinite(runMs) && runMs>0 ? runMs : null,
         error:error ? String(error) : '',
         ...window.VolcengineVideoBilling?.metadata(run),
     };
@@ -519,7 +519,7 @@ function renderCanvasLog(){
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
                     ${taskLabel ? `<span class="log-chip">${escapeHtml(taskLabel)}</span>` : ''}
                     ${costChip}
-                    <span class="log-chip">${escapeHtml(formatRunDuration(log.runMs || 0))}</span>
+                    <span class="log-chip">${escapeHtml(window.CanvasLedger.durationLabel(log.runMs,formatRunDuration,langIsEn()?'Duration unknown':'耗时未知'))}</span>
                 </div>
                 <div class="log-subline">${subParts.map(part => `<span title="${escapeAttr(part)}">${escapeHtml(part)}</span>`).join('')}</div>
                 ${log.error ? `<div class="log-error" title="${escapeAttr(log.error)}">${escapeHtml(log.error)}</div>` : ''}

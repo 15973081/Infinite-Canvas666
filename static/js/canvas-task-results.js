@@ -79,7 +79,14 @@
         }
         return {get,refresh,stop(){stopped=true;clearTimeout(timer);states.clear();}};
     }
-    const api={capture,guard,pending,recovery};
+    function elapsed(task){
+        if(!['succeeded','failed','cancelled'].includes(task?.status))return null;
+        const start=task.created_at,end=task.completed_at;
+        if(typeof start!=='number' || typeof end!=='number' || !Number.isFinite(start) || !Number.isFinite(end) || start<=0 || end<=start)return null;
+        const ms=Math.round((end-start)*1000);
+        return Number.isSafeInteger(ms) && ms>0 ? ms : null;
+    }
+    const api={capture,guard,pending,recovery,elapsed};
     if(typeof module==='object' && module.exports) module.exports=api;
     else window.CanvasTaskResults=api;
 })();

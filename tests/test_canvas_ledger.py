@@ -44,6 +44,32 @@ class LedgerTests(unittest.TestCase):
     def write_canvas(self, logs):
         (self.root / "c.json").write_text(json.dumps({"id": "c", "nodes": [{"id": "keep-layout"}], "logs": logs}), encoding="utf-8")
 
+    def test_task_duration_uses_completion_not_last_update_or_browser_wait(self):
+        task = {"id": "duration", "type": "online-image", "status": "succeeded",
+                "created_at": AT / 1000, "completed_at": AT / 1000 + 129,
+                "updated_at": AT / 1000 + 3600, "result": {"images": ["saved.png"]}}
+        result = ledger.task_log(task)
+        self.assertEqual(result["runMs"], 129000)
+        self.assertEqual(result["runMsSource"], "task")
+        for end in (None, 0, task["created_at"], task["created_at"] - 1, float("nan"), float("inf"), "unknown", True):
+            self.assertIsNone(ledger.task_log({**task, "completed_at": end})["runMs"])
+        self.assertIsNone(ledger.task_run_ms({**task, "status": "finalizing"}))
+
+    def test_server_duration_repairs_old_zero_and_inflated_time_without_changing_fees(self):
+        for index, old_duration in enumerate((0, 3600000)):
+            canvas_id = "duration-" + str(index)
+            item = log("duration-" + str(index), runMs=old_duration, canvas_task_id="task-" + str(index))
+            ledger.append_logs(canvas_id, [item], "client")
+            before = ledger.read_page(canvas_id)["totals"]
+            server = {**item, "runMs": 129000, "runMsSource": "task"}
+            ledger.append_logs(canvas_id, [server], "task")
+            ledger.append_logs(canvas_id, [item], "client")
+            ledger.append_logs(canvas_id, [server], "task")
+            page = ledger.read_page(canvas_id)
+            self.assertEqual(len(page["logs"]), 1)
+            self.assertEqual(page["logs"][0]["runMs"], 129000)
+            self.assertEqual(page["totals"], before)
+
     def backup(self, name, logs):
         folder = self.root / "backups" / "c"
         folder.mkdir(parents=True, exist_ok=True)

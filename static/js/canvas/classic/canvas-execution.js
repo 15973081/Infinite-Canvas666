@@ -2160,13 +2160,13 @@ function providerIdForPending(pending){
         || 'comfly';
 }
 
-function completeRecoverPendingOutput(out, pending, result){
+function completeRecoverPendingOutput(out, pending, result, record=null){
     if(!out || !pending || !result) return;
     pending.run = {...pending.run, canvasTaskId:pending.canvasTaskId};
     const images = result.images || [];
     if(!images.length) return;
     const meta = {
-        runMs: nowMs() - Number(pending.startedAt || nowMs()),
+        runMs: window.CanvasSession?.enabled && record ? window.CanvasTaskResults?.elapsed?.(record) ?? null : nowMs() - Number(pending.startedAt || nowMs()),
         run: pending.run || {},
     };
     meta.run.request = requestMetaFromResult(result);
@@ -2179,7 +2179,7 @@ function completeRecoverPendingOutput(out, pending, result){
         gen.runError = '';
         gen.running = false;
     }
-    addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs || 0});
+    addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs});
     refreshRunNodes(gen, out);
     scheduleSave();
 }
@@ -2229,7 +2229,7 @@ async function queryRecoverPendingOutput(pendingId){
                     return;
                 }
                 if(!(data.images||[]).length)throw new Error('任务没有可加入的图片，请在管理平台核对。');
-                inputBinding.apply(record,()=>completeRecoverPendingOutput(out,pending,data),taskId);
+                inputBinding.apply(record,()=>completeRecoverPendingOutput(out,pending,data,record),taskId);
             } else completeRecoverPendingOutput(out,pending,data);
             return;
         }
@@ -2283,8 +2283,8 @@ async function pollCanvasImageTask(taskId, options={}){
                 (window.CanvasSession?.enabled && data.canvas_edit_generation!==window.MemberCanvasEdit.active.lease.generation)) return 'paused';
             inputBinding?.verify(data,taskId);
             if(data.status === 'succeeded'){
-                if(inputBinding)inputBinding.apply(data,()=>completeCanvasImageTask(taskId,data.result||{}),taskId);
-                else completeCanvasImageTask(taskId, data.result || {});
+                if(inputBinding)inputBinding.apply(data,()=>completeCanvasImageTask(taskId,data.result||{},data),taskId);
+                else completeCanvasImageTask(taskId, data.result || {},data);
                 return 'succeeded';
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
@@ -2326,14 +2326,14 @@ async function waitCanvasImageTaskResult(taskId, options={}){
     }
 }
 
-function completeCanvasImageTask(taskId, result){
+function completeCanvasImageTask(taskId, result, record=null){
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
     pending.run = {...pending.run, canvasTaskId:taskId};
     const meta = {
-        runMs: nowMs() - Number(pending.startedAt || nowMs()),
+        runMs: window.CanvasSession?.enabled && record ? window.CanvasTaskResults?.elapsed?.(record) ?? null : nowMs() - Number(pending.startedAt || nowMs()),
         run: pending.run || {},
     };
     meta.run.request = requestMetaFromResult(result);
@@ -2347,7 +2347,7 @@ function completeCanvasImageTask(taskId, result){
         gen.runError = '';
         gen.running = false;
     }
-    addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs || 0});
+    addGenerationLog({run:meta.run, outputs:images, runMs:meta.runMs});
     refreshRunNodes(gen, out);
     scheduleSave();
 }
@@ -2400,14 +2400,14 @@ function videoOutputsFromResult(result){
     }).filter(item => item.url);
 }
 
-function completeCanvasVideoTask(taskId, result){
+function completeCanvasVideoTask(taskId, result, record=null){
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit) return;
     const found = findPendingTask(taskId);
     if(!found) return;
     const {out, pending} = found;
     pending.run = {...pending.run, canvasTaskId:taskId};
     const meta = {
-        runMs: nowMs() - Number(pending.startedAt || nowMs()),
+        runMs: window.CanvasSession?.enabled && record ? window.CanvasTaskResults?.elapsed?.(record) ?? null : nowMs() - Number(pending.startedAt || nowMs()),
         run: pending.run || {},
         kind: 'video',
     };
@@ -2423,7 +2423,7 @@ function completeCanvasVideoTask(taskId, result){
         gen.runError = outputs.length ? '' : tr('canvas.videoFailed');
         gen.running = false;
     }
-    addGenerationLog({run:meta.run, outputs, runMs:meta.runMs || 0, error:outputs.length ? '' : tr('canvas.videoFailed')});
+    addGenerationLog({run:meta.run, outputs, runMs:meta.runMs, error:outputs.length ? '' : tr('canvas.videoFailed')});
     refreshRunNodes(gen, out);
     scheduleSave();
 }
@@ -2514,8 +2514,8 @@ async function pollCanvasVideoTask(taskId, options={}){
                     else failCanvasVideoTask(taskId, tr('canvas.videoFailed'), data);
                     return 'failed';
                 }
-                if(inputBinding)inputBinding.apply(data,()=>completeCanvasVideoTask(taskId,result),taskId);
-                else completeCanvasVideoTask(taskId, result);
+                if(inputBinding)inputBinding.apply(data,()=>completeCanvasVideoTask(taskId,result,data),taskId);
+                else completeCanvasVideoTask(taskId, result,data);
                 return 'succeeded';
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
@@ -2601,7 +2601,7 @@ function classicTaskRecovery(){
                 sourceId:source.id,targetId:item.out.id,read:()=>JSON.parse(JSON.stringify(canvasSavePayload())),valid});
             const result=record.result || {};
             if(item.kind==='video' ? !videoOutputsFromResult(result).length : !result.images?.length)return;
-            binding.apply(()=>item.kind==='video' ? completeCanvasVideoTask(item.id,result) : completeCanvasImageTask(item.id,result));
+            binding.apply(()=>item.kind==='video' ? completeCanvasVideoTask(item.id,result,record) : completeCanvasImageTask(item.id,result,record));
         }
     };
 }

@@ -90,6 +90,19 @@ async function fixture(t, kind, member) {
 }
 
 for(const kind of ['classic','smart']) {
+    test(`${kind}: history displays unknown duration instead of zero and formats backend duration`,async t=>{
+        const {page,errors}=await fixture(t,kind,false);
+        const labels=await page.evaluate(kind=>{
+            const logs=[undefined,0,129000].map((runMs,i)=>({id:'duration-'+i,createdAt:1789000000000,status:'success',
+                runMs,platform:'test',model:'test',outputs:[],cost:{status:'unknown'}}));
+            window.CanvasLedger.view=()=>({logs,ready:true,totals:{total:0,image:0,video:0,calls:3,unknown:3,estimated:0}});
+            window.CanvasLedger.mount=()=>{};
+            if(kind==='classic')renderCanvasLog();else renderSmartCanvasLog();
+            return [...document.querySelectorAll((kind==='classic'?'#logList':'#smartLogList')+' .log-meta .log-chip:last-child')].map(el=>el.textContent);
+        },kind);
+        assert.equal(labels.length,3);assert.match(labels[0],/耗时未知|Duration unknown/);assert.equal(labels[1],labels[0]);
+        assert.match(labels[2],/2.*09/);assert.deepEqual(errors,[]);
+    });
     test(`${kind}: full page keeps nodes, styles, inline actions and single event bindings`, async t => {
         const {page,errors,writes}=await fixture(t,kind,false);
         const id=await page.evaluate(kind=>{

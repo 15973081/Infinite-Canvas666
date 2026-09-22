@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import math
 import os
 import sqlite3
 import time
@@ -275,6 +276,11 @@ def ingest(conn, canvas_id, candidates, providers):
             for key, value in log.items():
                 if key not in merged or merged[key] in (None, "", [], {}):
                     merged[key] = value
+            # Server completion timestamps override both old zero placeholders
+            # and browser elapsed time that may include hours spent disconnected.
+            if source == "task" and log.get("runMsSource") == "task" and log.get("runMs") is not None:
+                merged["runMs"] = log["runMs"]
+                merged["runMsSource"] = "task"
             # A successful manual result query may recover an earlier failed delivery.
             if log.get("status") == "success" and log.get("outputs") and old_log.get("status") == "failed":
                 merged["status"] = "success"
@@ -380,8 +386,35 @@ def read_page(canvas_id, page=1, page_size=50, from_ms=0, to_ms=0, expected_revi
             log["_ledger"] = {"id": row["id"], "source": row["source"]}
             log["_ledger_cost"] = json.loads(row["cost_json"])
             logs.append(log)
+        if logs and hasattr(conn, "conn"):
+            # Repair historical display on read, without requiring an edit lease
+            # or rewriting fees. Only server-bound owners in this workspace qualify.
+            timings = conn.conn.execute("""SELECT o.entry_id,t.status,t.created_at,t.completed_at
+                FROM ledger_owners o JOIN tasks t ON t.id=o.task_id AND t.workspace_id=o.workspace_id
+                WHERE o.workspace_id=%s AND o.entry_id=ANY(%s)""",
+                (conn.workspace, [log["_ledger"]["id"] for log in logs])).fetchall()
+            elapsed = {row["entry_id"]: task_run_ms({"status": row["status"],
+                "created_at": row["created_at"].timestamp(),
+                "completed_at": row["completed_at"].timestamp() if row["completed_at"] else None}) for row in timings}
+            for log in logs:
+                duration = elapsed.get(log["_ledger"]["id"])
+                if duration is not None:
+                    log.update(runMs=duration, runMsSource="task")
         return {"canvas_id": canvas_id, "logs": logs, "totals": totals, "page": page, "pages": pages,
                 "page_size": page_size, "revision": version}
+
+
+def task_run_ms(task):
+    """End-to-end task time (queue + generation + persistence), not UI waiting."""
+    if task.get("status") not in ("succeeded", "failed", "cancelled"):
+        return None
+    start, end = task.get("created_at"), task.get("completed_at")
+    if any(type(value) not in (int, float) or not math.isfinite(value) for value in (start, end)):
+        return None
+    if start <= 0 or end <= start:
+        return None
+    elapsed = round((end - start) * 1000)
+    return elapsed if 0 < elapsed <= MAX_AMOUNT else None
 
 
 def task_log(task):
@@ -403,6 +436,9 @@ def task_log(task):
     if kind == "chat":
         log["text"] = result.get("text", "")
         log["raw_usage"] = copy.deepcopy(result.get("raw_usage"))
+    log["runMs"] = task_run_ms(task)
+    if log["runMs"] is not None:
+        log["runMsSource"] = "task"
     for key in ("cost", "usage", "video_info"):
         if key in result:
             log[key] = copy.deepcopy(result[key])

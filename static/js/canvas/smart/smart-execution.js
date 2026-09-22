@@ -581,7 +581,7 @@ async function querySmartImageTaskNow(nodeId, localTaskId){
         if(data.status === 'succeeded'){
             const apply=()=>{
                 task.failed=false;task.querying=false;
-                finalizeSmartPendingTask(node,task.taskId,data.images||[],task.kind||'image',data);
+                finalizeSmartPendingTask(node,task.taskId,data.images||[],task.kind||'image',data,record);
                 refreshSmartNodes([node.id]);scheduleSave();
             };
             if(memberMode){
@@ -3182,11 +3182,12 @@ async function pollSmartCanvasTask(taskId, kind='image',options={}){
     }
 }
 
-function finalizeSmartPendingTask(node, taskId, images, kind='image', result={}){
+function finalizeSmartPendingTask(node, taskId, images, kind='image', result={}, record=null){
     if(window.CanvasSession?.enabled && (!window.MemberCanvasEdit?.canEdit || !nodes.includes(node))) return;
     if(!node || !taskId) return;
     const task = smartPendingTasks(node).find(item => item.taskId === taskId) || null;
     if(kind === 'video' && !task) return;
+    const runMs=window.CanvasSession?.enabled && record ? window.CanvasTaskResults?.elapsed?.(record) ?? null : nowMs() - Number(task?.startedAt || node.runStartedAt || nowMs());
     node.pendingTasks = smartPendingTasks(node).filter(task => task.taskId !== taskId);
     node.pending = Math.max(0, Number(node.pending || 0) - 1);
     const ext = kind === 'video' ? 'mp4' : kind === 'audio' ? 'mp3' : kind === 'text' ? 'txt' : 'png';
@@ -3204,7 +3205,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={})
         addSmartGenerationLog({
             run:{...pendingRun, canvasTaskId:taskId, kind:task?.kind || kind, settings:runSettings, ...window.VolcengineVideoBilling?.metadata(result)},
             outputs:additions,
-            runMs:nowMs() - Number(task?.startedAt || node.runStartedAt || nowMs())
+            runMs
         });
     }
     if(additions.length) node.outputKind = kind;
@@ -3212,7 +3213,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={})
         delete node.pendingTasks;
         node.runFinishedAt = nowMs();
         if(!node.runStartedAt) node.runStartedAt = node.runFinishedAt;
-        node.runElapsedMs = Math.max(0, node.runFinishedAt - Number(node.runStartedAt || node.runFinishedAt));
+        node.runElapsedMs = runMs;
         node.runTimerHidden = false;
         node.running = false;
         node.title = node.images.length > 1 ? (kind === 'video' ? 'Videos' : kind === 'audio' ? 'Audios' : kind === 'text' ? 'Texts' : 'Group') : (kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : kind === 'text' ? 'Text' : 'Image');
@@ -3253,7 +3254,7 @@ async function resumeSmartPendingNode(node){
                 const result=inputBinding ? record.result||{} : record;
                 if(!targetStillCurrent() || canvas!==originCanvas || !validResult() || !nodes.includes(node) || !smartPendingTasks(node).includes(task)){deferred=true;return;}
                 const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(result?.images || result);
-                const apply=()=>{finalizeSmartPendingTask(node,task.taskId,outputs,kind,result);refreshSmartNodes([node.id]);scheduleSave();};
+                const apply=()=>{finalizeSmartPendingTask(node,task.taskId,outputs,kind,result,inputBinding?record:null);refreshSmartNodes([node.id]);scheduleSave();};
                 if(inputBinding)inputBinding.apply(record,apply,task.taskId);else apply();
             } catch(e) {
                 if(inputBinding){try{inputBinding.check();if(e.canvasTaskRecord)inputBinding.verify(e.canvasTaskRecord,task.taskId);}catch(changed){e=changed;}}
@@ -3326,7 +3327,7 @@ function smartTaskRecovery(){
                 sourceId:source.id,targetId:item.node.id,read:smartTaskInputDocument,valid});
             const result=record.result || {},outputs=item.kind==='video' ? resultMediaUrls(result) : resultMediaUrls(result.images || result);
             if(!outputs.length)return;
-            binding.apply(()=>{finalizeSmartPendingTask(item.node,item.id,outputs,item.kind,result);refreshSmartNodes([item.node.id]);scheduleSave();});
+            binding.apply(()=>{finalizeSmartPendingTask(item.node,item.id,outputs,item.kind,result,record);refreshSmartNodes([item.node.id]);scheduleSave();});
         }
     };
 }

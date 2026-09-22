@@ -391,7 +391,7 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
         prompt:run?.prompt || '',
         outputs:(outputs || []).filter(Boolean),
         refs:run?.refs || [],
-        runMs:Number(runMs || 0),
+        runMs:typeof runMs==='number' && Number.isFinite(runMs) && runMs>0 ? runMs : null,
         error:error ? String(error) : '',
         ...window.VolcengineVideoBilling?.metadata(run),
     };
@@ -462,7 +462,7 @@ function renderSmartCanvasLog(){
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
                     ${log.model ? `<span class="log-chip">${escapeHtml(log.model)}</span>` : ''}
                     ${costChip}
-                    <span class="log-chip">${escapeHtml(formatRunDuration(log.runMs || 0))}</span>
+                    <span class="log-chip">${escapeHtml(window.CanvasLedger.durationLabel(log.runMs,formatRunDuration))}</span>
                 </div>
                 <div class="log-subline">${subParts.map(part => `<span title="${escapeAttr(part)}">${escapeHtml(part)}</span>`).join('')}</div>
                 ${log.error ? `<div class="log-error" title="${escapeAttr(log.error)}">${escapeHtml(log.error)}</div>` : ''}
@@ -536,6 +536,7 @@ function formatRunDuration(ms){
 
 function nodeRunElapsedMs(node){
     if(!node) return 0;
+    if(node.runFinishedAt && node.runElapsedMs===null)return null;
     if(node.runFinishedAt && node.runStartedAt) return Number(node.runElapsedMs) || (Number(node.runFinishedAt) - Number(node.runStartedAt));
     if(node.runStartedAt) return nowMs() - Number(node.runStartedAt);
     return 0;
@@ -547,7 +548,8 @@ function runTimePillHtml(node){
     const running = Boolean(smartNodePendingCount(node) || node.running);
     if(!running && !node.runFinishedAt) return '';
     const cls = running ? '' : ' done';
-    return `<span class="run-time-pill${cls}" data-run-timer="${escapeHtml(node.id)}">${formatRunDuration(nodeRunElapsedMs(node))}</span>`;
+    const elapsed=nodeRunElapsedMs(node);
+    return `<span class="run-time-pill${cls}" data-run-timer="${escapeHtml(node.id)}">${elapsed===null?'耗时未知':formatRunDuration(elapsed)}</span>`;
 }
 
 function hideRunTimerForNode(node){
@@ -566,7 +568,7 @@ function refreshRunTimerPills(){
             el.remove();
             return;
         }
-        const label = formatRunDuration(nodeRunElapsedMs(node));
+        const elapsed=nodeRunElapsedMs(node),label=elapsed===null?'耗时未知':formatRunDuration(elapsed);
         if(el.textContent !== label) el.textContent = label;
         el.classList.toggle('done', Boolean(!smartNodePendingCount(node) && !node.running && node.runFinishedAt));
     });

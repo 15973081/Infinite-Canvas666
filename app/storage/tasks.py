@@ -42,6 +42,7 @@ def decode(row):
     task = copy.deepcopy(row["legacy_metadata"])
     task.update(id=row["id"], type=row["kind"], status=row["status"], result=row["result"],
                 created_at=row["created_at"].timestamp(), updated_at=row["updated_at"].timestamp())
+    task["completed_at"] = row["completed_at"].timestamp() if row.get("completed_at") else None
     task["provider_account_ref"] = row["provider_account_ref"]
     task["workspace_id"] = row["workspace_id"]
     task["requested_by"] = row.get("requested_by")
@@ -124,8 +125,8 @@ def save(task, request_payload=None, *, historical=False):
         if old:
             if status == "succeeded":
                 lock_ready(conn, asset_ids(value.get("result")))
-            row = conn.execute("UPDATE tasks SET status=%s,legacy_metadata=%s,result=%s,upstream_task_id=%s,error_message=%s,updated_at=to_timestamp(%s),completed_at=CASE WHEN %s THEN now() ELSE NULL END,output_asset_ids=%s WHERE id=%s RETURNING *",
-                               (status, Jsonb(value), Jsonb(value.get("result")), value.get("upstream_task_id") or None, value.get("error") or None, now, status in TERMINAL, Jsonb(sorted(referenced_ids(value.get("result")))), task_id)).fetchone()
+            row = conn.execute("UPDATE tasks SET status=%s,legacy_metadata=%s,result=%s,upstream_task_id=%s,error_message=%s,updated_at=to_timestamp(%s),completed_at=CASE WHEN %s THEN CASE WHEN status=%s THEN COALESCE(completed_at,clock_timestamp()) ELSE clock_timestamp() END ELSE NULL END,output_asset_ids=%s WHERE id=%s RETURNING *",
+                               (status, Jsonb(value), Jsonb(value.get("result")), value.get("upstream_task_id") or None, value.get("error") or None, now, status in TERMINAL, status, Jsonb(sorted(referenced_ids(value.get("result")))), task_id)).fetchone()
         else:
             if not historical:
                 from app.services.maintenance_control import ensure

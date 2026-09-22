@@ -207,7 +207,11 @@
         const other=state(id).result?.totals.other_currencies || {};
         if(Object.keys(other).length) note.textContent+=' 其他币种未折算进人民币合计。';
     }
-    root.CanvasLedger={view, record, refresh, readAll, mount, recover, revision:id=>state(id).result?.revision ?? -1};
+    function durationLabel(ms,format,unknown='耗时未知'){
+        if(typeof ms!=='number' || !Number.isFinite(ms) || ms<=0)return unknown;
+        return ms<1000 ? '<1s' : format(ms);
+    }
+    root.CanvasLedger={view, record, refresh, readAll, mount, recover, durationLabel, revision:id=>state(id).result?.revision ?? -1};
     // A totals label calling view() must not subscribe the entire page to
     // perpetual full-ledger downloads. Poll only an explicitly open panel.
     setInterval(()=>{

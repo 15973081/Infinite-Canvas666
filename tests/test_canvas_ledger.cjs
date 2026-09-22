@@ -18,6 +18,14 @@ function setup(fetcher) {
 const response = (data, status=200) => ({ok:status===200, status, json:async()=>data});
 const page = (logs=[], totals={total:60000, records:2}, revision=1) => ({logs, totals, page:1, pages:1, revision});
 
+test('missing, zero and invalid task durations never display as zero seconds',()=>{
+    const {api}=setup(()=>{}),format=ms=>String(ms/1000)+'s';
+    for(const ms of [undefined,null,0,-1,NaN,Infinity,'129000',false])assert.equal(api.durationLabel(ms,format),'耗时未知');
+    assert.equal(api.durationLabel(129000,format),'129s');
+    assert.equal(api.durationLabel(500,format),'<1s');
+    assert.equal(api.durationLabel(null,format,'Duration unknown'),'Duration unknown');
+});
+
 test('readAll consumes every page with one revision, independent of visible logs', async () => {
     const urls=[];
     const {api}=setup(async url=>{

@@ -8,6 +8,13 @@ const bindings=require('../static/js/canvas-task-bindings.js');
 const clone=value=>JSON.parse(JSON.stringify(value));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 
+test('recovered duration excludes offline waiting and refuses missing or inconsistent timestamps',()=>{
+    const record={status:'succeeded',created_at:1789000000,completed_at:1789000129,updated_at:1789003600};
+    assert.equal(results.elapsed(record),129000);
+    for(const completed_at of [null,undefined,0,1789000000,1788999999,Infinity,'1789000129'])assert.equal(results.elapsed({...record,completed_at}),null);
+    assert.equal(results.elapsed({...record,status:'polling'}),null);
+});
+
 test('read recovery survives an expired edit lease, reconnects, and never changes persisted cards',async t=>{
     const task={canvasTaskId:'task',canvasTaskType:'video'},original=clone(task);
     const item={id:'task',kind:'video',canvasId:'canvas',task};let status='running',offline=false,reads=0,rights=true,current=true;
@@ -75,6 +82,20 @@ async function fixture(kind,media){
 }
 
 for(const kind of ['classic','smart'])for(const media of ['image','video']){
+    test(`${kind} ${media}: actual recovered card records backend time, not the hour spent offline`,async()=>{
+        for(const known of [true,false]){
+            const f=await fixture(kind,media),logs=[];
+            Object.assign(f.record,{created_at:1789000000,completed_at:known?1789000129:null});
+            f.win.CanvasTaskResults.elapsed=results.elapsed;
+            Object.assign(f.ctx,{nowMs:()=>1789003600000,requestMetaFromResult:()=>({}),
+                appendOutputImages:(out,images)=>out.images.push(...images),mergeGeneratedOutputs(){},addGenerationLog:entry=>logs.push(entry),
+                stripImageGenerationMeta:value=>value,copyMediaSizeFields:(_,value)=>value,smartPendingTaskRun:()=>({settings:{}}),
+                cloneSmartSettings:value=>value,addSmartGenerationLog:entry=>logs.push(entry),mediaNodeDefaultScale:()=>1});
+            install(f.ctx,kind,[kind==='classic'?(media==='image'?'completeCanvasImageTask':'completeCanvasVideoTask'):'finalizeSmartPendingTask']);
+            await f.apply();assert.equal(logs.length,1);assert.equal(logs[0].runMs,known?129000:null);
+            if(kind==='smart')assert.equal(f.target.runElapsedMs,known?129000:null);
+        }
+    });
     test(`${kind} ${media}: reload without memory binding uses new edit lease once`,async()=>{
         const f=await fixture(kind,media);assert.equal(f.task._inputBinding,undefined);
         await f.apply();await f.apply();assert.equal(f.writes(),1);
