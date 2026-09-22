@@ -969,7 +969,7 @@ let imageEditZoom = 1.0;
 let imageEditBaseW = 0; // zoom=1 时图片显示宽度
 let imageEditBaseH = 0;
 let textSelectionGuard = null;
-const PROMPT_TEXT_MAX_LENGTH = 20000;
+const PROMPT_TEXT_MAX_LENGTH = 50000;
 const CLIENT_ID = (() => {
     const key = 'canvasClientId';
     try {
