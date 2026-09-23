@@ -90,6 +90,30 @@ async function fixture(t, kind, member) {
 }
 
 for(const kind of ['classic','smart']) {
+    test(`${kind}: recovered task shows an animated polling indicator only while active`,async t=>{
+        const {page,errors}=await fixture(t,kind,true);
+        const states=await page.evaluate(kind=>{
+            const task={id:'pending-1',canvasTaskId:'task-1',taskId:'task-1'};
+            const node={id:'node-1',type:'image',images:[],pendingTasks:[task]};
+            const layout={width:240,height:240};
+            const host=document.createElement('div');document.body.append(host);
+            function render(status){
+                window.MemberCanvasEdit.taskState=()=>({status,label:status==='running'?'后台正在处理':'连接中断'});
+                host.innerHTML=kind==='classic'?renderPendingOutput(task):nodeBodyHtml(node,layout);
+                refreshIcons();
+                const ring=host.querySelector('.task-recovery-ring');
+                return {ring:Boolean(ring),animation:ring?getComputedStyle(ring).animationName:'',
+                    text:host.textContent};
+            }
+            const running=render('running'),disconnected=render('disconnected');
+            host.remove();return {running,disconnected};
+        },kind);
+        assert.equal(states.running.ring,true);
+        assert.match(states.running.animation,/spin/);
+        assert.doesNotMatch(states.running.text,/每 5 秒自动核对后台状态/);
+        assert.equal(states.disconnected.ring,false);
+        assert.deepEqual(errors,[]);
+    });
     test(`${kind}: billing prompt expands and copies complete source text and all output links`,async t=>{
         const {page,errors}=await fixture(t,kind,false);
         const prompt='起点 <巴士> & 夜景\n'+('镜头和灯光细节，'.repeat(140))+'\n终点：保留这个收尾。';
