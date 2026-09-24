@@ -114,6 +114,21 @@ for(const kind of ['classic','smart']) {
         assert.equal(states.disconnected.ring,false);
         assert.deepEqual(errors,[]);
     });
+    if(kind==='classic')test('classic: wide pending result keeps recovery controls inside its card',async t=>{
+        const {page,errors}=await fixture(t,'classic',true);
+        const bounds=await page.evaluate(()=>{
+            window.MemberCanvasEdit.taskState=()=>({status:'running',label:'后台正在处理'});
+            const host=document.createElement('div');host.style.width='180px';document.body.append(host);
+            host.innerHTML=renderPendingOutput({id:'pending-wide',canvasTaskId:'task-wide',previewSize:{w:1600,h:900}});
+            const card=host.querySelector('.output-img-wrap'),ring=host.querySelector('.task-recovery-ring'),button=host.querySelector('.output-recover-query');
+            const result={card:card.getBoundingClientRect().toJSON(),ring:ring.getBoundingClientRect().toJSON(),button:button.getBoundingClientRect().toJSON()};
+            host.remove();return result;
+        });
+        assert.ok(bounds.card.height>=132);
+        assert.ok(bounds.ring.top>=bounds.card.top,'progress ring stays inside the card');
+        assert.ok(bounds.button.bottom<=bounds.card.bottom,'refresh button stays inside the card');
+        assert.deepEqual(errors,[]);
+    });
     test(`${kind}: billing prompt expands and copies complete source text and all output links`,async t=>{
         const {page,errors}=await fixture(t,kind,false);
         const prompt='起点 <巴士> & 夜景\n'+('镜头和灯光细节，'.repeat(140))+'\n终点：保留这个收尾。';
