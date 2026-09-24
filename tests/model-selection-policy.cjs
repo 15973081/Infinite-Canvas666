@@ -112,12 +112,12 @@ test('policies are scoped to exact provider/model and unconfigured models regain
 test('classic model and provider change events rebuild size choices without resetting valid selections',()=>{
     const controls = {resolutionSelect:{},ratioSelect:{querySelector:()=>null,options:[{value:'square'}]},
         customRatioRow:{style:{}},customSizeRow:{style:{}},customRatioWInput:{},customRatioHInput:{},customWInput:{},customHInput:{},
-        fitSizeBtn:{},referenceImages:[],normalizeApiNodeSizeChoice(){},syncQualityControls(){},updateSourceRatioFromFirstRef(){},tr:x=>x};
+        fitSizeBtn:{},referenceImages:[],normalizeApiNodeSizeChoice(){},syncQualityControls(){},updateSourceRatioFromFirstRef(){},parseSizeValue:()=>null,tr:x=>x};
     const c = context(classic,['allowedImageResolutions'],{...controls,apiProviders:providers(),resolveImageModel:x=>x,
         node:{apiProvider:'p',model:'limited',resolution:'1k',ratio:'square'},modelSelect:{},providerSelect:{},
         providerImageModels:id=>providers().find(p=>p.id===id).image_models,imageModelOptions:()=>'',scheduleSave(){}});
     const body = classic.slice(classic.indexOf('function renderGeneratorBody('));
-    const start = body.indexOf('    const syncSizeControls = () => {');
+    const start = body.indexOf('    const syncSizeControls = (persist=true) => {');
     vm.runInContext(body.slice(start,body.indexOf('\n    };',start)+7),c);
     for(const name of ['modelSelect','providerSelect']){
         const from = body.indexOf(name+'.onchange = e => {');

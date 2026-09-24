@@ -2609,7 +2609,9 @@ function smartTaskInputDocument(){
     const subject=activeComposerNode();
     if(subject && promptInput?.dataset?.promptLocked!=='1' && !(promptInput?.dataset?.preserveDraftOnce==='1' && subject.promptDraftHtml)){
         const copy=projection.nodes.find(node=>node.id===subject.id);
-        if(copy){copy.promptDraftHtml=promptInput.innerHTML;copy.promptDraftText=promptPlainText();copy.runSettings=settingsForStorage(settings);}
+        const changes=smartComposerChanges(subject);
+        if(copy && changes.prompt){copy.promptDraftHtml=promptInput.innerHTML;copy.promptDraftText=promptPlainText();}
+        if(copy && changes.settings)copy.runSettings=settingsForStorage(settings);
     }
     return projection;
 }

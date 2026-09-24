@@ -172,6 +172,7 @@ function persistActiveSmartSettings(){
     const subject = activeComposerNode();
     if(!subject) return;
     subject.runSettings = settingsForStorage(settings);
+    if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
     rememberRecentSmartSettings(settings, subject);
 }
 
@@ -971,9 +972,10 @@ function optionHtml(value, label, selected){
     return `<option value="${escapeHtml(value)}" ${String(value) === String(selected) ? 'selected' : ''}>${escapeHtml(label ?? value)}</option>`;
 }
 
-function updateProviderModels(){ renderDynamicParams(); }
+// Selection may normalize visible controls; it must not rewrite a task-bound node.
+function updateProviderModels(){ renderDynamicParams(false); }
 
-function renderDynamicParams(){
+function renderDynamicParams(persist=true){
     if(!dynamicParams) return;
     const advancedOpen=!!dynamicParams.querySelector('.composer-advanced')?.open;
     settings.engine = ['api','volcengine','modelscope','comfy'].includes(settings.engine) ? settings.engine : 'api';
@@ -995,7 +997,7 @@ function renderDynamicParams(){
     if(advanced) advanced.open=advancedOpen;
     bindDynamicParams();
     updatePromptPlaceholder();
-    persistActiveSmartSettings();
+    if(persist) persistActiveSmartSettings();
     if(composer?.classList.contains('open')) renderInputThumbsRow(selectedNode());
     if(window.lucide) lucide.createIcons();
 }
@@ -3238,6 +3240,17 @@ function currentComposerSubject(){
     return selectedNode();
 }
 
+function smartComposerChanges(subject){
+    const baseline=smartComposerBaseline;
+    if(!subject) return {prompt:false,settings:false};
+    // Before a composer baseline exists, keep projecting live input edits.
+    if(baseline?.nodeId !== subject.id) return {prompt:true,settings:true};
+    return {
+        prompt:promptInput.innerHTML !== baseline.html || promptPlainText() !== baseline.text,
+        settings:JSON.stringify(settingsForStorage(settings)) !== baseline.settings
+    };
+}
+
 function savePromptDraftForCurrent(){
     if(promptInput?.dataset?.promptLocked === '1') return;
     const subject = activeComposerNode();
@@ -3246,9 +3259,19 @@ function savePromptDraftForCurrent(){
         delete promptInput.dataset.preserveDraftOnce;
         return;
     }
-    subject.promptDraftHtml = promptInput.innerHTML;
-    subject.promptDraftText = promptPlainText();
-    subject.runSettings = cloneSmartSettings(settings);
+    const changes=smartComposerChanges(subject);
+    if(changes.prompt){
+        subject.promptDraftHtml = promptInput.innerHTML;
+        subject.promptDraftText = promptPlainText();
+        if(smartComposerBaseline?.nodeId === subject.id){
+            smartComposerBaseline.html = subject.promptDraftHtml;
+            smartComposerBaseline.text = subject.promptDraftText;
+        }
+    }
+    if(changes.settings){
+        subject.runSettings = cloneSmartSettings(settings);
+        if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
+    }
 }
 
 function setPromptDraftForNode(node, text){
@@ -3304,6 +3327,7 @@ function updateComposer(){
         composer.classList.remove('open');
         activeComposerSubject = null;
         lastComposerNodeId = '';
+        smartComposerBaseline = null;
         setPromptInputLocked(false);
         if(!node) setPromptText('');
         return;
@@ -3327,7 +3351,13 @@ function updateComposer(){
     promptInput.style.setProperty('--prompt-h', `${ph}px`);
     renderInputPromptPreview(node);
     syncCascadeRunButton(node);
+    const unsavedChanges=!switchedNode && smartComposerBaseline?.nodeId === node.id
+        && Object.values(smartComposerChanges(node)).some(Boolean);
     updateProviderModels();
+    if(!unsavedChanges){
+        smartComposerBaseline = {nodeId:node.id,html:promptInput.innerHTML,text:promptPlainText(),
+            settings:JSON.stringify(settingsForStorage(settings))};
+    }
 }
 
 function renderInputPromptPreview(node){

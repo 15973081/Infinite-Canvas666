@@ -23,7 +23,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
  let reached=false,serverDocument=null;
  const boundary=async where=>{if(stage===where){reached=true;await gate.promise;}};
  const c={window:win,canvasId:'c',canvas:{id:'c',kind:'smart',title:'test',logs:[],connections:entry==='main'?[]:[{from:'src',to:'out'},...(entry==='loop'?[{from:'loop',to:'src'}]:[])]},
-  nodes:entry==='main'?[src]:[loop,src,target],selectedId:'src',selectedImage:{},settings:clone(config),canvasDefaultSmartSettings:clone(config),initialSmartSettings:clone(config),
+  nodes:entry==='main'?[src]:[loop,src,target],selectedId:'src',selectedImage:{},settings:clone(config),canvasDefaultSmartSettings:clone(config),initialSmartSettings:clone(config),smartComposerBaseline:null,
   promptInput:{innerHTML:'original',dataset:{}},activeComposerNode:()=>c.nodes.find(n=>n.id===c.selectedId),selectedNode:()=>c.nodes.find(n=>n.id===c.selectedId),promptPlainText:()=>c.promptInput.innerHTML,
   smartClientId:'page',smartSaveInFlight:null,smartSaveAgain:false,smartCanvasDirty:false,smartSaveErrorNotified:false,canvasSyncInFlight:false,saveTimer:null,viewport:{x:0,y:0,scale:1},
   smartServerNodeIds:new Set(),smartServerConnectionKeys:new Set(),smartLoopContext:null,activeSmartTaskPolls:new Map(),activeSmartNodeResumes:new Map(),transientSmartCloudLinks:[],
@@ -60,7 +60,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   await boundary('poll');return {ok:true,json:async()=>clone(records.get(url.split('/').at(-1)))};
  };
  install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','pauseSmartTaskInput','canvasForStorage','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',
-  'savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode','runLoopRoundIntoSlot');
+  'smartComposerChanges','savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode','runLoopRoundIntoSlot');
  vm.runInContext(readCanvasSource(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
  return {c,src,target,loop,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):entry==='loop'?c.runLoopRoundIntoSlot(loop,src,target,1,{}):c.runGeneration()};
 }

@@ -1638,49 +1638,47 @@ function refreshPromptCounter(container, text){
 function renderLoopBody(node){
     const wrap = document.createElement('div');
     wrap.className = 'loop-body';
-    node.count = loopCount(node);
-    node.loopStart = Math.max(1, Number(node.loopStart) || 1);
-    node.imageBatchSize = Math.max(1, Math.min(100, Number(node.imageBatchSize) || 1));
-    node.mode = node.mode === 'parallel' ? 'parallel' : 'serial';
-    node.showPrompt = Boolean(node.showPrompt);
-    node.imageInput = Boolean(node.imageInput);
-    node.videoInput = false;
-    const imageInputCount = loopInputImageRefs(node, {index:node.loopStart}).length;
-    const promptItemCount = node.showPrompt ? loopInputPromptItems(node).length : 0;
+    // Defaults are for display; rendering must not change a submitted input graph.
+    const display={...node,count:loopCount(node),loopStart:Math.max(1, Number(node.loopStart) || 1),
+        imageBatchSize:Math.max(1, Math.min(100, Number(node.imageBatchSize) || 1)),
+        mode:node.mode === 'parallel' ? 'parallel' : 'serial',showPrompt:Boolean(node.showPrompt),
+        imageInput:Boolean(node.imageInput),videoInput:false};
+    const imageInputCount = loopInputImageRefs(display, {index:display.loopStart}).length;
+    const promptItemCount = display.showPrompt ? loopInputPromptItems(display).length : 0;
     const hasUpstreamPrompt = promptItemCount > 0;
     const loopTargetId = findLoopCascadeTarget(node.id);
     const loopTargetOrder = loopTargetId ? computeCascadeOrder(loopTargetId) : [];
     const loopRunHtml = loopTargetId ? (isCascadeActive(loopTargetId)
         ? `<div class="gen-run-row"><button class="gen-cascade-btn gen-cascade-stop" type="button" data-loop-cascade-stop="${loopTargetId}" ${isCascadeStopping(loopTargetId) ? 'disabled' : ''}><i data-lucide="square" class="w-4 h-4"></i><span>${isCascadeStopping(loopTargetId) ? '停止中…' : '停止运行'}</span></button></div>`
-        : `<div class="gen-run-row"><button class="gen-cascade-btn" type="button" data-loop-cascade="${loopTargetId}" title="从当前循环节点启动整条工作流"><i data-lucide="play-circle" class="w-4 h-4"></i><span>开始 ${loopTargetOrder.length || 1} 个节点 × ${node.count} ${tr('canvas.loopRounds')}</span></button></div>`)
+        : `<div class="gen-run-row"><button class="gen-cascade-btn" type="button" data-loop-cascade="${loopTargetId}" title="从当前循环节点启动整条工作流"><i data-lucide="play-circle" class="w-4 h-4"></i><span>开始 ${loopTargetOrder.length || 1} 个节点 × ${display.count} ${tr('canvas.loopRounds')}</span></button></div>`)
         : '';
     wrap.innerHTML = `
         <div class="loop-count-row">
             <div class="loop-run-row">
                 <div class="loop-count-group">
                     <span class="loop-count-label">${tr('canvas.loopCount')}</span>
-                    <input class="loop-count-input" type="number" min="1" max="100" step="1" value="${node.count}">
+                    <input class="loop-count-input" type="number" min="1" max="100" step="1" value="${display.count}">
                 </div>
                 <div class="seg loop-mode">
-                    <button type="button" data-loop-mode="serial" class="${node.mode !== 'parallel' ? 'active' : ''}">${tr('canvas.loopSerial')}</button>
-                    <button type="button" data-loop-mode="parallel" class="${node.mode === 'parallel' ? 'active' : ''}">${tr('canvas.loopParallel')}</button>
+                    <button type="button" data-loop-mode="serial" class="${display.mode !== 'parallel' ? 'active' : ''}">${tr('canvas.loopSerial')}</button>
+                    <button type="button" data-loop-mode="parallel" class="${display.mode === 'parallel' ? 'active' : ''}">${tr('canvas.loopParallel')}</button>
                 </div>
             </div>
             <div class="loop-toggle-row">
-                <button class="loop-toggle loop-image-toggle ${node.imageInput ? 'active' : ''}" type="button"><i data-lucide="image" class="w-3.5 h-3.5"></i>${tr('canvas.loopImageToggle')}</button>
-                <button class="loop-toggle loop-prompt-toggle ${node.showPrompt ? 'active' : ''}" type="button"><i data-lucide="text-cursor-input" class="w-3.5 h-3.5"></i>${tr('canvas.loopPromptToggle')}</button>
+                <button class="loop-toggle loop-image-toggle ${display.imageInput ? 'active' : ''}" type="button"><i data-lucide="image" class="w-3.5 h-3.5"></i>${tr('canvas.loopImageToggle')}</button>
+                <button class="loop-toggle loop-prompt-toggle ${display.showPrompt ? 'active' : ''}" type="button"><i data-lucide="text-cursor-input" class="w-3.5 h-3.5"></i>${tr('canvas.loopPromptToggle')}</button>
             </div>
         </div>
-        ${node.imageInput ? `<div class="loop-image-panel">
+        ${display.imageInput ? `<div class="loop-image-panel">
             <div class="loop-image-row">
                 <span class="loop-count-label">${tr('canvas.loopImageStart')}</span>
-                <input class="loop-count-input loop-image-start-input" type="number" min="1" max="9999" step="1" value="${node.loopStart}">
+                <input class="loop-count-input loop-image-start-input" type="number" min="1" max="9999" step="1" value="${display.loopStart}">
                 <span class="loop-count-label">${tr('canvas.loopBatchSize')}</span>
-                <input class="loop-count-input loop-batch-input" type="number" min="1" max="100" step="1" value="${node.imageBatchSize}">
+                <input class="loop-count-input loop-batch-input" type="number" min="1" max="100" step="1" value="${display.imageBatchSize}">
             </div>
             <div class="loop-image-hint loop-image-hint-only">${imageInputCount ? trf('canvas.loopImageWillOutput', {n:imageInputCount}) : tr('canvas.loopImageEmpty')}</div>
         </div>` : ''}
-        ${node.showPrompt ? `<div class="loop-prompt-panel ${hasUpstreamPrompt ? 'has-upstream' : ''}">
+        ${display.showPrompt ? `<div class="loop-prompt-panel ${hasUpstreamPrompt ? 'has-upstream' : ''}">
             <div class="loop-field">
                 <div class="loop-variable-editor ${hasUpstreamPrompt ? 'is-disabled' : ''}" contenteditable="${hasUpstreamPrompt ? 'false' : 'true'}" data-placeholder="${escapeAttr(tr('canvas.loopVariablePlaceholder'))}">${loopVariableHtml(node.variablePrompt || '')}</div>
             </div>
@@ -1688,7 +1686,7 @@ function renderLoopBody(node){
             <div class="loop-start-row">
                 <button class="loop-token-btn loop-counter-token-btn" type="button" data-token="《计数》">${tr('canvas.counterToken')}</button>
                 <span class="loop-count-label">${tr('canvas.loopStart')}</span>
-                <input class="loop-count-input loop-start-input" type="number" min="1" max="9999" step="1" value="${node.loopStart}">
+                <input class="loop-count-input loop-start-input" type="number" min="1" max="9999" step="1" value="${display.loopStart}">
             </div>
         </div>` : ''}
         ${loopRunHtml}
@@ -1877,10 +1875,10 @@ function renderLLMBody(node){
     const wrap = document.createElement('div');
     wrap.className = 'llm-body';
     const mode = node.mode || 'node';
-    node.llmProvider = resolveChatProviderId(node.llmProvider || 'comfly');
-    const llmProv = node.llmProvider;
-    if(!providerChatModels(llmProv).includes(node.model)) node.model = providerChatModels(llmProv)[0] || (window.CanvasSession?.enabled ? '' : node.model);
-    const modelOpts = chatModelOptions(node.model, llmProv);
+    const llmProv = resolveChatProviderId(node.llmProvider || 'comfly');
+    const llmModel = providerChatModels(llmProv).includes(node.model)
+        ? node.model : providerChatModels(llmProv)[0] || (window.CanvasSession?.enabled ? '' : node.model);
+    const modelOpts = chatModelOptions(llmModel, llmProv);
     const imgs = llmInputImages(node);
     const videos = llmInputVideos(node);
     const mediaBadgeText = [
@@ -1888,23 +1886,23 @@ function renderLLMBody(node){
         videos.length ? `${videos.length} 个视频` : ''
     ].filter(Boolean).join(' · ');
     const imgBadge = mediaBadgeText ? `<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;background:rgba(16,185,129,.12);color:#047857;font-size:10.5px;font-weight:700;width:fit-content;line-height:1.4"><i data-lucide="${videos.length && !imgs.length ? 'video' : 'image'}" class="w-3 h-3"></i>已连接 ${mediaBadgeText} · 需选支持视觉/视频的模型</div>` : '';
-    node.showSystem = Boolean(node.showSystem);
+    const showSystem = Boolean(node.showSystem);
     wrap.innerHTML = `
         <div class="llm-row">
             <select class="select-lite llm-provider-select" style="flex:1">${chatProviderOptions(llmProv)}</select>
             <select class="select-lite llm-model">${modelOpts}</select>
             <div class="llm-mode"><button data-mode="node">${tr('canvas.nodeMode')}</button><button data-mode="chat">${tr('canvas.chatMode')}</button></div>
-            <button class="llm-sys-toggle ${node.showSystem ? 'active' : ''}" type="button">System</button>
+            <button class="llm-sys-toggle ${showSystem ? 'active' : ''}" type="button">System</button>
         </div>
         ${imgBadge}
-        ${node.showSystem ? `<textarea class="llm-system" placeholder="${tr('canvas.systemPrompt')}">${escapeHtml(node.systemPrompt || '')}</textarea>` : ''}
+        ${showSystem ? `<textarea class="llm-system" placeholder="${tr('canvas.systemPrompt')}">${escapeHtml(node.systemPrompt || '')}</textarea>` : ''}
         <div class="llm-node-pane"></div>
         <div class="llm-chat-pane"></div>
     `;
     const providerSelect = wrap.querySelector('.llm-provider-select');
     const modelSelect = wrap.querySelector('.llm-model');
     providerSelect.value = llmProv;
-    modelSelect.value = resolveChatModel(node.model, llmProv);
+    modelSelect.value = resolveChatModel(llmModel, llmProv);
     [providerSelect, modelSelect].forEach(input => {
         input.onmousedown = e => e.stopPropagation();
         input.onclick = e => e.stopPropagation();
@@ -2222,10 +2220,9 @@ function renderGeneratorBody(node){
     const wrap = document.createElement('div');
     wrap.className = 'generator-body generation-node-body';
     const inputSources = generatorSources(node);
-    const ordered = orderedSources(node, inputSources);
+    const ordered = orderedSources(node, inputSources, false);
     const imageInputs = ordered.filter(src => src.refs?.length);
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
-    sanitizeImageNodeProviderModel(node);
     wrap.innerHTML = `
         <div class="generation-section-title">提示词</div>
         <div class="prompt-list mb-3"></div>
@@ -2329,25 +2326,8 @@ function renderGeneratorBody(node){
     const referenceImages = ordered.flatMap(src => src.refs || []);
     const syncQualityControls = () => {
         qualitySelect.disabled = false;
-        if(!['auto','low','medium','high'].includes(String(node.quality || 'auto'))) node.quality = 'auto';
-        qualitySelect.value = node.quality || 'auto';
+        qualitySelect.value = ['auto','low','medium','high'].includes(String(node.quality || 'auto')) ? node.quality || 'auto' : 'auto';
     };
-    const hydrateCustomParts = () => {
-        if((!node.customRatioWidth || !node.customRatioHeight) && node.customRatio) {
-            const raw = String(node.customRatio || '');
-            if(raw.includes(':')){
-                const [w,h] = raw.split(':');
-                node.customRatioWidth = node.customRatioWidth || w;
-                node.customRatioHeight = node.customRatioHeight || h;
-            }
-        }
-        if((!node.customWidth || !node.customHeight) && node.customSize) {
-            const parsed = parseSizeValue(node.customSize);
-            node.customWidth = node.customWidth || parsed?.width || '';
-            node.customHeight = node.customHeight || parsed?.height || '';
-        }
-    };
-    hydrateCustomParts();
     let sourceRatioRequest = 0;
     const updateSourceRatioFromFirstRef = async () => {
         if(node.ratio !== 'source') return;
@@ -2373,33 +2353,36 @@ function renderGeneratorBody(node){
             scheduleSave();
         } catch(_) {}
     };
-    const syncSizeControls = () => {
-        const sizes = allowedImageResolutions(node);
-        if(!sizes.includes(node.resolution)) node.resolution = sizes[0] || '';
+    const syncSizeControls = (persist=true) => {
+        const view = persist ? node : {...node};
+        const sizes = allowedImageResolutions(view);
+        if(!sizes.includes(view.resolution)) view.resolution = sizes[0] || '';
         resolutionSelect.innerHTML = sizes.map(value => `<option value="${value}">${value === 'custom' ? tr('canvas.custom') : value.toUpperCase()}</option>`).join('');
         resolutionSelect.disabled = !sizes.length;
-        if(node.resolution !== 'custom' && !node.ratio) node.ratio = 'square';
-        normalizeApiNodeSizeChoice(node);
+        if(view.resolution !== 'custom' && !view.ratio) view.ratio = 'square';
+        normalizeApiNodeSizeChoice(view);
         const squareOption = ratioSelect.querySelector('option[value="square"]');
         if(squareOption){
             squareOption.disabled = false;
             squareOption.title = '';
         }
-        const ratioValue = node.ratio && [...ratioSelect.options].some(opt => opt.value === node.ratio) ? node.ratio : 'square';
+        const ratioValue = view.ratio && [...ratioSelect.options].some(opt => opt.value === view.ratio) ? view.ratio : 'square';
         ratioSelect.value = ratioValue;
-        resolutionSelect.value = node.resolution || '1k';
-        ratioSelect.disabled = node.resolution === 'custom';
-        customRatioRow.style.display = (node.ratio === 'custom' || node.ratio === 'source') ? 'flex' : 'none';
-        customSizeRow.style.display = node.resolution === 'custom' ? 'flex' : 'none';
-        customRatioWInput.disabled = node.ratio === 'source';
-        customRatioHInput.disabled = node.ratio === 'source';
-        customRatioWInput.value = node.customRatioWidth || '';
-        customRatioHInput.value = node.customRatioHeight || '';
-        customWInput.value = node.customWidth || '';
-        customHInput.value = node.customHeight || '';
+        resolutionSelect.value = view.resolution || '1k';
+        ratioSelect.disabled = view.resolution === 'custom';
+        customRatioRow.style.display = (view.ratio === 'custom' || view.ratio === 'source') ? 'flex' : 'none';
+        customSizeRow.style.display = view.resolution === 'custom' ? 'flex' : 'none';
+        customRatioWInput.disabled = view.ratio === 'source';
+        customRatioHInput.disabled = view.ratio === 'source';
+        const ratioParts = String(view.customRatio || '').split(':');
+        const sizeParts = parseSizeValue(view.customSize || '');
+        customRatioWInput.value = view.customRatioWidth || ratioParts[0] || '';
+        customRatioHInput.value = view.customRatioHeight || ratioParts[1] || '';
+        customWInput.value = view.customWidth || sizeParts?.width || '';
+        customHInput.value = view.customHeight || sizeParts?.height || '';
         if(fitSizeBtn) fitSizeBtn.disabled = !referenceImages.some(ref => ref.url);
         syncQualityControls();
-        if(node.ratio === 'source') updateSourceRatioFromFirstRef();
+        if(persist && view.ratio === 'source') updateSourceRatioFromFirstRef();
     };
     qualitySelect.onmousedown = e => e.stopPropagation();
     qualitySelect.onclick = e => e.stopPropagation();
@@ -2492,7 +2475,7 @@ function renderGeneratorBody(node){
             }
         };
     }
-    syncSizeControls();
+    syncSizeControls(false);
     const countInput = wrap.querySelector('.gen-count-input');
     countInput.onmousedown = e => e.stopPropagation();
     countInput.onclick = e => e.stopPropagation();
@@ -2525,16 +2508,11 @@ function renderVideoBody(node){
     const wrap = document.createElement('div');
     wrap.className = 'generator-body generation-node-body';
     const inputSources = generatorSources(node);
-    const ordered = orderedSources(node, inputSources);
+    const ordered = orderedSources(node, inputSources, false);
     const imageInputs = ordered.filter(src => src.refs?.length);
     const promptInputs = ordered.filter(src => src.prompt && !src.refs?.length);
-    sanitizeVideoNodeProviderModel(node);
-    normalizeVideoNodeSelection(node);
-    const isVolcengineVideoNode = resolveVideoProviderId(node.apiProvider || 'comfly') === 'volcengine';
     const isSeedance25 = isVolcengineSeedance25VideoNode(node);
     const durationRange = videoNodeDurationRange(node);
-    if(isVolcengineVideoNode) node.useFrameRoles = false;
-    if(!node.model && !window.CanvasSession?.enabled) node.model = 'veo3-fast';
     wrap.innerHTML = `
         <div class="generation-section-title">提示词</div>
         <div class="prompt-list mb-3"></div>

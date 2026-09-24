@@ -83,6 +83,7 @@ let selectedIds = [];
 let selectedImage = {nodeId:'', index:-1};
 let lastComposerNodeId = '';
 let activeComposerSubject = null;
+let smartComposerBaseline = null;
 let dragState = null;
 let loopInsertPreview = null;
 let selectionState = null;

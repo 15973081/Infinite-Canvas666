@@ -878,10 +878,11 @@ function generatorSources(gen, loopCtx=null, graph=null){
     }).flat().filter(Boolean);
 }
 
-function orderedSources(gen, sources){
-    gen.inputs = (gen.inputs || []).filter(id => sources.some(s => s.id === id));
-    sources.forEach(s => { if(!gen.inputs.includes(s.id)) gen.inputs.push(s.id); });
-    return gen.inputs.map(id => sources.find(s => s.id === id)).filter(Boolean);
+function orderedSources(gen, sources, persist=true){
+    const inputs = (gen.inputs || []).filter(id => sources.some(s => s.id === id));
+    sources.forEach(s => { if(!inputs.includes(s.id)) inputs.push(s.id); });
+    if(persist) gen.inputs = inputs;
+    return inputs.map(id => sources.find(s => s.id === id)).filter(Boolean);
 }
 
 function classicTaskInputBinding(source,target,writeGuard){

@@ -157,6 +157,85 @@ for(const kind of ['classic','smart']) {
         }
         assert.deepEqual(errors,[]);
     });
+    if(kind==='smart')test('smart: selecting a pending result preserves its submitted inputs',async t=>{
+        const {page,errors}=await fixture(t,'smart',true);
+        await page.addScriptTag({url:origin+'/static/js/canvas-task-bindings.js'});
+        const result=await page.evaluate(()=>{
+            const source={id:'managed-source',type:'smart-image',x:20,y:20,images:[{url:'/test-image.svg',kind:'image'}]};
+            const target={id:'managed-result',type:'smart-image',x:400,y:20,w:260,h:180,images:[],pending:1,
+                runPrompt:'生成深度图',runModelPrompt:'depth model prompt',promptDraftHtml:'',promptDraftText:'',
+                runSettings:{engine:'api',apiKind:'image',provider_id:'test',model:'gpt-image-2',resolution:'custom',customWidth:1024,customHeight:576,count:1},
+                pendingTasks:[{taskId:'managed-task',kind:'image',run:{nodeId:source.id}}]};
+            nodes.push(source,target);canvas.nodes=nodes;canvas.connections=[{from:source.id,to:target.id,kind:'flow'}];
+            selectedId='';lastComposerNodeId='';activeComposerSubject=null;render();
+            const snapshot=()=>window.CanvasTaskBindings.graphCanonical(smartTaskInputDocument(),source.id,target.id);
+            const before=snapshot(),dataBefore=JSON.stringify(target);
+            document.querySelector('.image-node[data-id="managed-result"]').click();
+            const after=snapshot(),dataAfter=JSON.stringify(target);
+            promptInput.textContent='用户修改了提示词';
+            promptInput.dispatchEvent(new Event('input',{bubbles:true}));
+            const afterEdit=snapshot();
+            return {same:before===after,nodeSame:dataBefore===dataAfter,editDetected:afterEdit!==before,
+                before:JSON.parse(dataBefore),after:JSON.parse(dataAfter)};
+        });
+        assert.equal(result.same,true,JSON.stringify(result));
+        assert.equal(result.nodeSame,true,JSON.stringify(result));
+        assert.equal(result.editDetected,true,'a real prompt edit still invalidates the task binding');
+        assert.deepEqual(errors,[]);
+    });
+    if(kind==='smart')test('smart: creating and viewing a managed result keeps its preflight binding valid',async t=>{
+        const {page,errors}=await fixture(t,'smart',true);
+        await page.addScriptTag({url:origin+'/static/js/canvas-task-bindings.js'});
+        const result=await page.evaluate(()=>{
+            const source={id:'tool-source',type:'smart-image',x:20,y:20,images:[{url:'/test-image.svg',kind:'image'}]};
+            nodes.push(source);canvas.nodes=nodes;selectedId=source.id;render();
+            const settings={engine:'api',apiKind:'image',provider_id:'provider',model:'gpt-image-2',
+                resolution:'custom',customWidth:1024,customHeight:576,customSize:'1024x576',count:1};
+            const meta={prompt:'depth prompt',displayPrompt:'生成深度图',promptText:'生成深度图',promptHtml:'',
+                promptRefs:[{url:'/test-image.svg',kind:'image'}],inputRefs:[{url:'/test-image.svg',kind:'image'}],
+                sourceNodeId:source.id,settings,createdAt:Date.now()};
+            const output=createPendingOutputFromSource(source,1,meta,{connectSource:false,selectOutput:true,refs:meta.inputRefs});
+            const binding=smartTaskInputBinding(source,output,canvasTaskWriteGuard(source,output));
+            render();binding.check();
+            document.querySelector(`.image-node[data-id="${output.id}"]`).click();binding.check();
+            promptInput.textContent='真正修改结果卡输入';
+            promptInput.dispatchEvent(new Event('input',{bubbles:true}));
+            let blocked=false;try{binding.check();}catch(error){blocked=Boolean(error.inputChanged);}
+            return {blocked};
+        });
+        assert.equal(result.blocked,true);
+        assert.deepEqual(errors,[]);
+    });
+    if(kind==='classic')test('classic: rendering generation and upstream nodes preserves submitted inputs',async t=>{
+        const {page,errors}=await fixture(t,'classic',true);
+        await page.addScriptTag({url:origin+'/static/js/canvas-task-bindings.js'});
+        const result=await page.evaluate(()=>{
+            apiProviders=[{id:'provider',enabled:true,image_models:['gpt-image-2'],video_models:['veo3-fast'],chat_models:['gpt-4o-mini']}];
+            const source={id:'input',type:'image',x:20,y:20,url:'/test-image.svg'};
+            const image={id:'image-generator',type:'generator',x:400,y:20,apiProvider:'provider',model:'gpt-image-2',
+                resolution:'custom',ratio:'custom',customRatio:'16:9',customSize:'1024x576',inputs:[]};
+            const video={id:'video-generator',type:'video',x:400,y:500,apiProvider:'provider',model:'veo3-fast',
+                duration:5,aspectRatio:'16:9',resolution:'',inputs:[]};
+            const loop={id:'loop-source',type:'loop',x:800,y:20,variablePrompt:'step 《计数》'};
+            const llm={id:'llm-source',type:'llm',x:800,y:500,llmProvider:'provider',model:'gpt-4o-mini',outputText:'prompt'};
+            const targets=[image,video,loop,llm];
+            nodes.push(source,...targets);
+            connections=targets.map(target=>({from:'input',to:target.id,kind:'flow'}));
+            const snapshot=target=>window.CanvasTaskBindings.graphCanonical(canvasSavePayload(),'input',target);
+            const before=targets.map(target=>snapshot(target.id)),dataBefore=targets.map(target=>JSON.stringify(target));
+            render();
+            const after=targets.map(target=>snapshot(target.id)),dataAfter=targets.map(target=>JSON.stringify(target));
+            const display=['.custom-ratio-w-input','.custom-ratio-h-input','.custom-w-input','.custom-h-input']
+                .map(selector=>document.querySelector(`.node[data-id="image-generator"] ${selector}`).value);
+            const quality=document.querySelector('.node[data-id="image-generator"] .quality-select');
+            quality.value='high';quality.dispatchEvent(new Event('change',{bubbles:true}));
+            return {same:before.map((value,index)=>value===after[index]),display,editDetected:snapshot(image.id)!==before[0],dataBefore,dataAfter};
+        });
+        assert.deepEqual(result.same,[true,true,true,true],JSON.stringify(result));
+        assert.deepEqual(result.display,['16','9','1024','576']);
+        assert.equal(result.editDetected,true,'a real setting edit still invalidates the task binding');
+        assert.deepEqual(errors,[]);
+    });
     test(`${kind}: billing prompt expands and copies complete source text and all output links`,async t=>{
         const {page,errors}=await fixture(t,kind,false);
         const prompt='起点 <巴士> & 夜景\n'+('镜头和灯光细节，'.repeat(140))+'\n终点：保留这个收尾。';
