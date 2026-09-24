@@ -1640,14 +1640,16 @@
 
         function scheduleStudioReconnect() {
             if(studioReconnectTimer || !host) return;
-            const delay = Math.min(10000, 800 * Math.pow(1.7, studioReconnectAttempts++));
+            // 连续失败时逐渐延长间隔，最多 10 秒；连接成功后重置次数。
+            const reconnectDelay = Math.min(10000, 800 * Math.pow(1.7, studioReconnectAttempts++));
             studioReconnectTimer = window.setTimeout(() => {
                 studioReconnectTimer = null;
                 connectStudioWebSocket();
-            }, delay);
+            }, reconnectDelay);
         }
 
         async function connectStudioWebSocket() {
+            // 会话就绪后再构造带空间上下文的连接地址。
             if (window.CanvasSession) await window.CanvasSession.ready;
             if(!host || (studioSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(studioSocket.readyState))) return;
             const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -1664,24 +1666,35 @@
             };
             socket.onmessage = event => {
                 let data = null;
-                try { data = JSON.parse(event.data); } catch(e) { return; }
+                try {
+                    data = JSON.parse(event.data);
+                } catch(e) {
+                    return;
+                }
                 if(data.type === 'stats') {
                     document.getElementById('online-val').innerText = data.online_members ?? data.online_count ?? 0;
                     if(window.CanvasSession) window.CanvasSession.observeStatus(data);
                 } else if(data.type === 'maintenance_changed') {
                     handleMaintenanceSnapshot(data.data || {});
                 } else if(data.type === 'cloud_status' || data.type === 'canvas_updated') {
+                    // 内容更新只通知当前显示的页面。
                     const iframe = document.querySelector('iframe.active');
                     if(iframe?.contentWindow) iframe.contentWindow.postMessage(data, '*');
                 } else if(['canvas_locked','canvas_unlocked','asset_library_updated'].includes(data.type)) {
+                    // 锁和素材库变化也要通知后台页面，保持各页面状态一致。
                     document.querySelectorAll('iframe').forEach(iframe => {
                         if(iframe?.contentWindow) iframe.contentWindow.postMessage(data, '*');
                     });
                 }
             };
-            socket.onerror = () => { try { socket.close(); } catch(e) {} };
+            socket.onerror = () => {
+                try {
+                    socket.close();
+                } catch(e) {}
+            };
             socket.onclose = () => {
                 if(studioSocket === socket) studioSocket = null;
+                // 短暂断线先留出恢复时间，仍未连上时再显示提示。
                 window.setTimeout(() => {
                     if(!studioSocket || studioSocket.readyState !== WebSocket.OPEN) showServiceDisconnected();
                 }, 700);

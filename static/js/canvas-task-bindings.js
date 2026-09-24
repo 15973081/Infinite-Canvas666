@@ -101,72 +101,99 @@
     function operation({canvasId,kind,sourceId,targetId,read,valid,flush,revision,crypto}) {
         // read() must return the same JSON projection used by save, including
         // any current unsaved edits. Callers additionally retain node identities.
-        let expected=graphCanonical(read(),sourceId,targetId),paused=false,submitted=false,prepared=null;
-        const receipts=new Map();
-        const pause=()=>{
-            paused=true;
-            const error=new Error(submitted?'生成输入或编辑资格已变化，结果保留在生成结果列表，请确认后加入。':'生成输入或编辑资格已变化，请确认当前内容后重新生成。');
-            error.resultPending=true;error.inputChanged=true;error.submitted=submitted;return error;
+        let expectedInput = graphCanonical(read(), sourceId, targetId),
+            paused = false,
+            submitted = false,
+            submissionBinding = null;
+        const receipts = new Map();
+        const pause = () => {
+            paused = true;
+            const error = new Error(submitted
+                ? '生成输入或编辑资格已变化，结果保留在生成结果列表，请确认后加入。'
+                : '生成输入或编辑资格已变化，请确认当前内容后重新生成。');
+            error.resultPending = true;
+            error.inputChanged = true;
+            error.submitted = submitted;
+            return error;
         };
-        const check=()=>{
-            if(paused || !valid())throw pause();
-            try {if(graphCanonical(read(),sourceId,targetId)!==expected)throw pause();}
-            catch(error){if(error?.inputChanged)throw error;throw pause();}
+        const check = () => {
+            if(paused || !valid()) throw pause();
+            try {
+                if(graphCanonical(read(), sourceId, targetId) !== expectedInput) throw pause();
+            } catch(error) {
+                if(error?.inputChanged) throw error;
+                throw pause();
+            }
         };
         function mutate(apply) {
             check();
             try {
-                const result=apply();
-                if(result?.then)throw new Error('Input-bound mutations must be synchronous');
-                expected=graphCanonical(read(),sourceId,targetId);
+                const result = apply();
+                if(result?.then) throw new Error('Input-bound mutations must be synchronous');
+                // Only this operation's synchronous write advances its baseline.
+                expectedInput = graphCanonical(read(), sourceId, targetId);
                 return result;
-            } catch(error){const stopped=pause();stopped.cause=error;throw stopped;}
+            } catch(error) {
+                const stopped = pause();
+                stopped.cause = error;
+                throw stopped;
+            }
         }
         function receipt(task) {
-            const binding=task?.canvas_binding,id=task?.task_id||task?.id;
-            if(!prepared || !id || binding?.version!==3 || binding.canvas_id!==canvasId || binding.canvas_kind!==kind ||
-                binding.source_node_id!==sourceId || binding.target_node_id!==targetId ||
-                binding.submitted_revision!==prepared.base_revision || binding.graph_sha256!==prepared.input_sha256 ||
-                !/^[0-9a-f]{64}$/.test(binding.request_sha256||''))throw pause();
-            return {id,key:canonical(binding)};
+            const binding = task?.canvas_binding, id = task?.task_id || task?.id;
+            // A receipt must belong to the prepared canvas, nodes and input revision.
+            if(!submissionBinding || !id || binding?.version !== 3 ||
+                binding.canvas_id !== canvasId || binding.canvas_kind !== kind ||
+                binding.source_node_id !== sourceId || binding.target_node_id !== targetId ||
+                binding.submitted_revision !== submissionBinding.base_revision ||
+                binding.graph_sha256 !== submissionBinding.input_sha256 ||
+                !/^[0-9a-f]{64}$/.test(binding.request_sha256 || '')) throw pause();
+            return {id, key:canonical(binding)};
         }
         function verify(task,expectedTaskId) {
             check();
-            const saved=receipt(task);
-            if((expectedTaskId && saved.id!==expectedTaskId) || receipts.get(saved.id)!==saved.key)throw pause();
+            const saved = receipt(task);
+            if((expectedTaskId && saved.id !== expectedTaskId) || receipts.get(saved.id) !== saved.key) throw pause();
             return saved;
         }
         return {
             check,pause,mutate,verify,
             async prepare() {
                 check();
-                if(submitted)throw new Error('生成任务已提交，不能重新绑定输入。');
-                prepared=null;
-                if(!await flush())throw new Error('画布尚未保存成功，请保存后再生成。');
+                if(submitted) throw new Error('生成任务已提交，不能重新绑定输入。');
+                submissionBinding = null;
+                if(!await flush()) throw new Error('画布尚未保存成功，请保存后再生成。');
+                // Both save and hashing yield control: recheck live input/permission
+                // after each await, and retain the revision captured before hashing.
                 check();
-                const savedRevision=revision(),hash=await sha256(expected,crypto);
+                const savedRevision = revision(), hash = await sha256(expectedInput, crypto);
                 check();
-                if(!Number.isSafeInteger(savedRevision) || savedRevision<1 || savedRevision!==revision())throw pause();
-                prepared=Object.freeze({source_node_id:sourceId,target_node_id:targetId,base_revision:savedRevision,input_sha256:hash});
-                return {...prepared};
+                if(!Number.isSafeInteger(savedRevision) || savedRevision < 1 || savedRevision !== revision()) throw pause();
+                submissionBinding = Object.freeze({
+                    source_node_id:sourceId,
+                    target_node_id:targetId,
+                    base_revision:savedRevision,
+                    input_sha256:hash
+                });
+                return {...submissionBinding};
             },
             beginSubmission() {
                 check();
-                if(!prepared || prepared.base_revision!==revision())throw pause();
-                submitted=true;
+                if(!submissionBinding || submissionBinding.base_revision !== revision()) throw pause();
+                submitted = true;
             },
             remember(task) {
                 check();
-                if(!submitted)throw pause();
-                const saved=receipt(task),existing=receipts.get(saved.id);
-                if(existing && existing!==saved.key)throw pause();
-                receipts.set(saved.id,saved.key);
+                if(!submitted) throw pause();
+                const saved = receipt(task), existing = receipts.get(saved.id);
+                if(existing && existing !== saved.key) throw pause();
+                receipts.set(saved.id, saved.key);
             },
             apply(task,write,expectedTaskId) {
-                const saved=verify(task,expectedTaskId);
+                const saved = verify(task, expectedTaskId);
                 // No await between input/receipt verification and the write. Advance
                 // only after this batch's own write, so later siblings remain valid.
-                const result=mutate(write);
+                const result = mutate(write);
                 receipts.delete(saved.id);
                 return result;
             }
@@ -175,21 +202,33 @@
     // Reconnect a server receipt to current inputs, never to an expired lease.
     // The caller supplies a fresh write guard and live (including unsaved) inputs.
     async function recover({task,taskId,canvasId,kind,sourceId,targetId,read,valid,crypto}) {
-        const binding=task?.canvas_binding;
-        const reject=()=>{const error=new Error('原输入或编辑资格已变化，请从生成结果确认加入。');error.resultPending=true;return error;};
-        if(!valid() || (task?.id || task?.task_id)!==taskId || task.status!=='succeeded' ||
-            binding?.version!==3 || binding.canvas_id!==canvasId || binding.canvas_kind!==kind ||
-            binding.source_node_id!==sourceId || binding.target_node_id!==targetId ||
-            !Number.isSafeInteger(binding.submitted_revision) || binding.submitted_revision<1 ||
-            !/^[0-9a-f]{64}$/.test(binding.request_sha256 || ''))throw reject();
-        const expected=graphCanonical(read(),sourceId,targetId);
-        if(await sha256(expected,crypto)!==binding.graph_sha256)throw reject();
-        let consumed=false;
-        const check=()=>{
-            if(consumed || !valid() || graphCanonical(read(),sourceId,targetId)!==expected)throw reject();
+        const binding = task?.canvas_binding;
+        const reject = () => {
+            const error = new Error('原输入或编辑资格已变化，请从生成结果确认加入。');
+            error.resultPending = true;
+            return error;
         };
+        if(!valid() || (task?.id || task?.task_id) !== taskId || task.status !== 'succeeded' ||
+            binding?.version !== 3 || binding.canvas_id !== canvasId || binding.canvas_kind !== kind ||
+            binding.source_node_id !== sourceId || binding.target_node_id !== targetId ||
+            !Number.isSafeInteger(binding.submitted_revision) || binding.submitted_revision < 1 ||
+            !/^[0-9a-f]{64}$/.test(binding.request_sha256 || '')) throw reject();
+        const expectedInput = graphCanonical(read(), sourceId, targetId);
+        if(await sha256(expectedInput, crypto) !== binding.graph_sha256) throw reject();
+        let consumed = false;
+        const check = () => {
+            if(consumed || !valid() || graphCanonical(read(), sourceId, targetId) !== expectedInput) throw reject();
+        };
+        // Permission/input can change during hashing. The recovered result is
+        // single-use and is checked again immediately before the caller writes it.
         check();
-        return {apply(write){check();consumed=true;return write();}};
+        return {
+            apply(write) {
+                check();
+                consumed = true;
+                return write();
+            }
+        };
     }
     const api={portableValue,canonical,graphCanonical,graphFingerprint,operation,recover};
     if(typeof module==='object' && module.exports)module.exports=api;

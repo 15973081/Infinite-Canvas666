@@ -617,25 +617,33 @@
 
         async function pollOnlineImageTask(taskId, request){
             try {
-                for(let i = 0; i < 900; i++){
+                // 每次查询前等待 2 秒，最多查询 900 次；查询不会重新提交生成。
+                for(let attempt = 0; attempt < 900; attempt++){
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     const response = await fetch(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`);
                     const task = await response.json().catch(() => ({}));
                     if(!response.ok) throw new Error(task.detail || '查询生图任务失败');
                     updatePendingTaskCard(taskId, task.status);
+
                     if(task.status === 'succeeded'){
                         const result = task.result || {};
                         if(!result.images?.[0]) throw new Error('生成任务未返回图片');
+
+                        // 先移除等待卡片，再同步主预览、下载入口和历史记录。
                         document.getElementById(`pending-${taskId}`)?.remove();
                         currentResult = result;
-                        const out = document.getElementById('outputImg');
+                        const outputImage = document.getElementById('outputImg');
                         document.getElementById('placeholder').classList.add('hidden');
-                        out.src = onlineMediaUrl(result.images[0]);
-                        out.classList.remove('hidden');
-                        const dl = document.getElementById('downloadBtn');
-                        dl.href = onlineMediaUrl(result.images[0]);
-                        dl.onclick = event => {event.preventDefault();event.stopPropagation();void downloadOnlineImage(result.images[0]);};
-                        dl.classList.remove('hidden');
+                        outputImage.src = onlineMediaUrl(result.images[0]);
+                        outputImage.classList.remove('hidden');
+                        const downloadButton = document.getElementById('downloadBtn');
+                        downloadButton.href = onlineMediaUrl(result.images[0]);
+                        downloadButton.onclick = event => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void downloadOnlineImage(result.images[0]);
+                        };
+                        downloadButton.classList.remove('hidden');
                         renderImageCard(result, true);
                         return;
                     }
@@ -651,25 +659,37 @@
 
         async function submitImage(){
             const prompt = document.getElementById('promptInput').value.trim();
-            if(!prompt){ alert(tr('online.promptRequired')); return; }
-            const btn = document.getElementById('genBtn');
-            if(btn.disabled) return;
-            btn.disabled = true;
-            const reqBody = { prompt, provider_id:provider, model:selectedModel, size:currentSize(), n:outputCount, reference_images:Object.values(refs).filter(Boolean) };
-            if(QUALITY_PROTOCOLS.has(providerProtocol(provider))) reqBody.quality = quality;
+            if(!prompt){
+                alert(tr('online.promptRequired'));
+                return;
+            }
+            const generateButton = document.getElementById('genBtn');
+            if(generateButton.disabled) return;
+            generateButton.disabled = true;
+            const requestBody = {
+                prompt,
+                provider_id:provider,
+                model:selectedModel,
+                size:currentSize(),
+                n:outputCount,
+                reference_images:Object.values(refs).filter(Boolean)
+            };
+            if(QUALITY_PROTOCOLS.has(providerProtocol(provider))) requestBody.quality = quality;
             try {
                 const response = await fetch('/api/canvas-image-tasks', {
-                    method:'POST', headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify(reqBody)
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify(requestBody)
                 });
                 const task = await response.json().catch(() => ({}));
                 if(!response.ok || !task.task_id) throw new Error(task.detail || '创建生图任务失败');
-                renderPendingTaskCard(task.task_id, reqBody);
-                pollOnlineImageTask(task.task_id, reqBody);
+                renderPendingTaskCard(task.task_id, requestBody);
+                // 创建任务后独立查询；按钮只等待创建完成，不等待生成完成。
+                pollOnlineImageTask(task.task_id, requestBody);
             } catch(err) {
                 alert(err.message || 'Generation failed');
             } finally {
-                btn.disabled = false;
+                generateButton.disabled = false;
             }
         }
 

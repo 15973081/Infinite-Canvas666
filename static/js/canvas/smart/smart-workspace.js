@@ -3241,7 +3241,7 @@ function currentComposerSubject(){
 }
 
 function smartComposerChanges(subject){
-    const baseline=smartComposerBaseline;
+    const baseline = smartComposerBaseline;
     if(!subject) return {prompt:false,settings:false};
     // Before a composer baseline exists, keep projecting live input edits.
     if(baseline?.nodeId !== subject.id) return {prompt:true,settings:true};
@@ -3259,7 +3259,9 @@ function savePromptDraftForCurrent(){
         delete promptInput.dataset.preserveDraftOnce;
         return;
     }
-    const changes=smartComposerChanges(subject);
+    // The baseline contains the displayed values, including UI defaults. Only
+    // edits made after that baseline should change the node's generation input.
+    const changes = smartComposerChanges(subject);
     if(changes.prompt){
         subject.promptDraftHtml = promptInput.innerHTML;
         subject.promptDraftText = promptPlainText();
@@ -3270,7 +3272,9 @@ function savePromptDraftForCurrent(){
     }
     if(changes.settings){
         subject.runSettings = cloneSmartSettings(settings);
-        if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
+        if(smartComposerBaseline?.nodeId === subject.id){
+            smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
+        }
     }
 }
 
@@ -3336,6 +3340,7 @@ function updateComposer(){
     const subject = node;
     const composerKey = `${node.id}:node`;
     const switchedNode = lastComposerNodeId !== composerKey;
+    // Save the previous node's draft before changing the composer owner.
     if(switchedNode) savePromptDraftForCurrent();
     lastComposerNodeId = composerKey;
     activeComposerSubject = subject;
@@ -3347,16 +3352,22 @@ function updateComposer(){
     setPromptInputLocked(false);
     syncCascadeRunButton(node);
     positionComposerForNode(node);
-    const ph = Math.max(60, Math.min(380, Number(settings.promptH) || 124));
-    promptInput.style.setProperty('--prompt-h', `${ph}px`);
+    const promptHeight = Math.max(60, Math.min(380, Number(settings.promptH) || 124));
+    promptInput.style.setProperty('--prompt-h', `${promptHeight}px`);
     renderInputPromptPreview(node);
     syncCascadeRunButton(node);
-    const unsavedChanges=!switchedNode && smartComposerBaseline?.nodeId === node.id
+    // Model controls may normalize displayed values. Capture a fresh baseline
+    // only when that would not absorb an existing, unsaved user edit.
+    const hasUnsavedComposerChanges = !switchedNode && smartComposerBaseline?.nodeId === node.id
         && Object.values(smartComposerChanges(node)).some(Boolean);
     updateProviderModels();
-    if(!unsavedChanges){
-        smartComposerBaseline = {nodeId:node.id,html:promptInput.innerHTML,text:promptPlainText(),
-            settings:JSON.stringify(settingsForStorage(settings))};
+    if(!hasUnsavedComposerChanges){
+        smartComposerBaseline = {
+            nodeId:node.id,
+            html:promptInput.innerHTML,
+            text:promptPlainText(),
+            settings:JSON.stringify(settingsForStorage(settings))
+        };
     }
 }
 

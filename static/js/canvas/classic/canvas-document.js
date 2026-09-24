@@ -71,16 +71,19 @@ function resetCanvasSaveSnapshot(){
 }
 
 async function saveCanvas(){
+    // 远端状态应用期间不回写；成员模式还需具备当前保存权限。
     if(!canvas || applyingRemoteCanvas) return;
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canSave) return;
     if(savingCanvasNow){
+        // 当前请求结束后再保存，避免两个请求同时写入同一版本。
         saveCanvasAgain = true;
         return;
     }
+
     sanitizeConnections();
     const payload = canvasSavePayload();
-    const snapshot = canvasSaveSnapshot(payload);
-    if(snapshot && snapshot === lastSavedCanvasSnapshot){
+    const submittedSnapshot = canvasSaveSnapshot(payload);
+    if(submittedSnapshot && submittedSnapshot === lastSavedCanvasSnapshot){
         localCanvasDirty = false;
         saveCanvasAgain = false;
         setStatus('Saved');
@@ -89,8 +92,9 @@ async function saveCanvas(){
     savingCanvasNow = true;
     saveCanvasAgain = false;
     try {
-        const res = await window.CanvasApi.saveCanvas(canvas.id, payload);
-        if(res.status === 409){
+        const response = await window.CanvasApi.saveCanvas(canvas.id, payload);
+        if(response.status === 409){
+            // 经典画布发生版本冲突时保留本地修改，停止自动重试。
             saveCanvasAgain = false;
             localCanvasDirty = true;
             clearTimeout(saveTimer);
@@ -99,20 +103,22 @@ async function saveCanvas(){
             showErrorModal('检测到其他人已更新此画布。为避免覆盖对方修改，当前更改尚未保存，请刷新画布后重试。', '保存冲突');
             return;
         }
-        if(!res.ok) throw new Error('save failed');
-        const data = await res.json().catch(() => ({}));
-        const changedDuringSave = canvasSaveSnapshot(canvasSavePayload()) !== snapshot;
+        if(!response.ok) throw new Error('save failed');
+        const data = await response.json().catch(() => ({}));
+        const changedDuringSave = canvasSaveSnapshot(canvasSavePayload()) !== submittedSnapshot;
         const localViewport = {...viewport};
         // The response acknowledges the sent snapshot, not edits or logs added while awaiting it.
-        if(data.canvas) canvas = changedDuringSave
-            ? {...data.canvas, ...canvas, updated_at:data.canvas.updated_at, viewport:localViewport}
-            : {...canvas, ...data.canvas, viewport:localViewport};
+        if(data.canvas){
+            canvas = changedDuringSave
+                ? {...data.canvas, ...canvas, updated_at:data.canvas.updated_at, viewport:localViewport}
+                : {...canvas, ...data.canvas, viewport:localViewport};
+        }
         viewport = localViewport;
         canvas.updated_at = Number(canvas.updated_at || Date.now());
         lastCanvasUpdatedAt = canvas.updated_at;
         saveCanvasAgain = saveCanvasAgain || changedDuringSave;
         localCanvasDirty = Boolean(saveCanvasAgain);
-        lastSavedCanvasSnapshot = snapshot;
+        lastSavedCanvasSnapshot = submittedSnapshot;
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at);
         setStatus(localCanvasDirty ? 'Saving...' : 'Saved');
         if(data.canvas) {
@@ -124,6 +130,7 @@ async function saveCanvas(){
         console.error(e);
     } finally {
         savingCanvasNow = false;
+        // 保存期间产生的新修改仍是脏数据，另起一次延迟保存。
         if(saveCanvasAgain && canvas && !applyingRemoteCanvas){
             saveCanvasAgain = false;
             localCanvasDirty = true;
@@ -134,20 +141,28 @@ async function saveCanvas(){
 }
 
 function restoreClassicMemberDraft(draft){
-    if(!canvas || draft.id!==canvas.id || (draft.kind || 'classic')!=='classic' || !Array.isArray(draft.nodes) || !Array.isArray(draft.connections)) throw new Error('经典画布草稿格式不完整，请先导出保留。');
-    const restoredNodes=JSON.parse(JSON.stringify(draft.nodes)).map(serializableCanvasNode);
+    if(!canvas || draft.id !== canvas.id || (draft.kind || 'classic') !== 'classic'
+        || !Array.isArray(draft.nodes) || !Array.isArray(draft.connections)){
+        throw new Error('经典画布草稿格式不完整，请先导出保留。');
+    }
+    const restoredNodes = JSON.parse(JSON.stringify(draft.nodes)).map(serializableCanvasNode);
     restoredNodes.forEach(node => {delete node._pending;});
-    clearTimeout(saveTimer); saveTimer=null;
-    resetCascadeRuntimeState(); resetCanvasHistory();
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    resetCascadeRuntimeState();
+    resetCanvasHistory();
     // Retain server identity, revision and billing logs. Restoring local graph
     // content must not replay old task state or import an old billing snapshot.
-    canvas.title=draft.title || canvas.title;
-    canvas.icon=draft.icon || canvas.icon;
-    canvas.nodes=nodes=restoredNodes;
-    canvas.connections=connections=JSON.parse(JSON.stringify(draft.connections));
-    resetTransientRunState(nodes); sanitizeConnections(); selected.clear();
-    localCanvasDirty=true;
-    render(); renderCanvasList();
+    canvas.title = draft.title || canvas.title;
+    canvas.icon = draft.icon || canvas.icon;
+    canvas.nodes = nodes = restoredNodes;
+    canvas.connections = connections = JSON.parse(JSON.stringify(draft.connections));
+    resetTransientRunState(nodes);
+    sanitizeConnections();
+    selected.clear();
+    localCanvasDirty = true;
+    render();
+    renderCanvasList();
     window.MemberCanvasEdit.markDirty();
     setStatus('草稿已恢复，请检查后保存');
 }

@@ -1256,10 +1256,11 @@
         }
 
         async function streamChatMessage(message, pendingRefs, assistantBubble){
+            // 固定本次请求使用的配置；后续切换模型不影响已经发出的请求。
             const currentProvider = provider;
             const currentChatModel = activeChatModel || config.chat_model;
 
-            const res = await fetch('/api/chat/stream', {
+            const response = await fetch('/api/chat/stream', {
                 method:'POST',
                 headers:headers(),
                 body:JSON.stringify({
@@ -1271,33 +1272,41 @@
                     reference_images: pendingRefs
                 })
             });
-            if(!res.ok) throw new Error(chatErrorMessage((await res.json().catch(() => ({}))).detail, res.status));
-            const reader = res.body.getReader();
+            if(!response.ok){
+                throw new Error(chatErrorMessage((await response.json().catch(() => ({}))).detail, response.status));
+            }
+            const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let buffer = '';
-            let fullText = '';
+            let pendingEventText = '';
+            let assistantText = '';
             while(true){
                 const {value, done} = await reader.read();
                 if(done) break;
-                buffer += decoder.decode(value, {stream:true});
-                const events = buffer.split('\n\n');
-                buffer = events.pop() || '';
+
+                // 网络分块可能截断事件，保留最后一段，等下次读取后再解析。
+                pendingEventText += decoder.decode(value, {stream:true});
+                const events = pendingEventText.split('\n\n');
+                pendingEventText = events.pop() || '';
                 for(const eventText of events){
-                    const line = eventText.split('\n').find(item => item.startsWith('data:'));
-                    if(!line) continue;
-                    const event = JSON.parse(line.slice(5).trim());
+                    const dataLine = eventText.split('\n').find(item => item.startsWith('data:'));
+                    if(!dataLine) continue;
+                    const event = JSON.parse(dataLine.slice(5).trim());
+
                     if(event.type === 'meta'){
                         currentConversation = event.conversation;
                         rememberConversation(currentConversation.id);
                         setChatTitle(currentConversation.title);
                     }
                     if(event.type === 'delta'){
-                        fullText += event.delta || '';
-                        assistantBubble.text.textContent = fullText;
+                        assistantText += event.delta || '';
+                        assistantBubble.text.textContent = assistantText;
                         scrollBottom();
                     }
-                    if(event.type === 'error') throw new Error(chatErrorMessage(event.detail));
+                    if(event.type === 'error'){
+                        throw new Error(chatErrorMessage(event.detail));
+                    }
                     if(event.type === 'done'){
+                        // 完成后以服务端会话替换流式预览，并更新会话列表。
                         assistantBubble.bubble.classList.remove('streaming');
                         currentConversation = event.conversation;
                         rememberConversation(currentConversation.id);

@@ -4083,7 +4083,10 @@ function clearAvatarPoll(id, providerId){
     avatarPollTimers.delete(key);
     avatarPollAttempts.delete(key);
     avatarPollQueued.delete(key);
-    for(let i = avatarPollQueue.length - 1; i >= 0; i--) if(avatarPollQueue[i].key === key) avatarPollQueue.splice(i, 1);
+    // Remove queued copies backwards so removing one cannot skip the next.
+    for(let i = avatarPollQueue.length - 1; i >= 0; i--){
+        if(avatarPollQueue[i].key === key) avatarPollQueue.splice(i, 1);
+    }
 }
 function drainAvatarPollQueue(){
     while(avatarPollActive < AVATAR_POLL_CONCURRENCY && avatarPollQueue.length){
@@ -4091,11 +4094,13 @@ function drainAvatarPollQueue(){
         avatarPollQueued.delete(job.key);
         const item = findAssetItem(job.id);
         const provider = (apiProviders || []).find(p => p.id === job.providerId);
-        const reg = provider ? avatarRegistrationOf(item, providerAvatarPlatform(provider)) : null;
-        if(!item || !provider || !reg?.task_id || reg.status !== 'Processing') continue;
+        const registration = provider ? avatarRegistrationOf(item, providerAvatarPlatform(provider)) : null;
+        // A queued item may have been deleted or finished before its turn.
+        if(!item || !provider || !registration?.task_id || registration.status !== 'Processing') continue;
         avatarPollActive += 1;
         avatarPollInFlight.add(job.key);
         Promise.resolve(checkAssetAvatarStatus(job.id, true, job.providerId, job.libraryId)).finally(() => {
+            // Success and failure both release the slot before draining again.
             avatarPollActive = Math.max(0, avatarPollActive - 1);
             avatarPollInFlight.delete(job.key);
             drainAvatarPollQueue();
@@ -4113,7 +4118,10 @@ function scheduleAvatarPoll(id, providerId, reset=false, libraryId='', initialDe
     const key = `${providerId}:${id}`;
     if(reset) clearAvatarPoll(id, providerId);
     const attempt = (avatarPollAttempts.get(key) || 0) + 1;
-    if(attempt > 100){ clearAvatarPoll(id, providerId); return; }
+    if(attempt > 100){
+        clearAvatarPoll(id, providerId);
+        return;
+    }
     avatarPollAttempts.set(key, attempt);
     clearTimeout(avatarPollTimers.get(key));
     avatarPollTimers.set(key, setTimeout(() => {
@@ -4123,16 +4131,24 @@ function scheduleAvatarPoll(id, providerId, reset=false, libraryId='', initialDe
 }
 function resumeAvatarPolls(){
     let delay = 500;
-    assetLibraries().forEach(lib => (lib.categories || []).forEach(cat => (cat.items || []).forEach(item => {
-        const registrations = item?.registrations && typeof item.registrations === 'object' ? item.registrations : {};
-        Object.entries(registrations).forEach(([platform, reg]) => {
-            if(!reg || reg.status !== 'Processing' || !reg.task_id) return;
-            const providerId = avatarProviderIdForPlatform(platform, reg.provider_id || '');
-            if(!providerId) return;
-            scheduleAvatarPoll(item.id, providerId, true, lib.id || '', delay);
-            delay += 250;
-        });
-    })));
+    // Stagger recovery in library/category/item order instead of polling every
+    // saved registration at once. Only scheduled registrations advance delay.
+    assetLibraries().forEach(library =>
+        (library.categories || []).forEach(category =>
+            (category.items || []).forEach(item => {
+                const registrations = item?.registrations && typeof item.registrations === 'object'
+                    ? item.registrations
+                    : {};
+                Object.entries(registrations).forEach(([platform, registration]) => {
+                    if(!registration || registration.status !== 'Processing' || !registration.task_id) return;
+                    const providerId = avatarProviderIdForPlatform(platform, registration.provider_id || '');
+                    if(!providerId) return;
+                    scheduleAvatarPoll(item.id, providerId, true, library.id || '', delay);
+                    delay += 250;
+                });
+            })
+        )
+    );
 }
 async function deleteAssetItem(id){
     const item = findAssetItem(id);

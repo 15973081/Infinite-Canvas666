@@ -144,11 +144,29 @@
     select.value = workspace; await render();
   }
   async function render() {
-    const stamp = ++serial, content = $('#content'); $('#title').textContent = names[view];
+    const requestSerial = ++serial, content = $('#content');
+    $('#title').textContent = names[view];
     document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     content.replaceChildren(el('p', '正在读取…', 'muted'));
-    const result = await ({imageTools:imageToolsView,modelBilling:modelBillingView,billing: billingView, databases: databaseView, overview, members: memberView, spaces: spaceView, roles: roleView, maintenance: maintenanceView, providers: providerView, audit: auditView, tasks: taskView, backups: backupView, occupancy: occupancyView}[view])();
-    if (stamp === serial) content.replaceChildren(...result);
+    const result = await ({
+      imageTools: imageToolsView,
+      modelBilling: modelBillingView,
+      billing: billingView,
+      databases: databaseView,
+      overview,
+      members: memberView,
+      spaces: spaceView,
+      roles: roleView,
+      maintenance: maintenanceView,
+      providers: providerView,
+      audit: auditView,
+      tasks: taskView,
+      backups: backupView,
+      occupancy: occupancyView
+    }[view])();
+    // A page/scope change or logout increments serial while this view is loading.
+    // Its late response must not replace the newer page.
+    if (requestSerial === serial) content.replaceChildren(...result);
   }
   async function imageToolsView(){
     if(!me.permissions.includes('provider.configure'))return denied();
@@ -164,11 +182,24 @@
     return [await window.ManagementModelBilling.create({catalog:{...data,reload},save:(row,body)=>api('/api/providers/'+encodeURIComponent(row.id),{method:'PUT',body:JSON.stringify(body)})})];
   }
   async function billingView(){
-    if(!allowed(workspace?'billing.read':'billing.platform'))return denied();
-    const scope=workspace,canAssign=scope&&(allowed('billing.assign')||me.permissions.includes('billing.assign.platform'));
-    const assignmentApi=canAssign?(path,options)=>{const [route,extra]=path.split('&');return api('/api/billing/'+route+'?workspace='+encodeURIComponent(scope)+(extra?'&'+extra:''),options);}:null;
-    const hint=!scope&&me.permissions.includes('billing.assign.platform')?[el('p','补录整张画布的账单，请先在右上角管理范围选择具体空间。','muted')]:[];
-    return [...hint,await window.CanvasBillingUI.create({assignmentApi,fetchReport:params=>api('/api/billing?'+new URLSearchParams({...params,...(scope?{workspace:scope}:{})}))})];
+    if(!allowed(workspace ? 'billing.read' : 'billing.platform')) return denied();
+    // Bind report and assignment requests to the scope that opened this view.
+    const scope = workspace,
+      canAssign = scope && (allowed('billing.assign') || me.permissions.includes('billing.assign.platform'));
+    const assignmentApi = canAssign ? (path, options) => {
+      const [route, extra] = path.split('&');
+      return api('/api/billing/' + route + '?workspace=' + encodeURIComponent(scope) + (extra ? '&' + extra : ''), options);
+    } : null;
+    const hint = !scope && me.permissions.includes('billing.assign.platform')
+      ? [el('p', '补录整张画布的账单，请先在右上角管理范围选择具体空间。', 'muted')]
+      : [];
+    return [...hint, await window.CanvasBillingUI.create({
+      assignmentApi,
+      fetchReport: params => api('/api/billing?' + new URLSearchParams({
+        ...params,
+        ...(scope ? {workspace:scope} : {})
+      }))
+    })];
   }
   function denied() { return [el('div', '当前管理范围未授予此项权限。请选择其他空间或联系管理员。', 'empty')]; }
   function overviewBytes(value) {

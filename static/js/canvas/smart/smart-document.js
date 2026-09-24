@@ -449,8 +449,12 @@ function scheduleSave(){
 
 async function saveCanvas(options={}){
     const force = options.force === true;
-    if(!canvasId || !canvas || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canSave : isSmartCanvasLocked())) return false;
+    // 成员模式检查保存权限，旧模式检查画布锁；强制保存也不能跳过此检查。
+    if(!canvasId || !canvas || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canSave : isSmartCanvasLocked())){
+        return false;
+    }
     if(smartSaveInFlight){
+        // 复用当前请求。强制保存需在它结束后继续检查是否还有未保存修改。
         smartSaveAgain = true;
         const result = await smartSaveInFlight;
         if(force && smartCanvasDirty && !isSmartCanvasLocked()) return saveCanvas(options);
@@ -459,6 +463,7 @@ async function saveCanvas(options={}){
     if(!force && !smartCanvasDirty) return true;
 
     const operation = (async () => {
+        // 先将编辑面板草稿写回节点，再制作本次提交的数据和节点/连线集合。
         savePromptDraftForCurrent();
         nodes.forEach(node => {
             node.images = (node.images || []).map(img => mediaItemForStorage(stripImageGenerationMeta(img)));
@@ -469,10 +474,10 @@ async function saveCanvas(options={}){
         canvas.viewport = {...viewport};
         const storageCanvas = canvasForStorage();
         const savedNodeIds = new Set((storageCanvas.nodes || []).map(node => node?.id).filter(Boolean));
-        const savedConnectionKeys = new Set((storageCanvas.connections || []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
+        const savedConnectionKeys = new Set((storageCanvas.connections || []).map(connection => `${connection?.from}->${connection?.to}:${connection?.kind || 'flow'}`));
         canvasSyncInFlight = true;
         try {
-            const res = await window.CanvasApi.saveCanvas(canvasId, {
+            const response = await window.CanvasApi.saveCanvas(canvasId, {
                 title:storageCanvas.title || tr('smart.title'),
                 icon:storageCanvas.icon || 'sparkles',
                 nodes:storageCanvas.nodes || [],
@@ -483,13 +488,14 @@ async function saveCanvas(options={}){
                 base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
                 client_id:smartClientId
             });
-            if(res.ok){
-                const data = await res.json().catch(() => ({}));
+            if(response.ok){
+                const data = await response.json().catch(() => ({}));
                 if(data.canvas && data.canvas.updated_at){
                     canvas.updated_at = data.canvas.updated_at;
-                    if(window.CanvasSession?.enabled) canvas.revision=data.canvas.revision;
+                    if(window.CanvasSession?.enabled) canvas.revision = data.canvas.revision;
                     updateSmartCanvasNav();
                 }
+                // 响应只确认本次提交；请求期间若又编辑过，不能清除脏标记。
                 if(!smartSaveAgain){
                     smartCanvasDirty = false;
                     smartServerNodeIds = savedNodeIds;
@@ -501,12 +507,14 @@ async function saveCanvas(options={}){
                 return true;
             }
             if(window.CanvasSession?.enabled){
-                smartCanvasDirty=true; smartSaveAgain=false;
+                // 成员模式保留未保存内容，不进入下方旧模式的冲突合并分支。
+                smartCanvasDirty = true;
+                smartSaveAgain = false;
                 return false;
             }
-            if(res.status === 409) {
+            if(response.status === 409) {
                 // 冲突：别人先保存了。合并对方的状态，再以最新 updated_at 重试。
-                const data = await res.json().catch(() => ({}));
+                const data = await response.json().catch(() => ({}));
                 const serverCanvas = data.detail?.canvas;
                 if(serverCanvas){
                     applyMergedServerCanvas(serverCanvas);
@@ -522,7 +530,7 @@ async function saveCanvas(options={}){
                 smartSaveAgain = true;
                 return false;
             }
-            throw new Error(await responseErrorMessage(res, '画布保存失败'));
+            throw new Error(await responseErrorMessage(response, '画布保存失败'));
         } catch(e) {
             smartCanvasDirty = true;
             smartSaveAgain = true;
@@ -540,6 +548,7 @@ async function saveCanvas(options={}){
         return await operation;
     } finally {
         if(smartSaveInFlight === operation) smartSaveInFlight = null;
+        // 请求结束后统一安排后续保存，每次执行仍会重新检查权限和锁。
         if((smartSaveAgain || smartCanvasDirty) && !isSmartCanvasLocked()){
             clearTimeout(saveTimer);
             smartSaveAgain = false;
