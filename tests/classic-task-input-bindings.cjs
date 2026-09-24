@@ -83,6 +83,14 @@ function fixture(kind='Image',{count=2,noOutput=false,stage='poll',status='succe
     return {c,prompt,source:sourceNode,lease,counts,requests,records,timers,gate,reached:()=>reached,
         start:()=>c[kind==='Image'?'runGenerator':'runVideoNode']('src'),get out(){return c.nodes.find(n=>n.type==='output');}};
 }
+test('classic partial batch submission keeps and completes the accepted sibling',async()=>{
+    const f=fixture('Image'),submit=f.c.window.CanvasApi.createCanvasImageTaskRequest;
+    let attempts=0;
+    f.c.window.CanvasApi.createCanvasImageTaskRequest=payload=>++attempts===1?Promise.reject(new Error('one request rejected')):submit(payload);
+    const waiting=f.start();await until(f.reached);f.gate.resolve();await waiting;
+    assert.equal(attempts,2);assert.equal(f.counts.submitted,1);assert.equal(f.out.images.length,1);assert.equal(f.out._pending.length,0);
+});
+
 for(const kind of ['Image','Video']){
     test('classic '+kind+' actual save, POST receipt and completion use one bound input',async()=>{
         const f=fixture(kind),waiting=f.start();await until(f.reached);assert.ok(f.counts.saved>=2);

@@ -13,6 +13,9 @@ _RECORD_COLUMNS = """id,title,kind,revision,created_at,updated_at,deleted_at,
 
 def _document(row):
     value = copy.deepcopy(row["document"])
+    registry = value.pop('_task_results', None)
+    if registry:
+        value['task_result_version'] = registry['version']
     value.update(id=row["id"], title=row["title"], kind=row["kind"], revision=row["revision"],
                  created_at=int(row["created_at"].timestamp() * 1000), updated_at=int(row["updated_at"].timestamp() * 1000))
     if row["deleted_at"]:
@@ -91,6 +94,8 @@ def save_metadata(canvas):
 def save(canvas, touch=True):
     from app.storage.media import normalize_document, referenced_ids
     value = normalize_document(copy.deepcopy(canvas))
+    seen_result_version = value.pop('task_result_version', 0) or 0
+    value.pop('_task_results', None)
     revision = value.pop("revision", None)
     # Ledger ingestion belongs to the service. Keep a bounded compatibility log snapshot.
     value["logs"] = (value.get("logs") or [])[-5000:]
@@ -108,6 +113,11 @@ def save(canvas, touch=True):
             else:
                 from app.services.canvas_leases import request_write
                 request_write(conn, value['id'])
+        if revision is not None:
+            stored = conn.execute('SELECT document FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE', (current_workspace(), value['id'])).fetchone()
+            if stored:
+                from app.services.canvas_task_results import merge_unseen_deliveries
+                merge_unseen_deliveries(value, stored['document'], seen_result_version)
         args = (value.get("title") or "未命名画布", value.get("kind") or "classic", Jsonb(value), now / 1000, deleted / 1000 if deleted else None)
         if revision is None:
             row = conn.execute("INSERT INTO canvases(workspace_id,id,title,kind,document,updated_at,deleted_at,created_at) VALUES(%s,%s,%s,%s,%s,to_timestamp(%s),to_timestamp(%s),to_timestamp(%s)) ON CONFLICT(id) DO NOTHING RETURNING *", (current_workspace(), value["id"], *args, created / 1000)).fetchone()
@@ -121,7 +131,7 @@ def save(canvas, touch=True):
                 created_by=CASE WHEN %s THEN %s ELSE created_by END
                 WHERE workspace_id=%s AND id=%s RETURNING *''',
                 (access.principal.member_id, revision is None, access.principal.member_id, current_workspace(), value['id'])).fetchone()
-        ids = sorted(referenced_ids(value))
+        ids = sorted(referenced_ids({key: item for key, item in value.items() if key != '_task_results'}))
         if ids:
             ready = conn.execute("SELECT id FROM assets WHERE workspace_id=%s AND id=ANY(%s) AND status='ready' AND deleted_at IS NULL ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()
             if {r["id"] for r in ready} != set(ids):

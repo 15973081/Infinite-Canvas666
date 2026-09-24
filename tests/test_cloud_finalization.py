@@ -62,6 +62,11 @@ def assert_committed(tid, cid, count):
     totals = canvas_ledger.read_page(cid)["totals"]
     assert totals["records"] == 1
     assert totals["total"] == 50000 * count
+    from app.storage import canvases
+    canvas = canvases.get(cid)
+    assert canvas['task_result_version'] == 1
+    delivered = [node for node in canvas['nodes'] if node.get('result_task_id') == tid]
+    assert len(delivered) == 1 and len(delivered[0]['images']) == count
 
 
 def test_interrupted_second_image_resumes_same_slots_without_generation(fake_supplier_catalog):
@@ -112,6 +117,22 @@ def test_result_and_ledger_rollback_together_then_reuse_ready_objects(fake_suppl
     with patch.object(providers, "generate_ai_image", side_effect=AssertionError("duplicate paid submit")), patch.object(media.FilesystemStore, "put", side_effect=AssertionError("ready output must be reused")):
         asyncio.run(worker.execute(claim(tid)))
     assert media.get_asset(ready["id"])["object_version_id"] == ready["object_version_id"]
+    assert_committed(tid, cid, 1)
+
+
+def test_canvas_delivery_failure_rolls_back_success_and_fees_then_reuses_result(fake_supplier_catalog):
+    from app.storage import worker, tasks, canvases, database
+    from app.routers import providers
+    tid, cid = new_task(count=1)
+    with patch.object(providers, 'generate_ai_image', side_effect=image_supplier([])), \
+         patch('app.storage.canvas_asset_groups.save_group', side_effect=OSError('canvas write unavailable')):
+        asyncio.run(worker.execute(claim(tid)))
+    assert tasks.get(tid)['status'] == 'finalizing'
+    assert canvases.get(cid)['nodes'] == []
+    with database.connection() as conn:
+        assert conn.execute('SELECT count(*) AS n FROM ledger_entries WHERE canvas_id=%s', (cid,)).fetchone()['n'] == 0
+    with patch.object(providers, 'generate_ai_image', side_effect=AssertionError('must not regenerate')):
+        asyncio.run(worker.execute(claim(tid)))
     assert_committed(tid, cid, 1)
 
 

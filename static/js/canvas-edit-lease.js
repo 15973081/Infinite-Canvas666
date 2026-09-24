@@ -93,7 +93,10 @@
             });
         }
         renew() {
-            return this.enqueue(async () => {
+            // Ownership must not expire behind slow document writes or submissions.
+            if(this.renewing)return this.renewing;
+            if(this.settlingOwnership)return Promise.resolve();
+            const request=(async () => {
                 if (!this.canSave) return;
                 const epoch = this.epoch, sentAt = this.now();
                 try {
@@ -103,7 +106,16 @@
                     // A heartbeat acknowledges ownership, never a document revision.
                     this.emit();
                 } catch (error) { if (epoch === this.epoch) this.pause(error.message); throw error; }
-            });
+            })();
+            this.renewing=request.finally(()=>{this.renewing=null;});
+            return this.renewing;
+        }
+        async settleOwnership(operation) {
+            // Finish outstanding heartbeats before releasing/transferring ownership;
+            // a late rejected heartbeat must not invalidate a successful handoff.
+            this.settlingOwnership=true;
+            try {await this.renewing;return await operation();}
+            finally {this.settlingOwnership=false;}
         }
         async restoreDraft(baseRevision, apply) {
             if (!this.canEdit) throw new Error('请先开始编辑，再恢复草稿。');
@@ -189,7 +201,7 @@
             this.finishing = true; this.emit();
             try {
                 if (approve && !await flush()) return false;
-                return await this.enqueue(async () => {
+                return await this.enqueue(() => this.settleOwnership(async () => {
                     const epoch = this.epoch;
                     try {
                         const data = await this.request('/transfers/' + encodeURIComponent(id), {method:'POST',
@@ -211,7 +223,7 @@
                         }
                         throw error;
                     }
-                });
+                }));
             } finally { this.finishing = false; this.emit(); }
         }
         write(path, init, transport=this.transport) {
@@ -278,7 +290,7 @@
             try {
             // Flush uses write(), so must happen outside the serialized request queue.
             if (!await flush()) return false;
-            return await this.enqueue(async () => {
+            return await this.enqueue(() => this.settleOwnership(async () => {
                 const epoch = this.epoch;
                 try {
                     const data = await this.request('/release', {method:'POST', headers:this.headers()});
@@ -287,7 +299,7 @@
                     this.epoch++; this.token = null; this.deadline = 0; this.status = null; this.state = 'view'; this.message = '已保存并结束编辑'; this.emit();
                     return true;
                 } catch (error) { if (epoch === this.epoch) this.pause(error.message); throw error; }
-            });
+            }));
             } finally { this.finishing = false; this.emit(); }
         }
         dispose() { this.epoch++; this.token = null; this.pending = null; this.deadline = 0; this.state = 'closed'; }

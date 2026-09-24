@@ -2372,7 +2372,14 @@ function refreshSmartNodes(ids, {forceIds=[]}={}){
     affected.forEach(id => {
         const node = byId.get(id);
         const current = world.querySelector(`.image-node[data-id="${CSS.escape(id)}"]`);
-        if(!node || !current) return;
+        if(!node) return;
+        if(!current){
+            const tpl=document.createElement('template');
+            tpl.innerHTML=isSmartNodeInViewport(node,400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            const fresh=tpl.content.firstElementChild;
+            if(fresh){world.appendChild(fresh);bindNodeEvents([fresh]);bindSmartPreviewImageFallbacks(fresh);measureSmartNodeImages(fresh);}
+            return;
+        }
         if(current.contains(document.activeElement) && !forceIds.includes(id)){
             if(!current._smartRefreshPending){
                 current._smartRefreshPending = true;

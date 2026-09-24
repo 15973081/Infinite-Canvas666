@@ -29,7 +29,7 @@
     const taskKey=task=>String(task?.canvasTaskId || task?.taskId || '');
     // Display observations live outside the saved document. Losing edit rights
     // must neither mutate that document nor stop authorized status reads.
-    function recovery({list,read,apply,changed,current,allowed,now=Date.now}) {
+    function recovery({list,read,apply,changed,current,allowed,sync,now=Date.now}) {
         const states=new Map();let stopped=false,busy=false,timer=null;
         const live=()=>!stopped && current();
         const present=item=>live() && allowed() && list().some(row=>row.task===item.task && row.id===item.id);
@@ -49,6 +49,8 @@
             clearTimeout(timer);busy=true;
             try {
                 if(!live() || !allowed()){states.clear();changed();return;}
+                if(sync)await sync(()=>live() && allowed());
+                if(!live() || !allowed())return;
                 const items=list(),ids=new Set(items.map(item=>item.id));
                 for(const id of states.keys())if(!ids.has(id))states.delete(id);
                 // Bound simultaneous requests even for large reopened canvases.
@@ -65,7 +67,8 @@
                                 ['queued','pending','submitting','submitted','running','polling','saving','finalizing','processing'].includes(record.status) ? 'running' : 'checking';
                             update(item,status);
                             if(status==='succeeded'){
-                                try {await apply(item,record,()=>present(item));} catch(_){/* Keep the saved result available for explicit joining. */}
+                                try {await apply(item,record,()=>present(item));}
+                                catch(error){if(!error?.resultPending)console.warn('Canvas task local apply failed',item.id,error);}
                             }
                         } catch(error){
                             if(!present(item))continue;
@@ -73,11 +76,52 @@
                         }
                     }
                 }));
+            } catch(error) {
+                // A failed sync keeps the old delivery cursor for the next retry.
+                console.warn('Canvas task reconciliation failed', error);
             } finally {
                 busy=false;if(live())timer=setTimeout(refresh,5000);
             }
         }
         return {get,refresh,stop(){stopped=true;clearTimeout(timer);states.clear();}};
+    }
+    function mergeDeliveries(document, response){
+        if(response.canvas_id!==document.id || !Number.isSafeInteger(response.result_version) ||
+            response.result_version<(document.task_result_version || 0) || !Array.isArray(response.deliveries))throw new Error('Invalid canvas deliveries');
+        const nodes=document.nodes, affected=new Set(), clone=value=>JSON.parse(JSON.stringify(value));
+        const append=result=>{
+            const node=clone(result),taken=new Set(nodes.map(item=>item.id));let suffix=1;
+            while(taken.has(node.id))node.id=result.id+'_'+(++suffix);
+            nodes.push(node);affected.add(node.id);return node;
+        };
+        const mediaId=item=>item?.media_asset_id || String(item?.url || item || '').match(/^\/(?:assets\/cloud|api\/media)\/(ast_[A-Za-z0-9_-]+)(?:\/|$)/)?.[1] || item?.url || item;
+        for(const delivery of response.deliveries){
+            if(delivery.version<=(document.task_result_version || 0))continue;
+            const result=delivery.node, taskId=delivery.task_id;
+            if(result.images?.length){
+                const present=new Set(nodes.flatMap(node=>node.images || []).map(mediaId));
+                const missing=result.images.filter(item=>!present.has(mediaId(item)));
+                if(missing.length){
+                    let target=nodes.find(node=>node.id===delivery.target_id && ['output','smart-image'].includes(node.type));
+                    if(!target)target=nodes.find(node=>node.result_task_id===taskId && ['output','smart-image'].includes(node.type));
+                    if(!target)target=append({...result,images:[]});
+                    target.images=[...(target.images || []),...clone(missing)];affected.add(target.id);
+                }
+            }else if(!nodes.some(node=>node.result_task_id===taskId && node.text===result.text)){
+                append(result);
+            }
+            for(const node of nodes){
+                for(const [field,key] of [['_pending','canvasTaskId'],['pendingTasks','taskId']]){
+                    if(!Array.isArray(node[field]))continue;
+                    const remaining=node[field].filter(task=>task?.[key]!==taskId);
+                    if(remaining.length===node[field].length)continue;
+                    node[field]=remaining;affected.add(node.id);
+                    if(field==='pendingTasks'){node.pending=remaining.length;if(!node.pending)node.running=false;}
+                }
+            }
+        }
+        document.task_result_version=response.result_version;
+        return [...affected];
     }
     function elapsed(task){
         if(!['succeeded','failed','cancelled'].includes(task?.status))return null;
@@ -86,7 +130,7 @@
         const ms=Math.round((end-start)*1000);
         return Number.isSafeInteger(ms) && ms>0 ? ms : null;
     }
-    const api={capture,guard,pending,recovery,elapsed};
+    const api={capture,guard,pending,recovery,elapsed,mergeDeliveries};
     if(typeof module==='object' && module.exports) module.exports=api;
     else window.CanvasTaskResults=api;
 })();

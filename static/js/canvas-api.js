@@ -462,7 +462,7 @@
     }
 
     function getCanvasImageTaskRequest(taskId, options={}){
-        return request(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`, {}, options);
+        return request(`/api/canvas-image-tasks/${encodeURIComponent(taskId)}`, {signal:AbortSignal.timeout(10000)}, options);
     }
 
     function createCanvasVideo(payload, options={}){
@@ -474,7 +474,7 @@
     }
 
     function getCanvasVideoTaskRequest(taskId, options={}){
-        return request(`/api/canvas-video-tasks/${encodeURIComponent(taskId)}`, {}, options);
+        return request(`/api/canvas-video-tasks/${encodeURIComponent(taskId)}`, {signal:AbortSignal.timeout(10000)}, options);
     }
 
     function queryImageTask(payload, options={}){

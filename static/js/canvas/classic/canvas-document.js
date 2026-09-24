@@ -46,6 +46,7 @@ function canvasSavePayload(){
         nodes:serializableCanvasNodes(),
         connections,
         logs:canvas.logs || [],
+        task_result_version:canvas.task_result_version || 0,
         client_id:CLIENT_ID,
         base_updated_at:Number(lastCanvasUpdatedAt || canvas.updated_at || 0)
     };
@@ -109,9 +110,12 @@ async function saveCanvas(){
         const localViewport = {...viewport};
         // The response acknowledges the sent snapshot, not edits or logs added while awaiting it.
         if(data.canvas){
+            const deliveredVersion = canvas.task_result_version || 0;
             canvas = changedDuringSave
                 ? {...data.canvas, ...canvas, updated_at:data.canvas.updated_at, viewport:localViewport}
                 : {...canvas, ...data.canvas, viewport:localViewport};
+            // Only the delivery merger may acknowledge results in the live nodes.
+            canvas.task_result_version = deliveredVersion;
         }
         viewport = localViewport;
         canvas.updated_at = Number(canvas.updated_at || Date.now());

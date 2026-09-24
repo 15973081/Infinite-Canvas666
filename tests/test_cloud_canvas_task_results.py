@@ -236,3 +236,122 @@ def test_result_recovery_tolerates_legacy_optional_media_metadata(world, tmp_pat
     assert response.status_code == 200, response.text
     nodes = response.json()['canvas']['nodes']
     assert len(nodes) == 3 and nodes[1]['_pending'] == [None] and nodes[1]['pendingTasks'] == [None]
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+@pytest.mark.parametrize('media_kind', ['online-image', 'video'])
+def test_background_delivery_survives_expired_lease_and_stale_save(world, tmp_path, kind, media_kind):
+    from app.storage import database, canvases
+    from app.storage.workspace import workspace_scope
+    from app.services.canvas_task_results import deliver_completed
+    path, canvas = setup_canvas(world, kind)
+    tid, asset = result_task(world, canvas, tmp_path, media_kind)
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        before_task = conn.execute('SELECT * FROM tasks WHERE id=%s', (tid,)).fetchone()
+        before_fees = conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()
+        assert deliver_completed(conn, tid)
+        assert not deliver_completed(conn, tid)
+        delivered = canvases.get(canvas['id'])
+        assert delivered['revision'] == canvas['revision']
+        assert delivered['task_result_version'] == 1
+        assert '_task_results' not in delivered
+        assert delivered['nodes'][0]['images'][0]['media_asset_id'] == asset['id']
+        assert conn.execute('SELECT * FROM tasks WHERE id=%s', (tid,)).fetchone() == before_task
+        assert conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall() == before_fees
+    delta = world['viewer'].get(path + '/task-results?delivered_after=0', headers=headers(world['a']))
+    assert delta.status_code == 200 and len(delta.json()['deliveries']) == 1
+    assert world['outsider'].get(path + '/task-results?delivered_after=0', headers=headers(world['b'])).status_code == 404
+    lease = acquire(world, path)
+    draft = {'id': 'edited', 'type': 'prompt', 'text': 'unsaved new prompt', 'x': 999}
+    payload = {'title': 'new draft', 'nodes': [draft], 'base_revision': canvas['revision'], 'task_result_version': 0}
+    saved = world['editor'].put(path, headers=proof(world, lease), json=payload)
+    assert saved.status_code == 200, saved.text
+    document = saved.json()['canvas']
+    assert document['nodes'][0] == draft and len(document['nodes']) == 2
+    assert document['task_result_version'] == 1
+    # After seeing the result, intentional deletion must survive every retry.
+    payload.update(task_result_version=1, base_revision=document['revision'])
+    removed = world['editor'].put(path, headers=proof(world, lease, document['revision']), json=payload)
+    assert removed.status_code == 200, removed.text
+    assert removed.json()['canvas']['nodes'] == [draft]
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        assert not deliver_completed(conn, tid)
+        assert canvases.get(canvas['id'])['nodes'] == [draft]
+    assert world['viewer'].get(path + '/task-results?delivered_after=0', headers=headers(world['a'])).json()['deliveries'] == []
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_sibling_results_append_despite_input_changes_and_missing_source(world, tmp_path, kind):
+    from app.storage import database, canvases
+    from app.storage.workspace import workspace_scope
+    from app.services.canvas_task_results import deliver_completed
+    _, canvas = setup_canvas(world, kind)
+    tasks = [result_task(world, canvas, tmp_path, media_kind) for media_kind in ['online-image', 'video']]
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        document = canvases.get(canvas['id'])
+        document['nodes'] = [{'id': 'out', 'type': 'smart-image' if kind == 'smart' else 'output',
+                              'promptDraftText': 'changed after submit', 'images': [],
+                              '_pending': [{'canvasTaskId': tid} for tid, _ in tasks],
+                              'pendingTasks': [{'taskId': tid} for tid, _ in tasks]}]
+        canvases.save(document)
+        for tid, _ in tasks:
+            binding = {'canvas_id': canvas['id'], 'canvas_kind': kind, 'target_node_id': 'out',
+                       'source_node_id': 'deleted-source', 'graph_sha256': 'obsolete'}
+            conn.execute('UPDATE tasks SET request=request || %s WHERE id=%s', (Jsonb({'_canvas_binding': binding}), tid))
+            assert deliver_completed(conn, tid)
+        result = canvases.get(canvas['id'])
+        assert len(result['nodes']) == 1
+        target = result['nodes'][0]
+        assert target['promptDraftText'] == 'changed after submit'
+        assert {item['media_asset_id'] for item in target['images']} == {asset['id'] for _, asset in tasks}
+        assert not target['_pending'] and not target['pendingTasks']
+        assert result['task_result_version'] == 2
+
+
+def test_historical_sweep_only_recovers_still_pending_results(world, tmp_path):
+    from app.storage import database, canvases
+    from app.storage.workspace import workspace_scope
+    from app.services.canvas_task_results import reconcile_pending
+    _, canvas = setup_canvas(world)
+    waiting, _ = result_task(world, canvas, tmp_path)
+    removed, _ = result_task(world, canvas, tmp_path)
+    with workspace_scope(world['a']['id']):
+        document = canvases.get(canvas['id'])
+        document['nodes'] = [{'id': 'old', 'type': 'output', '_pending': [{'canvasTaskId': waiting}]}]
+        canvases.save(document)
+    reconcile_pending()
+    reconcile_pending()
+    with workspace_scope(world['a']['id']):
+        document = canvases.get(canvas['id'])
+        assert document['task_result_version'] == 1
+        assert not document['nodes'][0]['_pending']
+        assert [n.get('result_task_id') for n in document['nodes'] if n.get('result_task_id')] == [waiting]
+
+
+def test_background_delivery_cannot_read_another_workspace_task(world, tmp_path):
+    from app.storage.database import connection
+    from app.storage.workspace import workspace_scope
+    from app.services.canvas_task_results import deliver_completed
+    _, canvas = setup_canvas(world)
+    tid, _ = result_task(world, canvas, tmp_path)
+    with workspace_scope(world['b']['id']), connection() as conn:
+        assert not deliver_completed(conn, tid)
+
+
+def test_concurrent_workers_deliver_each_task_once(world, tmp_path):
+    from app.storage import canvases
+    from app.storage.database import connection
+    from app.storage.workspace import workspace_scope
+    from app.services.canvas_task_results import deliver_completed
+    _, canvas = setup_canvas(world)
+    task_ids = [result_task(world, canvas, tmp_path, kind)[0] for kind in ['online-image', 'video']]
+    def deliver(task_id):
+        with workspace_scope(world['a']['id']), connection() as conn:
+            return deliver_completed(conn, task_id)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        outcomes = list(pool.map(deliver, task_ids * 2))
+    assert sum(outcomes) == 2
+    with workspace_scope(world['a']['id']):
+        document = canvases.get(canvas['id'])
+        assert document['task_result_version'] == 2
+        assert {node['result_task_id'] for node in document['nodes']} == set(task_ids)

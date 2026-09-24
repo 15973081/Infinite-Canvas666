@@ -248,6 +248,7 @@ class CanvasMetaUpdate(BaseModel):
 
 
 class CanvasSaveRequest(BaseModel):
+    task_result_version: int = Field(default=0, ge=0, strict=True)
     title: str = "未命名画布"
     icon: str = "🧩"
     nodes: List[Dict[str, Any]] = []

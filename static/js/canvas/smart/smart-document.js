@@ -484,6 +484,7 @@ async function saveCanvas(options={}){
                 connections:storageCanvas.connections || [],
                 viewport:storageCanvas.viewport || {x:0,y:0,scale:1},
                 logs:storageCanvas.logs || [],
+                task_result_version:canvas.task_result_version || 0,
                 settings:storageCanvas.settings,
                 base_updated_at:storageCanvas.updated_at || canvas.updated_at || 0,
                 client_id:smartClientId

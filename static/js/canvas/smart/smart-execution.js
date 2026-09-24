@@ -2890,13 +2890,16 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
     const payload = {prompt, provider_id:runSettings.provider_id, model:runSettings.model, size:sizeForRun(runSettings), quality:runSettings.quality || 'auto', n:1, reference_images:imageRefsOnly(refs)};
     if(imageTool){payload.image_tool=imageTool.kind;payload.image_tool_revision=imageTool.revision;}
     if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
-    const tasks = await Promise.all(Array.from({length:count}, () => (window.CanvasApi?.createCanvasImageTaskRequest
+    const submitted = await Promise.allSettled(Array.from({length:count}, () => (window.CanvasApi?.createCanvasImageTaskRequest
         ? window.CanvasApi.createCanvasImageTaskRequest({...payload,canvas_id:canvasId})
         : fetch('/api/canvas-image-tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...payload, canvas_id:canvasId})})).then(async r => {
         if(!r.ok) throw new Error(await r.text());
         const task=await r.json();inputBinding?.remember(task);return task;
     })));
-    return {taskIds:tasks.map(task => task.task_id).filter(Boolean), count, providerId:payload.provider_id, model:payload.model,inputBinding};
+    const tasks=submitted.filter(item=>item.status==='fulfilled').map(item=>item.value);
+    if(!tasks.length)throw submitted.find(item=>item.status==='rejected').reason;
+    if(tasks.length<count)console.warn('部分生成请求未提交；已接受的任务继续处理。');
+    return {taskIds:tasks.map(task => task.task_id).filter(Boolean), count:tasks.length, providerId:payload.provider_id, model:payload.model,inputBinding};
 }
 
 async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null){
@@ -3145,6 +3148,7 @@ async function pollSmartCanvasTask(taskId, kind='image',options={}){
                     unavailableSince ||= nowMs();
                     if(nowMs() - unavailableSince < retryWindow) continue;
                 }
+                error.resultPending=true; // A failed GET cannot declare the paid task failed.
                 throw error;
             }
             if(!response.ok){
@@ -3153,10 +3157,12 @@ async function pollSmartCanvasTask(taskId, kind='image',options={}){
                     unavailableSince ||= nowMs();
                     if(nowMs() - unavailableSince < retryWindow) continue;
                 }
-                throw new Error(await response.text());
+                const error=new Error(await response.text());error.resultPending=true;throw error;
             }
             unavailableSince = 0;
-            const task = await response.json();
+            let task;
+            try {task=await response.json();}
+            catch(error){error.resultPending=true;throw error;}
             if(!validResult() || (window.CanvasSession?.enabled && task.canvas_edit_generation!==window.MemberCanvasEdit.active?.lease.generation)){
                 const error=new Error('结果将保留在生成结果列表，由当前编辑者加入。');error.resultPending=true;throw error;
             }
@@ -3174,7 +3180,7 @@ async function pollSmartCanvasTask(taskId, kind='image',options={}){
                 throw error;
             }
         }
-        throw new Error(tr('smart.errRunTimeout'));
+        const error=new Error(tr('smart.errRunTimeout'));error.resultPending=true;throw error;
     })();
     activeSmartTaskPolls.set(pollKey, promise);
     try {
@@ -3318,6 +3324,14 @@ async function resumeSmartPendingNode(node){
 
 function smartTaskRecovery(){
     return {
+        deliveryVersion:()=>canvas.task_result_version || 0,
+        deliveryBusy:()=>activeSmartTaskPolls.size>0 || canvasSyncInFlight,
+        mergeDeliveries:response=>{
+            const document={id:canvas.id,nodes,task_result_version:canvas.task_result_version || 0};
+            const affected=window.CanvasTaskResults.mergeDeliveries(document,response);
+            canvas.task_result_version=document.task_result_version;
+            refreshSmartNodes(affected);
+        },
         list:()=>nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video'].includes(task.kind || 'image'))
             .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),
         changed:item=>refreshSmartNodes(item ? [item.node.id] : nodes.filter(node=>smartPendingTasks(node).length).map(node=>node.id)),

@@ -84,10 +84,11 @@ def test_llm_worker_retains_text_usage_and_joins_after_target_deleted(world, kin
     assert saved.status_code == 200, saved.text
     revision = saved.json()['canvas']['revision']
     catalog = world['viewer'].get(path + '/task-results', headers=headers(world['a'])).json()['results']
-    assert catalog[0]['state'] == 'ready' and catalog[0]['binding']['state'] == 'missing'
+    assert catalog[0]['state'] == 'in_canvas' and catalog[0]['binding']['state'] == 'missing'
     assert 'raw_usage' not in str(catalog)
     joined = world['editor'].post(path + '/task-results/' + tid + '/join', headers=proof(world, lease, revision))
     assert joined.status_code == 200, joined.text
+    assert joined.json()['already_in_canvas']  # The worker, not this click, delivered the text.
     document = joined.json()['canvas']
     assert document['nodes'][0] == kept and document['nodes'][1]['text'] == REPLY
     assert document['nodes'][1]['type'] == ('smart-prompt' if kind == 'smart' else 'prompt')

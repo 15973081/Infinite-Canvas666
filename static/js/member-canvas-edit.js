@@ -539,6 +539,15 @@
                     current:()=>active===entry,
                     allowed:()=>validEntry(entry) && !window.CanvasSession.paused &&
                         ['canvas.read','task.read','asset.read'].every(permission=>window.CanvasSession.context?.workspace?.permissions?.includes(permission)),
+                    sync:async valid=>{
+                        const adapter=options.taskRecovery;
+                        if(!adapter.mergeDeliveries || adapter.deliveryBusy())return;
+                        const response=await fetch('/api/canvases/'+encodeURIComponent(entry.id)+'/task-results?delivered_after='+adapter.deliveryVersion(),
+                            {cache:'no-store',signal:AbortSignal.timeout(10000)});
+                        if(!response.ok)throw new Error('画布结果同步失败：'+response.status);
+                        const data=await response.json();
+                        if(valid() && !adapter.deliveryBusy())adapter.mergeDeliveries(data);
+                    },
                     read:async item=>{
                         const response=await fetch('/api/canvas-'+item.kind+'-tasks/'+encodeURIComponent(item.id),{cache:'no-store',signal:AbortSignal.timeout(10000)});
                         if(!response.ok){const error=new Error('任务查询失败');error.status=response.status;throw error;}

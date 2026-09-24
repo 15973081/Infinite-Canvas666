@@ -114,8 +114,13 @@ async def consume(stop):
 
 async def _consume(stop):
     owner = socket.gethostname() + ":" + str(os.getpid()) + ":" + uuid.uuid4().hex[:8]
+    reconciliation_after, next_reconciliation = '', 0
     while not stop.is_set():
         try:
+            if time.monotonic() >= next_reconciliation:
+                next_reconciliation = time.monotonic() + 60
+                from app.services.canvas_task_results import reconcile_pending
+                reconciliation_after = await asyncio.to_thread(reconcile_pending, reconciliation_after)
             await asyncio.to_thread(tasks.recover_expired, all_workspaces=True)
             row = await asyncio.to_thread(tasks.claim, owner, all_workspaces=True)
             if row:

@@ -2,6 +2,30 @@ const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {capture,pending:pendingError}=require('../static/js/canvas-task-results.js');
+const {mergeDeliveries}=require('../static/js/canvas-task-results.js');
+
+for(const type of ['output','smart-image'])test(type+' server delivery preserves drafts, siblings and deleted targets without duplicates',()=>{
+ const make=(id,version)=>({task_id:id,version,target_id:'out',node:{id:'result_'+id,type,images:[{media_asset_id:'ast_'+id,url:'/api/media/ast_'+id+'/original'}],result_task_id:id}});
+ const document={id:'c',nodes:[{id:'out',type,promptDraftText:'unsaved prompt',images:[],_pending:[{canvasTaskId:'a'},{canvasTaskId:'b'}],pendingTasks:[{taskId:'a'},{taskId:'b'}]}]};
+ const original=document.nodes[0];
+ const first={canvas_id:'c',result_version:1,deliveries:[make('a',1)]};
+ assert.deepEqual(mergeDeliveries(document,first),['out']);
+ assert.equal(document.nodes[0],original);assert.equal(original.promptDraftText,'unsaved prompt');
+ assert.equal(original.images.length,1);assert.deepEqual(original._pending,[{canvasTaskId:'b'}]);
+ assert.deepEqual(mergeDeliveries(document,first),[]);
+ document.nodes=[];
+ mergeDeliveries(document,{canvas_id:'c',result_version:2,deliveries:[make('b',2)]});
+ assert.equal(document.nodes[0].id,'result_b');assert.equal(document.nodes[0].images.length,1);
+ const snapshot=JSON.stringify(document);
+ assert.throws(()=>mergeDeliveries(document,{...first,canvas_id:'other'}));assert.equal(JSON.stringify(document),snapshot);
+});
+
+test('existing live result and server delivery are one output, even after smart metadata stripping',()=>{
+ const image={media_asset_id:'ast_a',url:'/api/media/ast_a/original'};
+ const document={id:'c',nodes:[{id:'out',type:'smart-image',images:[image],pendingTasks:[{taskId:'a'}]}]};
+ mergeDeliveries(document,{canvas_id:'c',result_version:1,deliveries:[{version:1,task_id:'a',target_id:'out',node:{id:'result_a',images:[image]}}]});
+ assert.equal(document.nodes.length,1);assert.equal(document.nodes[0].images.length,1);assert.equal(document.nodes[0].pending,0);
+});
 function fixture(){const entry={memberId:'m',workspaceId:'w',lease:{epoch:1,generation:2,canEdit:true}};return {CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}},MemberCanvasEdit:{active:entry}};}
 test('late task result is rejected after transfer, pause, same-user reentry, or scope switch',()=>{
  for(const change of [w=>w.MemberCanvasEdit.active.lease.epoch++,w=>w.MemberCanvasEdit.active.lease.generation++,w=>w.MemberCanvasEdit.active.lease.canEdit=false,w=>w.CanvasSession.paused=true,w=>w.CanvasSession.context.member.id='other',w=>w.CanvasSession.context.workspace.id='other',w=>w.MemberCanvasEdit.active={...w.MemberCanvasEdit.active}]){

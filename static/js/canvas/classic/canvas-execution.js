@@ -969,10 +969,13 @@ async function runGenerator(genId, opts={}){
         payload.size=await generatorSizeForRun(gen,refs);
         writeGuard.check();inputBinding?.check();
         if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
-        const taskInfos = await Promise.all(Array.from({length:count}, async () => {
+        const submitted = await Promise.allSettled(Array.from({length:count}, async () => {
             const task=await createCanvasImageTask(payload,{cascadeTargetId});
             inputBinding?.remember(task);return task;
         }));
+        const taskInfos=submitted.filter(item=>item.status==='fulfilled').map(item=>item.value);
+        if(!taskInfos.length)throw submitted.find(item=>item.status==='rejected').reason;
+        if(taskInfos.length<count)console.warn('部分生成请求未提交；已接受的任务继续处理。');
         writeGuard.check();inputBinding?.check();
         if(!out){
             let outputs = [];
@@ -1619,7 +1622,8 @@ async function cascadeFetch(input, init={}, options={}){
     const controller = new AbortController();
     ctx.controllers.add(controller);
     try {
-        return await fetch(input, {...init, signal:controller.signal});
+        const signal=init.signal ? AbortSignal.any([init.signal,controller.signal]) : controller.signal;
+        return await fetch(input, {...init, signal});
     } catch(err) {
         if(controller.signal.aborted || err?.name === 'AbortError'){
             throw cascadeAbortError(cascadeStopMessage(ctx.message));
@@ -2298,10 +2302,11 @@ async function pollCanvasImageTask(taskId, options={}){
     } catch(err) {
         if(inputBinding){try{inputBinding.check();}catch(_){return 'paused';}}
         if(err?.resultPending || !targetsCurrent()) return 'paused';
-        const message = normalizeCanvasTaskError(err, tr('canvas.generationFailed'));
         if(isCascadeAbortError(err)) return 'aborted';
-        failCanvasImageTask(taskId, message);
-        return 'failed';
+        // Query failures are not generation failures. Keep the task identity so
+        // the read-only reconciler can recover after network/permission changes.
+        console.warn('Image task query interrupted', err);
+        return 'paused';
     } finally {
         activeCanvasTaskPolls.delete(taskId);
     }
@@ -2530,8 +2535,8 @@ async function pollCanvasVideoTask(taskId, options={}){
         if(inputBinding){try{inputBinding.check();}catch(_){return 'paused';}}
         if(err?.resultPending || !targetsCurrent()) return 'paused';
         if(isCascadeAbortError(err)) return 'aborted';
-        failCanvasVideoTask(taskId, normalizeCanvasTaskError(err, tr('canvas.videoFailed')));
-        return 'failed';
+        console.warn('Video task query interrupted', err);
+        return 'paused';
     } finally {
         activeCanvasTaskPolls.delete(pollKey);
     }
@@ -2588,6 +2593,14 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
 
 function classicTaskRecovery(){
     return {
+        deliveryVersion:()=>canvas.task_result_version || 0,
+        deliveryBusy:()=>activeCanvasTaskPolls.size>0 || savingCanvasNow,
+        mergeDeliveries:response=>{
+            const document={id:canvas.id,nodes,task_result_version:canvas.task_result_version || 0};
+            const affected=window.CanvasTaskResults.mergeDeliveries(document,response);
+            canvas.task_result_version=document.task_result_version;
+            refreshNodes(affected);
+        },
         list:()=>nodes.filter(node=>node.type==='output').flatMap(out=>(out._pending || []).filter(task=>task.canvasTaskId && ['online-image','video'].includes(task.canvasTaskType))
             .map(task=>({id:task.canvasTaskId,canvasId:canvas.id,kind:task.canvasTaskType==='video'?'video':'image',task,out}))),
         changed:item=>{if(item)refreshRunNodes(null,item.out);else nodes.filter(node=>node.type==='output' && node._pending?.length).forEach(out=>refreshRunNodes(null,out));},

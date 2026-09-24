@@ -76,8 +76,8 @@ for(const kind of ['Image','Video'])test('classic '+kind+' polling rejects late 
   install(c,'canvas.js','pollCanvas'+kind+'Task');const waiting=c['pollCanvas'+kind+'Task']('t');
   if(scenario==='task')out._pending=[{...pending}];else change(c,scenario,source,out);
   gate.resolve();const result=await waiting;
-  assert.equal(result,scenario==='unchanged'?(outcome==='success'?'succeeded':'failed'):'paused',outcome+scenario);
-  assert.equal(finish,scenario==='unchanged'&&outcome==='success'?1:0);assert.equal(fail,scenario==='unchanged'&&outcome==='failure'?1:0);
+  assert.equal(result,scenario==='unchanged'&&outcome==='success'?'succeeded':'paused',outcome+scenario);
+  assert.equal(finish,scenario==='unchanged'&&outcome==='success'?1:0);assert.equal(fail,0);
   assert.equal(c.activeCanvasTaskPolls.size,0);
  }
 });
@@ -106,7 +106,11 @@ for(const kind of ['Image','Video'])test('classic '+kind+' outer generation pres
  for(const stage of ['submit','poll'])for(const outcome of ['success','failure'])for(const scenario of ['unchanged','handoff','reentry','source','target','canvas','paused','readonly','member','workspace']){
   const f=classicRun(kind,stage,outcome),waiting=f.start();await until(f.reached);change(f.c,scenario,f.source,f.out);
   const before=clone({nodes:f.c.nodes,source:f.source,out:f.out,counts:f.counts});f.gate.resolve();await waiting;
-  if(scenario==='unchanged'){assert.equal(f.counts.finish,outcome==='success'?1:0);if(outcome==='failure')assert.ok(f.counts.error>0);}
+  if(scenario==='unchanged'){
+   assert.equal(f.counts.finish,outcome==='success'?1:0);
+   if(outcome==='failure' && stage!=='poll')assert.ok(f.counts.error>0);
+   if(outcome==='failure' && stage==='poll'){assert.equal(f.counts.error,0);assert.equal(f.out._pending.length,1);}
+  }
   else {for(const timer of f.timers)timer();assert.deepEqual(clone({nodes:f.c.nodes,source:f.source,out:f.out,counts:f.counts}),before,stage+outcome+scenario);}
  }
 });

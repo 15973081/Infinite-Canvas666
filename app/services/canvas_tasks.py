@@ -112,9 +112,21 @@ def save_canvas_task(task: Dict[str, Any], request_payload: Optional[Dict[str, A
         from app.storage.tasks import save
         from app.storage.database import connection
         from app.services.canvas_ledger import record_task
-        with connection():
+        with connection() as conn:
+            if task.get('status') == 'succeeded':
+                from app.storage.workspace import current_workspace
+                # Match interactive joins/admission: canvas before task. Taking
+                # the task lock first can deadlock a simultaneous manual join.
+                target = conn.execute('SELECT canvas_id FROM tasks WHERE workspace_id=%s AND id=%s',
+                                      (current_workspace(), task['id'])).fetchone()
+                if target and target['canvas_id']:
+                    conn.execute('SELECT id FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE',
+                                 (current_workspace(), target['canvas_id'])).fetchone()
             stored = save(task, request_payload)
             record_task(stored)
+            if stored.get('status') == 'succeeded':
+                from app.services.canvas_task_results import deliver_completed
+                deliver_completed(conn, stored['id'])
             if stored.get("status") == "succeeded" and stored.get("type") == "online-image":
                 from app.storage.documents import put
                 put("history", "task:" + stored["id"], stored["result"])

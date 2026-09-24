@@ -27,7 +27,7 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   promptInput:{innerHTML:'original',dataset:{}},activeComposerNode:()=>c.nodes.find(n=>n.id===c.selectedId),selectedNode:()=>c.nodes.find(n=>n.id===c.selectedId),promptPlainText:()=>c.promptInput.innerHTML,
   smartClientId:'page',smartSaveInFlight:null,smartSaveAgain:false,smartCanvasDirty:false,smartSaveErrorNotified:false,canvasSyncInFlight:false,saveTimer:null,viewport:{x:0,y:0,scale:1},
   smartServerNodeIds:new Set(),smartServerConnectionKeys:new Set(),smartLoopContext:null,activeSmartTaskPolls:new Map(),activeSmartNodeResumes:new Map(),transientSmartCloudLinks:[],
-  setTimeout:(fn,ms)=>{if(ms===2000)queueMicrotask(fn);else timers.push(fn);return 1;},clearTimeout(){},Date,JSON,Object,console,
+  setTimeout:(fn,ms)=>{if(ms===2000)queueMicrotask(fn);else timers.push(fn);return 1;},clearTimeout(){},Date,JSON,Object,console,AbortSignal,
   isSmartCanvasLocked:()=>!lease.canEdit,cloneSmartSettings:s=>clone(s||{}),updateSmartCanvasNav(){},responseErrorMessage:async()=> 'save failed',
   tr:s=>s,toast:s=>c.message=s,nowMs:()=>1000,render(){},refreshSmartNodes(){},refreshConnectionLayer(){},pushUndo(){},undoSuppressed:false,
   smartSettingsForNode:n=>n.runSettings||c.settings,buildPromptRequest:()=>({prompt:c.promptInput.innerHTML,displayPrompt:c.promptInput.innerHTML,refs:[]}),
@@ -64,6 +64,13 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
  vm.runInContext(readCanvasSource(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
  return {c,src,target,loop,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):entry==='loop'?c.runLoopRoundIntoSlot(loop,src,target,1,{}):c.runGeneration()};
 }
+test('smart partial batch submission keeps and completes the accepted sibling',async()=>{
+ const f=fixture('image'),transport=f.c.fetch;let attempts=0;
+ f.c.fetch=(url,init)=>init?.method==='POST' && ++attempts===1?Promise.resolve({ok:false,text:async()=> 'one request rejected'}):transport(url,init);
+ const waiting=f.start();await until(f.reached);f.gate.resolve();await waiting;
+ assert.equal(attempts,2);assert.equal(f.counts.submit,1);assert.equal(f.out.images.length,1);assert.equal(f.out.pending,0);
+});
+
 for(const tool of ['panorama','depth'])for(const changed of [false,true])test('managed '+tool+' keeps real task receipts and '+(changed?'protects edited inputs':'joins its result'),async()=>{
  const f=fixture('image',{branch:true,count:1});
  f.c.document={querySelectorAll:()=>[]};

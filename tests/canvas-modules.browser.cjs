@@ -90,6 +90,31 @@ async function fixture(t, kind, member) {
 }
 
 for(const kind of ['classic','smart']) {
+    test(`${kind}: server delivery renders in view mode without replacing unrelated media or submitting a write`,async t=>{
+        const {page,errors,writes}=await fixture(t,kind,true);
+        const state=await page.evaluate(kind=>{
+            const type=kind==='classic'?'output':'smart-image';
+            nodes.push({id:'kept',type,x:50,y:50,images:[{url:'/test-image.svg?kept'}]},
+                {id:'target',type,x:420,y:50,promptDraftText:'unsaved input',images:[],
+                 _pending:[{canvasTaskId:'task-a'}],pendingTasks:[{taskId:'task-a'}]});
+            canvas.nodes=nodes;render();
+            const kept=document.querySelector('[data-id="kept"] img');
+            window.MemberCanvasEdit.setEditable(false);
+            const adapter=kind==='classic'?classicTaskRecovery():smartTaskRecovery();
+            adapter.mergeDeliveries({canvas_id:canvas.id,result_version:1,deliveries:[{task_id:'task-a',version:1,target_id:'target',
+                node:{id:'result-a',type,result_task_id:'task-a',images:[{url:'/test-image.svg?result',media_asset_id:'ast_result'}]}}]});
+            // A deleted target is rendered as a new independent result node.
+            adapter.mergeDeliveries({canvas_id:canvas.id,result_version:2,deliveries:[{task_id:'task-b',version:2,target_id:'deleted',
+                node:{id:'result-b',type,x:700,y:50,result_task_id:'task-b',images:[{url:'/test-image.svg?fallback',media_asset_id:'ast_fallback'}]}}]});
+            return {kept:Boolean(kept) && kept===document.querySelector('[data-id="kept"] img'),
+                target:Boolean(document.querySelector('[data-id="target"] img')),
+                fallback:Boolean(document.querySelector('[data-id="result-b"] img')),
+                prompt:nodes.find(n=>n.id==='target').promptDraftText,version:canvas.task_result_version};
+        },kind);
+        assert.deepEqual(state,{kept:true,target:true,fallback:true,prompt:'unsaved input',version:2});
+        assert.deepEqual(errors,[]);
+        assert.deepEqual(writes.filter(write=>!write.path.endsWith('/touch')),[]);
+    });
     test(`${kind}: recovered task shows an animated polling indicator only while active`,async t=>{
         const {page,errors}=await fixture(t,kind,true);
         const states=await page.evaluate(kind=>{

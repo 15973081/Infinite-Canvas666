@@ -49,6 +49,42 @@ test('renewal extends time but never replaces the acknowledged document revision
     await f.start(); await f.lease.renew();
     assert.equal(f.lease.revision,3);
 });
+
+test('heartbeat bypasses slow writes and coalesces renewals without resurrecting a lost lease',async()=>{
+ let releaseWrite,releaseRenew;
+ const writeGate=new Promise(resolve=>releaseWrite=resolve),renewGate=new Promise(resolve=>releaseRenew=resolve);
+ const f=fixture(async path=>{
+  if(path.endsWith('/acquire'))return json(publicLease({edit_token:'private'}));
+  if(path.endsWith('/renew')){await renewGate;return json(publicLease({revision:4}));}
+  await writeGate;return json({canvas:{revision:4}});
+ });
+ await f.start();
+ const writing=f.lease.write('/api/canvases/a',{method:'PUT',body:'{}'});
+ await new Promise(resolve=>setImmediate(resolve));
+ f.setTime(5000);
+ const first=f.lease.renew(),second=f.lease.renew();assert.equal(first,second);
+ assert.equal(f.calls.filter(([path])=>path.endsWith('/renew')).length,1);
+ releaseRenew();await first;assert.equal(f.lease.revision,3);
+ f.setTime(61000);assert.equal(f.lease.canEdit,true);
+ releaseWrite();await writing;assert.equal(f.lease.revision,4);
+});
+
+test('release waits for an in-flight heartbeat and prevents another renewal during handoff',async()=>{
+ let releaseRenew;
+ const gate=new Promise(resolve=>releaseRenew=resolve);
+ const f=fixture(async path=>{
+  if(path.endsWith('/acquire'))return json(publicLease({edit_token:'private'}));
+  if(path.endsWith('/renew')){await gate;return json(publicLease());}
+  return json({released:true,revision:3,generation:1});
+ });
+ await f.start();const renewal=f.lease.renew();
+ const ending=f.lease.finish(async()=>true);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.calls.some(([path])=>path.endsWith('/release')),false);
+ assert.equal(f.lease.renew(),renewal);
+ releaseRenew();await renewal;assert.equal(await ending,true);
+ assert.equal(f.lease.state,'view');assert.equal(f.calls.filter(([path])=>path.endsWith('/renew')).length,1);
+});
 test('writes serialize revision proofs, and release waits for acknowledged saves', async () => {
     let revision=3;
     const f = fixture((path,init) => {

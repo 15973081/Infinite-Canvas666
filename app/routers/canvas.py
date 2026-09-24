@@ -1401,6 +1401,7 @@ def _save_canvas_update(canvas_id: str, payload: CanvasSaveRequest):
     canvas["icon"] = (payload.icon or canvas.get("icon") or "layers")[:32]
     canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))
     canvas["nodes"] = payload.nodes
+    canvas['task_result_version'] = payload.task_result_version
     canvas["connections"] = payload.connections
     if canvas["kind"] == "smart":
         canvas["viewport"] = payload.viewport
@@ -1622,8 +1623,10 @@ from app.services.canvas import _backup_dir, _backup_path
 
 
 @router.get("/api/canvases/{canvas_id}/task-results")
-def list_completed_canvas_results(canvas_id: str, after: str = ''):
-    from app.services.canvas_task_results import catalog
+def list_completed_canvas_results(canvas_id: str, after: str = '', delivered_after: int | None = None):
+    from app.services.canvas_task_results import catalog, deliveries
+    if delivered_after is not None:
+        return deliveries(canvas_id, delivered_after)
     return catalog(canvas_id, after)
 
 
