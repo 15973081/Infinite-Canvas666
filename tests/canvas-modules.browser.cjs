@@ -129,6 +129,34 @@ for(const kind of ['classic','smart']) {
         assert.ok(bounds.button.bottom<=bounds.card.bottom,'refresh button stays inside the card');
         assert.deepEqual(errors,[]);
     });
+    if(kind==='smart')test('smart: recovered task fills its node without an upload shell',async t=>{
+        const {page,errors}=await fixture(t,'smart',true);
+        const cases=await page.evaluate(()=>{
+            window.MemberCanvasEdit.taskState=task=>task.paused
+                ? {status:'succeeded',label:'已完成，待加入'}
+                : {status:'running',label:'后台正在处理'};
+            return [false,true].map(paused=>{
+                const node={id:'recovered-'+paused,type:'smart-image',x:100,y:100,w:260,h:320,images:[],pending:paused?0:1,
+                    pendingTasks:[{taskId:'task-'+paused,kind:'image',paused}]};
+                world.insertAdjacentHTML('beforeend',renderSmartNodeHtml(node));
+                const el=world.querySelector(`.image-node[data-id="${node.id}"]`),card=el.querySelector('.task-recovery-status');
+                const box=el.getBoundingClientRect(),status=card.getBoundingClientRect();
+                const result={empty:el.classList.contains('empty-node'),uploadHint:el.querySelector('.node-hint')?.textContent || null,
+                    nodeHeight:box.height,cardHeight:status.height,cardTop:status.top,nodeTop:box.top,
+                    nodeWidth:box.width,cardWidth:status.width,cardLeft:status.left,nodeLeft:box.left};
+                el.remove();return result;
+            });
+        });
+        for(const entry of cases){
+            assert.equal(entry.empty,false);
+            assert.equal(entry.uploadHint,null);
+            assert.ok(Math.abs(entry.cardTop-entry.nodeTop)<2);
+            assert.ok(Math.abs(entry.cardHeight-entry.nodeHeight)<2);
+            assert.ok(Math.abs(entry.cardLeft-entry.nodeLeft)<2);
+            assert.ok(Math.abs(entry.cardWidth-entry.nodeWidth)<2);
+        }
+        assert.deepEqual(errors,[]);
+    });
     test(`${kind}: billing prompt expands and copies complete source text and all output links`,async t=>{
         const {page,errors}=await fixture(t,kind,false);
         const prompt='起点 <巴士> & 夜景\n'+('镜头和灯光细节，'.repeat(140))+'\n终点：保留这个收尾。';

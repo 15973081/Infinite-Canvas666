@@ -599,8 +599,9 @@ function renderSmartNodeHtml(node){
     const isLoop = node.type === 'smart-loop';
     const isImageNode = node.type === 'smart-image' || !node.type;
     const pendingCount = smartNodePendingCount(node);
+    const recoveryOnly = Boolean(isImageNode && imgs.length === 0 && window.CanvasSession?.enabled && smartPendingTasks(node).length);
     const isQueued = Boolean(node.queued && imgs.length === 0 && !pendingCount);
-    const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued;
+    const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued && !recoveryOnly;
     const isHistory = isHistoryGroupNode(node);
     const isGroup = isImageNode && imgs.length > 1;
     const faceVerified = isImageNode && imgs.length > 0 && imgs.every(img => smartFaceAuthState(img).ready);
@@ -612,14 +613,14 @@ function renderSmartNodeHtml(node){
     const body = nodeBodyHtml(node, layout);
     const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
     const hint = isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')));
-    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
         ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
         ${smartNodeToolbarHtml(node)}
         ${runTimePillHtml(node)}
         <div class="node-body">${body}</div>
-        <div class="node-hint">${hint}</div>
-        ${imgs.length || pendingCount || isQueued || isPrompt || isLoop ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
+        ${recoveryOnly ? '' : `<div class="node-hint">${hint}</div>`}
+        ${imgs.length || pendingCount || isQueued || recoveryOnly || isPrompt || isLoop ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
         <div class="node-port port-in" data-port="in" title="input"></div>
         <div class="node-port port-out" data-port="out" title="output"></div>
     </div>`;
@@ -2163,10 +2164,11 @@ function nodeBodyHtml(node, layout){
     const tasks=window.CanvasSession?.enabled ? smartPendingTasks(node) : [];
     const body=smartNodeMediaBodyHtml(node,layout);
     if(!tasks.length)return body;
+    const recoveryOnly=!((node.images || []).length);
     return body+tasks.map(task=>{
         const state=window.MemberCanvasEdit?.taskState?.(task) || {status:'checking',label:'正在核对后台任务'};
         const active=state.status==='checking' || state.status==='running';
-        return `<div class="image-task-pending-cell task-recovery-status ${active?'task-recovery-active':''}" data-task-recovery="${state.status}" style="width:${layout.width}px;min-height:120px">
+        return `<div class="image-task-pending-cell task-recovery-status ${active?'task-recovery-active':''}" data-task-recovery="${state.status}" ${recoveryOnly?'':`style="width:${layout.width}px;min-height:120px"`}>
             ${active?'<span class="task-recovery-ring" aria-hidden="true"></span>':''}
             <div class="image-task-pending-text">${escapeHtml(state.label)}</div>
             <div class="image-task-pending-sub">${state.status==='succeeded'?'结果已保存，可从生成结果加入；无需重新生成。':'查询不会重新生成或产生费用。'}</div>
