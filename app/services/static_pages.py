@@ -1,6 +1,8 @@
 """Local frontend build metadata and cache-safe HTML responses."""
 
+import gzip
 import hashlib
+from functools import lru_cache
 import mimetypes
 import os
 import re
@@ -282,6 +284,35 @@ def static_html_response(filename: str) -> Response:
     return _no_store_html_response(path)
 
 
+def _accepts_gzip(value: str) -> bool:
+    qualities = {}
+    for item in value.lower().split(','):
+        coding, *parameters = item.strip().split(';')
+        quality = 1.0
+        for parameter in parameters:
+            key, _, raw = parameter.strip().partition('=')
+            if key == 'q':
+                try:
+                    quality = float(raw)
+                except ValueError:
+                    quality = 0.0
+        qualities[coding] = quality
+    return 0 < qualities.get('gzip', qualities.get('*', 0)) <= 1
+
+
+@lru_cache(maxsize=128)
+def _compressed_static_asset(path: str, version: str) -> bytes:
+    # The content version includes CSS dependencies, so rewritten font/import
+    # URLs invalidate this bounded cache as well as the browser cache.
+    with open(path, 'rb') as stream:
+        content = stream.read()
+    if path.lower().endswith('.css'):
+        url = '/static/' + os.path.relpath(path, STATIC_DIR).replace('\\', '/')
+        content = _css_references(content.decode('utf-8'), url,
+            lambda ref: _with_asset_version(ref, asset_version(ref))).encode('utf-8')
+    return gzip.compress(content, compresslevel=6, mtime=0)
+
+
 class VersionedStaticFiles(StaticFiles):
     """Content-addressed assets; HTML remains fresh and carries deployment metadata."""
 
@@ -305,10 +336,21 @@ class VersionedStaticFiles(StaticFiles):
         requested = urllib.parse.parse_qs(query)
         if requested.get(_ASSET_VERSION_QUERY) != [version] or _FRONTEND_BUILD_QUERY in requested or 'v' in requested:
             return RedirectResponse(canonical, status_code=307, headers={'Cache-Control':'no-cache'})
-        headers = {**_static_cache_headers(scope, version), 'ETag': '"' + version + '"'}
         request_headers = Headers(scope=scope)
+        compressible = suffix in {'.js', '.css'} and file_stat.st_size >= 1024
+        compressed = compressible and not request_headers.get('range') and _accepts_gzip(request_headers.get('accept-encoding', ''))
+        etag = version + ('-gzip' if compressed else '')
+        headers = {**_static_cache_headers(scope, version), 'ETag': '"' + etag + '"'}
+        if compressible:
+            headers['Vary'] = 'Accept-Encoding'
         if self.is_not_modified(Headers(headers), request_headers):
             return Response(status_code=304, headers=headers)
+        if compressed:
+            content = _compressed_static_asset(full_path, version)
+            response = Response(content, media_type='text/css' if suffix == '.css' else 'text/javascript',
+                headers={**headers, 'Content-Encoding': 'gzip'})
+            if scope.get('method') == 'HEAD': response.body = b''
+            return response
         if suffix == '.css':
             _, content = _asset_source(full_path)
             content = _css_references(content, url,

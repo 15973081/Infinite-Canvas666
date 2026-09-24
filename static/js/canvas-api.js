@@ -49,6 +49,9 @@
     }
 
     function getLocalAssets(fallback={items:[], tree:null}){
+        // The member gateway disables the legacy filesystem catalog. Shared
+        // workspace assets are still fetched through getAssetLibrary().
+        if(window.CanvasSession?.enabled) return Promise.resolve(fallback);
         return jsonOr('/api/local-assets', fallback);
     }
 

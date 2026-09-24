@@ -242,3 +242,46 @@ class IndependentAssetCacheTests(unittest.TestCase):
         self.assertTrue(value.endswith('#section'))
         self.assertNotIn('__frontend_build',value)
         self.assertIn('__asset_version=',value)
+
+    def test_static_compression_negotiation_cache_head_and_ranges(self):
+        import gzip
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        source = 'window.example = "hello";\n' * 200
+        self.write('app.js', source)
+        self.write('app.css', '@import "fonts.css";\n' + '.card { color: red; }\n' * 100)
+        app = FastAPI()
+        app.mount('/static', static_pages.VersionedStaticFiles(directory=self.directory.name))
+        with TestClient(app) as client:
+            for name in ('app.js', 'app.css'):
+                url = self.url(name)
+                plain = client.get(url, headers={'Accept-Encoding': 'identity'})
+                compressed = client.get(url, headers={'Accept-Encoding': 'gzip'})
+                self.assertEqual(compressed.content, plain.content)
+                self.assertEqual(compressed.headers['content-encoding'], 'gzip')
+                self.assertEqual(compressed.headers['vary'], 'Accept-Encoding')
+                self.assertLess(int(compressed.headers['content-length']), len(plain.content))
+                self.assertNotEqual(compressed.headers['etag'], plain.headers['etag'])
+                with client.stream('GET', url, headers={'Accept-Encoding': 'gzip'}) as streamed:
+                    self.assertEqual(gzip.decompress(b''.join(streamed.iter_raw())), plain.content)
+                cached = client.get(url, headers={'Accept-Encoding': 'gzip', 'If-None-Match': compressed.headers['etag']})
+                self.assertEqual(cached.status_code, 304)
+                self.assertEqual(cached.headers['vary'], 'Accept-Encoding')
+                self.assertEqual(client.get(url, headers={'Accept-Encoding': 'identity', 'If-None-Match': compressed.headers['etag']}).status_code, 200)
+                head = client.head(url, headers={'Accept-Encoding': 'gzip'})
+                self.assertEqual(head.content, b'')
+                self.assertEqual(head.headers['content-length'], compressed.headers['content-length'])
+                self.assertEqual(head.headers['etag'], compressed.headers['etag'])
+                for encoding in ('gzip;q=0, *;q=1', 'br', 'gzip;q=invalid'):
+                    self.assertNotIn('content-encoding', client.get(url, headers={'Accept-Encoding': encoding}).headers)
+                self.assertEqual(client.get(url, headers={'Accept-Encoding': '*;q=0.5'}).headers['content-encoding'], 'gzip')
+            ranged = client.get(self.url('app.js'), headers={'Accept-Encoding': 'gzip', 'Range': 'bytes=0-9'})
+            self.assertEqual(ranged.status_code, 206)
+            self.assertNotIn('content-encoding', ranged.headers)
+            self.assertEqual(ranged.text, source[:10])
+            self.assertNotIn('content-encoding', client.get(self.url('font.woff2')).headers)
+            old = client.get(self.url('app.css'), headers={'Accept-Encoding': 'gzip'})
+            self.write('font.woff2', 'updated-font')
+            updated = client.get(self.url('app.css'), headers={'Accept-Encoding': 'gzip'})
+            self.assertNotEqual(old.headers['etag'], updated.headers['etag'])
+            self.assertIn(self.url('fonts.css'), updated.text)
