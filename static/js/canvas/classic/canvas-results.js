@@ -4,12 +4,12 @@
  * Uses the entry's existing shared bindings; do not duplicate permission or document state.
  */
 
-function showErrorModal(message, title=tr('canvas.generationFailed')){
+function showErrorModal(message, title='生成失败'){
     if(!errorModal || !errorMessage){
         console.error(message || title);
         return;
     }
-    errorTitle.textContent = title || tr('canvas.generationFailed');
+    errorTitle.textContent = title || '生成失败';
     const raw = String(message || title || '');
     errorMessage.textContent = raw;
     const summary = document.getElementById('errorSummary');
@@ -107,7 +107,7 @@ async function downloadOutputNodeImages(nodeId){
     const node = nodes.find(n => n.id === nodeId);
     const urls = outputDownloadableImageUrls(node);
     if(!node || !urls.length){
-        alert(tr('canvas.outputDownloadEmpty'));
+        alert('没有可下载的本地文件');
         return;
     }
     try {
@@ -119,7 +119,7 @@ async function downloadOutputNodeImages(nodeId){
                 filename:`${(canvas?.title || 'canvas-output').slice(0, 48)}-${node.id}.zip`
             })
         });
-        if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.outputDownloadEmpty')));
+        if(!res.ok) throw new Error(await responseErrorMessage(res, '没有可下载的本地文件'));
         const blob = await res.blob();
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -129,7 +129,7 @@ async function downloadOutputNodeImages(nodeId){
         link.remove();
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     } catch(err) {
-        alert(err.message || tr('canvas.outputDownloadEmpty'));
+        alert(err.message || '没有可下载的本地文件');
     }
 }
 
@@ -137,7 +137,7 @@ async function downloadGroupNodeImages(groupId){
     const group = nodes.find(n => n.id === groupId);
     const items = groupImageItems(group);
     if(!group || !items.length){
-        alert(tr('canvas.outputDownloadEmpty'));
+        alert('没有可下载的本地文件');
         return;
     }
     const filename = safeDownloadFileName(`${canvas?.title || 'canvas-group'}-${group.id}.zip`, 'canvas-group.zip');
@@ -151,7 +151,7 @@ async function downloadGroupNodeImages(groupId){
                 items:items.map((item, index) => ({url:item.url, name:downloadNameForGroupImage(item, index)}))
             })
         });
-        if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.outputDownloadEmpty')));
+        if(!res.ok) throw new Error(await responseErrorMessage(res, '没有可下载的本地文件'));
         const blob = await res.blob();
         const href = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -162,7 +162,7 @@ async function downloadGroupNodeImages(groupId){
         link.remove();
         setTimeout(() => URL.revokeObjectURL(href), 1200);
     } catch(err) {
-        alert(err.message || tr('canvas.outputDownloadEmpty'));
+        alert(err.message || '没有可下载的本地文件');
     }
 }
 
@@ -205,7 +205,7 @@ function isMissingAssetUrl(url){
 }
 
 function missingAssetHtml(url, compact=false){
-    return `<div class="missing-asset ${compact ? 'compact' : ''}" title="${escapeAttr(url || '')}"><i data-lucide="image-off" class="${compact ? 'w-4 h-4' : 'w-6 h-6'}"></i><span>${langIsEn() ? 'Missing file' : '文件缺失'}</span></div>`;
+    return `<div class="missing-asset ${compact ? 'compact' : ''}" title="${escapeAttr(url || '')}"><i data-lucide="image-off" class="${compact ? 'w-4 h-4' : 'w-6 h-6'}"></i><span>文件缺失</span></div>`;
 }
 
 function outputMetaFor(url, out){
@@ -229,10 +229,10 @@ function runSnapshot(node, prompt, refs=[]){
 
 function comfyRunLabel(node){
     const mode = node?.mode || 'text';
-    if(mode === 'text') return tr('canvas.comfyText');
-    if(mode === 'enhance') return tr('canvas.comfyEnhance');
-    if(mode === 'edit') return tr('canvas.comfyEdit');
-    if(mode === 'custom') return node?.comfyWorkflow || tr('canvas.comfyCustom');
+    if(mode === 'text') return '文生图';
+    if(mode === 'enhance') return '细节增强';
+    if(mode === 'edit') return '图片编辑';
+    if(mode === 'custom') return node?.comfyWorkflow || '自定义';
     return 'ComfyUI';
 }
 
@@ -240,7 +240,7 @@ function runTaskLabel(run){
     const node = run?.node || {};
     if(run?.taskLabel) return run.taskLabel;
     if(run?.nodeType === 'comfy') return comfyRunLabel(node);
-    if(run?.nodeType === 'ltxDirector') return tr('canvas.ltxDirector');
+    if(run?.nodeType === 'ltxDirector') return 'LTX Director';
     if(run?.nodeType === 'generator') return node.model || 'API Image';
     if(run?.nodeType === 'video') return node.model || 'Video';
     if(run?.nodeType === 'msgen') return node.msCustomModel || node.msgenModel || 'Modelscope';
@@ -272,9 +272,9 @@ function runPlatformLabel(run){
 function comfyLabelFromWorkflow(workflow){
     const name = String(workflow || '').toLowerCase();
     if(!name) return '';
-    if(name === 'z-image.json') return tr('canvas.comfyText');
-    if(name === 'z-image-enhance.json' || name === 'upscale.json') return tr('canvas.comfyEnhance');
-    if(name === 'flux2-klein.json') return tr('canvas.comfyEdit');
+    if(name === 'z-image.json') return '文生图';
+    if(name === 'z-image-enhance.json' || name === 'upscale.json') return '细节增强';
+    if(name === 'flux2-klein.json') return '图片编辑';
     return workflow;
 }
 
@@ -507,18 +507,18 @@ function renderCanvasLog(){
         const backendText = workflow || backend || '';
         const subParts = [
             ...(window.VolcengineVideoBilling?.details(log) || []),
-            `${langIsEn() ? 'outputs' : '输出'} ${(log.outputs || []).length}`,
+            `输出 ${(log.outputs || []).length}`,
             idText ? `ID ${idText}` : '',
             backendText && backendText!==log.platform ? backendText : '',
         ].filter(Boolean);
         return `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
             <div class="log-main">
-                <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
+                <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? '失败' : '成功')}</span>
                     <time class="log-entry-date">${escapeHtml(date)}</time><span class="log-entry-cost">${costChip}</span></div>
                 <div class="log-meta">
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
                     ${taskLabel ? `<span class="log-chip">${escapeHtml(taskLabel)}</span>` : ''}
-                    <span class="log-chip">${escapeHtml(window.CanvasLedger.durationLabel(log.runMs,formatRunDuration,langIsEn()?'Duration unknown':'耗时未知'))}</span>
+                    <span class="log-chip">${escapeHtml(window.CanvasLedger.durationLabel(log.runMs,formatRunDuration,'耗时未知'))}</span>
                 </div>
                 <div class="log-subline">${subParts.map(part => `<span title="${escapeAttr(part)}">${escapeHtml(part)}</span>`).join('')}</div>
                 ${log.error ? `<div class="log-error" title="${escapeAttr(log.error)}">${escapeHtml(log.error)}</div>` : ''}
@@ -526,7 +526,7 @@ function renderCanvasLog(){
             </div>
             <div class="log-thumbs">${thumbs}</div>
         </article>`;
-    }).join('') : `<div class="log-empty">${tr('canvas.noLogs')}</div>`;
+    }).join('') : `<div class="log-empty">还没有生成日志</div>`;
     bindCanvasPreviewImageFallbacks(list);
     list.querySelectorAll('[data-url]').forEach(el => {
         el.onclick = e => {
@@ -559,7 +559,7 @@ function openCanvasLog(event, mode='logs'){
     if(title) title.textContent = mode === 'cost' ? '费用仪表盘' : '生成日志';
     modal?.classList.add('open');
     if(canvas?.id)void window.CanvasLedger?.refresh(canvas.id);
-    if(list && !list.innerHTML) list.innerHTML = `<div class="log-empty">${tr('canvas.noLogs')}</div>`;
+    if(list && !list.innerHTML) list.innerHTML = `<div class="log-empty">还没有生成日志</div>`;
     try {
         renderCanvasLog();
     } catch(err) {
@@ -703,15 +703,15 @@ function setupOutputPromptPanel(meta){
     currentOutputMeta = meta || null;
     const prompt = meta?.run?.prompt || '';
     outputPromptPanel.classList.toggle('open', !!prompt || !!meta?.run);
-    outputPromptText.textContent = prompt || tr('canvas.noPromptMeta');
+    outputPromptText.textContent = prompt || '没有记录提示词';
     outputCopyPromptBtn.onclick = e => {
         e.stopPropagation();
         if(!prompt) return;
         copyTextToClipboard(prompt);
         const span = outputCopyPromptBtn.querySelector('span');
-        const oldText = span?.textContent || tr('canvas.copyPrompt');
+        const oldText = span?.textContent || '复制提示词';
         outputCopyPromptBtn.classList.add('copied');
-        if(span) span.textContent = tr('canvas.copied');
+        if(span) span.textContent = '已复制';
         clearTimeout(outputCopyPromptBtn._copyTimer);
         outputCopyPromptBtn._copyTimer = setTimeout(() => {
             outputCopyPromptBtn.classList.remove('copied');

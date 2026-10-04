@@ -780,12 +780,12 @@ function activeCanvasPromptLibrary(){
 
 function defaultCanvasPromptTemplateGroups(){
     return [
-        {id:'view', name:tr('smart.tplCatView')},
-        {id:'storyboard', name:tr('smart.tplCatStoryboard')},
-        {id:'character', name:tr('smart.tplCatCharacter')},
-        {id:'product', name:tr('smart.tplCatProduct')},
-        {id:'lighting', name:tr('smart.tplCatLighting')},
-        {id:'mine', name:tr('smart.tplCatMine')}
+        {id:'view', name:'视角'},
+        {id:'storyboard', name:'分镜'},
+        {id:'character', name:'角色'},
+        {id:'product', name:'产品'},
+        {id:'lighting', name:'光影'},
+        {id:'mine', name:'我的'}
     ];
 }
 
@@ -879,29 +879,29 @@ function activeCanvasPromptTemplateGroups(){
 }
 
 function canvasPromptTemplateCategoryLabel(category){
-    if(category === 'all') return tr('smart.tplAll');
+    if(category === 'all') return '全部';
     const lib = activeCanvasPromptLibrary();
     if(lib && lib.id !== 'system'){
         return activeCanvasPromptTemplateGroups().find(g => g.id === category)?.name || category || '';
     }
     const builtin = {
-        view:tr('smart.tplCatView'),
-        storyboard:tr('smart.tplCatStoryboard'),
-        character:tr('smart.tplCatCharacter'),
-        product:tr('smart.tplCatProduct'),
-        lighting:tr('smart.tplCatLighting'),
-        mine:tr('smart.tplCatMine')
+        view:'视角',
+        storyboard:'分镜',
+        character:'角色',
+        product:'产品',
+        lighting:'光影',
+        mine:'我的'
     };
     return builtin[category] || promptTemplateGroups.find(g => g.id === category)?.name || category || '';
 }
 
 function canvasPromptTemplateName(template){
-    if(langIsEn() && template?.name_en) return template.name_en;
+
     return template?.name || '';
 }
 
 function canvasPromptTemplateScene(template){
-    if(langIsEn() && template?.scene_en) return template.scene_en;
+
     return template?.scene || '';
 }
 
@@ -1016,7 +1016,7 @@ async function saveCanvasPromptTemplateEdit(){
     const name = promptTemplatePanel.querySelector('[data-template-edit-name]')?.value?.trim() || '';
     const positive = promptTemplatePanel.querySelector('[data-template-edit-text]')?.value?.trim() || '';
     const category = promptTemplatePanel.querySelector('[data-template-edit-category]')?.value || 'mine';
-    if(!name || !positive){ setStatus(tr('smart.tplRequired')); return; }
+    if(!name || !positive){ setStatus('模板名称和内容不能为空'); return; }
     try {
         if(item.builtin){
             canvasPromptTemplateOverrides.editedBuiltins = canvasPromptTemplateOverrides.editedBuiltins || {};
@@ -1090,7 +1090,7 @@ function restorePromptTemplateScroll(snapshot){
 }
 
 async function createCanvasPromptTemplateGroup(){
-    const name = window.prompt(tr('smart.tplNewGroupPrompt'), tr('smart.tplNewGroupDefault'));
+    const name = window.prompt('新分组名称', '新分组');
     if(!String(name || '').trim()) return;
     const lib = activeCanvasPromptLibrary();
     if(lib && lib.id !== 'system'){
@@ -1114,7 +1114,7 @@ async function renameCanvasPromptTemplateGroup(groupId){
     const lib = activeCanvasPromptLibrary();
     const group = activeCanvasPromptTemplateGroups().find(g => g.id === groupId);
     if(!group) return;
-    const name = window.prompt(tr('smart.tplGroupNamePrompt'), group.name || '');
+    const name = window.prompt('分组名称', group.name || '');
     if(!String(name || '').trim()) return;
     if(lib && lib.id !== 'system'){
         try {
@@ -1133,7 +1133,7 @@ async function renameCanvasPromptTemplateGroup(groupId){
 async function deleteCanvasPromptTemplateGroup(groupId){
     const lib = activeCanvasPromptLibrary();
     if(lib && lib.id !== 'system'){
-        if(!window.confirm(tr('smart.tplDeleteGroupConfirm'))) return;
+        if(!window.confirm('删除分组？该分组里的我的模板会移动到“我的”。')) return;
         try {
             const data = await window.CanvasApi.deletePromptCategory(groupId, {errorFallback:'删除失败'});
             canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
@@ -1147,7 +1147,7 @@ async function deleteCanvasPromptTemplateGroup(groupId){
         renameCanvasPromptTemplateGroup(groupId);
         return;
     }
-    if(!window.confirm(tr('smart.tplDeleteGroupConfirm'))) return;
+    if(!window.confirm('删除分组？该分组里的我的模板会移动到“我的”。')) return;
     promptTemplateGroups = promptTemplateGroups.filter(g => g.id !== groupId);
     Object.entries(canvasPromptTemplateOverrides.editedBuiltins || {}).forEach(([id, item]) => {
         if(item?.category === groupId) canvasPromptTemplateOverrides.editedBuiltins[id] = {...item, category:'mine'};
@@ -1169,7 +1169,7 @@ function renderPromptTemplateModal(){
     renderCanvasPromptLibrarySelect();
     const scrollSnapshot = promptTemplateScrollSnapshot();
     const activeGroups = activeCanvasPromptTemplateGroups();
-    const categories = [{id:'all', name:tr('smart.tplAll')}, ...activeGroups.map(group => ({...group, name:canvasPromptTemplateCategoryLabel(group.id)}))];
+    const categories = [{id:'all', name:'全部'}, ...activeGroups.map(group => ({...group, name:canvasPromptTemplateCategoryLabel(group.id)}))];
     const counts = canvasPromptTemplates.reduce((map, item) => {
         const category = item.category || 'mine';
         map[category] = (map[category] || 0) + 1;
@@ -1180,12 +1180,12 @@ function renderPromptTemplateModal(){
         <div class="prompt-template-group-panel">
             <div class="prompt-template-group-title">
                 <div>
-                    <strong>${escapeHtml(tr('smart.tplGroupManage'))}</strong>
-                    <span>${escapeHtml(tr('smart.tplGroupHint'))}</span>
+                    <strong>${escapeHtml('分组管理')}</strong>
+                    <span>${escapeHtml('这里只调整上方分类，不影响模板内容')}</span>
                 </div>
                 <div class="prompt-template-group-tools">
-                    <button type="button" data-template-cat-new><i data-lucide="plus"></i><span>${escapeHtml(tr('smart.tplAdd'))}</span></button>
-                    <button type="button" class="primary" data-template-group-edit><i data-lucide="check"></i><span>${escapeHtml(tr('smart.tplDone'))}</span></button>
+                    <button type="button" data-template-cat-new><i data-lucide="plus"></i><span>${escapeHtml('新增')}</span></button>
+                    <button type="button" class="primary" data-template-group-edit><i data-lucide="check"></i><span>${escapeHtml('完成')}</span></button>
                 </div>
             </div>
             <div class="prompt-template-group-list">
@@ -1195,8 +1195,8 @@ function renderPromptTemplateModal(){
                             <span>${escapeHtml(canvasPromptTemplateCategoryLabel(group.id))}</span>
                             <small>${counts[group.id] || 0}</small>
                         </button>
-                        <button type="button" class="group-tool" data-template-cat-edit="${escapeAttr(group.id)}" title="${escapeAttr(tr('smart.tplRename'))}"><i data-lucide="pencil"></i></button>
-                        ${['view','storyboard','character','product','lighting','mine'].includes(group.id) ? '' : `<button type="button" class="group-tool danger" data-template-cat-delete="${escapeAttr(group.id)}" title="${escapeAttr(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>`}
+                        <button type="button" class="group-tool" data-template-cat-edit="${escapeAttr(group.id)}" title="${escapeAttr('重命名')}"><i data-lucide="pencil"></i></button>
+                        ${['view','storyboard','character','product','lighting','mine'].includes(group.id) ? '' : `<button type="button" class="group-tool danger" data-template-cat-delete="${escapeAttr(group.id)}" title="${escapeAttr('删除')}"><i data-lucide="trash-2"></i></button>`}
                     </div>
                 `).join('')}
             </div>
@@ -1211,7 +1211,7 @@ function renderPromptTemplateModal(){
                     </button>
                 `).join('')}
             </div>
-            <button type="button" class="prompt-template-manage-groups" data-template-group-edit><i data-lucide="settings-2"></i><span>${escapeHtml(tr('smart.tplManageGroups'))}</span></button>
+            <button type="button" class="prompt-template-manage-groups" data-template-group-edit><i data-lucide="settings-2"></i><span>${escapeHtml('管理分组')}</span></button>
         </div>
     `;
     const items = canvasPromptTemplateVisibleItems();
@@ -1222,64 +1222,64 @@ function renderPromptTemplateModal(){
     promptTemplateBody.innerHTML = `
         <div class="prompt-template-list">
             <div class="prompt-template-list-tools">
-                <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-save-current><i data-lucide="bookmark-plus"></i><span>${escapeHtml(tr('smart.tplSaveCurrent'))}</span></button>
-                <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-new><i data-lucide="file-plus-2"></i><span>${escapeHtml(tr('smart.tplNewTemplate'))}</span></button>
+                <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-save-current><i data-lucide="bookmark-plus"></i><span>${escapeHtml('存当前')}</span></button>
+                <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-new><i data-lucide="file-plus-2"></i><span>${escapeHtml('新模板')}</span></button>
             </div>
             ${items.length ? items.map(item => `<button type="button" class="prompt-template-card ${item.id === selected?.id ? 'active' : ''}" data-template-id="${escapeAttr(item.id)}">
                 <span class="prompt-template-card-top">
                     <span class="prompt-template-name">${escapeHtml(canvasPromptTemplateName(item))}</span>
-                    <span class="prompt-template-source">${escapeHtml(item.builtin ? tr('smart.tplBuiltin') : tr('smart.tplMine'))}</span>
+                    <span class="prompt-template-source">${escapeHtml(item.builtin ? '内置' : '我的')}</span>
                 </span>
                 <span class="prompt-template-scene">${escapeHtml(canvasPromptTemplateScene(item) || item.positive || '')}</span>
                 <span class="prompt-template-tag">${escapeHtml(canvasPromptTemplateCategoryLabel(item.category || 'mine'))}</span>
-            </button>`).join('') : `<div class="prompt-template-list-empty">${escapeHtml(tr('smart.tplNoMatches'))}</div>`}
+            </button>`).join('') : `<div class="prompt-template-list-empty">${escapeHtml('没有匹配的模板')}</div>`}
         </div>
         <div class="prompt-template-detail">
             ${selected ? `
                 <div class="prompt-template-detail-head">
                     <div>
                         <strong>${escapeHtml(canvasPromptTemplateName(selected) || '')}</strong>
-                        <span>${escapeHtml(canvasPromptTemplateCategoryLabel(selected.category || ''))} · ${escapeHtml(selected.builtin ? tr('smart.tplBuiltinTemplate') : tr('smart.tplMineTemplate'))}</span>
+                        <span>${escapeHtml(canvasPromptTemplateCategoryLabel(selected.category || ''))} · ${escapeHtml(selected.builtin ? '内置模板' : '我的模板')}</span>
                     </div>
                     ${editMode ? '' : `
                         <div class="prompt-template-icon-actions">
-                            <button type="button" data-template-edit title="${escapeAttr(tr('smart.tplEditTemplate'))}"><i data-lucide="pencil"></i><span>${escapeHtml(tr('common.edit'))}</span></button>
-                            <button type="button" class="danger" data-template-delete title="${escapeAttr(tr('smart.tplDeleteTemplate'))}"><i data-lucide="trash-2"></i><span>${escapeHtml(tr('common.delete'))}</span></button>
+                            <button type="button" data-template-edit title="${escapeAttr('修改模板')}"><i data-lucide="pencil"></i><span>${escapeHtml('编辑')}</span></button>
+                            <button type="button" class="danger" data-template-delete title="${escapeAttr('删除模板')}"><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
                         </div>
                     `}
                 </div>
             ${editMode ? `
                 <div class="prompt-template-edit-fields">
-                    <label>${escapeHtml(tr('smart.tplName'))}</label>
-                    <input data-template-edit-name value="${escapeAttr(canvasPromptTemplateName(selected) || '')}" placeholder="${escapeAttr(tr('smart.tplName'))}">
-                    <label>${escapeHtml(tr('smart.tplGroup'))}</label>
+                    <label>${escapeHtml('模板名称')}</label>
+                    <input data-template-edit-name value="${escapeAttr(canvasPromptTemplateName(selected) || '')}" placeholder="${escapeAttr('模板名称')}">
+                    <label>${escapeHtml('所属分组')}</label>
                     <select data-template-edit-category>
                         ${promptTemplateGroups.map(group => `<option value="${escapeAttr(group.id)}" ${group.id === (selected.category || 'mine') ? 'selected' : ''}>${escapeHtml(canvasPromptTemplateCategoryLabel(group.id))}</option>`).join('')}
                     </select>
-                    <label>${escapeHtml(tr('smart.tplContent'))}</label>
-                    <textarea data-template-edit-text placeholder="${escapeAttr(tr('smart.tplContent'))}">${escapeHtml(selected.positive || '')}</textarea>
+                    <label>${escapeHtml('模板内容')}</label>
+                    <textarea data-template-edit-text placeholder="${escapeAttr('模板内容')}">${escapeHtml(selected.positive || '')}</textarea>
                 </div>
             ` : `
                 <div class="prompt-template-preview-content">
                     <div class="prompt-template-section">
-                        <label>${escapeHtml(tr('smart.tplPositive'))}</label>
+                        <label>${escapeHtml('正向提示词')}</label>
                         <p>${escapeHtml(selected.positive || '')}</p>
                     </div>
-                    ${selected.negative ? `<div class="prompt-template-section"><label>${escapeHtml(tr('smart.tplNegative'))}</label><p>${escapeHtml(selected.negative)}</p></div>` : ''}
-                    ${Object.keys(selected.params || {}).length ? `<div class="prompt-template-section"><label>${escapeHtml(tr('smart.tplParams'))}</label><p>${escapeHtml(Object.entries(selected.params).map(([k,v]) => `${k}: ${v}`).join('\n'))}</p></div>` : ''}
+                    ${selected.negative ? `<div class="prompt-template-section"><label>${escapeHtml('负向提示词')}</label><p>${escapeHtml(selected.negative)}</p></div>` : ''}
+                    ${Object.keys(selected.params || {}).length ? `<div class="prompt-template-section"><label>${escapeHtml('参数建议')}</label><p>${escapeHtml(Object.entries(selected.params).map(([k,v]) => `${k}: ${v}`).join('\n'))}</p></div>` : ''}
                 </div>
             `}
             <div class="prompt-template-actions">
                 ${editMode ? `
-                    <button type="button" data-template-edit-cancel><i data-lucide="x"></i><span>${escapeHtml(tr('common.cancel'))}</span></button>
-                    <button type="button" class="danger" data-template-delete><i data-lucide="trash-2"></i><span>${escapeHtml(tr('common.delete'))}</span></button>
-                    <button type="button" class="primary" data-template-edit-save><i data-lucide="save"></i><span>${escapeHtml(tr('common.save'))}</span></button>
+                    <button type="button" data-template-edit-cancel><i data-lucide="x"></i><span>${escapeHtml('取消')}</span></button>
+                    <button type="button" class="danger" data-template-delete><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
+                    <button type="button" class="primary" data-template-edit-save><i data-lucide="save"></i><span>${escapeHtml('保存')}</span></button>
                 ` : `
-                    <button type="button" data-template-apply="positive"><i data-lucide="corner-down-left"></i><span>${escapeHtml(tr('smart.tplApplyPositive'))}</span></button>
-                    <button type="button" class="primary" data-template-apply="full"><i data-lucide="wand-sparkles"></i><span>${escapeHtml(tr('smart.tplApplyFull'))}</span></button>
+                    <button type="button" data-template-apply="positive"><i data-lucide="corner-down-left"></i><span>${escapeHtml('正向')}</span></button>
+                    <button type="button" class="primary" data-template-apply="full"><i data-lucide="wand-sparkles"></i><span>${escapeHtml('完整应用')}</span></button>
                 `}
             </div>
-            ` : `<div class="prompt-template-empty">${escapeHtml(tr('smart.tplPickOrCreate'))}</div>`}
+            ` : `<div class="prompt-template-empty">${escapeHtml('选择或新建一个模板')}</div>`}
         </div>
     `;
     refreshIcons();

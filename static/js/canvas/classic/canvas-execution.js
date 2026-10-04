@@ -86,7 +86,7 @@ function resolveImageProviderId(id){
 function providerOptions(selectedId){
     const selected = resolveImageProviderId(selectedId);
     const providers = imageApiProviders();
-    if(!providers.length) return `<option value="" disabled selected>${tr('canvas.noApiProviders') || '暂无 API 平台'}</option>`;
+    if(!providers.length) return `<option value="" disabled selected>${'暂无 API 平台'}</option>`;
     return providers.map(provider => `<option value="${escapeHtml(provider.id)}" ${provider.id === selected ? 'selected' : ''}>${escapeHtml(provider.name || provider.id)}</option>`).join('');
 }
 
@@ -142,7 +142,7 @@ function sanitizeVideoNodeProviderModel(node){
 function videoModelOptions(selectedModel, providerId){
     const models = providerVideoModels(providerId);
     if(!models.length){
-        return `<option value="" disabled selected>${tr('canvas.noModelsHint') || '暂无模型，请到 API 设置添加'}</option>`;
+        return `<option value="" disabled selected>${'暂无模型，请到 API 设置添加'}</option>`;
     }
     const selected = selectedModel || models[0];
     return uniqueModels([selected, ...models]).filter(Boolean).map(model => `<option value="${escapeHtml(model)}" ${model === selected ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
@@ -529,9 +529,9 @@ function loopInputVideoRefs(node, ctx=null){
 }
 
 function loopTokenLabel(token){
-    if(token === '《计数》') return tr('canvas.counterToken');
-    if(token === '《总数》') return tr('canvas.totalToken');
-    if(token === '《进度》') return tr('canvas.progressToken');
+    if(token === '《计数》') return '计数';
+    if(token === '《总数》') return '总数';
+    if(token === '《进度》') return '进度';
     return token;
 }
 
@@ -596,7 +596,7 @@ function videoInputMediaGroups(node, sources){
 
 function comfyWorkflowOptions(selected){
     const opts = comfyWorkflows.map(w => `<option value="${escapeHtml(w.name)}" ${w.name === selected ? 'selected' : ''}>${escapeHtml(w.title || w.name.replace('.json',''))}</option>`).join('');
-    return opts || `<option value="">${tr('canvas.comfyNoWorkflow')}</option>`;
+    return opts || `<option value="">请先在 ComfyUI 设置中保存工作流。</option>`;
 }
 
 function hasComfyWorkflow(name){
@@ -859,7 +859,7 @@ function generatorSources(gen, loopCtx=null, graph=null){
                     out.push({
                         id:`${n.id}:image:${currentIndex + i}:${ref.url}`,
                         type:'loopImage',
-                        label:trf('canvas.loopImageLabel', {n:currentIndex + i}),
+                        label:`循环图片 ${currentIndex + i}`,
                         preview:ref.url,
                         refs:[ref],
                         prompt:i === 0 && !out.length ? prompt : ''
@@ -867,7 +867,7 @@ function generatorSources(gen, loopCtx=null, graph=null){
                 });
             }
             if(out.length) return out;
-            return {id:n.id, type:'loop', label:`${tr('canvas.loopNode')} ${loopCount(n)}x`, refs:[], prompt};
+            return {id:n.id, type:'loop', label:`循环节点 ${loopCount(n)}x`, refs:[], prompt};
         }
         if(n.type === 'promptGroup') {
             const prompts = (n.items || []).map(findNode).filter(Boolean).map(p => p.text || '').filter(Boolean);
@@ -935,7 +935,7 @@ async function runGenerator(genId, opts={}){
     const sources = orderedSources(gen, generatorSources(gen, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const refs = imageRefsOnly(sources.flatMap(s => s.refs || []));
-    if(!prompt && !refs.length){ alert(tr('canvas.needPromptOrImage')); return; }
+    if(!prompt && !refs.length){ alert('请先连接提示词或图片'); return; }
     const count = Math.max(1, Math.min(8, Number(gen.count || 1)));
     let out = outputForNode(gen, 460);
     const writeGuard=canvasTaskWriteGuard(gen,out);
@@ -990,7 +990,7 @@ async function runGenerator(genId, opts={}){
                 };
                 if(inputBinding)inputBinding.apply(record,accept,task.task_id);else accept();
             }
-            if(!outputs.length) throw new Error(tr('canvas.generationFailed'));
+            if(!outputs.length) throw new Error('生成失败');
             if(inputBinding)inputBinding.mutate(()=>mergeGeneratedOutputs(gen,outputs,Boolean(opts.cascade)));
             else mergeGeneratedOutputs(gen, outputs, Boolean(opts.cascade));
             gen.runStatus = 'done';
@@ -1019,7 +1019,7 @@ async function runGenerator(genId, opts={}){
         writeGuard.check();inputBinding?.check();
         if(statuses.includes('paused'))throw writeGuard.pause();
         if(statuses.includes('aborted')) throw cascadeAbortError(cascadeStopMessage());
-        if(statuses.includes('failed')) throw new Error(gen.runError || tr('canvas.generationFailed'));
+        if(statuses.includes('failed')) throw new Error(gen.runError || '生成失败');
     } catch(err) {
         if(inputBinding){try {inputBinding.check();}catch(changed){err=changed;}}
         pauseClassicTaskInput(gen,out,writeGuard,err,runToken,inputBinding);
@@ -1049,7 +1049,7 @@ async function runGenerator(genId, opts={}){
         scheduleSave();
         if(opts.cascade) throw err;
         if(remainingPending.some(p => p.failed && p.recoverTaskId) && !removableIds.length) return;
-        showErrorModal(err.message || tr('canvas.generationFailed'), tr('canvas.apiFailed'));
+        showErrorModal(err.message || '生成失败', 'API 生成失败');
     }
 }
 
@@ -1059,7 +1059,7 @@ async function runGeneratorLegacy(genId, opts={}){
     const sources = orderedSources(gen, generatorSources(gen, opts.loopContext));
     const prompt = sources.map(s => s.prompt).filter(Boolean).join('\n\n');
     const refs = imageRefsOnly(sources.flatMap(s => s.refs || []));
-    if(!prompt && !refs.length){ alert(tr('canvas.needPromptOrImage')); return; }
+    if(!prompt && !refs.length){ alert('请先连接提示词或图片'); return; }
     const count = Math.max(1, Math.min(8, Number(gen.count || 1)));
     let out = outputForNode(gen, 460);
     const pendingIds = Array.from({length:count}, () => uid('p'));
@@ -1084,7 +1084,7 @@ async function runGeneratorLegacy(genId, opts={}){
         run.billingModel = payload.model;
         const quality = normalizedImageQuality(gen.quality);
         if(quality) payload.quality = quality;
-        const results = await Promise.all(Array.from({length:count}, () => window.CanvasApi.onlineImage(payload, {errorFallback:tr('canvas.generationFailed')})));
+        const results = await Promise.all(Array.from({length:count}, () => window.CanvasApi.onlineImage(payload, {errorFallback:'生成失败'})));
         const images = results.flatMap(result => result.images || []);
         const metas = collectRunMetas(out, pendingIds);
         run.request = results[0] ? requestMetaFromResult(results[0]) : {};
@@ -1102,7 +1102,7 @@ async function runGeneratorLegacy(genId, opts={}){
         gen.runStatus = 'failed'; gen.runError = err.message || String(err);
         refreshRunNodes(gen, out);
         if(opts.cascade) throw err;
-        showErrorModal(err.message || tr('canvas.generationFailed'), tr('canvas.apiFailed'));
+        showErrorModal(err.message || '生成失败', 'API 生成失败');
     }
 }
 
@@ -1139,7 +1139,7 @@ async function runVideoNode(nodeId, opts={}){
         .some(ref => String(ref?.url || '').trim().startsWith('asset://'));
     if(!isVolcengineVideo && node.useFrameRoles && refs[0]) refs[0] = {...refs[0], role:'first_frame'};
     if(!isVolcengineVideo && node.useFrameRoles && refs[1]) refs[1] = {...refs[1], role:'last_frame'};
-    if(!prompt){ alert(tr('canvas.videoNeedsPrompt')); return; }
+    if(!prompt){ alert('请先连接提示词'); return; }
     let out = outputForNode(node, 460);
     const writeGuard=canvasTaskWriteGuard(node,out);
     writeGuard.check();
@@ -1186,7 +1186,7 @@ async function runVideoNode(nodeId, opts={}){
             const result=inputBinding ? record.result||{} : record;
             writeGuard.check();inputBinding?.check();
             const outputUrls = videoOutputsFromResult(result);
-            if(!outputUrls.length) throw new Error(tr('canvas.videoFailed'));
+            if(!outputUrls.length) throw new Error('视频生成失败');
             run.request = requestMetaFromResult(result);
             run.canvasTaskId = task.task_id;
             Object.assign(run, window.VolcengineVideoBilling?.metadata(result));
@@ -1218,7 +1218,7 @@ async function runVideoNode(nodeId, opts={}){
         if(status === 'aborted') throw cascadeAbortError(cascadeStopMessage());
         if(status === 'failed'){
             handledTaskFailure = true;
-            throw new Error(node.runError || tr('canvas.videoFailed'));
+            throw new Error(node.runError || '视频生成失败');
         }
     } catch(err) {
         if(inputBinding){try {inputBinding.check();}catch(changed){err=changed;}}
@@ -1241,7 +1241,7 @@ async function runVideoNode(nodeId, opts={}){
         refreshRunNodes(currentNode, currentOut);
         scheduleSave();
         if(opts.cascade) throw err;
-        alert(err.message || tr('canvas.videoFailed'));
+        alert(err.message || '视频生成失败');
     } finally {
         if(writeGuard.valid() && node._taskRunToken===runToken){
             node.running = false;
@@ -1448,17 +1448,17 @@ function isCascadeAbortError(err){
 
 function cascadeStopMessage(reason=''){
     if(reason) return reason;
-    return langIsEn() ? 'One-click run stopped' : '已停止一键运行';
+    return '已停止一键运行';
 }
 
 function cascadeBackendRestartMessage(){
-    return langIsEn() ? 'Backend restarted and task status was lost. This one-click run has been stopped.' : '后端已重启，任务状态已丢失，本次一键运行已停止';
+    return '后端已重启，任务状态已丢失，本次一键运行已停止';
 }
 
 function normalizeCanvasTaskError(err, fallback=''){
     const raw = err?.message || String(err || '');
     const text = String(raw || '').trim();
-    if(!text) return fallback || tr('canvas.generationFailed');
+    if(!text) return fallback || '生成失败';
     if(/backend restarted and task status was lost/i.test(text)) return cascadeBackendRestartMessage();
     if(/(404|not found|missing)/i.test(text) && /canvas-image-task/i.test(text)) return cascadeBackendRestartMessage();
     if(/Failed to fetch|NetworkError|Load failed|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET/i.test(text)) return cascadeBackendRestartMessage();
@@ -1675,7 +1675,7 @@ async function runLLMNode(nodeId, opts={}){
     if(!node || (node.running && !opts.cascade))return;
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
     const input=llmInputText(node, opts.loopContext)||node.userInput||'';
-    if(!input){if(opts.cascade)throw new Error('LLM 缺少提示词输入');alert(tr('canvas.needPromptToLLM'));return;}
+    if(!input){if(opts.cascade)throw new Error('LLM 缺少提示词输入');alert('请先连接 Prompt 到 LLM');return;}
     const writeGuard=canvasTaskWriteGuard(node);
     const inputBinding=classicTaskInputBinding(node,node,writeGuard);
     if(!opts.cascade){node.running=true;refreshNodes([node.id]);}
@@ -1969,7 +1969,7 @@ async function runNodeCascade(nodeId){
                     return;
                 }
                 node.runStatus = 'failed';
-                node.runError = `${totalRounds > 1 ? `${tr('canvas.loopRound')} ${round}/${totalRounds}: ` : ''}${err.message || String(err)}`;
+                node.runError = `${totalRounds > 1 ? `第 ${round}/${totalRounds}: ` : ''}${err.message || String(err)}`;
                 node._cascadeFailed = true;
                 for(let j = i + 1; j < order.length; j++){
                     const n2 = nodes.find(x => x.id === order[j]);
@@ -2141,14 +2141,14 @@ function findPendingTask(taskId){
 async function createCanvasImageTask(payload, options={}){
     payload = {...payload, canvas_id:canvas?.id || ''};
     const res = await window.CanvasApi.createCanvasImageTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
-    if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
+    if(!res.ok) throw new Error(await responseErrorMessage(res, '生成失败'));
     return res.json();
 }
 
 async function createCanvasVideoTask(payload, options={}){
     payload = {...payload, canvas_id:canvas?.id || ''};
     const res = await window.CanvasApi.createCanvasVideoTaskRequest(payload, {transport:cascadeFetch, transportOptions:options});
-    if(!res.ok) throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
+    if(!res.ok) throw new Error(await responseErrorMessage(res, '视频生成失败'));
     return res.json();
 }
 
@@ -2208,7 +2208,7 @@ async function queryRecoverPendingOutput(pendingId){
     // cannot select a provider account or authorize a new paid submission.
     const taskId = memberMode ? pending.canvasTaskId : pending.recoverTaskId || extractUpstreamTaskId(pending.error || '');
     if(!taskId){
-        showErrorModal(memberMode ? '历史任务缺少本地记录，请在管理平台按原供应商核对。' : '没有任务 ID，无法查询结果', tr('canvas.apiFailed'));
+        showErrorModal(memberMode ? '历史任务缺少本地记录，请在管理平台按原供应商核对。' : '没有任务 ID，无法查询结果', 'API 生成失败');
         return;
     }
     const inputBinding=memberMode ? pending._inputBinding : null;
@@ -2239,7 +2239,7 @@ async function queryRecoverPendingOutput(pendingId){
             return;
         }
         const message=data.status==='needs_review' ? '任务需要在管理平台核对；不会自动重新生成。' :
-            data.error || data.message || ((data.status==='failed'||data.status==='cancelled') ? tr('canvas.generationFailed') : '任务仍在生成中，请稍后再查询');
+            data.error || data.message || ((data.status==='failed'||data.status==='cancelled') ? '生成失败' : '任务仍在生成中，请稍后再查询');
         // A status refresh must not consume the input receipt needed by a later result.
         if(!memberMode)pending.error=message;
         setStatus(message);
@@ -2247,7 +2247,7 @@ async function queryRecoverPendingOutput(pendingId){
         if(!current())return;
         if(!memberMode)pending.error=err.message || '查询失败';
         if(err.resultPending && window.MemberCanvasEdit?.openTaskResults)await window.MemberCanvasEdit.openTaskResults();
-        else showErrorModal(err.message || '查询失败', tr('canvas.apiFailed'));
+        else showErrorModal(err.message || '查询失败', 'API 生成失败');
     } finally {
         if(current()){
             pending.querying = false;
@@ -2281,7 +2281,7 @@ async function pollCanvasImageTask(taskId, options={}){
             const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
             if(!res.ok){
                 if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-                throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
+                throw new Error(await responseErrorMessage(res, '生成失败'));
             }
             const data = await res.json();
             if(!targetsCurrent() ||
@@ -2293,7 +2293,7 @@ async function pollCanvasImageTask(taskId, options={}){
                 return 'succeeded';
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
-                const fail=()=>failCanvasImageTask(taskId,data.error||tr('canvas.generationFailed'),data);
+                const fail=()=>failCanvasImageTask(taskId,data.error||'生成失败',data);
                 if(inputBinding)inputBinding.mutate(fail);else fail();
                 return 'failed';
             }
@@ -2313,7 +2313,7 @@ async function pollCanvasImageTask(taskId, options={}){
 }
 
 async function waitCanvasImageTaskResult(taskId, options={}){
-    if(!taskId) throw new Error(tr('canvas.generationFailed'));
+    if(!taskId) throw new Error('生成失败');
     while(true){
         options.inputBinding?.check();
         const cascadeTargetId = cascadeTargetIdFromOptions(options);
@@ -2321,13 +2321,13 @@ async function waitCanvasImageTaskResult(taskId, options={}){
         const res = await window.CanvasApi.getCanvasImageTaskRequest(taskId, {transport:cascadeFetch, transportOptions:{cascadeTargetId}});
         if(!res.ok){
             if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-            throw new Error(await responseErrorMessage(res, tr('canvas.generationFailed')));
+            throw new Error(await responseErrorMessage(res, '生成失败'));
         }
         const data = await res.json();
         options.inputBinding?.verify(data,taskId);
         if(options.inputBinding && data.canvas_edit_generation!==window.MemberCanvasEdit?.active?.lease?.generation)throw options.inputBinding.pause();
         if(data.status === 'succeeded') return options.returnRecord ? data : data.result || {};
-        if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')) throw new Error(data.error || tr('canvas.generationFailed'));
+        if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')) throw new Error(data.error || '生成失败');
         await sleep(1800);
     }
 }
@@ -2371,7 +2371,7 @@ function failCanvasImageTask(taskId, message, taskData={}){
     if(recoverTaskId){
         pending.failed = true;
         pending.querying = false;
-        pending.error = message || tr('canvas.generationFailed');
+        pending.error = message || '生成失败';
         pending.recoverTaskId = recoverTaskId;
         pending.providerId = taskData?.provider_id || pending.providerId || providerIdForPending(pending);
         pending.canvasTaskStatus = 'failed';
@@ -2389,11 +2389,11 @@ function failCanvasImageTask(taskId, message, taskData={}){
     out._pending = (out._pending || []).filter(p => p.id !== pending.id);
     if(gen){
         gen.runStatus = 'failed';
-        gen.runError = message || tr('canvas.generationFailed');
+        gen.runError = message || '生成失败';
         if(pending?.cascadeTargetId) gen._cascadeFailed = true;
         gen.running = false;
     }
-    addGenerationLog({run, outputs:[], runMs, error:message || tr('canvas.generationFailed')});
+    addGenerationLog({run, outputs:[], runMs, error:message || '生成失败'});
     refreshRunNodes(gen, out);
     scheduleSave();
 }
@@ -2426,10 +2426,10 @@ function completeCanvasVideoTask(taskId, result, record=null){
     if(gen){
         mergeGeneratedOutputs(gen, outputs, Boolean(pending.appendGenerated));
         gen.runStatus = outputs.length ? 'done' : 'failed';
-        gen.runError = outputs.length ? '' : tr('canvas.videoFailed');
+        gen.runError = outputs.length ? '' : '视频生成失败';
         gen.running = false;
     }
-    addGenerationLog({run:meta.run, outputs, runMs:meta.runMs, error:outputs.length ? '' : tr('canvas.videoFailed')});
+    addGenerationLog({run:meta.run, outputs, runMs:meta.runMs, error:outputs.length ? '' : '视频生成失败'});
     refreshRunNodes(gen, out);
     scheduleSave();
 }
@@ -2448,11 +2448,11 @@ function failCanvasVideoTask(taskId, message, taskData={}){
     out._pending = (out._pending || []).filter(p => p.id !== pending.id);
     if(gen){
         gen.runStatus = 'failed';
-        gen.runError = message || tr('canvas.videoFailed');
+        gen.runError = message || '视频生成失败';
         if(pending?.cascadeTargetId) gen._cascadeFailed = true;
         gen.running = false;
     }
-    addGenerationLog({run, outputs:[], runMs, error:message || tr('canvas.videoFailed')});
+    addGenerationLog({run, outputs:[], runMs, error:message || '视频生成失败'});
     refreshRunNodes(gen, out);
     scheduleSave();
 }
@@ -2506,7 +2506,7 @@ async function pollCanvasVideoTask(taskId, options={}){
                     }
                 }
                 if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-                throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
+                throw new Error(await responseErrorMessage(res, '视频生成失败'));
             }
             unavailableSince = 0;
             const data = await res.json();
@@ -2516,8 +2516,8 @@ async function pollCanvasVideoTask(taskId, options={}){
             if(data.status === 'succeeded'){
                 const result = data.result || {};
                 if(!videoOutputsFromResult(result).length){
-                    if(inputBinding)inputBinding.apply(data,()=>failCanvasVideoTask(taskId,tr('canvas.videoFailed'),data),taskId);
-                    else failCanvasVideoTask(taskId, tr('canvas.videoFailed'), data);
+                    if(inputBinding)inputBinding.apply(data,()=>failCanvasVideoTask(taskId,'视频生成失败',data),taskId);
+                    else failCanvasVideoTask(taskId, '视频生成失败', data);
                     return 'failed';
                 }
                 if(inputBinding)inputBinding.apply(data,()=>completeCanvasVideoTask(taskId,result,data),taskId);
@@ -2525,7 +2525,7 @@ async function pollCanvasVideoTask(taskId, options={}){
                 return 'succeeded';
             }
             if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
-                const fail=()=>failCanvasVideoTask(taskId,data.error||tr('canvas.videoFailed'),data);
+                const fail=()=>failCanvasVideoTask(taskId,data.error||'视频生成失败',data);
                 if(inputBinding)inputBinding.mutate(fail);else fail();
                 return 'failed';
             }
@@ -2543,7 +2543,7 @@ async function pollCanvasVideoTask(taskId, options={}){
 }
 
 async function waitCanvasVideoTaskResult(taskId, options={}){
-    if(!taskId) throw new Error(tr('canvas.videoFailed'));
+    if(!taskId) throw new Error('视频生成失败');
     let unavailableSince = 0;
     while(true){
         options.inputBinding?.check();
@@ -2575,7 +2575,7 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
                 }
             }
             if(res.status === 404) throw new Error(cascadeBackendRestartMessage());
-            throw new Error(await responseErrorMessage(res, tr('canvas.videoFailed')));
+            throw new Error(await responseErrorMessage(res, '视频生成失败'));
         }
         unavailableSince = 0;
         const data = await res.json();
@@ -2583,7 +2583,7 @@ async function waitCanvasVideoTaskResult(taskId, options={}){
         if(options.inputBinding && data.canvas_edit_generation!==window.MemberCanvasEdit?.active?.lease?.generation)throw options.inputBinding.pause();
         if(data.status === 'succeeded') return options.returnRecord ? data : data.result || {};
         if((data.status === 'failed' || data.status === 'needs_review' || data.status === 'cancelled')){
-            const error = new Error(data.error || tr('canvas.videoFailed'));
+            const error = new Error(data.error || '视频生成失败');
             error.videoResult = data.result;
             throw error;
         }

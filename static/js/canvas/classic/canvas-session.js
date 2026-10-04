@@ -36,7 +36,7 @@ function applyRemoteCanvasData(remote){
         renderCanvasList();
         render();
         resumeCanvasImageTasks();
-        if(currentCanvasTitle) currentCanvasTitle.textContent = canvas.title || tr('canvas.untitled');
+        if(currentCanvasTitle) currentCanvasTitle.textContent = canvas.title || '未命名画布';
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at || canvas.created_at);
         setStatus('Synced');
     } finally {
@@ -60,7 +60,7 @@ async function syncRemoteCanvasNow(){
     if(!canvas) return;
     const entry=window.MemberCanvasEdit?.active, epoch=entry?.lease.epoch, id=canvas.id;
     try {
-        const data = await window.CanvasApi.getCanvas(id, {errorFallback:tr('canvas.openFailed')});
+        const data = await window.CanvasApi.getCanvas(id, {errorFallback:'打开画布失败'});
         if(!canvas || canvas.id!==id) return;
         if(window.CanvasSession?.enabled && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh)) return;
         const remote = data.canvas;

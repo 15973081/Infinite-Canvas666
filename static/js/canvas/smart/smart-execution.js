@@ -595,7 +595,7 @@ async function querySmartImageTaskNow(nodeId, localTaskId){
             } else apply();
         } else {
             const message=data.status==='needs_review' ? '任务需要在管理平台核对；不会自动重新生成。' :
-                data.error || data.message || ((data.status==='failed'||data.status==='cancelled') ? tr('smart.errRunFailed') : '任务仍在生成中，请稍后再查询');
+                data.error || data.message || ((data.status==='failed'||data.status==='cancelled') ? '生成失败' : '任务仍在生成中，请稍后再查询');
             if(!memberMode)task.error=message;
             toast(message.slice(0,160));
         }
@@ -956,7 +956,7 @@ function smartLoopPrompt(node, ctx=smartLoopContext){
     return String(combined || '')
         .replaceAll('《计数》', String(index))
         .replaceAll('[计数]', String(index))
-        .replaceAll(`[${tr('canvas.counterToken')}]`, String(index))
+        .replaceAll(`[计数]`, String(index))
         .replaceAll('《总数》', String(total))
         .replaceAll('[总数]', String(total))
         .replaceAll('《进度》', `${index}/${total}`)
@@ -975,7 +975,7 @@ function smartLoopInputImages(node, ctx=smartLoopContext){
     const batchSize = Math.max(1, Math.min(100, Number(node.imageBatchSize) || 1));
     const currentIndex = Math.max(1, Number(ctx?.index || startBase) || startBase);
     return refs.slice(Math.max(0, currentIndex - 1), Math.max(0, currentIndex - 1) + batchSize)
-        .map((img, i) => ({...img, name:img.name || trf('canvas.loopImageLabel', {n:currentIndex + i})}));
+        .map((img, i) => ({...img, name:img.name || `循环图片 ${currentIndex + i}`}));
 }
 
 function smartLoopPreviewImages(node){
@@ -1212,7 +1212,7 @@ function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=fal
     if(hasMentionToken && refs.length){
         const mapText = refs.map((img, i) => `图${i + 1}：${img.name || `图片${i + 1}`}`).join('\n');
         return {
-            prompt:`${tr('smart.refMapHeader')}\n${mapText}\n\n${tr('smart.refUserNeed')}\n${body}`,
+            prompt:`下面是参考图编号：\n${mapText}\n\n用户需求：\n${body}`,
             displayPrompt,
             refs:refs.map((img, index) => ({...img, name:img.name || `图${index + 1}`, role:`image_${index + 1}`})),
             mentioned:true
@@ -1502,7 +1502,7 @@ function refsForDirectLoopRound(loopNode, loopIndex, total){
         .map((ref, index) => ({
             ...ref,
             role:ref.role || `image_${index + 1}`,
-            name:ref.name || trf('canvas.loopImageLabel', {n:loopIndex + index})
+            name:ref.name || `循环图片 ${loopIndex + index}`
         }));
 }
 
@@ -1512,7 +1512,7 @@ function showDirectLoopRoundPreview(loopNode, target, refs, loopIndex, total){
     if(!cleanRefs.length) return false;
     const preview = cleanRefs.map((ref, index) => stripImageGenerationMeta({
         url:ref.url || '',
-        name:ref.name || trf('canvas.loopImageLabel', {n:loopIndex + index}),
+        name:ref.name || `循环图片 ${loopIndex + index}`,
         kind:ref.kind || (isVideoMediaItem(ref) ? 'video' : 'image'),
         nodeId:ref.nodeId || '',
         imageIndex:ref.imageIndex ?? '',
@@ -1866,7 +1866,7 @@ function demoteHistoryGroupNode(group){
     delete group.isHistoryGroup;
     if(group.title === '历史分组'){
         const count = (group.images || []).length;
-        group.title = count > 1 ? 'Group' : count === 1 ? 'Image' : tr('smart.createImportNode');
+        group.title = count > 1 ? 'Group' : count === 1 ? 'Image' : '上传节点';
     }
 }
 
@@ -1991,7 +1991,7 @@ function syncCascadeRunButton(node=selectedNode()){
     cascadeRunBtn.classList.toggle('is-stop', runningForNode);
     cascadeRunBtn.innerHTML = runningForNode
         ? `<i data-lucide="square"></i><span>${escapeHtml(smartCascadeStopText(Boolean(loopRunState?.stopRequested)))}</span>`
-        : `<i data-lucide="workflow"></i><span>${escapeHtml(tr('smart.loopRunAll'))}</span>`;
+        : `<i data-lucide="workflow"></i><span>${escapeHtml('一键运行')}</span>`;
     refreshIcons();
 }
 
@@ -2144,7 +2144,7 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
             result = await generateUrlsForCurrentSettings(outputNode, prompt, request.refs || [], runSettings, inputBinding);
         }
         writeGuard.check(); inputBinding?.check();
-        if(!result.urls?.length) throw new Error(result.kind === 'video' ? tr('smart.errNoOutVideos') : tr('smart.errNoOutImages'));
+        if(!result.urls?.length) throw new Error(result.kind === 'video' ? '没有返回视频' : '没有返回图片');
         if(outpaintSize) delete requestNode.outpaintSize;
         let additions;
         if(isAsyncVideo){
@@ -2254,7 +2254,7 @@ async function runLoopRoundIntoSlot(loopNode, rootNode, outputSlot, loopIndex, c
             result = await generateUrlsForCurrentSettings(outputSlot, prompt, request.refs || [], runSettings, inputBinding);
         }
         writeGuard.check(); inputBinding?.check();
-        if(!result.urls?.length) throw new Error(result.kind === 'video' ? tr('smart.errNoOutVideos') : tr('smart.errNoOutImages'));
+        if(!result.urls?.length) throw new Error(result.kind === 'video' ? '没有返回视频' : '没有返回图片');
         let additions;
         if(asyncApiKind){
             additions = (outputSlot.images || []).map(img => stripImageGenerationMeta({...img})).filter(img => img?.url);
@@ -2380,7 +2380,7 @@ async function runSmartCascade(targetNode=null){
     if(!loopId && smartCascadeAnyRunning()){ requestSmartCascadeStop(); return; }
     const directLoopTargetRun = Boolean(loop && isDirectLoopTargetRun(loop, tail, graph));
     const singleNodeLoopRun = Boolean(loop && (chain.length === 1 || directLoopTargetRun));
-    if(!graph.edges.length && !singleNodeLoopRun){ toast(tr('smart.loopNoChain')); return; }
+    if(!graph.edges.length && !singleNodeLoopRun){ toast('没有可一键运行的上游链路'); return; }
     const originalSelected = selectedId;
     const originalSettings = cloneSmartSettings(settings);
     const originalPromptHtml = promptInput.innerHTML;
@@ -2564,8 +2564,8 @@ async function runSmartCascade(targetNode=null){
         }
         scheduleSave();
         toast(totalRounds > 1
-            ? trf(loopMode === 'parallel' ? 'smart.loopParallelRoundsDone' : 'smart.loopRunRoundsDone', {n:totalRounds})
-            : tr('smart.loopRunDone'));
+            ? (loopMode === 'parallel' ? `并发运行完成：${totalRounds} 轮` : `循环运行完成：${totalRounds} 轮`)
+            : '一键运行完成');
     } catch(e) {
         if(e?.resultPending || !writeGuard.valid()){resultDeferred=true;if(e?.inputChanged && writeGuard.valid())toast(e.message);writeGuard.pause();return;}
         if(parallelLimit === 1) smartLoopContext = null;
@@ -2574,7 +2574,7 @@ async function runSmartCascade(targetNode=null){
             settings = originalSettings;
             promptInput.innerHTML = originalPromptHtml;
         }
-        toast(e?.smartCascadeStopped ? '已停止一键运行' : (e.message || tr('smart.errRunFailed')).slice(0, 160));
+        toast(e?.smartCascadeStopped ? '已停止一键运行' : (e.message || '生成失败').slice(0, 160));
     } finally {
         if(smartCascadeRuns.get(runKey)===runState){
             smartCascadeRuns.delete(runKey);
@@ -2666,7 +2666,7 @@ async function runGeneration(){
     const refs = request.refs;
     if(!prompt && smartRunNeedsPrompt(settings)){
         settings = previousSettings;
-        toast(tr('smart.toastNeedPrompt'));
+        toast('请输入提示词');
         return;
     }
     const outpaintSize = node?.outpaintSize && Number(node.outpaintSize.width) > 0 && Number(node.outpaintSize.height) > 0
@@ -2754,7 +2754,7 @@ async function runGeneration(){
                 archiveExisting:false
             });
             writeGuard.check(); inputBinding?.check();
-            if(!pendingResult.outputs.length) throw new Error(tr('smart.errNoOutVideos'));
+            if(!pendingResult.outputs.length) throw new Error('没有返回视频');
             if(sourceVisualState) restoreSourceVisualState(node, sourceVisualState);
             restoreUi(true);
             scheduleSave();
@@ -2766,7 +2766,7 @@ async function runGeneration(){
         writeGuard.check(); inputBinding?.check();
         if(isApiLikeEngine(generationSettings.engine)){
             const taskIds = Array.isArray(outImages?.taskIds) ? outImages.taskIds : [];
-            if(!taskIds.length) throw new Error(tr('smart.errRunFailed'));
+            if(!taskIds.length) throw new Error('生成失败');
             pendingNode.pendingTasks = taskIds.map(taskId => attachSmartTaskBinding({
                 taskId,
                 kind:'image',
@@ -2791,14 +2791,14 @@ async function runGeneration(){
                 scheduleSave();
                 return;
             }
-            if(!(pendingNode.images || []).length) throw new Error(tr('smart.errNoOutImages'));
+            if(!(pendingNode.images || []).length) throw new Error('没有返回图片');
             if(outpaintSize) delete node.outpaintSize;
             if(sourceVisualState) restoreSourceVisualState(node, sourceVisualState);
             restoreUi(true);
             scheduleSave();
             return;
         }
-        if(!outImages.length) throw new Error(tr('smart.errNoOutImages'));
+        if(!outImages.length) throw new Error('没有返回图片');
         if(outpaintSize) delete node.outpaintSize;
         finalizePendingNode(pendingNode, outImages, pendingMeta);
         if(sourceVisualState) restoreSourceVisualState(node, sourceVisualState);
@@ -2826,7 +2826,7 @@ async function runGeneration(){
         if(extracted) restoreFromExtraction(node, extracted);
         delete pendingNode._runMetaTargetId;
         addSmartGenerationLog({run:runLog, outputs:[], runMs:nowMs() - runLogStart, error:e.message || String(e)});
-        toast((e.message || tr('smart.errRunFailed')).slice(0, 160));
+        toast((e.message || '生成失败').slice(0, 160));
     } finally {
         if(writeGuard.valid()){
             if(!apiConcurrentRun){
@@ -2843,7 +2843,7 @@ async function runPromptLLMNode(nodeId){
     if(!node || node.type!=='smart-prompt' || node.running)return;
     if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
     const message=(node.llmInstruction||node.text||'').trim();
-    if(!message){toast(tr('smart.promptLlmNeedText'));return;}
+    if(!message){toast('请先输入给 LLM 的文本');return;}
     const writeGuard=canvasTaskWriteGuard(node);
     node.llmEnabled=true;node.running=true;render();
     try {
@@ -2869,7 +2869,7 @@ async function runPromptLLMNode(nodeId){
             if(task.id)node.result_task_id=task.id;node.running=false;};
         if(inputBinding)inputBinding.apply(task,apply,task.id);else {writeGuard.check();apply();}
         scheduleSave();
-    } catch(error){if(writeGuard.valid())toast((error.message||tr('smart.promptLlmFailed')).slice(0,240));}
+    } catch(error){if(writeGuard.valid())toast((error.message||'LLM 运行失败').slice(0,240));}
     finally {if(writeGuard.valid()){node.running=false;render();}}
 }
 
@@ -2881,7 +2881,7 @@ function comfyFieldKind(field){
 }
 
 async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=null,imageTool=null){
-    if(!runSettings.provider_id || !runSettings.model) throw new Error(tr('smart.errNoApiModel'));
+    if(!runSettings.provider_id || !runSettings.model) throw new Error('请先选择可用的 API 生图模型');
     if(runSettings.outpaintResolutionLocked === true){
         const error = smartOutpaintResolutionError(runSettings);
         if(error) throw new Error(error);
@@ -2903,7 +2903,7 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
 }
 
 async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null){
-    if(!runSettings.videoModel) throw new Error(tr('smart.errNoVideoModel'));
+    if(!runSettings.videoModel) throw new Error('请先选择视频模型');
     if(!smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
     try {
         const targetPlatform = videoProviderPlatform(runSettings.videoProvider || 'comfly');
@@ -2960,9 +2960,9 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({...payload, client_task_id:taskId, canvas_id:canvasId})
         })).then(async r => {
-            if(!r.ok) throw new Error(await smartResponseErrorMessage(r, tr('smart.errRunFailed')));
+            if(!r.ok) throw new Error(await smartResponseErrorMessage(r, '生成失败'));
             const task = await r.json();
-            if(task?.task_id !== taskId) throw new Error(tr('smart.errRunFailed'));
+            if(task?.task_id !== taskId) throw new Error('生成失败');
             inputBinding?.remember(task);return task;
         });
         // The request is already in flight, while the client-generated ID can be
@@ -2980,7 +2980,7 @@ async function runModelscopeGeneration(prompt, refs, runSettings=settings){
 
 async function urlToBase64(url){
     const res = await fetch(url);
-    if(!res.ok) throw new Error(tr('smart.errImageRead'));
+    if(!res.ok) throw new Error('图片读取失败');
     const blob = await res.blob();
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -3037,7 +3037,7 @@ function archiveSmartOutputsBeforePending(node){
 async function queueAndResumeSmartApiTasks(node, taskResult, options={}){
     const kind = options.kind === 'video' ? 'video' : 'image';
     const taskIds = Array.isArray(taskResult?.taskIds) ? taskResult.taskIds.filter(Boolean) : [];
-    if(!node || !taskIds.length) throw new Error(tr('smart.errRunFailed'));
+    if(!node || !taskIds.length) throw new Error('生成失败');
     const writeGuard=canvasTaskWriteGuard(node);
     writeGuard.check();
     const inputBinding=taskResult?.inputBinding;
@@ -3124,7 +3124,7 @@ function smartTaskPollRetryWindow(status=0, err=null){
 
 async function pollSmartCanvasTask(taskId, kind='image',options={}){
     const validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
-    if(!taskId) throw new Error(tr('smart.errRunFailed'));
+    if(!taskId) throw new Error('生成失败');
     const taskKind = kind === 'video' ? 'video' : 'image';
     const pollKey = `${taskKind}:${taskId}`;
     const accept=task=>{options.inputBinding?.verify(task,taskId);return options.returnRecord ? task : task.result||{};};
@@ -3171,16 +3171,16 @@ async function pollSmartCanvasTask(taskId, kind='image',options={}){
             if((task.status === 'failed' || task.status === 'needs_review' || task.status === 'cancelled')){
                 const recoverTaskId = task.upstream_task_id || extractUpstreamTaskId(task.error || '');
                 if(taskKind === 'image' && recoverTaskId){
-                    const error=new ImageTaskRecoverSignal({taskId,recoverTaskId,providerId:task.provider_id,kind:'image',message:task.error||tr('smart.errRunFailed')});
+                    const error=new ImageTaskRecoverSignal({taskId,recoverTaskId,providerId:task.provider_id,kind:'image',message:task.error||'生成失败'});
                     error.canvasTaskRecord=task;throw error;
                 }
-                const error = new Error(task.error || tr('smart.errRunFailed'));
+                const error = new Error(task.error || '生成失败');
                 error.videoResult = taskKind === 'video' ? task.result : null;
                 error.canvasTaskRecord=task;
                 throw error;
             }
         }
-        const error=new Error(tr('smart.errRunTimeout'));error.resultPending=true;throw error;
+        const error=new Error('生成超时');error.resultPending=true;throw error;
     })();
     activeSmartTaskPolls.set(pollKey, promise);
     try {
@@ -3276,7 +3276,7 @@ async function resumeSmartPendingNode(node){
                     task.querying = false;
                     task.recoverTaskId = e.recoverTaskId;
                     task.providerId = e.providerId || task.providerId || providerIdForSmartTask(node, task);
-                    task.error = e.message || tr('smart.errRunFailed');
+                    task.error = e.message || '生成失败';
                     node.running = false;
                     node.pending = Math.max(1, smartPendingTasks(node).length);
                     toast('任务未丢失，可稍后手动查询结果');
@@ -3300,7 +3300,7 @@ async function resumeSmartPendingNode(node){
                     }
                 }
                 failures.push(e);
-                toast((e.message || tr('smart.errRunFailed')).slice(0, 160));
+                toast((e.message || '生成失败').slice(0, 160));
                 refreshSmartNodes([node.id]);
                 scheduleSave();
                 };

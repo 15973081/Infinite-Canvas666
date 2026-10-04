@@ -7,671 +7,7 @@
  */
 function refreshIcons(){ if(window.lucide) lucide.createIcons(); }
 refreshIcons();
-const LOCAL_I18N = {
-    "common.apiSettings": "API 设置",
-    "common.comfyuiSettings": "工作流设置",
-    "common.darkMode": "黑夜模式",
-    "common.language": "中文",
-    "common.cancel": "取消",
-    "common.confirm": "确定",
-    "common.save": "保存",
-    "common.delete": "删除",
-    "common.edit": "编辑",
-    "common.run": "运行",
-    "common.running": "运行中",
-    "common.custom": "自定义",
-    "common.close": "关闭",
-    "common.loading": "加载中...",
-    "common.project": "项目主页",
-    "common.moreSettings": "更多设置",
-    "studio.ready": "系统就绪",
-    "studio.unifiedConsole": "统一创作控制台",
-    "studio.describeVision": "描述你想生成的画面...",
-    "studio.engineSource": "引擎来源",
-    "studio.local": "本地",
-    "studio.dimensions": "尺寸",
-    "studio.renderArt": "开始生成",
-    "studio.renderLocal": "本地生成",
-    "studio.renderCloud": "云端生成",
-    "studio.loadMore": "加载更多归档",
-    "studio.loadingArchives": "正在加载归档...",
-    "studio.errorHistory": "历史加载失败",
-    "studio.promptExecution": "提示词记录",
-    "studio.replicate": "复用",
-    "studio.modelscopeTokenRequired": "需要 ModelScope Token，请在侧边栏 API Token 中设置。",
-    "studio.processing": "处理中...",
-    "studio.uploading": "上传中...",
-    "studio.uploadFailed": "上传失败",
-    "studio.localModel": "本地",
-    "studio.cloudProcessing": "云端处理中...",
-    "studio.submittingModelscope": "正在提交到 ModelScope...",
-    "studio.canvasReady": "画布就绪",
-    "studio.archives": "归档",
-    "studio.inputSource": "输入图片",
-    "studio.dropImage": "拖放图片到这里",
-    "studio.change": "更换",
-    "studio.parameters": "参数",
-    "studio.engine": "引擎",
-    "studio.refinementStrength": "细节强度",
-    "studio.superResolution": "超分辨率",
-    "studio.doublePixels": "像素加倍 (4K)",
-    "studio.kleinDetailEnhance": "Klein 细节增强",
-    "studio.enhancementStrength": "增强强度",
-    "studio.promptOptional": "提示词（可选）",
-    "studio.beginRemaster": "开始增强",
-    "studio.computingPixels": "正在计算像素...",
-    "studio.inputPrompt": "输入提示词",
-    "studio.referenceLayers": "参考图层",
-    "studio.cloudUsesMain": "云端使用主图",
-    "studio.connecting": "连接中...",
-    "studio.detailLora": "细节增强 LoRA",
-    "studio.loraStrength": "LoRA 强度",
-    "studio.executeSynthesis": "开始合成",
-    "studio.synthesizing": "合成中",
-    "studio.cameraPerspective": "相机与视角控制",
-    "studio.cameraControl": "相机控制",
-    "studio.rotation": "旋转",
-    "studio.pitch": "俯仰",
-    "studio.distance": "距离",
-    "studio.reset": "重置",
-    "studio.resultPreview": "结果预览",
-    "studio.generateAngle": "生成新角度",
-    "studio.generatedCommand": "生成指令",
-    "studio.copy": "复制",
-    "canvas.noApiProviders": "暂无 API 平台",
-    "canvas.noApiProvidersHint": "暂无 API 平台，请到 API 设置添加",
-    "canvas.noImageModelsHint": "暂无生图模型，请到 API 设置添加",
-    "canvas.noModelsHint": "暂无模型，请到 API 设置添加",
-    "canvas.title": "shadox",
-    "canvas.backToManager": "返回画布管理",
-    "canvas.untitled": "未命名画布",
-    "canvas.chooseFirst": "请选择或新建画布",
-    "canvas.image": "上传",
-    "canvas.uploadCard": "上传卡片",
-    "canvas.prompt": "提示词",
-    "canvas.promptTemplateLibrary": "提示词模板库",
-    "canvas.promptTemplateShort": "模板库",
-    "canvas.promptTemplateSystem": "系统提示词",
-    "canvas.promptTemplateSearch": "搜索模板",
-    "canvas.promptTemplateAll": "全部",
-    "canvas.promptTemplateView": "视角",
-    "canvas.promptTemplateStoryboard": "分镜",
-    "canvas.promptTemplateCharacter": "角色",
-    "canvas.promptTemplateProduct": "产品",
-    "canvas.promptTemplateLighting": "光影",
-    "canvas.promptTemplateEmpty": "没有匹配的模板",
-    "canvas.promptTemplatePick": "选择一个模板",
-    "canvas.promptTemplatePositive": "正向提示词",
-    "canvas.promptTemplateNegative": "负向提示词",
-    "canvas.promptTemplateParams": "参数建议",
-    "canvas.promptTemplateApplyPositive": "正向",
-    "canvas.promptTemplateApplyFull": "完整应用",
-    "canvas.loop": "循环",
-    "canvas.loopNode": "循环节点",
-    "canvas.loopCount": "次数",
-    "canvas.loopStart": "起始",
-    "canvas.loopSerial": "循环",
-    "canvas.loopParallel": "并发",
-    "canvas.loopHint": "控制一键运行轮数",
-    "canvas.loopPromptToggle": "提示词",
-    "canvas.loopImageToggle": "图片",
-    "canvas.loopImageStart": "起始计数",
-    "canvas.loopBatchSize": "批次",
-    "canvas.loopImageWillOutput": "当前会输出 {n} 张图片",
-    "canvas.loopImageEmpty": "把图片或图片组连接到左侧输入口",
-    "canvas.loopImageLabel": "循环图片 {n}",
-    "canvas.loopVideoToggle": "视频",
-    "canvas.loopVideoWillOutput": "当前会输出 {n} 个视频",
-    "canvas.loopVideoEmpty": "把视频或视频组连接到左侧输入口",
-    "canvas.loopVideoLabel": "循环视频 {n}",
-    "canvas.outputConvertToInputGroup": "转为输入组",
-    "canvas.outputCopyToInputGroup": "复制为新的输入组",
-    "canvas.outputGroupActions": "分组",
-    "canvas.outputFileActions": "文件",
-    "canvas.outputDownloadAllImages": "下载全部文件",
-    "canvas.outputDownloadEmpty": "没有可下载的本地文件",
-    "canvas.loopVariablePrompt": "可变提示词",
-    "canvas.loopVariablePlaceholder": "例如：现在生成第[计数]个卖点",
-    "canvas.loopFixedPrompt": "固定提示词",
-    "canvas.loopFixedPlaceholder": "每一轮都会附加的文本",
-    "canvas.insertCounter": "插入计数",
-    "canvas.insertTotal": "插入总数",
-    "canvas.insertProgress": "插入进度",
-    "canvas.counterToken": "计数",
-    "canvas.totalToken": "总数",
-    "canvas.progressToken": "进度",
-    "canvas.loopRounds": "轮",
-    "canvas.loopRound": "第",
-    "canvas.apiGenerate": "API生成",
-    "canvas.msGenerate": "Modelscope生成",
-    "canvas.videoGenerate": "视频生成",
-    "canvas.group": "分组",
-    "canvas.logs": "日志",
-    "canvas.generationLogs": "生成日志",
-    "canvas.noLogs": "还没有生成日志",
-    "canvas.success": "成功",
-    "canvas.failed": "失败",
-    "canvas.selectCanvas": "选择画布",
-    "canvas.trash": "回收站",
-    "canvas.backToList": "返回画布列表",
-    "canvas.subtitle": "打开已有画布，或新建一个开始创作。",
-    "canvas.trashSubtitle": "已删除画布可恢复，30 天后自动清理。",
-    "canvas.refresh": "刷新列表",
-    "canvas.openTrash": "打开回收站",
-    "canvas.newCanvas": "新建画布",
-    "canvas.newSmartCanvas": "新建智能画布",
-    "canvas.folders": "文件夹",
-    "canvas.folder": "文件夹",
-    "canvas.allCanvases": "全部画布",
-    "canvas.uncategorized": "未分类",
-    "canvas.newSubfolder": "新建子文件夹",
-    "canvas.deleteFolder": "删除文件夹",
-    "canvas.folderNamePrompt": "文件夹名称",
-    "canvas.deleteFolderConfirm": "删除该文件夹？其中的画布和子文件夹会移动到上一级。",
-    "canvas.folderCreateFailed": "新建文件夹失败",
-    "canvas.folderRenameFailed": "重命名文件夹失败",
-    "canvas.folderDeleteFailed": "删除文件夹失败",
-    "canvas.moveToFolder": "移动到文件夹",
-    "canvas.moveFolderFailed": "移动画布失败",
-    "canvas.smartCanvas": "智能画布",
-    "canvas.smartCanvasShort": "智能",
-    "canvas.newSmartCanvasPlaceholder": "智能画布名称（可留空使用默认）",
-    "canvas.newCanvasPlaceholder": "新画布名称（可留空使用默认）",
-    "canvas.trashNote": "回收站中的画布会在 30 天后自动清理。",
-    "canvas.dropImage": "拖放素材到画布",
-    "canvas.imageCard": "上传节点",
-    "canvas.imageCardHint": "支持图片/音频/视频/批量上传",
-    "canvas.llmNode": "LLM 节点",
-    "canvas.modelscopeGenerate": "Modelscope生成",
-    "canvas.comfyGenerate": "ComfyUI 生成",
-    "canvas.videoGenerateNode": "视频生成",
-    "canvas.hint": "拖拽画布移动，Ctrl 框选多选，拖动选中节点可一起移动。上传/提示词节点右下端口拖线到生成节点。",
-    "canvas.cropImage": "裁剪图片",
-    "canvas.cropHint": "拖动裁剪框移动，拖右下角调整大小",
-    "canvas.editImage": "编辑图片",
-    "canvas.editImageSub": "选择裁剪、遮罩或画笔模式",
-    "canvas.modeCrop": "裁剪",
-    "canvas.modeOutpaint": "扩图",
-    "canvas.modeMask": "遮罩",
-    "canvas.modeBrush": "画笔",
-    "canvas.modeGrid": "宫格切分",
-    "canvas.brushSize": "笔刷",
-    "canvas.clear": "清空",
-    "canvas.maskHint": "白色区域为要编辑的遮罩",
-    "canvas.maskHint2": "在要重绘的位置涂白，保存后会生成遮罩图片节点",
-    "canvas.color": "颜色",
-    "canvas.textContent": "文字",
-    "canvas.textSize": "字号",
-    "canvas.brushHint": "直接在图片上绘制标记或草图",
-    "canvas.maskEdit": "遮罩编辑",
-    "canvas.brushEdit": "画笔编辑",
-    "canvas.applyMask": "生成遮罩节点",
-    "canvas.applyBrush": "应用画笔",
-    "canvas.applyOutpaint": "应用扩图",
-    "canvas.outpaintImage": "扩图",
-    "canvas.outpaintHint": "拖动红框调整画布范围，最大不超过 4K 尺寸，确认后空白区域填充白色",
-    "canvas.applyGrid": "切分到 Output",
-    "canvas.gridHint": "按切分线分割图片，间隔会从线两侧扣除",
-    "canvas.gridCustom": "自定义",
-    "canvas.gridCustomTitle": "自由放置切割线",
-    "canvas.gridHLines": "横向线",
-    "canvas.gridVLines": "竖向线",
-    "canvas.gridOrientH": "水平",
-    "canvas.gridOrientHTitle": "点击图片放置水平线",
-    "canvas.gridOrientV": "垂直",
-    "canvas.gridOrientVTitle": "点击图片放置竖直线",
-    "canvas.gridUndo": "撤销上一条线",
-    "canvas.gridClearLines": "清除所有自定义线",
-    "canvas.gridGap": "间隔(px)",
-    "canvas.gridPresets": "预设",
-    "canvas.gridWillOutput": "将输出 {n} 张",
-    "canvas.copyPrompt": "复制提示词",
-    "canvas.copied": "已复制",
-    "canvas.rerun": "再次运行",
-    "canvas.noPromptMeta": "没有记录提示词",
-    "canvas.reset": "重置",
-    "canvas.applyCrop": "应用裁剪",
-    "canvas.manageModels": "管理模型",
-    "canvas.manageModelsSub": "拖动调整顺序，删除不需要的模型，也可以输入新模型名称。",
-    "canvas.apiProvider": "API 平台",
-    "canvas.provider": "平台",
-    "canvas.displayName": "显示名称",
-    "canvas.providerId": "平台 ID",
-    "canvas.keepKey": "留空则保持当前 Key",
-    "canvas.modelInputPlaceholder": "粘贴或输入模型名称",
-    "canvas.add": "添加",
-    "canvas.manageModelList": "管理模型列表...",
-    "canvas.manageApiProviders": "管理 API 平台...",
-    "canvas.countSuffix": "个",
-    "canvas.noCanvas": "暂无画布",
-    "canvas.startWithNewCanvas": "点击右上方「新建画布」开始创作",
-    "canvas.trashEmpty": "回收站为空",
-    "canvas.deletedCanvas": "已删除画布",
-    "canvas.changeIcon": "修改画布图标",
-    "canvas.modePreview": "预览",
-    "canvas.previewImage": "预览图片",
-    "canvas.previewHint": "查看大图，可切换到裁剪 / 扩图 / 遮罩等模式",
-    "canvas.sortRecent": "最近编辑",
-    "canvas.sortName": "名称",
-    "canvas.searchPlaceholder": "搜索画布名称",
-    "canvas.clearSearch": "清空搜索",
-    "canvas.noSearchResults": "没有找到匹配的画布",
-    "canvas.ownerLabel": "负责人 / 项目",
-    "canvas.ownerPlaceholder": "输入负责人或项目",
-    "canvas.colorLabel": "颜色标记",
-    "canvas.colorNone": "无",
-    "canvas.pin": "置顶",
-    "canvas.unpin": "取消置顶",
-    "canvas.editMeta": "编辑图标 / 颜色 / 负责人",
-    "canvas.pinned": "已置顶",
-    "canvas.metaSaveFailed": "保存失败",
-    "canvas.deletedAt": "删除于",
-    "canvas.purgeConfirm": "清理画布？素材仍保留在画布资产中",
-    "canvas.moveToTrashConfirm": "画布移入回收站？素材仍保留",
-    "canvas.restoreCanvas": "恢复画布",
-    "canvas.purgeCanvas": "彻底删除",
-    "canvas.rename": "重命名",
-    "canvas.moveToTrash": "移入回收站",
-    "canvas.loadingCanvases": "正在加载画布列表...",
-    "canvas.needCanvas": "请先新建或选择画布",
-    "canvas.enterCanvasName": "输入画布名称后确认",
-    "canvas.noCanvasCreateFirst": "暂无画布，请先新建画布",
-    "canvas.canvasListFailed": "画布列表加载失败",
-    "canvas.trashLoadFailed": "回收站加载失败",
-    "canvas.movedToTrash": "已移入回收站",
-    "canvas.moveToTrashFailed": "移入回收站失败",
-    "canvas.purged": "已彻底删除",
-    "canvas.clickDragPasteImage": "点击/拖拽上传素材，或在空节点粘贴图片",
-    "canvas.promptPlaceholder": "输入提示词...",
-    "canvas.groupEmpty": "拖入图片或提示词到此",
-    "canvas.grouped": "已成组",
-    "canvas.imageCount": "张图片",
-    "canvas.promptCount": "个提示词",
-    "canvas.connectHere": "连接到这里",
-    "canvas.dragConnect": "拖线连接",
-    "canvas.resize": "调整大小",
-    "canvas.nodeMode": "节点",
-    "canvas.chatMode": "聊天",
-    "canvas.systemPrompt": "系统提示词...",
-    "canvas.llmInputEmpty": "把 Prompt 连到 LLM 输入点",
-    "canvas.llmOutputEmpty": "运行后会输出文本，可连到生成卡片",
-    "canvas.resizePanes": "拖动调整输入/输出高度",
-    "canvas.running": "运行中",
-    "canvas.startChat": "开始一段聊天...",
-    "canvas.chatInput": "输入消息...",
-    "canvas.sending": "发送中",
-    "canvas.images": "Images",
-    "canvas.custom": "自定义",
-    "canvas.fitImageSize": "适配图片",
-    "canvas.adaptiveRatio": "适配比例",
-    "canvas.inputImagesEmpty": "把图片或图片组连到这里",
-    "canvas.enableLora": "启用 LoRA",
-    "canvas.loraStrength": "LoRA 强度",
-    "canvas.noLoraForModel": "当前模型暂无绑定 LoRA，可在 API 设置 · Modelscope · LoRA 管理中添加。",
-    "canvas.noLoraBoundError": "当前模型没有可用 LoRA，请先到 API 设置绑定",
-    "canvas.imageReadFailed": "无法读取参考图尺寸",
-    "canvas.msFailed": "Modelscope 生成失败",
-    "canvas.generationFailed": "生成失败",
-    "canvas.apiFailed": "API 生成失败",
-    "canvas.emptyRatio": "比例空",
-    "canvas.decrease": "减少",
-    "canvas.decreaseCount": "减少生成数量",
-    "canvas.increase": "增加",
-    "canvas.increaseCount": "增加生成数量",
-    "canvas.ratioWidth": "比例宽",
-    "canvas.ratioHeight": "比例高",
-    "canvas.width": "宽度",
-    "canvas.height": "高度",
-    "canvas.generating": "生成中",
-    "canvas.needPrompt": "请先连接提示词",
-    "canvas.needPromptOrImage": "请先连接提示词或图片",
-    "canvas.needImage": "请先连接图片",
-    "canvas.videoNeedsPrompt": "请先连接提示词",
-    "canvas.needPromptToLLM": "请先连接 Prompt 到 LLM",
-    "canvas.createFailed": "新建画布失败",
-    "canvas.openFailed": "打开画布失败",
-    "canvas.restored": "画布已恢复",
-    "canvas.restoreFailed": "恢复画布失败",
-    "canvas.purgeFailed": "彻底删除失败",
-    "canvas.defaultProviderNoDelete": "默认平台不能删除，可以修改名称、地址和模型。",
-    "canvas.noModelsAddFirst": "暂无模型，输入名称后添加",
-    "canvas.manageLlmModelsTitle": "管理 LLM 模型",
-    "canvas.manageLlmModelsSub": "这些模型会出现在 LLM 节点下拉框里。拖动排序，删除或新增后保存。",
-    "canvas.manageApiTitle": "管理 API 平台",
-    "canvas.manageApiSub": "选择平台后维护 Base URL、Key 和这个平台下的生成模型。Key 会写入 API/.env，页面只显示脱敏状态。",
-    "canvas.manageVideoModelsTitle": "管理视频模型",
-    "canvas.manageVideoModelsSub": "这些模型会出现在视频生成节点下拉框里。选择平台后维护该平台的视频模型。",
-    "canvas.keepCurrentKey": "保持当前",
-    "canvas.enterApiKey": "输入 API Key",
-    "canvas.deleteModel": "删除模型",
-    "canvas.deleteLink": "删除连线",
-    "canvas.download": "下载",
-    "canvas.comfyModeText": "文生图",
-    "canvas.comfyModeEnhance": "细节增强",
-    "canvas.comfyModeEdit": "图片编辑",
-    "canvas.comfyModeCustom": "自定义",
-    "canvas.comfyText": "文生图",
-    "canvas.comfyEnhance": "细节增强",
-    "canvas.comfyEdit": "图片编辑",
-    "canvas.comfyCustom": "自定义",
-    "canvas.comfyRunning": "处理中",
-    "canvas.comfyRun": "Run ComfyUI",
-    "canvas.comfyNeedImages": "需要",
-    "canvas.comfyNoWorkflow": "请先在 ComfyUI 设置中保存工作流。",
-    "canvas.comfyLoadingWorkflow": "正在读取工作流参数...",
-    "canvas.comfyNoExtraParams": "这个工作流只有图片/提示词输入，没有额外参数。",
-    "canvas.ltxDirector": "LTX Director",
-    "canvas.ltxDurationSec": "秒数",
-    "canvas.ltxDurationFrames": "帧数",
-    "canvas.ltxFps": "帧率",
-    "canvas.ltxLinkedImages": "已连接图片",
-    "canvas.ltxRun": "运行 LTX",
-    "canvas.ltxRunning": "LTX 运行中",
-    "canvas.ltxFailed": "LTX 生成失败",
-    "canvas.ltxNoOutput": "LTX 没有返回产物",
-    "canvas.ltxImageSegNeedRef": "LTX 图片段缺少参考图",
-    "canvas.ltxTimelineLoadFailed": "LTX 时间线 UI 加载失败，请查看控制台。",
-    "canvas.ltxTimelineScriptMissing": "LTX 时间线脚本未加载。",
-    "canvas.videoModel": "视频模型",
-    "canvas.videoDuration": "时长",
-    "canvas.videoAspect": "比例",
-    "canvas.videoResolution": "分辨率",
-    "canvas.videoUpsample": "提升到 1080p",
-    "canvas.videoEnhancePrompt": "优化提示词",
-    "canvas.videoWatermark": "水印",
-    "canvas.videoCameraFixed": "固定镜头",
-    "canvas.videoGenerateAudio": "生成音频",
-    "canvas.videoMultimodal": "智能多参",
-    "canvas.videoFirstLastFrames": "首尾帧",
-    "canvas.videoRoleReference": "参考",
-    "canvas.videoRoleFirstFrame": "首帧",
-    "canvas.videoRoleLastFrame": "尾帧",
-    "canvas.videoFailed": "视频生成失败",
-    "smart.title": "智能画布",
-    "smart.engineApi": "API生成",
-    "smart.engineVolcengine": "火山引擎",
-    "smart.engineMs": "Modelscope生成",
-    "smart.engineComfy": "ComfyUI生成",
-    "smart.kindImage": "图片",
-    "smart.kindVideo": "视频",
-    "smart.promptPlaceholder": "描述你想生成或编辑的图片...",
-    "smart.promptTemplateLibrary": "模板库",
-    "smart.tplAll": "全部",
-    "smart.tplCatView": "视角",
-    "smart.tplCatStoryboard": "分镜",
-    "smart.tplCatCharacter": "角色",
-    "smart.tplCatProduct": "产品",
-    "smart.tplCatLighting": "光影",
-    "smart.tplCatMine": "我的",
-    "smart.tplBuiltin": "内置",
-    "smart.tplMine": "我的",
-    "smart.tplBuiltinTemplate": "内置模板",
-    "smart.tplMineTemplate": "我的模板",
-    "smart.tplManageGroups": "管理分组",
-    "smart.tplGroupManage": "分组管理",
-    "smart.tplGroupHint": "这里只调整上方分类，不影响模板内容",
-    "smart.tplAdd": "新增",
-    "smart.tplDone": "完成",
-    "smart.tplRename": "重命名",
-    "smart.tplSaveCurrent": "存当前",
-    "smart.tplNewTemplate": "新模板",
-    "smart.tplNewTemplateName": "新模板",
-    "smart.tplNoMatches": "没有匹配的模板",
-    "smart.tplEditTemplate": "修改模板",
-    "smart.tplDeleteTemplate": "删除模板",
-    "smart.tplName": "模板名称",
-    "smart.tplGroup": "所属分组",
-    "smart.tplContent": "模板内容",
-    "smart.tplPositive": "正向提示词",
-    "smart.tplNegative": "负向提示词",
-    "smart.tplParams": "参数建议",
-    "smart.tplApplyPositive": "正向",
-    "smart.tplApplyFull": "完整应用",
-    "smart.tplPickOrCreate": "选择或新建一个模板",
-    "smart.tplRequired": "模板名称和内容不能为空",
-    "smart.tplNewGroupPrompt": "新分组名称",
-    "smart.tplNewGroupDefault": "新分组",
-    "smart.tplGroupNamePrompt": "分组名称",
-    "smart.tplDeleteGroupConfirm": "删除分组？该分组里的我的模板会移动到“我的”。",
-    "smart.promptResize": "拖拽调整文本框高度",
-    "smart.run": "运行",
-    "smart.modePreview": "预览",
-    "smart.previewImage": "预览图片",
-    "smart.previewHint": "滚轮缩放，拖动查看，右下角可拉动对比原图",
-    "smart.panorama360": "360全景",
-    "smart.panoramaRatio": "视窗比例",
-    "smart.panoramaExport": "导出画面",
-    "smart.panoramaHint": "360全景：拖动转动，滚轮缩放，可调整视窗比例",
-    "smart.panoramaLoading": "加载中...",
-    "smart.panoramaLoadFailed": "360全景加载失败",
-    "smart.panoramaExportDone": "已导出到画布",
-    "smart.panoramaExportFailed": "导出全景失败",
-    "smart.compareSource": "对比原图",
-    "smart.compareNoSource": "该图片没有原图可对比",
-    "smart.compareHover": "点击查看输入端缩略图",
-    "smart.compareEmpty": "无原图可对比",
-    "smart.compareHintPick": "点缩略图开始对比",
-    "smart.compareCancelTip": "点击取消对比",
-    "smart.compareUseTip": "点击与该图对比",
-    "smart.compareDrag": "拖动对比",
-    "smart.uploadHint": "点击上传 / 拖入素材",
-    "smart.createImportNode": "上传节点",
-    "smart.createImportNodeSub": "支持图片/音频/视频/批量上传",
-    "smart.createExportNode": "导出节点",
-    "smart.createExportNodeSub": "接收多种格式并一键导出",
-    "smart.createPromptSub": "手写或用 LLM 生成文本",
-    "smart.createLoopSub": "控制一键运行轮数和批次",
-    "smart.kindAudio": "音频",
-    "smart.kindText": "文本",
-    "smart.exportNodeReady": "选择文件夹后一键导出",
-    "smart.exportNodeEmpty": "连接节点后收集图片、视频、音频和文本",
-    "smart.exportChooseFolder": "选择文件夹并导出",
-    "smart.exportNodeNote": "浏览器会弹出本机文件夹选择器",
-    "smart.exportNodeHint": "连接内容后可一键导出",
-    "smart.exportEmpty": "导出节点里还没有可导出的内容",
-    "smart.exportFailed": "导出失败",
-    "smart.exportDone": "已导出 {n} 个文件",
-    "smart.exportPickerUnsupported": "当前浏览器不支持选择文件夹，已使用默认导出路径",
-    "smart.hintEmpty": "支持图片 / 视频 / 音频，也可直接文生图",
-    "smart.hintMulti": "多图会作为同一组参考图发送",
-    "smart.hintSingle": "点击后在下方输入编辑需求",
-    "smart.hintPending": "正在生成…",
-    "smart.deleteNode": "删除节点",
-    "smart.deleteImage": "删除",
-    "smart.platform": "平台",
-    "smart.model": "模型",
-    "smart.size": "尺寸",
-    "smart.ratio": "比例",
-    "smart.resolution": "分辨率",
-    "smart.quality": "质量",
-    "smart.count": "生成数量",
-    "smart.qualityAuto": "自动",
-    "smart.qualityLow": "低",
-    "smart.qualityMid": "中",
-    "smart.qualityHigh": "高",
-    "smart.countUnit": "张",
-    "smart.imageRatio": "图片比例",
-    "smart.custom": "自定义",
-    "smart.apiPlatform": "API 平台",
-    "smart.imageModel": "生图模型",
-    "smart.noApiPlatform": "暂无 API 平台",
-    "smart.noImageModel": "暂无生图模型",
-    "smart.noMsModel": "暂无 Modelscope 模型",
-    "smart.msFunction": "Modelscope 生成功能",
-    "smart.msCustomModel": "自定义 Modelscope 模型",
-    "smart.customModel": "自定义模型",
-    "smart.videoPlatform": "视频平台",
-    "smart.videoModel": "视频模型",
-    "smart.noVideoPlatform": "暂无视频平台",
-    "smart.noVideoModel": "暂无视频模型",
-    "smart.videoDuration": "时长",
-    "smart.videoDurationTip": "时长（秒）",
-    "smart.videoAspect": "画面比例",
-    "smart.videoResolution": "视频分辨率",
-    "smart.videoEnhancePrompt": "提示词增强",
-    "smart.videoUpsample": "高清",
-    "smart.videoGenerateAudio": "生成音频",
-    "smart.videoMultimodal": "智能多参",
-    "smart.videoCameraFixed": "镜头固定",
-    "smart.videoWatermark": "水印",
-    "smart.videoUseFrameRoles": "首尾帧",
-    "smart.videoTrustedAsset": "可信素材模式",
-    "smart.videoAspectKeep": "原图比例",
-    "smart.videoAspectAdaptive": "自适应",
-    "smart.videoResAuto": "自动",
-    "smart.comfyMode": "ComfyUI 模式",
-    "smart.upscaleTarget": "超分目标",
-    "smart.workflow": "工作流",
-    "smart.noWorkflow": "暂无 ComfyUI 工作流",
-    "smart.noOption": "无选项",
-    "smart.width": "宽",
-    "smart.height": "高",
-    "smart.widthFull": "宽度",
-    "smart.heightFull": "高度",
-    "smart.ratioW": "比例宽",
-    "smart.ratioH": "比例高",
-    "smart.strength": "强度",
-    "smart.superResolution": "超分",
-    "smart.diceOn": "随机已开启，点击关闭",
-    "smart.diceOff": "随机已关闭，点击开启",
-    "smart.inputThumbs": "输入图",
-    "smart.inputCount": "{n} 输入图",
-    "smart.inputNum": "输入 {n}",
-    "smart.inputBlocked": "已屏蔽",
-    "smart.inputClickBlock": "点击屏蔽输入",
-    "smart.inputClickEnable": "点击启用输入",
-    "smart.inputSelf": "自身，默认参与编辑",
-    "smart.inputUpstream": "上游输入",
-    "smart.inputUpstreamWorkflow": "工作流上游输入",
-    "smart.imageModeTitle": "图片模式",
-    "smart.imageModeEdit": "编辑",
-    "smart.imageModeWorkflow": "工作流",
-    "smart.imageModeEditHint": "默认优先编辑这张卡自己的图片；只有空卡片时才会承接上游。",
-    "smart.imageModeWorkflowHint": "始终承接上游图片作为编辑源，适合图1 -> 图2 -> 图3这类链路。",
-    "smart.imageModeWorkflowNeedInput": "工作流模式会忽略这张卡自身结果，请先接入上游图片。",
-    "smart.promptPreset": "预设",
-    "smart.promptPresetDefault": "提示词预设",
-    "smart.promptPresetUnnamed": "未命名预设",
-    "smart.promptPresetNone": "暂无预设",
-    "smart.promptPresetEmpty": "提示词为空",
-    "smart.promptPresetSavedNew": "已存为新预设",
-    "smart.promptPresetPanelHint": "选择预设后可直接修改名称和内容。",
-    "smart.promptPresetPanelEmpty": "当前还没有预设，可以先把当前提示词存为新预设。",
-    "smart.promptPresetEditing": "编辑完成后点击保存修改。",
-    "smart.promptPresetRequired": "名称和内容都不能为空。",
-    "smart.promptPresetSaved": "修改已保存",
-    "smart.promptPresetDeleteAgain": "再次点击删除",
-    "smart.promptPresetDeleteConfirm": "将删除“{name}”，再次点击确认。",
-    "smart.promptPresetDeleted": "预设已删除",
-    "smart.promptPlaceholderNode": "输入提示词...",
-    "smart.promptLlmInstructionPlaceholder": "输入给 LLM 的文本，运行后会写入上方提示词",
-    "smart.promptLlmSystemPlaceholder": "系统提示词开启后会随请求一起发送",
-    "smart.promptLlmEnableSystem": "启用系统提示词",
-    "smart.promptLlmDisableSystem": "关闭系统提示词",
-    "smart.promptLlmNeedText": "请先输入给 LLM 的文本",
-    "smart.promptLlmFailed": "LLM 运行失败",
-    "smart.loopPromptHintFound": "识别到 {n} 条提示词，按计数轮流输出",
-    "smart.loopPromptHintVariable": "可使用 [计数] 作为变量",
-    "smart.loopParallelTip": "智能画布会按轮落盘，避免覆盖同一目标节点",
-    "smart.loopDefaultPrompt": "现在生成第《计数》张卖点图片",
-    "smart.loopRunAll": "一键运行",
-    "smart.loopNoChain": "没有可一键运行的上游链路",
-    "smart.loopRunDone": "一键运行完成",
-    "smart.loopRunRoundsDone": "循环运行完成：{n} 轮",
-    "smart.loopParallelRoundsDone": "并发运行完成：{n} 轮",
-    "smart.mentionInput": "输入图",
-    "smart.mentionAssets": "资产库",
-    "smart.mentionEmpty": "没有可引用的图片",
-    "smart.toastNoUndo": "没有可撤销的操作",
-    "smart.toastUndone": "已撤销",
-    "smart.toastNeedPrompt": "请输入提示词",
-    "smart.toastNeedGroup": "请先按住 Ctrl 框选至少两个图片节点",
-    "smart.toastUploadFail": "素材上传失败",
-    "smart.toastApiSettingsFail": "API 设置加载失败",
-    "smart.toastCanvasFail": "智能画布加载失败",
-    "smart.errNoApiModel": "请先选择可用的 API 生图模型",
-    "smart.errNoVideoModel": "请先选择视频模型",
-    "smart.errNoOutImages": "没有返回图片",
-    "smart.errNoOutVideos": "没有返回视频",
-    "smart.errMsNeedRefs": "该 Modelscope 模型需要参考图",
-    "smart.errImageRead": "图片读取失败",
-    "smart.errNeedWorkflow": "请先在 ComfyUI 设置中添加工作流",
-    "smart.errComfyNoImages": "ComfyUI 没有返回图片",
-    "smart.errComfyEmpty": "ComfyUI 返回图片为空",
-    "smart.errEnhanceNeedRefs": "图片增强需要参考图",
-    "smart.errEditNeedRefs": "图片编辑需要参考图",
-    "smart.errRunFailed": "生成失败",
-    "smart.errRunTimeout": "生成超时",
-    "smart.refMapHeader": "下面是参考图编号：",
-    "smart.refUserNeed": "用户需求：",
-    "smart.runPromptPrefix": "提示词：",
-    "smart.assetLibrary": "资产库",
-    "smart.assetImages": "图片资产",
-    "smart.assetWorkflows": "工作流",
-    "smart.assetNewFolder": "新建文件夹",
-    "smart.assetRenameFolder": "重命名文件夹",
-    "smart.assetFolder": "新文件夹",
-    "smart.assetDropHint": "把画布图片拖到这里保存到当前文件夹",
-    "smart.assetEmpty": "这个文件夹还没有图片。把画布里的图片拖进来保存。",
-    "smart.assetWorkflowEmpty": "工作流资产先预留在这里，后续接入。",
-    "smart.assetRename": "重命名",
-    "smart.assetDeleteConfirm": "确定删除这个资产吗？",
-    "smart.assetNoFolder": "请先新建一个图片文件夹",
-    "smart.assetLoadFail": "资产库加载失败",
-    "smart.assetAddFail": "保存资产失败",
-    "smart.assetSaved": "已保存到资产库",
-    "smart.mediaBrowser": "浏览器",
-    "smart.mediaBrowserCollapse": "收起浏览器",
-    "smart.mediaBrowserOpen": "打开",
-    "smart.mediaBrowserExtract": "提取媒体",
-    "smart.mediaBrowserReady": "输入网址后打开，或直接提取页面媒体。",
-    "smart.mediaBrowserLoading": "正在打开网页...",
-    "smart.mediaBrowserExtracting": "正在提取媒体...",
-    "smart.mediaBrowserNoUrl": "请先输入网址",
-    "smart.mediaBrowserNoMedia": "没有提取到可用媒体",
-    "smart.mediaBrowserExtracted": "已加入临时抽屉 {n} 个媒体",
-    "smart.mediaBrowserBlocked": "部分网站不允许内嵌显示，但仍可尝试提取媒体。",
-    "smart.mediaDrawer": "临时抽屉",
-    "smart.mediaDrawerClear": "清空抽屉",
-    "smart.mediaDrawerEmpty": "提取图片或视频后会放在这里，可拖入画布。",
-    "smart.mediaDrawerAdd": "放入画布",
-    "smart.mediaDrawerSave": "存资产",
-    "smart.shortcuts": "快捷键",
-    "smart.shortcutBoxSelect": "按住并拖拽框选节点",
-    "smart.shortcutGroup": "合并选中的图片为组",
-    "smart.shortcutUngroup": "释放选中的分组",
-    "smart.shortcutUndo": "撤销上一步操作",
-    "smart.shortcutCopy": "复制选中的节点",
-    "smart.shortcutPaste": "粘贴节点或剪贴板图片",
-    "smart.shortcutAssets": "打开/关闭资源库",
-    "smart.shortcutOverview": "缩小画布视图",
-    "smart.shortcutCreateMenu": "打开快捷菜单",
-    "smart.shortcutPan": "拖动画布",
-    "smart.shortcutZoom": "缩放画布或预览图片",
-    "smart.shortcutDelete": "删除选中节点"
-};
-function tr(key){ return LOCAL_I18N[key] || key; }
-function trDefault(key, fallback){ const text = tr(key); return text === key ? fallback : text; }
-function trf(key, values={}){
-    return Object.entries(values).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), tr(key));
-}
-function langIsEn(){ return false; }
-function actionFailed(labelKey, detail=''){
-    const label = tr(labelKey);
-    return langIsEn() ? `${label} failed${detail ? `: ${detail}` : ''}` : `${label}失败${detail ? `：${detail}` : ''}`;
-}
-function noReturnedImage(labelKey){ return langIsEn() ? `${tr(labelKey)} failed: no image returned` : `${tr(labelKey)}失败：未返回图片`; }
 
-function applyLanguage(lang){
-
-    document.title = tr('canvas.title');
-    refreshGateViewControls();
-    if(canvas) {
-        currentCanvasTitle.textContent = canvas?.title || tr('canvas.untitled');
-    }
-    renderCanvasList();
-    render();
-}
 async function refreshCanvasConfigFromSettings(){
     await loadConfig();
     pruneMissingComfyWorkflows();
@@ -683,7 +19,7 @@ async function refreshCanvasConfigFromSettings(){
 }
 window.addEventListener('message', event => {
     if(event.origin && event.origin !== location.origin) return;
-    if(event.data?.type === 'studio-lang') applyLanguage();
+
     if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
     if(event.data?.type === 'canvas_locked') handleCanvasLockedMessage(event.data);
     if(event.data?.type === 'canvas_unlocked') handleCanvasUnlockedMessage(event.data);
@@ -869,7 +205,7 @@ const MS_GEN_MODELS = {
     zimage:    { label: 'ZImage',     modelId: 'Tongyi-MAI/Z-Image-Turbo',            supportsImage: false, endpoint: '/generate'            },
     qwen_edit: { label: 'Qwen Edit',  modelId: 'Qwen/Qwen-Image-Edit-2511',            supportsImage: true,  endpoint: '/api/angle/generate'  },
     klein_edit:{ label: 'Klein',      modelId: 'black-forest-labs/FLUX.2-klein-9B',   supportsImage: true,  endpoint: '/api/ms/generate'     },
-    custom:    { label: '自定义', labelKey: 'canvas.custom', modelId: '',                acceptsImage: true,   endpoint: '/api/ms/generate'     }
+    custom:    { label: '自定义', modelId: '',                acceptsImage: true,   endpoint: '/api/ms/generate'     }
 };
 let hasManagedImageModels = false;
 let hasManagedChatModels = false;
@@ -1082,9 +418,9 @@ function normalizeCanvasFolderId(value){
     return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
 }
 function canvasFolderLabel(folderId){
-    if(folderId === 'all') return trDefault('canvas.allCanvases', '全部画布');
-    if(!folderId) return trDefault('canvas.uncategorized', '未分类');
-    return canvasFolders.find(folder => folder.id === folderId)?.name || trDefault('canvas.folder', '文件夹');
+    if(folderId === 'all') return '全部画布';
+    if(!folderId) return '未分类';
+    return canvasFolders.find(folder => folder.id === folderId)?.name || '文件夹';
 }
 function canvasFolderChildren(parentId=''){
     const target = normalizeCanvasFolderId(parentId);
@@ -1136,9 +472,9 @@ function renderFolderNode(folder, depth=0){
             <span class="gate-folder-count">${count}</span>
         </button>
         <div class="gate-folder-actions">
-            <button class="gate-folder-action" type="button" data-folder-action="child" title="${trDefault('canvas.newSubfolder', '新建子文件夹')}"><i data-lucide="folder-plus" class="w-3 h-3"></i></button>
-            <button class="gate-folder-action" type="button" data-folder-action="rename" title="${trDefault('canvas.rename', '重命名')}"><i data-lucide="pencil" class="w-3 h-3"></i></button>
-            <button class="gate-folder-action" type="button" data-folder-action="delete" title="${trDefault('canvas.deleteFolder', '删除文件夹')}"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+            <button class="gate-folder-action" type="button" data-folder-action="child" title="新建子文件夹"><i data-lucide="folder-plus" class="w-3 h-3"></i></button>
+            <button class="gate-folder-action" type="button" data-folder-action="rename" title="重命名"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+            <button class="gate-folder-action" type="button" data-folder-action="delete" title="删除文件夹"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
         </div>
     `;
     row.querySelector('.gate-folder-main').onclick = () => setActiveFolder(folder.id);
@@ -1165,8 +501,8 @@ function renderFolderTree(){
     if(!gateFolderTree) return;
     gateFolderTree.innerHTML = '';
     const special = [
-        {id:'all', name:trDefault('canvas.allCanvases', '全部画布'), icon:'layout-grid', count:canvases.length},
-        {id:'', name:trDefault('canvas.uncategorized', '未分类'), icon:'inbox', count:countCanvasesInFolder('')},
+        {id:'all', name:'全部画布', icon:'layout-grid', count:canvases.length},
+        {id:'', name:'未分类', icon:'inbox', count:countCanvasesInFolder('')},
     ];
     special.forEach(item => {
         const row = document.createElement('div');
@@ -1251,7 +587,7 @@ function renameCanvasFolder(folderId){
 async function deleteCanvasFolder(folderId){
     const folder = canvasFolders.find(item => item.id === folderId);
     if(!folder) return;
-    if(!confirm(trDefault('canvas.deleteFolderConfirm', '删除该文件夹？其中的画布和子文件夹会移动到上一级。'))) return;
+    if(!confirm('删除该文件夹？其中的画布和子文件夹会移动到上一级。')) return;
     try {
         const parentId = normalizeCanvasFolderId(folder.parent_id);
         const data = await window.CanvasApi.deleteCanvasFolder(folderId);
@@ -1264,7 +600,7 @@ async function deleteCanvasFolder(folderId){
         renderCanvasList();
         refreshGateViewControls();
     } catch(e) {
-        setStatus(trDefault('canvas.folderDeleteFailed', '删除文件夹失败'));
+        setStatus('删除文件夹失败');
         console.error(e);
     }
 }
@@ -1278,7 +614,7 @@ function toggleMoveCanvasMenu(id, event){
 function canvasMoveMenuHtml(item){
     if(movingCanvasId !== item.id || trashMode) return '';
     const entries = [
-        {id:'', name:trDefault('canvas.uncategorized', '未分类'), depth:0, icon:'inbox'},
+        {id:'', name:'未分类', depth:0, icon:'inbox'},
         ...canvasFolders.map(folder => ({id:folder.id, name:folder.name, depth:canvasFolderDepth(folder.id), icon:'folder'})),
     ];
     return `
@@ -1308,15 +644,15 @@ async function moveCanvasToFolder(id, folderId){
     } catch(e) {
         if(item) item.folder_id = prev;
         if(canvas?.id === id) canvas.folder_id = prev;
-        setStatus(e?.message || trDefault('canvas.moveFolderFailed', '移动画布失败'));
+        setStatus(e?.message || '移动画布失败');
         console.error(e);
         await loadCanvasList(false);
     }
 }
 function refreshGateViewControls(){
     canvasGate.classList.toggle('trash-mode', trashMode);
-    if(gateTitleText) gateTitleText.textContent = trashMode ? tr('canvas.trash') : tr('canvas.selectCanvas');
-    if(gateSubtitle) gateSubtitle.textContent = trashMode ? tr('canvas.trashSubtitle') : tr('canvas.subtitle');
+    if(gateTitleText) gateTitleText.textContent = trashMode ? '回收站' : '选择画布';
+    if(gateSubtitle) gateSubtitle.textContent = trashMode ? '已删除画布可恢复，30 天后自动清理。' : '打开已有画布，或新建一个开始创作。';
     const trashCount = deletedCanvases.length;
     if(gateTrashCount){
         gateTrashCount.textContent = String(trashCount);
@@ -1325,7 +661,7 @@ function refreshGateViewControls(){
     const countPill = document.getElementById('gateCountPill');
     if(countPill){
         const items = visibleCanvasItems();
-        const suffix = tr('canvas.countSuffix');
+        const suffix = '个';
         countPill.textContent = suffix ? `${items.length} ${suffix}` : String(items.length);
     }
     const sortSwitch = document.getElementById('gateSortSwitch');
@@ -1337,13 +673,13 @@ function refreshGateViewControls(){
     }
     if(gateSearchInput){
         if(gateSearchInput.value !== canvasSearchQuery) gateSearchInput.value = canvasSearchQuery;
-        gateSearchInput.placeholder = tr('canvas.searchPlaceholder');
-        gateSearchInput.setAttribute('aria-label', tr('canvas.searchPlaceholder'));
+        gateSearchInput.placeholder = '搜索画布名称';
+        gateSearchInput.setAttribute('aria-label', '搜索画布名称');
     }
     if(gateSearch) gateSearch.classList.toggle('has-value', Boolean(String(canvasSearchQuery || '').trim()));
     if(gateSearchClear){
-        gateSearchClear.title = tr('canvas.clearSearch');
-        gateSearchClear.setAttribute('aria-label', tr('canvas.clearSearch'));
+        gateSearchClear.title = '清空搜索';
+        gateSearchClear.setAttribute('aria-label', '清空搜索');
     }
     renderFolderTree();
 }
@@ -1360,14 +696,14 @@ function setCanvasMode(open){
         linkControlsEl.innerHTML = '';
         selectionHub.classList.remove('open');
     } else if(currentCanvasTitle) {
-        currentCanvasTitle.textContent = canvas?.title || tr('canvas.untitled');
+        currentCanvasTitle.textContent = canvas?.title || '未命名画布';
         currentCanvasTime.textContent = formatCanvasTime(canvas?.updated_at || canvas?.created_at);
     }
     refreshIcons();
 }
 function ensureCanvas(){
     if(canvas) return true;
-    setStatus(tr('canvas.needCanvas'));
+    setStatus('请先新建或选择画布');
     return false;
 }
 function setCreateMode(active, kind='classic'){
@@ -1420,10 +756,10 @@ async function loadCanvasList(openFirst=true, options={}){
         if(openFirst && canvases[0]) await openCanvas(canvases[0].id);
         else if(!canvas) {
             setCanvasMode(false);
-            setStatus(trashMode ? (deletedCanvases.length ? tr('canvas.trash') : tr('canvas.trashEmpty')) : (canvases.length ? tr('canvas.chooseFirst') : tr('canvas.noCanvasCreateFirst')));
+            setStatus(trashMode ? (deletedCanvases.length ? '回收站' : '回收站为空') : (canvases.length ? '请选择或新建画布' : '暂无画布，请先新建画布'));
         }
     } catch(e) {
-        setStatus(tr('canvas.canvasListFailed'));
+        setStatus('画布列表加载失败');
         console.error(e);
     } finally {
         if(canvasGate.classList.contains('gate-loading')){
@@ -1438,9 +774,9 @@ async function loadTrashList(){
         deletedCanvases = data.canvases || [];
         refreshGateViewControls();
         renderCanvasList();
-        setStatus(deletedCanvases.length ? tr('canvas.trash') : tr('canvas.trashEmpty'));
+        setStatus(deletedCanvases.length ? '回收站' : '回收站为空');
     } catch(e) {
-        setStatus(tr('canvas.trashLoadFailed'));
+        setStatus('回收站加载失败');
         console.error(e);
     }
 }
@@ -1510,7 +846,7 @@ async function patchCanvasMeta(id, patch){
         const data = await window.CanvasApi.patchCanvasMeta(id, patch);
         if(data.canvas) updateCanvasListRecord(data.canvas);
     } catch(e){
-        setStatus(tr('canvas.metaSaveFailed') || '保存失败');
+        setStatus('保存失败');
         console.error(e);
         await loadCanvasList(false);
     }
@@ -1563,10 +899,10 @@ function renderCanvasListInto(list){
         empty.className = 'gate-list-empty';
         const hasSearch = Boolean(String(canvasSearchQuery || '').trim());
         empty.innerHTML = hasSearch
-            ? `<div class="gate-list-empty-icon"><i data-lucide="search-x" class="w-6 h-6"></i></div>${tr('canvas.noSearchResults')}`
+            ? `<div class="gate-list-empty-icon"><i data-lucide="search-x" class="w-6 h-6"></i></div>没有找到匹配的画布`
             : (trashMode
-                ? `<div class="gate-list-empty-icon"><i data-lucide="trash-2" class="w-6 h-6"></i></div>${tr('canvas.trashEmpty')}`
-                : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>${tr('canvas.noCanvas')}<br>${tr('canvas.startWithNewCanvas')}`);
+                ? `<div class="gate-list-empty-icon"><i data-lucide="trash-2" class="w-6 h-6"></i></div>回收站为空`
+                : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>暂无画布<br>点击右上方「新建画布」开始创作`);
         list.appendChild(empty);
         refreshIcons();
         return;
@@ -1587,54 +923,54 @@ function renderCanvasListInto(list){
             <div class="canvas-open" role="button" tabindex="${trashMode ? '-1' : '0'}">
                 <div class="studio-canvas-cover studio-neutral-cover" aria-hidden="true"><strong class="studio-cover-title">${escapeHtml(item.title || '未命名画布')}</strong></div><div class="studio-card-type">${isSmartCanvas ? '智能画布' : '普通画布'}${pinned ? ' · 已置顶' : ''}</div>
                 <div class="canvas-card-icon-row">
-                    <span class="canvas-preview-mark ${color ? `icon-has-color cc-${escapeAttr(color)}` : ''}" role="button" tabindex="0" title="${trashMode ? tr('canvas.deletedCanvas') : (tr('canvas.editMeta') || '编辑图标 / 颜色 / 负责人')}">${renderCanvasIcon(isSmartCanvas && /[^\x00-\x7F]/.test(item.icon || '') ? 'sparkles' : item.icon, 16)}</span>
-                    ${isSmartCanvas ? `<span class="canvas-kind-chip">${tr('canvas.smartCanvasShort')}</span>` : ''}
+                    <span class="canvas-preview-mark ${color ? `icon-has-color cc-${escapeAttr(color)}` : ''}" role="button" tabindex="0" title="${trashMode ? '已删除画布' : ('编辑图标 / 颜色 / 负责人')}">${renderCanvasIcon(isSmartCanvas && /[^\x00-\x7F]/.test(item.icon || '') ? 'sparkles' : item.icon, 16)}</span>
+                    ${isSmartCanvas ? `<span class="canvas-kind-chip">智能</span>` : ''}
                 </div>
                 <div class="canvas-card-title">${escapeHtml(item.title)}</div>
 
                 <div class="canvas-card-meta">
                     <span class="canvas-card-meta-dot"></span>
-                    <div class="canvas-card-time">${trashMode ? `${tr('canvas.deletedAt')} ${formatCanvasTime(item.deleted_at)}` : formatCanvasTime(item.updated_at || item.created_at)}</div>
+                    <div class="canvas-card-time">${trashMode ? `删除于 ${formatCanvasTime(item.deleted_at)}` : formatCanvasTime(item.updated_at || item.created_at)}</div>
                 </div>
             </div>
             ${trashMode ? (pendingPurgeCanvasId === item.id ? `
                 <div class="canvas-delete-confirm">
                     <div class="canvas-delete-box">
-                        <div class="canvas-delete-title">${tr('canvas.purgeConfirm')}</div>
+                        <div class="canvas-delete-title">清理画布？素材仍保留在画布资产中</div>
                         <div class="canvas-delete-actions">
-                            <button class="canvas-confirm-btn" type="button">${tr('common.confirm')}</button>
-                            <button class="canvas-cancel-btn" type="button">${tr('common.cancel')}</button>
+                            <button class="canvas-confirm-btn" type="button">确定</button>
+                            <button class="canvas-cancel-btn" type="button">取消</button>
                         </div>
                     </div>
                 </div>
             ` : `
-                <button class="canvas-delete canvas-restore" type="button" title="${tr('canvas.restoreCanvas')}" aria-label="${tr('canvas.restoreCanvas')} ${escapeHtml(item.title)}" style="right:42px">
+                <button class="canvas-delete canvas-restore" type="button" title="恢复画布" aria-label="恢复画布 ${escapeHtml(item.title)}" style="right:42px">
                     <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
                 </button>
-                <button class="canvas-delete canvas-purge" type="button" title="${tr('canvas.purgeCanvas')}" aria-label="${tr('canvas.purgeCanvas')} ${escapeHtml(item.title)}">
+                <button class="canvas-delete canvas-purge" type="button" title="彻底删除" aria-label="彻底删除 ${escapeHtml(item.title)}">
                     <i data-lucide="x" class="w-3.5 h-3.5"></i>
                 </button>
             `) : (pendingDeleteCanvasId === item.id ? `
                 <div class="canvas-delete-confirm">
                     <div class="canvas-delete-box">
-                        <div class="canvas-delete-title">${tr('canvas.moveToTrashConfirm')}</div>
+                        <div class="canvas-delete-title">画布移入回收站？素材仍保留</div>
                         <div class="canvas-delete-actions">
-                            <button class="canvas-confirm-btn" type="button">${tr('common.confirm')}</button>
-                            <button class="canvas-cancel-btn" type="button">${tr('common.cancel')}</button>
+                            <button class="canvas-confirm-btn" type="button">确定</button>
+                            <button class="canvas-cancel-btn" type="button">取消</button>
                         </div>
                     </div>
                 </div>
             ` : `
-                <button class="canvas-pin-btn ${pinned ? 'active' : ''}" type="button" title="${pinned ? (tr('canvas.unpin') || '取消置顶') : (tr('canvas.pin') || '置顶')}" aria-label="${pinned ? (tr('canvas.unpin') || '取消置顶') : (tr('canvas.pin') || '置顶')}">
+                <button class="canvas-pin-btn ${pinned ? 'active' : ''}" type="button" title="${pinned ? ('取消置顶') : ('置顶')}" aria-label="${pinned ? ('取消置顶') : ('置顶')}">
                     <i data-lucide="pin" class="w-3.5 h-3.5"></i>
                 </button>
-                <button class="canvas-card-edit" type="button" title="${tr('canvas.rename')}" aria-label="${tr('canvas.rename')} ${escapeHtml(item.title)}">
+                <button class="canvas-card-edit" type="button" title="重命名" aria-label="重命名 ${escapeHtml(item.title)}">
                     <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                 </button>
-                <button class="canvas-folder-btn" type="button" title="${trDefault('canvas.moveToFolder', '移动到文件夹')}" aria-label="${trDefault('canvas.moveToFolder', '移动到文件夹')} ${escapeHtml(item.title)}">
+                <button class="canvas-folder-btn" type="button" title="移动到文件夹" aria-label="移动到文件夹 ${escapeHtml(item.title)}">
                     <i data-lucide="folder-input" class="w-3.5 h-3.5"></i>
                 </button>
-                <button class="canvas-delete" type="button" title="${tr('canvas.moveToTrash')}" aria-label="${tr('canvas.moveToTrash')} ${escapeHtml(item.title)}">
+                <button class="canvas-delete" type="button" title="移入回收站" aria-label="移入回收站 ${escapeHtml(item.title)}">
                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
                 ${canvasMoveMenuHtml(item)}
@@ -1766,18 +1102,18 @@ function renderCanvasMetaPopover(){
     pop.dataset.canvasMetaPop = item.id;
     pop.innerHTML = `
         <div class="canvas-meta-section">
-            <div class="canvas-meta-label">${tr('canvas.ownerLabel') || '负责人 / 项目'}</div>
-            <input class="canvas-owner-input" type="text" maxlength="40" value="${escapeAttr(owner)}" placeholder="${escapeAttr(tr('canvas.ownerPlaceholder') || '如：张三 / 双十一项目')}">
+            <div class="canvas-meta-label">${'负责人 / 项目'}</div>
+            <input class="canvas-owner-input" type="text" maxlength="40" value="${escapeAttr(owner)}" placeholder="${escapeAttr('输入负责人或项目')}">
         </div>
         <div class="canvas-meta-section">
-            <div class="canvas-meta-label">${tr('canvas.colorLabel') || '颜色标记'}</div>
+            <div class="canvas-meta-label">${'颜色标记'}</div>
             <div class="canvas-color-row">
-                <button class="canvas-color-swatch cc-none ${!color ? 'active' : ''}" type="button" data-color="" title="${tr('canvas.colorNone') || '无'}"><i data-lucide="ban" class="w-3 h-3"></i></button>
+                <button class="canvas-color-swatch cc-none ${!color ? 'active' : ''}" type="button" data-color="" title="${'无'}"><i data-lucide="ban" class="w-3 h-3"></i></button>
                 ${CANVAS_COLOR_OPTIONS.map(c => `<button class="canvas-color-swatch cc-${c} ${color === c ? 'active' : ''}" type="button" data-color="${c}" aria-label="${c}"></button>`).join('')}
             </div>
         </div>
         <div class="canvas-meta-section">
-            <div class="canvas-meta-label">${tr('canvas.changeIcon')}</div>
+            <div class="canvas-meta-label">修改画布图标</div>
             <div class="emoji-picker-grid">
                 ${CANVAS_EMOJIS.map(icon => `<button class="emoji-option" type="button" data-icon="${escapeHtml(icon)}">${renderCanvasIcon(icon, 14)}</button>`).join('')}
             </div>
@@ -1827,7 +1163,7 @@ async function createCanvas(customTitle = ''){
     openCanvasRequestSeq++;
 
     const isSmart = createCanvasKind === 'smart';
-    const titleBase = isSmart ? tr('canvas.newSmartCanvas') : tr('canvas.newCanvas');
+    const titleBase = isSmart ? '新建智能画布' : '新建画布';
     const title = customTitle || `${titleBase} ${new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})}`;
     trashMode = false;
     refreshGateViewControls();
@@ -1863,7 +1199,7 @@ async function createCanvas(customTitle = ''){
         await loadCanvasList(false);
         renderCanvasList();
     } catch(e) {
-        setStatus(tr('canvas.createFailed'));
+        setStatus('新建画布失败');
         console.error(e);
         throw e;
     }
@@ -1923,7 +1259,7 @@ async function openCanvas(id){
     const openSeq = ++openCanvasRequestSeq;
     setStatus('Opening...');
     try {
-        const data = await window.CanvasApi.getCanvas(id, {errorFallback:tr('canvas.openFailed')});
+        const data = await window.CanvasApi.getCanvas(id, {errorFallback:'打开画布失败'});
         if(openSeq !== openCanvasRequestSeq) return;
         resetCascadeRuntimeState();
         const nextCanvas = data.canvas;
@@ -1972,7 +1308,7 @@ async function openCanvas(id){
         });
         return canvas;
     } catch(e) {
-        setStatus(tr('canvas.openFailed'));
+        setStatus('打开画布失败');
         console.error(e);
     }
 }
@@ -2052,7 +1388,7 @@ async function deleteCanvas(id, event){
     setStatus('Moving to trash...');
     try {
         const res = await window.CanvasApi.deleteCanvas(id);
-        if(!res.ok) throw new Error(tr('canvas.moveToTrashFailed'));
+        if(!res.ok) throw new Error('移入回收站失败');
         const deletingCurrent = canvas?.id === id;
         pendingDeleteCanvasId = null;
         canvases = canvases.filter(item => item.id !== id);
@@ -2065,10 +1401,10 @@ async function deleteCanvas(id, event){
             setCanvasMode(false);
         }
         renderCanvasList();
-        setStatus(canvases.length ? tr('canvas.movedToTrash') : tr('canvas.noCanvasCreateFirst'));
+        setStatus(canvases.length ? '已移入回收站' : '暂无画布，请先新建画布');
         await loadCanvasList(false);
     } catch(e) {
-        setStatus(tr('canvas.moveToTrashFailed'));
+        setStatus('移入回收站失败');
         console.error(e);
     }
 }
@@ -2078,14 +1414,14 @@ async function restoreCanvas(id, event){
     setStatus('Restoring...');
     try {
         const res = await window.CanvasApi.restoreCanvas(id);
-        if(!res.ok) throw new Error(tr('canvas.restoreFailed'));
+        if(!res.ok) throw new Error('恢复画布失败');
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
         await loadCanvasList(false);
         await loadTrashList();
-        setStatus(tr('canvas.restored'));
+        setStatus('画布已恢复');
     } catch(e) {
-        setStatus(tr('canvas.restoreFailed'));
+        setStatus('恢复画布失败');
         console.error(e);
     }
 }
@@ -2095,14 +1431,14 @@ async function purgeCanvas(id, event){
     setStatus('Deleting...');
     try {
         const res = await window.CanvasApi.purgeCanvas(id);
-        if(!res.ok) throw new Error(tr('canvas.purgeFailed'));
+        if(!res.ok) throw new Error('彻底删除失败');
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
         renderCanvasList();
-        setStatus(deletedCanvases.length ? tr('canvas.purged') : tr('canvas.trashEmpty'));
+        setStatus(deletedCanvases.length ? '已彻底删除' : '回收站为空');
         await loadTrashList();
     } catch(e) {
-        setStatus(tr('canvas.purgeFailed'));
+        setStatus('彻底删除失败');
         console.error(e);
     }
 }
@@ -2234,7 +1570,7 @@ window.onload = async () => {
     applyQuickToolbarState();
     updateCanvasIdentityButton();
 
-    document.title = tr('canvas.title');
+    document.title = 'shadox';
     initOutputCompareEvents();
     initOutputPreviewZoomEvents();
     applyViewport();

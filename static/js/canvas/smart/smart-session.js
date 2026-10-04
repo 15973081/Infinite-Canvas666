@@ -23,7 +23,7 @@ function smartCanvasLockTitle(holder=smartCanvasLockHolder){
 }
 
 function updateSmartCanvasNav(){
-    const title = canvas?.title || tr('canvas.smartCanvas');
+    const title = canvas?.title || '智能画布';
     const value = Number(canvas?.updated_at || canvas?.created_at || 0);
     const date = new Date(value && value < 10000000000 ? value * 1000 : value);
     document.getElementById('smartTitle').textContent = title;

@@ -210,11 +210,11 @@ function toggleQuickToolbar(){
 
 function imageModelOptions(selectedModel, providerId){
     if(!imageApiProviders().length){
-        return `<option value="" disabled selected>${tr('canvas.noApiProvidersHint') || '暂无 API 平台，请到 API 设置添加'}</option>`;
+        return `<option value="" disabled selected>${'暂无 API 平台，请到 API 设置添加'}</option>`;
     }
     const models = allImageModels(providerId);
     if(!models.length){
-        return `<option value="" disabled selected>${tr('canvas.noImageModelsHint') || '暂无生图模型，请到 API 设置添加'}</option>`;
+        return `<option value="" disabled selected>${'暂无生图模型，请到 API 设置添加'}</option>`;
     }
     const selectedValue = resolveImageModel(selectedModel);
     const options = models.map(model => `<option value="${escapeHtml(model)}" ${model === selectedValue ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
@@ -225,7 +225,7 @@ function imageModelOptions(selectedModel, providerId){
 function chatModelOptions(selectedModel, providerId=''){
     const models = providerId ? providerChatModels(providerId) : allChatModels();
     if(!models.length){
-        return `<option value="" disabled selected>${tr('canvas.noModelsHint') || '暂无模型，请到 API 设置添加'}</option>`;
+        return `<option value="" disabled selected>${'暂无模型，请到 API 设置添加'}</option>`;
     }
     const selectedValue = resolveChatModel(selectedModel, providerId);
     const options = models.map(model => `<option value="${escapeHtml(model)}" ${model === selectedValue ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
@@ -421,8 +421,8 @@ function linkCreateOptions(state){
     if(state.originKind === 'out'){
         if(['image','prompt','loop','group','promptGroup','llm','output'].includes(node.type)){
             return [
-                {type:'generator', label:tr('canvas.apiGenerate'), icon:'wand-sparkles'},
-                {type:'video', label:tr('canvas.videoGenerateNode'), icon:'clapperboard'},
+                {type:'generator', label:'API生成', icon:'wand-sparkles'},
+                {type:'video', label:'视频生成', icon:'clapperboard'},
                 ...(node.type === 'output' ? [] : [{type:'llm', label:'LLM', icon:'message-square-text'}])
             ];
         }
@@ -430,10 +430,10 @@ function linkCreateOptions(state){
     }
     if(CANVAS_GENERATOR_TYPES.includes(node.type) || node.type === 'llm'){
         return [
-            {type:'image', label:tr('canvas.imageCard'), icon:'image-plus'},
-            {type:'prompt', label:tr('canvas.prompt'), icon:'text-cursor-input'},
-            {type:'loop', label:tr('canvas.loopNode'), icon:'repeat-2'},
-            {type:'group', label:tr('canvas.group'), icon:'group'},
+            {type:'image', label:'上传节点', icon:'image-plus'},
+            {type:'prompt', label:'提示词', icon:'text-cursor-input'},
+            {type:'loop', label:'循环节点', icon:'repeat-2'},
+            {type:'group', label:'分组', icon:'group'},
             {type:'llm', label:'LLM', icon:'message-square-text'}
         ];
     }
@@ -470,8 +470,8 @@ function openGeneratorNodeMenu(nodeId, clientX, clientY){
     const outputOptions = [
         {type:'output', label:'Output', icon:'circle-dot'},
         ...(CANVAS_IMAGE_OUTPUT_TYPES.includes(node.type) ? [
-            {type:'generator', label:tr('canvas.apiGenerate'), icon:'wand-sparkles'},
-            {type:'video', label:tr('canvas.videoGenerateNode'), icon:'clapperboard'}
+            {type:'generator', label:'API生成', icon:'wand-sparkles'},
+            {type:'video', label:'视频生成', icon:'clapperboard'}
         ] : [])
     ];
     const buttonsHtml = (options, kind) => `<div class="node-port-menu-grid">${options.map(opt => `<button class="menu-btn" data-link-create="${escapeAttr(opt.type)}" data-link-kind="${kind}" title="${escapeAttr(opt.label)}"><i data-lucide="${escapeAttr(opt.icon)}"></i><span>${escapeHtml(opt.label.replace('生成', ''))}</span></button>`).join('')}</div>`;
@@ -622,12 +622,12 @@ function openOutputNodeMenu(nodeId, clientX, clientY){
     const downloadableCount = outputDownloadableImageUrls(node).length;
     imageNodeMenu.classList.add('output-node-menu');
     imageNodeMenu.innerHTML = `
-        <div class="menu-section-title">${tr('canvas.outputGroupActions')}</div>
-        <button class="menu-btn" data-output-convert="${escapeAttr(nodeId)}" ${imageCount ? '' : 'disabled'}><i data-lucide="replace" class="w-4 h-4"></i><span>${tr('canvas.outputConvertToInputGroup')}</span></button>
-        <button class="menu-btn" data-output-copy="${escapeAttr(nodeId)}" ${imageCount ? '' : 'disabled'}><i data-lucide="copy-plus" class="w-4 h-4"></i><span>${tr('canvas.outputCopyToInputGroup')}</span></button>
+        <div class="menu-section-title">分组</div>
+        <button class="menu-btn" data-output-convert="${escapeAttr(nodeId)}" ${imageCount ? '' : 'disabled'}><i data-lucide="replace" class="w-4 h-4"></i><span>转为输入组</span></button>
+        <button class="menu-btn" data-output-copy="${escapeAttr(nodeId)}" ${imageCount ? '' : 'disabled'}><i data-lucide="copy-plus" class="w-4 h-4"></i><span>复制为新的输入组</span></button>
         <div class="menu-divider"></div>
-        <div class="menu-section-title">${tr('canvas.outputFileActions')}</div>
-        <button class="menu-btn" data-output-download="${escapeAttr(nodeId)}" ${downloadableCount ? '' : 'disabled'}><i data-lucide="download" class="w-4 h-4"></i><span>${tr('canvas.outputDownloadAllImages')}</span></button>
+        <div class="menu-section-title">文件</div>
+        <button class="menu-btn" data-output-download="${escapeAttr(nodeId)}" ${downloadableCount ? '' : 'disabled'}><i data-lucide="download" class="w-4 h-4"></i><span>下载全部文件</span></button>
     `;
     const menuWidth = 260;
     imageNodeMenu.style.left = `${Math.max(10, Math.min(window.innerWidth - menuWidth - 10, clientX))}px`;
@@ -777,13 +777,13 @@ function nodeTypeLabel(node){
     const t = node.type;
     if(t === 'image') return 'Image';
     if(t === 'prompt') return 'Prompt';
-    if(t === 'loop') return tr('canvas.loopNode');
+    if(t === 'loop') return '循环节点';
     if(t === 'output') return 'Output';
     if(t === 'llm') return 'LLM';
     if(t === 'comfy') return 'ComfyUI';
-    if(t === 'video') return tr('canvas.videoGenerateNode');
-    if(t === 'msgen') return tr('canvas.modelscopeGenerate');
-    if(t === 'ltxDirector') return tr('canvas.ltxDirector');
+    if(t === 'video') return '视频生成';
+    if(t === 'msgen') return 'Modelscope生成';
+    if(t === 'ltxDirector') return 'LTX Director';
     return t || 'Node';
 }
 
@@ -1011,7 +1011,7 @@ function renderPendingOutput(pending){
                 <div class="output-recover-title">${escapeHtml(state.label)}</div>
                 <div class="output-recover-sub">${state.status==='succeeded'?'结果已保存；开始编辑后核对回填，或从生成结果加入新节点。':'查询不会重新生成或产生费用。'}</div>
                 <button class="output-recover-query" type="button">${state.status==='succeeded'?'查看生成结果':'刷新状态'}</button>
-            </div><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+            </div><button class="output-del" title="删除">×</button></div>`;
     }
     if(pending?.paused){
         return `<div class="output-img-wrap loading-wrap recoverable" data-pending-id="${escapeAttr(pending.id)}"${pendingOutputStyle(pending)}>
@@ -1022,13 +1022,13 @@ function renderPendingOutput(pending){
                 <div class="output-recover-sub">输入已变化。后台任务不会因此取消，请到生成结果查看进度并确认加入。</div>
                 <button class="output-recover-query" type="button">查看生成结果</button>
             </div>
-            <button class="output-del" title="${tr('common.delete')}">×</button>
+            <button class="output-del" title="删除">×</button>
         </div>`;
     }
     if(pending?.failed){
         const taskId = pending.recoverTaskId || '';
         const querying = Boolean(pending.querying);
-        const msg = pending.error || tr('canvas.generationFailed');
+        const msg = pending.error || '生成失败';
         const sub = taskId ? `任务 ID：${escapeHtml(taskId)}` : '没有任务 ID，无法查询';
         return `<div class="output-img-wrap loading-wrap recoverable" data-pending-id="${escapeAttr(pending.id)}"${pendingOutputStyle(pending)}>
             <span class="output-time-pill failed">失败</span>
@@ -1038,10 +1038,10 @@ function renderPendingOutput(pending){
                 <div class="output-recover-sub" title="${escapeAttr(msg)}">${sub}</div>
                 <button class="output-recover-query" type="button" ${taskId && !querying ? '' : 'disabled'}>${querying ? '查询中...' : '查询结果'}</button>
             </div>
-            <button class="output-del" title="${tr('common.delete')}">×</button>
+            <button class="output-del" title="删除">×</button>
         </div>`;
     }
-    return `<div class="output-img-wrap loading-wrap" data-pending-id="${escapeAttr(pending.id)}"${pendingOutputStyle(pending)}><span class="output-time-pill running">${formatRunDuration(nowMs() - Number(pending.startedAt || nowMs()))}</span><div class="output-spinner"></div><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+    return `<div class="output-img-wrap loading-wrap" data-pending-id="${escapeAttr(pending.id)}"${pendingOutputStyle(pending)}><span class="output-time-pill running">${formatRunDuration(nowMs() - Number(pending.startedAt || nowMs()))}</span><div class="output-spinner"></div><button class="output-del" title="删除">×</button></div>`;
 }
 
 function captureOutputScrolls(){
@@ -1146,7 +1146,7 @@ function renderNode(node){
         if(node.type === 'output') openOutputNodeMenu(node.id, e.clientX, e.clientY);
         else openGeneratorNodeMenu(node.id, e.clientX, e.clientY);
     };
-    const title = node.type === 'image' ? 'Image' : node.type === 'prompt' ? (langIsEn() ? 'Prompt' : '提示词') : node.type === 'loop' ? tr('canvas.loopNode') : node.type === 'promptGroup' ? 'Prompts' : node.type === 'group' ? 'Group' : node.type === 'output' ? 'Output' : node.type === 'llm' ? 'LLM' : node.type === 'comfy' ? 'ComfyUI' : node.type === 'ltxDirector' ? tr('canvas.ltxDirector') : node.type === 'msgen' ? tr('canvas.modelscopeGenerate') : node.type === 'video' ? tr('canvas.videoGenerateNode') : tr('canvas.apiGenerate');
+    const title = node.type === 'image' ? 'Image' : node.type === 'prompt' ? ('提示词') : node.type === 'loop' ? '循环节点' : node.type === 'promptGroup' ? 'Prompts' : node.type === 'group' ? 'Group' : node.type === 'output' ? 'Output' : node.type === 'llm' ? 'LLM' : node.type === 'comfy' ? 'ComfyUI' : node.type === 'ltxDirector' ? 'LTX Director' : node.type === 'msgen' ? 'Modelscope生成' : node.type === 'video' ? '视频生成' : 'API生成';
     const displayTitle = node.type === 'image' && node.url ? nodeTitleForMedia(node) : title;
     // 失败徽章只在一键运行模式中显示，单节点失败已通过 alert 提示
     const showStatus = ['generator','msgen','comfy','ltxDirector','llm','video'].includes(node.type) && node.runStatus
@@ -1155,7 +1155,7 @@ function renderNode(node){
         const label = { queued:'排队中', running:'运行中', done:'完成', failed:'失败' }[node.runStatus] || '';
         return `<span class="node-run-status ${node.runStatus}"><span class="dot"></span>${escapeHtml(label)}${node._cascadeIdx?' '+node._cascadeIdx:''}</span>`;
     })() : '';
-    el.innerHTML = `<div class="node-head"><span class="node-title">${displayTitle}</span><div class="node-head-actions">${statusHtml}<button type="button" title="${langIsEn() ? 'Delete node' : '删除节点'}" aria-label="${langIsEn() ? 'Delete node' : '删除节点'}" onclick="deleteNodeFromButton('${node.id}', event)" class="node-delete-btn text-gray-300 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button></div></div>`;
+    el.innerHTML = `<div class="node-head"><span class="node-title">${displayTitle}</span><div class="node-head-actions">${statusHtml}<button type="button" title="删除节点" aria-label="删除节点" onclick="deleteNodeFromButton('${node.id}', event)" class="node-delete-btn text-gray-300 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button></div></div>`;
     const body = document.createElement('div');
     body.className = 'node-body';
     if(node.type === 'image') {
@@ -1163,7 +1163,7 @@ function renderNode(node){
             const missing = isMissingAssetUrl(node.url);
             const mediaKind = nodeMediaKind;
             const isEditableImage = mediaKind === 'image' && !missing;
-            body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="true"')}</div><div class="image-caption text-[11px] text-gray-400 truncate" title="${escapeAttr(node.name || nodeTitleForMedia(node))}">${escapeHtml(node.name || 'image')}${missing ? ` · ${langIsEn() ? 'missing' : '文件缺失'}` : ''}</div>`;
+            body.innerHTML = `<div class="image-preview-wrap">${missing ? missingAssetHtml(node.url) : canvasPreviewImgHtml(node.url, 768, 'draggable="true"')}</div><div class="image-caption text-[11px] text-gray-400 truncate" title="${escapeAttr(node.name || nodeTitleForMedia(node))}">${escapeHtml(node.name || 'image')}${missing ? ` · 文件缺失` : ''}</div>`;
             if(!missing && mediaKind !== 'image'){
                 const mediaHtml = mediaKind === 'video'
                     ? `<div class="media-card video-card">${canvasVideoPreviewHtml(node.url, 768, 'draggable="false"')}<button class="canvas-video-play" type="button" title="打开视频灯箱" aria-label="打开视频灯箱"><i data-lucide="play"></i></button></div>`
@@ -1239,7 +1239,7 @@ function renderNode(node){
                 };
             }
         } else {
-        body.innerHTML = `<div class="blank-image"><i data-lucide="image-plus" class="w-7 h-7"></i><div class="text-[11px] font-bold">${tr('canvas.clickDragPasteImage')}</div></div>`;
+        body.innerHTML = `<div class="blank-image"><i data-lucide="image-plus" class="w-7 h-7"></i><div class="text-[11px] font-bold">点击/拖拽上传素材，或在空节点粘贴图片</div></div>`;
             const blank = body.querySelector('.blank-image');
             blank.onclick = () => pickImageForNode(node.id);
             blank.ondragover = e => allowImageNodeDropEvent(e, blank);
@@ -1249,8 +1249,8 @@ function renderNode(node){
     }
     if(node.type === 'prompt') {
         const templateActive = promptTemplateModal?.classList.contains('open') && promptTemplateNodeId === node.id;
-        el.querySelector('.node-head-actions').insertAdjacentHTML('afterbegin', `<button class="prompt-template-btn ${templateActive ? 'active' : ''}" type="button" data-prompt-template-open data-prompt-template-node-id="${escapeAttr(node.id)}" aria-pressed="${templateActive ? 'true' : 'false'}" title="${escapeAttr(tr('canvas.promptTemplateLibrary'))}"><i data-lucide="library"></i><span>${escapeHtml(tr('canvas.promptTemplateShort'))}</span></button>`);
-        body.innerHTML = `<div class="prompt-editor"><textarea aria-label="${langIsEn() ? 'Prompt' : '提示词'}" placeholder="${tr('canvas.promptPlaceholder')}">${escapeHtml(node.text || '')}</textarea>${promptCounterHtml(node.text || '')}</div>`;
+        el.querySelector('.node-head-actions').insertAdjacentHTML('afterbegin', `<button class="prompt-template-btn ${templateActive ? 'active' : ''}" type="button" data-prompt-template-open data-prompt-template-node-id="${escapeAttr(node.id)}" aria-pressed="${templateActive ? 'true' : 'false'}" title="${escapeAttr('提示词模板库')}"><i data-lucide="library"></i><span>${escapeHtml('模板库')}</span></button>`);
+        body.innerHTML = `<div class="prompt-editor"><textarea aria-label="提示词" placeholder="输入提示词...">${escapeHtml(node.text || '')}</textarea>${promptCounterHtml(node.text || '')}</div>`;
         const textarea = body.querySelector('textarea');
         const templateBtn = el.querySelector('[data-prompt-template-open]');
         templateBtn.onclick = e => {
@@ -1272,9 +1272,9 @@ function renderNode(node){
         const imgCount = items.filter(n => n.type === 'image').length;
         const promptCount = items.filter(n => n.type === 'prompt').length;
         const parts = [];
-        if(imgCount) parts.push(`${imgCount} ${tr('canvas.imageCount')}`);
-        if(promptCount) parts.push(`${promptCount} ${tr('canvas.promptCount')}`);
-        const text = parts.length ? `${parts.join(' · ')} ${tr('canvas.grouped')}` : tr('canvas.groupEmpty');
+        if(imgCount) parts.push(`${imgCount} 张图片`);
+        if(promptCount) parts.push(`${promptCount} 个提示词`);
+        const text = parts.length ? `${parts.join(' · ')} 已成组` : '拖入图片或提示词到此';
         body.innerHTML = `<div class="text-[11px] text-gray-400">${text}</div>`;
         const previewItems = groupImageItems(node);
         if(previewItems.length){
@@ -1298,7 +1298,7 @@ function renderNode(node){
     }
     if(node.type === 'promptGroup') {
         const promptNodes = (node.items || []).map(id => nodes.find(n => n.id === id)).filter(Boolean);
-        body.innerHTML = `<div class="text-[11px] text-gray-400">${promptNodes.length} ${tr('canvas.promptCount')} ${tr('canvas.grouped')}</div>`;
+        body.innerHTML = `<div class="text-[11px] text-gray-400">${promptNodes.length} 个提示词 已成组</div>`;
     }
     if(node.type === 'llm') body.appendChild(renderLLMBody(node));
     if(node.type === 'generator') body.appendChild(renderGeneratorBody(node));
@@ -1327,9 +1327,9 @@ function renderNode(node){
     };
     const canInput = ['generator','comfy','ltxDirector','output','llm','msgen','video'].includes(node.type) || (node.type === 'loop' && (node.imageInput || node.showPrompt));
     const canOutput = ['image','prompt','loop','group','promptGroup','generator','comfy','ltxDirector','llm','msgen','video','output'].includes(node.type);
-    if(canInput) el.insertAdjacentHTML('beforeend', `<div class="port in" title="${tr('canvas.connectHere')}"></div>`);
-    if(canOutput) el.insertAdjacentHTML('beforeend', `<div class="port out" title="${tr('canvas.dragConnect')}"></div>`);
-    el.insertAdjacentHTML('beforeend', `<div class="resize-handle" title="${tr('canvas.resize')}"></div>`);
+    if(canInput) el.insertAdjacentHTML('beforeend', `<div class="port in" title="连接到这里"></div>`);
+    if(canOutput) el.insertAdjacentHTML('beforeend', `<div class="port out" title="拖线连接"></div>`);
+    el.insertAdjacentHTML('beforeend', `<div class="resize-handle" title="调整大小"></div>`);
     el.querySelector('.node-head').onmousedown = e => {
         if(e.button !== 0) return;
         if(isNodeControl(e.target)) return;
@@ -1550,9 +1550,9 @@ function renderLoopPrompt(node, ctx=null, graph=null){
         .replaceAll('《计数》', String(index))
         .replaceAll('《总数》', String(total))
         .replaceAll('《进度》', `${index}/${total}`)
-        .replaceAll(`[${tr('canvas.counterToken')}]`, String(index))
-        .replaceAll(`[${tr('canvas.totalToken')}]`, String(total))
-        .replaceAll(`[${tr('canvas.progressToken')}]`, `${index}/${total}`);
+        .replaceAll(`[计数]`, String(index))
+        .replaceAll(`[总数]`, String(total))
+        .replaceAll(`[进度]`, `${index}/${total}`);
     const selected = loopInputPrompt(node, ctx, graph);
     if(selected) return replaceVars(selected);
     return replaceVars(variable);
@@ -1580,7 +1580,7 @@ function autoSizeLoopForPanels(node){
 }
 
 function loopTokenChipHtml(token){
-    return `<span class="loop-token-chip" contenteditable="false" data-token="${escapeAttr(token)}"><span>${escapeHtml(loopTokenLabel(token))}</span><button type="button" aria-label="${tr('common.delete')}" title="${tr('common.delete')}">×</button></span>`;
+    return `<span class="loop-token-chip" contenteditable="false" data-token="${escapeAttr(token)}"><span>${escapeHtml(loopTokenLabel(token))}</span><button type="button" aria-label="删除" title="删除">×</button></span>`;
 }
 
 function loopVariableHtml(text){
@@ -1650,42 +1650,42 @@ function renderLoopBody(node){
     const loopTargetOrder = loopTargetId ? computeCascadeOrder(loopTargetId) : [];
     const loopRunHtml = loopTargetId ? (isCascadeActive(loopTargetId)
         ? `<div class="gen-run-row"><button class="gen-cascade-btn gen-cascade-stop" type="button" data-loop-cascade-stop="${loopTargetId}" ${isCascadeStopping(loopTargetId) ? 'disabled' : ''}><i data-lucide="square" class="w-4 h-4"></i><span>${isCascadeStopping(loopTargetId) ? '停止中…' : '停止运行'}</span></button></div>`
-        : `<div class="gen-run-row"><button class="gen-cascade-btn" type="button" data-loop-cascade="${loopTargetId}" title="从当前循环节点启动整条工作流"><i data-lucide="play-circle" class="w-4 h-4"></i><span>开始 ${loopTargetOrder.length || 1} 个节点 × ${display.count} ${tr('canvas.loopRounds')}</span></button></div>`)
+        : `<div class="gen-run-row"><button class="gen-cascade-btn" type="button" data-loop-cascade="${loopTargetId}" title="从当前循环节点启动整条工作流"><i data-lucide="play-circle" class="w-4 h-4"></i><span>开始 ${loopTargetOrder.length || 1} 个节点 × ${display.count} 轮</span></button></div>`)
         : '';
     wrap.innerHTML = `
         <div class="loop-count-row">
             <div class="loop-run-row">
                 <div class="loop-count-group">
-                    <span class="loop-count-label">${tr('canvas.loopCount')}</span>
+                    <span class="loop-count-label">次数</span>
                     <input class="loop-count-input" type="number" min="1" max="100" step="1" value="${display.count}">
                 </div>
                 <div class="seg loop-mode">
-                    <button type="button" data-loop-mode="serial" class="${display.mode !== 'parallel' ? 'active' : ''}">${tr('canvas.loopSerial')}</button>
-                    <button type="button" data-loop-mode="parallel" class="${display.mode === 'parallel' ? 'active' : ''}">${tr('canvas.loopParallel')}</button>
+                    <button type="button" data-loop-mode="serial" class="${display.mode !== 'parallel' ? 'active' : ''}">循环</button>
+                    <button type="button" data-loop-mode="parallel" class="${display.mode === 'parallel' ? 'active' : ''}">并发</button>
                 </div>
             </div>
             <div class="loop-toggle-row">
-                <button class="loop-toggle loop-image-toggle ${display.imageInput ? 'active' : ''}" type="button"><i data-lucide="image" class="w-3.5 h-3.5"></i>${tr('canvas.loopImageToggle')}</button>
-                <button class="loop-toggle loop-prompt-toggle ${display.showPrompt ? 'active' : ''}" type="button"><i data-lucide="text-cursor-input" class="w-3.5 h-3.5"></i>${tr('canvas.loopPromptToggle')}</button>
+                <button class="loop-toggle loop-image-toggle ${display.imageInput ? 'active' : ''}" type="button"><i data-lucide="image" class="w-3.5 h-3.5"></i>图片</button>
+                <button class="loop-toggle loop-prompt-toggle ${display.showPrompt ? 'active' : ''}" type="button"><i data-lucide="text-cursor-input" class="w-3.5 h-3.5"></i>提示词</button>
             </div>
         </div>
         ${display.imageInput ? `<div class="loop-image-panel">
             <div class="loop-image-row">
-                <span class="loop-count-label">${tr('canvas.loopImageStart')}</span>
+                <span class="loop-count-label">起始计数</span>
                 <input class="loop-count-input loop-image-start-input" type="number" min="1" max="9999" step="1" value="${display.loopStart}">
-                <span class="loop-count-label">${tr('canvas.loopBatchSize')}</span>
+                <span class="loop-count-label">批次</span>
                 <input class="loop-count-input loop-batch-input" type="number" min="1" max="100" step="1" value="${display.imageBatchSize}">
             </div>
-            <div class="loop-image-hint loop-image-hint-only">${imageInputCount ? trf('canvas.loopImageWillOutput', {n:imageInputCount}) : tr('canvas.loopImageEmpty')}</div>
+            <div class="loop-image-hint loop-image-hint-only">${imageInputCount ? `当前会输出 ${imageInputCount} 张图片` : '把图片或图片组连接到左侧输入口'}</div>
         </div>` : ''}
         ${display.showPrompt ? `<div class="loop-prompt-panel ${hasUpstreamPrompt ? 'has-upstream' : ''}">
             <div class="loop-field">
-                <div class="loop-variable-editor ${hasUpstreamPrompt ? 'is-disabled' : ''}" contenteditable="${hasUpstreamPrompt ? 'false' : 'true'}" data-placeholder="${escapeAttr(tr('canvas.loopVariablePlaceholder'))}">${loopVariableHtml(node.variablePrompt || '')}</div>
+                <div class="loop-variable-editor ${hasUpstreamPrompt ? 'is-disabled' : ''}" contenteditable="${hasUpstreamPrompt ? 'false' : 'true'}" data-placeholder="${escapeAttr('例如：现在生成第[计数]个卖点')}">${loopVariableHtml(node.variablePrompt || '')}</div>
             </div>
             ${hasUpstreamPrompt ? `<div class="loop-prompt-hint">已识别 ${promptItemCount} 条提示词，按计数轮流输出</div>` : ''}
             <div class="loop-start-row">
-                <button class="loop-token-btn loop-counter-token-btn" type="button" data-token="《计数》">${tr('canvas.counterToken')}</button>
-                <span class="loop-count-label">${tr('canvas.loopStart')}</span>
+                <button class="loop-token-btn loop-counter-token-btn" type="button" data-token="《计数》">计数</button>
+                <span class="loop-count-label">起始</span>
                 <input class="loop-count-input loop-start-input" type="number" min="1" max="9999" step="1" value="${display.loopStart}">
             </div>
         </div>` : ''}
@@ -1702,13 +1702,13 @@ function renderLoopBody(node){
     }
     const refreshPreview = () => {
         const preview = wrap.querySelector('.loop-preview:last-child');
-        if(preview) preview.textContent = renderLoopPrompt(node, {index:1, total:loopCount(node)}) || tr('canvas.noPromptMeta');
+        if(preview) preview.textContent = renderLoopPrompt(node, {index:1, total:loopCount(node)}) || '没有记录提示词';
     };
     const refreshImageHint = () => {
         const hint = wrap.querySelector('.loop-image-hint-only');
         if(!hint) return;
         const count = loopInputImageRefs(node, {index:node.loopStart}).length;
-        hint.textContent = count ? trf('canvas.loopImageWillOutput', {n:count}) : tr('canvas.loopImageEmpty');
+        hint.textContent = count ? `当前会输出 ${count} 张图片` : '把图片或图片组连接到左侧输入口';
     };
     const syncStartInputs = source => {
         wrap.querySelectorAll('.loop-image-start-input, .loop-start-input').forEach(input => {
@@ -1724,7 +1724,7 @@ function renderLoopBody(node){
         const loopCascadeBtn = wrap.querySelector('[data-loop-cascade]');
         if(loopCascadeBtn){
             const span = loopCascadeBtn.querySelector('span');
-            if(span) span.textContent = `开始 ${loopTargetOrder.length || 1} 个节点 × ${node.count} ${tr('canvas.loopRounds')}`;
+            if(span) span.textContent = `开始 ${loopTargetOrder.length || 1} 个节点 × ${node.count} 轮`;
         }
         if(loopTargetId){
             const targetEl = document.querySelector(`.node[data-id="${loopTargetId}"]`);
@@ -1733,7 +1733,7 @@ function renderLoopBody(node){
                 const span = targetCascadeBtn.querySelector('span');
                 if(span){
                     const targetOrder = computeCascadeOrder(loopTargetId);
-                    span.textContent = `一键运行 ${targetOrder.length} 个节点 × ${node.count} ${tr('canvas.loopRounds')}`;
+                    span.textContent = `一键运行 ${targetOrder.length} 个节点 × ${node.count} 轮`;
                 }
             }
         }
@@ -1891,11 +1891,11 @@ function renderLLMBody(node){
         <div class="llm-row">
             <select class="select-lite llm-provider-select" style="flex:1">${chatProviderOptions(llmProv)}</select>
             <select class="select-lite llm-model">${modelOpts}</select>
-            <div class="llm-mode"><button data-mode="node">${tr('canvas.nodeMode')}</button><button data-mode="chat">${tr('canvas.chatMode')}</button></div>
+            <div class="llm-mode"><button data-mode="node">节点</button><button data-mode="chat">聊天</button></div>
             <button class="llm-sys-toggle ${showSystem ? 'active' : ''}" type="button">System</button>
         </div>
         ${imgBadge}
-        ${showSystem ? `<textarea class="llm-system" placeholder="${tr('canvas.systemPrompt')}">${escapeHtml(node.systemPrompt || '')}</textarea>` : ''}
+        ${showSystem ? `<textarea class="llm-system" placeholder="系统提示词...">${escapeHtml(node.systemPrompt || '')}</textarea>` : ''}
         <div class="llm-node-pane"></div>
         <div class="llm-chat-pane"></div>
     `;
@@ -1953,18 +1953,18 @@ function renderLLMNodePane(container, node){
     const inputValue = connectedInput || node.userInput || '';
     const inputHeight = Math.max(70, node.llmInputHeight || 110);
     const outputHeight = Math.max(70, node.llmOutputHeight || 150);
-    const inputPlaceholder = langIsEn() ? 'Type input, or connect a Prompt node…' : '直接输入，或连接提示词节点…';
+    const inputPlaceholder = '直接输入，或连接提示词节点…';
     container.innerHTML = `
         <div class="llm-pane-label">Input${isReadonly ? ' <span style="font-size:9px;opacity:.5;font-weight:600;text-transform:none;letter-spacing:0">(来自连接)</span>' : ''}</div>
         <textarea class="llm-input-area llm-input-output" style="height:${inputHeight}px; flex:0 0 ${inputHeight}px;" ${isReadonly ? 'readonly' : ''} placeholder="${inputPlaceholder}">${escapeHtml(inputValue)}</textarea>
-        <div class="llm-pane-resizer" title="${tr('canvas.resizePanes')}"></div>
+        <div class="llm-pane-resizer" title="拖动调整输入/输出高度"></div>
         <div class="llm-pane-label">Output</div>
         <div class="llm-output-wrap" style="height:${outputHeight}px; flex:0 0 ${outputHeight}px;">
             <button class="llm-copy-btn llm-output-copy" type="button" title="复制"><i data-lucide="copy" class="w-3.5 h-3.5"></i></button>
-            <div class="llm-output llm-result-output">${escapeHtml(node.outputText || tr('canvas.llmOutputEmpty'))}</div>
+            <div class="llm-output llm-result-output">${escapeHtml(node.outputText || '运行后会输出文本，可连到生成卡片')}</div>
         </div>
         <div class="gen-run-row mt-2">
-            <button class="llm-run ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="play" class="w-4 h-4"></i>${node.running ? tr('canvas.running') : 'Run LLM'}</button>
+            <button class="llm-run ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="play" class="w-4 h-4"></i>${node.running ? '运行中' : 'Run LLM'}</button>
             ${cascadeBtnHtml(node)}
         </div>
         ${retryBarHtml(node)}
@@ -1996,9 +1996,9 @@ function renderLLMNodePane(container, node){
 function renderLLMChatPane(container, node){
     const messages = node.messages || [];
     container.innerHTML = `
-        <div class="llm-chat-log">${messages.length ? messages.map((msg, mi) => `<div class="llm-bubble ${msg.role === 'user' ? 'user' : 'assistant'}" data-msg-idx="${mi}">${escapeHtml(msg.content || '')}${msg.role === 'assistant' ? `<button class="llm-bubble-copy" type="button" title="复制"><i data-lucide="copy" style="width:11px;height:11px;display:inline-block;vertical-align:middle"></i></button>` : ''}</div>`).join('') : `<div class="text-[11px] text-gray-300">${tr('canvas.startChat')}</div>`}</div>
-        <textarea class="llm-chat-input mt-2" rows="2" placeholder="${tr('canvas.chatInput')}">${escapeHtml(node.chatInput || '')}</textarea>
-        <button class="llm-run mt-2" ${node.running ? 'disabled' : ''}><i data-lucide="send" class="w-4 h-4"></i>${node.running ? tr('canvas.sending') : 'Send'}</button>
+        <div class="llm-chat-log">${messages.length ? messages.map((msg, mi) => `<div class="llm-bubble ${msg.role === 'user' ? 'user' : 'assistant'}" data-msg-idx="${mi}">${escapeHtml(msg.content || '')}${msg.role === 'assistant' ? `<button class="llm-bubble-copy" type="button" title="复制"><i data-lucide="copy" style="width:11px;height:11px;display:inline-block;vertical-align:middle"></i></button>` : ''}</div>`).join('') : `<div class="text-[11px] text-gray-300">开始一段聊天...</div>`}</div>
+        <textarea class="llm-chat-input mt-2" rows="2" placeholder="输入消息...">${escapeHtml(node.chatInput || '')}</textarea>
+        <button class="llm-run mt-2" ${node.running ? 'disabled' : ''}><i data-lucide="send" class="w-4 h-4"></i>${node.running ? '发送中' : 'Send'}</button>
     `;
     bindScrollableText(container.querySelector('.llm-chat-log'));
     bindScrollableText(container.querySelector('.llm-chat-input'));
@@ -2235,7 +2235,7 @@ function renderGeneratorBody(node){
             </div>
             <div class="gen-settings-row api-size-row">
                 <select class="select-lite resolution compact-select" data-field="resolution">
-                    ${allowedImageResolutions(node).map(s=>`<option value="${s}">${s==='custom'?tr('canvas.custom'):s.toUpperCase()}</option>`).join('')}
+                    ${allowedImageResolutions(node).map(s=>`<option value="${s}">${s==='custom'?'自定义':s.toUpperCase()}</option>`).join('')}
                 </select>
                 <select class="select-lite ratio compact-select" data-field="ratio">
                     <option value="square">1:1</option>
@@ -2247,8 +2247,8 @@ function renderGeneratorBody(node){
                     <option value="wide">16:9</option>
                     <option value="ultrawide">21:9</option>
                     <option value="ultratall">9:21</option>
-                    <option value="source">${tr('canvas.adaptiveRatio')}</option>
-                    <option value="custom">${tr('canvas.custom')}</option>
+                    <option value="source">适配比例</option>
+                    <option value="custom">自定义</option>
                 </select>
                 <select class="select-lite quality-select">
                     <option value="auto">自动</option>
@@ -2258,36 +2258,36 @@ function renderGeneratorBody(node){
                 </select>
                 <div class="gen-count-row">
                     <div class="gen-stepper">
-                        <button class="gen-step-btn" data-step="-1" type="button" title="${tr('canvas.decrease')}" aria-label="${tr('canvas.decreaseCount')}"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
+                        <button class="gen-step-btn" data-step="-1" type="button" title="减少" aria-label="减少生成数量"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
                         <input class="gen-count-input" type="text" inputmode="numeric" pattern="[0-9]*" value="${Math.max(1, Math.min(8, Number(node.count || 1)))}">
-                        <button class="gen-step-btn" data-step="1" type="button" title="${tr('canvas.increase')}" aria-label="${tr('canvas.increaseCount')}"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+                        <button class="gen-step-btn" data-step="1" type="button" title="增加" aria-label="增加生成数量"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
                     </div>
                 </div>
             </div>
             <div class="gen-settings-row custom-ratio-row" style="display:none">
                 <label class="field">
-                    <div class="setting-title">${tr('canvas.ratioWidth')}</div>
+                    <div class="setting-title">比例宽</div>
                     <input class="setting-input custom-ratio-w-input" type="number" min="1" step="1" value="${escapeHtml(node.customRatioWidth || '')}" placeholder="4">
                 </label>
                 <label class="field">
-                    <div class="setting-title">${tr('canvas.ratioHeight')}</div>
+                    <div class="setting-title">比例高</div>
                     <input class="setting-input custom-ratio-h-input" type="number" min="1" step="1" value="${escapeHtml(node.customRatioHeight || '')}" placeholder="3">
                 </label>
             </div>
             <div class="gen-settings-row custom-size-row" style="display:none">
                 <label class="field">
-                    <div class="setting-title">${tr('canvas.width')}</div>
+                    <div class="setting-title">宽度</div>
                     <input class="setting-input custom-w-input" type="number" min="64" step="64" value="${escapeHtml(node.customWidth || '')}" placeholder="Auto">
                 </label>
                 <label class="field">
-                    <div class="setting-title">${tr('canvas.height')}</div>
+                    <div class="setting-title">高度</div>
                     <input class="setting-input custom-h-input" type="number" min="64" step="64" value="${escapeHtml(node.customHeight || '')}" placeholder="Auto">
                 </label>
-                <button class="secondary-btn fit-size-btn" type="button" style="height:32px;align-self:flex-end;padding:0 10px;font-size:11px">${tr('canvas.fitImageSize')}</button>
+                <button class="secondary-btn fit-size-btn" type="button" style="height:32px;align-self:flex-end;padding:0 10px;font-size:11px">适配图片</button>
             </div>
         </div>
         <div class="gen-run-row">
-            <button class="gen-btn ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="zap" class="w-4 h-4"></i>${node.running ? tr('canvas.generating') : tr('canvas.apiGenerate')}</button>
+            <button class="gen-btn ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="zap" class="w-4 h-4"></i>${node.running ? '生成中' : 'API生成'}</button>
             ${cascadeBtnHtml(node)}
         </div>
         ${retryBarHtml(node)}
@@ -2357,7 +2357,7 @@ function renderGeneratorBody(node){
         const view = persist ? node : {...node};
         const sizes = allowedImageResolutions(view);
         if(!sizes.includes(view.resolution)) view.resolution = sizes[0] || '';
-        resolutionSelect.innerHTML = sizes.map(value => `<option value="${value}">${value === 'custom' ? tr('canvas.custom') : value.toUpperCase()}</option>`).join('');
+        resolutionSelect.innerHTML = sizes.map(value => `<option value="${value}">${value === 'custom' ? '自定义' : value.toUpperCase()}</option>`).join('');
         resolutionSelect.disabled = !sizes.length;
         if(view.resolution !== 'custom' && !view.ratio) view.ratio = 'square';
         normalizeApiNodeSizeChoice(view);
@@ -2471,7 +2471,7 @@ function renderGeneratorBody(node){
                 syncSizeControls();
                 scheduleSave();
             } catch(err) {
-                    showErrorModal(tr('canvas.imageReadFailed'));
+                    showErrorModal('无法读取参考图尺寸');
             }
         };
     }
@@ -2529,11 +2529,11 @@ function renderVideoBody(node){
             </div>
             <div class="gen-settings-row">
                 <label class="field" style="flex:1">
-                    <div class="setting-title">${tr('canvas.videoDuration')} · ${durationRange.min}–${durationRange.max} 秒</div>
+                    <div class="setting-title">时长 · ${durationRange.min}–${durationRange.max} 秒</div>
                     <input class="setting-input video-duration" type="number" min="${durationRange.auto ? -1 : durationRange.min}" max="${durationRange.max}" title="${durationRange.min}–${durationRange.max} 秒" step="1" value="${Number(node.duration ?? 5)}">
                 </label>
                 <label class="field" style="flex:1">
-                    <div class="setting-title">${tr('canvas.videoAspect')}</div>
+                    <div class="setting-title">比例</div>
                     <select class="select-lite video-aspect compact-select">
                         <option value="16:9">16:9</option>
                         <option value="9:16">9:16</option>
@@ -2546,7 +2546,7 @@ function renderVideoBody(node){
                     </select>
                 </label>
                 <label class="field" style="flex:1">
-                    <div class="setting-title">${tr('canvas.videoResolution')}</div>
+                    <div class="setting-title">分辨率</div>
                     <select class="select-lite video-resolution compact-select">
                         ${allowedVideoResolutions(node).map(value => `<option value="${value}">${value ? value.toUpperCase() : 'Auto'}</option>`).join('')}
                     </select>
@@ -2554,7 +2554,7 @@ function renderVideoBody(node){
             </div>
         </div>
         <div class="gen-run-row">
-            <button class="gen-btn ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="clapperboard" class="w-4 h-4"></i>${node.running ? tr('canvas.generating') : tr('canvas.videoGenerate')}</button>
+            <button class="gen-btn ${node.running ? 'running' : ''}" ${node.running ? 'disabled' : ''}><i data-lucide="clapperboard" class="w-4 h-4"></i>${node.running ? '生成中' : '视频生成'}</button>
             ${cascadeBtnHtml(node)}
         </div>
         ${retryBarHtml(node)}
@@ -2697,11 +2697,11 @@ function bindCanvasInputReorder(item, list, node, sourceId, kind='image'){
 
 function renderImageInputList(list, node, imageInputs, emptyText=null){
     if(!list) return;
-    const signature = JSON.stringify(['images', emptyText || tr('canvas.inputImagesEmpty'), imageInputs.map(src => [
+    const signature = JSON.stringify(['images', emptyText || '把图片或图片组连到这里', imageInputs.map(src => [
         src.id, src.label, src.preview, mediaKindForRef(src.refs?.[0] || src.preview), isMissingAssetUrl(src.preview)
     ])]);
     if(isCanvasInputViewCurrent(list, node, signature)) return;
-    list.innerHTML = imageInputs.length ? '' : `<div class="text-[11px] text-gray-300 py-2">${escapeHtml(emptyText || tr('canvas.inputImagesEmpty'))}</div>`;
+    list.innerHTML = imageInputs.length ? '' : `<div class="text-[11px] text-gray-300 py-2">${escapeHtml(emptyText || '把图片或图片组连到这里')}</div>`;
     imageInputs.forEach((src, i) => {
         const item = document.createElement('div');
         item.className = 'input-item';
@@ -2723,7 +2723,7 @@ function renderVideoImageInputs(list, node, imageInputs){
     if(!list) return;
     const groups = videoInputMediaGroups(node, imageInputs);
     const signature = JSON.stringify(['video', Boolean(node.useFrameRoles), manualVideoUrlForNode(node),
-        tr('canvas.videoRoleFirstFrame'), tr('canvas.videoRoleLastFrame'),
+        '首帧', '尾帧',
         groups.map(group => [group.kind, group.items.map(entry => [
             entry.sourceId, entry.label, entry.referenceLabel, entry.ref.url, isMissingAssetUrl(entry.ref.url)
         ])])]);
@@ -2762,7 +2762,7 @@ function renderVideoImageInputs(list, node, imageInputs){
                     ? `<div class="media-reference-placeholder"><i data-lucide="${kind === 'video' ? 'clapperboard' : 'image'}"></i></div>`
                     : kind === 'video' ? canvasVideoPreviewHtml(ref.url, 256, 'draggable="false"') : canvasPreviewImgHtml(ref.url, 256, 'draggable="false"');
                 const frameLabel = kind === 'image' && node.useFrameRoles && index <= 2
-                    ? (index === 1 ? tr('canvas.videoRoleFirstFrame') : tr('canvas.videoRoleLastFrame')) : '';
+                    ? (index === 1 ? '首帧' : '尾帧') : '';
                 item.innerHTML = `<div class="media-reference-thumb">${preview}${referenceButton}${previewButton}</div>${name}${frameLabel ? `<span class="video-frame-label">${frameLabel}</span>` : ''}`;
             }
             const previous = group.items[index - 2];
@@ -2828,12 +2828,12 @@ function renderComfyBody(node){
 
 function renderComfyImages(list, node, imageInputs){
     if(!list) return;
-    const signature = JSON.stringify(['comfy', tr('canvas.groupEmpty'), tr('canvas.image'), imageInputs.map(src => {
+    const signature = JSON.stringify(['comfy', '拖入图片或提示词到此', '上传', imageInputs.map(src => {
         const kind = mediaKindForRef(src.refs?.[0] || src.preview);
         return [src.id, src.preview, kind, nodeTitleForMedia({mediaKind:kind}), isMissingAssetUrl(src.preview)];
     })]);
     if(isCanvasInputViewCurrent(list, node, signature)) return;
-    list.innerHTML = imageInputs.length ? '' : `<div class="text-[11px] text-gray-300 py-2">${tr('canvas.groupEmpty')}</div>`;
+    list.innerHTML = imageInputs.length ? '' : `<div class="text-[11px] text-gray-300 py-2">拖入图片或提示词到此</div>`;
     imageInputs.forEach((src, i) => {
         const item = document.createElement('div');
         item.className = 'input-item';
@@ -2842,7 +2842,7 @@ function renderComfyImages(list, node, imageInputs){
         const firstRef = (src.refs || [])[0];
         const kind = mediaKindForRef(firstRef || src.preview);
         const icon = kind === 'video' ? 'file-video' : kind === 'audio' ? 'file-audio' : 'image';
-        const label = kind === 'image' ? `${tr('canvas.image')} ${i + 1}` : `${nodeTitleForMedia({mediaKind:kind})} ${i + 1}`;
+        const label = kind === 'image' ? `上传 ${i + 1}` : `${nodeTitleForMedia({mediaKind:kind})} ${i + 1}`;
         const previewHtml = kind === 'video' && src.preview && !isMissingAssetUrl(src.preview)
             ? canvasVideoPreviewHtml(src.preview, 256)
             : kind === 'audio'
@@ -2873,8 +2873,8 @@ function renderComfySettings(container, node){
     if(mode === 'text'){
         container.innerHTML = `
             <div class="gen-settings-row">
-                <label class="field"><div class="setting-title">${tr('canvas.width')}</div><input class="setting-input" data-field="width" type="number" min="64" step="64" value="${Number(node.width || 1024)}"></label>
-                <label class="field"><div class="setting-title">${tr('canvas.height')}</div><input class="setting-input" data-field="height" type="number" min="64" step="64" value="${Number(node.height || 1024)}"></label>
+                <label class="field"><div class="setting-title">宽度</div><input class="setting-input" data-field="width" type="number" min="64" step="64" value="${Number(node.width || 1024)}"></label>
+                <label class="field"><div class="setting-title">高度</div><input class="setting-input" data-field="height" type="number" min="64" step="64" value="${Number(node.height || 1024)}"></label>
             </div>
         `;
     } else if(mode === 'enhance'){
@@ -2883,13 +2883,13 @@ function renderComfySettings(container, node){
             <div class="gen-settings-row">
                 <label class="field" style="flex:1">
                     <div class="setting-title" style="display:flex;justify-content:space-between">
-                        <span>${tr('studio.enhancementStrength')}</span><span class="enhance-strength-val">${strength.toFixed(2)}</span>
+                        <span>增强强度</span><span class="enhance-strength-val">${strength.toFixed(2)}</span>
                     </div>
                     <input type="range" class="canvas-range enhance-strength-slider" data-field="enhanceStrength" min="0.1" max="1.0" step="0.05" value="${strength}">
                 </label>
             </div>
             <div class="gen-settings-row">
-                <button type="button" class="setting-check ${node.enhanceUpscale ? 'active' : ''}" data-toggle-field="enhanceUpscale"><span class="check-dot"></span>${tr('studio.superResolution')}</button>
+                <button type="button" class="setting-check ${node.enhanceUpscale ? 'active' : ''}" data-toggle-field="enhanceUpscale"><span class="check-dot"></span>超分辨率</button>
                 <select class="select-lite ${node.enhanceUpscale ? '' : 'opacity-40 cursor-not-allowed'}" data-field="enhanceUpscaleRes" ${node.enhanceUpscale ? '' : 'disabled'}><option value="2048">2X (2048)</option><option value="4096">4X (4096)</option></select>
             </div>
         `;
@@ -2897,7 +2897,7 @@ function renderComfySettings(container, node){
     } else if(mode === 'edit'){
         container.innerHTML = `
             <div class="gen-settings-row">
-                <button type="button" class="setting-check ${node.editUpscale ? 'active' : ''}" data-toggle-field="editUpscale"><span class="check-dot"></span>${tr('studio.superResolution')}</button>
+                <button type="button" class="setting-check ${node.editUpscale ? 'active' : ''}" data-toggle-field="editUpscale"><span class="check-dot"></span>超分辨率</button>
                 <select class="select-lite ${node.editUpscale ? '' : 'opacity-40 cursor-not-allowed'}" data-field="editUpscaleRes" ${node.editUpscale ? '' : 'disabled'}><option value="2048">2X (2048)</option><option value="4096">4X (4096)</option></select>
             </div>
         `;
@@ -2912,8 +2912,8 @@ function renderComfySettings(container, node){
             <div class="gen-settings-row">
                 <select class="select-lite comfy-workflow-select" data-field="comfyWorkflow" style="width:100%">${comfyWorkflowOptions(selected)}</select>
             </div>
-            ${!selected ? `<div class="text-[11px] text-slate-400">${tr('canvas.comfyNoWorkflow')}</div>` : (!data ? `<div class="text-[11px] text-slate-400">${tr('canvas.comfyLoadingWorkflow')}</div>` : '')}
-            ${data ? settingFields.map(f => renderComfyCustomField(node, f)).join('') || `<div class="text-[11px] text-slate-400">${tr('canvas.comfyNoExtraParams')}</div>` : ''}
+            ${!selected ? `<div class="text-[11px] text-slate-400">请先在 ComfyUI 设置中保存工作流。</div>` : (!data ? `<div class="text-[11px] text-slate-400">正在读取工作流参数...</div>` : '')}
+            ${data ? settingFields.map(f => renderComfyCustomField(node, f)).join('') || `<div class="text-[11px] text-slate-400">这个工作流只有图片/提示词输入，没有额外参数。</div>` : ''}
         `;
         if(selected && !data) ensureComfyWorkflow(selected).then(() => refreshNodes([node.id]));
     } else {
@@ -3254,7 +3254,7 @@ function cascadeBtnHtml(node){
     const order = computeCascadeOrder(node.id);
     const loop = resolveCascadeLoop(node.id);
     if(order.length <= 1 && !loop) return '';
-    const suffix = loop ? ` × ${loop.count} ${tr('canvas.loopRounds')}` : '';
+    const suffix = loop ? ` × ${loop.count} 轮` : '';
     if(isCascadeActive(node.id)){
         const stopping = isCascadeStopping(node.id);
         return `<button class="gen-cascade-btn gen-cascade-stop" type="button" data-cascade-stop="${node.id}" ${stopping ? 'disabled' : ''}><i data-lucide="square" class="w-4 h-4"></i><span>${stopping ? '停止中…' : '停止运行'}</span></button>`;
@@ -3290,20 +3290,20 @@ function renderOutputMedia(item, useGridLayout=false){
     const gridStyle = grid ? ` style="grid-row:${Number(grid.row || 0) + 1};grid-column:${Number(grid.col || 0) + 1};aspect-ratio:${Math.max(1, Number(grid.w || 1))}/${Math.max(1, Number(grid.h || 1))}"` : '';
     const timePill = meta.runMs && !meta.viewed ? `<span class="output-time-pill">${formatRunDuration(meta.runMs)}</span>` : '';
     if(isMissingAssetUrl(url)){
-        return `<div class="output-img-wrap" data-output-url="${safe}" data-missing-url="${safe}"${gridStyle}>${missingAssetHtml(url, true)}${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap" data-output-url="${safe}" data-missing-url="${safe}"${gridStyle}>${missingAssetHtml(url, true)}${timePill}<button class="output-del" title="删除">×</button></div>`;
     }
     if(kind === 'video'){
-        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-download" type="button" title="${tr('canvas.download')}"><i data-lucide="download"></i></button><button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasVideoPreviewHtml(url, useGridLayout ? 512 : 768, 'alt="video output"')}${timePill}<button class="canvas-video-play output-video-play" type="button" title="播放"><i data-lucide="play"></i></button><div class="output-video-badge"><i data-lucide="play" class="w-3 h-3"></i>VIDEO</div><button class="output-download" type="button" title="下载"><i data-lucide="download"></i></button><button class="output-del" title="删除">×</button></div>`;
     }
     if(kind === 'audio'){
-        return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(meta.name || outputImageName(url))}</span><small><i data-lucide="play"></i>打开播放器</small></div>${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap output-audio-wrap" data-output-url="${safe}"${gridStyle}><div class="output-audio-card"><i data-lucide="file-audio" class="w-7 h-7"></i><span>${escapeHtml(meta.name || outputImageName(url))}</span><small><i data-lucide="play"></i>打开播放器</small></div>${timePill}<button class="output-del" title="删除">×</button></div>`;
     }
     if(kind === 'text' || kind === 'file'){
         const icon = kind === 'text' ? 'file-text' : 'file';
         const label = kind === 'text' ? 'TEXT' : 'FILE';
-        return `<div class="output-img-wrap output-file-wrap" data-output-url="${safe}"${gridStyle}><div class="output-file-card"><i data-lucide="${icon}" class="w-7 h-7"></i><span>${escapeHtml(meta.name || outputImageName(url))}</span><small>${label}</small></div>${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+        return `<div class="output-img-wrap output-file-wrap" data-output-url="${safe}"${gridStyle}><div class="output-file-card"><i data-lucide="${icon}" class="w-7 h-7"></i><span>${escapeHtml(meta.name || outputImageName(url))}</span><small>${label}</small></div>${timePill}<button class="output-del" title="删除">×</button></div>`;
     }
-    return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasPreviewImgHtml(url, useGridLayout ? 512 : 768, 'alt="generated output"')}${timePill}<button class="output-del" title="${tr('common.delete')}">×</button></div>`;
+    return `<div class="output-img-wrap" data-output-url="${safe}"${gridStyle}>${canvasPreviewImgHtml(url, useGridLayout ? 512 : 768, 'alt="generated output"')}${timePill}<button class="output-del" title="删除">×</button></div>`;
 }
 
 function outputGridLayout(node){
@@ -3697,8 +3697,8 @@ function linkDeleteButton(connection, a, b){
     const btn = document.createElement('button');
     btn.className = `link-delete ${isConnectionSelected(connection) ? 'visible' : ''} ${hoveredConnectionId === connection.id ? 'hover' : ''}`;
     btn.type = 'button';
-    btn.title = tr('canvas.deleteLink');
-    btn.setAttribute('aria-label', tr('canvas.deleteLink'));
+    btn.title = '删除连线';
+    btn.setAttribute('aria-label', '删除连线');
     btn.dataset.connectionId = connection.id;
     btn.style.left = `${(a.x + b.x) / 2}px`;
     btn.style.top = `${(a.y + b.y) / 2}px`;
@@ -4166,7 +4166,7 @@ function retryBarHtml(node){
     // 只在一键运行模式中失败才显示；普通单节点失败直接弹 alert，不显示这条
     if(node.runStatus !== 'failed' || !node._cascadeFailed) return '';
     return `<div class="node-retry-bar" data-retry-bar>
-        <span class="node-retry-msg" title="${escapeAttr(node.runError||'')}">${escapeHtml((node.runError||tr('canvas.generationFailed')).slice(0,60))}</span>
+        <span class="node-retry-msg" title="${escapeAttr(node.runError||'')}">${escapeHtml((node.runError||'生成失败').slice(0,60))}</span>
         <button class="node-retry-btn" type="button" data-retry="${node.id}">重试</button>
         <button class="node-stop-btn" type="button" data-stop="${node.id}">停止</button>
     </div>`;

@@ -8,6 +8,59 @@ const root = path.resolve(__dirname, '..');
 const origin = 'http://canvas-modules.test';
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="#83966c"/></svg>';
 
+for(const kind of ['classic', 'smart']) {
+    test(`${kind}: Chinese editor labels and loop counts render without translation helpers`, async t => {
+        const {page, errors} = await fixture(t, kind, false);
+        await page.evaluate(kind => {
+            nodes = [{id:'label-image',type:kind === 'classic' ? 'image' : 'smart-image',
+                url:'/test-image.svg',images:[{url:'/test-image.svg'}],x:0,y:0}];
+            if(kind === 'classic') openImageEditor('label-image', 'preview');
+            else openImageEditor('label-image');
+        }, kind);
+        await page.waitForFunction(() => document.getElementById('cropImage').naturalWidth > 0);
+        const labels = await page.evaluate(() => ['crop','outpaint','mask','brush','grid','preview'].map(mode => {
+            setImageEditMode(mode);
+            return {
+                title:document.getElementById('imageEditTitle').textContent,
+                hint:document.getElementById('imageEditSub').textContent,
+                apply:document.getElementById('imageEditApplyBtn').textContent,
+                hidden:document.getElementById('imageEditApplyBtn').style.display === 'none'
+            };
+        }));
+        assert.deepEqual(labels.map(item => item.title), ['裁剪图片','扩图','遮罩编辑','画笔编辑','宫格切分','预览图片']);
+        assert.deepEqual(labels.slice(0,5).map(item => item.apply), ['应用裁剪','应用扩图','生成遮罩节点','应用画笔','切分到 Output']);
+        assert.ok(labels.every(item => item.hint && !/^(canvas|smart)\./.test(item.hint)));
+        assert.equal(labels[5].hidden, true);
+        const hints = await page.evaluate(kind => {
+            // Supply different upstream counts while exercising the production renderer.
+            const renderHints = [];
+            for(const count of [0,1,12]) {
+                const node = {id:'loop-label-test',type:kind === 'classic' ? 'loop' : 'smart-loop',imageInput:true};
+                if(kind === 'classic') {
+                    loopInputImageRefs = () => Array.from({length:count}, () => ({url:'/test-image.svg'}));
+                    renderHints.push(renderLoopBody(node).querySelector('.loop-image-hint-only').textContent);
+                } else {
+                    smartLoopInputImages = () => Array.from({length:count}, () => ({url:'/test-image.svg'}));
+                    const host = document.createElement('div');
+                    host.innerHTML = smartLoopBodyHtml(node);
+                    renderHints.push(host.querySelector('.loop-smart-note').textContent);
+                }
+            }
+            return renderHints;
+        }, kind);
+        assert.deepEqual(hints, ['把图片或图片组连接到左侧输入口','当前会输出 1 张图片','当前会输出 12 张图片']);
+        if(kind === 'smart') {
+            const toggles = await page.evaluate(() => {
+                const host = document.createElement('div');
+                host.innerHTML = renderVideoAdvancedControl(true);
+                return [...host.querySelectorAll('[data-toggle-param]')].map(button => button.textContent);
+            });
+            assert.deepEqual(toggles, ['提示词增强','高清','生成音频','镜头固定','水印','智能多参','首尾帧','可信素材模式']);
+        }
+        assert.deepEqual(errors, []);
+    });
+}
+
 async function fixture(t, kind, member) {
     const browser = await chromium.launch({channel:'chrome', headless:true});
     t.after(() => browser.close());

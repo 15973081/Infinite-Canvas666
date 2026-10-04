@@ -567,7 +567,7 @@ function clearNodeContentBeforeDelete(id){
         clearCanvasFaceAuth(node);
         node.url = '';
         node.mediaKind = 'image';
-        node.name = tr('canvas.imageCard');
+        node.name = '上传节点';
         refreshCanvasMutation([node.id]);
         scheduleSave();
         return true;
@@ -624,10 +624,10 @@ async function createCanvasBackup(){
     if(btn) btn.disabled = true;
     try {
         const data = await window.CanvasApi.createCanvasBackup(canvas.id);
-        setStatus(langIsEn() ? `Backup saved (${new Date(data.updated_at).toLocaleTimeString()})` : `备份已保存 (${new Date(data.updated_at).toLocaleTimeString()})`);
+        setStatus(`备份已保存 (${new Date(data.updated_at).toLocaleTimeString()})`);
         if(document.getElementById('backupModal')) await showBackupList();
     } catch(e) {
-        setStatus(langIsEn() ? 'Backup failed' : '备份失败');
+        setStatus('备份失败');
         console.error(e);
     } finally {
         if(btn) btn.disabled = false;
@@ -652,7 +652,7 @@ async function showBackupList(event){
 function renderBackupModal(backups){
     let existing = document.getElementById('backupModal');
     if(existing) existing.remove();
-    const isEn = langIsEn();
+
     const rows = backups.length
         ? backups.map(b => {
             const d = new Date(b.timestamp);
@@ -664,23 +664,23 @@ function renderBackupModal(backups){
                     <div class="backup-meta">${time} · ${b.node_count} nodes · ${size}</div>
                 </div>
                 <div class="backup-actions">
-                    <button class="backup-restore-btn" data-filename="${escapeAttr(b.filename)}" title="${isEn ? 'Restore' : '恢复'}"><i data-lucide="rotate-ccw"></i></button>
-                    <button class="backup-delete-btn" data-filename="${escapeAttr(b.filename)}" title="${isEn ? 'Delete' : '删除'}"><i data-lucide="trash-2"></i></button>
+                    <button class="backup-restore-btn" data-filename="${escapeAttr(b.filename)}" title="恢复"><i data-lucide="rotate-ccw"></i></button>
+                    <button class="backup-delete-btn" data-filename="${escapeAttr(b.filename)}" title="删除"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>`;
         }).join('')
-        : `<div class="backup-empty">${isEn ? 'No backups yet' : '暂无备份'}</div>`;
+        : `<div class="backup-empty">暂无备份</div>`;
 
     const html = `<div id="backupModal" class="log-modal backup-modal open">
         <div class="log-modal-overlay" onclick="closeBackupModal()"></div>
         <div class="log-modal-panel">
             <div class="log-modal-head">
-                <h3>${isEn ? 'Canvas Backups' : '画布备份'}</h3>
+                <h3>画布备份</h3>
                 <button class="log-modal-close" onclick="closeBackupModal()"><i data-lucide="x"></i></button>
             </div>
             <div class="log-modal-body">
                 <button class="backup-create-btn" onclick="createCanvasBackup()" type="button">
-                    <i data-lucide="hard-drive"></i><span>${isEn ? 'Create Backup Now' : '立即备份'}</span>
+                    <i data-lucide="hard-drive"></i><span>立即备份</span>
                 </button>
                 <div class="backup-list">${rows}</div>
             </div>
@@ -695,16 +695,16 @@ function renderBackupModal(backups){
         btn.addEventListener('click', async () => {
             const fn = btn.dataset.filename;
             if(!fn) return;
-            if(!confirm(isEn ? `Restore this backup? Current canvas will be overwritten.` : `恢复此备份？当前画布将被覆盖。`)) return;
+            if(!confirm(`恢复此备份？当前画布将被覆盖。`)) return;
             try {
                 const res = await window.CanvasApi.restoreCanvasBackup(canvas.id, fn);
                 if(!res.ok) throw new Error('restore failed');
                 syncRemoteCanvasNow();
                 closeBackupModal();
-                setStatus(isEn ? 'Backup restored' : '备份已恢复');
+                setStatus('备份已恢复');
             } catch(e) {
                 console.error(e);
-                setStatus(isEn ? 'Restore failed' : '恢复失败');
+                setStatus('恢复失败');
             }
         });
     });
@@ -982,7 +982,7 @@ function downloadBlob(blob, filename){
 }
 
 function openWorkflowTransferModal(){
-    if(!canvas){ setStatus(tr('canvas.needCanvas')); return; }
+    if(!canvas){ setStatus('请先新建或选择画布'); return; }
     if(canvasAssetLibraryOpen) toggleCanvasAssetLibrary(false);
     updateWorkflowTransferMeta();
     workflowTransferModal?.classList.add('open');

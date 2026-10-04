@@ -93,7 +93,7 @@ class SmartCanvasVideoResumeTest(unittest.TestCase):
         )
 
         self.assertIn("const pendingCount = smartNodePendingCount(node)", render_node)
-        self.assertIn("tr('canvas.generating')", render_node)
+        self.assertIn("escapeHtml('生成中')", render_node)
         self.assertIn("if(pendingCount && imgs.length === 0)", node_body)
 
 

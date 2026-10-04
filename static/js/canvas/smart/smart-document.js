@@ -34,7 +34,7 @@ function pushUndo(){
 }
 
 function performUndo(){
-    if(!undoStack.length){ toast(tr('smart.toastNoUndo')); return; }
+    if(!undoStack.length){ toast('没有可撤销的操作'); return; }
     const snap = undoStack.pop();
     undoSuppressed = true;
     nodes = snap.nodes;
@@ -47,7 +47,7 @@ function performUndo(){
     render();
     scheduleSave();
     undoSuppressed = false;
-    toast(tr('smart.toastUndone'));
+    toast('已撤销');
 }
 
 function cloneSmartSettings(source=settings){
@@ -305,7 +305,7 @@ function normalizeLegacySmartNode(node){
         const normalized = {
             ...node,
             type:'smart-image',
-            title:images.length > 1 ? 'Group' : (images.length ? 'Image' : tr('smart.createImportNode')),
+            title:images.length > 1 ? 'Group' : (images.length ? 'Image' : '上传节点'),
             images
         };
         delete normalized.imageMode;
@@ -478,7 +478,7 @@ async function saveCanvas(options={}){
         canvasSyncInFlight = true;
         try {
             const response = await window.CanvasApi.saveCanvas(canvasId, {
-                title:storageCanvas.title || tr('smart.title'),
+                title:storageCanvas.title || '智能画布',
                 icon:storageCanvas.icon || 'sparkles',
                 nodes:storageCanvas.nodes || [],
                 connections:storageCanvas.connections || [],
@@ -577,7 +577,7 @@ function inheritNodeMetaFromImage(node){
 function createNode(x, y, images=[], options={}){
     if(!options.skipUndo) pushUndo();
     const nodeImages = (images || []).map(img => ({...img}));
-    const node = {id:uid('smart'), type:'smart-image', x, y, title:nodeImages.length > 1 ? 'Group' : nodeImages.length ? 'Image' : tr('smart.createImportNode'), images:nodeImages, created_at:Date.now()};
+    const node = {id:uid('smart'), type:'smart-image', x, y, title:nodeImages.length > 1 ? 'Group' : nodeImages.length ? 'Image' : '上传节点', images:nodeImages, created_at:Date.now()};
     node.scale = nodeImages.length > 1 ? MEDIA_GROUP_DEFAULT_SCALE : mediaNodeDefaultScale(node);
     inheritNodeMetaFromImage(node);
     nodes.push(node);
@@ -805,7 +805,7 @@ function clearNodeMediaBeforeDelete(id){
     node.images = [];
     node.pending = 0;
     node.running = false;
-    node.title = tr('smart.createImportNode');
+    node.title = '上传节点';
     delete node.w;
     delete node.h;
     const history = historyGroupForNode(node);
@@ -1001,7 +1001,7 @@ function upstreamLineNodeIds(node){
 function groupSelectedNodes(){
     const ids = selectedIds.length ? selectedIds.slice() : (selectedId ? [selectedId] : []);
     const selected = ids.map(id => nodes.find(n => n.id === id)).filter(n => n && (n.images || []).length);
-    if(selected.length < 2){ toast(tr('smart.toastNeedGroup')); return; }
+    if(selected.length < 2){ toast('请先按住 Ctrl 框选至少两个图片节点'); return; }
     pushUndo();
     const rects = selected.map(nodeRect);
     const x = Math.min(...rects.map(r => r.x));

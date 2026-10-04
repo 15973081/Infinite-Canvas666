@@ -428,7 +428,7 @@ async function importLocalImages(paths){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({paths})
     });
-    if(!response.ok) throw new Error(await responseErrorMessage(response, langIsEn() ? 'Local image import failed' : '导入本地图片失败'));
+    if(!response.ok) throw new Error(await responseErrorMessage(response, '导入本地图片失败'));
     const data = await response.json();
     return data.files || [];
 }
@@ -535,7 +535,7 @@ function createImageCardFromUrl(url, point, name='image', opts={}){
 
 async function createImageCardsFromLocalPaths(paths, point){
     if(!ensureCanvas()) return [];
-    setStatus(langIsEn() ? 'Importing images...' : '导入图片...');
+    setStatus('导入图片...');
     try {
         const files = await importLocalImages(paths);
         const base = point || screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
@@ -630,7 +630,7 @@ async function handleImageNodeDropEvent(e, nodeId, highlightEl){
         await applyImageDropPayloadToNode(nodeId, payload);
     } catch(err) {
         setStatus('Ready');
-        showErrorModal(err.message || (langIsEn() ? 'Image import failed' : '导入图片失败'), langIsEn() ? 'Image import failed' : '导入图片失败');
+        showErrorModal(err.message || ('导入图片失败'), '导入图片失败');
     }
 }
 
@@ -744,7 +744,7 @@ function selectedEditTextItem(){
 }
 
 function defaultEditTextText(){
-    return langIsEn() ? 'Double-click to edit' : '双击编辑';
+    return '双击编辑';
 }
 
 function editTextSizeFromBrush(){
@@ -1141,17 +1141,17 @@ function setImageEditMode(mode, userTouched=false){
     const apply = document.getElementById('imageEditApplyBtn');
     if(isPreview){
         apply.style.display = 'none';
-        title.textContent = tr('canvas.previewImage');
-        sub.textContent = tr('canvas.previewHint');
+        title.textContent = '预览图片';
+        sub.textContent = '查看大图，可切换到裁剪 / 扩图 / 遮罩等模式';
     } else {
         apply.style.display = '';
         const icon = imageEditMode === 'crop' ? 'crop' : imageEditMode === 'outpaint' ? 'expand' : imageEditMode === 'mask' ? 'brush' : imageEditMode === 'brush' ? 'paintbrush' : 'grid-3x3';
-        const labelKey = imageEditMode === 'crop' ? 'canvas.applyCrop' : imageEditMode === 'outpaint' ? 'canvas.applyOutpaint' : imageEditMode === 'mask' ? 'canvas.applyMask' : imageEditMode === 'brush' ? 'canvas.applyBrush' : 'canvas.applyGrid';
-        const titleKey = imageEditMode === 'crop' ? 'canvas.cropImage' : imageEditMode === 'outpaint' ? 'canvas.outpaintImage' : imageEditMode === 'mask' ? 'canvas.maskEdit' : imageEditMode === 'brush' ? 'canvas.brushEdit' : 'canvas.modeGrid';
-        const subKey = imageEditMode === 'crop' ? 'canvas.cropHint' : imageEditMode === 'outpaint' ? 'canvas.outpaintHint' : imageEditMode === 'mask' ? 'canvas.maskHint2' : imageEditMode === 'brush' ? 'canvas.brushHint' : 'canvas.gridHint';
-        title.textContent = tr(titleKey);
-        sub.textContent = tr(subKey);
-        apply.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span>${tr(labelKey)}</span>`;
+        const editLabel = imageEditMode === 'crop' ? '应用裁剪' : imageEditMode === 'outpaint' ? '应用扩图' : imageEditMode === 'mask' ? '生成遮罩节点' : imageEditMode === 'brush' ? '应用画笔' : '切分到 Output';
+        const editTitle = imageEditMode === 'crop' ? '裁剪图片' : imageEditMode === 'outpaint' ? '扩图' : imageEditMode === 'mask' ? '遮罩编辑' : imageEditMode === 'brush' ? '画笔编辑' : '宫格切分';
+        const editHint = imageEditMode === 'crop' ? '拖动裁剪框移动，拖右下角调整大小' : imageEditMode === 'outpaint' ? '拖动红框调整画布范围，最大不超过 4K 尺寸，确认后空白区域填充白色' : imageEditMode === 'mask' ? '在要重绘的位置涂白，保存后会生成遮罩图片节点' : imageEditMode === 'brush' ? '直接在图片上绘制标记或草图' : '按切分线分割图片，间隔会从线两侧扣除';
+        title.textContent = editTitle;
+        sub.textContent = editHint;
+        apply.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span>${editLabel}</span>`;
     }
     resizeEditDrawCanvas();
     if(isPreview) clearEditDrawing(true);
@@ -1689,7 +1689,7 @@ function refreshGridSplitPreview(){
         const gap = Math.max(0, Math.min(240, Number(document.getElementById('gridGapSize')?.value || 0)));
         const hLines = gridCustomLines.filter(l => l.type === 'h');
         const vLines = gridCustomLines.filter(l => l.type === 'v');
-        if(countEl) countEl.textContent = tr('canvas.gridWillOutput').replace('{n}', (hLines.length + 1) * (vLines.length + 1));
+        if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', (hLines.length + 1) * (vLines.length + 1));
         ctx.save();
         hLines.forEach(l => {
             const y = l.pos * canvasEl.height;
@@ -1714,7 +1714,7 @@ function refreshGridSplitPreview(){
     }
     // 常规模式
     const {rows, cols, gap} = gridSplitSettings();
-    if(countEl) countEl.textContent = tr('canvas.gridWillOutput').replace('{n}', rows * cols);
+    if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', rows * cols);
     ctx.save();
     const scaleX = canvasEl.width;
     const scaleY = canvasEl.height;
@@ -2264,7 +2264,7 @@ function bindClassicMediaImportEvents(){
             await applyImageDropPayloadToBoard(payload, screenToWorld(e.clientX, e.clientY));
         } catch(err) {
             setStatus('Ready');
-            showErrorModal(err.message || (langIsEn() ? 'Image import failed' : '导入图片失败'), langIsEn() ? 'Image import failed' : '导入图片失败');
+            showErrorModal(err.message || ('导入图片失败'), '导入图片失败');
         }
     });
     window.addEventListener('dragend', () => dropOverlay.classList.remove('active'));

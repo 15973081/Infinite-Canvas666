@@ -19,12 +19,12 @@ function savePromptPresets(){
 
 function defaultPromptTemplateGroups(){
     return [
-        {id:'view', name:tr('smart.tplCatView')},
-        {id:'storyboard', name:tr('smart.tplCatStoryboard')},
-        {id:'character', name:tr('smart.tplCatCharacter')},
-        {id:'product', name:tr('smart.tplCatProduct')},
-        {id:'lighting', name:tr('smart.tplCatLighting')},
-        {id:'mine', name:tr('smart.tplCatMine')}
+        {id:'view', name:'视角'},
+        {id:'storyboard', name:'分镜'},
+        {id:'character', name:'角色'},
+        {id:'product', name:'产品'},
+        {id:'lighting', name:'光影'},
+        {id:'mine', name:'我的'}
     ];
 }
 
@@ -110,7 +110,7 @@ function promptTemplateItems(){
     const mine = promptPresets.map(p => ({
         id:`mine:${p.id}`,
         sourceId:p.id,
-        name:p.name || tr('smart.promptPresetUnnamed'),
+        name:p.name || '未命名预设',
         // 系统库分组以后端为准（custom=“我的”），本地旧预设归到 custom 分组下展示，避免无对应标签。
         category:(p.category && p.category !== 'mine') ? p.category : 'custom',
         scene:'我的提示词预设',
@@ -163,18 +163,18 @@ function activePromptTemplateGroups(){
 }
 
 function promptTemplateCategoryLabel(category){
-    if(category === 'all') return tr('smart.tplAll');
+    if(category === 'all') return '全部';
     // 分组名优先以后端 categories 为准（含内置分组重命名），保证两端显示一致。
     const fromGroups = activePromptTemplateGroups().find(g => g.id === category)?.name;
     if(fromGroups) return fromGroups;
     const builtin = {
-        view:tr('smart.tplCatView'),
-        storyboard:tr('smart.tplCatStoryboard'),
-        character:tr('smart.tplCatCharacter'),
-        product:tr('smart.tplCatProduct'),
-        lighting:tr('smart.tplCatLighting'),
-        custom:tr('smart.tplCatMine'),
-        mine:tr('smart.tplCatMine')
+        view:'视角',
+        storyboard:'分镜',
+        character:'角色',
+        product:'产品',
+        lighting:'光影',
+        custom:'我的',
+        mine:'我的'
     };
     return builtin[category] || promptTemplateGroups.find(g => g.id === category)?.name || category;
 }
@@ -188,7 +188,7 @@ function currentPromptPreset(id){
 }
 
 function defaultPromptPresetName(text){
-    return (String(text || '').trim().split(/\r?\n/)[0] || tr('smart.promptPresetDefault')).slice(0, 28);
+    return (String(text || '').trim().split(/\r?\n/)[0] || '提示词预设').slice(0, 28);
 }
 
 function promptPresetPanelNode(){
@@ -205,21 +205,21 @@ function setPromptPresetStatus(text='', tone=''){
 function resetPromptPresetDeleteState(){
     promptPresetDeleteArmed = false;
     if(promptPresetDelete){
-        promptPresetDelete.textContent = tr('common.delete');
+        promptPresetDelete.textContent = '删除';
         promptPresetDelete.classList.remove('confirm-danger');
     }
 }
 
 function createPromptPresetFromNode(node, {openPanel=true, openTemplatePanel=false}={}){
     const text = String(node?.text || '').trim();
-    if(!text){ toast(tr('smart.promptPresetEmpty')); return null; }
+    if(!text){ toast('提示词为空'); return null; }
     const preset = {id:uid('preset'), name:defaultPromptPresetName(text), text, createdAt:Date.now(), updatedAt:Date.now()};
     promptPresets.unshift(preset);
     savePromptPresets();
     if(node) node.promptPresetId = preset.id;
     render();
     scheduleSave();
-    if(openPanel) openPromptPresetPanel(node?.id || '', preset.id, {status:tr('smart.promptPresetSavedNew'), tone:'ok'});
+    if(openPanel) openPromptPresetPanel(node?.id || '', preset.id, {status:'已存为新预设', tone:'ok'});
     if(openTemplatePanel) {
         promptTemplateCategory = 'mine';
         promptTemplateSelectedId = `mine:${preset.id}`;
@@ -231,7 +231,7 @@ function createPromptPresetFromNode(node, {openPanel=true, openTemplatePanel=fal
 
 function createPromptPresetFromComposer(){
     const text = promptPlainText();
-    if(!text){ toast(tr('smart.promptPresetEmpty')); return null; }
+    if(!text){ toast('提示词为空'); return null; }
     const preset = {id:uid('preset'), name:defaultPromptPresetName(text), text, category:'mine', createdAt:Date.now(), updatedAt:Date.now()};
     promptPresets.unshift(preset);
     savePromptPresets();
@@ -248,8 +248,8 @@ function renderPromptPresetPanel(selectedId='', message=''){
     if(!promptPresetSelect) return;
     resetPromptPresetDeleteState();
     promptPresetSelect.innerHTML = promptPresets.length
-        ? promptPresets.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name || tr('smart.promptPresetUnnamed'))}</option>`).join('')
-        : `<option value="">${escapeHtml(tr('smart.promptPresetNone'))}</option>`;
+        ? promptPresets.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name || '未命名预设')}</option>`).join('')
+        : `<option value="">${escapeHtml('暂无预设')}</option>`;
     const preset = currentPromptPreset(selectedId) || promptPresets[0] || null;
     if(preset && promptPresetSelect.value !== preset.id) promptPresetSelect.value = preset.id;
     promptPresetName.value = preset?.name || '';
@@ -260,7 +260,7 @@ function renderPromptPresetPanel(selectedId='', message=''){
     promptPresetDelete.disabled = !hasPreset;
     promptPresetSave.disabled = !hasPreset;
     if(promptPresetNew) promptPresetNew.disabled = !nodeHasText;
-    setPromptPresetStatus(message || (hasPreset ? tr('smart.promptPresetPanelHint') : tr('smart.promptPresetPanelEmpty')));
+    setPromptPresetStatus(message || (hasPreset ? '选择预设后可直接修改名称和内容。' : '当前还没有预设，可以先把当前提示词存为新预设。'));
 }
 
 function openPromptPresetPanel(nodeId='', presetId='', options={}){
@@ -320,7 +320,7 @@ function renderPromptTemplatePanel(options={}){
     const activeGroups = activePromptTemplateGroups();
     // 防御：若当前分类筛选不属于当前词库（例如刚切换词库或分类已被删除），回到“全部”，避免列表被过滤为空。
     if(promptTemplateCategory !== 'all' && !activeGroups.some(g => g.id === promptTemplateCategory)) promptTemplateCategory = 'all';
-    const categories = [{id:'all', name:tr('smart.tplAll')}, ...activeGroups.map(group => ({...group, name:promptTemplateCategoryLabel(group.id)}))];
+    const categories = [{id:'all', name:'全部'}, ...activeGroups.map(group => ({...group, name:promptTemplateCategoryLabel(group.id)}))];
     const groupCounts = allTemplates.reduce((map, item) => {
         map[item.category || 'mine'] = (map[item.category || 'mine'] || 0) + 1;
         return map;
@@ -329,12 +329,12 @@ function renderPromptTemplatePanel(options={}){
         <div class="prompt-template-group-panel">
             <div class="prompt-template-group-title">
                 <div>
-                    <strong>${escapeHtml(tr('smart.tplGroupManage'))}</strong>
-                    <span>${escapeHtml(tr('smart.tplGroupHint'))}</span>
+                    <strong>${escapeHtml('分组管理')}</strong>
+                    <span>${escapeHtml('这里只调整上方分类，不影响模板内容')}</span>
                 </div>
                 <div class="prompt-template-group-tools">
-                    <button type="button" data-template-cat-new><i data-lucide="plus"></i><span>${escapeHtml(tr('smart.tplAdd'))}</span></button>
-                    <button type="button" class="primary" data-template-group-edit><i data-lucide="check"></i><span>${escapeHtml(tr('smart.tplDone'))}</span></button>
+                    <button type="button" data-template-cat-new><i data-lucide="plus"></i><span>${escapeHtml('新增')}</span></button>
+                    <button type="button" class="primary" data-template-group-edit><i data-lucide="check"></i><span>${escapeHtml('完成')}</span></button>
                 </div>
             </div>
             <div class="prompt-template-group-list">
@@ -344,8 +344,8 @@ function renderPromptTemplatePanel(options={}){
                             <span>${escapeHtml(promptTemplateCategoryLabel(group.id))}</span>
                             <small>${groupCounts[group.id] || 0}</small>
                         </button>
-                        <button type="button" class="group-tool" data-template-cat-edit="${escapeHtml(group.id)}" title="${escapeAttr(tr('smart.tplRename'))}"><i data-lucide="pencil"></i></button>
-                        <button type="button" class="group-tool danger" data-template-cat-delete="${escapeHtml(group.id)}" title="${escapeAttr(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>
+                        <button type="button" class="group-tool" data-template-cat-edit="${escapeHtml(group.id)}" title="${escapeAttr('重命名')}"><i data-lucide="pencil"></i></button>
+                        <button type="button" class="group-tool danger" data-template-cat-delete="${escapeHtml(group.id)}" title="${escapeAttr('删除')}"><i data-lucide="trash-2"></i></button>
                     </div>
                 `).join('')}
             </div>
@@ -360,7 +360,7 @@ function renderPromptTemplatePanel(options={}){
                     </button>
                 `).join('')}
             </div>
-            <button type="button" class="prompt-template-manage-groups" data-template-group-edit><i data-lucide="settings-2"></i><span>${escapeHtml(tr('smart.tplManageGroups'))}</span></button>
+            <button type="button" class="prompt-template-manage-groups" data-template-group-edit><i data-lucide="settings-2"></i><span>${escapeHtml('管理分组')}</span></button>
         </div>
     `;
     const items = allTemplates.filter(item => {
@@ -382,70 +382,70 @@ function renderPromptTemplatePanel(options={}){
     promptTemplateBody.innerHTML = `
         <div class="prompt-template-list">
             <div class="prompt-template-list-tools">
-                <button type="button" data-template-save-current><i data-lucide="bookmark-plus"></i><span>${escapeHtml(tr('smart.tplSaveCurrent'))}</span></button>
-                <button type="button" data-template-new><i data-lucide="file-plus-2"></i><span>${escapeHtml(tr('smart.tplNewTemplate'))}</span></button>
+                <button type="button" data-template-save-current><i data-lucide="bookmark-plus"></i><span>${escapeHtml('存当前')}</span></button>
+                <button type="button" data-template-new><i data-lucide="file-plus-2"></i><span>${escapeHtml('新模板')}</span></button>
             </div>
             ${items.length ? items.map(item => `<button type="button" class="prompt-template-card ${item.id === selected?.id ? 'active' : ''}" data-template-id="${escapeHtml(item.id)}">
                 <span class="prompt-template-card-top">
                     <span class="prompt-template-name">${escapeHtml(promptTemplateName(item))}</span>
-                    <span class="prompt-template-source">${escapeHtml(item.builtin ? tr('smart.tplBuiltin') : tr('smart.tplMine'))}</span>
+                    <span class="prompt-template-source">${escapeHtml(item.builtin ? '内置' : '我的')}</span>
                 </span>
                 <span class="prompt-template-scene">${escapeHtml(promptTemplateScene(item) || item.positive || '')}</span>
                 <span class="prompt-template-tag">${escapeHtml(promptTemplateCategoryLabel(item.category || 'mine'))}</span>
-            </button>`).join('') : `<div class="prompt-template-list-empty">${escapeHtml(tr('smart.tplNoMatches'))}</div>`}
+            </button>`).join('') : `<div class="prompt-template-list-empty">${escapeHtml('没有匹配的模板')}</div>`}
         </div>
         <div class="prompt-template-detail">
             ${selected ? `
                 <div class="prompt-template-detail-head">
                     <div>
                         <strong>${escapeHtml(promptTemplateName(selected) || '')}</strong>
-                        <span>${escapeHtml(promptTemplateCategoryLabel(selected.category || ''))} · ${escapeHtml(selected.builtin ? tr('smart.tplBuiltinTemplate') : tr('smart.tplMineTemplate'))}</span>
+                        <span>${escapeHtml(promptTemplateCategoryLabel(selected.category || ''))} · ${escapeHtml(selected.builtin ? '内置模板' : '我的模板')}</span>
                     </div>
                     ${editMode ? '' : `
                         <div class="prompt-template-icon-actions">
-                            <button type="button" ${!canEditCurrentLibrary ? 'disabled' : ''} data-template-edit title="${escapeAttr(tr('smart.tplEditTemplate'))}"><i data-lucide="pencil"></i><span>${escapeHtml(tr('common.edit'))}</span></button>
-                            <button type="button" ${!canEditCurrentLibrary ? 'disabled' : ''} class="danger" data-template-delete title="${escapeAttr(tr('smart.tplDeleteTemplate'))}"><i data-lucide="trash-2"></i><span>${escapeHtml(tr('common.delete'))}</span></button>
+                            <button type="button" ${!canEditCurrentLibrary ? 'disabled' : ''} data-template-edit title="${escapeAttr('修改模板')}"><i data-lucide="pencil"></i><span>${escapeHtml('编辑')}</span></button>
+                            <button type="button" ${!canEditCurrentLibrary ? 'disabled' : ''} class="danger" data-template-delete title="${escapeAttr('删除模板')}"><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
                         </div>
                     `}
                 </div>
             ${editMode ? `
                 <div class="prompt-template-edit-fields">
-                    <label>${escapeHtml(tr('smart.tplName'))}</label>
-                    <input data-template-edit-name value="${escapeAttr(selectedPreset.name || '')}" placeholder="${escapeAttr(tr('smart.tplName'))}">
-                    <label>${escapeHtml(tr('smart.tplGroup'))}</label>
+                    <label>${escapeHtml('模板名称')}</label>
+                    <input data-template-edit-name value="${escapeAttr(selectedPreset.name || '')}" placeholder="${escapeAttr('模板名称')}">
+                    <label>${escapeHtml('所属分组')}</label>
                     <select data-template-edit-category>
                         ${activeGroups.map(group => `<option value="${escapeAttr(group.id)}" ${group.id === (selectedPreset.category || selected?.category || 'mine') ? 'selected' : ''}>${escapeHtml(promptTemplateCategoryLabel(group.id))}</option>`).join('')}
                     </select>
-                    <label>${escapeHtml(tr('smart.tplContent'))}</label>
-                    <textarea data-template-edit-text placeholder="${escapeAttr(tr('smart.tplContent'))}">${escapeHtml(selectedPreset.text || '')}</textarea>
+                    <label>${escapeHtml('模板内容')}</label>
+                    <textarea data-template-edit-text placeholder="${escapeAttr('模板内容')}">${escapeHtml(selectedPreset.text || '')}</textarea>
                 </div>
             ` : `
                 <div class="prompt-template-preview-content">
                 <div class="prompt-template-section">
-                    <label>${escapeHtml(tr('smart.tplPositive'))}</label>
+                    <label>${escapeHtml('正向提示词')}</label>
                     <p>${escapeHtml(selected?.positive || '')}</p>
                 </div>
                 ${selected?.negative ? `<div class="prompt-template-section">
-                    <label>${escapeHtml(tr('smart.tplNegative'))}</label>
+                    <label>${escapeHtml('负向提示词')}</label>
                     <p>${escapeHtml(selected.negative)}</p>
                 </div>` : ''}
                 ${Object.keys(selected?.params || {}).length ? `<div class="prompt-template-section">
-                    <label>${escapeHtml(tr('smart.tplParams'))}</label>
+                    <label>${escapeHtml('参数建议')}</label>
                     <p>${escapeHtml(Object.entries(selected.params).map(([k,v]) => `${k}: ${v}`).join('\n'))}</p>
                 </div>` : ''}
                 </div>
             `}
             <div class="prompt-template-actions">
                 ${editMode ? `
-                    <button type="button" data-template-edit-cancel><i data-lucide="x"></i><span>${escapeHtml(tr('common.cancel'))}</span></button>
-                    <button type="button" class="danger" data-template-delete><i data-lucide="trash-2"></i><span>${escapeHtml(tr('common.delete'))}</span></button>
-                    <button type="button" class="primary" data-template-edit-save><i data-lucide="save"></i><span>${escapeHtml(tr('common.save'))}</span></button>
+                    <button type="button" data-template-edit-cancel><i data-lucide="x"></i><span>${escapeHtml('取消')}</span></button>
+                    <button type="button" class="danger" data-template-delete><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
+                    <button type="button" class="primary" data-template-edit-save><i data-lucide="save"></i><span>${escapeHtml('保存')}</span></button>
                 ` : `
-                    <button type="button" data-template-apply="positive"><i data-lucide="corner-down-left"></i><span>${escapeHtml(tr('smart.tplApplyPositive'))}</span></button>
-                    <button type="button" class="primary" data-template-apply="full"><i data-lucide="wand-sparkles"></i><span>${escapeHtml(tr('smart.tplApplyFull'))}</span></button>
+                    <button type="button" data-template-apply="positive"><i data-lucide="corner-down-left"></i><span>${escapeHtml('正向')}</span></button>
+                    <button type="button" class="primary" data-template-apply="full"><i data-lucide="wand-sparkles"></i><span>${escapeHtml('完整应用')}</span></button>
                 `}
             </div>
-            ` : `<div class="prompt-template-empty">${escapeHtml(tr('smart.tplPickOrCreate'))}</div>`}
+            ` : `<div class="prompt-template-empty">${escapeHtml('选择或新建一个模板')}</div>`}
         </div>
     `;
     refreshIcons();
@@ -522,7 +522,7 @@ async function saveCurrentPromptAsTemplate(){
     const text = promptTemplatePanel?.dataset.target === 'composer'
         ? promptPlainText()
         : String(nodes.find(n => n.id === promptTemplatePanel?.dataset.nodeId)?.text || '').trim();
-    if(!text){ toast(tr('smart.promptPresetEmpty')); return; }
+    if(!text){ toast('提示词为空'); return; }
     try {
         const data = await window.CanvasApi.createPromptItem({library_id:library.id, name:defaultPromptPresetName(text), category:promptTemplateCategory === 'all' ? 'custom' : promptTemplateCategory, positive:text, scene:'我的提示词预设'});
         promptLibraries = data.library?.libraries || promptLibraries;
@@ -542,7 +542,7 @@ async function createBlankPromptTemplate(){
     if(library.readonly){ toast('请选择可编辑的提示词库'); return; }
     const category = promptTemplateCategory && promptTemplateCategory !== 'all' ? promptTemplateCategory : 'custom';
     try {
-        const data = await window.CanvasApi.createPromptItem({library_id:library.id, name:tr('smart.tplNewTemplateName'), category, positive:'新提示词', scene:'我的提示词预设'});
+        const data = await window.CanvasApi.createPromptItem({library_id:library.id, name:'新模板', category, positive:'新提示词', scene:'我的提示词预设'});
         promptLibraries = data.library?.libraries || promptLibraries;
         activePromptLibraryId = library.id;
         promptTemplateCategory = category;
@@ -560,7 +560,7 @@ async function savePromptTemplateEdit(){
     const name = promptTemplatePanel.querySelector('[data-template-edit-name]')?.value?.trim() || '';
     const text = promptTemplatePanel.querySelector('[data-template-edit-text]')?.value?.trim() || '';
     const category = promptTemplatePanel.querySelector('[data-template-edit-category]')?.value || 'mine';
-    if(!name || !text){ toast(tr('smart.tplRequired')); return; }
+    if(!name || !text){ toast('模板名称和内容不能为空'); return; }
     if(item.remote){
         try {
             const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:item.libraryId || activePromptLibrary().id, name, category, positive:text, scene:item.scene || '', negative:item.negative || ''});
@@ -620,7 +620,7 @@ async function deletePromptTemplate(){
 }
 
 async function createPromptTemplateGroup(){
-    const name = window.prompt(tr('smart.tplNewGroupPrompt'), tr('smart.tplNewGroupDefault'));
+    const name = window.prompt('新分组名称', '新分组');
     if(!String(name || '').trim()) return;
     const lib = activePromptLibrary();
     // 系统库（readonly=false）也走后端新增分组，与素材库管理同步。
@@ -644,7 +644,7 @@ async function renamePromptTemplateGroup(groupId){
     const lib = activePromptLibrary();
     const group = activePromptTemplateGroups().find(g => g.id === groupId);
     if(!group) return;
-    const name = window.prompt(tr('smart.tplGroupNamePrompt'), group.name || '');
+    const name = window.prompt('分组名称', group.name || '');
     if(!String(name || '').trim()) return;
     // 系统库的内置分组也走后端重命名（后端已放开内置分组限制），两端同步。
     if(lib && !lib.readonly){
@@ -664,7 +664,7 @@ async function deletePromptTemplateGroup(groupId){
     const lib = activePromptLibrary();
     // 系统库的内置分组也走后端删除（后端已放开限制并把孤立条目改挂到剩余分组），两端同步。
     if(lib && !lib.readonly){
-        if(!window.confirm(tr('smart.tplDeleteGroupConfirm'))) return;
+        if(!window.confirm('删除分组？该分组里的我的模板会移动到“我的”。')) return;
         try {
             const data = await window.CanvasApi.deletePromptCategory(groupId);
             promptLibraries = data.library?.libraries || promptLibraries;
@@ -673,7 +673,7 @@ async function deletePromptTemplateGroup(groupId){
         } catch(err){ if(typeof setStatus === 'function') setStatus(err.message || '删除失败'); }
         return;
     }
-    if(!window.confirm(tr('smart.tplDeleteGroupConfirm'))) return;
+    if(!window.confirm('删除分组？该分组里的我的模板会移动到“我的”。')) return;
     promptTemplateGroups = promptTemplateGroups.filter(g => g.id !== groupId);
     promptPresets = promptPresets.map(p => p.category === groupId ? {...p, category:'mine'} : p);
     Object.entries(promptTemplateOverrides.editedBuiltins || {}).forEach(([id, item]) => {
@@ -775,7 +775,7 @@ async function loadAssetLibrary(){
         setAssetLibraryFromResponse(data, {render:false});
         renderAssetLibrary();
     } catch(e) {
-        toast(tr('smart.assetLoadFail'));
+        toast('资产库加载失败');
     }
 }
 
@@ -886,7 +886,7 @@ function renderAssetLibrary({preserveScroll=false}={}){
     const activeCatId = workflowMode ? activeWorkflowAssetCategoryId : activeAssetCategoryId;
     if(workflowMode && !cats.some(cat => cat.id === activeWorkflowAssetCategoryId)) activeWorkflowAssetCategoryId = cats[0]?.id || '';
     if(imageMode && !cats.some(cat => cat.id === activeAssetCategoryId)) activeAssetCategoryId = cats[0]?.id || '';
-    assetCategorySelect.innerHTML = cats.map(cat => `<option value="${escapeHtml(cat.id)}" ${cat.id === (workflowMode ? activeWorkflowAssetCategoryId : activeAssetCategoryId) ? 'selected' : ''}>${escapeHtml(cat.name || (workflowMode ? '工作流' : tr('smart.assetFolder')))}</option>`).join('');
+    assetCategorySelect.innerHTML = cats.map(cat => `<option value="${escapeHtml(cat.id)}" ${cat.id === (workflowMode ? activeWorkflowAssetCategoryId : activeAssetCategoryId) ? 'selected' : ''}>${escapeHtml(cat.name || (workflowMode ? '工作流' : '新文件夹'))}</option>`).join('');
     const cat = workflowMode ? activeWorkflowAssetCategory() : activeAssetCategory();
     const query = assetNameSearchQuery.trim().toLowerCase();
     const allItems = cat?.items || [];
@@ -907,13 +907,13 @@ function renderAssetLibrary({preserveScroll=false}={}){
             <div class="asset-meta">
                 <span class="asset-name" title="${escapeHtml(item.name || '')}">${escapeHtml(item.name || 'asset')}</span>
                 ${workflowMode
-                    ? `<button class="asset-mini-btn" type="button" data-rename-workflow-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('smart.assetRename'))}"><i data-lucide="pencil"></i></button>
-                       <button class="asset-mini-btn" type="button" data-delete-workflow-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>`
-                    : localMode ? `<span class="asset-local-tag">本地</span>` : `<button class="asset-mini-btn" type="button" data-rename-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('smart.assetRename'))}"><i data-lucide="pencil"></i></button>
-                       <button class="asset-mini-btn" type="button" data-delete-asset="${escapeHtml(item.id)}" title="${escapeHtml(tr('common.delete'))}"><i data-lucide="trash-2"></i></button>`}
+                    ? `<button class="asset-mini-btn" type="button" data-rename-workflow-asset="${escapeHtml(item.id)}" title="${escapeHtml('重命名')}"><i data-lucide="pencil"></i></button>
+                       <button class="asset-mini-btn" type="button" data-delete-workflow-asset="${escapeHtml(item.id)}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button>`
+                    : localMode ? `<span class="asset-local-tag">本地</span>` : `<button class="asset-mini-btn" type="button" data-rename-asset="${escapeHtml(item.id)}" title="${escapeHtml('重命名')}"><i data-lucide="pencil"></i></button>
+                       <button class="asset-mini-btn" type="button" data-delete-asset="${escapeHtml(item.id)}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button>`}
             </div>
         </div>
-    `).join('') + (visibleItems.length < items.length ? '<div class="asset-load-more">继续向下滚动加载更多</div>' : '') : `<div class="asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : tr('smart.assetEmpty'))))}</div>`;
+    `).join('') + (visibleItems.length < items.length ? '<div class="asset-load-more">继续向下滚动加载更多</div>' : '') : `<div class="asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : '这个文件夹还没有图片。把画布里的图片拖进来保存。')))}</div>`;
     if(workflowMode) bindWorkflowAssetItemEvents();
     else bindAssetItemEvents();
     bindSmartPreviewImageFallbacks(assetGrid);
@@ -926,7 +926,7 @@ function openAssetNameDialog({title='', value='', placeholder='', cancelValue=''
     return new Promise(resolve => {
         if(assetDialogTarget) assetDialogTarget.hidden = true;
         assetDialogInput.hidden = false;
-        assetDialogTitle.textContent = title || tr('smart.assetRename');
+        assetDialogTitle.textContent = title || '重命名';
         assetDialogInput.value = value || '';
         assetDialogInput.placeholder = placeholder || '';
         assetDialogInput.classList.toggle('is-multiline', Boolean(multiline));
@@ -1022,7 +1022,7 @@ function beginAssetInlineRename(assetId){
     input.className = 'asset-rename-input';
     input.type = 'text';
     input.value = previousName;
-    input.setAttribute('aria-label', tr('smart.assetRename'));
+    input.setAttribute('aria-label', '重命名');
     card.draggable = false;
     nameEl.replaceWith(input);
     input.focus();
@@ -1046,7 +1046,7 @@ function beginAssetInlineRename(assetId){
             setAssetLibraryFromResponse(data);
         } catch(err){
             restore();
-            toast(err.message || tr('smart.assetAddFail'));
+            toast(err.message || '保存资产失败');
         }
     };
     input.addEventListener('keydown', event => {
@@ -1095,7 +1095,7 @@ function bindAssetItemEvents(){
                 setAssetLibraryFromResponse(data);
             } catch(err){
                 btn.disabled = false;
-                toast(err.message || tr('smart.assetAddFail'));
+                toast(err.message || '保存资产失败');
             }
         };
     });
@@ -1121,7 +1121,7 @@ function bindWorkflowAssetItemEvents(){
                 setAssetLibraryFromResponse(data);
             } catch(err){
                 btn.disabled = false;
-                toast(err.message || tr('smart.assetAddFail'));
+                toast(err.message || '保存资产失败');
             }
         };
     });
@@ -1130,10 +1130,10 @@ function bindWorkflowAssetItemEvents(){
 async function addUrlToAssetLibrary(url, name=''){
     if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中上传'); return; }
     const cat = activeAssetCategory();
-    if(!cat){ toast(tr('smart.assetNoFolder')); return; }
-    const data = await window.CanvasApi.createAssetItem({library_id:activeAssetLibraryId, category_id:cat.id, url, name}, {errorFallback:tr('smart.assetAddFail')});
+    if(!cat){ toast('请先新建一个图片文件夹'); return; }
+    const data = await window.CanvasApi.createAssetItem({library_id:activeAssetLibraryId, category_id:cat.id, url, name}, {errorFallback:'保存资产失败'});
     setAssetLibraryFromResponse(data);
-    toast(tr('smart.assetSaved'));
+    toast('已保存到资产库');
 }
 
 async function chooseSmartAssetTarget(){
@@ -1455,7 +1455,7 @@ function bindSmartLibraryControls(){
     [promptPresetName, promptPresetText].forEach(input => {
         input?.addEventListener('input', () => {
             resetPromptPresetDeleteState();
-            setPromptPresetStatus(tr('smart.promptPresetEditing'));
+            setPromptPresetStatus('编辑完成后点击保存修改。');
         });
     });
     if(promptPresetApply) promptPresetApply.onclick = () => {
@@ -1473,14 +1473,14 @@ function bindSmartLibraryControls(){
         if(!preset) return;
         const name = promptPresetName.value.trim();
         const text = promptPresetText.value.trim();
-        if(!name || !text){ setPromptPresetStatus(tr('smart.promptPresetRequired'), 'warn'); return; }
+        if(!name || !text){ setPromptPresetStatus('名称和内容都不能为空。', 'warn'); return; }
         const idx = promptPresets.findIndex(p => p.id === preset.id);
         if(idx >= 0) promptPresets[idx] = {...promptPresets[idx], name, text, updatedAt:Date.now()};
         savePromptPresets();
         const node = promptPresetPanelNode();
         if(node?.promptPresetId === preset.id) node.text = text;
-        renderPromptPresetPanel(preset.id, tr('smart.promptPresetSaved'));
-        setPromptPresetStatus(tr('smart.promptPresetSaved'), 'ok');
+        renderPromptPresetPanel(preset.id, '修改已保存');
+        setPromptPresetStatus('修改已保存', 'ok');
         render();
         scheduleSave();
     };
@@ -1488,8 +1488,8 @@ function bindSmartLibraryControls(){
         const node = promptPresetPanelNode();
         const preset = createPromptPresetFromNode(node, {openPanel:false});
         if(!preset) return;
-        renderPromptPresetPanel(preset.id, tr('smart.promptPresetSavedNew'));
-        setPromptPresetStatus(tr('smart.promptPresetSavedNew'), 'ok');
+        renderPromptPresetPanel(preset.id, '已存为新预设');
+        setPromptPresetStatus('已存为新预设', 'ok');
         promptPresetName?.focus();
         promptPresetName?.select();
     };
@@ -1498,16 +1498,16 @@ function bindSmartLibraryControls(){
         if(!preset) return;
         if(!promptPresetDeleteArmed){
             promptPresetDeleteArmed = true;
-            promptPresetDelete.textContent = tr('smart.promptPresetDeleteAgain');
+            promptPresetDelete.textContent = '再次点击删除';
             promptPresetDelete.classList.add('confirm-danger');
-            setPromptPresetStatus(tr('smart.promptPresetDeleteConfirm').replace('{name}', preset.name || tr('smart.promptPresetUnnamed')), 'warn');
+            setPromptPresetStatus('将删除“{name}”，再次点击确认。'.replace('{name}', preset.name || '未命名预设'), 'warn');
             return;
         }
         promptPresets = promptPresets.filter(p => p.id !== preset.id);
         nodes.forEach(node => { if(node.promptPresetId === preset.id) node.promptPresetId = ''; });
         savePromptPresets();
-        renderPromptPresetPanel(promptPresets[0]?.id || '', tr('smart.promptPresetDeleted'));
-        setPromptPresetStatus(tr('smart.promptPresetDeleted'), 'ok');
+        renderPromptPresetPanel(promptPresets[0]?.id || '', '预设已删除');
+        setPromptPresetStatus('预设已删除', 'ok');
         render();
         scheduleSave();
     };
@@ -1540,8 +1540,8 @@ function bindSmartLibraryControls(){
     if(assetAddCategoryBtn) assetAddCategoryBtn.onclick = async () => {
         if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
         const workflowMode = currentAssetTabIsWorkflow();
-        const fallbackName = workflowMode ? '工作流' : tr('smart.assetFolder');
-        const name = await openAssetNameDialog({title:tr('smart.assetNewFolder'), value:fallbackName, placeholder:fallbackName});
+        const fallbackName = workflowMode ? '工作流' : '新文件夹';
+        const name = await openAssetNameDialog({title:'新建文件夹', value:fallbackName, placeholder:fallbackName});
         if(!name) return;
         const data = await window.CanvasApi.createAssetCategory({library_id:activeAssetLibraryId, name, type:workflowMode ? 'workflow' : 'image'});
         setActiveAssetTabCategory(data.category?.id || '');
@@ -1551,7 +1551,7 @@ function bindSmartLibraryControls(){
         if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
         const cat = activeAssetTabCategory();
         if(!cat) return;
-        const name = await openAssetNameDialog({title:tr('smart.assetRenameFolder'), value:cat.name || '', placeholder:currentAssetTabIsWorkflow() ? '工作流' : tr('smart.assetFolder')});
+        const name = await openAssetNameDialog({title:'重命名文件夹', value:cat.name || '', placeholder:currentAssetTabIsWorkflow() ? '工作流' : '新文件夹'});
         if(!name) return;
         const data = await window.CanvasApi.updateAssetCategory(cat.id, {name});
         setAssetLibraryFromResponse(data);
@@ -1589,7 +1589,7 @@ async function handleAssetPanelDrop(e){
             if(payload?.url) await addUrlToAssetLibrary(payload.url, payload.name || '');
             return;
         } catch(e) {
-            toast(tr('smart.assetAddFail'));
+            toast('保存资产失败');
             return;
         }
     }
@@ -1605,7 +1605,7 @@ async function handleAssetPanelDrop(e){
             await addUrlToAssetLibrary(payload.url, smartImageNameFromUrl(payload.url));
         }
     } catch(err) {
-        toast(err.message || tr('smart.assetAddFail'));
+        toast(err.message || '保存资产失败');
     }
 }
 

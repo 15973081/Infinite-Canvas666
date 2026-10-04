@@ -43,7 +43,7 @@ function renderedInputMediaRefs(){
         nodeId:el.dataset.nodeId || '',
         imageIndex:Number.isFinite(Number(el.dataset.imageIndex)) ? Number(el.dataset.imageIndex) : index,
         kind:el.dataset.kind || '',
-        name:tr('smart.inputNum').replace('{n}', String(index + 1)),
+        name:'输入 {n}'.replace('{n}', String(index + 1)),
         role:`image_${index + 1}`
     })).filter(ref => ref.url);
 }
@@ -623,7 +623,7 @@ function setImageEditMode(mode, userTouched=false){
     if(zoomLabel) zoomLabel.style.display = isVideoPreview ? 'none' : '';
     if(cancelBtn){
         cancelBtn.style.display = '';
-        cancelBtn.textContent = isVideoPreview ? '关闭' : tr('common.cancel');
+        cancelBtn.textContent = isVideoPreview ? '关闭' : '取消';
     }
     cropCanvasEl.classList.toggle('mask-mode', imageEditMode === 'mask');
     cropCanvasEl.classList.toggle('brush-mode', imageEditMode === 'brush');
@@ -644,8 +644,8 @@ function setImageEditMode(mode, userTouched=false){
     document.getElementById('panoramaExportBtn').style.display = isPreview && !isVideoPreview && panoramaState.enabled ? 'inline-flex' : 'none';
     document.getElementById('compareThumbs').style.display = 'none';
     if(isPreview){
-        document.getElementById('imageEditTitle').textContent = isVideoPreview ? '预览视频' : tr('smart.previewImage');
-        document.getElementById('imageEditSub').textContent = isVideoPreview ? '' : tr('smart.previewHint');
+        document.getElementById('imageEditTitle').textContent = isVideoPreview ? '预览视频' : '预览图片';
+        document.getElementById('imageEditSub').textContent = isVideoPreview ? '' : '滚轮缩放，拖动查看，右下角可拉动对比原图';
         applyBtn.style.display = 'none';
         refreshComparePanel();
     } else {
@@ -654,12 +654,12 @@ function setImageEditMode(mode, userTouched=false){
         applyImageEditZoom();
         applyBtn.style.display = '';
         const icon = imageEditMode === 'crop' ? 'crop' : imageEditMode === 'outpaint' ? 'expand' : imageEditMode === 'mask' ? 'brush' : imageEditMode === 'brush' ? 'paintbrush' : 'grid-3x3';
-        const labelKey = imageEditMode === 'crop' ? 'canvas.applyCrop' : imageEditMode === 'outpaint' ? 'canvas.applyOutpaint' : imageEditMode === 'mask' ? 'canvas.applyMask' : imageEditMode === 'brush' ? 'canvas.applyBrush' : 'canvas.applyGrid';
-        const titleKey = imageEditMode === 'crop' ? 'canvas.cropImage' : imageEditMode === 'outpaint' ? 'canvas.outpaintImage' : imageEditMode === 'mask' ? 'canvas.maskEdit' : imageEditMode === 'brush' ? 'canvas.brushEdit' : 'canvas.modeGrid';
-        const subKey = imageEditMode === 'crop' ? 'canvas.cropHint' : imageEditMode === 'outpaint' ? 'canvas.outpaintHint' : imageEditMode === 'mask' ? 'canvas.maskHint2' : imageEditMode === 'brush' ? 'canvas.brushHint' : 'canvas.gridHint';
-        document.getElementById('imageEditTitle').textContent = tr(titleKey);
-        document.getElementById('imageEditSub').textContent = tr(subKey);
-        const applyLabel = imageEditMode === 'grid' && gridOperationMode === 'join' ? '输出拼接' : tr(labelKey);
+        const editLabel = imageEditMode === 'crop' ? '应用裁剪' : imageEditMode === 'outpaint' ? '应用扩图' : imageEditMode === 'mask' ? '生成遮罩节点' : imageEditMode === 'brush' ? '应用画笔' : '切分到 Output';
+        const editTitle = imageEditMode === 'crop' ? '裁剪图片' : imageEditMode === 'outpaint' ? '扩图' : imageEditMode === 'mask' ? '遮罩编辑' : imageEditMode === 'brush' ? '画笔编辑' : '宫格切分';
+        const editHint = imageEditMode === 'crop' ? '拖动裁剪框移动，拖右下角调整大小' : imageEditMode === 'outpaint' ? '拖动红框调整画布范围，最大不超过 4K 尺寸，确认后空白区域填充白色' : imageEditMode === 'mask' ? '在要重绘的位置涂白，保存后会生成遮罩图片节点' : imageEditMode === 'brush' ? '直接在图片上绘制标记或草图' : '按切分线分割图片，间隔会从线两侧扣除';
+        document.getElementById('imageEditTitle').textContent = editTitle;
+        document.getElementById('imageEditSub').textContent = editHint;
+        const applyLabel = imageEditMode === 'grid' && gridOperationMode === 'join' ? '输出拼接' : editLabel;
         applyBtn.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span>${applyLabel}</span>`;
         if(imageEditMode === 'crop'){
             requestAnimationFrame(() => {
@@ -1453,13 +1453,13 @@ function refreshGridSplitPreview(){
     if(gridCustomMode){
         const gap = Math.max(0, Math.min(240, Number(document.getElementById('gridGapSize')?.value || 0)));
         const hLines = gridCustomLines.filter(l => l.type === 'h'), vLines = gridCustomLines.filter(l => l.type === 'v');
-        if(countEl) countEl.textContent = tr('canvas.gridWillOutput').replace('{n}', (hLines.length + 1) * (vLines.length + 1));
+        if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', (hLines.length + 1) * (vLines.length + 1));
         hLines.forEach(l => { const y = l.pos * canvasEl.height; gap > 0 ? (drawLine(0, y - gap / 2, canvasEl.width, y - gap / 2), drawLine(0, y + gap / 2, canvasEl.width, y + gap / 2)) : drawLine(0, y, canvasEl.width, y); });
         vLines.forEach(l => { const x = l.pos * canvasEl.width; gap > 0 ? (drawLine(x - gap / 2, 0, x - gap / 2, canvasEl.height), drawLine(x + gap / 2, 0, x + gap / 2, canvasEl.height)) : drawLine(x, 0, x, canvasEl.height); });
         return;
     }
     const {rows, cols, gap} = gridSplitSettings();
-    if(countEl) countEl.textContent = tr('canvas.gridWillOutput').replace('{n}', rows * cols);
+    if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', rows * cols);
     for(let i = 1; i < cols; i++){ const x = i * canvasEl.width / cols; gap > 0 ? (drawLine(x - gap / 2, 0, x - gap / 2, canvasEl.height), drawLine(x + gap / 2, 0, x + gap / 2, canvasEl.height)) : drawLine(x, 0, x, canvasEl.height); }
     for(let i = 1; i < rows; i++){ const y = i * canvasEl.height / rows; gap > 0 ? (drawLine(0, y - gap / 2, canvasEl.width, y - gap / 2), drawLine(0, y + gap / 2, canvasEl.width, y + gap / 2)) : drawLine(0, y, canvasEl.width, y); }
 }
@@ -2260,7 +2260,7 @@ async function uploadFiles(files){
     if(!supported.length) return [];
     const form = new FormData();
     supported.forEach(file => form.append('files', file, file.name || 'media'));
-    const data = await window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:tr('smart.toastUploadFail')});
+    const data = await window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:'素材上传失败'});
     return (data.files || []).map((file, index) => ({
         ...file,
         kind:file.kind || mediaKindForFile(supported[index])
@@ -2303,7 +2303,7 @@ async function handleFiles(files, targetId='', opts={}){
         if(!uploaded.length) return;
         if(!opts.skipUndo) pushUndo();
         appendImagesToSmartNode(uploaded.map((file, index) => ({...file, kind:file.kind || mediaKindForFile(fileList[index])})), targetId, opts);
-    } catch(e) { toast(e.message || tr('smart.toastUploadFail')); }
+    } catch(e) { toast(e.message || '素材上传失败'); }
 }
 
 async function importSmartLocalImages(paths){
@@ -2313,7 +2313,7 @@ async function importSmartLocalImages(paths){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({paths})
     });
-    if(!response.ok) throw new Error(await smartResponseErrorMessage(response, tr('smart.toastUploadFail')));
+    if(!response.ok) throw new Error(await smartResponseErrorMessage(response, '素材上传失败'));
     const data = await response.json();
     return data.files || [];
 }
@@ -2329,7 +2329,7 @@ async function handleSmartImageDropPayload(payload, targetId='', opts={}){
             appendImagesToSmartNode([{url:payload.url, name:payload.name || smartImageNameFromUrl(payload.url), kind:payload.kind || 'image', asset_uris:payload.asset_uris || {}}], targetId, opts);
         }
     } catch(e) {
-        toast(e.message || tr('smart.toastUploadFail'));
+        toast(e.message || '素材上传失败');
     }
 }
 

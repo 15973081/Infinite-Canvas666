@@ -610,13 +610,13 @@ function renderSmartNodeHtml(node){
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
     const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : '';
     const singleMediaTitle = singleMediaKind === 'video' ? 'Video' : singleMediaKind === 'audio' ? 'Audio' : singleMediaKind === 'text' ? 'Text' : singleMediaKind === 'file' ? 'File' : 'Image';
-    const title = isPending ? escapeHtml(tr('canvas.generating')) : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml(tr('smart.createImportNode'))));
+    const title = isPending ? escapeHtml('生成中') : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml('上传节点')));
     const body = nodeBodyHtml(node, layout);
-    const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button>`;
-    const hint = isPending ? escapeHtml(tr('smart.hintPending')) : (imgs.length > 1 ? escapeHtml(tr('smart.hintMulti')) : imgs.length ? escapeHtml(tr('smart.hintSingle')) : escapeHtml(tr('smart.hintEmpty')));
+    const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button>`;
+    const hint = isPending ? escapeHtml('正在生成…') : (imgs.length > 1 ? escapeHtml('多图会作为同一组参考图发送') : imgs.length ? escapeHtml('点击后在下方输入编辑需求') : escapeHtml('支持图片 / 视频 / 音频，也可直接文生图'));
     return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
-        ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml(tr('smart.deleteNode'))}"><i data-lucide="trash-2"></i></button></div>` : ''}
+        ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button></div>` : ''}
         ${smartNodeToolbarHtml(node)}
         ${runTimePillHtml(node)}
         <div class="node-body">${body}</div>
@@ -833,11 +833,11 @@ function chatModelOptions(selectedModel='', providerId=''){
 function renderVideoProviderControl(providers){
     const current = (providers || []).find(p => p.id === settings.videoProvider) || videoProviderById(settings.videoProvider);
     return `<div class="smart-control provider-control">
-        <button class="smart-pill" type="button"><i data-lucide="plug-zap"></i><span class="sub">${escapeHtml(current?.name || settings.videoProvider || tr('smart.platform'))}</span></button>
+        <button class="smart-pill" type="button"><i data-lucide="plug-zap"></i><span class="sub">${escapeHtml(current?.name || settings.videoProvider || '平台')}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.videoPlatform'))}</div>
+            <div class="smart-popover-title">${escapeHtml('视频平台')}</div>
             <div class="model-list">
-                ${providers.map(p => `<button type="button" class="direct-option ${p.id === settings.videoProvider ? 'active' : ''}" data-smart-param="videoProvider" data-smart-value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name || p.id)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml(tr('smart.noVideoPlatform'))}</div>`}
+                ${providers.map(p => `<button type="button" class="direct-option ${p.id === settings.videoProvider ? 'active' : ''}" data-smart-param="videoProvider" data-smart-value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name || p.id)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml('暂无视频平台')}</div>`}
             </div>
         </div>
     </div>`;
@@ -845,11 +845,11 @@ function renderVideoProviderControl(providers){
 
 function renderVideoModelControl(models){
     return `<div class="smart-control model-control">
-        <button class="smart-pill" type="button"><i data-lucide="film"></i><span class="sub">${escapeHtml(settings.videoModel || tr('smart.model'))}</span></button>
+        <button class="smart-pill" type="button"><i data-lucide="film"></i><span class="sub">${escapeHtml(settings.videoModel || '模型')}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.videoModel'))}</div>
+            <div class="smart-popover-title">${escapeHtml('视频模型')}</div>
             <div class="model-list">
-                ${models.map(m => `<button type="button" class="direct-option ${m === settings.videoModel ? 'active' : ''}" data-smart-param="videoModel" data-smart-value="${escapeHtml(m)}"><span>${escapeHtml(m)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml(tr('smart.noVideoModel'))}</div>`}
+                ${models.map(m => `<button type="button" class="direct-option ${m === settings.videoModel ? 'active' : ''}" data-smart-param="videoModel" data-smart-value="${escapeHtml(m)}"><span>${escapeHtml(m)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml('暂无视频模型')}</div>`}
             </div>
         </div>
     </div>`;
@@ -874,15 +874,15 @@ function renderVideoDurationControl(){
     const {min,max} = range;
     const v = window.VideoDurationPolicy.clamp(settings.videoDuration,range);
     const quick = window.VideoDurationPolicy.choices(range,seedance25 ? [-1,4,5,6,8,10,12,15,20,30] : [3,4,5,6,8,10,12,15]);
-    return `<div class="smart-control duration-control" title="${escapeHtml(tr('smart.videoDurationTip'))}">
+    return `<div class="smart-control duration-control" title="${escapeHtml('时长（秒）')}">
         <button class="smart-pill" type="button"><i data-lucide="timer"></i><span>${v === -1 ? '自动' : `${v}s`}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.videoDuration'))} · ${min}–${max} 秒</div>
+            <div class="smart-popover-title">${escapeHtml('时长')} · ${min}–${max} 秒</div>
             <div class="duration-grid">
                 ${quick.map(n => `<button type="button" class="duration-option ${n === v ? 'active' : ''}" data-smart-param="videoDuration" data-smart-value="${n}">${n === -1 ? '自动' : `${n}s`}</button>`).join('')}
             </div>
             <label class="duration-custom">
-                <span>${escapeHtml(tr('smart.custom'))}</span>
+                <span>${escapeHtml('自定义')}</span>
                 <input type="number" min="${range.auto ? -1 : min}" max="${max}" step="1" data-param="videoDuration" value="${v}">
             </label>
         </div>
@@ -892,7 +892,7 @@ function renderVideoDurationControl(){
 function renderVideoAspectControl(){
     let options = [
         ['16:9','16:9'], ['9:16','9:16'], ['1:1','1:1'], ['4:3','4:3'], ['3:4','3:4'],
-        ['21:9','21:9'], ['9:21','9:21'], ['keep_ratio', tr('smart.videoAspectKeep')], ['adaptive', tr('smart.videoAspectAdaptive')]
+        ['21:9','21:9'], ['9:21','9:21'], ['keep_ratio', '原图比例'], ['adaptive', '自适应']
     ];
     if(isSeedance25VideoModel()) options = options.filter(([v]) => !['9:21','keep_ratio'].includes(v));
     const value = settings.videoAspect || '16:9';
@@ -900,7 +900,7 @@ function renderVideoAspectControl(){
     return `<div class="smart-control aspect-control">
         <button class="smart-pill" type="button"><i data-lucide="scan"></i><span>${escapeHtml(labelMap[value] || value)}</span></button>
         <div class="smart-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.videoAspect'))}</div>
+            <div class="smart-popover-title">${escapeHtml('画面比例')}</div>
             <div class="ratio-grid">
                 ${options.map(([v,l]) => `<button type="button" class="ratio-option ${v === value ? 'active' : ''}" data-smart-param="videoAspect" data-smart-value="${escapeHtml(v)}"><span class="ratio-icon ${videoAspectIconClass(v)}"></span><span>${escapeHtml(l)}</span></button>`).join('')}
             </div>
@@ -909,13 +909,13 @@ function renderVideoAspectControl(){
 }
 
 function renderVideoResolutionControl(){
-    const options = normalizeSmartVideoResolution().map(value => [value, value ? value.toUpperCase() : tr('smart.videoResAuto')]);
+    const options = normalizeSmartVideoResolution().map(value => [value, value ? value.toUpperCase() : '自动']);
     const value = settings.videoResolution || '';
     const labelMap = Object.fromEntries(options);
     return `<div class="smart-control resolution-control">
-        <button class="smart-pill" type="button" ${options.length ? '' : 'disabled'}><i data-lucide="monitor"></i><span>${escapeHtml(options.length ? (labelMap[value] || value || tr('smart.videoResAuto')) : '暂无可用规格')}</span></button>
+        <button class="smart-pill" type="button" ${options.length ? '' : 'disabled'}><i data-lucide="monitor"></i><span>${escapeHtml(options.length ? (labelMap[value] || value || '自动') : '暂无可用规格')}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.videoResolution'))}</div>
+            <div class="smart-popover-title">${escapeHtml('视频分辨率')}</div>
             <div class="model-list">
                 ${options.map(([v,l]) => `<button type="button" class="direct-option ${v === value ? 'active' : ''}" data-smart-param="videoResolution" data-smart-value="${escapeHtml(v)}"><span>${escapeHtml(l)}</span></button>`).join('')}
             </div>
@@ -930,17 +930,17 @@ function renderVideoToggleControl(key, label){
 
 function renderVideoAdvancedControl(includeFrameRoles=false){
     const options=[
-        ['videoEnhancePrompt','smart.videoEnhancePrompt'],['videoEnableUpsample','smart.videoUpsample'],
-        ['videoGenerateAudio','smart.videoGenerateAudio'],['videoCameraFixed','smart.videoCameraFixed'],
-        ['videoWatermark','smart.videoWatermark'],['videoMultimodal','smart.videoMultimodal'],
-        ...(includeFrameRoles ? [['videoUseFrameRoles','smart.videoUseFrameRoles']] : [])
+        ['videoEnhancePrompt','提示词增强'],['videoEnableUpsample','高清'],
+        ['videoGenerateAudio','生成音频'],['videoCameraFixed','镜头固定'],
+        ['videoWatermark','水印'],['videoMultimodal','智能多参'],
+        ...(includeFrameRoles ? [['videoUseFrameRoles','首尾帧']] : [])
     ];
     const enabled=options.filter(([key])=>settings[key]).length + Number(!!settings.videoTrustedAsset);
     return `<details class="smart-control composer-advanced">
         <summary><i data-lucide="sliders-horizontal"></i><span>更多设置</span>${enabled ? `<span class="composer-option-count">${enabled}</span>` : ''}</summary>
         <div class="composer-advanced-panel">
             <div class="composer-advanced-heading">视频设置<span>按需调整生成效果</span></div>
-            ${options.map(([key,label])=>renderVideoToggleControl(key,tr(label))).join('')}
+            ${options.map(([key,label])=>renderVideoToggleControl(key,label)).join('')}
             <div class="composer-trusted-options">${renderVideoTrustedAssetControl()}</div>
         </div>
     </details>`;
@@ -957,7 +957,7 @@ function renderManualVideoUrlControl(){
 // 可信素材模式：打开后可选择素材来源——素材库认证链接 / 自行上传云端 / 自行输入网址。
 function renderVideoTrustedAssetControl(){
     const on = !!settings.videoTrustedAsset;
-    let html = renderVideoToggleControl('videoTrustedAsset', tr('smart.videoTrustedAsset'));
+    let html = renderVideoToggleControl('videoTrustedAsset', '可信素材模式');
     if(!on) return html;
     const src = ['library','cloud','manual'].includes(settings.videoTrustedSource) ? settings.videoTrustedSource : 'library';
     html += `<div class="trusted-source-row">
@@ -1089,7 +1089,7 @@ function renderUpscalePill(paramKey, current){
     return `<div class="smart-control upscale-control">
         <button class="smart-pill" type="button"><i data-lucide="maximize-2"></i><span>${escapeHtml(labels[current] || `${current}px`)}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.upscaleTarget'))}</div>
+            <div class="smart-popover-title">${escapeHtml('超分目标')}</div>
             <div class="model-list">
                 ${opts.map(v => `<button type="button" class="direct-option ${v === current ? 'active' : ''}" data-smart-param="${escapeHtml(paramKey)}" data-smart-value="${v}"><span>${escapeHtml(labels[v])}</span></button>`).join('')}
             </div>
@@ -1098,13 +1098,13 @@ function renderUpscalePill(paramKey, current){
 }
 
 function renderComfyWorkflowControl(){
-    if(!comfyWorkflows.length) return `<div class="muted-note">${escapeHtml(tr('smart.noWorkflow'))}</div>`;
+    if(!comfyWorkflows.length) return `<div class="muted-note">${escapeHtml('暂无 ComfyUI 工作流')}</div>`;
     const current = comfyWorkflows.find(w => w.name === settings.comfyWorkflow) || comfyWorkflows[0];
-    const label = current?.title || (current?.name || '').replace('.json','') || tr('smart.workflow');
+    const label = current?.title || (current?.name || '').replace('.json','') || '工作流';
     return `<div class="smart-control workflow-control">
         <button class="smart-pill" type="button"><i data-lucide="layers"></i><span class="sub">${escapeHtml(label)}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.workflow'))}</div>
+            <div class="smart-popover-title">${escapeHtml('工作流')}</div>
             <div class="model-list">
                 ${comfyWorkflows.map(w => `<button type="button" class="direct-option ${w.name === settings.comfyWorkflow ? 'active' : ''}" data-smart-param="comfyWorkflow" data-smart-value="${escapeHtml(w.name)}"><span>${escapeHtml(w.title || w.name.replace('.json',''))}</span></button>`).join('')}
             </div>
@@ -1118,11 +1118,11 @@ function renderSizeControls(prefix='', includeSource=false){
     const resKey = prefix ? `${prefix}Resolution` : 'resolution';
     const ratios = [
         ['square','1:1'], ['portrait','2:3'], ['landscape','3:2'], ['portrait43','3:4'], ['landscape43','4:3'], ['story','9:16'], ['wide','16:9'], ['ultrawide','21:9'], ['ultratall','9:21'],
-        ...(includeSource ? [['source', tr('canvas.adaptiveRatio') || '适配比例']] : []),
-        ['custom', tr('canvas.custom') || '自定义']
+        ...(includeSource ? [['source', '适配比例']] : []),
+        ['custom', '自定义']
     ];
     return `<select data-param="${resKey}">
-            ${resolutions.map(v => optionHtml(v, v === 'custom' ? (tr('canvas.custom') || '自定义') : v.toUpperCase(), settings[resKey] || '1k')).join('')}
+            ${resolutions.map(v => optionHtml(v, v === 'custom' ? ('自定义') : v.toUpperCase(), settings[resKey] || '1k')).join('')}
         </select>
         <select data-param="${ratioKey}" ${settings[resKey] === 'custom' ? 'disabled' : ''}>
             ${ratios.map(([v,l]) => `<option value="${escapeHtml(v)}" ${v === (settings[ratioKey] || 'square') ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}
@@ -1132,8 +1132,8 @@ function renderSizeControls(prefix='', includeSource=false){
 function ratioLabel(prefix=''){
     const ratioKey = prefix ? `${prefix}Ratio` : 'ratio';
     const customKey = prefix ? `${prefix}CustomRatio` : 'customRatio';
-    const sourceLabel = sourceImageRatioLabel(prefix) || tr('smart.imageRatio');
-    const map = {square:'1:1', portrait:'2:3', landscape:'3:2', portrait43:'3:4', landscape43:'4:3', story:'9:16', wide:'16:9', ultrawide:'21:9', ultratall:'9:21', source:sourceLabel, custom:settings[customKey] || tr('smart.custom')};
+    const sourceLabel = sourceImageRatioLabel(prefix) || '图片比例';
+    const map = {square:'1:1', portrait:'2:3', landscape:'3:2', portrait43:'3:4', landscape43:'4:3', story:'9:16', wide:'16:9', ultrawide:'21:9', ultratall:'9:21', source:sourceLabel, custom:settings[customKey] || '自定义'};
     return map[settings[ratioKey] || 'square'] || '1:1';
 }
 
@@ -1154,7 +1154,7 @@ function resolutionLabel(prefix=''){
     const resKey = prefix ? `${prefix}Resolution` : 'resolution';
     const sizeKey = prefix ? `${prefix}CustomSize` : 'customSize';
     const value = settings[resKey] || '1k';
-    return value === 'custom' ? (settings[sizeKey] || tr('smart.custom')) : value.toUpperCase();
+    return value === 'custom' ? (settings[sizeKey] || '自定义') : value.toUpperCase();
 }
 
 function ratioIconClass(value){
@@ -1181,11 +1181,11 @@ function videoAspectIconClass(value){
 function renderProviderControl(providers){
     const current = (providers || []).find(p => p.id === settings.provider_id) || apiProviderById(settings.provider_id);
     return `<div class="smart-control provider-control">
-        <button class="smart-pill" type="button"><i data-lucide="plug-zap"></i><span class="sub">${escapeHtml(current?.name || settings.provider_id || tr('smart.platform'))}</span></button>
+        <button class="smart-pill" type="button"><i data-lucide="plug-zap"></i><span class="sub">${escapeHtml(current?.name || settings.provider_id || '平台')}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.apiPlatform'))}</div>
+            <div class="smart-popover-title">${escapeHtml('API 平台')}</div>
             <div class="model-list">
-                ${providers.map(p => `<button type="button" class="direct-option ${p.id === settings.provider_id ? 'active' : ''}" data-smart-param="provider_id" data-smart-value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name || p.id)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml(tr('smart.noApiPlatform'))}</div>`}
+                ${providers.map(p => `<button type="button" class="direct-option ${p.id === settings.provider_id ? 'active' : ''}" data-smart-param="provider_id" data-smart-value="${escapeHtml(p.id)}"><span>${escapeHtml(p.name || p.id)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml('暂无 API 平台')}</div>`}
             </div>
         </div>
     </div>`;
@@ -1193,18 +1193,18 @@ function renderProviderControl(providers){
 
 function renderModelControl(models){
     return `<div class="smart-control model-control">
-        <button class="smart-pill" type="button"><i data-lucide="sparkles"></i><span class="sub">${escapeHtml(settings.model || tr('smart.model'))}</span></button>
+        <button class="smart-pill" type="button"><i data-lucide="sparkles"></i><span class="sub">${escapeHtml(settings.model || '模型')}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.imageModel'))}</div>
+            <div class="smart-popover-title">${escapeHtml('生图模型')}</div>
             <div class="model-list">
-                ${models.map(m => `<button type="button" class="direct-option ${m === settings.model ? 'active' : ''}" data-smart-param="model" data-smart-value="${escapeHtml(m)}"><span>${escapeHtml(m)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml(tr('smart.noImageModel'))}</div>`}
+                ${models.map(m => `<button type="button" class="direct-option ${m === settings.model ? 'active' : ''}" data-smart-param="model" data-smart-value="${escapeHtml(m)}"><span>${escapeHtml(m)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml('暂无生图模型')}</div>`}
             </div>
         </div>
     </div>`;
 }
 
 function msModelLabel(key){
-    if(key === 'custom') return tr('smart.custom');
+    if(key === 'custom') return '自定义';
     return MS_GEN_MODELS[key]?.label || key;
 }
 
@@ -1212,7 +1212,7 @@ function renderMsFunctionControl(){
     return `<div class="smart-control provider-control">
         <button class="smart-pill" type="button"><i data-lucide="sparkles"></i><span class="sub">${escapeHtml(msModelLabel(settings.msgenModel) || 'Modelscope')}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.msFunction'))}</div>
+            <div class="smart-popover-title">${escapeHtml('Modelscope 生成功能')}</div>
             <div class="model-list">
                 ${Object.entries(MS_GEN_MODELS).map(([key]) => `<button type="button" class="direct-option ${key === settings.msgenModel ? 'active' : ''}" data-smart-param="msgenModel" data-smart-value="${escapeHtml(key)}"><span>${escapeHtml(msModelLabel(key))}</span></button>`).join('')}
             </div>
@@ -1223,13 +1223,13 @@ function renderMsFunctionControl(){
 function renderMsCustomModelPill(){
     if(settings.msgenModel !== 'custom') return '';
     const models = modelscopeImageModels();
-    const label = settings.msCustomModel || tr('smart.customModel');
+    const label = settings.msCustomModel || '自定义模型';
     return `<div class="smart-control model-control">
         <button class="smart-pill" type="button"><i data-lucide="boxes"></i><span class="sub">${escapeHtml(label)}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.msCustomModel'))}</div>
+            <div class="smart-popover-title">${escapeHtml('自定义 Modelscope 模型')}</div>
             <div class="model-list">
-                ${models.map(m => `<button type="button" class="direct-option ${m === settings.msCustomModel ? 'active' : ''}" data-smart-param="msCustomModel" data-smart-value="${escapeHtml(m)}"><span>${escapeHtml(m)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml(tr('smart.noMsModel'))}</div>`}
+                ${models.map(m => `<button type="button" class="direct-option ${m === settings.msCustomModel ? 'active' : ''}" data-smart-param="msCustomModel" data-smart-value="${escapeHtml(m)}"><span>${escapeHtml(m)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml('暂无 Modelscope 模型')}</div>`}
             </div>
         </div>
     </div>`;
@@ -1241,13 +1241,13 @@ function renderRatioControl(prefix='', includeSource=false){
     const ratios = [
         ['square','1:1'], ['portrait','2:3'], ['landscape','3:2'], ['portrait43','3:4'], ['landscape43','4:3'],
         ['story','9:16'], ['wide','16:9'], ['ultrawide','21:9'], ['ultratall','9:21'],
-        ...(includeSource ? [['source', tr('smart.imageRatio')]] : []),
-        ['custom', tr('smart.custom')]
+        ...(includeSource ? [['source', '图片比例']] : []),
+        ['custom', '自定义']
     ];
     return `<div class="smart-control ratio-control">
         <button class="smart-pill" type="button"><i data-lucide="scan"></i><span>${escapeHtml(ratioLabel(prefix))}</span></button>
         <div class="smart-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.ratio'))}</div>
+            <div class="smart-popover-title">${escapeHtml('比例')}</div>
             <div class="ratio-grid">
                 ${ratios.map(([value, label]) => `<button type="button" class="ratio-option ${value === (settings[ratioKey] || 'square') ? 'active' : ''}" data-smart-param="${ratioKey}" data-smart-value="${escapeHtml(value)}"><span class="ratio-icon ${ratioIconClass(value)}"></span><span>${escapeHtml(label)}</span></button>`).join('')}
             </div>
@@ -1264,9 +1264,9 @@ function renderResolutionControl(prefix=''){
         <button class="smart-pill" type="button" ${resolutions.length ? '' : 'disabled'}><i data-lucide="monitor"></i><span>${escapeHtml(outpaint || resolutions.length ? resolutionLabel(prefix) : '暂无可用规格')}</span></button>
         ${error ? `<div class="smart-ref-error" role="status" style="max-width:240px;white-space:normal">${escapeHtml(error)}</div>` : ''}
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.resolution'))}</div>
+            <div class="smart-popover-title">${escapeHtml('分辨率')}</div>
             <div class="seg-row">
-                ${resolutions.map(value => `<button type="button" class="${value === (settings[resKey] || '1k') ? 'active' : ''}" data-smart-param="${resKey}" data-smart-value="${value}">${value === 'custom' ? escapeHtml(tr('smart.custom')) : value.toUpperCase()}</button>`).join('')}
+                ${resolutions.map(value => `<button type="button" class="${value === (settings[resKey] || '1k') ? 'active' : ''}" data-smart-param="${resKey}" data-smart-value="${value}">${value === 'custom' ? escapeHtml('自定义') : value.toUpperCase()}</button>`).join('')}
             </div>
         </div>
     </div>`;
@@ -1279,7 +1279,7 @@ function renderInlineCustomRatioFields(prefix=''){
     const wKey = prefix ? `${prefix}CustomRatioWidth` : 'customRatioWidth';
     const hKey = prefix ? `${prefix}CustomRatioHeight` : 'customRatioHeight';
     return `<div class="inline-fields">
-        <span class="inline-label">${escapeHtml(tr('smart.ratio'))}</span>
+        <span class="inline-label">${escapeHtml('比例')}</span>
         <input type="number" data-param="${wKey}" value="${escapeHtml(settings[wKey] || '')}" placeholder="W">
         <span class="inline-divider">:</span>
         <input type="number" data-param="${hKey}" value="${escapeHtml(settings[hKey] || '')}" placeholder="H">
@@ -1292,20 +1292,20 @@ function renderInlineCustomSizeFields(prefix=''){
     const wKey = prefix ? `${prefix}CustomWidth` : 'customWidth';
     const hKey = prefix ? `${prefix}CustomHeight` : 'customHeight';
     return `<div class="inline-fields">
-        <span class="inline-label">${escapeHtml(tr('smart.size'))}</span>
-        <input type="number" data-param="${wKey}" value="${escapeHtml(settings[wKey] || '')}" placeholder="${escapeHtml(tr('smart.width'))}">
+        <span class="inline-label">${escapeHtml('尺寸')}</span>
+        <input type="number" data-param="${wKey}" value="${escapeHtml(settings[wKey] || '')}" placeholder="${escapeHtml('宽')}">
         <span class="inline-divider">×</span>
-        <input type="number" data-param="${hKey}" value="${escapeHtml(settings[hKey] || '')}" placeholder="${escapeHtml(tr('smart.height'))}">
+        <input type="number" data-param="${hKey}" value="${escapeHtml(settings[hKey] || '')}" placeholder="${escapeHtml('高')}">
     </div>`;
 }
 
 function renderQualityControl(){
     const value = settings.quality || 'auto';
-    const labels = {auto:tr('smart.qualityAuto'), low:tr('smart.qualityLow'), medium:tr('smart.qualityMid'), high:tr('smart.qualityHigh')};
+    const labels = {auto:'自动', low:'低', medium:'中', high:'高'};
     return `<div class="smart-control quality-control">
         <button class="smart-pill" type="button"><i data-lucide="sliders-horizontal"></i><span>${escapeHtml(labels[value] || value)}</span></button>
         <div class="smart-popover compact-popover">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.quality'))}</div>
+            <div class="smart-popover-title">${escapeHtml('质量')}</div>
             <div class="seg-row">
                 ${Object.entries(labels).map(([k, l]) => `<button type="button" class="${k === value ? 'active' : ''}" data-smart-param="quality" data-smart-value="${escapeHtml(k)}">${escapeHtml(l)}</button>`).join('')}
             </div>
@@ -1316,9 +1316,9 @@ function renderQualityControl(){
 function renderCountVisualControl(){
     const value = Number(settings.count || 1);
     return `<div class="smart-control count-control">
-        <button class="smart-pill" type="button"><i data-lucide="copy"></i><span>${value}${tr('smart.countUnit') ? ' ' + escapeHtml(tr('smart.countUnit')) : ''}</span></button>
+        <button class="smart-pill" type="button"><i data-lucide="copy"></i><span>${value}${'张' ? ' ' + escapeHtml('张') : ''}</span></button>
         <div class="smart-popover compact-popover" style="min-width:170px">
-            <div class="smart-popover-title">${escapeHtml(tr('smart.count'))}</div>
+            <div class="smart-popover-title">${escapeHtml('生成数量')}</div>
             <div class="count-grid">
                 ${[1,2,3,4,5,6,7,8].map(n => `<button type="button" class="count-cell ${n === value ? 'active' : ''}" data-smart-param="count" data-smart-value="${n}">${n}</button>`).join('')}
             </div>
@@ -1361,7 +1361,7 @@ function renderComfySettingField(field){
             <div class="smart-popover compact-popover">
                 <div class="smart-popover-title">${escapeHtml(label)}</div>
                 <div class="model-list">
-                    ${opts.map(o => `<button type="button" class="direct-option ${String(o) === String(value) ? 'active' : ''}" data-comfy-pick="${escapeHtml(field.id)}" data-comfy-value="${escapeHtml(o)}"><span>${escapeHtml(o)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml(tr('smart.noOption'))}</div>`}
+                    ${opts.map(o => `<button type="button" class="direct-option ${String(o) === String(value) ? 'active' : ''}" data-comfy-pick="${escapeHtml(field.id)}" data-comfy-value="${escapeHtml(o)}"><span>${escapeHtml(o)}</span></button>`).join('') || `<div class="muted-note">${escapeHtml('无选项')}</div>`}
                 </div>
             </div>
         </div>`;
@@ -1378,7 +1378,7 @@ function renderComfySettingField(field){
         return `<div class="num-with-dice" title="${escapeHtml(label)}">
             <span class="num-label">${escapeHtml(label)}</span>
             ${inputHtml}
-            <button type="button" class="dice-btn ${active ? 'active' : ''}" data-comfy-random="${escapeHtml(field.id)}" title="${escapeHtml(active ? tr('smart.diceOn') : tr('smart.diceOff'))}"><i data-lucide="dice-5"></i></button>
+            <button type="button" class="dice-btn ${active ? 'active' : ''}" data-comfy-random="${escapeHtml(field.id)}" title="${escapeHtml(active ? '随机已开启，点击关闭' : '随机已关闭，点击开启')}"><i data-lucide="dice-5"></i></button>
         </div>`;
     }
     if(isNumeric){
@@ -1389,7 +1389,7 @@ function renderComfySettingField(field){
 
 function updatePromptPlaceholder(){
     if(!promptInput) return;
-    promptInput.dataset.placeholder = tr('smart.promptPlaceholder');
+    promptInput.dataset.placeholder = '描述你想生成或编辑的图片...';
 }
 
 function comfyRandomEnabledField(field){ return field?.type === 'number' && field.random_enabled === true; }
@@ -2012,17 +2012,17 @@ function promptNodeBodyHtml(node){
             <select class="prompt-node-control prompt-llm-provider">${chatProviderOptions(node.llmProvider)}</select>
             <select class="prompt-node-control prompt-llm-model">${chatModelOptions(node.llmModel, node.llmProvider)}</select>
             <div class="prompt-llm-instruction-wrap">
-                <textarea class="prompt-node-control prompt-llm-instruction" placeholder="${escapeHtml(tr('smart.promptLlmInstructionPlaceholder'))}" style="height:${promptLlmInstructionHeight(node)}px">${escapeHtml(node.llmInstruction || '')}</textarea>
+                <textarea class="prompt-node-control prompt-llm-instruction" placeholder="${escapeHtml('输入给 LLM 的文本，运行后会写入上方提示词')}" style="height:${promptLlmInstructionHeight(node)}px">${escapeHtml(node.llmInstruction || '')}</textarea>
                 <div class="prompt-llm-instruction-resize prompt-node-control" data-llm-instruction-resize="1" title="拖动调整高度"><span></span></div>
             </div>
             <div class="prompt-node-llm-actions">
-                <button class="prompt-node-run prompt-node-control" type="button" ${node.running ? 'disabled' : ''}><i data-lucide="${node.running ? 'loader-2' : 'play'}"></i><span>${node.running ? escapeHtml(tr('common.running')) : escapeHtml(tr('common.run'))}</span></button>
-                <button class="prompt-node-pill prompt-node-control prompt-system-toggle ${node.llmSystemEnabled ? 'active' : ''}" type="button"><i data-lucide="${node.llmSystemEnabled ? 'toggle-right' : 'toggle-left'}"></i><span>${escapeHtml(node.llmSystemEnabled ? tr('smart.promptLlmDisableSystem') : tr('smart.promptLlmEnableSystem'))}</span></button>
+                <button class="prompt-node-run prompt-node-control" type="button" ${node.running ? 'disabled' : ''}><i data-lucide="${node.running ? 'loader-2' : 'play'}"></i><span>${node.running ? escapeHtml('运行中') : escapeHtml('运行')}</span></button>
+                <button class="prompt-node-pill prompt-node-control prompt-system-toggle ${node.llmSystemEnabled ? 'active' : ''}" type="button"><i data-lucide="${node.llmSystemEnabled ? 'toggle-right' : 'toggle-left'}"></i><span>${escapeHtml(node.llmSystemEnabled ? '关闭系统提示词' : '启用系统提示词')}</span></button>
             </div>
-            ${node.llmSystemEnabled ? `<textarea class="prompt-node-control prompt-llm-system" placeholder="${escapeHtml(tr('smart.promptLlmSystemPlaceholder'))}">${escapeHtml(systemPrompt || 'You are a helpful prompt assistant.')}</textarea>` : ''}
+            ${node.llmSystemEnabled ? `<textarea class="prompt-node-control prompt-llm-system" placeholder="${escapeHtml('系统提示词开启后会随请求一起发送')}">${escapeHtml(systemPrompt || 'You are a helpful prompt assistant.')}</textarea>` : ''}
         </div>` : '';
     return `<div class="prompt-node-card">
-        <textarea class="prompt-node-text prompt-node-control" ${readonly} placeholder="${escapeHtml(tr('smart.promptPlaceholderNode'))}">${escapeHtml(node.text || '')}</textarea>
+        <textarea class="prompt-node-text prompt-node-control" ${readonly} placeholder="${escapeHtml('输入提示词...')}">${escapeHtml(node.text || '')}</textarea>
         <div class="prompt-node-tools">
             <button class="prompt-node-pill prompt-node-control prompt-preset-edit ${templateActive ? 'active' : ''}" type="button"><i data-lucide="library"></i><span>模板库</span></button>
             <button class="prompt-node-pill prompt-llm-toggle ${node.llmEnabled ? 'active' : ''}" type="button"><i data-lucide="sparkles"></i><span>LLM</span></button>
@@ -2041,7 +2041,7 @@ function loopNumberControlHtml({label, value, key, min=1, max=100, quick=[1,2,3,
                 ${quick.map(n => `<button type="button" class="loop-smart-control loop-number-cell ${n === v ? 'active' : ''}" data-loop-number="${escapeHtml(key)}" data-loop-value="${n}">${n}</button>`).join('')}
             </div>
             <label class="loop-number-custom">
-                <span>${escapeHtml(tr('common.custom'))}</span>
+                <span>${escapeHtml('自定义')}</span>
                 <input class="loop-smart-control loop-number-input" type="number" min="${min}" max="${max}" step="1" data-loop-number-input="${escapeHtml(key)}" value="${v}">
             </label>
         </div>
@@ -2049,12 +2049,12 @@ function loopNumberControlHtml({label, value, key, min=1, max=100, quick=[1,2,3,
 }
 
 function smartLoopTokenLabel(token){
-    if(token === '《计数》' || token === '[计数]') return tr('canvas.counterToken');
+    if(token === '《计数》' || token === '[计数]') return '计数';
     return token;
 }
 
 function smartLoopTokenChipHtml(token){
-    return `<span class="loop-smart-token-chip" contenteditable="false" data-token="${escapeHtml(token)}"><span>${escapeHtml(smartLoopTokenLabel(token))}</span><button type="button" aria-label="${escapeHtml(tr('common.delete'))}" title="${escapeHtml(tr('common.delete'))}">×</button></span>`;
+    return `<span class="loop-smart-token-chip" contenteditable="false" data-token="${escapeHtml(token)}"><span>${escapeHtml(smartLoopTokenLabel(token))}</span><button type="button" aria-label="${escapeHtml('删除')}" title="${escapeHtml('删除')}">×</button></span>`;
 }
 
 function smartLoopVariableHtml(text){
@@ -2111,30 +2111,30 @@ function smartLoopBodyHtml(node){
     const promptFields = smartLoopPromptFieldValues(node);
     const visiblePromptFields = promptFields.length ? promptFields : [''];
     const promptHint = promptItems.length
-        ? trf('smart.loopPromptHintFound', {n:promptItems.length})
-        : tr('smart.loopPromptHintVariable');
+        ? `识别到 ${promptItems.length} 条提示词，按计数轮流输出`
+        : '可使用 [计数] 作为变量';
     const currentUpstreamPrompt = smartLoopSelectedInputPrompt(node, {index:node.loopStart});
-    const defaultPrompt = tr('smart.loopDefaultPrompt') || '现在生成第《计数》张卖点图片';
+    const defaultPrompt = '现在生成第《计数》张卖点图片';
     const loopRunState = smartCascadeRunForLoop(node.id);
     const loopRunning = Boolean(loopRunState);
     const loopStopping = Boolean(loopRunState?.stopRequested);
     return `<div class="loop-smart-card ${node.imageInput ? 'has-image' : ''} ${node.showPrompt ? 'has-prompt' : ''}">
         <div class="loop-smart-row loop-smart-top">
             <div class="loop-smart-seg">
-                <button type="button" class="loop-smart-control ${node.mode !== 'parallel' ? 'active' : ''}" data-loop-mode="serial">${escapeHtml(tr('canvas.loopSerial'))}</button>
-                <button type="button" class="loop-smart-control ${node.mode === 'parallel' ? 'active' : ''}" data-loop-mode="parallel" title="${escapeHtml(tr('smart.loopParallelTip'))}">${escapeHtml(tr('canvas.loopParallel'))}</button>
+                <button type="button" class="loop-smart-control ${node.mode !== 'parallel' ? 'active' : ''}" data-loop-mode="serial">${escapeHtml('循环')}</button>
+                <button type="button" class="loop-smart-control ${node.mode === 'parallel' ? 'active' : ''}" data-loop-mode="parallel" title="${escapeHtml('智能画布会按轮落盘，避免覆盖同一目标节点')}">${escapeHtml('并发')}</button>
             </div>
         </div>
         <div class="loop-smart-row">
-            <button class="loop-smart-control loop-smart-toggle ${node.imageInput ? 'active' : ''}" type="button" data-loop-toggle="image"><i data-lucide="image"></i><span>${escapeHtml(tr('canvas.loopImageToggle'))}</span></button>
-            <button class="loop-smart-control loop-smart-toggle ${node.showPrompt ? 'active' : ''}" type="button" data-loop-toggle="prompt"><i data-lucide="text-cursor-input"></i><span>${escapeHtml(tr('canvas.loopPromptToggle'))}</span></button>
+            <button class="loop-smart-control loop-smart-toggle ${node.imageInput ? 'active' : ''}" type="button" data-loop-toggle="image"><i data-lucide="image"></i><span>${escapeHtml('图片')}</span></button>
+            <button class="loop-smart-control loop-smart-toggle ${node.showPrompt ? 'active' : ''}" type="button" data-loop-toggle="prompt"><i data-lucide="text-cursor-input"></i><span>${escapeHtml('提示词')}</span></button>
         </div>
         ${node.imageInput ? `<div class="loop-smart-panel">
             ${loopThumbs}
             <div class="loop-smart-mini">
-                ${loopNumberControlHtml({label:tr('canvas.loopBatchSize'), value:node.imageBatchSize, key:'imageBatchSize', max:100, quick:[1,2,3,4,5,6,8,10]})}
+                ${loopNumberControlHtml({label:'批次', value:node.imageBatchSize, key:'imageBatchSize', max:100, quick:[1,2,3,4,5,6,8,10]})}
             </div>
-            <div class="loop-smart-note">${imageCount ? escapeHtml(trf('canvas.loopImageWillOutput', {n:imageCount})) : escapeHtml(tr('canvas.loopImageEmpty'))}</div>
+            <div class="loop-smart-note">${imageCount ? escapeHtml(`当前会输出 ${imageCount} 张图片`) : escapeHtml('把图片或图片组连接到左侧输入口')}</div>
         </div>` : ''}
         ${node.showPrompt ? `<div class="loop-smart-panel prompt-panel">
             ${currentUpstreamPrompt ? `<div class="loop-smart-upstream">
@@ -2144,20 +2144,20 @@ function smartLoopBodyHtml(node){
             <div class="loop-smart-prompt-list">
                 ${visiblePromptFields.map((value, index) => `<div class="loop-smart-prompt-item">
                     <div class="loop-smart-prompt-index">${index + 1}</div>
-                    <div class="loop-smart-control loop-smart-text" contenteditable="true" data-loop-prompt-index="${index}" data-placeholder="${escapeHtml(tr('canvas.loopVariablePlaceholder'))}">${smartLoopVariableHtml(value || (index === 0 && !promptFields.length ? defaultPrompt : ''))}</div>
-                    <button class="loop-smart-control loop-smart-icon-btn" type="button" data-loop-prompt-delete="${index}" ${visiblePromptFields.length <= 1 ? 'disabled' : ''} title="${escapeHtml(tr('common.delete'))}" aria-label="${escapeHtml(tr('common.delete'))}">×</button>
+                    <div class="loop-smart-control loop-smart-text" contenteditable="true" data-loop-prompt-index="${index}" data-placeholder="${escapeHtml('例如：现在生成第[计数]个卖点')}">${smartLoopVariableHtml(value || (index === 0 && !promptFields.length ? defaultPrompt : ''))}</div>
+                    <button class="loop-smart-control loop-smart-icon-btn" type="button" data-loop-prompt-delete="${index}" ${visiblePromptFields.length <= 1 ? 'disabled' : ''} title="${escapeHtml('删除')}" aria-label="${escapeHtml('删除')}">×</button>
                 </div>`).join('')}
             </div>
             <div class="loop-smart-row loop-smart-prompt-actions">
-                <button class="loop-smart-control loop-smart-token loop-smart-counter-token" type="button" data-loop-token="《计数》">${escapeHtml(tr('canvas.counterToken'))}</button>
+                <button class="loop-smart-control loop-smart-token loop-smart-counter-token" type="button" data-loop-token="《计数》">${escapeHtml('计数')}</button>
                 <span class="loop-smart-note">${escapeHtml(promptHint)}</span>
                 <button class="loop-smart-control loop-smart-add-prompt" type="button" data-loop-prompt-add="1" title="新增" aria-label="新增"><i data-lucide="plus"></i></button>
             </div>
         </div>` : ''}
         <div class="loop-smart-footer">
-            ${loopNumberControlHtml({label:tr('canvas.loopImageStart'), value:node.loopStart, key:'loopStart', max:9999, quick:[1,2,3,4,5,6,8,10]})}
-            ${loopNumberControlHtml({label:tr('canvas.loopCount'), value:node.count, key:'count', max:100, quick:[1,2,3,4,5,6,8,10]})}
-            <button class="loop-smart-control loop-smart-run ${loopRunning ? 'is-stop' : ''}" type="button" data-loop-run="${escapeHtml(node.id)}" ${loopStopping ? 'disabled' : ''}><i data-lucide="${loopRunning ? 'square' : 'workflow'}"></i><span>${escapeHtml(loopRunning ? smartCascadeStopText(loopStopping) : tr('smart.loopRunAll'))}</span></button>
+            ${loopNumberControlHtml({label:'起始计数', value:node.loopStart, key:'loopStart', max:9999, quick:[1,2,3,4,5,6,8,10]})}
+            ${loopNumberControlHtml({label:'次数', value:node.count, key:'count', max:100, quick:[1,2,3,4,5,6,8,10]})}
+            <button class="loop-smart-control loop-smart-run ${loopRunning ? 'is-stop' : ''}" type="button" data-loop-run="${escapeHtml(node.id)}" ${loopStopping ? 'disabled' : ''}><i data-lucide="${loopRunning ? 'square' : 'workflow'}"></i><span>${escapeHtml(loopRunning ? smartCascadeStopText(loopStopping) : '一键运行')}</span></button>
         </div>
     </div>`;
 }
@@ -2204,12 +2204,12 @@ function smartNodeMediaBodyHtml(node, layout){
     if(imgs.length > 1){
         const visibleRows = Math.max(1, Math.min(MEDIA_GROUP_MAX_VISIBLE_ROWS, Number(layout.visibleRows || layout.rows || 1)));
         const maxHeight = visibleRows * Number(layout.thumb || 96) + Math.max(0, visibleRows - 1) * 8;
-        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
+        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
     }
-    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml(tr('smart.deleteImage'))}"><i data-lucide="trash-2"></i></button></div>`;
+    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`;
     return `<div class="node-drop" data-upload-action="files">
         <span class="upload-node-main"><i data-lucide="upload-cloud"></i></span>
-        <span class="upload-node-title">${escapeHtml(tr('smart.createImportNode'))}</span>
+        <span class="upload-node-title">${escapeHtml('上传节点')}</span>
         <span class="upload-node-sub">拖拽 / 粘贴 / 点击上传</span>
     </div>`;
 }
@@ -2650,7 +2650,7 @@ function bindLoopNodeControls(el, node){
             if(btn.dataset.loopToggle === 'image') node.imageInput = !node.imageInput;
             if(btn.dataset.loopToggle === 'prompt') {
                 node.showPrompt = !node.showPrompt;
-                if(node.showPrompt && !smartLoopActivePromptFieldValues(node).length) setSmartLoopPromptFieldValues(node, [tr('smart.loopDefaultPrompt') || '现在生成第《计数》张卖点图片']);
+                if(node.showPrompt && !smartLoopActivePromptFieldValues(node).length) setSmartLoopPromptFieldValues(node, ['现在生成第《计数》张卖点图片']);
             }
             fitSmartLoopNode(node);
             refreshSmartNodes([node.id], {forceIds:[node.id]});
@@ -3383,7 +3383,7 @@ function renderInputPromptPreview(node){
     const text = node ? inputPromptTextFor(node).trim() : '';
     inputPromptPreview.classList.toggle('has-text', Boolean(text));
     inputPromptPreview.innerHTML = text
-        ? `<div class="input-prompt-preview-label">${escapeHtml(tr('smart.inputUpstream'))}</div><div class="input-prompt-preview-text">${escapeHtml(text)}</div>`
+        ? `<div class="input-prompt-preview-label">${escapeHtml('上游输入')}</div><div class="input-prompt-preview-text">${escapeHtml(text)}</div>`
         : '';
 }
 
@@ -3491,14 +3491,14 @@ function renderInputThumbsRow(node){
         const isVid = isVideoMediaItem(img);
         const isSelf = node ? isSelfReferenceForNode(node, img) : false;
         const title = isSelf
-            ? tr('smart.inputSelf')
-            : (smartImageMode(node) === 'workflow' ? tr('smart.inputUpstreamWorkflow') : tr('smart.inputUpstream'));
+            ? '自身，默认参与编辑'
+            : (smartImageMode(node) === 'workflow' ? '工作流上游输入' : '上游输入');
         const inner = isVid ? smartVideoPreviewHtml(img, 256, 'draggable="false" alt=""') : smartPreviewImgHtml(img, 256, 'draggable="false"');
         const label = `图${i + 1}`;
         const sourceUrl = img.originalLocalUrl || img.url || '';
-        return `<div class="input-thumb ${isSelf ? 'input-self' : ''}" draggable="false" data-thumb-index="${i}" data-node-id="${escapeHtml(img.nodeId || '')}" data-image-index="${img.imageIndex ?? ''}" data-url="${escapeHtml(img.url || '')}" data-source-url="${escapeHtml(sourceUrl)}" title="${escapeHtml(`${img.name || tr('smart.inputNum').replace('{n}', String(i + 1))} · ${title}`)}">${inner}<span class="input-thumb-label">${escapeHtml(label)}</span></div>`;
+        return `<div class="input-thumb ${isSelf ? 'input-self' : ''}" draggable="false" data-thumb-index="${i}" data-node-id="${escapeHtml(img.nodeId || '')}" data-image-index="${img.imageIndex ?? ''}" data-url="${escapeHtml(img.url || '')}" data-source-url="${escapeHtml(sourceUrl)}" title="${escapeHtml(`${img.name || '输入 {n}'.replace('{n}', String(i + 1))} · ${title}`)}">${inner}<span class="input-thumb-label">${escapeHtml(label)}</span></div>`;
     }).join('');
-    inputThumbsRow.innerHTML = `<div class="input-thumb-list">${thumbsHtml}${dedup.length > 1 ? `<span class="input-thumb-count">${escapeHtml(tr('smart.inputCount').replace('{n}', String(dedup.length)))}</span>` : ''}</div>`;
+    inputThumbsRow.innerHTML = `<div class="input-thumb-list">${thumbsHtml}${dedup.length > 1 ? `<span class="input-thumb-count">${escapeHtml('{n} 输入图'.replace('{n}', String(dedup.length)))}</span>` : ''}</div>`;
     bindSmartPreviewImageFallbacks(inputThumbsRow);
     bindInputThumbsDrag(node, dedup);
 }
@@ -3776,28 +3776,28 @@ function renderMentionPicker(source){
                 ${smartReferencePreviewHtml(img)}
                 <span title="${escapeAttr(img.name || '')}">${escapeHtml(labels.get(smartMediaRefKey(img)) || img.alias)}</span>
             </button>`;
-    const body = !candidates.length ? `<div class="mention-empty">${escapeHtml(tr('smart.mentionEmpty'))}</div>` : smartTypedVideoInputs()
+    const body = !candidates.length ? `<div class="mention-empty">${escapeHtml('没有可引用的图片')}</div>` : smartTypedVideoInputs()
         ? ['image','audio','video'].map(kind => {
             const items = candidates.map((img,i) => ({img,i})).filter(({img}) => mediaKindForItem(img) === kind);
             return items.length ? `<section class="mention-media-group mention-media-group-${kind}"><div class="smart-ref-heading">${{image:'图片',audio:'音频',video:'视频'}[kind]}</div><div class="mention-option-grid">${items.map(({img,i}) => optionHtml(img,i)).join('')}</div></section>` : '';
         }).join('') : `<div class="mention-option-grid">${candidates.map(optionHtml).join('')}</div>`;
     const librarySelect = (mentionSource === 'asset' && assetLibs.length)
-        ? `<label class="mention-library-row"><span>${escapeHtml(tr('smart.assetLibrary'))}</span><select class="mention-library-select" data-mention-library>${assetLibs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === activeAssetLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('')}</select></label>`
+        ? `<label class="mention-library-row"><span>${escapeHtml('资产库')}</span><select class="mention-library-select" data-mention-library>${assetLibs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === activeAssetLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('')}</select></label>`
         : '';
     const folderChips = (mentionSource === 'asset' && nextAssetCats.length)
         ? nextAssetCats.map(cat => {
-            const label = cat.name || tr('smart.assetFolder');
+            const label = cat.name || '新文件夹';
             return `<button class="mention-folder-chip ${cat.id === mentionAssetCategoryId ? 'active' : ''}" type="button" data-mention-folder="${escapeHtml(cat.id)}" title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
           }).join('')
         : '';
     mentionPicker.innerHTML = `
         <div class="mention-picker-shell">
             <div class="mention-source-tabs">
-                <button class="mention-source-tab ${mentionSource === 'input' ? 'active' : ''}" type="button" data-mention-source="input" title="${escapeHtml(tr('smart.mentionInput'))}" ${hasInput ? '' : 'disabled'}>
-                    <i data-lucide="image"></i><span>${escapeHtml(tr('smart.mentionInput'))}</span>
+                <button class="mention-source-tab ${mentionSource === 'input' ? 'active' : ''}" type="button" data-mention-source="input" title="${escapeHtml('输入图')}" ${hasInput ? '' : 'disabled'}>
+                    <i data-lucide="image"></i><span>${escapeHtml('输入图')}</span>
                 </button>
-                <button class="mention-source-tab ${mentionSource === 'asset' ? 'active' : ''}" type="button" data-mention-source="asset" title="${escapeHtml(tr('smart.mentionAssets'))}" ${hasAssets ? '' : 'disabled'}>
-                    <i data-lucide="library"></i><span>${escapeHtml(tr('smart.mentionAssets'))}</span>
+                <button class="mention-source-tab ${mentionSource === 'asset' ? 'active' : ''}" type="button" data-mention-source="asset" title="${escapeHtml('资产库')}" ${hasAssets ? '' : 'disabled'}>
+                    <i data-lucide="library"></i><span>${escapeHtml('资产库')}</span>
                 </button>
             </div>
             ${librarySelect}

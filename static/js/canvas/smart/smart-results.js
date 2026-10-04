@@ -68,7 +68,7 @@ function smartRunTaskLabel(run){
     if(run?.kind === 'video') return s.videoModel || 'Video';
     if(s.engine === 'comfy'){
         if(s.comfyMode === 'custom') return s.comfyWorkflow || 'ComfyUI';
-        const labels = {text:tr('canvas.comfyModeText') || '文生图', enhance:tr('canvas.comfyModeEnhance') || '图片增强', edit:tr('canvas.comfyModeEdit') || '图片编辑'};
+        const labels = {text:'文生图', enhance:'细节增强', edit:'图片编辑'};
         return labels[s.comfyMode || 'text'] || 'ComfyUI';
     }
     if(s.engine === 'modelscope'){
@@ -450,13 +450,13 @@ function renderSmartCanvasLog(){
             : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">${escapeHtml(window.VolcengineVideoBilling?.pendingLabel(cost) || '待核算')}</span>` : '';
         const subParts = [
             ...(window.VolcengineVideoBilling?.details(log) || []),
-            `${'输出'} ${(log.outputs || []).length}`,
+            `输出 ${(log.outputs || []).length}`,
             taskId ? `ID ${taskId}` : '',
             backend && backend!==log.platform ? backend : ''
         ].filter(Boolean);
         return `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
             <div class="log-main">
-                <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? tr('canvas.failed') : tr('canvas.success'))}</span>
+                <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? '失败' : '成功')}</span>
                     <time class="log-entry-date">${escapeHtml(date)}</time><span class="log-entry-cost">${costChip}</span></div>
                 <div class="log-meta">
                     <span class="log-chip">${escapeHtml(log.platform || '-')}</span>
@@ -469,7 +469,7 @@ function renderSmartCanvasLog(){
             </div>
             <div class="log-thumbs">${thumbs}</div>
         </article>`;
-    }).join('') : `<div class="log-empty">${escapeHtml(tr('canvas.noLogs'))}</div>`;
+    }).join('') : `<div class="log-empty">${escapeHtml('还没有生成日志')}</div>`;
     bindSmartPreviewImageFallbacks(smartLogList);
     smartLogList.querySelectorAll('[data-url]').forEach(el => {
         el.onclick = e => {
@@ -779,7 +779,7 @@ async function loadPanoramaTexture(src){
     } catch(error) {
         if(token !== panoramaState.loadToken) return;
         stage?.classList.add('ready');
-        toast(tr('smart.panoramaLoadFailed'));
+        toast('360全景加载失败');
     }
 }
 
@@ -828,7 +828,7 @@ function setPanoramaEnabled(enabled){
         applyPreviewTransform();
         resizePanoramaViewer();
         loadPanoramaTexture(panoramaSource());
-        updatePreviewMetaHint(tr('smart.panoramaHint'));
+        updatePreviewMetaHint('360全景：拖动转动，滚轮缩放，可调整视窗比例');
     } else {
         stopPanoramaLoop();
         const frame = document.getElementById('previewFrame');
@@ -848,18 +848,18 @@ function togglePanoramaPreview(){
 async function exportPanoramaFrame(){
     if(!panoramaState.enabled) return;
     const canvasEl = document.getElementById('panoramaCanvas');
-    if(!canvasEl){ toast(tr('smart.panoramaExportFailed')); return; }
+    if(!canvasEl){ toast('导出全景失败'); return; }
     try {
-        if(!drawPanoramaFrame()) throw new Error(tr('smart.panoramaExportFailed'));
+        if(!drawPanoramaFrame()) throw new Error('导出全景失败');
         const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
-        if(!blob) throw new Error(tr('smart.panoramaExportFailed'));
+        if(!blob) throw new Error('导出全景失败');
         const editing = currentEditImage();
         const rawName = editing.image?.name || fileNameFromUrl(editing.image?.url || '') || 'panorama';
         const base = String(rawName).replace(/\.[a-z0-9]{2,8}$/i, '') || 'panorama';
         const filename = safeExportFileName(`${base}-panorama.png`, 'panorama.png');
         const uploaded = await uploadFiles([new File([blob], filename, {type:'image/png'})]);
         const frame = uploaded[0];
-        if(!frame?.url) throw new Error(tr('smart.panoramaExportFailed'));
+        if(!frame?.url) throw new Error('导出全景失败');
         frame.kind = 'image';
         frame.natural_w = canvasEl.width;
         frame.natural_h = canvasEl.height;
@@ -873,9 +873,9 @@ async function exportPanoramaFrame(){
         selectedImage = {nodeId:newNode.id, index:0};
         render();
         scheduleSave();
-        toast(tr('smart.panoramaExportDone'));
+        toast('已导出到画布');
     } catch(e) {
-        toast((e.message || tr('smart.panoramaExportFailed')).slice(0, 120));
+        toast((e.message || '导出全景失败').slice(0, 120));
     }
 }
 
@@ -950,7 +950,7 @@ function previewResolutionText(){
     const w = Number(image.natural_w || image.width || image.w || 0) || Number(currentVideo?.videoWidth || 0) || Number(currentImg?.naturalWidth || 0) || Number(cropImg?.naturalWidth || 0);
     const h = Number(image.natural_h || image.height || image.h || 0) || Number(currentVideo?.videoHeight || 0) || Number(currentImg?.naturalHeight || 0) || Number(cropImg?.naturalHeight || 0);
     if(!w || !h) return '';
-    return `${tr('smart.resolution')}: ${Math.round(w)} x ${Math.round(h)}`;
+    return `分辨率: ${Math.round(w)} x ${Math.round(h)}`;
 }
 
 function updatePreviewMetaHint(extraText=previewMetaExtraText){
@@ -1032,7 +1032,7 @@ function refreshComparePanel(){
         if(compareHandle) compareHandle.style.display = 'none';
         if(thumbsEl){ thumbsEl.style.display = 'none'; thumbsEl.innerHTML = ''; }
         if(toggle) toggle.classList.remove('active');
-        updatePreviewMetaHint(tr('smart.panoramaHint'));
+        updatePreviewMetaHint('360全景：拖动转动，滚轮缩放，可调整视窗比例');
         return;
     }
     const onCurrentLoaded = () => {
@@ -1067,10 +1067,10 @@ function refreshComparePanel(){
             toggle.disabled = true;
             toggle.style.opacity = '.45';
             toggle.classList.remove('active');
-            toggle.title = tr('smart.compareEmpty');
+            toggle.title = '无原图可对比';
         }
         if(panoramaToggle) panoramaToggle.style.display = 'none';
-        updatePreviewMetaHint(editing.node?.runPrompt ? `${tr('smart.runPromptPrefix')}${editing.node.runPrompt.slice(0, 60)}` : '');
+        updatePreviewMetaHint(editing.node?.runPrompt ? `提示词：${editing.node.runPrompt.slice(0, 60)}` : '');
         return;
     }
     if(currentVideo){
@@ -1092,7 +1092,7 @@ function refreshComparePanel(){
     if(toggle){
         toggle.disabled = !hasSource;
         toggle.style.opacity = hasSource ? '1' : '.45';
-        toggle.title = hasSource ? tr('smart.compareHover') : tr('smart.compareEmpty');
+        toggle.title = hasSource ? '点击查看输入端缩略图' : '无原图可对比';
         toggle.classList.toggle('active', hasSource && previewCompareOn);
     }
     if(!hasSource){
@@ -1102,7 +1102,7 @@ function refreshComparePanel(){
         if(compareLayer) compareLayer.style.display = 'none';
         if(compareHandle) compareHandle.style.display = 'none';
         thumbsEl.style.display = 'none';
-        updatePreviewMetaHint(editing.node?.runPrompt ? `${tr('smart.runPromptPrefix')}${editing.node.runPrompt.slice(0, 60)}` : '');
+        updatePreviewMetaHint(editing.node?.runPrompt ? `提示词：${editing.node.runPrompt.slice(0, 60)}` : '');
         return;
     }
     const sliderActive = previewCompareOn && previewCompareIndex >= 0 && previewCompareIndex < sources.length;
@@ -1121,7 +1121,7 @@ function refreshComparePanel(){
     }
     if(previewCompareOn){
         thumbsEl.style.display = 'inline-flex';
-        thumbsEl.innerHTML = sources.map((s, i) => `<button type="button" class="compare-thumb ${i === previewCompareIndex ? 'active' : ''}" data-compare-idx="${i}" title="${escapeHtml(i === previewCompareIndex ? tr('smart.compareCancelTip') : tr('smart.compareUseTip'))}">${smartPreviewImgHtml(s.url, 256)}</button>`).join('');
+        thumbsEl.innerHTML = sources.map((s, i) => `<button type="button" class="compare-thumb ${i === previewCompareIndex ? 'active' : ''}" data-compare-idx="${i}" title="${escapeHtml(i === previewCompareIndex ? '点击取消对比' : '点击与该图对比')}">${smartPreviewImgHtml(s.url, 256)}</button>`).join('');
         bindSmartPreviewImageFallbacks(thumbsEl);
         thumbsEl.querySelectorAll('[data-compare-idx]').forEach(btn => {
             btn.onclick = e => {
@@ -1135,14 +1135,14 @@ function refreshComparePanel(){
         thumbsEl.style.display = 'none';
         thumbsEl.innerHTML = '';
     }
-    let txt = editing.node?.runPrompt ? `${tr('smart.runPromptPrefix')}${editing.node.runPrompt.slice(0, 60)}` : '';
-    if(previewCompareOn && !sliderActive) txt = (txt ? `${txt} · ` : '') + tr('smart.compareHintPick');
+    let txt = editing.node?.runPrompt ? `提示词：${editing.node.runPrompt.slice(0, 60)}` : '';
+    if(previewCompareOn && !sliderActive) txt = (txt ? `${txt} · ` : '') + '点缩略图开始对比';
     updatePreviewMetaHint(txt);
 }
 
 function togglePreviewCompare(){
     const sources = previewCompareSources();
-    if(!sources.length){ toast(tr('smart.compareNoSource')); return; }
+    if(!sources.length){ toast('该图片没有原图可对比'); return; }
     previewCompareOn = !previewCompareOn;
     if(previewCompareOn && (previewCompareIndex < 0 || previewCompareIndex >= sources.length)) previewCompareIndex = 0;
     if(!previewCompareOn) previewCompareIndex = -1;
