@@ -123,8 +123,7 @@ let pendingUndoSnapshot = null;
 let comfyWorkflowCache = {};
 const smartImageEditor = createSmartImageEditor();
 const smartPreviewGestures = createSmartPreviewGestures();
-const VIDEO_TRIM_MIN_DURATION = 0.1;
-let videoTrimState = {active:false, start:0, end:0, duration:0, previewing:false, busy:false, sourceUrl:''};
+const smartVideoTrimPanel = createSmartVideoTrimPanel();
 const PANORAMA_RATIO_PRESETS = {
     square:{w:1, h:1},
     portrait:{w:2, h:3},
@@ -538,6 +537,7 @@ bindSmartImageEditorControls();
 bindSmartPreviewPanEvents();
 bindSmartImageEditorPanEvents();
 bindSmartPreviewCompareEvents();
+smartVideoTrimPanel.bind();
 bindSmartDrawingControls();
 bindSmartPanoramaControls();
 bindSmartImageEditorViewport();

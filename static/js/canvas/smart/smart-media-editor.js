@@ -666,13 +666,13 @@ function createSmartImageEditor(){
         window.CanvasMediaLoader?.unwatch(element('cropImage'));pauseSmartEditorPreview();paused=true;
     }
     function resume(){
-        if(!paused || destroyed)return;paused=false;bind();smartPreviewGestures.resume();
+        if(!paused || destroyed)return;paused=false;bind();resumeSmartEditorPreview();
         if(!cropState)return;
         if(!targetValid())return;
         if(!loaded){const old=target;openImageEditor(old.node.id,old.index,old.detached?old.node:null);}
         else {setImageEditMode(imageEditMode);syncImageEditOverflow();}
     }
-    function destroy(){if(destroyed)return;paused=false;closeImageEditor();for(const scope of [...listeners.keys()])clearListeners(scope);smartPreviewGestures.destroy();dom.clear();imageEditModal=null;smartEditableResource=null;destroyed=true;}
+    function destroy(){if(destroyed)return;paused=false;closeImageEditor();for(const scope of [...listeners.keys()])clearListeners(scope);destroySmartEditorPreview();dom.clear();imageEditModal=null;smartEditableResource=null;destroyed=true;}
     function moveWindowGesture(event){
         if(!imageEditPanDrag && !cropDrag && !editDrawState && !editTextDrag && !gridCustomDrag && !gridJoinDrag && !captures.size)return false;
         if(!cropState || !targetValid() || paused || destroyed){cancelGestures();return false;}
