@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "anonymous static resource rejected",
+    "production shell native codec, real authenticated stats WebSocket and iframe startup",
+    "real stats transport duplicate startup and pause/resume reconnect",
+    "classic: real lease/save, cross-client WebSocket application, read-only permission and reload persistence",
+    "smart: real lease/save, cross-client WebSocket application, read-only permission and reload persistence",
+    "production shell and both canvas pages without uncaught errors"
+  ],
+  "passed": 6,
+  "scope": "Real loopback HTTP and native Chrome WebSocket with disposable PostgreSQL; no provider or paid generation calls",
+  "database": "disposable canvas_cloud_test schema",
+  "embedded_worker": false,
+  "measured_at": "2026-10-04T17:48:55Z"
+}

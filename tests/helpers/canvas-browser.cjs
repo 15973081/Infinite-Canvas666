@@ -6,7 +6,8 @@ const root = path.resolve(__dirname, '../..');
 const origin = 'http://canvas-modules.test';
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><rect width="320" height="240" fill="#83966c"/></svg>';
 
-async function fixture(t, kind, member) {
+async function fixture(t, kind, member, options={}) {
+    const sourceRoot=path.resolve(options.sourceRoot || root);
     const browser = await chromium.launch({channel:'chrome', headless:true});
     t.after(() => browser.close());
     const page = await browser.newPage({viewport:{width:1280, height:900}});
@@ -64,8 +65,8 @@ async function fixture(t, kind, member) {
             return route.fulfill({json:result});
         }
         if(url.pathname==='/test-image.svg') return route.fulfill({contentType:'image/svg+xml',body:svg});
-        const filename=path.resolve(root,'.'+decodeURIComponent(url.pathname));
-        if(!filename.startsWith(root+path.sep)||!fs.existsSync(filename)||!fs.statSync(filename).isFile())return route.fulfill({status:404,body:'Not found'});
+        const filename=path.resolve(sourceRoot,'.'+decodeURIComponent(url.pathname));
+        if(!filename.startsWith(sourceRoot+path.sep)||!fs.existsSync(filename)||!fs.statSync(filename).isFile())return route.fulfill({status:404,body:'Not found'});
         if(url.pathname.includes('/canvas/')&&filename.endsWith('.js'))loaded.push(url.pathname);
         if(filename.endsWith('.html')){
             let body=fs.readFileSync(filename,'utf8');
