@@ -1,0 +1,4355 @@
+{
+  "baseline_commit": "8b8ef5cb39cb211818c4ac30f852e1c63e3668f1",
+  "measured_at": "2026-10-04T18:07:01.878Z",
+  "environment": {
+    "cpu": "AMD Ryzen 5 5600XT 6-Core Processor            ",
+    "logical_cpus": 12,
+    "platform": "win32",
+    "release": "10.0.19045",
+    "node": "v24.18.1",
+    "viewport": "1280x900",
+    "headless": true,
+    "samples": 12,
+    "warmups": 2
+  },
+  "method": "Trusted Playwright gestures on production HTML/scripts. Fixed API and text-only synthetic documents. No replaced save implementation. Lean timings include event handler through first microtask, then first/second RAF arrival; 350ms follow-up window. Profile is a separate instrumented CDP trace, excluded from percentiles. Second RAF is a presentation opportunity, not physical display latency.",
+  "results": [
+    {
+      "kind": "classic",
+      "action": "box",
+      "count": 100,
+      "topology": "fanin",
+      "actual": {
+        "nodes": 100,
+        "edges": 99
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          28.600000008940697,
+          39.79999999701977,
+          29.5,
+          27.700000002980232,
+          26.600000008940697,
+          32.79999999701977,
+          26.5,
+          28.299999997019768,
+          28.399999991059303,
+          36.70000000298023,
+          26.799999997019768,
+          27.700000002980232
+        ],
+        "p50_ms": 28.299999997019768,
+        "p95_ms": 39.79999999701977
+      },
+      "second_frame": {
+        "samples_ms": [
+          39.80000001192093,
+          59.20000000298023,
+          43.5,
+          39.79999999701977,
+          38.6000000089407,
+          43.8999999910593,
+          38.29999999701977,
+          39.900000005960464,
+          41.3999999910593,
+          49.1000000089407,
+          37.900000005960464,
+          39.20000000298023
+        ],
+        "p50_ms": 39.80000001192093,
+        "p95_ms": 59.20000000298023
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 28.200000002980232,
+              "synchronous_ms": 28.200000002980232,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            35.400000005960464,
+            39.80000001192093
+          ],
+          "window_ms": 403.1000000089407,
+          "sync_ms": 28.600000008940697,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 4,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 38.5,
+              "synchronous_ms": 38.5,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            51.79999999701977,
+            59.20000000298023
+          ],
+          "window_ms": 412.20000000298023,
+          "sync_ms": 39.79999999701977,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 5,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 28.900000005960464,
+              "synchronous_ms": 28.900000005960464,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            37.599999994039536,
+            43.5
+          ],
+          "window_ms": 398.3999999910593,
+          "sync_ms": 29.5,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 6,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 27.299999997019768,
+              "synchronous_ms": 27.299999997019768,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            35.29999999701977,
+            39.79999999701977
+          ],
+          "window_ms": 392.29999999701977,
+          "sync_ms": 27.700000002980232,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 7,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 26.299999997019768,
+              "synchronous_ms": 26.299999997019768,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            33.79999999701977,
+            38.6000000089407
+          ],
+          "window_ms": 393.20000000298023,
+          "sync_ms": 26.600000008940697,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 8,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 32,
+              "synchronous_ms": 32,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            39.5,
+            43.8999999910593
+          ],
+          "window_ms": 400.59999999403954,
+          "sync_ms": 32.79999999701977,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 9,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 26,
+              "synchronous_ms": 26,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            33.099999994039536,
+            38.29999999701977
+          ],
+          "window_ms": 392.09999999403954,
+          "sync_ms": 26.5,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 10,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 27.700000002980232,
+              "synchronous_ms": 27.700000002980232,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            35.5,
+            39.900000005960464
+          ],
+          "window_ms": 390,
+          "sync_ms": 28.299999997019768,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 11,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 27.799999997019768,
+              "synchronous_ms": 27.799999997019768,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            36,
+            41.3999999910593
+          ],
+          "window_ms": 404.3999999910593,
+          "sync_ms": 28.399999991059303,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 12,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 35.900000005960464,
+              "synchronous_ms": 35.900000005960464,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            44.400000005960464,
+            49.1000000089407
+          ],
+          "window_ms": 399.30000001192093,
+          "sync_ms": 36.70000000298023,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 13,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 26.299999997019768,
+              "synchronous_ms": 26.299999997019768,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            33.400000005960464,
+            37.900000005960464
+          ],
+          "window_ms": 397.70000000298023,
+          "sync_ms": 26.799999997019768,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 14,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 27.200000002980232,
+              "synchronous_ms": 27.200000002980232,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            34.900000005960464,
+            39.20000000298023
+          ],
+          "window_ms": 394.90000000596046,
+          "sync_ms": 27.700000002980232,
+          "replacedNodes": 100,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        }
+      ],
+      "save_requests_before_profile": 0,
+      "profile": {
+        "id": 1,
+        "event": "mouseup",
+        "trusted": true,
+        "calls": {
+          "render": {
+            "count": 1,
+            "inclusive_ms": 41.099999994039536,
+            "synchronous_ms": 41.099999994039536,
+            "following_ms": 0
+          },
+          "renderNode": {
+            "count": 16,
+            "inclusive_ms": 2.999999985098839,
+            "synchronous_ms": 2.999999985098839,
+            "following_ms": 0
+          },
+          "renderNodePlaceholder": {
+            "count": 84,
+            "inclusive_ms": 2.6000000536441803,
+            "synchronous_ms": 2.6000000536441803,
+            "following_ms": 0
+          },
+          "refreshGeometry": {
+            "count": 3,
+            "inclusive_ms": 12.099999994039536,
+            "synchronous_ms": 4.299999997019768,
+            "following_ms": 7.799999997019768
+          },
+          "renderLinks": {
+            "count": 3,
+            "inclusive_ms": 12.099999994039536,
+            "synchronous_ms": 4.299999997019768,
+            "following_ms": 7.799999997019768
+          },
+          "portPoint": {
+            "count": 300,
+            "inclusive_ms": 10.499999985098839,
+            "synchronous_ms": 3.5999999940395355,
+            "following_ms": 6.899999991059303
+          },
+          "refreshIcons": {
+            "count": 1,
+            "inclusive_ms": 3.6000000089406967,
+            "synchronous_ms": 3.6000000089406967,
+            "following_ms": 0
+          }
+        },
+        "requested": [],
+        "affected": [],
+        "dom_ms": 8.800000041723251,
+        "domCalls": {
+          "getBoundingClientRect": 198,
+          "querySelectorAll": 344,
+          "createElement": 116,
+          "innerHTML": 120,
+          "querySelector": 812,
+          "appendChild": 480,
+          "setAttribute": 2505
+        },
+        "domInclusive": {
+          "getBoundingClientRect": 2.4000000059604645,
+          "querySelectorAll": 0.7999999821186066,
+          "createElement": 0.09999999403953552,
+          "innerHTML": 2.400000050663948,
+          "querySelector": 1.0999999791383743,
+          "appendChild": 0.7000000029802322,
+          "setAttribute": 1.3000000268220901
+        },
+        "frames": [
+          50.5,
+          56.099999994039536
+        ],
+        "window_ms": 402.29999999701977,
+        "sync_ms": 42.29999999701977,
+        "replacedNodes": 100,
+        "selected": [
+          "node-0"
+        ],
+        "changedText": [],
+        "llmEnabled": null,
+        "cdp_delta": {
+          "TaskDuration": 0.059692,
+          "ScriptDuration": 0.017112000000000002,
+          "LayoutDuration": 0.013797,
+          "RecalcStyleDuration": 0.021789,
+          "LayoutCount": 400,
+          "RecalcStyleCount": 400
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 18.176,
+          "layout_ms": 10.021,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 42.277
+        },
+        "following": {
+          "style_ms": 3.615,
+          "layout_ms": 2.758,
+          "paint_ms": 2.331,
+          "raf_ms": 8.847,
+          "timer_ms": 0,
+          "task_ms": 16.101
+        },
+        "sync_trace_ms": 42.277,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    },
+    {
+      "kind": "classic",
+      "action": "box",
+      "count": 1000,
+      "topology": "fanin",
+      "actual": {
+        "nodes": 1000,
+        "edges": 999
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          785,
+          879.7000000029802,
+          866.3999999910593,
+          810.8999999910593,
+          807.9000000059605,
+          1029.2000000029802,
+          932.7000000029802,
+          863,
+          988.5,
+          915.7999999970198,
+          864.1999999880791,
+          849.3000000119209
+        ],
+        "p50_ms": 864.1999999880791,
+        "p95_ms": 1029.2000000029802
+      },
+      "second_frame": {
+        "samples_ms": [
+          1070.800000011921,
+          1203.2000000029802,
+          1174.7000000029802,
+          1121.7000000029802,
+          1120.2000000029802,
+          1403.9000000059605,
+          1259.5,
+          1218.2000000029802,
+          1316.0999999940395,
+          1225.2000000029802,
+          1191.5,
+          1143.5
+        ],
+        "p50_ms": 1191.5,
+        "p95_ms": 1403.9000000059605
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 782.4000000059605,
+              "synchronous_ms": 782.4000000059605,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            938.5,
+            1070.800000011921
+          ],
+          "window_ms": 1314.800000011921,
+          "sync_ms": 785,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 4,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 877,
+              "synchronous_ms": 877,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1052.4000000059605,
+            1203.2000000029802
+          ],
+          "window_ms": 1421.0999999940395,
+          "sync_ms": 879.7000000029802,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 5,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 863.5999999940395,
+              "synchronous_ms": 863.5999999940395,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1032.3999999910593,
+            1174.7000000029802
+          ],
+          "window_ms": 1405.7999999970198,
+          "sync_ms": 866.3999999910593,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 6,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 807.7000000029802,
+              "synchronous_ms": 807.7000000029802,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            975.5999999940395,
+            1121.7000000029802
+          ],
+          "window_ms": 1351.3999999910593,
+          "sync_ms": 810.8999999910593,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 7,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 805.0999999940395,
+              "synchronous_ms": 805.0999999940395,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            966.4000000059605,
+            1120.2000000029802
+          ],
+          "window_ms": 1347,
+          "sync_ms": 807.9000000059605,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 8,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 1025.0999999940395,
+              "synchronous_ms": 1025.0999999940395,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1224.5,
+            1403.9000000059605
+          ],
+          "window_ms": 1616.5,
+          "sync_ms": 1029.2000000029802,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 9,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 929.5,
+              "synchronous_ms": 929.5,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1105.6000000089407,
+            1259.5
+          ],
+          "window_ms": 1485.7000000029802,
+          "sync_ms": 932.7000000029802,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 10,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 859.6000000089407,
+              "synchronous_ms": 859.6000000089407,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1042.2999999970198,
+            1218.2000000029802
+          ],
+          "window_ms": 1424.5,
+          "sync_ms": 863,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 11,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 985.2000000029802,
+              "synchronous_ms": 985.2000000029802,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1175.7999999970198,
+            1316.0999999940395
+          ],
+          "window_ms": 1552.9000000059605,
+          "sync_ms": 988.5,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 12,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 913,
+              "synchronous_ms": 913,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1080.5999999940395,
+            1225.2000000029802
+          ],
+          "window_ms": 1458.2999999970198,
+          "sync_ms": 915.7999999970198,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 13,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 861,
+              "synchronous_ms": 861,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1049.8999999910593,
+            1191.5
+          ],
+          "window_ms": 1417.8999999910593,
+          "sync_ms": 864.1999999880791,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 14,
+          "event": "mouseup",
+          "trusted": true,
+          "calls": {
+            "render": {
+              "count": 1,
+              "inclusive_ms": 846.6999999880791,
+              "synchronous_ms": 846.6999999880791,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1002,
+            1143.5
+          ],
+          "window_ms": 1376.2000000029802,
+          "sync_ms": 849.3000000119209,
+          "replacedNodes": 1000,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        }
+      ],
+      "save_requests_before_profile": 0,
+      "profile": {
+        "id": 1,
+        "event": "mouseup",
+        "trusted": true,
+        "calls": {
+          "render": {
+            "count": 1,
+            "inclusive_ms": 1026,
+            "synchronous_ms": 1026,
+            "following_ms": 0
+          },
+          "renderNode": {
+            "count": 16,
+            "inclusive_ms": 3,
+            "synchronous_ms": 3,
+            "following_ms": 0
+          },
+          "renderNodePlaceholder": {
+            "count": 984,
+            "inclusive_ms": 31.299999982118607,
+            "synchronous_ms": 31.299999982118607,
+            "following_ms": 0
+          },
+          "refreshGeometry": {
+            "count": 3,
+            "inclusive_ms": 483.50000001490116,
+            "synchronous_ms": 170.90000000596046,
+            "following_ms": 312.6000000089407
+          },
+          "renderLinks": {
+            "count": 3,
+            "inclusive_ms": 483.40000000596046,
+            "synchronous_ms": 170.90000000596046,
+            "following_ms": 312.5
+          },
+          "portPoint": {
+            "count": 3000,
+            "inclusive_ms": 453.89999993145466,
+            "synchronous_ms": 160.39999990165234,
+            "following_ms": 293.5000000298023
+          },
+          "refreshIcons": {
+            "count": 1,
+            "inclusive_ms": 5.0999999940395355,
+            "synchronous_ms": 5.0999999940395355,
+            "following_ms": 0
+          }
+        },
+        "requested": [],
+        "affected": [],
+        "dom_ms": 110.79999981820583,
+        "domCalls": {
+          "getBoundingClientRect": 1098,
+          "querySelectorAll": 2144,
+          "createElement": 1016,
+          "innerHTML": 1020,
+          "querySelector": 7112,
+          "appendChild": 1380,
+          "setAttribute": 7905
+        },
+        "domInclusive": {
+          "getBoundingClientRect": 14.5,
+          "querySelectorAll": 1.699999988079071,
+          "createElement": 1.4000000357627869,
+          "innerHTML": 24.900000005960464,
+          "querySelector": 46.99999977648258,
+          "appendChild": 4,
+          "setAttribute": 17.30000001192093
+        },
+        "frames": [
+          1232.7000000029802,
+          1398.9000000059605
+        ],
+        "window_ms": 1607.9000000059605,
+        "sync_ms": 1031.4000000059605,
+        "replacedNodes": 1000,
+        "selected": [
+          "node-0"
+        ],
+        "changedText": [],
+        "llmEnabled": null,
+        "cdp_delta": {
+          "TaskDuration": 1.453702,
+          "ScriptDuration": 0.162022,
+          "LayoutDuration": 0.826148,
+          "RecalcStyleDuration": 0.37873500000000004,
+          "LayoutCount": 4002,
+          "RecalcStyleCount": 4003
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 324.613,
+          "layout_ms": 606.153,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 1031.45
+        },
+        "following": {
+          "style_ms": 54.668,
+          "layout_ms": 205.598,
+          "paint_ms": 21.983,
+          "raf_ms": 327.731,
+          "timer_ms": 0.849,
+          "task_ms": 420.621
+        },
+        "sync_trace_ms": 1031.45,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    },
+    {
+      "kind": "classic",
+      "action": "input",
+      "count": 1000,
+      "topology": "none",
+      "actual": {
+        "nodes": 1000,
+        "edges": 0
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          0.29999999701976776,
+          0.20000000298023224,
+          0.3999999910593033,
+          0.20000000298023224,
+          0.30000001192092896,
+          0.3999999910593033,
+          0.29999999701976776,
+          0.29999999701976776,
+          0.29999999701976776,
+          0.29999999701976776,
+          0.29999999701976776,
+          0.20000000298023224
+        ],
+        "p50_ms": 0.29999999701976776,
+        "p95_ms": 0.3999999910593033
+      },
+      "second_frame": {
+        "samples_ms": [
+          6.9000000059604645,
+          5.4000000059604645,
+          5,
+          6.700000002980232,
+          7.200000002980232,
+          7.399999991059303,
+          5.799999997019768,
+          6,
+          5.700000002980232,
+          4.799999997019768,
+          5,
+          6.0999999940395355
+        ],
+        "p50_ms": 5.799999997019768,
+        "p95_ms": 7.399999991059303
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            4.4000000059604645,
+            6.9000000059604645
+          ],
+          "window_ms": 366.70000000298023,
+          "sync_ms": 0.29999999701976776,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 4,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.09999999403953552,
+              "synchronous_ms": 0.09999999403953552,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            4.100000008940697,
+            5.4000000059604645
+          ],
+          "window_ms": 357.40000000596046,
+          "sync_ms": 0.20000000298023224,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 5,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            3.5,
+            5
+          ],
+          "window_ms": 359.79999999701977,
+          "sync_ms": 0.3999999910593033,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 6,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.09999999403953552,
+              "synchronous_ms": 0.09999999403953552,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            4.5,
+            6.700000002980232
+          ],
+          "window_ms": 359.70000000298023,
+          "sync_ms": 0.20000000298023224,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 7,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            5.100000008940697,
+            7.200000002980232
+          ],
+          "window_ms": 362.40000000596046,
+          "sync_ms": 0.30000001192092896,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 8,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            6,
+            7.399999991059303
+          ],
+          "window_ms": 367.59999999403954,
+          "sync_ms": 0.3999999910593033,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 9,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            3.7000000029802322,
+            5.799999997019768
+          ],
+          "window_ms": 367.70000000298023,
+          "sync_ms": 0.29999999701976776,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 10,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            3.2999999970197678,
+            6
+          ],
+          "window_ms": 356.69999998807907,
+          "sync_ms": 0.29999999701976776,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 11,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            4.5999999940395355,
+            5.700000002980232
+          ],
+          "window_ms": 359,
+          "sync_ms": 0.29999999701976776,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 12,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            2.5999999940395355,
+            4.799999997019768
+          ],
+          "window_ms": 363.59999999403954,
+          "sync_ms": 0.29999999701976776,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 13,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            2.7999999970197678,
+            5
+          ],
+          "window_ms": 358.09999999403954,
+          "sync_ms": 0.29999999701976776,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        },
+        {
+          "id": 14,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.10000000894069672,
+              "synchronous_ms": 0.10000000894069672,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            3.5999999940395355,
+            6.0999999940395355
+          ],
+          "window_ms": 366.90000000596046,
+          "sync_ms": 0.20000000298023224,
+          "replacedNodes": 0,
+          "selected": [],
+          "changedText": [
+            "node-0"
+          ],
+          "llmEnabled": null
+        }
+      ],
+      "save_requests_before_profile": 14,
+      "profile": {
+        "id": 1,
+        "event": "input",
+        "trusted": true,
+        "calls": {
+          "scheduleSave": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          },
+          "refreshPromptDependents": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          },
+          "canvasInputGraph": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          }
+        },
+        "requested": [],
+        "affected": [],
+        "dom_ms": 0.09999999403953552,
+        "domCalls": {
+          "querySelector": 1,
+          "innerHTML": 1,
+          "querySelectorAll": 2
+        },
+        "domInclusive": {
+          "querySelector": 0,
+          "innerHTML": 0.09999999403953552,
+          "querySelectorAll": 0
+        },
+        "frames": [
+          3.5,
+          4.5
+        ],
+        "window_ms": 359.80000001192093,
+        "sync_ms": 0.30000001192092896,
+        "replacedNodes": 0,
+        "selected": [],
+        "changedText": [
+          "node-0"
+        ],
+        "llmEnabled": null,
+        "cdp_delta": {
+          "TaskDuration": 0.015545999999999999,
+          "ScriptDuration": 0.0009520000000000002,
+          "LayoutDuration": 0.002767,
+          "RecalcStyleDuration": 0.0011149999999999999,
+          "LayoutCount": 4,
+          "RecalcStyleCount": 4
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 0,
+          "layout_ms": 0,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 0.368
+        },
+        "following": {
+          "style_ms": 1.089,
+          "layout_ms": 1.426,
+          "paint_ms": 0.82,
+          "raf_ms": 0.045,
+          "timer_ms": 0.576,
+          "task_ms": 12.502
+        },
+        "sync_trace_ms": 0.368,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    },
+    {
+      "kind": "smart",
+      "action": "toggle",
+      "count": 1000,
+      "topology": "chain",
+      "target": 0,
+      "actual": {
+        "nodes": 1000,
+        "edges": 999
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          1652.7000000029802,
+          1703.0999999940395,
+          1691.7999999970198,
+          1626.5999999940395,
+          1637.2999999970198,
+          1660.2999999970198,
+          1725,
+          1747.2000000029802,
+          1621.5999999940395,
+          1815.199999988079,
+          1745.3999999910593,
+          1682.5
+        ],
+        "p50_ms": 1682.5,
+        "p95_ms": 1815.199999988079
+      },
+      "second_frame": {
+        "samples_ms": [
+          1824,
+          1831.3999999910593,
+          1837.9000000059605,
+          1746.2999999970198,
+          1784.9000000059605,
+          1773.7999999970198,
+          1853.9000000059605,
+          1873.1000000089407,
+          1762.5,
+          1944.0999999940395,
+          1926.7000000029802,
+          1801.2000000029802
+        ],
+        "p50_ms": 1824,
+        "p95_ms": 1944.0999999940395
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1651.199999988079,
+              "synchronous_ms": 1651.199999988079,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1715,
+            1824
+          ],
+          "window_ms": 2189,
+          "sync_ms": 1652.7000000029802,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 4,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1701.8999999910593,
+              "synchronous_ms": 1701.8999999910593,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1765.7999999970198,
+            1831.3999999910593
+          ],
+          "window_ms": 2194.3999999910593,
+          "sync_ms": 1703.0999999940395,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 5,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1690.5999999940395,
+              "synchronous_ms": 1690.5999999940395,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1752.9000000059605,
+            1837.9000000059605
+          ],
+          "window_ms": 2192.7000000029802,
+          "sync_ms": 1691.7999999970198,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 6,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1625,
+              "synchronous_ms": 1625,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1689.2000000029802,
+            1746.2999999970198
+          ],
+          "window_ms": 2102.5999999940395,
+          "sync_ms": 1626.5999999940395,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 7,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1635.7000000029802,
+              "synchronous_ms": 1635.7000000029802,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1723.7999999970198,
+            1784.9000000059605
+          ],
+          "window_ms": 2146.4000000059605,
+          "sync_ms": 1637.2999999970198,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 8,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1658.800000011921,
+              "synchronous_ms": 1658.800000011921,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1716.7999999970198,
+            1773.7999999970198
+          ],
+          "window_ms": 2133.7999999970198,
+          "sync_ms": 1660.2999999970198,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 9,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1723.4000000059605,
+              "synchronous_ms": 1723.4000000059605,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1790.6000000089407,
+            1853.9000000059605
+          ],
+          "window_ms": 2207.2000000029802,
+          "sync_ms": 1725,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 10,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1745.9000000059605,
+              "synchronous_ms": 1745.9000000059605,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.09999999403953552,
+              "synchronous_ms": 0.09999999403953552,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1807.2000000029802,
+            1873.1000000089407
+          ],
+          "window_ms": 2240.9000000059605,
+          "sync_ms": 1747.2000000029802,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 11,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1620.2000000029802,
+              "synchronous_ms": 1620.2000000029802,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1685.0999999940395,
+            1762.5
+          ],
+          "window_ms": 2117.5,
+          "sync_ms": 1621.5999999940395,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 12,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1813.9000000059605,
+              "synchronous_ms": 1813.9000000059605,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1877.3999999910593,
+            1944.0999999940395
+          ],
+          "window_ms": 2301.7999999970198,
+          "sync_ms": 1815.199999988079,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 13,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1743.7000000029802,
+              "synchronous_ms": 1743.7000000029802,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.09999999403953552,
+              "synchronous_ms": 0.09999999403953552,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1844.2000000029802,
+            1926.7000000029802
+          ],
+          "window_ms": 2298.8999999910593,
+          "sync_ms": 1745.3999999910593,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 14,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 1680.8999999910593,
+              "synchronous_ms": 1680.8999999910593,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1744.4000000059605,
+            1801.2000000029802
+          ],
+          "window_ms": 2168.2000000029802,
+          "sync_ms": 1682.5,
+          "replacedNodes": 1000,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        }
+      ],
+      "save_requests_before_profile": 14,
+      "profile": {
+        "id": 1,
+        "event": "click",
+        "trusted": true,
+        "calls": {
+          "refreshSmartNodes": {
+            "count": 1,
+            "inclusive_ms": 1790.1000000089407,
+            "synchronous_ms": 1790.1000000089407,
+            "following_ms": 0
+          },
+          "smartAffectedNodeIds": {
+            "count": 1,
+            "inclusive_ms": 0.20000000298023224,
+            "synchronous_ms": 0.20000000298023224,
+            "following_ms": 0
+          },
+          "renderSmartNodeHtml": {
+            "count": 12,
+            "inclusive_ms": 0.30000001192092896,
+            "synchronous_ms": 0.30000001192092896,
+            "following_ms": 0
+          },
+          "bindNodeEvents": {
+            "count": 1000,
+            "inclusive_ms": 41.60000014305115,
+            "synchronous_ms": 41.60000014305115,
+            "following_ms": 0
+          },
+          "renderSmartNodePlaceholderHtml": {
+            "count": 988,
+            "inclusive_ms": 3.300000011920929,
+            "synchronous_ms": 3.300000011920929,
+            "following_ms": 0
+          },
+          "refreshIcons": {
+            "count": 1,
+            "inclusive_ms": 3.9000000059604645,
+            "synchronous_ms": 3.9000000059604645,
+            "following_ms": 0
+          },
+          "scheduleSave": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          },
+          "refreshConnectionLayer": {
+            "count": 2,
+            "inclusive_ms": 91.5,
+            "synchronous_ms": 0,
+            "following_ms": 91.5
+          }
+        },
+        "requested": [
+          [
+            "node-0"
+          ]
+        ],
+        "affected": [
+          1000
+        ],
+        "dom_ms": 111.8999999165535,
+        "domCalls": {
+          "querySelector": 15002,
+          "createElement": 1002,
+          "innerHTML": 1002,
+          "querySelectorAll": 18134,
+          "replaceWith": 1000,
+          "setAttribute": 2190,
+          "appendChild": 481
+        },
+        "domInclusive": {
+          "querySelector": 31.900000005960464,
+          "createElement": 0.7999999523162842,
+          "innerHTML": 42.50000001490116,
+          "querySelectorAll": 20.5,
+          "replaceWith": 15.199999958276749,
+          "setAttribute": 0.7999999821186066,
+          "appendChild": 0.20000000298023224
+        },
+        "frames": [
+          1850.2000000029802,
+          1907.0999999940395
+        ],
+        "window_ms": 2262.7999999970198,
+        "sync_ms": 1792.5999999940395,
+        "replacedNodes": 1000,
+        "selected": null,
+        "changedText": [],
+        "llmEnabled": true,
+        "cdp_delta": {
+          "TaskDuration": 1.947176,
+          "ScriptDuration": 0.237707,
+          "LayoutDuration": 1.600993,
+          "RecalcStyleDuration": 0.060407,
+          "LayoutCount": 1001,
+          "RecalcStyleCount": 1023
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 58.168,
+          "layout_ms": 1593.571,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 1792.549
+        },
+        "following": {
+          "style_ms": 2.258,
+          "layout_ms": 3.07,
+          "paint_ms": 9.497,
+          "raf_ms": 94.479,
+          "timer_ms": 3.023,
+          "task_ms": 128.511
+        },
+        "sync_trace_ms": 1792.549,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    },
+    {
+      "kind": "smart",
+      "action": "toggle",
+      "count": 1000,
+      "topology": "chain",
+      "target": 999,
+      "actual": {
+        "nodes": 1000,
+        "edges": 999
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          4.5,
+          4.799999997019768,
+          4.100000008940697,
+          4.200000002980232,
+          4.5999999940395355,
+          4,
+          3.699999988079071,
+          4.200000002980232,
+          4.200000002980232,
+          3.7999999970197678,
+          4.200000002980232,
+          4.200000002980232
+        ],
+        "p50_ms": 4.200000002980232,
+        "p95_ms": 4.799999997019768
+      },
+      "second_frame": {
+        "samples_ms": [
+          24.200000002980232,
+          27.200000002980232,
+          21.299999997019768,
+          19.299999997019768,
+          22.299999997019768,
+          18.799999997019768,
+          18.899999991059303,
+          20.200000002980232,
+          21,
+          16.700000002980232,
+          20,
+          18.400000005960464
+        ],
+        "p50_ms": 20,
+        "p95_ms": 27.200000002980232
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4.299999997019768,
+              "synchronous_ms": 4.299999997019768,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            18.600000008940697,
+            24.200000002980232
+          ],
+          "window_ms": 384.40000000596046,
+          "sync_ms": 4.5,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 4,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4.600000008940697,
+              "synchronous_ms": 4.600000008940697,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            22.299999997019768,
+            27.200000002980232
+          ],
+          "window_ms": 379.6000000089407,
+          "sync_ms": 4.799999997019768,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 5,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.8999999910593033,
+              "synchronous_ms": 3.8999999910593033,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            15.5,
+            21.299999997019768
+          ],
+          "window_ms": 384.29999999701977,
+          "sync_ms": 4.100000008940697,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 6,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4,
+              "synchronous_ms": 4,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.799999997019768,
+            19.299999997019768
+          ],
+          "window_ms": 379.09999999403954,
+          "sync_ms": 4.200000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 7,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4.299999997019768,
+              "synchronous_ms": 4.299999997019768,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            17.899999991059303,
+            22.299999997019768
+          ],
+          "window_ms": 375.20000000298023,
+          "sync_ms": 4.5999999940395355,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 8,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.800000011920929,
+              "synchronous_ms": 3.800000011920929,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.400000005960464,
+            18.799999997019768
+          ],
+          "window_ms": 385.79999999701977,
+          "sync_ms": 4,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 9,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.5,
+              "synchronous_ms": 3.5,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.5,
+            18.899999991059303
+          ],
+          "window_ms": 378.19999998807907,
+          "sync_ms": 3.699999988079071,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 10,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4.0999999940395355,
+              "synchronous_ms": 4.0999999940395355,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            15.399999991059303,
+            20.200000002980232
+          ],
+          "window_ms": 372.70000000298023,
+          "sync_ms": 4.200000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 11,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4,
+              "synchronous_ms": 4,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            15.5,
+            21
+          ],
+          "window_ms": 390.3999999910593,
+          "sync_ms": 4.200000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 12,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.6000000089406967,
+              "synchronous_ms": 3.6000000089406967,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            12.700000002980232,
+            16.700000002980232
+          ],
+          "window_ms": 376.5,
+          "sync_ms": 3.7999999970197678,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 13,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.9000000059604645,
+              "synchronous_ms": 3.9000000059604645,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            15.5,
+            20
+          ],
+          "window_ms": 375.29999999701977,
+          "sync_ms": 4.200000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        },
+        {
+          "id": 14,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4,
+              "synchronous_ms": 4,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-999"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            13.299999997019768,
+            18.400000005960464
+          ],
+          "window_ms": 384.79999999701977,
+          "sync_ms": 4.200000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": []
+        }
+      ],
+      "save_requests_before_profile": 14,
+      "profile": {
+        "id": 1,
+        "event": "click",
+        "trusted": true,
+        "calls": {
+          "refreshSmartNodes": {
+            "count": 1,
+            "inclusive_ms": 5.799999997019768,
+            "synchronous_ms": 5.799999997019768,
+            "following_ms": 0
+          },
+          "smartAffectedNodeIds": {
+            "count": 1,
+            "inclusive_ms": 0.20000000298023224,
+            "synchronous_ms": 0.20000000298023224,
+            "following_ms": 0
+          },
+          "renderSmartNodeHtml": {
+            "count": 1,
+            "inclusive_ms": 0.09999999403953552,
+            "synchronous_ms": 0.09999999403953552,
+            "following_ms": 0
+          },
+          "bindNodeEvents": {
+            "count": 1,
+            "inclusive_ms": 0.20000000298023224,
+            "synchronous_ms": 0.20000000298023224,
+            "following_ms": 0
+          },
+          "refreshIcons": {
+            "count": 1,
+            "inclusive_ms": 4.5999999940395355,
+            "synchronous_ms": 4.5999999940395355,
+            "following_ms": 0
+          },
+          "scheduleSave": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          },
+          "refreshConnectionLayer": {
+            "count": 2,
+            "inclusive_ms": 5.099999979138374,
+            "synchronous_ms": 0,
+            "following_ms": 5.099999979138374
+          }
+        },
+        "requested": [
+          [
+            "node-999"
+          ]
+        ],
+        "affected": [
+          1
+        ],
+        "dom_ms": 3.7000000029802322,
+        "domCalls": {
+          "querySelector": 17,
+          "createElement": 3,
+          "innerHTML": 3,
+          "querySelectorAll": 152,
+          "replaceWith": 1,
+          "setAttribute": 2191,
+          "appendChild": 481
+        },
+        "domInclusive": {
+          "querySelector": 0.20000000298023224,
+          "createElement": 0,
+          "innerHTML": 1.5000000149011612,
+          "querySelectorAll": 0.4000000059604645,
+          "replaceWith": 0.09999999403953552,
+          "setAttribute": 1.2999999970197678,
+          "appendChild": 0.19999998807907104
+        },
+        "frames": [
+          18.5,
+          23.399999991059303
+        ],
+        "window_ms": 379.5,
+        "sync_ms": 6.200000002980232,
+        "replacedNodes": 1,
+        "selected": null,
+        "changedText": [],
+        "cdp_delta": {
+          "TaskDuration": 0.044291000000000004,
+          "ScriptDuration": 0.014682,
+          "LayoutDuration": 0.002881,
+          "RecalcStyleDuration": 0.004765,
+          "LayoutCount": 2,
+          "RecalcStyleCount": 25
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 0.027,
+          "layout_ms": 0,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 6.097
+        },
+        "following": {
+          "style_ms": 4.679,
+          "layout_ms": 2.862,
+          "paint_ms": 5.001,
+          "raf_ms": 7.283,
+          "timer_ms": 0,
+          "task_ms": 26.792
+        },
+        "sync_trace_ms": 6.097,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    },
+    {
+      "kind": "smart",
+      "action": "toggle",
+      "count": 1000,
+      "topology": "none",
+      "target": 0,
+      "actual": {
+        "nodes": 1000,
+        "edges": 0
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          3.7999999970197678,
+          4.200000002980232,
+          3.699999988079071,
+          3.7000000029802322,
+          3.7999999970197678,
+          6.300000011920929,
+          4.799999997019768,
+          3.9000000059604645,
+          4.299999997019768,
+          4.200000002980232,
+          4.700000002980232,
+          3.5999999940395355
+        ],
+        "p50_ms": 3.9000000059604645,
+        "p95_ms": 6.300000011920929
+      },
+      "second_frame": {
+        "samples_ms": [
+          17.200000002980232,
+          16.599999994039536,
+          15.5,
+          15.099999994039536,
+          15.5,
+          21.900000005960464,
+          22.599999994039536,
+          15.200000002980232,
+          17.200000002980232,
+          17.799999997019768,
+          19.100000008940697,
+          17
+        ],
+        "p50_ms": 17,
+        "p95_ms": 22.599999994039536
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.5999999940395355,
+              "synchronous_ms": 3.5999999940395355,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.5,
+            17.200000002980232
+          ],
+          "window_ms": 371.3999999910593,
+          "sync_ms": 3.7999999970197678,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 4,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4,
+              "synchronous_ms": 4,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.099999994039536,
+            16.599999994039536
+          ],
+          "window_ms": 377.09999999403954,
+          "sync_ms": 4.200000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 5,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.5999999940395355,
+              "synchronous_ms": 3.5999999940395355,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            13.099999994039536,
+            15.5
+          ],
+          "window_ms": 369.3999999910593,
+          "sync_ms": 3.699999988079071,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 6,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.4000000059604645,
+              "synchronous_ms": 3.4000000059604645,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            12.700000002980232,
+            15.099999994039536
+          ],
+          "window_ms": 381.59999999403954,
+          "sync_ms": 3.7000000029802322,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 7,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.5,
+              "synchronous_ms": 3.5,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            13.200000002980232,
+            15.5
+          ],
+          "window_ms": 377.79999999701977,
+          "sync_ms": 3.7999999970197678,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 8,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 5.899999991059303,
+              "synchronous_ms": 5.899999991059303,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.10000000894069672,
+              "synchronous_ms": 0.10000000894069672,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            18.400000005960464,
+            21.900000005960464
+          ],
+          "window_ms": 376.80000001192093,
+          "sync_ms": 6.300000011920929,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 9,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4.5,
+              "synchronous_ms": 4.5,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            17.5,
+            22.599999994039536
+          ],
+          "window_ms": 378.09999999403954,
+          "sync_ms": 4.799999997019768,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 10,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.7000000029802322,
+              "synchronous_ms": 3.7000000029802322,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            13.100000008940697,
+            15.200000002980232
+          ],
+          "window_ms": 378.5,
+          "sync_ms": 3.9000000059604645,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 11,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4,
+              "synchronous_ms": 4,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.10000000894069672,
+              "synchronous_ms": 0.10000000894069672,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.700000002980232,
+            17.200000002980232
+          ],
+          "window_ms": 379,
+          "sync_ms": 4.299999997019768,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 12,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4,
+              "synchronous_ms": 4,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.799999997019768,
+            17.799999997019768
+          ],
+          "window_ms": 382.40000000596046,
+          "sync_ms": 4.200000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        },
+        {
+          "id": 13,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 4.5,
+              "synchronous_ms": 4.5,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            16.400000005960464,
+            19.100000008940697
+          ],
+          "window_ms": 373.90000000596046,
+          "sync_ms": 4.700000002980232,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": true
+        },
+        {
+          "id": 14,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSmartNodes": {
+              "count": 1,
+              "inclusive_ms": 3.4000000059604645,
+              "synchronous_ms": 3.4000000059604645,
+              "following_ms": 0
+            },
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [
+            [
+              "node-0"
+            ]
+          ],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            14.400000005960464,
+            17
+          ],
+          "window_ms": 376.09999999403954,
+          "sync_ms": 3.5999999940395355,
+          "replacedNodes": 1,
+          "selected": null,
+          "changedText": [],
+          "llmEnabled": false
+        }
+      ],
+      "save_requests_before_profile": 14,
+      "profile": {
+        "id": 1,
+        "event": "click",
+        "trusted": true,
+        "calls": {
+          "refreshSmartNodes": {
+            "count": 1,
+            "inclusive_ms": 5.4000000059604645,
+            "synchronous_ms": 5.4000000059604645,
+            "following_ms": 0
+          },
+          "smartAffectedNodeIds": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          },
+          "renderSmartNodeHtml": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          },
+          "bindNodeEvents": {
+            "count": 1,
+            "inclusive_ms": 0.09999999403953552,
+            "synchronous_ms": 0.09999999403953552,
+            "following_ms": 0
+          },
+          "refreshIcons": {
+            "count": 1,
+            "inclusive_ms": 4.5999999940395355,
+            "synchronous_ms": 4.5999999940395355,
+            "following_ms": 0
+          },
+          "scheduleSave": {
+            "count": 1,
+            "inclusive_ms": 0,
+            "synchronous_ms": 0,
+            "following_ms": 0
+          },
+          "refreshConnectionLayer": {
+            "count": 2,
+            "inclusive_ms": 1.1000000089406967,
+            "synchronous_ms": 0,
+            "following_ms": 1.1000000089406967
+          }
+        },
+        "requested": [
+          [
+            "node-0"
+          ]
+        ],
+        "affected": [
+          1
+        ],
+        "dom_ms": 2.0999999791383743,
+        "domCalls": {
+          "querySelector": 17,
+          "createElement": 3,
+          "innerHTML": 3,
+          "querySelectorAll": 152,
+          "replaceWith": 1,
+          "setAttribute": 2187,
+          "appendChild": 481
+        },
+        "domInclusive": {
+          "querySelector": 0.10000000894069672,
+          "createElement": 0,
+          "innerHTML": 0.7000000029802322,
+          "querySelectorAll": 0.10000000894069672,
+          "replaceWith": 0.20000000298023224,
+          "setAttribute": 0.6999999731779099,
+          "appendChild": 0.29999998211860657
+        },
+        "frames": [
+          20.200000002980232,
+          23.700000002980232
+        ],
+        "window_ms": 384.5,
+        "sync_ms": 5.799999997019768,
+        "replacedNodes": 1,
+        "selected": null,
+        "changedText": [],
+        "llmEnabled": true,
+        "cdp_delta": {
+          "TaskDuration": 0.06252,
+          "ScriptDuration": 0.012522,
+          "LayoutDuration": 0.003962,
+          "RecalcStyleDuration": 0.00461,
+          "LayoutCount": 1,
+          "RecalcStyleCount": 24
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 0.053,
+          "layout_ms": 0,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 5.871
+        },
+        "following": {
+          "style_ms": 4.476,
+          "layout_ms": 3.945,
+          "paint_ms": 8.53,
+          "raf_ms": 2.941,
+          "timer_ms": 0,
+          "task_ms": 34.114
+        },
+        "sync_trace_ms": 5.871,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    },
+    {
+      "kind": "smart",
+      "action": "input",
+      "count": 1000,
+      "topology": "chain",
+      "target": 0,
+      "actual": {
+        "nodes": 1000,
+        "edges": 999
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          0.19999998807907104,
+          0.10000000894069672,
+          0.09999999403953552,
+          0,
+          0.10000000894069672,
+          0.09999999403953552,
+          0.09999999403953552,
+          0,
+          0,
+          0.09999999403953552,
+          0.19999998807907104,
+          0
+        ],
+        "p50_ms": 0.09999999403953552,
+        "p95_ms": 0.19999998807907104
+      },
+      "second_frame": {
+        "samples_ms": [
+          3.699999988079071,
+          5.600000008940697,
+          6.799999997019768,
+          5,
+          3.2999999970197678,
+          4.5,
+          5.5999999940395355,
+          3.7000000029802322,
+          3.5,
+          4.9000000059604645,
+          5.0999999940395355,
+          5.0999999940395355
+        ],
+        "p50_ms": 4.9000000059604645,
+        "p95_ms": 6.799999997019768
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1.8999999910593033,
+            3.699999988079071
+          ],
+          "window_ms": 360.69999998807907,
+          "sync_ms": 0.19999998807907104,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 4,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.10000000894069672,
+              "synchronous_ms": 0.10000000894069672,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1.7000000029802322,
+            5.600000008940697
+          ],
+          "window_ms": 364.20000000298023,
+          "sync_ms": 0.10000000894069672,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 5,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.09999999403953552,
+              "synchronous_ms": 0.09999999403953552,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            3.7999999970197678,
+            6.799999997019768
+          ],
+          "window_ms": 355,
+          "sync_ms": 0.09999999403953552,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 6,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            2.199999988079071,
+            5
+          ],
+          "window_ms": 360.59999999403954,
+          "sync_ms": 0,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 7,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            2,
+            3.2999999970197678
+          ],
+          "window_ms": 357.20000000298023,
+          "sync_ms": 0.10000000894069672,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 8,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.09999999403953552,
+              "synchronous_ms": 0.09999999403953552,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1.7999999970197678,
+            4.5
+          ],
+          "window_ms": 360.79999999701977,
+          "sync_ms": 0.09999999403953552,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 9,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            3.7999999970197678,
+            5.5999999940395355
+          ],
+          "window_ms": 375.5,
+          "sync_ms": 0.09999999403953552,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 10,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            2.1000000089406967,
+            3.7000000029802322
+          ],
+          "window_ms": 369.20000000298023,
+          "sync_ms": 0,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 11,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            2.1000000089406967,
+            3.5
+          ],
+          "window_ms": 361.70000000298023,
+          "sync_ms": 0,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 12,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1.9000000059604645,
+            4.9000000059604645
+          ],
+          "window_ms": 365.29999999701977,
+          "sync_ms": 0.09999999403953552,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 13,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0.09999999403953552,
+              "synchronous_ms": 0.09999999403953552,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            1.7999999970197678,
+            5.0999999940395355
+          ],
+          "window_ms": 365,
+          "sync_ms": 0.19999998807907104,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        },
+        {
+          "id": 14,
+          "event": "input",
+          "trusted": true,
+          "calls": {
+            "scheduleSave": {
+              "count": 1,
+              "inclusive_ms": 0,
+              "synchronous_ms": 0,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            2,
+            5.0999999940395355
+          ],
+          "window_ms": 367.09999999403954,
+          "sync_ms": 0,
+          "replacedNodes": 0,
+          "selected": null,
+          "changedText": [
+            "node-0"
+          ]
+        }
+      ],
+      "save_requests_before_profile": 14,
+      "profile": {
+        "id": 1,
+        "event": "input",
+        "trusted": true,
+        "calls": {
+          "scheduleSave": {
+            "count": 1,
+            "inclusive_ms": 0.09999999403953552,
+            "synchronous_ms": 0.09999999403953552,
+            "following_ms": 0
+          }
+        },
+        "requested": [],
+        "affected": [],
+        "dom_ms": 0,
+        "domCalls": {},
+        "domInclusive": {},
+        "frames": [
+          2.0999999940395355,
+          3.5
+        ],
+        "window_ms": 356.5,
+        "sync_ms": 0.09999999403953552,
+        "replacedNodes": 0,
+        "selected": null,
+        "changedText": [
+          "node-0"
+        ],
+        "cdp_delta": {
+          "TaskDuration": 0.008876000000000002,
+          "ScriptDuration": 0.00019000000000000006,
+          "LayoutDuration": 0.002476,
+          "RecalcStyleDuration": 0.000027000000000000002,
+          "LayoutCount": 1,
+          "RecalcStyleCount": 1
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 0,
+          "layout_ms": 0,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 0.11
+        },
+        "following": {
+          "style_ms": 0,
+          "layout_ms": 0,
+          "paint_ms": 0.577,
+          "raf_ms": 0.041,
+          "timer_ms": 0,
+          "task_ms": 4.63
+        },
+        "sync_trace_ms": 0.11,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    },
+    {
+      "kind": "classic",
+      "action": "select",
+      "count": 1000,
+      "topology": "fanin",
+      "actual": {
+        "nodes": 1000,
+        "edges": 999
+      },
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "synchronous": {
+        "samples_ms": [
+          272.5,
+          339.79999999701977,
+          366.09999999403954,
+          322.6000000089407,
+          279.5,
+          278.59999999403954,
+          277.79999999701977,
+          289.80000001192093,
+          318.79999999701977,
+          337.5,
+          276.20000000298023,
+          280.5
+        ],
+        "p50_ms": 280.5,
+        "p95_ms": 366.09999999403954
+      },
+      "second_frame": {
+        "samples_ms": [
+          300.79999999701977,
+          372.09999999403954,
+          414.70000000298023,
+          366.5,
+          308.90000000596046,
+          306.8999999910593,
+          334.90000000596046,
+          334.70000000298023,
+          361.09999999403954,
+          384.09999999403954,
+          317.30000001192093,
+          313.90000000596046
+        ],
+        "p50_ms": 334.70000000298023,
+        "p95_ms": 414.70000000298023
+      },
+      "samples": [
+        {
+          "id": 3,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 272.5,
+              "synchronous_ms": 272.5,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            288.09999999403954,
+            300.79999999701977
+          ],
+          "window_ms": 673.6999999880791,
+          "sync_ms": 272.5,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 4,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 339.6000000089407,
+              "synchronous_ms": 339.6000000089407,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            355.79999999701977,
+            372.09999999403954
+          ],
+          "window_ms": 732.2999999970198,
+          "sync_ms": 339.79999999701977,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 5,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 365.90000000596046,
+              "synchronous_ms": 365.90000000596046,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            392,
+            414.70000000298023
+          ],
+          "window_ms": 769.2999999970198,
+          "sync_ms": 366.09999999403954,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 6,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 322.6000000089407,
+              "synchronous_ms": 322.6000000089407,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            349.6000000089407,
+            366.5
+          ],
+          "window_ms": 727.9000000059605,
+          "sync_ms": 322.6000000089407,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 7,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 279.5,
+              "synchronous_ms": 279.5,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            294.90000000596046,
+            308.90000000596046
+          ],
+          "window_ms": 675.0999999940395,
+          "sync_ms": 279.5,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 8,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 278.5,
+              "synchronous_ms": 278.5,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            294.59999999403954,
+            306.8999999910593
+          ],
+          "window_ms": 671.5,
+          "sync_ms": 278.59999999403954,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 9,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 277.79999999701977,
+              "synchronous_ms": 277.79999999701977,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            312.1000000089407,
+            334.90000000596046
+          ],
+          "window_ms": 695.2000000029802,
+          "sync_ms": 277.79999999701977,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 10,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 289.70000000298023,
+              "synchronous_ms": 289.70000000298023,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            319.40000000596046,
+            334.70000000298023
+          ],
+          "window_ms": 701,
+          "sync_ms": 289.80000001192093,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 11,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 318.70000000298023,
+              "synchronous_ms": 318.70000000298023,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            344.8999999910593,
+            361.09999999403954
+          ],
+          "window_ms": 714.7999999970198,
+          "sync_ms": 318.79999999701977,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 12,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 337.40000000596046,
+              "synchronous_ms": 337.40000000596046,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            366,
+            384.09999999403954
+          ],
+          "window_ms": 740.5,
+          "sync_ms": 337.5,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 13,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 276.09999999403954,
+              "synchronous_ms": 276.09999999403954,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            297.1000000089407,
+            317.30000001192093
+          ],
+          "window_ms": 685.8000000119209,
+          "sync_ms": 276.20000000298023,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        },
+        {
+          "id": 14,
+          "event": "click",
+          "trusted": true,
+          "calls": {
+            "refreshSelectionVisuals": {
+              "count": 1,
+              "inclusive_ms": 280.5,
+              "synchronous_ms": 280.5,
+              "following_ms": 0
+            }
+          },
+          "requested": [],
+          "affected": [],
+          "dom_ms": 0,
+          "domCalls": {},
+          "domInclusive": {},
+          "frames": [
+            300.80000001192093,
+            313.90000000596046
+          ],
+          "window_ms": 673,
+          "sync_ms": 280.5,
+          "replacedNodes": 0,
+          "selected": [
+            "node-0"
+          ],
+          "changedText": [],
+          "llmEnabled": null
+        }
+      ],
+      "save_calls_before_profile": 14,
+      "save_requests_before_profile": 1,
+      "profile": {
+        "id": 1,
+        "event": "click",
+        "trusted": true,
+        "calls": {
+          "refreshSelectionVisuals": {
+            "count": 1,
+            "inclusive_ms": 344,
+            "synchronous_ms": 344,
+            "following_ms": 0
+          },
+          "renderLinks": {
+            "count": 1,
+            "inclusive_ms": 343.5,
+            "synchronous_ms": 343.5,
+            "following_ms": 0
+          },
+          "portPoint": {
+            "count": 2000,
+            "inclusive_ms": 344.50000001490116,
+            "synchronous_ms": 333.80000001192093,
+            "following_ms": 10.700000002980232
+          }
+        },
+        "requested": [],
+        "affected": [],
+        "dom_ms": 246.49999994039536,
+        "domCalls": {
+          "querySelectorAll": 2006,
+          "querySelector": 6000,
+          "getBoundingClientRect": 67,
+          "setAttribute": 1998,
+          "innerHTML": 3
+        },
+        "domInclusive": {
+          "querySelectorAll": 1.0999999940395355,
+          "querySelector": 32.099999979138374,
+          "getBoundingClientRect": 203.29999996721745,
+          "setAttribute": 5.0999999940395355,
+          "innerHTML": 4.9000000059604645
+        },
+        "frames": [
+          375.8999999910593,
+          393.59999999403954
+        ],
+        "window_ms": 755.7999999970198,
+        "sync_ms": 344.09999999403954,
+        "replacedNodes": 0,
+        "selected": [
+          "node-0"
+        ],
+        "changedText": [],
+        "llmEnabled": null,
+        "cdp_delta": {
+          "TaskDuration": 0.6591290000000001,
+          "ScriptDuration": 0.068115,
+          "LayoutDuration": 0.098462,
+          "RecalcStyleDuration": 0.442554,
+          "LayoutCount": 1001,
+          "RecalcStyleCount": 1003
+        }
+      },
+      "trace": {
+        "synchronous": {
+          "style_ms": 223.57,
+          "layout_ms": 92.563,
+          "paint_ms": 0,
+          "raf_ms": 0,
+          "timer_ms": 0,
+          "task_ms": 344.13
+        },
+        "following": {
+          "style_ms": 9.168,
+          "layout_ms": 2.543,
+          "paint_ms": 11.14,
+          "raf_ms": 39.352,
+          "timer_ms": 1.314,
+          "task_ms": 75.74
+        },
+        "sync_trace_ms": 344.13,
+        "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+      }
+    }
+  ],
+  "resumed_at": [
+    "2026-10-04T18:10:21.320Z",
+    "2026-10-04T18:12:04.715Z"
+  ]
+}
