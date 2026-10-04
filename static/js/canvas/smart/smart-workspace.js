@@ -543,7 +543,7 @@ function canRecycleSmartMediaNode(node, el){
     if(node.running || node.queued || smartNodePendingCount(node) || isNodeSelected(node.id)) return false;
     if(dragState || resizeState || thumbDragState || portDragState || selectionState || smartCascadeAnyRunning()) return false;
     if(el?.contains(document.activeElement) || el?.querySelector('video,audio')) return false;
-    if(imageEditModal?.classList.contains('open') && previewNavState?.nodeId === node.id) return false;
+    if(smartImageEditor.isEditingNode(node.id)) return false;
     if(smartAudioLightbox?.classList.contains('open') && smartAudioLightboxState?.nodeId === node.id) return false;
     return true;
 }
@@ -3511,7 +3511,7 @@ function previewSmartReference(ref){
     }
     if(String(ref.url || '').startsWith('asset://')) return toast('该资产没有可直接播放的预览地址');
     if(ref.kind === 'audio'){
-        if(imageEditModal.classList.contains('open')) closeImageEditor();
+        if(smartImageEditor.state.open) closeImageEditor();
         releaseSmartAudioLightboxPlayer();
         smartAudioLightboxState = {nodeId:'', index:-1};
         smartAudioLightboxTitle.textContent = ref.name || '音频';
@@ -4133,14 +4133,14 @@ function bindSmartWorkspaceGestures(){
     };
     shell.ondblclick = e => {
         if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
-        if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
+        if(smartImageEditor.state.open) return;
         e.preventDefault();
         openCreateMenu(e);
     };
     shell.onclick = e => {
         if(selectionJustFinished) return;
         if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.smart-lock-overlay,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
-        if(document.getElementById('imageEditModal')?.classList.contains('open')) return;
+        if(smartImageEditor.state.open) return;
         closeCreateMenu();
         clearSelection();
         render();
@@ -4187,11 +4187,7 @@ function bindSmartWorkspaceGestures(){
             updateSelectionBox(e);
             return;
         }
-        if(previewCompareDrag){
-            e.preventDefault();
-            setPreviewComparePos(e.clientX);
-            return;
-        }
+        if(smartPreviewGestures.moveCompare(e)) return;
         if(panoramaState.drag){
             e.preventDefault();
             const dx = e.clientX - panoramaState.drag.clientX;
@@ -4201,43 +4197,8 @@ function bindSmartWorkspaceGestures(){
             document.getElementById('previewStage')?.classList.add('panning');
             return;
         }
-        if(previewPanDrag){
-            const stage = document.getElementById('previewStage');
-            previewPan = {
-                x:previewPanDrag.startX + (e.clientX - previewPanDrag.clientX),
-                y:previewPanDrag.startY + (e.clientY - previewPanDrag.clientY)
-            };
-            stage?.classList.add('panning');
-            applyPreviewTransform();
-            return;
-        }
-        if(imageEditPanDrag){
-            const stage = document.getElementById('imageEditStage');
-            if(stage){
-                stage.scrollLeft = imageEditPanDrag.scrollLeft - (e.clientX - imageEditPanDrag.clientX);
-                stage.scrollTop = imageEditPanDrag.scrollTop - (e.clientY - imageEditPanDrag.clientY);
-            }
-            return;
-        }
-        if(cropDrag && cropState){
-            const dx = e.clientX - cropDrag.sx;
-            const dy = e.clientY - cropDrag.sy;
-            if(cropDrag.mode === 'move'){
-                cropState.x = cropDrag.start.x + dx;
-                cropState.y = cropDrag.start.y + dy;
-            } else if(cropDrag.mode === 'image'){
-                cropState.x = cropDrag.start.x + dx;
-                cropState.y = cropDrag.start.y + dy;
-            } else if(String(cropDrag.mode || '').startsWith('outpaint-')){
-                resizeOutpaintFromDrag(dx, dy);
-            } else {
-                cropState.w = cropDrag.start.w + dx;
-                cropState.h = cropDrag.start.h + dy;
-            }
-            clampCrop();
-            renderCropBox();
-            return;
-        }
+        if(smartPreviewGestures.movePan(e)) return;
+        if(smartImageEditor.moveWindowGesture(e)) return;
         if(resizeState){
             const node = nodes.find(n => n.id === resizeState.id);
             if(!node) return;
@@ -4351,20 +4312,13 @@ function bindSmartWorkspaceGestures(){
         }
         if(promptResizeState){ promptResizeState = null; scheduleSave(); }
         if(selectionState) finishSelection(e);
-        if(previewCompareDrag) previewCompareDrag = false;
+        smartPreviewGestures.endCompare();
         if(panoramaState.drag){
             panoramaState.drag = null;
             document.getElementById('previewStage')?.classList.remove('panning');
         }
-        if(previewPanDrag){
-            previewPanDrag = null;
-            document.getElementById('previewStage')?.classList.remove('panning');
-        }
-        if(imageEditPanDrag) imageEditPanDrag = null;
-        if(cropDrag){
-            document.getElementById('cropCanvas')?.classList.remove('dragging-image');
-            cropDrag = null;
-        }
+        smartPreviewGestures.endPan();
+        smartImageEditor.endWindowGesture();
         if(resizeState){
             const node = nodes.find(n => n.id === resizeState.id);
             const rect = node ? nodeRect(node) : null;
@@ -4532,7 +4486,7 @@ function bindSmartWorkspaceGestures(){
         const key = String(e.key || '').toLowerCase();
         if(isSmartCanvasLocked() && (((e.ctrlKey || e.metaKey) && ['v','z','g'].includes(key)) || ['delete','backspace'].includes(key))) return;
         if(key === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
-        if(imageEditModal.classList.contains('open') && imageEditMode === 'preview' && !isEditableTarget(e.target)){
+        if(smartImageEditor.state.open && smartImageEditor.state.mode === 'preview' && !isEditableTarget(e.target)){
             if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){
                 e.preventDefault();
                 if(!seekPreviewVideoFrames(e.key === 'ArrowLeft' ? -1 : 1)){
@@ -4574,7 +4528,7 @@ function bindSmartWorkspaceGestures(){
             closeSmartAudioLightbox();
             return;
         }
-        if(e.key === 'Escape' && imageEditModal.classList.contains('open')){
+        if(e.key === 'Escape' && smartImageEditor.state.open){
             closeImageEditor();
             return;
         }
@@ -4791,3 +4745,5 @@ function finishSmartPromptPanelEdit(canvasId){
     if(canvas?.id !== canvasId) return;
     render(); scheduleSave();
 }
+
+function selectSmartImageEditorTarget(nodeId,index){selectedId=nodeId;selectedImage={nodeId,index};}

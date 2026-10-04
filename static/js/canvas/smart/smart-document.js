@@ -780,7 +780,7 @@ function finishSmartNodeRemoval(deleteIds, affected, forceIds=[]){
         });
         el.remove();
     });
-    if(deleteIds.has(previewNavState?.nodeId) && imageEditModal.classList.contains('open')) closeImageEditor();
+    if(deleteIds.has(smartImageEditor.state.nodeId) && smartImageEditor.state.open) closeImageEditor();
     if(deleteIds.has(smartAudioLightboxState?.nodeId) && smartAudioLightbox.classList.contains('open')) closeSmartAudioLightbox();
     const remaining = [...affected].filter(id => !deleteIds.has(id));
     refreshSmartNodes(remaining, {forceIds});
@@ -824,7 +824,7 @@ function clearNodeMediaBeforeDelete(id){
     selectedId = id;
     selectedIds = [];
     // Clearing the source also invalidates any open preview of its former media.
-    if(previewNavState?.nodeId === id && imageEditModal.classList.contains('open')) closeImageEditor();
+    if(smartImageEditor.state.nodeId === id && smartImageEditor.state.open) closeImageEditor();
     if(smartAudioLightboxState?.nodeId === id && smartAudioLightbox.classList.contains('open')) closeSmartAudioLightbox();
     finishSmartNodeRemoval(deleteIds, affected, [id]);
     scheduleSave();

@@ -1,11 +1,11 @@
-const {readCanvasSource} = require('./helpers/canvas-source.cjs');
+const {readCanvasSource,functionSource} = require('./helpers/canvas-source.cjs');
 // Real HTTP cache/CORS test: Playwright routing disables cache, so use two local origins.
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 const {chromium}=require('playwright');
 const root=path.join(__dirname,'..');
 const source=readCanvasSource(path.join(root,'static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
-function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async ' ? 'async ' : '')+source.slice(start,source.indexOf('\n}',start)+2);}
+function fn(name){return functionSource(source,name).replace(/\belement\(/g,'document.getElementById(');}
 async function fixture(t){
     const hits=[],svg='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="green"/></svg>';
     let allow=true,fail=false,delay=false;const held=[],gatewayHits=[];
@@ -38,6 +38,14 @@ async function fixture(t){
     await page.evaluate(()=>CanvasSession.ready);
     await page.addScriptTag({content:`
         let smartEditableResource=null,smartEditableJob=null,cropState={nodeId:'a'};
+        // This fixture isolates CORS/cache behavior. Full-page editor regressions
+        // exercise the real session tokens, targets, close and write receipts.
+        let loaded=true;
+        function capture(){return {};}
+        function accept(){return true;}
+        function clearSmartEditorPreviewImage(){const img=document.getElementById('previewCurrentImage');img.onload=null;img.onerror=null;img.removeAttribute('src');}
+        function setSmartEditorPreviewSource(url){const img=document.getElementById('previewCurrentImage');img.crossOrigin='anonymous';img.src=url;}
+        function retrySmartEditorPreview(source){if(panoramaState.enabled)loadPanoramaTexture(source);}
         let item={url:'/assets/cloud/sample.svg',kind:'image'};
         let panoramaState={enabled:true,loadToken:0,image:null};
         function currentEditImage(){return {node:{id:'a'},image:item};}

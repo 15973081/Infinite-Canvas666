@@ -9,8 +9,8 @@ function setup(){
     const elements=new Map();
     const ctx=vm.createContext({nodes:[],canvas:{connections:[]},canvasUsesConnections:true,
         selectedId:'',selectedIds:[],selectedImage:{nodeId:'',index:-1},undoStack:[],undoSuppressed:false,UNDO_LIMIT:40,
-        activeComposerSubject:null,lastComposerNodeId:'',previewNavState:{nodeId:''},smartAudioLightboxState:{nodeId:''},
-        imageEditModal:{classList:{contains:()=>true}},smartAudioLightbox:{classList:{contains:()=>true}},smartWorkflowTransferModal:null,
+        activeComposerSubject:null,lastComposerNodeId:'',smartImageEditor:{state:{nodeId:'',open:true}},smartAudioLightboxState:{nodeId:''},
+        smartAudioLightbox:{classList:{contains:()=>true}},smartWorkflowTransferModal:null,
         world:{querySelector:s=>elements.get(s.match(/data-id="(.*)"/)[1])},CSS:{escape:s=>s},
         releaseSmartGroupPreviews:el=>calls.release.push(el.id),closeImageEditor:()=>calls.video++,closeSmartAudioLightbox:()=>calls.audio++,
         refreshSmartNodes:(ids,opts)=>calls.refresh.push({ids:[...ids],forceIds:[...opts.forceIds]}),
@@ -46,14 +46,14 @@ test('bulk deletion is one snapshot/update, undo restores nodes, edges, media an
 });
 test('button clears media first, deletes on second click, refreshes history users and closes lightbox',()=>{
     const {ctx,calls,node,elements}=setup();const a=node('a',{images:[{url:'clip.mp4',kind:'video'}],w:250,h:200});node('h',{historyFor:'a'});node('b',{inputNodeIds:['h']});
-    ctx.canvas.connections=[{from:'a',to:'h',kind:'history'},{from:'h',to:'b',kind:'input'}];ctx.previewNavState.nodeId='a';
+    ctx.canvas.connections=[{from:'a',to:'h',kind:'history'},{from:'h',to:'b',kind:'input'}];ctx.smartImageEditor.state.nodeId='a';
     ctx.deleteNodeFromButton('a');assert.equal(ctx.nodes.includes(a),true);assert.deepEqual(plain(a.images),[]);assert.equal(a.w,undefined);
     assert.equal(elements.has('h'),false);assert.equal(calls.video,1);assert.deepEqual(calls.refresh[0],{ids:['a','b'],forceIds:['a']});
     assert.deepEqual(plain(ctx.nodes.find(n=>n.id==='b').inputNodeIds),[]);assert.equal(ctx.selectedId,'a');
     ctx.deleteNodeFromButton('a');assert.equal(elements.has('a'),false);assert.equal(ctx.undoStack.length,2);
 });
 test('unconnected mention composer is revalidated; unrelated lightbox remains open',()=>{
-    const {ctx,calls,node}=setup();node('a');node('x');ctx.selectedId='x';ctx.previewNavState.nodeId='x';ctx.smartAudioLightboxState.nodeId='x';
+    const {ctx,calls,node}=setup();node('a');node('x');ctx.selectedId='x';ctx.smartImageEditor.state.nodeId='x';ctx.smartAudioLightboxState.nodeId='x';
     ctx.deleteNode('a');assert.equal(calls.composer,1);assert.equal(calls.audio,0);assert.equal(calls.video,0);
 });
 test('removed media resources are released; missing ids do not create undo or redraw',()=>{

@@ -19,4 +19,15 @@ function readCanvasSource(filename, options) {
     return encoding ? source : Buffer.from(source);
 }
 
-module.exports = {readCanvasSource};
+// Function-level legacy tests may inspect a private implementation without exposing
+// it in production. Full-page browser tests cover the actual owner and lifecycle.
+function functionSource(source, name) {
+    const match = new RegExp(`^([ \\t]*)(?:async )?function ${name}\\(`, 'm').exec(source);
+    if(!match) throw new Error(`Missing function ${name}`);
+    const start=match.index, lineEnd=source.indexOf('\n',start);
+    const firstLine=source.slice(start,lineEnd);
+    const end=firstLine.trimEnd().endsWith('}') ? lineEnd : source.indexOf('\n'+match[1]+'}',start)+match[1].length+2;
+    return source.slice(start,end).replace(new RegExp('^'+match[1], 'gm'),'');
+}
+
+module.exports = {readCanvasSource,functionSource};

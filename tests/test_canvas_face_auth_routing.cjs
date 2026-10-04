@@ -1,4 +1,4 @@
-const {readCanvasSource} = require('./helpers/canvas-source.cjs');
+const {readCanvasSource,functionSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -21,9 +21,7 @@ function load(file, context, names) {
     names = [...names, ...(file === 'canvas.js' ? ['setCanvasAssetLibraryFromResponse','canvasFaceAuthState'] : ['smartFaceAuthState'])];
     const source = readCanvasSource(path.join(__dirname, '../static/js', file), 'utf8').replace(/\r\n/g, '\n');
     for (const name of names) {
-        const start = source.search(new RegExp(`^(?:async )?function ${name}\\(`, 'm'));
-        assert.ok(start >= 0, name);
-        vm.runInContext(source.slice(start, source.indexOf('\n}', start) + 2), context);
+        vm.runInContext(functionSource(source,name), context);
     }
 }
 const verified = () => ({url:'/output/original.png', name:'person', kind:'image',
@@ -202,7 +200,7 @@ test('classic: replacing an authenticated image clears the binding and green mar
     assert.equal(c.image.face_auth_status,undefined);
 });
 test('smart: editing an authenticated image clears its binding',()=>{
-    const s=smart(); Object.assign(s.context,{currentEditImage:()=>({node:s.owner,index:0}),mediaKindForItem:()=> 'image'});
+    const s=smart(); Object.assign(s.context,{currentEditImage:()=>({node:s.owner,index:0}),mediaKindForItem:()=> 'image',selectSmartImageEditorTarget(){}});
     load('smart-canvas.js',s.context,['replaceEditedImage']);
     s.context.replaceEditedImage({url:'/edited.png',name:'edited'});
     assert.equal(s.owner.images[0].asset_uris.volcengine,undefined);

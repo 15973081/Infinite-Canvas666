@@ -22,7 +22,6 @@ const fileInput = document.getElementById('fileInput');
 const apiKindToggle = document.getElementById('apiKindToggle');
 const inputThumbsRow = document.getElementById('inputThumbsRow');
 const inputPromptPreview = document.getElementById('inputPromptPreview');
-const imageEditModal = document.getElementById('imageEditModal');
 const smartAudioLightbox = document.getElementById('smartAudioLightbox');
 const smartAudioLightboxTitle = document.getElementById('smartAudioLightboxTitle');
 const smartAudioLightboxHost = document.getElementById('smartAudioLightboxHost');
@@ -122,43 +121,8 @@ let undoSuppressed = false;
 let pendingUndoSnapshot = null;
 
 let comfyWorkflowCache = {};
-let cropState = null;
-let cropDrag = null;
-let imageEditMode = 'crop';
-let imageEditModeTouched = false;
-let editDrawState = null;
-let editTextItems = [];
-let editTextSelectedId = '';
-let editTextDrag = null;
-let editTextDirty = false;
-let editTextInlineEditor = null;
-let editDrawUndoStack = [];
-let editDrawRedoStack = [];
-const EDIT_DRAW_HISTORY_MAX = 40;
-let brushTool = 'free';
-let brushLabelCounter = 1;
-let gridCustomMode = false;
-let gridCustomLines = [];
-let gridCustomOrientation = 'h';
-let gridCustomHistory = [];
-let gridCustomDrag = null;
-let gridOperationMode = 'split';
-let gridJoinLayout = null;
-let gridJoinDrag = null;
-let gridJoinImageCache = new Map();
-let gridJoinUserMoved = false;
-let gridJoinOutputSize = 2048;
-let imageEditZoom = 1.0;
-let imageEditBaseW = 0;
-let imageEditBaseH = 0;
-let previewZoom = 1.0;
-let previewPan = {x:0, y:0};
-let previewPanDrag = null;
-let previewCompareDrag = false;
-let previewComparePos = 50;
-let imageEditPanDrag = null;
-let previewNavState = {nodeId:'', index:0, count:0};
-let detachedEditPreview = null;
+const smartImageEditor = createSmartImageEditor();
+const smartPreviewGestures = createSmartPreviewGestures();
 const VIDEO_TRIM_MIN_DURATION = 0.1;
 let videoTrimState = {active:false, start:0, end:0, duration:0, previewing:false, busy:false, sourceUrl:''};
 const PANORAMA_RATIO_PRESETS = {
@@ -385,7 +349,10 @@ async function loadCanvas(options={}){
         if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
             !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
         smartMinimap.reset();
-        if(!options.observe || canvas?.id !== data.canvas.id) smartPromptPanels.reset();
+        if(!options.observe || canvas?.id !== data.canvas.id){
+            smartPromptPanels.reset();
+            smartImageEditor.reset();
+        }
         canvas = data.canvas;
         smartServerNodeIds = new Set((Array.isArray(canvas.nodes) ? canvas.nodes : []).map(node => node?.id).filter(Boolean));
         smartServerConnectionKeys = new Set((Array.isArray(canvas.connections) ? canvas.connections : []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));
@@ -478,11 +445,7 @@ let previewCompareOn = false;
 let previewCompareIndex = -1;
 let previewMetaExtraText = '';
 
-const MASK_BRUSH_ALPHA = 115;
-const MASK_BRUSH_COLOR = `rgba(255,255,255,${MASK_BRUSH_ALPHA / 255})`;
 
-let smartEditableResource = null;
-let smartEditableJob = null;
 let smartImageToolBusy = false;
 
 const SMART_IMAGE_DROP_EXT_RE = /\.(png|jpe?g|webp|gif)$/i;

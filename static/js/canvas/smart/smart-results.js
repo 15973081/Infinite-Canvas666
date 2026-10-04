@@ -32,7 +32,7 @@ function openSmartAudioLightbox(nodeId, imageIndex=0){
     const index = Math.max(0, Number(imageIndex) || 0);
     const image = node?.images?.[index];
     if(mediaKindForItem(image || {}) !== 'audio' || !image?.url) return false;
-    if(imageEditModal.classList.contains('open')) closeImageEditor();
+    if(smartImageEditor.state.open) closeImageEditor();
     selectedId = nodeId;
     selectedIds = [];
     selectedImage = {nodeId, index};
@@ -137,8 +137,8 @@ function downloadNameForMediaItem(item, fallbackPrefix='canvas-output'){
 }
 
 function downloadPreviewImage(){
-    const node = nodes.find(n => n.id === previewNavState.nodeId);
-    const image = node?.images?.[previewNavState.index];
+    const node = nodes.find(n => n.id === smartImageEditor.state.nodeId);
+    const image = node?.images?.[smartImageEditor.state.imageIndex];
     if(!image?.url) return;
     const name = downloadNameForMediaItem(image, 'image');
     try{if(window.MemberMediaDownload?.(image.url,name))return;}catch(error){toast(error.message || 'Download failed');return;}
@@ -163,7 +163,7 @@ function downloadPreviewFile(item){
 }
 
 function previewDownloadGroupItems(){
-    const node = nodes.find(n => n.id === previewNavState.nodeId);
+    const node = nodes.find(n => n.id === smartImageEditor.state.nodeId);
     return (node?.images || [])
         .filter(item => item?.url)
         .map((item, index) => ({...item, __index:index}))
@@ -178,7 +178,7 @@ function previewDownloadGroupItems(){
 }
 
 async function downloadPreviewGroup(){
-    const node = nodes.find(n => n.id === previewNavState.nodeId);
+    const node = nodes.find(n => n.id === smartImageEditor.state.nodeId);
     const items = previewDownloadGroupItems();
     if(!items.length) return;
     try {
@@ -406,9 +406,8 @@ function smartLogPreviewNode(url, kind='image'){
     const node = {id:'__smart_log_preview__', type:'smart-image', images:[{url, name:'log-preview', kind}], title:kind === 'video' ? 'Video' : 'Image'};
     const prevSelectedId = selectedId;
     const prevSelectedImage = {...selectedImage};
-    detachedEditPreview = {node, index:0, image:node.images[0]};
     nodes.push(node);
-    try { openImageEditor(node.id, 0); }
+    try { smartImageEditor.openDetached(node, 0); }
     finally {
         nodes = nodes.filter(n => n.id !== node.id);
         selectedId = prevSelectedId;
@@ -562,21 +561,9 @@ function refreshRunTimerPills(){
     if(!active && runTimerInterval){ clearInterval(runTimerInterval); runTimerInterval = null; }
 }
 
-function applyPreviewTransform(){
-    const frame = document.getElementById('previewFrame');
-    if(frame){
-        frame.style.transform = panoramaState.enabled ? '' : `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`;
-    }
-    updateZoomLabel();
-}
+function applyPreviewTransform(...args){return smartPreviewGestures.applyPreviewTransform(...args);}
 
-function resetPreviewTransform(){
-    previewZoom = 1.0;
-    previewPan = {x:0, y:0};
-    previewComparePos = 50;
-    document.getElementById('previewStage')?.style.setProperty('--compare-pos', `${previewComparePos}%`);
-    applyPreviewTransform();
-}
+function resetPreviewTransform(...args){return smartPreviewGestures.resetPreviewTransform(...args);}
 
 function panoramaRatioValue(){
     const preset = PANORAMA_RATIO_PRESETS[panoramaState.ratio];
@@ -823,8 +810,7 @@ function setPanoramaEnabled(enabled){
     if(compareThumbs && next){ compareThumbs.style.display = 'none'; compareThumbs.innerHTML = ''; }
     previewCompareOn = next ? false : previewCompareOn;
     if(next){
-        previewPan = {x:0, y:0};
-        previewZoom = 1.0;
+        smartPreviewGestures.resetPose();
         applyPreviewTransform();
         resizePanoramaViewer();
         loadPanoramaTexture(panoramaSource());
@@ -916,7 +902,7 @@ function setPreviewComparePos(clientX){
     if(!frame || !stage) return;
     const rect = frame.getBoundingClientRect();
     const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / Math.max(1, rect.width)) * 100));
-    previewComparePos = pct;
+    smartPreviewGestures.setComparePosition(pct);
     stage.style.setProperty('--compare-pos', `${pct}%`);
 }
 
@@ -1017,7 +1003,7 @@ function refreshComparePanel(){
     const editing = currentEditImage();
     const curUrl = editing.image?.url || '';
     const isVideoPreview = mediaKindForItem(editing.image || {}) === 'video';
-    const isPreviewMode = imageEditMode === 'preview';
+    const isPreviewMode = smartImageEditor.state.mode === 'preview';
     if(panoramaToggle){
         panoramaToggle.style.display = isPreviewMode && !isVideoPreview ? 'inline-flex' : 'none';
         panoramaToggle.classList.toggle('active', panoramaState.enabled);
@@ -1035,11 +1021,11 @@ function refreshComparePanel(){
         updatePreviewMetaHint('360全景：拖动转动，滚轮缩放，可调整视窗比例');
         return;
     }
-    const onCurrentLoaded = () => {
+    const onCurrentLoaded = smartImageEditor.guardPreviewCallback(() => {
         rememberPreviewImageResolution();
         syncPreviewFrameSize();
         updatePreviewMetaHint();
-    };
+    });
     if(isVideoPreview){
         currentImg.onload = null;
         currentImg.onerror = null;
@@ -1055,7 +1041,7 @@ function refreshComparePanel(){
                 currentVideo.src = previewSrc;
                 currentVideo.load?.();
             }
-            if(currentVideo.readyState >= 1) requestAnimationFrame(onCurrentLoaded);
+            if(currentVideo.readyState >= 1) smartImageEditor.schedulePreviewFrame(onCurrentLoaded);
         }
         previewCompareOn = false;
         previewCompareIndex = -1;
@@ -1086,7 +1072,7 @@ function refreshComparePanel(){
     currentImg.onload = onCurrentLoaded;
     currentImg.onerror = null;
     ensureSmartEditableImage().catch(() => {});
-    if(currentImg.complete && currentImg.naturalWidth) requestAnimationFrame(onCurrentLoaded);
+    if(currentImg.complete && currentImg.naturalWidth) smartImageEditor.schedulePreviewFrame(onCurrentLoaded);
     const sources = previewCompareSources();
     const hasSource = sources.length > 0;
     if(toggle){
@@ -1109,7 +1095,7 @@ function refreshComparePanel(){
     if(sliderActive){
         const src = sources[previewCompareIndex];
         compareImg.src = src?.url || '';
-        compareImg.onload = syncPreviewFrameSize;
+        compareImg.onload = smartImageEditor.guardPreviewCallback(syncPreviewFrameSize);
         syncPreviewFrameSize();
         stage.classList.add('compare-on');
         if(compareLayer) compareLayer.style.display = '';
@@ -1150,7 +1136,7 @@ function togglePreviewCompare(){
 }
 
 function currentPreviewVideo(){
-    if(!imageEditModal.classList.contains('open')) return null;
+    if(!smartImageEditor.state.open) return null;
     if(mediaKindForItem(currentEditImage().image || {}) !== 'video') return null;
     return document.getElementById('previewCurrentVideo');
 }
@@ -1505,23 +1491,14 @@ async function applyVideoTrim(){
 }
 
 function updatePreviewNavButtons(){
-    const node = nodes.find(n => n.id === previewNavState.nodeId);
+    const node = nodes.find(n => n.id === smartImageEditor.state.nodeId);
     const count = Math.max(0, (node?.images || []).filter(img => img?.url).length);
-    previewNavState.count = count;
-    const show = imageEditModal.classList.contains('open') && imageEditMode === 'preview' && count > 1;
+    const show = smartImageEditor.state.open && smartImageEditor.state.mode === 'preview' && count > 1;
     document.getElementById('previewPrevBtn')?.classList.toggle('visible', show);
     document.getElementById('previewNextBtn')?.classList.toggle('visible', show);
 }
 
-function navigatePreviewImage(delta){
-    if(!imageEditModal.classList.contains('open') || imageEditMode !== 'preview') return;
-    const node = nodes.find(n => n.id === previewNavState.nodeId);
-    const images = (node?.images || []).filter(img => img?.url);
-    if(!node || images.length <= 1) return;
-    const count = images.length;
-    const next = (Number(previewNavState.index || 0) + Number(delta || 0) + count) % count;
-    openImageEditor(node.id, next);
-}
+function navigatePreviewImage(delta){return smartImageEditor.navigate(delta);}
 
 function openImagePreview(nodeId, imageIndex=0){
     const node = nodes.find(n => n.id === nodeId);
@@ -1532,66 +1509,10 @@ function openImagePreview(nodeId, imageIndex=0){
 }
 
 // Called once by smart-canvas.js, at its original initialization position.
-function bindSmartPreviewPanEvents(){
-    document.getElementById('previewStage').addEventListener('mousedown', event => {
-        if(imageEditMode !== 'preview' || event.button !== 0) return;
-        if(event.target.closest('.preview-tools-overlay, .preview-download-overlay')) return;
-        if(event.target.closest('.preview-compare-handle')) return;
-        if(event.target.closest('video')) return;
-        event.preventDefault();
-        event.stopPropagation();
-        if(panoramaState.enabled){
-            panoramaState.drag = {
-                clientX:event.clientX,
-                clientY:event.clientY,
-                yaw:panoramaState.yaw,
-                pitch:panoramaState.pitch
-            };
-            document.getElementById('previewStage')?.classList.add('panning');
-            return;
-        }
-        previewPanDrag = {clientX:event.clientX, clientY:event.clientY, startX:previewPan.x, startY:previewPan.y};
-    });
-}
+function bindSmartPreviewPanEvents(...args){return smartPreviewGestures.bindSmartPreviewPanEvents(...args);}
 
 // Called once by smart-canvas.js, at its original initialization position.
-function bindSmartPreviewCompareEvents(){
-    document.getElementById('previewCompareHandle').addEventListener('mousedown', event => {
-        if(imageEditMode !== 'preview' || !previewCompareOn || previewCompareIndex < 0) return;
-        event.preventDefault();
-        event.stopPropagation();
-        previewPanDrag = null;
-        previewCompareDrag = true;
-        setPreviewComparePos(event.clientX);
-    });
-    document.getElementById('previewCompareHandle').addEventListener('pointerdown', event => {
-        if(imageEditMode !== 'preview' || !previewCompareOn || previewCompareIndex < 0) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-        previewPanDrag = null;
-        previewCompareDrag = true;
-        setPreviewComparePos(event.clientX);
-    });
-    document.getElementById('previewCompareHandle').addEventListener('pointermove', event => {
-        if(!previewCompareDrag) return;
-        event.preventDefault();
-        event.stopPropagation();
-        setPreviewComparePos(event.clientX);
-    });
-    document.getElementById('previewCompareHandle').addEventListener('pointerup', event => {
-        if(previewCompareDrag){
-            event.preventDefault();
-            event.stopPropagation();
-        }
-        previewCompareDrag = false;
-        event.currentTarget.releasePointerCapture?.(event.pointerId);
-    });
-    document.getElementById('previewCompareHandle').addEventListener('pointercancel', event => {
-        previewCompareDrag = false;
-        event.currentTarget.releasePointerCapture?.(event.pointerId);
-    });
-}
+function bindSmartPreviewCompareEvents(...args){return smartPreviewGestures.bindSmartPreviewCompareEvents(...args);}
 
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartPanoramaControls(){
@@ -1611,4 +1532,171 @@ function bindSmartPanoramaControls(){
             resizePanoramaViewer();
         });
     });
+}
+
+function createSmartPreviewGestures(){
+    let previewZoom = 1.0;
+    let previewPan = {x:0, y:0};
+    let previewPanDrag = null;
+    let previewCompareDrag = false;
+    let previewComparePos = 50;
+
+    let paused=false,destroyed=false,captured=null;
+    const records=new Map();
+    function clear(scope){for(const [el,type,fn,options] of records.get(scope)||[])el.removeEventListener(type,fn,options);records.delete(scope);}
+    function usable(){return !destroyed && !paused && smartImageEditor.isPreviewing();}
+    function listen(scope,el,type,fn,options){if(!el)return;const handler=e=>{if(usable())fn(e);};el.addEventListener(type,handler,options);if(!records.has(scope))records.set(scope,[]);records.get(scope).push([el,type,handler,options]);}
+    function endCompare(){previewCompareDrag=false;if(captured){try{if(captured.el.hasPointerCapture?.(captured.id))captured.el.releasePointerCapture(captured.id);}catch{}}captured=null;}
+    function endPan(){if(previewPanDrag)document.getElementById('previewStage')?.classList.remove('panning');previewPanDrag=null;}
+    function cancel(){endCompare();endPan();}
+    function pause(){if(destroyed)return;cancel();for(const scope of [...records.keys()])clear(scope);paused=true;}
+    function resume(){if(destroyed)return;paused=false;bindSmartPreviewPanEvents();bindSmartPreviewCompareEvents();}
+    function destroy(){pause();destroyed=true;}
+    function moveCompare(event){if(!previewCompareDrag)return false;if(!usable()){cancel();return false;}event.preventDefault();setPreviewComparePos(event.clientX);return true;}
+    function movePan(event){if(!previewPanDrag)return false;if(!usable()){cancel();return false;}
+        if(previewPanDrag){
+            const stage = document.getElementById('previewStage');
+            previewPan = {
+                x:previewPanDrag.startX + (event.clientX - previewPanDrag.clientX),
+                y:previewPanDrag.startY + (event.clientY - previewPanDrag.clientY)
+            };
+            stage?.classList.add('panning');
+            applyPreviewTransform();
+            return true;
+        }
+
+        return false;
+    }
+    function zoom(event){if(!usable())return;
+
+        if(seekPreviewVideoFrames(event.deltaY > 0 ? 1 : -1)) return;
+        if(panoramaState.enabled){
+            const factor = event.deltaY < 0 ? 0.92 : 1 / 0.92;
+            panoramaState.fov = Math.max(35, Math.min(100, panoramaState.fov * factor));
+            updateZoomLabel();
+            return;
+        }
+        const oldZoom = previewZoom;
+        const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+        previewZoom = Math.max(0.05, previewZoom * factor);
+        const frame = document.getElementById('previewFrame');
+        const rect = frame?.getBoundingClientRect();
+        if(rect){
+            const originX = event.clientX - rect.left - rect.width / 2;
+            const originY = event.clientY - rect.top - rect.height / 2;
+            const ratio = previewZoom / oldZoom;
+            previewPan.x -= originX * (ratio - 1);
+            previewPan.y -= originY * (ratio - 1);
+        }
+        applyPreviewTransform();
+        return;
+
+    }
+    function bindSmartPreviewPanEvents(){
+        if(paused || destroyed)return;
+        clear('bindSmartPreviewPanEvents');
+        listen('bindSmartPreviewPanEvents', document.getElementById('previewStage'), 'mousedown', event => {
+            if(smartImageEditor.state.mode !== 'preview' || event.button !== 0) return;
+            if(event.target.closest('.preview-tools-overlay, .preview-download-overlay')) return;
+            if(event.target.closest('.preview-compare-handle')) return;
+            if(event.target.closest('video')) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if(panoramaState.enabled){
+                panoramaState.drag = {
+                    clientX:event.clientX,
+                    clientY:event.clientY,
+                    yaw:panoramaState.yaw,
+                    pitch:panoramaState.pitch
+                };
+                document.getElementById('previewStage')?.classList.add('panning');
+                return;
+            }
+            previewPanDrag = {clientX:event.clientX, clientY:event.clientY, startX:previewPan.x, startY:previewPan.y};
+        });
+    }
+    function bindSmartPreviewCompareEvents(){
+        if(paused || destroyed)return;
+        clear('bindSmartPreviewCompareEvents');
+        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'mousedown', event => {
+            if(smartImageEditor.state.mode !== 'preview' || !previewCompareOn || previewCompareIndex < 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            previewPanDrag = null;
+            previewCompareDrag = true;
+            setPreviewComparePos(event.clientX);
+        });
+        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointerdown', event => {
+            if(smartImageEditor.state.mode !== 'preview' || !previewCompareOn || previewCompareIndex < 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            captured={el:event.currentTarget,id:event.pointerId};
+            event.currentTarget.setPointerCapture?.(event.pointerId);
+            previewPanDrag = null;
+            previewCompareDrag = true;
+            setPreviewComparePos(event.clientX);
+        });
+        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointermove', event => {
+            if(!previewCompareDrag) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setPreviewComparePos(event.clientX);
+        });
+        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointerup', event => {
+            if(previewCompareDrag){
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            previewCompareDrag = false;
+            endCompare();
+        });
+        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointercancel', event => {
+            previewCompareDrag = false;
+            endCompare();
+        });
+    }
+    function applyPreviewTransform(){
+        if(destroyed)return;
+        const frame = document.getElementById('previewFrame');
+        if(frame){
+            frame.style.transform = panoramaState.enabled ? '' : `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`;
+        }
+        updateZoomLabel();
+    }
+    function resetPreviewTransform(){
+        if(destroyed)return;
+        previewZoom = 1.0;
+        previewPan = {x:0, y:0};
+        previewComparePos = 50;
+        document.getElementById('previewStage')?.style.setProperty('--compare-pos', `${previewComparePos}%`);
+        applyPreviewTransform();
+    }
+    return Object.freeze({get state(){return Object.freeze({zoom:previewZoom,pan:Object.freeze({...previewPan}),comparePos:previewComparePos,dragging:Boolean(previewPanDrag||previewCompareDrag)});},
+        bindSmartPreviewPanEvents,bindSmartPreviewCompareEvents,applyPreviewTransform,resetPreviewTransform,moveCompare,movePan,endCompare,endPan,cancel,pause,resume,destroy,zoom,
+        resetPose(){if(!destroyed){previewZoom=1;previewPan={x:0,y:0};}},setComparePosition(value){if(!destroyed)previewComparePos=value;}});
+}
+function smartEditorPreviewState(){return Object.freeze({panoramaEnabled:panoramaState.enabled,fov:panoramaState.fov,dragging:Boolean(panoramaState.drag||smartPreviewGestures.state.dragging)});}
+function prepareSmartEditorPreview(){
+    if(smartAudioLightbox.classList.contains('open'))closeSmartAudioLightbox();
+    resetVideoTrimState();previewCompareOn=false;previewCompareIndex=-1;disposePanoramaPreview();smartPreviewGestures.cancel();resetPreviewTransform();
+}
+function leaveSmartEditorPreview(){smartPreviewGestures.cancel();if(panoramaState.enabled)disposePanoramaPreview();}
+function clearSmartEditorPreviewImage(){const img=document.getElementById('previewCurrentImage');if(img){img.onload=null;img.onerror=null;img.removeAttribute('src');}}
+function setSmartEditorPreviewSource(url){const img=document.getElementById('previewCurrentImage');if(img){img.crossOrigin='anonymous';img.src=url;}}
+function releaseSmartEditorPreview(){
+    clearSmartEditorPreviewImage();resetVideoTrimState();disposePanoramaPreview();smartPreviewGestures.cancel();resetPreviewTransform();
+    for(const id of ['previewCurrentImage','previewCompareImage','previewCurrentVideo']){const el=document.getElementById(id);if(!el)continue;window.CanvasMediaLoader?.unwatch(el);el.onload=null;el.onerror=null;el.onloadedmetadata=null;el.onloadeddata=null;el.pause?.();el.removeAttribute('src');if(id==='previewCurrentVideo'){el.load?.();el.style.display='none';}}
+}
+function zoomSmartEditorPreview(event){return smartPreviewGestures.zoom(event);}
+function resizeSmartEditorPreview(){if(panoramaState.enabled)resizePanoramaViewer();}
+function retrySmartEditorPreview(source){if(panoramaState.enabled)loadPanoramaTexture(source);}
+
+function pauseSmartEditorPreview(){
+    for(const id of ['previewCurrentImage','previewCompareImage','previewCurrentVideo']){
+        const media=document.getElementById(id);if(!media)continue;
+        window.CanvasMediaLoader?.unwatch(media);media.onload=null;media.onerror=null;media.onloadedmetadata=null;media.onloadeddata=null;media.pause?.();
+    }
+    // This releases the existing renderer through its existing lifecycle entry.
+    // Its algorithms, export and controls remain owned by results.
+    if(panoramaState.enabled)disposePanoramaPreview();
 }

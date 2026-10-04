@@ -34,7 +34,7 @@ for(const [file,name,next] of [['canvas.js','downloadUrl','setOutputCompareMode'
   const {win,links}=fixture();win.MemberMediaDownload=(url,name)=>media.download(url,name,win);
   const source=readCanvasSource('static/js/'+file,'utf8');
   const start=source.indexOf((name==='downloadUrl'?'async ':'')+'function '+name+'('),end=source.indexOf('function '+next+'(',start);
-  const ctx={window:win,nodes:[{id:'n',images:[{url:'/assets/cloud/ast_abc/x.png'}]}],previewNavState:{nodeId:'n',index:0},downloadNameForMediaItem:()=> 'x.png'};
+  const ctx={window:win,nodes:[{id:'n',images:[{url:'/assets/cloud/ast_abc/x.png'}]}],smartImageEditor:{state:{nodeId:'n',imageIndex:0}},downloadNameForMediaItem:()=> 'x.png'};
   vm.runInNewContext(source.slice(start,end),ctx);
   if(name==='downloadUrl')await ctx[name]('/assets/cloud/ast_abc/x.png','x.png');
   else ctx[name]({url:'/assets/cloud/ast_abc/x.png'});
