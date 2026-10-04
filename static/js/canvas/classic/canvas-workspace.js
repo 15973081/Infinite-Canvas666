@@ -3829,7 +3829,7 @@ function refreshSelectionVisuals(){
     nodesEl.querySelectorAll('.node').forEach(el => {
         el.classList.toggle('selected', selected.has(el.dataset.id));
     });
-    renderLinks();
+    classicWorkspaceView.refreshSelectionLinks();
     renderSelectionHub();
     if(workflowTransferModal?.classList.contains('open')) updateWorkflowTransferMeta();
     scheduleMinimapRender();
@@ -4302,7 +4302,7 @@ function createClassicWorkspaceView(){
         canvasInputViewCache.set(container, {node, signature});
     }
 
-    function renderLinksImpl(nodeIds=null){
+    function renderLinksImpl(nodeIds=null, readPortsFirst=false){
         const dirty = nodeIds === null ? null : new Set(nodeIds);
         const nodeById = new Map(nodes.map(node => [node.id, node]));
         const points = {in:new Map(), out:new Map()};
@@ -4310,6 +4310,10 @@ function createClassicWorkspaceView(){
             if(!points[kind].has(id)) points[kind].set(id, portPoint(id, kind, nodeById));
             return points[kind].get(id);
         };
+        if(readPortsFirst){
+            // Selection keeps live geometry, but reads all endpoints before SVG/control writes.
+            connections.forEach(c => { pointFor(c.from, 'out'); pointFor(c.to, 'in'); });
+        }
         const liveIds = new Set();
         connections.forEach(c => {
             liveIds.add(c.id);
@@ -4356,6 +4360,7 @@ function createClassicWorkspaceView(){
         reset,bind,pause,resume,destroy,
         scheduleViewport:(...args)=>view(scheduleViewportRefreshImpl,args),scheduleGeometry:(...args)=>view(scheduleGeometryRefreshImpl,args),
         flushGeometry:(...args)=>view(flushScheduledGeometryRefreshImpl,args),renderLinks:(...args)=>view(renderLinksImpl,args),
+        refreshSelectionLinks:()=>view(renderLinksImpl,[null,true]),
         inputCurrent:(...args)=>{if(destroyed)return false;checkDocument();return isCanvasInputViewCurrentImpl(...args);},
         rememberInput:(...args)=>{if(destroyed)return;checkDocument();return rememberCanvasInputViewImpl(...args);}
     });

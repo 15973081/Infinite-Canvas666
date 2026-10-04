@@ -8,6 +8,9 @@ const output=path.resolve(option('--output','.local/canvas-interaction-diagnosti
 const samples=Number(option('--samples',12));
 assert(Number.isInteger(samples)&&samples>=2);
 const boxMode=option('--box-mode','full');assert(['full','selection'].includes(boxMode));
+const alternateEmptyBox=args.includes('--alternate-empty-box');
+const counts=args.includes('--counts')?option('--counts').split(',').map(Number):null;
+if(counts)assert(counts.length&&counts.every(n=>Number.isInteger(n)&&n>0));
 const repositoryHead=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 const commit=option('--baseline-commit',repositoryHead);
 const summary=values=>{const sorted=[...values].sort((a,b)=>a-b);return {samples_ms:values,p50_ms:sorted[Math.ceil(sorted.length*.5)-1],p95_ms:sorted[Math.ceil(sorted.length*.95)-1]};};
@@ -101,7 +104,7 @@ async function prepare(page,scenario){
     }
     if(action==='box'){
         // Ctrl + background drag; release is the measured action, not synthetic dispatch.
-        await page.keyboard.down('Control');await page.mouse.move(85,115);await page.mouse.down();await page.mouse.move(440,410,{steps:3});
+        await page.keyboard.down('Control');await page.mouse.move(scenario.emptyBox?50:85,scenario.emptyBox?750:115);await page.mouse.down();await page.mouse.move(scenario.emptyBox?80:440,scenario.emptyBox?780:410,{steps:3});
         assert(await page.evaluate(()=>Boolean(selectDrag)),'background gesture must start a selection');
     }else if(action==='input'){
         const selector=kind==='classic'?`[data-id="node-${target}"] textarea`:`[data-id="node-${target}"] .prompt-node-text`;
@@ -136,7 +139,7 @@ async function finish(page,scenario){
     },scenario.kind);
     assert.equal(row.trusted,true);assert.equal(row.frames.length,2);assert(Number.isFinite(row.sync_ms));
     if(scenario.action==='box'){
-        assert.deepEqual(row.selected,['node-0']);assert.equal(row.calls.scheduleSave?.count||0,0);
+        assert.deepEqual(row.selected,scenario.emptyBox?[]:['node-0']);assert.equal(row.calls.scheduleSave?.count||0,0);
         assert.equal(row.calls.render?.count||0,boxMode==='full'?1:0);
         assert.equal(row.calls.refreshSelectionVisuals?.count||0,boxMode==='selection'?1:0);
         assert.equal(row.replacedNodes,boxMode==='selection'?0:scenario.count);
@@ -144,6 +147,7 @@ async function finish(page,scenario){
     if(scenario.action==='select'){assert(row.selected.includes('node-0'));assert.equal(row.calls.render?.count||0,0);assert.equal(row.calls.refreshSelectionVisuals?.count,1);assert.equal(row.calls.scheduleSave?.count||0,0);assert.equal(row.replacedNodes,0);}
     if(scenario.action==='toggle'){assert.equal(row.calls.refreshSmartNodes?.count,1);assert.equal(row.calls.scheduleSave?.count,1);}
     if(scenario.action==='input'){assert.equal(row.calls.render?.count||0,0);assert.equal(row.calls.refreshSmartNodes?.count||0,0);assert.equal(row.changedText.length,1);assert.equal(row.replacedNodes,0);assert.equal(row.calls.scheduleSave?.count,1);}
+    if(scenario.action==='box')row.empty_box=Boolean(scenario.emptyBox);
     return row;
 }
 async function readTrace(cdp){
@@ -174,7 +178,8 @@ async function run(scenario){
         const actual=await seed(page,scenario.kind,scenario.count,scenario.topology,scenario.target||0);
         await install(page,scenario.kind,false,scenario.action);const rows=[];
         for(let i=0;i<samples+2;i++){
-            await prepare(page,scenario);await gesture(page,scenario);const row=await finish(page,scenario);
+            const iteration={...scenario,emptyBox:alternateEmptyBox&&scenario.action==='box'&&i%2===1};
+            await prepare(page,iteration);await gesture(page,iteration);const row=await finish(page,iteration);
             // Let the original debounce/save complete outside the measured frame window.
             await page.waitForTimeout(scenario.action==='box'?50:scenario.kind==='classic'?1250:200);
             if(i>=2)rows.push(row);
@@ -208,7 +213,7 @@ async function run(scenario){
     }finally{for(const close of cleanup.reverse())await close();}
 }
 (async()=>{
-    let report={baseline_commit:commit,box_mode:boxMode,measured_at:new Date().toISOString(),environment:{cpu:os.cpus()[0].model,logical_cpus:os.cpus().length,platform:os.platform(),release:os.release(),node:process.version,viewport:'1280x900',headless:true,samples,warmups:2},
+    let report={baseline_commit:commit,box_mode:boxMode,alternate_empty_box:alternateEmptyBox,measured_at:new Date().toISOString(),environment:{cpu:os.cpus()[0].model,logical_cpus:os.cpus().length,platform:os.platform(),release:os.release(),node:process.version,viewport:'1280x900',headless:true,samples,warmups:2},
         method:'Trusted Playwright gestures on production HTML/scripts. Fixed API and text-only synthetic documents. No replaced save implementation. Lean timings include event handler through first microtask, then first/second RAF arrival; 350ms follow-up window. Profile is a separate instrumented CDP trace, excluded from percentiles. Second RAF is a presentation opportunity, not physical display latency.',results:[]};
     const scenarios=[
         {kind:'classic',action:'box',count:100,topology:'fanin'},
@@ -224,9 +229,10 @@ async function run(scenario){
         report=JSON.parse(fs.readFileSync(output,'utf8'));
         assert.equal(report.baseline_commit,commit);assert.equal(report.environment.samples,samples);
         assert.equal(report.box_mode||'full',boxMode);
+        assert.equal(report.alternate_empty_box||false,alternateEmptyBox);
         (report.resumed_at??=[]).push(new Date().toISOString());
     }
-    for(const scenario of scenarios.filter(s=>!args.includes('--only')||s.kind===option('--only')||`${s.kind}-${s.action}`===option('--only'))){
+    for(const scenario of scenarios.filter(s=>(!counts||counts.includes(s.count))&&(!args.includes('--only')||s.kind===option('--only')||`${s.kind}-${s.action}`===option('--only')))){
         if(report.results.some(r=>Object.keys(scenario).every(k=>r[k]===scenario[k])))continue;
         process.stdout.write(`Measuring ${JSON.stringify(scenario)}\n`);report.results.push(await run(scenario));fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n');
     }
