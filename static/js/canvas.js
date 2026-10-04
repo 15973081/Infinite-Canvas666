@@ -235,29 +235,7 @@ const cascadeRunningNodeIds = new Set();
 const cascadeStopIds = new Set();
 const cascadeSerialIds = new Set(); // 记录以串行循环模式启动的运行，用于停止按钮
 const cascadeContexts = new Map();
-let cropState = null;
-let cropDrag = null;
-let imageEditMode = 'crop';
-let imageEditModeTouched = false;
-let editDrawState = null;
-let editTextItems = [];
-let editTextSelectedId = '';
-let editTextDrag = null;
-let editTextDirty = false;
-let editTextInlineEditor = null;
-let editDrawUndoStack = [];
-let editDrawRedoStack = [];
-const EDIT_DRAW_HISTORY_MAX = 40;
-let brushTool = 'free';
-let brushLabelCounter = 1;
-let gridCustomMode = false;
-let gridCustomLines = []; // [{type:'h'|'v', pos:0-1}] 相对图片尺寸的分数位置
-let gridCustomOrientation = 'h'; // 当前点击放置方向
-let gridCustomHistory = []; // 撤销栈：每次放线前快照
-let gridCustomDrag = null; // {index, pointerId}
-let imageEditZoom = 1.0;
-let imageEditBaseW = 0; // zoom=1 时图片显示宽度
-let imageEditBaseH = 0;
+const classicImageEditor = createClassicImageEditor();
 let textSelectionGuard = null;
 const PROMPT_TEXT_MAX_LENGTH = 50000;
 const CLIENT_ID = (() => {
@@ -642,6 +620,7 @@ function setCanvasMode(open){
     if(!open){
         classicMinimap.reset();
         classicPromptPanel.reset();
+        classicImageEditor.reset();
         clearConnectionHover();
         renderedCanvasLinks.clear();
         clearLocalCanvasLock();
@@ -1139,6 +1118,7 @@ async function createCanvas(customTitle = ''){
         resetCascadeRuntimeState();
         classicMinimap.reset();
         classicPromptPanel.reset();
+        classicImageEditor.reset();
         canvas = data.canvas;
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
@@ -1228,6 +1208,7 @@ async function openCanvas(id){
         }
         classicMinimap.reset();
         classicPromptPanel.reset();
+        classicImageEditor.reset();
         canvas = nextCanvas;
         resetCanvasHistory();
         canvas.logs = canvas.logs || [];
@@ -1448,7 +1429,7 @@ window.addEventListener('resize', () => requestAnimationFrame(positionCanvasMeta
 window.addEventListener('studio-theme-change', event => applyTheme(event.detail?.theme || 'light'));
 bindClassicImageEditorControls();
 window.addEventListener('resize', () => {
-    if(cropState) syncImageEditOverflow();
+    classicImageEditor.syncImageEditOverflow();
     scheduleMinimapRender();
 });
 backToManagerBtn.addEventListener('click', returnToCanvasManager);
@@ -1470,8 +1451,6 @@ const IMAGE_DROP_TEXT_TYPES = [
 ];
 const IMAGE_DROP_TYPE_HINT_RE = /^(?:files?|image\/.+|text\/(?:uri-list|html|plain|x-moz-url|x-file-url)|downloadurl|public\.(?:file-url|url)|uniformresourcelocator|filenamew?)$|application\/x-qt-(?:windows-mime|image)|application\/x-moz-file|com\.eagle/i;
 
-const MASK_BRUSH_ALPHA = 115;
-const MASK_BRUSH_COLOR = `rgba(255,255,255,${MASK_BRUSH_ALPHA / 255})`;
 
 bindClassicCropDragEvents();
 

@@ -5,82 +5,6 @@
  */
 
 // Called once by canvas.js, at its original initialization position.
-function bindClassicImageEditorControls(){
-    document.getElementById('cropBox').addEventListener('mousedown', event => beginCropDrag(event, 'move'));
-    document.getElementById('cropHandle').addEventListener('mousedown', event => beginCropDrag(event, 'resize'));
-    document.getElementById('outpaintFrame')?.addEventListener('mousedown', event => {
-        if(event.target.closest('[data-outpaint-handle]')) return;
-        document.getElementById('cropCanvas')?.classList.add('dragging-image');
-        beginCropDrag(event, 'image');
-    });
-    document.querySelectorAll('[data-outpaint-handle]').forEach(handle => {
-        handle.addEventListener('mousedown', event => beginCropDrag(event, `outpaint-${handle.dataset.outpaintHandle || 'corner'}`));
-    });
-    document.getElementById('cropImage')?.addEventListener('mousedown', event => {
-        if(imageEditMode !== 'outpaint' || !cropState) return;
-        document.getElementById('cropCanvas')?.classList.add('dragging-image');
-        beginCropDrag(event, 'image');
-    });
-    document.querySelectorAll('[data-image-edit-mode]').forEach(btn => {
-        btn.addEventListener('click', event => {
-            event.stopPropagation();
-            setImageEditMode(btn.dataset.imageEditMode || 'crop', true);
-        });
-    });
-    document.getElementById('editDrawCanvas').addEventListener('pointerdown', beginEditDraw);
-    document.getElementById('editDrawCanvas').addEventListener('pointermove', moveEditDraw);
-    document.getElementById('editDrawCanvas').addEventListener('pointerup', endEditDraw);
-    document.getElementById('editDrawCanvas').addEventListener('pointercancel', endEditDraw);
-    document.getElementById('editDrawCanvas').addEventListener('pointerleave', endEditDraw);
-    document.getElementById('editTextCanvas')?.addEventListener('pointerdown', beginEditText);
-    document.getElementById('editTextCanvas')?.addEventListener('pointermove', moveEditText);
-    document.getElementById('editTextCanvas')?.addEventListener('pointerup', endEditText);
-    document.getElementById('editTextCanvas')?.addEventListener('pointercancel', endEditText);
-    document.getElementById('editTextCanvas')?.addEventListener('pointerleave', endEditText);
-    document.getElementById('editTextCanvas')?.addEventListener('dblclick', event => {
-        if(imageEditMode !== 'brush' || brushTool !== 'text') return;
-        event.preventDefault();
-        event.stopPropagation();
-        const hit = hitEditTextItem(editTextPoint(event));
-        if(hit){
-            setSelectedEditTextItem(hit.id);
-            beginEditTextInline(hit);
-        }
-    });
-    ['paintBrushSize','paintBrushColor'].forEach(id => {
-        const control = document.getElementById(id);
-        if(!control) return;
-        control.addEventListener('input', syncSelectedEditTextStyleFromBrush);
-        control.addEventListener('change', () => { editTextDirty = false; });
-    });
-    ['gridHorizontalLines','gridVerticalLines','gridGapSize'].forEach(id => {
-        document.getElementById(id).addEventListener('input', () => {
-            syncGridGapValue();
-            refreshGridSplitPreview();
-        });
-    });
-    // 图片编辑区滚轮缩放
-    document.getElementById('imageEditStage').addEventListener('wheel', event => {
-        if(!cropState) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const stage = event.currentTarget;
-        const oldZoom = imageEditZoom;
-        const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-        imageEditZoom = Math.max(0.15, Math.min(6.0, imageEditZoom * factor));
-        // 焦点缩放：保持鼠标指向的图片位置不动
-        const stageRect = stage.getBoundingClientRect();
-        const mx = event.clientX - stageRect.left; // 鼠标在 stage 内偏移
-        const my = event.clientY - stageRect.top;
-        const contentX = stage.scrollLeft + mx;
-        const contentY = stage.scrollTop + my;
-        applyImageEditZoom();
-        const scale = imageEditZoom / oldZoom;
-        stage.scrollLeft = contentX * scale - mx;
-        stage.scrollTop = contentY * scale - my;
-    }, {passive: false});
-}
-
 function pickMediaForNode(nodeId){
     const input = document.createElement('input');
     input.type = 'file';
@@ -722,1486 +646,1766 @@ function pickImageForNode(nodeId){
     pickMediaForNode(nodeId);
 }
 
-function cropBounds(){
-    const img = document.getElementById('cropImage');
-    return {w:img.clientWidth || 1, h:img.clientHeight || 1};
-}
+function createClassicImageEditor(){
+    // The entry owns nodes, viewport and canvas history; this closure owns only
+    // the image-editing draft, its local history, DOM and session resources.
+    let cropState = null;
+    let cropDrag = null;
+    let imageEditMode = 'crop';
+    let imageEditModeTouched = false;
+    let editDrawState = null;
+    let editTextItems = [];
+    let editTextSelectedId = '';
+    let editTextDrag = null;
+    let editTextDirty = false;
+    let editTextInlineEditor = null;
+    let editDrawUndoStack = [];
+    let editDrawRedoStack = [];
+    const EDIT_DRAW_HISTORY_MAX = 40;
+    let brushTool = 'free';
+    let brushLabelCounter = 1;
+    let gridCustomMode = false;
+    let gridCustomLines = []; // [{type:'h'|'v', pos:0-1}] 相对图片尺寸的分数位置
+    let gridCustomOrientation = 'h'; // 当前点击放置方向
+    let gridCustomHistory = []; // 撤销栈：每次放线前快照
+    let gridCustomDrag = null; // {index, pointerId}
+    let imageEditZoom = 1.0;
+    let imageEditBaseW = 0; // zoom=1 时图片显示宽度
+    let imageEditBaseH = 0;
+    const MASK_BRUSH_ALPHA = 115;
+    const MASK_BRUSH_COLOR = `rgba(255,255,255,${MASK_BRUSH_ALPHA / 255})`;
 
-function editDrawCanvas(){
-    return document.getElementById('editDrawCanvas');
-}
-
-function editTextCanvas(){
-    return document.getElementById('editTextCanvas');
-}
-
-function editTextContext(){
-    return editTextCanvas()?.getContext('2d') || null;
-}
-
-function selectedEditTextItem(){
-    return editTextItems.find(item => item.id === editTextSelectedId) || null;
-}
-
-function defaultEditTextText(){
-    return '双击编辑';
-}
-
-function editTextSizeFromBrush(){
-    return Math.max(14, Math.min(120, Math.round(editBrushSize() * 2)));
-}
-
-function createEditTextItem(text, point, preset={}){
-    const size = Math.max(10, Math.min(120, Number(preset.size) || editTextSizeFromBrush()));
-    return {
-        id: uid('txt'),
-        text: String(text || defaultEditTextText()).trim(),
-        x: Number(point?.x || 0),
-        y: Number(point?.y || 0),
-        color: preset.color || brushColor(),
-        size,
-    };
-}
-
-function textItemFont(item){
-    const size = Math.max(10, Math.min(120, Number(item?.size) || 28));
-    return `900 ${size}px Arial, sans-serif`;
-}
-
-function measureEditTextItem(item, ctx=editTextContext()){
-    if(!item || !ctx) return {x:0, y:0, w:0, h:0};
-    const size = Math.max(10, Math.min(120, Number(item.size) || 28));
-    ctx.save();
-    ctx.font = textItemFont(item);
-    const metrics = ctx.measureText(String(item.text || ''));
-    ctx.restore();
-    const width = Math.max(1, metrics.width || 1);
-    const ascent = Number.isFinite(metrics.actualBoundingBoxAscent) ? metrics.actualBoundingBoxAscent : size * 0.8;
-    const descent = Number.isFinite(metrics.actualBoundingBoxDescent) ? metrics.actualBoundingBoxDescent : size * 0.25;
-    const pad = Math.max(4, Math.round(size * 0.18));
-    return {
-        x: item.x - width / 2 - pad,
-        y: item.y - (ascent + descent) / 2 - pad,
-        w: width + pad * 2,
-        h: ascent + descent + pad * 2,
-        textW: width,
-        textH: ascent + descent,
-        pad
-    };
-}
-
-function hitEditTextItem(point){
-    const ctx = editTextContext();
-    if(!ctx) return null;
-    for(let i = editTextItems.length - 1; i >= 0; i--){
-        const item = editTextItems[i];
-        const box = measureEditTextItem(item, ctx);
-        if(point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h) return item;
+    let target = null, generation = 0, ready = false, paused = false, destroyed = false;
+    let inlineFocusFrame = null;
+    const dom = new Map(), listeners = new Map();
+    function modal(){ return element('imageEditModal'); }
+    function element(id){
+        if(destroyed) return null;
+        if(!dom.has(id)) dom.set(id, document.getElementById(id));
+        return dom.get(id);
     }
-    return null;
-}
-
-function renderEditTextCanvas(){
-    const canvasEl = editTextCanvas();
-    const ctx = editTextContext();
-    if(!canvasEl || !ctx) return;
-    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-    editTextItems.forEach(item => {
-        if(!item?.text) return;
-        const selected = item.id === editTextSelectedId;
-        const box = measureEditTextItem(item, ctx);
-        ctx.save();
-        ctx.font = textItemFont(item);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = item.color || brushColor();
-        ctx.strokeStyle = 'rgba(255,255,255,.92)';
-        ctx.lineWidth = Math.max(2, (Number(item.size) || 28) / 8);
-        ctx.strokeText(String(item.text || ''), item.x, item.y);
-        ctx.fillText(String(item.text || ''), item.x, item.y);
-        if(selected){
-            ctx.setLineDash([7, 5]);
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = 'rgba(15,23,42,.72)';
-            ctx.strokeRect(box.x, box.y, box.w, box.h);
-            ctx.setLineDash([]);
-            ctx.fillStyle = 'rgba(15,23,42,.92)';
-            ctx.beginPath();
-            ctx.arc(item.x + box.w / 2 - box.pad, item.y - box.h / 2 + box.pad, 3.5, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        ctx.restore();
-    });
-    positionEditTextInlineEditor();
-}
-
-function syncTextToolState(force=false){
-    const selected = selectedEditTextItem();
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    cropCanvasEl?.classList.toggle('text-mode', imageEditMode === 'brush' && brushTool === 'text');
-}
-
-function syncSelectedEditTextStyleFromBrush(){
-    if(imageEditMode !== 'brush' || brushTool !== 'text' || editTextInlineEditor) return;
-    const item = selectedEditTextItem();
-    if(!item) return;
-    const nextSize = editTextSizeFromBrush();
-    const nextColor = brushColor();
-    if(item.size === nextSize && item.color === nextColor) return;
-    beginTextEditChange();
-    item.size = nextSize;
-    item.color = nextColor;
-    renderEditTextCanvas();
-    syncTextToolState(true);
-}
-
-function beginTextEditChange(){
-    if(editTextDirty) return;
-    pushEditDrawHistory();
-    editTextDirty = true;
-}
-
-function setSelectedEditTextItem(id){
-    editTextSelectedId = id || '';
-    renderEditTextCanvas();
-    syncTextToolState(true);
-}
-
-function confirmSelectedEditTextItem(){
-    const selected = selectedEditTextItem();
-    if(!selected) return false;
-    if(!String(selected.text || '').trim()){
-        editTextItems = editTextItems.filter(item => item.id !== selected.id);
+    function validTarget(){
+        return Boolean(target && canvas?.id === target.canvasId &&
+            (nodes[target.nodeIndex] === target.node || nodes.includes(target.node)) && target.node.url === target.sourceUrl);
     }
-    editTextSelectedId = '';
-    editTextDrag = null;
-    editTextDirty = false;
-    renderEditTextCanvas();
-    syncTextToolState(true);
-    return true;
-}
-
-function editTextCanvasScale(){
-    const canvasEl = editTextCanvas();
-    const rect = canvasEl?.getBoundingClientRect?.();
-    return {
-        x:(rect?.width || canvasEl?.width || 1) / Math.max(1, canvasEl?.width || 1),
-        y:(rect?.height || canvasEl?.height || 1) / Math.max(1, canvasEl?.height || 1),
-        rect
-    };
-}
-
-function selectInlineEditorText(el){
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-}
-
-function inlineEditorText(){
-    return String(editTextInlineEditor?.el?.innerText || editTextInlineEditor?.el?.textContent || '').replace(/\u00a0/g, ' ');
-}
-
-function autosizeEditTextInlineEditor(){
-    const editor = editTextInlineEditor;
-    if(!editor?.el) return;
-    const el = editor.el;
-    el.style.width = 'auto';
-    el.style.height = 'auto';
-    const minW = Number(editor.minW || 48);
-    const minH = Number(editor.minH || 28);
-    el.style.width = `${Math.max(minW, el.scrollWidth + 10)}px`;
-    el.style.height = `${Math.max(minH, el.scrollHeight + 4)}px`;
-}
-
-function positionEditTextInlineEditor(){
-    const editor = editTextInlineEditor;
-    if(!editor?.el) return;
-    const item = editTextItems.find(x => x.id === editor.itemId);
-    const canvasEl = editTextCanvas();
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    if(!item || !canvasEl || !cropCanvasEl) return;
-    const ctx = editTextContext();
-    const box = measureEditTextItem(item, ctx);
-    const scale = editTextCanvasScale();
-    const hostRect = cropCanvasEl.getBoundingClientRect();
-    const canvasRect = scale.rect || canvasEl.getBoundingClientRect();
-    const left = canvasRect.left - hostRect.left + box.x * scale.x;
-    const top = canvasRect.top - hostRect.top + box.y * scale.y;
-    const w = Math.max(48, box.w * scale.x);
-    const h = Math.max(28, box.h * scale.y);
-    editor.minW = w;
-    editor.minH = h;
-    editor.el.style.left = `${left}px`;
-    editor.el.style.top = `${top}px`;
-    editor.el.style.minWidth = `${w}px`;
-    editor.el.style.minHeight = `${h}px`;
-    editor.el.style.font = `900 ${Math.max(10, (Number(item.size) || 28) * scale.y)}px Arial, sans-serif`;
-    editor.el.style.color = item.color || brushColor();
-    autosizeEditTextInlineEditor();
-}
-
-function removeEditTextInlineEditor(commit=true){
-    const editor = editTextInlineEditor;
-    if(!editor) return;
-    const item = editTextItems.find(x => x.id === editor.itemId);
-    const next = inlineEditorText().trim();
-    editTextInlineEditor = null;
-    editor.el.remove();
-    if(!item) return;
-    if(commit){
-        if(next !== String(editor.before || '')){
-            beginTextEditChange();
-            if(next){
-                item.text = next;
-            } else {
-                editTextItems = editTextItems.filter(x => x.id !== item.id);
-                editTextSelectedId = '';
-            }
-        }
-    } else {
-        item.text = editor.before || item.text || defaultEditTextText();
+    function usable(){ return !destroyed && !paused && ready && !!cropState && validTarget(); }
+    function capture(){ return {generation, canvasId:target?.canvasId, node:target?.node}; }
+    function accept(origin){
+        return !destroyed && !paused && origin.generation === generation && origin.canvasId === target?.canvasId && origin.node === target?.node && validTarget();
     }
-    editTextDirty = false;
-    renderEditTextCanvas();
-    syncTextToolState(true);
-}
-
-function beginEditTextInline(item){
-    if(!item) return;
-    removeEditTextInlineEditor(true);
-    editTextSelectedId = item.id;
-    const host = document.getElementById('cropCanvas');
-    if(!host) return;
-    const el = document.createElement('div');
-    el.className = 'edit-text-inline';
-    el.contentEditable = 'true';
-    el.spellcheck = false;
-    el.textContent = item.text || defaultEditTextText();
-    host.appendChild(el);
-    editTextInlineEditor = {el, itemId:item.id, before:item.text || ''};
-    positionEditTextInlineEditor();
-    el.addEventListener('input', autosizeEditTextInlineEditor);
-    el.addEventListener('keydown', event => {
-        if(event.key === 'Enter' && !event.shiftKey){
-            event.preventDefault();
-            removeEditTextInlineEditor(true);
-        } else if(event.key === 'Escape'){
-            event.preventDefault();
-            removeEditTextInlineEditor(false);
-        }
-    });
-    el.addEventListener('blur', () => removeEditTextInlineEditor(true));
-    requestAnimationFrame(() => {
-        el.focus();
-        selectInlineEditorText(el);
-    });
-    renderEditTextCanvas();
-    syncTextToolState(true);
-}
-
-function editTextPoint(event){
-    return editDrawPoint(event);
-}
-
-function beginEditText(event){
-    if(imageEditMode !== 'brush' || brushTool !== 'text') return;
-    event.preventDefault();
-    event.stopPropagation();
-    removeEditTextInlineEditor(true);
-    const canvasEl = editTextCanvas();
-    const point = editTextPoint(event);
-    const hit = hitEditTextItem(point);
-    if(hit){
-        editTextSelectedId = hit.id;
-        editTextDrag = {
-            id: hit.id,
-            pointerId: event.pointerId,
-            startX: hit.x,
-            startY: hit.y,
-            sx: event.clientX,
-            sy: event.clientY,
-            moved: false,
-            hasHistory: false
+    function clearListeners(scope){
+        for(const [node,type,handler,options] of listeners.get(scope) || []) node.removeEventListener(type,handler,options);
+        listeners.delete(scope);
+    }
+    function listen(scope,node,type,handler,options,allowLoading=false){
+        if(!node) return;
+        const guarded = scope === 'lifecycle' ? handler : event => {
+            if(cropState && !validTarget()) implCloseImageEditor();
+            if(usable() || (allowLoading && !destroyed && !paused && cropState && validTarget())) handler(event);
         };
-        canvasEl.setPointerCapture?.(event.pointerId);
-        canvasEl.style.cursor = 'grabbing';
-        syncTextToolState(true);
-        renderEditTextCanvas();
-        return;
+        node.addEventListener(type,guarded,options);
+        if(!listeners.has(scope)) listeners.set(scope,[]);
+        listeners.get(scope).push([node,type,guarded,options]);
     }
-    if(selectedEditTextItem()){
-        confirmSelectedEditTextItem();
-        return;
+    function cancelInlineFocus(){
+        if(inlineFocusFrame !== null) cancelAnimationFrame(inlineFocusFrame);
+        inlineFocusFrame = null;
     }
-    beginTextEditChange();
-    const item = createEditTextItem(defaultEditTextText(), point, {color:brushColor(), size:editTextSizeFromBrush()});
-    editTextItems.push(item);
-    editTextSelectedId = item.id;
-    canvasEl.style.cursor = 'text';
-    renderEditTextCanvas();
-    syncTextToolState(true);
-}
-
-function updateEditTextCursor(event){
-    const canvasEl = editTextCanvas();
-    if(!canvasEl || imageEditMode !== 'brush' || brushTool !== 'text') return;
-    const hit = hitEditTextItem(editTextPoint(event));
-    canvasEl.style.cursor = hit ? 'move' : 'text';
-}
-
-function moveEditText(event){
-    if(!editTextDrag){
-        updateEditTextCursor(event);
-        return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const item = editTextItems.find(x => x.id === editTextDrag.id);
-    if(!item) return;
-    const dx = event.clientX - editTextDrag.sx;
-    const dy = event.clientY - editTextDrag.sy;
-    if(!editTextDrag.moved && Math.abs(dx) + Math.abs(dy) < 2) return;
-    editTextDrag.moved = true;
-    if(!editTextDrag.hasHistory){
-        beginTextEditChange();
-        editTextDrag.hasHistory = true;
-    }
-    const canvasEl = editTextCanvas();
-    const rect = canvasEl?.getBoundingClientRect?.();
-    const scaleX = canvasEl ? canvasEl.width / Math.max(1, rect?.width || canvasEl.width) : 1;
-    const scaleY = canvasEl ? canvasEl.height / Math.max(1, rect?.height || canvasEl.height) : 1;
-    item.x = editTextDrag.startX + dx * scaleX;
-    item.y = editTextDrag.startY + dy * scaleY;
-    renderEditTextCanvas();
-}
-
-function endEditText(event){
-    if(editTextDrag && event?.pointerId != null) editTextCanvas()?.releasePointerCapture?.(event.pointerId);
-    editTextDrag = null;
-    editTextDirty = false;
-    renderEditTextCanvas();
-    syncTextToolState(true);
-    if(event) updateEditTextCursor(event);
-}
-
-function editTextHasContent(){
-    return editTextItems.some(item => String(item?.text || '').trim().length > 0);
-}
-
-function resizeEditTextCanvas(){
-    const img = document.getElementById('cropImage');
-    const canvasEl = editTextCanvas();
-    if(!img || !canvasEl) return;
-    const w = Math.max(1, img.naturalWidth || img.clientWidth || 1);
-    const h = Math.max(1, img.naturalHeight || img.clientHeight || 1);
-    if(canvasEl.width !== w) canvasEl.width = w;
-    if(canvasEl.height !== h) canvasEl.height = h;
-    canvasEl.style.width = `${img.clientWidth || 1}px`;
-    canvasEl.style.height = `${img.clientHeight || 1}px`;
-    renderEditTextCanvas();
-}
-
-function resizeEditDrawCanvas(){
-    const img = document.getElementById('cropImage');
-    const canvasEl = editDrawCanvas();
-    const w = Math.max(1, img.naturalWidth || img.clientWidth || 1);
-    const h = Math.max(1, img.naturalHeight || img.clientHeight || 1);
-    if(canvasEl.width !== w || canvasEl.height !== h){
-        canvasEl.width = w;
-        canvasEl.height = h;
-    }
-    canvasEl.style.width = `${img.clientWidth || 1}px`;
-    canvasEl.style.height = `${img.clientHeight || 1}px`;
-    resizeEditTextCanvas();
-    if(imageEditMode === 'grid') refreshGridSplitPreview();
-}
-
-function setImageEditMode(mode, userTouched=false){
-    if(userTouched) imageEditModeTouched = true;
-    const prevImageEditMode = imageEditMode;
-    if(mode !== 'brush') removeEditTextInlineEditor(true);
-    imageEditMode = ['preview','crop','outpaint','mask','brush','grid'].includes(mode) ? mode : 'crop';
-    const isPreview = imageEditMode === 'preview';
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    cropCanvasEl.classList.toggle('preview-mode', isPreview);
-    cropCanvasEl.classList.toggle('mask-mode', imageEditMode === 'mask');
-    cropCanvasEl.classList.toggle('brush-mode', imageEditMode === 'brush');
-    cropCanvasEl.classList.toggle('grid-mode', imageEditMode === 'grid');
-    cropCanvasEl.classList.toggle('outpaint-mode', imageEditMode === 'outpaint');
-    _syncGridCustomCursor();
-    document.querySelectorAll('[data-image-edit-mode]').forEach(btn => btn.classList.toggle('active', btn.dataset.imageEditMode === imageEditMode));
-    document.getElementById('imageMaskTools').classList.toggle('active', imageEditMode === 'mask');
-    document.getElementById('imageBrushTools').classList.toggle('active', imageEditMode === 'brush');
-    document.getElementById('imageGridTools').classList.toggle('active', imageEditMode === 'grid');
-    syncGridGapValue();
-    const title = document.getElementById('imageEditTitle');
-    const sub = document.getElementById('imageEditSub');
-    const apply = document.getElementById('imageEditApplyBtn');
-    if(isPreview){
-        apply.style.display = 'none';
-        title.textContent = '预览图片';
-        sub.textContent = '查看大图，可切换到裁剪 / 扩图 / 遮罩等模式';
-    } else {
-        apply.style.display = '';
-        const icon = imageEditMode === 'crop' ? 'crop' : imageEditMode === 'outpaint' ? 'expand' : imageEditMode === 'mask' ? 'brush' : imageEditMode === 'brush' ? 'paintbrush' : 'grid-3x3';
-        const editLabel = imageEditMode === 'crop' ? '应用裁剪' : imageEditMode === 'outpaint' ? '应用扩图' : imageEditMode === 'mask' ? '生成遮罩节点' : imageEditMode === 'brush' ? '应用画笔' : '切分到 Output';
-        const editTitle = imageEditMode === 'crop' ? '裁剪图片' : imageEditMode === 'outpaint' ? '扩图' : imageEditMode === 'mask' ? '遮罩编辑' : imageEditMode === 'brush' ? '画笔编辑' : '宫格切分';
-        const editHint = imageEditMode === 'crop' ? '拖动裁剪框移动，拖右下角调整大小' : imageEditMode === 'outpaint' ? '拖动红框调整画布范围，最大不超过 4K 尺寸，确认后空白区域填充白色' : imageEditMode === 'mask' ? '在要重绘的位置涂白，保存后会生成遮罩图片节点' : imageEditMode === 'brush' ? '直接在图片上绘制标记或草图' : '按切分线分割图片，间隔会从线两侧扣除';
-        title.textContent = editTitle;
-        sub.textContent = editHint;
-        apply.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span>${editLabel}</span>`;
-    }
-    resizeEditDrawCanvas();
-    if(isPreview) clearEditDrawing(true);
-    else if(imageEditMode === 'grid') refreshGridSplitPreview();
-    else if(imageEditMode === 'outpaint') resetOutpaintBox();
-    else if(imageEditMode === 'crop') clearEditDrawing(true);
-    else if(prevImageEditMode === 'grid') clearEditDrawing(true); // 离开 grid 时主动清掉画布上残留的分割线预览
-    syncEditDrawingHistoryButtons();
-    syncBrushToolButtons();
-    syncTextToolState(true);
-    refreshIcons();
-}
-
-function editDrawSnapshot(){
-    const canvasEl = editDrawCanvas();
-    return {
-        imageData: canvasEl.getContext('2d').getImageData(0, 0, canvasEl.width, canvasEl.height),
-        labelCounter: brushLabelCounter,
-        textItems: editTextItems.map(item => ({...item})),
-        textSelectedId: editTextSelectedId || '',
-    };
-}
-
-function restoreEditDrawSnapshot(snapshot){
-    if(!snapshot) return;
-    removeEditTextInlineEditor(false);
-    const canvasEl = editDrawCanvas();
-    const imageData = snapshot.imageData || snapshot;
-    canvasEl.getContext('2d').putImageData(imageData, 0, 0);
-    if(snapshot.labelCounter) brushLabelCounter = snapshot.labelCounter;
-    editTextItems = (snapshot.textItems || []).map(item => ({...item}));
-    editTextSelectedId = snapshot.textSelectedId || '';
-    renderEditTextCanvas();
-    syncTextToolState(true);
-}
-
-function pushEditDrawHistory(){
-    editDrawUndoStack.push(editDrawSnapshot());
-    if(editDrawUndoStack.length > EDIT_DRAW_HISTORY_MAX) editDrawUndoStack.shift();
-    editDrawRedoStack = [];
-    syncEditDrawingHistoryButtons();
-}
-
-function syncEditDrawingHistoryButtons(){
-    ['maskUndoBtn','brushUndoBtn'].forEach(id => {
-        const btn = document.getElementById(id);
-        if(btn){ btn.disabled = !editDrawUndoStack.length; btn.style.opacity = editDrawUndoStack.length ? '1' : '.42'; }
-    });
-    ['maskRedoBtn','brushRedoBtn'].forEach(id => {
-        const btn = document.getElementById(id);
-        if(btn){ btn.disabled = !editDrawRedoStack.length; btn.style.opacity = editDrawRedoStack.length ? '1' : '.42'; }
-    });
-}
-
-function undoEditDrawing(){
-    if(!editDrawUndoStack.length) return;
-    editDrawRedoStack.push(editDrawSnapshot());
-    restoreEditDrawSnapshot(editDrawUndoStack.pop());
-    syncEditDrawingHistoryButtons();
-}
-
-function redoEditDrawing(){
-    if(!editDrawRedoStack.length) return;
-    editDrawUndoStack.push(editDrawSnapshot());
-    restoreEditDrawSnapshot(editDrawRedoStack.pop());
-    syncEditDrawingHistoryButtons();
-}
-
-function clearEditDrawing(silent=false){
-    removeEditTextInlineEditor(false);
-    const canvasEl = editDrawCanvas();
-    if(!silent && editCanvasHasPixels()) pushEditDrawHistory();
-    canvasEl.getContext('2d').clearRect(0, 0, canvasEl.width, canvasEl.height);
-    const textCanvasEl = editTextCanvas();
-    textCanvasEl?.getContext('2d')?.clearRect(0, 0, textCanvasEl.width, textCanvasEl.height);
-    editTextItems = [];
-    editTextSelectedId = '';
-    editTextDrag = null;
-    editTextDirty = false;
-    brushLabelCounter = 1;
-    syncTextToolState(true);
-    syncEditDrawingHistoryButtons();
-}
-
-function resetEditDrawingHistory(){
-    removeEditTextInlineEditor(false);
-    editDrawUndoStack = [];
-    editDrawRedoStack = [];
-    brushLabelCounter = 1;
-    editTextItems = [];
-    editTextSelectedId = '';
-    editTextDrag = null;
-    editTextDirty = false;
-    renderEditTextCanvas();
-    syncTextToolState(true);
-    syncEditDrawingHistoryButtons();
-}
-
-function setBrushTool(tool){
-    if(tool !== 'text') removeEditTextInlineEditor(true);
-    brushTool = ['free','rect','ellipse','label','text'].includes(tool) ? tool : 'free';
-    syncBrushToolButtons();
-    syncTextToolState(true);
-}
-
-function syncBrushToolButtons(){
-    document.querySelectorAll('[data-brush-tool]').forEach(btn => {
-        const active = btn.dataset.brushTool === brushTool;
-        btn.classList.toggle('primary', active);
-        btn.classList.toggle('secondary', !active);
-    });
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    cropCanvasEl?.classList.toggle('text-mode', imageEditMode === 'brush' && brushTool === 'text');
-}
-
-function editDrawPoint(event){
-    const canvasEl = editDrawCanvas();
-    const rect = canvasEl.getBoundingClientRect();
-    return {
-        x:(event.clientX - rect.left) * canvasEl.width / Math.max(1, rect.width),
-        y:(event.clientY - rect.top) * canvasEl.height / Math.max(1, rect.height),
-    };
-}
-
-function gridCustomLineHit(point){
-    if(!gridCustomLines.length) return -1;
-    const canvasEl = editDrawCanvas();
-    const threshold = Math.max(8, Math.min(canvasEl.width, canvasEl.height) / 80);
-    let best = -1;
-    let bestDist = Infinity;
-    gridCustomLines.forEach((line, index) => {
-        const dist = line.type === 'h'
-            ? Math.abs(point.y - line.pos * canvasEl.height)
-            : Math.abs(point.x - line.pos * canvasEl.width);
-        if(dist < bestDist && dist <= threshold){
-            best = index;
-            bestDist = dist;
+    function cancelGestures(){
+        clearListeners('drag');
+        cancelInlineFocus();
+        for(const [el,state] of [[implEditDrawCanvas(), editDrawState || gridCustomDrag], [implEditTextCanvas(), editTextDrag]]){
+            if(state?.pointerId != null && el?.hasPointerCapture?.(state.pointerId)) el.releasePointerCapture(state.pointerId);
         }
-    });
-    return best;
-}
-
-function setGridCustomLinePos(index, point){
-    const canvasEl = editDrawCanvas();
-    const line = gridCustomLines[index];
-    if(!line) return;
-    line.pos = line.type === 'h'
-        ? Math.max(0.001, Math.min(0.999, point.y / Math.max(1, canvasEl.height)))
-        : Math.max(0.001, Math.min(0.999, point.x / Math.max(1, canvasEl.width)));
-}
-
-function editBrushSize(){
-    const id = imageEditMode === 'mask' ? 'maskBrushSize' : 'paintBrushSize';
-    return Number(document.getElementById(id)?.value || 20);
-}
-
-function brushColor(){
-    return document.getElementById('paintBrushColor')?.value || '#ff2d55';
-}
-
-function setupDrawStyle(ctx){
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = editBrushSize();
-    ctx.strokeStyle = imageEditMode === 'mask' ? MASK_BRUSH_COLOR : brushColor();
-    ctx.fillStyle = imageEditMode === 'mask' ? MASK_BRUSH_COLOR : brushColor();
-    ctx.globalCompositeOperation = 'source-over';
-}
-
-function normalizeMaskPreviewCanvas(canvasEl=editDrawCanvas()){
-    if(imageEditMode !== 'mask' || !canvasEl?.width || !canvasEl?.height) return;
-    const ctx = canvasEl.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
-    const data = imageData.data;
-    let changed = false;
-    for(let i = 0; i < data.length; i += 4){
-        if(data[i + 3] <= 0) continue;
-        data[i] = 255;
-        data[i + 1] = 255;
-        data[i + 2] = 255;
-        if(data[i + 3] > MASK_BRUSH_ALPHA) data[i + 3] = MASK_BRUSH_ALPHA;
-        changed = true;
+        cropDrag = editDrawState = editTextDrag = gridCustomDrag = null;
+        element('cropCanvas')?.classList.remove('dragging-image');
+        for(const el of [implEditDrawCanvas(), implEditTextCanvas()]) if(el) el.style.cursor = '';
     }
-    if(changed) ctx.putImageData(imageData, 0, 0);
-}
-
-function circledNumber(n){
-    if(n >= 1 && n <= 20) return String.fromCharCode(0x2460 + n - 1);
-    return String(n);
-}
-
-function drawBrushShape(ctx, start, end, preview=false){
-    setupDrawStyle(ctx);
-    const x = Math.min(start.x, end.x);
-    const y = Math.min(start.y, end.y);
-    const w = Math.abs(end.x - start.x);
-    const h = Math.abs(end.y - start.y);
-    if(brushTool === 'rect'){
-        ctx.strokeRect(x, y, w, h);
-    } else if(brushTool === 'ellipse'){
-        ctx.beginPath();
-        ctx.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
-        ctx.stroke();
+    function pause(){
+        if(destroyed || paused) return;
+        // A cached page retains the draft, but pending applications lose their session.
+        generation++;
+        implRemoveEditTextInlineEditor(true);
+        cancelGestures();
+        clearListeners('controls');
+        window.CanvasMediaLoader?.unwatch(element('cropImage'));
+        paused = true;
     }
-}
+    function resume(){
+        if(destroyed || !paused) return;
+        paused = false;
+        if(cropState && !validTarget()) implCloseImageEditor();
+        implBindClassicImageEditorControls();
+        if(cropState && !ready){
+            const id = target.node.id, mode = imageEditMode;
+            implOpenImageEditor(id, mode);
+        } else if(cropState){
+            implSyncImageEditOverflow();
+        }
+    }
+    function destroy(){
+        if(destroyed) return;
+        implCloseImageEditor();
+        for(const scope of [...listeners.keys()]) clearListeners(scope);
+        dom.clear();
+        destroyed = true;
+    }
+    function bind(){
+        if(destroyed || paused) return;
+        implBindClassicImageEditorControls();
+        clearListeners('lifecycle');
+        listen('lifecycle',window,'pagehide',event => event.persisted ? pause() : destroy());
+        listen('lifecycle',window,'pageshow',event => { if(event.persisted) resume(); });
+    }
+    function implBindClassicImageEditorControls(){
+        if(destroyed || paused) return;
+        clearListeners('controls');
+        listen('controls', element('cropBox'), 'mousedown', event => implBeginCropDrag(event, 'move'));
+        listen('controls', element('cropHandle'), 'mousedown', event => implBeginCropDrag(event, 'resize'));
+        listen('controls', element('outpaintFrame'), 'mousedown', event => {
+            if(event.target.closest('[data-outpaint-handle]')) return;
+            element('cropCanvas')?.classList.add('dragging-image');
+            implBeginCropDrag(event, 'image');
+        });
+        modal().querySelectorAll('[data-outpaint-handle]').forEach(handle => {
+            listen('controls', handle, 'mousedown', event => implBeginCropDrag(event, `outpaint-${handle.dataset.outpaintHandle || 'corner'}`));
+        });
+        listen('controls', element('cropImage'), 'mousedown', event => {
+            if(imageEditMode !== 'outpaint' || !cropState) return;
+            element('cropCanvas')?.classList.add('dragging-image');
+            implBeginCropDrag(event, 'image');
+        });
+        modal().querySelectorAll('[data-image-edit-mode]').forEach(btn => {
+            listen('controls', btn, 'click', event => {
+                event.stopPropagation();
+                implSetImageEditMode(btn.dataset.imageEditMode || 'crop', true);
+            }, undefined, true);
+        });
+        listen('controls', element('editDrawCanvas'), 'pointerdown', implBeginEditDraw);
+        listen('controls', element('editDrawCanvas'), 'pointermove', implMoveEditDraw);
+        listen('controls', element('editDrawCanvas'), 'pointerup', implEndEditDraw);
+        listen('controls', element('editDrawCanvas'), 'pointercancel', implEndEditDraw);
+        listen('controls', element('editDrawCanvas'), 'pointerleave', implEndEditDraw);
+        listen('controls', element('editTextCanvas'), 'pointerdown', implBeginEditText);
+        listen('controls', element('editTextCanvas'), 'pointermove', implMoveEditText);
+        listen('controls', element('editTextCanvas'), 'pointerup', implEndEditText);
+        listen('controls', element('editTextCanvas'), 'pointercancel', implEndEditText);
+        listen('controls', element('editTextCanvas'), 'pointerleave', implEndEditText);
+        listen('controls', element('editTextCanvas'), 'dblclick', event => {
+            if(imageEditMode !== 'brush' || brushTool !== 'text') return;
+            event.preventDefault();
+            event.stopPropagation();
+            const hit = implHitEditTextItem(implEditTextPoint(event));
+            if(hit){
+                implSetSelectedEditTextItem(hit.id);
+                implBeginEditTextInline(hit);
+            }
+        });
+        ['paintBrushSize','paintBrushColor'].forEach(id => {
+            const control = element(id);
+            if(!control) return;
+            listen('controls', control, 'input', implSyncSelectedEditTextStyleFromBrush);
+            listen('controls', control, 'change', () => { editTextDirty = false; });
+        });
+        ['gridHorizontalLines','gridVerticalLines','gridGapSize'].forEach(id => {
+            listen('controls', element(id), 'input', () => {
+                implSyncGridGapValue();
+                implRefreshGridSplitPreview();
+            });
+        });
+        // 图片编辑区滚轮缩放
+        listen('controls', element('imageEditStage'), 'wheel', event => {
+            if(!cropState) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const stage = event.currentTarget;
+            const oldZoom = imageEditZoom;
+            const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+            imageEditZoom = Math.max(0.15, Math.min(6.0, imageEditZoom * factor));
+            // 焦点缩放：保持鼠标指向的图片位置不动
+            const stageRect = stage.getBoundingClientRect();
+            const mx = event.clientX - stageRect.left; // 鼠标在 stage 内偏移
+            const my = event.clientY - stageRect.top;
+            const contentX = stage.scrollLeft + mx;
+            const contentY = stage.scrollTop + my;
+            implApplyImageEditZoom();
+            const scale = imageEditZoom / oldZoom;
+            stage.scrollLeft = contentX * scale - mx;
+            stage.scrollTop = contentY * scale - my;
+        }, {passive: false});
+    }
 
-function drawNumberLabel(point){
-    const canvasEl = editDrawCanvas();
-    const ctx = canvasEl.getContext('2d');
-    const size = Math.max(18, editBrushSize() * 2.2);
-    const text = circledNumber(brushLabelCounter++);
-    setupDrawStyle(ctx);
-    ctx.save();
-    ctx.font = `900 ${size}px Arial, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineWidth = Math.max(3, size / 8);
-    ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-    ctx.strokeText(text, point.x, point.y);
-    ctx.fillStyle = brushColor();
-    ctx.fillText(text, point.x, point.y);
-    ctx.restore();
-}
+    function implCropBounds(){
+        const img = element('cropImage');
+        return {w:img.clientWidth || 1, h:img.clientHeight || 1};
+    }
 
-function beginEditDraw(event){
-    if(imageEditMode === 'crop') return;
-    if(imageEditMode === 'grid'){
-        if(!gridCustomMode) return;
-        // 自定义模式：拖动已有线，或点击空白处放置新线
+    function implEditDrawCanvas(){
+        return element('editDrawCanvas');
+    }
+
+    function implEditTextCanvas(){
+        return element('editTextCanvas');
+    }
+
+    function implEditTextContext(){
+        return implEditTextCanvas()?.getContext('2d') || null;
+    }
+
+    function implSelectedEditTextItem(){
+        return editTextItems.find(item => item.id === editTextSelectedId) || null;
+    }
+
+    function implDefaultEditTextText(){
+        return '双击编辑';
+    }
+
+    function implEditTextSizeFromBrush(){
+        return Math.max(14, Math.min(120, Math.round(implEditBrushSize() * 2)));
+    }
+
+    function implCreateEditTextItem(text, point, preset={}){
+        const size = Math.max(10, Math.min(120, Number(preset.size) || implEditTextSizeFromBrush()));
+        return {
+            id: uid('txt'),
+            text: String(text || implDefaultEditTextText()).trim(),
+            x: Number(point?.x || 0),
+            y: Number(point?.y || 0),
+            color: preset.color || implBrushColor(),
+            size,
+        };
+    }
+
+    function implTextItemFont(item){
+        const size = Math.max(10, Math.min(120, Number(item?.size) || 28));
+        return `900 ${size}px Arial, sans-serif`;
+    }
+
+    function implMeasureEditTextItem(item, ctx=implEditTextContext()){
+        if(!item || !ctx) return {x:0, y:0, w:0, h:0};
+        const size = Math.max(10, Math.min(120, Number(item.size) || 28));
+        ctx.save();
+        ctx.font = implTextItemFont(item);
+        const metrics = ctx.measureText(String(item.text || ''));
+        ctx.restore();
+        const width = Math.max(1, metrics.width || 1);
+        const ascent = Number.isFinite(metrics.actualBoundingBoxAscent) ? metrics.actualBoundingBoxAscent : size * 0.8;
+        const descent = Number.isFinite(metrics.actualBoundingBoxDescent) ? metrics.actualBoundingBoxDescent : size * 0.25;
+        const pad = Math.max(4, Math.round(size * 0.18));
+        return {
+            x: item.x - width / 2 - pad,
+            y: item.y - (ascent + descent) / 2 - pad,
+            w: width + pad * 2,
+            h: ascent + descent + pad * 2,
+            textW: width,
+            textH: ascent + descent,
+            pad
+        };
+    }
+
+    function implHitEditTextItem(point){
+        const ctx = implEditTextContext();
+        if(!ctx) return null;
+        for(let i = editTextItems.length - 1; i >= 0; i--){
+            const item = editTextItems[i];
+            const box = implMeasureEditTextItem(item, ctx);
+            if(point.x >= box.x && point.x <= box.x + box.w && point.y >= box.y && point.y <= box.y + box.h) return item;
+        }
+        return null;
+    }
+
+    function implRenderEditTextCanvas(){
+        const canvasEl = implEditTextCanvas();
+        const ctx = implEditTextContext();
+        if(!canvasEl || !ctx) return;
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        editTextItems.forEach(item => {
+            if(!item?.text) return;
+            const selected = item.id === editTextSelectedId;
+            const box = implMeasureEditTextItem(item, ctx);
+            ctx.save();
+            ctx.font = implTextItemFont(item);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = item.color || implBrushColor();
+            ctx.strokeStyle = 'rgba(255,255,255,.92)';
+            ctx.lineWidth = Math.max(2, (Number(item.size) || 28) / 8);
+            ctx.strokeText(String(item.text || ''), item.x, item.y);
+            ctx.fillText(String(item.text || ''), item.x, item.y);
+            if(selected){
+                ctx.setLineDash([7, 5]);
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = 'rgba(15,23,42,.72)';
+                ctx.strokeRect(box.x, box.y, box.w, box.h);
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(15,23,42,.92)';
+                ctx.beginPath();
+                ctx.arc(item.x + box.w / 2 - box.pad, item.y - box.h / 2 + box.pad, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        });
+        implPositionEditTextInlineEditor();
+    }
+
+    function implSyncTextToolState(force=false){
+        const selected = implSelectedEditTextItem();
+        const cropCanvasEl = element('cropCanvas');
+        cropCanvasEl?.classList.toggle('text-mode', imageEditMode === 'brush' && brushTool === 'text');
+    }
+
+    function implSyncSelectedEditTextStyleFromBrush(){
+        if(imageEditMode !== 'brush' || brushTool !== 'text' || editTextInlineEditor) return;
+        const item = implSelectedEditTextItem();
+        if(!item) return;
+        const nextSize = implEditTextSizeFromBrush();
+        const nextColor = implBrushColor();
+        if(item.size === nextSize && item.color === nextColor) return;
+        implBeginTextEditChange();
+        item.size = nextSize;
+        item.color = nextColor;
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+    }
+
+    function implBeginTextEditChange(){
+        if(editTextDirty) return;
+        implPushEditDrawHistory();
+        editTextDirty = true;
+    }
+
+    function implSetSelectedEditTextItem(id){
+        editTextSelectedId = id || '';
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+    }
+
+    function implConfirmSelectedEditTextItem(){
+        const selected = implSelectedEditTextItem();
+        if(!selected) return false;
+        if(!String(selected.text || '').trim()){
+            editTextItems = editTextItems.filter(item => item.id !== selected.id);
+        }
+        editTextSelectedId = '';
+        editTextDrag = null;
+        editTextDirty = false;
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+        return true;
+    }
+
+    function implEditTextCanvasScale(){
+        const canvasEl = implEditTextCanvas();
+        const rect = canvasEl?.getBoundingClientRect?.();
+        return {
+            x:(rect?.width || canvasEl?.width || 1) / Math.max(1, canvasEl?.width || 1),
+            y:(rect?.height || canvasEl?.height || 1) / Math.max(1, canvasEl?.height || 1),
+            rect
+        };
+    }
+
+    function implSelectInlineEditorText(el){
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    function implInlineEditorText(){
+        return String(editTextInlineEditor?.el?.innerText || editTextInlineEditor?.el?.textContent || '').replace(/\u00a0/g, ' ');
+    }
+
+    function implAutosizeEditTextInlineEditor(){
+        const editor = editTextInlineEditor;
+        if(!editor?.el) return;
+        const el = editor.el;
+        el.style.width = 'auto';
+        el.style.height = 'auto';
+        const minW = Number(editor.minW || 48);
+        const minH = Number(editor.minH || 28);
+        el.style.width = `${Math.max(minW, el.scrollWidth + 10)}px`;
+        el.style.height = `${Math.max(minH, el.scrollHeight + 4)}px`;
+    }
+
+    function implPositionEditTextInlineEditor(){
+        const editor = editTextInlineEditor;
+        if(!editor?.el) return;
+        const item = editTextItems.find(x => x.id === editor.itemId);
+        const canvasEl = implEditTextCanvas();
+        const cropCanvasEl = element('cropCanvas');
+        if(!item || !canvasEl || !cropCanvasEl) return;
+        const ctx = implEditTextContext();
+        const box = implMeasureEditTextItem(item, ctx);
+        const scale = implEditTextCanvasScale();
+        const hostRect = cropCanvasEl.getBoundingClientRect();
+        const canvasRect = scale.rect || canvasEl.getBoundingClientRect();
+        const left = canvasRect.left - hostRect.left + box.x * scale.x;
+        const top = canvasRect.top - hostRect.top + box.y * scale.y;
+        const w = Math.max(48, box.w * scale.x);
+        const h = Math.max(28, box.h * scale.y);
+        editor.minW = w;
+        editor.minH = h;
+        editor.el.style.left = `${left}px`;
+        editor.el.style.top = `${top}px`;
+        editor.el.style.minWidth = `${w}px`;
+        editor.el.style.minHeight = `${h}px`;
+        editor.el.style.font = `900 ${Math.max(10, (Number(item.size) || 28) * scale.y)}px Arial, sans-serif`;
+        editor.el.style.color = item.color || implBrushColor();
+        implAutosizeEditTextInlineEditor();
+    }
+
+    function implRemoveEditTextInlineEditor(commit=true){
+        const editor = editTextInlineEditor;
+        if(!editor) return;
+        const item = editTextItems.find(x => x.id === editor.itemId);
+        const next = implInlineEditorText().trim();
+        editTextInlineEditor = null;
+        clearListeners('inline');
+        cancelInlineFocus();
+        editor.el.remove();
+        if(!item) return;
+        if(commit){
+            if(next !== String(editor.before || '')){
+                implBeginTextEditChange();
+                if(next){
+                    item.text = next;
+                } else {
+                    editTextItems = editTextItems.filter(x => x.id !== item.id);
+                    editTextSelectedId = '';
+                }
+            }
+        } else {
+            item.text = editor.before || item.text || implDefaultEditTextText();
+        }
+        editTextDirty = false;
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+    }
+
+    function implBeginEditTextInline(item){
+        if(!item) return;
+        implRemoveEditTextInlineEditor(true);
+        editTextSelectedId = item.id;
+        const host = element('cropCanvas');
+        if(!host) return;
+        const el = document.createElement('div');
+        el.className = 'edit-text-inline';
+        el.contentEditable = 'true';
+        el.spellcheck = false;
+        el.textContent = item.text || implDefaultEditTextText();
+        host.appendChild(el);
+        editTextInlineEditor = {el, itemId:item.id, before:item.text || ''};
+        implPositionEditTextInlineEditor();
+        listen('inline', el, 'input', implAutosizeEditTextInlineEditor);
+        listen('inline', el, 'keydown', event => {
+            if(event.key === 'Enter' && !event.shiftKey){
+                event.preventDefault();
+                implRemoveEditTextInlineEditor(true);
+            } else if(event.key === 'Escape'){
+                event.preventDefault();
+                implRemoveEditTextInlineEditor(false);
+            }
+        });
+        listen('inline', el, 'blur', () => implRemoveEditTextInlineEditor(true));
+        const origin = capture();
+        inlineFocusFrame = requestAnimationFrame(() => {
+            inlineFocusFrame = null;
+            if(!accept(origin) || editTextInlineEditor?.el !== el || !el.isConnected) return;
+            el.focus();
+            implSelectInlineEditorText(el);
+        });
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+    }
+
+    function implEditTextPoint(event){
+        return implEditDrawPoint(event);
+    }
+
+    function implBeginEditText(event){
+        if(imageEditMode !== 'brush' || brushTool !== 'text') return;
         event.preventDefault();
         event.stopPropagation();
-        const canvasEl = editDrawCanvas();
-        canvasEl.setPointerCapture?.(event.pointerId);
-        const point = editDrawPoint(event);
-        const hitIndex = gridCustomLineHit(point);
-        gridCustomHistory.push([...gridCustomLines.map(line => ({...line}))]);
-        if(hitIndex >= 0){
-            gridCustomDrag = {index: hitIndex, pointerId: event.pointerId};
-            setGridCustomLinePos(hitIndex, point);
-            refreshGridSplitPreview();
-            _syncGridCustomUndoBtn();
+        implRemoveEditTextInlineEditor(true);
+        const canvasEl = implEditTextCanvas();
+        const point = implEditTextPoint(event);
+        const hit = implHitEditTextItem(point);
+        if(hit){
+            editTextSelectedId = hit.id;
+            editTextDrag = {
+                id: hit.id,
+                pointerId: event.pointerId,
+                startX: hit.x,
+                startY: hit.y,
+                sx: event.clientX,
+                sy: event.clientY,
+                moved: false,
+                hasHistory: false
+            };
+            canvasEl.setPointerCapture?.(event.pointerId);
+            canvasEl.style.cursor = 'grabbing';
+            implSyncTextToolState(true);
+            implRenderEditTextCanvas();
             return;
         }
-        const rect = canvasEl.getBoundingClientRect();
-        const fracX = Math.max(0.001, Math.min(0.999, (event.clientX - rect.left) / rect.width));
-        const fracY = Math.max(0.001, Math.min(0.999, (event.clientY - rect.top) / rect.height));
-        gridCustomLines.push({type: gridCustomOrientation, pos: gridCustomOrientation === 'h' ? fracY : fracX});
-        gridCustomDrag = {index: gridCustomLines.length - 1, pointerId: event.pointerId};
-        _syncGridCustomUndoBtn();
-        refreshGridSplitPreview();
-        return;
+        if(implSelectedEditTextItem()){
+            implConfirmSelectedEditTextItem();
+            return;
+        }
+        implBeginTextEditChange();
+        const item = implCreateEditTextItem(implDefaultEditTextText(), point, {color:implBrushColor(), size:implEditTextSizeFromBrush()});
+        editTextItems.push(item);
+        editTextSelectedId = item.id;
+        canvasEl.style.cursor = 'text';
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
     }
-    event.preventDefault();
-    event.stopPropagation();
-    const canvasEl = editDrawCanvas();
-    canvasEl.setPointerCapture?.(event.pointerId);
-    const ctx = canvasEl.getContext('2d');
-    const p = editDrawPoint(event);
-    pushEditDrawHistory();
-    if(imageEditMode === 'brush' && brushTool === 'label'){
-        drawNumberLabel(p);
-        editDrawState = null;
-        canvasEl.releasePointerCapture?.(event.pointerId);
-        syncEditDrawingHistoryButtons();
-        return;
-    }
-    editDrawState = {x:p.x, y:p.y, sx:p.x, sy:p.y, pointerId:event.pointerId, snapshot:(imageEditMode === 'brush' && brushTool !== 'free') ? editDrawSnapshot() : null};
-    setupDrawStyle(ctx);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(p.x + 0.01, p.y + 0.01);
-    if(imageEditMode === 'mask' || brushTool === 'free') ctx.stroke();
-    normalizeMaskPreviewCanvas(canvasEl);
-}
 
-function moveEditDraw(event){
-    if(imageEditMode === 'grid' && gridCustomMode && gridCustomDrag){
+    function implUpdateEditTextCursor(event){
+        const canvasEl = implEditTextCanvas();
+        if(!canvasEl || imageEditMode !== 'brush' || brushTool !== 'text') return;
+        const hit = implHitEditTextItem(implEditTextPoint(event));
+        canvasEl.style.cursor = hit ? 'move' : 'text';
+    }
+
+    function implMoveEditText(event){
+        if(!editTextDrag){
+            implUpdateEditTextCursor(event);
+            return;
+        }
         event.preventDefault();
         event.stopPropagation();
-        setGridCustomLinePos(gridCustomDrag.index, editDrawPoint(event));
-        refreshGridSplitPreview();
-        return;
+        const item = editTextItems.find(x => x.id === editTextDrag.id);
+        if(!item) return;
+        const dx = event.clientX - editTextDrag.sx;
+        const dy = event.clientY - editTextDrag.sy;
+        if(!editTextDrag.moved && Math.abs(dx) + Math.abs(dy) < 2) return;
+        editTextDrag.moved = true;
+        if(!editTextDrag.hasHistory){
+            implBeginTextEditChange();
+            editTextDrag.hasHistory = true;
+        }
+        const canvasEl = implEditTextCanvas();
+        const rect = canvasEl?.getBoundingClientRect?.();
+        const scaleX = canvasEl ? canvasEl.width / Math.max(1, rect?.width || canvasEl.width) : 1;
+        const scaleY = canvasEl ? canvasEl.height / Math.max(1, rect?.height || canvasEl.height) : 1;
+        item.x = editTextDrag.startX + dx * scaleX;
+        item.y = editTextDrag.startY + dy * scaleY;
+        implRenderEditTextCanvas();
     }
-    if(!editDrawState || imageEditMode === 'crop' || imageEditMode === 'grid') return;
-    event.preventDefault();
-    event.stopPropagation();
-    const ctx = editDrawCanvas().getContext('2d');
-    const p = editDrawPoint(event);
-    if(imageEditMode === 'brush' && brushTool !== 'free'){
-        restoreEditDrawSnapshot(editDrawState.snapshot);
-        drawBrushShape(ctx, {x:editDrawState.sx, y:editDrawState.sy}, p, true);
-        return;
+
+    function implEndEditText(event){
+        if(editTextDrag && event?.pointerId != null) implEditTextCanvas()?.releasePointerCapture?.(event.pointerId);
+        editTextDrag = null;
+        editTextDirty = false;
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+        if(event) implUpdateEditTextCursor(event);
     }
-    setupDrawStyle(ctx);
-    ctx.beginPath();
-    ctx.moveTo(editDrawState.x, editDrawState.y);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    editDrawState.x = p.x;
-    editDrawState.y = p.y;
-    normalizeMaskPreviewCanvas();
-}
 
-function endEditDraw(event){
-    if(editDrawState && event?.pointerId != null) editDrawCanvas().releasePointerCapture?.(event.pointerId);
-    if(gridCustomDrag && event?.pointerId != null) editDrawCanvas().releasePointerCapture?.(event.pointerId);
-    editDrawState = null;
-    gridCustomDrag = null;
-    syncEditDrawingHistoryButtons();
-}
+    function implEditTextHasContent(){
+        return editTextItems.some(item => String(item?.text || '').trim().length > 0);
+    }
 
-function editCanvasHasPixels(){
-    if(editTextHasContent()) return true;
-    const canvasEl = editDrawCanvas();
-    const data = canvasEl.getContext('2d').getImageData(0, 0, canvasEl.width, canvasEl.height).data;
-    for(let i = 3; i < data.length; i += 4) if(data[i] > 0) return true;
-    return false;
-}
+    function implResizeEditTextCanvas(){
+        const img = element('cropImage');
+        const canvasEl = implEditTextCanvas();
+        if(!img || !canvasEl) return;
+        const w = Math.max(1, img.naturalWidth || img.clientWidth || 1);
+        const h = Math.max(1, img.naturalHeight || img.clientHeight || 1);
+        if(canvasEl.width !== w) canvasEl.width = w;
+        if(canvasEl.height !== h) canvasEl.height = h;
+        canvasEl.style.width = `${img.clientWidth || 1}px`;
+        canvasEl.style.height = `${img.clientHeight || 1}px`;
+        implRenderEditTextCanvas();
+    }
 
-function syncGridGapValue(){
-    const input = document.getElementById('gridGapSize');
-    const value = Math.max(0, Math.min(240, Number(input?.value || 0)));
-    if(input) input.value = value;
-    const label = document.getElementById('gridGapValue');
-    if(label) label.textContent = String(value);
-    return value;
-}
+    function implResizeEditDrawCanvas(){
+        const img = element('cropImage');
+        const canvasEl = implEditDrawCanvas();
+        const w = Math.max(1, img.naturalWidth || img.clientWidth || 1);
+        const h = Math.max(1, img.naturalHeight || img.clientHeight || 1);
+        if(canvasEl.width !== w || canvasEl.height !== h){
+            canvasEl.width = w;
+            canvasEl.height = h;
+        }
+        canvasEl.style.width = `${img.clientWidth || 1}px`;
+        canvasEl.style.height = `${img.clientHeight || 1}px`;
+        implResizeEditTextCanvas();
+        if(imageEditMode === 'grid') implRefreshGridSplitPreview();
+    }
 
-function gridSplitSettings(){
-    const hLines = Math.max(0, Math.min(20, Number(document.getElementById('gridHorizontalLines')?.value || 0)));
-    const vLines = Math.max(0, Math.min(20, Number(document.getElementById('gridVerticalLines')?.value || 0)));
-    const gap = syncGridGapValue();
-    return {rows:hLines + 1, cols:vLines + 1, gap};
-}
+    function implSetImageEditMode(mode, userTouched=false){
+        if(userTouched) imageEditModeTouched = true;
+        const prevImageEditMode = imageEditMode;
+        if(mode !== 'brush') implRemoveEditTextInlineEditor(true);
+        imageEditMode = ['preview','crop','outpaint','mask','brush','grid'].includes(mode) ? mode : 'crop';
+        const isPreview = imageEditMode === 'preview';
+        const cropCanvasEl = element('cropCanvas');
+        cropCanvasEl.classList.toggle('preview-mode', isPreview);
+        cropCanvasEl.classList.toggle('mask-mode', imageEditMode === 'mask');
+        cropCanvasEl.classList.toggle('brush-mode', imageEditMode === 'brush');
+        cropCanvasEl.classList.toggle('grid-mode', imageEditMode === 'grid');
+        cropCanvasEl.classList.toggle('outpaint-mode', imageEditMode === 'outpaint');
+        impl_syncGridCustomCursor();
+        modal().querySelectorAll('[data-image-edit-mode]').forEach(btn => btn.classList.toggle('active', btn.dataset.imageEditMode === imageEditMode));
+        element('imageMaskTools').classList.toggle('active', imageEditMode === 'mask');
+        element('imageBrushTools').classList.toggle('active', imageEditMode === 'brush');
+        element('imageGridTools').classList.toggle('active', imageEditMode === 'grid');
+        implSyncGridGapValue();
+        const title = element('imageEditTitle');
+        const sub = element('imageEditSub');
+        const apply = element('imageEditApplyBtn');
+        if(isPreview){
+            apply.style.display = 'none';
+            title.textContent = '预览图片';
+            sub.textContent = '查看大图，可切换到裁剪 / 扩图 / 遮罩等模式';
+        } else {
+            apply.style.display = '';
+            const icon = imageEditMode === 'crop' ? 'crop' : imageEditMode === 'outpaint' ? 'expand' : imageEditMode === 'mask' ? 'brush' : imageEditMode === 'brush' ? 'paintbrush' : 'grid-3x3';
+            const editLabel = imageEditMode === 'crop' ? '应用裁剪' : imageEditMode === 'outpaint' ? '应用扩图' : imageEditMode === 'mask' ? '生成遮罩节点' : imageEditMode === 'brush' ? '应用画笔' : '切分到 Output';
+            const editTitle = imageEditMode === 'crop' ? '裁剪图片' : imageEditMode === 'outpaint' ? '扩图' : imageEditMode === 'mask' ? '遮罩编辑' : imageEditMode === 'brush' ? '画笔编辑' : '宫格切分';
+            const editHint = imageEditMode === 'crop' ? '拖动裁剪框移动，拖右下角调整大小' : imageEditMode === 'outpaint' ? '拖动红框调整画布范围，最大不超过 4K 尺寸，确认后空白区域填充白色' : imageEditMode === 'mask' ? '在要重绘的位置涂白，保存后会生成遮罩图片节点' : imageEditMode === 'brush' ? '直接在图片上绘制标记或草图' : '按切分线分割图片，间隔会从线两侧扣除';
+            title.textContent = editTitle;
+            sub.textContent = editHint;
+            apply.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span>${editLabel}</span>`;
+        }
+        implResizeEditDrawCanvas();
+        if(isPreview) implClearEditDrawing(true);
+        else if(imageEditMode === 'grid') implRefreshGridSplitPreview();
+        else if(imageEditMode === 'outpaint') implResetOutpaintBox();
+        else if(imageEditMode === 'crop') implClearEditDrawing(true);
+        else if(prevImageEditMode === 'grid') implClearEditDrawing(true); // 离开 grid 时主动清掉画布上残留的分割线预览
+        implSyncEditDrawingHistoryButtons();
+        implSyncBrushToolButtons();
+        implSyncTextToolState(true);
+        refreshIcons();
+    }
 
-function gridSplitRects(width, height){
-    if(gridCustomMode) return gridSplitRectsCustom(width, height);
-    const {rows, cols, gap} = gridSplitSettings();
-    const halfGap = gap / 2;
-    const rects = [];
-    for(let row = 0; row < rows; row++){
-        const topLine = row * height / rows;
-        const bottomLine = (row + 1) * height / rows;
-        const y1 = Math.round(row === 0 ? 0 : topLine + halfGap);
-        const y2 = Math.round(row === rows - 1 ? height : bottomLine - halfGap);
-        for(let col = 0; col < cols; col++){
-            const leftLine = col * width / cols;
-            const rightLine = (col + 1) * width / cols;
-            const x1 = Math.round(col === 0 ? 0 : leftLine + halfGap);
-            const x2 = Math.round(col === cols - 1 ? width : rightLine - halfGap);
-            if(x2 > x1 && y2 > y1) rects.push({row, col, x:x1, y:y1, w:x2 - x1, h:y2 - y1});
+    function implEditDrawSnapshot(){
+        const canvasEl = implEditDrawCanvas();
+        return {
+            imageData: canvasEl.getContext('2d').getImageData(0, 0, canvasEl.width, canvasEl.height),
+            labelCounter: brushLabelCounter,
+            textItems: editTextItems.map(item => ({...item})),
+            textSelectedId: editTextSelectedId || '',
+        };
+    }
+
+    function implRestoreEditDrawSnapshot(snapshot){
+        if(!snapshot) return;
+        implRemoveEditTextInlineEditor(false);
+        const canvasEl = implEditDrawCanvas();
+        const imageData = snapshot.imageData || snapshot;
+        canvasEl.getContext('2d').putImageData(imageData, 0, 0);
+        if(snapshot.labelCounter) brushLabelCounter = snapshot.labelCounter;
+        editTextItems = (snapshot.textItems || []).map(item => ({...item}));
+        editTextSelectedId = snapshot.textSelectedId || '';
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+    }
+
+    function implPushEditDrawHistory(){
+        editDrawUndoStack.push(implEditDrawSnapshot());
+        if(editDrawUndoStack.length > EDIT_DRAW_HISTORY_MAX) editDrawUndoStack.shift();
+        editDrawRedoStack = [];
+        implSyncEditDrawingHistoryButtons();
+    }
+
+    function implSyncEditDrawingHistoryButtons(){
+        ['maskUndoBtn','brushUndoBtn'].forEach(id => {
+            const btn = element(id);
+            if(btn){ btn.disabled = !editDrawUndoStack.length; btn.style.opacity = editDrawUndoStack.length ? '1' : '.42'; }
+        });
+        ['maskRedoBtn','brushRedoBtn'].forEach(id => {
+            const btn = element(id);
+            if(btn){ btn.disabled = !editDrawRedoStack.length; btn.style.opacity = editDrawRedoStack.length ? '1' : '.42'; }
+        });
+    }
+
+    function implUndoEditDrawing(){
+        if(!editDrawUndoStack.length) return;
+        editDrawRedoStack.push(implEditDrawSnapshot());
+        implRestoreEditDrawSnapshot(editDrawUndoStack.pop());
+        implSyncEditDrawingHistoryButtons();
+    }
+
+    function implRedoEditDrawing(){
+        if(!editDrawRedoStack.length) return;
+        editDrawUndoStack.push(implEditDrawSnapshot());
+        implRestoreEditDrawSnapshot(editDrawRedoStack.pop());
+        implSyncEditDrawingHistoryButtons();
+    }
+
+    function implClearEditDrawing(silent=false){
+        implRemoveEditTextInlineEditor(false);
+        const canvasEl = implEditDrawCanvas();
+        if(!silent && implEditCanvasHasPixels()) implPushEditDrawHistory();
+        canvasEl.getContext('2d').clearRect(0, 0, canvasEl.width, canvasEl.height);
+        const textCanvasEl = implEditTextCanvas();
+        textCanvasEl?.getContext('2d')?.clearRect(0, 0, textCanvasEl.width, textCanvasEl.height);
+        editTextItems = [];
+        editTextSelectedId = '';
+        editTextDrag = null;
+        editTextDirty = false;
+        brushLabelCounter = 1;
+        implSyncTextToolState(true);
+        implSyncEditDrawingHistoryButtons();
+    }
+
+    function implResetEditDrawingHistory(){
+        implRemoveEditTextInlineEditor(false);
+        editDrawUndoStack = [];
+        editDrawRedoStack = [];
+        brushLabelCounter = 1;
+        editTextItems = [];
+        editTextSelectedId = '';
+        editTextDrag = null;
+        editTextDirty = false;
+        implRenderEditTextCanvas();
+        implSyncTextToolState(true);
+        implSyncEditDrawingHistoryButtons();
+    }
+
+    function implSetBrushTool(tool){
+        if(tool !== 'text') implRemoveEditTextInlineEditor(true);
+        brushTool = ['free','rect','ellipse','label','text'].includes(tool) ? tool : 'free';
+        implSyncBrushToolButtons();
+        implSyncTextToolState(true);
+    }
+
+    function implSyncBrushToolButtons(){
+        modal().querySelectorAll('[data-brush-tool]').forEach(btn => {
+            const active = btn.dataset.brushTool === brushTool;
+            btn.classList.toggle('primary', active);
+            btn.classList.toggle('secondary', !active);
+        });
+        const cropCanvasEl = element('cropCanvas');
+        cropCanvasEl?.classList.toggle('text-mode', imageEditMode === 'brush' && brushTool === 'text');
+    }
+
+    function implEditDrawPoint(event){
+        const canvasEl = implEditDrawCanvas();
+        const rect = canvasEl.getBoundingClientRect();
+        return {
+            x:(event.clientX - rect.left) * canvasEl.width / Math.max(1, rect.width),
+            y:(event.clientY - rect.top) * canvasEl.height / Math.max(1, rect.height),
+        };
+    }
+
+    function implGridCustomLineHit(point){
+        if(!gridCustomLines.length) return -1;
+        const canvasEl = implEditDrawCanvas();
+        const threshold = Math.max(8, Math.min(canvasEl.width, canvasEl.height) / 80);
+        let best = -1;
+        let bestDist = Infinity;
+        gridCustomLines.forEach((line, index) => {
+            const dist = line.type === 'h'
+                ? Math.abs(point.y - line.pos * canvasEl.height)
+                : Math.abs(point.x - line.pos * canvasEl.width);
+            if(dist < bestDist && dist <= threshold){
+                best = index;
+                bestDist = dist;
+            }
+        });
+        return best;
+    }
+
+    function implSetGridCustomLinePos(index, point){
+        const canvasEl = implEditDrawCanvas();
+        const line = gridCustomLines[index];
+        if(!line) return;
+        line.pos = line.type === 'h'
+            ? Math.max(0.001, Math.min(0.999, point.y / Math.max(1, canvasEl.height)))
+            : Math.max(0.001, Math.min(0.999, point.x / Math.max(1, canvasEl.width)));
+    }
+
+    function implEditBrushSize(){
+        const id = imageEditMode === 'mask' ? 'maskBrushSize' : 'paintBrushSize';
+        return Number(element(id)?.value || 20);
+    }
+
+    function implBrushColor(){
+        return element('paintBrushColor')?.value || '#ff2d55';
+    }
+
+    function implSetupDrawStyle(ctx){
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = implEditBrushSize();
+        ctx.strokeStyle = imageEditMode === 'mask' ? MASK_BRUSH_COLOR : implBrushColor();
+        ctx.fillStyle = imageEditMode === 'mask' ? MASK_BRUSH_COLOR : implBrushColor();
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    function implNormalizeMaskPreviewCanvas(canvasEl=implEditDrawCanvas()){
+        if(imageEditMode !== 'mask' || !canvasEl?.width || !canvasEl?.height) return;
+        const ctx = canvasEl.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+        const data = imageData.data;
+        let changed = false;
+        for(let i = 0; i < data.length; i += 4){
+            if(data[i + 3] <= 0) continue;
+            data[i] = 255;
+            data[i + 1] = 255;
+            data[i + 2] = 255;
+            if(data[i + 3] > MASK_BRUSH_ALPHA) data[i + 3] = MASK_BRUSH_ALPHA;
+            changed = true;
+        }
+        if(changed) ctx.putImageData(imageData, 0, 0);
+    }
+
+    function implCircledNumber(n){
+        if(n >= 1 && n <= 20) return String.fromCharCode(0x2460 + n - 1);
+        return String(n);
+    }
+
+    function implDrawBrushShape(ctx, start, end, preview=false){
+        implSetupDrawStyle(ctx);
+        const x = Math.min(start.x, end.x);
+        const y = Math.min(start.y, end.y);
+        const w = Math.abs(end.x - start.x);
+        const h = Math.abs(end.y - start.y);
+        if(brushTool === 'rect'){
+            ctx.strokeRect(x, y, w, h);
+        } else if(brushTool === 'ellipse'){
+            ctx.beginPath();
+            ctx.ellipse(x + w / 2, y + h / 2, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
+            ctx.stroke();
         }
     }
-    return rects;
-}
 
-function gridSplitRectsCustom(width, height){
-    const gap = Math.max(0, Math.min(240, Number(document.getElementById('gridGapSize')?.value || 0)));
-    const halfGap = gap / 2;
-    // 按方向归类，转换为像素位置（去重并排序）
-    const rawH = [...new Set(gridCustomLines.filter(l => l.type === 'h').map(l => l.pos * height))].sort((a, b) => a - b);
-    const rawV = [...new Set(gridCustomLines.filter(l => l.type === 'v').map(l => l.pos * width))].sort((a, b) => a - b);
-    const hCuts = [0, ...rawH, height]; // 切割边界（含图片两端）
-    const vCuts = [0, ...rawV, width];
-    const rects = [];
-    for(let row = 0; row < hCuts.length - 1; row++){
-        for(let col = 0; col < vCuts.length - 1; col++){
-            const y1 = Math.round(row === 0 ? hCuts[row] : hCuts[row] + halfGap);
-            const y2 = Math.round(row === hCuts.length - 2 ? hCuts[row + 1] : hCuts[row + 1] - halfGap);
-            const x1 = Math.round(col === 0 ? vCuts[col] : vCuts[col] + halfGap);
-            const x2 = Math.round(col === vCuts.length - 2 ? vCuts[col + 1] : vCuts[col + 1] - halfGap);
-            if(x2 > x1 && y2 > y1) rects.push({row, col, x:x1, y:y1, w:x2 - x1, h:y2 - y1});
-        }
-    }
-    return rects;
-}
-
-function gridLayoutFromRects(rects){
-    const rows = Math.max(1, ...rects.map(r => Number(r.row || 0) + 1));
-    const cols = Math.max(1, ...rects.map(r => Number(r.col || 0) + 1));
-    return {type:'grid-split', groupId:uid('grid'), rows, cols};
-}
-
-function applyGridPreset(rows, cols){
-    gridCustomMode = false;
-    gridCustomLines = [];
-    gridCustomHistory = [];
-    gridCustomDrag = null;
-    const h = document.getElementById('gridHorizontalLines');
-    const v = document.getElementById('gridVerticalLines');
-    if(h){ h.disabled = false; h.value = String(Math.max(0, Number(rows || 1) - 1)); }
-    if(v){ v.disabled = false; v.value = String(Math.max(0, Number(cols || 1) - 1)); }
-    const toggle = document.getElementById('gridCustomToggle');
-    const custom = document.getElementById('gridCustomControls');
-    const regular = document.getElementById('gridRegularControls');
-    if(toggle){
-        toggle.classList.remove('primary');
-        toggle.classList.add('secondary');
-    }
-    if(custom) custom.style.display = 'none';
-    if(regular) regular.style.display = 'contents';
-    _syncGridCustomCursor();
-    _syncGridCustomUndoBtn();
-    refreshGridSplitPreview();
-}
-
-// ——— 自定义宫格辅助函数 ———
-function toggleGridCustomMode(){
-    gridCustomMode = !gridCustomMode;
-    if(gridCustomMode){ gridCustomLines = []; gridCustomHistory = []; } // 进入自定义时清空旧线及历史
-    gridCustomDrag = null;
-    const toggle = document.getElementById('gridCustomToggle');
-    const regular = document.getElementById('gridRegularControls');
-    const custom = document.getElementById('gridCustomControls');
-    toggle.classList.toggle('primary', gridCustomMode);
-    toggle.classList.toggle('secondary', !gridCustomMode);
-    // 禁用/启用常规输入
-    ['gridHorizontalLines','gridVerticalLines'].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.disabled = gridCustomMode;
-    });
-    if(custom) custom.style.display = gridCustomMode ? 'flex' : 'none';
-    _syncGridCustomCursor();
-    _syncGridCustomUndoBtn();
-    refreshGridSplitPreview();
-}
-
-function setGridCustomOrientation(orient){
-    gridCustomOrientation = orient;
-    document.getElementById('gridOrientH').classList.toggle('primary', orient === 'h');
-    document.getElementById('gridOrientH').classList.toggle('secondary', orient !== 'h');
-    document.getElementById('gridOrientV').classList.toggle('primary', orient === 'v');
-    document.getElementById('gridOrientV').classList.toggle('secondary', orient !== 'v');
-    _syncGridCustomCursor();
-}
-
-function clearGridCustomLines(){
-    gridCustomHistory = [];
-    gridCustomLines = [];
-    gridCustomDrag = null;
-    _syncGridCustomUndoBtn();
-    refreshGridSplitPreview();
-}
-
-function undoGridCustomLine(){
-    if(!gridCustomHistory.length) return;
-    gridCustomLines = gridCustomHistory.pop();
-    gridCustomDrag = null;
-    _syncGridCustomUndoBtn();
-    refreshGridSplitPreview();
-}
-
-function _syncGridCustomUndoBtn(){
-    const btn = document.getElementById('gridUndoBtn');
-    if(!btn) return;
-    btn.disabled = gridCustomHistory.length === 0;
-    btn.style.opacity = gridCustomHistory.length === 0 ? '0.4' : '1';
-}
-
-// ——— 图片缩放 ———
-function applyImageEditZoom(){
-    if(!imageEditBaseW) return;
-    const img = document.getElementById('cropImage');
-    const oldW = img.clientWidth;
-    img.style.maxWidth = 'none';
-    img.style.maxHeight = 'none';
-    img.style.width = Math.round(imageEditBaseW * imageEditZoom) + 'px';
-    img.style.height = Math.round(imageEditBaseH * imageEditZoom) + 'px';
-    resizeEditDrawCanvas();
-    // 按比例同步裁剪框位置
-    if(cropState && oldW > 0){
-        const scale = img.clientWidth / oldW;
-        cropState.x = Math.round(cropState.x * scale);
-        cropState.y = Math.round(cropState.y * scale);
-        cropState.w = Math.round(cropState.w * scale);
-        cropState.h = Math.round(cropState.h * scale);
-        clampCrop();
-        renderCropBox();
-    }
-    if(imageEditMode === 'grid') refreshGridSplitPreview();
-    syncImageEditOverflow();
-    _updateZoomLabel();
-}
-
-function syncImageEditOverflow(){
-    const stage = document.getElementById('imageEditStage');
-    const crop = document.getElementById('cropCanvas');
-    if(!stage || !crop) return;
-    const rect = crop.getBoundingClientRect();
-    const pad = 36;
-    const overflowX = rect.width + pad > stage.clientWidth;
-    const overflowY = rect.height + pad > stage.clientHeight;
-    stage.classList.toggle('overflowing', overflowX || overflowY);
-    stage.classList.toggle('overflow-x', overflowX);
-    stage.classList.toggle('overflow-y', overflowY);
-}
-
-function resetImageEditZoom(){
-    const stage = document.getElementById('imageEditStage');
-    imageEditZoom = 1.0;
-    applyImageEditZoom();
-    if(stage){ stage.scrollLeft = 0; stage.scrollTop = 0; }
-}
-
-function _updateZoomLabel(){
-    const el = document.getElementById('imageEditZoomLabel');
-    if(el) el.textContent = Math.round(imageEditZoom * 100) + '%';
-}
-
-function _syncGridCustomCursor(){
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    cropCanvasEl.classList.toggle('grid-custom-h', imageEditMode === 'grid' && gridCustomMode && gridCustomOrientation === 'h');
-    cropCanvasEl.classList.toggle('grid-custom-v', imageEditMode === 'grid' && gridCustomMode && gridCustomOrientation === 'v');
-}
-
-function refreshGridSplitPreview(){
-    const canvasEl = editDrawCanvas();
-    const ctx = canvasEl.getContext('2d');
-    ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
-    if(imageEditMode !== 'grid') return;
-    const countEl = document.getElementById('gridSplitCount');
-    const lineWidth = Math.max(2, Math.round(Math.min(canvasEl.width, canvasEl.height) / 320));
-    const drawGuideLine = (x1, y1, x2, y2) => {
+    function implDrawNumberLabel(point){
+        const canvasEl = implEditDrawCanvas();
+        const ctx = canvasEl.getContext('2d');
+        const size = Math.max(18, implEditBrushSize() * 2.2);
+        const text = implCircledNumber(brushLabelCounter++);
+        implSetupDrawStyle(ctx);
         ctx.save();
-        ctx.lineWidth = lineWidth + 2;
-        ctx.strokeStyle = 'rgba(2,6,23,0.72)';
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-        ctx.lineWidth = lineWidth;
+        ctx.font = `900 ${size}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = Math.max(3, size / 8);
         ctx.strokeStyle = 'rgba(255,255,255,0.92)';
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.strokeText(text, point.x, point.y);
+        ctx.fillStyle = implBrushColor();
+        ctx.fillText(text, point.x, point.y);
         ctx.restore();
-    };
-    if(gridCustomMode){
-        // 自定义模式：按已放置线渲染（包含空心范围预览）
-        const gap = Math.max(0, Math.min(240, Number(document.getElementById('gridGapSize')?.value || 0)));
-        const hLines = gridCustomLines.filter(l => l.type === 'h');
-        const vLines = gridCustomLines.filter(l => l.type === 'v');
-        if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', (hLines.length + 1) * (vLines.length + 1));
+    }
+
+    function implBeginEditDraw(event){
+        if(imageEditMode === 'crop') return;
+        if(imageEditMode === 'grid'){
+            if(!gridCustomMode) return;
+            // 自定义模式：拖动已有线，或点击空白处放置新线
+            event.preventDefault();
+            event.stopPropagation();
+            const canvasEl = implEditDrawCanvas();
+            canvasEl.setPointerCapture?.(event.pointerId);
+            const point = implEditDrawPoint(event);
+            const hitIndex = implGridCustomLineHit(point);
+            gridCustomHistory.push([...gridCustomLines.map(line => ({...line}))]);
+            if(hitIndex >= 0){
+                gridCustomDrag = {index: hitIndex, pointerId: event.pointerId};
+                implSetGridCustomLinePos(hitIndex, point);
+                implRefreshGridSplitPreview();
+                impl_syncGridCustomUndoBtn();
+                return;
+            }
+            const rect = canvasEl.getBoundingClientRect();
+            const fracX = Math.max(0.001, Math.min(0.999, (event.clientX - rect.left) / rect.width));
+            const fracY = Math.max(0.001, Math.min(0.999, (event.clientY - rect.top) / rect.height));
+            gridCustomLines.push({type: gridCustomOrientation, pos: gridCustomOrientation === 'h' ? fracY : fracX});
+            gridCustomDrag = {index: gridCustomLines.length - 1, pointerId: event.pointerId};
+            impl_syncGridCustomUndoBtn();
+            implRefreshGridSplitPreview();
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const canvasEl = implEditDrawCanvas();
+        canvasEl.setPointerCapture?.(event.pointerId);
+        const ctx = canvasEl.getContext('2d');
+        const p = implEditDrawPoint(event);
+        implPushEditDrawHistory();
+        if(imageEditMode === 'brush' && brushTool === 'label'){
+            implDrawNumberLabel(p);
+            editDrawState = null;
+            canvasEl.releasePointerCapture?.(event.pointerId);
+            implSyncEditDrawingHistoryButtons();
+            return;
+        }
+        editDrawState = {x:p.x, y:p.y, sx:p.x, sy:p.y, pointerId:event.pointerId, snapshot:(imageEditMode === 'brush' && brushTool !== 'free') ? implEditDrawSnapshot() : null};
+        implSetupDrawStyle(ctx);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + 0.01, p.y + 0.01);
+        if(imageEditMode === 'mask' || brushTool === 'free') ctx.stroke();
+        implNormalizeMaskPreviewCanvas(canvasEl);
+    }
+
+    function implMoveEditDraw(event){
+        if(imageEditMode === 'grid' && gridCustomMode && gridCustomDrag){
+            event.preventDefault();
+            event.stopPropagation();
+            implSetGridCustomLinePos(gridCustomDrag.index, implEditDrawPoint(event));
+            implRefreshGridSplitPreview();
+            return;
+        }
+        if(!editDrawState || imageEditMode === 'crop' || imageEditMode === 'grid') return;
+        event.preventDefault();
+        event.stopPropagation();
+        const ctx = implEditDrawCanvas().getContext('2d');
+        const p = implEditDrawPoint(event);
+        if(imageEditMode === 'brush' && brushTool !== 'free'){
+            implRestoreEditDrawSnapshot(editDrawState.snapshot);
+            implDrawBrushShape(ctx, {x:editDrawState.sx, y:editDrawState.sy}, p, true);
+            return;
+        }
+        implSetupDrawStyle(ctx);
+        ctx.beginPath();
+        ctx.moveTo(editDrawState.x, editDrawState.y);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        editDrawState.x = p.x;
+        editDrawState.y = p.y;
+        implNormalizeMaskPreviewCanvas();
+    }
+
+    function implEndEditDraw(event){
+        if(editDrawState && event?.pointerId != null) implEditDrawCanvas().releasePointerCapture?.(event.pointerId);
+        if(gridCustomDrag && event?.pointerId != null) implEditDrawCanvas().releasePointerCapture?.(event.pointerId);
+        editDrawState = null;
+        gridCustomDrag = null;
+        implSyncEditDrawingHistoryButtons();
+    }
+
+    function implEditCanvasHasPixels(){
+        if(implEditTextHasContent()) return true;
+        const canvasEl = implEditDrawCanvas();
+        const data = canvasEl.getContext('2d').getImageData(0, 0, canvasEl.width, canvasEl.height).data;
+        for(let i = 3; i < data.length; i += 4) if(data[i] > 0) return true;
+        return false;
+    }
+
+    function implSyncGridGapValue(){
+        const input = element('gridGapSize');
+        const value = Math.max(0, Math.min(240, Number(input?.value || 0)));
+        if(input) input.value = value;
+        const label = element('gridGapValue');
+        if(label) label.textContent = String(value);
+        return value;
+    }
+
+    function implGridSplitSettings(){
+        const hLines = Math.max(0, Math.min(20, Number(element('gridHorizontalLines')?.value || 0)));
+        const vLines = Math.max(0, Math.min(20, Number(element('gridVerticalLines')?.value || 0)));
+        const gap = implSyncGridGapValue();
+        return {rows:hLines + 1, cols:vLines + 1, gap};
+    }
+
+    function implGridSplitRects(width, height){
+        if(gridCustomMode) return implGridSplitRectsCustom(width, height);
+        const {rows, cols, gap} = implGridSplitSettings();
+        const halfGap = gap / 2;
+        const rects = [];
+        for(let row = 0; row < rows; row++){
+            const topLine = row * height / rows;
+            const bottomLine = (row + 1) * height / rows;
+            const y1 = Math.round(row === 0 ? 0 : topLine + halfGap);
+            const y2 = Math.round(row === rows - 1 ? height : bottomLine - halfGap);
+            for(let col = 0; col < cols; col++){
+                const leftLine = col * width / cols;
+                const rightLine = (col + 1) * width / cols;
+                const x1 = Math.round(col === 0 ? 0 : leftLine + halfGap);
+                const x2 = Math.round(col === cols - 1 ? width : rightLine - halfGap);
+                if(x2 > x1 && y2 > y1) rects.push({row, col, x:x1, y:y1, w:x2 - x1, h:y2 - y1});
+            }
+        }
+        return rects;
+    }
+
+    function implGridSplitRectsCustom(width, height){
+        const gap = Math.max(0, Math.min(240, Number(element('gridGapSize')?.value || 0)));
+        const halfGap = gap / 2;
+        // 按方向归类，转换为像素位置（去重并排序）
+        const rawH = [...new Set(gridCustomLines.filter(l => l.type === 'h').map(l => l.pos * height))].sort((a, b) => a - b);
+        const rawV = [...new Set(gridCustomLines.filter(l => l.type === 'v').map(l => l.pos * width))].sort((a, b) => a - b);
+        const hCuts = [0, ...rawH, height]; // 切割边界（含图片两端）
+        const vCuts = [0, ...rawV, width];
+        const rects = [];
+        for(let row = 0; row < hCuts.length - 1; row++){
+            for(let col = 0; col < vCuts.length - 1; col++){
+                const y1 = Math.round(row === 0 ? hCuts[row] : hCuts[row] + halfGap);
+                const y2 = Math.round(row === hCuts.length - 2 ? hCuts[row + 1] : hCuts[row + 1] - halfGap);
+                const x1 = Math.round(col === 0 ? vCuts[col] : vCuts[col] + halfGap);
+                const x2 = Math.round(col === vCuts.length - 2 ? vCuts[col + 1] : vCuts[col + 1] - halfGap);
+                if(x2 > x1 && y2 > y1) rects.push({row, col, x:x1, y:y1, w:x2 - x1, h:y2 - y1});
+            }
+        }
+        return rects;
+    }
+
+    function implGridLayoutFromRects(rects){
+        const rows = Math.max(1, ...rects.map(r => Number(r.row || 0) + 1));
+        const cols = Math.max(1, ...rects.map(r => Number(r.col || 0) + 1));
+        return {type:'grid-split', groupId:uid('grid'), rows, cols};
+    }
+
+    function implApplyGridPreset(rows, cols){
+        gridCustomMode = false;
+        gridCustomLines = [];
+        gridCustomHistory = [];
+        gridCustomDrag = null;
+        const h = element('gridHorizontalLines');
+        const v = element('gridVerticalLines');
+        if(h){ h.disabled = false; h.value = String(Math.max(0, Number(rows || 1) - 1)); }
+        if(v){ v.disabled = false; v.value = String(Math.max(0, Number(cols || 1) - 1)); }
+        const toggle = element('gridCustomToggle');
+        const custom = element('gridCustomControls');
+        const regular = element('gridRegularControls');
+        if(toggle){
+            toggle.classList.remove('primary');
+            toggle.classList.add('secondary');
+        }
+        if(custom) custom.style.display = 'none';
+        if(regular) regular.style.display = 'contents';
+        impl_syncGridCustomCursor();
+        impl_syncGridCustomUndoBtn();
+        implRefreshGridSplitPreview();
+    }
+
+    // ——— 自定义宫格辅助函数 ———
+    function implToggleGridCustomMode(){
+        gridCustomMode = !gridCustomMode;
+        if(gridCustomMode){ gridCustomLines = []; gridCustomHistory = []; } // 进入自定义时清空旧线及历史
+        gridCustomDrag = null;
+        const toggle = element('gridCustomToggle');
+        const regular = element('gridRegularControls');
+        const custom = element('gridCustomControls');
+        toggle.classList.toggle('primary', gridCustomMode);
+        toggle.classList.toggle('secondary', !gridCustomMode);
+        // 禁用/启用常规输入
+        ['gridHorizontalLines','gridVerticalLines'].forEach(id => {
+            const el = element(id);
+            if(el) el.disabled = gridCustomMode;
+        });
+        if(custom) custom.style.display = gridCustomMode ? 'flex' : 'none';
+        impl_syncGridCustomCursor();
+        impl_syncGridCustomUndoBtn();
+        implRefreshGridSplitPreview();
+    }
+
+    function implSetGridCustomOrientation(orient){
+        gridCustomOrientation = orient;
+        element('gridOrientH').classList.toggle('primary', orient === 'h');
+        element('gridOrientH').classList.toggle('secondary', orient !== 'h');
+        element('gridOrientV').classList.toggle('primary', orient === 'v');
+        element('gridOrientV').classList.toggle('secondary', orient !== 'v');
+        impl_syncGridCustomCursor();
+    }
+
+    function implClearGridCustomLines(){
+        gridCustomHistory = [];
+        gridCustomLines = [];
+        gridCustomDrag = null;
+        impl_syncGridCustomUndoBtn();
+        implRefreshGridSplitPreview();
+    }
+
+    function implUndoGridCustomLine(){
+        if(!gridCustomHistory.length) return;
+        gridCustomLines = gridCustomHistory.pop();
+        gridCustomDrag = null;
+        impl_syncGridCustomUndoBtn();
+        implRefreshGridSplitPreview();
+    }
+
+    function impl_syncGridCustomUndoBtn(){
+        const btn = element('gridUndoBtn');
+        if(!btn) return;
+        btn.disabled = gridCustomHistory.length === 0;
+        btn.style.opacity = gridCustomHistory.length === 0 ? '0.4' : '1';
+    }
+
+    // ——— 图片缩放 ———
+    function implApplyImageEditZoom(){
+        if(!imageEditBaseW) return;
+        const img = element('cropImage');
+        const oldW = img.clientWidth;
+        img.style.maxWidth = 'none';
+        img.style.maxHeight = 'none';
+        img.style.width = Math.round(imageEditBaseW * imageEditZoom) + 'px';
+        img.style.height = Math.round(imageEditBaseH * imageEditZoom) + 'px';
+        implResizeEditDrawCanvas();
+        // 按比例同步裁剪框位置
+        if(cropState && oldW > 0){
+            const scale = img.clientWidth / oldW;
+            cropState.x = Math.round(cropState.x * scale);
+            cropState.y = Math.round(cropState.y * scale);
+            cropState.w = Math.round(cropState.w * scale);
+            cropState.h = Math.round(cropState.h * scale);
+            implClampCrop();
+            implRenderCropBox();
+        }
+        if(imageEditMode === 'grid') implRefreshGridSplitPreview();
+        implSyncImageEditOverflow();
+        impl_updateZoomLabel();
+    }
+
+    function implSyncImageEditOverflow(){
+        const stage = element('imageEditStage');
+        const crop = element('cropCanvas');
+        if(!stage || !crop) return;
+        const rect = crop.getBoundingClientRect();
+        const pad = 36;
+        const overflowX = rect.width + pad > stage.clientWidth;
+        const overflowY = rect.height + pad > stage.clientHeight;
+        stage.classList.toggle('overflowing', overflowX || overflowY);
+        stage.classList.toggle('overflow-x', overflowX);
+        stage.classList.toggle('overflow-y', overflowY);
+    }
+
+    function implResetImageEditZoom(){
+        const stage = element('imageEditStage');
+        imageEditZoom = 1.0;
+        implApplyImageEditZoom();
+        if(stage){ stage.scrollLeft = 0; stage.scrollTop = 0; }
+    }
+
+    function impl_updateZoomLabel(){
+        const el = element('imageEditZoomLabel');
+        if(el) el.textContent = Math.round(imageEditZoom * 100) + '%';
+    }
+
+    function impl_syncGridCustomCursor(){
+        const cropCanvasEl = element('cropCanvas');
+        cropCanvasEl.classList.toggle('grid-custom-h', imageEditMode === 'grid' && gridCustomMode && gridCustomOrientation === 'h');
+        cropCanvasEl.classList.toggle('grid-custom-v', imageEditMode === 'grid' && gridCustomMode && gridCustomOrientation === 'v');
+    }
+
+    function implRefreshGridSplitPreview(){
+        const canvasEl = implEditDrawCanvas();
+        const ctx = canvasEl.getContext('2d');
+        ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        if(imageEditMode !== 'grid') return;
+        const countEl = element('gridSplitCount');
+        const lineWidth = Math.max(2, Math.round(Math.min(canvasEl.width, canvasEl.height) / 320));
+        const drawGuideLine = (x1, y1, x2, y2) => {
+            ctx.save();
+            ctx.lineWidth = lineWidth + 2;
+            ctx.strokeStyle = 'rgba(2,6,23,0.72)';
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+            ctx.lineWidth = lineWidth;
+            ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+            ctx.restore();
+        };
+        if(gridCustomMode){
+            // 自定义模式：按已放置线渲染（包含空心范围预览）
+            const gap = Math.max(0, Math.min(240, Number(element('gridGapSize')?.value || 0)));
+            const hLines = gridCustomLines.filter(l => l.type === 'h');
+            const vLines = gridCustomLines.filter(l => l.type === 'v');
+            if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', (hLines.length + 1) * (vLines.length + 1));
+            ctx.save();
+            hLines.forEach(l => {
+                const y = l.pos * canvasEl.height;
+                if(gap > 0){
+                    drawGuideLine(0, y - gap / 2, canvasEl.width, y - gap / 2);
+                    drawGuideLine(0, y + gap / 2, canvasEl.width, y + gap / 2);
+                } else {
+                    drawGuideLine(0, y, canvasEl.width, y);
+                }
+            });
+            vLines.forEach(l => {
+                const x = l.pos * canvasEl.width;
+                if(gap > 0){
+                    drawGuideLine(x - gap / 2, 0, x - gap / 2, canvasEl.height);
+                    drawGuideLine(x + gap / 2, 0, x + gap / 2, canvasEl.height);
+                } else {
+                    drawGuideLine(x, 0, x, canvasEl.height);
+                }
+            });
+            ctx.restore();
+            return;
+        }
+        // 常规模式
+        const {rows, cols, gap} = implGridSplitSettings();
+        if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', rows * cols);
         ctx.save();
-        hLines.forEach(l => {
-            const y = l.pos * canvasEl.height;
+        const scaleX = canvasEl.width;
+        const scaleY = canvasEl.height;
+        for(let i = 1; i < cols; i++){
+            const x = i * scaleX / cols;
             if(gap > 0){
-                drawGuideLine(0, y - gap / 2, canvasEl.width, y - gap / 2);
-                drawGuideLine(0, y + gap / 2, canvasEl.width, y + gap / 2);
+                drawGuideLine(x - gap / 2, 0, x - gap / 2, scaleY);
+                drawGuideLine(x + gap / 2, 0, x + gap / 2, scaleY);
             } else {
-                drawGuideLine(0, y, canvasEl.width, y);
+                drawGuideLine(x, 0, x, scaleY);
             }
-        });
-        vLines.forEach(l => {
-            const x = l.pos * canvasEl.width;
+        }
+        for(let i = 1; i < rows; i++){
+            const y = i * scaleY / rows;
             if(gap > 0){
-                drawGuideLine(x - gap / 2, 0, x - gap / 2, canvasEl.height);
-                drawGuideLine(x + gap / 2, 0, x + gap / 2, canvasEl.height);
+                drawGuideLine(0, y - gap / 2, scaleX, y - gap / 2);
+                drawGuideLine(0, y + gap / 2, scaleX, y + gap / 2);
             } else {
-                drawGuideLine(x, 0, x, canvasEl.height);
+                drawGuideLine(0, y, scaleX, y);
             }
-        });
+        }
         ctx.restore();
-        return;
     }
-    // 常规模式
-    const {rows, cols, gap} = gridSplitSettings();
-    if(countEl) countEl.textContent = '将输出 {n} 张'.replace('{n}', rows * cols);
-    ctx.save();
-    const scaleX = canvasEl.width;
-    const scaleY = canvasEl.height;
-    for(let i = 1; i < cols; i++){
-        const x = i * scaleX / cols;
-        if(gap > 0){
-            drawGuideLine(x - gap / 2, 0, x - gap / 2, scaleY);
-            drawGuideLine(x + gap / 2, 0, x + gap / 2, scaleY);
-        } else {
-            drawGuideLine(x, 0, x, scaleY);
+
+    function implImageEditorOutputPoint(node, offsetY=0){
+        return {x:(node.x || 0) + Number(node.w || 260) + 36, y:(node.y || 0) + offsetY};
+    }
+
+    function implImageEditorOutputNode(sourceNode){
+        let out = connections.filter(c => c.from === sourceNode.id)
+            .map(c => nodes.find(n => n.id === c.to))
+            .find(n => n?.type === 'output');
+        if(!out){
+            const p = implImageEditorOutputPoint(sourceNode, 0);
+            out = {id:uid('out'), type:'output', x:p.x, y:p.y, images:[]};
+            nodes.push(out);
+        }
+        return out;
+    }
+
+    function implAddGeneratedImageNode(file, sourceNode, suffix, offsetY=0, extra={}){
+        const p = implImageEditorOutputPoint(sourceNode, offsetY);
+        const next = {id:uid('img'), type:'image', x:p.x, y:p.y, url:file.url, name:file.name || suffix, ...extra};
+        nodes.push(next);
+        selected.clear();
+        selected.add(next.id);
+        return next;
+    }
+
+    function implRenderCropBox(){
+        if(!cropState) return;
+        const cropCanvasEl = element('cropCanvas');
+        const img = element('cropImage');
+        const draw = implEditDrawCanvas();
+        const textCanvas = implEditTextCanvas();
+        let boxX = cropState.x;
+        let boxY = cropState.y;
+        if(imageEditMode === 'outpaint' && cropCanvasEl && img){
+            cropCanvasEl.style.width = `${Math.round(cropState.w)}px`;
+            cropCanvasEl.style.height = `${Math.round(cropState.h)}px`;
+            img.style.left = `${Math.round(cropState.x)}px`;
+            img.style.top = `${Math.round(cropState.y)}px`;
+            boxX = 0;
+            boxY = 0;
+            if(draw){
+                draw.style.left = img.style.left;
+                draw.style.top = img.style.top;
+            }
+            if(textCanvas){
+                textCanvas.style.left = img.style.left;
+                textCanvas.style.top = img.style.top;
+            }
+            implUpdateOutpaintResolutionLabel();
+        } else if(cropCanvasEl && img){
+            cropCanvasEl.style.width = '';
+            cropCanvasEl.style.height = '';
+            img.style.left = '';
+            img.style.top = '';
+            if(draw){
+                draw.style.left = '';
+                draw.style.top = '';
+            }
+            if(textCanvas){
+                textCanvas.style.left = '';
+                textCanvas.style.top = '';
+            }
+        }
+        const box = element('cropBox');
+        box.style.left = `${boxX}px`;
+        box.style.top = `${boxY}px`;
+        box.style.width = `${cropState.w}px`;
+        box.style.height = `${cropState.h}px`;
+        const outpaintFrame = element('outpaintFrame');
+        if(outpaintFrame){
+            outpaintFrame.style.left = imageEditMode === 'outpaint' ? '0px' : `${boxX}px`;
+            outpaintFrame.style.top = imageEditMode === 'outpaint' ? '0px' : `${boxY}px`;
+            outpaintFrame.style.width = `${cropState.w}px`;
+            outpaintFrame.style.height = `${cropState.h}px`;
         }
     }
-    for(let i = 1; i < rows; i++){
-        const y = i * scaleY / rows;
-        if(gap > 0){
-            drawGuideLine(0, y - gap / 2, scaleX, y - gap / 2);
-            drawGuideLine(0, y + gap / 2, scaleX, y + gap / 2);
-        } else {
-            drawGuideLine(0, y, scaleX, y);
-        }
+
+    function implOutpaintNaturalSize(){
+        const img = element('cropImage');
+        if(!img || !cropState) return {w:1, h:1};
+        const scaleX = Math.max(1, Number(img.naturalWidth || 1)) / Math.max(1, Number(img.clientWidth || 1));
+        const scaleY = Math.max(1, Number(img.naturalHeight || 1)) / Math.max(1, Number(img.clientHeight || 1));
+        return {
+            w:Math.max(1, Math.round((cropState.w || 1) * scaleX)),
+            h:Math.max(1, Math.round((cropState.h || 1) * scaleY))
+        };
     }
-    ctx.restore();
-}
 
-function imageEditorOutputPoint(node, offsetY=0){
-    return {x:(node.x || 0) + Number(node.w || 260) + 36, y:(node.y || 0) + offsetY};
-}
-
-function imageEditorOutputNode(sourceNode){
-    let out = connections.filter(c => c.from === sourceNode.id)
-        .map(c => nodes.find(n => n.id === c.to))
-        .find(n => n?.type === 'output');
-    if(!out){
-        const p = imageEditorOutputPoint(sourceNode, 0);
-        out = {id:uid('out'), type:'output', x:p.x, y:p.y, images:[]};
-        nodes.push(out);
+    function implUpdateOutpaintResolutionLabel(){
+        const label = element('outpaintResolution');
+        const cropCanvasEl = element('cropCanvas');
+        if(!label || !cropState) return;
+        const size = implOutpaintNaturalSize();
+        cropCanvasEl?.classList.toggle('outpaint-warning', exceedsFourKStandard(size.w, size.h));
+        label.textContent = `${Math.round(size.w)} x ${Math.round(size.h)}`;
     }
-    return out;
-}
 
-function addGeneratedImageNode(file, sourceNode, suffix, offsetY=0, extra={}){
-    const p = imageEditorOutputPoint(sourceNode, offsetY);
-    const next = {id:uid('img'), type:'image', x:p.x, y:p.y, url:file.url, name:file.name || suffix, ...extra};
-    nodes.push(next);
-    selected.clear();
-    selected.add(next.id);
-    return next;
-}
+    function implClampOutpaint(){
+        if(!cropState) return;
+        const {w, h} = implCropBounds();
+        cropState.w = Math.max(w, cropState.w);
+        cropState.h = Math.max(h, cropState.h);
+        cropState.x = Math.min(cropState.w - w, Math.max(0, cropState.x));
+        cropState.y = Math.min(cropState.h - h, Math.max(0, cropState.y));
+    }
 
-function renderCropBox(){
-    if(!cropState) return;
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    const img = document.getElementById('cropImage');
-    const draw = editDrawCanvas();
-    const textCanvas = editTextCanvas();
-    let boxX = cropState.x;
-    let boxY = cropState.y;
-    if(imageEditMode === 'outpaint' && cropCanvasEl && img){
-        cropCanvasEl.style.width = `${Math.round(cropState.w)}px`;
-        cropCanvasEl.style.height = `${Math.round(cropState.h)}px`;
-        img.style.left = `${Math.round(cropState.x)}px`;
-        img.style.top = `${Math.round(cropState.y)}px`;
-        boxX = 0;
-        boxY = 0;
-        if(draw){
-            draw.style.left = img.style.left;
-            draw.style.top = img.style.top;
-        }
-        if(textCanvas){
-            textCanvas.style.left = img.style.left;
-            textCanvas.style.top = img.style.top;
-        }
-        updateOutpaintResolutionLabel();
-    } else if(cropCanvasEl && img){
+    function implResetOutpaintBox(){
+        if(!cropState) return;
+        const {w, h} = implCropBounds();
+        cropState.x = 0;
+        cropState.y = 0;
+        cropState.w = w;
+        cropState.h = h;
+        implRenderCropBox();
+    }
+
+    function implResetCropBox(){
+        if(!cropState) return;
+        if(imageEditMode === 'outpaint') return implResetOutpaintBox();
+        const {w, h} = implCropBounds();
+        cropState.x = Math.round(w * 0.08);
+        cropState.y = Math.round(h * 0.08);
+        cropState.w = Math.round(w * 0.84);
+        cropState.h = Math.round(h * 0.84);
+        implRenderCropBox();
+    }
+
+    function implOpenImageEditor(nodeId, initialMode='crop'){
+        if(destroyed || paused) return;
+        const node = nodes.find(n => n.id === nodeId);
+        if(!node?.url) return;
+        if(mediaKindForNode(node) !== 'image') return;
+        implCloseImageEditor(true);
+        target = {canvasId:canvas?.id, node, nodeIndex:nodes.indexOf(node), sourceUrl:node.url};
+        const origin = capture();
+        window.CanvasMediaLoader?.begin('image-editor');
+        if(!['preview','crop','outpaint','mask','brush','grid'].includes(initialMode)) initialMode = 'crop';
+        cropState = {nodeId, x:0, y:0, w:0, h:0};
+        // 重置自定义宫格状态
+        gridCustomMode = false;
+        gridCustomLines = [];
+        gridCustomHistory = [];
+        gridCustomDrag = null;
+        gridCustomOrientation = 'h';
+        imageEditZoom = 1.0;
+        imageEditBaseW = 0;
+        imageEditBaseH = 0;
+        imageEditModeTouched = false;
+        editTextItems = [];
+        editTextSelectedId = '';
+        editTextDrag = null;
+        editTextDirty = false;
+        const toggle = element('gridCustomToggle');
+        if(toggle){ toggle.classList.add('secondary'); toggle.classList.remove('primary'); }
+        const custom = element('gridCustomControls');
+        if(custom) custom.style.display = 'none';
+        ['gridHorizontalLines','gridVerticalLines'].forEach(id => { const el = element(id); if(el) el.disabled = false; });
+        const orientH = element('gridOrientH');
+        const orientV = element('gridOrientV');
+        if(orientH){ orientH.classList.add('primary'); orientH.classList.remove('secondary'); }
+        if(orientV){ orientV.classList.add('secondary'); orientV.classList.remove('primary'); }
+        impl_syncGridCustomUndoBtn();
+        impl_updateZoomLabel();
+        const modal = element('imageEditModal');
+        const img = element('cropImage');
+        img.style.width = '';
+        img.style.height = '';
+        img.style.maxWidth = '';
+        img.style.maxHeight = '';
+        modal.classList.add('open');
+        img.onload = () => {
+            if(!accept(origin) || ready) return;
+            ready = true;
+            // 记录 zoom=1 时的基础显示尺寸
+            imageEditBaseW = img.clientWidth;
+            imageEditBaseH = img.clientHeight;
+            impl_updateZoomLabel();
+            implResizeEditDrawCanvas();
+            implResetEditDrawingHistory();
+            implClearEditDrawing(true);
+            implResetCropBox();
+            if(!imageEditModeTouched) implSetImageEditMode(initialMode);
+            implSyncImageEditOverflow();
+            refreshIcons();
+        };
+        img.crossOrigin = 'anonymous';
+        window.CanvasMediaLoader?.watch(img);
+        img.src = canvasDisplayMediaUrl(node.url);
+        implSetImageEditMode(initialMode);
+        refreshIcons();
+    }
+
+    function implCloseImageEditor(keepMediaOwner=false){
+        if(destroyed) return;
+        generation++;
+        ready = false;
+        target = null;
+        cancelGestures();
+        if(!cropState) return;
+        window.CanvasMediaLoader?.unwatch(element('cropImage'));
+        if(!keepMediaOwner) window.CanvasMediaLoader?.end('image-editor');
+        element('imageEditModal').classList.remove('open');
+        const img = element('cropImage');
+        img.onload = null;
+        img.onerror = null;
+        img.removeAttribute('src');
+        img.style.width = '';
+        img.style.height = '';
+        img.style.maxWidth = '';
+        img.style.maxHeight = '';
+        implClearEditDrawing(true);
+        cropState = null;
+        cropDrag = null;
+        editDrawState = null;
+        implResetEditDrawingHistory();
+        gridCustomDrag = null;
+        imageEditZoom = 1.0;
+        imageEditBaseW = 0;
+        imageEditBaseH = 0;
+        imageEditModeTouched = false;
+        element('imageEditStage')?.classList.remove('overflowing', 'overflow-x', 'overflow-y');
+        const cropCanvasEl = element('cropCanvas');
+        cropCanvasEl.classList.remove('grid-custom-h', 'grid-custom-v', 'outpaint-mode', 'outpaint-warning', 'dragging-image', 'text-mode');
         cropCanvasEl.style.width = '';
         cropCanvasEl.style.height = '';
-        img.style.left = '';
-        img.style.top = '';
-        if(draw){
-            draw.style.left = '';
-            draw.style.top = '';
-        }
+        const textCanvas = implEditTextCanvas();
         if(textCanvas){
             textCanvas.style.left = '';
             textCanvas.style.top = '';
         }
-    }
-    const box = document.getElementById('cropBox');
-    box.style.left = `${boxX}px`;
-    box.style.top = `${boxY}px`;
-    box.style.width = `${cropState.w}px`;
-    box.style.height = `${cropState.h}px`;
-    const outpaintFrame = document.getElementById('outpaintFrame');
-    if(outpaintFrame){
-        outpaintFrame.style.left = imageEditMode === 'outpaint' ? '0px' : `${boxX}px`;
-        outpaintFrame.style.top = imageEditMode === 'outpaint' ? '0px' : `${boxY}px`;
-        outpaintFrame.style.width = `${cropState.w}px`;
-        outpaintFrame.style.height = `${cropState.h}px`;
-    }
-}
-
-function outpaintNaturalSize(){
-    const img = document.getElementById('cropImage');
-    if(!img || !cropState) return {w:1, h:1};
-    const scaleX = Math.max(1, Number(img.naturalWidth || 1)) / Math.max(1, Number(img.clientWidth || 1));
-    const scaleY = Math.max(1, Number(img.naturalHeight || 1)) / Math.max(1, Number(img.clientHeight || 1));
-    return {
-        w:Math.max(1, Math.round((cropState.w || 1) * scaleX)),
-        h:Math.max(1, Math.round((cropState.h || 1) * scaleY))
-    };
-}
-
-function updateOutpaintResolutionLabel(){
-    const label = document.getElementById('outpaintResolution');
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    if(!label || !cropState) return;
-    const size = outpaintNaturalSize();
-    cropCanvasEl?.classList.toggle('outpaint-warning', exceedsFourKStandard(size.w, size.h));
-    label.textContent = `${Math.round(size.w)} x ${Math.round(size.h)}`;
-}
-
-function clampOutpaint(){
-    if(!cropState) return;
-    const {w, h} = cropBounds();
-    cropState.w = Math.max(w, cropState.w);
-    cropState.h = Math.max(h, cropState.h);
-    cropState.x = Math.min(cropState.w - w, Math.max(0, cropState.x));
-    cropState.y = Math.min(cropState.h - h, Math.max(0, cropState.y));
-}
-
-function resetOutpaintBox(){
-    if(!cropState) return;
-    const {w, h} = cropBounds();
-    cropState.x = 0;
-    cropState.y = 0;
-    cropState.w = w;
-    cropState.h = h;
-    renderCropBox();
-}
-
-function resetCropBox(){
-    if(!cropState) return;
-    if(imageEditMode === 'outpaint') return resetOutpaintBox();
-    const {w, h} = cropBounds();
-    cropState.x = Math.round(w * 0.08);
-    cropState.y = Math.round(h * 0.08);
-    cropState.w = Math.round(w * 0.84);
-    cropState.h = Math.round(h * 0.84);
-    renderCropBox();
-}
-
-function openImageEditor(nodeId, initialMode='crop'){
-    const node = nodes.find(n => n.id === nodeId);
-    if(!node?.url) return;
-    if(mediaKindForNode(node) !== 'image') return;
-    window.CanvasMediaLoader?.begin('image-editor');
-    if(!['preview','crop','outpaint','mask','brush','grid'].includes(initialMode)) initialMode = 'crop';
-    cropState = {nodeId, x:0, y:0, w:0, h:0};
-    // 重置自定义宫格状态
-    gridCustomMode = false;
-    gridCustomLines = [];
-    gridCustomHistory = [];
-    gridCustomDrag = null;
-    gridCustomOrientation = 'h';
-    imageEditZoom = 1.0;
-    imageEditBaseW = 0;
-    imageEditBaseH = 0;
-    imageEditModeTouched = false;
-    editTextItems = [];
-    editTextSelectedId = '';
-    editTextDrag = null;
-    editTextDirty = false;
-    const toggle = document.getElementById('gridCustomToggle');
-    if(toggle){ toggle.classList.add('secondary'); toggle.classList.remove('primary'); }
-    const custom = document.getElementById('gridCustomControls');
-    if(custom) custom.style.display = 'none';
-    ['gridHorizontalLines','gridVerticalLines'].forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
-    const orientH = document.getElementById('gridOrientH');
-    const orientV = document.getElementById('gridOrientV');
-    if(orientH){ orientH.classList.add('primary'); orientH.classList.remove('secondary'); }
-    if(orientV){ orientV.classList.add('secondary'); orientV.classList.remove('primary'); }
-    _syncGridCustomUndoBtn();
-    _updateZoomLabel();
-    const modal = document.getElementById('imageEditModal');
-    const img = document.getElementById('cropImage');
-    img.style.width = '';
-    img.style.height = '';
-    img.style.maxWidth = '';
-    img.style.maxHeight = '';
-    modal.classList.add('open');
-    img.onload = () => {
-        // 记录 zoom=1 时的基础显示尺寸
-        imageEditBaseW = img.clientWidth;
-        imageEditBaseH = img.clientHeight;
-        _updateZoomLabel();
-        resizeEditDrawCanvas();
-        resetEditDrawingHistory();
-        clearEditDrawing(true);
-        resetCropBox();
-        if(!imageEditModeTouched) setImageEditMode(initialMode);
-        syncImageEditOverflow();
-        refreshIcons();
-    };
-    img.crossOrigin = 'anonymous';
-    window.CanvasMediaLoader?.watch(img);
-    img.src = canvasDisplayMediaUrl(node.url);
-    setImageEditMode(initialMode);
-    refreshIcons();
-}
-
-function closeImageEditor(){
-    window.CanvasMediaLoader?.end('image-editor');
-    document.getElementById('imageEditModal').classList.remove('open');
-    const img = document.getElementById('cropImage');
-    img.onload = null;
-    img.removeAttribute('src');
-    img.style.width = '';
-    img.style.height = '';
-    img.style.maxWidth = '';
-    img.style.maxHeight = '';
-    clearEditDrawing(true);
-    cropState = null;
-    cropDrag = null;
-    editDrawState = null;
-    resetEditDrawingHistory();
-    gridCustomDrag = null;
-    imageEditZoom = 1.0;
-    imageEditBaseW = 0;
-    imageEditBaseH = 0;
-    imageEditModeTouched = false;
-    document.getElementById('imageEditStage')?.classList.remove('overflowing', 'overflow-x', 'overflow-y');
-    const cropCanvasEl = document.getElementById('cropCanvas');
-    cropCanvasEl.classList.remove('grid-custom-h', 'grid-custom-v', 'outpaint-mode', 'outpaint-warning', 'dragging-image', 'text-mode');
-    cropCanvasEl.style.width = '';
-    cropCanvasEl.style.height = '';
-    const textCanvas = editTextCanvas();
-    if(textCanvas){
-        textCanvas.style.left = '';
-        textCanvas.style.top = '';
-    }
-}
-
-function clampCrop(){
-    if(!cropState) return;
-    if(imageEditMode === 'outpaint') return clampOutpaint();
-    const {w, h} = cropBounds();
-    cropState.w = Math.max(24, Math.min(cropState.w, w));
-    cropState.h = Math.max(24, Math.min(cropState.h, h));
-    cropState.x = Math.max(0, Math.min(cropState.x, w - cropState.w));
-    cropState.y = Math.max(0, Math.min(cropState.y, h - cropState.h));
-}
-
-function beginCropDrag(event, mode){
-    if(!cropState) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if(imageEditMode === 'outpaint' && mode === 'move') return;
-    cropDrag = {mode, sx:event.clientX, sy:event.clientY, start:{...cropState}};
-}
-
-function resizeOutpaintFromDrag(dx, dy){
-    const start = cropDrag?.start;
-    if(!start) return;
-    let growX = 0, growY = 0;
-    if(cropDrag.mode === 'outpaint-left') growX = -dx;
-    else if(cropDrag.mode === 'outpaint-right') growX = dx;
-    else if(cropDrag.mode === 'outpaint-top') growY = -dy;
-    else if(cropDrag.mode === 'outpaint-bottom') growY = dy;
-    else if(cropDrag.mode === 'outpaint-corner'){ growX = dx; growY = dy; }
-    const {w, h} = cropBounds();
-    const nextW = Math.max(w, start.w + growX * 2);
-    const nextH = Math.max(h, start.h + growY * 2);
-    cropState.w = nextW;
-    cropState.h = nextH;
-    cropState.x = start.x + Math.round((nextW - start.w) / 2);
-    cropState.y = start.y + Math.round((nextH - start.h) / 2);
-    clampOutpaint();
-}
-
-// Called once by canvas.js, at its original initialization position.
-function bindClassicCropDragEvents(){
-    window.addEventListener('mousemove', event => {
-        if(!cropDrag || !cropState) return;
-        const dx = event.clientX - cropDrag.sx;
-        const dy = event.clientY - cropDrag.sy;
-        if(cropDrag.mode === 'move'){
-            cropState.x = cropDrag.start.x + dx;
-            cropState.y = cropDrag.start.y + dy;
-        } else if(cropDrag.mode === 'image'){
-            cropState.x = cropDrag.start.x + dx;
-            cropState.y = cropDrag.start.y + dy;
-        } else if(String(cropDrag.mode || '').startsWith('outpaint-')){
-            resizeOutpaintFromDrag(dx, dy);
-        } else {
-            cropState.w = cropDrag.start.w + dx;
-            cropState.h = cropDrag.start.h + dy;
+        gridCustomMode = false;
+        gridCustomLines = [];
+        gridCustomHistory = [];
+        for(const canvasEl of [implEditDrawCanvas(), implEditTextCanvas()]){
+            if(canvasEl){canvasEl.width = 0; canvasEl.height = 0;}
         }
-        clampCrop();
-        renderCropBox();
-    });
-    window.addEventListener('mouseup', () => { cropDrag = null; document.getElementById('cropCanvas')?.classList.remove('dragging-image'); });
-}
-
-async function uploadCroppedBlob(blob, name){
-    const form = new FormData();
-    form.append('files', blob, name);
-    const data = await window.CanvasApi.uploadAi(form);
-    return data.files?.[0];
-}
-
-async function uploadImageBlobs(blobs){
-    const form = new FormData();
-    blobs.forEach(item => form.append('files', item.blob, item.name));
-    const data = await window.CanvasApi.uploadAi(form);
-    return data.files || [];
-}
-
-async function applyImageCrop(){
-    if(!cropState) return;
-    const node = nodes.find(n => n.id === cropState.nodeId);
-    const img = document.getElementById('cropImage');
-    if(!node || !img.naturalWidth || !img.naturalHeight) return;
-    const scaleX = img.naturalWidth / (img.clientWidth || 1);
-    const scaleY = img.naturalHeight / (img.clientHeight || 1);
-    const sx = Math.max(0, Math.round(cropState.x * scaleX));
-    const sy = Math.max(0, Math.round(cropState.y * scaleY));
-    const sw = Math.max(1, Math.round(cropState.w * scaleX));
-    const sh = Math.max(1, Math.round(cropState.h * scaleY));
-    const canvasEl = document.createElement('canvas');
-    canvasEl.width = sw;
-    canvasEl.height = sh;
-    canvasEl.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-    const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
-    if(!blob) return;
-    const base = (node.name || 'image').replace(/\.[^.]+$/, '');
-    const file = await uploadCroppedBlob(blob, `${base}_crop.png`);
-    if(file){
-        clearCanvasFaceAuth(node);
-        node.url = file.url;
-        node.name = file.name;
-        closeImageEditor();
-        render();
-        scheduleSave();
     }
-}
 
-async function applyImageOutpaint(){
-    if(!cropState) return;
-    const node = nodes.find(n => n.id === cropState.nodeId);
-    const img = document.getElementById('cropImage');
-    if(!node || !img.naturalWidth || !img.naturalHeight) return;
-    clampOutpaint();
-    const scaleX = img.naturalWidth / (img.clientWidth || 1);
-    const scaleY = img.naturalHeight / (img.clientHeight || 1);
-    const outW = Math.max(img.naturalWidth, Math.round(cropState.w * scaleX));
-    const outH = Math.max(img.naturalHeight, Math.round(cropState.h * scaleY));
-    const dx = Math.round(cropState.x * scaleX);
-    const dy = Math.round(cropState.y * scaleY);
-    const canvasEl = document.createElement('canvas');
-    canvasEl.width = outW;
-    canvasEl.height = outH;
-    const ctx = canvasEl.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, outW, outH);
-    ctx.drawImage(img, dx, dy, img.naturalWidth, img.naturalHeight);
-    const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
-    if(!blob) return;
-    const base = (node.name || 'image').replace(/\.[^.]+$/, '');
-    const file = await uploadCroppedBlob(blob, `${base}_outpaint.png`);
-    if(file){
-        clearCanvasFaceAuth(node);
-        node.url = file.url;
-        node.name = file.name;
-        node.mediaKind = 'image';
-        node.natural_w = outW;
-        node.natural_h = outH;
-        closeImageEditor();
-        render();
-        scheduleSave();
+    function implClampCrop(){
+        if(!cropState) return;
+        if(imageEditMode === 'outpaint') return implClampOutpaint();
+        const {w, h} = implCropBounds();
+        cropState.w = Math.max(24, Math.min(cropState.w, w));
+        cropState.h = Math.max(24, Math.min(cropState.h, h));
+        cropState.x = Math.max(0, Math.min(cropState.x, w - cropState.w));
+        cropState.y = Math.max(0, Math.min(cropState.y, h - cropState.h));
     }
-}
 
-async function applyImageMask(){
-    if(!cropState) return;
-    const node = nodes.find(n => n.id === cropState.nodeId);
-    if(!node || !editCanvasHasPixels()) return;
-    const mask = maskCanvasFromDrawCanvas(editDrawCanvas());
-    const blob = await new Promise(resolve => mask.toBlob(resolve, 'image/png'));
-    if(!blob) return;
-    const base = (node.name || 'image').replace(/\.[^.]+$/, '');
-    const file = await uploadCroppedBlob(blob, `${base}_mask.png`);
-    if(file){
-        addGeneratedImageNode(file, node, 'mask', 28, {role:'mask'});
-        closeImageEditor();
-        render();
-        scheduleSave();
+    function implBeginCropDrag(event, mode){
+        if(!cropState) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if(imageEditMode === 'outpaint' && mode === 'move') return;
+        cropDrag = {mode, sx:event.clientX, sy:event.clientY, start:{...cropState}};
+        implBindClassicCropDragEvents();
     }
-}
 
-function maskCanvasFromDrawCanvas(src){
-    const mask = document.createElement('canvas');
-    mask.width = src.width;
-    mask.height = src.height;
-    const srcCtx = src.getContext('2d');
-    const srcData = srcCtx.getImageData(0, 0, src.width, src.height);
-    const ctx = mask.getContext('2d');
-    const out = ctx.createImageData(mask.width, mask.height);
-    for(let i = 0; i < srcData.data.length; i += 4){
-        const painted = srcData.data[i + 3] > 8;
-        const v = painted ? 255 : 0;
-        out.data[i] = v;
-        out.data[i + 1] = v;
-        out.data[i + 2] = v;
-        out.data[i + 3] = 255;
+    function implResizeOutpaintFromDrag(dx, dy){
+        const start = cropDrag?.start;
+        if(!start) return;
+        let growX = 0, growY = 0;
+        if(cropDrag.mode === 'outpaint-left') growX = -dx;
+        else if(cropDrag.mode === 'outpaint-right') growX = dx;
+        else if(cropDrag.mode === 'outpaint-top') growY = -dy;
+        else if(cropDrag.mode === 'outpaint-bottom') growY = dy;
+        else if(cropDrag.mode === 'outpaint-corner'){ growX = dx; growY = dy; }
+        const {w, h} = implCropBounds();
+        const nextW = Math.max(w, start.w + growX * 2);
+        const nextH = Math.max(h, start.h + growY * 2);
+        cropState.w = nextW;
+        cropState.h = nextH;
+        cropState.x = start.x + Math.round((nextW - start.w) / 2);
+        cropState.y = start.y + Math.round((nextH - start.h) / 2);
+        implClampOutpaint();
     }
-    ctx.putImageData(out, 0, 0);
-    return mask;
-}
 
-async function applyImageBrush(){
-    if(!cropState) return;
-    removeEditTextInlineEditor(true);
-    const node = nodes.find(n => n.id === cropState.nodeId);
-    const img = document.getElementById('cropImage');
-    if(!node || !img.naturalWidth || !img.naturalHeight || !editCanvasHasPixels()) return;
-    const canvasEl = document.createElement('canvas');
-    canvasEl.width = img.naturalWidth;
-    canvasEl.height = img.naturalHeight;
-    const ctx = canvasEl.getContext('2d');
-    ctx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
-    ctx.drawImage(editDrawCanvas(), 0, 0);
-    ctx.drawImage(editTextCanvas(), 0, 0);
-    const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
-    if(!blob) return;
-    const base = (node.name || 'image').replace(/\.[^.]+$/, '');
-    const file = await uploadCroppedBlob(blob, `${base}_paint.png`);
-    if(file){
-        clearCanvasFaceAuth(node);
-        node.url = file.url;
-        node.name = file.name;
-        closeImageEditor();
-        render();
-        scheduleSave();
+    // Called once by canvas.js, at its original initialization position.
+    function implBindClassicCropDragEvents(){
+        clearListeners('drag');
+        if(!cropDrag || !usable()) return;
+        listen('drag', window, 'mousemove', event => {
+            if(!cropDrag || !cropState) return;
+            const dx = event.clientX - cropDrag.sx;
+            const dy = event.clientY - cropDrag.sy;
+            if(cropDrag.mode === 'move'){
+                cropState.x = cropDrag.start.x + dx;
+                cropState.y = cropDrag.start.y + dy;
+            } else if(cropDrag.mode === 'image'){
+                cropState.x = cropDrag.start.x + dx;
+                cropState.y = cropDrag.start.y + dy;
+            } else if(String(cropDrag.mode || '').startsWith('outpaint-')){
+                implResizeOutpaintFromDrag(dx, dy);
+            } else {
+                cropState.w = cropDrag.start.w + dx;
+                cropState.h = cropDrag.start.h + dy;
+            }
+            implClampCrop();
+            implRenderCropBox();
+        });
+        listen('drag', window, 'mouseup', () => { cropDrag = null; clearListeners('drag'); element('cropCanvas')?.classList.remove('dragging-image'); });
     }
-}
 
-async function applyImageGridSplit(){
-    if(!cropState) return;
-    const node = nodes.find(n => n.id === cropState.nodeId);
-    const img = document.getElementById('cropImage');
-    if(!node || !img.naturalWidth || !img.naturalHeight) return;
-    const rects = gridSplitRects(img.naturalWidth, img.naturalHeight);
-    if(!rects.length) return;
-    const base = (node.name || 'image').replace(/\.[^.]+$/, '');
-    const blobs = [];
-    for(const rect of rects){
+    async function implUploadCroppedBlob(blob, name){
+        const form = new FormData();
+        form.append('files', blob, name);
+        const data = await window.CanvasApi.uploadAi(form);
+        return data.files?.[0];
+    }
+
+    async function implUploadImageBlobs(blobs){
+        const form = new FormData();
+        blobs.forEach(item => form.append('files', item.blob, item.name));
+        const data = await window.CanvasApi.uploadAi(form);
+        return data.files || [];
+    }
+
+    async function implApplyImageCrop(){
+        if(!usable()) return;
+        const origin = capture();
+        const node = nodes.find(n => n.id === cropState.nodeId);
+        const img = element('cropImage');
+        if(!node || !img.naturalWidth || !img.naturalHeight) return;
+        const scaleX = img.naturalWidth / (img.clientWidth || 1);
+        const scaleY = img.naturalHeight / (img.clientHeight || 1);
+        const sx = Math.max(0, Math.round(cropState.x * scaleX));
+        const sy = Math.max(0, Math.round(cropState.y * scaleY));
+        const sw = Math.max(1, Math.round(cropState.w * scaleX));
+        const sh = Math.max(1, Math.round(cropState.h * scaleY));
         const canvasEl = document.createElement('canvas');
-        canvasEl.width = rect.w;
-        canvasEl.height = rect.h;
-        canvasEl.getContext('2d').drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+        canvasEl.width = sw;
+        canvasEl.height = sh;
+        canvasEl.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
         const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
-        if(blob) blobs.push({blob, name:`${base}_r${rect.row + 1}_c${rect.col + 1}.png`});
+        if(!blob || !accept(origin)) return;
+        const base = (node.name || 'image').replace(/\.[^.]+$/, '');
+        const file = await implUploadCroppedBlob(blob, `${base}_crop.png`);
+        if(file && accept(origin)){
+            clearCanvasFaceAuth(node);
+            node.url = file.url;
+            node.name = file.name;
+            implCloseImageEditor();
+            render();
+            scheduleSave();
+        }
     }
-    if(!blobs.length) return;
-    const files = await uploadImageBlobs(blobs);
-    if(files.length){
-        const out = imageEditorOutputNode(node);
-        const urls = files.map(file => file.url).filter(Boolean);
-        const layout = gridLayoutFromRects(rects);
-        appendOutputImages(out, urls, {url:node.url, name:node.name || 'source image'}, urls.map((url, i) => ({
-            runMs:0,
-            run:{prompt:'宫格切分', refs:[{url:node.url, name:node.name || 'source image'}]},
-            grid:{...layout, row:rects[i]?.row || 0, col:rects[i]?.col || 0, w:rects[i]?.w || 1, h:rects[i]?.h || 1}
-        })), layout);
-        closeImageEditor();
-        render();
-        scheduleSave();
+
+    async function implApplyImageOutpaint(){
+        if(!usable()) return;
+        const origin = capture();
+        const node = nodes.find(n => n.id === cropState.nodeId);
+        const img = element('cropImage');
+        if(!node || !img.naturalWidth || !img.naturalHeight) return;
+        implClampOutpaint();
+        const scaleX = img.naturalWidth / (img.clientWidth || 1);
+        const scaleY = img.naturalHeight / (img.clientHeight || 1);
+        const outW = Math.max(img.naturalWidth, Math.round(cropState.w * scaleX));
+        const outH = Math.max(img.naturalHeight, Math.round(cropState.h * scaleY));
+        const dx = Math.round(cropState.x * scaleX);
+        const dy = Math.round(cropState.y * scaleY);
+        const canvasEl = document.createElement('canvas');
+        canvasEl.width = outW;
+        canvasEl.height = outH;
+        const ctx = canvasEl.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, outW, outH);
+        ctx.drawImage(img, dx, dy, img.naturalWidth, img.naturalHeight);
+        const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
+        if(!blob || !accept(origin)) return;
+        const base = (node.name || 'image').replace(/\.[^.]+$/, '');
+        const file = await implUploadCroppedBlob(blob, `${base}_outpaint.png`);
+        if(file && accept(origin)){
+            clearCanvasFaceAuth(node);
+            node.url = file.url;
+            node.name = file.name;
+            node.mediaKind = 'image';
+            node.natural_w = outW;
+            node.natural_h = outH;
+            implCloseImageEditor();
+            render();
+            scheduleSave();
+        }
     }
+
+    async function implApplyImageMask(){
+        if(!usable()) return;
+        const origin = capture();
+        const node = nodes.find(n => n.id === cropState.nodeId);
+        if(!node || !implEditCanvasHasPixels()) return;
+        const mask = implMaskCanvasFromDrawCanvas(implEditDrawCanvas());
+        const blob = await new Promise(resolve => mask.toBlob(resolve, 'image/png'));
+        if(!blob || !accept(origin)) return;
+        const base = (node.name || 'image').replace(/\.[^.]+$/, '');
+        const file = await implUploadCroppedBlob(blob, `${base}_mask.png`);
+        if(file && accept(origin)){
+            implAddGeneratedImageNode(file, node, 'mask', 28, {role:'mask'});
+            implCloseImageEditor();
+            render();
+            scheduleSave();
+        }
+    }
+
+    function implMaskCanvasFromDrawCanvas(src){
+        const mask = document.createElement('canvas');
+        mask.width = src.width;
+        mask.height = src.height;
+        const srcCtx = src.getContext('2d');
+        const srcData = srcCtx.getImageData(0, 0, src.width, src.height);
+        const ctx = mask.getContext('2d');
+        const out = ctx.createImageData(mask.width, mask.height);
+        for(let i = 0; i < srcData.data.length; i += 4){
+            const painted = srcData.data[i + 3] > 8;
+            const v = painted ? 255 : 0;
+            out.data[i] = v;
+            out.data[i + 1] = v;
+            out.data[i + 2] = v;
+            out.data[i + 3] = 255;
+        }
+        ctx.putImageData(out, 0, 0);
+        return mask;
+    }
+
+    async function implApplyImageBrush(){
+        if(!usable()) return;
+        const origin = capture();
+        implRemoveEditTextInlineEditor(true);
+        const node = nodes.find(n => n.id === cropState.nodeId);
+        const img = element('cropImage');
+        if(!node || !img.naturalWidth || !img.naturalHeight || !implEditCanvasHasPixels()) return;
+        const canvasEl = document.createElement('canvas');
+        canvasEl.width = img.naturalWidth;
+        canvasEl.height = img.naturalHeight;
+        const ctx = canvasEl.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvasEl.width, canvasEl.height);
+        ctx.drawImage(implEditDrawCanvas(), 0, 0);
+        ctx.drawImage(implEditTextCanvas(), 0, 0);
+        const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
+        if(!blob || !accept(origin)) return;
+        const base = (node.name || 'image').replace(/\.[^.]+$/, '');
+        const file = await implUploadCroppedBlob(blob, `${base}_paint.png`);
+        if(file && accept(origin)){
+            clearCanvasFaceAuth(node);
+            node.url = file.url;
+            node.name = file.name;
+            implCloseImageEditor();
+            render();
+            scheduleSave();
+        }
+    }
+
+    async function implApplyImageGridSplit(){
+        if(!usable()) return;
+        const origin = capture();
+        const node = nodes.find(n => n.id === cropState.nodeId);
+        const img = element('cropImage');
+        if(!node || !img.naturalWidth || !img.naturalHeight) return;
+        const rects = implGridSplitRects(img.naturalWidth, img.naturalHeight);
+        if(!rects.length) return;
+        const base = (node.name || 'image').replace(/\.[^.]+$/, '');
+        const blobs = [];
+        for(const rect of rects){
+            const canvasEl = document.createElement('canvas');
+            canvasEl.width = rect.w;
+            canvasEl.height = rect.h;
+            canvasEl.getContext('2d').drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+            const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
+            if(!accept(origin)) return;
+            if(blob) blobs.push({blob, name:`${base}_r${rect.row + 1}_c${rect.col + 1}.png`});
+        }
+        if(!blobs.length) return;
+        const files = await implUploadImageBlobs(blobs);
+        if(files.length && accept(origin)){
+            const out = implImageEditorOutputNode(node);
+            const urls = files.map(file => file.url).filter(Boolean);
+            const layout = implGridLayoutFromRects(rects);
+            appendOutputImages(out, urls, {url:node.url, name:node.name || 'source image'}, urls.map((url, i) => ({
+                runMs:0,
+                run:{prompt:'宫格切分', refs:[{url:node.url, name:node.name || 'source image'}]},
+                grid:{...layout, row:rects[i]?.row || 0, col:rects[i]?.col || 0, w:rects[i]?.w || 1, h:rects[i]?.h || 1}
+            })), layout);
+            implCloseImageEditor();
+            render();
+            scheduleSave();
+        }
+    }
+
+    function implApplyImageEdit(){
+        if(imageEditMode === 'outpaint') return implApplyImageOutpaint();
+        if(imageEditMode === 'mask') return implApplyImageMask();
+        if(imageEditMode === 'brush') return implApplyImageBrush();
+        if(imageEditMode === 'grid') return implApplyImageGridSplit();
+        return implApplyImageCrop();
+    }
+
+
+    return Object.freeze({
+        get state(){ return Object.freeze({open:!destroyed && !!cropState && validTarget(), paused, ready:usable(), nodeId:target?.node.id || '', canvasId:target?.canvasId || '', mode:imageEditMode, brushTool, zoom:imageEditZoom, undoCount:editDrawUndoStack.length, redoCount:editDrawRedoStack.length, textCount:editTextItems.length, gridLineCount:gridCustomLines.length}); },
+        isEditingNode(id){ return !destroyed && !!cropState && target?.node.id === id && validTarget(); },
+        reset: () => implCloseImageEditor(),
+        targetChanged(){ if(cropState && !validTarget()) implCloseImageEditor(); },
+        pause, resume, destroy,
+        openImageEditor: implOpenImageEditor,
+        closeImageEditor: () => implCloseImageEditor(),
+        setImageEditMode: (...args) => { if(!destroyed && !paused && cropState && validTarget()) return implSetImageEditMode(...args); },
+        undoEditDrawing: (...args) => { if(usable()) return implUndoEditDrawing(...args); },
+        redoEditDrawing: (...args) => { if(usable()) return implRedoEditDrawing(...args); },
+        clearEditDrawing: (...args) => { if(usable()) return implClearEditDrawing(...args); },
+        setBrushTool: (...args) => { if(usable()) return implSetBrushTool(...args); },
+        toggleGridCustomMode: (...args) => { if(usable()) return implToggleGridCustomMode(...args); },
+        applyGridPreset: (...args) => { if(usable()) return implApplyGridPreset(...args); },
+        setGridCustomOrientation: (...args) => { if(usable()) return implSetGridCustomOrientation(...args); },
+        undoGridCustomLine: (...args) => { if(usable()) return implUndoGridCustomLine(...args); },
+        clearGridCustomLines: (...args) => { if(usable()) return implClearGridCustomLines(...args); },
+        resetImageEditZoom: (...args) => { if(usable()) return implResetImageEditZoom(...args); },
+        resetCropBox: (...args) => { if(usable()) return implResetCropBox(...args); },
+        applyImageEdit: (...args) => { if(usable()) return implApplyImageEdit(...args); },
+        applyImageCrop: (...args) => { if(usable()) return implApplyImageCrop(...args); },
+        applyImageOutpaint: (...args) => { if(usable()) return implApplyImageOutpaint(...args); },
+        applyImageMask: (...args) => { if(usable()) return implApplyImageMask(...args); },
+        applyImageBrush: (...args) => { if(usable()) return implApplyImageBrush(...args); },
+        applyImageGridSplit: (...args) => { if(usable()) return implApplyImageGridSplit(...args); },
+        syncImageEditOverflow: (...args) => { if(usable()) return implSyncImageEditOverflow(...args); },
+        bindClassicImageEditorControls: bind,
+        bindClassicCropDragEvents: (...args) => { if(usable()) return implBindClassicCropDragEvents(...args); }
+    });
 }
 
-function applyImageEdit(){
-    if(imageEditMode === 'outpaint') return applyImageOutpaint();
-    if(imageEditMode === 'mask') return applyImageMask();
-    if(imageEditMode === 'brush') return applyImageBrush();
-    if(imageEditMode === 'grid') return applyImageGridSplit();
-    return applyImageCrop();
-}
+function openImageEditor(...args){ return classicImageEditor.openImageEditor(...args); }
+function closeImageEditor(...args){ return classicImageEditor.closeImageEditor(...args); }
+function setImageEditMode(...args){ return classicImageEditor.setImageEditMode(...args); }
+function undoEditDrawing(...args){ return classicImageEditor.undoEditDrawing(...args); }
+function redoEditDrawing(...args){ return classicImageEditor.redoEditDrawing(...args); }
+function clearEditDrawing(...args){ return classicImageEditor.clearEditDrawing(...args); }
+function setBrushTool(...args){ return classicImageEditor.setBrushTool(...args); }
+function toggleGridCustomMode(...args){ return classicImageEditor.toggleGridCustomMode(...args); }
+function applyGridPreset(...args){ return classicImageEditor.applyGridPreset(...args); }
+function setGridCustomOrientation(...args){ return classicImageEditor.setGridCustomOrientation(...args); }
+function undoGridCustomLine(...args){ return classicImageEditor.undoGridCustomLine(...args); }
+function clearGridCustomLines(...args){ return classicImageEditor.clearGridCustomLines(...args); }
+function resetImageEditZoom(...args){ return classicImageEditor.resetImageEditZoom(...args); }
+function resetCropBox(...args){ return classicImageEditor.resetCropBox(...args); }
+function applyImageEdit(...args){ return classicImageEditor.applyImageEdit(...args); }
+function applyImageCrop(...args){ return classicImageEditor.applyImageCrop(...args); }
+function applyImageOutpaint(...args){ return classicImageEditor.applyImageOutpaint(...args); }
+function applyImageMask(...args){ return classicImageEditor.applyImageMask(...args); }
+function applyImageBrush(...args){ return classicImageEditor.applyImageBrush(...args); }
+function applyImageGridSplit(...args){ return classicImageEditor.applyImageGridSplit(...args); }
+function syncImageEditOverflow(...args){ return classicImageEditor.syncImageEditOverflow(...args); }
+function bindClassicImageEditorControls(...args){ return classicImageEditor.bindClassicImageEditorControls(...args); }
+function bindClassicCropDragEvents(...args){ return classicImageEditor.bindClassicCropDragEvents(...args); }
 
 // Called once by canvas.js, at its original initialization position.
 function bindClassicMediaImportEvents(){

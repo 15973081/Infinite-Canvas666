@@ -965,7 +965,7 @@ function refreshCanvasMediaVisibility(){
         const protectedNode = protectedIds.has(node.id) || node.running || node._pending?.length
             || cascadeRunningNodeIds.has(node.id) || ['running','queued'].includes(node.runStatus)
             || el.contains(document.activeElement) || el.querySelector('video, audio, [data-dragging]')
-            || cropState?.nodeId === node.id || currentOutputLightboxOutId === node.id
+            || classicImageEditor.isEditingNode(node.id) || currentOutputLightboxOutId === node.id
             || (currentOutputLightboxUrl && currentOutputLightboxUrl === node.url);
         const enter = protectedNode || isNodeInCanvasViewport(node, 400);
         const release = !enter && !isNodeInCanvasViewport(node, 800);
@@ -4187,7 +4187,7 @@ function bindClassicKeyboardEvents(){
         if(!canvas) return;
         if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
         if(e.key === 'Shift' && !isEditableTarget(document.activeElement)) setKnifeMode(true);
-        if(e.key === 'Escape' && document.getElementById('imageEditModal').classList.contains('open')) { closeImageEditor(); return; }
+        if(e.key === 'Escape' && classicImageEditor.state.open) { closeImageEditor(); return; }
         if(e.key === 'Escape' && (classicPromptPanel.state.open || classicPromptPanel.state.opening)) { closePromptTemplateModal(); return; }
         if(outputLightbox.classList.contains('open') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
             if(navigateOutputLightbox(e.key === 'ArrowRight' ? 1 : -1)){

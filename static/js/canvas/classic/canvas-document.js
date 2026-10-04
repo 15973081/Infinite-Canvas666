@@ -542,6 +542,7 @@ function removeCanvasNodes(ids){
     const removed=new Set(ids),before=canvasInputGraph();
     for(const node of nodes)if(removed.has(node.id))destroyLTXEditor(node);
     nodes=nodes.filter(node=>!removed.has(node.id));
+    classicImageEditor.targetChanged();
     connections=connections.filter(connection=>!removed.has(connection.from) && !removed.has(connection.to));
     for(const node of nodes){
         if(['group','promptGroup'].includes(node.type) && node.items?.some(id=>removed.has(id)))node.items=node.items.filter(id=>!removed.has(id));
@@ -566,6 +567,7 @@ function clearNodeContentBeforeDelete(id){
         pushUndo();
         clearCanvasFaceAuth(node);
         node.url = '';
+        classicImageEditor.targetChanged();
         node.mediaKind = 'image';
         node.name = '上传节点';
         refreshCanvasMutation([node.id]);

@@ -6,6 +6,8 @@
 
 模板与预设面板的会话状态和 DOM 已收归各自 library，节点应用由 workspace 操作完成；内容缓存和存储沿用原流程。当前命令、生命周期及验证见 [模板与预设面板状态整理](canvas-prompt-panel-ownership.md)，原全局状态盘点快照保留不变。
 
+Classic 图片编辑器的 22 个会话绑定、专属 DOM、编辑内历史和监听已收归 media-editor；工作区通过目标查询交互。当前清理、工具输出与验证记录见 [Classic 图片编辑器会话状态整理](canvas-classic-image-editor-ownership.md)，Smart 编辑器保留原范围。
+
 实施日期：2026-09-22。
 
 本次按业务任务拆分经典画布和智能画布，每种画布为 **1 个入口 + 7 个任务文件**。保留现有 JavaScript、DOM、CSS、API、数据格式、权限检查和异步任务处理逻辑。

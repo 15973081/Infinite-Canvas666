@@ -204,6 +204,7 @@ test('leaving the canvas releases cached node-array references', () => {
     context.refreshIcons = () => {};
     let promptResets = 0;
     context.classicPromptPanel = {reset(){ promptResets++; }};
+    context.classicImageEditor = {reset(){}};
     load(context, ['setCanvasMode']);
     context.setCanvasMode(false);
     assert.equal(promptResets, 1, 'canvas exit also invalidates the prompt session');
