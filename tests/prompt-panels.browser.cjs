@@ -228,12 +228,15 @@ test('classic: manager library selection uses the same command, clears only its 
     const result=await page.evaluate(async()=>{
         const {owner}=promptTest;owner.selectCategory('view');let loads=0;
         window.CanvasApi.getPromptLibraries=async()=>{loads++;return promptTest.snapshot();};
-        managerSelectedPromptIds.add('one-a');managerSelectedAssetIds.add('asset-kept');
-        assetManagerTab='prompts';assetManagerModal.classList.add('open');renderAssetManager();
+        canvasAssetLibrary={libraries:[{id:'assets-one',categories:[{id:'assets-cat',items:[{id:'asset-kept',name:'kept',url:'/test-image.svg'}]}]}]};
+        classicAssetPanel.selectLibrary('assets-one',{source:'manager-assets'});selectClassicAssetManagerTab('assets');
+        const assetCheck=document.querySelector('[data-manager-asset-check="asset-kept"]');assetCheck.checked=true;assetCheck.dispatchEvent(new Event('change',{bubbles:true}));
+        selectClassicAssetManagerTab('prompts');
+        const promptCheck=document.querySelector('[data-manager-prompt-check="one-a"]');promptCheck.checked=true;promptCheck.dispatchEvent(new Event('change',{bubbles:true}));
         document.querySelector('[data-manager-prompt-lib="two"]').click();
         const state=[owner.state.libraryId,owner.state.categoryId,owner.state.itemId];
         owner.close();await owner.open('p');
-        return {state,selected:managerSelectedPromptIds.size,assets:managerSelectedAssetIds.size,loads};
+        return {state,selected:classicLibraryManager.state.promptIds.length,assets:classicLibraryManager.state.assetIds.length,loads};
     });
     assert.deepEqual(result,{state:['two','view','two-a'],selected:0,assets:1,loads:0});assert.deepEqual(errors,[]);
 });

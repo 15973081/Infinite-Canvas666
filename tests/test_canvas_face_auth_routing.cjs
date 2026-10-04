@@ -17,7 +17,10 @@ function load(file, context, names) {
         context[owner] = context.window.CanvasCore.createAssetPanelController({ids:[]});
         context[owner].selectLibrary(context.panelLibraryId || '');
     }
-    context.assetManagerModal ||= null;
+    if(file==='canvas.js'&&!context.classicLibraryManager){
+        const library=fs.readFileSync(path.join(__dirname,'../static/js/canvas/classic/canvas-library.js'),'utf8');
+        vm.runInContext(functionSource(library,'createClassicLibraryManager'),context);context.classicLibraryManager=context.createClassicLibraryManager();
+    }
     names = [...names, ...(file === 'canvas.js' ? ['setCanvasAssetLibraryFromResponse','canvasFaceAuthState'] : ['smartFaceAuthState'])];
     const source = readCanvasSource(path.join(__dirname, '../static/js', file), 'utf8').replace(/\r\n/g, '\n');
     for (const name of names) {

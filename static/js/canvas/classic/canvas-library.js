@@ -45,25 +45,16 @@ function normalizeClassicAssetSelection(next, action){
 
 function classicAssetSelectionChanged(state, action){
     if(['library','category'].includes(action.type)){
-        if(action.source === 'manager-assets') managerSelectedAssetIds.clear();
-        if(action.source === 'manager-workflows') managerSelectedWorkflowIds.clear();
+        classicLibraryManager.selectionChanged(action.source);
     }
     if(action.render === false) return;
     renderCanvasAssetLibrary({preserveScroll:!!action.preserveScroll});
-    if(assetManagerModal?.classList.contains('open')) renderAssetManager();
+    if(classicLibraryManager.state.open) renderAssetManager();
 }
 
-function updateAssetManager(){
-    if(classicAssetPanel.destroyed) return;
-    classicAssetPanel.reconcile({source:'manager-' + assetManagerTab, render:false});
-    renderAssetManager();
-}
+function updateAssetManager(...args){return classicLibraryManager.dataChanged(...args);}
 
-function selectClassicAssetManagerTab(tab){
-    assetManagerTab = tab || 'assets';
-    classicAssetPanel.selectTarget({}, {source:'manager-' + assetManagerTab});
-    if(!assetManagerModal?.classList.contains('open')) renderAssetManager();
-}
+function selectClassicAssetManagerTab(...args){return classicLibraryManager.selectTab(...args);}
 
 function setCanvasAssetLibraryFromResponse(data, options={}){
     if(classicAssetPanel.destroyed) return false;
@@ -73,7 +64,7 @@ function setCanvasAssetLibraryFromResponse(data, options={}){
     } else classicAssetPanel.invalidateReads();
     canvasAssetLibrary = data.library || canvasAssetLibrary;
     classicAssetPanel.reconcile({render:options.render !== false,
-        source:assetManagerModal?.classList.contains('open') ? 'manager-' + assetManagerTab : 'panel'});
+        source:classicLibraryManager.state.open ? 'manager-' + classicLibraryManager.state.tab : 'panel'});
     return true;
 }
 
@@ -95,12 +86,13 @@ function bindClassicAssetPanelLifecycle(){
     events.on(window, 'pageshow', event => {
         if(!event.persisted) return;
         classicAssetPanel.resumeReads();
-        if(classicAssetPanel.state.open || assetManagerModal?.classList.contains('open')) loadCanvasAssetLibrary();
+        if(classicAssetPanel.state.open || classicLibraryManager.state.open) loadCanvasAssetLibrary();
     });
 }
 
 function revealCanvasAssetControls(){
-    [classicAssetPanel.elements.canvasAssetToggle, classicAssetPanel.elements.canvasAssetPanel, assetManagerModal].forEach(el => {
+    classicLibraryManager.reveal();
+    [classicAssetPanel.elements.canvasAssetToggle, classicAssetPanel.elements.canvasAssetPanel].forEach(el => {
         if(!el) return;
         el.hidden = false;
         if(el.style?.display === 'none') el.style.display = '';
@@ -341,7 +333,7 @@ async function renameCanvasAssetItem(itemId){
     const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetItem(item.id, {name:String(name).trim()}));
     setCanvasAssetLibraryFromResponse(data, {render:false});
     renderCanvasAssetLibrary();
-    if(assetManagerModal?.classList.contains('open')) updateAssetManager();
+    if(classicLibraryManager.state.open) updateAssetManager();
 }
 
 async function deleteCanvasAssetItem(itemId){
@@ -349,11 +341,10 @@ async function deleteCanvasAssetItem(itemId){
     if(!item || !window.confirm(`删除资产「${item.name || 'asset'}」？`)) return;
     const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItem(item.id));
     setCanvasAssetLibraryFromResponse(data, {render:false});
-    managerSelectedAssetIds.delete(item.id);
-    managerSelectedWorkflowIds.delete(item.id);
+    classicLibraryManager.itemsRemoved(item.id);
     hideCanvasAssetHoverPreview();
     renderCanvasAssetLibrary();
-    if(assetManagerModal?.classList.contains('open')) updateAssetManager();
+    if(classicLibraryManager.state.open) updateAssetManager();
 }
 
 async function loadCanvasAssetLibrary({renderPanel=true}={}){
@@ -673,175 +664,21 @@ async function uploadFilesToLibrary(files, libraryId, categoryId){
     return classicAssetPanel.mutate(() => window.CanvasApi.createAssetItemsBatch({library_id:libraryId, category_id:categoryId, items}));
 }
 
-function openAssetManager(){
-    assetManagerModal?.classList.add('open');
-    managerSelectedAssetIds.clear();
-    managerSelectedPromptIds.clear();
-    canvasPromptTemplatesLoaded = false;
-    Promise.all([loadCanvasAssetLibrary({renderPanel:false}), loadCanvasPromptTemplates()]).then(updateAssetManager);
-}
+function openAssetManager(...args){return classicLibraryManager.open(...args);}
 
-function closeAssetManager(){
-    assetManagerModal?.classList.remove('open');
-}
+function closeAssetManager(...args){return classicLibraryManager.close(...args);}
 
-function renderAssetManager(){
-    if(!assetManagerBody) return;
-    document.querySelectorAll('[data-manager-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.managerTab === assetManagerTab));
-    if(assetManagerTab === 'prompts') renderPromptAssetManager();
-    else if(assetManagerTab === 'workflows') renderWorkflowAssetManager();
-    else renderImageAssetManager();
-    refreshIcons();
-}
+function renderAssetManager(...args){return classicLibraryManager.render(...args);}
 
-function renderImageAssetManager(){
-    const libs = canvasAssetLibraries();
-    const library = activeCanvasAssetLibrary();
-    const cats = canvasMediaCategories();
-    const cat = activeCanvasMediaCategory();
-    const items = cat?.items || [];
-    const canEditLibrary = !!library;
-    const canEditCategory = !!cat;
-    assetManagerBody.innerHTML = `
-        <div class="asset-manager-side">
-            <div class="asset-manager-tools">
-                <button type="button" class="primary" data-manager-asset-lib-new><i data-lucide="plus" class="w-4 h-4"></i><span>新资产库</span></button>
-                <button type="button" ${!canEditLibrary ? 'disabled' : ''} data-manager-asset-lib-rename><i data-lucide="pencil" class="w-4 h-4"></i><span>重命名</span></button>
-                <button type="button" class="danger" ${libs.length <= 1 ? 'disabled' : ''} data-manager-asset-lib-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除库</span></button>
-            </div>
-            <div class="asset-manager-list">
-                ${libs.map(lib => `<button type="button" class="${lib.id === classicAssetPanel.state.libraryId ? 'active' : ''}" data-manager-asset-lib="${escapeAttr(lib.id)}"><span>${escapeHtml(lib.name || '资产库')}</span><small>${(lib.categories || []).reduce((n,c)=>n+(c.items || []).length,0)}</small></button>`).join('')}
-            </div>
-            <div class="asset-manager-tools">
-                <button type="button" class="primary" data-manager-asset-cat-new><i data-lucide="folder-plus" class="w-4 h-4"></i><span>新分组</span></button>
-                <button type="button" ${!canEditCategory ? 'disabled' : ''} data-manager-asset-cat-rename><i data-lucide="pencil" class="w-4 h-4"></i><span>重命名</span></button>
-                <button type="button" class="danger" ${!canEditCategory ? 'disabled' : ''} data-manager-asset-cat-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除组</span></button>
-            </div>
-            <div class="asset-manager-list">
-                ${cats.map(item => `<button type="button" class="${item.id === classicAssetPanel.state.categoryId ? 'active' : ''}" data-manager-asset-cat="${escapeAttr(item.id)}"><span>${escapeHtml(item.name || '分组')}</span><small>${(item.items || []).length}</small></button>`).join('')}
-            </div>
-        </div>
-        <div class="asset-manager-main">
-            <div class="asset-manager-tools">
-                <label class="${!cat ? 'disabled' : ''}"><i data-lucide="upload" class="w-4 h-4"></i><span>批量上传</span><input id="managerAssetUpload" type="file" multiple accept="image/*" ${!cat ? 'disabled' : ''}></label>
-                <button type="button" class="danger" ${managerSelectedAssetIds.size ? '' : 'disabled'} data-manager-asset-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除所选 ${managerSelectedAssetIds.size ? managerSelectedAssetIds.size : ''}</span></button>
-            </div>
-            <div class="asset-manager-grid">
-                ${items.length ? items.map(item => `<div class="asset-manager-card">
-                    <input type="checkbox" data-manager-asset-check="${escapeAttr(item.id)}" ${managerSelectedAssetIds.has(item.id) ? 'checked' : ''}>
-                    ${canvasPreviewImgHtml(item.thumbnail || item.url || '', 512, 'alt=""')}
-                    <span class="asset-manager-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'asset')}</span>
-                    <div class="asset-manager-card-actions">
-                        <button type="button" data-manager-asset-rename="${escapeAttr(item.id)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i><span>重命名</span></button>
-                        <button type="button" class="danger" data-manager-asset-remove="${escapeAttr(item.id)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>删除</span></button>
-                    </div>
-                </div>`).join('') : `<div class="canvas-asset-empty">当前分组为空</div>`}
-            </div>
-        </div>
-    `;
-    bindCanvasPreviewImageFallbacks(assetManagerBody);
-    const upload = document.getElementById('managerAssetUpload');
-    upload?.addEventListener('change', async () => {
-        if(!upload.files?.length || !cat) return;
-        const data = await uploadFilesToLibrary(upload.files, library.id, cat.id);
-        if(data?.library) setCanvasAssetLibraryFromResponse(data, {render:false});
-        managerSelectedAssetIds.clear();
-        updateAssetManager();
-        renderCanvasAssetLibrary();
-    });
-}
+function renderImageAssetManager(...args){return classicLibraryManager.renderImages(...args);}
 
 function workflowAssetThumbHtml(item){
     return `<div class="asset-manager-card-text workflow-manager-thumb"><i data-lucide="workflow" class="w-6 h-6"></i><span>${escapeHtml(item?.format === 'json' ? 'JSON 工作流' : 'ZIP 工作流包')}</span></div>`;
 }
 
-function renderWorkflowAssetManager(){
-    const libs = canvasAssetLibraries();
-    const library = activeCanvasAssetLibrary();
-    const cats = canvasWorkflowCategories();
-    const cat = activeCanvasWorkflowCategory();
-    const items = cat?.items || [];
-    assetManagerBody.innerHTML = `
-        <div class="asset-manager-side">
-            <div class="asset-manager-tools">
-                <button type="button" class="primary" data-manager-workflow-cat-new><i data-lucide="folder-plus" class="w-4 h-4"></i><span>新分组</span></button>
-            </div>
-            <div class="asset-manager-list">
-                ${libs.map(lib => `<button type="button" class="${lib.id === classicAssetPanel.state.libraryId ? 'active' : ''}" data-manager-workflow-lib="${escapeAttr(lib.id)}"><span>${escapeHtml(lib.name || '资产库')}</span><small>${(lib.categories || []).filter(c => String(c.type || '') === 'workflow').reduce((n,c)=>n+(c.items || []).length,0)}</small></button>`).join('')}
-            </div>
-            <div class="asset-manager-list">
-                ${cats.map(item => `<button type="button" class="${item.id === classicAssetPanel.state.workflowCategoryId ? 'active' : ''}" data-manager-workflow-cat="${escapeAttr(item.id)}"><span>${escapeHtml(item.name || '工作流')}</span><small>${(item.items || []).length}</small></button>`).join('') || '<div class="canvas-asset-empty">暂无工作流分组</div>'}
-            </div>
-        </div>
-        <div class="asset-manager-main">
-            <div class="asset-manager-tools">
-                <label class="${!cat ? 'disabled' : ''}"><i data-lucide="upload" class="w-4 h-4"></i><span>上传工作流</span><input id="managerWorkflowUpload" type="file" multiple accept=".json,.zip,application/json,application/zip" ${!cat ? 'disabled' : ''}></label>
-                <button type="button" ${!managerSelectedWorkflowIds.size ? 'disabled' : ''} data-manager-workflow-export><i data-lucide="download" class="w-4 h-4"></i><span>导出所选 ${managerSelectedWorkflowIds.size ? managerSelectedWorkflowIds.size : ''}</span></button>
-                <button type="button" class="danger" ${managerSelectedWorkflowIds.size ? '' : 'disabled'} data-manager-workflow-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除所选 ${managerSelectedWorkflowIds.size ? managerSelectedWorkflowIds.size : ''}</span></button>
-            </div>
-            <div class="asset-manager-grid">
-                ${items.length ? items.map(item => `<div class="asset-manager-card">
-                    <input type="checkbox" data-manager-workflow-check="${escapeAttr(item.id)}" ${managerSelectedWorkflowIds.has(item.id) ? 'checked' : ''}>
-                    ${workflowAssetThumbHtml(item)}
-                    <span class="asset-manager-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'workflow')}</span>
-                    <div class="asset-manager-card-actions">
-                        <button type="button" data-manager-workflow-rename="${escapeAttr(item.id)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i><span>重命名</span></button>
-                        <button type="button" class="danger" data-manager-workflow-remove="${escapeAttr(item.id)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>删除</span></button>
-                    </div>
-                </div>`).join('') : `<div class="canvas-asset-empty">当前分组为空</div>`}
-            </div>
-        </div>
-    `;
-    const upload = document.getElementById('managerWorkflowUpload');
-    upload?.addEventListener('change', async () => {
-        if(!upload.files?.length || !cat) return;
-        const form = new FormData();
-        form.append('library_id', library?.id || '');
-        form.append('category_id', cat.id || '');
-        [...upload.files].forEach(file => form.append('files', file));
-        const data = await classicAssetPanel.mutate(() => window.CanvasApi.uploadAssetWorkflows(form));
-        setCanvasAssetLibraryFromResponse(data, {render:false});
-        managerSelectedWorkflowIds.clear();
-        updateAssetManager();
-        renderCanvasAssetLibrary();
-    });
-}
+function renderWorkflowAssetManager(...args){return classicLibraryManager.renderWorkflows(...args);}
 
-function renderPromptAssetManager(){
-    const libs = canvasPromptLibraries.filter(lib => lib.id !== 'system');
-    const lib = canvasPromptLibraries.find(item => item.id === classicPromptPanel.state.libraryId) || libs[0] || null;
-    const items = lib?.items || [];
-    const canEditLibrary = !!lib && !lib.readonly;
-    assetManagerBody.innerHTML = `
-        <div class="asset-manager-side">
-            <div class="asset-manager-tools">
-                <button type="button" class="primary" data-manager-prompt-lib-new><i data-lucide="plus" class="w-4 h-4"></i><span>新提示词库</span></button>
-                <button type="button" ${!canEditLibrary ? 'disabled' : ''} data-manager-prompt-lib-rename><i data-lucide="pencil" class="w-4 h-4"></i><span>重命名</span></button>
-                <button type="button" class="danger" ${!canEditLibrary || canvasPromptLibraries.length <= 1 ? 'disabled' : ''} data-manager-prompt-lib-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除库</span></button>
-            </div>
-            <div class="asset-manager-list">
-                ${canvasPromptLibraries.map(library => `<button type="button" class="${library.id === classicPromptPanel.state.libraryId ? 'active' : ''}" data-manager-prompt-lib="${escapeAttr(library.id)}"><span>${escapeHtml(library.name || '提示词库')}</span><small>${(library.items || []).length}</small></button>`).join('')}
-            </div>
-        </div>
-        <div class="asset-manager-main">
-            <div class="asset-manager-tools">
-                <button type="button" class="primary" ${!lib || lib.readonly ? 'disabled' : ''} data-manager-prompt-new><i data-lucide="file-plus-2" class="w-4 h-4"></i><span>新增提示词</span></button>
-                <button type="button" class="danger" ${!lib || lib.readonly || !managerSelectedPromptIds.size ? 'disabled' : ''} data-manager-prompt-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除所选 ${managerSelectedPromptIds.size ? managerSelectedPromptIds.size : ''}</span></button>
-            </div>
-            <div class="asset-manager-grid">
-                ${items.length ? items.map(item => `<div class="asset-manager-card">
-                    <input type="checkbox" data-manager-prompt-check="${escapeAttr(item.id)}" ${managerSelectedPromptIds.has(item.id) ? 'checked' : ''} ${lib?.readonly ? 'disabled' : ''}>
-                    <div class="asset-manager-card-text">${escapeHtml(item.positive || '')}</div>
-                    <span class="asset-manager-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || '提示词')}</span>
-                    <div class="asset-manager-card-actions">
-                        <button type="button" ${lib?.readonly ? 'disabled' : ''} data-manager-prompt-edit="${escapeAttr(item.id)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i><span>编辑</span></button>
-                        <button type="button" class="danger" ${lib?.readonly ? 'disabled' : ''} data-manager-prompt-remove="${escapeAttr(item.id)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>删除</span></button>
-                    </div>
-                </div>`).join('') : `<div class="canvas-asset-empty">当前提示词库为空</div>`}
-            </div>
-        </div>
-    `;
-}
+function renderPromptAssetManager(...args){return classicLibraryManager.renderPrompts(...args);}
 
 function createClassicPromptPanel(){
     let promptTemplateNodeId = '';
@@ -937,10 +774,10 @@ function createClassicPromptPanel(){
         templateVersion++; activePromptLibraryId = id || 'system';
         promptTemplateSelectedId = ''; promptTemplateEditing = false;
 
-        if(options.source === "manager") managerSelectedPromptIds.clear();
+        if(options.source === "manager") classicLibraryManager.promptLibraryChanged();
 
         refreshTemplate({});
-        if(assetManagerModal?.classList.contains("open")) updateAssetManager();
+        if(classicLibraryManager.state.open) updateAssetManager();
     }
     function listen(target,type,handler,options){
         if(!target) return;
@@ -1882,245 +1719,7 @@ function hasCanvasAssetSaveDrop(dataTransfer){
 }
 
 // Called once by canvas.js, at its original initialization position.
-function bindClassicAssetManagerEvents(){
-    bindClassicAssetPanelDropEvents();
-    gateAssetManagerBtn?.addEventListener('click', openAssetManager);
-    document.querySelectorAll('[data-manager-tab]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            selectClassicAssetManagerTab(btn.dataset.managerTab);
-        });
-    });
-    assetManagerModal?.addEventListener('change', event => {
-        let shouldRender = false;
-        const assetCheck = event.target.closest?.('[data-manager-asset-check]');
-        if(assetCheck){
-            if(assetCheck.checked) managerSelectedAssetIds.add(assetCheck.dataset.managerAssetCheck);
-            else managerSelectedAssetIds.delete(assetCheck.dataset.managerAssetCheck);
-            shouldRender = true;
-        }
-        const promptCheck = event.target.closest?.('[data-manager-prompt-check]');
-        if(promptCheck){
-            if(promptCheck.checked) managerSelectedPromptIds.add(promptCheck.dataset.managerPromptCheck);
-            else managerSelectedPromptIds.delete(promptCheck.dataset.managerPromptCheck);
-            shouldRender = true;
-        }
-        const workflowCheck = event.target.closest?.('[data-manager-workflow-check]');
-        if(workflowCheck){
-            if(workflowCheck.checked) managerSelectedWorkflowIds.add(workflowCheck.dataset.managerWorkflowCheck);
-            else managerSelectedWorkflowIds.delete(workflowCheck.dataset.managerWorkflowCheck);
-            shouldRender = true;
-        }
-        if(shouldRender) updateAssetManager();
-    });
-    assetManagerModal?.addEventListener('click', async event => {
-        const origin = classicAssetPanel.captureSelection();
-        const promptOrigin = classicPromptPanel.capture();
-        const assetLib = event.target.closest?.('[data-manager-asset-lib]');
-        if(assetLib){ classicAssetPanel.selectLibrary(assetLib.dataset.managerAssetLib || '', {source:'manager-assets'}); return; }
-        const assetCat = event.target.closest?.('[data-manager-asset-cat]');
-        if(assetCat){ classicAssetPanel.selectCategory(assetCat.dataset.managerAssetCat || '', {source:'manager-assets'}); return; }
-        const workflowLib = event.target.closest?.('[data-manager-workflow-lib]');
-        if(workflowLib){ classicAssetPanel.selectLibrary(workflowLib.dataset.managerWorkflowLib || '', {source:'manager-workflows'}); return; }
-        const workflowCat = event.target.closest?.('[data-manager-workflow-cat]');
-        if(workflowCat){ classicAssetPanel.selectCategory(workflowCat.dataset.managerWorkflowCat || '', {source:'manager-workflows'}); return; }
-        const promptLib = event.target.closest?.('[data-manager-prompt-lib]');
-        if(promptLib){ classicPromptPanel.selectLibrary(promptLib.dataset.managerPromptLib || 'system',{source:'manager'}); return; }
-        const workflowRename = event.target.closest?.('[data-manager-workflow-rename]');
-        if(workflowRename){
-            const itemId = workflowRename.dataset.managerWorkflowRename || '';
-            const item = (activeCanvasWorkflowCategory()?.items || []).find(entry => entry.id === itemId);
-            const name = window.prompt('工作流名称', item?.name || '');
-            if(!item || !String(name || '').trim()) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetItem(item.id, {name}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        const workflowRemove = event.target.closest?.('[data-manager-workflow-remove]');
-        if(workflowRemove){
-            const itemId = workflowRemove.dataset.managerWorkflowRemove || '';
-            const item = (activeCanvasWorkflowCategory()?.items || []).find(entry => entry.id === itemId);
-            if(!item || !window.confirm(`删除工作流「${item.name || 'workflow'}」？`)) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItem(item.id));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            managerSelectedWorkflowIds.delete(item.id);
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        const assetRename = event.target.closest?.('[data-manager-asset-rename]');
-        if(assetRename){
-            const itemId = assetRename.dataset.managerAssetRename || '';
-            const item = (activeCanvasMediaCategory()?.items || []).find(entry => entry.id === itemId);
-            const name = window.prompt('资产名称', item?.name || '');
-            if(!item || !String(name || '').trim()) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetItem(item.id, {name}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        const assetRemove = event.target.closest?.('[data-manager-asset-remove]');
-        if(assetRemove){
-            const itemId = assetRemove.dataset.managerAssetRemove || '';
-            const item = (activeCanvasMediaCategory()?.items || []).find(entry => entry.id === itemId);
-            if(!item || !window.confirm(`删除资产「${item.name || 'asset'}」？`)) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItem(item.id));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            managerSelectedAssetIds.delete(item.id);
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        const promptEdit = event.target.closest?.('[data-manager-prompt-edit]');
-        if(promptEdit){
-            const lib = activeCanvasPromptLibrary();
-            if(!lib || lib.readonly) return;
-            const itemId = promptEdit.dataset.managerPromptEdit || '';
-            const item = (lib.items || []).find(entry => entry.id === itemId);
-            if(!item) return;
-            const name = window.prompt('提示词名称', item.name || '提示词');
-            if(!String(name || '').trim()) return;
-            const positive = window.prompt('提示词内容', item.positive || '');
-            if(!String(positive || '').trim()) return;
-            const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:lib.id, name, positive, negative:item.negative || '', category:item.category || 'mine', scene:item.scene || ''});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            refreshCanvasPromptTemplatesFromLibraries();
-            updateAssetManager(); return;
-        }
-        const promptRemove = event.target.closest?.('[data-manager-prompt-remove]');
-        if(promptRemove){
-            const lib = activeCanvasPromptLibrary();
-            if(!lib || lib.readonly) return;
-            const itemId = promptRemove.dataset.managerPromptRemove || '';
-            const item = (lib.items || []).find(entry => entry.id === itemId);
-            if(!item || !window.confirm(`删除提示词「${item.name || '提示词'}」？`)) return;
-            const data = await window.CanvasApi.deletePromptItem(item.id);
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            managerSelectedPromptIds.delete(item.id);
-            refreshCanvasPromptTemplatesFromLibraries();
-            updateAssetManager(); return;
-        }
-        if(event.target.closest?.('[data-manager-asset-lib-new]')){
-            const name = window.prompt('资产库名称', '新资产库');
-            if(!String(name || '').trim()) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.createAssetLibrary({name}));
-            completeClassicAssetWrite(data, origin, {libraryId:data.asset_library?.id || origin.libraryId, categoryId:''}); return;
-        }
-        if(event.target.closest?.('[data-manager-asset-lib-rename]')){
-            const lib = activeCanvasAssetLibrary();
-            const name = window.prompt('资产库名称', lib?.name || '');
-            if(!lib || !String(name || '').trim()) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetLibrary(lib.id, {name}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-asset-lib-delete]')){
-            const lib = activeCanvasAssetLibrary();
-            if(!lib || !window.confirm(`删除资产库「${lib.name || '资产库'}」？`)) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetLibrary(lib.id));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-asset-cat-new]')){
-            const name = window.prompt('分组名称', '新分组');
-            if(!String(name || '').trim()) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.createAssetCategory({library_id:classicAssetPanel.state.libraryId, name, type:'image'}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            classicAssetPanel.selectTarget({libraryId:origin.libraryId, categoryId:data.category?.id || origin.categoryId}, {expected:origin,render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-asset-cat-rename]')){
-            const cat = activeCanvasMediaCategory();
-            const name = window.prompt('分组名称', cat?.name || '');
-            if(!cat || !String(name || '').trim()) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetCategory(cat.id, {name}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-asset-cat-delete]')){
-            const cat = activeCanvasMediaCategory();
-            if(!cat || !window.confirm(`删除分组「${cat.name || '分组'}」？`)) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetCategory(cat.id));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-asset-delete]')){
-            if(!managerSelectedAssetIds.size) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItems({library_id:classicAssetPanel.state.libraryId, ids:[...managerSelectedAssetIds]}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            managerSelectedAssetIds.clear();
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-workflow-export]')){
-            const items = (activeCanvasWorkflowCategory()?.items || []).filter(item => managerSelectedWorkflowIds.has(item.id));
-            if(items.length === 1) {
-                const item = items[0];
-                downloadUrl(item.url, `${item.name || 'workflow'}${String(item.url).toLowerCase().endsWith('.json') ? '.json' : '.zip'}`);
-            } else if(items.length > 1) {
-                const res = await fetch('/api/canvas-assets/download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filename:'workflows.zip', items:items.map(item => ({url:item.url, name:item.name || 'workflow'}))})});
-                if(res.ok) downloadBlob(await res.blob(), 'workflows.zip');
-            }
-            return;
-        }
-        if(event.target.closest?.('[data-manager-workflow-delete]')){
-            if(!managerSelectedWorkflowIds.size) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItems({library_id:classicAssetPanel.state.libraryId, ids:[...managerSelectedWorkflowIds]}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            managerSelectedWorkflowIds.clear();
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-workflow-cat-new]')){
-            const name = window.prompt('工作流分组名称', '工作流');
-            if(!String(name || '').trim()) return;
-            const data = await classicAssetPanel.mutate(() => window.CanvasApi.createAssetCategory({library_id:classicAssetPanel.state.libraryId, name, type:'workflow'}));
-            setCanvasAssetLibraryFromResponse(data, {render:false});
-            classicAssetPanel.selectTarget({libraryId:origin.libraryId, workflowCategoryId:data.category?.id || origin.workflowCategoryId}, {expected:origin,render:false});
-            updateAssetManager(); renderCanvasAssetLibrary(); return;
-        }
-        if(event.target.closest?.('[data-manager-prompt-lib-new]')){
-            const name = window.prompt('提示词库名称', '新提示词库');
-            if(!String(name || '').trim()) return;
-            const data = await window.CanvasApi.createPromptLibrary({name});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            if(classicPromptPanel.capture().version === promptOrigin.version) classicPromptPanel.selectLibrary(data.prompt_library?.id || classicPromptPanel.state.libraryId,{source:'manager'});
-            refreshCanvasPromptTemplatesFromLibraries();
-            updateAssetManager(); return;
-        }
-        if(event.target.closest?.('[data-manager-prompt-lib-rename]')){
-            const lib = activeCanvasPromptLibrary();
-            if(!lib || lib.readonly) return;
-            const name = window.prompt('提示词库名称', lib.name || '');
-            if(!String(name || '').trim()) return;
-            const data = await window.CanvasApi.updatePromptLibrary(lib.id, {name});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            refreshCanvasPromptTemplatesFromLibraries();
-            updateAssetManager(); return;
-        }
-        if(event.target.closest?.('[data-manager-prompt-lib-delete]')){
-            const lib = activeCanvasPromptLibrary();
-            if(!lib || lib.readonly || !window.confirm(`删除提示词库「${lib.name || '提示词库'}」？`)) return;
-            const data = await window.CanvasApi.deletePromptLibrary(lib.id);
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            if(classicPromptPanel.capture().version === promptOrigin.version) classicPromptPanel.selectLibrary(data.library?.active_library_id || canvasPromptLibraries.find(item => item.id !== 'system')?.id || 'system',{source:'manager'});
-            refreshCanvasPromptTemplatesFromLibraries();
-            updateAssetManager(); return;
-        }
-        if(event.target.closest?.('[data-manager-prompt-new]')){
-            const lib = activeCanvasPromptLibrary();
-            if(!lib || lib.readonly) return;
-            const name = window.prompt('提示词名称', '新提示词');
-            if(!String(name || '').trim()) return;
-            const positive = window.prompt('提示词内容', '');
-            if(!String(positive || '').trim()) return;
-            const data = await window.CanvasApi.createPromptItem({library_id:lib.id, name, positive, category:'mine'});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            refreshCanvasPromptTemplatesFromLibraries();
-            updateAssetManager(); return;
-        }
-        if(event.target.closest?.('[data-manager-prompt-delete]')){
-            if(!managerSelectedPromptIds.size) return;
-            const data = await window.CanvasApi.deletePromptItems({ids:[...managerSelectedPromptIds]});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            managerSelectedPromptIds.clear();
-            refreshCanvasPromptTemplatesFromLibraries();
-            updateAssetManager(); return;
-        }
-    }, true);
-}
+function bindClassicAssetManagerEvents(){bindClassicAssetPanelDropEvents();classicLibraryManager.bind();}
 
 function findCanvasAssetCategoryForItem(itemId){
     for(const lib of canvasAssetLibraries()){
@@ -2217,4 +1816,463 @@ function bindClassicAssetPanelDropEvents(){
         }
     });
 
+}
+
+
+// The management window owns only its UI; libraries and committed writes keep their existing owners.
+function createClassicLibraryManager(){
+    let assetManagerTab='assets',managerSelectedAssetIds=new Set(),managerSelectedWorkflowIds=new Set(),managerSelectedPromptIds=new Set();
+    let assetManagerModal=null,assetManagerBody=null,open=false,paused=false,destroyed=false,version=0,openVersion=0;
+    const bindings=[],renderBindings=[],lifecycle=[];
+    function alive(){return !paused&&!destroyed;}
+    function ensureElements(){if(destroyed)return;assetManagerModal ||= document.getElementById('assetManagerModal');assetManagerBody ||= document.getElementById('assetManagerBody');}
+    function clear(records){records.splice(0).forEach(remove=>remove());}
+    function listen(target,type,handler,options,records=bindings){if(!target)return;const fn=(...args)=>{if(alive())return handler(...args);};target.addEventListener(type,fn,options);records.push(()=>target.removeEventListener(type,fn,options));}
+    function capture(){return version;}
+    function accept(origin){return alive()&&version===origin;}
+    function reveal(){if(!alive())return;ensureElements();if(assetManagerModal){assetManagerModal.hidden=false;if(assetManagerModal.style?.display==='none')assetManagerModal.style.display='';}}
+    function paint(work){if(!alive())return;ensureElements();if(!assetManagerBody)return;clear(renderBindings);return work();}
+    function selectionChanged(source){if(destroyed)return;version++;if(source==='manager-assets')managerSelectedAssetIds.clear();if(source==='manager-workflows')managerSelectedWorkflowIds.clear();}
+    function promptLibraryChanged(){if(destroyed)return;version++;managerSelectedPromptIds.clear();}
+    function itemsRemoved(id){if(destroyed)return;managerSelectedAssetIds.delete(id);managerSelectedWorkflowIds.delete(id);}
+    function bind(){
+        if(!alive())return;bindClassicAssetManagerEventsImpl();clear(lifecycle);
+        for(const [type,fn]of [['pagehide',event=>event.persisted?pause():destroy()],['pageshow',event=>{if(event.persisted)resume();}]]){
+            window.addEventListener(type,fn);lifecycle.push(()=>window.removeEventListener(type,fn));
+        }
+    }
+    function pause(){if(destroyed||paused)return;version++;openVersion++;paused=true;clear(bindings);clear(renderBindings);}
+    function resume(){if(destroyed||!paused)return;paused=false;bind();if(open)updateAssetManager();}
+    function destroy(){if(destroyed)return;closeAssetManagerImpl();clear(bindings);clear(renderBindings);clear(lifecycle);managerSelectedAssetIds.clear();managerSelectedWorkflowIds.clear();managerSelectedPromptIds.clear();assetManagerModal=assetManagerBody=null;destroyed=true;paused=false;}
+    function openAssetManagerImpl(){
+        if(!alive())return;ensureElements();version++;open=true;
+        const origin=++openVersion;
+        assetManagerModal?.classList.add('open');
+        managerSelectedAssetIds.clear();
+        managerSelectedPromptIds.clear();
+        canvasPromptTemplatesLoaded = false;
+        Promise.all([loadCanvasAssetLibrary({renderPanel:false}), loadCanvasPromptTemplates()]).then(()=>{if(alive()&&open&&origin===openVersion)updateAssetManager();});
+    }
+
+    function closeAssetManagerImpl(){
+        version++;openVersion++;open=false;clear(renderBindings);
+        assetManagerModal?.classList.remove('open');
+    }
+
+    function renderAssetManagerImpl(){
+        if(!alive())return;ensureElements();if(!assetManagerBody)return;clear(renderBindings);
+        document.querySelectorAll('[data-manager-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.managerTab === assetManagerTab));
+        if(assetManagerTab === 'prompts') renderPromptAssetManager();
+        else if(assetManagerTab === 'workflows') renderWorkflowAssetManager();
+        else renderImageAssetManager();
+        refreshIcons();
+    }
+
+    function renderImageAssetManagerImpl(){
+        const libs = canvasAssetLibraries();
+        const library = activeCanvasAssetLibrary();
+        const cats = canvasMediaCategories();
+        const cat = activeCanvasMediaCategory();
+        const items = cat?.items || [];
+        const canEditLibrary = !!library;
+        const canEditCategory = !!cat;
+        assetManagerBody.innerHTML = `
+            <div class="asset-manager-side">
+                <div class="asset-manager-tools">
+                    <button type="button" class="primary" data-manager-asset-lib-new><i data-lucide="plus" class="w-4 h-4"></i><span>新资产库</span></button>
+                    <button type="button" ${!canEditLibrary ? 'disabled' : ''} data-manager-asset-lib-rename><i data-lucide="pencil" class="w-4 h-4"></i><span>重命名</span></button>
+                    <button type="button" class="danger" ${libs.length <= 1 ? 'disabled' : ''} data-manager-asset-lib-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除库</span></button>
+                </div>
+                <div class="asset-manager-list">
+                    ${libs.map(lib => `<button type="button" class="${lib.id === classicAssetPanel.state.libraryId ? 'active' : ''}" data-manager-asset-lib="${escapeAttr(lib.id)}"><span>${escapeHtml(lib.name || '资产库')}</span><small>${(lib.categories || []).reduce((n,c)=>n+(c.items || []).length,0)}</small></button>`).join('')}
+                </div>
+                <div class="asset-manager-tools">
+                    <button type="button" class="primary" data-manager-asset-cat-new><i data-lucide="folder-plus" class="w-4 h-4"></i><span>新分组</span></button>
+                    <button type="button" ${!canEditCategory ? 'disabled' : ''} data-manager-asset-cat-rename><i data-lucide="pencil" class="w-4 h-4"></i><span>重命名</span></button>
+                    <button type="button" class="danger" ${!canEditCategory ? 'disabled' : ''} data-manager-asset-cat-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除组</span></button>
+                </div>
+                <div class="asset-manager-list">
+                    ${cats.map(item => `<button type="button" class="${item.id === classicAssetPanel.state.categoryId ? 'active' : ''}" data-manager-asset-cat="${escapeAttr(item.id)}"><span>${escapeHtml(item.name || '分组')}</span><small>${(item.items || []).length}</small></button>`).join('')}
+                </div>
+            </div>
+            <div class="asset-manager-main">
+                <div class="asset-manager-tools">
+                    <label class="${!cat ? 'disabled' : ''}"><i data-lucide="upload" class="w-4 h-4"></i><span>批量上传</span><input id="managerAssetUpload" type="file" multiple accept="image/*" ${!cat ? 'disabled' : ''}></label>
+                    <button type="button" class="danger" ${managerSelectedAssetIds.size ? '' : 'disabled'} data-manager-asset-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除所选 ${managerSelectedAssetIds.size ? managerSelectedAssetIds.size : ''}</span></button>
+                </div>
+                <div class="asset-manager-grid">
+                    ${items.length ? items.map(item => `<div class="asset-manager-card">
+                        <input type="checkbox" data-manager-asset-check="${escapeAttr(item.id)}" ${managerSelectedAssetIds.has(item.id) ? 'checked' : ''}>
+                        ${canvasPreviewImgHtml(item.thumbnail || item.url || '', 512, 'alt=""')}
+                        <span class="asset-manager-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'asset')}</span>
+                        <div class="asset-manager-card-actions">
+                            <button type="button" data-manager-asset-rename="${escapeAttr(item.id)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i><span>重命名</span></button>
+                            <button type="button" class="danger" data-manager-asset-remove="${escapeAttr(item.id)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>删除</span></button>
+                        </div>
+                    </div>`).join('') : `<div class="canvas-asset-empty">当前分组为空</div>`}
+                </div>
+            </div>
+        `;
+        bindCanvasPreviewImageFallbacks(assetManagerBody);
+        const upload = document.getElementById('managerAssetUpload');
+        listen(upload,'change', async () => {
+            const uiOrigin=capture();
+            if(!upload.files?.length || !cat) return;
+            const data = await uploadFilesToLibrary(upload.files, library.id, cat.id);
+            if(data?.library) setCanvasAssetLibraryFromResponse(data, {render:false});
+            if(accept(uiOrigin))managerSelectedAssetIds.clear();
+            updateAssetManager();
+            renderCanvasAssetLibrary();
+        },undefined,renderBindings);
+    }
+
+    function renderWorkflowAssetManagerImpl(){
+        const libs = canvasAssetLibraries();
+        const library = activeCanvasAssetLibrary();
+        const cats = canvasWorkflowCategories();
+        const cat = activeCanvasWorkflowCategory();
+        const items = cat?.items || [];
+        assetManagerBody.innerHTML = `
+            <div class="asset-manager-side">
+                <div class="asset-manager-tools">
+                    <button type="button" class="primary" data-manager-workflow-cat-new><i data-lucide="folder-plus" class="w-4 h-4"></i><span>新分组</span></button>
+                </div>
+                <div class="asset-manager-list">
+                    ${libs.map(lib => `<button type="button" class="${lib.id === classicAssetPanel.state.libraryId ? 'active' : ''}" data-manager-workflow-lib="${escapeAttr(lib.id)}"><span>${escapeHtml(lib.name || '资产库')}</span><small>${(lib.categories || []).filter(c => String(c.type || '') === 'workflow').reduce((n,c)=>n+(c.items || []).length,0)}</small></button>`).join('')}
+                </div>
+                <div class="asset-manager-list">
+                    ${cats.map(item => `<button type="button" class="${item.id === classicAssetPanel.state.workflowCategoryId ? 'active' : ''}" data-manager-workflow-cat="${escapeAttr(item.id)}"><span>${escapeHtml(item.name || '工作流')}</span><small>${(item.items || []).length}</small></button>`).join('') || '<div class="canvas-asset-empty">暂无工作流分组</div>'}
+                </div>
+            </div>
+            <div class="asset-manager-main">
+                <div class="asset-manager-tools">
+                    <label class="${!cat ? 'disabled' : ''}"><i data-lucide="upload" class="w-4 h-4"></i><span>上传工作流</span><input id="managerWorkflowUpload" type="file" multiple accept=".json,.zip,application/json,application/zip" ${!cat ? 'disabled' : ''}></label>
+                    <button type="button" ${!managerSelectedWorkflowIds.size ? 'disabled' : ''} data-manager-workflow-export><i data-lucide="download" class="w-4 h-4"></i><span>导出所选 ${managerSelectedWorkflowIds.size ? managerSelectedWorkflowIds.size : ''}</span></button>
+                    <button type="button" class="danger" ${managerSelectedWorkflowIds.size ? '' : 'disabled'} data-manager-workflow-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除所选 ${managerSelectedWorkflowIds.size ? managerSelectedWorkflowIds.size : ''}</span></button>
+                </div>
+                <div class="asset-manager-grid">
+                    ${items.length ? items.map(item => `<div class="asset-manager-card">
+                        <input type="checkbox" data-manager-workflow-check="${escapeAttr(item.id)}" ${managerSelectedWorkflowIds.has(item.id) ? 'checked' : ''}>
+                        ${workflowAssetThumbHtml(item)}
+                        <span class="asset-manager-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || 'workflow')}</span>
+                        <div class="asset-manager-card-actions">
+                            <button type="button" data-manager-workflow-rename="${escapeAttr(item.id)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i><span>重命名</span></button>
+                            <button type="button" class="danger" data-manager-workflow-remove="${escapeAttr(item.id)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>删除</span></button>
+                        </div>
+                    </div>`).join('') : `<div class="canvas-asset-empty">当前分组为空</div>`}
+                </div>
+            </div>
+        `;
+        const upload = document.getElementById('managerWorkflowUpload');
+        listen(upload,'change', async () => {
+            const uiOrigin=capture();
+            if(!upload.files?.length || !cat) return;
+            const form = new FormData();
+            form.append('library_id', library?.id || '');
+            form.append('category_id', cat.id || '');
+            [...upload.files].forEach(file => form.append('files', file));
+            const data = await classicAssetPanel.mutate(() => window.CanvasApi.uploadAssetWorkflows(form));
+            setCanvasAssetLibraryFromResponse(data, {render:false});
+            if(accept(uiOrigin))managerSelectedWorkflowIds.clear();
+            updateAssetManager();
+            renderCanvasAssetLibrary();
+        },undefined,renderBindings);
+    }
+
+    function renderPromptAssetManagerImpl(){
+        const libs = canvasPromptLibraries.filter(lib => lib.id !== 'system');
+        const lib = canvasPromptLibraries.find(item => item.id === classicPromptPanel.state.libraryId) || libs[0] || null;
+        const items = lib?.items || [];
+        const canEditLibrary = !!lib && !lib.readonly;
+        assetManagerBody.innerHTML = `
+            <div class="asset-manager-side">
+                <div class="asset-manager-tools">
+                    <button type="button" class="primary" data-manager-prompt-lib-new><i data-lucide="plus" class="w-4 h-4"></i><span>新提示词库</span></button>
+                    <button type="button" ${!canEditLibrary ? 'disabled' : ''} data-manager-prompt-lib-rename><i data-lucide="pencil" class="w-4 h-4"></i><span>重命名</span></button>
+                    <button type="button" class="danger" ${!canEditLibrary || canvasPromptLibraries.length <= 1 ? 'disabled' : ''} data-manager-prompt-lib-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除库</span></button>
+                </div>
+                <div class="asset-manager-list">
+                    ${canvasPromptLibraries.map(library => `<button type="button" class="${library.id === classicPromptPanel.state.libraryId ? 'active' : ''}" data-manager-prompt-lib="${escapeAttr(library.id)}"><span>${escapeHtml(library.name || '提示词库')}</span><small>${(library.items || []).length}</small></button>`).join('')}
+                </div>
+            </div>
+            <div class="asset-manager-main">
+                <div class="asset-manager-tools">
+                    <button type="button" class="primary" ${!lib || lib.readonly ? 'disabled' : ''} data-manager-prompt-new><i data-lucide="file-plus-2" class="w-4 h-4"></i><span>新增提示词</span></button>
+                    <button type="button" class="danger" ${!lib || lib.readonly || !managerSelectedPromptIds.size ? 'disabled' : ''} data-manager-prompt-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除所选 ${managerSelectedPromptIds.size ? managerSelectedPromptIds.size : ''}</span></button>
+                </div>
+                <div class="asset-manager-grid">
+                    ${items.length ? items.map(item => `<div class="asset-manager-card">
+                        <input type="checkbox" data-manager-prompt-check="${escapeAttr(item.id)}" ${managerSelectedPromptIds.has(item.id) ? 'checked' : ''} ${lib?.readonly ? 'disabled' : ''}>
+                        <div class="asset-manager-card-text">${escapeHtml(item.positive || '')}</div>
+                        <span class="asset-manager-card-name" title="${escapeAttr(item.name || '')}">${escapeHtml(item.name || '提示词')}</span>
+                        <div class="asset-manager-card-actions">
+                            <button type="button" ${lib?.readonly ? 'disabled' : ''} data-manager-prompt-edit="${escapeAttr(item.id)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i><span>编辑</span></button>
+                            <button type="button" class="danger" ${lib?.readonly ? 'disabled' : ''} data-manager-prompt-remove="${escapeAttr(item.id)}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>删除</span></button>
+                        </div>
+                    </div>`).join('') : `<div class="canvas-asset-empty">当前提示词库为空</div>`}
+                </div>
+            </div>
+        `;
+    }
+
+    function selectClassicAssetManagerTabImpl(tab){
+        if(!alive())return;version++;
+        assetManagerTab = tab || 'assets';
+        classicAssetPanel.selectTarget({}, {source:'manager-' + assetManagerTab});
+        if(!assetManagerModal?.classList.contains('open')) renderAssetManager();
+    }
+
+    function updateAssetManagerImpl(){
+        if(!alive()||classicAssetPanel.destroyed) return;
+        classicAssetPanel.reconcile({source:'manager-' + assetManagerTab, render:false});
+        if(open)renderAssetManager();
+    }
+
+    function bindClassicAssetManagerEventsImpl(){
+        if(destroyed||paused)return;ensureElements();clear(bindings);
+        listen(gateAssetManagerBtn,'click',openAssetManager);
+        document.querySelectorAll('[data-manager-tab]').forEach(btn => {
+            listen(btn,'click', () => {
+                selectClassicAssetManagerTab(btn.dataset.managerTab);
+            });
+        });
+        listen(assetManagerModal,'change', event => {
+            version++;
+            let shouldRender = false;
+            const assetCheck = event.target.closest?.('[data-manager-asset-check]');
+            if(assetCheck){
+                if(assetCheck.checked) managerSelectedAssetIds.add(assetCheck.dataset.managerAssetCheck);
+                else managerSelectedAssetIds.delete(assetCheck.dataset.managerAssetCheck);
+                shouldRender = true;
+            }
+            const promptCheck = event.target.closest?.('[data-manager-prompt-check]');
+            if(promptCheck){
+                if(promptCheck.checked) managerSelectedPromptIds.add(promptCheck.dataset.managerPromptCheck);
+                else managerSelectedPromptIds.delete(promptCheck.dataset.managerPromptCheck);
+                shouldRender = true;
+            }
+            const workflowCheck = event.target.closest?.('[data-manager-workflow-check]');
+            if(workflowCheck){
+                if(workflowCheck.checked) managerSelectedWorkflowIds.add(workflowCheck.dataset.managerWorkflowCheck);
+                else managerSelectedWorkflowIds.delete(workflowCheck.dataset.managerWorkflowCheck);
+                shouldRender = true;
+            }
+            if(shouldRender) updateAssetManager();
+        });
+        listen(assetManagerModal,'click', async event => {
+            const uiOrigin=capture();
+            const origin = classicAssetPanel.captureSelection();
+            const promptOrigin = classicPromptPanel.capture();
+            const assetLib = event.target.closest?.('[data-manager-asset-lib]');
+            if(assetLib){ classicAssetPanel.selectLibrary(assetLib.dataset.managerAssetLib || '', {source:'manager-assets'}); return; }
+            const assetCat = event.target.closest?.('[data-manager-asset-cat]');
+            if(assetCat){ classicAssetPanel.selectCategory(assetCat.dataset.managerAssetCat || '', {source:'manager-assets'}); return; }
+            const workflowLib = event.target.closest?.('[data-manager-workflow-lib]');
+            if(workflowLib){ classicAssetPanel.selectLibrary(workflowLib.dataset.managerWorkflowLib || '', {source:'manager-workflows'}); return; }
+            const workflowCat = event.target.closest?.('[data-manager-workflow-cat]');
+            if(workflowCat){ classicAssetPanel.selectCategory(workflowCat.dataset.managerWorkflowCat || '', {source:'manager-workflows'}); return; }
+            const promptLib = event.target.closest?.('[data-manager-prompt-lib]');
+            if(promptLib){ classicPromptPanel.selectLibrary(promptLib.dataset.managerPromptLib || 'system',{source:'manager'}); return; }
+            const workflowRename = event.target.closest?.('[data-manager-workflow-rename]');
+            if(workflowRename){
+                const itemId = workflowRename.dataset.managerWorkflowRename || '';
+                const item = (activeCanvasWorkflowCategory()?.items || []).find(entry => entry.id === itemId);
+                const name = window.prompt('工作流名称', item?.name || '');
+                if(!item || !String(name || '').trim()) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetItem(item.id, {name}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            const workflowRemove = event.target.closest?.('[data-manager-workflow-remove]');
+            if(workflowRemove){
+                const itemId = workflowRemove.dataset.managerWorkflowRemove || '';
+                const item = (activeCanvasWorkflowCategory()?.items || []).find(entry => entry.id === itemId);
+                if(!item || !window.confirm(`删除工作流「${item.name || 'workflow'}」？`)) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItem(item.id));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                if(accept(uiOrigin))managerSelectedWorkflowIds.delete(item.id);
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            const assetRename = event.target.closest?.('[data-manager-asset-rename]');
+            if(assetRename){
+                const itemId = assetRename.dataset.managerAssetRename || '';
+                const item = (activeCanvasMediaCategory()?.items || []).find(entry => entry.id === itemId);
+                const name = window.prompt('资产名称', item?.name || '');
+                if(!item || !String(name || '').trim()) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetItem(item.id, {name}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            const assetRemove = event.target.closest?.('[data-manager-asset-remove]');
+            if(assetRemove){
+                const itemId = assetRemove.dataset.managerAssetRemove || '';
+                const item = (activeCanvasMediaCategory()?.items || []).find(entry => entry.id === itemId);
+                if(!item || !window.confirm(`删除资产「${item.name || 'asset'}」？`)) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItem(item.id));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                if(accept(uiOrigin))managerSelectedAssetIds.delete(item.id);
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            const promptEdit = event.target.closest?.('[data-manager-prompt-edit]');
+            if(promptEdit){
+                const lib = activeCanvasPromptLibrary();
+                if(!lib || lib.readonly) return;
+                const itemId = promptEdit.dataset.managerPromptEdit || '';
+                const item = (lib.items || []).find(entry => entry.id === itemId);
+                if(!item) return;
+                const name = window.prompt('提示词名称', item.name || '提示词');
+                if(!String(name || '').trim()) return;
+                const positive = window.prompt('提示词内容', item.positive || '');
+                if(!String(positive || '').trim()) return;
+                const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:lib.id, name, positive, negative:item.negative || '', category:item.category || 'mine', scene:item.scene || ''});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                refreshCanvasPromptTemplatesFromLibraries();
+                updateAssetManager(); return;
+            }
+            const promptRemove = event.target.closest?.('[data-manager-prompt-remove]');
+            if(promptRemove){
+                const lib = activeCanvasPromptLibrary();
+                if(!lib || lib.readonly) return;
+                const itemId = promptRemove.dataset.managerPromptRemove || '';
+                const item = (lib.items || []).find(entry => entry.id === itemId);
+                if(!item || !window.confirm(`删除提示词「${item.name || '提示词'}」？`)) return;
+                const data = await window.CanvasApi.deletePromptItem(item.id);
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                if(accept(uiOrigin))managerSelectedPromptIds.delete(item.id);
+                refreshCanvasPromptTemplatesFromLibraries();
+                updateAssetManager(); return;
+            }
+            if(event.target.closest?.('[data-manager-asset-lib-new]')){
+                const name = window.prompt('资产库名称', '新资产库');
+                if(!String(name || '').trim()) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.createAssetLibrary({name}));
+                completeClassicAssetWrite(data, origin, {libraryId:data.asset_library?.id || origin.libraryId, categoryId:''}); return;
+            }
+            if(event.target.closest?.('[data-manager-asset-lib-rename]')){
+                const lib = activeCanvasAssetLibrary();
+                const name = window.prompt('资产库名称', lib?.name || '');
+                if(!lib || !String(name || '').trim()) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetLibrary(lib.id, {name}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-asset-lib-delete]')){
+                const lib = activeCanvasAssetLibrary();
+                if(!lib || !window.confirm(`删除资产库「${lib.name || '资产库'}」？`)) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetLibrary(lib.id));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-asset-cat-new]')){
+                const name = window.prompt('分组名称', '新分组');
+                if(!String(name || '').trim()) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.createAssetCategory({library_id:classicAssetPanel.state.libraryId, name, type:'image'}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                classicAssetPanel.selectTarget({libraryId:origin.libraryId, categoryId:data.category?.id || origin.categoryId}, {expected:origin,render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-asset-cat-rename]')){
+                const cat = activeCanvasMediaCategory();
+                const name = window.prompt('分组名称', cat?.name || '');
+                if(!cat || !String(name || '').trim()) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.updateAssetCategory(cat.id, {name}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-asset-cat-delete]')){
+                const cat = activeCanvasMediaCategory();
+                if(!cat || !window.confirm(`删除分组「${cat.name || '分组'}」？`)) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetCategory(cat.id));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-asset-delete]')){
+                if(!managerSelectedAssetIds.size) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItems({library_id:classicAssetPanel.state.libraryId, ids:[...managerSelectedAssetIds]}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                if(accept(uiOrigin))managerSelectedAssetIds.clear();
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-workflow-export]')){
+                const items = (activeCanvasWorkflowCategory()?.items || []).filter(item => managerSelectedWorkflowIds.has(item.id));
+                if(items.length === 1) {
+                    const item = items[0];
+                    downloadUrl(item.url, `${item.name || 'workflow'}${String(item.url).toLowerCase().endsWith('.json') ? '.json' : '.zip'}`);
+                } else if(items.length > 1) {
+                    const res = await fetch('/api/canvas-assets/download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({filename:'workflows.zip', items:items.map(item => ({url:item.url, name:item.name || 'workflow'}))})});
+                    if(res.ok) downloadBlob(await res.blob(), 'workflows.zip');
+                }
+                return;
+            }
+            if(event.target.closest?.('[data-manager-workflow-delete]')){
+                if(!managerSelectedWorkflowIds.size) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.deleteAssetItems({library_id:classicAssetPanel.state.libraryId, ids:[...managerSelectedWorkflowIds]}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                if(accept(uiOrigin))managerSelectedWorkflowIds.clear();
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-workflow-cat-new]')){
+                const name = window.prompt('工作流分组名称', '工作流');
+                if(!String(name || '').trim()) return;
+                const data = await classicAssetPanel.mutate(() => window.CanvasApi.createAssetCategory({library_id:classicAssetPanel.state.libraryId, name, type:'workflow'}));
+                setCanvasAssetLibraryFromResponse(data, {render:false});
+                classicAssetPanel.selectTarget({libraryId:origin.libraryId, workflowCategoryId:data.category?.id || origin.workflowCategoryId}, {expected:origin,render:false});
+                updateAssetManager(); renderCanvasAssetLibrary(); return;
+            }
+            if(event.target.closest?.('[data-manager-prompt-lib-new]')){
+                const name = window.prompt('提示词库名称', '新提示词库');
+                if(!String(name || '').trim()) return;
+                const data = await window.CanvasApi.createPromptLibrary({name});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                if(classicPromptPanel.capture().version === promptOrigin.version) classicPromptPanel.selectLibrary(data.prompt_library?.id || classicPromptPanel.state.libraryId,{source:'manager'});
+                refreshCanvasPromptTemplatesFromLibraries();
+                updateAssetManager(); return;
+            }
+            if(event.target.closest?.('[data-manager-prompt-lib-rename]')){
+                const lib = activeCanvasPromptLibrary();
+                if(!lib || lib.readonly) return;
+                const name = window.prompt('提示词库名称', lib.name || '');
+                if(!String(name || '').trim()) return;
+                const data = await window.CanvasApi.updatePromptLibrary(lib.id, {name});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                refreshCanvasPromptTemplatesFromLibraries();
+                updateAssetManager(); return;
+            }
+            if(event.target.closest?.('[data-manager-prompt-lib-delete]')){
+                const lib = activeCanvasPromptLibrary();
+                if(!lib || lib.readonly || !window.confirm(`删除提示词库「${lib.name || '提示词库'}」？`)) return;
+                const data = await window.CanvasApi.deletePromptLibrary(lib.id);
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                if(classicPromptPanel.capture().version === promptOrigin.version) classicPromptPanel.selectLibrary(data.library?.active_library_id || canvasPromptLibraries.find(item => item.id !== 'system')?.id || 'system',{source:'manager'});
+                refreshCanvasPromptTemplatesFromLibraries();
+                updateAssetManager(); return;
+            }
+            if(event.target.closest?.('[data-manager-prompt-new]')){
+                const lib = activeCanvasPromptLibrary();
+                if(!lib || lib.readonly) return;
+                const name = window.prompt('提示词名称', '新提示词');
+                if(!String(name || '').trim()) return;
+                const positive = window.prompt('提示词内容', '');
+                if(!String(positive || '').trim()) return;
+                const data = await window.CanvasApi.createPromptItem({library_id:lib.id, name, positive, category:'mine'});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                refreshCanvasPromptTemplatesFromLibraries();
+                updateAssetManager(); return;
+            }
+            if(event.target.closest?.('[data-manager-prompt-delete]')){
+                if(!managerSelectedPromptIds.size) return;
+                const data = await window.CanvasApi.deletePromptItems({ids:[...managerSelectedPromptIds]});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                if(accept(uiOrigin))managerSelectedPromptIds.clear();
+                refreshCanvasPromptTemplatesFromLibraries();
+                updateAssetManager(); return;
+            }
+        }, true);
+    }
+    return Object.freeze({
+        get state(){return Object.freeze({open:open&&!destroyed,tab:assetManagerTab,assetIds:Object.freeze([...managerSelectedAssetIds]),workflowIds:Object.freeze([...managerSelectedWorkflowIds]),promptIds:Object.freeze([...managerSelectedPromptIds]),paused,destroyed});},
+        open:openAssetManagerImpl,close:()=>{if(!destroyed)closeAssetManagerImpl();},selectTab:selectClassicAssetManagerTabImpl,
+        render:renderAssetManagerImpl,renderImages:()=>paint(renderImageAssetManagerImpl),renderWorkflows:()=>paint(renderWorkflowAssetManagerImpl),renderPrompts:()=>paint(renderPromptAssetManagerImpl),
+        dataChanged:updateAssetManagerImpl,selectionChanged,promptLibraryChanged,itemsRemoved,reveal,bind,pause,resume,destroy
+    });
 }
