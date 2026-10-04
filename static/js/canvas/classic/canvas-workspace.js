@@ -4184,10 +4184,10 @@ function bindClassicBoardEvents(){
 function bindClassicKeyboardEvents(){
     window.addEventListener('keydown', handleCanvasHistoryShortcut, true);
     window.addEventListener('keydown', e => {
+        if(e.key === 'Escape' && classicImageEditor.state.open) { closeImageEditor(); return; }
         if(!canvas) return;
         if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
         if(e.key === 'Shift' && !isEditableTarget(document.activeElement)) setKnifeMode(true);
-        if(e.key === 'Escape' && classicImageEditor.state.open) { closeImageEditor(); return; }
         if(e.key === 'Escape' && (classicPromptPanel.state.open || classicPromptPanel.state.opening)) { closePromptTemplateModal(); return; }
         if(outputLightbox.classList.contains('open') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
             if(navigateOutputLightbox(e.key === 'ArrowRight' ? 1 : -1)){

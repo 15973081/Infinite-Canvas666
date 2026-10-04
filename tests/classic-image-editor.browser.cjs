@@ -307,3 +307,74 @@ test('Classic read-only lease keeps editor close and view navigation from saving
     assert.equal(writes.filter(w=>w.method==='PUT'&&w.path==='/api/canvases/canvas-test').length,0);
     assert.deepEqual(errors,[]);
 });
+
+for(const path of ['undo','redo','draft','remote','replacement','no-canvas'])test(`Classic visible editor exits with real Escape after ${path} invalidates its target`,async t=>{
+    const {page,errors}=await editor(t,'brush',path==='draft'||path==='remote');
+    if(path==='redo'){
+        await page.evaluate(()=>{pushUndo();nodes[0].name='redo replacement';performUndo();openImageEditor('image-a','brush');});
+        await page.waitForFunction(()=>classicImageEditor.state.ready);
+    }
+    await stroke(page);
+    assert.equal(await page.evaluate(()=>classicImageEditor.state.undoCount),1);
+    if(path==='undo'){
+        await page.evaluate(()=>{pushUndo();nodes[0].name='undo replacement';});
+        await page.keyboard.press('Control+z');
+    }else if(path==='redo')await page.keyboard.press('Control+Shift+z');
+    else await page.evaluate(path=>{
+        if(path==='draft')restoreClassicMemberDraft({id:canvas.id,kind:'classic',nodes:serializableCanvasNodes(),connections:[]});
+        if(path==='remote')applyRemoteCanvasData({...canvas,revision:canvas.revision+1,nodes:JSON.parse(JSON.stringify(serializableCanvasNodes())),connections:[]});
+        if(path==='replacement'){nodes=nodes.map(node=>({...node}));render();}
+        if(path==='no-canvas')canvas=null;
+    },path);
+    assert.equal(await page.locator('#imageEditModal').evaluate(el=>el.classList.contains('open')),true);
+    assert.deepEqual(await page.evaluate(()=>({open:classicImageEditor.state.open,ready:classicImageEditor.state.ready,
+        targetValid:classicImageEditor.state.targetValid,editing:classicImageEditor.isEditingNode('image-a')})),
+        {open:true,ready:false,targetValid:false,editing:false});
+    const before=await page.evaluate(()=>({nodes:JSON.stringify(nodes),saves:editSaves}));
+    await page.evaluate(()=>applyImageEdit());
+    assert.equal(await page.evaluate(()=>editUploads.length),0);
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await page.evaluate(()=>({open:classicImageEditor.state.open,visible:document.getElementById('imageEditModal').classList.contains('open'),
+        src:document.getElementById('cropImage').getAttribute('src'),load:document.getElementById('cropImage').onload,
+        pixels:document.getElementById('editDrawCanvas').width,undo:classicImageEditor.state.undoCount,redo:classicImageEditor.state.redoCount,
+        dragging:document.getElementById('cropCanvas').classList.contains('dragging-image')})),
+        {open:false,visible:false,src:null,load:null,pixels:0,undo:0,redo:0,dragging:false});
+    assert.equal(await page.locator('.canvas-media-status').count(),0);
+    assert.deepEqual(await page.evaluate(()=>({nodes:JSON.stringify(nodes),saves:editSaves})),before,'Escape only releases editor resources');
+    assert.deepEqual(errors,[]);
+});
+
+for(const phase of ['load','encode','upload'])test(`Classic replacement retains obsolete ${phase} protection before real Escape`,async t=>{
+    const {page,errors}=await editor(t);
+    if(phase==='load'){
+        await page.route('**/delayed.svg',()=>new Promise(()=>{}));
+        await page.evaluate(()=>{
+            nodes[0].url='/delayed.svg';openImageEditor('image-a');
+            window.finishObsolete=document.getElementById('cropImage').onload;
+        });
+    }else{
+        await page.evaluate(phase=>{
+            if(phase==='upload')CanvasApi.uploadAi=()=>new Promise(resolve=>{
+                window.finishObsolete=()=>resolve({files:[{url:'/obsolete.png',name:'obsolete.png'}]});
+            });
+            else{
+                const original=HTMLCanvasElement.prototype.toBlob;
+                HTMLCanvasElement.prototype.toBlob=function(callback,...args){
+                    original.call(this,blob=>{window.finishObsolete=()=>callback(blob);},...args);
+                };
+            }
+            window.pendingEdit=applyImageEdit();
+        },phase);
+        await page.waitForFunction(()=>typeof finishObsolete==='function');
+    }
+    await page.evaluate(()=>{nodes=nodes.map(node=>({...node}));render();});
+    const before=await page.evaluate(()=>({nodes:JSON.stringify(nodes),saves:editSaves}));
+    await page.evaluate(async phase=>{finishObsolete();if(phase!=='load')await pendingEdit;},phase);
+    assert.deepEqual(await page.evaluate(()=>({nodes:JSON.stringify(nodes),saves:editSaves})),before);
+    assert.equal(await page.evaluate(()=>editUploads.length),0);
+    assert.equal(await page.evaluate(()=>classicImageEditor.state.ready),false);
+    assert.equal(await page.locator('#imageEditModal').evaluate(el=>el.classList.contains('open')),true);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#imageEditModal').evaluate(el=>el.classList.contains('open')),false);
+    assert.deepEqual(errors,[]);
+});

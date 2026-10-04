@@ -2352,7 +2352,11 @@ function createClassicImageEditor(){
 
 
     return Object.freeze({
-        get state(){ return Object.freeze({open:!destroyed && !!cropState && validTarget(), paused, ready:usable(), nodeId:target?.node.id || '', canvasId:target?.canvasId || '', mode:imageEditMode, brushTool, zoom:imageEditZoom, undoCount:editDrawUndoStack.length, redoCount:editDrawRedoStack.length, textCount:editTextItems.length, gridLineCount:gridCustomLines.length}); },
+        get state(){
+            // An invalid target blocks editing, but the visible session must
+            // still be discoverable so Escape can close and release it.
+            return Object.freeze({open:!destroyed && !!cropState, targetValid:!destroyed && validTarget(), paused, ready:usable(), nodeId:target?.node.id || '', canvasId:target?.canvasId || '', mode:imageEditMode, brushTool, zoom:imageEditZoom, undoCount:editDrawUndoStack.length, redoCount:editDrawRedoStack.length, textCount:editTextItems.length, gridLineCount:gridCustomLines.length});
+        },
         isEditingNode(id){ return !destroyed && !!cropState && target?.node.id === id && validTarget(); },
         reset: () => implCloseImageEditor(),
         targetChanged(){ if(cropState && !validTarget()) implCloseImageEditor(); },
