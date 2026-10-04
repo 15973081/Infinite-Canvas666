@@ -38,9 +38,6 @@ const canvasGate = document.getElementById('canvasGate');
 const board = document.getElementById('board');
 const world = document.getElementById('world');
 const nodesEl = document.getElementById('nodes');
-const minimap = document.getElementById('minimap');
-const minimapContent = document.getElementById('minimapContent');
-let minimapViewport = document.getElementById('minimapViewport');
 const linksEl = document.getElementById('links');
 const linkControlsEl = document.getElementById('linkControls');
 const dropOverlay = document.getElementById('dropOverlay');
@@ -104,17 +101,6 @@ const promptTemplateSearch = document.getElementById('promptTemplateSearch');
 const promptTemplateLibrarySelect = document.getElementById('promptTemplateLibrarySelect');
 const promptTemplateCats = document.getElementById('promptTemplateCats');
 const promptTemplateBody = document.getElementById('promptTemplateBody');
-const canvasAssetToggle = document.getElementById('canvasAssetToggle');
-const canvasAssetPanel = document.getElementById('canvasAssetPanel');
-const canvasAssetResizeHandle = document.getElementById('canvasAssetResizeHandle');
-const canvasAssetCloseBtn = document.getElementById('canvasAssetCloseBtn');
-const canvasAssetLibrarySelect = document.getElementById('canvasAssetLibrarySelect');
-const canvasAssetCategorySelect = document.getElementById('canvasAssetCategorySelect');
-const canvasAssetAddCategoryBtn = document.getElementById('canvasAssetAddCategoryBtn');
-const canvasAssetSearch = document.getElementById('canvasAssetSearch');
-const canvasAssetDropZone = document.getElementById('canvasAssetDropZone');
-const canvasAssetGrid = document.getElementById('canvasAssetGrid');
-const canvasAssetHoverPreview = document.getElementById('canvasAssetHoverPreview');
 const workflowTransferToggle = document.getElementById('workflowTransferToggle');
 const canvasCostToggle = document.getElementById('canvasCostToggle');
 const canvasCostToggleLabel = document.getElementById('canvasCostToggleLabel');
@@ -128,7 +114,6 @@ const workflowExportLibraryBtn = document.getElementById('workflowExportLibraryB
 const assetManagerModal = document.getElementById('assetManagerModal');
 const assetManagerBody = document.getElementById('assetManagerBody');
 
-revealCanvasAssetControls();
 const logModal = document.getElementById('logModal');
 const logList = document.getElementById('logList');
 const errorModal = document.getElementById('errorModal');
@@ -141,14 +126,11 @@ let activeFolderId = 'all';
 let canvasSearchQuery = '';
 let canvas = null;
 let nodes = [];
+const classicMinimap = createClassicMinimap();
 let connections = [];
 let viewport = {x: -1800, y: -1000, scale: 1};
 let dragNode = null;
 let dragBoard = null;
-let minimapDrag = false;
-let minimapState = null;
-let minimapRenderQueued = false;
-let minimapLayoutDirty = true;
 let resizeNode = null;
 let llmPaneDrag = null;
 let tempLink = null;
@@ -239,33 +221,18 @@ let promptTemplateGroups = [];
 let promptTemplateGroupEditMode = false;
 let canvasPromptTemplateOverrides = {hiddenBuiltinIds:[], editedBuiltins:{}};
 let canvasAssetLibrary = {categories:[]};
-let canvasAssetLibraryOpen = false;
-let activeCanvasAssetLibraryId = '';
-let activeCanvasAssetCategoryId = '';
-let canvasAssetSearchQuery = '';
 const CANVAS_ASSET_BATCH_SIZE = 60;
 const CANVAS_ASSET_PANEL_WIDTH_KEY = 'canvas_asset_panel_width_v1';
 const CANVAS_ASSET_PANEL_DEFAULT_WIDTH = 320;
 const CANVAS_ASSET_PANEL_MIN_WIDTH = 320;
-let canvasAssetRenderKey = '';
-let canvasAssetRenderedCount = CANVAS_ASSET_BATCH_SIZE;
-let canvasAssetFilteredCount = 0;
-let canvasAssetPanelWidth = (() => {
-    try {
-        const stored = Number(localStorage.getItem(CANVAS_ASSET_PANEL_WIDTH_KEY));
-        return Number.isFinite(stored) && stored > 0 ? stored : CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
-    } catch(e) {
-        return CANVAS_ASSET_PANEL_DEFAULT_WIDTH;
-    }
-})();
-let canvasAssetPanelResize = null;
+const classicAssetPanel = createClassicAssetPanel();
+revealCanvasAssetControls();
 const LOCAL_CANVAS_ASSET_LIBRARY_ID = '__local_assets__';
 let localCanvasAssetLibrary = {items:[], tree:null};
 let assetManagerTab = 'assets';
 let managerSelectedAssetIds = new Set();
 let managerSelectedWorkflowIds = new Set();
 let managerSelectedPromptIds = new Set();
-let activeCanvasWorkflowCategoryId = '';
 const activeCanvasTaskPolls = new Set();
 let hoveredConnectionId = '';
 let connectionHoverFrame = null;
@@ -686,8 +653,7 @@ function refreshGateViewControls(){
 function setCanvasMode(open){
     shell.classList.toggle('no-canvas', !open);
     if(!open){
-        minimapState = null;
-        minimapLayoutDirty = true;
+        classicMinimap.reset();
         clearConnectionHover();
         renderedCanvasLinks.clear();
         clearLocalCanvasLock();
@@ -1183,6 +1149,7 @@ async function createCanvas(customTitle = ''){
             return;
         }
         resetCascadeRuntimeState();
+        classicMinimap.reset();
         canvas = data.canvas;
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
@@ -1270,6 +1237,7 @@ async function openCanvas(id){
             openSmartCanvasPage(nextCanvas.id);
             return;
         }
+        classicMinimap.reset();
         canvas = nextCanvas;
         resetCanvasHistory();
         canvas.logs = canvas.logs || [];
@@ -1520,6 +1488,7 @@ bindClassicCropDragEvents();
 const loopPromptVisiting = new Set();
 
 const canvasAssetHover = window.CanvasCore.createAssetHoverController(showCanvasAssetHoverPreviewNow, hideCanvasAssetHoverPreviewNow, positionCanvasAssetHoverPreviewNow);
+bindClassicAssetPanelLifecycle();
 
 window.closeAssetManager = closeAssetManager;
 

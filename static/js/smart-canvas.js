@@ -22,8 +22,6 @@ const fileInput = document.getElementById('fileInput');
 const apiKindToggle = document.getElementById('apiKindToggle');
 const inputThumbsRow = document.getElementById('inputThumbsRow');
 const inputPromptPreview = document.getElementById('inputPromptPreview');
-const minimap = document.getElementById('minimap');
-const minimapContent = document.getElementById('minimapContent');
 const imageEditModal = document.getElementById('imageEditModal');
 const smartAudioLightbox = document.getElementById('smartAudioLightbox');
 const smartAudioLightboxTitle = document.getElementById('smartAudioLightboxTitle');
@@ -38,25 +36,12 @@ const smartWorkflowExportMeta = document.getElementById('smartWorkflowExportMeta
 const smartWorkflowImportInput = document.getElementById('smartWorkflowImportInput');
 const smartWorkflowImportDropZone = document.getElementById('smartWorkflowImportDropZone');
 const selectionBox = document.getElementById('selectionBox');
-const assetToggle = document.getElementById('assetToggle');
-const assetPanel = document.getElementById('assetPanel');
-const assetCloseBtn = document.getElementById('assetCloseBtn');
-const assetLibrarySelect = document.getElementById('assetLibrarySelect');
-const assetCategorySelect = document.getElementById('assetCategorySelect');
-const assetGrid = document.getElementById('assetGrid');
-const assetNameSearch = document.getElementById('assetNameSearch');
-const assetDropZone = document.getElementById('assetDropZone');
-const workflowEmpty = document.getElementById('workflowEmpty');
-const assetImageControls = document.getElementById('assetImageControls');
-const assetAddCategoryBtn = document.getElementById('assetAddCategoryBtn');
-const assetRenameCategoryBtn = document.getElementById('assetRenameCategoryBtn');
 const assetDialogBackdrop = document.getElementById('assetDialogBackdrop');
 const assetDialogTitle = document.getElementById('assetDialogTitle');
 const assetDialogInput = document.getElementById('assetDialogInput');
 const assetDialogTarget = document.getElementById('assetDialogTarget');
 const assetDialogCancel = document.getElementById('assetDialogCancel');
 const assetDialogOk = document.getElementById('assetDialogOk');
-const assetHoverPreview = document.getElementById('assetHoverPreview');
 const promptPresetPanel = document.getElementById('promptPresetPanel');
 const promptPresetClose = document.getElementById('promptPresetClose');
 const promptPresetStatus = document.getElementById('promptPresetStatus');
@@ -74,10 +59,10 @@ const promptTemplateLibrarySelect = document.getElementById('promptTemplateLibra
 const promptTemplateCats = document.getElementById('promptTemplateCats');
 const promptTemplateBody = document.getElementById('promptTemplateBody');
 const composerTemplateBtn = document.getElementById('composerTemplateBtn');
-let minimapViewport = document.getElementById('minimapViewport');
 let canvas = null;
 let canvasUsesConnections = true;
 let nodes = [];
+const smartMinimap = createSmartMinimap();
 let selectedId = '';
 let selectedIds = [];
 let selectedImage = {nodeId:'', index:-1};
@@ -107,23 +92,13 @@ let apiProviders = [];
 let comfyWorkflows = [];
 let comfyInstanceCount = 1;
 let assetLibrary = {categories:[]};
-let assetLibraryOpen = false;
-let assetTab = 'image';
-let activeAssetCategoryId = '';
-let activeAssetLibraryId = '';
-let activeWorkflowAssetCategoryId = '';
-let assetNameSearchQuery = '';
 const ASSET_SIDEBAR_BATCH_SIZE = 60;
-let assetSidebarRenderKey = '';
-let assetSidebarRenderedCount = ASSET_SIDEBAR_BATCH_SIZE;
-let assetSidebarFilteredCount = 0;
+const smartAssetPanel = createSmartAssetPanel();
 const LOCAL_ASSET_LIBRARY_ID = '__local_assets__';
 let localAssetLibrary = {items:[], tree:null};
-let activeLocalAssetFolderId = '__root__';
 let mentionSource = 'input';
 let mentionAssetCategoryId = '';
 let assetLibraryUpdatedAt = 0;
-let assetLibraryRefreshTimer = null;
 const PROMPT_PRESETS_KEY = 'smart_canvas_prompt_presets_v1';
 const PROMPT_TEMPLATE_GROUPS_KEY = 'smart_canvas_prompt_template_groups_v1';
 const PROMPT_TEMPLATE_OVERRIDES_KEY = 'smart_canvas_prompt_template_overrides_v1';
@@ -144,8 +119,6 @@ let imageClickTimer = null;
 let suppressImageClickUntil = 0;
 let lastMouseWorld = null;
 let lastConfigRefreshAt = 0;
-let smartMinimapState = null;
-let smartMinimapDrag = false;
 let zoomPreviewState = null;
 let runTimerInterval = null;
 let smartCascadeRunning = false;
@@ -383,8 +356,6 @@ let pendingSmartViewportRefresh = null;
 
 const smartViewportScrolls = new WeakMap();
 
-let smartMinimapFrame = null;
-let smartMinimapViewportOnly = true;
 
 const DEFAULT_VIDEO_MODELS = ['veo3-fast','veo3','sora','runway','kling','pika','minimax-video','wan-v2','seedance-1.0-pro'];
 
@@ -423,6 +394,7 @@ let smartCanvasLockHolder = null;
 let smartCanvasLockPollTimer = null;
 
 const smartAssetHover = window.CanvasCore.createAssetHoverController(showAssetHoverPreviewNow, hideAssetHoverPreviewNow, positionAssetHoverPreviewNow);
+bindSmartAssetPanelLifecycle();
 
 async function loadCanvas(options={}){
     if(!canvasId) return;
@@ -434,6 +406,7 @@ async function loadCanvas(options={}){
         if(canvasId!==requestedId || data.canvas.id!==requestedId) return;
         if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
             !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
+        smartMinimap.reset();
         canvas = data.canvas;
         smartServerNodeIds = new Set((Array.isArray(canvas.nodes) ? canvas.nodes : []).map(node => node?.id).filter(Boolean));
         smartServerConnectionKeys = new Set((Array.isArray(canvas.connections) ? canvas.connections : []).map(c => `${c?.from}->${c?.to}:${c?.kind || 'flow'}`));

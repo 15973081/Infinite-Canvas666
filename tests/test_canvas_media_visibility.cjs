@@ -10,7 +10,7 @@ function setup(){
     const el={dataset:{id:'a'},querySelectorAll:()=>[img],querySelector:()=>null,contains:()=>false};
     let geometry=0;
     const ctx=vm.createContext({canvas:{id:'qa'},nodes:[node],nodesEl:{querySelectorAll:()=>[el]},selected:new Set(),
-        dragNode:null,resizeNode:null,dragBoard:null,minimapDrag:false,selectDrag:null,tempLink:null,knifeActive:false,internalDrag:false,
+        dragNode:null,resizeNode:null,dragBoard:null,classicMinimap:{dragging:false},selectDrag:null,tempLink:null,knifeActive:false,internalDrag:false,
         cropState:null,currentOutputLightboxOutId:'',currentOutputLightboxUrl:'',cascadeRunningNodeIds:new Set(),document:{activeElement:null},
         mediaKindForNode:n=>n.mediaKind,isNodeInCanvasViewport:(n,margin)=>n.x<=margin,
         suspendedCanvasPreviewImages:new WeakMap(),refreshGeometryAfterLayout:()=>geometry++});
@@ -32,7 +32,7 @@ test('offscreen release unloads sources but retains DOM, dimensions, handlers an
 });
 test('active interactions defer release; selected, focused, running and lightbox/editor assets are protected',()=>{
     for(const key of ['dragNode','resizeNode','dragBoard','minimapDrag','selectDrag','tempLink','knifeActive','internalDrag']){
-        const {ctx,img}=setup();ctx[key]=true;ctx.refreshCanvasMediaVisibility();assert.equal(img.getAttribute('src'),'/preview',key);
+        const {ctx,img}=setup();if(key==='minimapDrag')ctx.classicMinimap.dragging=true;else ctx[key]=true;ctx.refreshCanvasMediaVisibility();assert.equal(img.getAttribute('src'),'/preview',key);
     }
     const guards=[({ctx})=>ctx.selected.add('a'),({node})=>node.running=true,({node})=>node._pending=[{}],
         ({ctx})=>ctx.cascadeRunningNodeIds.add('a'),({node})=>node.runStatus='queued',({el})=>el.contains=()=>true,

@@ -983,7 +983,7 @@ function downloadBlob(blob, filename){
 
 function openWorkflowTransferModal(){
     if(!canvas){ setStatus('请先新建或选择画布'); return; }
-    if(canvasAssetLibraryOpen) toggleCanvasAssetLibrary(false);
+    if(classicAssetPanel.state.open) toggleCanvasAssetLibrary(false);
     updateWorkflowTransferMeta();
     workflowTransferModal?.classList.add('open');
     workflowTransferToggle?.classList.add('active');
@@ -1042,9 +1042,9 @@ async function exportSelectedWorkflow(includeResources=false){
     }
 }
 
-function defaultWorkflowAssetTarget(){
+function defaultWorkflowAssetTarget(preferredLibraryId=classicAssetPanel.state.libraryId){
     const libs = canvasAssetLibraries();
-    let lib = activeCanvasAssetLibrary() || libs[0] || null;
+    let lib = canvasAssetSourceLibraries().find(lib=>lib.id === preferredLibraryId) || libs[0] || null;
     if(!lib) return {libraryId:'', categoryId:''};
     let cat = (lib.categories || []).find(item => String(item.type || '').toLowerCase() === 'workflow');
     if(!cat){
@@ -1062,6 +1062,7 @@ async function exportSelectedWorkflowToLibrary(){
         setStatus('未选择节点，请先框选要导出的组件');
         return;
     }
+    const origin = classicAssetPanel.captureSelection();
     try {
         setWorkflowLibraryExportState('busy', '导出中...');
         if(workflowExportMeta){
@@ -1073,15 +1074,14 @@ async function exportSelectedWorkflowToLibrary(){
         setStatus('正在导出工作流到资产库...');
         if(!canvasAssetLibrary?.libraries?.length) await loadCanvasAssetLibrary({renderPanel:false});
         const filename = workflowFilename('zip');
-        const target = defaultWorkflowAssetTarget();
-        const res = await window.CanvasApi.exportCanvasWorkflowToLibrary({...payload, include_resources:true, filename, name:filename.replace(/\.zip$/i, ''), library_id:target.libraryId, category_id:target.categoryId});
-        if(!res.ok) throw new Error(await responseErrorMessage(res, '导出到资产库失败'));
-        const data = await res.json();
-        canvasAssetLibrary = data.library || canvasAssetLibrary;
-        activeCanvasAssetLibraryId = target.libraryId || canvasAssetLibrary.active_library_id || activeCanvasAssetLibraryId;
-        activeCanvasAssetCategoryId = data.item ? findCanvasAssetCategoryForItem(data.item.id)?.id || activeCanvasAssetCategoryId : activeCanvasAssetCategoryId;
-        renderCanvasAssetLibrary();
-        if(assetManagerModal?.classList.contains('open')) renderAssetManager();
+        const target = defaultWorkflowAssetTarget(origin.libraryId);
+        const data = await classicAssetPanel.mutate(async () => {
+            const res = await window.CanvasApi.exportCanvasWorkflowToLibrary({...payload, include_resources:true, filename, name:filename.replace(/\.zip$/i, ''), library_id:target.libraryId, category_id:target.categoryId});
+            if(!res.ok) throw new Error(await responseErrorMessage(res, '导出到资产库失败'));
+            return res.json();
+        });
+        completeClassicAssetWrite(data, origin, {libraryId:target.libraryId || origin.libraryId,
+            categoryId:data.item ? (data.library?.libraries || []).flatMap(lib=>lib.categories || []).find(cat=>(cat.items || []).some(item=>item.id === data.item.id))?.id || origin.categoryId : origin.categoryId});
         const itemName = data.item?.name || '工作流';
         if(workflowExportMeta){
             workflowExportMeta.classList.remove('busy');

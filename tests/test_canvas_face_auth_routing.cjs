@@ -9,7 +9,16 @@ function load(file, context, names) {
     context.window ||= {};
     context.window.CanvasAssetAuth = require('../static/js/asset-auth.js');
     context.apiProviders ||= [];
-    names = [...names, file === 'canvas.js' ? 'canvasFaceAuthState' : 'smartFaceAuthState'];
+    // Extracted functions still use the production UI owner, without mounting a view.
+    const owner = file === 'canvas.js' ? 'classicAssetPanel' : 'smartAssetPanel';
+    if(!context[owner]){
+        context.document ||= {getElementById:()=>null};
+        vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js/canvas-core.js'),'utf8'),context);
+        context[owner] = context.window.CanvasCore.createAssetPanelController({ids:[]});
+        context[owner].selectLibrary(context.panelLibraryId || '');
+    }
+    context.assetManagerModal ||= null;
+    names = [...names, ...(file === 'canvas.js' ? ['setCanvasAssetLibraryFromResponse','canvasFaceAuthState'] : ['smartFaceAuthState'])];
     const source = readCanvasSource(path.join(__dirname, '../static/js', file), 'utf8').replace(/\r\n/g, '\n');
     for (const name of names) {
         const start = source.search(new RegExp(`^(?:async )?function ${name}\\(`, 'm'));
@@ -164,7 +173,7 @@ for(const mode of ['classic','smart']) {
         const owner=mode==='classic'?image:{id:'image',images:[image]};
         let tick,resolve,calls=0;
         const context=vm.createContext({nodes:[owner],setTimeout:fn=>{tick=fn;},
-            canvasAssetLibrary:null,canvasAssetLibraryOpen:false,
+            canvasAssetLibrary:null,
             canvasAvatarRequest:()=>{calls++;return new Promise(r=>resolve=r);},
             smartAvatarRequest:()=>{calls++;return new Promise(r=>resolve=r);},
             setAssetLibraryFromResponse(){},render(){},refreshNodes(){},scheduleSave(){},setStatus(){},toast(){}});
@@ -205,7 +214,7 @@ for(const mode of ['classic','smart']) test(`${mode}: replacing the image during
     let finish;
     const context=vm.createContext({nodes:[owner],canvasAssetLibrary:null,
         canvasAssetLibraries:()=>[{}], activeCanvasAssetCategory:()=>({}), canvasAssetItemLocation:()=>null,
-        activeCanvasAssetLibraryId:'library', activeCanvasMediaCategory:()=>({id:'category'}),
+        panelLibraryId:'library', activeCanvasMediaCategory:()=>({id:'category'}),
         LOCAL_CANVAS_ASSET_LIBRARY_ID:'local', outputImageName:()=>'',smartImageNameFromUrl:()=>'',
         smartAssetItemLocation:()=>null,setAssetLibraryFromResponse(){},
         window:{CanvasApi:{createAssetItem:()=>new Promise(resolve=>finish=resolve)}},
@@ -219,9 +228,10 @@ for(const mode of ['classic','smart']) test(`${mode}: replacing the image during
 test('classic: quick authentication of a copied library item feeds the next video request',async()=>{
     const c=classic(); for(const key of ['asset_uris','asset_item_id','asset_library_id','face_auth_status']) delete c.image[key];
     Object.assign(c.context,{canvasAssetLibrary:null,activeCanvasAssetCategory:()=>({}),
-        activeCanvasAssetLibraryId:'library',activeCanvasMediaCategory:()=>({id:'category'}),
+        activeCanvasMediaCategory:()=>({id:'category'}),
         LOCAL_CANVAS_ASSET_LIBRARY_ID:'local',renderCanvasAssetLibrary(){},render(){},setStatus(){}});
     c.context.window.CanvasApi={createAssetItem:async()=>({item:libraryItem()})};
+    c.context.classicAssetPanel.selectLibrary('library');
     load('canvas.js',c.context,['ensureImageNodeAsset','quickCanvasAvatarProvider','quickFaceAuthImageNode']);
     await c.context.quickFaceAuthImageNode('image');
     assert.equal(c.context.canvasAssetUrisFaceVerified(c.image.asset_uris),true);
@@ -288,8 +298,8 @@ test('shared policy keeps live registration objects behind its lookup index',()=
 test('smart: library updates refresh only nodes whose readiness changed',()=>{
     const s=smart(),changed=[];
     const active={libraries:[{id:'library',categories:[{items:[libraryItem()]}]}]};
-    Object.assign(s.context,{assetLibrary:active,assetLibraryUpdatedAt:0,activeAssetLibraryId:'',LOCAL_ASSET_LIBRARY_ID:'local',
-        activeAssetCategoryId:'',activeWorkflowAssetCategoryId:'',mentionAssetCategoryId:'',assetCategories:()=>[],
+    Object.assign(s.context,{assetLibrary:active,assetLibraryUpdatedAt:0,LOCAL_ASSET_LIBRARY_ID:'local',
+        mentionAssetCategoryId:'',assetCategories:()=>[],
         activeAssetCategory:()=>null,workflowAssetCategories:()=>[],activeWorkflowAssetCategory:()=>null,
         assetLibraries:()=>s.context.assetLibrary.libraries,refreshSmartNodes:ids=>changed.push([...ids])});
     load('smart-canvas.js',s.context,['setAssetLibraryFromResponse','smartVolcengineFaceVerified','smartFaceVerifiedBadgeHtml']);

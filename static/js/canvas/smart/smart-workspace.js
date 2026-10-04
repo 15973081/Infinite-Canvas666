@@ -647,85 +647,181 @@ function viewportCenter(){
     };
 }
 
-function scheduleSmartMinimapRender(viewportOnly=false){
-    smartMinimapViewportOnly = smartMinimapViewportOnly && viewportOnly;
-    if(smartMinimapFrame !== null) return;
-    smartMinimapFrame = requestAnimationFrame(() => {
-        const onlyViewport = smartMinimapViewportOnly;
-        smartMinimapFrame = null;
-        smartMinimapViewportOnly = true;
-        renderMinimap({viewportOnly:onlyViewport});
+// Owns minimap resources only; nodes, selection and viewport remain workspace state.
+function createSmartMinimap(){
+    let minimap = document.getElementById('minimap');
+    let minimapContent = document.getElementById('minimapContent');
+    let minimapViewport = document.getElementById('minimapViewport');
+    let minimapState = null;
+    let viewportOnlyPending = true;
+    let frame = null, generation = 0, dragTarget = null;
+    let bound = false, suspended = false, destroyed = false;
+
+    function available(){ return !destroyed && !suspended && Boolean(canvas); }
+    function dragging(){ return Boolean(dragTarget && dragTarget.id === canvas?.id && dragTarget.nodes === nodes && available()); }
+    function cancelFrame(){
+        if(frame !== null) cancelAnimationFrame(frame);
+        frame = null;
+        generation++;
+    }
+    function schedule(viewportOnly){
+        if(!available()) return;
+        if(!viewportOnly) viewportOnlyPending = false;
+        if(frame !== null) return;
+        const token = generation, canvasId = canvas.id;
+        frame = requestAnimationFrame(() => {
+            if(token !== generation) return;
+            frame = null;
+            if(!available() || canvas?.id !== canvasId) return;
+            paint({viewportOnly:viewportOnlyPending});
+        });
+    }
+
+    function paint({viewportOnly=false}={}){
+        if(!available()) return;
+        const reuseLayout = viewportOnly && viewportOnlyPending && minimapState
+            && minimapState.sourceNodes === nodes && minimapState.canvas === canvas
+            && minimapState.rects.length === nodes.length;
+        cancelFrame();
+        viewportOnlyPending = true;
+        if(!minimapContent || !minimapViewport) return;
+        const width = minimapContent.clientWidth || 170;
+        const height = minimapContent.clientHeight || 108;
+        const viewW = shell.clientWidth / viewport.scale;
+        const viewH = shell.clientHeight / viewport.scale;
+        const viewX = -viewport.x / viewport.scale;
+        const viewY = -viewport.y / viewport.scale;
+        const nodeRects = reuseLayout ? minimapState.rects : withSmartComputation(() => nodes.map(node => ({id:node.id, ...nodeRect(node)})));
+        const rects = [...nodeRects, {x:viewX, y:viewY, width:viewW, height:viewH}];
+        const minX = Math.min(...rects.map(r => r.x), -200);
+        const minY = Math.min(...rects.map(r => r.y), -200);
+        const maxX = Math.max(...rects.map(r => r.x + r.width), viewX + viewW + 200);
+        const maxY = Math.max(...rects.map(r => r.y + r.height), viewY + viewH + 200);
+        const scale = Math.min(width / Math.max(1, maxX - minX), height / Math.max(1, maxY - minY));
+        const offsetX = (width - (maxX - minX) * scale) / 2;
+        const offsetY = (height - (maxY - minY) * scale) / 2;
+        const previous = minimapState;
+        minimapState = {minX, minY, scale, offsetX, offsetY, width, height, rects:nodeRects, sourceNodes:nodes, canvas};
+        const project = r => ({
+            left:offsetX + (r.x - minX) * scale,
+            top:offsetY + (r.y - minY) * scale,
+            width:Math.max(4, r.width * scale),
+            height:Math.max(4, r.height * scale)
+        });
+        const paint = (el, r) => {
+            const p = project(r);
+            el.style.left = `${p.left}px`; el.style.top = `${p.top}px`;
+            el.style.width = `${p.width}px`; el.style.height = `${p.height}px`;
+        };
+        const sameProjection = reuseLayout && ['minX','minY','scale','offsetX','offsetY','width','height']
+            .every(key => previous[key] === minimapState[key]);
+        if(!sameProjection){
+            const existing = new Map([...minimapContent.querySelectorAll('.minimap-node')].map(el => [el.dataset.nodeId, el]));
+            nodeRects.forEach(r => {
+                let el = existing.get(r.id);
+                if(!el){
+                    el = document.createElement('div');
+                    el.className = 'minimap-node'; el.dataset.nodeId = r.id;
+                    minimapContent.appendChild(el);
+                }
+                paint(el, r);
+                existing.delete(r.id);
+            });
+            existing.forEach(el => el.remove());
+        }
+        const view = project({x:viewX, y:viewY, width:viewW, height:viewH});
+        minimapViewport.style.left = `${view.left}px`; minimapViewport.style.top = `${view.top}px`;
+        minimapViewport.style.width = `${view.width}px`; minimapViewport.style.height = `${view.height}px`;
+    }
+
+    function eventToWorld(event){
+        if(!available() || !minimapContent) return null;
+        if(!minimapState) paint();
+        const state = minimapState;
+        if(!state) return viewportCenter();
+        const rect = minimapContent.getBoundingClientRect();
+        const mx = event.clientX - rect.left;
+        const my = event.clientY - rect.top;
+        return {
+            x:state.minX + (mx - state.offsetX) / Math.max(0.0001, state.scale),
+            y:state.minY + (my - state.offsetY) / Math.max(0.0001, state.scale)
+        };
+    }
+
+    function stopDrag(){
+        dragTarget = null;
+    }
+    function move(event){
+        if(!dragging()){ stopDrag(); return false; }
+        event.preventDefault();
+        const point = eventToWorld(event);
+        if(point) centerViewportOnWorldPoint(point);
+        return true;
+    }
+    function finishDrag(){
+        const active = dragging();
+        stopDrag();
+        return active;
+    }
+    function startDrag(event){
+        if(!available() || event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        stopDrag();
+        dragTarget = {id:canvas.id, nodes};
+        const point = eventToWorld(event);
+        if(point) centerViewportOnWorldPoint(point);
+    }
+    function reset(){
+        cancelFrame();
+        stopDrag();
+        minimapState = null;
+        viewportOnlyPending = true;
+    }
+    function onPageHide(event){
+        if(!event.persisted){ destroy(); return; }
+        suspended = true;
+        reset();
+    }
+    function onPageShow(event){
+        if(!event.persisted || destroyed) return;
+        suspended = false;
+        schedule(false);
+    }
+    function bind(){
+        if(bound || destroyed) return;
+        bound = true;
+        minimap?.addEventListener('mousedown', startDrag);
+        window.addEventListener('pagehide', onPageHide);
+        window.addEventListener('pageshow', onPageShow);
+    }
+    function destroy(){
+        if(destroyed) return;
+        reset();
+        destroyed = true;
+        minimap?.removeEventListener('mousedown', startDrag);
+        window.removeEventListener('pagehide', onPageHide);
+        window.removeEventListener('pageshow', onPageShow);
+        minimap = minimapContent = minimapViewport = null;
+    }
+    return Object.freeze({
+        layoutChanged:() => schedule(false), viewportChanged:() => schedule(true),
+        render:paint, eventToWorld:eventToWorld,
+        get dragging(){ return dragging(); }, move, endDrag:finishDrag, reset, bind, destroy
     });
 }
 
-function renderMinimap({viewportOnly=false}={}){
-    const reuseLayout = viewportOnly && smartMinimapViewportOnly && smartMinimapState
-        && smartMinimapState.sourceNodes === nodes && smartMinimapState.canvas === canvas
-        && smartMinimapState.rects.length === nodes.length;
-    if(smartMinimapFrame !== null) cancelAnimationFrame(smartMinimapFrame);
-    smartMinimapFrame = null;
-    smartMinimapViewportOnly = true;
-    if(!minimapContent || !minimapViewport) return;
-    const width = minimapContent.clientWidth || 170;
-    const height = minimapContent.clientHeight || 108;
-    const viewW = shell.clientWidth / viewport.scale;
-    const viewH = shell.clientHeight / viewport.scale;
-    const viewX = -viewport.x / viewport.scale;
-    const viewY = -viewport.y / viewport.scale;
-    const nodeRects = reuseLayout ? smartMinimapState.rects : withSmartComputation(() => nodes.map(node => ({id:node.id, ...nodeRect(node)})));
-    const rects = [...nodeRects, {x:viewX, y:viewY, width:viewW, height:viewH}];
-    const minX = Math.min(...rects.map(r => r.x), -200);
-    const minY = Math.min(...rects.map(r => r.y), -200);
-    const maxX = Math.max(...rects.map(r => r.x + r.width), viewX + viewW + 200);
-    const maxY = Math.max(...rects.map(r => r.y + r.height), viewY + viewH + 200);
-    const scale = Math.min(width / Math.max(1, maxX - minX), height / Math.max(1, maxY - minY));
-    const offsetX = (width - (maxX - minX) * scale) / 2;
-    const offsetY = (height - (maxY - minY) * scale) / 2;
-    const previous = smartMinimapState;
-    smartMinimapState = {minX, minY, scale, offsetX, offsetY, width, height, rects:nodeRects, sourceNodes:nodes, canvas};
-    const project = r => ({
-        left:offsetX + (r.x - minX) * scale,
-        top:offsetY + (r.y - minY) * scale,
-        width:Math.max(4, r.width * scale),
-        height:Math.max(4, r.height * scale)
-    });
-    const paint = (el, r) => {
-        const p = project(r);
-        el.style.left = `${p.left}px`; el.style.top = `${p.top}px`;
-        el.style.width = `${p.width}px`; el.style.height = `${p.height}px`;
-    };
-    const sameProjection = reuseLayout && ['minX','minY','scale','offsetX','offsetY','width','height']
-        .every(key => previous[key] === smartMinimapState[key]);
-    if(!sameProjection){
-        const existing = new Map([...minimapContent.querySelectorAll('.minimap-node')].map(el => [el.dataset.nodeId, el]));
-        nodeRects.forEach(r => {
-            let el = existing.get(r.id);
-            if(!el){
-                el = document.createElement('div');
-                el.className = 'minimap-node'; el.dataset.nodeId = r.id;
-                minimapContent.appendChild(el);
-            }
-            paint(el, r);
-            existing.delete(r.id);
-        });
-        existing.forEach(el => el.remove());
-    }
-    const view = project({x:viewX, y:viewY, width:viewW, height:viewH});
-    minimapViewport.style.left = `${view.left}px`; minimapViewport.style.top = `${view.top}px`;
-    minimapViewport.style.width = `${view.width}px`; minimapViewport.style.height = `${view.height}px`;
+function scheduleSmartMinimapRender(viewportOnly=false){
+    if(viewportOnly) smartMinimap.viewportChanged();
+    else smartMinimap.layoutChanged();
+}
+
+function renderMinimap(options={}){
+    smartMinimap.render(options);
 }
 
 function minimapEventToWorld(event){
-    if(!smartMinimapState) renderMinimap();
-    const state = smartMinimapState;
-    if(!state) return viewportCenter();
-    const rect = minimapContent.getBoundingClientRect();
-    const mx = event.clientX - rect.left;
-    const my = event.clientY - rect.top;
-    return {
-        x:state.minX + (mx - state.offsetX) / Math.max(0.0001, state.scale),
-        y:state.minY + (my - state.offsetY) / Math.max(0.0001, state.scale)
-    };
+    return smartMinimap.eventToWorld(event);
 }
 
 function centerViewportOnWorldPoint(point){
@@ -3745,24 +3841,19 @@ function textBeforeCaret(){
     return range.toString();
 }
 
-function renderMentionPicker(source){
+function updateMentionPicker(source){
+    const before = smartAssetPanel.state;
+    const hasInput = inputMentionCandidateImages(selectedNode()).length > 0;
+    const hasAssets = prepareSmartMentionSelection(source, hasInput);
+    if(!hasInput && !hasAssets){ closeMentionPicker(); return; }
+    if(before.libraryId !== smartAssetPanel.state.libraryId || before.categoryId !== smartAssetPanel.state.categoryId) renderAssetLibrary();
+    renderMentionPicker({hasInput, hasAssets});
+}
+
+function renderMentionPicker({hasInput, hasAssets}){
     const node = selectedNode();
     const inputItems = inputMentionCandidateImages(node);
     const assetLibs = assetLibraries();
-    if(!activeAssetLibraryId || !assetLibs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = assetLibrary.active_library_id || assetLibs[0]?.id || '';
-    const libraryWithMentionAssets = assetLibs.find(lib => (lib.categories || []).some(cat => (cat.type || 'image') === 'image' && (cat.items || []).some(item => item?.url)));
-    const assetCats = assetCategories('image');
-    const hasInput = inputItems.length > 0;
-    const hasAssets = Boolean(libraryWithMentionAssets);
-    mentionSource = source || (hasInput ? 'input' : 'asset');
-    if(mentionSource === 'asset' && hasAssets && !assetCats.some(cat => (cat.items || []).some(item => item?.url)) && libraryWithMentionAssets){
-        activeAssetLibraryId = libraryWithMentionAssets.id;
-        activeAssetCategoryId = '';
-        mentionAssetCategoryId = '';
-    }
-    if(mentionSource === 'input' && !hasInput && hasAssets) mentionSource = 'asset';
-    if(mentionSource === 'asset' && !hasAssets && hasInput) mentionSource = 'input';
-    if(!hasInput && !hasAssets){ closeMentionPicker(); return; }
     const nextAssetCats = assetCategories('image');
     const currentAssetCat = assetCategoryForMention();
     const assetItems = assetMentionCandidateImages(currentAssetCat?.id || '');
@@ -3782,7 +3873,7 @@ function renderMentionPicker(source){
             return items.length ? `<section class="mention-media-group mention-media-group-${kind}"><div class="smart-ref-heading">${{image:'图片',audio:'音频',video:'视频'}[kind]}</div><div class="mention-option-grid">${items.map(({img,i}) => optionHtml(img,i)).join('')}</div></section>` : '';
         }).join('') : `<div class="mention-option-grid">${candidates.map(optionHtml).join('')}</div>`;
     const librarySelect = (mentionSource === 'asset' && assetLibs.length)
-        ? `<label class="mention-library-row"><span>${escapeHtml('资产库')}</span><select class="mention-library-select" data-mention-library>${assetLibs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === activeAssetLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('')}</select></label>`
+        ? `<label class="mention-library-row"><span>${escapeHtml('资产库')}</span><select class="mention-library-select" data-mention-library>${assetLibs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === smartAssetPanel.state.libraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('')}</select></label>`
         : '';
     const folderChips = (mentionSource === 'asset' && nextAssetCats.length)
         ? nextAssetCats.map(cat => {
@@ -3817,24 +3908,19 @@ function renderMentionPicker(source){
         btn.addEventListener('mousedown', e => {
             e.preventDefault(); e.stopPropagation();
             if(btn.disabled) return;
-            renderMentionPicker(btn.dataset.mentionSource);
+            updateMentionPicker(btn.dataset.mentionSource);
         });
     });
     mentionPicker.querySelectorAll('[data-mention-library]').forEach(select => {
         select.addEventListener('mousedown', e => e.stopPropagation());
         select.addEventListener('change', e => {
-            activeAssetLibraryId = e.target.value || '';
-            activeAssetCategoryId = '';
-            mentionAssetCategoryId = '';
-            renderAssetLibrary();
-            renderMentionPicker('asset');
+            smartAssetPanel.selectLibrary(e.target.value || '', {source:'mention'});
         });
     });
     mentionPicker.querySelectorAll('[data-mention-folder]').forEach(btn => {
         btn.addEventListener('mousedown', e => {
             e.preventDefault(); e.stopPropagation();
-            mentionAssetCategoryId = btn.dataset.mentionFolder || '';
-            renderMentionPicker('asset');
+            selectSmartMentionCategory(btn.dataset.mentionFolder || '');
         });
     });
     mentionPicker.querySelectorAll('[data-mention-index]').forEach(btn => {
@@ -3850,7 +3936,7 @@ function showMentionPicker(){
     const node = selectedNode();
     const hasInput = inputMentionCandidateImages(node).length > 0;
     mentionSource = hasInput ? 'input' : 'asset';
-    renderMentionPicker(mentionSource);
+    updateMentionPicker(mentionSource);
 }
 
 function positionMentionPickerAtCaret(){
@@ -4059,20 +4145,10 @@ function bindSmartWorkspaceGestures(){
         clearSelection();
         render();
     };
-    minimap?.addEventListener('mousedown', e => {
-        if(e.button !== 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-        smartMinimapDrag = true;
-        centerViewportOnWorldPoint(minimapEventToWorld(e));
-    });
+    smartMinimap.bind();
     window.onmousemove = e => {
         lastMouseWorld = screenToWorld(e);
-        if(smartMinimapDrag){
-            e.preventDefault();
-            centerViewportOnWorldPoint(minimapEventToWorld(e));
-            return;
-        }
+        if(smartMinimap.move(e)) return;
         if(portDragState){
             e.preventDefault();
             const p = screenToWorld(e);
@@ -4241,9 +4317,9 @@ function bindSmartWorkspaceGestures(){
             n.x = item.ox + moveDx;
             n.y = item.oy + moveDy;
         });
-        if(assetLibraryOpen){
+        if(smartAssetPanel.state.open){
             const hit = document.elementFromPoint(e.clientX, e.clientY);
-            if(hit && assetPanel?.contains(hit)){
+            if(hit && smartAssetPanel.contains(hit)){
                 setAssetDragOver(true);
                 clearDropHighlight();
                 setAssetDragOver(true);
@@ -4319,14 +4395,12 @@ function bindSmartWorkspaceGestures(){
             scheduleSave();
             setTimeout(() => { didPan = false; }, 0);
         }
-        if(smartMinimapDrag){
-            smartMinimapDrag = false;
-        }
+        smartMinimap.endDrag();
         if(dragState){
             const draggedNode = nodes.find(n => n.id === dragState.id);
             let stateChanged = false;
             const hit = document.elementFromPoint(e.clientX, e.clientY);
-            const droppedOnAssetPanel = assetLibraryOpen && hit && assetPanel?.contains(hit);
+            const droppedOnAssetPanel = smartAssetPanel.state.open && hit && smartAssetPanel.contains(hit);
             if(droppedOnAssetPanel && draggedNode && (draggedNode.images || []).length){
                 const imagesToSave = (draggedNode.images || []).filter(img => img?.url);
                 imagesToSave.forEach(img => addUrlToAssetLibrary(img.url, img.name || draggedNode.title || 'image'));

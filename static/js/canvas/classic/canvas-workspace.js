@@ -105,6 +105,7 @@ function startWindowPointerSession(onMove, onUp){
         try { onUp?.(e); }
         finally { endWindowPointerSession(session); }
     }, {signal:session.signal, once:true});
+    return session;
 }
 
 function renderCanvasIcon(icon, size = 14) {
@@ -283,65 +284,167 @@ function minimapBounds(nodeBounds, view){
     return {x:minX - pad, y:minY - pad, w:Math.max(1, maxX - minX + pad * 2), h:Math.max(1, maxY - minY + pad * 2)};
 }
 
-function scheduleMinimapRender({viewportOnly=false}={}){
-    // A viewport request must never override an already queued layout invalidation.
-    if(!viewportOnly) minimapLayoutDirty = true;
-    if(minimapRenderQueued) return;
-    minimapRenderQueued = true;
-    requestAnimationFrame(() => {
-        minimapRenderQueued = false;
-        renderMinimap({viewportOnly:!minimapLayoutDirty});
+// Owns minimap resources only; nodes, selection and viewport remain workspace state.
+function createClassicMinimap(){
+    let minimap = document.getElementById('minimap');
+    let minimapContent = document.getElementById('minimapContent');
+    let minimapViewport = document.getElementById('minimapViewport');
+    let minimapState = null;
+    let minimapLayoutDirty = true;
+    let frame = null, generation = 0, dragTarget = null;
+    let pointerSession = null;
+    let bound = false, suspended = false, destroyed = false;
+
+    function available(){ return !destroyed && !suspended && Boolean(canvas); }
+    function dragging(){ return Boolean(dragTarget && dragTarget.id === canvas?.id && dragTarget.nodes === nodes && !pointerSession?.signal.aborted && available()); }
+    function cancelFrame(){
+        if(frame !== null) cancelAnimationFrame(frame);
+        frame = null;
+        generation++;
+    }
+    function schedule(viewportOnly){
+        if(!available()) return;
+        if(!viewportOnly) minimapLayoutDirty = true;
+        if(frame !== null) return;
+        const token = generation, canvasId = canvas.id;
+        frame = requestAnimationFrame(() => {
+            if(token !== generation) return;
+            frame = null;
+            if(!available() || canvas?.id !== canvasId) return;
+            paint({viewportOnly:!minimapLayoutDirty});
+        });
+    }
+
+    function paint({viewportOnly=false}={}){
+        if(!available() || !minimapContent || !minimapViewport) return;
+        cancelFrame();
+        const previous = minimapState;
+        const reuseLayout = viewportOnly && !minimapLayoutDirty && previous
+            && previous.canvasId === canvas?.id && previous.sourceNodes === nodes
+            && previous.rects.length === nodes.length;
+        const rects = reuseLayout ? previous.rects : (nodes || []).map(n => ({id:n.id, ...estimatedNodeRect(n)}));
+        const nodeBounds = reuseLayout ? previous.nodeBounds : minimapNodeBounds(rects);
+        const view = currentWorldViewRect();
+        const bounds = minimapBounds(nodeBounds, view);
+        const cw = minimapContent.clientWidth || 172;
+        const ch = minimapContent.clientHeight || 110;
+        if(reuseLayout && previous.cw === cw && previous.ch === ch
+            && ['x','y','w','h'].every(key => previous.bounds[key] === bounds[key])){
+            paintViewport(view);
+            return;
+        }
+        const scale = Math.min(cw / bounds.w, ch / bounds.h);
+        const mapW = bounds.w * scale;
+        const mapH = bounds.h * scale;
+        const ox = (cw - mapW) / 2;
+        const oy = (ch - mapH) / 2;
+        minimapState = {bounds, scale, ox, oy, cw, ch, rects, nodeBounds, canvasId:canvas?.id, sourceNodes:nodes};
+        minimapLayoutDirty = false;
+        const nodeHtml = rects.map(r => {
+            return `<div class="minimap-node ${selected.has(r.id) ? 'selected' : ''}" style="left:${ox + (r.x - bounds.x) * scale}px;top:${oy + (r.y - bounds.y) * scale}px;width:${Math.max(3, r.w * scale)}px;height:${Math.max(3, r.h * scale)}px"></div>`;
+        }).join('');
+        minimapContent.innerHTML = `${nodeHtml}${nodes?.length ? '' : '<div class="minimap-empty">EMPTY</div>'}<div id="minimapViewport" class="minimap-viewport"></div>`;
+        minimapViewport = document.getElementById('minimapViewport');
+        paintViewport(view);
+    }
+
+    function paintViewport(r=currentWorldViewRect()){
+        if(!minimapViewport || !minimapState) return;
+        const {bounds, scale, ox, oy} = minimapState;
+        minimapViewport.style.left = `${ox + (r.x - bounds.x) * scale}px`;
+        minimapViewport.style.top = `${oy + (r.y - bounds.y) * scale}px`;
+        minimapViewport.style.width = `${Math.max(8, r.w * scale)}px`;
+        minimapViewport.style.height = `${Math.max(8, r.h * scale)}px`;
+    }
+
+    function eventToWorld(e){
+        if(!available() || !minimapContent) return null;
+        if(!minimapState) paint();
+        const state = minimapState;
+        if(!state) return null;
+        const rect = minimapContent.getBoundingClientRect();
+        const x = (e.clientX - rect.left - state.ox) / state.scale + state.bounds.x;
+        const y = (e.clientY - rect.top - state.oy) / state.scale + state.bounds.y;
+        return {x, y};
+    }
+
+    function stopDrag(){
+        dragTarget = null;
+        if(pointerSession) endWindowPointerSession(pointerSession);
+        pointerSession = null;
+    }
+    function move(event){
+        if(!dragging()){ stopDrag(); return false; }
+        const point = eventToWorld(event);
+        if(point) centerViewportOnWorldPoint(point);
+        return true;
+    }
+    function finishDrag(){
+        const active = dragging();
+        stopDrag();
+        if(active) scheduleViewportSave();
+        return active;
+    }
+    function startDrag(event){
+        if(!available() || event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        stopDrag();
+        dragTarget = {id:canvas.id, nodes};
+        const point = eventToWorld(event);
+        if(point) centerViewportOnWorldPoint(point);
+        pointerSession = startWindowPointerSession(move, finishDrag);
+    }
+    function reset(){
+        cancelFrame();
+        stopDrag();
+        minimapState = null;
+        minimapLayoutDirty = true;
+    }
+    function onPageHide(event){
+        if(!event.persisted){ destroy(); return; }
+        suspended = true;
+        reset();
+    }
+    function onPageShow(event){
+        if(!event.persisted || destroyed) return;
+        suspended = false;
+        schedule(false);
+    }
+    function bind(){
+        if(bound || destroyed) return;
+        bound = true;
+        minimap?.addEventListener('mousedown', startDrag);
+        window.addEventListener('pagehide', onPageHide);
+        window.addEventListener('pageshow', onPageShow);
+    }
+    function destroy(){
+        if(destroyed) return;
+        reset();
+        destroyed = true;
+        minimap?.removeEventListener('mousedown', startDrag);
+        window.removeEventListener('pagehide', onPageHide);
+        window.removeEventListener('pageshow', onPageShow);
+        minimap = minimapContent = minimapViewport = null;
+    }
+    return Object.freeze({
+        layoutChanged:() => schedule(false), viewportChanged:() => schedule(true),
+        render:paint, eventToWorld:eventToWorld,
+        get dragging(){ return dragging(); }, move, endDrag:finishDrag, reset, bind, destroy
     });
 }
 
-function renderMinimap({viewportOnly=false}={}){
-    if(!minimapContent || !minimapViewport) return;
-    const previous = minimapState;
-    const reuseLayout = viewportOnly && !minimapLayoutDirty && previous
-        && previous.canvasId === canvas?.id && previous.sourceNodes === nodes
-        && previous.rects.length === nodes.length;
-    const rects = reuseLayout ? previous.rects : (nodes || []).map(n => ({id:n.id, ...estimatedNodeRect(n)}));
-    const nodeBounds = reuseLayout ? previous.nodeBounds : minimapNodeBounds(rects);
-    const view = currentWorldViewRect();
-    const bounds = minimapBounds(nodeBounds, view);
-    const cw = minimapContent.clientWidth || 172;
-    const ch = minimapContent.clientHeight || 110;
-    if(reuseLayout && previous.cw === cw && previous.ch === ch
-        && ['x','y','w','h'].every(key => previous.bounds[key] === bounds[key])){
-        updateMinimapViewport(view);
-        return;
-    }
-    const scale = Math.min(cw / bounds.w, ch / bounds.h);
-    const mapW = bounds.w * scale;
-    const mapH = bounds.h * scale;
-    const ox = (cw - mapW) / 2;
-    const oy = (ch - mapH) / 2;
-    minimapState = {bounds, scale, ox, oy, cw, ch, rects, nodeBounds, canvasId:canvas?.id, sourceNodes:nodes};
-    minimapLayoutDirty = false;
-    const nodeHtml = rects.map(r => {
-        return `<div class="minimap-node ${selected.has(r.id) ? 'selected' : ''}" style="left:${ox + (r.x - bounds.x) * scale}px;top:${oy + (r.y - bounds.y) * scale}px;width:${Math.max(3, r.w * scale)}px;height:${Math.max(3, r.h * scale)}px"></div>`;
-    }).join('');
-    minimapContent.innerHTML = `${nodeHtml}${nodes?.length ? '' : '<div class="minimap-empty">EMPTY</div>'}<div id="minimapViewport" class="minimap-viewport"></div>`;
-    minimapViewport = document.getElementById('minimapViewport');
-    updateMinimapViewport(view);
+function scheduleMinimapRender({viewportOnly=false}={}){
+    if(viewportOnly) classicMinimap.viewportChanged();
+    else classicMinimap.layoutChanged();
 }
 
-function updateMinimapViewport(r=currentWorldViewRect()){
-    if(!minimapViewport || !minimapState) return;
-    const {bounds, scale, ox, oy} = minimapState;
-    minimapViewport.style.left = `${ox + (r.x - bounds.x) * scale}px`;
-    minimapViewport.style.top = `${oy + (r.y - bounds.y) * scale}px`;
-    minimapViewport.style.width = `${Math.max(8, r.w * scale)}px`;
-    minimapViewport.style.height = `${Math.max(8, r.h * scale)}px`;
+function renderMinimap(options={}){
+    classicMinimap.render(options);
 }
 
-function minimapEventToWorld(e){
-    if(!minimapState) renderMinimap();
-    const state = minimapState;
-    const rect = minimapContent.getBoundingClientRect();
-    const x = (e.clientX - rect.left - state.ox) / state.scale + state.bounds.x;
-    const y = (e.clientY - rect.top - state.oy) / state.scale + state.bounds.y;
-    return {x, y};
+function minimapEventToWorld(event){
+    return classicMinimap.eventToWorld(event);
 }
 
 function centerViewportOnWorldPoint(point){
@@ -577,7 +680,7 @@ async function openImageNodeAssetTargetMenu(nodeId, clientX, clientY){
         .filter(category => ['image','media'].includes(String(category.type || 'image').toLowerCase()) && !category.readonly)
         .map(category => ({libraryId:library.id, categoryId:category.id, label:`${library.name || '素材库'} / ${category.name || '分组'}`}))));
     if(!targets.length){ closeImageNodeMenu(); showErrorModal('请先创建可编辑的素材库和图片分组。', '上传素材库'); return; }
-    const selectedIndex = Math.max(0, targets.findIndex(target => target.libraryId === activeCanvasAssetLibraryId && target.categoryId === activeCanvasAssetCategoryId));
+    const selectedIndex = Math.max(0, targets.findIndex(target => target.libraryId === classicAssetPanel.state.libraryId && target.categoryId === classicAssetPanel.state.categoryId));
     imageNodeMenu.classList.add('asset-target-menu');
     imageNodeMenu.innerHTML = `
         <div class="menu-section-title">选择素材库 / 分组</div>
@@ -848,7 +951,7 @@ function restoreCanvasPreviewImage(img){
 function refreshCanvasMediaVisibility(){
     if(!canvas || !nodesEl) return;
     // Navigation/interaction must settle before releasing anything.
-    if(dragNode || resizeNode || dragBoard || minimapDrag || selectDrag || tempLink || knifeActive || internalDrag) return;
+    if(dragNode || resizeNode || dragBoard || classicMinimap.dragging || selectDrag || tempLink || knifeActive || internalDrag) return;
     const nodeById = new Map(nodes.map(node => [node.id, node]));
     const protectedIds = new Set(selected);
     for(const id of selected){
@@ -3585,7 +3688,7 @@ function nearestPort(clientX, clientY, kind){
 
 function endDrag(event=null){
     const hadContentDrag = Boolean(dragNode || resizeNode || llmPaneDrag || knifeChanged || tempLink);
-    const hadViewportDrag = Boolean(dragBoard || minimapDrag);
+    const hadViewportDrag = Boolean(dragBoard || classicMinimap.dragging);
     const hadKnifeTrail = knifeTrail.length > 1;
     if(dragNode){
         const moved = [dragNode.node, ...(dragNode.children || []).map(c => c.node)].filter(Boolean);
@@ -3977,19 +4080,7 @@ function handleCanvasHistoryShortcut(event){
 
 // Called once by canvas.js, at its original initialization position.
 function bindClassicMinimapEvents(){
-    minimap?.addEventListener('mousedown', e => {
-        if(!canvas || e.button !== 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-        minimapDrag = true;
-        centerViewportOnWorldPoint(minimapEventToWorld(e));
-        startWindowPointerSession(e2 => {
-            if(minimapDrag) centerViewportOnWorldPoint(minimapEventToWorld(e2));
-        }, () => {
-            minimapDrag = false;
-            scheduleViewportSave();
-        });
-    });
+    classicMinimap.bind();
 }
 
 function startBoardPan(e, opts={}){

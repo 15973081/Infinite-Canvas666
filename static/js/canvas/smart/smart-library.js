@@ -4,6 +4,86 @@
  * Uses the entry's existing shared bindings; do not duplicate permission or document state.
  */
 
+function createSmartAssetPanel(){
+    return window.CanvasCore.createAssetPanelController({
+        batchSize:ASSET_SIDEBAR_BATCH_SIZE,
+        normalizeSelection:normalizeSmartAssetSelection,
+        selectionChanged:smartAssetSelectionChanged,
+        onDestroy(){ smartAssetHover.destroy(); },
+        ids:['assetToggle', 'assetPanel', 'assetCloseBtn', 'assetLibrarySelect', 'assetCategorySelect', 'assetGrid', 'assetNameSearch', 'assetDropZone', 'workflowEmpty', 'assetImageControls', 'assetAddCategoryBtn', 'assetRenameCategoryBtn', 'assetHoverPreview']
+    });
+}
+
+function normalizeSmartAssetSelection(next, action){
+    const mention = String(action.source || '').startsWith('mention');
+    const libs = mention ? assetLibraries() : currentAssetSourceLibraries();
+    if(!libs.some(lib=>lib.id === next.libraryId)) next.libraryId = libs.find(lib=>lib.id === assetLibrary.active_library_id)?.id || libs[0]?.id || '';
+    if(action.type === 'library'){
+        next.categoryId = '';
+        if(!mention) next.workflowCategoryId = '';
+        if(next.libraryId === LOCAL_ASSET_LIBRARY_ID) next.tab = 'image';
+    }
+    if(action.type === 'tab' && next.tab === 'workflow' && next.libraryId === LOCAL_ASSET_LIBRARY_ID){
+        const remote = assetLibraries();
+        next.libraryId = remote.find(lib=>lib.id === assetLibrary.active_library_id)?.id || remote[0]?.id || '';
+    }
+    if(action.type === 'category'){
+        if(next.tab === 'workflow') next.workflowCategoryId = action.id;
+        else next.categoryId = action.id;
+    }
+    const categories = (libs.find(lib=>lib.id === next.libraryId)?.categories || assetLibrary.categories || []);
+    for(const [type,field] of [['image','categoryId'],['workflow','workflowCategoryId']]){
+        const cats = categories.filter(cat=>(cat.type || 'image') === type);
+        if(!cats.some(cat=>cat.id === next[field])) next[field] = cats[0]?.id || '';
+    }
+    return next;
+}
+
+function smartAssetSelectionChanged(state, action){
+    if(!['query','page'].includes(action.type)){
+        const cats = assetCategories('image');
+        if(action.type === 'library' || !cats.some(cat=>cat.id === mentionAssetCategoryId)) mentionAssetCategoryId = state.categoryId;
+    }
+    if(action.render === false) return;
+    renderAssetLibrary({preserveScroll:!!action.preserveScroll});
+    if(action.source === 'mention' || (action.type === 'reconcile' && mentionPicker?.classList?.contains('open') && mentionSource === 'asset')) updateMentionPicker('asset');
+}
+
+function prepareSmartMentionSelection(source, hasInput){
+    const libs = assetLibraries();
+    const withAssets = libs.find(lib=>(lib.categories || []).some(cat=>(cat.type || 'image') === 'image' && (cat.items || []).some(item=>item?.url)));
+    smartAssetPanel.reconcile({source:'mention-prepare', render:false});
+    mentionSource = source || (hasInput ? 'input' : 'asset');
+    if(mentionSource === 'asset' && withAssets && !assetCategories('image').some(cat=>(cat.items || []).some(item=>item?.url))){
+        smartAssetPanel.selectLibrary(withAssets.id,{source:'mention-prepare',render:false});
+    }
+    if(mentionSource === 'input' && !hasInput && withAssets) mentionSource = 'asset';
+    if(mentionSource === 'asset' && !withAssets && hasInput) mentionSource = 'input';
+    mentionAssetCategoryId = assetCategoryForMention()?.id || '';
+    return !!withAssets;
+}
+
+function selectSmartMentionCategory(id){
+    const cats = assetCategories('image');
+    mentionAssetCategoryId = cats.some(cat=>cat.id === id) ? id : cats[0]?.id || '';
+    updateMentionPicker('asset');
+}
+
+function bindSmartAssetPanelLifecycle(){
+    const events = smartAssetPanel.events('lifecycle');
+    events.on(window, 'pagehide', event => {
+        smartAssetPanel.suspendReads();
+        smartAssetPanel.cancelRefresh();
+        if(event.persisted) hideAssetHoverPreview();
+        else smartAssetPanel.destroy();
+    });
+    events.on(window, 'pageshow', event => {
+        if(!event.persisted) return;
+        smartAssetPanel.resumeReads();
+        if(smartAssetPanel.state.open || (mentionPicker?.classList?.contains('open') && mentionSource === 'asset')) loadAssetLibrary();
+    });
+}
+
 function loadPromptPresets(){
     try {
         const list = JSON.parse(localStorage.getItem(PROMPT_PRESETS_KEY) || '[]');
@@ -723,7 +803,7 @@ function localAssetFolderCategories(){
 }
 
 function assetLibraryIsLocal(){
-    return activeAssetLibraryId === LOCAL_ASSET_LIBRARY_ID;
+    return smartAssetPanel.state.libraryId === LOCAL_ASSET_LIBRARY_ID;
 }
 
 function currentAssetSourceLibraries(){
@@ -736,23 +816,23 @@ function currentAssetSourceLibraries(){
 function activeAssetLibrary(){
     if(assetLibraryIsLocal()) return currentAssetSourceLibraries().find(lib => lib.id === LOCAL_ASSET_LIBRARY_ID);
     const libs = assetLibraries();
-    return libs.find(lib => lib.id === activeAssetLibraryId) || libs[0] || null;
+    return libs.find(lib => lib.id === smartAssetPanel.state.libraryId) || libs[0] || null;
 }
 
 function activeAssetCategory(){
     const cats = assetCategories('image');
     if(!cats.length) return null;
-    return cats.find(cat => cat.id === activeAssetCategoryId) || cats[0];
+    return cats.find(cat => cat.id === smartAssetPanel.state.categoryId) || cats[0];
 }
 
 function activeWorkflowAssetCategory(){
     const cats = workflowAssetCategories();
     if(!cats.length) return null;
-    return cats.find(cat => cat.id === activeWorkflowAssetCategoryId) || cats[0];
+    return cats.find(cat => cat.id === smartAssetPanel.state.workflowCategoryId) || cats[0];
 }
 
 function currentAssetTabIsWorkflow(){
-    return assetTab === 'workflow';
+    return smartAssetPanel.state.tab === 'workflow';
 }
 
 function currentAssetTabCategories(){
@@ -763,27 +843,22 @@ function activeAssetTabCategory(){
     return currentAssetTabIsWorkflow() ? activeWorkflowAssetCategory() : activeAssetCategory();
 }
 
-function setActiveAssetTabCategory(categoryId=''){
-    if(currentAssetTabIsWorkflow()) activeWorkflowAssetCategoryId = categoryId || '';
-    else activeAssetCategoryId = categoryId || '';
-}
-
 async function loadAssetLibrary(){
+    if(smartAssetPanel.destroyed) return;
+    const readToken = smartAssetPanel.beginRead();
     try {
         const [data, localData] = await window.CanvasApi.getAssetLibraries();
+        if(!smartAssetPanel.acceptsRead(readToken)) return;
         localAssetLibrary = {items:Array.isArray(localData.items) ? localData.items : [], tree:localData.tree || null};
-        setAssetLibraryFromResponse(data, {render:false});
-        renderAssetLibrary();
+        setAssetLibraryFromResponse(data, {readToken});
     } catch(e) {
-        toast('资产库加载失败');
+        if(smartAssetPanel.acceptsRead(readToken)) toast('资产库加载失败');
     }
 }
 
 function refreshAssetLibrarySoon(delay=120){
-    clearTimeout(assetLibraryRefreshTimer);
-    assetLibraryRefreshTimer = setTimeout(async () => {
+    smartAssetPanel.scheduleRefresh(async () => {
         await loadAssetLibrary();
-        if(mentionPicker?.classList?.contains('open') && mentionSource === 'asset') renderMentionPicker('asset');
     }, delay);
 }
 
@@ -794,35 +869,25 @@ function handleAssetLibraryUpdatedMessage(data={}){
 }
 
 function setAssetLibraryFromResponse(data, options={}){
+    if(smartAssetPanel.destroyed) return false;
+    const readToken = options.readToken ?? smartAssetPanel.responseReadToken(data);
+    if(readToken !== undefined){
+        if(!smartAssetPanel.acceptsRead(readToken)) return false;
+    } else smartAssetPanel.invalidateReads();
     const signature = node => JSON.stringify((node.images || []).map(img => smartFaceAuthState(img)));
     const before = new Map(nodes.map(node => [node.id,signature(node)]));
     assetLibrary = data.library || assetLibrary;
     const changed = nodes.filter(node => before.get(node.id) !== signature(node)).map(node => node.id);
     if(changed.length) refreshSmartNodes(changed);
     assetLibraryUpdatedAt = Number(assetLibrary.updated_at || assetLibraryUpdatedAt || 0);
-    const libs = assetLibraries();
-    if(!activeAssetLibraryId) activeAssetLibraryId = assetLibrary.active_library_id || libs[0]?.id || '';
-    if(activeAssetLibraryId && activeAssetLibraryId !== LOCAL_ASSET_LIBRARY_ID && !libs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = libs[0]?.id || '';
-    const cats = assetCategories('image');
-    if(activeAssetCategoryId && !cats.some(cat => cat.id === activeAssetCategoryId)) activeAssetCategoryId = '';
-    if(!activeAssetCategoryId) activeAssetCategoryId = activeAssetCategory()?.id || '';
-    const workflowCats = workflowAssetCategories();
-    if(activeWorkflowAssetCategoryId && !workflowCats.some(cat => cat.id === activeWorkflowAssetCategoryId)) activeWorkflowAssetCategoryId = '';
-    if(!activeWorkflowAssetCategoryId) activeWorkflowAssetCategoryId = activeWorkflowAssetCategory()?.id || '';
-    if(mentionAssetCategoryId && !cats.some(cat => cat.id === mentionAssetCategoryId)) mentionAssetCategoryId = '';
-    if(!mentionAssetCategoryId) mentionAssetCategoryId = activeAssetCategoryId;
-    if(options.render !== false) {
-        renderAssetLibrary();
-        if(mentionPicker?.classList?.contains('open') && mentionSource === 'asset') renderMentionPicker('asset');
-    }
+    smartAssetPanel.reconcile({render:options.render !== false});
+    return true;
 }
 
-function toggleAssetLibrary(open=!assetLibraryOpen){
-    if(!assetPanel || !assetToggle) return;
-    assetLibraryOpen = !!open;
-    assetPanel.classList.toggle('open', assetLibraryOpen);
-    assetToggle?.classList.toggle('active', assetLibraryOpen);
-    if(assetLibraryOpen) loadAssetLibrary();
+function toggleAssetLibrary(open=!smartAssetPanel.state.open){
+    if(!smartAssetPanel.elements.assetPanel || !smartAssetPanel.elements.assetToggle) return;
+    smartAssetPanel.setOpen(!!open);
+    if(smartAssetPanel.state.open) loadAssetLibrary();
     render();
 }
 
@@ -830,7 +895,7 @@ function assetCategoryForMention(){
     const cats = assetCategories('image');
     if(!cats.length) return null;
     return cats.find(cat => cat.id === mentionAssetCategoryId)
-        || cats.find(cat => cat.id === activeAssetCategoryId)
+        || cats.find(cat => cat.id === smartAssetPanel.state.categoryId)
         || cats.find(cat => (cat.items || []).length)
         || cats[0];
 }
@@ -866,42 +931,35 @@ function assetThumbHtml(item){
 }
 
 function renderAssetLibrary({preserveScroll=false}={}){
-    if(!assetPanel || !assetGrid || !assetCategorySelect) return;
-    const scrollTop = preserveScroll ? assetGrid.scrollTop : 0;
-    document.querySelectorAll('[data-asset-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.assetTab === assetTab));
+    if(smartAssetPanel.destroyed) return;
+    const events = smartAssetPanel.events('cards');
+    hideAssetHoverPreview();
+    if(!smartAssetPanel.elements.assetPanel || !smartAssetPanel.elements.assetGrid || !smartAssetPanel.elements.assetCategorySelect) return;
+    const scrollTop = preserveScroll ? smartAssetPanel.elements.assetGrid.scrollTop : 0;
+    document.querySelectorAll('[data-asset-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.assetTab === smartAssetPanel.state.tab));
     const libs = currentAssetSourceLibraries();
-    if(!activeAssetLibraryId || !libs.some(lib => lib.id === activeAssetLibraryId)) activeAssetLibraryId = assetLibrary.active_library_id || assetLibraries()[0]?.id || LOCAL_ASSET_LIBRARY_ID;
-    if(assetLibrarySelect){
-        assetLibrarySelect.innerHTML = libs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === activeAssetLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('');
+    if(smartAssetPanel.elements.assetLibrarySelect){
+        smartAssetPanel.elements.assetLibrarySelect.innerHTML = libs.map(lib => `<option value="${escapeHtml(lib.id)}" ${lib.id === smartAssetPanel.state.libraryId ? 'selected' : ''}>${escapeHtml(lib.name || '资产库')}</option>`).join('');
     }
-    const imageMode = assetTab === 'image';
-    const workflowMode = assetTab === 'workflow';
-    assetImageControls.style.display = (imageMode || workflowMode) ? 'block' : 'none';
+    const imageMode = smartAssetPanel.state.tab === 'image';
+    const workflowMode = smartAssetPanel.state.tab === 'workflow';
+    smartAssetPanel.elements.assetImageControls.style.display = (imageMode || workflowMode) ? 'block' : 'none';
     const localMode = assetLibraryIsLocal();
-    assetDropZone.style.display = (imageMode && !localMode) ? 'flex' : 'none';
-    assetGrid.style.display = (imageMode || workflowMode) ? 'grid' : 'none';
-    workflowEmpty.style.display = 'none';
+    smartAssetPanel.elements.assetDropZone.style.display = (imageMode && !localMode) ? 'flex' : 'none';
+    smartAssetPanel.elements.assetGrid.style.display = (imageMode || workflowMode) ? 'grid' : 'none';
+    smartAssetPanel.elements.workflowEmpty.style.display = 'none';
     if(!imageMode && !workflowMode){ refreshIcons(); return; }
     const cats = workflowMode ? workflowAssetCategories() : assetCategories('image');
-    const activeCatId = workflowMode ? activeWorkflowAssetCategoryId : activeAssetCategoryId;
-    if(workflowMode && !cats.some(cat => cat.id === activeWorkflowAssetCategoryId)) activeWorkflowAssetCategoryId = cats[0]?.id || '';
-    if(imageMode && !cats.some(cat => cat.id === activeAssetCategoryId)) activeAssetCategoryId = cats[0]?.id || '';
-    assetCategorySelect.innerHTML = cats.map(cat => `<option value="${escapeHtml(cat.id)}" ${cat.id === (workflowMode ? activeWorkflowAssetCategoryId : activeAssetCategoryId) ? 'selected' : ''}>${escapeHtml(cat.name || (workflowMode ? '工作流' : '新文件夹'))}</option>`).join('');
+    smartAssetPanel.elements.assetCategorySelect.innerHTML = cats.map(cat => `<option value="${escapeHtml(cat.id)}" ${cat.id === (workflowMode ? smartAssetPanel.state.workflowCategoryId : smartAssetPanel.state.categoryId) ? 'selected' : ''}>${escapeHtml(cat.name || (workflowMode ? '工作流' : '新文件夹'))}</option>`).join('');
     const cat = workflowMode ? activeWorkflowAssetCategory() : activeAssetCategory();
-    const query = assetNameSearchQuery.trim().toLowerCase();
+    const query = smartAssetPanel.state.query.trim().toLowerCase();
     const allItems = cat?.items || [];
     const items = query ? allItems.filter(item => String(item?.name || '').toLowerCase().includes(query)) : allItems;
-    const renderKey = `${activeAssetLibraryId}\u0000${assetTab}\u0000${cat?.id || ''}\u0000${query}`;
-    if(renderKey !== assetSidebarRenderKey){
-        assetSidebarRenderKey = renderKey;
-        assetSidebarRenderedCount = ASSET_SIDEBAR_BATCH_SIZE;
-    }
-    assetSidebarFilteredCount = items.length;
-    assetSidebarRenderedCount = Math.min(Math.max(ASSET_SIDEBAR_BATCH_SIZE, assetSidebarRenderedCount), items.length);
-    const visibleItems = items.slice(0, assetSidebarRenderedCount);
-    if(assetAddCategoryBtn) assetAddCategoryBtn.disabled = localMode;
-    if(assetRenameCategoryBtn) assetRenameCategoryBtn.disabled = !cat || localMode;
-    assetGrid.innerHTML = visibleItems.length ? visibleItems.map(item => `
+    const renderKey = `${smartAssetPanel.state.libraryId}\u0000${smartAssetPanel.state.tab}\u0000${cat?.id || ''}\u0000${query}`;
+    const visibleItems = smartAssetPanel.page(items, renderKey);
+    if(smartAssetPanel.elements.assetAddCategoryBtn) smartAssetPanel.elements.assetAddCategoryBtn.disabled = localMode;
+    if(smartAssetPanel.elements.assetRenameCategoryBtn) smartAssetPanel.elements.assetRenameCategoryBtn.disabled = !cat || localMode;
+    smartAssetPanel.elements.assetGrid.innerHTML = visibleItems.length ? visibleItems.map(item => `
         <div class="asset-item ${workflowMode ? 'workflow-asset-item' : ''}" draggable="${workflowMode ? 'false' : 'true'}" data-asset-id="${escapeHtml(item.id)}" data-url="${escapeHtml(item.url)}" data-name="${escapeHtml(item.name || 'asset')}" data-kind="${escapeHtml(assetMediaKind(item))}" data-asset-uris="${escapeHtml(JSON.stringify(assetRegisteredUris(item)))}">
             ${assetThumbHtml(item)}
             <div class="asset-meta">
@@ -914,10 +972,10 @@ function renderAssetLibrary({preserveScroll=false}={}){
             </div>
         </div>
     `).join('') + (visibleItems.length < items.length ? '<div class="asset-load-more">继续向下滚动加载更多</div>' : '') : `<div class="asset-empty">${escapeHtml(query && allItems.length ? '没有找到匹配名称的素材' : (localMode ? '暂无本地素材，请在素材库管理中上传' : (workflowMode ? '暂无工作流资产' : '这个文件夹还没有图片。把画布里的图片拖进来保存。')))}</div>`;
-    if(workflowMode) bindWorkflowAssetItemEvents();
-    else bindAssetItemEvents();
-    bindSmartPreviewImageFallbacks(assetGrid);
-    assetGrid.scrollTop = preserveScroll ? scrollTop : 0;
+    if(workflowMode) bindWorkflowAssetItemEvents(events);
+    else bindAssetItemEvents(events);
+    bindSmartPreviewImageFallbacks(smartAssetPanel.elements.assetGrid);
+    smartAssetPanel.elements.assetGrid.scrollTop = preserveScroll ? scrollTop : 0;
     refreshIcons();
 }
 
@@ -966,27 +1024,27 @@ function showAssetHoverPreview(event, item){ smartAssetHover.enter(event, item);
 function hideAssetHoverPreview(){ smartAssetHover.hide(); }
 
 function positionAssetHoverPreviewNow(event){
-    if(!assetHoverPreview || assetHoverPreview.hidden || assetHoverPreview.style.display === 'none') return;
+    if(!smartAssetPanel.elements.assetHoverPreview || smartAssetPanel.elements.assetHoverPreview.hidden || smartAssetPanel.elements.assetHoverPreview.style.display === 'none') return;
     const pad = 14;
-    const w = assetHoverPreview.offsetWidth || 260;
-    const h = assetHoverPreview.offsetHeight || 300;
+    const w = smartAssetPanel.elements.assetHoverPreview.offsetWidth || 260;
+    const h = smartAssetPanel.elements.assetHoverPreview.offsetHeight || 300;
     let left = event.clientX - w - 16;
     if(left < pad) left = event.clientX + 16;
     left = Math.max(pad, Math.min(window.innerWidth - w - pad, left));
     const top = Math.max(pad, Math.min(window.innerHeight - h - pad, event.clientY + 12));
-    assetHoverPreview.style.left = `${left}px`;
-    assetHoverPreview.style.top = `${top}px`;
+    smartAssetPanel.elements.assetHoverPreview.style.left = `${left}px`;
+    smartAssetPanel.elements.assetHoverPreview.style.top = `${top}px`;
 }
 
 function showAssetHoverPreviewNow(event, item){
-    if(!assetHoverPreview || !item?.url) return;
-    let media = assetHoverPreview.querySelector('img,video');
-    const name = assetHoverPreview.querySelector('.asset-hover-name');
+    if(!smartAssetPanel.elements.assetHoverPreview || !item?.url) return;
+    let media = smartAssetPanel.elements.assetHoverPreview.querySelector('img,video');
+    const name = smartAssetPanel.elements.assetHoverPreview.querySelector('.asset-hover-name');
     if(media?.tagName?.toLowerCase() !== 'img'){
         media?.pause?.();
         media?.removeAttribute('src');
         media?.replaceWith(document.createElement('img'));
-        media = assetHoverPreview.querySelector('img');
+        media = smartAssetPanel.elements.assetHoverPreview.querySelector('img');
     }
     // Reuse the already loaded library thumbnail; hover must not fetch/play
     // full originals while the user is trying to drag a card.
@@ -994,16 +1052,16 @@ function showAssetHoverPreviewNow(event, item){
     media.src = item.previewUrl || smartMediaPreviewUrl(item, 512);
     media.alt = 'asset preview';
     name.textContent = item.name || 'asset';
-    assetHoverPreview.hidden = false;
-    assetHoverPreview.style.display = 'block';
+    smartAssetPanel.elements.assetHoverPreview.hidden = false;
+    smartAssetPanel.elements.assetHoverPreview.style.display = 'block';
     positionAssetHoverPreview(event);
 }
 
 function hideAssetHoverPreviewNow(){
-    if(!assetHoverPreview) return;
-    assetHoverPreview.style.display = 'none';
-    assetHoverPreview.hidden = true;
-    const media = assetHoverPreview.querySelector('img,video');
+    if(!smartAssetPanel.elements.assetHoverPreview) return;
+    smartAssetPanel.elements.assetHoverPreview.style.display = 'none';
+    smartAssetPanel.elements.assetHoverPreview.hidden = true;
+    const media = smartAssetPanel.elements.assetHoverPreview.querySelector('img,video');
     media?.pause?.();
     media?.removeAttribute('src');
     media?.load?.();
@@ -1012,10 +1070,11 @@ function hideAssetHoverPreviewNow(){
 function beginAssetInlineRename(assetId){
     const item = (activeAssetCategory()?.items || []).find(x => x.id === assetId)
         || (activeWorkflowAssetCategory()?.items || []).find(x => x.id === assetId);
-    const card = [...assetGrid.querySelectorAll('.asset-item')].find(el => el.dataset.assetId === assetId);
+    const card = [...smartAssetPanel.elements.assetGrid.querySelectorAll('.asset-item')].find(el => el.dataset.assetId === assetId);
     const nameEl = card?.querySelector('.asset-name');
     if(!item || !card || !nameEl || card.querySelector('.asset-rename-input')) return;
     hideAssetHoverPreview();
+    const events = smartAssetPanel.events('cards:rename:' + assetId);
     const previousName = item.name || 'asset';
     const previousDraggable = card.draggable;
     const input = document.createElement('input');
@@ -1035,6 +1094,7 @@ function beginAssetInlineRename(assetId){
     const finish = async save => {
         if(done) return;
         done = true;
+        smartAssetPanel.clearEvents('cards:rename:' + assetId);
         const name = input.value.trim();
         if(!save || !name || name === previousName){
             restore();
@@ -1042,14 +1102,14 @@ function beginAssetInlineRename(assetId){
         }
         input.disabled = true;
         try {
-            const data = await window.CanvasApi.updateAssetItem(assetId, {name});
+            const data = await smartAssetPanel.mutate(() => window.CanvasApi.updateAssetItem(assetId, {name}));
             setAssetLibraryFromResponse(data);
         } catch(err){
             restore();
             toast(err.message || '保存资产失败');
         }
     };
-    input.addEventListener('keydown', event => {
+    events.on(input, 'keydown', event => {
         event.stopPropagation();
         if(event.key === 'Enter'){
             event.preventDefault();
@@ -1059,19 +1119,19 @@ function beginAssetInlineRename(assetId){
             finish(false);
         }
     });
-    input.addEventListener('pointerdown', event => event.stopPropagation());
-    input.addEventListener('mousedown', event => event.stopPropagation());
-    input.addEventListener('click', event => event.stopPropagation());
-    input.addEventListener('blur', () => finish(true));
+    events.on(input, 'pointerdown', event => event.stopPropagation());
+    events.on(input, 'mousedown', event => event.stopPropagation());
+    events.on(input, 'click', event => event.stopPropagation());
+    events.on(input, 'blur', () => finish(true));
 }
 
-function bindAssetItemEvents(){
-    assetGrid.querySelectorAll('.asset-item').forEach(el => {
+function bindAssetItemEvents(events=smartAssetPanel.events('cards')){
+    smartAssetPanel.elements.assetGrid.querySelectorAll('.asset-item').forEach(el => {
         const thumb = el.querySelector('.asset-thumb');
-        thumb?.addEventListener('mouseenter', e => showAssetHoverPreview(e, {url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind, previewUrl:thumb?.currentSrc || thumb?.querySelector('img')?.currentSrc}));
-        thumb?.addEventListener('mousemove', e => positionAssetHoverPreview(e));
-        thumb?.addEventListener('mouseleave', hideAssetHoverPreview);
-        el.addEventListener('dragstart', e => {
+        events.on(thumb, 'mouseenter', e => showAssetHoverPreview(e, {url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind, previewUrl:thumb?.currentSrc || thumb?.querySelector('img')?.currentSrc}));
+        events.on(thumb, 'mousemove', e => positionAssetHoverPreview(e));
+        events.on(thumb, 'mouseleave', hideAssetHoverPreview);
+        events.on(el, 'dragstart', e => {
             hideAssetHoverPreview();
             e.dataTransfer.effectAllowed = 'copy';
             let assetUris = {};
@@ -1080,58 +1140,58 @@ function bindAssetItemEvents(){
             e.dataTransfer.setData('text/plain', el.dataset.url || '');
         });
     });
-    assetGrid.querySelectorAll('[data-rename-asset]').forEach(btn => {
-        btn.onclick = async e => {
+    smartAssetPanel.elements.assetGrid.querySelectorAll('[data-rename-asset]').forEach(btn => {
+        events.on(btn, 'click', async e => {
             e.preventDefault(); e.stopPropagation();
             beginAssetInlineRename(btn.dataset.renameAsset);
-        };
+        });
     });
-    assetGrid.querySelectorAll('[data-delete-asset]').forEach(btn => {
-        btn.onclick = async e => {
+    smartAssetPanel.elements.assetGrid.querySelectorAll('[data-delete-asset]').forEach(btn => {
+        events.on(btn, 'click', async e => {
             e.preventDefault(); e.stopPropagation();
             btn.disabled = true;
             try {
-                const data = await window.CanvasApi.deleteAssetItem(btn.dataset.deleteAsset);
+                const data = await smartAssetPanel.mutate(() => window.CanvasApi.deleteAssetItem(btn.dataset.deleteAsset));
                 setAssetLibraryFromResponse(data);
             } catch(err){
                 btn.disabled = false;
                 toast(err.message || '保存资产失败');
             }
-        };
+        });
     });
 }
 
-function bindWorkflowAssetItemEvents(){
-    assetGrid.querySelectorAll('[data-rename-workflow-asset]').forEach(btn => {
-        btn.onclick = async e => {
+function bindWorkflowAssetItemEvents(events=smartAssetPanel.events('cards')){
+    smartAssetPanel.elements.assetGrid.querySelectorAll('[data-rename-workflow-asset]').forEach(btn => {
+        events.on(btn, 'click', async e => {
             e.preventDefault();
             e.stopPropagation();
             beginAssetInlineRename(btn.dataset.renameWorkflowAsset);
-        };
+        });
     });
-    assetGrid.querySelectorAll('[data-delete-workflow-asset]').forEach(btn => {
-        btn.onclick = async e => {
+    smartAssetPanel.elements.assetGrid.querySelectorAll('[data-delete-workflow-asset]').forEach(btn => {
+        events.on(btn, 'click', async e => {
             e.preventDefault();
             e.stopPropagation();
             const item = (activeWorkflowAssetCategory()?.items || []).find(x => x.id === btn.dataset.deleteWorkflowAsset);
             if(!item) return;
             btn.disabled = true;
             try {
-                const data = await window.CanvasApi.deleteAssetItem(item.id);
+                const data = await smartAssetPanel.mutate(() => window.CanvasApi.deleteAssetItem(item.id));
                 setAssetLibraryFromResponse(data);
             } catch(err){
                 btn.disabled = false;
                 toast(err.message || '保存资产失败');
             }
-        };
+        });
     });
 }
 
-async function addUrlToAssetLibrary(url, name=''){
-    if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中上传'); return; }
-    const cat = activeAssetCategory();
+async function addUrlToAssetLibrary(url, name='', target=smartAssetPanel.captureSelection()){
+    if(target.libraryId === LOCAL_ASSET_LIBRARY_ID){ toast('本地素材请在素材库管理中上传'); return; }
+    const cat = (assetLibraries().find(lib=>lib.id === target.libraryId)?.categories || []).find(cat=>cat.id === target.categoryId);
     if(!cat){ toast('请先新建一个图片文件夹'); return; }
-    const data = await window.CanvasApi.createAssetItem({library_id:activeAssetLibraryId, category_id:cat.id, url, name}, {errorFallback:'保存资产失败'});
+    const data = await smartAssetPanel.mutate(() => window.CanvasApi.createAssetItem({library_id:target.libraryId, category_id:cat.id, url, name}, {errorFallback:'保存资产失败'}));
     setAssetLibraryFromResponse(data);
     toast('已保存到资产库');
 }
@@ -1146,7 +1206,7 @@ async function chooseSmartAssetTarget(){
         assetDialogTitle.textContent = '选择素材库 / 分组';
         assetDialogInput.hidden = true;
         assetDialogTarget.hidden = false;
-        assetDialogTarget.innerHTML = targets.map((target, index) => `<option value="${index}" ${target.libraryId === activeAssetLibraryId && target.categoryId === activeAssetCategoryId ? 'selected' : ''}>${escapeHtml(target.label)}</option>`).join('');
+        assetDialogTarget.innerHTML = targets.map((target, index) => `<option value="${index}" ${target.libraryId === smartAssetPanel.state.libraryId && target.categoryId === smartAssetPanel.state.categoryId ? 'selected' : ''}>${escapeHtml(target.label)}</option>`).join('');
         assetDialogBackdrop.hidden = false;
         assetDialogBackdrop.classList.add('open');
         assetDialogTarget.focus();
@@ -1204,7 +1264,7 @@ async function ensureSmartImageAsset(node, index, target){
     const sourceUrl = image?.url;
     const linked = image?.asset_item_id && smartAssetItemLocation(image.asset_item_id);
     if(linked && linked.libraryId === target.libraryId && linked.categoryId === target.categoryId) return linked;
-    const data = await window.CanvasApi.createAssetItem({library_id:target.libraryId, category_id:target.categoryId, url:image.url, name:image.name || smartImageNameFromUrl(image.url)}, {errorFallback:'上传素材库失败'});
+    const data = await smartAssetPanel.mutate(() => window.CanvasApi.createAssetItem({library_id:target.libraryId, category_id:target.categoryId, url:image.url, name:image.name || smartImageNameFromUrl(image.url)}, {errorFallback:'上传素材库失败'}));
     setAssetLibraryFromResponse(data);
     if(!nodes.includes(node) || node.images[index] !== image || image.url !== sourceUrl) throw new Error('图片已更改，请重新认证。');
     image.asset_item_id = data.item?.id || '';
@@ -1237,9 +1297,13 @@ function quickSmartAvatarProvider(){
 }
 
 async function smartAvatarRequest(path, libraryId, providerId){
-    const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
-    if(!response.ok) throw new Error(await responseErrorMessage(response, '素材认证失败'));
-    return response.json();
+    const request = async () => {
+        const response = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({library_id:libraryId, provider_id:providerId})});
+        if(!response.ok) throw new Error(await responseErrorMessage(response, '素材认证失败'));
+        return response.json();
+    };
+    // Guard only the library snapshot; the caller still processes the item receipt.
+    return path.endsWith('/avatar-status') ? smartAssetPanel.readResponse(request) : smartAssetPanel.mutate(request);
 }
 
 function pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt=0){
@@ -1328,7 +1392,6 @@ function assetMentionCandidateImages(categoryId=''){
     const cats = assetCategories('image');
     const cat = cats.find(c => c.id === categoryId) || assetCategoryForMention();
     if(!cat) return [];
-    mentionAssetCategoryId = cat.id;
     const items = (cat.items || []).map(item => ({...item, categoryName:cat.name || '', categoryId:cat.id}));
     const seen = new Set();
     return items.filter(item => {
@@ -1349,31 +1412,15 @@ function assetMentionCandidateImages(categoryId=''){
 
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartLibraryToggle(){
-    if(assetToggle) assetToggle.onclick = () => toggleAssetLibrary();
-    if(assetCloseBtn) assetCloseBtn.onclick = () => toggleAssetLibrary(false);
+    if(smartAssetPanel.destroyed) return;
+    const events = smartAssetPanel.events('toggle');
+    events.on(smartAssetPanel.elements.assetToggle, 'click', () => toggleAssetLibrary());
+    events.on(smartAssetPanel.elements.assetCloseBtn, 'click', () => toggleAssetLibrary(false));
 }
 
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartLibraryControls(){
-    assetPanel?.addEventListener('pointerdown', e => e.stopPropagation());
-    assetPanel?.addEventListener('mousedown', e => e.stopPropagation());
-    assetPanel?.addEventListener('click', e => e.stopPropagation());
-    assetPanel?.addEventListener('wheel', e => {
-        e.stopPropagation();
-        const scroller = e.target.closest?.('.asset-grid') || assetGrid;
-        if(!scroller || getComputedStyle(scroller).display === 'none') return;
-        const canScroll = scroller.scrollHeight > scroller.clientHeight || scroller.scrollWidth > scroller.clientWidth;
-        if(!canScroll) return;
-        e.preventDefault();
-        scroller.scrollTop += e.deltaY;
-        scroller.scrollLeft += e.deltaX;
-    }, {passive:false, capture:true});
-    assetGrid?.addEventListener('scroll', () => {
-        if(assetSidebarRenderedCount >= assetSidebarFilteredCount) return;
-        if(assetGrid.scrollHeight - assetGrid.scrollTop - assetGrid.clientHeight > 180) return;
-        assetSidebarRenderedCount += ASSET_SIDEBAR_BATCH_SIZE;
-        renderAssetLibrary({preserveScroll:true});
-    });
+    bindSmartAssetPanelEvents();
     assetDialogBackdrop?.addEventListener('pointerdown', e => e.stopPropagation());
     assetDialogBackdrop?.addEventListener('mousedown', e => e.stopPropagation());
     assetDialogBackdrop?.addEventListener('click', e => e.stopPropagation());
@@ -1511,51 +1558,7 @@ function bindSmartLibraryControls(){
         render();
         scheduleSave();
     };
-    document.querySelectorAll('[data-asset-tab]').forEach(btn => {
-        btn.onclick = () => {
-            assetTab = btn.dataset.assetTab;
-            if(assetTab === 'workflow' && assetLibraryIsLocal()){
-                activeAssetLibraryId = assetLibrary.active_library_id || assetLibraries()[0]?.id || '';
-            }
-            renderAssetLibrary();
-        };
-    });
-    if(assetLibrarySelect) assetLibrarySelect.onchange = () => {
-        activeAssetLibraryId = assetLibrarySelect.value || '';
-        activeAssetCategoryId = '';
-        activeWorkflowAssetCategoryId = '';
-        mentionAssetCategoryId = '';
-        if(activeAssetLibraryId === LOCAL_ASSET_LIBRARY_ID) assetTab = 'image';
-        renderAssetLibrary();
-    };
-    if(assetCategorySelect) assetCategorySelect.onchange = () => {
-        if(assetTab === 'workflow') activeWorkflowAssetCategoryId = assetCategorySelect.value;
-        else activeAssetCategoryId = assetCategorySelect.value;
-        renderAssetLibrary();
-    };
-    if(assetNameSearch) assetNameSearch.oninput = () => {
-        assetNameSearchQuery = assetNameSearch.value || '';
-        renderAssetLibrary();
-    };
-    if(assetAddCategoryBtn) assetAddCategoryBtn.onclick = async () => {
-        if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
-        const workflowMode = currentAssetTabIsWorkflow();
-        const fallbackName = workflowMode ? '工作流' : '新文件夹';
-        const name = await openAssetNameDialog({title:'新建文件夹', value:fallbackName, placeholder:fallbackName});
-        if(!name) return;
-        const data = await window.CanvasApi.createAssetCategory({library_id:activeAssetLibraryId, name, type:workflowMode ? 'workflow' : 'image'});
-        setActiveAssetTabCategory(data.category?.id || '');
-        setAssetLibraryFromResponse(data);
-    };
-    if(assetRenameCategoryBtn) assetRenameCategoryBtn.onclick = async () => {
-        if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
-        const cat = activeAssetTabCategory();
-        if(!cat) return;
-        const name = await openAssetNameDialog({title:'重命名文件夹', value:cat.name || '', placeholder:currentAssetTabIsWorkflow() ? '工作流' : '新文件夹'});
-        if(!name) return;
-        const data = await window.CanvasApi.updateAssetCategory(cat.id, {name});
-        setAssetLibraryFromResponse(data);
-    };
+    bindSmartAssetPanelSelection();
 }
 
 function hasCanvasImageDrag(event){
@@ -1563,9 +1566,9 @@ function hasCanvasImageDrag(event){
 }
 
 function setAssetDragOver(active){
-    if(!assetDropZone || !assetPanel) return;
-    assetDropZone.classList.toggle('drag-over', !!active);
-    assetPanel.classList.toggle('drag-over', !!active);
+    if(!smartAssetPanel.elements.assetDropZone || !smartAssetPanel.elements.assetPanel) return;
+    smartAssetPanel.elements.assetDropZone.classList.toggle('drag-over', !!active);
+    smartAssetPanel.elements.assetPanel.classList.toggle('drag-over', !!active);
 }
 
 function handleAssetPanelDragOver(e){
@@ -1579,6 +1582,7 @@ function handleAssetPanelDragOver(e){
 
 async function handleAssetPanelDrop(e){
     if(!hasCanvasImageDrag(e) && !hasSmartImageDropData(e.dataTransfer)) return;
+    const target = smartAssetPanel.captureSelection();
     e.preventDefault();
     e.stopPropagation();
     setAssetDragOver(false);
@@ -1586,7 +1590,7 @@ async function handleAssetPanelDrop(e){
     if(raw){
         try {
             const payload = JSON.parse(raw);
-            if(payload?.url) await addUrlToAssetLibrary(payload.url, payload.name || '');
+            if(payload?.url) await addUrlToAssetLibrary(payload.url, payload.name || '', target);
             return;
         } catch(e) {
             toast('保存资产失败');
@@ -1597,12 +1601,12 @@ async function handleAssetPanelDrop(e){
         const payload = await resolveSmartImageDropPayload(e.dataTransfer);
         if(payload.type === 'files') {
             const uploaded = await uploadFiles(payload.files);
-            for(const file of uploaded) if(file?.url) await addUrlToAssetLibrary(file.url, file.name || '');
+            for(const file of uploaded) if(file?.url) await addUrlToAssetLibrary(file.url, file.name || '', target);
         } else if(payload.type === 'localPaths') {
             const imported = await importSmartLocalImages(payload.localPaths);
-            for(const file of imported) if(file?.url) await addUrlToAssetLibrary(file.url, file.name || '');
+            for(const file of imported) if(file?.url) await addUrlToAssetLibrary(file.url, file.name || '', target);
         } else if(payload.type === 'url') {
-            await addUrlToAssetLibrary(payload.url, smartImageNameFromUrl(payload.url));
+            await addUrlToAssetLibrary(payload.url, smartImageNameFromUrl(payload.url), target);
         }
     } catch(err) {
         toast(err.message || '保存资产失败');
@@ -1611,16 +1615,75 @@ async function handleAssetPanelDrop(e){
 
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartLibraryDropEvents(){
-    assetDropZone?.addEventListener('dragover', e => {
+    if(smartAssetPanel.destroyed) return;
+    const events = smartAssetPanel.events('drop');
+    events.on(smartAssetPanel.elements.assetDropZone, 'dragover', e => {
         if(hasCanvasImageDrag(e) || hasSmartImageDropData(e.dataTransfer)){
             e.preventDefault();
             e.stopPropagation();
-            assetDropZone?.classList.add('drag-over');
+            smartAssetPanel.elements.assetDropZone?.classList.add('drag-over');
         }
     });
-    assetDropZone?.addEventListener('dragleave', () => assetDropZone?.classList.remove('drag-over'));
-    assetDropZone?.addEventListener('drop', handleAssetPanelDrop);
-    assetPanel?.addEventListener('dragover', handleAssetPanelDragOver);
-    assetPanel?.addEventListener('dragleave', e => { if(!assetPanel?.contains(e.relatedTarget)) setAssetDragOver(false); });
-    assetPanel?.addEventListener('drop', handleAssetPanelDrop);
+    events.on(smartAssetPanel.elements.assetDropZone, 'dragleave', () => smartAssetPanel.elements.assetDropZone?.classList.remove('drag-over'));
+    events.on(smartAssetPanel.elements.assetDropZone, 'drop', handleAssetPanelDrop);
+    events.on(smartAssetPanel.elements.assetPanel, 'dragover', handleAssetPanelDragOver);
+    events.on(smartAssetPanel.elements.assetPanel, 'dragleave', e => { if(!smartAssetPanel.elements.assetPanel?.contains(e.relatedTarget)) setAssetDragOver(false); });
+    events.on(smartAssetPanel.elements.assetPanel, 'drop', handleAssetPanelDrop);
+}
+
+function bindSmartAssetPanelEvents(){
+    if(smartAssetPanel.destroyed) return;
+    const events = smartAssetPanel.events('controls');
+    events.on(smartAssetPanel.elements.assetPanel, 'pointerdown', e => e.stopPropagation());
+    events.on(smartAssetPanel.elements.assetPanel, 'mousedown', e => e.stopPropagation());
+    events.on(smartAssetPanel.elements.assetPanel, 'click', e => e.stopPropagation());
+    events.on(smartAssetPanel.elements.assetPanel, 'wheel', e => {
+        e.stopPropagation();
+        const scroller = e.target.closest?.('.asset-grid') || smartAssetPanel.elements.assetGrid;
+        if(!scroller || getComputedStyle(scroller).display === 'none') return;
+        const canScroll = scroller.scrollHeight > scroller.clientHeight || scroller.scrollWidth > scroller.clientWidth;
+        if(!canScroll) return;
+        e.preventDefault();
+        scroller.scrollTop += e.deltaY;
+        scroller.scrollLeft += e.deltaX;
+    }, {passive:false, capture:true});
+    events.on(smartAssetPanel.elements.assetGrid, 'scroll', () => {
+        if(smartAssetPanel.state.renderedCount >= smartAssetPanel.state.filteredCount) return;
+        if(smartAssetPanel.elements.assetGrid.scrollHeight - smartAssetPanel.elements.assetGrid.scrollTop - smartAssetPanel.elements.assetGrid.clientHeight > 180) return;
+        smartAssetPanel.loadMore();
+    });
+
+}
+
+function bindSmartAssetPanelSelection(){
+    if(smartAssetPanel.destroyed) return;
+    const events = smartAssetPanel.events('selection');
+    document.querySelectorAll('[data-asset-tab]').forEach(btn => {
+        events.on(btn, 'click', () => smartAssetPanel.selectTab(btn.dataset.assetTab));
+    });
+    events.on(smartAssetPanel.elements.assetLibrarySelect, 'change', () => smartAssetPanel.selectLibrary(smartAssetPanel.elements.assetLibrarySelect.value));
+    events.on(smartAssetPanel.elements.assetCategorySelect, 'change', () => smartAssetPanel.selectCategory(smartAssetPanel.elements.assetCategorySelect.value));
+    events.on(smartAssetPanel.elements.assetNameSearch, 'input', () => smartAssetPanel.setQuery(smartAssetPanel.elements.assetNameSearch.value));
+    events.on(smartAssetPanel.elements.assetAddCategoryBtn, 'click', async () => {
+        const origin = smartAssetPanel.captureSelection();
+        if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
+        const workflowMode = currentAssetTabIsWorkflow();
+        const fallbackName = workflowMode ? '工作流' : '新文件夹';
+        const name = await openAssetNameDialog({title:'新建文件夹', value:fallbackName, placeholder:fallbackName});
+        if(!name) return;
+        const data = await smartAssetPanel.mutate(() => window.CanvasApi.createAssetCategory({library_id:origin.libraryId, name, type:workflowMode ? 'workflow' : 'image'}));
+        setAssetLibraryFromResponse(data, {render:false});
+        if(smartAssetPanel.isSelectionCurrent(origin)) smartAssetPanel.selectTarget({libraryId:origin.libraryId,
+            [workflowMode ? 'workflowCategoryId' : 'categoryId']:data.category?.id || ''}, {expected:origin});
+        else smartAssetPanel.reconcile();
+    });
+    events.on(smartAssetPanel.elements.assetRenameCategoryBtn, 'click', async () => {
+        if(assetLibraryIsLocal()){ toast('本地素材请在素材库管理中管理文件夹'); return; }
+        const cat = activeAssetTabCategory();
+        if(!cat) return;
+        const name = await openAssetNameDialog({title:'重命名文件夹', value:cat.name || '', placeholder:currentAssetTabIsWorkflow() ? '工作流' : '新文件夹'});
+        if(!name) return;
+        const data = await smartAssetPanel.mutate(() => window.CanvasApi.updateAssetCategory(cat.id, {name}));
+        setAssetLibraryFromResponse(data);
+    });
 }
