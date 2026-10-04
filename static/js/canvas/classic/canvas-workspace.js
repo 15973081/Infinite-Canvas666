@@ -168,17 +168,7 @@ function isNodeInCanvasViewport(node, margin=400){
     return !(nx + nw < vx - m || nx > vx + vwWorld + m || ny + nh < vy - m || ny > vy + vhWorld + m);
 }
 
-function scheduleViewportRefresh(delay=200){
-    clearTimeout(pendingViewportRefresh);
-    pendingViewportRefresh = setTimeout(() => {
-        pendingViewportRefresh = null;
-        // 只刷新视野外变视野内的节点内容，不触发全量 render
-        renderOffscreenPlaceholders();
-        refreshCanvasMediaVisibility();
-        // Reconcile dynamic node sizes once navigation settles, not on every wheel event.
-        scheduleMinimapRender();
-    }, delay);
-}
+function scheduleViewportRefresh(...args){return classicWorkspaceView.scheduleViewport(...args);}
 
 function applyTheme(theme){
     const dark = theme === 'dark';
@@ -461,29 +451,9 @@ function refreshGeometry(nodeIds=null){
     renderSelectionHub();
 }
 
-function scheduleGeometryRefresh(passes=1, nodeIds=null){
-    if(nodeIds === null) geometryRefreshAll = true;
-    else for(const id of nodeIds) geometryRefreshNodes.add(id);
-    geometryRefreshPasses = Math.max(geometryRefreshPasses, passes);
-    if(geometryRefreshFrame !== null) return;
-    geometryRefreshFrame = requestAnimationFrame(() => {
-        geometryRefreshFrame = null;
-        geometryRefreshPasses--;
-        refreshGeometry(geometryRefreshAll ? null : geometryRefreshNodes);
-        if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses, geometryRefreshAll ? null : geometryRefreshNodes);
-        else { geometryRefreshAll = false; geometryRefreshNodes.clear(); }
-    });
-}
+function scheduleGeometryRefresh(...args){return classicWorkspaceView.scheduleGeometry(...args);}
 
-function flushScheduledGeometryRefresh(){
-    if(geometryRefreshFrame === null) return;
-    cancelAnimationFrame(geometryRefreshFrame);
-    geometryRefreshFrame = null;
-    geometryRefreshPasses--;
-    refreshGeometry(geometryRefreshAll ? null : geometryRefreshNodes);
-    if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses, geometryRefreshAll ? null : geometryRefreshNodes);
-    else { geometryRefreshAll = false; geometryRefreshNodes.clear(); }
-}
+function flushScheduledGeometryRefresh(...args){return classicWorkspaceView.flushGeometry(...args);}
 
 function refreshGeometryAfterLayout(nodeIds=null){
     // Coalesce image/node layout notifications, retaining the second-frame correction.
@@ -2730,15 +2700,9 @@ function renderVideoBody(node){
     return wrap;
 }
 
-function isCanvasInputViewCurrent(container, node, signature){
-    const cached = canvasInputViewCache.get(container);
-    return cached?.node === node && cached?.signature === signature;
-}
+function isCanvasInputViewCurrent(...args){return classicWorkspaceView.inputCurrent(...args);}
 
-function rememberCanvasInputView(container, node, signature){
-    // Cache only after rendering succeeds; detached lists can be garbage-collected.
-    canvasInputViewCache.set(container, {node, signature});
-}
+function rememberCanvasInputView(...args){return classicWorkspaceView.rememberInput(...args);}
 
 function renderPromptPreview(container, promptInputs){
     if(!container) return;
@@ -3741,54 +3705,7 @@ function portPoint(id, kind, nodeById=null){
     return kind === 'out' ? {x:n.x + w, y:n.y + h / 2} : {x:n.x, y:n.y + h / 2};
 }
 
-function renderLinks(nodeIds=null){
-    const dirty = nodeIds === null ? null : new Set(nodeIds);
-    const nodeById = new Map(nodes.map(node => [node.id, node]));
-    const points = {in:new Map(), out:new Map()};
-    const pointFor = (id, kind) => {
-        if(!points[kind].has(id)) points[kind].set(id, portPoint(id, kind, nodeById));
-        return points[kind].get(id);
-    };
-    const liveIds = new Set();
-    connections.forEach(c => {
-        liveIds.add(c.id);
-        let entry = renderedCanvasLinks.get(c.id);
-        if(entry && (entry.path.parentNode !== linksEl || entry.hit.parentNode !== linksEl || entry.button.parentNode !== linkControlsEl)){
-            entry.path.remove(); entry.hit.remove(); entry.button.remove();
-            entry = null;
-        }
-        if(entry && dirty && entry.from === c.from && entry.to === c.to && !dirty.has(c.from) && !dirty.has(c.to)) return;
-        const a = pointFor(c.from, 'out'), b = pointFor(c.to, 'in');
-        if(!entry){
-            entry = {path:pathEl(a.x, a.y, b.x, b.y, 'link'), hit:linkHitEl(a.x, a.y, b.x, b.y, c.id), button:linkDeleteButton(c, a, b)};
-            entry.path.dataset.connectionId = c.id;
-            linksEl.appendChild(entry.path);
-            linksEl.appendChild(entry.hit);
-            linkControlsEl.appendChild(entry.button);
-            renderedCanvasLinks.set(c.id, entry);
-        } else {
-            const d = connectionPathData(a.x, a.y, b.x, b.y);
-            entry.path.setAttribute('d', d);
-            entry.hit.setAttribute('d', d);
-            entry.button.style.left = `${(a.x + b.x) / 2}px`;
-            entry.button.style.top = `${(a.y + b.y) / 2}px`;
-            entry.button.classList.toggle('visible', isConnectionSelected(c));
-            entry.button.classList.toggle('hover', hoveredConnectionId === c.id);
-        }
-        entry.from = c.from;
-        entry.to = c.to;
-    });
-    for(const [id, entry] of renderedCanvasLinks){
-        if(liveIds.has(id)) continue;
-        entry.path.remove(); entry.hit.remove(); entry.button.remove();
-        renderedCanvasLinks.delete(id);
-    }
-    linksEl.querySelectorAll('.temp, .knife-trail').forEach(el => el.remove());
-    if(tempLink){
-        linksEl.appendChild(pathEl(tempLink.x1, tempLink.y1, tempLink.x2, tempLink.y2, 'link temp'));
-    }
-    renderKnifeTrail();
-}
+function renderLinks(...args){return classicWorkspaceView.renderLinks(...args);}
 
 function renderKnifeTrail(){
     if(!knifeActive || knifeTrail.length < 2) return;
@@ -4289,4 +4206,158 @@ function applyClassicPromptPanelText(target,text,closePanel=()=>{}){
     refreshPromptDependents(node.id);
     refreshGeometryAfterLayout();
     return true;
+}
+
+
+// Workspaces own derived render caches and their queues; document and task data stay shared.
+function createClassicWorkspaceView(){
+    let geometryRefreshFrame=null,geometryRefreshPasses=0,geometryRefreshAll=false,pendingViewportRefresh=null;
+    const geometryRefreshNodes=new Set(),renderedCanvasLinks=new Map();
+    let canvasInputViewCache=new WeakMap();
+
+    let paused=false,destroyed=false,documentId,documentNodes,frameVersion=0,viewportVersion=0;
+    const listeners=[];
+    function current(){return {id:typeof canvas==='undefined'?null:canvas?.id,nodes:typeof nodes==='undefined'?null:nodes};}
+    function cancelGeometry(){
+        frameVersion++;
+        if(geometryRefreshFrame!==null)cancelAnimationFrame(geometryRefreshFrame);
+        geometryRefreshFrame=null;geometryRefreshPasses=0;geometryRefreshAll=false;geometryRefreshNodes.clear();
+    }
+    function cancelViewport(){viewportVersion++;if(pendingViewportRefresh!==null)clearTimeout(pendingViewportRefresh);pendingViewportRefresh=null;}
+    function reset(){
+        if(destroyed)return;
+        cancelGeometry();cancelViewport();
+        for(const entry of renderedCanvasLinks.values()){entry.path.remove();entry.hit.remove();entry.button.remove();}renderedCanvasLinks.clear();canvasInputViewCache=new WeakMap();
+        const now=current();documentId=now.id;documentNodes=now.nodes;
+    }
+    function checkDocument(){
+        const id=typeof canvas==='undefined'?null:canvas?.id,data=typeof nodes==='undefined'?null:nodes;
+        if(id!==documentId)reset();
+        else if(data!==documentNodes){cancelGeometry();cancelViewport();documentNodes=data;}
+    }
+    function accept(origin){
+        const now=current();
+        if(now.id!==origin.id||now.nodes!==origin.nodes){checkDocument();return false;}
+        return !paused&&!destroyed;
+    }
+    function view(work,args){if(paused||destroyed)return;checkDocument();return work(...args);}
+    function pause(){if(destroyed)return;paused=true;cancelGeometry();cancelViewport();}
+    function resume(){if(destroyed||!paused)return;paused=false;checkDocument();scheduleGeometryRefresh(2);scheduleViewportRefresh(0);}
+    function bind(){
+        if(destroyed)return;
+        for(const [type,fn]of listeners)window.removeEventListener(type,fn);listeners.length=0;
+        for(const [type,fn]of [['pagehide',event=>event.persisted?pause():destroy()],['pageshow',event=>{if(event.persisted)resume();}]]){
+            window.addEventListener(type,fn);listeners.push([type,fn]);
+        }
+    }
+    function destroy(){if(destroyed)return;reset();destroyed=true;paused=false;documentNodes=null;documentId=null;for(const [type,fn]of listeners)window.removeEventListener(type,fn);listeners.length=0;}
+
+    function scheduleViewportRefreshImpl(delay=200){
+        clearTimeout(pendingViewportRefresh);
+        const origin=current(),version=++viewportVersion;
+        pendingViewportRefresh = setTimeout(() => {
+            if(version!==viewportVersion||!accept(origin))return;
+            pendingViewportRefresh = null;
+            // 只刷新视野外变视野内的节点内容，不触发全量 render
+            renderOffscreenPlaceholders();
+            refreshCanvasMediaVisibility();
+            // Reconcile dynamic node sizes once navigation settles, not on every wheel event.
+            scheduleMinimapRender();
+        }, delay);
+    }
+
+    function scheduleGeometryRefreshImpl(passes=1, nodeIds=null){
+        if(nodeIds === null) geometryRefreshAll = true;
+        else for(const id of nodeIds) geometryRefreshNodes.add(id);
+        geometryRefreshPasses = Math.max(geometryRefreshPasses, passes);
+        if(geometryRefreshFrame !== null) return;
+        const origin=current(),version=frameVersion;
+        geometryRefreshFrame = requestAnimationFrame(() => {
+            if(version!==frameVersion||!accept(origin))return;
+            geometryRefreshFrame = null;
+            geometryRefreshPasses--;
+            refreshGeometry(geometryRefreshAll ? null : geometryRefreshNodes);
+            if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses, geometryRefreshAll ? null : geometryRefreshNodes);
+            else { geometryRefreshAll = false; geometryRefreshNodes.clear(); }
+        });
+    }
+
+    function flushScheduledGeometryRefreshImpl(){
+        if(geometryRefreshFrame === null) return;
+        frameVersion++;
+        cancelAnimationFrame(geometryRefreshFrame);
+        geometryRefreshFrame = null;
+        geometryRefreshPasses--;
+        refreshGeometry(geometryRefreshAll ? null : geometryRefreshNodes);
+        if(geometryRefreshPasses > 0) scheduleGeometryRefresh(geometryRefreshPasses, geometryRefreshAll ? null : geometryRefreshNodes);
+        else { geometryRefreshAll = false; geometryRefreshNodes.clear(); }
+    }
+
+    function isCanvasInputViewCurrentImpl(container, node, signature){
+        const cached = canvasInputViewCache.get(container);
+        return cached?.node === node && cached?.signature === signature;
+    }
+
+    function rememberCanvasInputViewImpl(container, node, signature){
+        // Cache only after rendering succeeds; detached lists can be garbage-collected.
+        canvasInputViewCache.set(container, {node, signature});
+    }
+
+    function renderLinksImpl(nodeIds=null){
+        const dirty = nodeIds === null ? null : new Set(nodeIds);
+        const nodeById = new Map(nodes.map(node => [node.id, node]));
+        const points = {in:new Map(), out:new Map()};
+        const pointFor = (id, kind) => {
+            if(!points[kind].has(id)) points[kind].set(id, portPoint(id, kind, nodeById));
+            return points[kind].get(id);
+        };
+        const liveIds = new Set();
+        connections.forEach(c => {
+            liveIds.add(c.id);
+            let entry = renderedCanvasLinks.get(c.id);
+            if(entry && (entry.path.parentNode !== linksEl || entry.hit.parentNode !== linksEl || entry.button.parentNode !== linkControlsEl)){
+                entry.path.remove(); entry.hit.remove(); entry.button.remove();
+                entry = null;
+            }
+            if(entry && dirty && entry.from === c.from && entry.to === c.to && !dirty.has(c.from) && !dirty.has(c.to)) return;
+            const a = pointFor(c.from, 'out'), b = pointFor(c.to, 'in');
+            if(!entry){
+                entry = {path:pathEl(a.x, a.y, b.x, b.y, 'link'), hit:linkHitEl(a.x, a.y, b.x, b.y, c.id), button:linkDeleteButton(c, a, b)};
+                entry.path.dataset.connectionId = c.id;
+                linksEl.appendChild(entry.path);
+                linksEl.appendChild(entry.hit);
+                linkControlsEl.appendChild(entry.button);
+                renderedCanvasLinks.set(c.id, entry);
+            } else {
+                const d = connectionPathData(a.x, a.y, b.x, b.y);
+                entry.path.setAttribute('d', d);
+                entry.hit.setAttribute('d', d);
+                entry.button.style.left = `${(a.x + b.x) / 2}px`;
+                entry.button.style.top = `${(a.y + b.y) / 2}px`;
+                entry.button.classList.toggle('visible', isConnectionSelected(c));
+                entry.button.classList.toggle('hover', hoveredConnectionId === c.id);
+            }
+            entry.from = c.from;
+            entry.to = c.to;
+        });
+        for(const [id, entry] of renderedCanvasLinks){
+            if(liveIds.has(id)) continue;
+            entry.path.remove(); entry.hit.remove(); entry.button.remove();
+            renderedCanvasLinks.delete(id);
+        }
+        linksEl.querySelectorAll('.temp, .knife-trail').forEach(el => el.remove());
+        if(tempLink){
+            linksEl.appendChild(pathEl(tempLink.x1, tempLink.y1, tempLink.x2, tempLink.y2, 'link temp'));
+        }
+        renderKnifeTrail();
+    }
+
+    return Object.freeze({
+        get state(){return Object.freeze({paused,destroyed,pendingGeometry:geometryRefreshFrame!==null,pendingViewport:pendingViewportRefresh!==null});},
+        reset,bind,pause,resume,destroy,
+        scheduleViewport:(...args)=>view(scheduleViewportRefreshImpl,args),scheduleGeometry:(...args)=>view(scheduleGeometryRefreshImpl,args),
+        flushGeometry:(...args)=>view(flushScheduledGeometryRefreshImpl,args),renderLinks:(...args)=>view(renderLinksImpl,args),
+        inputCurrent:(...args)=>{if(destroyed)return false;checkDocument();return isCanvasInputViewCurrentImpl(...args);},
+        rememberInput:(...args)=>{if(destroyed)return;checkDocument();return rememberCanvasInputViewImpl(...args);}
+    });
 }

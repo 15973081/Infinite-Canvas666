@@ -100,6 +100,7 @@ let activeFolderId = 'all';
 let canvasSearchQuery = '';
 let canvas = null;
 let nodes = [];
+const classicWorkspaceView = createClassicWorkspaceView();
 const classicMinimap = createClassicMinimap();
 const classicOutputPreview = createClassicOutputPreview();
 let connections = [];
@@ -195,7 +196,6 @@ const activeCanvasTaskPolls = new Set();
 let hoveredConnectionId = '';
 let connectionHoverFrame = null;
 let pendingConnectionHover = null;
-const renderedCanvasLinks = new Map();
 const suspendedCanvasPreviewImages = new WeakMap();
 let lastMouseBoard = {x: 0, y: 0};
 let undoStack = [];
@@ -276,7 +276,6 @@ const DEFAULT_VIDEO_MODELS = [
 
 function uid(prefix='n'){ return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`; }
 
-let pendingViewportRefresh = null;
 
 async function copyTextToClipboard(text){
     const value = String(text || '');
@@ -589,12 +588,12 @@ function refreshGateViewControls(){
 function setCanvasMode(open){
     shell.classList.toggle('no-canvas', !open);
     if(!open){
+        classicWorkspaceView.reset();
         classicMinimap.reset();
         classicPromptPanel.reset();
         classicImageEditor.reset();
         classicOutputPreview.reset();
         clearConnectionHover();
-        renderedCanvasLinks.clear();
         clearLocalCanvasLock();
         nodesEl.innerHTML = '';
         linksEl.innerHTML = '';
@@ -618,10 +617,6 @@ function setCreateMode(active, kind='classic'){
     if(active) window.CanvasNameDialog.open({title:kind === 'smart' ? '新建智能画布' : '新建画布', label:'画布名称', placeholder:'例如：秋季视觉探索', confirm:'创建画布', allowEmpty:true, onSubmit:name => createCanvas(name)});
 }
 
-let geometryRefreshFrame = null;
-let geometryRefreshPasses = 0;
-let geometryRefreshAll = false;
-const geometryRefreshNodes = new Set();
 
 async function loadConfig(){
     loadLocalModelLists();
@@ -1088,6 +1083,7 @@ async function createCanvas(customTitle = ''){
             return;
         }
         resetCascadeRuntimeState();
+        classicWorkspaceView.reset();
         classicMinimap.reset();
         classicPromptPanel.reset();
         classicImageEditor.reset();
@@ -1179,6 +1175,7 @@ async function openCanvas(id){
             openSmartCanvasPage(nextCanvas.id);
             return;
         }
+        classicWorkspaceView.reset();
         classicMinimap.reset();
         classicPromptPanel.reset();
         classicImageEditor.reset();
@@ -1434,7 +1431,6 @@ window.closeAssetManager = closeAssetManager;
 
 const generationSettingsOpen = new WeakMap();
 
-const canvasInputViewCache = new WeakMap();
 
 const CANVAS_GENERATOR_TYPES = ['generator','msgen','comfy','ltxDirector','video'];
 const CANVAS_IMAGE_OUTPUT_TYPES = ['generator','msgen','comfy','ltxDirector'];
@@ -1461,6 +1457,7 @@ bindClassicWorkflowDropEvents();
 
 bindClassicAssetManagerEvents();
 
+classicWorkspaceView.bind();
 bindClassicMinimapEvents();
 
 bindClassicBoardEvents();

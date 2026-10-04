@@ -1,25 +1,28 @@
+const {installWorkspaceView}=require('./helpers/workspace-view.cjs');
+const {functionSource}=require('./helpers/canvas-source.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 function load(ctx,file,name){const src=readCanvasSource(require('node:path').join(__dirname,'../static/js/'+file),'utf8').replace(/\r\n/g,'\n');
-    const start=src.indexOf(`function ${name}(`);vm.runInContext(src.slice(start,src.indexOf('\n}',start)+2),ctx);}
+    installWorkspaceView(ctx,file==='canvas.js'?'classic':'smart');vm.runInContext(functionSource(src,name),ctx);}
 test('2000-node smart render retains unchanged DOM, bindings and media; only changed/deleted nodes affect links',()=>{
     const elements=new Map(),scopes=[];let built=0,bound=0;
     const element=id=>({dataset:{id},querySelector:()=>null,remove(){elements.delete(id);},replaceWith(fresh){elements.set(id,fresh);}});
     const noop=()=>{};
-    const ctx=vm.createContext({nodes:Array.from({length:2000},(_,i)=>({id:String(i),x:i})),smartAudioPreview:{dataChanged:noop},smartRenderedNodes:new WeakMap(),
+    const ctx=vm.createContext({nodes:Array.from({length:2000},(_,i)=>({id:String(i),x:i})),smartAudioPreview:{dataChanged:noop},
         cancelSmartGeometryRefresh:noop,smartWorkflowTransferModal:null,selectedNodeIds:()=>[],portDragState:null,smartChangedConnectionNodes:()=>[],
         world:{classList:{toggle:noop},querySelectorAll:()=>[...elements.values()],querySelector:s=>s.startsWith('svg')?{}:null,
             appendChild:el=>elements.set(el.dataset.id,el)},withSmartComputation:fn=>fn(),isSmartNodeInViewport:()=>true,
         renderSmartNodeHtml:JSON.stringify,document:{createElement:()=>({content:{},set innerHTML(value){built++;this.content.firstElementChild=element(JSON.parse(value).id);}})},
         bindNodeEvents:()=>bound++,restoreSmartNodeScroll:noop,bindSmartPreviewImageFallbacks:noop,measureSmartNodeImages:noop,
-        releaseSmartGroupPreviews:noop,transplantSmartMediaElements:noop,smartViewportScrolls:new WeakMap(),
+        releaseSmartGroupPreviews:noop,transplantSmartMediaElements:noop,
         refreshConnectionLayer:ids=>scopes.push([...ids]),scheduleSmartGeometryRefresh:noop,updateComposer:noop,
         scheduleSmartMinimapRender:noop,refreshIcons:noop,refreshRunTimerPills:noop});
     load(ctx,'smart-canvas.js','render');ctx.render();assert.equal(built,2000);
     const unchanged=elements.get('1999');built=0;bound=0;ctx.render();assert.equal(built,0);assert.equal(bound,0);
+    ctx.nodes=ctx.nodes.slice();ctx.render();assert.equal(built,0);assert.equal(bound,0);
     ctx.nodes[0].x=999;ctx.render();assert.equal(built,1);assert.equal(bound,1);assert.deepEqual(scopes.at(-1),['0']);
     assert.equal(elements.get('1999'),unchanged);
     ctx.nodes[0]={...ctx.nodes[0]};ctx.render();assert.equal(built,2,'new node object must rebind closures even when markup matches');
@@ -40,7 +43,7 @@ test('classic partial node refresh passes the same affected ids to immediate and
 test('connection presentation changes refresh endpoints even without a node markup change',()=>{
     let state='';
     const ctx=vm.createContext({nodes:[{id:'a'},{id:'b'},{id:'c'}],canvas:{connections:[{from:'a',to:'b'},{from:'b',to:'c'}]},
-        smartRenderedConnectionStates:new Map(),cascadeConnectionKeys:()=>new Set(),loopInsertPreview:null,
+        cascadeConnectionKeys:()=>new Set(),loopInsertPreview:null,
         smartCascadeEdgeState:key=>key==='a->b'?state:''});
     load(ctx,'smart-canvas.js','smartChangedConnectionNodes');ctx.smartChangedConnectionNodes();
     assert.deepEqual([...ctx.smartChangedConnectionNodes()],[]);

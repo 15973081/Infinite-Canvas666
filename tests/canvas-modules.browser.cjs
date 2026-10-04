@@ -763,10 +763,10 @@ test('classic: 420-node deletion and undo keep unrelated images and playing medi
     assert.ok(await page.locator('.node[data-id="image-0"]').count());
     await page.evaluate(()=>{selected=new Set(['group']);deleteSelectedNodes();});await stable();
     assert.deepEqual(await page.evaluate(()=>({ids:nodes.filter(node=>['image-0','image-1','group'].includes(node.id)).map(node=>node.id),
-        connections:connections.length,inputs:nodes.find(node=>node.id==='generator').inputs,links:renderedCanvasLinks.size})),
+        connections:connections.length,inputs:nodes.find(node=>node.id==='generator').inputs,links:linksEl.querySelectorAll('.link[data-connection-id]').length})),
         {ids:[],connections:0,inputs:[],links:0});
     await page.evaluate(()=>performUndo());await stable();
-    assert.equal(await page.evaluate(()=>renderedCanvasLinks.size),1);
+    assert.equal(await page.evaluate(()=>linksEl.querySelectorAll('.link[data-connection-id]').length),1);
     await page.evaluate(()=>performRedo());await stable();
     await page.evaluate(()=>saveCanvas());
     assert.equal(record.nodes.length,417);assert.equal(record.connections.length,0);

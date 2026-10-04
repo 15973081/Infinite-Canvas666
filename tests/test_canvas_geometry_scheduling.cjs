@@ -1,3 +1,5 @@
+const {installWorkspaceView}=require('./helpers/workspace-view.cjs');
+const {functionSource}=require('./helpers/canvas-source.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -7,10 +9,11 @@ const vm = require('node:vm');
 
 const source = readCanvasSource(path.join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
 function load(context, names) {
+    installWorkspaceView(context,'classic');
     for (const name of names) {
         const start = source.indexOf(`function ${name}(`);
         assert.ok(start >= 0, `${name} exists`);
-        vm.runInContext(source.slice(start, source.indexOf('\n}', start) + 2), context);
+        vm.runInContext(functionSource(source,name), context);
     }
 }
 function eventStatement(startText, closing) {
@@ -27,8 +30,6 @@ function setup() {
     const frames = new Map(), classes = new Set(), elements = new Map();
     const calls = {links: 0, selection: 0, save: 0, render: 0};
     const context = vm.createContext({
-        geometryRefreshFrame: null, geometryRefreshPasses: 0,
-        geometryRefreshAll: false, geometryRefreshNodes: new Set(),
         canvas: {}, viewport: {scale: 2},
         isCanvasLockedByOther: () => false,
         knifeActive: false, knifePoint: null, knifeTrail: [], knifeChanged: false, knifeNeedsRender: false,

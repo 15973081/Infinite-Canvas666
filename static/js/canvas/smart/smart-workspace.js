@@ -555,25 +555,9 @@ function fitSmartLoopNode(node){
     node.h = smartLoopHeight(node);
 }
 
-function withSmartComputation(work){
-    if(smartComputationContext) return work();
-    const incoming = new Map();
-    (canvas?.connections || []).forEach(conn => {
-        if(!incoming.has(conn.to)) incoming.set(conn.to, []);
-        incoming.get(conn.to).push(conn);
-    });
-    smartComputationContext = {byId:new Map(nodes.map(node => [node.id, node])), incoming, rects:new Map()};
-    try { return work(); } finally { smartComputationContext = null; }
-}
+function withSmartComputation(...args){return smartWorkspaceView.withComputation(...args);}
 
-function nodeRect(node){
-    const cached = smartComputationContext?.rects.get(node);
-    if(cached) return cached;
-    const layout = imageLayout(node.images || [], nodeScale(node), node);
-    const rect = {x:node.x || 0, y:node.y || 0, width:layout.width, height:layout.height};
-    smartComputationContext?.rects.set(node, rect);
-    return rect;
-}
+function nodeRect(...args){return smartWorkspaceView.nodeRect(...args);}
 
 function applyViewport(){
     world.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`;
@@ -607,13 +591,7 @@ function isSmartNodeInViewport(node, margin=400){
     return !(nx + nw < vx - m || nx > vx + vwWorld + m || ny + nh < vy - m || ny > vy + vhWorld + m);
 }
 
-function scheduleSmartViewportRefresh(delay=200){
-    clearTimeout(pendingSmartViewportRefresh);
-    pendingSmartViewportRefresh = setTimeout(() => {
-        pendingSmartViewportRefresh = null;
-        renderSmartOffscreenPlaceholders();
-    }, delay);
-}
+function scheduleSmartViewportRefresh(...args){return smartWorkspaceView.scheduleViewport(...args);}
 
 function canRecycleSmartMediaNode(node, el){
     if(!node || (node.type && node.type !== 'smart-image') || !(node.images || []).length) return false;
@@ -625,49 +603,9 @@ function canRecycleSmartMediaNode(node, el){
     return true;
 }
 
-function restoreSmartNodeScroll(el, node){
-    const scroll = smartViewportScrolls.get(node);
-    const scroller = el.querySelector('[data-thumb-scroll]');
-    if(scroll !== undefined && scroller) scroller.scrollTop = scroll;
-}
+function restoreSmartNodeScroll(...args){return smartWorkspaceView.restoreScroll(...args);}
 
-function renderSmartOffscreenPlaceholders(){
-    if(!world) return;
-    const byId = new Map(nodes.map(node => [node.id, node]));
-    const restored = [];
-    world.querySelectorAll('.image-node').forEach(el => {
-        const id = el.dataset.id;
-        if(!id) return;
-        const node = byId.get(id);
-        if(!node){ el.remove(); return; }
-        const placeholder = el.classList.contains('image-node-placeholder');
-        const visible = isSmartNodeInViewport(node, placeholder ? 400 : 700);
-        if(placeholder ? !visible : visible || !canRecycleSmartMediaNode(node, el)) return;
-        if(!placeholder){
-            const scroller = el.querySelector('[data-thumb-scroll]');
-            if(scroller) smartViewportScrolls.set(node, scroller.scrollTop);
-        }
-        const freshHtml = placeholder ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
-        const tpl = document.createElement('template');
-        tpl.innerHTML = freshHtml;
-        const fresh = tpl.content.firstElementChild;
-        if(fresh){
-            releaseSmartGroupPreviews(el);
-            el.replaceWith(fresh);
-            bindSmartNodeEvents(fresh, node);
-            if(placeholder){
-                restoreSmartNodeScroll(fresh, node);
-                bindSmartPreviewImageFallbacks(fresh);
-                measureSmartNodeImages(fresh);
-                restored.push(node.id);
-            }
-        }
-    });
-    if(restored.length){
-        refreshIcons();
-        scheduleSmartGeometryRefresh(restored, 2);
-    }
-}
+function renderSmartOffscreenPlaceholders(...args){return smartWorkspaceView.recycle(...args);}
 
 function renderSmartNodeHtml(node){
     const imgs = node.images || [];
@@ -1775,48 +1713,7 @@ function renderConnections(nodeIds=null){
     return withSmartComputation(() => renderSmartConnectionPaths(nodeIds));
 }
 
-function renderSmartConnectionPaths(nodeIds=null){
-    const byId = smartComputationContext.byId;
-    const scope = nodeIds === null ? null : new Set(nodeIds);
-    const conns = (canvas?.connections || []).map((conn, index) => ({...conn, index}))
-        .filter(c => byId.has(c.from) && byId.has(c.to) && (!scope || scope.has(c.from) || scope.has(c.to)));
-    const cascadeKeys = cascadeConnectionKeys();
-    const paths = conns.map(conn => {
-        const fromNode = byId.get(conn.from);
-        const toNode = byId.get(conn.to);
-        const fr = nodeRect(fromNode), tr = nodeRect(toNode);
-        const kind = conn.kind || 'flow';
-        const isHistory = kind === 'history';
-        const isInsertPreview = loopInsertPreview?.index === conn.index;
-        const edgeKey = `${conn.from}->${conn.to}`;
-        const cascadeState = smartCascadeEdgeState(edgeKey);
-        const isCascade = !isHistory && (cascadeKeys.has(edgeKey) || Boolean(cascadeState) || isInsertPreview);
-        const isPendingLine = Boolean(toNode.pending && !isCascade);
-        const fx = isHistory ? fr.x + fr.width / 2 : fr.x + fr.width;
-        const fy = isHistory ? fr.y + fr.height : fr.y + fr.height / 2;
-        const tx = isHistory ? tr.x + tr.width / 2 : tr.x;
-        const ty = isHistory ? tr.y : tr.y + tr.height / 2;
-        const dx = Math.max(50, Math.abs(tx - fx) * 0.45);
-        const dy = Math.max(36, Math.abs(ty - fy) * 0.45);
-        const curve = isHistory
-            ? `M${fx} ${fy} C ${fx} ${fy+dy}, ${tx} ${ty-dy}, ${tx} ${ty}`
-            : `M${fx} ${fy} C ${fx+dx} ${fy}, ${tx-dx} ${ty}, ${tx} ${ty}`;
-        const mx = (fx + tx) / 2, my = (fy + ty) / 2;
-        const cls = [
-            isPendingLine ? 'conn-pending' : '',
-            isCascade ? 'conn-cascade' : '',
-            isCascade && cascadeState === 'done' ? 'conn-cascade-done' : '',
-            isCascade && Boolean(cascadeState) && cascadeState !== 'done' ? 'conn-cascade-wait' : '',
-            isCascade && cascadeState === 'active' ? 'conn-cascade-active' : '',
-            isHistory ? 'conn-history' : ''
-        ].filter(Boolean).join(' ');
-        const color = isCascade ? '#16a34a' : isHistory ? 'rgba(100,116,139,0.46)' : kind === 'input' ? 'rgba(100,116,139,0.62)' : 'rgba(148,163,184,0.62)';
-        const opacity = isPendingLine ? '.82' : '1';
-        const width = kind === 'input' ? '1.9' : '1.6';
-        return `<g class="smart-connection" data-conn-key="${conn.index}"><path class="${cls}" d="${curve}" stroke="${color}" stroke-width="${width}" fill="none" opacity="${opacity}"></path><path class="conn-hit" data-conn-index="${conn.index}" d="${curve}" stroke="transparent" stroke-width="14" fill="none"></path><circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}" opacity=".66"></circle><g class="conn-cut" data-conn-index="${conn.index}" transform="translate(${mx} ${my})"><circle r="8" fill="var(--card)" stroke="${color}" stroke-width="1.4"></circle><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="${color}" stroke-width="1.5" stroke-linecap="round"></path></g></g>`;
-    }).join('');
-    return `<svg class="connection-layer" data-topology="${escapeHtml(smartConnectionTopology())}" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
-}
+function renderSmartConnectionPaths(...args){return smartWorkspaceView.connectionPaths(...args);}
 
 function smartConnectionTopology(){
     return JSON.stringify([nodes.map(n => n.id), (canvas?.connections || []).map(c => [c.from,c.to,c.kind || 'flow'])]);
@@ -1838,50 +1735,11 @@ function patchSmartConnectionGroup(current, fresh){
     while(current.children.length > fresh.children.length) current.lastElementChild.remove();
 }
 
-function scheduleSmartGeometryRefresh(nodeIds=null, passes=1){
-    if(nodeIds === null) smartGeometryAll = true;
-    else nodeIds.forEach(id => smartGeometryNodes.add(id));
-    smartGeometryPasses = Math.max(smartGeometryPasses, passes);
-    if(smartGeometryFrame !== null) return;
-    smartGeometryFrame = requestAnimationFrame(() => {
-        smartGeometryFrame = null;
-        const ids = smartGeometryAll ? null : [...smartGeometryNodes];
-        const remaining = smartGeometryPasses - 1;
-        smartGeometryPasses = 0;
-        smartGeometryAll = false;
-        smartGeometryNodes.clear();
-        refreshConnectionLayer(ids);
-        if(remaining > 0) scheduleSmartGeometryRefresh(ids, remaining);
-    });
-}
+function scheduleSmartGeometryRefresh(...args){return smartWorkspaceView.scheduleGeometry(...args);}
 
-function cancelSmartGeometryRefresh(){
-    if(smartGeometryFrame !== null) cancelAnimationFrame(smartGeometryFrame);
-    smartGeometryFrame = null;
-    smartGeometryPasses = 0;
-    smartGeometryAll = false;
-    smartGeometryNodes.clear();
-}
+function cancelSmartGeometryRefresh(...args){return smartWorkspaceView.cancelGeometry(...args);}
 
-function refreshConnectionLayer(nodeIds=null){
-    cancelSmartGeometryRefresh();
-    const oldSvg = world.querySelector('svg.connection-layer');
-    if(!oldSvg) return;
-    if(oldSvg.dataset.topology !== smartConnectionTopology()) nodeIds = null;
-    const tpl = document.createElement('template');
-    tpl.innerHTML = renderConnections(nodeIds).trim();
-    const nextSvg = tpl.content.firstElementChild;
-    if(!nextSvg) return;
-    const existing = new Map([...oldSvg.querySelectorAll('.smart-connection')].map(el => [el.dataset.connKey, el]));
-    [...nextSvg.children].forEach(fresh => {
-        const current = existing.get(fresh.dataset.connKey);
-        if(current) patchSmartConnectionGroup(current, fresh);
-        else { oldSvg.appendChild(fresh); bindConnectionEvents(fresh); }
-        existing.delete(fresh.dataset.connKey);
-    });
-    if(nodeIds === null) existing.forEach(el => el.remove());
-    oldSvg.dataset.topology = nextSvg.dataset.topology;
-}
+function refreshConnectionLayer(...args){return smartWorkspaceView.refreshConnections(...args);}
 
 function moveNodeElementsDuringDrag(){
     if(!dragState) return;
@@ -2460,64 +2318,9 @@ function runSmartNodeToolbarAction(nodeId, action){
     }
 }
 
-function smartChangedConnectionNodes(){
-    const next = new Map(), changed = new Set(), cascadeKeys = cascadeConnectionKeys();
-    const byId = new Map(nodes.map(n => [n.id,n]));
-    (canvas?.connections || []).forEach((conn,index) => {
-        const key = `${conn.from}->${conn.to}`;
-        const state = JSON.stringify([conn.from,conn.to,conn.kind,cascadeKeys.has(key),
-            smartCascadeEdgeState(key),loopInsertPreview?.index === index,Boolean(byId.get(conn.to)?.pending)]);
-        next.set(index,state);
-        if(smartRenderedConnectionStates.get(index) !== state){changed.add(conn.from);changed.add(conn.to);}
-    });
-    smartRenderedConnectionStates = next;
-    return [...changed];
-}
+function smartChangedConnectionNodes(...args){return smartWorkspaceView.changedConnections(...args);}
 
-function render(){
-    smartAudioPreview.dataChanged();
-    cancelSmartGeometryRefresh();
-    if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
-    world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
-    const existing = new Map([...world.querySelectorAll('.image-node')].map(el => [el.dataset.id, el]));
-    const changed = smartChangedConnectionNodes();
-    withSmartComputation(() => nodes.forEach(node => {
-        const html = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
-        const current = existing.get(node.id);
-        existing.delete(node.id);
-        const previous = current && smartRenderedNodes.get(current);
-        // Object identity also matters: controls close over their node object.
-        if(previous?.node === node && previous.html === html) return;
-        const tpl = document.createElement('template');
-        tpl.innerHTML = html;
-        const fresh = tpl.content.firstElementChild;
-        if(!fresh) return;
-        if(current){
-            const scroll = current.querySelector('[data-thumb-scroll]');
-            if(scroll) smartViewportScrolls.set(node, scroll.scrollTop);
-            releaseSmartGroupPreviews(current);
-            transplantSmartMediaElements(current, fresh);
-            current.replaceWith(fresh);
-        } else world.appendChild(fresh);
-        smartRenderedNodes.set(fresh, {node,html});
-        bindNodeEvents([fresh]);
-        restoreSmartNodeScroll(fresh, node);
-        bindSmartPreviewImageFallbacks(fresh);
-        measureSmartNodeImages(fresh);
-        changed.push(node.id);
-    }));
-    existing.forEach((el,id) => {releaseSmartGroupPreviews(el);el.remove();changed.push(id);});
-    if(!world.querySelector('svg.connection-layer')){
-        world.insertAdjacentHTML('afterbegin', renderConnections());
-        bindConnectionEvents();
-    } else refreshConnectionLayer(changed);
-    if(!portDragState) world.querySelector('path.port-drag-temp')?.remove();
-    if(changed.length) scheduleSmartGeometryRefresh(changed,2);
-    updateComposer();
-    scheduleSmartMinimapRender();
-    refreshIcons();
-    refreshRunTimerPills();
-}
+function render(...args){return smartWorkspaceView.render(...args);}
 
 function smartAffectedNodeIds(ids){
     const affected = new Set(ids.filter(Boolean)), outgoing = new Map();
@@ -2538,51 +2341,7 @@ function smartAffectedNodeIds(ids){
     return affected;
 }
 
-function refreshSmartNodes(ids, {forceIds=[]}={}){
-    smartAudioPreview.dataChanged();
-    const affected = smartAffectedNodeIds(ids);
-    const byId = new Map(nodes.map(node => [node.id, node]));
-    affected.forEach(id => {
-        const node = byId.get(id);
-        const current = world.querySelector(`.image-node[data-id="${CSS.escape(id)}"]`);
-        if(!node) return;
-        if(!current){
-            const tpl=document.createElement('template');
-            tpl.innerHTML=isSmartNodeInViewport(node,400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
-            const fresh=tpl.content.firstElementChild;
-            if(fresh){world.appendChild(fresh);bindNodeEvents([fresh]);bindSmartPreviewImageFallbacks(fresh);measureSmartNodeImages(fresh);}
-            return;
-        }
-        if(current.contains(document.activeElement) && !forceIds.includes(id)){
-            if(!current._smartRefreshPending){
-                current._smartRefreshPending = true;
-                current.addEventListener('focusout', () => setTimeout(() => {
-                    current._smartRefreshPending = false;
-                    refreshSmartNodes([id]);
-                }, 0), {once:true});
-            }
-            return;
-        }
-        const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop ?? smartViewportScrolls.get(node) ?? 0;
-        const tpl = document.createElement('template');
-        tpl.innerHTML = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
-        const fresh = tpl.content.firstElementChild;
-        if(!fresh) return;
-        releaseSmartGroupPreviews(current);
-        transplantSmartMediaElements(current, fresh);
-        current.replaceWith(fresh);
-        bindNodeEvents([fresh]);
-        const scroller = fresh.querySelector('[data-thumb-scroll]');
-        if(scroller) scroller.scrollTop = scroll;
-        bindSmartPreviewImageFallbacks(fresh);
-        measureSmartNodeImages(fresh);
-    });
-    if(affected.has(smartSelection.nodeId)) updateComposer();
-    scheduleSmartGeometryRefresh([...affected], 2);
-    scheduleSmartMinimapRender();
-    refreshRunTimerPills();
-    refreshIcons();
-}
+function refreshSmartNodes(...args){return smartWorkspaceView.refreshNodes(...args);}
 
 function measureSmartNodeImages(root=world){
     root.querySelectorAll('.image-node img,.image-node video').forEach(imgEl => {
@@ -4933,3 +4692,353 @@ function createSmartComposer(){
         setDraftForNode:(...args)=>{if(!paused && !destroyed)return setPromptDraftForNode(...args);}
     });
 }
+
+
+// Workspaces own derived render caches and their queues; document and task data stay shared.
+function createSmartWorkspaceView(){
+    let smartComputationContext=null,pendingSmartViewportRefresh=null;
+    let smartViewportScrolls=new WeakMap(),smartRenderedNodes=new WeakMap(),smartRenderedConnectionStates=new Map();
+    let smartGeometryFrame=null,smartGeometryPasses=0,smartGeometryAll=false;
+    const smartGeometryNodes=new Set();
+
+    let paused=false,destroyed=false,documentId,documentNodes,frameVersion=0,viewportVersion=0;
+    const listeners=[];
+    const focusedRefreshes=new Map(),pausedRefreshes=new Set();
+    function current(){return {id:typeof canvas==='undefined'?null:canvas?.id,nodes:typeof nodes==='undefined'?null:nodes};}
+    function cancelGeometry(){
+        frameVersion++;
+        if(smartGeometryFrame!==null)cancelAnimationFrame(smartGeometryFrame);
+        smartGeometryFrame=null;smartGeometryPasses=0;smartGeometryAll=false;smartGeometryNodes.clear();
+    }
+    function cancelViewport(){viewportVersion++;if(pendingSmartViewportRefresh!==null)clearTimeout(pendingSmartViewportRefresh);pendingSmartViewportRefresh=null;}
+    function reset(){
+        if(destroyed)return;
+        cancelGeometry();cancelViewport();
+        clearFocusedRefreshes();
+        smartRenderedNodes=new WeakMap();smartRenderedConnectionStates=new Map();smartViewportScrolls=new WeakMap();
+        const now=current();documentId=now.id;documentNodes=now.nodes;
+    }
+    function checkDocument(){
+        const id=typeof canvas==='undefined'?null:canvas?.id,data=typeof nodes==='undefined'?null:nodes;
+        if(id!==documentId)reset();
+        else if(data!==documentNodes){cancelGeometry();cancelViewport();clearFocusedRefreshes();documentNodes=data;}
+    }
+    function accept(origin){
+        const now=current();
+        if(now.id!==origin.id||now.nodes!==origin.nodes){checkDocument();return false;}
+        return !paused&&!destroyed;
+    }
+    function view(work,args){if(paused||destroyed)return;checkDocument();return work(...args);}
+    function pause(){if(destroyed)return;paused=true;cancelGeometry();cancelViewport();clearFocusedRefreshes(true);}
+    function resume(){
+        if(destroyed||!paused)return;paused=false;checkDocument();
+        const ids=[...pausedRefreshes].filter(node=>nodes.includes(node)).map(node=>node.id);pausedRefreshes.clear();
+        if(ids.length)refreshSmartNodes(ids);
+        scheduleSmartGeometryRefresh(null,2);scheduleSmartViewportRefresh(0);
+    }
+    function bind(){
+        if(destroyed)return;
+        for(const [type,fn]of listeners)window.removeEventListener(type,fn);listeners.length=0;
+        for(const [type,fn]of [['pagehide',event=>event.persisted?pause():destroy()],['pageshow',event=>{if(event.persisted)resume();}]]){
+            window.addEventListener(type,fn);listeners.push([type,fn]);
+        }
+    }
+    function destroy(){if(destroyed)return;reset();destroyed=true;paused=false;documentNodes=null;documentId=null;for(const [type,fn]of listeners)window.removeEventListener(type,fn);listeners.length=0;}
+
+    function clearFocusedRefreshes(keep=false){
+        if(!keep)pausedRefreshes.clear();
+        for(const [element,pending]of focusedRefreshes){
+            element.removeEventListener('focusout',pending.leave);
+            if(pending.timer!==null)clearTimeout(pending.timer);
+            element._smartRefreshPending=false;
+            if(keep)pausedRefreshes.add(pending.node);
+        }
+        focusedRefreshes.clear();
+    }
+
+    function deferFocusedRefresh(element,node){
+        if(focusedRefreshes.has(element))return;
+        const origin=current(),pending={node,timer:null,leave:null};
+        element._smartRefreshPending=true;
+        pending.leave=()=>{
+            pending.timer=setTimeout(()=>{
+                if(focusedRefreshes.get(element)!==pending)return;
+                focusedRefreshes.delete(element);element._smartRefreshPending=false;
+                if(accept(origin)&&nodes.includes(node)&&element.isConnected!==false)refreshSmartNodes([node.id]);
+            },0);
+        };
+        focusedRefreshes.set(element,pending);
+        element.addEventListener('focusout',pending.leave,{once:true});
+    }
+
+    function withSmartComputationImpl(work){
+        if(smartComputationContext) return work();
+        const incoming = new Map();
+        (canvas?.connections || []).forEach(conn => {
+            if(!incoming.has(conn.to)) incoming.set(conn.to, []);
+            incoming.get(conn.to).push(conn);
+        });
+        smartComputationContext = {byId:new Map(nodes.map(node => [node.id, node])), incoming, rects:new Map()};
+        try { return work(); } finally { smartComputationContext = null; }
+    }
+
+    function nodeRectImpl(node){
+        const cached = smartComputationContext?.rects.get(node);
+        if(cached) return cached;
+        const layout = imageLayout(node.images || [], nodeScale(node), node);
+        const rect = {x:node.x || 0, y:node.y || 0, width:layout.width, height:layout.height};
+        smartComputationContext?.rects.set(node, rect);
+        return rect;
+    }
+
+    function scheduleSmartViewportRefreshImpl(delay=200){
+        clearTimeout(pendingSmartViewportRefresh);
+        const origin=current(),version=++viewportVersion;
+        pendingSmartViewportRefresh = setTimeout(() => {
+            if(version!==viewportVersion||!accept(origin))return;
+            pendingSmartViewportRefresh = null;
+            renderSmartOffscreenPlaceholders();
+        }, delay);
+    }
+
+    function restoreSmartNodeScrollImpl(el, node){
+        const scroll = smartViewportScrolls.get(node);
+        const scroller = el.querySelector('[data-thumb-scroll]');
+        if(scroll !== undefined && scroller) scroller.scrollTop = scroll;
+    }
+
+    function renderSmartOffscreenPlaceholdersImpl(){
+        if(!world) return;
+        const byId = new Map(nodes.map(node => [node.id, node]));
+        const restored = [];
+        world.querySelectorAll('.image-node').forEach(el => {
+            const id = el.dataset.id;
+            if(!id) return;
+            const node = byId.get(id);
+            if(!node){ el.remove(); return; }
+            const placeholder = el.classList.contains('image-node-placeholder');
+            const visible = isSmartNodeInViewport(node, placeholder ? 400 : 700);
+            if(placeholder ? !visible : visible || !canRecycleSmartMediaNode(node, el)) return;
+            if(!placeholder){
+                const scroller = el.querySelector('[data-thumb-scroll]');
+                if(scroller) smartViewportScrolls.set(node, scroller.scrollTop);
+            }
+            const freshHtml = placeholder ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            const tpl = document.createElement('template');
+            tpl.innerHTML = freshHtml;
+            const fresh = tpl.content.firstElementChild;
+            if(fresh){
+                releaseSmartGroupPreviews(el);
+                el.replaceWith(fresh);
+                bindSmartNodeEvents(fresh, node);
+                if(placeholder){
+                    restoreSmartNodeScroll(fresh, node);
+                    bindSmartPreviewImageFallbacks(fresh);
+                    measureSmartNodeImages(fresh);
+                    restored.push(node.id);
+                }
+            }
+        });
+        if(restored.length){
+            refreshIcons();
+            scheduleSmartGeometryRefresh(restored, 2);
+        }
+    }
+
+    function renderSmartConnectionPathsImpl(nodeIds=null){
+        const byId = smartComputationContext.byId;
+        const scope = nodeIds === null ? null : new Set(nodeIds);
+        const conns = (canvas?.connections || []).map((conn, index) => ({...conn, index}))
+            .filter(c => byId.has(c.from) && byId.has(c.to) && (!scope || scope.has(c.from) || scope.has(c.to)));
+        const cascadeKeys = cascadeConnectionKeys();
+        const paths = conns.map(conn => {
+            const fromNode = byId.get(conn.from);
+            const toNode = byId.get(conn.to);
+            const fr = nodeRect(fromNode), tr = nodeRect(toNode);
+            const kind = conn.kind || 'flow';
+            const isHistory = kind === 'history';
+            const isInsertPreview = loopInsertPreview?.index === conn.index;
+            const edgeKey = `${conn.from}->${conn.to}`;
+            const cascadeState = smartCascadeEdgeState(edgeKey);
+            const isCascade = !isHistory && (cascadeKeys.has(edgeKey) || Boolean(cascadeState) || isInsertPreview);
+            const isPendingLine = Boolean(toNode.pending && !isCascade);
+            const fx = isHistory ? fr.x + fr.width / 2 : fr.x + fr.width;
+            const fy = isHistory ? fr.y + fr.height : fr.y + fr.height / 2;
+            const tx = isHistory ? tr.x + tr.width / 2 : tr.x;
+            const ty = isHistory ? tr.y : tr.y + tr.height / 2;
+            const dx = Math.max(50, Math.abs(tx - fx) * 0.45);
+            const dy = Math.max(36, Math.abs(ty - fy) * 0.45);
+            const curve = isHistory
+                ? `M${fx} ${fy} C ${fx} ${fy+dy}, ${tx} ${ty-dy}, ${tx} ${ty}`
+                : `M${fx} ${fy} C ${fx+dx} ${fy}, ${tx-dx} ${ty}, ${tx} ${ty}`;
+            const mx = (fx + tx) / 2, my = (fy + ty) / 2;
+            const cls = [
+                isPendingLine ? 'conn-pending' : '',
+                isCascade ? 'conn-cascade' : '',
+                isCascade && cascadeState === 'done' ? 'conn-cascade-done' : '',
+                isCascade && Boolean(cascadeState) && cascadeState !== 'done' ? 'conn-cascade-wait' : '',
+                isCascade && cascadeState === 'active' ? 'conn-cascade-active' : '',
+                isHistory ? 'conn-history' : ''
+            ].filter(Boolean).join(' ');
+            const color = isCascade ? '#16a34a' : isHistory ? 'rgba(100,116,139,0.46)' : kind === 'input' ? 'rgba(100,116,139,0.62)' : 'rgba(148,163,184,0.62)';
+            const opacity = isPendingLine ? '.82' : '1';
+            const width = kind === 'input' ? '1.9' : '1.6';
+            return `<g class="smart-connection" data-conn-key="${conn.index}"><path class="${cls}" d="${curve}" stroke="${color}" stroke-width="${width}" fill="none" opacity="${opacity}"></path><path class="conn-hit" data-conn-index="${conn.index}" d="${curve}" stroke="transparent" stroke-width="14" fill="none"></path><circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}" opacity=".66"></circle><g class="conn-cut" data-conn-index="${conn.index}" transform="translate(${mx} ${my})"><circle r="8" fill="var(--card)" stroke="${color}" stroke-width="1.4"></circle><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="${color}" stroke-width="1.5" stroke-linecap="round"></path></g></g>`;
+        }).join('');
+        return `<svg class="connection-layer" data-topology="${escapeHtml(smartConnectionTopology())}" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+    }
+
+    function scheduleSmartGeometryRefreshImpl(nodeIds=null, passes=1){
+        if(nodeIds === null) smartGeometryAll = true;
+        else nodeIds.forEach(id => smartGeometryNodes.add(id));
+        smartGeometryPasses = Math.max(smartGeometryPasses, passes);
+        if(smartGeometryFrame !== null) return;
+        const origin=current(),version=frameVersion;
+        smartGeometryFrame = requestAnimationFrame(() => {
+            if(version!==frameVersion||!accept(origin))return;
+            smartGeometryFrame = null;
+            const ids = smartGeometryAll ? null : [...smartGeometryNodes];
+            const remaining = smartGeometryPasses - 1;
+            smartGeometryPasses = 0;
+            smartGeometryAll = false;
+            smartGeometryNodes.clear();
+            refreshConnectionLayer(ids);
+            if(remaining > 0) scheduleSmartGeometryRefresh(ids, remaining);
+        });
+    }
+
+    function cancelSmartGeometryRefreshImpl(){cancelGeometry();}
+
+    function refreshConnectionLayerImpl(nodeIds=null){
+        cancelSmartGeometryRefresh();
+        const oldSvg = world.querySelector('svg.connection-layer');
+        if(!oldSvg) return;
+        if(oldSvg.dataset.topology !== smartConnectionTopology()) nodeIds = null;
+        const tpl = document.createElement('template');
+        tpl.innerHTML = renderConnections(nodeIds).trim();
+        const nextSvg = tpl.content.firstElementChild;
+        if(!nextSvg) return;
+        const existing = new Map([...oldSvg.querySelectorAll('.smart-connection')].map(el => [el.dataset.connKey, el]));
+        [...nextSvg.children].forEach(fresh => {
+            const current = existing.get(fresh.dataset.connKey);
+            if(current) patchSmartConnectionGroup(current, fresh);
+            else { oldSvg.appendChild(fresh); bindConnectionEvents(fresh); }
+            existing.delete(fresh.dataset.connKey);
+        });
+        if(nodeIds === null) existing.forEach(el => el.remove());
+        oldSvg.dataset.topology = nextSvg.dataset.topology;
+    }
+
+    function smartChangedConnectionNodesImpl(){
+        const next = new Map(), changed = new Set(), cascadeKeys = cascadeConnectionKeys();
+        const byId = new Map(nodes.map(n => [n.id,n]));
+        (canvas?.connections || []).forEach((conn,index) => {
+            const key = `${conn.from}->${conn.to}`;
+            const state = JSON.stringify([conn.from,conn.to,conn.kind,cascadeKeys.has(key),
+                smartCascadeEdgeState(key),loopInsertPreview?.index === index,Boolean(byId.get(conn.to)?.pending)]);
+            next.set(index,state);
+            if(smartRenderedConnectionStates.get(index) !== state){changed.add(conn.from);changed.add(conn.to);}
+        });
+        smartRenderedConnectionStates = next;
+        return [...changed];
+    }
+
+    function renderImpl(){
+        smartAudioPreview.dataChanged();
+        cancelSmartGeometryRefresh();
+        if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
+        world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
+        const existing = new Map([...world.querySelectorAll('.image-node')].map(el => [el.dataset.id, el]));
+        const changed = smartChangedConnectionNodes();
+        withSmartComputation(() => nodes.forEach(node => {
+            const html = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            const current = existing.get(node.id);
+            existing.delete(node.id);
+            const previous = current && smartRenderedNodes.get(current);
+            // Object identity also matters: controls close over their node object.
+            if(previous?.node === node && previous.html === html) return;
+            const tpl = document.createElement('template');
+            tpl.innerHTML = html;
+            const fresh = tpl.content.firstElementChild;
+            if(!fresh) return;
+            if(current){
+                const scroll = current.querySelector('[data-thumb-scroll]');
+                if(scroll) smartViewportScrolls.set(node, scroll.scrollTop);
+                releaseSmartGroupPreviews(current);
+                transplantSmartMediaElements(current, fresh);
+                current.replaceWith(fresh);
+            } else world.appendChild(fresh);
+            smartRenderedNodes.set(fresh, {node,html});
+            bindNodeEvents([fresh]);
+            restoreSmartNodeScroll(fresh, node);
+            bindSmartPreviewImageFallbacks(fresh);
+            measureSmartNodeImages(fresh);
+            changed.push(node.id);
+        }));
+        existing.forEach((el,id) => {releaseSmartGroupPreviews(el);el.remove();changed.push(id);});
+        if(!world.querySelector('svg.connection-layer')){
+            world.insertAdjacentHTML('afterbegin', renderConnections());
+            bindConnectionEvents();
+        } else refreshConnectionLayer(changed);
+        if(!portDragState) world.querySelector('path.port-drag-temp')?.remove();
+        if(changed.length) scheduleSmartGeometryRefresh(changed,2);
+        updateComposer();
+        scheduleSmartMinimapRender();
+        refreshIcons();
+        refreshRunTimerPills();
+    }
+
+    function refreshSmartNodesImpl(ids, {forceIds=[]}={}){
+        smartAudioPreview.dataChanged();
+        const affected = smartAffectedNodeIds(ids);
+        const byId = new Map(nodes.map(node => [node.id, node]));
+        affected.forEach(id => {
+            const node = byId.get(id);
+            const current = world.querySelector(`.image-node[data-id="${CSS.escape(id)}"]`);
+            if(!node) return;
+            if(!current){
+                const tpl=document.createElement('template');
+                tpl.innerHTML=isSmartNodeInViewport(node,400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+                const fresh=tpl.content.firstElementChild;
+                if(fresh){world.appendChild(fresh);bindNodeEvents([fresh]);bindSmartPreviewImageFallbacks(fresh);measureSmartNodeImages(fresh);}
+                return;
+            }
+            if(current.contains(document.activeElement) && !forceIds.includes(id)){
+                deferFocusedRefresh(current,node);
+                return;
+            }
+            const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop ?? smartViewportScrolls.get(node) ?? 0;
+            const tpl = document.createElement('template');
+            tpl.innerHTML = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            const fresh = tpl.content.firstElementChild;
+            if(!fresh) return;
+            releaseSmartGroupPreviews(current);
+            transplantSmartMediaElements(current, fresh);
+            current.replaceWith(fresh);
+            bindNodeEvents([fresh]);
+            const scroller = fresh.querySelector('[data-thumb-scroll]');
+            if(scroller) scroller.scrollTop = scroll;
+            bindSmartPreviewImageFallbacks(fresh);
+            measureSmartNodeImages(fresh);
+        });
+        if(affected.has(smartSelection.nodeId)) updateComposer();
+        scheduleSmartGeometryRefresh([...affected], 2);
+        scheduleSmartMinimapRender();
+        refreshRunTimerPills();
+        refreshIcons();
+    }
+    function nodeForComputation(id){return smartComputationContext?smartComputationContext.byId.get(id):nodes.find(node=>node.id===id);}
+    function connectionsForComputation(id){return smartComputationContext?smartComputationContext.incoming.get(id)||[]:canvas?.connections||[];}
+    return Object.freeze({
+        get state(){return Object.freeze({paused,destroyed,pendingGeometry:smartGeometryFrame!==null,pendingViewport:pendingSmartViewportRefresh!==null});},
+        reset,bind,pause,resume,destroy,
+        withComputation:withSmartComputationImpl,nodeRect:nodeRectImpl,nodeForComputation,connectionsForComputation,
+        scheduleViewport:(...args)=>view(scheduleSmartViewportRefreshImpl,args),scheduleGeometry:(...args)=>view(scheduleSmartGeometryRefreshImpl,args),
+        cancelGeometry,restoreScroll:(...args)=>view(restoreSmartNodeScrollImpl,args),recycle:(...args)=>view(renderSmartOffscreenPlaceholdersImpl,args),
+        connectionPaths:(...args)=>view(renderSmartConnectionPathsImpl,args),refreshConnections:(...args)=>view(refreshConnectionLayerImpl,args),
+        changedConnections:(...args)=>view(smartChangedConnectionNodesImpl,args)||[],render:(...args)=>view(renderImpl,args),refreshNodes:(...args)=>view(refreshSmartNodesImpl,args)
+    });
+}
+
+function smartNodeForComputation(id){return smartWorkspaceView.nodeForComputation(id);}
+function smartConnectionsForComputation(id){return smartWorkspaceView.connectionsForComputation(id);}

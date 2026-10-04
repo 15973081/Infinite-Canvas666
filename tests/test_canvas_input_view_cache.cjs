@@ -1,3 +1,5 @@
+const {installWorkspaceView}=require('./helpers/workspace-view.cjs');
+const {functionSource}=require('./helpers/canvas-source.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -6,10 +8,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 const source = readCanvasSource(path.join(__dirname, '../static/js/canvas.js'), 'utf8').replace(/\r\n/g, '\n');
 function load(context, names) {
+    installWorkspaceView(context,'classic');
     for (const name of names) {
         const start = source.indexOf(`function ${name}(`);
         assert.ok(start >= 0, name);
-        vm.runInContext(source.slice(start, source.indexOf('\n}', start) + 2), context);
+        vm.runInContext(functionSource(source,name), context);
     }
 }
 class Element {
@@ -31,7 +34,7 @@ function setup() {
     const context = vm.createContext({
         window: {addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name)},
         isCanvasLockedByOther: () => false,
-        canvasInputViewCache: new WeakMap(), document: {createElement: () => new Element()},
+        document: {createElement: () => new Element()},
         escapeHtml: String, escapeAttr: String, tr: key => key,
         isMissingAssetUrl: url => missing.has(url),
         mediaKindForRef: ref => ref?.kind || 'image',

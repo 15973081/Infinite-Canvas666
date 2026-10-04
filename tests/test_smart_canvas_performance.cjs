@@ -1,3 +1,5 @@
+const {installWorkspaceView}=require('./helpers/workspace-view.cjs');
+const {functionSource}=require('./helpers/canvas-source.cjs');
 const {installSmartSelection}=require('./helpers/smart-selection.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test} = require('node:test');
@@ -6,16 +8,16 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = readCanvasSource(require('node:path').join(__dirname, '../static/js/smart-canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function load(ctx,names){
+    installWorkspaceView(ctx,'smart');
     for(const name of names){
         const start=source.indexOf(`function ${name}(`);
         assert.ok(start>=0,name);
-        vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
+        vm.runInContext(functionSource(source,name),ctx);
     }
 }
 function scheduler(){
     const frames=new Map(), scopes=[]; let id=0;
     const ctx=vm.createContext({
-        smartGeometryFrame:null,smartGeometryPasses:0,smartGeometryAll:false,smartGeometryNodes:new Set(),
         requestAnimationFrame:fn=>{frames.set(++id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id),
         refreshConnectionLayer:ids=>scopes.push(ids===null?null:[...ids]),
     });
@@ -45,7 +47,7 @@ function element(){
 test('minimap reuses DOM and layout on pan, reprojects expanded bounds, invalidates on change',()=>{
     const root=element(),view=element();let layouts=0;
     const nodes=[{id:'a',x:0,y:0,width:200,height:200},{id:'b',x:1000,y:1000,width:200,height:200}];
-    const ctx=vm.createContext({nodes,canvas:{},smartComputationContext:null,
+    const ctx=vm.createContext({nodes,canvas:{},
         shell:{clientWidth:800,clientHeight:600},viewport:{x:0,y:0,scale:1},
         nodeRect:n=>{layouts++;return n;},document:{createElement:element,getElementById:id=>id==='minimapContent'?root:id==='minimapViewport'?view:null},cancelAnimationFrame(){}});
     load(ctx,['createSmartMinimap','renderMinimap','withSmartComputation']);ctx.smartMinimap=ctx.createSmartMinimap();ctx.renderMinimap();
@@ -94,10 +96,10 @@ test('affected nodes include transitive/cyclic and legacy dependencies, not unre
 });
 test('node refresh defers focused editor and never replaces unrelated DOM',()=>{
     const a={id:'a'},b={id:'b'};let replaced=0,focusout,scheduled=0,focused=true;
-    const current={contains:()=>focused,addEventListener:(_name,fn)=>focusout=fn,
+    const current={contains:()=>focused,addEventListener:(_name,fn)=>focusout=fn,removeEventListener(){},
         querySelector:()=>({scrollTop:93}),replaceWith:()=>replaced++};
     const fresh={querySelector:()=>scroller},scroller={scrollTop:0};
-    const ctx=vm.createContext({nodes:[a,b],smartAudioPreview:{dataChanged(){}},smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',smartViewportScrolls:new WeakMap(),
+    const ctx=vm.createContext({nodes:[a,b],smartAudioPreview:{dataChanged(){}},smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',
         world:{querySelector:()=>current},CSS:{escape:x=>x},document:{activeElement:{},createElement:()=>({content:{firstElementChild:fresh}})},
         setTimeout:fn=>fn(),isSmartNodeInViewport:()=>true,renderSmartNodeHtml:()=>'',transplantSmartMediaElements(){},bindNodeEvents(){},
         releaseSmartGroupPreviews(){},bindSmartPreviewImageFallbacks(){},measureSmartNodeImages(){},scheduleSmartGeometryRefresh(){scheduled++;},
@@ -116,7 +118,7 @@ test('partial links compute only endpoints, match full geometry, preserve histor
     let layouts=0;
     const nodes=Array.from({length:1001},(_,i)=>({id:String(i),x:i*30,y:10,images:[]}));
     const ctx=vm.createContext({nodes,canvas:{connections:nodes.slice(1).map((n,i)=>({from:String(i),to:n.id,kind:i===0?'history':'input'}))},
-        smartComputationContext:null,loopInsertPreview:null,cascadeConnectionKeys:()=>new Set(),smartCascadeEdgeState:()=>'',
+        loopInsertPreview:null,cascadeConnectionKeys:()=>new Set(),smartCascadeEdgeState:()=>'',
         imageLayout:()=>{layouts++;return {width:200,height:100};},nodeScale:()=>1,escapeHtml:s=>s});
     load(ctx,['withSmartComputation','nodeRect','renderConnections','renderSmartConnectionPaths','smartConnectionTopology']);
     const full=ctx.renderConnections();assert.equal(layouts,1001);
@@ -125,14 +127,14 @@ test('partial links compute only endpoints, match full geometry, preserve histor
     assert.ok(partial.includes('conn-history'));assert.ok(full.includes(partial.slice(partial.indexOf('<g class='),partial.lastIndexOf('</svg>'))));
     nodes[0].x=999;const moved=ctx.renderConnections(['0']);assert.ok(moved.includes('M1099 110'));
     ctx.smartCascadeEdgeState=()=> 'active';assert.ok(ctx.renderConnections(['2']).includes('conn-cascade-active'));
-    assert.equal(ctx.smartComputationContext,null);
+    assert.equal(typeof ctx.smartComputationContext,'undefined');
 });
 test('computation indexes are fresh per call and released on failure',()=>{
-    const ctx=vm.createContext({nodes:[{id:'a'},{id:'b'}],canvas:{connections:[{from:'a',to:'b',kind:'input'}]},canvasUsesConnections:true,smartComputationContext:null});
+    const ctx=vm.createContext({nodes:[{id:'a'},{id:'b'}],canvas:{connections:[{from:'a',to:'b',kind:'input'}]},canvasUsesConnections:true});
     load(ctx,['withSmartComputation','upstreamNodesForKinds']);
     assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'})[0].id),'a');
     ctx.canvas.connections=[];assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'}).length),0);
-    assert.throws(()=>ctx.withSmartComputation(()=>{throw Error('test');}));assert.equal(ctx.smartComputationContext,null);
+    assert.throws(()=>ctx.withSmartComputation(()=>{throw Error('test');}));assert.equal(typeof ctx.smartComputationContext,'undefined');
 });
 test('offscreen reclamation protects interaction, running tasks, editors and lightboxes',()=>{
     const node={id:'a',type:'smart-image',images:[{url:'a.png'}]},el={contains:()=>false,querySelector:()=>null};

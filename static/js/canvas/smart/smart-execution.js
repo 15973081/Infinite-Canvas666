@@ -832,13 +832,13 @@ function upstreamNodesForKinds(node, kinds=['input']){
     if(!node) return [];
     const allowed = new Set(kinds);
     const ids = new Set();
-    (smartComputationContext ? smartComputationContext.incoming.get(node.id) || [] : canvas?.connections || []).forEach(conn => {
+    smartConnectionsForComputation(node.id).forEach(conn => {
         if(conn.to === node.id && allowed.has(conn.kind || 'flow')) ids.add(conn.from);
     });
     if(!canvasUsesConnections && allowed.has('input')){
         (node.inputNodeIds || []).forEach(id => ids.add(id));
     }
-    return [...ids].map(id => smartComputationContext ? smartComputationContext.byId.get(id) : nodes.find(n => n.id === id)).filter(Boolean);
+    return [...ids].map(id => smartNodeForComputation(id)).filter(Boolean);
 }
 
 function inputNodesFor(node){

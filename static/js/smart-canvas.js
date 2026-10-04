@@ -41,6 +41,7 @@ const assetDialogOk = document.getElementById('assetDialogOk');
 let canvas = null;
 let canvasUsesConnections = true;
 let nodes = [];
+const smartWorkspaceView = createSmartWorkspaceView();
 const smartMinimap = createSmartMinimap();
 const smartSelection = createSmartSelection();
 const smartComposer = createSmartComposer();
@@ -250,11 +251,8 @@ const PROMPT_LLM_INSTRUCTION_DEFAULT_H = 58;
 const PROMPT_LLM_INSTRUCTION_MIN_H = 40;
 const PROMPT_LLM_INSTRUCTION_MAX_H = 400;
 
-let smartComputationContext = null;
 
-let pendingSmartViewportRefresh = null;
 
-const smartViewportScrolls = new WeakMap();
 
 
 const DEFAULT_VIDEO_MODELS = ['veo3-fast','veo3','sora','runway','kling','pika','minimax-video','wan-v2','seedance-1.0-pro'];
@@ -307,6 +305,7 @@ async function loadCanvas(options={}){
         if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
             !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
         smartSelection.documentReplacing();
+        smartWorkspaceView.reset();
         smartMinimap.reset();
         smartAudioPreview.reset();
         if(!options.observe || canvas?.id !== data.canvas.id){
@@ -382,10 +381,6 @@ async function loadCanvas(options={}){
 // 画布里按 Ctrl+V 读取并批量生成图片节点（网格平铺），用完即清空（一次性）。
 const SMART_CANVAS_ASSET_INBOX_KEY = 'smart_canvas_asset_inbox';
 
-let smartGeometryFrame = null;
-let smartGeometryPasses = 0;
-let smartGeometryAll = false;
-const smartGeometryNodes = new Set();
 
 let smartVideoCostBackfillRunning = false;
 
@@ -398,8 +393,6 @@ function closeSmartCanvasShortcuts(){
     smartShortcutModal?.classList.remove('open');
 }
 
-const smartRenderedNodes = new WeakMap();
-let smartRenderedConnectionStates = new Map();
 
 
 
@@ -504,6 +497,7 @@ bindSmartDrawingControls();
 bindSmartPanoramaControls();
 smartSelection.bind();
 smartComposer.bind();
+smartWorkspaceView.bind();
 bindSmartImageEditorViewport();
 window.addEventListener('studio-theme-change', event => applyTheme(event.detail?.theme || 'light'));
 try {

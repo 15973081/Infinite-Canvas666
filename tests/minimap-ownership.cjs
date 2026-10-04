@@ -1,3 +1,5 @@
+const {installWorkspaceView}=require('./helpers/workspace-view.cjs');
+const {functionSource}=require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -35,7 +37,7 @@ function setup(kind) {
         selected:new Set(),viewport:{x:0,y:0,scale:1},board:root,shell:{clientWidth:800,clientHeight:600},
         window:win,document:{getElementById:id=>({minimap:root,minimapContent:content,minimapViewport:view}[id]),createElement:target},
         CSS:{escape:x=>x},nodesEl:{querySelector(){calls.measurements++;return null;}},
-        defaultNodeSize:()=>({w:200,h:100}),nodeRect:n=>{calls.measurements++;return n;},smartComputationContext:null,
+        defaultNodeSize:()=>({w:200,h:100}),nodeRect:n=>{calls.measurements++;return n;},
         requestAnimationFrame:fn=>{frames.set(++frameId,fn);return frameId;},cancelAnimationFrame:id=>frames.delete(id),
         windowPointerSession:null,AbortController,
         renderLinks(){},renderSelectionHub(){},
@@ -44,13 +46,13 @@ function setup(kind) {
     function load(name) {
         const start=source.indexOf('function '+name+'(');
         assert.ok(start>=0,name);
-        vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
+        vm.runInContext(functionSource(source,name),ctx);
     }
     const factory='create'+(kind==='classic'?'Classic':'Smart')+'Minimap';
     const ownerName=kind+'Minimap';
     load(factory);
     if(kind==='classic') ['estimatedNodeRect','currentWorldViewRect','minimapNodeBounds','minimapBounds','startWindowPointerSession','endWindowPointerSession'].forEach(load);
-    else load('withSmartComputation');
+    else {installWorkspaceView(ctx,'smart');load('withSmartComputation');}
     load('centerViewportOnWorldPoint');
     ctx[ownerName]=ctx[factory]();
     const owner=ctx[ownerName];
