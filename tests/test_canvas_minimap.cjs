@@ -205,9 +205,12 @@ test('leaving the canvas releases cached node-array references', () => {
     let promptResets = 0;
     context.classicPromptPanel = {reset(){ promptResets++; }};
     context.classicImageEditor = {reset(){}};
+    let previewResets = 0;
+    context.classicOutputPreview = {reset(){ previewResets++; }};
     load(context, ['setCanvasMode']);
     context.setCanvasMode(false);
     assert.equal(promptResets, 1, 'canvas exit also invalidates the prompt session');
+    assert.equal(previewResets, 1, 'canvas exit also releases the shared media preview');
     assert.equal(frames.size, 0);
     context.renderMinimap({viewportOnly:true});
     assert.equal(calls.measurements, 4, 'reset discarded cached node rectangles');

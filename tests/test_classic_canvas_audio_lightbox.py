@@ -63,13 +63,13 @@ class ClassicCanvasAudioLightboxTests(unittest.TestCase):
         lightbox = _source_between(
             self.source,
             "function releaseOutputLightboxAudio(",
-            "function closeOutputLightbox(",
+            "function clearOutputPreview(",
         )
-        close_lightbox = _function_source(self.source, "closeOutputLightbox")
+        close_lightbox = _function_source(self.source, "clearOutputPreview")
 
         self.assertIn("document.createElement('audio')", lightbox)
-        self.assertIn("outputLightboxAudioHost.replaceChildren(audio)", lightbox)
-        self.assertIn("outputLightboxAudioHost?.replaceChildren()", lightbox)
+        self.assertIn("element('outputLightboxAudioHost').replaceChildren(audio)", lightbox)
+        self.assertIn("element('outputLightboxAudioHost')?.replaceChildren()", lightbox)
         self.assertIn("releaseOutputLightboxAudio()", close_lightbox)
         self.assertIn('id="outputLightboxAudioHost"', self.page)
         self.assertNotIn('<audio id="outputLightboxAudio', self.page)
@@ -85,8 +85,10 @@ class ClassicCanvasAudioLightboxTests(unittest.TestCase):
         self.assertIn("openOutputLightbox(node.url, node)", preview)
 
     def test_leaving_the_page_releases_the_lightbox_player(self):
-        self.assertIn("window.addEventListener('pagehide'", self.source)
-        self.assertIn("releaseOutputLightboxAudio()", self.source)
+        preview = _function_source(self.source, "createClassicOutputPreview")
+        self.assertIn("listen('lifecycle',window,'pagehide'", preview)
+        self.assertIn("if(event.persisted)pause();else destroy()", preview)
+        self.assertIn("releaseOutputLightboxAudio()", preview)
 
     def test_audio_connections_keep_media_refs_for_generator_inputs(self):
         generator_sources = _function_source(self.source, "generatorSources")
@@ -97,7 +99,8 @@ class ClassicCanvasAudioLightboxTests(unittest.TestCase):
         self.assertIn("refs:mediaRefsFromNode(img)", generator_sources)
         self.assertNotIn("kind === 'image' ? imageRefsFromNode(n) : videoRefsFromNode(n)", generator_sources)
         self.assertIn("ordered.filter(src => src.refs?.length)", render_generator)
-        self.assertIn("audioRefsOnly(allRefs)", run_video)
+        self.assertIn("applyUploadedUrlToRefs(allRefs, node)", run_video)
+        self.assertIn("audioRefsOnly(mediaRefs)", run_video)
 
     def test_asset_import_preserves_explicit_audio_kind(self):
         create_card = _function_source(self.source, "createImageCardFromUrl")

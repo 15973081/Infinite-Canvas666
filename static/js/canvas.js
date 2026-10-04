@@ -75,25 +75,6 @@ const canvasLockOverlayMsg = document.getElementById('canvasLockOverlayMsg');
 const canvasLockRetryBtn = document.getElementById('canvasLockRetryBtn');
 const currentCanvasTitle = document.getElementById('currentCanvasTitle');
 const currentCanvasTime = document.getElementById('currentCanvasTime');
-const outputLightbox = document.getElementById('outputLightbox');
-const outputPreview = document.getElementById('outputPreview');
-const outputLightboxImg = document.getElementById('outputLightboxImg');
-const outputLightboxAudio = document.getElementById('outputLightboxAudio');
-const outputLightboxAudioTitle = document.getElementById('outputLightboxAudioTitle');
-const outputLightboxAudioHost = document.getElementById('outputLightboxAudioHost');
-const outputCompareContainer = document.getElementById('outputCompareContainer');
-const outputCompareResult = document.getElementById('outputCompareResult');
-const outputCompareOriginal = document.getElementById('outputCompareOriginal');
-const outputCompareOriginalWrap = document.getElementById('outputCompareOriginalWrap');
-const outputCompareSlider = document.getElementById('outputCompareSlider');
-const outputResolution = document.getElementById('outputResolution');
-const outputDownloadBtn = document.getElementById('outputDownloadBtn');
-const outputDownloadAllBtn = document.getElementById('outputDownloadAllBtn');
-const outputLightboxVideo = document.getElementById('outputLightboxVideo');
-const outputPromptPanel = document.getElementById('outputPromptPanel');
-const outputPromptText = document.getElementById('outputPromptText');
-const outputCopyPromptBtn = document.getElementById('outputCopyPromptBtn');
-const outputRerunBtn = document.getElementById('outputRerunBtn');
 const workflowTransferToggle = document.getElementById('workflowTransferToggle');
 const canvasCostToggle = document.getElementById('canvasCostToggle');
 const canvasCostToggleLabel = document.getElementById('canvasCostToggleLabel');
@@ -120,6 +101,7 @@ let canvasSearchQuery = '';
 let canvas = null;
 let nodes = [];
 const classicMinimap = createClassicMinimap();
+const classicOutputPreview = createClassicOutputPreview();
 let connections = [];
 let viewport = {x: -1800, y: -1000, scale: 1};
 let dragNode = null;
@@ -184,17 +166,6 @@ const MS_GEN_MODELS = {
 };
 let hasManagedImageModels = false;
 let hasManagedChatModels = false;
-let outputCompareDrag = false;
-let outputPreviewZoom = 1;
-let outputPreviewPan = {x: 0, y: 0};
-let outputPreviewPanDrag = null;
-let currentOutputCompareUrl = '';
-let currentOutputMeta = null;
-let currentOutputLightboxOutId = '';
-let currentOutputLightboxUrl = '';
-let outputTrimState = null;
-let outputTrimFrame = null;
-let outputTrimJob = null;
 const missingAssetUrls = new Set();
 let outputTimer = null;
 let clipboard = null;
@@ -621,6 +592,7 @@ function setCanvasMode(open){
         classicMinimap.reset();
         classicPromptPanel.reset();
         classicImageEditor.reset();
+        classicOutputPreview.reset();
         clearConnectionHover();
         renderedCanvasLinks.clear();
         clearLocalCanvasLock();
@@ -1119,6 +1091,7 @@ async function createCanvas(customTitle = ''){
         classicMinimap.reset();
         classicPromptPanel.reset();
         classicImageEditor.reset();
+        classicOutputPreview.reset();
         canvas = data.canvas;
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
@@ -1209,6 +1182,7 @@ async function openCanvas(id){
         classicMinimap.reset();
         classicPromptPanel.reset();
         classicImageEditor.reset();
+        classicOutputPreview.reset();
         canvas = nextCanvas;
         resetCanvasHistory();
         canvas.logs = canvas.logs || [];
@@ -1262,6 +1236,7 @@ async function returnToCanvasManager(){
     stopCanvasRemotePolling();
     stopCanvasLockPolling();
     await releaseCanvasLock();
+    classicOutputPreview.reset();
     canvas = null;
     nodes = [];
     connections = [];
@@ -1292,10 +1267,6 @@ window.addEventListener('beforeunload', event => {
         event.returnValue = '';
     }
     releaseCanvasLockOnExit();
-});
-window.addEventListener('pagehide', () => {
-    if(outputLightbox?.classList.contains('open')) closeOutputLightbox();
-    else releaseOutputLightboxAudio();
 });
 
 function requestDeleteCanvas(id, event){
@@ -1509,8 +1480,7 @@ window.onload = async () => {
     updateCanvasIdentityButton();
 
     document.title = 'shadox';
-    initOutputCompareEvents();
-    initOutputPreviewZoomEvents();
+    classicOutputPreview.bind();
     applyViewport();
     await loadConfig();
     pruneMissingComfyWorkflows();

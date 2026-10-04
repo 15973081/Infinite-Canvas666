@@ -1,4 +1,4 @@
-const {readCanvasSource} = require('./helpers/canvas-source.cjs');
+const {readCanvasSource,functionSource} = require('./helpers/canvas-source.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -9,10 +9,7 @@ const source = readCanvasSource(path.join(__dirname, '../static/js/canvas.js'), 
 function load(names, globals) {
     const context = vm.createContext(globals);
     for (const name of names) {
-        const start = source.indexOf(`function ${name}(`);
-        assert.ok(start >= 0, `${name} exists`);
-        const end = source.indexOf('\n}', start) + 2;
-        vm.runInContext(source.slice(start, end), context);
+        vm.runInContext(functionSource(source,name), context);
     }
     return context;
 }
@@ -72,7 +69,7 @@ for (const withLoader of [false, true]) test(`releasing the shared video stops p
         unobserved.push(element);
         calls.push('unwatch');
     }}} : {};
-    const context = load(['releaseOutputLightboxVideo'], {window, outputLightboxVideo: video});
+    const context = load(['releaseOutputLightboxVideo'], {window, destroyed:false, element:()=>video});
     for (let index = 0; index < 10; index++) {
         const before = calls.length;
         video.src = `/video-${index}.mp4`;

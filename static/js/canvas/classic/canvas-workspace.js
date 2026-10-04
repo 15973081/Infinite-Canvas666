@@ -954,6 +954,7 @@ function refreshCanvasMediaVisibility(){
     if(dragNode || resizeNode || dragBoard || classicMinimap.dragging || selectDrag || tempLink || knifeActive || internalDrag) return;
     const nodeById = new Map(nodes.map(node => [node.id, node]));
     const protectedIds = new Set(selected);
+    const previewedIds = new Set(classicOutputPreview.previewedNodeIds());
     for(const id of selected){
         const node = nodeById.get(id);
         if(node?.type === 'group') (node.items || []).forEach(childId => protectedIds.add(childId));
@@ -965,8 +966,7 @@ function refreshCanvasMediaVisibility(){
         const protectedNode = protectedIds.has(node.id) || node.running || node._pending?.length
             || cascadeRunningNodeIds.has(node.id) || ['running','queued'].includes(node.runStatus)
             || el.contains(document.activeElement) || el.querySelector('video, audio, [data-dragging]')
-            || classicImageEditor.isEditingNode(node.id) || currentOutputLightboxOutId === node.id
-            || (currentOutputLightboxUrl && currentOutputLightboxUrl === node.url);
+            || classicImageEditor.isEditingNode(node.id) || previewedIds.has(node.id);
         const enter = protectedNode || isNodeInCanvasViewport(node, 400);
         const release = !enter && !isNodeInCanvasViewport(node, 800);
         if(!enter && !release) return;
@@ -979,6 +979,7 @@ function refreshCanvasMediaVisibility(){
 }
 
 function render(){
+    classicOutputPreview.dataChanged();
     const outputScrolls = captureOutputScrolls();
     const mediaStates = captureMediaPlaybackStates();
     const reusableMediaNodes = new Map();
@@ -1012,6 +1013,7 @@ function render(){
 }
 
 function refreshNodes(ids=[], {rebuildOutputs=false}={}){
+    classicOutputPreview.dataChanged();
     const uniqueIds = [...new Set((ids || []).filter(Boolean))];
     if(!uniqueIds.length) return;
     const outputScrolls = captureOutputScrolls();
@@ -4185,18 +4187,18 @@ function bindClassicKeyboardEvents(){
     window.addEventListener('keydown', handleCanvasHistoryShortcut, true);
     window.addEventListener('keydown', e => {
         if(e.key === 'Escape' && classicImageEditor.state.open) { closeImageEditor(); return; }
-        if(!canvas) return;
+        if(!canvas){if(e.key==='Escape' && classicOutputPreview.state.open)closeOutputLightbox();return;}
         if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
         if(e.key === 'Shift' && !isEditableTarget(document.activeElement)) setKnifeMode(true);
         if(e.key === 'Escape' && (classicPromptPanel.state.open || classicPromptPanel.state.opening)) { closePromptTemplateModal(); return; }
-        if(outputLightbox.classList.contains('open') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
+        if(classicOutputPreview.state.open && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
             if(navigateOutputLightbox(e.key === 'ArrowRight' ? 1 : -1)){
                 e.preventDefault();
                 e.stopPropagation();
             }
             return;
         }
-        if(e.key === 'Escape' && outputLightbox.classList.contains('open')) { closeOutputLightbox(); return; }
+        if(e.key === 'Escape' && classicOutputPreview.state.open) { closeOutputLightbox(); return; }
         if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); groupSelectedImages(); }
         if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
             // 在输入框/可编辑元素里时，让浏览器原生 Ctrl+C 工作

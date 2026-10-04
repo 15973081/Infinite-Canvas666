@@ -28,7 +28,7 @@ test('2000-node smart render retains unchanged DOM, bindings and media; only cha
 
 test('classic partial node refresh passes the same affected ids to immediate and post-layout links',()=>{
     const scopes=[],later=[],rebuilt=[];
-    const ctx=vm.createContext({nodes:Array.from({length:2000},(_,i)=>({id:String(i),type:'image'})),CSS:{escape:x=>x},
+    const ctx=vm.createContext({classicOutputPreview:{dataChanged(){}},nodes:Array.from({length:2000},(_,i)=>({id:String(i),type:'image'})),CSS:{escape:x=>x},
         captureOutputScrolls:()=>[],applyViewport(){},nodesEl:{querySelector:()=>({replaceWith(){}})},
         renderNode:n=>{rebuilt.push(n.id);return{};},nodeHasLiveMedia:()=>false,restoreOutputScrolls(){},
         refreshGeometry:ids=>scopes.push([...ids]),refreshGeometryAfterLayout:ids=>later.push([...ids]),

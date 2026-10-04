@@ -1,14 +1,15 @@
-const {readCanvasSource} = require('./helpers/canvas-source.cjs');
+const {readCanvasSource,functionSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test'), assert=require('node:assert/strict'), vm=require('node:vm');
 const source=readCanvasSource(require('node:path').join(__dirname,'../static/js/canvas.js'),'utf8').replace(/\r\n/g,'\n');
 function setup(){
     const elements=new Map(), frames=new Map(), calls={requests:[],opened:[],errors:[],undo:0,save:0,appended:[]};let seq=0;
-    const element=()=>({style:{},attrs:{},hidden:false,value:'',setAttribute(k,v){this.attrs[k]=v;},classList:{contains:()=>true,toggle(){}}});
+    const element=()=>({style:{},attrs:{},hidden:false,value:'',querySelectorAll:()=>[],setAttribute(k,v){this.attrs[k]=v;},classList:{contains:()=>true,toggle(){}}});
     const get=id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);};
     const original={id:'source',type:'image',mediaKind:'video',url:'/assets/source.mp4',name:'source.mp4',x:10,y:20};
     const video={style:{display:'block'},duration:10,readyState:4,currentTime:0,videoWidth:640,videoHeight:360,paused:true,ended:false,
         pause(){this.paused=true;},play(){this.paused=false;return Promise.resolve();}};
-    const ctx=vm.createContext({outputTrimState:null,outputTrimJob:null,outputTrimFrame:null,outputLightboxVideo:video,outputLightbox:element(),
+    elements.set('outputLightboxVideo',video);elements.set('outputLightbox',element());
+    const ctx=vm.createContext({destroyed:false,paused:false,openState:true,targetValid:()=>true,guard:fn=>fn,element:get,outputTrimState:null,outputTrimJob:null,outputTrimFrame:null,
         currentOutputLightboxUrl:original.url,currentOutputLightboxOutId:original.id,canvas:{id:'canvas-a'},nodes:[original],
         document:{getElementById:get,querySelectorAll:()=>[]},requestAnimationFrame:fn=>{frames.set(++seq,fn);return seq;},cancelAnimationFrame:id=>frames.delete(id),
         isCanvasLockedByOther:()=>false,showErrorModal:message=>calls.errors.push(message),setStatus:message=>calls.errors.push(message),
@@ -18,8 +19,7 @@ function setup(){
         openOutputLightbox:(...args)=>{calls.opened.push(args);ctx.resetOutputVideoTrim();},
         window:{CanvasApi:{trimSmartCanvasVideo:async payload=>{calls.requests.push(payload);return {url:'/output/clip.mp4',name:'clip.mp4',duration_seconds:3};}}}});
     for(const name of ['outputTrimTime','parseOutputTrimTime','stopOutputTrimPreview','resetOutputVideoTrim','syncOutputTrimUi','toggleOutputVideoTrim','setOutputTrimValue','setOutputTrimInput','tickOutputTrimPreview','previewOutputVideoTrim','applyOutputVideoTrim']){
-        const start=source.search(new RegExp(`^(?:async )?function ${name}\\(`,'m'));assert.ok(start>=0);
-        vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
+        vm.runInContext(functionSource(source,name),ctx);
     }
     return {ctx,video,calls,frames,get,original};
 }

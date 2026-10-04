@@ -11,7 +11,7 @@ function setup(){
     let geometry=0;
     const ctx=vm.createContext({canvas:{id:'qa'},nodes:[node],nodesEl:{querySelectorAll:()=>[el]},selected:new Set(),
         dragNode:null,resizeNode:null,dragBoard:null,classicMinimap:{dragging:false},selectDrag:null,tempLink:null,knifeActive:false,internalDrag:false,
-        classicImageEditor:{isEditingNode:()=>false},currentOutputLightboxOutId:'',currentOutputLightboxUrl:'',cascadeRunningNodeIds:new Set(),document:{activeElement:null},
+        classicImageEditor:{isEditingNode:()=>false},classicOutputPreview:{id:'',url:'',previewedNodeIds(){return ctx.nodes.filter(n=>this.id===n.id || this.url===n.url).map(n=>n.id);}},cascadeRunningNodeIds:new Set(),document:{activeElement:null},
         mediaKindForNode:n=>n.mediaKind,isNodeInCanvasViewport:(n,margin)=>n.x<=margin,
         suspendedCanvasPreviewImages:new WeakMap(),refreshGeometryAfterLayout:()=>geometry++});
     for(const name of ['suspendCanvasPreviewImage','restoreCanvasPreviewImage','refreshCanvasMediaVisibility','isCanvasPreviewImage','bindCanvasPreviewImageFallbacks']){
@@ -36,8 +36,8 @@ test('active interactions defer release; selected, focused, running and lightbox
     }
     const guards=[({ctx})=>ctx.selected.add('a'),({node})=>node.running=true,({node})=>node._pending=[{}],
         ({ctx})=>ctx.cascadeRunningNodeIds.add('a'),({node})=>node.runStatus='queued',({el})=>el.contains=()=>true,
-        ({el})=>el.querySelector=()=>({}),({ctx})=>ctx.classicImageEditor.isEditingNode=id=>id==='a',({ctx})=>ctx.currentOutputLightboxOutId='a',
-        ({ctx})=>ctx.currentOutputLightboxUrl='/original',({ctx})=>{ctx.nodes.push({id:'g',type:'group',items:['a']});ctx.selected.add('g');}];
+        ({el})=>el.querySelector=()=>({}),({ctx})=>ctx.classicImageEditor.isEditingNode=id=>id==='a',({ctx})=>ctx.classicOutputPreview.id='a',
+        ({ctx})=>ctx.classicOutputPreview.url='/original',({ctx})=>{ctx.nodes.push({id:'g',type:'group',items:['a']});ctx.selected.add('g');}];
     for(const guard of guards){const fixture=setup();guard(fixture);fixture.ctx.refreshCanvasMediaVisibility();assert.equal(fixture.img.getAttribute('src'),'/preview');}
     const {ctx,img}=setup();ctx.refreshCanvasMediaVisibility();ctx.selected.add('a');ctx.refreshCanvasMediaVisibility();assert.equal(img.getAttribute('src'),'/preview');
 });

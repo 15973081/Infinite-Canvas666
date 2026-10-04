@@ -648,18 +648,531 @@ function openGroupLightbox(groupId, index=0){
     openOutputLightbox(item.url, group);
 }
 
-function navigateOutputLightbox(direction){
-    if(!outputLightbox.classList.contains('open') || !currentOutputLightboxUrl) return false;
-    const out = currentOutputLightboxOutId ? nodes.find(n => n.id === currentOutputLightboxOutId) : null;
-    const items = outputLightboxItems(out);
-    if(items.length < 2) return false;
-    let idx = items.findIndex(item => item.url === currentOutputLightboxUrl);
-    if(idx < 0) idx = 0;
-    const next = items[(idx + direction + items.length) % items.length];
-    const nextOut = next.outId ? nodes.find(n => n.id === next.outId) : null;
-    openOutputLightbox(next.url, nextOut);
-    return true;
+// This owner covers the shared preview window, not all results or document state.
+function createClassicOutputPreview(){
+    let outputCompareDrag=false, outputPreviewZoom=1, outputPreviewPan={x:0,y:0}, outputPreviewPanDrag=null;
+    let currentOutputCompareUrl='',currentOutputMeta=null,currentOutputLightboxOutId='',currentOutputLightboxUrl='';
+    let outputTrimState=null,outputTrimFrame=null;
+    // A submitted trim belongs to its request, not the lifetime of this window.
+    let outputTrimJob=null;
+    let openState=false,viewKind='',compareOn=false,comparePosition=50,paused=false,destroyed=false,revision=0,copyTimer=null,copyLabel='复制提示词';
+    let targetCheck=()=>false;
+    const dom=new Map(),listeners=new Map(),imageIds=['outputLightboxImg','outputCompareResult','outputCompareOriginal'];
+    function element(id){if(destroyed)return null;if(!dom.has(id))dom.set(id,document.getElementById(id));return dom.get(id);}
+    function targetValid(){return !destroyed && !paused && targetCheck();}
+    function captureTarget(url,out){
+        const canvasId=canvas?.id;
+        if(!out?.id)return ()=>canvas?.id===canvasId;
+        const child=out.type==='group'?nodes.find(node=>out.items?.includes(node.id) && node.url===url):null;
+        // Preserve the existing URL-based audio/video fallback even for legacy image metadata.
+        const sourceKind=out.type==='image'?mediaKindForNode(out):mediaKindForOutputItem((out.images||[]).find(item=>outputUrlValue(item)===url));
+        return ()=>{
+            if(canvas?.id!==canvasId || !nodes.includes(out))return false;
+            if(out.type==='group')return Boolean(child && nodes.includes(child) && out.items?.includes(child.id) && child.url===url && mediaKindForNode(child)==='image');
+            if(out.type==='image')return out.url===url && mediaKindForNode(out)===sourceKind;
+            return (out.images||[]).some(item=>outputUrlValue(item)===url && mediaKindForOutputItem(item)===sourceKind);
+        };
+    }
+    function guard(fn){const origin=revision;return (...args)=>{if(openState && origin===revision && targetValid())return fn(...args);};}
+    function clearListeners(scope){for(const dispose of listeners.get(scope)||[])dispose();listeners.delete(scope);}
+    function listen(scope,el,type,fn,options){
+        if(!el)return;
+        const handler=event=>{if(!destroyed && (scope==='lifecycle' || !paused))fn(event);};
+        el.addEventListener(type,handler,options);
+        if(!listeners.has(scope))listeners.set(scope,[]);listeners.get(scope).push(()=>el.removeEventListener(type,handler,options));
+    }
+    function clearCopyFeedback(){
+        clearTimeout(copyTimer);copyTimer=null;
+        const button=element('outputCopyPromptBtn');button?.classList.remove('copied');
+        const span=button?.querySelector('span');if(span)span.textContent=copyLabel;
+    }
+    function copyPrompt(){
+        if(!openState || !targetValid())return;
+        const prompt=currentOutputMeta?.run?.prompt;if(!prompt)return;
+        copyTextToClipboard(prompt);clearCopyFeedback();
+        const button=element('outputCopyPromptBtn'),span=button.querySelector('span');
+        copyLabel=span?.textContent||'复制提示词';button.classList.add('copied');if(span)span.textContent='已复制';
+        copyTimer=setTimeout(guard(clearCopyFeedback),1200);
+    }
+    function download(){if(openState && targetValid())return downloadUrl(currentOutputLightboxUrl,outputDownloadName(currentOutputLightboxUrl)).catch(err=>alert(err.message||'下载失败'));}
+    function downloadAll(){if(openState && targetValid() && currentOutputLightboxOutId)return downloadGroupNodeImages(currentOutputLightboxOutId);}
+    function rerun(){if(openState && targetValid())return rerunFromOutputMeta(currentOutputMeta);}
+    function setTrimPoint(which){if(openState && targetValid())setOutputTrimValue(which,element('outputLightboxVideo').currentTime);}
+    function bind(){
+        if(destroyed || paused)return;
+        clearListeners('controls');clearListeners('lifecycle');
+        const modal=element('outputLightbox');
+        listen('controls',modal,'click',closeOutputLightbox);
+        listen('controls',element('outputLightboxShell'),'click',event=>event.stopPropagation());
+        listen('controls',modal?.querySelector('[data-output-close]'),'click',closeOutputLightbox);
+        listen('controls',element('outputDownloadBtn'),'click',event=>{event.stopPropagation();download();});
+        listen('controls',element('outputDownloadAllBtn'),'click',event=>{event.stopPropagation();downloadAll();});
+        listen('controls',element('outputCopyPromptBtn'),'click',event=>{event.stopPropagation();copyPrompt();});
+        listen('controls',element('outputRerunBtn'),'click',event=>{event.stopPropagation();rerun();});
+        listen('controls',element('outputPreview'),'dblclick',event=>{event.stopPropagation();if(currentOutputCompareUrl)setOutputCompareMode(!compareOn);});
+        listen('controls',element('outputTrimToggle'),'click',toggleOutputVideoTrim);
+        for(const which of ['start','end']){
+            const suffix=which==='start'?'Start':'End';
+            listen('controls',element('outputTrim'+suffix),'input',()=>setOutputTrimInput(which,false));
+            listen('controls',element('outputTrim'+suffix),'change',()=>setOutputTrimInput(which));
+            listen('controls',element('outputTrim'+suffix+'Range'),'input',event=>setOutputTrimValue(which,event.currentTarget.value));
+            listen('controls',modal?.querySelector('[data-output-trim-point="'+which+'"]'),'click',()=>setTrimPoint(which));
+        }
+        listen('controls',element('outputTrimPreview'),'click',previewOutputVideoTrim);
+        listen('controls',modal?.querySelector('[data-output-trim-close]'),'click',resetOutputVideoTrim);
+        listen('controls',element('outputTrimApply'),'click',applyOutputVideoTrim);
+        listen('lifecycle',window,'pagehide',event=>{if(event.persisted)pause();else destroy();});
+        listen('lifecycle',window,'pageshow',event=>{if(event.persisted)resume();});
+        initOutputCompareEvents();initOutputPreviewZoomEvents();
+    }
+    function isPreviewingNode(node){return Boolean(openState && targetValid() && (currentOutputLightboxOutId===node?.id || currentOutputLightboxUrl===node?.url));}
+    // Virtualization validates the target once per pass, not once for every node.
+    function previewedNodeIds(){
+        if(!openState || !targetValid())return Object.freeze([]);
+        return Object.freeze(nodes.filter(node=>currentOutputLightboxOutId===node.id || currentOutputLightboxUrl===node.url).map(node=>node.id));
+    }
+    function dataChanged(){if(openState && !targetValid())closeOutputLightbox();}
+    function pause(){if(destroyed || paused)return;closeOutputLightbox();for(const scope of [...listeners.keys()])if(scope!=='lifecycle')clearListeners(scope);paused=true;}
+    function resume(){if(destroyed || !paused)return;paused=false;bind();}
+    function destroy(){if(destroyed)return;closeOutputLightbox();for(const scope of [...listeners.keys()])clearListeners(scope);dom.clear();destroyed=true;}
+    function navigateOutputLightbox(direction){
+        if(!openState || !targetValid() || !currentOutputLightboxUrl) return false;
+        const out = currentOutputLightboxOutId ? nodes.find(n => n.id === currentOutputLightboxOutId) : null;
+        const items = outputLightboxItems(out);
+        if(items.length < 2) return false;
+        let idx = items.findIndex(item => item.url === currentOutputLightboxUrl);
+        if(idx < 0) idx = 0;
+        const next = items[(idx + direction + items.length) % items.length];
+        const nextOut = next.outId ? nodes.find(n => n.id === next.outId) : null;
+        openOutputLightbox(next.url, nextOut);
+        return true;
+    }
+
+    function setOutputCompareMode(active){
+        if(destroyed)return;
+        compareOn=Boolean(active && openState && targetValid() && viewKind==='image' && currentOutputCompareUrl);active=compareOn;
+        if(active)comparePosition=50;
+        element('outputPreview').classList.toggle('compare-mode', active);
+        if(active){
+            element('outputCompareOriginalWrap').style.clipPath = 'inset(0 50% 0 0)';
+            element('outputCompareSlider').style.left = '50%';
+        }
+    }
+
+    function outputResolutionText(text, meta=null){
+        if(destroyed)return;
+        const parts = [text || '--'];
+        if(meta?.runMs) parts.push(`<span>${formatRunDuration(meta.runMs)}</span>`);
+        element('outputResolution').innerHTML = parts.join('<span style="opacity:.38">|</span>');
+    }
+
+    function setupOutputPromptPanel(meta){
+        if(destroyed)return;
+        currentOutputMeta = meta || null;
+        const prompt = meta?.run?.prompt || '';
+        element('outputPromptPanel').classList.toggle('open', !!prompt || !!meta?.run);
+        element('outputPromptText').textContent = prompt || '没有记录提示词';
+    }
+
+    function updateOutputCompareSlider(clientX){
+        if(!openState || !targetValid() || !compareOn)return;
+        const rect = element('outputCompareContainer').getBoundingClientRect();
+        if(!rect.width) return;
+        const percent = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+        comparePosition=percent;
+        element('outputCompareOriginalWrap').style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
+        element('outputCompareSlider').style.left = `${percent}%`;
+    }
+
+    function applyOutputPreviewZoom(){
+        if(destroyed)return;
+        const transform = `translate(${outputPreviewPan.x}px, ${outputPreviewPan.y}px) scale(${outputPreviewZoom})`;
+        [element('outputLightboxImg'), element('outputCompareResult'), element('outputCompareOriginal')].forEach(img => {
+            img.style.transform = transform;
+            img.style.transformOrigin = '0 0';
+        });
+        element('outputPreview').classList.toggle('zoomed', outputPreviewZoom > 1.001);
+    }
+
+    function resetOutputPreviewZoom(){
+        if(destroyed)return;
+        outputPreviewZoom = 1;
+        outputPreviewPan = {x: 0, y: 0};
+        outputPreviewPanDrag = null;
+        element('outputPreview').classList.remove('panning');
+        applyOutputPreviewZoom();
+    }
+
+    function initOutputPreviewZoomEvents(){
+        if(destroyed || paused)return;clearListeners('zoom');
+        listen('zoom', element('outputPreview'), 'wheel', e => {
+            if(!openState || !targetValid())return;
+            if(element('outputLightboxVideo').style.display === 'block' || element('outputLightboxAudio').style.display === 'flex') return;
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = element('outputPreview').getBoundingClientRect();
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
+            const before = {
+                x:(localX - outputPreviewPan.x) / outputPreviewZoom,
+                y:(localY - outputPreviewPan.y) / outputPreviewZoom
+            };
+            const factor = e.deltaY > 0 ? .9 : 1.1;
+            const nextZoom = Math.max(1, Math.min(6, outputPreviewZoom * factor));
+            outputPreviewZoom = nextZoom;
+            outputPreviewPan = nextZoom <= 1.001 ? {x: 0, y: 0} : {
+                x:localX - before.x * nextZoom,
+                y:localY - before.y * nextZoom
+            };
+            applyOutputPreviewZoom();
+        }, {passive:false});
+        listen('zoom', element('outputPreview'), 'mousedown', e => {
+            if(!openState || !targetValid())return;
+            if(element('outputLightboxVideo').style.display === 'block' || element('outputLightboxAudio').style.display === 'flex') return;
+            if(e.button !== 0 || outputPreviewZoom <= 1.001) return;
+            if(e.target.closest('.output-preview-actions, .output-resolution, .output-compare-slider')) return;
+            outputPreviewPanDrag = {
+                sx:e.clientX,
+                sy:e.clientY,
+                ox:outputPreviewPan.x,
+                oy:outputPreviewPan.y
+            };
+            element('outputPreview').classList.add('panning');
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        listen('zoom', window, 'mousemove', e => {
+            if(!outputPreviewPanDrag || !openState || !targetValid()) return;
+            outputPreviewPan = {
+                x:outputPreviewPanDrag.ox + e.clientX - outputPreviewPanDrag.sx,
+                y:outputPreviewPanDrag.oy + e.clientY - outputPreviewPanDrag.sy
+            };
+            applyOutputPreviewZoom();
+        });
+        listen('zoom', window, 'mouseup', () => {
+            outputPreviewPanDrag = null;
+            element('outputPreview').classList.remove('panning');
+        });
+    }
+
+    function initOutputCompareEvents(){
+        if(destroyed || paused)return;clearListeners('compare');
+        listen('compare', element('outputCompareContainer'), 'mousedown', e => {
+            if(!openState || !targetValid() || !compareOn)return;
+            outputCompareDrag = true;
+            updateOutputCompareSlider(e.clientX);
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        listen('compare', element('outputCompareSlider'), 'mousedown', e => {
+            if(!openState || !targetValid() || !compareOn)return;
+            outputCompareDrag = true;
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        listen('compare', window, 'mousemove', e => {
+            if(outputCompareDrag) updateOutputCompareSlider(e.clientX);
+        });
+        listen('compare', window, 'mouseup', () => { outputCompareDrag = false; });
+        listen('compare', element('outputCompareContainer'), 'touchstart', e => {
+            if(!openState || !targetValid() || !compareOn)return;
+            outputCompareDrag = true;
+            updateOutputCompareSlider(e.touches[0].clientX);
+            e.preventDefault();
+            e.stopPropagation();
+        }, {passive:false});
+        listen('compare', window, 'touchmove', e => {
+            if(outputCompareDrag) {
+                updateOutputCompareSlider(e.touches[0].clientX);
+                e.preventDefault();
+            }
+        }, {passive:false});
+        listen('compare', window, 'touchend', () => { outputCompareDrag = false; });
+    }
+
+    function stopOutputTrimPreview(){
+        if(destroyed)return;
+        if(outputTrimFrame !== null) cancelAnimationFrame(outputTrimFrame);
+        outputTrimFrame = null;
+        if(outputTrimState?.previewing) element('outputLightboxVideo').pause();
+        if(outputTrimState) outputTrimState.previewing = false;
+    }
+
+    function resetOutputVideoTrim(){
+        if(destroyed)return;
+        stopOutputTrimPreview();
+        outputTrimState = null;
+        syncOutputTrimUi();
+    }
+
+    function syncOutputTrimUi(){
+        if(destroyed || paused)return;
+        const state = outputTrimState, active = Boolean(state), busy = Boolean(outputTrimJob);
+        element('outputTrimPanel').hidden = !active;
+        element('outputTrimToggle').setAttribute('aria-expanded', String(active));
+        element('outputLightbox').classList.toggle('trim-open', active);
+        if(!state) return;
+        for(const which of ['start', 'end']){
+            const suffix = which === 'start' ? 'Start' : 'End';
+            const input = element(`outputTrim${suffix}`);
+            const range = element(`outputTrim${suffix}Range`);
+            if(document.activeElement !== input && !state.invalidFields?.[which]) input.value = outputTrimTime(state[which]);
+            range.max = String(state.duration);
+            range.value = String(state[which]);
+            range.style.zIndex = which === 'start' && state.start > state.duration * .9 ? '5' : (which === 'end' ? '4' : '3');
+        }
+        element('outputTrimPanel').querySelectorAll('input, button').forEach(el => { el.disabled = busy; });
+        const full = state.start <= .001 && state.end >= state.duration - .001;
+        const invalid = Object.values(state.invalidFields || {}).some(Boolean);
+        element('outputTrimApply').disabled = busy || invalid || full || !canvas || isCanvasLockedByOther();
+        element('outputTrimPreview').disabled = busy || invalid;
+        element('outputTrimApply').textContent = busy ? '正在截取…' : '另存为新节点';
+        element('outputTrimPreview').textContent = state.previewing ? '停止预览' : '预览片段';
+        element('outputTrimSummary').textContent = state.error || (full ? '已选择完整视频' : `已选 ${outputTrimTime(state.end - state.start)}`);
+        const selection = element('outputTrimSelection');
+        selection.style.left = `${state.start / state.duration * 100}%`;
+        selection.style.right = `${100 - state.end / state.duration * 100}%`;
+    }
+
+    function toggleOutputVideoTrim(){
+        if(!openState || !targetValid() || destroyed || paused)return;
+        if(outputTrimState){ resetOutputVideoTrim(); return; }
+        if(element('outputLightboxVideo').style.display !== 'block' || !currentOutputLightboxUrl) return;
+        if(!/^\/(assets|output)\//.test(currentOutputLightboxUrl)){
+            showErrorModal('请先将视频保存到本地素材后再截取。', '截取片段'); return;
+        }
+        const duration = Number(element('outputLightboxVideo').duration);
+        if(element('outputLightboxVideo').readyState < 1 || !Number.isFinite(duration) || duration < .1){
+            showErrorModal('视频时长尚未加载完成，或视频不足 0.1 秒。', '截取片段'); return;
+        }
+        element('outputLightboxVideo').pause();
+        outputTrimState = {url:currentOutputLightboxUrl, start:0, end:duration, duration, previewing:false, error:'', invalidFields:{}};
+        syncOutputTrimUi();
+    }
+
+    function setOutputTrimValue(which, raw, seek=true){
+        if(!openState || !targetValid() || destroyed || paused)return;
+        const state = outputTrimState, value = Number(raw);
+        if(!state || outputTrimJob || !['start','end'].includes(which)) return;
+        stopOutputTrimPreview();
+        state.invalidFields[which] = !Number.isFinite(value);
+        state.error = Object.values(state.invalidFields).some(Boolean) ? '请输入秒数或 00:00.00 格式的时间' : '';
+        if(!Number.isFinite(value)) { syncOutputTrimUi(); return; }
+        else {
+            state[which] = which === 'start' ? Math.max(0, Math.min(value, state.end - .1)) : Math.min(state.duration, Math.max(value, state.start + .1));
+            if(seek){
+                element('outputLightboxVideo').pause();
+                element('outputLightboxVideo').currentTime = state[which];
+            }
+        }
+        syncOutputTrimUi();
+    }
+
+    function setOutputTrimInput(which, seek=true){
+        if(!openState || !targetValid() || destroyed || paused)return;
+        const input = element(which === 'start' ? 'outputTrimStart' : 'outputTrimEnd');
+        setOutputTrimValue(which, parseOutputTrimTime(input.value), seek);
+    }
+
+    function tickOutputTrimPreview(){
+        outputTrimFrame = null;
+        const state = outputTrimState;
+        if(!state?.previewing || !openState || !targetValid() || paused || destroyed) return;
+        if(element('outputLightboxVideo').currentTime >= state.end - .01 || element('outputLightboxVideo').ended || element('outputLightboxVideo').paused){
+            stopOutputTrimPreview();
+            element('outputLightboxVideo').currentTime = state.start;
+            syncOutputTrimUi();
+        } else outputTrimFrame = requestAnimationFrame(guard(tickOutputTrimPreview));
+    }
+
+    async function previewOutputVideoTrim(){
+        if(!openState || !targetValid() || destroyed || paused)return;
+        const state = outputTrimState;
+        if(!state || outputTrimJob || Object.values(state.invalidFields || {}).some(Boolean)) return;
+        if(state.previewing){ stopOutputTrimPreview(); syncOutputTrimUi(); return; }
+        state.previewing = true;
+        element('outputLightboxVideo').currentTime = state.start;
+        syncOutputTrimUi();
+        try {
+            const playback = element('outputLightboxVideo').play();
+            tickOutputTrimPreview();
+            await playback;
+        }
+        catch(e){
+            if(outputTrimState !== state) return;
+            stopOutputTrimPreview(); state.error = '无法播放所选片段'; syncOutputTrimUi();
+        }
+    }
+
+    async function applyOutputVideoTrim(){
+        if(!openState || !targetValid() || destroyed || paused)return;
+        const state = outputTrimState;
+        if(!state || outputTrimJob || !canvas || isCanvasLockedByOther() || Object.values(state.invalidFields || {}).some(Boolean)) return;
+        if(state.end - state.start < .1 - 1e-9 || (state.start <= .001 && state.end >= state.duration - .001)) return;
+        const canvasId = canvas.id, source = nodes.find(n => n.id === currentOutputLightboxOutId);
+        const rect = source ? nodeRect(source) : null, point = rect ? {x:rect.x + rect.w + 60, y:rect.y} : defaultPoint();
+        const payload = {url:state.url, start_seconds:state.start, end_seconds:state.end, name:source?.name || outputImageName(state.url) || 'video.mp4'};
+        const natural = {natural_w:element('outputLightboxVideo').videoWidth, natural_h:element('outputLightboxVideo').videoHeight};
+        stopOutputTrimPreview();
+        outputTrimJob = {canvasId}; state.error = ''; syncOutputTrimUi();
+        try {
+            const result = await window.CanvasApi.trimSmartCanvasVideo(payload, {errorFallback:'视频截取失败'});
+            if(!result?.url) throw new Error('视频截取结果无效');
+            if(canvas?.id !== canvasId || isCanvasLockedByOther()){
+                showErrorModal(`片段已保存，但画布已切换或变为只读，未添加节点。文件：${result.url}`, '截取片段'); return;
+            }
+            const node = {id:uid('img'), type:'image', mediaKind:'video', x:point.x, y:point.y, ...natural,
+                url:result.url, name:result.name || 'video-clip.mp4', clip_source_url:state.url,
+                clip_start:result.start_seconds ?? state.start, clip_end:result.end_seconds ?? state.end,
+                duration_seconds:result.duration_seconds ?? state.end - state.start};
+            pushUndo(); nodes.push(node);
+            const el = isNodeInCanvasViewport(node, 400) ? renderNode(node) : renderNodePlaceholder(node);
+            nodesEl.appendChild(el);
+            bindCanvasPreviewImageFallbacks(el); refreshIcons(); refreshGeometryAfterLayout(); scheduleSave();
+            if(outputTrimState === state && openState && targetValid() && !paused && !destroyed) openOutputLightbox(node.url, node);
+            setStatus('已截取片段并另存为新节点');
+        } catch(e){
+            if(outputTrimState === state) state.error = e.message || '视频截取失败';
+            else setStatus(e.message || '视频截取失败');
+        } finally { outputTrimJob = null; syncOutputTrimUi(); }
+    }
+
+    function releaseOutputLightboxVideo(){
+        if(destroyed)return;
+        window.CanvasMediaLoader?.unwatch(element('outputLightboxVideo'));
+        element('outputLightboxVideo').onloadedmetadata = null;
+        element('outputLightboxVideo').pause();
+        element('outputLightboxVideo').removeAttribute('src');
+        element('outputLightboxVideo').load();
+    }
+
+    function releaseOutputLightboxAudio(){
+        if(destroyed)return;
+        const audio = element('outputLightboxAudioHost')?.querySelector('audio');
+        if(audio){
+            audio.pause();
+            audio.removeAttribute('src');
+            audio.load();
+        }
+        element('outputLightboxAudioHost')?.replaceChildren();
+    }
+
+    function openOutputLightbox(url, out){
+        if(!url || destroyed || paused) return;
+        clearOutputPreview(true);bind();
+        window.CanvasMediaLoader?.begin('output-lightbox');
+        currentOutputLightboxOutId = out?.id || '';
+        currentOutputLightboxUrl = url;
+        const meta = outputMetaFor(url, out);
+        markOutputViewed(out, url);
+        const mediaKind = out?.type === 'image' ? mediaKindForNode(out) : mediaKindForOutputItem(meta);
+        const audioMode = isAudioUrl(url) || mediaKind === 'audio';
+        const videoMode = !audioMode && (isVideoUrl(url) || mediaKind === 'video');
+        viewKind=audioMode?'audio':videoMode?'video':'image';
+        targetCheck=captureTarget(url,out);openState=true;
+        setupOutputPromptPanel(meta);
+        outputResolutionText('--', meta);
+        currentOutputCompareUrl = outputCompareUrlFor(url, out);
+        setOutputCompareMode(false);
+        const groupDownloadItems = out?.type === 'group' ? groupImageItems(out) : [];
+        if(element('outputDownloadAllBtn')){
+            element('outputDownloadAllBtn').style.display = groupDownloadItems.length > 1 ? 'flex' : 'none';
+        }
+        element('outputTrimToggle').hidden = !videoMode;
+        element('outputLightbox').classList.toggle('audio-mode', audioMode);
+        element('outputPreview').classList.toggle('audio-mode', audioMode);
+        element('outputLightboxImg').style.display = videoMode || audioMode ? 'none' : 'block';
+        element('outputLightboxVideo').style.display = videoMode ? 'block' : 'none';
+        element('outputLightboxAudio').style.display = audioMode ? 'flex' : 'none';
+        element('outputCompareResult').style.display = videoMode || audioMode ? 'none' : 'block';
+        element('outputCompareOriginal').style.display = videoMode || audioMode ? 'none' : 'block';
+        if(audioMode){
+            element('outputLightboxImg').removeAttribute('src');
+            element('outputCompareResult').removeAttribute('src');
+            element('outputCompareOriginal').removeAttribute('src');
+            element('outputLightboxAudioTitle').textContent = out?.name || meta?.name || outputImageName(url) || 'Audio';
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.preload = 'metadata';
+            audio.src = canvasDisplayMediaUrl(url);
+            element('outputLightboxAudioHost').replaceChildren(audio);
+            outputResolutionText('Audio', meta);
+            element('outputLightbox').classList.add('open');
+            refreshIcons();
+            return;
+        }
+        if(videoMode){
+            element('outputLightboxImg').removeAttribute('src');
+            element('outputCompareResult').removeAttribute('src');
+            element('outputCompareOriginal').removeAttribute('src');
+            element('outputLightboxVideo').onloadedmetadata = guard(() => {
+                outputResolutionText(element('outputLightboxVideo').videoWidth && element('outputLightboxVideo').videoHeight
+                    ? `${element('outputLightboxVideo').videoWidth} x ${element('outputLightboxVideo').videoHeight}`
+                    : 'Video', meta);
+            });
+            window.CanvasMediaLoader?.watch(element('outputLightboxVideo'), element('outputPreview'), url);
+            element('outputLightboxVideo').src = canvasDisplayMediaUrl(url);
+            element('outputLightbox').classList.add('open');
+            refreshIcons();
+            return;
+        }
+        element('outputLightboxImg').draggable = false;
+        element('outputCompareResult').draggable = false;
+        element('outputCompareOriginal').draggable = false;
+        element('outputLightboxImg').onload = guard(() => {
+            outputResolutionText(`${element('outputLightboxImg').naturalWidth} x ${element('outputLightboxImg').naturalHeight}`, meta);
+        });
+        window.CanvasMediaLoader?.watch(element('outputLightboxImg'));
+        element('outputLightboxImg').src = canvasDisplayMediaUrl(url);
+        element('outputCompareResult').src = canvasDisplayMediaUrl(url);
+        if(currentOutputCompareUrl)element('outputCompareOriginal').src = canvasDisplayMediaUrl(currentOutputCompareUrl);
+        else element('outputCompareOriginal').removeAttribute('src');
+        element('outputLightbox').classList.add('open');
+        refreshIcons();
+    }
+
+    function clearOutputPreview(keepMediaPriority=false){
+        if(destroyed)return;
+        revision++;openState=false;targetCheck=()=>false;viewKind='';
+        outputCompareDrag=false;clearCopyFeedback();
+        for(const id of imageIds){const image=element(id);window.CanvasMediaLoader?.unwatch(image);image.onload=null;image.onerror=null;image.removeAttribute('src');}
+        // Switching the open window must not briefly restart the background thumbnail queue.
+        if(!keepMediaPriority)window.CanvasMediaLoader?.end('output-lightbox');
+        resetOutputVideoTrim();
+        element('outputTrimToggle').hidden = true;
+        element('outputLightbox').classList.remove('open');
+        element('outputLightbox').classList.remove('audio-mode');
+        element('outputPreview').classList.remove('audio-mode');
+        setOutputCompareMode(false);
+        element('outputLightboxImg').removeAttribute('src');
+        releaseOutputLightboxVideo();
+        releaseOutputLightboxAudio();
+        element('outputLightboxVideo').style.display = 'none';
+        element('outputLightboxAudio').style.display = 'none';
+        element('outputLightboxImg').style.display = 'block';
+        element('outputCompareResult').style.display = 'block';
+        element('outputCompareOriginal').style.display = 'block';
+        element('outputCompareResult').removeAttribute('src');
+        element('outputCompareOriginal').removeAttribute('src');
+        if(element('outputDownloadAllBtn')){
+            element('outputDownloadAllBtn').style.display = 'none';
+        }
+        resetOutputPreviewZoom();
+        currentOutputCompareUrl = '';
+        currentOutputMeta = null;
+        currentOutputLightboxOutId = '';
+        currentOutputLightboxUrl = '';
+        element('outputLightboxAudioTitle').textContent = 'Audio';
+        setupOutputPromptPanel(null);
+    }
+    function closeOutputLightbox(){clearOutputPreview();}
+    return Object.freeze({get state(){return Object.freeze({open:openState,targetValid:openState && targetValid(),nodeId:currentOutputLightboxOutId,url:currentOutputLightboxUrl,kind:viewKind,compareOn,comparePosition,zoom:outputPreviewZoom,pan:Object.freeze({...outputPreviewPan}),dragging:Boolean(outputCompareDrag||outputPreviewPanDrag),prompt:currentOutputMeta?.run?.prompt||'',trimActive:Boolean(outputTrimState),trimStart:outputTrimState?.start??0,trimEnd:outputTrimState?.end??0,trimPreviewing:Boolean(outputTrimState?.previewing),trimBusy:Boolean(outputTrimJob),paused,destroyed});},
+        open:openOutputLightbox,close:closeOutputLightbox,reset:closeOutputLightbox,navigate:navigateOutputLightbox,isPreviewingNode,previewedNodeIds,dataChanged,download,downloadAll,copyPrompt,rerun,bind,pause,resume,destroy,setTrimPoint,
+        setOutputCompareMode,outputResolutionText,setupOutputPromptPanel,updateOutputCompareSlider,applyOutputPreviewZoom,resetOutputPreviewZoom,initOutputPreviewZoomEvents,initOutputCompareEvents,stopOutputTrimPreview,resetOutputVideoTrim,syncOutputTrimUi,toggleOutputVideoTrim,setOutputTrimValue,setOutputTrimInput,tickOutputTrimPreview,previewOutputVideoTrim,applyOutputVideoTrim,releaseOutputLightboxVideo,releaseOutputLightboxAudio
+    });
 }
+
+function navigateOutputLightbox(direction){return classicOutputPreview.navigate(direction);}
 
 function createImageCardFromOutput(url, point){
     if(!ensureCanvas() || !url) return;
@@ -685,44 +1198,11 @@ async function downloadUrl(url, filename){
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
-function setOutputCompareMode(active){
-    outputPreview.classList.toggle('compare-mode', active);
-    if(active){
-        outputCompareOriginalWrap.style.clipPath = 'inset(0 50% 0 0)';
-        outputCompareSlider.style.left = '50%';
-    }
-}
+function setOutputCompareMode(...args){return classicOutputPreview.setOutputCompareMode(...args);}
 
-function outputResolutionText(text, meta=null){
-    const parts = [text || '--'];
-    if(meta?.runMs) parts.push(`<span>${formatRunDuration(meta.runMs)}</span>`);
-    outputResolution.innerHTML = parts.join('<span style="opacity:.38">|</span>');
-}
+function outputResolutionText(...args){return classicOutputPreview.outputResolutionText(...args);}
 
-function setupOutputPromptPanel(meta){
-    currentOutputMeta = meta || null;
-    const prompt = meta?.run?.prompt || '';
-    outputPromptPanel.classList.toggle('open', !!prompt || !!meta?.run);
-    outputPromptText.textContent = prompt || '没有记录提示词';
-    outputCopyPromptBtn.onclick = e => {
-        e.stopPropagation();
-        if(!prompt) return;
-        copyTextToClipboard(prompt);
-        const span = outputCopyPromptBtn.querySelector('span');
-        const oldText = span?.textContent || '复制提示词';
-        outputCopyPromptBtn.classList.add('copied');
-        if(span) span.textContent = '已复制';
-        clearTimeout(outputCopyPromptBtn._copyTimer);
-        outputCopyPromptBtn._copyTimer = setTimeout(() => {
-            outputCopyPromptBtn.classList.remove('copied');
-            if(span) span.textContent = oldText;
-        }, 1200);
-    };
-    outputRerunBtn.onclick = e => {
-        e.stopPropagation();
-        rerunFromOutputMeta(currentOutputMeta);
-    };
-}
+function setupOutputPromptPanel(...args){return classicOutputPreview.setupOutputPromptPanel(...args);}
 
 // Called once by canvas.js, at its original initialization position.
 function bindClassicLogToggle(){
@@ -732,110 +1212,15 @@ function bindClassicLogToggle(){
     });
 }
 
-function updateOutputCompareSlider(clientX){
-    const rect = outputCompareContainer.getBoundingClientRect();
-    if(!rect.width) return;
-    const percent = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
-    outputCompareOriginalWrap.style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
-    outputCompareSlider.style.left = `${percent}%`;
-}
+function updateOutputCompareSlider(...args){return classicOutputPreview.updateOutputCompareSlider(...args);}
 
-function applyOutputPreviewZoom(){
-    const transform = `translate(${outputPreviewPan.x}px, ${outputPreviewPan.y}px) scale(${outputPreviewZoom})`;
-    [outputLightboxImg, outputCompareResult, outputCompareOriginal].forEach(img => {
-        img.style.transform = transform;
-        img.style.transformOrigin = '0 0';
-    });
-    outputPreview.classList.toggle('zoomed', outputPreviewZoom > 1.001);
-}
+function applyOutputPreviewZoom(...args){return classicOutputPreview.applyOutputPreviewZoom(...args);}
 
-function resetOutputPreviewZoom(){
-    outputPreviewZoom = 1;
-    outputPreviewPan = {x: 0, y: 0};
-    outputPreviewPanDrag = null;
-    outputPreview.classList.remove('panning');
-    applyOutputPreviewZoom();
-}
+function resetOutputPreviewZoom(...args){return classicOutputPreview.resetOutputPreviewZoom(...args);}
 
-function initOutputPreviewZoomEvents(){
-    outputPreview.addEventListener('wheel', e => {
-        if(outputLightboxVideo.style.display === 'block' || outputLightboxAudio.style.display === 'flex') return;
-        e.preventDefault();
-        e.stopPropagation();
-        const rect = outputPreview.getBoundingClientRect();
-        const localX = e.clientX - rect.left;
-        const localY = e.clientY - rect.top;
-        const before = {
-            x:(localX - outputPreviewPan.x) / outputPreviewZoom,
-            y:(localY - outputPreviewPan.y) / outputPreviewZoom
-        };
-        const factor = e.deltaY > 0 ? .9 : 1.1;
-        const nextZoom = Math.max(1, Math.min(6, outputPreviewZoom * factor));
-        outputPreviewZoom = nextZoom;
-        outputPreviewPan = nextZoom <= 1.001 ? {x: 0, y: 0} : {
-            x:localX - before.x * nextZoom,
-            y:localY - before.y * nextZoom
-        };
-        applyOutputPreviewZoom();
-    }, {passive:false});
-    outputPreview.addEventListener('mousedown', e => {
-        if(outputLightboxVideo.style.display === 'block' || outputLightboxAudio.style.display === 'flex') return;
-        if(e.button !== 0 || outputPreviewZoom <= 1.001) return;
-        if(e.target.closest('.output-preview-actions, .output-resolution, .output-compare-slider')) return;
-        outputPreviewPanDrag = {
-            sx:e.clientX,
-            sy:e.clientY,
-            ox:outputPreviewPan.x,
-            oy:outputPreviewPan.y
-        };
-        outputPreview.classList.add('panning');
-        e.preventDefault();
-        e.stopPropagation();
-    });
-    window.addEventListener('mousemove', e => {
-        if(!outputPreviewPanDrag) return;
-        outputPreviewPan = {
-            x:outputPreviewPanDrag.ox + e.clientX - outputPreviewPanDrag.sx,
-            y:outputPreviewPanDrag.oy + e.clientY - outputPreviewPanDrag.sy
-        };
-        applyOutputPreviewZoom();
-    });
-    window.addEventListener('mouseup', () => {
-        outputPreviewPanDrag = null;
-        outputPreview.classList.remove('panning');
-    });
-}
+function initOutputPreviewZoomEvents(...args){return classicOutputPreview.initOutputPreviewZoomEvents(...args);}
 
-function initOutputCompareEvents(){
-    outputCompareContainer.addEventListener('mousedown', e => {
-        outputCompareDrag = true;
-        updateOutputCompareSlider(e.clientX);
-        e.preventDefault();
-        e.stopPropagation();
-    });
-    outputCompareSlider.addEventListener('mousedown', e => {
-        outputCompareDrag = true;
-        e.preventDefault();
-        e.stopPropagation();
-    });
-    window.addEventListener('mousemove', e => {
-        if(outputCompareDrag) updateOutputCompareSlider(e.clientX);
-    });
-    window.addEventListener('mouseup', () => { outputCompareDrag = false; });
-    outputCompareContainer.addEventListener('touchstart', e => {
-        outputCompareDrag = true;
-        updateOutputCompareSlider(e.touches[0].clientX);
-        e.preventDefault();
-        e.stopPropagation();
-    }, {passive:false});
-    window.addEventListener('touchmove', e => {
-        if(outputCompareDrag) {
-            updateOutputCompareSlider(e.touches[0].clientX);
-            e.preventDefault();
-        }
-    }, {passive:false});
-    window.addEventListener('touchend', () => { outputCompareDrag = false; });
-}
+function initOutputCompareEvents(...args){return classicOutputPreview.initOutputCompareEvents(...args);}
 
 function outputTrimTime(value){
     const cs = Math.max(0, Math.round(Number(value || 0) * 100));
@@ -848,291 +1233,28 @@ function parseOutputTrimTime(value){
     return text.split(':').reduce((total, part) => total * 60 + Number(part), 0);
 }
 
-function stopOutputTrimPreview(){
-    if(outputTrimFrame !== null) cancelAnimationFrame(outputTrimFrame);
-    outputTrimFrame = null;
-    if(outputTrimState?.previewing) outputLightboxVideo.pause();
-    if(outputTrimState) outputTrimState.previewing = false;
-}
+function stopOutputTrimPreview(...args){return classicOutputPreview.stopOutputTrimPreview(...args);}
 
-function resetOutputVideoTrim(){
-    stopOutputTrimPreview();
-    outputTrimState = null;
-    syncOutputTrimUi();
-}
+function resetOutputVideoTrim(...args){return classicOutputPreview.resetOutputVideoTrim(...args);}
 
-function syncOutputTrimUi(){
-    const state = outputTrimState, active = Boolean(state), busy = Boolean(outputTrimJob);
-    document.getElementById('outputTrimPanel').hidden = !active;
-    document.getElementById('outputTrimToggle').setAttribute('aria-expanded', String(active));
-    outputLightbox.classList.toggle('trim-open', active);
-    if(!state) return;
-    for(const which of ['start', 'end']){
-        const suffix = which === 'start' ? 'Start' : 'End';
-        const input = document.getElementById(`outputTrim${suffix}`);
-        const range = document.getElementById(`outputTrim${suffix}Range`);
-        if(document.activeElement !== input && !state.invalidFields?.[which]) input.value = outputTrimTime(state[which]);
-        range.max = String(state.duration);
-        range.value = String(state[which]);
-        range.style.zIndex = which === 'start' && state.start > state.duration * .9 ? '5' : (which === 'end' ? '4' : '3');
-    }
-    document.querySelectorAll('#outputTrimPanel input, #outputTrimPanel button').forEach(el => { el.disabled = busy; });
-    const full = state.start <= .001 && state.end >= state.duration - .001;
-    const invalid = Object.values(state.invalidFields || {}).some(Boolean);
-    document.getElementById('outputTrimApply').disabled = busy || invalid || full || !canvas || isCanvasLockedByOther();
-    document.getElementById('outputTrimPreview').disabled = busy || invalid;
-    document.getElementById('outputTrimApply').textContent = busy ? '正在截取…' : '另存为新节点';
-    document.getElementById('outputTrimPreview').textContent = state.previewing ? '停止预览' : '预览片段';
-    document.getElementById('outputTrimSummary').textContent = state.error || (full ? '已选择完整视频' : `已选 ${outputTrimTime(state.end - state.start)}`);
-    const selection = document.getElementById('outputTrimSelection');
-    selection.style.left = `${state.start / state.duration * 100}%`;
-    selection.style.right = `${100 - state.end / state.duration * 100}%`;
-}
+function syncOutputTrimUi(...args){return classicOutputPreview.syncOutputTrimUi(...args);}
 
-function toggleOutputVideoTrim(){
-    if(outputTrimState){ resetOutputVideoTrim(); return; }
-    if(outputLightboxVideo.style.display !== 'block' || !currentOutputLightboxUrl) return;
-    if(!/^\/(assets|output)\//.test(currentOutputLightboxUrl)){
-        showErrorModal('请先将视频保存到本地素材后再截取。', '截取片段'); return;
-    }
-    const duration = Number(outputLightboxVideo.duration);
-    if(outputLightboxVideo.readyState < 1 || !Number.isFinite(duration) || duration < .1){
-        showErrorModal('视频时长尚未加载完成，或视频不足 0.1 秒。', '截取片段'); return;
-    }
-    outputLightboxVideo.pause();
-    outputTrimState = {url:currentOutputLightboxUrl, start:0, end:duration, duration, previewing:false, error:'', invalidFields:{}};
-    syncOutputTrimUi();
-}
+function toggleOutputVideoTrim(...args){return classicOutputPreview.toggleOutputVideoTrim(...args);}
 
-function setOutputTrimValue(which, raw, seek=true){
-    const state = outputTrimState, value = Number(raw);
-    if(!state || outputTrimJob || !['start','end'].includes(which)) return;
-    stopOutputTrimPreview();
-    state.invalidFields[which] = !Number.isFinite(value);
-    state.error = Object.values(state.invalidFields).some(Boolean) ? '请输入秒数或 00:00.00 格式的时间' : '';
-    if(!Number.isFinite(value)) { syncOutputTrimUi(); return; }
-    else {
-        state[which] = which === 'start' ? Math.max(0, Math.min(value, state.end - .1)) : Math.min(state.duration, Math.max(value, state.start + .1));
-        if(seek){
-            outputLightboxVideo.pause();
-            outputLightboxVideo.currentTime = state[which];
-        }
-    }
-    syncOutputTrimUi();
-}
+function setOutputTrimValue(...args){return classicOutputPreview.setOutputTrimValue(...args);}
 
-function setOutputTrimInput(which, seek=true){
-    const input = document.getElementById(which === 'start' ? 'outputTrimStart' : 'outputTrimEnd');
-    setOutputTrimValue(which, parseOutputTrimTime(input.value), seek);
-}
+function setOutputTrimInput(...args){return classicOutputPreview.setOutputTrimInput(...args);}
 
-function tickOutputTrimPreview(){
-    outputTrimFrame = null;
-    const state = outputTrimState;
-    if(!state?.previewing) return;
-    if(outputLightboxVideo.currentTime >= state.end - .01 || outputLightboxVideo.ended || outputLightboxVideo.paused){
-        stopOutputTrimPreview();
-        outputLightboxVideo.currentTime = state.start;
-        syncOutputTrimUi();
-    } else outputTrimFrame = requestAnimationFrame(tickOutputTrimPreview);
-}
+function tickOutputTrimPreview(...args){return classicOutputPreview.tickOutputTrimPreview(...args);}
 
-async function previewOutputVideoTrim(){
-    const state = outputTrimState;
-    if(!state || outputTrimJob || Object.values(state.invalidFields || {}).some(Boolean)) return;
-    if(state.previewing){ stopOutputTrimPreview(); syncOutputTrimUi(); return; }
-    state.previewing = true;
-    outputLightboxVideo.currentTime = state.start;
-    syncOutputTrimUi();
-    try {
-        const playback = outputLightboxVideo.play();
-        tickOutputTrimPreview();
-        await playback;
-    }
-    catch(e){
-        if(outputTrimState !== state) return;
-        stopOutputTrimPreview(); state.error = '无法播放所选片段'; syncOutputTrimUi();
-    }
-}
+function previewOutputVideoTrim(...args){return classicOutputPreview.previewOutputVideoTrim(...args);}
 
-async function applyOutputVideoTrim(){
-    const state = outputTrimState;
-    if(!state || outputTrimJob || !canvas || isCanvasLockedByOther() || Object.values(state.invalidFields || {}).some(Boolean)) return;
-    if(state.end - state.start < .1 - 1e-9 || (state.start <= .001 && state.end >= state.duration - .001)) return;
-    const canvasId = canvas.id, source = nodes.find(n => n.id === currentOutputLightboxOutId);
-    const rect = source ? nodeRect(source) : null, point = rect ? {x:rect.x + rect.w + 60, y:rect.y} : defaultPoint();
-    const payload = {url:state.url, start_seconds:state.start, end_seconds:state.end, name:source?.name || outputImageName(state.url) || 'video.mp4'};
-    const natural = {natural_w:outputLightboxVideo.videoWidth, natural_h:outputLightboxVideo.videoHeight};
-    stopOutputTrimPreview();
-    outputTrimJob = {canvasId}; state.error = ''; syncOutputTrimUi();
-    try {
-        const result = await window.CanvasApi.trimSmartCanvasVideo(payload, {errorFallback:'视频截取失败'});
-        if(!result?.url) throw new Error('视频截取结果无效');
-        if(canvas?.id !== canvasId || isCanvasLockedByOther()){
-            showErrorModal(`片段已保存，但画布已切换或变为只读，未添加节点。文件：${result.url}`, '截取片段'); return;
-        }
-        const node = {id:uid('img'), type:'image', mediaKind:'video', x:point.x, y:point.y, ...natural,
-            url:result.url, name:result.name || 'video-clip.mp4', clip_source_url:state.url,
-            clip_start:result.start_seconds ?? state.start, clip_end:result.end_seconds ?? state.end,
-            duration_seconds:result.duration_seconds ?? state.end - state.start};
-        pushUndo(); nodes.push(node);
-        const el = isNodeInCanvasViewport(node, 400) ? renderNode(node) : renderNodePlaceholder(node);
-        nodesEl.appendChild(el);
-        bindCanvasPreviewImageFallbacks(el); refreshIcons(); refreshGeometryAfterLayout(); scheduleSave();
-        if(outputTrimState === state && outputLightbox.classList.contains('open')) openOutputLightbox(node.url, node);
-        setStatus('已截取片段并另存为新节点');
-    } catch(e){
-        if(outputTrimState === state) state.error = e.message || '视频截取失败';
-        else setStatus(e.message || '视频截取失败');
-    } finally { outputTrimJob = null; syncOutputTrimUi(); }
-}
+function applyOutputVideoTrim(...args){return classicOutputPreview.applyOutputVideoTrim(...args);}
 
-function releaseOutputLightboxVideo(){
-    window.CanvasMediaLoader?.unwatch(outputLightboxVideo);
-    outputLightboxVideo.onloadedmetadata = null;
-    outputLightboxVideo.pause();
-    outputLightboxVideo.removeAttribute('src');
-    outputLightboxVideo.load();
-}
+function releaseOutputLightboxVideo(...args){return classicOutputPreview.releaseOutputLightboxVideo(...args);}
 
-function releaseOutputLightboxAudio(){
-    const audio = outputLightboxAudioHost?.querySelector('audio');
-    if(audio){
-        audio.pause();
-        audio.removeAttribute('src');
-        audio.load();
-    }
-    outputLightboxAudioHost?.replaceChildren();
-}
+function releaseOutputLightboxAudio(...args){return classicOutputPreview.releaseOutputLightboxAudio(...args);}
 
-function openOutputLightbox(url, out){
-    if(!url) return;
-    window.CanvasMediaLoader?.begin('output-lightbox');
-    resetOutputVideoTrim();
-    resetOutputPreviewZoom();
-    currentOutputLightboxOutId = out?.id || '';
-    currentOutputLightboxUrl = url;
-    const meta = outputMetaFor(url, out);
-    markOutputViewed(out, url);
-    setupOutputPromptPanel(meta);
-    outputResolutionText('--', meta);
-    currentOutputCompareUrl = outputCompareUrlFor(url, out);
-    setOutputCompareMode(false);
-    const groupDownloadItems = out?.type === 'group' ? groupImageItems(out) : [];
-    if(outputDownloadAllBtn){
-        outputDownloadAllBtn.style.display = groupDownloadItems.length > 1 ? 'flex' : 'none';
-        outputDownloadAllBtn.onclick = e => {
-            e.stopPropagation();
-            if(currentOutputLightboxOutId) downloadGroupNodeImages(currentOutputLightboxOutId);
-        };
-    }
-    const mediaKind = out?.type === 'image' ? mediaKindForNode(out) : mediaKindForOutputItem(meta);
-    const audioMode = isAudioUrl(url) || mediaKind === 'audio';
-    const videoMode = !audioMode && (isVideoUrl(url) || mediaKind === 'video');
-    document.getElementById('outputTrimToggle').hidden = !videoMode;
-    outputLightbox.classList.toggle('audio-mode', audioMode);
-    outputPreview.classList.toggle('audio-mode', audioMode);
-    outputLightboxImg.style.display = videoMode || audioMode ? 'none' : 'block';
-    outputLightboxVideo.style.display = videoMode ? 'block' : 'none';
-    outputLightboxAudio.style.display = audioMode ? 'flex' : 'none';
-    outputCompareResult.style.display = videoMode || audioMode ? 'none' : 'block';
-    outputCompareOriginal.style.display = videoMode || audioMode ? 'none' : 'block';
-    if(audioMode){
-        releaseOutputLightboxVideo();
-        releaseOutputLightboxAudio();
-        outputLightboxImg.src = '';
-        outputCompareResult.src = '';
-        outputCompareOriginal.src = '';
-        outputLightboxAudioTitle.textContent = out?.name || meta?.name || outputImageName(url) || 'Audio';
-        const audio = document.createElement('audio');
-        audio.controls = true;
-        audio.preload = 'metadata';
-        audio.src = canvasDisplayMediaUrl(url);
-        outputLightboxAudioHost.replaceChildren(audio);
-        outputResolutionText('Audio', meta);
-        outputPreview.ondblclick = null;
-        outputDownloadBtn.onclick = e => {
-            e.stopPropagation();
-            downloadUrl(url, outputDownloadName(url)).catch(err => alert(err.message || '下载失败'));
-        };
-        outputLightbox.classList.add('open');
-        refreshIcons();
-        return;
-    }
-    releaseOutputLightboxAudio();
-    if(videoMode){
-        releaseOutputLightboxVideo();
-        outputLightboxImg.src = '';
-        outputCompareResult.src = '';
-        outputCompareOriginal.src = '';
-        outputLightboxVideo.onloadedmetadata = () => {
-            outputResolutionText(outputLightboxVideo.videoWidth && outputLightboxVideo.videoHeight
-                ? `${outputLightboxVideo.videoWidth} x ${outputLightboxVideo.videoHeight}`
-                : 'Video', meta);
-        };
-        window.CanvasMediaLoader?.watch(outputLightboxVideo, outputPreview, url);
-        outputLightboxVideo.src = canvasDisplayMediaUrl(url);
-        outputPreview.ondblclick = null;
-        outputDownloadBtn.onclick = e => {
-            e.stopPropagation();
-            downloadUrl(url, outputDownloadName(url)).catch(err => alert(err.message || '下载失败'));
-        };
-        outputLightbox.classList.add('open');
-        refreshIcons();
-        return;
-    }
-    releaseOutputLightboxVideo();
-    outputLightboxImg.draggable = false;
-    outputCompareResult.draggable = false;
-    outputCompareOriginal.draggable = false;
-    outputLightboxImg.onload = () => {
-        outputResolutionText(`${outputLightboxImg.naturalWidth} x ${outputLightboxImg.naturalHeight}`, meta);
-    };
-    window.CanvasMediaLoader?.watch(outputLightboxImg);
-    outputLightboxImg.src = canvasDisplayMediaUrl(url);
-    outputCompareResult.src = canvasDisplayMediaUrl(url);
-    outputCompareOriginal.src = canvasDisplayMediaUrl(currentOutputCompareUrl || '');
-    outputPreview.ondblclick = e => {
-        e.stopPropagation();
-        if(!currentOutputCompareUrl) return;
-        setOutputCompareMode(!outputPreview.classList.contains('compare-mode'));
-    };
-    outputDownloadBtn.onclick = e => {
-        e.stopPropagation();
-        downloadUrl(url, outputDownloadName(url)).catch(err => alert(err.message || '下载失败'));
-    };
-    outputLightbox.classList.add('open');
-    refreshIcons();
-}
+function openOutputLightbox(url, out){return classicOutputPreview.open(url,out);}
 
-function closeOutputLightbox(){
-    window.CanvasMediaLoader?.end('output-lightbox');
-    resetOutputVideoTrim();
-    document.getElementById('outputTrimToggle').hidden = true;
-    outputLightbox.classList.remove('open');
-    outputLightbox.classList.remove('audio-mode');
-    outputPreview.classList.remove('audio-mode');
-    setOutputCompareMode(false);
-    outputLightboxImg.src = '';
-    releaseOutputLightboxVideo();
-    releaseOutputLightboxAudio();
-    outputLightboxVideo.style.display = 'none';
-    outputLightboxAudio.style.display = 'none';
-    outputLightboxImg.style.display = 'block';
-    outputCompareResult.style.display = 'block';
-    outputCompareOriginal.style.display = 'block';
-    outputCompareResult.src = '';
-    outputCompareOriginal.src = '';
-    outputPreview.ondblclick = null;
-    if(outputDownloadAllBtn){
-        outputDownloadAllBtn.style.display = 'none';
-        outputDownloadAllBtn.onclick = null;
-    }
-    resetOutputPreviewZoom();
-    currentOutputCompareUrl = '';
-    currentOutputMeta = null;
-    currentOutputLightboxOutId = '';
-    currentOutputLightboxUrl = '';
-    outputLightboxAudioTitle.textContent = 'Audio';
-    setupOutputPromptPanel(null);
-}
+function closeOutputLightbox(...args){return classicOutputPreview.close(...args);}
