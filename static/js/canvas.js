@@ -311,52 +311,33 @@ function setStatus(text){
     if(gateStatus) gateStatus.textContent = text;
 }
 function normalizeCanvasFolderId(value){
-    return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    return window.ClassicCanvasGateModel.normalizeFolderId(value);
+}
+function canvasGateModel(){
+    return window.ClassicCanvasGateModel.build({canvases, deletedCanvases, folders:canvasFolders,
+        trashMode, folderId:activeFolderId, query:canvasSearchQuery, canvasId:canvas?.id});
 }
 function canvasFolderLabel(folderId){
-    if(folderId === 'all') return '全部画布';
-    if(!folderId) return '未分类';
-    return canvasFolders.find(folder => folder.id === folderId)?.name || '文件夹';
+    return window.ClassicCanvasGateModel.folderLabel(canvasFolders, folderId);
 }
 function canvasFolderChildren(parentId=''){
-    const target = normalizeCanvasFolderId(parentId);
-    return canvasFolders
-        .filter(folder => normalizeCanvasFolderId(folder.parent_id) === target)
-        .sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN', {numeric:true, sensitivity:'base'}));
+    return window.ClassicCanvasGateModel.folderChildren(canvasFolders, parentId);
 }
 function canvasFolderDepth(folderId){
-    let depth = 0;
-    let current = canvasFolders.find(folder => folder.id === folderId);
-    const seen = new Set();
-    while(current?.parent_id && !seen.has(current.id)){
-        seen.add(current.id);
-        depth += 1;
-        current = canvasFolders.find(folder => folder.id === current.parent_id);
-    }
-    return depth;
+    return window.ClassicCanvasGateModel.folderDepth(canvasFolders, folderId);
 }
 function countCanvasesInFolder(folderId){
-    if(folderId === 'all') return canvases.length;
-    const target = normalizeCanvasFolderId(folderId);
-    return canvases.filter(item => normalizeCanvasFolderId(item.folder_id) === target).length;
+    return window.ClassicCanvasGateModel.countInFolder(canvases, folderId);
 }
 function visibleCanvasItems(){
-    let items;
-    if(trashMode) items = deletedCanvases;
-    else if(activeFolderId === 'all') items = canvases;
-    else {
-        const target = normalizeCanvasFolderId(activeFolderId);
-        items = canvases.filter(item => normalizeCanvasFolderId(item.folder_id) === target);
-    }
-    const query = String(canvasSearchQuery || '').trim().normalize('NFKC').toLocaleLowerCase('zh-CN');
-    if(!query) return items;
-    return items.filter(item => String(item.title || '').normalize('NFKC').toLocaleLowerCase('zh-CN').includes(query));
+    return window.ClassicCanvasGateModel.visibleItems({canvases, deletedCanvases,
+        trashMode, folderId:activeFolderId, query:canvasSearchQuery});
 }
 function folderTargetForCreate(){
     return activeFolderId && activeFolderId !== 'all' ? normalizeCanvasFolderId(activeFolderId) : '';
 }
-function renderFolderNode(folder, depth=0){
-    const count = countCanvasesInFolder(folder.id);
+function renderFolderNode(folder, depth=0, model=canvasGateModel()){
+    const count = model.count(folder.id);
     const row = document.createElement('div');
     row.className = `gate-folder-node ${activeFolderId === folder.id ? 'active' : ''}`;
     row.dataset.folderId = folder.id;
@@ -390,15 +371,15 @@ function renderFolderNode(folder, depth=0){
     });
     const wrap = document.createDocumentFragment();
     wrap.appendChild(row);
-    canvasFolderChildren(folder.id).forEach(child => wrap.appendChild(renderFolderNode(child, depth + 1)));
+    model.children(folder.id).forEach(child => wrap.appendChild(renderFolderNode(child, depth + 1, model)));
     return wrap;
 }
-function renderFolderTree(){
+function renderFolderTree(model=canvasGateModel()){
     if(!gateFolderTree) return;
     gateFolderTree.innerHTML = '';
     const special = [
-        {id:'all', name:'全部画布', icon:'layout-grid', count:canvases.length},
-        {id:'', name:'未分类', icon:'inbox', count:countCanvasesInFolder('')},
+        {id:'all', name:'全部画布', icon:'layout-grid', count:model.count('all')},
+        {id:'', name:'未分类', icon:'inbox', count:model.count('')},
     ];
     special.forEach(item => {
         const row = document.createElement('div');
@@ -428,14 +409,14 @@ function renderFolderTree(){
     const sep = document.createElement('div');
     sep.className = 'gate-folder-separator';
     gateFolderTree.appendChild(sep);
-    canvasFolderChildren('').forEach(folder => gateFolderTree.appendChild(renderFolderNode(folder, 0)));
+    model.children('').forEach(folder => gateFolderTree.appendChild(renderFolderNode(folder, 0, model)));
     if(gateFolderBar){
         gateFolderBar.innerHTML = `
             <div class="gate-folder-current">
                 <i data-lucide="${activeFolderId === 'all' ? 'layout-grid' : (activeFolderId ? 'folder' : 'inbox')}" class="w-3.5 h-3.5"></i>
-                <span>${escapeHtml(canvasFolderLabel(activeFolderId))}</span>
+                <span>${escapeHtml(model.folderLabel(activeFolderId))}</span>
             </div>
-            <span class="gate-folder-current-count">${visibleCanvasItems().length}</span>
+            <span class="gate-folder-current-count">${model.items.length}</span>
         `;
     }
     refreshIcons();
@@ -458,9 +439,10 @@ function setActiveFolder(folderId){
     activeFolderId = folderId === 'all' ? 'all' : normalizeCanvasFolderId(folderId);
     movingCanvasId = null;
     closeCanvasMetaPopover();
-    renderFolderTree();
-    renderCanvasList();
-    refreshGateViewControls();
+    const model = canvasGateModel();
+    renderFolderTree(model);
+    renderCanvasList(model);
+    refreshGateViewControls(model);
 }
 function createCanvasFolder(parentId=''){
     window.CanvasNameDialog.open({title:'新建文件夹', label:'文件夹名称', placeholder:'例如：品牌设计', confirm:'创建', description:'将相关画布收纳在一起，方便查找。', onSubmit:async name => {
@@ -545,7 +527,7 @@ async function moveCanvasToFolder(id, folderId){
         await loadCanvasList(false);
     }
 }
-function refreshGateViewControls(){
+function refreshGateViewControls(model=canvasGateModel()){
     canvasGate.classList.toggle('trash-mode', trashMode);
     if(gateTitleText) gateTitleText.textContent = trashMode ? '回收站' : '选择画布';
     if(gateSubtitle) gateSubtitle.textContent = trashMode ? '已删除画布可恢复，30 天后自动清理。' : '打开已有画布，或新建一个开始创作。';
@@ -556,7 +538,7 @@ function refreshGateViewControls(){
     }
     const countPill = document.getElementById('gateCountPill');
     if(countPill){
-        const items = visibleCanvasItems();
+        const items = model.items;
         const suffix = '个';
         countPill.textContent = suffix ? `${items.length} ${suffix}` : String(items.length);
     }
@@ -577,7 +559,7 @@ function refreshGateViewControls(){
         gateSearchClear.title = '清空搜索';
         gateSearchClear.setAttribute('aria-label', '清空搜索');
     }
-    renderFolderTree();
+    renderFolderTree(model);
 }
 function setCanvasMode(open){
     shell.classList.toggle('no-canvas', !open);
@@ -691,12 +673,12 @@ async function setTrashMode(active){
     else await loadCanvasList(false);
     refreshIcons();
 }
-function renderCanvasList(){
+function renderCanvasList(model=canvasGateModel()){
     const panel = canvasGate.querySelector('.gate-panel');
     const visible = panel && panel.getClientRects().length && !canvasGate.classList.contains('gate-loading');
     const before = visible ? panel.getBoundingClientRect().height : 0;
     panel?._gateResize?.cancel();
-    renderCanvasListInto(gateCanvasList);
+    renderCanvasListInto(gateCanvasList, model);
     if(!visible || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const after = panel.getBoundingClientRect().height;
     if(Math.abs(after - before) > 1){
@@ -706,14 +688,7 @@ function renderCanvasList(){
     gateCanvasList._gateFade = gateCanvasList.animate([{opacity:.5},{opacity:1}],{duration:180,easing:'ease-out'});
 }
 function compareCanvasRecords(a, b){
-    // 置顶始终排在最前；其余按当前排序模式（最近编辑 / 名称）。
-    const ap = a.pinned ? 1 : 0, bp = b.pinned ? 1 : 0;
-    if(ap !== bp) return bp - ap;
-    if(canvasSortMode === 'name'){
-        const cmp = String(a.title || '').localeCompare(String(b.title || ''), 'zh-Hans-CN', {numeric:true, sensitivity:'base'});
-        if(cmp !== 0) return cmp;
-    }
-    return Number(b.updated_at || b.created_at || 0) - Number(a.updated_at || a.created_at || 0);
+    return window.ClassicCanvasGateModel.compareRecords(a, b, canvasSortMode);
 }
 function sortCanvasListByUpdated(){
     canvases.sort(compareCanvasRecords);
@@ -724,8 +699,9 @@ function setCanvasSortMode(mode){
     canvasSortMode = next;
     try { localStorage.setItem('canvasSortMode', canvasSortMode); } catch(e){}
     sortCanvasListByUpdated();
-    renderCanvasList();
-    refreshGateViewControls();
+    const model = canvasGateModel();
+    renderCanvasList(model);
+    refreshGateViewControls(model);
 }
 async function patchCanvasMeta(id, patch){
     const item = canvases.find(c => c.id === id);
@@ -780,33 +756,29 @@ async function touchCanvasOpened(id){
         return null;
     }
 }
-function renderCanvasListInto(list){
+function renderCanvasListInto(list, model=canvasGateModel()){
     if(!list) return;
-    refreshGateViewControls();
-    const items = visibleCanvasItems();
+    refreshGateViewControls(model);
+    const items = model.items;
     list.innerHTML = '';
     if(!items.length){
         const empty = document.createElement('div');
         empty.className = 'gate-list-empty';
-        const hasSearch = Boolean(String(canvasSearchQuery || '').trim());
-        empty.innerHTML = hasSearch
+        empty.innerHTML = model.emptyKind === 'search'
             ? `<div class="gate-list-empty-icon"><i data-lucide="search-x" class="w-6 h-6"></i></div>没有找到匹配的画布`
-            : (trashMode
+            : (model.emptyKind === 'trash'
                 ? `<div class="gate-list-empty-icon"><i data-lucide="trash-2" class="w-6 h-6"></i></div>回收站为空`
                 : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>暂无画布<br>点击右上方「新建画布」开始创作`);
         list.appendChild(empty);
         refreshIcons();
         return;
     }
-    items.forEach(item => {
+    model.rows.forEach(view => {
+        const {item, isSmartCanvas, color, owner, pinned} = view;
         const row = document.createElement('div');
-        const isSmartCanvas = (item.kind || 'classic') === 'smart';
-        const color = String(item.color || '').trim();
-        const owner = String(item.owner || '').trim();
-        const pinned = !!item.pinned && !trashMode;
-        row.className = `canvas-item ${isSmartCanvas ? 'smart-canvas' : ''} ${canvas?.id === item.id ? 'active' : ''} ${pinned ? 'pinned' : ''} ${color ? 'has-color' : ''}`;
+        row.className = `canvas-item ${isSmartCanvas ? 'smart-canvas' : ''} ${view.active ? 'active' : ''} ${pinned ? 'pinned' : ''} ${color ? 'has-color' : ''}`;
         row.dataset.canvasId = item.id;
-        row.dataset.coverStyle = ["type","editorial","sage","ink"].includes(item.cover_style) ? item.cover_style : "type";
+        row.dataset.coverStyle = view.coverStyle;
         const ownerChip = owner
             ? `<span class="canvas-owner-chip" role="button" tabindex="0" title="${escapeAttr(owner)}"><i data-lucide="user-round" class="w-3 h-3"></i><span class="canvas-owner-text">${escapeHtml(owner)}</span></span>`
             : '';
@@ -814,7 +786,7 @@ function renderCanvasListInto(list){
             <div class="canvas-open" role="button" tabindex="${trashMode ? '-1' : '0'}">
                 <div class="studio-canvas-cover studio-neutral-cover" aria-hidden="true"><strong class="studio-cover-title">${escapeHtml(item.title || '未命名画布')}</strong></div><div class="studio-card-type">${isSmartCanvas ? '智能画布' : '普通画布'}${pinned ? ' · 已置顶' : ''}</div>
                 <div class="canvas-card-icon-row">
-                    <span class="canvas-preview-mark ${color ? `icon-has-color cc-${escapeAttr(color)}` : ''}" role="button" tabindex="0" title="${trashMode ? '已删除画布' : ('编辑图标 / 颜色 / 负责人')}">${renderCanvasIcon(isSmartCanvas && /[^\x00-\x7F]/.test(item.icon || '') ? 'sparkles' : item.icon, 16)}</span>
+                    <span class="canvas-preview-mark ${color ? `icon-has-color cc-${escapeAttr(color)}` : ''}" role="button" tabindex="0" title="${trashMode ? '已删除画布' : ('编辑图标 / 颜色 / 负责人')}">${renderCanvasIcon(view.icon, 16)}</span>
                     ${isSmartCanvas ? `<span class="canvas-kind-chip">智能</span>` : ''}
                 </div>
                 <div class="canvas-card-title">${escapeHtml(item.title)}</div>
@@ -1356,22 +1328,23 @@ document.getElementById('gateSortSwitch')?.addEventListener('click', e => {
     const btn = e.target.closest('[data-sort]');
     if(btn) setCanvasSortMode(btn.dataset.sort);
 });
-gateSearchInput?.addEventListener('input', event => {
-    canvasSearchQuery = event.target.value || '';
+function searchCanvases(query){
+    canvasSearchQuery = query || '';
     closeCanvasMetaPopover();
     renderCanvasList();
-});
+}
+function clearCanvasSearch(focus=false){
+    canvasSearchQuery = '';
+    renderCanvasList();
+    if(focus) gateSearchInput?.focus();
+}
+gateSearchInput?.addEventListener('input', event => searchCanvases(event.target.value));
 gateSearchInput?.addEventListener('keydown', event => {
     if(event.key !== 'Escape' || !canvasSearchQuery) return;
     event.preventDefault();
-    canvasSearchQuery = '';
-    renderCanvasList();
+    clearCanvasSearch();
 });
-gateSearchClear?.addEventListener('click', () => {
-    canvasSearchQuery = '';
-    renderCanvasList();
-    gateSearchInput?.focus();
-});
+gateSearchClear?.addEventListener('click', () => clearCanvasSearch(true));
 
 document.addEventListener('mousedown', e => {
     if(movingCanvasId && !e.target.closest('.canvas-folder-menu') && !e.target.closest('.canvas-folder-btn')){
