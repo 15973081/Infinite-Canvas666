@@ -42,8 +42,7 @@ function performUndo(){
     selectedId = snap.selectedId;
     selectedIds = snap.selectedIds;
     selectedImage = snap.selectedImage;
-    activeComposerSubject = null;
-    lastComposerNodeId = '';
+    smartComposer.documentReplaced();
     render();
     scheduleSave();
     undoSuppressed = false;
@@ -225,7 +224,7 @@ function insertSmartWorkflowIntoCanvas(imported){
     selectedIds = newNodes.length > 1 ? newNodes.map(node => node.id) : [];
     selectedId = newNodes.length === 1 ? newNodes[0].id : '';
     selectedImage = {nodeId:'', index:-1};
-    activeComposerSubject = null;
+    smartComposer.documentImported();
     render();
     scheduleSave();
     toast(`已导入 ${newNodes.length} 个节点`);

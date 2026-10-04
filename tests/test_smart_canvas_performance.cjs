@@ -60,14 +60,14 @@ test('minimap reuses DOM and layout on pan, reprojects expanded bounds, invalida
 });
 test('composer refreshes material list once through normalized dynamic params',()=>{
     let inputs=0;const noop=()=>{},node={id:'a'};
-    const ctx=vm.createContext({selectedNode:()=>node,smartCascadeSilentSelection:false,activeComposerSubject:node,
+    const ctx=vm.createContext({selectedNode:()=>node,nodes:[node],canvas:{id:'c'},smartCascadeSilentSelection:false,smartSettingsForNode:()=>({}),loadPromptDraft:noop,
         composer:{classList:{toggle(){},contains:()=>true}},cascadeRunBtn:{style:{}},isSmartImageNode:()=>true,
-        lastComposerNodeId:'a:node',smartComposerBaseline:{nodeId:'a',html:'',text:'',settings:'{}'},
+
         smartComposerChanges:()=>({prompt:false,settings:false}),promptInputNodesFor:()=>[],setPromptInputLocked:noop,syncCascadeRunButton:noop,
         positionComposerForNode:noop,settings:{},settingsForStorage:x=>x,promptPlainText:()=>'',
         promptInput:{innerHTML:'',style:{setProperty:noop}},renderInputPromptPreview:noop,
         renderInputThumbsRow:()=>inputs++,updateProviderModels:()=>ctx.renderInputThumbsRow()});
-    load(ctx,['updateComposer']);ctx.updateComposer();assert.equal(inputs,1);
+    load(ctx,['createSmartComposer','updateComposer']);ctx.smartComposer=ctx.createSmartComposer();ctx.updateComposer();inputs=0;ctx.updateComposer();assert.equal(inputs,1);
 });
 test('unchanged typed list preserves DOM but still updates tokens; metadata invalidates bindings',()=>{
     let writes=0,binds=0,tokenChecks=0;

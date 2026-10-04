@@ -45,9 +45,7 @@ const smartMinimap = createSmartMinimap();
 let selectedId = '';
 let selectedIds = [];
 let selectedImage = {nodeId:'', index:-1};
-let lastComposerNodeId = '';
-let activeComposerSubject = null;
-let smartComposerBaseline = null;
+const smartComposer = createSmartComposer();
 let dragState = null;
 let loopInsertPreview = null;
 let selectionState = null;
@@ -506,6 +504,7 @@ smartVideoTrimPanel.bind();
 smartAudioPreview.bind();
 bindSmartDrawingControls();
 bindSmartPanoramaControls();
+smartComposer.bind();
 bindSmartImageEditorViewport();
 window.addEventListener('studio-theme-change', event => applyTheme(event.detail?.theme || 'light'));
 try {

@@ -1450,7 +1450,7 @@ function finalizePendingNode(pendingNode, urls, meta, kind='image'){
     selectedId = pendingNode._selectAfterRunId || pendingNode.id;
     delete pendingNode._runMetaTargetId;
     delete pendingNode._selectAfterRunId;
-    if(activeComposerSubject?.id && selectedId === activeComposerSubject.id) lastComposerNodeId = `${selectedId}:node`;
+    smartComposer.outputSelected();
     selectedImage = {nodeId:'', index:-1};
 }
 
@@ -2556,9 +2556,7 @@ async function runSmartCascade(targetNode=null){
         selectedId = '';
         selectedIds = [];
         selectedImage = {nodeId:'', index:-1};
-        activeComposerSubject = null;
-        lastComposerNodeId = '';
-        composer.classList.remove('open');
+        smartComposer.finishCascade();
         settings = originalSettings;
         promptInput.innerHTML = originalPromptHtml;
         }

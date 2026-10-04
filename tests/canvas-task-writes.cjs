@@ -227,7 +227,7 @@ test('smart cascade outer cleanup leaves another canvas and a newer run untouche
  for(const outcome of ['success','failure','paused'])for(const scenario of ['unchanged','handoff','target','canvas','new-run']){
   const w=fixture(),source={id:'src',type:'smart-image'},out={id:'out',type:'smart-image'},gate=deferred(),counts={render:0,save:0,error:0};let reached=false;
   const graph={path:[source,out],root:source,edges:[{key:'src->out'}],children:new Map([['src',[out]]])};
-  const c={window:w,nodes:[source,out],canvas:{id:'c'},settings:{},selectedId:'out',selectedIds:[],selectedImage:{},activeComposerSubject:null,lastComposerNodeId:'',
+  const c={window:w,nodes:[source,out],canvas:{id:'c'},settings:{},selectedId:'out',selectedIds:[],selectedImage:{},smartComposer:{finishCascade(){},outputSelected(){}},
    smartCascadeRuns:new Map(),smartCascadeSilentSelection:false,smartLoopContext:null,smartCascadeRunPath:null,promptInput:{innerHTML:'original'},composer:{classList:{remove:()=>{}}},runBtn:{},cascadeRunBtn:{},
    isSmartCanvasLocked:()=>false,selectedNode:()=>out,canRunSmartCascade:()=>true,savePromptDraftForCurrent:()=>{},smartCascadeGraphForTail:()=>graph,resolveSmartCascadeLoop:()=>null,
    smartCascadeAnyRunning:()=>c.smartCascadeRuns.size>0,cloneSmartSettings:s=>({...s}),syncSmartCascadeLegacyState:()=>{},pushUndo:()=>{},refreshConnectionLayer:()=>counts.render++,updateComposer:()=>counts.render++,

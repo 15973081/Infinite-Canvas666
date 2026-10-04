@@ -153,29 +153,6 @@ function smartImageUsesWorkflowInput(node, ctx=smartLoopContext){
     return Boolean(isSmartImageNode(node) && ctx?.forceWorkflow);
 }
 
-function activeSettingsSubject(){
-    const active = activeComposerSubject?.id
-        ? (nodes.find(n => n.id === activeComposerSubject.id) || activeComposerSubject)
-        : selectedNode();
-    return isSmartImageNode(active) ? active : null;
-}
-
-function activeComposerNode(){
-    if(!lastComposerNodeId) return null;
-    const id = String(lastComposerNodeId).split(':')[0] || '';
-    const node = nodes.find(n => n.id === id);
-    return isSmartImageNode(node) ? node : null;
-}
-
-function persistActiveSmartSettings(){
-    if(!composer?.classList?.contains('open')) return;
-    const subject = activeComposerNode();
-    if(!subject) return;
-    subject.runSettings = settingsForStorage(settings);
-    if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
-    rememberRecentSmartSettings(settings, subject);
-}
-
 function promptPlainText(){
     return promptInput.innerText.replace(/\u00a0/g, ' ').trim();
 }
@@ -189,20 +166,6 @@ function setPromptInputLocked(locked){
 
 function setPromptText(text){
     promptInput.textContent = text || '';
-}
-
-function clearPromptInput(options={}){
-    if(options.preserveDraft){
-        promptInput.dataset.preserveDraftOnce = '1';
-        closeMentionPicker();
-        return;
-    }
-    promptInput.textContent = '';
-    closeMentionPicker();
-    if(activeComposerSubject){
-        activeComposerSubject.promptDraftHtml = '';
-        activeComposerSubject.promptDraftText = '';
-    }
 }
 
 function selectedNode(){ return nodes.find(n => n.id === selectedId) || null; }
@@ -3345,56 +3308,6 @@ function currentComposerSubject(){
     return selectedNode();
 }
 
-function smartComposerChanges(subject){
-    const baseline = smartComposerBaseline;
-    if(!subject) return {prompt:false,settings:false};
-    // Before a composer baseline exists, keep projecting live input edits.
-    if(baseline?.nodeId !== subject.id) return {prompt:true,settings:true};
-    return {
-        prompt:promptInput.innerHTML !== baseline.html || promptPlainText() !== baseline.text,
-        settings:JSON.stringify(settingsForStorage(settings)) !== baseline.settings
-    };
-}
-
-function savePromptDraftForCurrent(){
-    if(promptInput?.dataset?.promptLocked === '1') return;
-    const subject = activeComposerNode();
-    if(!subject) return;
-    if(promptInput?.dataset?.preserveDraftOnce === '1' && subject.promptDraftHtml){
-        delete promptInput.dataset.preserveDraftOnce;
-        return;
-    }
-    // The baseline contains the displayed values, including UI defaults. Only
-    // edits made after that baseline should change the node's generation input.
-    const changes = smartComposerChanges(subject);
-    if(changes.prompt){
-        subject.promptDraftHtml = promptInput.innerHTML;
-        subject.promptDraftText = promptPlainText();
-        if(smartComposerBaseline?.nodeId === subject.id){
-            smartComposerBaseline.html = subject.promptDraftHtml;
-            smartComposerBaseline.text = subject.promptDraftText;
-        }
-    }
-    if(changes.settings){
-        subject.runSettings = cloneSmartSettings(settings);
-        if(smartComposerBaseline?.nodeId === subject.id){
-            smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
-        }
-    }
-}
-
-function setPromptDraftForNode(node, text){
-    if(!isSmartImageNode(node)) return;
-    const value = String(text || '');
-    node.promptDraftHtml = escapeHtml(value);
-    node.promptDraftText = value;
-    node.promptDraftTouched = true;
-    if(activeSettingsSubject()?.id === node.id && promptInput){
-        promptInput.textContent = value;
-        delete promptInput.dataset.preserveDraftOnce;
-    }
-}
-
 function loadPromptDraft(subject){
     if(subject?.promptDraftHtml){
         const hasToken = String(subject.promptDraftHtml || '').includes('mention-image-token');
@@ -3418,62 +3331,6 @@ function positionComposerForNode(node){
     composer.style.width = `${cardW}px`;
     composer.style.left = `${rect.x + rect.width / 2 - cardW / 2}px`;
     composer.style.top = `${rect.y + rect.height + gap}px`;
-}
-
-function updateComposer(){
-    const node = selectedNode();
-    if(smartCascadeSilentSelection && !activeComposerSubject){
-        composer.classList.remove('open');
-        if(cascadeRunBtn) cascadeRunBtn.style.display = 'none';
-        activeComposerSubject = null;
-        lastComposerNodeId = '';
-        return;
-    }
-    composer.classList.toggle('open', !!node);
-    if(!isSmartImageNode(node)){
-        if(cascadeRunBtn) cascadeRunBtn.style.display = 'none';
-        savePromptDraftForCurrent();
-        composer.classList.remove('open');
-        activeComposerSubject = null;
-        lastComposerNodeId = '';
-        smartComposerBaseline = null;
-        setPromptInputLocked(false);
-        if(!node) setPromptText('');
-        return;
-    }
-    // composer 只绑定节点本身：图片只是素材/结果，不携带提示词或参数状态。
-    const subject = node;
-    const composerKey = `${node.id}:node`;
-    const switchedNode = lastComposerNodeId !== composerKey;
-    // Save the previous node's draft before changing the composer owner.
-    if(switchedNode) savePromptDraftForCurrent();
-    lastComposerNodeId = composerKey;
-    activeComposerSubject = subject;
-    const hasPromptInput = promptInputNodesFor(node).length > 0;
-    if(switchedNode){
-        settings = smartSettingsForNode(subject);
-        loadPromptDraft(subject);
-    }
-    setPromptInputLocked(false);
-    syncCascadeRunButton(node);
-    positionComposerForNode(node);
-    const promptHeight = Math.max(60, Math.min(380, Number(settings.promptH) || 124));
-    promptInput.style.setProperty('--prompt-h', `${promptHeight}px`);
-    renderInputPromptPreview(node);
-    syncCascadeRunButton(node);
-    // Model controls may normalize displayed values. Capture a fresh baseline
-    // only when that would not absorb an existing, unsaved user edit.
-    const hasUnsavedComposerChanges = !switchedNode && smartComposerBaseline?.nodeId === node.id
-        && Object.values(smartComposerChanges(node)).some(Boolean);
-    updateProviderModels();
-    if(!hasUnsavedComposerChanges){
-        smartComposerBaseline = {
-            nodeId:node.id,
-            html:promptInput.innerHTML,
-            text:promptPlainText(),
-            settings:JSON.stringify(settingsForStorage(settings))
-        };
-    }
 }
 
 function renderInputPromptPreview(node){
@@ -4742,4 +4599,183 @@ function applySmartPanoramaExport(frame, point){
     const newNode=createImageNodeAt(point,[frame],{select:true,skipUndo:true});
     selectedIds=[];selectedImage={nodeId:newNode.id,index:0};render();scheduleSave();
     return newNode;
+}
+
+function activeSettingsSubject(...args){return smartComposer.settingsSubject(...args);}
+function activeComposerNode(...args){return smartComposer.activeNode(...args);}
+function persistActiveSmartSettings(...args){return smartComposer.persistSettings(...args);}
+function clearPromptInput(...args){return smartComposer.clearInput(...args);}
+function smartComposerChanges(...args){return smartComposer.changes(...args);}
+function savePromptDraftForCurrent(...args){return smartComposer.saveDraft(...args);}
+function setPromptDraftForNode(...args){return smartComposer.setDraftForNode(...args);}
+function updateComposer(...args){return smartComposer.refresh(...args);}
+
+// Composer owns its input-target session; selection, settings and node drafts
+// remain the existing shared business data, never copied into another store.
+function createSmartComposer(){
+    let lastComposerNodeId='',activeComposerSubject=null,smartComposerBaseline=null,targetCanvasId='';
+    let paused=false,destroyed=false;
+    const listeners=[];
+    function clearListeners(){for(const [type,fn] of listeners)window.removeEventListener(type,fn);listeners.length=0;}
+    function bind(){
+        if(destroyed)return;clearListeners();
+        for(const [type,fn] of [['pagehide',event=>event.persisted?pause():destroy()],['pageshow',event=>{if(event.persisted)resume();}]]){
+            window.addEventListener(type,fn);listeners.push([type,fn]);
+        }
+    }
+    function documentReplaced(){if(destroyed)return;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
+    function documentImported(){if(!destroyed)activeComposerSubject=null;}
+    function outputSelected(){if(!destroyed && activeComposerSubject?.id && selectedId===activeComposerSubject.id)lastComposerNodeId=selectedId+':node';}
+    function finishCascade(){if(destroyed)return;documentReplaced();composer.classList.remove('open');}
+    function close({saveDraft=true,clearInput=false}={}){
+        if(destroyed)return;if(saveDraft && !paused)savePromptDraftForCurrent();
+        documentReplaced();smartComposerBaseline=null;composer.classList.remove('open');
+        if(cascadeRunBtn)cascadeRunBtn.style.display='none';setPromptInputLocked(false);
+        if(clearInput)setPromptText('');
+    }
+    function pause(){if(!destroyed)paused=true;}
+    function resume(){if(!destroyed && paused){paused=false;updateComposer();}}
+    function destroy(){if(destroyed)return;documentReplaced();smartComposerBaseline=null;clearListeners();if(typeof composer!=='undefined')composer?.classList.remove('open');destroyed=true;paused=false;}
+    function activeSettingsSubject(){
+        const active = canvas?.id===targetCanvasId && activeComposerSubject && nodes.includes(activeComposerSubject)
+            ? activeComposerSubject : selectedNode();
+        return isSmartImageNode(active) ? active : null;
+    }
+
+    function activeComposerNode(){
+        if(!lastComposerNodeId || canvas?.id!==targetCanvasId) return null;
+        const id = String(lastComposerNodeId).split(':')[0] || '';
+        const node = nodes.find(n => n.id === id);
+        return isSmartImageNode(node) && (!activeComposerSubject || activeComposerSubject===node) ? node : null;
+    }
+
+    function persistActiveSmartSettings(){
+        if(!composer?.classList?.contains('open')) return;
+        const subject = activeComposerNode();
+        if(!subject) return;
+        subject.runSettings = settingsForStorage(settings);
+        if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
+        rememberRecentSmartSettings(settings, subject);
+    }
+
+    function clearPromptInput(options={}){
+        if(options.preserveDraft){
+            promptInput.dataset.preserveDraftOnce = '1';
+            closeMentionPicker();
+            return;
+        }
+        promptInput.textContent = '';
+        closeMentionPicker();
+        const subject=activeComposerNode();
+        if(subject){subject.promptDraftHtml='';subject.promptDraftText='';}
+    }
+
+    function smartComposerChanges(subject){
+        const baseline = smartComposerBaseline;
+        if(!subject) return {prompt:false,settings:false};
+        // Before a composer baseline exists, keep projecting live input edits.
+        if(baseline?.nodeId !== subject.id) return {prompt:true,settings:true};
+        return {
+            prompt:promptInput.innerHTML !== baseline.html || promptPlainText() !== baseline.text,
+            settings:JSON.stringify(settingsForStorage(settings)) !== baseline.settings
+        };
+    }
+
+    function savePromptDraftForCurrent(){
+        if(promptInput?.dataset?.promptLocked === '1') return;
+        const subject = activeComposerNode();
+        if(!subject) return;
+        if(promptInput?.dataset?.preserveDraftOnce === '1' && subject.promptDraftHtml){
+            delete promptInput.dataset.preserveDraftOnce;
+            return;
+        }
+        // The baseline contains the displayed values, including UI defaults. Only
+        // edits made after that baseline should change the node's generation input.
+        const changes = smartComposerChanges(subject);
+        if(changes.prompt){
+            subject.promptDraftHtml = promptInput.innerHTML;
+            subject.promptDraftText = promptPlainText();
+            if(smartComposerBaseline?.nodeId === subject.id){
+                smartComposerBaseline.html = subject.promptDraftHtml;
+                smartComposerBaseline.text = subject.promptDraftText;
+            }
+        }
+        if(changes.settings){
+            subject.runSettings = cloneSmartSettings(settings);
+            if(smartComposerBaseline?.nodeId === subject.id){
+                smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
+            }
+        }
+    }
+
+    function setPromptDraftForNode(node, text){
+        if(!isSmartImageNode(node)) return;
+        const value = String(text || '');
+        node.promptDraftHtml = escapeHtml(value);
+        node.promptDraftText = value;
+        node.promptDraftTouched = true;
+        if(activeSettingsSubject()?.id === node.id && promptInput){
+            promptInput.textContent = value;
+            delete promptInput.dataset.preserveDraftOnce;
+        }
+    }
+
+    function updateComposer(){
+        const node = selectedNode();
+        if(lastComposerNodeId && (canvas?.id!==targetCanvasId || (activeComposerSubject && !nodes.includes(activeComposerSubject))))documentReplaced();
+        if(smartCascadeSilentSelection && !activeComposerSubject){
+            composer.classList.remove('open');
+            if(cascadeRunBtn) cascadeRunBtn.style.display = 'none';
+            activeComposerSubject = null;
+            lastComposerNodeId = '';
+            return;
+        }
+        composer.classList.toggle('open', !!node);
+        if(!isSmartImageNode(node)){close({clearInput:!node});return;}
+        // composer 只绑定节点本身：图片只是素材/结果，不携带提示词或参数状态。
+        const subject = node;
+        const composerKey = `${node.id}:node`;
+        const switchedNode = lastComposerNodeId !== composerKey;
+        // Save the previous node's draft before changing the composer owner.
+        if(switchedNode) savePromptDraftForCurrent();
+        lastComposerNodeId = composerKey;
+        activeComposerSubject = subject;
+        targetCanvasId=canvas?.id || '';
+        const hasPromptInput = promptInputNodesFor(node).length > 0;
+        if(switchedNode){
+            settings = smartSettingsForNode(subject);
+            loadPromptDraft(subject);
+        }
+        setPromptInputLocked(false);
+        syncCascadeRunButton(node);
+        positionComposerForNode(node);
+        const promptHeight = Math.max(60, Math.min(380, Number(settings.promptH) || 124));
+        promptInput.style.setProperty('--prompt-h', `${promptHeight}px`);
+        renderInputPromptPreview(node);
+        syncCascadeRunButton(node);
+        // Model controls may normalize displayed values. Capture a fresh baseline
+        // only when that would not absorb an existing, unsaved user edit.
+        const hasUnsavedComposerChanges = !switchedNode && smartComposerBaseline?.nodeId === node.id
+            && Object.values(smartComposerChanges(node)).some(Boolean);
+        updateProviderModels();
+        if(!hasUnsavedComposerChanges){
+            smartComposerBaseline = {
+                nodeId:node.id,
+                html:promptInput.innerHTML,
+                text:promptPlainText(),
+                settings:JSON.stringify(settingsForStorage(settings))
+            };
+        }
+    }
+    return Object.freeze({
+        get state(){return Object.freeze({open:Boolean(!destroyed && typeof composer!=='undefined' && composer?.classList.contains('open')),nodeId:activeComposerNode()?.id||'',targetValid:Boolean(activeComposerNode()),canvasId:targetCanvasId,paused,destroyed});},
+        activeNode:activeComposerNode,settingsSubject:activeSettingsSubject,changes:smartComposerChanges,
+        bind,pause,resume,destroy,close,documentReplaced,documentImported,outputSelected,finishCascade,
+        refresh:(...args)=>{if(!paused && !destroyed)return updateComposer(...args);},
+        // Existing background saves must still flush the paused page's input.
+        saveDraft:(...args)=>{if(!destroyed)return savePromptDraftForCurrent(...args);},
+        persistSettings:(...args)=>{if(!paused && !destroyed)return persistActiveSmartSettings(...args);},
+        clearInput:(...args)=>{if(!paused && !destroyed)return clearPromptInput(...args);},
+        setDraftForNode:(...args)=>{if(!paused && !destroyed)return setPromptDraftForNode(...args);}
+    });
 }

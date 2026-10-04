@@ -550,7 +550,7 @@ for(const kind of ['classic','smart']) {
                 runSettings:{engine:'api',apiKind:'image',provider_id:'test',model:'gpt-image-2',resolution:'custom',customWidth:1024,customHeight:576,count:1},
                 pendingTasks:[{taskId:'managed-task',kind:'image',run:{nodeId:source.id}}]};
             nodes.push(source,target);canvas.nodes=nodes;canvas.connections=[{from:source.id,to:target.id,kind:'flow'}];
-            selectedId='';lastComposerNodeId='';activeComposerSubject=null;render();
+            selectedId='';smartComposer.documentReplaced();render();
             const snapshot=()=>window.CanvasTaskBindings.graphCanonical(smartTaskInputDocument(),source.id,target.id);
             const before=snapshot(),dataBefore=JSON.stringify(target);
             document.querySelector('.image-node[data-id="managed-result"]').click();

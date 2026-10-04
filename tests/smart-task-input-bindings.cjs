@@ -23,8 +23,10 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
  let reached=false,serverDocument=null;
  const boundary=async where=>{if(stage===where){reached=true;await gate.promise;}};
  const c={window:win,canvasId:'c',canvas:{id:'c',kind:'smart',title:'test',logs:[],connections:entry==='main'?[]:[{from:'src',to:'out'},...(entry==='loop'?[{from:'loop',to:'src'}]:[])]},
-  nodes:entry==='main'?[src]:[loop,src,target],selectedId:'src',selectedImage:{},settings:clone(config),canvasDefaultSmartSettings:clone(config),initialSmartSettings:clone(config),smartComposerBaseline:null,
-  promptInput:{innerHTML:'original',dataset:{}},activeComposerNode:()=>c.nodes.find(n=>n.id===c.selectedId),selectedNode:()=>c.nodes.find(n=>n.id===c.selectedId),promptPlainText:()=>c.promptInput.innerHTML,
+  nodes:entry==='main'?[src]:[loop,src,target],selectedId:'src',selectedImage:{},settings:clone(config),canvasDefaultSmartSettings:clone(config),initialSmartSettings:clone(config),
+  composer:{classList:{contains:()=>true,toggle(){},remove(){}}},smartCascadeSilentSelection:false,isSmartImageNode:n=>n?.type==='smart-image',
+  loadPromptDraft:n=>{c.promptInput.innerHTML=n.promptDraftHtml||'';},promptInputNodesFor:()=>[],setPromptInputLocked(){},syncCascadeRunButton(){},positionComposerForNode(){},renderInputPromptPreview(){},updateProviderModels(){},
+  promptInput:{innerHTML:'original',dataset:{},style:{setProperty(){}}},activeComposerNode:()=>c.nodes.find(n=>n.id===c.selectedId),selectedNode:()=>c.nodes.find(n=>n.id===c.selectedId),promptPlainText:()=>c.promptInput.innerHTML,
   smartClientId:'page',smartSaveInFlight:null,smartSaveAgain:false,smartCanvasDirty:false,smartSaveErrorNotified:false,canvasSyncInFlight:false,saveTimer:null,viewport:{x:0,y:0,scale:1},
   smartServerNodeIds:new Set(),smartServerConnectionKeys:new Set(),smartLoopContext:null,activeSmartTaskPolls:new Map(),activeSmartNodeResumes:new Map(),transientSmartCloudLinks:[],
   setTimeout:(fn,ms)=>{if(ms===2000)queueMicrotask(fn);else timers.push(fn);return 1;},clearTimeout(){},Date,JSON,Object,console,AbortSignal,
@@ -60,7 +62,8 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   await boundary('poll');return {ok:true,json:async()=>clone(records.get(url.split('/').at(-1)))};
  };
  install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','pauseSmartTaskInput','canvasForStorage','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',
-  'smartComposerChanges','savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode','runLoopRoundIntoSlot');
+  'createSmartComposer','smartComposerChanges','savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode','runLoopRoundIntoSlot');
+ c.smartComposer=c.createSmartComposer();c.smartComposer.refresh();
  vm.runInContext(readCanvasSource(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
  return {c,src,target,loop,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):entry==='loop'?c.runLoopRoundIntoSlot(loop,src,target,1,{}):c.runGeneration()};
 }
@@ -112,7 +115,7 @@ for(const kind of ['image','video'])test('smart '+kind+' result branch keeps ori
 });
 test('smart completion on a different selected node preserves its prompt and settings',async()=>{
  const f=fixture('image',{branch:true}),waiting=f.start();await until(f.reached);
- const other={id:'other',type:'smart-image',images:[],promptDraftHtml:'other',promptDraftText:'other',runSettings:{engine:'api',model:'other',videoTempShLinks:[]}};f.c.nodes.push(other);f.c.selectedId='other';f.c.settings=clone(other.runSettings);f.c.promptInput.innerHTML='other';
+ const other={id:'other',type:'smart-image',images:[],promptDraftHtml:'other',promptDraftText:'other',runSettings:{engine:'api',model:'other',videoTempShLinks:[]}};f.c.nodes.push(other);f.c.selectedId='other';f.c.smartComposer.refresh();f.c.settings=clone(other.runSettings);f.c.promptInput.innerHTML='other';
  f.gate.resolve();await waiting;assert.equal(f.out.images.length,2);assert.equal(f.c.selectedId,'other');assert.equal(f.c.settings.model,'other');assert.equal(f.c.promptInput.innerHTML,'other');
 });
 test('smart persisted pending cannot revive an unverified operation after refresh',async()=>{

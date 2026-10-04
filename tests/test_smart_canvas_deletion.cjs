@@ -9,7 +9,7 @@ function setup(){
     const elements=new Map();
     const ctx=vm.createContext({nodes:[],canvas:{connections:[]},canvasUsesConnections:true,
         selectedId:'',selectedIds:[],selectedImage:{nodeId:'',index:-1},undoStack:[],undoSuppressed:false,UNDO_LIMIT:40,
-        activeComposerSubject:null,lastComposerNodeId:'',smartImageEditor:{state:{nodeId:'',open:true}},
+        smartComposer:{documentReplaced(){}},smartImageEditor:{state:{nodeId:'',open:true}},
         smartAudioPreview:{nodeId:'',closeForNodes(ids){if(new Set(ids).has(this.nodeId))calls.audio++;}},smartWorkflowTransferModal:null,
         world:{querySelector:s=>elements.get(s.match(/data-id="(.*)"/)[1])},CSS:{escape:s=>s},
         releaseSmartGroupPreviews:el=>calls.release.push(el.id),closeImageEditor:()=>calls.video++,closeSmartAudioLightbox:()=>calls.audio++,
