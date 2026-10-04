@@ -781,7 +781,7 @@ function finishSmartNodeRemoval(deleteIds, affected, forceIds=[]){
         el.remove();
     });
     if(deleteIds.has(smartImageEditor.state.nodeId) && smartImageEditor.state.open) closeImageEditor();
-    if(deleteIds.has(smartAudioLightboxState?.nodeId) && smartAudioLightbox.classList.contains('open')) closeSmartAudioLightbox();
+    smartAudioPreview.closeForNodes(deleteIds);
     const remaining = [...affected].filter(id => !deleteIds.has(id));
     refreshSmartNodes(remaining, {forceIds});
     // A disconnected explicit mention can live outside the graph's downstream scope.
@@ -825,7 +825,7 @@ function clearNodeMediaBeforeDelete(id){
     selectedIds = [];
     // Clearing the source also invalidates any open preview of its former media.
     if(smartImageEditor.state.nodeId === id && smartImageEditor.state.open) closeImageEditor();
-    if(smartAudioLightboxState?.nodeId === id && smartAudioLightbox.classList.contains('open')) closeSmartAudioLightbox();
+    smartAudioPreview.closeForNodes([id]);
     finishSmartNodeRemoval(deleteIds, affected, [id]);
     scheduleSave();
     return true;

@@ -544,7 +544,7 @@ function canRecycleSmartMediaNode(node, el){
     if(dragState || resizeState || thumbDragState || portDragState || selectionState || smartCascadeAnyRunning()) return false;
     if(el?.contains(document.activeElement) || el?.querySelector('video,audio')) return false;
     if(smartImageEditor.isEditingNode(node.id)) return false;
-    if(smartAudioLightbox?.classList.contains('open') && smartAudioLightboxState?.nodeId === node.id) return false;
+    if(smartAudioPreview.isPreviewingNode(node.id)) return false;
     return true;
 }
 
@@ -2400,6 +2400,7 @@ function smartChangedConnectionNodes(){
 }
 
 function render(){
+    smartAudioPreview.dataChanged();
     cancelSmartGeometryRefresh();
     if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
     world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
@@ -2463,6 +2464,7 @@ function smartAffectedNodeIds(ids){
 }
 
 function refreshSmartNodes(ids, {forceIds=[]}={}){
+    smartAudioPreview.dataChanged();
     const affected = smartAffectedNodeIds(ids);
     const byId = new Map(nodes.map(node => [node.id, node]));
     affected.forEach(id => {
@@ -3501,6 +3503,13 @@ function reorderSmartMediaReference(node, refs, from, to){
     scheduleSave();
 }
 
+// Keep the existing node-selection/viewed-timer effects in workspace. Reference
+// previews still restore these selection fields in their own try/finally.
+function activateSmartAudioPreviewTarget(node,index){
+    selectedId=node.id;selectedIds=[];selectedImage={nodeId:node.id,index};
+    hideRunTimerForNode(node);
+}
+
 function previewSmartReference(ref){
     const owner = nodes.find(n => n.id === ref.nodeId);
     const index = owner?.images?.findIndex(img => img.url === ref.url || img.originalLocalUrl === ref.url) ?? -1;
@@ -3511,17 +3520,7 @@ function previewSmartReference(ref){
     }
     if(String(ref.url || '').startsWith('asset://')) return toast('该资产没有可直接播放的预览地址');
     if(ref.kind === 'audio'){
-        if(smartImageEditor.state.open) closeImageEditor();
-        releaseSmartAudioLightboxPlayer();
-        smartAudioLightboxState = {nodeId:'', index:-1};
-        smartAudioLightboxTitle.textContent = ref.name || '音频';
-        const audio = document.createElement('audio');
-        audio.controls = true;
-        audio.preload = 'metadata';
-        audio.src = ref.url;
-        smartAudioLightboxHost.replaceChildren(audio);
-        smartAudioLightbox.classList.add('open');
-        return;
+        return smartAudioPreview.openExternal(ref);
     }
     smartLogPreviewNode(ref.url, ref.kind);
     setImageEditMode('preview');
@@ -4524,7 +4523,7 @@ function bindSmartWorkspaceGestures(){
                 pasteNodes();
             }, 90);
         }
-        if(e.key === 'Escape' && smartAudioLightbox.classList.contains('open')){
+        if(e.key === 'Escape' && smartAudioPreview.state.open){
             closeSmartAudioLightbox();
             return;
         }

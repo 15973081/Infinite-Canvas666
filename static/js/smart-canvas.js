@@ -22,9 +22,6 @@ const fileInput = document.getElementById('fileInput');
 const apiKindToggle = document.getElementById('apiKindToggle');
 const inputThumbsRow = document.getElementById('inputThumbsRow');
 const inputPromptPreview = document.getElementById('inputPromptPreview');
-const smartAudioLightbox = document.getElementById('smartAudioLightbox');
-const smartAudioLightboxTitle = document.getElementById('smartAudioLightboxTitle');
-const smartAudioLightboxHost = document.getElementById('smartAudioLightboxHost');
 const smartLogModal = document.getElementById('smartLogModal');
 const smartLogList = document.getElementById('smartLogList');
 const smartShortcutModal = document.getElementById('smartShortcutModal');
@@ -124,6 +121,7 @@ let comfyWorkflowCache = {};
 const smartImageEditor = createSmartImageEditor();
 const smartPreviewGestures = createSmartPreviewGestures();
 const smartVideoTrimPanel = createSmartVideoTrimPanel();
+const smartAudioPreview = createSmartAudioPreview();
 const PANORAMA_RATIO_PRESETS = {
     square:{w:1, h:1},
     portrait:{w:2, h:3},
@@ -237,7 +235,6 @@ function uid(prefix){ return `${prefix}_${Math.random().toString(36).slice(2, 10
 function escapeHtml(str){ return window.CanvasCore?.escapeHtml(str) || ''; }
 const escapeAttr = escapeHtml;
 
-let smartAudioLightboxState = {nodeId:'', index:-1};
 
 const RECENT_SMART_SETTINGS_KEY = 'smart_canvas_recent_run_settings_v1';
 
@@ -348,6 +345,7 @@ async function loadCanvas(options={}){
         if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
             !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
         smartMinimap.reset();
+        smartAudioPreview.reset();
         if(!options.observe || canvas?.id !== data.canvas.id){
             smartPromptPanels.reset();
             smartImageEditor.reset();
@@ -538,6 +536,7 @@ bindSmartPreviewPanEvents();
 bindSmartImageEditorPanEvents();
 bindSmartPreviewCompareEvents();
 smartVideoTrimPanel.bind();
+smartAudioPreview.bind();
 bindSmartDrawingControls();
 bindSmartPanoramaControls();
 bindSmartImageEditorViewport();
@@ -588,10 +587,6 @@ window.addEventListener('beforeunload', event => {
         event.returnValue = '';
     }
     releaseSmartCanvasLockOnExit();
-});
-window.addEventListener('pagehide', () => {
-    if(smartAudioLightbox?.classList.contains('open')) closeSmartAudioLightbox();
-    else releaseSmartAudioLightboxPlayer();
 });
 window.addEventListener('frontend:before-reload', event => {
     if(typeof event.detail?.waitUntil !== 'function') return;

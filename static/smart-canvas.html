@@ -457,14 +457,14 @@
                 </div>
             </div>
         </div>
-        <div id="smartAudioLightbox" class="smart-audio-lightbox" role="dialog" aria-modal="true" aria-labelledby="smartAudioLightboxTitle" onclick="if(event.target===this) closeSmartAudioLightbox()">
-            <div class="smart-audio-lightbox-card" onclick="event.stopPropagation()">
-                <button class="smart-audio-lightbox-close" type="button" aria-label="关闭" title="关闭" onclick="closeSmartAudioLightbox()"><i data-lucide="x"></i></button>
+        <div id="smartAudioLightbox" class="smart-audio-lightbox" role="dialog" aria-modal="true" aria-labelledby="smartAudioLightboxTitle">
+            <div class="smart-audio-lightbox-card">
+                <button class="smart-audio-lightbox-close" type="button" aria-label="关闭" title="关闭" data-audio-close><i data-lucide="x"></i></button>
                 <div class="smart-audio-lightbox-icon"><i data-lucide="file-audio"></i></div>
                 <div id="smartAudioLightboxTitle" class="smart-audio-lightbox-title">Audio</div>
                 <div class="smart-audio-lightbox-sub">AUDIO</div>
                 <div id="smartAudioLightboxHost" class="smart-audio-lightbox-host"></div>
-                <button class="smart-audio-lightbox-download" type="button" onclick="downloadSmartAudioLightbox()"><i data-lucide="download"></i><span>下载音频</span></button>
+                <button class="smart-audio-lightbox-download" type="button" data-audio-download><i data-lucide="download"></i><span>下载音频</span></button>
             </div>
         </div>
         <div id="toast" class="toast"></div>

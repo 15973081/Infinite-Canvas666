@@ -96,7 +96,7 @@ test('node refresh defers focused editor and never replaces unrelated DOM',()=>{
     const current={contains:()=>focused,addEventListener:(_name,fn)=>focusout=fn,
         querySelector:()=>({scrollTop:93}),replaceWith:()=>replaced++};
     const fresh={querySelector:()=>scroller},scroller={scrollTop:0};
-    const ctx=vm.createContext({nodes:[a,b],smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',smartViewportScrolls:new WeakMap(),
+    const ctx=vm.createContext({nodes:[a,b],smartAudioPreview:{dataChanged(){}},smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',smartViewportScrolls:new WeakMap(),
         world:{querySelector:()=>current},CSS:{escape:x=>x},document:{activeElement:{},createElement:()=>({content:{firstElementChild:fresh}})},
         setTimeout:fn=>fn(),isSmartNodeInViewport:()=>true,renderSmartNodeHtml:()=>'',transplantSmartMediaElements(){},bindNodeEvents(){},
         releaseSmartGroupPreviews(){},bindSmartPreviewImageFallbacks(){},measureSmartNodeImages(){},scheduleSmartGeometryRefresh(){scheduled++;},
@@ -137,7 +137,7 @@ test('offscreen reclamation protects interaction, running tasks, editors and lig
     const node={id:'a',type:'smart-image',images:[{url:'a.png'}]},el={contains:()=>false,querySelector:()=>null};
     const ctx=vm.createContext({document:{activeElement:{}},smartNodePendingCount:n=>n.pending||0,isNodeSelected:()=>false,
         dragState:null,resizeState:null,thumbDragState:null,portDragState:null,selectionState:null,smartCascadeAnyRunning:()=>false,
-        smartImageEditor:{state:{open:false,nodeId:'a'},isEditingNode(id){return this.state.open&&this.state.nodeId===id;}},smartAudioLightbox:{classList:{contains:()=>false}},smartAudioLightboxState:{nodeId:'a'}});
+        smartImageEditor:{state:{open:false,nodeId:'a'},isEditingNode(id){return this.state.open&&this.state.nodeId===id;}},smartAudioPreview:{isPreviewingNode:()=>false}});
     load(ctx,['canRecycleSmartMediaNode']);assert.equal(ctx.canRecycleSmartMediaNode(node,el),true);
     for(const key of ['running','queued','pending'])assert.equal(ctx.canRecycleSmartMediaNode({...node,[key]:1},el),false);
     for(const key of ['dragState','resizeState','thumbDragState','portDragState','selectionState']){ctx[key]={};assert.equal(ctx.canRecycleSmartMediaNode(node,el),false);ctx[key]=null;}

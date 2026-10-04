@@ -9,8 +9,8 @@ function setup(){
     const elements=new Map();
     const ctx=vm.createContext({nodes:[],canvas:{connections:[]},canvasUsesConnections:true,
         selectedId:'',selectedIds:[],selectedImage:{nodeId:'',index:-1},undoStack:[],undoSuppressed:false,UNDO_LIMIT:40,
-        activeComposerSubject:null,lastComposerNodeId:'',smartImageEditor:{state:{nodeId:'',open:true}},smartAudioLightboxState:{nodeId:''},
-        smartAudioLightbox:{classList:{contains:()=>true}},smartWorkflowTransferModal:null,
+        activeComposerSubject:null,lastComposerNodeId:'',smartImageEditor:{state:{nodeId:'',open:true}},
+        smartAudioPreview:{nodeId:'',closeForNodes(ids){if(new Set(ids).has(this.nodeId))calls.audio++;}},smartWorkflowTransferModal:null,
         world:{querySelector:s=>elements.get(s.match(/data-id="(.*)"/)[1])},CSS:{escape:s=>s},
         releaseSmartGroupPreviews:el=>calls.release.push(el.id),closeImageEditor:()=>calls.video++,closeSmartAudioLightbox:()=>calls.audio++,
         refreshSmartNodes:(ids,opts)=>calls.refresh.push({ids:[...ids],forceIds:[...opts.forceIds]}),
@@ -53,12 +53,12 @@ test('button clears media first, deletes on second click, refreshes history user
     ctx.deleteNodeFromButton('a');assert.equal(elements.has('a'),false);assert.equal(ctx.undoStack.length,2);
 });
 test('unconnected mention composer is revalidated; unrelated lightbox remains open',()=>{
-    const {ctx,calls,node}=setup();node('a');node('x');ctx.selectedId='x';ctx.smartImageEditor.state.nodeId='x';ctx.smartAudioLightboxState.nodeId='x';
+    const {ctx,calls,node}=setup();node('a');node('x');ctx.selectedId='x';ctx.smartImageEditor.state.nodeId='x';ctx.smartAudioPreview.nodeId='x';
     ctx.deleteNode('a');assert.equal(calls.composer,1);assert.equal(calls.audio,0);assert.equal(calls.video,0);
 });
 test('removed media resources are released; missing ids do not create undo or redraw',()=>{
     const {ctx,calls,node,elements}=setup();node('a');let paused=0,cleared=0,loaded=0;
-    elements.get('a').media=[{pause:()=>paused++,removeAttribute:()=>cleared++,load:()=>loaded++}];ctx.smartAudioLightboxState.nodeId='a';
+    elements.get('a').media=[{pause:()=>paused++,removeAttribute:()=>cleared++,load:()=>loaded++}];ctx.smartAudioPreview.nodeId='a';
     ctx.deleteNode('a');assert.deepEqual([paused,cleared,loaded],[1,1,1]);assert.equal(calls.audio,1);
     ctx.deleteNode('a');assert.equal(ctx.undoStack.length,1);assert.equal(calls.save,1);
 });

@@ -17,51 +17,101 @@ function openSmartVideoLightbox(nodeId, imageIndex=0){
     return true;
 }
 
-function releaseSmartAudioLightboxPlayer(){
-    const audio = smartAudioLightboxHost?.querySelector('audio');
-    if(audio){
-        audio.pause();
-        audio.removeAttribute('src');
-        audio.load();
+// Audio has its own source (including references without a node). It does not
+// borrow or copy the image editor's target or the ordinary preview's player.
+function createSmartAudioPreview(){
+    let open=false, target=null, player=null, revision=0, paused=false, destroyed=false;
+    const dom=new Map(), controls=[], mediaListeners=[], lifecycle=[];
+    function element(id){
+        if(destroyed)return null;
+        if(!dom.has(id))dom.set(id,document.getElementById(id));
+        return dom.get(id);
     }
-    smartAudioLightboxHost?.replaceChildren();
+    function targetValid(){
+        if(!target || paused || destroyed || canvas?.id!==target.canvasId)return false;
+        if(target.source==='external')return true;
+        // Saving deliberately copies media metadata. That is still the same
+        // audio source; node replacement, index movement or a new URL is not.
+        const item=target.node.images?.[target.index];
+        return nodes.includes(target.node) && item?.url===target.url && mediaKindForItem(item||{})==='audio';
+    }
+    function clear(records){for(const dispose of records.splice(0))dispose();}
+    function listen(records,el,type,handler){
+        if(!el)return;
+        el.addEventListener(type,handler);records.push(()=>el.removeEventListener(type,handler));
+    }
+    function releasePlayer(){
+        clear(mediaListeners);
+        if(player){player.pause();player.removeAttribute('src');player.load();player=null;}
+        element('smartAudioLightboxHost')?.replaceChildren();
+    }
+    function close(){
+        if(destroyed)return;
+        revision++;open=false;target=null;
+        element('smartAudioLightbox')?.classList.remove('open');
+        releasePlayer();
+        const title=element('smartAudioLightboxTitle');if(title)title.textContent='Audio';
+    }
+    function bind(){
+        if(destroyed || paused)return;
+        clear(controls);clear(lifecycle);
+        const modal=element('smartAudioLightbox');
+        listen(controls,modal,'click',event=>{if(event.target===modal)close();});
+        listen(controls,modal?.querySelector('.smart-audio-lightbox-card'),'click',event=>event.stopPropagation());
+        listen(controls,modal?.querySelector('[data-audio-close]'),'click',close);
+        listen(controls,modal?.querySelector('[data-audio-download]'),'click',download);
+        listen(lifecycle,window,'pagehide',event=>{if(event.persisted)pause();else destroy();});
+        listen(lifecycle,window,'pageshow',event=>{if(event.persisted)resume();});
+    }
+    function present(next){
+        close();bind();target=next;open=true;
+        element('smartAudioLightboxTitle').textContent=target.title;
+        const audio=document.createElement('audio');player=audio;
+        audio.controls=true;audio.preload='metadata';audio.src=target.url;
+        const origin=revision;
+        const verify=()=>{
+            if(origin!==revision || player!==audio || !open || paused || destroyed)return;
+            // A replaced node/item must never turn a native media event into an
+            // operation on a new target. Close remains independent of validity.
+            if(!targetValid())close();
+        };
+        for(const type of ['loadedmetadata','play','timeupdate'])listen(mediaListeners,audio,type,verify);
+        element('smartAudioLightboxHost').replaceChildren(audio);
+        element('smartAudioLightbox').classList.add('open');
+    }
+    function available(){return !destroyed && !paused && Boolean(element('smartAudioLightbox') && element('smartAudioLightboxHost') && element('smartAudioLightboxTitle'));}
+    function openNode(nodeId,imageIndex=0){
+        if(!available())return false;
+        const node=nodes.find(n=>n.id===nodeId),index=Math.max(0,Number(imageIndex)||0),item=node?.images?.[index];
+        if(mediaKindForItem(item||{})!=='audio' || !item?.url)return false;
+        const next={source:'node',canvasId:canvas?.id,node,index,url:item.url,title:item.name||fileNameFromUrl(item.url)||'Audio'};
+        if(smartImageEditor.state.open)closeImageEditor();
+        activateSmartAudioPreviewTarget(node,index);
+        present(next);refreshIcons();return true;
+    }
+    function openExternal({url,name}={}){
+        if(!available() || !url)return false;
+        if(smartImageEditor.state.open)closeImageEditor();
+        present({source:'external',canvasId:canvas?.id,url,title:name||'音频'});
+        return true;
+    }
+    function download(){
+        if(!open || !targetValid() || target.source!=='node')return;
+        return downloadPreviewFile(target.node.images[target.index]);
+    }
+    function isPreviewingNode(id){return Boolean(open && target?.source==='node' && target.node.id===id && targetValid());}
+    function closeForNodes(ids){if(open && target?.source==='node' && new Set(ids).has(target.node.id))close();}
+    function dataChanged(){if(open && !targetValid())close();}
+    function pause(){if(destroyed || paused)return;close();clear(controls);paused=true;}
+    function resume(){if(destroyed || !paused)return;paused=false;bind();}
+    function destroy(){if(destroyed)return;close();clear(controls);clear(lifecycle);dom.clear();destroyed=true;}
+    return Object.freeze({get state(){return Object.freeze({open,targetValid:open && targetValid(),source:target?.source||'',nodeId:target?.node?.id||'',index:target?.index??-1,paused,destroyed});},
+        openNode,openExternal,close,download,isPreviewingNode,closeForNodes,dataChanged,reset:close,bind,pause,resume,destroy});
 }
-
-function openSmartAudioLightbox(nodeId, imageIndex=0){
-    const node = nodes.find(n => n.id === nodeId);
-    const index = Math.max(0, Number(imageIndex) || 0);
-    const image = node?.images?.[index];
-    if(mediaKindForItem(image || {}) !== 'audio' || !image?.url) return false;
-    if(smartImageEditor.state.open) closeImageEditor();
-    selectedId = nodeId;
-    selectedIds = [];
-    selectedImage = {nodeId, index};
-    hideRunTimerForNode(node);
-    smartAudioLightboxState = {nodeId, index};
-    smartAudioLightboxTitle.textContent = image.name || fileNameFromUrl(image.url) || 'Audio';
-    releaseSmartAudioLightboxPlayer();
-    const audio = document.createElement('audio');
-    audio.controls = true;
-    audio.preload = 'metadata';
-    audio.src = image.url;
-    smartAudioLightboxHost.replaceChildren(audio);
-    smartAudioLightbox.classList.add('open');
-    refreshIcons();
-    return true;
-}
-
-function closeSmartAudioLightbox(){
-    smartAudioLightbox.classList.remove('open');
-    releaseSmartAudioLightboxPlayer();
-    smartAudioLightboxTitle.textContent = 'Audio';
-    smartAudioLightboxState = {nodeId:'', index:-1};
-}
-
-function downloadSmartAudioLightbox(){
-    const node = nodes.find(n => n.id === smartAudioLightboxState.nodeId);
-    const image = node?.images?.[smartAudioLightboxState.index];
-    if(mediaKindForItem(image || {}) === 'audio') downloadPreviewFile(image);
-}
+function releaseSmartAudioLightboxPlayer(){return smartAudioPreview.reset();}
+function openSmartAudioLightbox(...args){return smartAudioPreview.openNode(...args);}
+function closeSmartAudioLightbox(){return smartAudioPreview.close();}
+function downloadSmartAudioLightbox(){return smartAudioPreview.download();}
 
 function smartRunTaskLabel(run){
     const s = run?.settings || {};
@@ -1805,7 +1855,7 @@ function createSmartPreviewGestures(){
 }
 function smartEditorPreviewState(){return Object.freeze({panoramaEnabled:panoramaState.enabled,fov:panoramaState.fov,dragging:Boolean(panoramaState.drag||smartPreviewGestures.state.dragging)});}
 function prepareSmartEditorPreview(){
-    if(smartAudioLightbox.classList.contains('open'))closeSmartAudioLightbox();
+    smartAudioPreview.close();
     resetVideoTrimState();disposePanoramaPreview();smartPreviewGestures.prepare();
 }
 function leaveSmartEditorPreview(){resetVideoTrimState();smartPreviewGestures.leave();if(panoramaState.enabled)disposePanoramaPreview();}

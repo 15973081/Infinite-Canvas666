@@ -55,14 +55,12 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
         self.assertIn("height:180", layout)
 
     def test_audio_lightbox_owns_the_only_dynamic_player(self):
-        lightbox = "\n".join(canvas_function_source(self.source, name) for name in (
-            "releaseSmartAudioLightboxPlayer", "openSmartAudioLightbox", "closeSmartAudioLightbox",
-        ))
+        lightbox = canvas_function_source(self.source, "createSmartAudioPreview")
 
         self.assertIn("document.createElement('audio')", lightbox)
-        self.assertIn("smartAudioLightboxHost.replaceChildren(audio)", lightbox)
-        self.assertIn("smartAudioLightboxHost?.replaceChildren()", lightbox)
-        self.assertIn("audio.removeAttribute('src')", lightbox)
+        self.assertIn("element('smartAudioLightboxHost').replaceChildren(audio)", lightbox)
+        self.assertIn("element('smartAudioLightboxHost')?.replaceChildren()", lightbox)
+        self.assertIn("player.removeAttribute('src')", lightbox)
         self.assertIn('id="smartAudioLightboxHost"', self.page)
         self.assertNotIn('<audio id="smartAudioLightbox', self.page)
 
@@ -85,7 +83,7 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
             "window.addEventListener('keyup'",
         )
 
-        self.assertIn("smartAudioLightbox.classList.contains('open')", keydown)
+        self.assertIn("smartAudioPreview.state.open", keydown)
         self.assertIn("closeSmartAudioLightbox()", keydown)
 
     def test_page_references_the_audio_lightbox_bundle(self):
@@ -95,7 +93,9 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
 
     def test_leaving_the_page_releases_the_lightbox_player(self):
         self.assertIn("window.addEventListener('pagehide'", self.source)
-        self.assertIn("releaseSmartAudioLightboxPlayer()", self.source)
+        owner = canvas_function_source(self.source, "createSmartAudioPreview")
+        self.assertIn("listen(lifecycle,window,'pagehide'", owner)
+        self.assertIn("if(event.persisted)pause();else destroy()", owner)
 
     def test_smart_canvas_shell_cannot_be_reused_from_stale_cache(self):
         self.assertIn('http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"', self.page)
