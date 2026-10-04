@@ -31,7 +31,7 @@ async function remember(page){await page.evaluate(()=>{window.retiredAudio=docum
 async function released(page){
     assert.deepEqual(await page.evaluate(()=>({paused:retiredAudio.paused,src:retiredAudio.getAttribute('src'),connected:retiredAudio.isConnected,ready:retiredAudio.readyState})),{paused:true,src:null,connected:false,ready:0});
 }
-async function selection(page){return page.evaluate(()=>({id:selectedId,ids:selectedIds,image:selectedImage,saves:audioSaves,downloads:audioDownloads.length}));}
+async function selection(page){return page.evaluate(()=>({id:smartSelection.nodeId,ids:smartSelection.ids,image:smartSelection.image,saves:audioSaves,downloads:audioDownloads.length}));}
 
 test('Smart node and group audio really play, preserve first-view save and selection, and download the current item',async t=>{
     const {page,errors}=await audio(t,{finished:true});await open(page);await play(page);
@@ -52,12 +52,12 @@ test('Smart node and group audio really play, preserve first-view save and selec
 test('Smart node-backed reference audio restores selection, while retaining viewed-timer save and node download',async t=>{
     const {page,errors}=await audio(t,{finished:true});
     await page.evaluate(()=>{
-        selectedId='b';selectedIds=['b'];selectedImage={nodeId:'b',index:0};
-        window.previousSelection={selectedIds,selectedImage};
+        smartSelection.restoreDocument({selectedId:'b',selectedIds:['b'],selectedImage:{nodeId:'b',index:0}});
+        window.previousSelection={selectedIds:smartSelection.ids,selectedImage:smartSelection.image};
         previewSmartReference({nodeId:'a',url:nodes[0].images[1].url,kind:'audio'});
     });await ready(page);await play(page);await page.click('[data-audio-download]');
     assert.deepEqual(await selection(page),{id:'b',ids:['b'],image:{nodeId:'b',index:0},saves:1,downloads:1});
-    assert.equal(await page.evaluate(()=>selectedIds===previousSelection.selectedIds && selectedImage===previousSelection.selectedImage),true);
+    assert.equal(await page.evaluate(()=>smartSelection.ids===previousSelection.selectedIds && smartSelection.image===previousSelection.selectedImage),true);
     assert.equal(await page.evaluate(()=>nodes[0].runTimerHidden),true);assert.deepEqual(errors,[]);
 });
 
@@ -103,7 +103,7 @@ for(const change of ['node','item','url','canvas'])test(`Smart invalid ${change}
 
 test('Smart media replacement notification stops live audio; index shifts cannot download a different group item',async t=>{
     const {page,errors}=await audio(t);await open(page,1);await play(page);await remember(page);
-    assert.equal(await page.evaluate(()=>{selectedId='';selectedIds=[];selectedImage={nodeId:'',index:-1};return canRecycleSmartMediaNode(nodes[0],world.querySelector('.image-node[data-id="a"]'));}),false);
+    assert.equal(await page.evaluate(()=>{smartSelection.restoreDocument({selectedId:'',selectedIds:[],selectedImage:{nodeId:'',index:-1}});return canRecycleSmartMediaNode(nodes[0],world.querySelector('.image-node[data-id="a"]'));}),false);
     await page.evaluate(()=>{nodes[0].images.shift();refreshSmartNodes(['a']);downloadSmartAudioLightbox();});
     assert.equal(await page.evaluate(()=>smartAudioPreview.state.open),false);await released(page);
     assert.equal(await page.evaluate(()=>audioDownloads.length),0);assert.equal(await page.evaluate(()=>audioSaves),0);assert.deepEqual(errors,[]);

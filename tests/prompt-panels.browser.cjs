@@ -11,7 +11,9 @@ async function scenario(page,kind){
         window.CanvasApi.getPromptLibraries=async()=>({library:{libraries:structuredClone(libraries)}});
         nodes=[{id:'p',type:kind==='classic'?'prompt':'smart-prompt',text:'old',x:50,y:50,images:[]},
             {id:'q',type:kind==='classic'?'prompt':'smart-prompt',text:'other',x:500,y:50,images:[]}];
-        selectedId='p';selectedIds=[];render();
+        if(kind==='smart')smartSelection.panelTarget('p');
+        else {selectedId='p';selectedIds=[];}
+        render();
         const owner=kind==='classic'?classicPromptPanel:smartPromptPanels;
         if(kind==='classic'){canvasPromptTemplatesLoaded=false;await loadCanvasPromptTemplates();}
         else await loadPromptTemplates();

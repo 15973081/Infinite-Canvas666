@@ -64,7 +64,7 @@ test('Smart grouped crop replaces only its original index and saves once with un
     const {page,errors,writes}=await editor(t);
     await page.evaluate(()=>openImageEditor('a',1));await page.waitForFunction(()=>smartImageEditor.state.ready);await modeTo(page,'crop');
     await page.click('#imageEditApplyBtn');await page.waitForFunction(()=>!smartImageEditor.state.open&&editSaves===1);
-    assert.deepEqual(await page.evaluate(()=>({upload:editUploads[0],names:nodes[0].images.map(i=>i.name),selected:selectedImage})),
+    assert.deepEqual(await page.evaluate(()=>({upload:editUploads[0],names:nodes[0].images.map(i=>i.name),selected:smartSelection.image})),
         {upload:{name:'second_crop.png',w:269,h:202,white:0,black:0,changed:0},names:['first.svg','second_crop.png'],selected:{nodeId:'a',index:1}});
     await page.waitForFunction(()=>!smartCanvasDirty&&!smartSaveInFlight&&!smartSaveAgain);
     assert.equal(writes.filter(w=>w.method==='PUT'&&w.path==='/api/canvases/canvas-test').length,1);
@@ -88,7 +88,7 @@ test('Smart mask appends to the same group and editor undo remains separate from
     await page.evaluate(()=>undoEditDrawing());assert.equal(await page.evaluate(()=>smartImageEditor.state.redoCount),1);
     await page.evaluate(()=>redoEditDrawing());assert.equal(await page.evaluate(()=>undoStack.length),history);
     await page.evaluate(()=>applyImageEdit());
-    const r=await page.evaluate(()=>({upload:editUploads[0],role:nodes[0].images.at(-1).role,count:nodes[0].images.length,selected:selectedImage,saves:editSaves}));
+    const r=await page.evaluate(()=>({upload:editUploads[0],role:nodes[0].images.at(-1).role,count:nodes[0].images.length,selected:smartSelection.image,saves:editSaves}));
     assert.equal(r.upload.w,320);assert.equal(r.upload.h,240);assert.ok(r.upload.white>0&&r.upload.black>0);assert.equal(r.upload.white+r.upload.black,320*240);
     assert.equal(r.role,'mask');assert.equal(r.count,3);assert.deepEqual(r.selected,{nodeId:'a',index:2});assert.equal(r.saves,1);assert.deepEqual(errors,[]);
 });
@@ -193,9 +193,9 @@ test('Smart cached page pauses listeners, preserves drawing on return and perman
 });
 
 test('Smart detached log preview remains independent of node selection and cannot become an editable canvas target',async t=>{
-    const {page,errors}=await editor(t,'preview');const selected=await page.evaluate(()=>selectedImage);
+    const {page,errors}=await editor(t,'preview');const selected=await page.evaluate(()=>smartSelection.image);
     await page.evaluate(()=>smartLogPreviewNode('/test-image.svg'));await page.waitForFunction(()=>smartImageEditor.state.ready);
-    assert.deepEqual(await page.evaluate(()=>selectedImage),selected);assert.equal(await page.evaluate(()=>nodes.some(n=>n.id==='__smart_log_preview__')),false);
+    assert.deepEqual(await page.evaluate(()=>smartSelection.image),selected);assert.equal(await page.evaluate(()=>nodes.some(n=>n.id==='__smart_log_preview__')),false);
     await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>smartImageEditor.state.open),false);assert.deepEqual(errors,[]);
 });
 

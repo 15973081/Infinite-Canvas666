@@ -9,9 +9,7 @@ function openSmartVideoLightbox(nodeId, imageIndex=0){
     const index = Math.max(0, Number(imageIndex) || 0);
     const image = node?.images?.[index];
     if(mediaKindForItem(image || {}) !== 'video') return false;
-    selectedId = nodeId;
-    selectedIds = [];
-    selectedImage = {nodeId, index};
+    smartSelection.previewTarget(nodeId, index);
     hideRunTimerForNode(node);
     openImagePreview(nodeId, index);
     return true;
@@ -454,15 +452,11 @@ function addSmartGenerationLog({run, outputs=[], runMs=0, error=''}) {
 
 function smartLogPreviewNode(url, kind='image'){
     const node = {id:'__smart_log_preview__', type:'smart-image', images:[{url, name:'log-preview', kind}], title:kind === 'video' ? 'Video' : 'Image'};
-    const prevSelectedId = selectedId;
-    const prevSelectedImage = {...selectedImage};
-    nodes.push(node);
-    try { smartImageEditor.openDetached(node, 0); }
-    finally {
-        nodes = nodes.filter(n => n.id !== node.id);
-        selectedId = prevSelectedId;
-        selectedImage = prevSelectedImage;
-    }
+    smartSelection.withLogPreview(() => {
+        nodes.push(node);
+        try { smartImageEditor.openDetached(node, 0); }
+        finally { nodes = nodes.filter(n => n.id !== node.id); }
+    });
 }
 
 function renderSmartCanvasLog(){
@@ -1053,8 +1047,7 @@ async function exportVideoFrame(which='current'){
             : viewportCenter();
         pushUndo();
         const newNode = createImageNodeAt(point, [frame], {select:true, skipUndo:true});
-        selectedIds = [];
-        selectedImage = {nodeId:newNode.id, index:0};
+        smartSelection.createdMedia(newNode.id);
         render();
         scheduleSave();
         toast('已导出到画布');
@@ -1307,7 +1300,7 @@ function createSmartVideoTrimPanel(){
             const follow=valid(task.revision) && videoTrimState.active && busyTask===task;
             pushUndo();
             const newNode=createImageNodeAt(task.point,[item],{select:true,skipUndo:true});
-            selectedIds=[];selectedImage={nodeId:newNode.id,index:0};render();
+            smartSelection.createdMedia(newNode.id);render();
             if(follow)openImageEditor(newNode.id,0);
             scheduleSave();
             if(!destroyed && !paused)toast(`已截取 ${formatVideoTrimTime(item.duration_seconds)}${follow?'，已切换到新片段':'，已添加到画布'}`);

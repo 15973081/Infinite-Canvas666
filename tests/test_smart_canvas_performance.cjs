@@ -1,3 +1,4 @@
+const {installSmartSelection}=require('./helpers/smart-selection.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
@@ -101,7 +102,7 @@ test('node refresh defers focused editor and never replaces unrelated DOM',()=>{
         setTimeout:fn=>fn(),isSmartNodeInViewport:()=>true,renderSmartNodeHtml:()=>'',transplantSmartMediaElements(){},bindNodeEvents(){},
         releaseSmartGroupPreviews(){},bindSmartPreviewImageFallbacks(){},measureSmartNodeImages(){},scheduleSmartGeometryRefresh(){scheduled++;},
         scheduleSmartMinimapRender(){},refreshRunTimerPills(){},refreshIcons(){},updateComposer(){throw Error('unrelated composer');}});
-    load(ctx,['refreshSmartNodes']);ctx.refreshSmartNodes(['a']);ctx.refreshSmartNodes(['a']);assert.equal(replaced,0);
+    installSmartSelection(ctx);load(ctx,['refreshSmartNodes']);ctx.refreshSmartNodes(['a']);ctx.refreshSmartNodes(['a']);assert.equal(replaced,0);
     assert.equal(current._smartRefreshPending,true);focused=false;focusout();assert.equal(replaced,1);assert.equal(scroller.scrollTop,93);
     assert.equal(scheduled,3);
 });
@@ -109,7 +110,7 @@ test('restored nodes use complete event bindings and selection avoids full rende
     let bound;const ctx=vm.createContext({bindNodeEvents:els=>bound=els});load(ctx,['bindSmartNodeEvents']);
     const el={};ctx.bindSmartNodeEvents(el,{id:'a'});assert.equal(bound[0],el);
     const click=source.slice(source.indexOf('el.onclick = e => {',source.indexOf('function bindNodeEvents(')),source.indexOf('el.ondblclick =',source.indexOf('function bindNodeEvents(')));
-    assert.ok(click.includes('syncSelectionUi()'));assert.ok(!click.includes('render()'));
+    assert.ok(click.includes('smartSelection.clickNode(id, el)'));const command=require('./helpers/canvas-source.cjs').functionSource(source,'clickNode');assert.ok(command.includes('syncSelectionUi()'));assert.ok(!click.includes('render()'));
 });
 test('partial links compute only endpoints, match full geometry, preserve history/cascade states',()=>{
     let layouts=0;

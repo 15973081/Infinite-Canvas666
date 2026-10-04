@@ -120,7 +120,7 @@ for(const change of ['close','target-delete','destroy','canvas','readonly'])test
  const {page:p,errors}=await setup(t,{member:change==='readonly'});await enable(p);await waitPixel(p,[34,136,68,255]);const upload=await holdUpload(p);await submit(p);await upload.arrived;
  await p.evaluate(change=>{if(change==='close')closeImageEditor();else if(change==='target-delete')nodes=[];else if(change==='destroy')smartImageEditor.destroy();else if(change==='canvas')canvas={...canvas,id:'other-canvas'};else MemberCanvasEdit.setEditable(false);},change);
  await upload.release();await finish(p);
- const state=await p.evaluate(()=>({count:nodes.length,saves:saveCalls,undos:undoCalls,s:smartPanoramaPreview.state,frame:nodes.at(-1)?.images[0],selectedImage}));
+ const state=await p.evaluate(()=>({count:nodes.length,saves:saveCalls,undos:undoCalls,s:smartPanoramaPreview.state,frame:nodes.at(-1)?.images[0],selectedImage:smartSelection.image}));
  const apply=!['canvas','readonly'].includes(change);assert.equal(state.count,(change==='target-delete'?0:1)+(apply?1:0));assert.deepEqual([state.saves,state.undos],apply?[2,1]:[0,0]);assert.equal(state.s.exportsPending,0);
  if(apply){assert.deepEqual([state.frame.natural_w,state.frame.natural_h],[1536,864]);assert.equal(state.selectedImage.index,0);}if(change==='close'||change==='destroy')assert.equal(state.s.enabled,false);assert.deepEqual(errors,[]);
 });

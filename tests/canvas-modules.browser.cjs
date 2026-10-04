@@ -550,7 +550,7 @@ for(const kind of ['classic','smart']) {
                 runSettings:{engine:'api',apiKind:'image',provider_id:'test',model:'gpt-image-2',resolution:'custom',customWidth:1024,customHeight:576,count:1},
                 pendingTasks:[{taskId:'managed-task',kind:'image',run:{nodeId:source.id}}]};
             nodes.push(source,target);canvas.nodes=nodes;canvas.connections=[{from:source.id,to:target.id,kind:'flow'}];
-            selectedId='';smartComposer.documentReplaced();render();
+            smartSelection.createdNode('');smartComposer.documentReplaced();render();
             const snapshot=()=>window.CanvasTaskBindings.graphCanonical(smartTaskInputDocument(),source.id,target.id);
             const before=snapshot(),dataBefore=JSON.stringify(target);
             document.querySelector('.image-node[data-id="managed-result"]').click();
@@ -571,7 +571,7 @@ for(const kind of ['classic','smart']) {
         await page.addScriptTag({url:origin+'/static/js/canvas-task-bindings.js'});
         const result=await page.evaluate(()=>{
             const source={id:'tool-source',type:'smart-image',x:20,y:20,images:[{url:'/test-image.svg',kind:'image'}]};
-            nodes.push(source);canvas.nodes=nodes;selectedId=source.id;render();
+            nodes.push(source);canvas.nodes=nodes;smartSelection.createdNode(source.id);render();
             const settings={engine:'api',apiKind:'image',provider_id:'provider',model:'gpt-image-2',
                 resolution:'custom',customWidth:1024,customHeight:576,customSize:'1024x576',count:1};
             const meta={prompt:'depth prompt',displayPrompt:'生成深度图',promptText:'生成深度图',promptHtml:'',

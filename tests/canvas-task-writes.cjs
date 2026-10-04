@@ -1,3 +1,4 @@
+const {installSmartSelection}=require('./helpers/smart-selection.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
@@ -131,6 +132,7 @@ function smartRun(stage,outcome){
   pollSmartCanvasTask:async()=>{await boundary('poll');if(outcome==='old-generation')throw api.pending();return {result:{images:['new']}};},resultMediaUrls:r=>r,
   finalizeSmartPendingTask:(n,id,outputs)=>{n.images=outputs;n.pendingTasks=[];n.pending=0;counts.finish++;},smartRecoverableImageTask:()=>null,
   restoreSourceVisualState:()=>counts.restore++,clearPromptInput:()=>{},addSmartGenerationLog:()=>counts.log++,toast:()=>counts.error++,tr:s=>s};
+ installSmartSelection(c);
  install(c,'smart-canvas.js','canvasTaskWriteGuard','resumeSmartPendingNode','runGeneration');
  return {c,source,out,gate,counts,reached:()=>reached,start:()=>c.runGeneration()};
 }
@@ -169,7 +171,8 @@ test('smart video submission cleanup cannot remove a replacement pending record 
   const w=fixture(),out={id:'out',images:[]},gate=deferred(),counts={render:0,save:0,resume:0};
   const c={window:w,nodes:[out],canvas:{id:'c'},nowMs:()=>1,cloneSmartSettings:s=>({...s}),archiveSmartOutputsBeforePending:()=>{},smartPendingTasks:n=>n.pendingTasks||[],
    render:()=>counts.render++,scheduleSave:()=>counts.save++,saveCanvas:async()=>{},resumeSmartPendingNode:async()=>{counts.resume++;out.images=[{url:'v'}];out.pendingTasks=[];},tr:s=>s};
-  install(c,'smart-canvas.js','canvasTaskWriteGuard','queueAndResumeSmartApiTasks');
+  installSmartSelection(c);
+ install(c,'smart-canvas.js','canvasTaskWriteGuard','queueAndResumeSmartApiTasks');
   const waiting=c.queueAndResumeSmartApiTasks(out,{taskIds:['t'],submission:gate.promise},{kind:'video'});await turn();
   change(c,scenario,out,out);const before=clone({nodes:c.nodes,out,counts});
   const result=waiting.then(()=>null,e=>e);if(outcome==='failure')gate.reject(Error('submit failed'));else gate.resolve();const error=await result;
@@ -215,7 +218,8 @@ test('smart running timer does not clear a replacement node or newer run token',
  for(const scenario of ['unchanged','handoff','target','new-run']){
   const w=fixture(),node={id:'n'},timers=[];let renders=0;
   const c={window:w,nodes:[node],canvas:{},smartRunStateToken:0,smartNodeRunTokens:new Map(),setTimeout:fn=>timers.push(fn),render:()=>renders++};
-  install(c,'smart-canvas.js','canvasTaskWriteGuard','coolNodeRunningState');c.coolNodeRunningState(node);
+  installSmartSelection(c);
+ install(c,'smart-canvas.js','canvasTaskWriteGuard','coolNodeRunningState');c.coolNodeRunningState(node);
   if(scenario==='new-run')c.smartNodeRunTokens.set('n',999);else change(c,scenario,node,node);
   const before=clone(c.nodes);timers[0]();
   if(scenario==='unchanged'){assert.equal(node.running,false);assert.equal(renders,1);}else{assert.deepEqual(clone(c.nodes),before);assert.equal(renders,0);}
@@ -234,12 +238,13 @@ test('smart cascade outer cleanup leaves another canvas and a newer run untouche
    isSmartImageNode:()=>true,upstreamLoopPromptNodesFor:()=>[],relayLoopPromptNodesForTarget:()=>[],relayLoopPromptNodesForEdge:()=>[],defaultReferenceImagesFor:()=>[],
    runCascadeStepIntoNode:async()=>{reached=true;await gate.promise;if(outcome==='failure')throw Error('failed');if(outcome==='paused')throw api.pending();return [{url:'result'}];},cascadeRefsFromOutputs:r=>r,
    scheduleSave:()=>counts.save++,render:()=>counts.render++,toast:()=>counts.error++,tr:s=>s};
-  install(c,'smart-canvas.js','canvasTaskWriteGuard','throwIfSmartCascadeStopRequested','runSmartCascade');
+  installSmartSelection(c);
+ install(c,'smart-canvas.js','canvasTaskWriteGuard','throwIfSmartCascadeStopRequested','runSmartCascade');
   const waiting=c.runSmartCascade(out);await until(()=>reached);
   let replacement;if(scenario==='new-run'){const key=[...c.smartCascadeRuns.keys()][0];replacement={runKey:key};c.smartCascadeRuns.set(key,replacement);change(c,'canvas',source,out);}else change(c,scenario,source,out);
-  const before=clone({nodes:c.nodes,settings:c.settings,selectedId:c.selectedId,prompt:c.promptInput,counts});gate.resolve();await waiting;
+  const before=clone({nodes:c.nodes,settings:c.settings,selectedId:c.smartSelection.nodeId,prompt:c.promptInput,counts});gate.resolve();await waiting;
   if(scenario==='unchanged'&&outcome!=='paused')assert.ok(counts.save>0||counts.error>0);
-  else assert.deepEqual(clone({nodes:c.nodes,settings:c.settings,selectedId:c.selectedId,prompt:c.promptInput,counts}),before,outcome+scenario);
+  else assert.deepEqual(clone({nodes:c.nodes,settings:c.settings,selectedId:c.smartSelection.nodeId,prompt:c.promptInput,counts}),before,outcome+scenario);
   if(replacement)assert.equal([...c.smartCascadeRuns.values()][0],replacement);else assert.equal(c.smartCascadeRuns.size,0);
  }
 });
@@ -252,7 +257,8 @@ for(const kind of ['step','loop'])test('smart '+kind+' guarded writeback preserv
    isApiLikeEngine:()=>true,smartRunSnapshot:()=>({settings:{}}),nowMs:()=>1,rememberRecentSmartSettings:()=>{},render:()=>counts.render++,smartCascadePathForCtx:()=>null,
    generateUrlsForCurrentSettings:wait,runApiGeneration:async()=>({taskIds:['t']}),queueAndResumeSmartApiTasks:wait,stripImageGenerationMeta:x=>x,copyMediaSizeFields:(item,x)=>x,
    replaceOutputsToNodeWithHistory:()=>counts.replace++,attachRunMeta:()=>counts.replace++,addSmartGenerationLog:()=>counts.log++,tr:s=>s};
-  install(c,'smart-canvas.js','canvasTaskWriteGuard',kind==='step'?'runCascadeStepIntoNode':'runLoopRoundIntoSlot');
+  installSmartSelection(c);
+ install(c,'smart-canvas.js','canvasTaskWriteGuard',kind==='step'?'runCascadeStepIntoNode':'runLoopRoundIntoSlot');
   const waiting=(kind==='step'?c.runCascadeStepIntoNode(source,out,[]):c.runLoopRoundIntoSlot(loop,source,out,1,{})).then(value=>({value}),error=>({error}));
   await until(()=>reached);change(c,scenario,source,out);const before=clone({nodes:c.nodes,settings:c.settings,counts});gate.resolve();const result=await waiting;
   if(scenario==='unchanged'&&outcome!=='paused'){assert.equal(Boolean(result.error),outcome==='failure');if(outcome==='success')assert.ok(counts.replace>0);}

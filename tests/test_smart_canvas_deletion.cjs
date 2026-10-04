@@ -1,3 +1,4 @@
+const {installSmartSelection}=require('./helpers/smart-selection.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
@@ -17,6 +18,7 @@ function setup(){
         updateComposer:()=>calls.composer++,syncSelectionUi(){},refreshConnectionLayer:()=>calls.links++,
         scheduleSmartGeometryRefresh:(ids,passes)=>calls.correction.push({ids:[...ids],passes}),
         scheduleSave:()=>calls.save++,tr:s=>s,toast(){},render(){throw Error('unexpected full render');}});
+    installSmartSelection(ctx);
     for(const name of ['snapshotForUndo','pushUndo','performUndo','isSmartImageNode','isHistoryGroupNode','hasHistoryConnection','demoteHistoryGroupNode','historyGroupForNode','smartAffectedNodeIds','deleteNode','deleteSmartNodes','finishSmartNodeRemoval','clearNodeMediaBeforeDelete','deleteNodeFromButton']){
         const start=source.indexOf(`function ${name}(`);assert.ok(start>=0,name);
         vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
@@ -30,16 +32,16 @@ function setup(){
 test('delete removes owner/history once, preserves unrelated nodes and refreshes former dependants',()=>{
     const {ctx,calls,node,elements}=setup();node('a');node('h',{historyFor:'a'});node('b',{inputNodeIds:['a','h']});node('c');node('x');
     ctx.canvas.connections=[{from:'a',to:'h',kind:'history'},{from:'a',to:'b',kind:'input'},{from:'h',to:'b',kind:'input'},{from:'b',to:'c',kind:'input'}];
-    ctx.selectedId='h';ctx.selectedIds=['a','x'];ctx.selectedImage={nodeId:'h',index:0};
+    ctx.smartSelection.restoreDocument({selectedId:'h',selectedIds:['a','x'],selectedImage:{nodeId:'h',index:0}});
     const x=elements.get('x');ctx.deleteNode('a');
     assert.deepEqual(plain(ctx.nodes.map(n=>n.id)),['b','c','x']);assert.equal(elements.get('x'),x);
     assert.deepEqual(plain(ctx.canvas.connections),[{from:'b',to:'c',kind:'input'}]);assert.deepEqual(plain(ctx.nodes[0].inputNodeIds),[]);
-    assert.deepEqual(calls.refresh,[{ids:['b','c'],forceIds:[]}]);assert.equal(ctx.selectedId,'');assert.deepEqual(plain(ctx.selectedIds),['x']);
+    assert.deepEqual(calls.refresh,[{ids:['b','c'],forceIds:[]}]);assert.equal(ctx.smartSelection.nodeId,'');assert.deepEqual(plain(ctx.smartSelection.ids),['x']);
     assert.equal(ctx.undoStack.length,1);assert.equal(calls.save,1);assert.equal(calls.links,1);assert.equal(calls.correction[0].passes,2);
 });
 test('bulk deletion is one snapshot/update, undo restores nodes, edges, media and selection',()=>{
     const {ctx,calls,node}=setup();node('a',{images:[{url:'asset://voice',kind:'audio'}]});node('b');node('x');
-    ctx.selectedIds=['a','b'];ctx.canvas.connections=[{from:'a',to:'b',kind:'input'}];
+    ctx.smartSelection.boxSelection(['a','b']);ctx.canvas.connections=[{from:'a',to:'b',kind:'input'}];
     const before=plain(ctx.snapshotForUndo());ctx.deleteSmartNodes(['a','b']);
     assert.equal(ctx.undoStack.length,1);assert.equal(calls.links,1);assert.equal(calls.refresh.length,1);assert.equal(calls.save,1);
     let full=0;ctx.render=()=>full++;ctx.performUndo();assert.equal(full,1);assert.deepEqual(plain(ctx.snapshotForUndo()),before);
@@ -49,11 +51,11 @@ test('button clears media first, deletes on second click, refreshes history user
     ctx.canvas.connections=[{from:'a',to:'h',kind:'history'},{from:'h',to:'b',kind:'input'}];ctx.smartImageEditor.state.nodeId='a';
     ctx.deleteNodeFromButton('a');assert.equal(ctx.nodes.includes(a),true);assert.deepEqual(plain(a.images),[]);assert.equal(a.w,undefined);
     assert.equal(elements.has('h'),false);assert.equal(calls.video,1);assert.deepEqual(calls.refresh[0],{ids:['a','b'],forceIds:['a']});
-    assert.deepEqual(plain(ctx.nodes.find(n=>n.id==='b').inputNodeIds),[]);assert.equal(ctx.selectedId,'a');
+    assert.deepEqual(plain(ctx.nodes.find(n=>n.id==='b').inputNodeIds),[]);assert.equal(ctx.smartSelection.nodeId,'a');
     ctx.deleteNodeFromButton('a');assert.equal(elements.has('a'),false);assert.equal(ctx.undoStack.length,2);
 });
 test('unconnected mention composer is revalidated; unrelated lightbox remains open',()=>{
-    const {ctx,calls,node}=setup();node('a');node('x');ctx.selectedId='x';ctx.smartImageEditor.state.nodeId='x';ctx.smartAudioPreview.nodeId='x';
+    const {ctx,calls,node}=setup();node('a');node('x');ctx.smartSelection.createdNode('x');ctx.smartImageEditor.state.nodeId='x';ctx.smartAudioPreview.nodeId='x';
     ctx.deleteNode('a');assert.equal(calls.composer,1);assert.equal(calls.audio,0);assert.equal(calls.video,0);
 });
 test('removed media resources are released; missing ids do not create undo or redraw',()=>{
@@ -63,7 +65,7 @@ test('removed media resources are released; missing ids do not create undo or re
     ctx.deleteNode('a');assert.equal(ctx.undoStack.length,1);assert.equal(calls.save,1);
 });
 test('actual keyboard Delete branch batches selected nodes without an extra render or snapshot',()=>{
-    const {ctx,calls,node}=setup();node('a');node('b');node('x');ctx.selectedIds=['a','b'];
+    const {ctx,calls,node}=setup();node('a');node('b');node('x');ctx.smartSelection.boxSelection(['a','b']);
     let prevented=0;ctx.e={key:'Delete',target:{},preventDefault:()=>prevented++};ctx.isEditableTarget=()=>false;
     const start=source.indexOf("    if((e.key === 'Delete' || e.key === 'Backspace')");
     const end=source.indexOf("    if((e.ctrlKey || e.metaKey) && e.shiftKey && key === 'g'",start);

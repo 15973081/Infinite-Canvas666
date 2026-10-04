@@ -168,20 +168,134 @@ function setPromptText(text){
     promptInput.textContent = text || '';
 }
 
-function selectedNode(){ return nodes.find(n => n.id === selectedId) || null; }
+function selectedNode(){ return nodes.find(n => n.id === smartSelection.nodeId) || null; }
 
-function clearSelection(){
-    savePromptDraftForCurrent();
-    selectedId = '';
-    selectedIds = [];
-    selectedImage = {nodeId:'', index:-1};
-}
+function clearSelection(){return smartSelection.clear();}
 
-function clearImageClickTimer(){
-    if(imageClickTimer){
-        clearTimeout(imageClickTimer);
-        imageClickTimer = null;
+function clearImageClickTimer(){return smartSelection.cancelImageClick();}
+
+// Selection contains IDs only. Document/task commands deliberately do not render,
+// save drafts or schedule saves: their callers already own those batch operations.
+function createSmartSelection(){
+    const emptyImage = Object.freeze({nodeId:'', index:-1});
+    const emptyIds = Object.freeze([]);
+    let snapshot = Object.freeze({selectedId:'', selectedIds:emptyIds, selectedImage:emptyImage});
+    let imageClickTimer=null, generation=0, paused=false, destroyed=false;
+    const listeners=[];
+    function cancelImageClick(){
+        generation++;
+        if(imageClickTimer!==null)clearTimeout(imageClickTimer);
+        imageClickTimer=null;
     }
+    function commit(id, ids, image){
+        if(destroyed)return;
+        cancelImageClick();
+        snapshot=Object.freeze({selectedId:id,
+            selectedIds:Object.isFrozen(ids)?ids:Object.freeze([...ids]),
+            selectedImage:Object.isFrozen(image)?image:Object.freeze({...image})});
+    }
+    function nodeTarget(id){commit(id,emptyIds,emptyImage);}
+    function imageTarget(id,index){commit(id,emptyIds,{nodeId:id,index});}
+    function clear(){if(paused || destroyed)return;savePromptDraftForCurrent();nodeTarget('');}
+    function clickNode(id,element){
+        if(paused || destroyed)return;
+        const node=nodes.find(n=>n.id===id);
+        if(!node)return;
+        hideRunTimerForNode(node);nodeTarget(id);
+        if(smartCascadeAnyRunning())smartCascadeSilentSelection=false;
+        if(element.classList.contains('image-node-placeholder'))refreshSmartNodes([id]);
+        syncSelectionUi();refreshRunTimerPills();updateComposer();
+    }
+    function uploadTarget(id){
+        if(paused || destroyed)return;
+        hideRunTimerForNode(nodes.find(n=>n.id===id));nodeTarget(id);
+        pendingGroupUploadPoint=null;uploadTargetId=id;
+        syncSelectionUi();updateComposer();pickMediaForSmartNode(id);
+    }
+    function deferImageClick(node,index){
+        cancelImageClick();
+        if(paused || destroyed || !node)return;
+        const epoch=generation, documentId=canvas?.id, imageUrl=node.images?.[index]?.url;
+        imageClickTimer=setTimeout(()=>{
+            imageClickTimer=null;
+            if(paused || destroyed || epoch!==generation || canvas?.id!==documentId ||
+                !nodes.includes(node) || node.images?.[index]?.url!==imageUrl)return;
+            hideRunTimerForNode(node);
+            commit(node.id,emptyIds,(node.images || []).length>1?emptyImage:{nodeId:node.id,index});
+            if(smartCascadeAnyRunning())smartCascadeSilentSelection=false;
+            syncSelectionUi();updateComposer();
+        },220);
+    }
+    function audioTarget(node,index){
+        if(paused || destroyed)return;
+        imageTarget(node.id,index);hideRunTimerForNode(node);
+    }
+    function insertedNodes(ids){commit(ids.length===1?ids[0]:'',ids.length>1?ids:emptyIds,emptyImage);}
+    function boxSelection(ids){commit(ids.length===1?ids[0]:'',ids,emptyImage);}
+    function documentReplacing(){cancelImageClick();}
+    function documentRestoring(){commit('',emptyIds,snapshot.selectedImage);}
+    function restoreDocument(value){
+        // Undo JSON keeps its original shape. Copy incoming collections so callers
+        // cannot retain a writable alias to the live selection.
+        commit(value.selectedId,[...value.selectedIds],{...value.selectedImage});
+    }
+    function nodesRemoved(ids){
+        const removed=new Set(ids);
+        commit(removed.has(snapshot.selectedId)?'':snapshot.selectedId,
+            snapshot.selectedIds.filter(id=>!removed.has(id)),
+            removed.has(snapshot.selectedImage.nodeId)?emptyImage:snapshot.selectedImage);
+    }
+    function mediaCleared(id){commit(id,emptyIds,snapshot.selectedImage.nodeId===id?emptyImage:snapshot.selectedImage);}
+    function imagesChanged(id,count){
+        const image=snapshot.selectedImage.nodeId===id
+            ? {nodeId:id,index:Math.min(snapshot.selectedImage.index,count-1)} : snapshot.selectedImage;
+        commit(snapshot.selectedId,snapshot.selectedIds,image.index<0?emptyImage:image);
+    }
+    function withReferencePreview(action){
+        if(paused || destroyed)return;
+        const previous=snapshot;
+        try{return action();}finally{if(!destroyed)snapshot=previous;}
+    }
+    function withLogPreview(action){
+        if(paused || destroyed)return;
+        const previous=snapshot;
+        try{return action();}finally{commit(previous.selectedId,snapshot.selectedIds,{...previous.selectedImage});}
+    }
+    function taskSource(id){commit(id,snapshot.selectedIds,emptyImage);}
+    function taskOutput(id){
+        if(destroyed)return;
+        commit(id,snapshot.selectedIds,snapshot.selectedImage);
+        smartComposer.outputSelected();
+        commit(id,snapshot.selectedIds,emptyImage);
+    }
+    function taskFinished(){if(destroyed)return;nodeTarget('');smartComposer.finishCascade();}
+    function clearListeners(){for(const [type,fn] of listeners)window.removeEventListener(type,fn);listeners.length=0;}
+    function bind(){
+        if(destroyed)return;clearListeners();
+        for(const [type,fn] of [['pagehide',event=>event.persisted?pause():destroy()],['pageshow',event=>{if(event.persisted)resume();}]]){
+            window.addEventListener(type,fn);listeners.push([type,fn]);
+        }
+    }
+    function pause(){if(destroyed)return;paused=true;cancelImageClick();}
+    function resume(){if(!destroyed)paused=false;}
+    function destroy(){if(destroyed)return;cancelImageClick();clearListeners();destroyed=true;paused=false;}
+    return Object.freeze({
+        get state(){return snapshot;},get nodeId(){return snapshot.selectedId;},
+        get ids(){return snapshot.selectedIds;},get image(){return snapshot.selectedImage;},
+        bind,pause,resume,destroy,cancelImageClick,clear,clickNode,uploadTarget,deferImageClick,audioTarget,
+        documentReplacing,documentRestoring,restoreDocument,insertedNodes,boxSelection,nodesRemoved,mediaCleared,imagesChanged,
+        withReferencePreview,withLogPreview,taskSource,taskOutput,taskFinished,
+        createdNode:id=>commit(id,snapshot.selectedIds,snapshot.selectedImage),
+        createdMedia:id=>imageTarget(id,0),grouped:nodeTarget,duplicating:()=>nodeTarget(''),
+        toolbarImage:(id,index)=>{if(!paused)imageTarget(id,index);},
+        previewTarget:(id,index)=>{if(!paused)imageTarget(id,index);},
+        panelTarget:id=>{if(!paused)nodeTarget(id);},
+        editorTarget:(id,index)=>{if(!paused)commit(id,snapshot.selectedIds,{nodeId:id,index});},
+        taskFailed:id=>commit(id,snapshot.selectedIds,snapshot.selectedImage),taskTail:nodeTarget,
+        outputsReplaced:()=>commit(snapshot.selectedId,snapshot.selectedIds,emptyImage),
+        primaryReleased:id=>{if(snapshot.selectedId===id)commit('',snapshot.selectedIds,snapshot.selectedImage);},
+        thumbDetached:()=>commit('',snapshot.selectedIds,emptyImage)
+    });
 }
 
 function syncSelectionUi(){
@@ -191,17 +305,17 @@ function syncSelectionUi(){
         el.classList.toggle('selected', isNodeSelected(id));
         el.querySelectorAll('.thumb-item,.image-wrap').forEach(item => {
             const index = Number(item.dataset.imageIndex || 0);
-            item.classList.toggle('image-selected', selectedImage.nodeId === id && selectedImage.index === index);
+            item.classList.toggle('image-selected', smartSelection.image.nodeId === id && smartSelection.image.index === index);
         });
     });
 }
 
 function isNodeSelected(id){
-    return selectedId === id || selectedIds.includes(id);
+    return smartSelection.nodeId === id || smartSelection.ids.includes(id);
 }
 
 function selectedNodeIds(){
-    return selectedIds.length ? selectedIds.slice() : (selectedId ? [selectedId] : []);
+    return smartSelection.ids.length ? smartSelection.ids.slice() : (smartSelection.nodeId ? [smartSelection.nodeId] : []);
 }
 
 function isEditableTarget(target){
@@ -2263,9 +2377,9 @@ function smartNodeMediaBodyHtml(node, layout){
     if(imgs.length > 1){
         const visibleRows = Math.max(1, Math.min(MEDIA_GROUP_MAX_VISIBLE_ROWS, Number(layout.visibleRows || layout.rows || 1)));
         const maxHeight = visibleRows * Number(layout.thumb || 96) + Math.max(0, visibleRows - 1) * 8;
-        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
+        return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
     }
-    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${selectedImage.nodeId === node.id && selectedImage.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`;
+    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`;
     return `<div class="node-drop" data-upload-action="files">
         <span class="upload-node-main"><i data-lucide="upload-cloud"></i></span>
         <span class="upload-node-title">${escapeHtml('上传节点')}</span>
@@ -2296,8 +2410,8 @@ function imageTaskRecoverBodyHtml(node, task, layout){
 
 function smartNodeToolbarImageIndex(node){
     const images = node?.images || [];
-    if(selectedImage.nodeId === node?.id){
-        const index = Number(selectedImage.index);
+    if(smartSelection.image.nodeId === node?.id){
+        const index = Number(smartSelection.image.index);
         if(Number.isFinite(index) && index >= 0 && index < images.length) return index;
     }
     return 0;
@@ -2310,9 +2424,7 @@ function runSmartNodeToolbarAction(nodeId, action){
     const item = imageForDisplay(node.images?.[index]);
     if(!item?.url) return;
     const kind = mediaKindForItem(item);
-    selectedId = nodeId;
-    selectedIds = [];
-    selectedImage = {nodeId, index};
+    smartSelection.toolbarImage(nodeId, index);
     if(action === 'download'){
         downloadPreviewFile(node.images?.[index] || item);
         return;
@@ -2465,7 +2577,7 @@ function refreshSmartNodes(ids, {forceIds=[]}={}){
         bindSmartPreviewImageFallbacks(fresh);
         measureSmartNodeImages(fresh);
     });
-    if(affected.has(selectedId)) updateComposer();
+    if(affected.has(smartSelection.nodeId)) updateComposer();
     scheduleSmartGeometryRefresh([...affected], 2);
     scheduleSmartMinimapRender();
     refreshRunTimerPills();
@@ -2941,16 +3053,7 @@ function bindNodeEvents(elements=null){
         el.onclick = e => {
             e.stopPropagation();
             if(Date.now() < suppressNodeClickUntil) return;
-            const node = nodes.find(n => n.id === id);
-            hideRunTimerForNode(node);
-            selectedId = id;
-            selectedIds = [];
-            selectedImage = {nodeId:'', index:-1};
-            if(smartCascadeAnyRunning()) smartCascadeSilentSelection = false;
-            if(el.classList.contains('image-node-placeholder')) refreshSmartNodes([id]);
-            syncSelectionUi();
-            refreshRunTimerPills();
-            updateComposer();
+            smartSelection.clickNode(id, el);
         };
         el.ondblclick = e => e.stopPropagation();
         const nodeDrop = el.querySelector('.node-drop');
@@ -2961,15 +3064,7 @@ function bindNodeEvents(elements=null){
         }, true);
         nodeDrop?.addEventListener('click', e => {
             e.preventDefault(); e.stopPropagation();
-            hideRunTimerForNode(nodes.find(n => n.id === id));
-            selectedId = id;
-            selectedIds = [];
-            selectedImage = {nodeId:'', index:-1};
-            pendingGroupUploadPoint = null;
-            uploadTargetId = id;
-            syncSelectionUi();
-            updateComposer();
-            pickMediaForSmartNode(id);
+            smartSelection.uploadTarget(id);
         });
         el.querySelectorAll('.node-delete').forEach(btn => {
             btn.addEventListener('click', e => {
@@ -3069,9 +3164,7 @@ function bindNodeEvents(elements=null){
                     openSmartVideoLightbox(id, imageIndex);
                     return;
                 }
-                selectedId = id;
-                selectedIds = [];
-                selectedImage = {nodeId:id, index:imageIndex};
+                smartSelection.previewTarget(id, imageIndex);
                 openImagePreview(id, imageIndex);
             }, true);
             item.addEventListener('click', e => {
@@ -3092,27 +3185,11 @@ function bindNodeEvents(elements=null){
                 if(e.detail >= 2){
                     clearImageClickTimer();
                     suppressImageClickUntil = Date.now() + 260;
-                    selectedId = id;
-                    selectedIds = [];
-                    selectedImage = {nodeId:id, index:imageIndex};
+                    smartSelection.previewTarget(id, imageIndex);
                     openImagePreview(id, imageIndex);
                     return;
                 }
-                clearImageClickTimer();
-                imageClickTimer = setTimeout(() => {
-                    imageClickTimer = null;
-                hideRunTimerForNode(owner);
-                const isGroupOwner = (owner?.images || []).length > 1;
-                selectedId = id;
-                selectedIds = [];
-                // 分组内的图片单击不再"穿透"到具体图片：保持节点级 composer
-                selectedImage = isGroupOwner
-                    ? {nodeId:'', index:-1}
-                    : {nodeId:id, index:imageIndex};
-                    if(smartCascadeAnyRunning()) smartCascadeSilentSelection = false;
-                    syncSelectionUi();
-                    updateComposer();
-                }, 220);
+                smartSelection.deferImageClick(owner, imageIndex);
             });
         item.addEventListener('dblclick', e => {
             if(e.target.closest('video,audio')) return;
@@ -3128,9 +3205,7 @@ function bindNodeEvents(elements=null){
                 openSmartVideoLightbox(id, imageIndex);
                 return;
             }
-            selectedId = id;
-            selectedIds = [];
-            selectedImage = {nodeId:id, index:imageIndex};
+            smartSelection.previewTarget(id, imageIndex);
             openImagePreview(id, imageIndex);
         }, true);
         });
@@ -3165,7 +3240,7 @@ function bindNodeEvents(elements=null){
             let node = nodes.find(n => n.id === id);
             if(!node) return;
             if(e.altKey) node = duplicateForAltDrag(node);
-            const dragIds = selectedIds.includes(node.id) ? selectedIds.slice() : [node.id];
+            const dragIds = smartSelection.ids.includes(node.id) ? smartSelection.ids.slice() : [node.id];
             const group = dragIds.map(dragId => {
                 const n = nodes.find(x => x.id === dragId);
                 return n ? {id:n.id, ox:Number(n.x) || 0, oy:Number(n.y) || 0} : null;
@@ -3363,17 +3438,14 @@ function reorderSmartMediaReference(node, refs, from, to){
 // Keep the existing node-selection/viewed-timer effects in workspace. Reference
 // previews still restore these selection fields in their own try/finally.
 function activateSmartAudioPreviewTarget(node,index){
-    selectedId=node.id;selectedIds=[];selectedImage={nodeId:node.id,index};
-    hideRunTimerForNode(node);
+    smartSelection.audioTarget(node, index);
 }
 
 function previewSmartReference(ref){
     const owner = nodes.find(n => n.id === ref.nodeId);
     const index = owner?.images?.findIndex(img => img.url === ref.url || img.originalLocalUrl === ref.url) ?? -1;
     if(index >= 0){
-        const previous = {selectedId, selectedIds, selectedImage};
-        try { return openImagePreview(owner.id, index); }
-        finally { selectedId = previous.selectedId; selectedIds = previous.selectedIds; selectedImage = previous.selectedImage; }
+        return smartSelection.withReferencePreview(() => openImagePreview(owner.id, index));
     }
     if(String(ref.url || '').startsWith('asset://')) return toast('该资产没有可直接播放的预览地址');
     if(ref.kind === 'audio'){
@@ -3899,12 +3971,11 @@ function finishSelection(event){
     const b = screenToWorld(event);
     const minX = Math.min(a.x, b.x), minY = Math.min(a.y, b.y);
     const maxX = Math.max(a.x, b.x), maxY = Math.max(a.y, b.y);
-    selectedIds = nodes.filter(node => {
+    const ids = nodes.filter(node => {
         const r = nodeRect(node);
         return r.x < maxX && r.x + r.width > minX && r.y < maxY && r.y + r.height > minY;
     }).map(n => n.id);
-    selectedId = selectedIds.length === 1 ? selectedIds[0] : '';
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.boxSelection(ids);
     selectionState = null;
     selectionJustFinished = true;
     selectionBox.style.display = 'none';
@@ -4093,8 +4164,7 @@ function bindSmartWorkspaceGestures(){
                             inheritNodeMetaFromImage(source);
                         }
                         const point = screenToWorld(e);
-                        selectedId = '';
-                        selectedImage = {nodeId:'', index:-1};
+                        smartSelection.thumbDetached();
                         const newNode = createImageNodeAt(point, [img], {select:false, skipUndo:true});
                         undoSuppressed = false;
                         dragState = {id:newNode.id, startX:e.clientX, startY:e.clientY, ox:newNode.x, oy:newNode.y, thumbDetached:true};
@@ -4247,7 +4317,7 @@ function bindSmartWorkspaceGestures(){
             ){
                 stateChanged = true;
                 restoreDraggedNodePosition();
-                if(selectedId === draggedNode.id) selectedId = '';
+                smartSelection.primaryReleased(draggedNode.id);
                 render();
             } else if(draggedNode && (draggedNode.images || []).length && (dragState.ctrlGroup || (dragState.group || []).length <= 1)){
                 const r = nodeRect(draggedNode);
@@ -4260,7 +4330,7 @@ function bindSmartWorkspaceGestures(){
                     stateChanged = true;
                     connectInputNode(draggedNode.id, target.id);
                     if(!dragState.thumbDetached) restoreDraggedNodePosition();
-                    if(selectedId === draggedNode.id) selectedId = '';
+                    smartSelection.primaryReleased(draggedNode.id);
                     render();
                 } else if((dragState.group || []).some(item => {
                     const n = nodes.find(x => x.id === item.id);
@@ -4314,7 +4384,7 @@ function bindSmartWorkspaceGestures(){
         const files = [...(e.clipboardData?.files || [])].filter(isSupportedUploadFile);
         if(files.length){
             lastImagePasteAt = Date.now();
-            handleFiles(files, selectedId);
+            handleFiles(files, smartSelection.nodeId);
             return;
         }
         // 素材库管理页「复制到画布」过来的素材：Ctrl+V 批量粘贴成图片节点
@@ -4382,14 +4452,14 @@ function bindSmartWorkspaceGestures(){
             performUndo();
             return;
         }
-        if((e.key === 'Delete' || e.key === 'Backspace') && (selectedId || selectedIds.length) && !isEditableTarget(e.target)){
+        if((e.key === 'Delete' || e.key === 'Backspace') && (smartSelection.nodeId || smartSelection.ids.length) && !isEditableTarget(e.target)){
             e.preventDefault();
-            const ids = selectedIds.length ? selectedIds.slice() : [selectedId];
+            const ids = smartSelection.ids.length ? smartSelection.ids.slice() : [smartSelection.nodeId];
             deleteSmartNodes(ids);
         }
         if((e.ctrlKey || e.metaKey) && e.shiftKey && key === 'g' && !isEditableTarget(e.target)){
             e.preventDefault();
-            const ids = selectedIds.length ? selectedIds.slice() : (selectedId ? [selectedId] : []);
+            const ids = smartSelection.ids.length ? smartSelection.ids.slice() : (smartSelection.nodeId ? [smartSelection.nodeId] : []);
             const ok = ids.map(id => ungroupNode(id)).some(Boolean);
             if(ok) return;
         }
@@ -4547,7 +4617,7 @@ function smartNodeToolbarHtml(node){
 // Prompt panels delegate document/selection writes; these checks never replace the session/save gates.
 function selectSmartPromptPanelTarget(canvasId,nodeId){
     if(canvas?.id !== canvasId || !nodes.some(n => n.id === nodeId)) return false;
-    selectedId = nodeId; selectedIds = []; selectedImage = {nodeId:'',index:-1};
+    smartSelection.panelTarget(nodeId);
     return true;
 }
 
@@ -4591,13 +4661,13 @@ function finishSmartPromptPanelEdit(canvasId){
     render(); scheduleSave();
 }
 
-function selectSmartImageEditorTarget(nodeId,index){selectedId=nodeId;selectedImage={nodeId,index};}
+function selectSmartImageEditorTarget(nodeId,index){return smartSelection.editorTarget(nodeId,index);}
 
 // The panorama supplies a captured frame/position; workspace retains document writes.
 function applySmartPanoramaExport(frame, point){
     pushUndo();
     const newNode=createImageNodeAt(point,[frame],{select:true,skipUndo:true});
-    selectedIds=[];selectedImage={nodeId:newNode.id,index:0};render();scheduleSave();
+    smartSelection.createdMedia(newNode.id);render();scheduleSave();
     return newNode;
 }
 
@@ -4625,7 +4695,7 @@ function createSmartComposer(){
     }
     function documentReplaced(){if(destroyed)return;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
     function documentImported(){if(!destroyed)activeComposerSubject=null;}
-    function outputSelected(){if(!destroyed && activeComposerSubject?.id && selectedId===activeComposerSubject.id)lastComposerNodeId=selectedId+':node';}
+    function outputSelected(){if(!destroyed && activeComposerSubject?.id && smartSelection.nodeId===activeComposerSubject.id)lastComposerNodeId=smartSelection.nodeId+':node';}
     function finishCascade(){if(destroyed)return;documentReplaced();composer.classList.remove('open');}
     function close({saveDraft=true,clearInput=false}={}){
         if(destroyed)return;if(saveDraft && !paused)savePromptDraftForCurrent();

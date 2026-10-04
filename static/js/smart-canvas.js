@@ -42,9 +42,7 @@ let canvas = null;
 let canvasUsesConnections = true;
 let nodes = [];
 const smartMinimap = createSmartMinimap();
-let selectedId = '';
-let selectedIds = [];
-let selectedImage = {nodeId:'', index:-1};
+const smartSelection = createSmartSelection();
 const smartComposer = createSmartComposer();
 let dragState = null;
 let loopInsertPreview = null;
@@ -87,7 +85,6 @@ let promptTemplateOverrides = {hiddenBuiltinIds:[], editedBuiltins:{}};
 const smartPromptPanels = createSmartPromptPanels();
 let createMenuPoint = {x:0, y:0};
 let nodeClipboard = null;
-let imageClickTimer = null;
 let suppressImageClickUntil = 0;
 let lastMouseWorld = null;
 let lastConfigRefreshAt = 0;
@@ -309,6 +306,7 @@ async function loadCanvas(options={}){
         if(canvasId!==requestedId || data.canvas.id!==requestedId) return;
         if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
             !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
+        smartSelection.documentReplacing();
         smartMinimap.reset();
         smartAudioPreview.reset();
         if(!options.observe || canvas?.id !== data.canvas.id){
@@ -484,7 +482,7 @@ fileInput.onchange = () => {
         uploadTargetId = '';
         return;
     }
-    const targetId = groupPoint ? '' : (uploadTargetId || selectedId);
+    const targetId = groupPoint ? '' : (uploadTargetId || smartSelection.nodeId);
     handleFiles(fileInput.files, targetId, groupPoint ? {point:groupPoint} : {});
     pendingGroupUploadPoint = null;
     uploadTargetId = '';
@@ -504,6 +502,7 @@ smartVideoTrimPanel.bind();
 smartAudioPreview.bind();
 bindSmartDrawingControls();
 bindSmartPanoramaControls();
+smartSelection.bind();
 smartComposer.bind();
 bindSmartImageEditorViewport();
 window.addEventListener('studio-theme-change', event => applyTheme(event.detail?.theme || 'light'));

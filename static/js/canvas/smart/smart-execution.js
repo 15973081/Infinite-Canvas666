@@ -385,8 +385,8 @@ function imageSizeForRatio(img){
 function sourceRatioImageForNode(node){
     const images = (node?.images || []).filter(img => img?.url && !isAudioMediaItem(img));
     if(!images.length) return null;
-    if(selectedImage.nodeId === node?.id && selectedImage.index >= 0 && imagesForNode(node)[selectedImage.index]){
-        const selected = imagesForNode(node)[selectedImage.index];
+    if(smartSelection.image.nodeId === node?.id && smartSelection.image.index >= 0 && imagesForNode(node)[smartSelection.image.index]){
+        const selected = imagesForNode(node)[smartSelection.image.index];
         if(imageSizeForRatio(selected)) return selected;
     }
     return images.find(img => imageSizeForRatio(img)) || images[0];
@@ -1278,8 +1278,7 @@ function createPendingOutputFromSource(sourceNode, expectedCount, meta, options=
     if(options.connectSource === false) addConnection(sourceNode.id, output.id, 'flow');
     else connectInputNode(sourceNode.id, output.id);
     attachRunMeta(output, options.stripInputMeta ? stripRunInputMeta(meta) : meta);
-    selectedId = sourceNode.id;
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.taskSource(sourceNode.id);
     return output;
 }
 
@@ -1447,11 +1446,10 @@ function finalizePendingNode(pendingNode, urls, meta, kind='image'){
     const metaTarget = pendingNode._runMetaTargetId ? nodes.find(n => n.id === pendingNode._runMetaTargetId) : pendingNode;
     if(metaTarget) attachRunMeta(metaTarget, meta);
     pendingNode.images = (pendingNode.images || []).map(img => stripImageGenerationMeta(img));
-    selectedId = pendingNode._selectAfterRunId || pendingNode.id;
+    const outputSelectionId = pendingNode._selectAfterRunId || pendingNode.id;
     delete pendingNode._runMetaTargetId;
     delete pendingNode._selectAfterRunId;
-    smartComposer.outputSelected();
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.taskOutput(outputSelectionId);
 }
 
 function restoreFromExtraction(node, extracted){
@@ -1954,7 +1952,7 @@ function replaceOutputsToNodeWithHistory(node, additions, kind='image', meta=nul
     const afterRight = (Number(node.x) || 0) + nodeRect(node).width;
     const skipShift = options.skipShift || Boolean(smartLoopContext?.nodeId);
     if(!skipShift) pushRightSideNodes(node, afterRight - beforeRight + 36);
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.outputsReplaced();
     return next;
 }
 
@@ -2381,7 +2379,7 @@ async function runSmartCascade(targetNode=null){
     const directLoopTargetRun = Boolean(loop && isDirectLoopTargetRun(loop, tail, graph));
     const singleNodeLoopRun = Boolean(loop && (chain.length === 1 || directLoopTargetRun));
     if(!graph.edges.length && !singleNodeLoopRun){ toast('没有可一键运行的上游链路'); return; }
-    const originalSelected = selectedId;
+    const originalSelected = smartSelection.nodeId;
     const originalSettings = cloneSmartSettings(settings);
     const originalPromptHtml = promptInput.innerHTML;
     const runKey = loopId || `cascade-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -2553,10 +2551,7 @@ async function runSmartCascade(targetNode=null){
         throwIfSmartCascadeStopRequested(runState);
         if(parallelLimit === 1) smartLoopContext = null;
         if(ownsUi()){
-        selectedId = '';
-        selectedIds = [];
-        selectedImage = {nodeId:'', index:-1};
-        smartComposer.finishCascade();
+        smartSelection.taskFinished();
         settings = originalSettings;
         promptInput.innerHTML = originalPromptHtml;
         }
@@ -2568,7 +2563,7 @@ async function runSmartCascade(targetNode=null){
         if(e?.resultPending || !writeGuard.valid()){resultDeferred=true;if(e?.inputChanged && writeGuard.valid())toast(e.message);writeGuard.pause();return;}
         if(parallelLimit === 1) smartLoopContext = null;
         if(ownsUi()){
-            selectedId = originalSelected;
+            smartSelection.taskFailed(originalSelected);
             settings = originalSettings;
             promptInput.innerHTML = originalPromptHtml;
         }
@@ -2596,9 +2591,7 @@ function runSmartCascadeFromLoop(loopId){
     if(!loop){ toast('没有找到循环节点'); return; }
     const tail = cascadeTailForLoop(loop.id);
     if(!tail){ toast('请把循环节点连接到下游图片链路'); return; }
-    selectedId = tail.id;
-    selectedIds = [];
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.taskTail(tail.id);
     runSmartCascade(tail);
 }
 
@@ -2644,9 +2637,9 @@ function pauseSmartTaskInput(node,inputBinding,writeGuard,error){
 }
 
 function smartTaskUiGuard(){
-    const selection=selectedId,composer=activeComposerNode(),html=promptInput?.innerHTML;
+    const selection=smartSelection.nodeId,composer=activeComposerNode(),html=promptInput?.innerHTML;
     const config=JSON.stringify(settingsForStorage(settings));
-    return ()=>selectedId===selection && activeComposerNode()===composer && promptInput?.innerHTML===html && JSON.stringify(settingsForStorage(settings))===config;
+    return ()=>smartSelection.nodeId===selection && activeComposerNode()===composer && promptInput?.innerHTML===html && JSON.stringify(settingsForStorage(settings))===config;
 }
 
 async function runGeneration(){
@@ -2812,7 +2805,7 @@ async function runGeneration(){
         if(branchNode){
             nodes = nodes.filter(n => n.id !== branchNode.id);
             canvas.connections = (canvas.connections || []).filter(c => c.from !== branchNode.id && c.to !== branchNode.id);
-            if(ownsUi())selectedId = node.id;
+            if(ownsUi())smartSelection.taskFailed(node.id);
         } else {
             pendingNode.pending = 0;
             pendingNode.running = false;

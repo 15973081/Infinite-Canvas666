@@ -1,3 +1,4 @@
+const {installSmartSelection}=require('./helpers/smart-selection.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=readCanvasSource('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
@@ -17,7 +18,7 @@ function fixture({enabled=true,wait=false}={}){
   escapeAttr:s=>s,escapeHtml:s=>s,
   queueAndResumeSmartApiTasks:async(output,result,opts)=>calls.push({output,result,opts}),smartPendingTasks:()=>[],pauseSmartTaskInput(){},
  };
- vm.createContext(ctx);vm.runInContext('let smartImageToolBusy=false;'+['smartNodeToolbarImageIndex','smartNodeToolbarHtml','runSmartNodeToolbarAction','runManagedImageTool','runApiGeneration'].map(fn).join('\n'),ctx);
+ installSmartSelection(ctx);vm.runInContext('let smartImageToolBusy=false;'+['smartNodeToolbarImageIndex','smartNodeToolbarHtml','runSmartNodeToolbarAction','runManagedImageTool','runApiGeneration'].map(fn).join('\n'),ctx);
  return {ctx,calls,notes,node,release};
 }
 test('selected image transforms use administrator settings and existing task bindings without changing the source',async()=>{
@@ -39,7 +40,7 @@ test('double clicks submit once; changing the selected image while loading cance
  const f=fixture({wait:true});const first=f.ctx.runSmartNodeToolbarAction('source','panorama');
  await f.ctx.runSmartNodeToolbarAction('source','panorama');f.release();await first;
  assert.equal(f.calls.filter(c=>c.payload).length,1);
- const changed=fixture({wait:true});const pending=changed.ctx.runSmartNodeToolbarAction('source','depth');changed.ctx.selectedImage.index=0;changed.release();await pending;
+ const changed=fixture({wait:true});const pending=changed.ctx.runSmartNodeToolbarAction('source','depth');changed.ctx.smartSelection.toolbarImage(changed.node.id,0);changed.release();await pending;
  assert.equal(changed.calls.length,1);
 });
 test('toolbar tools are limited to images in member spaces and respect editing permission',async()=>{
@@ -57,7 +58,7 @@ test('toolbar tools are limited to images in member spaces and respect editing p
  assert.doesNotMatch(f.ctx.smartNodeToolbarHtml(f.node),/data-smart-node-action="(?:panorama|depth)"/);
 });
 test('switching nodes or replacing the reference while configuration loads never submits',async()=>{
- for(const change of [f=>{f.ctx.selectedId='other';},f=>{f.node.images[1].url='/assets/replaced.png';}]){
+ for(const change of [f=>{f.ctx.smartSelection.createdNode('other');},f=>{f.node.images[1].url='/assets/replaced.png';}]){
   const f=fixture({wait:true}),pending=f.ctx.runSmartNodeToolbarAction('source','depth');
   change(f);f.release();await pending;assert.equal(f.calls.length,1);
  }

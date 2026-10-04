@@ -206,9 +206,7 @@ function pasteAssetsFromInbox(){
         const node = createImageNodeAt(p, [{url: it.url, name: it.name || 'asset', kind: it.kind || assetMediaKind(it)}], {skipUndo:true, select:false});
         if(node) created.push(node.id);
     });
-    selectedId = created.length === 1 ? created[0] : '';
-    selectedIds = created.length > 1 ? created : [];
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.insertedNodes(created);
     lastNodePasteAt = Date.now();
     try { localStorage.removeItem(smartScopedStorageKey(SMART_CANVAS_ASSET_INBOX_KEY)); } catch(e){}
     render();
@@ -251,7 +249,7 @@ async function runManagedImageTool(kind, nodeId, index){
         const data=await response.json();
         if(!response.ok)throw new Error(typeof data.detail==='string'?data.detail:'无法读取图片工具配置，请检查权限。');
         guard.check();
-        if(selectedId!==nodeId || smartNodeToolbarImageIndex(source.node)!==index || imageForDisplay(source.node.images?.[index])?.url!==source.image.url)return;
+        if(smartSelection.nodeId!==nodeId || smartNodeToolbarImageIndex(source.node)!==index || imageForDisplay(source.node.images?.[index])?.url!==source.image.url)return;
         const config=data.tools[kind];
         if(!config?.enabled)throw new Error(config?.unavailable_reason || '此工具尚未在管理平台启用。');
         const refs=[{url:source.image.url,name:source.image.name || 'reference.png',kind:'image'}];
@@ -503,7 +501,7 @@ function appendImagesToSmartNode(uploaded, targetId='', opts={}){
         delete node.h;
     }
     if(node.images.length === 1){ node.title = uploadTitleForItems(node.images, node.title || 'Image'); delete node.w; delete node.h; }
-    selectedId = node.id;
+    smartSelection.createdNode(node.id);
     render();
     scheduleSave();
 }

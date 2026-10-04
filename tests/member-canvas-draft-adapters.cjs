@@ -1,3 +1,4 @@
+const {installSmartSelection}=require('./helpers/smart-selection.cjs');
 const {readCanvasSource} = require('./helpers/canvas-source.cjs');
 const test=require('node:test');
 const assert=require('node:assert/strict');
@@ -20,6 +21,7 @@ function adapter(kind) {
         settingsForStorage:value=>structuredClone(value),cloneSmartSettings:value=>structuredClone(value),
         window:{MemberCanvasEdit:{markDirty:()=>context.markCount++}}};
     vm.createContext(context);
+    if(kind==='smart')installSmartSelection(context);
     for(const name of kind==='classic' ? ['serializableCanvasNode','resetTransientRunState','restoreClassicMemberDraft'] : ['serializableSmartNode','restoreSmartMemberDraft']) {
         vm.runInContext(sourceFunction(path,name),context);
     }

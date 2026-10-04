@@ -20,9 +20,9 @@ function snapshotForUndo(){
     return {
         nodes: JSON.parse(JSON.stringify(nodes)),
         connections: JSON.parse(JSON.stringify(canvas?.connections || [])),
-        selectedId,
-        selectedIds: selectedIds.slice(),
-        selectedImage: {...selectedImage}
+        selectedId: smartSelection.nodeId,
+        selectedIds: smartSelection.ids.slice(),
+        selectedImage: {...smartSelection.image}
     };
 }
 
@@ -39,9 +39,7 @@ function performUndo(){
     undoSuppressed = true;
     nodes = snap.nodes;
     if(canvas) canvas.connections = snap.connections;
-    selectedId = snap.selectedId;
-    selectedIds = snap.selectedIds;
-    selectedImage = snap.selectedImage;
+    smartSelection.restoreDocument(snap);
     smartComposer.documentReplaced();
     render();
     scheduleSave();
@@ -221,9 +219,7 @@ function insertSmartWorkflowIntoCanvas(imported){
         .filter(conn => conn.from && conn.to);
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
-    selectedIds = newNodes.length > 1 ? newNodes.map(node => node.id) : [];
-    selectedId = newNodes.length === 1 ? newNodes[0].id : '';
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.insertedNodes(newNodes.map(node => node.id));
     smartComposer.documentImported();
     render();
     scheduleSave();
@@ -339,7 +335,7 @@ function restoreSmartMemberDraft(draft){
         settings=cloneSmartSettings(canvasDefaultSmartSettings);
         canvas.settings=canvasDefaultSmartSettings;
     }
-    selectedId=''; selectedIds=[];
+    smartSelection.documentRestoring();
     smartCanvasDirty=true; smartSaveErrorNotified=false;
     updateProviderModels(); updateSmartCanvasNav(); render();
     window.MemberCanvasEdit.markDirty();
@@ -410,8 +406,7 @@ function renderSmartCanvasBackups(backups){
             }
             smartCanvasDirty = false;
             closeSmartCanvasBackups();
-            selectedId = '';
-            selectedIds = [];
+            smartSelection.documentRestoring();
             await loadCanvas();
             toast('备份已恢复');
         } catch(e) { toast(e.message || '恢复失败'); }
@@ -580,7 +575,7 @@ function createNode(x, y, images=[], options={}){
     node.scale = nodeImages.length > 1 ? MEDIA_GROUP_DEFAULT_SCALE : mediaNodeDefaultScale(node);
     inheritNodeMetaFromImage(node);
     nodes.push(node);
-    if(options.select !== false) selectedId = node.id;
+    if(options.select !== false) smartSelection.createdNode(node.id);
     render();
     scheduleSave();
     return node;
@@ -607,7 +602,7 @@ function createPromptNode(x, y, options={}){
         created_at:Date.now()
     };
     nodes.push(node);
-    if(options.select !== false) selectedId = node.id;
+    if(options.select !== false) smartSelection.createdNode(node.id);
     render();
     scheduleSave();
     return node;
@@ -617,7 +612,7 @@ function createLoopNode(x, y, options={}){
     if(!options.skipUndo) pushUndo();
     const node = {id:uid('loop'), type:'smart-loop', x, y, w:340, h:168, title:'Loop', count:1, mode:'serial', showPrompt:false, imageInput:false, loopStart:1, imageBatchSize:1, variablePrompt:'', created_at:Date.now()};
     nodes.push(node);
-    if(options.select !== false) selectedId = node.id;
+    if(options.select !== false) smartSelection.createdNode(node.id);
     render();
     scheduleSave();
     return node;
@@ -688,9 +683,7 @@ function pasteNodes(){
     })).filter(conn => conn.from && conn.to && conn.from !== conn.to);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     nodes.push(...copies);
-    selectedId = copies.length === 1 ? copies[0].id : '';
-    selectedIds = copies.length > 1 ? copies.map(n => n.id) : [];
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.insertedNodes(copies.map(n => n.id));
     render();
     scheduleSave();
 }
@@ -715,9 +708,7 @@ function duplicateForAltDrag(node){
     const newConnections = copiedConnections.map(conn => ({...conn, from:idMap.get(conn.from), to:idMap.get(conn.to)})).filter(conn => conn.from && conn.to && conn.from !== conn.to);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     nodes.push(...copies);
-    selectedId = '';
-    selectedIds = [];
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.duplicating();
     const dragCopy = copies.find(c => c.id === idMap.get(node.id)) || copies[0];
     render();
     scheduleSave();
@@ -733,8 +724,7 @@ function duplicateSmartNodeMediaToCanvas(node, imageIndex){
     const point = {x:rect.x + rect.width + 220, y:rect.y + rect.height / 2};
     const copy = {...item};
     const newNode = createImageNodeAt(point, [copy], {select:true, skipUndo:true});
-    selectedIds = [];
-    selectedImage = {nodeId:newNode.id, index:0};
+    smartSelection.createdMedia(newNode.id);
     render();
     scheduleSave();
     toast('已添加到画布');
@@ -762,9 +752,7 @@ function deleteSmartNodes(ids){
             affected.add(node.id);
         }
     });
-    if(deleteIds.has(selectedId)) selectedId = '';
-    selectedIds = selectedIds.filter(selected => !deleteIds.has(selected));
-    if(deleteIds.has(selectedImage.nodeId)) selectedImage = {nodeId:'', index:-1};
+    smartSelection.nodesRemoved(deleteIds);
     finishSmartNodeRemoval(deleteIds, affected);
     scheduleSave();
 }
@@ -784,7 +772,7 @@ function finishSmartNodeRemoval(deleteIds, affected, forceIds=[]){
     const remaining = [...affected].filter(id => !deleteIds.has(id));
     refreshSmartNodes(remaining, {forceIds});
     // A disconnected explicit mention can live outside the graph's downstream scope.
-    if(!smartAffectedNodeIds(remaining).has(selectedId)) updateComposer();
+    if(!smartAffectedNodeIds(remaining).has(smartSelection.nodeId)) updateComposer();
     syncSelectionUi();
     refreshConnectionLayer();
     // The immediate topology sync must not discard the layout correction for refreshed nodes.
@@ -819,9 +807,7 @@ function clearNodeMediaBeforeDelete(id){
             }
         });
     }
-    if(selectedImage.nodeId === id) selectedImage = {nodeId:'', index:-1};
-    selectedId = id;
-    selectedIds = [];
+    smartSelection.mediaCleared(id);
     // Clearing the source also invalidates any open preview of its former media.
     if(smartImageEditor.state.nodeId === id && smartImageEditor.state.open) closeImageEditor();
     smartAudioPreview.closeForNodes([id]);
@@ -874,8 +860,7 @@ function deleteImage(id, imageIndex){
     pushUndo();
     node.images = (node.images || []).filter((_, index) => index !== imageIndex);
     if(node.images.length <= 1) node.title = 'Image';
-    if(selectedImage.nodeId === id) selectedImage = {nodeId:id, index:Math.min(selectedImage.index, node.images.length - 1)};
-    if(selectedImage.index < 0) selectedImage = {nodeId:'', index:-1};
+    smartSelection.imagesChanged(id, node.images.length);
     render();
     scheduleSave();
 }
@@ -998,7 +983,7 @@ function upstreamLineNodeIds(node){
 }
 
 function groupSelectedNodes(){
-    const ids = selectedIds.length ? selectedIds.slice() : (selectedId ? [selectedId] : []);
+    const ids = smartSelection.ids.length ? smartSelection.ids.slice() : (smartSelection.nodeId ? [smartSelection.nodeId] : []);
     const selected = ids.map(id => nodes.find(n => n.id === id)).filter(n => n && (n.images || []).length);
     if(selected.length < 2){ toast('请先按住 Ctrl 框选至少两个图片节点'); return; }
     pushUndo();
@@ -1014,9 +999,7 @@ function groupSelectedNodes(){
         from:ids.includes(conn.from) ? group.id : conn.from,
         to:ids.includes(conn.to) ? group.id : conn.to
     })).filter((conn, index, arr) => conn.from !== conn.to && arr.findIndex(c => c.from === conn.from && c.to === conn.to && (c.kind || 'flow') === (conn.kind || 'flow')) === index);
-    selectedIds = [];
-    selectedId = group.id;
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.grouped(group.id);
     render();
     scheduleSave();
 }
@@ -1059,9 +1042,7 @@ function ungroupNode(groupId){
             node.inputNodeIds = node.inputNodeIds.filter(inputId => inputId !== groupId);
         }
     });
-    selectedIds = created.map(node => node.id);
-    selectedId = selectedIds.length === 1 ? selectedIds[0] : '';
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.boxSelection(created.map(node => node.id));
     render();
     scheduleSave();
     return true;
@@ -1089,9 +1070,7 @@ function mergeImageNodesIntoGroup(sourceId, targetId){
         }
     });
     nodes = nodes.filter(n => n.id !== source.id);
-    selectedIds = [];
-    selectedId = target.id;
-    selectedImage = {nodeId:'', index:-1};
+    smartSelection.grouped(target.id);
     return true;
 }
 
