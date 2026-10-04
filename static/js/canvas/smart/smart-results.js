@@ -615,31 +615,331 @@ function applyPreviewTransform(...args){return smartPreviewGestures.applyPreview
 
 function resetPreviewTransform(...args){return smartPreviewGestures.resetPreviewTransform(...args);}
 
-function panoramaRatioValue(){
-    const preset = PANORAMA_RATIO_PRESETS[panoramaState.ratio];
-    if(preset) return preset;
-    return {
-        w:Math.max(1, Number(panoramaState.customW) || 16),
-        h:Math.max(1, Number(panoramaState.customH) || 9)
+// Panorama owns its session and GPU cache; submitted exports outlive the UI.
+function createSmartPanoramaPreview(){
+    const PANORAMA_RATIO_PRESETS = {
+        square:{w:1, h:1},
+        portrait:{w:2, h:3},
+        landscape:{w:3, h:2},
+        portrait43:{w:3, h:4},
+        landscape43:{w:4, h:3},
+        story:{w:9, h:16},
+        wide:{w:16, h:9},
+        ultrawide:{w:21, h:9},
+        ultratall:{w:9, h:21}
     };
-}
+    const panoramaState = {
+        enabled:false,
+        ratio:'wide',
+        customW:16,
+        customH:9,
+        fov:75,
+        yaw:0,
+        pitch:0,
+        drag:null,
+        three:null,
+        renderer:null,
+        scene:null,
+        camera:null,
+        sphere:null,
+        texture:null,
+        threeLoadPromise:null,
+        image:null,
+        animationId:0,
+        loadedSrc:'',
+        loadToken:0
+    };
 
-function panoramaResolutionValue(){
-    const longSide = 1536;
-    const ratio = panoramaRatioValue();
-    const aspect = ratio.w / Math.max(1, ratio.h);
-    if(aspect >= 1){
-        return {w:longSide, h:Math.max(1, Math.round(longSide / aspect))};
+    let paused=false,destroyed=false,exportsPending=0;
+    const dom=new Map(),listeners=new Map();
+    function element(id){if(destroyed)return null;if(!dom.has(id))dom.set(id,document.getElementById(id));return dom.get(id);}
+    function usable(){return panoramaState.enabled && !destroyed && !paused && smartImageEditor.isPanoramaPreviewing();}
+    function clearListeners(){for(const [el,type,fn,options] of listeners.values())el.removeEventListener(type,fn,options);listeners.clear();}
+    function listen(el,type,fn,options){if(!el)return;const handler=event=>{if(!destroyed && !paused)fn(event);};el.addEventListener(type,handler,options);listeners.set(handler,[el,type,handler,options]);}
+    function endDrag(){panoramaState.drag=null;element('previewStage')?.classList.remove('panning');}
+    function beginDrag(event){
+        if(!usable() || event.button!==0 || event.target.closest('.preview-tools-overlay, .preview-download-overlay, .preview-compare-handle, video'))return false;
+        event.preventDefault();event.stopPropagation();panoramaState.drag={clientX:event.clientX,clientY:event.clientY,yaw:panoramaState.yaw,pitch:panoramaState.pitch};
+        element('previewStage')?.classList.add('panning');return true;
     }
-    return {w:Math.max(1, Math.round(longSide * aspect)), h:longSide};
-}
+    function moveDrag(event){
+        if(!panoramaState.drag)return false;if(!usable()){endDrag();return false;}
+        event.preventDefault();const dx=event.clientX-panoramaState.drag.clientX,dy=event.clientY-panoramaState.drag.clientY;
+        panoramaState.yaw=panoramaState.drag.yaw-dx*.18;panoramaState.pitch=Math.max(-85,Math.min(85,panoramaState.drag.pitch+dy*.18));
+        element('previewStage')?.classList.add('panning');return true;
+    }
+    function zoom(event){if(!usable())return false;const factor=event.deltaY<0?.92:1/.92;panoramaState.fov=Math.max(35,Math.min(100,panoramaState.fov*factor));updateZoomLabel();return true;}
+    function setCustomRatio(){if(destroyed || paused)return;panoramaState.ratio='custom';panoramaState.customW=Math.max(1,Math.min(999,Number(element('panoramaRatioW')?.value||16)));panoramaState.customH=Math.max(1,Math.min(999,Number(element('panoramaRatioH')?.value||9)));refreshPanoramaControls();resizePanoramaViewer();}
+    function refreshAvailability(){
+        if(destroyed || paused)return;const preview=smartImageEditor.state.open && smartImageEditor.state.mode==='preview';
+        const image=smartImageEditor.panoramaTarget().image || currentEditImage().image;
+        const available=preview && mediaKindForItem(image||{})!=='video';
+        if(!available && panoramaState.enabled)disposePanoramaPreview();
+        element('panoramaToggleBtn')?.style.setProperty('display',available?'inline-flex':'none');
+        element('panoramaExportBtn')?.style.setProperty('display',available && panoramaState.enabled?'inline-flex':'none');
+    }
+    function bind(){
+        if(destroyed || paused)return;clearListeners();
+        for(const button of element('panoramaControls')?.querySelectorAll('[data-panorama-ratio]')||[])listen(button,'click',event=>{event.preventDefault();event.stopPropagation();applyPanoramaRatio(button.dataset.panoramaRatio||'wide');});
+        for(const id of ['panoramaRatioW','panoramaRatioH'])listen(element(id),'input',setCustomRatio);
+        listen(element('panoramaToggleBtn'),'click',togglePanoramaPreview);listen(element('panoramaExportBtn'),'click',exportPanoramaFrame);
+        listen(element('previewStage'),'mousedown',beginDrag,true);
+        listen(element('previewStage'),'wheel',event=>{if(!usable())return;event.preventDefault();event.stopPropagation();zoom(event);},{passive:false,capture:true});
+        listen(window,'resize',()=>{if(usable())resizePanoramaViewer();});
+    }
+    function releaseRenderer(replaceCanvas=false){
+        stopPanoramaLoop();disposePanoramaTexture();
+        const sphere=panoramaState.sphere,renderer=panoramaState.renderer;
+        panoramaState.sphere=null;panoramaState.scene=null;panoramaState.camera=null;panoramaState.renderer=null;
+        sphere?.geometry.dispose();sphere?.material.dispose();renderer?.dispose();renderer?.forceContextLoss();
+        // A lost WebGL context cannot be reused on a cached-page return.
+        if(renderer && replaceCanvas){const old=element('panoramaCanvas');if(old){const next=old.cloneNode(false);old.replaceWith(next);dom.set('panoramaCanvas',next);}}
+    }
+    function pause(){if(paused || destroyed)return;disposePanoramaPreview();clearListeners();releaseRenderer(true);paused=true;}
+    function resume(){if(!paused || destroyed)return;paused=false;bind();refreshAvailability();}
+    function destroy(){if(destroyed)return;paused=false;disposePanoramaPreview();clearListeners();releaseRenderer();dom.clear();destroyed=true;}
 
-function panoramaSource(){
-    const editing = currentEditImage();
-    const image = editing.image || {};
-    if(mediaKindForItem(image) !== 'image') return '';
-    return displayMediaUrl(image.url ? image : (image.url || ''));
+    function panoramaRatioValue(){
+        const preset = PANORAMA_RATIO_PRESETS[panoramaState.ratio];
+        if(preset) return preset;
+        return {
+            w:Math.max(1, Number(panoramaState.customW) || 16),
+            h:Math.max(1, Number(panoramaState.customH) || 9)
+        };
+    }
+    function panoramaResolutionValue(){
+        const longSide = 1536;
+        const ratio = panoramaRatioValue();
+        const aspect = ratio.w / Math.max(1, ratio.h);
+        if(aspect >= 1){
+            return {w:longSide, h:Math.max(1, Math.round(longSide / aspect))};
+        }
+        return {w:Math.max(1, Math.round(longSide * aspect)), h:longSide};
+    }
+    function panoramaSource(){if(destroyed || paused)return '';const image=smartImageEditor.panoramaTarget().image;return image?displayMediaUrl(image):'';}
+    async function ensurePanoramaRenderer(current=()=>usable()){
+        const canvas=element('panoramaCanvas');if(!canvas || !current())return false;
+        if(!panoramaState.three){
+            const threeModulePath='/static/vendor/js/three-0.160.0.module.js',threeModuleUrl=window.FrontendVersion?.versionedUrl(threeModulePath)||threeModulePath;
+            const promise=panoramaState.threeLoadPromise ||= import(threeModuleUrl);
+            try {const THREE=await promise;if(!current() || destroyed || paused)return false;panoramaState.three=THREE;}
+            catch(error){if(panoramaState.threeLoadPromise===promise)panoramaState.threeLoadPromise=null;throw error;}
+        }
+        if(!current() || destroyed || paused)return false;
+        const THREE=panoramaState.three;
+        try {
+            if(!panoramaState.renderer){
+                panoramaState.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,preserveDrawingBuffer:true});
+                panoramaState.renderer.setPixelRatio(1);panoramaState.renderer.outputColorSpace=THREE.SRGBColorSpace;
+            }
+            if(!panoramaState.scene){
+                panoramaState.scene=new THREE.Scene();panoramaState.camera=new THREE.PerspectiveCamera(panoramaState.fov,16/9,1,1200);
+                const geometry=new THREE.SphereGeometry(500,96,64);geometry.scale(-1,1,1);
+                const material=new THREE.MeshBasicMaterial({color:0xffffff});panoramaState.sphere=new THREE.Mesh(geometry,material);panoramaState.scene.add(panoramaState.sphere);
+            }
+        } catch(error){releaseRenderer(true);throw error;}
+        return Boolean(panoramaState.renderer && panoramaState.scene && panoramaState.camera && panoramaState.sphere);
+    }
+    function applyPanoramaTexture(img){
+        const THREE = panoramaState.three;
+        if(!THREE || !panoramaState.sphere || !img?.naturalWidth || !img?.naturalHeight) return false;
+        if(panoramaState.texture){
+            panoramaState.texture.dispose?.();
+            panoramaState.texture = null;
+        }
+        const texture = new THREE.Texture(img);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        panoramaState.texture = texture;
+        panoramaState.sphere.material.map = texture;
+        panoramaState.sphere.material.needsUpdate = true;
+        return true;
+    }
+    function drawPanoramaFrame(){
+        if(!usable())return false;
+        const canvas = element('panoramaCanvas');
+        const img = panoramaState.image;
+        const {renderer, scene, camera, sphere, three:THREE} = panoramaState;
+        if(!panoramaState.enabled || !canvas || !renderer || !scene || !camera || !sphere || !THREE || !img?.naturalWidth || !img?.naturalHeight) return false;
+        const width = Math.max(1, canvas.width);
+        const height = Math.max(1, canvas.height);
+        renderer.setSize(width, height, false);
+        camera.fov = Math.max(35, Math.min(100, panoramaState.fov));
+        camera.aspect = width / Math.max(1, height);
+        camera.updateProjectionMatrix();
+        const pitch = Math.max(-85, Math.min(85, panoramaState.pitch));
+        const phi = THREE.MathUtils.degToRad(90 - pitch);
+        const theta = THREE.MathUtils.degToRad(panoramaState.yaw);
+        const target = new THREE.Vector3(
+            500 * Math.sin(phi) * Math.cos(theta),
+            500 * Math.cos(phi),
+            500 * Math.sin(phi) * Math.sin(theta)
+        );
+        camera.position.set(0, 0, 0);
+        camera.lookAt(target);
+        renderer.render(scene, camera);
+        return true;
+    }
+    function renderPanoramaFrame(){if(drawPanoramaFrame())startPanoramaLoop();}
+    function startPanoramaLoop(){
+        stopPanoramaLoop();if(!usable() || !panoramaState.image)return;
+        const token=panoramaState.loadToken;
+        const id=requestAnimationFrame(()=>{if(panoramaState.animationId!==id || token!==panoramaState.loadToken)return;panoramaState.animationId=0;if(!usable()){disposePanoramaPreview();return;}renderPanoramaFrame();});
+        panoramaState.animationId=id;
+    }
+    function stopPanoramaLoop(){
+        if(panoramaState.animationId) cancelAnimationFrame(panoramaState.animationId);
+        panoramaState.animationId = 0;
+    }
+    function resizePanoramaViewer(){
+        if(destroyed || paused)return;
+        const stage = element('panoramaStage');
+        const frame = element('previewFrame');
+        const canvas = element('panoramaCanvas');
+        if(!stage) return;
+        const ratio = panoramaRatioValue();
+        const aspect = Math.max(0.08, Math.min(12, ratio.w / ratio.h));
+        const maxW = Math.max(260, Math.min(1180, window.innerWidth - 116));
+        const maxH = Math.max(220, Math.min(780, window.innerHeight - 220));
+        let w = maxW;
+        let h = w / aspect;
+        if(h > maxH){
+            h = maxH;
+            w = h * aspect;
+        }
+        w = Math.max(160, Math.round(w));
+        h = Math.max(160, Math.round(h));
+        stage.style.width = `${w}px`;
+        stage.style.height = `${h}px`;
+        stage.style.aspectRatio = `${ratio.w} / ${ratio.h}`;
+        if(frame){
+            frame.style.width = `${w}px`;
+            frame.style.height = `${h}px`;
+        }
+        if(canvas){
+            const render = panoramaResolutionValue();
+            const nextW = Math.max(1, Math.round(render.w));
+            const nextH = Math.max(1, Math.round(render.h));
+            if(canvas.width !== nextW) canvas.width = nextW;
+            if(canvas.height !== nextH) canvas.height = nextH;
+        }
+    }
+    function disposePanoramaTexture(){
+        if(panoramaState.texture){
+            panoramaState.texture.dispose?.();
+            panoramaState.texture = null;
+        }
+        if(panoramaState.sphere?.material){
+            panoramaState.sphere.material.map = null;
+            panoramaState.sphere.material.needsUpdate = true;
+        }
+        panoramaState.image = null;
+    }
+    async function loadPanoramaTexture(src=panoramaSource()){
+        if(!usable() || !src || src!==panoramaSource())return;
+        const token=++panoramaState.loadToken,targetCurrent=smartImageEditor.guardPanoramaCallback(()=>true);
+        const current=()=>token===panoramaState.loadToken && usable() && Boolean(targetCurrent());
+        const stage=element('panoramaStage');stage?.classList.remove('ready');stopPanoramaLoop();disposePanoramaTexture();panoramaState.loadedSrc='';
+        try {
+            const [ready,original]=await Promise.all([ensurePanoramaRenderer(current),smartImageEditor.ensurePanoramaImage()]);
+            if(!current() || !original)return;
+            if(!ready)throw new Error('全景渲染器初始化失败');
+            if(!applyPanoramaTexture(original.image))throw new Error('全景纹理加载失败');
+            panoramaState.image=original.image;panoramaState.loadedSrc=src;stage?.classList.add('ready');resizePanoramaViewer();startPanoramaLoop();
+        } catch(error){if(!current())return;stage?.classList.add('ready');toast('360全景加载失败');}
+    }
+    function refreshPanoramaControls(){
+        if(destroyed || paused)return;
+        const controls = element('panoramaControls');
+        const custom = element('panoramaCustomRatio');
+        if(controls) controls.style.display = panoramaState.enabled ? 'inline-flex' : 'none';
+        if(custom) custom.style.display = panoramaState.enabled && panoramaState.ratio === 'custom' ? 'inline-flex' : 'none';
+        (element('panoramaControls')?.querySelectorAll('[data-panorama-ratio]')||[]).forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.panoramaRatio === panoramaState.ratio);
+        });
+        const w = element('panoramaRatioW');
+        const h = element('panoramaRatioH');
+        if(w && document.activeElement !== w) w.value = panoramaState.customW;
+        if(h && document.activeElement !== h) h.value = panoramaState.customH;
+    }
+    function setPanoramaEnabled(enabled){
+        if(destroyed || paused)return;
+        const next=Boolean(enabled);if(next && (!smartImageEditor.isPanoramaPreviewing() || !panoramaSource()))return;
+        if(panoramaState.enabled===next)return;
+        if(!next){disposePanoramaPreview();refreshComparePanel();updateZoomLabel();return;}
+        panoramaState.enabled=true;
+        element('previewStage')?.classList.add('panorama-on');element('imagePreviewTools')?.classList.add('panorama-tools-on');
+        element('panoramaStage')?.style.setProperty('display','block');element('panoramaToggleBtn')?.classList.add('active');
+        element('panoramaExportBtn')?.style.setProperty('display','inline-flex');
+        smartPreviewGestures.setPanoramaPresentation(true);smartPreviewGestures.resetPose();applyPreviewTransform();
+        resizePanoramaViewer();loadPanoramaTexture(panoramaSource());updatePreviewMetaHint('360全景：拖动转动，滚轮缩放，可调整视窗比例');
+        refreshPanoramaControls();updateZoomLabel();
+    }
+    function togglePanoramaPreview(){setPanoramaEnabled(!panoramaState.enabled);}
+    async function exportPanoramaFrame(){
+        if(!usable() || !canvas || isSmartCanvasLocked())return;
+        const canvasEl=element('panoramaCanvas');if(!canvasEl){toast('导出全景失败');return;}
+        // The encoded frame and its writeback context belong to the submitted task.
+        const editing=smartImageEditor.panoramaTarget(),rect=editing.node?nodeRect(editing.node):null;
+        const rawName=editing.image?.name || fileNameFromUrl(editing.image?.url||'') || 'panorama';
+        const base=String(rawName).replace(/\.[a-z0-9]{2,8}$/i,'')||'panorama';
+        const task=Object.freeze({canvasId:canvas.id,width:canvasEl.width,height:canvasEl.height,
+            filename:safeExportFileName(base+'-panorama.png','panorama.png'),point:Object.freeze(rect?{x:rect.x+rect.width+240,y:rect.y+rect.height/2}:viewportCenter())});
+        exportsPending++;
+        try {
+            if(!drawPanoramaFrame())throw new Error('导出全景失败');
+            const blob=await new Promise(resolve=>canvasEl.toBlob(resolve,'image/png'));if(!blob)throw new Error('导出全景失败');
+            const uploaded=await uploadFiles([new File([blob],task.filename,{type:'image/png'})]);
+            if(!uploaded[0]?.url)throw new Error('导出全景失败');
+            const frame={...uploaded[0],kind:'image',natural_w:task.width,natural_h:task.height};
+            if(canvas?.id!==task.canvasId || isSmartCanvasLocked()){toast('全景画面已上传，但画布已切换或变为只读，未添加节点。文件：'+frame.url);return;}
+            applySmartPanoramaExport(frame,task.point);toast('已导出到画布');
+        } catch(error){toast((error.message||'导出全景失败').slice(0,120));}
+        finally {exportsPending--;}
+    }
+    function resetPanoramaView(){
+        if(destroyed || paused)return;
+        panoramaState.fov = 75;
+        panoramaState.yaw = 0;
+        panoramaState.pitch = 0;
+        resizePanoramaViewer();
+        updateZoomLabel();
+    }
+    function disposePanoramaPreview(){
+        if(destroyed)return;
+        stopPanoramaLoop();disposePanoramaTexture();endDrag();panoramaState.enabled=false;panoramaState.loadedSrc='';panoramaState.loadToken++;
+        element('panoramaStage')?.classList.remove('ready');element('panoramaStage')?.style.setProperty('display','none');
+        element('previewStage')?.classList.remove('panorama-on','panning');element('imagePreviewTools')?.classList.remove('panorama-tools-on');
+        element('panoramaControls')?.style.setProperty('display','none');element('panoramaCustomRatio')?.style.setProperty('display','none');
+        element('panoramaToggleBtn')?.classList.remove('active');element('panoramaExportBtn')?.style.setProperty('display','none');
+        const frame=element('previewFrame');if(frame){frame.style.width='';frame.style.height='';}
+        smartPreviewGestures.setPanoramaPresentation(false);
+    }
+    function applyPanoramaRatio(value){
+        if(destroyed || paused)return;
+        panoramaState.ratio = PANORAMA_RATIO_PRESETS[value] ? value : 'custom';
+        refreshPanoramaControls();
+        resizePanoramaViewer();
+    }
+    return Object.freeze({get state(){return Object.freeze({enabled:panoramaState.enabled,targetValid:Boolean(panoramaState.enabled && !destroyed && !paused && smartImageEditor.isPanoramaPreviewing()),ratio:panoramaState.ratio,customW:panoramaState.customW,customH:panoramaState.customH,fov:panoramaState.fov,yaw:panoramaState.yaw,pitch:panoramaState.pitch,dragging:Boolean(panoramaState.drag),ready:Boolean(panoramaState.image && panoramaState.texture),initialized:Boolean(panoramaState.renderer),framePending:Boolean(panoramaState.animationId),loadedSrc:panoramaState.loadedSrc,exportsPending,paused,destroyed});},
+        setEnabled:setPanoramaEnabled,toggle:togglePanoramaPreview,close:()=>setPanoramaEnabled(false),reset:disposePanoramaPreview,
+        ratioValue:()=>Object.freeze({...panoramaRatioValue()}),resolutionValue:()=>Object.freeze(panoramaResolutionValue()),source:panoramaSource,setRatio:applyPanoramaRatio,setCustomRatio,resetView:resetPanoramaView,resize:resizePanoramaViewer,
+        exportFrame:exportPanoramaFrame,retry:loadPanoramaTexture,refreshControls:refreshPanoramaControls,refreshAvailability,beginDrag,moveDrag,endDrag,zoom,bind,pause,resume,destroy
+    });
 }
+function panoramaRatioValue(...args){return smartPanoramaPreview.ratioValue(...args);}
+function panoramaResolutionValue(...args){return smartPanoramaPreview.resolutionValue(...args);}
+function panoramaSource(...args){return smartPanoramaPreview.source(...args);}
+function resizePanoramaViewer(...args){return smartPanoramaPreview.resize(...args);}
+function loadPanoramaTexture(...args){return smartPanoramaPreview.retry(...args);}
+function refreshPanoramaControls(...args){return smartPanoramaPreview.refreshControls(...args);}
+function setPanoramaEnabled(...args){return smartPanoramaPreview.setEnabled(...args);}
+function togglePanoramaPreview(...args){return smartPanoramaPreview.toggle(...args);}
+function exportPanoramaFrame(...args){return smartPanoramaPreview.exportFrame(...args);}
+function resetPanoramaView(...args){return smartPanoramaPreview.resetView(...args);}
+function disposePanoramaPreview(...args){return smartPanoramaPreview.reset(...args);}
+function applyPanoramaRatio(...args){return smartPanoramaPreview.setRatio(...args);}
+function bindSmartPanoramaControls(...args){return smartPanoramaPreview.bind(...args);}
 
 function isLikelyPanoramaImage(node, image, naturalW=0, naturalH=0){
     if(mediaKindForItem(image || {}) !== 'image') return false;
@@ -661,279 +961,6 @@ function isLikelyPanoramaImage(node, image, naturalW=0, naturalH=0){
     if(!(w > 0 && h > 0)) return false;
     const aspect = w / h;
     return aspect >= 1.9 && aspect <= 2.1;
-}
-
-async function ensurePanoramaRenderer(){
-    const canvas = document.getElementById('panoramaCanvas');
-    if(!canvas) return false;
-    if(!panoramaState.three){
-        const threeModulePath = '/static/vendor/js/three-0.160.0.module.js';
-        const threeModuleUrl = window.FrontendVersion?.versionedUrl(threeModulePath) || threeModulePath;
-        panoramaState.threeLoadPromise = panoramaState.threeLoadPromise || import(threeModuleUrl);
-        try { panoramaState.three = await panoramaState.threeLoadPromise; }
-        catch(error){ panoramaState.threeLoadPromise = null; throw error; }
-    }
-    const THREE = panoramaState.three;
-    if(!panoramaState.renderer){
-        panoramaState.renderer = new THREE.WebGLRenderer({
-            canvas,
-            antialias:true,
-            alpha:false,
-            preserveDrawingBuffer:true
-        });
-        panoramaState.renderer.setPixelRatio(1);
-        panoramaState.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    }
-    if(!panoramaState.scene){
-        panoramaState.scene = new THREE.Scene();
-        panoramaState.camera = new THREE.PerspectiveCamera(panoramaState.fov, 16 / 9, 1, 1200);
-        const geometry = new THREE.SphereGeometry(500, 96, 64);
-        geometry.scale(-1, 1, 1);
-        const material = new THREE.MeshBasicMaterial({color:0xffffff});
-        panoramaState.sphere = new THREE.Mesh(geometry, material);
-        panoramaState.scene.add(panoramaState.sphere);
-    }
-    return Boolean(panoramaState.renderer && panoramaState.scene && panoramaState.camera && panoramaState.sphere);
-}
-
-function applyPanoramaTexture(img){
-    const THREE = panoramaState.three;
-    if(!THREE || !panoramaState.sphere || !img?.naturalWidth || !img?.naturalHeight) return false;
-    if(panoramaState.texture){
-        panoramaState.texture.dispose?.();
-        panoramaState.texture = null;
-    }
-    const texture = new THREE.Texture(img);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.needsUpdate = true;
-    panoramaState.texture = texture;
-    panoramaState.sphere.material.map = texture;
-    panoramaState.sphere.material.needsUpdate = true;
-    return true;
-}
-
-function drawPanoramaFrame(){
-    const canvas = document.getElementById('panoramaCanvas');
-    const img = panoramaState.image;
-    const {renderer, scene, camera, sphere, three:THREE} = panoramaState;
-    if(!panoramaState.enabled || !canvas || !renderer || !scene || !camera || !sphere || !THREE || !img?.naturalWidth || !img?.naturalHeight) return false;
-    const width = Math.max(1, canvas.width);
-    const height = Math.max(1, canvas.height);
-    renderer.setSize(width, height, false);
-    camera.fov = Math.max(35, Math.min(100, panoramaState.fov));
-    camera.aspect = width / Math.max(1, height);
-    camera.updateProjectionMatrix();
-    const pitch = Math.max(-85, Math.min(85, panoramaState.pitch));
-    const phi = THREE.MathUtils.degToRad(90 - pitch);
-    const theta = THREE.MathUtils.degToRad(panoramaState.yaw);
-    const target = new THREE.Vector3(
-        500 * Math.sin(phi) * Math.cos(theta),
-        500 * Math.cos(phi),
-        500 * Math.sin(phi) * Math.sin(theta)
-    );
-    camera.position.set(0, 0, 0);
-    camera.lookAt(target);
-    renderer.render(scene, camera);
-    return true;
-}
-
-function renderPanoramaFrame(){
-    if(!drawPanoramaFrame()) return;
-    panoramaState.animationId = requestAnimationFrame(renderPanoramaFrame);
-}
-
-function startPanoramaLoop(){
-    if(panoramaState.animationId) cancelAnimationFrame(panoramaState.animationId);
-    panoramaState.animationId = requestAnimationFrame(renderPanoramaFrame);
-}
-
-function stopPanoramaLoop(){
-    if(panoramaState.animationId) cancelAnimationFrame(panoramaState.animationId);
-    panoramaState.animationId = 0;
-}
-
-function resizePanoramaViewer(){
-    const stage = document.getElementById('panoramaStage');
-    const frame = document.getElementById('previewFrame');
-    const canvas = document.getElementById('panoramaCanvas');
-    if(!stage) return;
-    const ratio = panoramaRatioValue();
-    const aspect = Math.max(0.08, Math.min(12, ratio.w / ratio.h));
-    const maxW = Math.max(260, Math.min(1180, window.innerWidth - 116));
-    const maxH = Math.max(220, Math.min(780, window.innerHeight - 220));
-    let w = maxW;
-    let h = w / aspect;
-    if(h > maxH){
-        h = maxH;
-        w = h * aspect;
-    }
-    w = Math.max(160, Math.round(w));
-    h = Math.max(160, Math.round(h));
-    stage.style.width = `${w}px`;
-    stage.style.height = `${h}px`;
-    stage.style.aspectRatio = `${ratio.w} / ${ratio.h}`;
-    if(frame){
-        frame.style.width = `${w}px`;
-        frame.style.height = `${h}px`;
-    }
-    if(canvas){
-        const render = panoramaResolutionValue();
-        const nextW = Math.max(1, Math.round(render.w));
-        const nextH = Math.max(1, Math.round(render.h));
-        if(canvas.width !== nextW) canvas.width = nextW;
-        if(canvas.height !== nextH) canvas.height = nextH;
-    }
-}
-
-function disposePanoramaTexture(){
-    if(panoramaState.texture){
-        panoramaState.texture.dispose?.();
-        panoramaState.texture = null;
-    }
-    if(panoramaState.sphere?.material){
-        panoramaState.sphere.material.map = null;
-        panoramaState.sphere.material.needsUpdate = true;
-    }
-    panoramaState.image = null;
-}
-
-async function loadPanoramaTexture(src){
-    if(!src) return;
-    const token = ++panoramaState.loadToken;
-    const stage = document.getElementById('panoramaStage');
-    stage?.classList.remove('ready');
-    try {
-        const [ready, original] = await Promise.all([ensurePanoramaRenderer(), ensureSmartEditableImage()]);
-        if(token !== panoramaState.loadToken || !panoramaState.enabled || !original) return;
-        if(!ready) throw new Error('全景渲染器初始化失败');
-        disposePanoramaTexture();
-        if(!applyPanoramaTexture(original.image)) throw new Error('全景纹理加载失败');
-        panoramaState.image = original.image;
-        panoramaState.loadedSrc = src;
-        stage?.classList.add('ready');
-        resizePanoramaViewer();
-        startPanoramaLoop();
-    } catch(error) {
-        if(token !== panoramaState.loadToken) return;
-        stage?.classList.add('ready');
-        toast('360全景加载失败');
-    }
-}
-
-function refreshPanoramaControls(){
-    const controls = document.getElementById('panoramaControls');
-    const custom = document.getElementById('panoramaCustomRatio');
-    if(controls) controls.style.display = panoramaState.enabled ? 'inline-flex' : 'none';
-    if(custom) custom.style.display = panoramaState.enabled && panoramaState.ratio === 'custom' ? 'inline-flex' : 'none';
-    document.querySelectorAll('[data-panorama-ratio]').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.panoramaRatio === panoramaState.ratio);
-    });
-    const w = document.getElementById('panoramaRatioW');
-    const h = document.getElementById('panoramaRatioH');
-    if(w && document.activeElement !== w) w.value = panoramaState.customW;
-    if(h && document.activeElement !== h) h.value = panoramaState.customH;
-}
-
-function setPanoramaEnabled(enabled){
-    const next = Boolean(enabled);
-    if(panoramaState.enabled === next) return;
-    panoramaState.enabled = next;
-    const stage = document.getElementById('previewStage');
-    const pano = document.getElementById('panoramaStage');
-    const toggle = document.getElementById('panoramaToggleBtn');
-    const exportBtn = document.getElementById('panoramaExportBtn');
-    const previewTools = document.getElementById('imagePreviewTools');
-    stage?.classList.toggle('panorama-on', next);
-    previewTools?.classList.toggle('panorama-tools-on', next);
-    if(pano) pano.style.display = next ? 'block' : 'none';
-    if(toggle) toggle.classList.toggle('active', next);
-    if(exportBtn) exportBtn.style.display = next ? 'inline-flex' : 'none';
-    smartPreviewGestures.setPanoramaPresentation(next);
-    if(next){
-        smartPreviewGestures.resetPose();
-        applyPreviewTransform();
-        resizePanoramaViewer();
-        loadPanoramaTexture(panoramaSource());
-        updatePreviewMetaHint('360全景：拖动转动，滚轮缩放，可调整视窗比例');
-    } else {
-        stopPanoramaLoop();
-        const frame = document.getElementById('previewFrame');
-        if(frame){ frame.style.width = ''; frame.style.height = ''; }
-        refreshComparePanel();
-    }
-    refreshPanoramaControls();
-    updateZoomLabel();
-}
-
-function togglePanoramaPreview(){
-    const image = currentEditImage().image || {};
-    if(mediaKindForItem(image) !== 'image') return;
-    setPanoramaEnabled(!panoramaState.enabled);
-}
-
-async function exportPanoramaFrame(){
-    if(!panoramaState.enabled) return;
-    const canvasEl = document.getElementById('panoramaCanvas');
-    if(!canvasEl){ toast('导出全景失败'); return; }
-    try {
-        if(!drawPanoramaFrame()) throw new Error('导出全景失败');
-        const blob = await new Promise(resolve => canvasEl.toBlob(resolve, 'image/png'));
-        if(!blob) throw new Error('导出全景失败');
-        const editing = currentEditImage();
-        const rawName = editing.image?.name || fileNameFromUrl(editing.image?.url || '') || 'panorama';
-        const base = String(rawName).replace(/\.[a-z0-9]{2,8}$/i, '') || 'panorama';
-        const filename = safeExportFileName(`${base}-panorama.png`, 'panorama.png');
-        const uploaded = await uploadFiles([new File([blob], filename, {type:'image/png'})]);
-        const frame = uploaded[0];
-        if(!frame?.url) throw new Error('导出全景失败');
-        frame.kind = 'image';
-        frame.natural_w = canvasEl.width;
-        frame.natural_h = canvasEl.height;
-        const rect = editing.node ? nodeRect(editing.node) : null;
-        const point = rect
-            ? {x:rect.x + rect.width + 240, y:rect.y + rect.height / 2}
-            : viewportCenter();
-        pushUndo();
-        const newNode = createImageNodeAt(point, [frame], {select:true, skipUndo:true});
-        selectedIds = [];
-        selectedImage = {nodeId:newNode.id, index:0};
-        render();
-        scheduleSave();
-        toast('已导出到画布');
-    } catch(e) {
-        toast((e.message || '导出全景失败').slice(0, 120));
-    }
-}
-
-function resetPanoramaView(){
-    panoramaState.fov = 75;
-    panoramaState.yaw = 0;
-    panoramaState.pitch = 0;
-    resizePanoramaViewer();
-    updateZoomLabel();
-}
-
-function disposePanoramaPreview(){
-    stopPanoramaLoop();
-    disposePanoramaTexture();
-    panoramaState.enabled = false;
-    panoramaState.drag = null;
-    panoramaState.loadedSrc = '';
-    panoramaState.loadToken++;
-    const stage = document.getElementById('panoramaStage');
-    stage?.classList.remove('ready');
-    if(stage) stage.style.display = 'none';
-    document.getElementById('previewStage')?.classList.remove('panorama-on', 'panning');
-    document.getElementById('imagePreviewTools')?.classList.remove('panorama-tools-on');
-    document.getElementById('panoramaControls')?.style.setProperty('display', 'none');
-    document.getElementById('panoramaToggleBtn')?.classList.remove('active');
-    document.getElementById('panoramaExportBtn')?.style.setProperty('display', 'none');
-}
-
-function applyPanoramaRatio(value){
-    panoramaState.ratio = PANORAMA_RATIO_PRESETS[value] ? value : 'custom';
-    refreshPanoramaControls();
-    resizePanoramaViewer();
 }
 
 function setPreviewComparePos(clientX){return smartPreviewGestures.setComparePositionAt(clientX);}
@@ -1344,26 +1371,6 @@ function bindSmartPreviewPanEvents(...args){return smartPreviewGestures.bindSmar
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartPreviewCompareEvents(...args){return smartPreviewGestures.bindSmartPreviewCompareEvents(...args);}
 
-// Called once by smart-canvas.js, at its original initialization position.
-function bindSmartPanoramaControls(){
-    document.querySelectorAll('[data-panorama-ratio]').forEach(btn => {
-        btn.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            applyPanoramaRatio(btn.dataset.panoramaRatio || 'wide');
-        });
-    });
-    ['panoramaRatioW','panoramaRatioH'].forEach(id => {
-        document.getElementById(id)?.addEventListener('input', () => {
-            panoramaState.ratio = 'custom';
-            panoramaState.customW = Math.max(1, Math.min(999, Number(document.getElementById('panoramaRatioW')?.value || 16)));
-            panoramaState.customH = Math.max(1, Math.min(999, Number(document.getElementById('panoramaRatioH')?.value || 9)));
-            refreshPanoramaControls();
-            resizePanoramaViewer();
-        });
-    });
-}
-
 // The existing preview owner also owns ordinary comparison, metadata and media
 // presentation. The editor remains the sole owner of the target and navigation.
 function createSmartPreviewGestures(){
@@ -1419,14 +1426,14 @@ function createSmartPreviewGestures(){
         if(kind!=='image' || !sources.length){resetComparison();hideComparison();}
         else if(previewCompareIndex>=sources.length)previewCompareIndex=-1;
         const prompt=editing.node?.runPrompt?`提示词：${editing.node.runPrompt.slice(0,60)}`:'';
-        previewMetaExtraText=panoramaState.enabled?'360全景：拖动转动，滚轮缩放，可调整视窗比例':prompt;
-        if(!panoramaState.enabled && previewCompareOn && previewCompareIndex<0)previewMetaExtraText+=(prompt?' · ':'')+'点缩略图开始对比';
+        previewMetaExtraText=smartPanoramaPreview.state.enabled?'360全景：拖动转动，滚轮缩放，可调整视窗比例':prompt;
+        if(!smartPanoramaPreview.state.enabled && previewCompareOn && previewCompareIndex<0)previewMetaExtraText+=(prompt?' · ':'')+'点缩略图开始对比';
         element('previewStage').style.display='inline-flex';
         element('compareToggleBtn').style.display=kind==='image'?'inline-flex':'none';
         renderPreview(editing,sources);
     }
     function selectComparison(index){
-        if(!usable() || panoramaState.enabled || mediaKindForItem(currentEditImage().image||{})!=='image')return;
+        if(!usable() || smartPanoramaPreview.state.enabled || mediaKindForItem(currentEditImage().image||{})!=='image')return;
         const sources=previewCompareSources(),next=Number(index);
         if(!previewCompareOn || !Number.isInteger(next) || next<0 || next>=sources.length){refresh();return;}
         previewCompareIndex=previewCompareIndex===next?-1:next;refresh();
@@ -1489,7 +1496,7 @@ function createSmartPreviewGestures(){
 
     function syncPreviewFrameSize(){
         const frame = element('previewFrame');
-        if(panoramaState.enabled){
+        if(smartPanoramaPreview.state.enabled){
             resizePanoramaViewer();
             return;
         }
@@ -1581,16 +1588,12 @@ function createSmartPreviewGestures(){
         const compareHandle = element('previewCompareHandle');
         const thumbsEl = element('compareThumbs');
         const toggle = element('compareToggleBtn');
-        const panoramaToggle = element('panoramaToggleBtn');
         const curUrl = editing.image?.url || '';
         const isVideoPreview = mediaKindForItem(editing.image || {}) === 'video';
         const isPreviewMode = smartImageEditor.state.mode === 'preview';
-        if(panoramaToggle){
-            panoramaToggle.style.display = isPreviewMode && !isVideoPreview ? 'inline-flex' : 'none';
-            panoramaToggle.classList.toggle('active', panoramaState.enabled);
-        }
-        if(!isPreviewMode && panoramaState.enabled) disposePanoramaPreview();
-        if(panoramaState.enabled && isPreviewMode && !isVideoPreview){
+        smartPanoramaPreview.refreshAvailability();
+        if(!isPreviewMode && smartPanoramaPreview.state.enabled) disposePanoramaPreview();
+        if(smartPanoramaPreview.state.enabled && isPreviewMode && !isVideoPreview){
             currentImg.onload = null;
             currentImg.onerror = null;
             currentImg.style.display = 'none';
@@ -1634,7 +1637,6 @@ function createSmartPreviewGestures(){
                 toggle.classList.remove('active');
                 toggle.title = '无原图可对比';
             }
-            if(panoramaToggle) panoramaToggle.style.display = 'none';
             renderMetadata();
             return;
         }
@@ -1693,7 +1695,7 @@ function createSmartPreviewGestures(){
     }
 
     function togglePreviewCompare(){
-        if(!usable() || panoramaState.enabled || mediaKindForItem(currentEditImage().image||{})!=='image')return;
+        if(!usable() || smartPanoramaPreview.state.enabled || mediaKindForItem(currentEditImage().image||{})!=='image')return;
         const sources=previewCompareSources();
         if(!sources.length){resetComparison();refresh();toast('该图片没有原图可对比');return;}
         previewCompareOn=!previewCompareOn;
@@ -1731,12 +1733,7 @@ function createSmartPreviewGestures(){
     function zoom(event){if(!usable())return;
 
         if(seekPreviewVideoFrames(event.deltaY > 0 ? 1 : -1)) return;
-        if(panoramaState.enabled){
-            const factor = event.deltaY < 0 ? 0.92 : 1 / 0.92;
-            panoramaState.fov = Math.max(35, Math.min(100, panoramaState.fov * factor));
-            updateZoomLabel();
-            return;
-        }
+        if(smartPanoramaPreview.zoom(event))return;
         const oldZoom = previewZoom;
         const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
         previewZoom = Math.max(0.05, previewZoom * factor);
@@ -1763,16 +1760,7 @@ function createSmartPreviewGestures(){
             if(event.target.closest('video')) return;
             event.preventDefault();
             event.stopPropagation();
-            if(panoramaState.enabled){
-                panoramaState.drag = {
-                    clientX:event.clientX,
-                    clientY:event.clientY,
-                    yaw:panoramaState.yaw,
-                    pitch:panoramaState.pitch
-                };
-                element('previewStage')?.classList.add('panning');
-                return;
-            }
+            if(smartPanoramaPreview.beginDrag(event))return;
             previewPanDrag = {clientX:event.clientX, clientY:event.clientY, startX:previewPan.x, startY:previewPan.y};
         });
     }
@@ -1833,7 +1821,7 @@ function createSmartPreviewGestures(){
         if(destroyed)return;
         const frame = element('previewFrame');
         if(frame){
-            frame.style.transform = panoramaState.enabled ? '' : `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`;
+            frame.style.transform = smartPanoramaPreview.state.enabled ? '' : `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`;
         }
         updateZoomLabel();
     }
@@ -1845,7 +1833,7 @@ function createSmartPreviewGestures(){
         element('previewStage')?.style.setProperty('--compare-pos', `${previewComparePos}%`);
         applyPreviewTransform();
     }
-    return Object.freeze({get state(){return Object.freeze({active,paused,compareOn:previewCompareOn,compareIndex:previewCompareIndex,compareActive:Boolean(active && !paused && previewCompareOn && previewCompareIndex>=0 && previewCompareIndex<comparisonCount && smartImageEditor.isPreviewing() && !panoramaState.enabled),extraText:previewMetaExtraText,zoom:previewZoom,pan:Object.freeze({...previewPan}),comparePos:previewComparePos,dragging:Boolean(previewPanDrag||previewCompareDrag)});},
+    return Object.freeze({get state(){return Object.freeze({active,paused,compareOn:previewCompareOn,compareIndex:previewCompareIndex,compareActive:Boolean(active && !paused && previewCompareOn && previewCompareIndex>=0 && previewCompareIndex<comparisonCount && smartImageEditor.isPreviewing() && !smartPanoramaPreview.state.enabled),extraText:previewMetaExtraText,zoom:previewZoom,pan:Object.freeze({...previewPan}),comparePos:previewComparePos,dragging:Boolean(previewPanDrag||previewCompareDrag)});},
         refresh,toggleComparison:togglePreviewCompare,selectComparison,updateMetadata:updatePreviewMetaHint,prepare,leave,release,clearImage,setImageSource,setPanoramaPresentation,
         // Video trim still borrows the same player through this results-only bridge.
         videoState,onVideo,seekVideo:time=>{if(usable())element('previewCurrentVideo').currentTime=time;},playVideo:()=>usable()?element('previewCurrentVideo').play():Promise.reject(new Error('Preview unavailable')),
@@ -1853,20 +1841,20 @@ function createSmartPreviewGestures(){
         bindSmartPreviewPanEvents,bindSmartPreviewCompareEvents,applyPreviewTransform,resetPreviewTransform,moveCompare,movePan,endCompare,endPan,cancel,pause,resume,destroy,zoom,
         resetPose(){if(!destroyed){previewZoom=1;previewPan={x:0,y:0};}}});
 }
-function smartEditorPreviewState(){return Object.freeze({panoramaEnabled:panoramaState.enabled,fov:panoramaState.fov,dragging:Boolean(panoramaState.drag||smartPreviewGestures.state.dragging)});}
+function smartEditorPreviewState(){return Object.freeze({panoramaEnabled:smartPanoramaPreview.state.enabled,fov:smartPanoramaPreview.state.fov,dragging:Boolean(smartPanoramaPreview.state.dragging||smartPreviewGestures.state.dragging)});}
 function prepareSmartEditorPreview(){
     smartAudioPreview.close();
     resetVideoTrimState();disposePanoramaPreview();smartPreviewGestures.prepare();
 }
-function leaveSmartEditorPreview(){resetVideoTrimState();smartPreviewGestures.leave();if(panoramaState.enabled)disposePanoramaPreview();}
+function leaveSmartEditorPreview(){resetVideoTrimState();smartPreviewGestures.leave();if(smartPanoramaPreview.state.enabled)disposePanoramaPreview();}
 function clearSmartEditorPreviewImage(){return smartPreviewGestures.clearImage();}
 function setSmartEditorPreviewSource(url){return smartPreviewGestures.setImageSource(url);}
 function releaseSmartEditorPreview(){resetVideoTrimState();disposePanoramaPreview();smartPreviewGestures.release();}
 function zoomSmartEditorPreview(event){return smartPreviewGestures.zoom(event);}
-function resizeSmartEditorPreview(){if(panoramaState.enabled)resizePanoramaViewer();}
-function retrySmartEditorPreview(source){if(panoramaState.enabled)loadPanoramaTexture(source);}
+function resizeSmartEditorPreview(){if(smartPanoramaPreview.state.enabled)resizePanoramaViewer();}
+function retrySmartEditorPreview(source){if(smartPanoramaPreview.state.enabled)loadPanoramaTexture(source);}
 
-function pauseSmartEditorPreview(){smartVideoTrimPanel.pause();smartPreviewGestures.pause();if(panoramaState.enabled)disposePanoramaPreview();}
+function pauseSmartEditorPreview(){smartPanoramaPreview.pause();smartVideoTrimPanel.pause();smartPreviewGestures.pause();}
 
-function resumeSmartEditorPreview(){smartPreviewGestures.resume();smartVideoTrimPanel.resume();}
-function destroySmartEditorPreview(){smartVideoTrimPanel.destroy();smartPreviewGestures.destroy();}
+function resumeSmartEditorPreview(){smartPreviewGestures.resume();smartVideoTrimPanel.resume();smartPanoramaPreview.resume();}
+function destroySmartEditorPreview(){smartPanoramaPreview.destroy();smartVideoTrimPanel.destroy();smartPreviewGestures.destroy();}

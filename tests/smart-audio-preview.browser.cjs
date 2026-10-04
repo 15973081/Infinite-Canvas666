@@ -35,7 +35,7 @@ async function selection(page){return page.evaluate(()=>({id:selectedId,ids:sele
 
 test('Smart node and group audio really play, preserve first-view save and selection, and download the current item',async t=>{
     const {page,errors}=await audio(t,{finished:true});await open(page);await play(page);
-    assert.equal(await page.evaluate(async()=>{const item=nodes[0].images[0];await saveCanvas();return nodes[0].images[0]!==item;}),true);
+    assert.equal(await page.evaluate(async()=>{const item=nodes[0].images[0];await saveCanvas({force:true});return nodes[0].images[0]!==item;}),true);
     assert.equal(await page.evaluate(()=>smartAudioPreview.state.targetValid),true);
     assert.equal(await page.locator('#smartAudioLightboxHost audio').evaluate(el=>el.paused),false);
     assert.ok(Math.abs(await page.locator('#smartAudioLightboxHost audio').evaluate(el=>el.duration)-2)<.01);

@@ -593,6 +593,26 @@ function createSmartImageEditor(){
         return Boolean(target && canvas?.id===target.canvasId && (target.detached || nodes[target.nodeIndex]===target.node || nodes.includes(target.node)) &&
             target.node.images?.[target.index]===target.item && imageForDisplay(target.item)?.url===target.url);
     }
+    // Read-only panorama access accepts same-source metadata copies made by save.
+    // Editing/write receipts still use targetValid() and item identity below.
+    function isPanoramaPreviewing(){
+        const image=target && imageForDisplay(target.node.images?.[target.index]);
+        return Boolean(!destroyed && !paused && cropState && imageEditMode==='preview' && target && canvas?.id===target.canvasId &&
+            (target.detached || nodes[target.nodeIndex]===target.node || nodes.includes(target.node)) && image?.url===target.url && mediaKindForItem(image)==='image');
+    }
+    function panoramaTarget(){
+        return isPanoramaPreviewing()?{node:target.node,image:imageForDisplay(target.node.images[target.index]),index:target.index}:{node:null,image:null,index:0};
+    }
+    function guardPanoramaCallback(fn){
+        const origin={generation,target,revision:editRevision};
+        return (...args)=>{if(origin.generation===generation && origin.target===target && origin.revision===editRevision && isPanoramaPreviewing())return fn(...args);};
+    }
+    function ensurePanoramaImage(){
+        const image=panoramaTarget().image;if(!image)return Promise.resolve(null);
+        const current=guardPanoramaCallback(()=>true);
+        smartEditableResource ||= window.CanvasEditableImage.create(window);
+        return smartEditableResource.load(displayMediaUrl(image)).then(result=>current()?result:null);
+    }
     function capture(write=false){return {generation, target, revision:write ? editRevision : null};}
     function accept(origin){
         return Boolean(origin && !destroyed && !paused && cropState && origin.generation===generation && origin.target===target && targetValid() &&
@@ -1112,8 +1132,7 @@ function createSmartImageEditor(){
         syncGridOperationControls();
         syncGridGapValue();
         const applyBtn = element('imageEditApplyBtn');
-        element('panoramaToggleBtn').style.display = isPreview && !isVideoPreview ? 'inline-flex' : 'none';
-        element('panoramaExportBtn').style.display = isPreview && !isVideoPreview && smartEditorPreviewState().panoramaEnabled ? 'inline-flex' : 'none';
+        smartPanoramaPreview.refreshAvailability();
         if(isPreview){
             element('imageEditTitle').textContent = isVideoPreview ? '预览视频' : '预览图片';
             element('imageEditSub').textContent = isVideoPreview ? '' : '滚轮缩放，拖动查看，右下角可拉动对比原图';
@@ -2693,7 +2712,6 @@ function createSmartImageEditor(){
         }, {passive:false});
         listen('bindSmartImageEditorViewport', window, 'resize', () => {
             if(cropState) syncImageEditOverflow();
-            resizeSmartEditorPreview();
         });
     }
 
@@ -2709,7 +2727,7 @@ function createSmartImageEditor(){
         guardPreviewCallback:fn=>{const origin=capture(true);return (...args)=>{if(accept(origin))return fn(...args);};},
         schedulePreviewFrame:fn=>scheduleFrame(fn,'preview'),
         imageResolution:()=>{const image=element('cropImage');return Object.freeze({width:Number(image?.naturalWidth||0),height:Number(image?.naturalHeight||0)});},
-        currentEditImage,
+        currentEditImage,isPanoramaPreviewing,panoramaTarget,guardPanoramaCallback,ensurePanoramaImage,
         setImageEditMode:(...args)=>{if(!destroyed && !paused && cropState && targetValid())return setImageEditMode(...args);},
         undoEditDrawing:(...args)=>{if(!destroyed && !paused && cropState && targetValid())return undoEditDrawing(...args);},
         redoEditDrawing:(...args)=>{if(!destroyed && !paused && cropState && targetValid())return redoEditDrawing(...args);},

@@ -122,40 +122,7 @@ const smartImageEditor = createSmartImageEditor();
 const smartPreviewGestures = createSmartPreviewGestures();
 const smartVideoTrimPanel = createSmartVideoTrimPanel();
 const smartAudioPreview = createSmartAudioPreview();
-const PANORAMA_RATIO_PRESETS = {
-    square:{w:1, h:1},
-    portrait:{w:2, h:3},
-    landscape:{w:3, h:2},
-    portrait43:{w:3, h:4},
-    landscape43:{w:4, h:3},
-    story:{w:9, h:16},
-    wide:{w:16, h:9},
-    ultrawide:{w:21, h:9},
-    ultratall:{w:9, h:21}
-};
-let panoramaState = {
-    enabled:false,
-    ratio:'wide',
-    customW:16,
-    customH:9,
-    fov:75,
-    yaw:0,
-    pitch:0,
-    drag:null,
-    three:null,
-    renderer:null,
-    scene:null,
-    camera:null,
-    sphere:null,
-    texture:null,
-    threeLoadPromise:null,
-    image:null,
-    ctx:null,
-    animationId:0,
-    loadedSrc:'',
-    loadToken:0
-};
-window.__smartCanvasPanoramaState = panoramaState;
+const smartPanoramaPreview = createSmartPanoramaPreview();
 let viewport = {x:0, y:0, scale:1};
 let settings = {
     engine:'api',

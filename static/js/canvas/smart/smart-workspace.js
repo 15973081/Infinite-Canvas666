@@ -4187,15 +4187,7 @@ function bindSmartWorkspaceGestures(){
             return;
         }
         if(smartPreviewGestures.moveCompare(e)) return;
-        if(panoramaState.drag){
-            e.preventDefault();
-            const dx = e.clientX - panoramaState.drag.clientX;
-            const dy = e.clientY - panoramaState.drag.clientY;
-            panoramaState.yaw = panoramaState.drag.yaw - dx * 0.18;
-            panoramaState.pitch = Math.max(-85, Math.min(85, panoramaState.drag.pitch + dy * 0.18));
-            document.getElementById('previewStage')?.classList.add('panning');
-            return;
-        }
+        if(smartPanoramaPreview.moveDrag(e))return;
         if(smartPreviewGestures.movePan(e)) return;
         if(smartImageEditor.moveWindowGesture(e)) return;
         if(resizeState){
@@ -4312,10 +4304,7 @@ function bindSmartWorkspaceGestures(){
         if(promptResizeState){ promptResizeState = null; scheduleSave(); }
         if(selectionState) finishSelection(e);
         smartPreviewGestures.endCompare();
-        if(panoramaState.drag){
-            panoramaState.drag = null;
-            document.getElementById('previewStage')?.classList.remove('panning');
-        }
+        smartPanoramaPreview.endDrag();
         smartPreviewGestures.endPan();
         smartImageEditor.endWindowGesture();
         if(resizeState){
@@ -4746,3 +4735,11 @@ function finishSmartPromptPanelEdit(canvasId){
 }
 
 function selectSmartImageEditorTarget(nodeId,index){selectedId=nodeId;selectedImage={nodeId,index};}
+
+// The panorama supplies a captured frame/position; workspace retains document writes.
+function applySmartPanoramaExport(frame, point){
+    pushUndo();
+    const newNode=createImageNodeAt(point,[frame],{select:true,skipUndo:true});
+    selectedIds=[];selectedImage={nodeId:newNode.id,index:0};render();scheduleSave();
+    return newNode;
+}

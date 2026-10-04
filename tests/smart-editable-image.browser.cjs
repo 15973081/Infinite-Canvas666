@@ -61,6 +61,10 @@ async function fixture(t){
         function updatePreviewMetaHint(){}
         function tr(value){return value;}
         function toast(value){window.lastToast=value;}
+        function usable(){return panoramaState.enabled && Boolean(cropState);}
+        function panoramaSource(){return displayMediaUrl(item);}
+        const smartImageEditor={guardPanoramaCallback:fn=>fn,ensurePanoramaImage:()=>ensureSmartEditableImage()};
+        function stopPanoramaLoop(){}
         async function ensurePanoramaRenderer(){return true;}
         function disposePanoramaTexture(){}
         function resizePanoramaViewer(){}
@@ -100,7 +104,7 @@ test('old no-CORS cache reproduces broken crop; shared original fixes preview, c
         await applyImageCrop();
         Object.assign(cropState,{w:300,h:150});
         await applyImageOutpaint();
-        await loadPanoramaTexture('/asset');
+        await loadPanoramaTexture(displayMediaUrl(item));
         return {same:a.url===b.url,exported:exported.startsWith('data:image/png'),texture:window.textureError,shared:panoramaState.image===a.image};
     });
     assert.deepEqual(result,{same:true,exported:true,texture:0,shared:true});
