@@ -28,6 +28,7 @@
         })();
     </script>
     <script src="/static/js/studio-frame-messages.js"></script>
+    <script src="/static/js/studio-stats-connection.js"></script>
     <script src="/static/js/theme.js?v=2026.06.15.1781457289"></script>
     <script src="/static/js/theme-transition.js?v=2026.09.16.2"></script>
     <style>
@@ -1261,10 +1262,6 @@
         let maintenanceState = null;
         let maintenanceStatusRequest = null;
         let maintenancePollingTimer = null;
-        let studioSocket = null;
-        let studioReconnectTimer = null;
-        let studioReconnectAttempts = 0;
-        let studioHasConnected = false;
 
         function setSidebarPinned(pinned, options = {}) {
             const sidebar = document.getElementById('studioSidebar');
@@ -1396,6 +1393,19 @@
         document.addEventListener('DOMContentLoaded', restoreActivePage, { once:true });
 
         const host = window.location.host;
+        const studioStatsConnection = window.StudioStatsConnection.create({
+            window,
+            ready: () => window.CanvasSession?.ready,
+            address: () => {
+                if(!host) return null;
+                const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+                const address = `${protocol}://${host}/ws/stats?client_id=${encodeURIComponent(CID)}`;
+                return window.CanvasSession ? window.CanvasSession.socketUrl(address) : address;
+            },
+            onOpen: handleStudioConnected,
+            onMessage: handleStudioSocketMessage,
+            onUnavailable: showServiceDisconnected,
+        });
         if (host) {
             connectStudioWebSocket();
             setInterval(() => {
@@ -1574,13 +1584,12 @@
                     const response = await fetch('/api/maintenance/status', {cache:'no-store'});
                     if(!response.ok) throw new Error(`HTTP ${response.status}`);
                     const snapshot = await response.json();
-                    const disconnected = document.getElementById('service-disconnected');
-                    if(disconnected) disconnected.hidden = true;
+                    hideServiceDisconnected();
                     if(window.CanvasSession) window.CanvasSession.observeStatus(snapshot);
                     else handleMaintenanceSnapshot(snapshot);
                     return snapshot;
                 } catch(error) {
-                    if(!studioSocket || studioSocket.readyState !== WebSocket.OPEN) showServiceDisconnected();
+                    if(!studioStatsConnection.isOpen()) showServiceDisconnected();
                     return null;
                 } finally {
                     maintenanceStatusRequest = null;
@@ -1604,61 +1613,33 @@
             overlay.hidden = false;
         }
 
-        function scheduleStudioReconnect() {
-            if(studioReconnectTimer || !host) return;
-            // 连续失败时逐渐延长间隔，最多 10 秒；连接成功后重置次数。
-            const reconnectDelay = Math.min(10000, 800 * Math.pow(1.7, studioReconnectAttempts++));
-            studioReconnectTimer = window.setTimeout(() => {
-                studioReconnectTimer = null;
-                connectStudioWebSocket();
-            }, reconnectDelay);
+        function hideServiceDisconnected() {
+            const overlay = document.getElementById('service-disconnected');
+            if(overlay) overlay.hidden = true;
         }
 
-        async function connectStudioWebSocket() {
-            // 会话就绪后再构造带空间上下文的连接地址。
-            if (window.CanvasSession) await window.CanvasSession.ready;
-            if(!host || (studioSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(studioSocket.readyState))) return;
-            const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-            const socketAddress = `${protocol}://${host}/ws/stats?client_id=${encodeURIComponent(CID)}`;
-            const socket = new WebSocket(window.CanvasSession ? window.CanvasSession.socketUrl(socketAddress) : socketAddress);
-            studioSocket = socket;
-            socket.onopen = () => {
-                const reconnected = studioHasConnected;
-                studioHasConnected = true;
-                studioReconnectAttempts = 0;
-                const disconnected = document.getElementById('service-disconnected');
-                if(disconnected) disconnected.hidden = true;
-                if(reconnected || !maintenanceState) fetchMaintenanceStatus();
-            };
-            socket.onmessage = event => {
-                let data = null;
-                try {
-                    data = JSON.parse(event.data);
-                } catch(e) {
-                    return;
-                }
-                if(data.type === 'stats') {
-                    document.getElementById('online-val').innerText = data.online_members ?? data.online_count ?? 0;
-                    if(window.CanvasSession) window.CanvasSession.observeStatus(data);
-                } else if(data.type === 'maintenance_changed') {
-                    handleMaintenanceSnapshot(data.data || {});
-                } else {
-                    window.StudioFrameMessages.forwardUpdate(data);
-                }
-            };
-            socket.onerror = () => {
-                try {
-                    socket.close();
-                } catch(e) {}
-            };
-            socket.onclose = () => {
-                if(studioSocket === socket) studioSocket = null;
-                // 短暂断线先留出恢复时间，仍未连上时再显示提示。
-                window.setTimeout(() => {
-                    if(!studioSocket || studioSocket.readyState !== WebSocket.OPEN) showServiceDisconnected();
-                }, 700);
-                scheduleStudioReconnect();
-            };
+        function updateStudioOnlineCount(data) {
+            document.getElementById('online-val').innerText = data.online_members ?? data.online_count ?? 0;
+        }
+
+        function handleStudioConnected(reconnected) {
+            hideServiceDisconnected();
+            if(reconnected || !maintenanceState) fetchMaintenanceStatus();
+        }
+
+        function handleStudioSocketMessage(data) {
+            if(data.type === 'stats') {
+                updateStudioOnlineCount(data);
+                if(window.CanvasSession) window.CanvasSession.observeStatus(data);
+            } else if(data.type === 'maintenance_changed') {
+                handleMaintenanceSnapshot(data.data || {});
+            } else {
+                window.StudioFrameMessages.forwardUpdate(data);
+            }
+        }
+
+        function connectStudioWebSocket() {
+            return studioStatsConnection.start();
         }
 
     </script>

@@ -8,7 +8,7 @@ async function fixture(t){
     const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript(()=>{
         window.CanvasSession={ready:Promise.resolve(),url:x=>x,socketUrl:x=>x,observeStatus(){}};
-        window.WebSocket=class{static OPEN=1;static CONNECTING=0;constructor(){this.readyState=1;window.sockets||=[];window.sockets.push(this);}close(){this.readyState=3;}};
+        window.WebSocket=class{static OPEN=1;static CONNECTING=0;constructor(url){this.url=url;this.readyState=1;window.sockets||=[];window.sockets.push(this);}close(){this.readyState=3;}};
     });
     await page.route('**/*',async route=>{
         const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
@@ -43,6 +43,30 @@ test('production shell switches foreground routing and broadcasts lock/library p
     for(const type of ['canvas_locked','canvas_unlocked','asset_library_updated'])assert.deepEqual(await counts(page,type),[1,1]);
     assert.deepEqual(errors,[]);
 });
+test('production stats connection reconnects with original delay, retires old callbacks and restores presentation',async t=>{
+    const {page,errors}=await fixture(t);
+    await page.evaluate(async()=>{
+        await Promise.all([connectStudioWebSocket(),connectStudioWebSocket()]);
+        window.oldStats={open:sockets[0].onopen,message:sockets[0].onmessage,close:sockets[0].onclose,error:sockets[0].onerror};
+        sockets[0].close();oldStats.close();
+    });
+    await page.waitForFunction(()=>!document.getElementById('service-disconnected').hidden);
+    await page.waitForFunction(()=>sockets.length===2);
+    await page.evaluate(()=>{sockets[1].onopen();oldStats.open();oldStats.close();oldStats.error();oldStats.message({data:'{"type":"stats","online_count":999}'});sockets[1].onmessage({data:'{"type":"stats","online_members":7}'});});
+    assert.equal(await page.locator('#online-val').innerText(),'7');assert.equal(await page.locator('#service-disconnected').isVisible(),false);
+    assert.equal(await page.evaluate(()=>sockets.length),2);assert.deepEqual(errors,[]);
+});
+test('malformed WebSocket envelopes do not repaint or prevent subsequent messages',async t=>{
+    const {page,errors}=await fixture(t);
+    await page.evaluate(()=>{for(const data of ['bad','null','[]','{"type":1}'])sockets[0].onmessage({data});sockets[0].onmessage({data:'{"type":"stats","online_count":3}'});});
+    assert.equal(await page.locator('#online-val').innerText(),'3');assert.deepEqual(errors,[]);
+});
+test('exit while reconnect is queued removes socket timers and stale callbacks',async t=>{
+    const {page,errors}=await fixture(t);
+    await page.evaluate(()=>{window.closedCallback=sockets[0].onclose;sockets[0].close();closedCallback();window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));closedCallback();});
+    await page.waitForTimeout(900);assert.equal(await page.evaluate(()=>sockets.length),1);
+    assert.equal(await page.locator('#service-disconnected').isVisible(),false);assert.deepEqual(errors,[]);
+});
 test('real postMessage accepts only parent/owned frames and API forwarding keeps payload',async t=>{
     const {page,errors}=await fixture(t);
     await page.evaluate(()=>document.getElementById('frame-online').contentWindow.eval("parent.postMessage({type:'providers-changed',extra:9}, location.origin)"));
@@ -60,13 +84,16 @@ test('real postMessage accepts only parent/owned frames and API forwarding keeps
 });
 test('cached exit resumes once, while permanent exit blocks late socket/API delivery',async t=>{
     const {page,errors}=await fixture(t);
+    await page.evaluate(()=>window.oldSocketMessage=sockets[0].onmessage);
     await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true})));
-    await page.evaluate(()=>sockets[0].onmessage({data:JSON.stringify({type:'canvas_locked'})}));await page.waitForTimeout(30);
+    await page.evaluate(()=>oldSocketMessage({data:JSON.stringify({type:'canvas_locked'})}));await page.waitForTimeout(30);
     assert.deepEqual(await counts(page,'canvas_locked'),[0,0]);
-    await page.evaluate(()=>{window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));sockets[0].onmessage({data:JSON.stringify({type:'canvas_locked'})});});
+    await page.evaluate(()=>{window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
+    await page.waitForFunction(()=>sockets.length===2);
+    await page.evaluate(()=>sockets[1].onmessage({data:JSON.stringify({type:'canvas_locked'})}));
     await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.some(m=>m.type==='canvas_locked'));
     assert.deepEqual(await counts(page,'canvas_locked'),[1,1]);
-    await page.evaluate(()=>{window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));sockets[0].onmessage({data:JSON.stringify({type:'canvas_locked'})});window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
+    await page.evaluate(()=>{const old=sockets[1].onmessage;window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));old({data:JSON.stringify({type:'canvas_locked'})});window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
     await page.waitForTimeout(30);assert.deepEqual(await counts(page,'canvas_locked'),[1,1]);assert.deepEqual(errors,[]);
 });
 for(const kind of ['classic','smart'])test(kind+' production iframe keeps message handling and theme after cache return',async t=>{
