@@ -1351,7 +1351,7 @@ function renderNode(node){
         }
     }
     if(node.type === 'prompt') {
-        const templateActive = promptTemplateModal?.classList.contains('open') && promptTemplateNodeId === node.id;
+        const templateActive = classicPromptPanel.state.open && classicPromptPanel.state.nodeId === node.id;
         el.querySelector('.node-head-actions').insertAdjacentHTML('afterbegin', `<button class="prompt-template-btn ${templateActive ? 'active' : ''}" type="button" data-prompt-template-open data-prompt-template-node-id="${escapeAttr(node.id)}" aria-pressed="${templateActive ? 'true' : 'false'}" title="${escapeAttr('提示词模板库')}"><i data-lucide="library"></i><span>${escapeHtml('模板库')}</span></button>`);
         body.innerHTML = `<div class="prompt-editor"><textarea aria-label="提示词" placeholder="输入提示词...">${escapeHtml(node.text || '')}</textarea>${promptCounterHtml(node.text || '')}</div>`;
         const textarea = body.querySelector('textarea');
@@ -4188,7 +4188,7 @@ function bindClassicKeyboardEvents(){
         if(String(e.key || '').toLowerCase() === 'r' && !isEditableTarget(e.target)) isRKeyDown = true;
         if(e.key === 'Shift' && !isEditableTarget(document.activeElement)) setKnifeMode(true);
         if(e.key === 'Escape' && document.getElementById('imageEditModal').classList.contains('open')) { closeImageEditor(); return; }
-        if(e.key === 'Escape' && promptTemplateModal?.classList.contains('open')) { closePromptTemplateModal(); return; }
+        if(e.key === 'Escape' && (classicPromptPanel.state.open || classicPromptPanel.state.opening)) { closePromptTemplateModal(); return; }
         if(outputLightbox.classList.contains('open') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
             if(navigateOutputLightbox(e.key === 'ArrowRight' ? 1 : -1)){
                 e.preventDefault();
@@ -4269,4 +4269,22 @@ function bindClassicCardMenuDismissal(){
 
     document.addEventListener('scroll', event => { if(event.target instanceof Element && event.target.closest('.studio-card-menu-items')) return; document.querySelectorAll('.studio-card-menu[open]').forEach(menu => {menu.open=false;}); }, true);
     window.addEventListener('resize', () => document.querySelectorAll('.studio-card-menu[open]').forEach(menu => {menu.open=false;}));
+}
+
+
+// The panel supplies a captured target; document mutation and its existing local refresh stay here.
+function applyClassicPromptPanelText(target,text,closePanel=()=>{}){
+    if(canvas?.id !== target.canvasId) return false;
+    const node = nodes.find(n => n.id === target.nodeId && n.type === 'prompt');
+    if(!node) return false;
+    node.text = text;
+    closePanel();
+    scheduleSave();
+    const body = nodesEl.querySelector(`.node[data-id="${CSS.escape(node.id)}"] .node-body`);
+    const textarea = body?.querySelector('textarea');
+    if(textarea) textarea.value = node.text;
+    if(body) refreshPromptCounter(body,node.text);
+    refreshPromptDependents(node.id);
+    refreshGeometryAfterLayout();
+    return true;
 }

@@ -6,7 +6,7 @@ function setup(){
     const body={querySelector:()=>textarea};
     const node={id:'p',type:'prompt',text:'old'}, gen={id:'g',type:'video',inputs:['a','b']};
     const ctx=vm.createContext({nodes:[node,gen],nodesEl:{querySelector:()=>body},CSS:{escape:s=>s},
-        canvasPromptTemplates:[{id:'t'}],promptTemplateSelectedId:'t',promptTemplateNodeId:'p',canvasPromptTemplateText:()=> 'new template',
+        canvas:{id:'canvas-test'},canvasPromptTemplates:[{id:'t'}],promptTemplateSelectedId:'t',promptTemplateNodeId:'p',canvasPromptTemplateText:()=> 'new template',
         closePromptTemplateModal(){},scheduleSave(){},syncGeneratorInputs(){},refreshPromptCounter:(_body,text)=>calls.push(['counter',text]),
         refreshPromptDependents:id=>calls.push(['dependents',id]),
         refreshGeneratorInputViews:ids=>calls.push(['views',ids && [...ids]]),refreshGeometryAfterLayout:()=>calls.push(['layout']),
@@ -16,7 +16,7 @@ function setup(){
         prompt:()=> 'https://example.com/manual.mp4',clearManualVideoUrlForNode:n=>{n.manualVideoUrls=[];},
         applyManualVideoUrlToCanvasRef:(n,_r,url)=>{n.manualVideoUrls=[url];},showErrorModal(){},
         render(){throw Error('full render forbidden');},refreshNodes(){throw Error('node rebuild forbidden');}});
-    for(const name of ['applyPromptTemplateToPromptNode','setCanvasManualVideoUrl','reorderInput']){
+    for(const name of ['applyClassicPromptPanelText','setCanvasManualVideoUrl','reorderInput']){
         const start=source.search(new RegExp(`^(?:async )?function ${name}\\(`,'m'));
         vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
     }
@@ -27,7 +27,7 @@ test('material reorder refreshes only the target inputs without rebuilding nodes
     assert.deepEqual([...gen.inputs],['b','a']);assert.deepEqual(calls,[['views',['g']],['layout']]);
 });
 test('template updates the existing editor and counter while retaining its scroll',()=>{
-    const {ctx,textarea,node,calls}=setup();ctx.applyPromptTemplateToPromptNode();
+    const {ctx,textarea,node,calls}=setup();ctx.applyClassicPromptPanelText({canvasId:'canvas-test',nodeId:'p'},'new template');
     assert.equal(node.text,'new template');assert.equal(textarea.value,node.text);assert.equal(textarea.scrollTop,27);
     assert.deepEqual(calls[0],['counter',node.text]);
 });

@@ -809,8 +809,7 @@ function renderWorkflowAssetManager(){
 
 function renderPromptAssetManager(){
     const libs = canvasPromptLibraries.filter(lib => lib.id !== 'system');
-    if(!canvasPromptLibraries.some(lib => lib.id === activePromptLibraryId)) activePromptLibraryId = libs[0]?.id || canvasPromptLibraries[0]?.id || 'system';
-    const lib = canvasPromptLibraries.find(item => item.id === activePromptLibraryId) || libs[0] || null;
+    const lib = canvasPromptLibraries.find(item => item.id === classicPromptPanel.state.libraryId) || libs[0] || null;
     const items = lib?.items || [];
     const canEditLibrary = !!lib && !lib.readonly;
     assetManagerBody.innerHTML = `
@@ -821,7 +820,7 @@ function renderPromptAssetManager(){
                 <button type="button" class="danger" ${!canEditLibrary || canvasPromptLibraries.length <= 1 ? 'disabled' : ''} data-manager-prompt-lib-delete><i data-lucide="trash-2" class="w-4 h-4"></i><span>删除库</span></button>
             </div>
             <div class="asset-manager-list">
-                ${canvasPromptLibraries.map(library => `<button type="button" class="${library.id === activePromptLibraryId ? 'active' : ''}" data-manager-prompt-lib="${escapeAttr(library.id)}"><span>${escapeHtml(library.name || '提示词库')}</span><small>${(library.items || []).length}</small></button>`).join('')}
+                ${canvasPromptLibraries.map(library => `<button type="button" class="${library.id === classicPromptPanel.state.libraryId ? 'active' : ''}" data-manager-prompt-lib="${escapeAttr(library.id)}"><span>${escapeHtml(library.name || '提示词库')}</span><small>${(library.items || []).length}</small></button>`).join('')}
             </div>
         </div>
         <div class="asset-manager-main">
@@ -844,642 +843,997 @@ function renderPromptAssetManager(){
     `;
 }
 
-async function loadCanvasPromptTemplates(){
-    if(canvasPromptTemplatesLoaded) return canvasPromptTemplates;
-    try {
-        loadCanvasPromptTemplateGroups();
-        loadCanvasPromptTemplateOverrides();
-        const data = await window.CanvasApi.getPromptLibraries();
-        canvasPromptLibraries = Array.isArray(data.library?.libraries) ? data.library.libraries : [];
-        if(!canvasPromptLibraries.some(lib => lib.id === activePromptLibraryId)) {
-            activePromptLibraryId = canvasPromptLibraries.some(lib => lib.id === 'system') ? 'system' : (canvasPromptLibraries[0]?.id || 'system');
+function createClassicPromptPanel(){
+    let promptTemplateNodeId = '';
+    let promptTemplateCategory = 'all';
+    let promptTemplateSelectedId = '';
+    let promptTemplateQuery = '';
+    let promptTemplateEditing = false;
+    let activePromptLibraryId = 'system';
+    let promptTemplateGroupEditMode = false;
+    let promptTemplateModal = document.getElementById('promptTemplateModal');
+    let promptTemplatePanel = document.getElementById('promptTemplatePanel') || promptTemplateModal?.querySelector('.prompt-template-panel');
+    let promptTemplateClose = document.getElementById('promptTemplateClose');
+    let promptTemplateSearch = document.getElementById('promptTemplateSearch');
+    let promptTemplateLibrarySelect = document.getElementById('promptTemplateLibrarySelect');
+    let promptTemplateCats = document.getElementById('promptTemplateCats');
+    let promptTemplateBody = document.getElementById('promptTemplateBody');
+    // Only this closure owns UI choices, targets, DOM and cancellable work. Content remains in the entry.
+    let templateOpen = false, opening = false, templateVersion = 0, targetCanvasId = '';
+    let suspended = false, destroyed = false, scrollFrame = null, pendingOpen = null;
+    const bindings = [];
+
+    function alive(){ return !destroyed && !suspended; }
+    function captureTemplate(){ return Object.freeze({version:templateVersion,canvasId:canvas?.id || '',libraryId:activePromptLibraryId}); }
+    function current(origin){ return alive() && origin.version === templateVersion && origin.canvasId === (canvas?.id || ''); }
+    function validNodeTarget(){ return targetCanvasId === canvas?.id && Boolean(nodes.find(n => n.id === promptTemplateNodeId && n.type === 'prompt')); }
+    function acceptChoice(origin,patch){
+        if(!current(origin)) return;
+        if('libraryId' in patch) activePromptLibraryId = patch.libraryId;
+        if('categoryId' in patch) promptTemplateCategory = patch.categoryId;
+        if('itemId' in patch) promptTemplateSelectedId = patch.itemId;
+        if('editing' in patch) promptTemplateEditing = patch.editing;
+    }
+    function normalize(){
+        if(!alive()) return;
+        const libs = canvasPromptLibraries;
+        if(!libs.some(lib => lib.id === activePromptLibraryId)) activePromptLibraryId = libs.some(lib => lib.id === 'system') ? 'system' : (libs[0]?.id || 'system');
+        canvasPromptTemplates = implActiveCanvasPromptLibraryItems();
+        const groups = implActiveCanvasPromptTemplateGroups();
+        if(promptTemplateCategory !== 'all' && !groups.some(group => group.id === promptTemplateCategory)) promptTemplateCategory = 'all';
+        const query = String(promptTemplateQuery || '').trim().toLowerCase();
+        const items = implActiveCanvasPromptLibraryItems().filter(item => (promptTemplateCategory === 'all' || item.category === promptTemplateCategory) && (!query || implCanvasPromptTemplateSearchText(item).includes(query)));
+        if(!items.some(item => item.id === promptTemplateSelectedId)){
+            promptTemplateSelectedId = items[0]?.id || ''; promptTemplateEditing = false;
         }
-        canvasPromptTemplates = activeCanvasPromptLibraryItems();
-    } catch(e) {
-        canvasPromptTemplates = [];
-        canvasPromptLibraries = [];
+        if(!promptTemplateSelectedId) promptTemplateEditing = false;
     }
-    canvasPromptTemplatesLoaded = true;
-    return canvasPromptTemplates;
-}
-
-function activeCanvasPromptLibrary(){
-    return canvasPromptLibraries.find(lib => lib.id === activePromptLibraryId) || canvasPromptLibraries[0] || {id:'system', name:'系统提示词库', readonly:true, items:[]};
-}
-
-function defaultCanvasPromptTemplateGroups(){
-    return [
-        {id:'view', name:'视角'},
-        {id:'storyboard', name:'分镜'},
-        {id:'character', name:'角色'},
-        {id:'product', name:'产品'},
-        {id:'lighting', name:'光影'},
-        {id:'mine', name:'我的'}
-    ];
-}
-
-function loadCanvasPromptTemplateGroups(){
-    try {
-        const list = JSON.parse(localStorage.getItem(CANVAS_PROMPT_TEMPLATE_GROUPS_KEY) || '[]');
-        const valid = Array.isArray(list) ? list.filter(g => g?.id && g?.name) : [];
-        const defaults = defaultCanvasPromptTemplateGroups();
-        promptTemplateGroups = defaults.map(group => valid.find(g => g.id === group.id) || group);
-        valid.filter(g => !promptTemplateGroups.some(x => x.id === g.id)).forEach(g => promptTemplateGroups.push(g));
-    } catch(e) {
-        promptTemplateGroups = defaultCanvasPromptTemplateGroups();
+    function refreshTemplate(options={}){
+        if(!alive()) return;
+        normalize();
+        if(templateOpen) implRenderPromptTemplateModal(options);
+        else implRenderCanvasPromptLibrarySelect();
     }
-}
+    function dataChanged(options={}){
+        const previousItem = promptTemplateSelectedId;
+        if(!alive()) return;
+        normalize();
+        if(options.render !== false && templateOpen && !(options.preserveDraft && promptTemplateEditing && previousItem === promptTemplateSelectedId)) implRenderPromptTemplateModal();
+        else if(options.render !== false) implRenderCanvasPromptLibrarySelect();
 
-function saveCanvasPromptTemplateGroups(){
-    localStorage.setItem(CANVAS_PROMPT_TEMPLATE_GROUPS_KEY, JSON.stringify(promptTemplateGroups));
-}
-
-function loadCanvasPromptTemplateOverrides(){
-    try {
-        const data = JSON.parse(localStorage.getItem(CANVAS_PROMPT_TEMPLATE_OVERRIDES_KEY) || '{}');
-        canvasPromptTemplateOverrides = {
-            hiddenBuiltinIds:Array.isArray(data.hiddenBuiltinIds) ? data.hiddenBuiltinIds : [],
-            editedBuiltins:data.editedBuiltins && typeof data.editedBuiltins === 'object' ? data.editedBuiltins : {}
-        };
-    } catch(e) {
-        canvasPromptTemplateOverrides = {hiddenBuiltinIds:[], editedBuiltins:{}};
     }
-}
-
-function saveCanvasPromptTemplateOverrides(){
-    localStorage.setItem(CANVAS_PROMPT_TEMPLATE_OVERRIDES_KEY, JSON.stringify(canvasPromptTemplateOverrides));
-}
-
-function activeCanvasPromptLibraryItems(){
-    const lib = activeCanvasPromptLibrary();
-    const hidden = new Set(canvasPromptTemplateOverrides.hiddenBuiltinIds || []);
-    if(lib.id !== 'system'){
-        return (lib.items || []).filter(t => t?.id && t?.positive).map(t => ({
-            ...t,
-            sourceId:t.id,
-            remote:true,
-            libraryId:lib.id,
-            libraryName:lib.name || '提示词库',
-            builtin:false,
-        }));
+    function refreshFromReceipt(origin,options={}){
+        if(current(origin)) refreshTemplate(options);
+        else dataChanged({preserveDraft:true});
     }
-    const system = canvasPromptLibraries.find(item => item.id === 'system') || lib;
-    const builtins = (system.items || [])
-        .filter(t => t?.id && t?.positive && !hidden.has(t.id))
-        .map(t => ({
-            ...t,
-            ...(canvasPromptTemplateOverrides.editedBuiltins?.[t.id] || {}),
-            sourceId:t.id,
-            builtin:true,
-            remote:false,
-            libraryId:'system',
-            libraryName:'系统提示词库',
-        }));
-    const remotes = canvasPromptLibraries
-        .filter(item => item.id !== 'system')
-        .flatMap(item => (item.items || [])
-            .filter(t => t?.id && t?.positive)
-            .map(t => ({
+    function selectCategory(id){
+        if(!alive()) return;
+        templateVersion++;
+        promptTemplateCategory = id || 'all'; promptTemplateSelectedId = ''; promptTemplateEditing = false;
+        refreshTemplate({});
+    }
+    function selectTemplate(id){
+        if(!alive()) return;
+        templateVersion++; promptTemplateSelectedId = id || ''; promptTemplateEditing = false;
+        refreshTemplate();
+    }
+    function setQuery(query){
+        if(!alive()) return;
+        templateVersion++; promptTemplateQuery = String(query || '');
+        if(promptTemplateSearch) promptTemplateSearch.value = promptTemplateQuery;
+        refreshTemplate({});
+    }
+    function setEditing(value){
+        if(!alive()) return;
+        templateVersion++; promptTemplateEditing = Boolean(value); refreshTemplate();
+    }
+    function toggleGroups(){
+        if(!alive()) return;
+        templateVersion++; promptTemplateGroupEditMode = !promptTemplateGroupEditMode;
+        refreshTemplate({});
+    }
+    function selectLibrary(id,options={}){
+        if(!alive()) return;
+        templateVersion++; activePromptLibraryId = id || 'system';
+        promptTemplateSelectedId = ''; promptTemplateEditing = false;
+
+        if(options.source === "manager") managerSelectedPromptIds.clear();
+
+        refreshTemplate({});
+        if(assetManagerModal?.classList.contains("open")) updateAssetManager();
+    }
+    function listen(target,type,handler,options){
+        if(!target) return;
+        target.addEventListener(type,handler,options);
+        bindings.push(() => target.removeEventListener(type,handler,options));
+    }
+    function clearBindings(){ bindings.splice(0).forEach(remove => remove()); }
+    function cancelScroll(){ if(scrollFrame !== null) cancelAnimationFrame(scrollFrame); scrollFrame = null; }
+
+    async function implLoadCanvasPromptTemplates(){
+        if(!alive()) return;
+        if(canvasPromptTemplatesLoaded) return canvasPromptTemplates;
+        const origin = captureTemplate();
+        try {
+            implLoadCanvasPromptTemplateGroups();
+            implLoadCanvasPromptTemplateOverrides();
+            const data = await window.CanvasApi.getPromptLibraries();
+            canvasPromptLibraries = Array.isArray(data.library?.libraries) ? data.library.libraries : [];
+
+            canvasPromptTemplates = implActiveCanvasPromptLibraryItems();
+        } catch(e) {
+            canvasPromptTemplates = [];
+            canvasPromptLibraries = [];
+        }
+        canvasPromptTemplatesLoaded = true;
+        if(current(origin)) normalize();
+        return canvasPromptTemplates;
+    }
+
+    function implActiveCanvasPromptLibrary(){
+        return canvasPromptLibraries.find(lib => lib.id === activePromptLibraryId) || canvasPromptLibraries[0] || {id:'system', name:'系统提示词库', readonly:true, items:[]};
+    }
+
+    function implDefaultCanvasPromptTemplateGroups(){
+        return [
+            {id:'view', name:'视角'},
+            {id:'storyboard', name:'分镜'},
+            {id:'character', name:'角色'},
+            {id:'product', name:'产品'},
+            {id:'lighting', name:'光影'},
+            {id:'mine', name:'我的'}
+        ];
+    }
+
+    function implLoadCanvasPromptTemplateGroups(){
+        if(!alive()) return;
+        try {
+            const list = JSON.parse(localStorage.getItem(CANVAS_PROMPT_TEMPLATE_GROUPS_KEY) || '[]');
+            const valid = Array.isArray(list) ? list.filter(g => g?.id && g?.name) : [];
+            const defaults = implDefaultCanvasPromptTemplateGroups();
+            promptTemplateGroups = defaults.map(group => valid.find(g => g.id === group.id) || group);
+            valid.filter(g => !promptTemplateGroups.some(x => x.id === g.id)).forEach(g => promptTemplateGroups.push(g));
+        } catch(e) {
+            promptTemplateGroups = implDefaultCanvasPromptTemplateGroups();
+        }
+    }
+
+    function implSaveCanvasPromptTemplateGroups(){
+        if(!alive()) return;
+        localStorage.setItem(CANVAS_PROMPT_TEMPLATE_GROUPS_KEY, JSON.stringify(promptTemplateGroups));
+    }
+
+    function implLoadCanvasPromptTemplateOverrides(){
+        if(!alive()) return;
+        try {
+            const data = JSON.parse(localStorage.getItem(CANVAS_PROMPT_TEMPLATE_OVERRIDES_KEY) || '{}');
+            canvasPromptTemplateOverrides = {
+                hiddenBuiltinIds:Array.isArray(data.hiddenBuiltinIds) ? data.hiddenBuiltinIds : [],
+                editedBuiltins:data.editedBuiltins && typeof data.editedBuiltins === 'object' ? data.editedBuiltins : {}
+            };
+        } catch(e) {
+            canvasPromptTemplateOverrides = {hiddenBuiltinIds:[], editedBuiltins:{}};
+        }
+    }
+
+    function implSaveCanvasPromptTemplateOverrides(){
+        if(!alive()) return;
+        localStorage.setItem(CANVAS_PROMPT_TEMPLATE_OVERRIDES_KEY, JSON.stringify(canvasPromptTemplateOverrides));
+    }
+
+    function implActiveCanvasPromptLibraryItems(){
+        const lib = implActiveCanvasPromptLibrary();
+        const hidden = new Set(canvasPromptTemplateOverrides.hiddenBuiltinIds || []);
+        if(lib.id !== 'system'){
+            return (lib.items || []).filter(t => t?.id && t?.positive).map(t => ({
                 ...t,
                 sourceId:t.id,
                 remote:true,
+                libraryId:lib.id,
+                libraryName:lib.name || '提示词库',
                 builtin:false,
-                libraryId:item.id,
-                libraryName:item.name || '提示词库',
-            })));
-    return [...builtins, ...remotes];
-}
-
-function refreshCanvasPromptTemplatesFromLibraries(){
-    canvasPromptTemplatesLoaded = true;
-    canvasPromptTemplates = activeCanvasPromptLibraryItems();
-    renderCanvasPromptLibrarySelect();
-}
-
-function renderCanvasPromptLibrarySelect(){
-    if(!promptTemplateLibrarySelect) return;
-    promptTemplateLibrarySelect.innerHTML = canvasPromptLibraries.map(lib => `<option value="${escapeAttr(lib.id)}" ${lib.id === activePromptLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '提示词库')}</option>`).join('');
-}
-
-function activeCanvasPromptTemplateGroups(){
-    const lib = activeCanvasPromptLibrary();
-    if(!lib || lib.id === 'system') return promptTemplateGroups;
-    return Array.isArray(lib.categories) ? lib.categories.filter(c => c?.id && c?.name) : [];
-}
-
-function canvasPromptTemplateCategoryLabel(category){
-    if(category === 'all') return '全部';
-    const lib = activeCanvasPromptLibrary();
-    if(lib && lib.id !== 'system'){
-        return activeCanvasPromptTemplateGroups().find(g => g.id === category)?.name || category || '';
-    }
-    const builtin = {
-        view:'视角',
-        storyboard:'分镜',
-        character:'角色',
-        product:'产品',
-        lighting:'光影',
-        mine:'我的'
-    };
-    return builtin[category] || promptTemplateGroups.find(g => g.id === category)?.name || category || '';
-}
-
-function canvasPromptTemplateName(template){
-
-    return template?.name || '';
-}
-
-function canvasPromptTemplateScene(template){
-
-    return template?.scene || '';
-}
-
-function canvasPromptTemplateText(template, mode='positive'){
-    const positive = String(template?.positive || '').trim();
-    if(mode === 'positive') return positive;
-    const negative = String(template?.negative || '').trim();
-    const params = Object.entries(template?.params || {})
-        .map(([key, value]) => `${key}: ${value}`)
-        .join('\n');
-    return [positive, negative ? `Negative prompt:\n${negative}` : '', params ? `Params:\n${params}` : ''].filter(Boolean).join('\n\n');
-}
-
-function canvasPromptTemplateSearchText(template){
-    return [
-        template?.name,
-        template?.name_en,
-        template?.scene,
-        template?.scene_en,
-        template?.positive,
-        template?.negative,
-        template?.libraryName
-    ].join(' ').toLowerCase();
-}
-
-function canvasPromptTemplateVisibleItems(){
-    const query = String(promptTemplateSearch?.value || promptTemplateQuery || '').trim().toLowerCase();
-    return canvasPromptTemplates.filter(item => {
-        if(promptTemplateCategory !== 'all' && item.category !== promptTemplateCategory) return false;
-        if(!query) return true;
-        return canvasPromptTemplateSearchText(item).includes(query);
-    });
-}
-
-function currentCanvasPromptTemplateLibraryEditable(){
-    const lib = activeCanvasPromptLibrary();
-    return Boolean(lib && lib.id !== 'system' && !lib.readonly);
-}
-
-function currentCanvasPromptTemplateNodeText(){
-    const node = nodes.find(n => n.id === promptTemplateNodeId && n.type === 'prompt');
-    return String(node?.text || '').trim();
-}
-
-function syncCanvasPromptTemplateButtons(){
-    const activeId = promptTemplateModal?.classList.contains('open') ? promptTemplateNodeId : '';
-    document.querySelectorAll('[data-prompt-template-open]').forEach(btn => {
-        const active = Boolean(activeId && btn.dataset.promptTemplateNodeId === activeId);
-        btn.classList.toggle('active', active);
-        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-}
-
-function canvasPromptTemplateDefaultName(text){
-    return (String(text || '').trim().split(/\r?\n/)[0] || '新提示词').slice(0, 28);
-}
-
-function selectedCanvasPromptTemplate(){
-    return canvasPromptTemplates.find(item => item.id === promptTemplateSelectedId) || canvasPromptTemplates[0] || null;
-}
-
-function syncCanvasPromptTemplateMutation(data, fallbackSelectedId=''){
-    canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-    refreshCanvasPromptTemplatesFromLibraries();
-    promptTemplateSelectedId = data.item?.id || fallbackSelectedId || promptTemplateSelectedId;
-    const selected = selectedCanvasPromptTemplate();
-    promptTemplateCategory = selected?.category || promptTemplateCategory || 'all';
-}
-
-async function saveCurrentCanvasPromptAsTemplate(){
-    const lib = activeCanvasPromptLibrary();
-    if(!currentCanvasPromptTemplateLibraryEditable()){ setStatus('请选择可编辑的提示词库'); return; }
-    const text = currentCanvasPromptTemplateNodeText();
-    if(!text){ setStatus('当前提示词为空'); return; }
-    try {
-        const data = await window.CanvasApi.createPromptItem({
-            library_id:lib.id,
-            name:canvasPromptTemplateDefaultName(text),
-            category:promptTemplateCategory === 'all' ? 'mine' : promptTemplateCategory,
-            positive:text,
-            scene:'我的提示词预设'
-        }, {errorFallback:'保存失败'});
-        activePromptLibraryId = lib.id;
-        syncCanvasPromptTemplateMutation(data, data.item?.id || '');
-        promptTemplateEditing = true;
-        renderPromptTemplateModal();
-    } catch(err) {
-        setStatus(err.message || '保存失败');
-    }
-}
-
-async function createBlankCanvasPromptTemplate(){
-    const lib = activeCanvasPromptLibrary();
-    if(!currentCanvasPromptTemplateLibraryEditable()){ setStatus('请选择可编辑的提示词库'); return; }
-    const category = promptTemplateCategory && promptTemplateCategory !== 'all' ? promptTemplateCategory : 'mine';
-    try {
-        const data = await window.CanvasApi.createPromptItem({library_id:lib.id, name:'新模板', category, positive:'新提示词', scene:'我的提示词预设'}, {errorFallback:'创建失败'});
-        activePromptLibraryId = lib.id;
-        promptTemplateCategory = category;
-        syncCanvasPromptTemplateMutation(data, data.item?.id || '');
-        promptTemplateEditing = true;
-        renderPromptTemplateModal();
-    } catch(err) {
-        setStatus(err.message || '创建失败');
-    }
-}
-
-async function saveCanvasPromptTemplateEdit(){
-    const lib = activeCanvasPromptLibrary();
-    const item = selectedCanvasPromptTemplate();
-    if(!item) return;
-    const name = promptTemplatePanel.querySelector('[data-template-edit-name]')?.value?.trim() || '';
-    const positive = promptTemplatePanel.querySelector('[data-template-edit-text]')?.value?.trim() || '';
-    const category = promptTemplatePanel.querySelector('[data-template-edit-category]')?.value || 'mine';
-    if(!name || !positive){ setStatus('模板名称和内容不能为空'); return; }
-    try {
-        if(item.builtin){
-            canvasPromptTemplateOverrides.editedBuiltins = canvasPromptTemplateOverrides.editedBuiltins || {};
-            canvasPromptTemplateOverrides.editedBuiltins[item.sourceId || item.id] = {
-                ...(canvasPromptTemplateOverrides.editedBuiltins[item.sourceId || item.id] || {}),
-                name,
-                category,
-                positive
-            };
-            saveCanvasPromptTemplateOverrides();
-            promptTemplateEditing = false;
-            refreshCanvasPromptTemplatesFromLibraries();
-            renderPromptTemplateModal();
-            return;
+            }));
         }
-        const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:item.libraryId || lib.id, name, category, scene:item.scene || '', positive, negative:item.negative || ''}, {errorFallback:'保存失败'});
-        syncCanvasPromptTemplateMutation(data, item.id);
-        promptTemplateEditing = false;
-        renderPromptTemplateModal();
-    } catch(err) {
-        setStatus(err.message || '保存失败');
+        const system = canvasPromptLibraries.find(item => item.id === 'system') || lib;
+        const builtins = (system.items || [])
+            .filter(t => t?.id && t?.positive && !hidden.has(t.id))
+            .map(t => ({
+                ...t,
+                ...(canvasPromptTemplateOverrides.editedBuiltins?.[t.id] || {}),
+                sourceId:t.id,
+                builtin:true,
+                remote:false,
+                libraryId:'system',
+                libraryName:'系统提示词库',
+            }));
+        const remotes = canvasPromptLibraries
+            .filter(item => item.id !== 'system')
+            .flatMap(item => (item.items || [])
+                .filter(t => t?.id && t?.positive)
+                .map(t => ({
+                    ...t,
+                    sourceId:t.id,
+                    remote:true,
+                    builtin:false,
+                    libraryId:item.id,
+                    libraryName:item.name || '提示词库',
+                })));
+        return [...builtins, ...remotes];
     }
-}
 
-async function deleteCanvasPromptTemplate(){
-    const item = selectedCanvasPromptTemplate();
-    if(!item) return;
-    if(!window.confirm(`删除提示词「${canvasPromptTemplateName(item) || '提示词'}」？`)) return;
-    try {
-        if(item.builtin){
-            canvasPromptTemplateOverrides.hiddenBuiltinIds = [...new Set([...(canvasPromptTemplateOverrides.hiddenBuiltinIds || []), item.sourceId || item.id])];
-            saveCanvasPromptTemplateOverrides();
-            promptTemplateSelectedId = '';
-            promptTemplateEditing = false;
-            refreshCanvasPromptTemplatesFromLibraries();
-            renderPromptTemplateModal();
-            return;
+    function implRefreshCanvasPromptTemplatesFromLibraries(options={}){
+        canvasPromptTemplatesLoaded = true;
+        dataChanged({preserveDraft:true,...options});
+    }
+
+    function implRenderCanvasPromptLibrarySelect(){
+        if(!alive()) return;
+        if(!promptTemplateLibrarySelect) return;
+        promptTemplateLibrarySelect.innerHTML = canvasPromptLibraries.map(lib => `<option value="${escapeAttr(lib.id)}" ${lib.id === activePromptLibraryId ? 'selected' : ''}>${escapeHtml(lib.name || '提示词库')}</option>`).join('');
+    }
+
+    function implActiveCanvasPromptTemplateGroups(){
+        const lib = implActiveCanvasPromptLibrary();
+        if(!lib || lib.id === 'system') return promptTemplateGroups;
+        return Array.isArray(lib.categories) ? lib.categories.filter(c => c?.id && c?.name) : [];
+    }
+
+    function implCanvasPromptTemplateCategoryLabel(category){
+        if(category === 'all') return '全部';
+        const lib = implActiveCanvasPromptLibrary();
+        if(lib && lib.id !== 'system'){
+            return implActiveCanvasPromptTemplateGroups().find(g => g.id === category)?.name || category || '';
         }
-        const data = await window.CanvasApi.deletePromptItem(item.id, {errorFallback:'删除失败'});
+        const builtin = {
+            view:'视角',
+            storyboard:'分镜',
+            character:'角色',
+            product:'产品',
+            lighting:'光影',
+            mine:'我的'
+        };
+        return builtin[category] || promptTemplateGroups.find(g => g.id === category)?.name || category || '';
+    }
+
+    function implCanvasPromptTemplateName(template){
+
+        return template?.name || '';
+    }
+
+    function implCanvasPromptTemplateScene(template){
+
+        return template?.scene || '';
+    }
+
+    function implCanvasPromptTemplateText(template, mode='positive'){
+        const positive = String(template?.positive || '').trim();
+        if(mode === 'positive') return positive;
+        const negative = String(template?.negative || '').trim();
+        const params = Object.entries(template?.params || {})
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('\n');
+        return [positive, negative ? `Negative prompt:\n${negative}` : '', params ? `Params:\n${params}` : ''].filter(Boolean).join('\n\n');
+    }
+
+    function implCanvasPromptTemplateSearchText(template){
+        return [
+            template?.name,
+            template?.name_en,
+            template?.scene,
+            template?.scene_en,
+            template?.positive,
+            template?.negative,
+            template?.libraryName
+        ].join(' ').toLowerCase();
+    }
+
+    function implCanvasPromptTemplateVisibleItems(){
+        const query = String(promptTemplateQuery || '').trim().toLowerCase();
+        return canvasPromptTemplates.filter(item => {
+            if(promptTemplateCategory !== 'all' && item.category !== promptTemplateCategory) return false;
+            if(!query) return true;
+            return implCanvasPromptTemplateSearchText(item).includes(query);
+        });
+    }
+
+    function implCurrentCanvasPromptTemplateLibraryEditable(){
+        const lib = implActiveCanvasPromptLibrary();
+        return Boolean(lib && lib.id !== 'system' && !lib.readonly);
+    }
+
+    function implCurrentCanvasPromptTemplateNodeText(){
+        const node = nodes.find(n => n.id === promptTemplateNodeId && n.type === 'prompt');
+        return String(node?.text || '').trim();
+    }
+
+    function implSyncCanvasPromptTemplateButtons(){
+        if(!alive()) return;
+        const activeId = templateOpen ? promptTemplateNodeId : '';
+        document.querySelectorAll('[data-prompt-template-open]').forEach(btn => {
+            const active = Boolean(activeId && btn.dataset.promptTemplateNodeId === activeId);
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+    }
+
+    function implCanvasPromptTemplateDefaultName(text){
+        return (String(text || '').trim().split(/\r?\n/)[0] || '新提示词').slice(0, 28);
+    }
+
+    function implSelectedCanvasPromptTemplate(){
+        return canvasPromptTemplates.find(item => item.id === promptTemplateSelectedId) || null;
+    }
+
+    function implSyncCanvasPromptTemplateMutation(data, fallbackSelectedId='', origin=captureTemplate()){
         canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-        refreshCanvasPromptTemplatesFromLibraries();
-        promptTemplateSelectedId = '';
-        promptTemplateEditing = false;
-        renderPromptTemplateModal();
-    } catch(err) {
-        setStatus(err.message || '删除失败');
+        const id = data.item?.id || fallbackSelectedId || promptTemplateSelectedId;
+        const selected = implActiveCanvasPromptLibraryItems().find(item => item.id === id);
+        acceptChoice(origin, {itemId:id, categoryId:selected?.category || promptTemplateCategory || 'all'});
+        implRefreshCanvasPromptTemplatesFromLibraries({render:false});
     }
-}
 
-function promptTemplateScrollSnapshot(){
-    if(!promptTemplatePanel) return null;
-    return {
-        panelTop:promptTemplatePanel.scrollTop || 0,
-        tabLeft:promptTemplatePanel.querySelector('.prompt-template-tabs')?.scrollLeft || 0,
-        listTop:promptTemplatePanel.querySelector('.prompt-template-list')?.scrollTop || 0,
-        detailTop:promptTemplatePanel.querySelector('.prompt-template-preview-content')?.scrollTop || 0
-    };
-}
-
-function restorePromptTemplateScroll(snapshot){
-    if(!snapshot || !promptTemplatePanel) return;
-    requestAnimationFrame(() => {
-        promptTemplatePanel.scrollTop = snapshot.panelTop || 0;
-        const tabs = promptTemplatePanel.querySelector('.prompt-template-tabs');
-        const list = promptTemplatePanel.querySelector('.prompt-template-list');
-        const detail = promptTemplatePanel.querySelector('.prompt-template-preview-content');
-        if(tabs) tabs.scrollLeft = snapshot.tabLeft || 0;
-        if(list) list.scrollTop = snapshot.listTop || 0;
-        if(detail) detail.scrollTop = snapshot.detailTop || 0;
-    });
-}
-
-async function createCanvasPromptTemplateGroup(){
-    const name = window.prompt('新分组名称', '新分组');
-    if(!String(name || '').trim()) return;
-    const lib = activeCanvasPromptLibrary();
-    if(lib && lib.id !== 'system'){
+    async function implSaveCurrentCanvasPromptAsTemplate(){
+        if(!alive()) return;
+        const origin = captureTemplate();
+        const lib = implActiveCanvasPromptLibrary();
+        if(!implCurrentCanvasPromptTemplateLibraryEditable()){ setStatus('请选择可编辑的提示词库'); return; }
+        const text = implCurrentCanvasPromptTemplateNodeText();
+        if(!text){ setStatus('当前提示词为空'); return; }
         try {
-            const data = await window.CanvasApi.createPromptCategory({name:String(name).trim().slice(0, 24), library_id:lib.id}, {errorFallback:'新增分组失败'});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            promptTemplateCategory = data.category?.id || promptTemplateCategory;
-            refreshCanvasPromptTemplatesFromLibraries();
-            renderPromptTemplateModal();
-        } catch(err){ setStatus(err.message || '新增分组失败'); }
-        return;
+            const data = await window.CanvasApi.createPromptItem({
+                library_id:lib.id,
+                name:implCanvasPromptTemplateDefaultName(text),
+                category:promptTemplateCategory === 'all' ? 'mine' : promptTemplateCategory,
+                positive:text,
+                scene:'我的提示词预设'
+            }, {errorFallback:'保存失败'});
+            acceptChoice(origin, {libraryId:lib.id});
+            implSyncCanvasPromptTemplateMutation(data, data.item?.id || '', origin);
+            acceptChoice(origin, {editing:true});
+            refreshFromReceipt(origin);
+        } catch(err) {
+            setStatus(err.message || '保存失败');
+        }
     }
-    const group = {id:uid('tpl_group'), name:String(name).trim().slice(0, 24)};
-    promptTemplateGroups.push(group);
-    saveCanvasPromptTemplateGroups();
-    promptTemplateCategory = group.id;
-    renderPromptTemplateModal();
-}
 
-async function renameCanvasPromptTemplateGroup(groupId){
-    const lib = activeCanvasPromptLibrary();
-    const group = activeCanvasPromptTemplateGroups().find(g => g.id === groupId);
-    if(!group) return;
-    const name = window.prompt('分组名称', group.name || '');
-    if(!String(name || '').trim()) return;
-    if(lib && lib.id !== 'system'){
+    async function implCreateBlankCanvasPromptTemplate(){
+        if(!alive()) return;
+        const origin = captureTemplate();
+        const lib = implActiveCanvasPromptLibrary();
+        if(!implCurrentCanvasPromptTemplateLibraryEditable()){ setStatus('请选择可编辑的提示词库'); return; }
+        const category = promptTemplateCategory && promptTemplateCategory !== 'all' ? promptTemplateCategory : 'mine';
         try {
-            const data = await window.CanvasApi.updatePromptCategory(groupId, {name:String(name).trim().slice(0, 24), library_id:lib.id}, {errorFallback:'重命名失败'});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            refreshCanvasPromptTemplatesFromLibraries();
-            renderPromptTemplateModal();
-        } catch(err){ setStatus(err.message || '重命名失败'); }
-        return;
+            const data = await window.CanvasApi.createPromptItem({library_id:lib.id, name:'新模板', category, positive:'新提示词', scene:'我的提示词预设'}, {errorFallback:'创建失败'});
+            acceptChoice(origin, {libraryId:lib.id});
+            acceptChoice(origin, {categoryId:category});
+            implSyncCanvasPromptTemplateMutation(data, data.item?.id || '', origin);
+            acceptChoice(origin, {editing:true});
+            refreshFromReceipt(origin);
+        } catch(err) {
+            setStatus(err.message || '创建失败');
+        }
     }
-    group.name = String(name).trim().slice(0, 24);
-    saveCanvasPromptTemplateGroups();
-    renderPromptTemplateModal();
-}
 
-async function deleteCanvasPromptTemplateGroup(groupId){
-    const lib = activeCanvasPromptLibrary();
-    if(lib && lib.id !== 'system'){
+    async function implSaveCanvasPromptTemplateEdit(){
+        if(!alive()) return;
+        const origin = captureTemplate();
+        const lib = implActiveCanvasPromptLibrary();
+        const item = implSelectedCanvasPromptTemplate();
+        if(!item) return;
+        const name = promptTemplatePanel.querySelector('[data-template-edit-name]')?.value?.trim() || '';
+        const positive = promptTemplatePanel.querySelector('[data-template-edit-text]')?.value?.trim() || '';
+        const category = promptTemplatePanel.querySelector('[data-template-edit-category]')?.value || 'mine';
+        if(!name || !positive){ setStatus('模板名称和内容不能为空'); return; }
+        try {
+            if(item.builtin){
+                canvasPromptTemplateOverrides.editedBuiltins = canvasPromptTemplateOverrides.editedBuiltins || {};
+                canvasPromptTemplateOverrides.editedBuiltins[item.sourceId || item.id] = {
+                    ...(canvasPromptTemplateOverrides.editedBuiltins[item.sourceId || item.id] || {}),
+                    name,
+                    category,
+                    positive
+                };
+                implSaveCanvasPromptTemplateOverrides();
+                acceptChoice(origin, {editing:false});
+                implRefreshCanvasPromptTemplatesFromLibraries({render:false});
+                refreshFromReceipt(origin);
+                return;
+            }
+            const data = await window.CanvasApi.updatePromptItem(item.id, {library_id:item.libraryId || lib.id, name, category, scene:item.scene || '', positive, negative:item.negative || ''}, {errorFallback:'保存失败'});
+            implSyncCanvasPromptTemplateMutation(data, item.id, origin);
+            acceptChoice(origin, {editing:false});
+            refreshFromReceipt(origin);
+        } catch(err) {
+            setStatus(err.message || '保存失败');
+        }
+    }
+
+    async function implDeleteCanvasPromptTemplate(){
+        if(!alive()) return;
+        const origin = captureTemplate();
+        const item = implSelectedCanvasPromptTemplate();
+        if(!item) return;
+        if(!window.confirm(`删除提示词「${implCanvasPromptTemplateName(item) || '提示词'}」？`)) return;
+        try {
+            if(item.builtin){
+                canvasPromptTemplateOverrides.hiddenBuiltinIds = [...new Set([...(canvasPromptTemplateOverrides.hiddenBuiltinIds || []), item.sourceId || item.id])];
+                implSaveCanvasPromptTemplateOverrides();
+                acceptChoice(origin, {itemId:''});
+                acceptChoice(origin, {editing:false});
+                implRefreshCanvasPromptTemplatesFromLibraries({render:false});
+                refreshFromReceipt(origin);
+                return;
+            }
+            const data = await window.CanvasApi.deletePromptItem(item.id, {errorFallback:'删除失败'});
+            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+            implRefreshCanvasPromptTemplatesFromLibraries({render:false});
+            acceptChoice(origin, {itemId:''});
+            acceptChoice(origin, {editing:false});
+            refreshFromReceipt(origin);
+        } catch(err) {
+            setStatus(err.message || '删除失败');
+        }
+    }
+
+    function implPromptTemplateScrollSnapshot(){
+        if(!promptTemplatePanel) return null;
+        return {
+            panelTop:promptTemplatePanel.scrollTop || 0,
+            tabLeft:promptTemplatePanel.querySelector('.prompt-template-tabs')?.scrollLeft || 0,
+            listTop:promptTemplatePanel.querySelector('.prompt-template-list')?.scrollTop || 0,
+            detailTop:promptTemplatePanel.querySelector('.prompt-template-preview-content')?.scrollTop || 0
+        };
+    }
+
+    function implRestorePromptTemplateScroll(snapshot){
+        if(!alive() || !snapshot || !promptTemplatePanel) return;
+        cancelScroll();
+        const version = templateVersion;
+        scrollFrame = requestAnimationFrame(() => {
+            scrollFrame = null;
+            if(!alive() || version !== templateVersion || !templateOpen) return;
+            promptTemplatePanel.scrollTop = snapshot.panelTop || 0;
+            const tabs = promptTemplatePanel.querySelector('.prompt-template-tabs');
+            const list = promptTemplatePanel.querySelector('.prompt-template-list');
+            const detail = promptTemplatePanel.querySelector('.prompt-template-preview-content');
+            if(tabs) tabs.scrollLeft = snapshot.tabLeft || 0;
+            if(list) list.scrollTop = snapshot.listTop || 0;
+            if(detail) detail.scrollTop = snapshot.detailTop || 0;
+        });
+    }
+
+    async function implCreateCanvasPromptTemplateGroup(){
+        if(!alive()) return;
+        const origin = captureTemplate();
+        const name = window.prompt('新分组名称', '新分组');
+        if(!String(name || '').trim()) return;
+        const lib = implActiveCanvasPromptLibrary();
+        if(lib && lib.id !== 'system'){
+            try {
+                const data = await window.CanvasApi.createPromptCategory({name:String(name).trim().slice(0, 24), library_id:lib.id}, {errorFallback:'新增分组失败'});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                acceptChoice(origin, {categoryId:data.category?.id || promptTemplateCategory});
+                implRefreshCanvasPromptTemplatesFromLibraries({render:false});
+                refreshFromReceipt(origin);
+            } catch(err){ setStatus(err.message || '新增分组失败'); }
+            return;
+        }
+        const group = {id:uid('tpl_group'), name:String(name).trim().slice(0, 24)};
+        promptTemplateGroups.push(group);
+        implSaveCanvasPromptTemplateGroups();
+        acceptChoice(origin, {categoryId:group.id});
+        refreshFromReceipt(origin);
+    }
+
+    async function implRenameCanvasPromptTemplateGroup(groupId){
+        if(!alive()) return;
+        const origin = captureTemplate();
+        const lib = implActiveCanvasPromptLibrary();
+        const group = implActiveCanvasPromptTemplateGroups().find(g => g.id === groupId);
+        if(!group) return;
+        const name = window.prompt('分组名称', group.name || '');
+        if(!String(name || '').trim()) return;
+        if(lib && lib.id !== 'system'){
+            try {
+                const data = await window.CanvasApi.updatePromptCategory(groupId, {name:String(name).trim().slice(0, 24), library_id:lib.id}, {errorFallback:'重命名失败'});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                implRefreshCanvasPromptTemplatesFromLibraries({render:false});
+                refreshFromReceipt(origin);
+            } catch(err){ setStatus(err.message || '重命名失败'); }
+            return;
+        }
+        group.name = String(name).trim().slice(0, 24);
+        implSaveCanvasPromptTemplateGroups();
+        refreshFromReceipt(origin);
+    }
+
+    async function implDeleteCanvasPromptTemplateGroup(groupId){
+        if(!alive()) return;
+        const origin = captureTemplate();
+        const lib = implActiveCanvasPromptLibrary();
+        if(lib && lib.id !== 'system'){
+            if(!window.confirm('删除分组？该分组里的我的模板会移动到“我的”。')) return;
+            try {
+                const data = await window.CanvasApi.deletePromptCategory(groupId, {errorFallback:'删除失败'});
+                canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
+                if(promptTemplateCategory === groupId) acceptChoice(origin, {categoryId:'all'});
+                implRefreshCanvasPromptTemplatesFromLibraries({render:false});
+                refreshFromReceipt(origin);
+            } catch(err){ setStatus(err.message || '删除失败'); }
+            return;
+        }
+        if(['view','storyboard','character','product','lighting','mine'].includes(groupId)){
+            implRenameCanvasPromptTemplateGroup(groupId);
+            return;
+        }
         if(!window.confirm('删除分组？该分组里的我的模板会移动到“我的”。')) return;
-        try {
-            const data = await window.CanvasApi.deletePromptCategory(groupId, {errorFallback:'删除失败'});
-            canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            if(promptTemplateCategory === groupId) promptTemplateCategory = 'all';
-            refreshCanvasPromptTemplatesFromLibraries();
-            renderPromptTemplateModal();
-        } catch(err){ setStatus(err.message || '删除失败'); }
-        return;
+        promptTemplateGroups = promptTemplateGroups.filter(g => g.id !== groupId);
+        Object.entries(canvasPromptTemplateOverrides.editedBuiltins || {}).forEach(([id, item]) => {
+            if(item?.category === groupId) canvasPromptTemplateOverrides.editedBuiltins[id] = {...item, category:'mine'};
+        });
+        canvasPromptLibraries = canvasPromptLibraries.map(lib => ({
+            ...lib,
+            items:(lib.items || []).map(item => item.category === groupId ? {...item, category:'mine'} : item)
+        }));
+        if(promptTemplateCategory === groupId) acceptChoice(origin, {categoryId:'all'});
+        implSaveCanvasPromptTemplateGroups();
+        implSaveCanvasPromptTemplateOverrides();
+        implRefreshCanvasPromptTemplatesFromLibraries({render:false});
+        refreshFromReceipt(origin);
     }
-    if(['view','storyboard','character','product','lighting','mine'].includes(groupId)){
-        renameCanvasPromptTemplateGroup(groupId);
-        return;
-    }
-    if(!window.confirm('删除分组？该分组里的我的模板会移动到“我的”。')) return;
-    promptTemplateGroups = promptTemplateGroups.filter(g => g.id !== groupId);
-    Object.entries(canvasPromptTemplateOverrides.editedBuiltins || {}).forEach(([id, item]) => {
-        if(item?.category === groupId) canvasPromptTemplateOverrides.editedBuiltins[id] = {...item, category:'mine'};
-    });
-    canvasPromptLibraries = canvasPromptLibraries.map(lib => ({
-        ...lib,
-        items:(lib.items || []).map(item => item.category === groupId ? {...item, category:'mine'} : item)
-    }));
-    if(promptTemplateCategory === groupId) promptTemplateCategory = 'all';
-    saveCanvasPromptTemplateGroups();
-    saveCanvasPromptTemplateOverrides();
-    refreshCanvasPromptTemplatesFromLibraries();
-    renderPromptTemplateModal();
-}
 
-function renderPromptTemplateModal(){
-    if(!promptTemplateModal || !promptTemplatePanel || !promptTemplateCats || !promptTemplateBody) return;
-    canvasPromptTemplates = activeCanvasPromptLibraryItems();
-    renderCanvasPromptLibrarySelect();
-    const scrollSnapshot = promptTemplateScrollSnapshot();
-    const activeGroups = activeCanvasPromptTemplateGroups();
-    const categories = [{id:'all', name:'全部'}, ...activeGroups.map(group => ({...group, name:canvasPromptTemplateCategoryLabel(group.id)}))];
-    const counts = canvasPromptTemplates.reduce((map, item) => {
-        const category = item.category || 'mine';
-        map[category] = (map[category] || 0) + 1;
-        map.all += 1;
-        return map;
-    }, {all:0});
-    promptTemplateCats.innerHTML = promptTemplateGroupEditMode ? `
-        <div class="prompt-template-group-panel">
-            <div class="prompt-template-group-title">
-                <div>
-                    <strong>${escapeHtml('分组管理')}</strong>
-                    <span>${escapeHtml('这里只调整上方分类，不影响模板内容')}</span>
-                </div>
-                <div class="prompt-template-group-tools">
-                    <button type="button" data-template-cat-new><i data-lucide="plus"></i><span>${escapeHtml('新增')}</span></button>
-                    <button type="button" class="primary" data-template-group-edit><i data-lucide="check"></i><span>${escapeHtml('完成')}</span></button>
-                </div>
-            </div>
-            <div class="prompt-template-group-list">
-                ${activeGroups.map(group => `
-                    <div class="prompt-template-group-row ${['view','storyboard','character','product','lighting','mine'].includes(group.id) ? '' : 'has-delete'}">
-                        <button type="button" class="group-name ${group.id === promptTemplateCategory ? 'active' : ''}" data-template-cat="${escapeAttr(group.id)}">
-                            <span>${escapeHtml(canvasPromptTemplateCategoryLabel(group.id))}</span>
-                            <small>${counts[group.id] || 0}</small>
-                        </button>
-                        <button type="button" class="group-tool" data-template-cat-edit="${escapeAttr(group.id)}" title="${escapeAttr('重命名')}"><i data-lucide="pencil"></i></button>
-                        ${['view','storyboard','character','product','lighting','mine'].includes(group.id) ? '' : `<button type="button" class="group-tool danger" data-template-cat-delete="${escapeAttr(group.id)}" title="${escapeAttr('删除')}"><i data-lucide="trash-2"></i></button>`}
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    ` : `
-        <div class="prompt-template-nav">
-            <div class="prompt-template-tabs">
-                ${categories.map(cat => `
-                    <button type="button" class="${cat.id === promptTemplateCategory ? 'active' : ''}" data-template-cat="${escapeAttr(cat.id)}">
-                        <span>${escapeHtml(cat.name)}</span>
-                        <small>${counts[cat.id] || 0}</small>
-                    </button>
-                `).join('')}
-            </div>
-            <button type="button" class="prompt-template-manage-groups" data-template-group-edit><i data-lucide="settings-2"></i><span>${escapeHtml('管理分组')}</span></button>
-        </div>
-    `;
-    const items = canvasPromptTemplateVisibleItems();
-    if(items.length && !items.some(item => item.id === promptTemplateSelectedId)) promptTemplateSelectedId = items[0].id;
-    const selected = items.find(item => item.id === promptTemplateSelectedId) || items[0] || null;
-    const canCreateCurrentLibrary = currentCanvasPromptTemplateLibraryEditable();
-    const editMode = Boolean(promptTemplateEditing && selected);
-    promptTemplateBody.innerHTML = `
-        <div class="prompt-template-list">
-            <div class="prompt-template-list-tools">
-                <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-save-current><i data-lucide="bookmark-plus"></i><span>${escapeHtml('存当前')}</span></button>
-                <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-new><i data-lucide="file-plus-2"></i><span>${escapeHtml('新模板')}</span></button>
-            </div>
-            ${items.length ? items.map(item => `<button type="button" class="prompt-template-card ${item.id === selected?.id ? 'active' : ''}" data-template-id="${escapeAttr(item.id)}">
-                <span class="prompt-template-card-top">
-                    <span class="prompt-template-name">${escapeHtml(canvasPromptTemplateName(item))}</span>
-                    <span class="prompt-template-source">${escapeHtml(item.builtin ? '内置' : '我的')}</span>
-                </span>
-                <span class="prompt-template-scene">${escapeHtml(canvasPromptTemplateScene(item) || item.positive || '')}</span>
-                <span class="prompt-template-tag">${escapeHtml(canvasPromptTemplateCategoryLabel(item.category || 'mine'))}</span>
-            </button>`).join('') : `<div class="prompt-template-list-empty">${escapeHtml('没有匹配的模板')}</div>`}
-        </div>
-        <div class="prompt-template-detail">
-            ${selected ? `
-                <div class="prompt-template-detail-head">
+    function implRenderPromptTemplateModal(){
+        if(!alive()) return;
+        if(promptTemplateSearch) promptTemplateSearch.value = promptTemplateQuery;
+        if(!promptTemplateModal || !promptTemplatePanel || !promptTemplateCats || !promptTemplateBody) return;
+        implRenderCanvasPromptLibrarySelect();
+        const scrollSnapshot = implPromptTemplateScrollSnapshot();
+        const activeGroups = implActiveCanvasPromptTemplateGroups();
+        const categories = [{id:'all', name:'全部'}, ...activeGroups.map(group => ({...group, name:implCanvasPromptTemplateCategoryLabel(group.id)}))];
+        const counts = canvasPromptTemplates.reduce((map, item) => {
+            const category = item.category || 'mine';
+            map[category] = (map[category] || 0) + 1;
+            map.all += 1;
+            return map;
+        }, {all:0});
+        promptTemplateCats.innerHTML = promptTemplateGroupEditMode ? `
+            <div class="prompt-template-group-panel">
+                <div class="prompt-template-group-title">
                     <div>
-                        <strong>${escapeHtml(canvasPromptTemplateName(selected) || '')}</strong>
-                        <span>${escapeHtml(canvasPromptTemplateCategoryLabel(selected.category || ''))} · ${escapeHtml(selected.builtin ? '内置模板' : '我的模板')}</span>
+                        <strong>${escapeHtml('分组管理')}</strong>
+                        <span>${escapeHtml('这里只调整上方分类，不影响模板内容')}</span>
                     </div>
-                    ${editMode ? '' : `
-                        <div class="prompt-template-icon-actions">
-                            <button type="button" data-template-edit title="${escapeAttr('修改模板')}"><i data-lucide="pencil"></i><span>${escapeHtml('编辑')}</span></button>
-                            <button type="button" class="danger" data-template-delete title="${escapeAttr('删除模板')}"><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
+                    <div class="prompt-template-group-tools">
+                        <button type="button" data-template-cat-new><i data-lucide="plus"></i><span>${escapeHtml('新增')}</span></button>
+                        <button type="button" class="primary" data-template-group-edit><i data-lucide="check"></i><span>${escapeHtml('完成')}</span></button>
+                    </div>
+                </div>
+                <div class="prompt-template-group-list">
+                    ${activeGroups.map(group => `
+                        <div class="prompt-template-group-row ${['view','storyboard','character','product','lighting','mine'].includes(group.id) ? '' : 'has-delete'}">
+                            <button type="button" class="group-name ${group.id === promptTemplateCategory ? 'active' : ''}" data-template-cat="${escapeAttr(group.id)}">
+                                <span>${escapeHtml(implCanvasPromptTemplateCategoryLabel(group.id))}</span>
+                                <small>${counts[group.id] || 0}</small>
+                            </button>
+                            <button type="button" class="group-tool" data-template-cat-edit="${escapeAttr(group.id)}" title="${escapeAttr('重命名')}"><i data-lucide="pencil"></i></button>
+                            ${['view','storyboard','character','product','lighting','mine'].includes(group.id) ? '' : `<button type="button" class="group-tool danger" data-template-cat-delete="${escapeAttr(group.id)}" title="${escapeAttr('删除')}"><i data-lucide="trash-2"></i></button>`}
                         </div>
+                    `).join('')}
+                </div>
+            </div>
+        ` : `
+            <div class="prompt-template-nav">
+                <div class="prompt-template-tabs">
+                    ${categories.map(cat => `
+                        <button type="button" class="${cat.id === promptTemplateCategory ? 'active' : ''}" data-template-cat="${escapeAttr(cat.id)}">
+                            <span>${escapeHtml(cat.name)}</span>
+                            <small>${counts[cat.id] || 0}</small>
+                        </button>
+                    `).join('')}
+                </div>
+                <button type="button" class="prompt-template-manage-groups" data-template-group-edit><i data-lucide="settings-2"></i><span>${escapeHtml('管理分组')}</span></button>
+            </div>
+        `;
+        const items = implCanvasPromptTemplateVisibleItems();
+        const selected = items.find(item => item.id === promptTemplateSelectedId) || null;
+        const canCreateCurrentLibrary = implCurrentCanvasPromptTemplateLibraryEditable();
+        const editMode = Boolean(promptTemplateEditing && selected);
+        promptTemplateBody.innerHTML = `
+            <div class="prompt-template-list">
+                <div class="prompt-template-list-tools">
+                    <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-save-current><i data-lucide="bookmark-plus"></i><span>${escapeHtml('存当前')}</span></button>
+                    <button type="button" ${canCreateCurrentLibrary ? '' : 'disabled'} data-template-new><i data-lucide="file-plus-2"></i><span>${escapeHtml('新模板')}</span></button>
+                </div>
+                ${items.length ? items.map(item => `<button type="button" class="prompt-template-card ${item.id === selected?.id ? 'active' : ''}" data-template-id="${escapeAttr(item.id)}">
+                    <span class="prompt-template-card-top">
+                        <span class="prompt-template-name">${escapeHtml(implCanvasPromptTemplateName(item))}</span>
+                        <span class="prompt-template-source">${escapeHtml(item.builtin ? '内置' : '我的')}</span>
+                    </span>
+                    <span class="prompt-template-scene">${escapeHtml(implCanvasPromptTemplateScene(item) || item.positive || '')}</span>
+                    <span class="prompt-template-tag">${escapeHtml(implCanvasPromptTemplateCategoryLabel(item.category || 'mine'))}</span>
+                </button>`).join('') : `<div class="prompt-template-list-empty">${escapeHtml('没有匹配的模板')}</div>`}
+            </div>
+            <div class="prompt-template-detail">
+                ${selected ? `
+                    <div class="prompt-template-detail-head">
+                        <div>
+                            <strong>${escapeHtml(implCanvasPromptTemplateName(selected) || '')}</strong>
+                            <span>${escapeHtml(implCanvasPromptTemplateCategoryLabel(selected.category || ''))} · ${escapeHtml(selected.builtin ? '内置模板' : '我的模板')}</span>
+                        </div>
+                        ${editMode ? '' : `
+                            <div class="prompt-template-icon-actions">
+                                <button type="button" data-template-edit title="${escapeAttr('修改模板')}"><i data-lucide="pencil"></i><span>${escapeHtml('编辑')}</span></button>
+                                <button type="button" class="danger" data-template-delete title="${escapeAttr('删除模板')}"><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
+                            </div>
+                        `}
+                    </div>
+                ${editMode ? `
+                    <div class="prompt-template-edit-fields">
+                        <label>${escapeHtml('模板名称')}</label>
+                        <input data-template-edit-name value="${escapeAttr(implCanvasPromptTemplateName(selected) || '')}" placeholder="${escapeAttr('模板名称')}">
+                        <label>${escapeHtml('所属分组')}</label>
+                        <select data-template-edit-category>
+                            ${promptTemplateGroups.map(group => `<option value="${escapeAttr(group.id)}" ${group.id === (selected.category || 'mine') ? 'selected' : ''}>${escapeHtml(implCanvasPromptTemplateCategoryLabel(group.id))}</option>`).join('')}
+                        </select>
+                        <label>${escapeHtml('模板内容')}</label>
+                        <textarea data-template-edit-text placeholder="${escapeAttr('模板内容')}">${escapeHtml(selected.positive || '')}</textarea>
+                    </div>
+                ` : `
+                    <div class="prompt-template-preview-content">
+                        <div class="prompt-template-section">
+                            <label>${escapeHtml('正向提示词')}</label>
+                            <p>${escapeHtml(selected.positive || '')}</p>
+                        </div>
+                        ${selected.negative ? `<div class="prompt-template-section"><label>${escapeHtml('负向提示词')}</label><p>${escapeHtml(selected.negative)}</p></div>` : ''}
+                        ${Object.keys(selected.params || {}).length ? `<div class="prompt-template-section"><label>${escapeHtml('参数建议')}</label><p>${escapeHtml(Object.entries(selected.params).map(([k,v]) => `${k}: ${v}`).join('\n'))}</p></div>` : ''}
+                    </div>
+                `}
+                <div class="prompt-template-actions">
+                    ${editMode ? `
+                        <button type="button" data-template-edit-cancel><i data-lucide="x"></i><span>${escapeHtml('取消')}</span></button>
+                        <button type="button" class="danger" data-template-delete><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
+                        <button type="button" class="primary" data-template-edit-save><i data-lucide="save"></i><span>${escapeHtml('保存')}</span></button>
+                    ` : `
+                        <button type="button" data-template-apply="positive"><i data-lucide="corner-down-left"></i><span>${escapeHtml('正向')}</span></button>
+                        <button type="button" class="primary" data-template-apply="full"><i data-lucide="wand-sparkles"></i><span>${escapeHtml('完整应用')}</span></button>
                     `}
                 </div>
-            ${editMode ? `
-                <div class="prompt-template-edit-fields">
-                    <label>${escapeHtml('模板名称')}</label>
-                    <input data-template-edit-name value="${escapeAttr(canvasPromptTemplateName(selected) || '')}" placeholder="${escapeAttr('模板名称')}">
-                    <label>${escapeHtml('所属分组')}</label>
-                    <select data-template-edit-category>
-                        ${promptTemplateGroups.map(group => `<option value="${escapeAttr(group.id)}" ${group.id === (selected.category || 'mine') ? 'selected' : ''}>${escapeHtml(canvasPromptTemplateCategoryLabel(group.id))}</option>`).join('')}
-                    </select>
-                    <label>${escapeHtml('模板内容')}</label>
-                    <textarea data-template-edit-text placeholder="${escapeAttr('模板内容')}">${escapeHtml(selected.positive || '')}</textarea>
-                </div>
-            ` : `
-                <div class="prompt-template-preview-content">
-                    <div class="prompt-template-section">
-                        <label>${escapeHtml('正向提示词')}</label>
-                        <p>${escapeHtml(selected.positive || '')}</p>
-                    </div>
-                    ${selected.negative ? `<div class="prompt-template-section"><label>${escapeHtml('负向提示词')}</label><p>${escapeHtml(selected.negative)}</p></div>` : ''}
-                    ${Object.keys(selected.params || {}).length ? `<div class="prompt-template-section"><label>${escapeHtml('参数建议')}</label><p>${escapeHtml(Object.entries(selected.params).map(([k,v]) => `${k}: ${v}`).join('\n'))}</p></div>` : ''}
-                </div>
-            `}
-            <div class="prompt-template-actions">
-                ${editMode ? `
-                    <button type="button" data-template-edit-cancel><i data-lucide="x"></i><span>${escapeHtml('取消')}</span></button>
-                    <button type="button" class="danger" data-template-delete><i data-lucide="trash-2"></i><span>${escapeHtml('删除')}</span></button>
-                    <button type="button" class="primary" data-template-edit-save><i data-lucide="save"></i><span>${escapeHtml('保存')}</span></button>
-                ` : `
-                    <button type="button" data-template-apply="positive"><i data-lucide="corner-down-left"></i><span>${escapeHtml('正向')}</span></button>
-                    <button type="button" class="primary" data-template-apply="full"><i data-lucide="wand-sparkles"></i><span>${escapeHtml('完整应用')}</span></button>
-                `}
+                ` : `<div class="prompt-template-empty">${escapeHtml('选择或新建一个模板')}</div>`}
             </div>
-            ` : `<div class="prompt-template-empty">${escapeHtml('选择或新建一个模板')}</div>`}
-        </div>
-    `;
-    refreshIcons();
-    restorePromptTemplateScroll(scrollSnapshot);
+        `;
+        refreshIcons();
+        implRestorePromptTemplateScroll(scrollSnapshot);
+    }
+
+    async function implOpenPromptTemplateModal(nodeId){
+        if(!alive()) return;
+        templateVersion++; opening = true;
+        targetCanvasId = canvas?.id || '';
+        promptTemplateNodeId = nodeId || '';
+        promptTemplateQuery = '';
+        promptTemplateEditing = false;
+        if(promptTemplateSearch) promptTemplateSearch.value = '';
+        const origin = captureTemplate();
+        pendingOpen = origin;
+        await implLoadCanvasPromptTemplates();
+        if(pendingOpen === origin && alive()){ opening = false; pendingOpen = null; }
+        if(!current(origin) || !validNodeTarget()){ if(current(origin)) implClosePromptTemplateModal(); return; }
+        templateOpen = true;
+        opening = false;
+        refreshTemplate();
+        promptTemplateModal?.classList.add('open');
+        implSyncCanvasPromptTemplateButtons();
+        promptTemplateSearch?.focus();
+    }
+
+    function implClosePromptTemplateModal(){
+        if(destroyed) return;
+        templateVersion++;
+        cancelScroll();
+        templateOpen = false; opening = false; pendingOpen = null;
+        promptTemplateModal?.classList.remove('open');
+        promptTemplateNodeId = '';
+        targetCanvasId = '';
+        promptTemplateEditing = false;
+        implSyncCanvasPromptTemplateButtons();
+    }
+
+    function implApplyPromptTemplateToPromptNode(mode='positive'){
+        if(!alive() || !templateOpen || !validNodeTarget()) return;
+        const template = canvasPromptTemplates.find(item => item.id === promptTemplateSelectedId);
+        if(!template) return;
+        const target = {canvasId:targetCanvasId,nodeId:promptTemplateNodeId};
+        const text = implCanvasPromptTemplateText(template, mode);
+        applyClassicPromptPanelText(target, text, implClosePromptTemplateModal);
+    }
+
+    function implBindPromptControls(){
+        if(!alive()) return;
+        clearBindings();
+        listen(promptTemplateSearch, 'input', event => {
+            setQuery(event.target.value || '');
+        });
+        listen(promptTemplateLibrarySelect, 'change', () => selectLibrary(promptTemplateLibrarySelect.value || 'system'));
+        listen(promptTemplateClose, 'click', implClosePromptTemplateModal);
+        listen(promptTemplatePanel, 'pointerdown', e => e.stopPropagation());
+        listen(promptTemplatePanel, 'mousedown', e => e.stopPropagation());
+        listen(promptTemplatePanel, 'wheel', e => e.stopPropagation(), {passive:false});
+        listen(promptTemplatePanel, 'click', event => {
+            event.stopPropagation();
+            const apply = event.target.closest('[data-template-apply],[data-prompt-template-apply]');
+            if(apply){
+                implApplyPromptTemplateToPromptNode(apply.dataset.templateApply || apply.dataset.promptTemplateApply || 'positive');
+                return;
+            }
+            if(event.target.closest('[data-template-save-current],[data-prompt-template-save-current]')){ implSaveCurrentCanvasPromptAsTemplate(); return; }
+            if(event.target.closest('[data-template-new],[data-prompt-template-new]')){ implCreateBlankCanvasPromptTemplate(); return; }
+            if(event.target.closest('[data-template-edit],[data-prompt-template-edit]')){
+                setEditing(true);
+                return;
+            }
+            if(event.target.closest('[data-template-edit-cancel],[data-prompt-template-edit-cancel]')){ setEditing(false); return; }
+            if(event.target.closest('[data-template-edit-save],[data-prompt-template-edit-save]')){ implSaveCanvasPromptTemplateEdit(); return; }
+            if(event.target.closest('[data-template-delete],[data-prompt-template-delete]')){
+                implDeleteCanvasPromptTemplate();
+                return;
+            }
+            const cat = event.target.closest('[data-template-cat],[data-prompt-template-cat]');
+            if(cat){
+                selectCategory(cat.dataset.templateCat || cat.dataset.promptTemplateCat || 'all');
+                return;
+            }
+            const catEdit = event.target.closest('[data-template-cat-edit]');
+            if(catEdit){
+                implRenameCanvasPromptTemplateGroup(catEdit.dataset.templateCatEdit || '');
+                return;
+            }
+            const catDelete = event.target.closest('[data-template-cat-delete]');
+            if(catDelete){
+                implDeleteCanvasPromptTemplateGroup(catDelete.dataset.templateCatDelete || '');
+                return;
+            }
+            if(event.target.closest('[data-template-group-edit]')){
+                toggleGroups();
+                return;
+            }
+            if(event.target.closest('[data-template-cat-new]')){ implCreateCanvasPromptTemplateGroup(); return; }
+            const item = event.target.closest('[data-template-id],[data-prompt-template-id]');
+            if(item){
+                selectTemplate(item.dataset.templateId || item.dataset.promptTemplateId || '');
+                return;
+            }
+        });
+    }
+
+    function reset(){
+        implClosePromptTemplateModal();
+    }
+    function pageHide(event){
+        if(!event.persisted){ destroy(); return; }
+        suspended = true; templateVersion++; cancelScroll(); clearBindings();
+    }
+    function pageShow(event){
+        if(!event.persisted || destroyed) return;
+        suspended = false; bind();
+        if(promptTemplateSearch) promptTemplateSearch.value = promptTemplateQuery;
+        if((templateOpen || opening) && !validNodeTarget()){ reset(); return; }
+        if(opening){ implOpenPromptTemplateModal(promptTemplateNodeId); return; }
+        if(templateOpen) dataChanged({preserveDraft:true});
+        implSyncCanvasPromptTemplateButtons();
+    }
+
+    function bind(){
+        if(!alive()) return;
+        implBindPromptControls();
+    }
+    function destroy(){
+        if(destroyed) return;
+        reset(); suspended = true; destroyed = true; cancelScroll(); clearBindings();
+        window.removeEventListener('pagehide',pageHide); window.removeEventListener('pageshow',pageShow);
+        promptTemplateModal = promptTemplatePanel = promptTemplateClose = promptTemplateSearch = promptTemplateLibrarySelect = promptTemplateCats = promptTemplateBody = null;
+    }
+    // Lifecycle registration is explicit and remains at the existing initialization position.
+    function bindLifecycle(){
+        if(destroyed) return;
+        window.removeEventListener('pagehide',pageHide); window.removeEventListener('pageshow',pageShow);
+        window.addEventListener('pagehide',pageHide); window.addEventListener('pageshow',pageShow);
+    }
+    return Object.freeze({
+        get state(){ return Object.freeze({open:templateOpen,opening,nodeId:promptTemplateNodeId,canvasId:targetCanvasId,
+            libraryId:activePromptLibraryId,categoryId:promptTemplateCategory,itemId:promptTemplateSelectedId,
+            query:promptTemplateQuery,editing:promptTemplateEditing,groupEditing:promptTemplateGroupEditMode}); },
+        get destroyed(){ return destroyed; },
+        selectLibrary,selectCategory,selectTemplate,setQuery,setEditing,toggleGroups,dataChanged,capture:captureTemplate,
+        reset,destroy,bind,bindLifecycle,
+        startEditing:()=>setEditing(true), cancelEditing:()=>setEditing(false),
+        open:implOpenPromptTemplateModal, close:implClosePromptTemplateModal,
+        loadCanvasPromptTemplates:implLoadCanvasPromptTemplates,
+        activeCanvasPromptLibrary:implActiveCanvasPromptLibrary,
+        defaultCanvasPromptTemplateGroups:implDefaultCanvasPromptTemplateGroups,
+        loadCanvasPromptTemplateGroups:implLoadCanvasPromptTemplateGroups,
+        saveCanvasPromptTemplateGroups:implSaveCanvasPromptTemplateGroups,
+        loadCanvasPromptTemplateOverrides:implLoadCanvasPromptTemplateOverrides,
+        saveCanvasPromptTemplateOverrides:implSaveCanvasPromptTemplateOverrides,
+        activeCanvasPromptLibraryItems:implActiveCanvasPromptLibraryItems,
+        refreshCanvasPromptTemplatesFromLibraries:implRefreshCanvasPromptTemplatesFromLibraries,
+        renderCanvasPromptLibrarySelect:implRenderCanvasPromptLibrarySelect,
+        activeCanvasPromptTemplateGroups:implActiveCanvasPromptTemplateGroups,
+        canvasPromptTemplateCategoryLabel:implCanvasPromptTemplateCategoryLabel,
+        canvasPromptTemplateName:implCanvasPromptTemplateName,
+        canvasPromptTemplateScene:implCanvasPromptTemplateScene,
+        canvasPromptTemplateText:implCanvasPromptTemplateText,
+        canvasPromptTemplateSearchText:implCanvasPromptTemplateSearchText,
+        canvasPromptTemplateVisibleItems:implCanvasPromptTemplateVisibleItems,
+        currentCanvasPromptTemplateLibraryEditable:implCurrentCanvasPromptTemplateLibraryEditable,
+        currentCanvasPromptTemplateNodeText:implCurrentCanvasPromptTemplateNodeText,
+        syncCanvasPromptTemplateButtons:implSyncCanvasPromptTemplateButtons,
+        canvasPromptTemplateDefaultName:implCanvasPromptTemplateDefaultName,
+        selectedCanvasPromptTemplate:implSelectedCanvasPromptTemplate,
+        syncCanvasPromptTemplateMutation:implSyncCanvasPromptTemplateMutation,
+        saveCurrentCanvasPromptAsTemplate:implSaveCurrentCanvasPromptAsTemplate,
+        createBlankCanvasPromptTemplate:implCreateBlankCanvasPromptTemplate,
+        saveCanvasPromptTemplateEdit:implSaveCanvasPromptTemplateEdit,
+        deleteCanvasPromptTemplate:implDeleteCanvasPromptTemplate,
+        promptTemplateScrollSnapshot:implPromptTemplateScrollSnapshot,
+        restorePromptTemplateScroll:implRestorePromptTemplateScroll,
+        createCanvasPromptTemplateGroup:implCreateCanvasPromptTemplateGroup,
+        renameCanvasPromptTemplateGroup:implRenameCanvasPromptTemplateGroup,
+        deleteCanvasPromptTemplateGroup:implDeleteCanvasPromptTemplateGroup,
+        renderPromptTemplateModal:implRenderPromptTemplateModal,
+        openPromptTemplateModal:implOpenPromptTemplateModal,
+        closePromptTemplateModal:implClosePromptTemplateModal,
+        applyPromptTemplateToPromptNode:implApplyPromptTemplateToPromptNode
+    });
 }
 
-async function openPromptTemplateModal(nodeId){
-    promptTemplateNodeId = nodeId || '';
-    promptTemplateQuery = '';
-    promptTemplateEditing = false;
-    if(promptTemplateSearch) promptTemplateSearch.value = '';
-    await loadCanvasPromptTemplates();
-    if(!promptTemplateCategory) promptTemplateCategory = 'all';
-    if(!promptTemplateSelectedId) promptTemplateSelectedId = canvasPromptTemplates[0]?.id || '';
-    renderPromptTemplateModal();
-    promptTemplateModal?.classList.add('open');
-    syncCanvasPromptTemplateButtons();
-    promptTemplateSearch?.focus();
+function loadCanvasPromptTemplates(...args){
+    return classicPromptPanel.loadCanvasPromptTemplates(...args);
 }
 
-function closePromptTemplateModal(){
-    promptTemplateModal?.classList.remove('open');
-    promptTemplateNodeId = '';
-    promptTemplateEditing = false;
-    syncCanvasPromptTemplateButtons();
+function activeCanvasPromptLibrary(...args){
+    return classicPromptPanel.activeCanvasPromptLibrary(...args);
 }
 
-function applyPromptTemplateToPromptNode(mode='positive'){
-    const template = canvasPromptTemplates.find(item => item.id === promptTemplateSelectedId);
-    const node = nodes.find(n => n.id === promptTemplateNodeId && n.type === 'prompt');
-    if(!template || !node) return;
-    node.text = canvasPromptTemplateText(template, mode);
-    closePromptTemplateModal();
-    scheduleSave();
-    const body = nodesEl.querySelector(`.node[data-id="${CSS.escape(node.id)}"] .node-body`);
-    const textarea = body?.querySelector('textarea');
-    if(textarea) textarea.value = node.text;
-    if(body) refreshPromptCounter(body, node.text);
-    refreshPromptDependents(node.id);
-    refreshGeometryAfterLayout();
+function defaultCanvasPromptTemplateGroups(...args){
+    return classicPromptPanel.defaultCanvasPromptTemplateGroups(...args);
+}
+
+function loadCanvasPromptTemplateGroups(...args){
+    return classicPromptPanel.loadCanvasPromptTemplateGroups(...args);
+}
+
+function saveCanvasPromptTemplateGroups(...args){
+    return classicPromptPanel.saveCanvasPromptTemplateGroups(...args);
+}
+
+function loadCanvasPromptTemplateOverrides(...args){
+    return classicPromptPanel.loadCanvasPromptTemplateOverrides(...args);
+}
+
+function saveCanvasPromptTemplateOverrides(...args){
+    return classicPromptPanel.saveCanvasPromptTemplateOverrides(...args);
+}
+
+function activeCanvasPromptLibraryItems(...args){
+    return classicPromptPanel.activeCanvasPromptLibraryItems(...args);
+}
+
+function refreshCanvasPromptTemplatesFromLibraries(...args){
+    return classicPromptPanel.refreshCanvasPromptTemplatesFromLibraries(...args);
+}
+
+function renderCanvasPromptLibrarySelect(...args){
+    return classicPromptPanel.renderCanvasPromptLibrarySelect(...args);
+}
+
+function activeCanvasPromptTemplateGroups(...args){
+    return classicPromptPanel.activeCanvasPromptTemplateGroups(...args);
+}
+
+function canvasPromptTemplateCategoryLabel(...args){
+    return classicPromptPanel.canvasPromptTemplateCategoryLabel(...args);
+}
+
+function canvasPromptTemplateName(...args){
+    return classicPromptPanel.canvasPromptTemplateName(...args);
+}
+
+function canvasPromptTemplateScene(...args){
+    return classicPromptPanel.canvasPromptTemplateScene(...args);
+}
+
+function canvasPromptTemplateText(...args){
+    return classicPromptPanel.canvasPromptTemplateText(...args);
+}
+
+function canvasPromptTemplateSearchText(...args){
+    return classicPromptPanel.canvasPromptTemplateSearchText(...args);
+}
+
+function canvasPromptTemplateVisibleItems(...args){
+    return classicPromptPanel.canvasPromptTemplateVisibleItems(...args);
+}
+
+function currentCanvasPromptTemplateLibraryEditable(...args){
+    return classicPromptPanel.currentCanvasPromptTemplateLibraryEditable(...args);
+}
+
+function currentCanvasPromptTemplateNodeText(...args){
+    return classicPromptPanel.currentCanvasPromptTemplateNodeText(...args);
+}
+
+function syncCanvasPromptTemplateButtons(...args){
+    return classicPromptPanel.syncCanvasPromptTemplateButtons(...args);
+}
+
+function canvasPromptTemplateDefaultName(...args){
+    return classicPromptPanel.canvasPromptTemplateDefaultName(...args);
+}
+
+function selectedCanvasPromptTemplate(...args){
+    return classicPromptPanel.selectedCanvasPromptTemplate(...args);
+}
+
+function syncCanvasPromptTemplateMutation(...args){
+    return classicPromptPanel.syncCanvasPromptTemplateMutation(...args);
+}
+
+function saveCurrentCanvasPromptAsTemplate(...args){
+    return classicPromptPanel.saveCurrentCanvasPromptAsTemplate(...args);
+}
+
+function createBlankCanvasPromptTemplate(...args){
+    return classicPromptPanel.createBlankCanvasPromptTemplate(...args);
+}
+
+function saveCanvasPromptTemplateEdit(...args){
+    return classicPromptPanel.saveCanvasPromptTemplateEdit(...args);
+}
+
+function deleteCanvasPromptTemplate(...args){
+    return classicPromptPanel.deleteCanvasPromptTemplate(...args);
+}
+
+function promptTemplateScrollSnapshot(...args){
+    return classicPromptPanel.promptTemplateScrollSnapshot(...args);
+}
+
+function restorePromptTemplateScroll(...args){
+    return classicPromptPanel.restorePromptTemplateScroll(...args);
+}
+
+function createCanvasPromptTemplateGroup(...args){
+    return classicPromptPanel.createCanvasPromptTemplateGroup(...args);
+}
+
+function renameCanvasPromptTemplateGroup(...args){
+    return classicPromptPanel.renameCanvasPromptTemplateGroup(...args);
+}
+
+function deleteCanvasPromptTemplateGroup(...args){
+    return classicPromptPanel.deleteCanvasPromptTemplateGroup(...args);
+}
+
+function renderPromptTemplateModal(...args){
+    return classicPromptPanel.renderPromptTemplateModal(...args);
+}
+
+function openPromptTemplateModal(...args){
+    return classicPromptPanel.openPromptTemplateModal(...args);
+}
+
+function closePromptTemplateModal(...args){
+    return classicPromptPanel.closePromptTemplateModal(...args);
+}
+
+function applyPromptTemplateToPromptNode(...args){
+    return classicPromptPanel.applyPromptTemplateToPromptNode(...args);
 }
 
 // Called once by canvas.js, at its original initialization position.
 function bindClassicLibraryControls(){
-    promptTemplateSearch?.addEventListener('input', event => {
-        promptTemplateQuery = event.target.value || '';
-        renderPromptTemplateModal();
-    });
-    promptTemplateLibrarySelect?.addEventListener('change', () => {
-        activePromptLibraryId = promptTemplateLibrarySelect.value || 'system';
-        canvasPromptTemplates = activeCanvasPromptLibraryItems();
-        promptTemplateSelectedId = '';
-        promptTemplateEditing = false;
-        renderPromptTemplateModal();
-    });
-    if(promptTemplateClose) promptTemplateClose.onclick = closePromptTemplateModal;
-    promptTemplatePanel?.addEventListener('pointerdown', e => e.stopPropagation());
-    promptTemplatePanel?.addEventListener('mousedown', e => e.stopPropagation());
-    promptTemplatePanel?.addEventListener('wheel', e => e.stopPropagation(), {passive:false});
-    promptTemplatePanel?.addEventListener('click', event => {
-        event.stopPropagation();
-        const apply = event.target.closest('[data-template-apply],[data-prompt-template-apply]');
-        if(apply){
-            applyPromptTemplateToPromptNode(apply.dataset.templateApply || apply.dataset.promptTemplateApply || 'positive');
-            return;
-        }
-        if(event.target.closest('[data-template-save-current],[data-prompt-template-save-current]')){ saveCurrentCanvasPromptAsTemplate(); return; }
-        if(event.target.closest('[data-template-new],[data-prompt-template-new]')){ createBlankCanvasPromptTemplate(); return; }
-        if(event.target.closest('[data-template-edit],[data-prompt-template-edit]')){
-            promptTemplateEditing = true;
-            renderPromptTemplateModal();
-            return;
-        }
-        if(event.target.closest('[data-template-edit-cancel],[data-prompt-template-edit-cancel]')){ promptTemplateEditing = false; renderPromptTemplateModal(); return; }
-        if(event.target.closest('[data-template-edit-save],[data-prompt-template-edit-save]')){ saveCanvasPromptTemplateEdit(); return; }
-        if(event.target.closest('[data-template-delete],[data-prompt-template-delete]')){
-            deleteCanvasPromptTemplate();
-            return;
-        }
-        const cat = event.target.closest('[data-template-cat],[data-prompt-template-cat]');
-        if(cat){
-            promptTemplateCategory = cat.dataset.templateCat || cat.dataset.promptTemplateCat || 'all';
-            promptTemplateSelectedId = '';
-            promptTemplateEditing = false;
-            renderPromptTemplateModal();
-            return;
-        }
-        const catEdit = event.target.closest('[data-template-cat-edit]');
-        if(catEdit){
-            renameCanvasPromptTemplateGroup(catEdit.dataset.templateCatEdit || '');
-            return;
-        }
-        const catDelete = event.target.closest('[data-template-cat-delete]');
-        if(catDelete){
-            deleteCanvasPromptTemplateGroup(catDelete.dataset.templateCatDelete || '');
-            return;
-        }
-        if(event.target.closest('[data-template-group-edit]')){
-            promptTemplateGroupEditMode = !promptTemplateGroupEditMode;
-            renderPromptTemplateModal();
-            return;
-        }
-        if(event.target.closest('[data-template-cat-new]')){ createCanvasPromptTemplateGroup(); return; }
-        const item = event.target.closest('[data-template-id],[data-prompt-template-id]');
-        if(item){
-            promptTemplateSelectedId = item.dataset.templateId || item.dataset.promptTemplateId || '';
-            promptTemplateEditing = false;
-            renderPromptTemplateModal();
-            return;
-        }
-    });
+    classicPromptPanel.bindLifecycle();
+    classicPromptPanel.bind();
     bindClassicAssetPanelControls();
 }
 
@@ -1560,6 +1914,7 @@ function bindClassicAssetManagerEvents(){
     });
     assetManagerModal?.addEventListener('click', async event => {
         const origin = classicAssetPanel.captureSelection();
+        const promptOrigin = classicPromptPanel.capture();
         const assetLib = event.target.closest?.('[data-manager-asset-lib]');
         if(assetLib){ classicAssetPanel.selectLibrary(assetLib.dataset.managerAssetLib || '', {source:'manager-assets'}); return; }
         const assetCat = event.target.closest?.('[data-manager-asset-cat]');
@@ -1569,7 +1924,7 @@ function bindClassicAssetManagerEvents(){
         const workflowCat = event.target.closest?.('[data-manager-workflow-cat]');
         if(workflowCat){ classicAssetPanel.selectCategory(workflowCat.dataset.managerWorkflowCat || '', {source:'manager-workflows'}); return; }
         const promptLib = event.target.closest?.('[data-manager-prompt-lib]');
-        if(promptLib){ activePromptLibraryId = promptLib.dataset.managerPromptLib || 'system'; managerSelectedPromptIds.clear(); updateAssetManager(); return; }
+        if(promptLib){ classicPromptPanel.selectLibrary(promptLib.dataset.managerPromptLib || 'system',{source:'manager'}); return; }
         const workflowRename = event.target.closest?.('[data-manager-workflow-rename]');
         if(workflowRename){
             const itemId = workflowRename.dataset.managerWorkflowRename || '';
@@ -1721,7 +2076,7 @@ function bindClassicAssetManagerEvents(){
             if(!String(name || '').trim()) return;
             const data = await window.CanvasApi.createPromptLibrary({name});
             canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            activePromptLibraryId = data.prompt_library?.id || activePromptLibraryId;
+            if(classicPromptPanel.capture().version === promptOrigin.version) classicPromptPanel.selectLibrary(data.prompt_library?.id || classicPromptPanel.state.libraryId,{source:'manager'});
             refreshCanvasPromptTemplatesFromLibraries();
             updateAssetManager(); return;
         }
@@ -1740,7 +2095,7 @@ function bindClassicAssetManagerEvents(){
             if(!lib || lib.readonly || !window.confirm(`删除提示词库「${lib.name || '提示词库'}」？`)) return;
             const data = await window.CanvasApi.deletePromptLibrary(lib.id);
             canvasPromptLibraries = data.library?.libraries || canvasPromptLibraries;
-            activePromptLibraryId = data.library?.active_library_id || canvasPromptLibraries.find(item => item.id !== 'system')?.id || 'system';
+            if(classicPromptPanel.capture().version === promptOrigin.version) classicPromptPanel.selectLibrary(data.library?.active_library_id || canvasPromptLibraries.find(item => item.id !== 'system')?.id || 'system',{source:'manager'});
             refreshCanvasPromptTemplatesFromLibraries();
             updateAssetManager(); return;
         }

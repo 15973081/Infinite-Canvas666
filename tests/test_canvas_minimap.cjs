@@ -202,8 +202,11 @@ test('leaving the canvas releases cached node-array references', () => {
     context.linkControlsEl = {};
     context.selectionHub = {classList: {remove() {}}};
     context.refreshIcons = () => {};
+    let promptResets = 0;
+    context.classicPromptPanel = {reset(){ promptResets++; }};
     load(context, ['setCanvasMode']);
     context.setCanvasMode(false);
+    assert.equal(promptResets, 1, 'canvas exit also invalidates the prompt session');
     assert.equal(frames.size, 0);
     context.renderMinimap({viewportOnly:true});
     assert.equal(calls.measurements, 4, 'reset discarded cached node rectangles');

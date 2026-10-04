@@ -94,13 +94,6 @@ const outputPromptPanel = document.getElementById('outputPromptPanel');
 const outputPromptText = document.getElementById('outputPromptText');
 const outputCopyPromptBtn = document.getElementById('outputCopyPromptBtn');
 const outputRerunBtn = document.getElementById('outputRerunBtn');
-const promptTemplateModal = document.getElementById('promptTemplateModal');
-const promptTemplatePanel = document.getElementById('promptTemplatePanel') || promptTemplateModal?.querySelector('.prompt-template-panel');
-const promptTemplateClose = document.getElementById('promptTemplateClose');
-const promptTemplateSearch = document.getElementById('promptTemplateSearch');
-const promptTemplateLibrarySelect = document.getElementById('promptTemplateLibrarySelect');
-const promptTemplateCats = document.getElementById('promptTemplateCats');
-const promptTemplateBody = document.getElementById('promptTemplateBody');
 const workflowTransferToggle = document.getElementById('workflowTransferToggle');
 const canvasCostToggle = document.getElementById('canvasCostToggle');
 const canvasCostToggleLabel = document.getElementById('canvasCostToggleLabel');
@@ -206,20 +199,14 @@ const missingAssetUrls = new Set();
 let outputTimer = null;
 let clipboard = null;
 let lastImagePasteAt = 0;
-let promptTemplateNodeId = '';
-let promptTemplateCategory = 'all';
-let promptTemplateSelectedId = '';
-let promptTemplateQuery = '';
-let promptTemplateEditing = false;
 let canvasPromptTemplates = [];
 let canvasPromptTemplatesLoaded = false;
 let canvasPromptLibraries = [];
-let activePromptLibraryId = 'system';
 const CANVAS_PROMPT_TEMPLATE_GROUPS_KEY = 'canvas_prompt_template_groups_v1';
 const CANVAS_PROMPT_TEMPLATE_OVERRIDES_KEY = 'canvas_prompt_template_overrides';
 let promptTemplateGroups = [];
-let promptTemplateGroupEditMode = false;
 let canvasPromptTemplateOverrides = {hiddenBuiltinIds:[], editedBuiltins:{}};
+const classicPromptPanel = createClassicPromptPanel();
 let canvasAssetLibrary = {categories:[]};
 const CANVAS_ASSET_BATCH_SIZE = 60;
 const CANVAS_ASSET_PANEL_WIDTH_KEY = 'canvas_asset_panel_width_v1';
@@ -654,6 +641,7 @@ function setCanvasMode(open){
     shell.classList.toggle('no-canvas', !open);
     if(!open){
         classicMinimap.reset();
+        classicPromptPanel.reset();
         clearConnectionHover();
         renderedCanvasLinks.clear();
         clearLocalCanvasLock();
@@ -1150,6 +1138,7 @@ async function createCanvas(customTitle = ''){
         }
         resetCascadeRuntimeState();
         classicMinimap.reset();
+        classicPromptPanel.reset();
         canvas = data.canvas;
         canvas.logs = canvas.logs || [];
         nodes = canvas.nodes || [];
@@ -1238,6 +1227,7 @@ async function openCanvas(id){
             return;
         }
         classicMinimap.reset();
+        classicPromptPanel.reset();
         canvas = nextCanvas;
         resetCanvasHistory();
         canvas.logs = canvas.logs || [];

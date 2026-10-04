@@ -4743,3 +4743,51 @@ function smartNodeToolbarHtml(node){
             <i data-lucide="${escapeAttr(action.icon)}"></i><span>${escapeHtml(action.label)}</span>
         </button>`).join('')}</div>`;
 }
+
+
+// Prompt panels delegate document/selection writes; these checks never replace the session/save gates.
+function selectSmartPromptPanelTarget(canvasId,nodeId){
+    if(canvas?.id !== canvasId || !nodes.some(n => n.id === nodeId)) return false;
+    selectedId = nodeId; selectedIds = []; selectedImage = {nodeId:'',index:-1};
+    return true;
+}
+
+function applySmartPromptPanelText(target,text,presetId='',closePanel=()=>{}){
+    if(canvas?.id !== target.canvasId) return false;
+    if(target.kind === 'composer'){
+        setPromptText(text);
+        delete promptInput.dataset.preserveDraftOnce;
+        savePromptDraftForCurrent();
+        renderInputThumbsRow(selectedNode());
+        closePanel();
+    } else {
+        const node = nodes.find(n => n.id === target.nodeId);
+        if(!node) return false;
+        node.text = text; node.promptPresetId = presetId;
+        closePanel();
+        render();
+    }
+    scheduleSave();
+    return true;
+}
+
+function bindSmartPromptPanelPreset(canvasId,nodeId,presetId){
+    if(canvas?.id !== canvasId) return;
+    const node = nodes.find(n => n.id === nodeId);
+    if(node) node.promptPresetId = presetId;
+}
+
+function syncSmartPromptPanelPreset(canvasId,presetId,text,nodeId=''){
+    if(canvas?.id !== canvasId) return;
+    nodes.forEach(node => {if(node.promptPresetId === presetId && (!nodeId || node.id === nodeId)) node.text = text;});
+}
+
+function removeSmartPromptPanelPreset(canvasId,presetId){
+    if(canvas?.id !== canvasId) return;
+    nodes.forEach(node => {if(node.promptPresetId === presetId) node.promptPresetId = '';});
+}
+
+function finishSmartPromptPanelEdit(canvasId){
+    if(canvas?.id !== canvasId) return;
+    render(); scheduleSave();
+}
