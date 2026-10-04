@@ -62,6 +62,20 @@ def headers(space):
     return {'X-Workspace-ID': space['id']}
 
 
+def test_native_stats_module_uses_authenticated_static_admission(world):
+    from fastapi.testclient import TestClient
+    from main import app
+    path = '/static/js/studio-stats-codec.mjs'
+    with TestClient(app) as anonymous:
+        assert anonymous.get(path).status_code == 401
+    response = world['viewer'].get(path)
+    assert response.status_code == 200
+    assert 'javascript' in response.headers['content-type']
+    assert 'export function parseMessage' in response.text
+    assert world['viewer'].get('/static/private.env').status_code == 403
+    assert world['viewer'].get('/static/api-settings.html').status_code == 403
+
+
 def test_avatar_member_routes_use_workspace_catalog_and_permissions(world, monkeypatch):
     from unittest.mock import AsyncMock
     from app.services import provider_control, assets

@@ -216,7 +216,7 @@ async def dispatch(app, scope, receive, send):
         if path == '/' or path.startswith('/static/'):
             if path.startswith('/static/runninghub/') or path in {'/static/api-settings.html', '/static/comfyui-settings.html'}:
                 az.fail('management_entry_required')
-            if path != '/' and not path.endswith(('.html', '.js', '.css', '.svg', '.png', '.jpg', '.webp', '.ico', '.woff', '.woff2', '.ttf')):
+            if path != '/' and not path.endswith(('.html', '.js', '.mjs', '.css', '.svg', '.png', '.jpg', '.webp', '.ico', '.woff', '.woff2', '.ttf')):
                 az.fail('static_resource_forbidden')
             return await app(scope, receive, send)
         actions = permissions(path, method)
