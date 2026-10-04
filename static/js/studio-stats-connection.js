@@ -1,13 +1,8 @@
 /* Only the shell /ws/stats transport; CanvasSubscription retains its scoped lease protocol. */
 (() => {
     'use strict';
-    function parseMessage(text) {
-        try {
-            const data = JSON.parse(text);
-            return data && !Array.isArray(data) && typeof data === 'object' && typeof data.type === 'string' ? data : null;
-        } catch(_) { return null; }
-    }
     function create({window, ready, address, onOpen, onMessage, onUnavailable,
+        loadCodec = () => import('./studio-stats-codec.mjs'),
         socketFactory = url => new window.WebSocket(url),
         delay = (fn, ms) => window.setTimeout(fn, ms), cancel = id => window.clearTimeout(id)}) {
         let socket = null, connecting = null, retry = null, notice = null;
@@ -41,7 +36,12 @@
             if(socket && [0, 1].includes(socket.readyState)) return Promise.resolve();
             const origin = generation;
             const job = Promise.resolve().then(ready).then(() => {
+                if(!running() || origin !== generation) return null;
+                return loadCodec();
+            }).then(codec => {
+                if(!codec) return;
                 if(!running() || origin !== generation) return;
+                const {parseMessage} = codec;
                 const url = address(); if(!url) return;
                 const value = socketFactory(url); socket = value;
                 const current = () => running() && generation === origin && socket === value;
@@ -83,6 +83,15 @@
         return Object.freeze({start, isOpen, pause, resume, destroy,
             get state(){return Object.freeze({paused, destroyed, connecting:Boolean(connecting), attempts, hasConnected});}});
     }
-    if(typeof module === 'object' && module.exports) module.exports = {create, parseMessage};
-    else window.StudioStatsConnection = Object.freeze({create});
+    if(typeof module === 'object' && module.exports) module.exports = {create};
+    else {
+        // Resolve once while currentScript identifies this legacy bridge. The HTML build
+        // changes even if only the imported module changes; JS files are not rewritten.
+        const url = new URL('studio-stats-codec.mjs', document.currentScript.src);
+        const build = document.querySelector('meta[name="frontend-build-id"]')?.content;
+        if(build) url.searchParams.set('__frontend_build', build);
+        window.StudioStatsConnection = Object.freeze({create: options => create({
+            ...options, loadCodec: options.loadCodec || (() => import(url.href)),
+        })});
+    }
 })();

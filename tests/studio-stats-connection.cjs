@@ -1,10 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const {create,parseMessage}=require('../static/js/studio-stats-connection.js');
+const {create}=require('../static/js/studio-stats-connection.js');
+let parseMessage;
+test.before(async()=>({parseMessage}=await import('../static/js/studio-stats-codec.mjs')));
 const settle=()=>new Promise(setImmediate);
-function fixture({ready=()=>Promise.resolve(),failFactory=false}={}){
+function fixture({ready=()=>Promise.resolve(),failFactory=false,loadCodec=()=>Promise.resolve({parseMessage})}={}){
     const listeners=new Map(),timers=new Map(),sockets=[],events=[];let serial=0;
     const window={addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
-    const api=create({window,ready,address:()=> 'wss://studio.test/ws/stats?client_id=a&workspace=bound',
+    const api=create({window,ready,loadCodec,address:()=> 'wss://studio.test/ws/stats?client_id=a&workspace=bound',
         delay:(fn,ms)=>{timers.set(++serial,{fn,ms});return serial;},cancel:id=>timers.delete(id),
         onOpen:value=>events.push(['open',value]),onMessage:value=>events.push(['message',value]),onUnavailable:()=>events.push(['unavailable']),
         socketFactory:url=>{if(failFactory)throw Error('constructor');const s={url,readyState:0,close(){this.readyState=3;this.onclose?.();}};sockets.push(s);return s;}});
@@ -60,4 +62,14 @@ test('destroy detaches/closes socket once and saved callbacks cannot report or r
 for(const failure of ['ready','constructor'])test(failure+' failure uses existing retry timing',async()=>{
     const f=fixture(failure==='ready'?{ready:()=>Promise.reject(Error('ready'))}:{failFactory:true});await f.api.start();
     assert.equal(f.sockets.length,0);assert.deepEqual([...f.timers.values()].map(t=>t.ms),[700,800]);f.api.destroy();assert.equal(f.timers.size,0);
+});
+test('codec failure does not construct a socket and follows the existing retry lifecycle',async()=>{
+    const f=fixture({loadCodec:()=>Promise.reject(Error('module unavailable'))});await f.api.start();
+    assert.equal(f.sockets.length,0);assert.deepEqual([...f.timers.values()].map(t=>t.ms),[700,800]);f.api.destroy();assert.equal(f.timers.size,0);
+});
+test('pending module load cannot create a socket after close, and reopening awaits its own session',async()=>{
+    const jobs=[];const f=fixture({loadCodec:()=>new Promise(resolve=>jobs.push(resolve))});
+    const first=f.api.start();await settle();f.api.pause();f.api.resume();await settle();assert.equal(jobs.length,2);
+    jobs[0]({parseMessage});await first;assert.equal(f.sockets.length,0);
+    jobs[1]({parseMessage});await settle();assert.equal(f.sockets.length,1);
 });

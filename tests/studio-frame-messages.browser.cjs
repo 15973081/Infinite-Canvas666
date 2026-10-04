@@ -3,16 +3,27 @@ const {chromium}=require('playwright');
 const {fixture:canvasFixture,origin:canvasOrigin}=require('./helpers/canvas-browser.cjs');
 const origin='http://studio-messages.test',root=path.resolve(__dirname,'..');
 const protocol=fs.readFileSync(path.join(root,'static/js/studio-frame-messages.js'),'utf8');
-async function fixture(t){
+async function fixture(t,options={}){
     const browser=await chromium.launch({channel:'chrome',headless:true});t.after(()=>browser.close());
-    const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    const page=await browser.newPage(),errors=[],codecRequests=[];page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript(()=>{
         window.CanvasSession={ready:Promise.resolve(),url:x=>x,socketUrl:x=>x,observeStatus(){}};
         window.WebSocket=class{static OPEN=1;static CONNECTING=0;constructor(url){this.url=url;this.readyState=1;window.sockets||=[];window.sockets.push(this);}close(){this.readyState=3;}};
     });
     await page.route('**/*',async route=>{
         const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
-        if(u.pathname==='/static/index.html')return route.fulfill({contentType:'text/html',path:path.join(root,'static/index.html')});
+        if(u.pathname==='/static/index.html'){
+            let body=fs.readFileSync(path.join(root,'static/index.html'),'utf8');
+            if(options.build)body=body.replace('<head>',`<head><meta name="frontend-build-id" content="${options.build}">`);
+            return route.fulfill({contentType:'text/html',body});
+        }
+        if(u.pathname==='/static/js/studio-stats-codec.mjs'){
+            codecRequests.push(u.href);
+            if(options.beforeCodec)await options.beforeCodec(page);
+            let body=fs.readFileSync(path.join(root,'static/js/studio-stats-codec.mjs'),'utf8');
+            if(options.codecVersion)body=body.replace('export function parseMessage','function parseOriginal')+`\nexport function parseMessage(text){const data=parseOriginal(text);if(data)data.codecVersion=${JSON.stringify(options.codecVersion)};return data;}`;
+            return route.fulfill({contentType:'text/javascript',body});
+        }
         if(u.pathname.endsWith('.html'))return route.fulfill({contentType:'text/html',body:`<!doctype html><script>${protocol}</script><script>
             window.received=[];StudioFrameMessages.subscribe(['canvas_updated','cloud_status','canvas_locked','canvas_unlocked','asset_library_updated','studio-lang','studio-theme','studio-ui-scale','canvas-focus','providers-changed','maintenance_changed'],event=>received.push(event.data));
             window.StudioTheme={apply(theme){received.push({type:'sync-theme',theme});}};
@@ -28,7 +39,7 @@ async function fixture(t){
     await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received);
     await page.waitForLoadState('networkidle');
     await page.evaluate(()=>document.querySelectorAll('iframe').forEach(f=>{if(f.contentWindow.received)f.contentWindow.received.length=0;}));
-    return {page,errors};
+    return {page,errors,codecRequests};
 }
 async function counts(page,type){return page.evaluate(type=>['online','gpt-chat'].map(id=>document.getElementById('frame-'+id).contentWindow.received.filter(m=>m.type===type).length),type);}
 test('production shell switches foreground routing and broadcasts lock/library payloads',async t=>{
@@ -66,6 +77,29 @@ test('exit while reconnect is queued removes socket timers and stale callbacks',
     await page.evaluate(()=>{window.closedCallback=sockets[0].onclose;sockets[0].close();closedCallback();window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));closedCallback();});
     await page.waitForTimeout(900);assert.equal(await page.evaluate(()=>sockets.length),1);
     assert.equal(await page.locator('#service-disconnected').isVisible(),false);assert.deepEqual(errors,[]);
+});
+test('native ES module cold startup waits for decoder and preserves legacy start entry',async t=>{
+    let checked=false;
+    const {page,errors,codecRequests}=await fixture(t,{build:'cold-build',beforeCodec:async page=>{
+        assert.equal(await page.evaluate(()=>window.sockets?.length||0),0);checked=true;
+    }});
+    await page.waitForFunction(()=>sockets.length===1);
+    await page.evaluate(async()=>{await Promise.all([connectStudioWebSocket(),connectStudioWebSocket()]);sockets[0].onmessage({data:'{"type":"stats","online_members":12}'});});
+    assert.equal(await page.locator('#online-val').innerText(),'12');assert.equal(await page.evaluate(()=>sockets.length),1);
+    assert.equal(checked,true);assert.equal(codecRequests.length,1);assert.match(codecRequests[0],/__frontend_build=cold-build/);assert.deepEqual(errors,[]);
+});
+test('module-only build update changes native import URL without changing legacy bridge script',async t=>{
+    const options={build:'build-one',codecVersion:'one'},f=await fixture(t,options);
+    await f.page.evaluate(()=>sockets[0].onmessage({data:'{"type":"canvas_updated"}'}));
+    await f.page.waitForFunction(()=>document.querySelector('iframe.active').contentWindow.received.some(m=>m.codecVersion==='one'));
+    options.build='build-two';options.codecVersion='two';await f.page.reload();await f.page.waitForLoadState('networkidle');await f.page.waitForFunction(()=>sockets.length===1);
+    assert.equal(f.codecRequests.length,2);
+    assert.equal(new URL(f.codecRequests[0]).searchParams.get('__frontend_build'),'build-one');
+    assert.equal(new URL(f.codecRequests[1]).searchParams.get('__frontend_build'),'build-two');
+    await f.page.evaluate(()=>sockets[0].onmessage({data:'{"type":"stats","online_count":4}'}));
+    await f.page.evaluate(()=>sockets[0].onmessage({data:'{"type":"canvas_updated"}'}));
+    await f.page.waitForFunction(()=>document.querySelector('iframe.active').contentWindow.received.some(m=>m.codecVersion==='two'));
+    assert.equal(await f.page.locator('#online-val').innerText(),'4');assert.deepEqual(f.errors,[]);
 });
 test('real postMessage accepts only parent/owned frames and API forwarding keeps payload',async t=>{
     const {page,errors}=await fixture(t);

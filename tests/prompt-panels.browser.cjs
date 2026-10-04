@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const {fixture} = require('./helpers/canvas-browser.cjs');
 
 async function scenario(page,kind){
+    // Finish boot/config refreshes before replacing services and counting panel actions.
+    await page.waitForLoadState('networkidle');
     await page.evaluate(async kind=>{
         const libraries=['system','one','two'].map(id=>({id,name:id,readonly:id==='system',
             categories:[{id:'view',name:'View'},{id:'custom',name:'Custom'}],items:[
