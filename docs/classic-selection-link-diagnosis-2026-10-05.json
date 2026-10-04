@@ -1,0 +1,4520 @@
+{
+  "baseline_commit": "2ca5dc954091be3519cceef94c6f9d355af34942",
+  "measured_at": "2026-10-04T19:09:00.963Z",
+  "environment": {
+    "cpu": "AMD Ryzen 5 5600XT 6-Core Processor            ",
+    "logical_cpus": 12,
+    "release": "10.0.19045",
+    "node": "v24.18.1",
+    "viewport": "1280x900",
+    "samples": 12,
+    "warmups": 2
+  },
+  "source_sha256": {
+    "static/js/canvas/classic/canvas-workspace.js": "188dc78768c8a29c2c62cb34c1280139c638d8cd0120f6668659d33c4caabe68",
+    "static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d"
+  },
+  "method": "Unchanged production HTML/source. Browser-only overrides restricted to refreshSelectionVisuals -> renderLinks. Current, read-all-current-ports-before-writes, and deliberately unguarded presentation-only lower bound. Trusted Ctrl gestures alternate nonempty/empty. Two serial batches; no regression tests run concurrently. Separate profiled pages excluded from timings. World-coordinate error tolerance 1e-3.",
+  "boundaries": [
+    {
+      "mode": "current",
+      "cases": [
+        {
+          "name": "selection only",
+          "changed": false,
+          "max_world_error": 0
+        },
+        {
+          "name": "native node movement",
+          "changed": true,
+          "max_world_error": 0
+        },
+        {
+          "name": "native node resize",
+          "changed": true,
+          "max_world_error": 0
+        },
+        {
+          "name": "native pan",
+          "max_world_error": 0
+        },
+        {
+          "name": "native wheel zoom, original scheduled geometry",
+          "max_world_error": 0.00003715183424901625
+        },
+        {
+          "name": "notified port layout change",
+          "changed": true,
+          "max_world_error": 0.00031415856403782527
+        },
+        {
+          "name": "unnotified port movement, node model unchanged",
+          "pending_geometry": false,
+          "max_world_error": 0.00012433657445853896,
+          "expected_stale": false
+        },
+        {
+          "name": "placeholder fallback",
+          "changed": true,
+          "max_world_error": 0.00003715183424901625
+        },
+        {
+          "name": "original viewport hydration",
+          "changed": true,
+          "max_world_error": 0.000023883321773610078
+        },
+        {
+          "name": "detached button repaired by original geometry path",
+          "max_world_error": 0.000023883321773610078
+        }
+      ]
+    },
+    {
+      "mode": "batch-ports",
+      "cases": [
+        {
+          "name": "selection only",
+          "changed": false,
+          "max_world_error": 0
+        },
+        {
+          "name": "native node movement",
+          "changed": true,
+          "max_world_error": 0
+        },
+        {
+          "name": "native node resize",
+          "changed": true,
+          "max_world_error": 0
+        },
+        {
+          "name": "native pan",
+          "max_world_error": 0
+        },
+        {
+          "name": "native wheel zoom, original scheduled geometry",
+          "max_world_error": 0.00003715183424901625
+        },
+        {
+          "name": "notified port layout change",
+          "changed": true,
+          "max_world_error": 0.00031415856403782527
+        },
+        {
+          "name": "unnotified port movement, node model unchanged",
+          "pending_geometry": false,
+          "max_world_error": 0.00012433657445853896,
+          "expected_stale": false
+        },
+        {
+          "name": "placeholder fallback",
+          "changed": true,
+          "max_world_error": 0.00003715183424901625
+        },
+        {
+          "name": "original viewport hydration",
+          "changed": true,
+          "max_world_error": 0.000023883321773610078
+        },
+        {
+          "name": "detached button repaired by original geometry path",
+          "max_world_error": 0.000023883321773610078
+        }
+      ]
+    },
+    {
+      "mode": "presentation-only",
+      "cases": [
+        {
+          "name": "selection only",
+          "changed": false,
+          "max_world_error": 0
+        },
+        {
+          "name": "native node movement",
+          "changed": true,
+          "max_world_error": 0
+        },
+        {
+          "name": "native node resize",
+          "changed": true,
+          "max_world_error": 0
+        },
+        {
+          "name": "native pan",
+          "max_world_error": 0
+        },
+        {
+          "name": "native wheel zoom, original scheduled geometry",
+          "max_world_error": 0.00003715183424901625
+        },
+        {
+          "name": "notified port layout change",
+          "changed": true,
+          "max_world_error": 0.00031415856403782527
+        },
+        {
+          "name": "unnotified port movement, node model unchanged",
+          "pending_geometry": false,
+          "max_world_error": 109.20312300972316,
+          "expected_stale": true
+        },
+        {
+          "name": "placeholder fallback",
+          "changed": true,
+          "max_world_error": 0.00003715183424901625
+        },
+        {
+          "name": "original viewport hydration",
+          "changed": true,
+          "max_world_error": 0.000023883321773610078
+        },
+        {
+          "name": "detached button repaired by original geometry path",
+          "max_world_error": 0.000023883321773610078
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "batch": 1,
+      "mode": "current",
+      "count": 100,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          11.5,
+          12.200000017881393,
+          15.400000005960464,
+          12.400000005960464,
+          12.199999988079071,
+          12,
+          12,
+          12.199999988079071,
+          11.199999988079071,
+          11.800000011920929,
+          11.300000011920929,
+          11.399999976158142
+        ],
+        "p50_ms": 12,
+        "p95_ms": 15.400000005960464
+      },
+      "second_frame": {
+        "samples_ms": [
+          15.399999976158142,
+          15.900000005960464,
+          19.700000017881393,
+          17,
+          16.400000005960464,
+          16.099999994039536,
+          16.599999994039536,
+          16.19999998807907,
+          14.900000005960464,
+          15.400000005960464,
+          15.599999994039536,
+          14.699999988079071
+        ],
+        "p50_ms": 15.900000005960464,
+        "p95_ms": 19.700000017881393
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            13.199999988079071,
+            15.399999976158142
+          ],
+          "link_calls": 1,
+          "link_ms": 11.200000017881393,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 10.399999976158142,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.5,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.700000017881393,
+            15.900000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 11.900000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.200000017881393,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12.200000017881393,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            17,
+            19.700000017881393
+          ],
+          "link_calls": 1,
+          "link_ms": 15,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 14.100000023841858,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 15.400000005960464,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            14.5,
+            17
+          ],
+          "link_calls": 1,
+          "link_ms": 12,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.199999988079071,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12.400000005960464,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.900000005960464,
+            16.400000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 11.800000011920929,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.200000017881393,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12.199999988079071,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.899999976158142,
+            16.099999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 11.600000023841858,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.100000023841858,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            14.099999994039536,
+            16.599999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 11.599999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.200000017881393,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.900000005960464,
+            16.19999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 11.699999988079071,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.300000011920929,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12.199999988079071,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            12.5,
+            14.900000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 10.899999976158142,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 10.299999982118607,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.199999988079071,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.300000011920929,
+            15.400000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 11.400000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.199999958276749,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.800000011920929,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.300000011920929,
+            15.599999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 11.100000023841858,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 10.400000035762787,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.300000011920929,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            12.699999988079071,
+            14.699999988079071
+          ],
+          "link_calls": 1,
+          "link_ms": 11.099999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 10.599999994039536,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.399999976158142,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 1,
+      "mode": "current",
+      "count": 1000,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          280.40000000596046,
+          270.7999999821186,
+          353.7999999821186,
+          365,
+          279.69999998807907,
+          281.2999999821186,
+          282,
+          329,
+          270.7000000178814,
+          278.30000001192093,
+          272.59999999403954,
+          310.59999999403954
+        ],
+        "p50_ms": 280.40000000596046,
+        "p95_ms": 365
+      },
+      "second_frame": {
+        "samples_ms": [
+          309.5,
+          299.19999998807907,
+          384.90000000596046,
+          395.90000000596046,
+          308.40000000596046,
+          309.40000000596046,
+          314.30000001192093,
+          362.30000001192093,
+          303.5,
+          311.40000000596046,
+          301.09999999403954,
+          342.40000000596046
+        ],
+        "p50_ms": 309.5,
+        "p95_ms": 395.90000000596046
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            296.19999998807907,
+            309.5
+          ],
+          "link_calls": 1,
+          "link_ms": 278.2999999821186,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 272.79999989271164,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 280.40000000596046,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            285.90000000596046,
+            299.19999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 268.59999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 263.9999998807907,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 270.7999999821186,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            370.69999998807907,
+            384.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 352,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 345.19999995827675,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 353.7999999821186,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            381.5,
+            395.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 363.30000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 354.30000001192093,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 365,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            296.19999998807907,
+            308.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 278.19999998807907,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 272.9999999701977,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 279.69999998807907,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            297.09999999403954,
+            309.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 279.90000000596046,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 273.59999999403954,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 281.2999999821186,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            298.30000001192093,
+            314.30000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 280.30000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 274.5999999642372,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 282,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            345.19999998807907,
+            362.30000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 327.09999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 322.9000000655651,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 329,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            288.2000000178814,
+            303.5
+          ],
+          "link_calls": 1,
+          "link_ms": 269.09999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 263.00000005960464,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 270.7000000178814,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            297.09999999403954,
+            311.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 276.7000000178814,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 269.4000000655651,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 278.30000001192093,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            288.40000000596046,
+            301.09999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 270.69999998807907,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 265.50000008940697,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 272.59999999403954,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            327.90000000596046,
+            342.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 308.40000000596046,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 300.59999999403954,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 310.59999999403954,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 1,
+      "mode": "batch-ports",
+      "count": 100,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          10,
+          9.199999988079071,
+          15.5,
+          9.599999994039536,
+          9.300000011920929,
+          9.900000005960464,
+          13.599999994039536,
+          9.5,
+          9.600000023841858,
+          9.200000017881393,
+          9.400000005960464,
+          9.5
+        ],
+        "p50_ms": 9.5,
+        "p95_ms": 15.5
+      },
+      "second_frame": {
+        "samples_ms": [
+          14.5,
+          13,
+          21.599999994039536,
+          13.899999976158142,
+          13.300000011920929,
+          14.400000005960464,
+          18.700000017881393,
+          13.5,
+          14,
+          13.400000005960464,
+          13.700000017881393,
+          13.400000005960464
+        ],
+        "p50_ms": 13.700000017881393,
+        "p95_ms": 21.599999994039536
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            12.300000011920929,
+            14.5
+          ],
+          "link_calls": 1,
+          "link_ms": 9.699999988079071,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 9.199999988079071,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 10,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.099999994039536,
+            13
+          ],
+          "link_calls": 1,
+          "link_ms": 8.899999976158142,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 8.300000011920929,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.199999988079071,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            19,
+            21.599999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 15,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 14,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 15.5,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.699999988079071,
+            13.899999976158142
+          ],
+          "link_calls": 1,
+          "link_ms": 9.300000011920929,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.699999988079071,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.599999994039536,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.300000011920929,
+            13.300000011920929
+          ],
+          "link_calls": 1,
+          "link_ms": 8.900000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.400000005960464,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.300000011920929,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            12.099999994039536,
+            14.400000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 9.5,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 9,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.900000005960464,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            16.099999994039536,
+            18.700000017881393
+          ],
+          "link_calls": 1,
+          "link_ms": 12.900000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 12.300000011920929,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 13.599999994039536,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.5,
+            13.5
+          ],
+          "link_calls": 1,
+          "link_ms": 9,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 8.599999994039536,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.5,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.700000017881393,
+            14
+          ],
+          "link_calls": 1,
+          "link_ms": 9.200000017881393,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.5,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.600000023841858,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.300000011920929,
+            13.400000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 8.900000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 8.400000005960464,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.200000017881393,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.400000005960464,
+            13.700000017881393
+          ],
+          "link_calls": 1,
+          "link_ms": 9.099999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.599999994039536,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.400000005960464,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.400000005960464,
+            13.400000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 9.199999988079071,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.699999988079071,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.5,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 1,
+      "mode": "batch-ports",
+      "count": 1000,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          163.60000002384186,
+          211.39999997615814,
+          179.69999998807907,
+          167.7000000178814,
+          168,
+          242.40000000596046,
+          187.90000000596046,
+          181.2000000178814,
+          179.80000001192093,
+          178.7999999821186,
+          177.40000000596046,
+          229.09999999403954
+        ],
+        "p50_ms": 179.69999998807907,
+        "p95_ms": 242.40000000596046
+      },
+      "second_frame": {
+        "samples_ms": [
+          200.7000000178814,
+          253.89999997615814,
+          222.5,
+          207.40000000596046,
+          205.7999999821186,
+          278.90000000596046,
+          224.69999998807907,
+          222.90000000596046,
+          229.30000001192093,
+          215.59999999403954,
+          212.90000000596046,
+          269.09999999403954
+        ],
+        "p50_ms": 222.5,
+        "p95_ms": 278.90000000596046
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            188.10000002384186,
+            200.7000000178814
+          ],
+          "link_calls": 1,
+          "link_ms": 161.7000000178814,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 157.40000000596046,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 163.60000002384186,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            238.5,
+            253.89999997615814
+          ],
+          "link_calls": 1,
+          "link_ms": 209.09999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.30000001192092896,
+          "premeasure_ms": 202.7000000178814,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 211.39999997615814,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            208.19999998807907,
+            222.5
+          ],
+          "link_calls": 1,
+          "link_ms": 178,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 173.60000002384186,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 179.69999998807907,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            190.90000000596046,
+            207.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 166.09999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 161.7999999821186,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 167.7000000178814,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            192.7999999821186,
+            205.7999999821186
+          ],
+          "link_calls": 1,
+          "link_ms": 165.5,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 161.30000001192093,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 168,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            265.59999999403954,
+            278.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 240.59999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 236.5,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 242.40000000596046,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            211.59999999403954,
+            224.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 186.30000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.30000001192092896,
+          "premeasure_ms": 182.30000001192093,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 187.90000000596046,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            206.40000000596046,
+            222.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 179.30000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 175.2000000178814,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 181.2000000178814,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            208.2000000178814,
+            229.30000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 178.09999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 174.09999999403954,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 179.80000001192093,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            202.5,
+            215.59999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 176.69999998807907,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 172.39999997615814,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 178.7999999821186,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            200.19999998807907,
+            212.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 176,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 170.7000000178814,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 177.40000000596046,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            254.2999999821186,
+            269.09999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 227.2000000178814,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 222.90000000596046,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 229.09999999403954,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 1,
+      "mode": "presentation-only",
+      "count": 100,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          0.5,
+          0.4000000059604645,
+          0.4000000059604645,
+          0.5,
+          0.30000001192092896,
+          0.3999999761581421,
+          0.30000001192092896,
+          0.3999999761581421,
+          0.30000001192092896,
+          0.4000000059604645,
+          0.30000001192092896,
+          0.30000001192092896
+        ],
+        "p50_ms": 0.3999999761581421,
+        "p95_ms": 0.5
+      },
+      "second_frame": {
+        "samples_ms": [
+          12.199999988079071,
+          11.699999988079071,
+          21.600000023841858,
+          12,
+          12.200000017881393,
+          11.299999982118607,
+          11.600000023841858,
+          12.599999994039536,
+          13.099999994039536,
+          12.400000005960464,
+          12.099999994039536,
+          11.900000005960464
+        ],
+        "p50_ms": 12.099999994039536,
+        "p95_ms": 21.600000023841858
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            10.199999988079071,
+            12.199999988079071
+          ],
+          "link_calls": 1,
+          "link_ms": 0.09999999403953552,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.5,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            9.599999994039536,
+            11.699999988079071
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            18,
+            21.600000023841858
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            9.899999976158142,
+            12
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.5,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10,
+            12.200000017881393
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.30000001192092896,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            9.299999982118607,
+            11.299999982118607
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.3999999761581421,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            9.600000023841858,
+            11.600000023841858
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.30000001192092896,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.399999976158142,
+            12.599999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.3999999761581421,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.5,
+            13.099999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.30000001192092896,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.200000017881393,
+            12.400000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10,
+            12.099999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 0.09999999403953552,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.30000001192092896,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            9.699999988079071,
+            11.900000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 0.10000002384185791,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.30000001192092896,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 1,
+      "mode": "presentation-only",
+      "count": 1000,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          2.199999988079071,
+          2.2999999821186066,
+          2,
+          2.0999999940395355,
+          2,
+          1.9000000059604645,
+          2.5999999940395355,
+          2.2000000178813934,
+          2,
+          2,
+          2,
+          3.199999988079071
+        ],
+        "p50_ms": 2,
+        "p95_ms": 3.199999988079071
+      },
+      "second_frame": {
+        "samples_ms": [
+          179.59999999403954,
+          178.09999999403954,
+          172.59999999403954,
+          255.80000001192093,
+          197.7999999821186,
+          200.2000000178814,
+          207.69999998807907,
+          197.7000000178814,
+          204.19999998807907,
+          261.90000000596046,
+          202.90000000596046,
+          235.69999998807907
+        ],
+        "p50_ms": 200.2000000178814,
+        "p95_ms": 261.90000000596046
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            166,
+            179.59999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.199999988079071,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            166.09999999403954,
+            178.09999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 0.30000001192092896,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.2999999821186066,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            160.2000000178814,
+            172.59999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            241.19999998807907,
+            255.80000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.0999999940395355,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            183.7999999821186,
+            197.7999999821186
+          ],
+          "link_calls": 1,
+          "link_ms": 0.4000000059604645,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            188,
+            200.2000000178814
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 1.9000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            188.5,
+            207.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.5999999940395355,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            184.7000000178814,
+            197.7000000178814
+          ],
+          "link_calls": 1,
+          "link_ms": 0.30000001192092896,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.2000000178813934,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            188.90000000596046,
+            204.19999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 0.19999998807907104,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            244.19999998807907,
+            261.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 0.20000001788139343,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            190.2999999821186,
+            202.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 0.30000001192092896,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            218,
+            235.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 0.19999998807907104,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 3.199999988079071,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "mode": "current",
+      "count": 100,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          11.900000005960464,
+          11.799999982118607,
+          11.700000017881393,
+          11.699999988079071,
+          11.300000011920929,
+          11.799999982118607,
+          12.900000005960464,
+          14.299999982118607,
+          16.799999982118607,
+          13.700000017881393,
+          12.199999988079071,
+          13.399999976158142
+        ],
+        "p50_ms": 11.900000005960464,
+        "p95_ms": 16.799999982118607
+      },
+      "second_frame": {
+        "samples_ms": [
+          15.599999994039536,
+          16.19999998807907,
+          15.5,
+          15.400000005960464,
+          14.5,
+          15.5,
+          16.80000001192093,
+          19.299999982118607,
+          21.5,
+          19.600000023841858,
+          16.19999998807907,
+          17.799999982118607
+        ],
+        "p50_ms": 16.19999998807907,
+        "p95_ms": 21.5
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            13.699999988079071,
+            15.599999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 11.399999976158142,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 10.699999958276749,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.900000005960464,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.900000005960464,
+            16.19999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 11.5,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.100000023841858,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.799999982118607,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.200000017881393,
+            15.5
+          ],
+          "link_calls": 1,
+          "link_ms": 11.399999976158142,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.09999993443489,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.700000017881393,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.199999988079071,
+            15.400000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 11.199999988079071,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 10.900000005960464,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.699999988079071,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            12.600000023841858,
+            14.5
+          ],
+          "link_calls": 1,
+          "link_ms": 11,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 10,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.300000011920929,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.400000005960464,
+            15.5
+          ],
+          "link_calls": 1,
+          "link_ms": 11.400000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.100000023841858,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.799999982118607,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            14.599999994039536,
+            16.80000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 12.300000011920929,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.900000005960464,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12.900000005960464,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            16.599999994039536,
+            19.299999982118607
+          ],
+          "link_calls": 1,
+          "link_ms": 13.400000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 12.60000005364418,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 14.299999982118607,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            18.69999998807907,
+            21.5
+          ],
+          "link_calls": 1,
+          "link_ms": 16.400000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 15.599999994039536,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 16.799999982118607,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            16.400000005960464,
+            19.600000023841858
+          ],
+          "link_calls": 1,
+          "link_ms": 13.200000017881393,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 12.600000023841858,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 13.700000017881393,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.800000011920929,
+            16.19999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 11.900000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 11.400000005960464,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 12.199999988079071,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            15.099999994039536,
+            17.799999982118607
+          ],
+          "link_calls": 1,
+          "link_ms": 12.599999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 12.299999982118607,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 13.399999976158142,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "mode": "current",
+      "count": 1000,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          272.2000000178814,
+          323.40000000596046,
+          281.09999999403954,
+          285.7000000178814,
+          287,
+          290.7999999821186,
+          324.7999999821186,
+          276.80000001192093,
+          282.30000001192093,
+          271,
+          281.69999998807907,
+          316.10000002384186
+        ],
+        "p50_ms": 282.30000001192093,
+        "p95_ms": 324.7999999821186
+      },
+      "second_frame": {
+        "samples_ms": [
+          302.59999999403954,
+          353.2000000178814,
+          311.5,
+          315.90000000596046,
+          319.40000000596046,
+          325.69999998807907,
+          361.59999999403954,
+          309.80000001192093,
+          313.90000000596046,
+          300.80000001192093,
+          312.5,
+          347.60000002384186
+        ],
+        "p50_ms": 313.90000000596046,
+        "p95_ms": 361.59999999403954
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            289.09999999403954,
+            302.59999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 270.10000002384186,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 264.10000002384186,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 272.2000000178814,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            339.90000000596046,
+            353.2000000178814
+          ],
+          "link_calls": 1,
+          "link_ms": 321.59999999403954,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 314.4000001549721,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 323.40000000596046,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            298,
+            311.5
+          ],
+          "link_calls": 1,
+          "link_ms": 279.30000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 273.7999999523163,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 281.09999999403954,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            302.2000000178814,
+            315.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 283.7000000178814,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 276.60000017285347,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 285.7000000178814,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            306.10000002384186,
+            319.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 285.5,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 278.7000000476837,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 287,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            307.90000000596046,
+            325.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 288.69999998807907,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 282.6000000536442,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 290.7999999821186,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            341.7999999821186,
+            361.59999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 321.69999998807907,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 316.09999990463257,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 324.7999999821186,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            293.5,
+            309.80000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 274.30000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 268.9999999701977,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 276.80000001192093,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            299.40000000596046,
+            313.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 280.90000000596046,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 274,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 282.30000001192093,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            287.5,
+            300.80000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 269.40000000596046,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 263.4999999701977,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 271,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            298.2999999821186,
+            312.5
+          ],
+          "link_calls": 1,
+          "link_ms": 279.7000000178814,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 272.7000000178814,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 281.69999998807907,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            333.10000002384186,
+            347.60000002384186
+          ],
+          "link_calls": 1,
+          "link_ms": 314.2999999821186,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 307.30000001192093,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 316.10000002384186,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "mode": "batch-ports",
+      "count": 100,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          9.799999982118607,
+          9.799999982118607,
+          14.099999994039536,
+          9.400000005960464,
+          9.5,
+          9.599999994039536,
+          9.5,
+          8.900000005960464,
+          11.600000023841858,
+          8.900000005960464,
+          8.700000017881393,
+          9.799999982118607
+        ],
+        "p50_ms": 9.5,
+        "p95_ms": 14.099999994039536
+      },
+      "second_frame": {
+        "samples_ms": [
+          14.699999988079071,
+          13.900000005960464,
+          20.099999994039536,
+          13.5,
+          13.799999982118607,
+          14.099999994039536,
+          13.699999988079071,
+          12.900000005960464,
+          16.30000001192093,
+          13,
+          12.800000011920929,
+          14
+        ],
+        "p50_ms": 13.799999982118607,
+        "p95_ms": 20.099999994039536
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            12.199999988079071,
+            14.699999988079071
+          ],
+          "link_calls": 1,
+          "link_ms": 9.400000005960464,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0.10000002384185791,
+          "premeasure_ms": 8.800000011920929,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.799999982118607,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.799999982118607,
+            13.900000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 9.299999982118607,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.799999982118607,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.799999982118607,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            17.599999994039536,
+            20.099999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 13.599999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 12.599999994039536,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 14.099999994039536,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.5,
+            13.5
+          ],
+          "link_calls": 1,
+          "link_ms": 9.099999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.5,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.400000005960464,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.599999994039536,
+            13.799999982118607
+          ],
+          "link_calls": 1,
+          "link_ms": 9,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 8.600000023841858,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.5,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.800000011920929,
+            14.099999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 9.099999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.699999988079071,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.599999994039536,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.5,
+            13.699999988079071
+          ],
+          "link_calls": 1,
+          "link_ms": 9.099999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.699999988079071,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.5,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11,
+            12.900000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 8.599999994039536,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8.199999988079071,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 8.900000005960464,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            13.900000005960464,
+            16.30000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 11.199999988079071,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 10.699999988079071,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 11.600000023841858,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.900000005960464,
+            13
+          ],
+          "link_calls": 1,
+          "link_ms": 8.700000017881393,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 8.900000005960464,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.700000017881393,
+            12.800000011920929
+          ],
+          "link_calls": 1,
+          "link_ms": 8.5,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 8,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 8.700000017881393,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.900000005960464,
+            14
+          ],
+          "link_calls": 1,
+          "link_ms": 9.399999976158142,
+          "port_calls": 100,
+          "actual_port_reads": 100,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 9,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 9.799999982118607,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "mode": "batch-ports",
+      "count": 1000,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          163.59999999403954,
+          162.40000000596046,
+          164.40000000596046,
+          170.59999999403954,
+          248.89999997615814,
+          173.7000000178814,
+          170.30000001192093,
+          172.40000000596046,
+          169.89999997615814,
+          243.30000001192093,
+          166.19999998807907,
+          173.40000000596046
+        ],
+        "p50_ms": 170.30000001192093,
+        "p95_ms": 248.89999997615814
+      },
+      "second_frame": {
+        "samples_ms": [
+          198,
+          200.80000001192093,
+          204.90000000596046,
+          208.80000001192093,
+          289.7999999821186,
+          209.09999999403954,
+          209.5,
+          209.30000001192093,
+          204.69999998807907,
+          284.5,
+          204.69999998807907,
+          213
+        ],
+        "p50_ms": 208.80000001192093,
+        "p95_ms": 289.7999999821186
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            186.5,
+            198
+          ],
+          "link_calls": 1,
+          "link_ms": 161.7000000178814,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 157.60000002384186,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 163.59999999403954,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            187.2000000178814,
+            200.80000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 160.69999998807907,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.5,
+          "premeasure_ms": 156.10000002384186,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 162.40000000596046,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            191.7999999821186,
+            204.90000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 162.80000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.4000000059604645,
+          "premeasure_ms": 158.4000000357628,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 164.40000000596046,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            192.80000001192093,
+            208.80000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 168.30000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.20000001788139343,
+          "premeasure_ms": 164.40000000596046,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 170.59999999403954,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            273.39999997615814,
+            289.7999999821186
+          ],
+          "link_calls": 1,
+          "link_ms": 247.19999998807907,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 240.59999999403954,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 248.89999997615814,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            196.2000000178814,
+            209.09999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 171.7999999821186,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 167.7000000178814,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 173.7000000178814,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            195.30000001192093,
+            209.5
+          ],
+          "link_calls": 1,
+          "link_ms": 168.89999997615814,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.09999999403953552,
+          "premeasure_ms": 164.90000000596046,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 170.30000001192093,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            195.90000000596046,
+            209.30000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 170.80000001192093,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.30000001192092896,
+          "premeasure_ms": 166.59999999403954,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 172.40000000596046,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            192.5,
+            204.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 168.39999997615814,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 164.5,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 169.89999997615814,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            267.5,
+            284.5
+          ],
+          "link_calls": 1,
+          "link_ms": 241.5,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 236.09999999403954,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 243.30000001192093,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            192,
+            204.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 164.7000000178814,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.19999998807907104,
+          "premeasure_ms": 160.50000002980232,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 166.19999998807907,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            201.5,
+            213
+          ],
+          "link_calls": 1,
+          "link_ms": 172,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.20000001788139343,
+          "premeasure_ms": 167.69999998807907,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 173.40000000596046,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "mode": "presentation-only",
+      "count": 100,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          0.4000000059604645,
+          0.4000000059604645,
+          0.7000000178813934,
+          0.4000000059604645,
+          0.3999999761581421,
+          0.4000000059604645,
+          0.19999998807907104,
+          0.29999998211860657,
+          0.3999999761581421,
+          0.5999999940395355,
+          0.4000000059604645,
+          0.4000000059604645
+        ],
+        "p50_ms": 0.4000000059604645,
+        "p95_ms": 0.7000000178813934
+      },
+      "second_frame": {
+        "samples_ms": [
+          11.900000005960464,
+          12.099999994039536,
+          17.200000017881393,
+          12.5,
+          12.899999976158142,
+          11.900000005960464,
+          11.799999982118607,
+          12.299999982118607,
+          13.799999982118607,
+          14.199999988079071,
+          14.800000011920929,
+          12.699999988079071
+        ],
+        "p50_ms": 12.5,
+        "p95_ms": 17.200000017881393
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            9.900000005960464,
+            11.900000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.099999994039536,
+            12.099999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            14.800000011920929,
+            17.200000017881393
+          ],
+          "link_calls": 1,
+          "link_ms": 0.09999999403953552,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.7000000178813934,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.400000005960464,
+            12.5
+          ],
+          "link_calls": 1,
+          "link_ms": 0.10000002384185791,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.699999988079071,
+            12.899999976158142
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.3999999761581421,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            9.800000011920929,
+            11.900000005960464
+          ],
+          "link_calls": 1,
+          "link_ms": 0.09999999403953552,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            9.799999982118607,
+            11.799999982118607
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.19999998807907104,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.400000005960464,
+            12.299999982118607
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.29999998211860657,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.199999988079071,
+            13.799999982118607
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.3999999761581421,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.400000005960464,
+            14.199999988079071
+          ],
+          "link_calls": 1,
+          "link_ms": 0.09999999403953552,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.5999999940395355,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            11.300000011920929,
+            14.800000011920929
+          ],
+          "link_calls": 1,
+          "link_ms": 0.09999999403953552,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            10.5,
+            12.699999988079071
+          ],
+          "link_calls": 1,
+          "link_ms": 0,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 0.4000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "mode": "presentation-only",
+      "count": 1000,
+      "profile": false,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          2,
+          2.199999988079071,
+          2.4000000059604645,
+          2.0999999940395355,
+          2,
+          1.7999999821186066,
+          3,
+          1.9000000059604645,
+          1.800000011920929,
+          1.9000000059604645,
+          1.5,
+          2.0999999940395355
+        ],
+        "p50_ms": 2,
+        "p95_ms": 3
+      },
+      "second_frame": {
+        "samples_ms": [
+          173.09999999403954,
+          176.40000000596046,
+          191.5,
+          250.5,
+          216.39999997615814,
+          198.69999998807907,
+          212.09999999403954,
+          227.59999999403954,
+          203.69999998807907,
+          260.30000001192093,
+          203.09999999403954,
+          218.2999999821186
+        ],
+        "p50_ms": 203.69999998807907,
+        "p95_ms": 260.30000001192093
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            160.80000001192093,
+            173.09999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 0.4000000059604645,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            164,
+            176.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.199999988079071,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            173.10000002384186,
+            191.5
+          ],
+          "link_calls": 1,
+          "link_ms": 0.5,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.4000000059604645,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            236.90000000596046,
+            250.5
+          ],
+          "link_calls": 1,
+          "link_ms": 0.4000000059604645,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.0999999940395355,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            203.7999999821186,
+            216.39999997615814
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            186.2999999821186,
+            198.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 0.19999998807907104,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 1.7999999821186066,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            196,
+            212.09999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 0.4000000059604645,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 3,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            210,
+            227.59999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 0.30000001192092896,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 1.9000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            187,
+            203.69999998807907
+          ],
+          "link_calls": 1,
+          "link_ms": 0.30000001192092896,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 1.800000011920929,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            246.40000000596046,
+            260.30000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 0.30000001192092896,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 1.9000000059604645,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            189.5,
+            203.09999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 0.29999998211860657,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 1.5,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        },
+        {
+          "trusted": true,
+          "frames": [
+            203.2999999821186,
+            218.2999999821186
+          ],
+          "link_calls": 1,
+          "link_ms": 0.19999998807907104,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {},
+          "dom_inclusive_ms": {},
+          "sync_ms": 2.0999999940395355,
+          "selected": [],
+          "visible": [],
+          "replacedNodes": 0
+        }
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "mode": "current",
+      "count": 1000,
+      "profile": true,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          312.7999999821186
+        ],
+        "p50_ms": 312.7999999821186,
+        "p95_ms": 312.7999999821186
+      },
+      "second_frame": {
+        "samples_ms": [
+          347.59999999403954
+        ],
+        "p50_ms": 347.59999999403954,
+        "p95_ms": 347.59999999403954
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            331.7999999821186,
+            347.59999999403954
+          ],
+          "link_calls": 1,
+          "link_ms": 309.90000000596046,
+          "port_calls": 1000,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 302.7000000476837,
+          "premeasure_ms": 0,
+          "path_writes": 1998,
+          "dom_calls": {
+            "getBoundingClientRect": 1034,
+            "querySelectorAll": 1004,
+            "querySelector": 3000,
+            "offsetWidth": 1984,
+            "offsetHeight": 1984,
+            "setAttribute": 1998
+          },
+          "dom_inclusive_ms": {
+            "getBoundingClientRect": 194.9000000655651,
+            "querySelectorAll": 0.3999999761581421,
+            "querySelector": 18.30000001192093,
+            "offsetWidth": 95.79999986290932,
+            "offsetHeight": 1.9000001549720764,
+            "setAttribute": 2.7999998927116394
+          },
+          "sync_ms": 312.7999999821186,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "mode": "batch-ports",
+      "count": 1000,
+      "profile": true,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          225.7000000178814
+        ],
+        "p50_ms": 225.7000000178814,
+        "p95_ms": 225.7000000178814
+      },
+      "second_frame": {
+        "samples_ms": [
+          280.40000000596046
+        ],
+        "p50_ms": 280.40000000596046,
+        "p95_ms": 280.40000000596046
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            257.7000000178814,
+            280.40000000596046
+          ],
+          "link_calls": 1,
+          "link_ms": 222.5,
+          "port_calls": 1000,
+          "actual_port_reads": 1000,
+          "port_inclusive_ms": 0.3999999761581421,
+          "premeasure_ms": 215.19999998807907,
+          "path_writes": 1998,
+          "dom_calls": {
+            "getBoundingClientRect": 1034,
+            "querySelectorAll": 1004,
+            "querySelector": 3000,
+            "offsetWidth": 1984,
+            "offsetHeight": 1984,
+            "setAttribute": 1998
+          },
+          "dom_inclusive_ms": {
+            "getBoundingClientRect": 204.9000000357628,
+            "querySelectorAll": 0.3999999761581421,
+            "querySelector": 17.20000010728836,
+            "offsetWidth": 2,
+            "offsetHeight": 0.3999999761581421,
+            "setAttribute": 2.3999999463558197
+          },
+          "sync_ms": 225.7000000178814,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        }
+      ]
+    },
+    {
+      "mode": "presentation-only",
+      "count": 1000,
+      "profile": true,
+      "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+      "sync": {
+        "samples_ms": [
+          3.800000011920929
+        ],
+        "p50_ms": 3.800000011920929,
+        "p95_ms": 3.800000011920929
+      },
+      "second_frame": {
+        "samples_ms": [
+          246
+        ],
+        "p50_ms": 246,
+        "p95_ms": 246
+      },
+      "rows": [
+        {
+          "trusted": true,
+          "frames": [
+            224.09999999403954,
+            246
+          ],
+          "link_calls": 1,
+          "link_ms": 0.5999999940395355,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {
+            "getBoundingClientRect": 1002,
+            "querySelectorAll": 1003,
+            "querySelector": 1000,
+            "offsetWidth": 1000,
+            "offsetHeight": 1000
+          },
+          "dom_inclusive_ms": {
+            "getBoundingClientRect": 1.4000000357627869,
+            "querySelectorAll": 0.30000004172325134,
+            "querySelector": 7.60000005364418,
+            "offsetWidth": 0.7999999523162842,
+            "offsetHeight": 0.9000000059604645
+          },
+          "sync_ms": 3.800000011920929,
+          "selected": [
+            "n0"
+          ],
+          "visible": [
+            "e0"
+          ],
+          "replacedNodes": 0
+        }
+      ]
+    }
+  ],
+  "traced_profiles": {
+    "measured_at": "2026-10-04T19:12:48.616Z",
+    "profiles": [
+      {
+        "mode": "current",
+        "count": 1000,
+        "profile": true,
+        "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+        "sync": {
+          "samples_ms": [
+            362.39999997615814
+          ],
+          "p50_ms": 362.39999997615814,
+          "p95_ms": 362.39999997615814
+        },
+        "second_frame": {
+          "samples_ms": [
+            402.59999999403954
+          ],
+          "p50_ms": 402.59999999403954,
+          "p95_ms": 402.59999999403954
+        },
+        "rows": [
+          {
+            "trusted": true,
+            "frames": [
+              383.7999999821186,
+              402.59999999403954
+            ],
+            "link_calls": 1,
+            "link_ms": 358,
+            "port_calls": 1000,
+            "actual_port_reads": 0,
+            "port_inclusive_ms": 347.50000005960464,
+            "premeasure_ms": 0,
+            "path_writes": 1998,
+            "dom_calls": {
+              "getBoundingClientRect": 1034,
+              "querySelectorAll": 1004,
+              "querySelector": 3000,
+              "offsetWidth": 1984,
+              "offsetHeight": 1984,
+              "setAttribute": 1998
+            },
+            "dom_inclusive_ms": {
+              "getBoundingClientRect": 211,
+              "querySelectorAll": 0.19999998807907104,
+              "querySelector": 18.400000154972076,
+              "offsetWidth": 126.49999991059303,
+              "offsetHeight": 2.1000000536441803,
+              "setAttribute": 6.499999910593033
+            },
+            "sync_ms": 362.39999997615814,
+            "selected": [
+              "n0"
+            ],
+            "visible": [
+              "e0"
+            ],
+            "replacedNodes": 0
+          }
+        ],
+        "trace": {
+          "synchronous": {
+            "style_ms": 230.841,
+            "layout_ms": 96.825,
+            "paint_ms": 0,
+            "raf_ms": 0,
+            "task_ms": 362.545
+          },
+          "following": {
+            "style_ms": 4.345,
+            "layout_ms": 1.166,
+            "paint_ms": 4.577,
+            "raf_ms": 15.399,
+            "task_ms": 44.257
+          },
+          "note": "Main renderer thread, category interval unions. Categories overlap: do not add layout/style to task/RAF. Profile overhead excluded from lean percentiles."
+        }
+      },
+      {
+        "mode": "batch-ports",
+        "count": 1000,
+        "profile": true,
+        "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+        "sync": {
+          "samples_ms": [
+            227.89999997615814
+          ],
+          "p50_ms": 227.89999997615814,
+          "p95_ms": 227.89999997615814
+        },
+        "second_frame": {
+          "samples_ms": [
+            273.7999999821186
+          ],
+          "p50_ms": 273.7999999821186,
+          "p95_ms": 273.7999999821186
+        },
+        "rows": [
+          {
+            "trusted": true,
+            "frames": [
+              255.5,
+              273.7999999821186
+            ],
+            "link_calls": 1,
+            "link_ms": 224.09999999403954,
+            "port_calls": 1000,
+            "actual_port_reads": 1000,
+            "port_inclusive_ms": 0.19999998807907104,
+            "premeasure_ms": 216.89999997615814,
+            "path_writes": 1998,
+            "dom_calls": {
+              "getBoundingClientRect": 1034,
+              "querySelectorAll": 1004,
+              "querySelector": 3000,
+              "offsetWidth": 1984,
+              "offsetHeight": 1984,
+              "setAttribute": 1998
+            },
+            "dom_inclusive_ms": {
+              "getBoundingClientRect": 207.30000007152557,
+              "querySelectorAll": 0.3999999761581421,
+              "querySelector": 15.799999922513962,
+              "offsetWidth": 1.9999999701976776,
+              "offsetHeight": 0.800000011920929,
+              "setAttribute": 2.099999964237213
+            },
+            "sync_ms": 227.89999997615814,
+            "selected": [
+              "n0"
+            ],
+            "visible": [
+              "e0"
+            ],
+            "replacedNodes": 0
+          }
+        ],
+        "trace": {
+          "synchronous": {
+            "style_ms": 205.82,
+            "layout_ms": 0.33,
+            "paint_ms": 0,
+            "raf_ms": 0,
+            "task_ms": 227.854
+          },
+          "following": {
+            "style_ms": 11.854,
+            "layout_ms": 1.883,
+            "paint_ms": 4.498,
+            "raf_ms": 13.716,
+            "task_ms": 50.655
+          },
+          "note": "Main renderer thread, category interval unions. Categories overlap: do not add layout/style to task/RAF. Profile overhead excluded from lean percentiles."
+        }
+      },
+      {
+        "mode": "presentation-only",
+        "count": 1000,
+        "profile": true,
+        "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+        "sync": {
+          "samples_ms": [
+            3.699999988079071
+          ],
+          "p50_ms": 3.699999988079071,
+          "p95_ms": 3.699999988079071
+        },
+        "second_frame": {
+          "samples_ms": [
+            247.90000000596046
+          ],
+          "p50_ms": 247.90000000596046,
+          "p95_ms": 247.90000000596046
+        },
+        "rows": [
+          {
+            "trusted": true,
+            "frames": [
+              231,
+              247.90000000596046
+            ],
+            "link_calls": 1,
+            "link_ms": 0.30000001192092896,
+            "port_calls": 0,
+            "actual_port_reads": 0,
+            "port_inclusive_ms": 0,
+            "premeasure_ms": 0,
+            "path_writes": 0,
+            "dom_calls": {
+              "getBoundingClientRect": 1002,
+              "querySelectorAll": 1003,
+              "querySelector": 1000,
+              "offsetWidth": 1000,
+              "offsetHeight": 1000
+            },
+            "dom_inclusive_ms": {
+              "getBoundingClientRect": 1.5,
+              "querySelectorAll": 0.20000001788139343,
+              "querySelector": 7.800000071525574,
+              "offsetWidth": 0.8999999463558197,
+              "offsetHeight": 0.800000011920929
+            },
+            "sync_ms": 3.699999988079071,
+            "selected": [
+              "n0"
+            ],
+            "visible": [
+              "e0"
+            ],
+            "replacedNodes": 0
+          }
+        ],
+        "trace": {
+          "synchronous": {
+            "style_ms": 0.076,
+            "layout_ms": 0.306,
+            "paint_ms": 0,
+            "raf_ms": 0,
+            "task_ms": 3.781
+          },
+          "following": {
+            "style_ms": 211.824,
+            "layout_ms": 1.345,
+            "paint_ms": 4.421,
+            "raf_ms": 14.458,
+            "task_ms": 248.534
+          },
+          "note": "Main renderer thread, category interval unions. Categories overlap: do not add layout/style to task/RAF. Profile overhead excluded from lean percentiles."
+        }
+      }
+    ]
+  },
+  "style_isolation": {
+    "measured_at": "2026-10-04T19:13:52.066Z",
+    "controls": [
+      {
+        "remove_body_flag": false,
+        "change_selection": true,
+        "row": {
+          "trusted": false,
+          "frames": [
+            18.900000005960464,
+            34.599999994039536
+          ],
+          "link_calls": 1,
+          "link_ms": 0.4000000059604645,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {
+            "querySelectorAll": 1002,
+            "querySelector": 1000,
+            "offsetWidth": 1000,
+            "offsetHeight": 1000,
+            "getBoundingClientRect": 1
+          },
+          "dom_inclusive_ms": {
+            "querySelectorAll": 0.4999999701976776,
+            "querySelector": 8.899999976158142,
+            "offsetWidth": 1.2000000178813934,
+            "offsetHeight": 0.29999998211860657,
+            "getBoundingClientRect": 0
+          },
+          "sync_ms": 3.2000000178813934
+        },
+        "trace": {
+          "synchronous": {
+            "style_ms": 0,
+            "layout_ms": 0,
+            "paint_ms": 0,
+            "raf_ms": 0,
+            "task_ms": 3.36
+          },
+          "following": {
+            "style_ms": 8.661,
+            "layout_ms": 1.194,
+            "paint_ms": 5.876,
+            "raf_ms": 15.662,
+            "task_ms": 36.089
+          },
+          "note": "Main renderer thread, category interval unions. Categories overlap: do not add layout/style to task/RAF. Profile overhead excluded from lean percentiles."
+        },
+        "note": "Non-gesture isolation control, not included in performance percentiles. Existing CSS and original node/minimap selection rendering; only link geometry omitted."
+      },
+      {
+        "remove_body_flag": true,
+        "change_selection": false,
+        "row": {
+          "trusted": false,
+          "frames": [
+            213.90000000596046,
+            225.30000001192093
+          ],
+          "link_calls": 1,
+          "link_ms": 0.4000000059604645,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {
+            "querySelectorAll": 1002,
+            "querySelector": 1000,
+            "offsetWidth": 1000,
+            "offsetHeight": 1000,
+            "getBoundingClientRect": 1
+          },
+          "dom_inclusive_ms": {
+            "querySelectorAll": 0.29999998211860657,
+            "querySelector": 6.9000000059604645,
+            "offsetWidth": 197.79999995231628,
+            "offsetHeight": 0.8999999761581421,
+            "getBoundingClientRect": 0
+          },
+          "sync_ms": 3.2000000178813934
+        },
+        "trace": {
+          "synchronous": {
+            "style_ms": 0,
+            "layout_ms": 0,
+            "paint_ms": 0,
+            "raf_ms": 0,
+            "task_ms": 3.31
+          },
+          "following": {
+            "style_ms": 200.178,
+            "layout_ms": 1.1,
+            "paint_ms": 3.218,
+            "raf_ms": 210.624,
+            "task_ms": 222.45
+          },
+          "note": "Main renderer thread, category interval unions. Categories overlap: do not add layout/style to task/RAF. Profile overhead excluded from lean percentiles."
+        },
+        "note": "Non-gesture isolation control, not included in performance percentiles. Existing CSS and original node/minimap selection rendering; only link geometry omitted."
+      },
+      {
+        "remove_body_flag": true,
+        "change_selection": true,
+        "row": {
+          "trusted": false,
+          "frames": [
+            255,
+            290.5
+          ],
+          "link_calls": 1,
+          "link_ms": 0.699999988079071,
+          "port_calls": 0,
+          "actual_port_reads": 0,
+          "port_inclusive_ms": 0,
+          "premeasure_ms": 0,
+          "path_writes": 0,
+          "dom_calls": {
+            "querySelectorAll": 1002,
+            "querySelector": 1000,
+            "offsetWidth": 1000,
+            "offsetHeight": 1000,
+            "getBoundingClientRect": 1
+          },
+          "dom_inclusive_ms": {
+            "querySelectorAll": 1.2000000178813934,
+            "querySelector": 9.799999952316284,
+            "offsetWidth": 231.70000007748604,
+            "offsetHeight": 0.4999999701976776,
+            "getBoundingClientRect": 0
+          },
+          "sync_ms": 4.799999982118607
+        },
+        "trace": {
+          "synchronous": {
+            "style_ms": 0,
+            "layout_ms": 0,
+            "paint_ms": 0,
+            "raf_ms": 0,
+            "task_ms": 4.941
+          },
+          "following": {
+            "style_ms": 238.393,
+            "layout_ms": 2.487,
+            "paint_ms": 6.767,
+            "raf_ms": 250.229,
+            "task_ms": 287.335
+          },
+          "note": "Main renderer thread, category interval unions. Categories overlap: do not add layout/style to task/RAF. Profile overhead excluded from lean percentiles."
+        },
+        "note": "Non-gesture isolation control, not included in performance percentiles. Existing CSS and original node/minimap selection rendering; only link geometry omitted."
+      }
+    ]
+  },
+  "comparisons": [
+    {
+      "batch": 1,
+      "count": 100,
+      "mode": "batch-ports",
+      "sync_p50_improvement_percent": 20.833333333333336,
+      "second_frame_p50_improvement_percent": 13.83647790726008
+    },
+    {
+      "batch": 1,
+      "count": 100,
+      "mode": "presentation-only",
+      "sync_p50_improvement_percent": 96.66666686534882,
+      "second_frame_p50_improvement_percent": 23.899371135197576
+    },
+    {
+      "batch": 1,
+      "count": 1000,
+      "mode": "batch-ports",
+      "sync_p50_improvement_percent": 35.9129814606779,
+      "second_frame_p50_improvement_percent": 28.109854604200322
+    },
+    {
+      "batch": 1,
+      "count": 1000,
+      "mode": "presentation-only",
+      "sync_p50_improvement_percent": 99.28673323824626,
+      "second_frame_p50_improvement_percent": 35.315024226855776
+    },
+    {
+      "batch": 2,
+      "count": 100,
+      "mode": "batch-ports",
+      "sync_p50_improvement_percent": 20.16806726687692,
+      "second_frame_p50_improvement_percent": 14.81481486250943
+    },
+    {
+      "batch": 2,
+      "count": 100,
+      "mode": "presentation-only",
+      "sync_p50_improvement_percent": 96.63865541378055,
+      "second_frame_p50_improvement_percent": 22.839506116060203
+    },
+    {
+      "batch": 2,
+      "count": 1000,
+      "mode": "batch-ports",
+      "sync_p50_improvement_percent": 39.67410555978409,
+      "second_frame_p50_improvement_percent": 33.482000634610976
+    },
+    {
+      "batch": 2,
+      "count": 1000,
+      "mode": "presentation-only",
+      "sync_p50_improvement_percent": 99.29153382928956,
+      "second_frame_p50_improvement_percent": 35.10672189098084
+    }
+  ],
+  "evidence_note": "Original 144 lean samples, 3 untraced profiles, 3 later traced profiles, and 3 non-gesture style controls retained separately. Profile measurements never enter percentiles. No production modifications."
+}
