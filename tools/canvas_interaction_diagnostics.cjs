@@ -1,5 +1,5 @@
 // Diagnostic only: production HTML, trusted mouse/keyboard events, fixed API/text fixture.
-const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
 const {fixture}=require('../tests/helpers/canvas-browser.cjs');
 const args=process.argv.slice(2),option=(name,fallback)=>args.includes(name)?args[args.indexOf(name)+1]:fallback;
@@ -7,6 +7,7 @@ const root=path.resolve(__dirname,'..'),sourceRoot=path.resolve(option('--source
 const output=path.resolve(option('--output','.local/canvas-interaction-diagnostics.json'));
 const samples=Number(option('--samples',12));
 assert(Number.isInteger(samples)&&samples>=2);
+const boxMode=option('--box-mode','full');assert(['full','selection'].includes(boxMode));
 const repositoryHead=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
 const commit=option('--baseline-commit',repositoryHead);
 const summary=values=>{const sorted=[...values].sort((a,b)=>a-b);return {samples_ms:values,p50_ms:sorted[Math.ceil(sorted.length*.5)-1],p95_ms:sorted[Math.ceil(sorted.length*.95)-1]};};
@@ -134,7 +135,12 @@ async function finish(page,scenario){
         delete c.domDepth;delete c.ending;delete c.start;delete c.syncEnd;return c;
     },scenario.kind);
     assert.equal(row.trusted,true);assert.equal(row.frames.length,2);assert(Number.isFinite(row.sync_ms));
-    if(scenario.action==='box'){assert(row.selected.includes('node-0'));assert.equal(row.calls.render?.count,1);assert.equal(row.calls.scheduleSave?.count||0,0);}
+    if(scenario.action==='box'){
+        assert.deepEqual(row.selected,['node-0']);assert.equal(row.calls.scheduleSave?.count||0,0);
+        assert.equal(row.calls.render?.count||0,boxMode==='full'?1:0);
+        assert.equal(row.calls.refreshSelectionVisuals?.count||0,boxMode==='selection'?1:0);
+        assert.equal(row.replacedNodes,boxMode==='selection'?0:scenario.count);
+    }
     if(scenario.action==='select'){assert(row.selected.includes('node-0'));assert.equal(row.calls.render?.count||0,0);assert.equal(row.calls.refreshSelectionVisuals?.count,1);assert.equal(row.calls.scheduleSave?.count||0,0);assert.equal(row.replacedNodes,0);}
     if(scenario.action==='toggle'){assert.equal(row.calls.refreshSmartNodes?.count,1);assert.equal(row.calls.scheduleSave?.count,1);}
     if(scenario.action==='input'){assert.equal(row.calls.render?.count||0,0);assert.equal(row.calls.refreshSmartNodes?.count||0,0);assert.equal(row.changedText.length,1);assert.equal(row.replacedNodes,0);assert.equal(row.calls.scheduleSave?.count,1);}
@@ -191,13 +197,18 @@ async function run(scenario){
         const trace=analyzeTrace(await readTrace(cdp));
         profile.cdp_delta=Object.fromEntries(['TaskDuration','ScriptDuration','LayoutDuration','RecalcStyleDuration','LayoutCount','RecalcStyleCount'].map(name=>[name,(after.find(x=>x.name===name)?.value||0)-(before.find(x=>x.name===name)?.value||0)]));
         assert.deepEqual(errors,[]);
+        const resources=await page.evaluate(()=>[...new Set(performance.getEntriesByType('resource').map(e=>new URL(e.name).pathname).filter(p=>p.startsWith('/static/')))].sort());
+        const sourceManifest=Object.fromEntries(resources.map(url=>{
+            const file=path.resolve(sourceRoot,'.'+decodeURIComponent(url));
+            return [url,fs.existsSync(file)?crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'):null];
+        }));
         return {...scenario,actual,chrome:await page.evaluate(()=>navigator.userAgent),
             synchronous:summary(rows.map(r=>r.sync_ms)),second_frame:summary(rows.map(r=>r.frames[1])),
-            samples:rows,save_calls_before_profile:saveCallsBefore,save_requests_before_profile:savesBefore,profile,trace};
+            samples:rows,save_calls_before_profile:saveCallsBefore,save_requests_before_profile:savesBefore,source_manifest:sourceManifest,profile,trace};
     }finally{for(const close of cleanup.reverse())await close();}
 }
 (async()=>{
-    let report={baseline_commit:commit,measured_at:new Date().toISOString(),environment:{cpu:os.cpus()[0].model,logical_cpus:os.cpus().length,platform:os.platform(),release:os.release(),node:process.version,viewport:'1280x900',headless:true,samples,warmups:2},
+    let report={baseline_commit:commit,box_mode:boxMode,measured_at:new Date().toISOString(),environment:{cpu:os.cpus()[0].model,logical_cpus:os.cpus().length,platform:os.platform(),release:os.release(),node:process.version,viewport:'1280x900',headless:true,samples,warmups:2},
         method:'Trusted Playwright gestures on production HTML/scripts. Fixed API and text-only synthetic documents. No replaced save implementation. Lean timings include event handler through first microtask, then first/second RAF arrival; 350ms follow-up window. Profile is a separate instrumented CDP trace, excluded from percentiles. Second RAF is a presentation opportunity, not physical display latency.',results:[]};
     const scenarios=[
         {kind:'classic',action:'box',count:100,topology:'fanin'},
@@ -212,6 +223,7 @@ async function run(scenario){
     if(args.includes('--resume')){
         report=JSON.parse(fs.readFileSync(output,'utf8'));
         assert.equal(report.baseline_commit,commit);assert.equal(report.environment.samples,samples);
+        assert.equal(report.box_mode||'full',boxMode);
         (report.resumed_at??=[]).push(new Date().toISOString());
     }
     for(const scenario of scenarios.filter(s=>!args.includes('--only')||s.kind===option('--only')||`${s.kind}-${s.action}`===option('--only'))){

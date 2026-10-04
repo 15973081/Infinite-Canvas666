@@ -1,0 +1,4543 @@
+{
+  "measured_at": "2026-10-04T18:26:13.942Z",
+  "baseline_commit": "8b8ef5c",
+  "candidate_parent_commit": "8bcffe04110774091242f5da8f6cae9663f478ec",
+  "workspace_sha256": {
+    "baseline": "1805bc374125fc21a26691307b153f626a98b97e50eb276a8870b80a05e594f4",
+    "candidate": "188dc78768c8a29c2c62cb34c1280139c638d8cd0120f6668659d33c4caabe68"
+  },
+  "method": "Two serial batches, baseline/candidate/baseline/candidate. Same 100/1000-node legal fan-in graphs, production HTML, Ctrl background drag. Each group has 2 warmups, 12 lean samples by default, and a separate profile. Exact production file diff is asserted; loaded static resource hashes are compared, allowing only the workspace change. No timing alongside regression tests.",
+  "groups": [
+    {
+      "batch": 1,
+      "version": "baseline",
+      "baseline_commit": "8b8ef5c",
+      "box_mode": "full",
+      "measured_at": "2026-10-04T18:26:14.255Z",
+      "environment": {
+        "cpu": "AMD Ryzen 5 5600XT 6-Core Processor            ",
+        "logical_cpus": 12,
+        "platform": "win32",
+        "release": "10.0.19045",
+        "node": "v24.18.1",
+        "viewport": "1280x900",
+        "headless": true,
+        "samples": 12,
+        "warmups": 2
+      },
+      "method": "Trusted Playwright gestures on production HTML/scripts. Fixed API and text-only synthetic documents. No replaced save implementation. Lean timings include event handler through first microtask, then first/second RAF arrival; 350ms follow-up window. Profile is a separate instrumented CDP trace, excluded from percentiles. Second RAF is a presentation opportunity, not physical display latency.",
+      "results": [
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 100,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 100,
+            "edges": 99
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              28.599999994039536,
+              28.19999998807907,
+              29.30000001192093,
+              30.400000005960464,
+              27.69999998807907,
+              33.19999998807907,
+              26.299999982118607,
+              26.900000005960464,
+              33.099999994039536,
+              26.599999994039536,
+              37.70000001788139,
+              26.599999994039536
+            ],
+            "p50_ms": 28.19999998807907,
+            "p95_ms": 37.70000001788139
+          },
+          "second_frame": {
+            "samples_ms": [
+              42.39999997615814,
+              46.89999997615814,
+              43,
+              42.20000001788139,
+              39.69999998807907,
+              44.80000001192093,
+              38.5,
+              39.69999998807907,
+              44.79999998211861,
+              38.19999998807907,
+              53.5,
+              39.20000001788139
+            ],
+            "p50_ms": 42.20000001788139,
+            "p95_ms": 53.5
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 28,
+                  "synchronous_ms": 28,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                36.29999998211861,
+                42.39999997615814
+              ],
+              "window_ms": 391.2999999821186,
+              "sync_ms": 28.599999994039536,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 27.599999994039536,
+                  "synchronous_ms": 27.599999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                38.89999997615814,
+                46.89999997615814
+              ],
+              "window_ms": 405.89999997615814,
+              "sync_ms": 28.19999998807907,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 28.69999998807907,
+                  "synchronous_ms": 28.69999998807907,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                36.80000001192093,
+                43
+              ],
+              "window_ms": 394.40000000596046,
+              "sync_ms": 29.30000001192093,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 29.799999982118607,
+                  "synchronous_ms": 29.799999982118607,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                37.900000005960464,
+                42.20000001788139
+              ],
+              "window_ms": 404.7000000178814,
+              "sync_ms": 30.400000005960464,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 27.200000017881393,
+                  "synchronous_ms": 27.200000017881393,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                34.69999998807907,
+                39.69999998807907
+              ],
+              "window_ms": 388.39999997615814,
+              "sync_ms": 27.69999998807907,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 32.70000001788139,
+                  "synchronous_ms": 32.70000001788139,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                40.30000001192093,
+                44.80000001192093
+              ],
+              "window_ms": 404.59999999403954,
+              "sync_ms": 33.19999998807907,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 25.700000017881393,
+                  "synchronous_ms": 25.700000017881393,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                33.29999998211861,
+                38.5
+              ],
+              "window_ms": 392.19999998807907,
+              "sync_ms": 26.299999982118607,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 26.399999976158142,
+                  "synchronous_ms": 26.399999976158142,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                33.69999998807907,
+                39.69999998807907
+              ],
+              "window_ms": 397,
+              "sync_ms": 26.900000005960464,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 32.60000002384186,
+                  "synchronous_ms": 32.60000002384186,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                40.29999998211861,
+                44.79999998211861
+              ],
+              "window_ms": 395.59999999403954,
+              "sync_ms": 33.099999994039536,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 26.099999994039536,
+                  "synchronous_ms": 26.099999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                33.69999998807907,
+                38.19999998807907
+              ],
+              "window_ms": 401.40000000596046,
+              "sync_ms": 26.599999994039536,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 36.89999997615814,
+                  "synchronous_ms": 36.89999997615814,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                48.60000002384186,
+                53.5
+              ],
+              "window_ms": 412.30000001192093,
+              "sync_ms": 37.70000001788139,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 26.299999982118607,
+                  "synchronous_ms": 26.299999982118607,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                33.70000001788139,
+                39.20000001788139
+              ],
+              "window_ms": 392.80000001192093,
+              "sync_ms": 26.599999994039536,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "e6b45d5af33f84b280b7d261c6b00e5d451f08a34d094410641732281bdd206f",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "7cd7b713c5071ea6f532f70d42e63830042308659db3d9a6b745dabe8e661c8d",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "87d62483c8f97c8bfb452c9c66d5d0e5ef32a261c116a5671100933048a6fe93",
+            "/static/images/shadox-mark.svg": "2e1781fa78d83358c6413fc5b9e8deccdbb16f100ef55532ab7dd530bcc4c88e",
+            "/static/js/asset-auth.js": "25b6ae7f66d440933c7438af4f446b7e5167e340e2f3427bb67b56ab8cc9aa52",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "16ca177e802b33926e52fbbf58cad78960f3336cd44c6e639621d822bfbc8044",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "62e47c4be789afb0130a009eea30178884aac17da0744cd4d58221a47e51bc38",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "b0b08d4d150eb4620b0b13fc0b6c8c8d7825b3435a7cd1d4135e665e5f77a188",
+            "/static/js/canvas-name-dialog.js": "1e1f15fa53d71510ceb74998986a5ec7c8595ed59a850fc701b4e31b6498d195",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "1183e1fb2e08e91397d22b491d014841cb9afc19079108038b6dcb56ad1e3ff7",
+            "/static/js/canvas/classic/canvas-execution.js": "cf8aadf281dd6e19b7fcb039722addef8560d9340152d970788ea55859748dff",
+            "/static/js/canvas/classic/canvas-library.js": "4638114af3f3156a51460b2b86fc8f07981fddcdc2a1b629160f232196257651",
+            "/static/js/canvas/classic/canvas-media-editor.js": "51434e74ddceb48ca4c218569360c627e80c271eea4eb95bca13c22dd45d606f",
+            "/static/js/canvas/classic/canvas-results.js": "ea6c9ec30334a2f7854b6889a36bc0de787c8e25a39544dcbb40d8ddd2aada48",
+            "/static/js/canvas/classic/canvas-session.js": "1632505385869a587489c3df3161d0b438c9cd122d8eb5e89b05f8f71e8cf4de",
+            "/static/js/canvas/classic/canvas-workspace.js": "1805bc374125fc21a26691307b153f626a98b97e50eb276a8870b80a05e594f4",
+            "/static/js/frontend-version.js": "4bb299c6201a961171a600ec88fed95f0ba331d2cf40a6d4e4690d7823a8b66f",
+            "/static/js/member-media-preview.js": "8df3ed9466bae88eff9cee26f0ba286909d4f90de75ad34eb5b8153c9cc82c41",
+            "/static/js/studio-frame-messages.js": "556be909ba938e33504cb9bda180c8f5e06fc216dd085dfe3816a67acce17085",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "4d441b611ad99837ada0bf32e4662288ec979f8875930a7342ade06c4df05e72",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "render": {
+                "count": 1,
+                "inclusive_ms": 36.5,
+                "synchronous_ms": 36.5,
+                "following_ms": 0
+              },
+              "renderNode": {
+                "count": 16,
+                "inclusive_ms": 2.899999886751175,
+                "synchronous_ms": 2.899999886751175,
+                "following_ms": 0
+              },
+              "renderNodePlaceholder": {
+                "count": 84,
+                "inclusive_ms": 1.8999999165534973,
+                "synchronous_ms": 1.8999999165534973,
+                "following_ms": 0
+              },
+              "refreshGeometry": {
+                "count": 3,
+                "inclusive_ms": 15.599999964237213,
+                "synchronous_ms": 4.399999976158142,
+                "following_ms": 11.199999988079071
+              },
+              "renderLinks": {
+                "count": 3,
+                "inclusive_ms": 15.499999970197678,
+                "synchronous_ms": 4.299999982118607,
+                "following_ms": 11.199999988079071
+              },
+              "portPoint": {
+                "count": 300,
+                "inclusive_ms": 12.40000006556511,
+                "synchronous_ms": 3.7000000178813934,
+                "following_ms": 8.700000047683716
+              },
+              "refreshIcons": {
+                "count": 1,
+                "inclusive_ms": 4.100000023841858,
+                "synchronous_ms": 4.100000023841858,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 10.29999989271164,
+            "domCalls": {
+              "getBoundingClientRect": 198,
+              "querySelectorAll": 344,
+              "createElement": 116,
+              "innerHTML": 120,
+              "querySelector": 812,
+              "appendChild": 480,
+              "setAttribute": 2505
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 3.6000000536441803,
+              "querySelectorAll": 0.10000002384185791,
+              "createElement": 0.09999999403953552,
+              "innerHTML": 2.5999999046325684,
+              "querySelector": 1.100000023841858,
+              "appendChild": 0.5999999642372131,
+              "setAttribute": 2.1999999284744263
+            },
+            "frames": [
+              50.10000002384186,
+              57
+            ],
+            "window_ms": 403.7000000178814,
+            "sync_ms": 37.80000001192093,
+            "replacedNodes": 100,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 0.070949,
+              "ScriptDuration": 0.019105,
+              "LayoutDuration": 0.014492999999999999,
+              "RecalcStyleDuration": 0.018337,
+              "LayoutCount": 400,
+              "RecalcStyleCount": 400
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 13.333,
+              "layout_ms": 9.775,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 37.809
+            },
+            "following": {
+              "style_ms": 5.028,
+              "layout_ms": 3.573,
+              "paint_ms": 3.436,
+              "raf_ms": 12.219,
+              "timer_ms": 0,
+              "task_ms": 31.752
+            },
+            "sync_trace_ms": 37.809,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        },
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 1000,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 1000,
+            "edges": 999
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              885.3999999761581,
+              817.7000000178814,
+              848.2999999821186,
+              837.4000000059605,
+              771.5999999940395,
+              802.1999999880791,
+              789,
+              822,
+              808.7000000178814,
+              812,
+              795.8000000119209,
+              810.5
+            ],
+            "p50_ms": 810.5,
+            "p95_ms": 885.3999999761581
+          },
+          "second_frame": {
+            "samples_ms": [
+              1189.0999999940395,
+              1139,
+              1158.5,
+              1138,
+              1057.3999999761581,
+              1094.5,
+              1086.699999988079,
+              1128.199999988079,
+              1109.2000000178814,
+              1136.300000011921,
+              1079,
+              1107.5999999940395
+            ],
+            "p50_ms": 1109.2000000178814,
+            "p95_ms": 1189.0999999940395
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 882.5,
+                  "synchronous_ms": 882.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                1050.199999988079,
+                1189.0999999940395
+              ],
+              "window_ms": 1422.5,
+              "sync_ms": 885.3999999761581,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 813.9000000059605,
+                  "synchronous_ms": 813.9000000059605,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                979.9000000059605,
+                1139
+              ],
+              "window_ms": 1349.4000000059605,
+              "sync_ms": 817.7000000178814,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 845.6000000238419,
+                  "synchronous_ms": 845.6000000238419,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                1010.5999999940395,
+                1158.5
+              ],
+              "window_ms": 1380.9000000059605,
+              "sync_ms": 848.2999999821186,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 834.5,
+                  "synchronous_ms": 834.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                999.5999999940395,
+                1138
+              ],
+              "window_ms": 1366.5,
+              "sync_ms": 837.4000000059605,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 768.9000000059605,
+                  "synchronous_ms": 768.9000000059605,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                922.0999999940395,
+                1057.3999999761581
+              ],
+              "window_ms": 1300.3999999761581,
+              "sync_ms": 771.5999999940395,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 799.5,
+                  "synchronous_ms": 799.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                958.3000000119209,
+                1094.5
+              ],
+              "window_ms": 1327.699999988079,
+              "sync_ms": 802.1999999880791,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 786.0999999940395,
+                  "synchronous_ms": 786.0999999940395,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                948.5,
+                1086.699999988079
+              ],
+              "window_ms": 1318.8999999761581,
+              "sync_ms": 789,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 819,
+                  "synchronous_ms": 819,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                983.1999999880791,
+                1128.199999988079
+              ],
+              "window_ms": 1356.9000000059605,
+              "sync_ms": 822,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 805,
+                  "synchronous_ms": 805,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                969,
+                1109.2000000178814
+              ],
+              "window_ms": 1346.5,
+              "sync_ms": 808.7000000178814,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 809,
+                  "synchronous_ms": 809,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                980.4000000059605,
+                1136.300000011921
+              ],
+              "window_ms": 1351.7000000178814,
+              "sync_ms": 812,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 793.0999999940395,
+                  "synchronous_ms": 793.0999999940395,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                946,
+                1079
+              ],
+              "window_ms": 1321.1000000238419,
+              "sync_ms": 795.8000000119209,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 807.0999999940395,
+                  "synchronous_ms": 807.0999999940395,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                969.0999999940395,
+                1107.5999999940395
+              ],
+              "window_ms": 1338.300000011921,
+              "sync_ms": 810.5,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "e6b45d5af33f84b280b7d261c6b00e5d451f08a34d094410641732281bdd206f",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "7cd7b713c5071ea6f532f70d42e63830042308659db3d9a6b745dabe8e661c8d",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "87d62483c8f97c8bfb452c9c66d5d0e5ef32a261c116a5671100933048a6fe93",
+            "/static/images/shadox-mark.svg": "2e1781fa78d83358c6413fc5b9e8deccdbb16f100ef55532ab7dd530bcc4c88e",
+            "/static/js/asset-auth.js": "25b6ae7f66d440933c7438af4f446b7e5167e340e2f3427bb67b56ab8cc9aa52",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "16ca177e802b33926e52fbbf58cad78960f3336cd44c6e639621d822bfbc8044",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "62e47c4be789afb0130a009eea30178884aac17da0744cd4d58221a47e51bc38",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "b0b08d4d150eb4620b0b13fc0b6c8c8d7825b3435a7cd1d4135e665e5f77a188",
+            "/static/js/canvas-name-dialog.js": "1e1f15fa53d71510ceb74998986a5ec7c8595ed59a850fc701b4e31b6498d195",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "1183e1fb2e08e91397d22b491d014841cb9afc19079108038b6dcb56ad1e3ff7",
+            "/static/js/canvas/classic/canvas-execution.js": "cf8aadf281dd6e19b7fcb039722addef8560d9340152d970788ea55859748dff",
+            "/static/js/canvas/classic/canvas-library.js": "4638114af3f3156a51460b2b86fc8f07981fddcdc2a1b629160f232196257651",
+            "/static/js/canvas/classic/canvas-media-editor.js": "51434e74ddceb48ca4c218569360c627e80c271eea4eb95bca13c22dd45d606f",
+            "/static/js/canvas/classic/canvas-results.js": "ea6c9ec30334a2f7854b6889a36bc0de787c8e25a39544dcbb40d8ddd2aada48",
+            "/static/js/canvas/classic/canvas-session.js": "1632505385869a587489c3df3161d0b438c9cd122d8eb5e89b05f8f71e8cf4de",
+            "/static/js/canvas/classic/canvas-workspace.js": "1805bc374125fc21a26691307b153f626a98b97e50eb276a8870b80a05e594f4",
+            "/static/js/frontend-version.js": "4bb299c6201a961171a600ec88fed95f0ba331d2cf40a6d4e4690d7823a8b66f",
+            "/static/js/member-media-preview.js": "8df3ed9466bae88eff9cee26f0ba286909d4f90de75ad34eb5b8153c9cc82c41",
+            "/static/js/studio-frame-messages.js": "556be909ba938e33504cb9bda180c8f5e06fc216dd085dfe3816a67acce17085",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "4d441b611ad99837ada0bf32e4662288ec979f8875930a7342ade06c4df05e72",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "render": {
+                "count": 1,
+                "inclusive_ms": 927.1999999880791,
+                "synchronous_ms": 927.1999999880791,
+                "following_ms": 0
+              },
+              "renderNode": {
+                "count": 16,
+                "inclusive_ms": 2.9000000059604645,
+                "synchronous_ms": 2.9000000059604645,
+                "following_ms": 0
+              },
+              "renderNodePlaceholder": {
+                "count": 984,
+                "inclusive_ms": 27.900000035762787,
+                "synchronous_ms": 27.900000035762787,
+                "following_ms": 0
+              },
+              "refreshGeometry": {
+                "count": 3,
+                "inclusive_ms": 460.60000002384186,
+                "synchronous_ms": 149.09999999403954,
+                "following_ms": 311.5000000298023
+              },
+              "renderLinks": {
+                "count": 3,
+                "inclusive_ms": 460.60000002384186,
+                "synchronous_ms": 149.09999999403954,
+                "following_ms": 311.5000000298023
+              },
+              "portPoint": {
+                "count": 3000,
+                "inclusive_ms": 434.8000000715256,
+                "synchronous_ms": 140.49999997019768,
+                "following_ms": 294.3000001013279
+              },
+              "refreshIcons": {
+                "count": 1,
+                "inclusive_ms": 3.9000000059604645,
+                "synchronous_ms": 3.9000000059604645,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 100.7999999821186,
+            "domCalls": {
+              "getBoundingClientRect": 1098,
+              "querySelectorAll": 2144,
+              "createElement": 1016,
+              "innerHTML": 1020,
+              "querySelector": 7112,
+              "appendChild": 1380,
+              "setAttribute": 7905
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 15.899999976158142,
+              "querySelectorAll": 0.9999999701976776,
+              "createElement": 0.9999999701976776,
+              "innerHTML": 21.500000149011612,
+              "querySelector": 43.30000019073486,
+              "appendChild": 3.4999999403953552,
+              "setAttribute": 14.599999785423279
+            },
+            "frames": [
+              1122.800000011921,
+              1294.7000000178814
+            ],
+            "window_ms": 1495.800000011921,
+            "sync_ms": 931.9000000059605,
+            "replacedNodes": 1000,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 1.349056,
+              "ScriptDuration": 0.149341,
+              "LayoutDuration": 0.764654,
+              "RecalcStyleDuration": 0.34753500000000004,
+              "LayoutCount": 4000,
+              "RecalcStyleCount": 4000
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 294.447,
+              "layout_ms": 548.53,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 932.006
+            },
+            "following": {
+              "style_ms": 53.62,
+              "layout_ms": 202.51,
+              "paint_ms": 18.536,
+              "raf_ms": 325.654,
+              "timer_ms": 0,
+              "task_ms": 411.6
+            },
+            "sync_trace_ms": 932.006,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        }
+      ]
+    },
+    {
+      "batch": 1,
+      "version": "candidate",
+      "baseline_commit": "8bcffe0+selection-patch",
+      "box_mode": "selection",
+      "measured_at": "2026-10-04T18:26:54.555Z",
+      "environment": {
+        "cpu": "AMD Ryzen 5 5600XT 6-Core Processor            ",
+        "logical_cpus": 12,
+        "platform": "win32",
+        "release": "10.0.19045",
+        "node": "v24.18.1",
+        "viewport": "1280x900",
+        "headless": true,
+        "samples": 12,
+        "warmups": 2
+      },
+      "method": "Trusted Playwright gestures on production HTML/scripts. Fixed API and text-only synthetic documents. No replaced save implementation. Lean timings include event handler through first microtask, then first/second RAF arrival; 350ms follow-up window. Profile is a separate instrumented CDP trace, excluded from percentiles. Second RAF is a presentation opportunity, not physical display latency.",
+      "results": [
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 100,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 100,
+            "edges": 99
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              14,
+              11.400000005960464,
+              11.799999982118607,
+              13.199999988079071,
+              11.5,
+              10.800000011920929,
+              11.100000023841858,
+              11.5,
+              11.699999988079071,
+              11.099999994039536,
+              10.5,
+              10.899999976158142
+            ],
+            "p50_ms": 11.400000005960464,
+            "p95_ms": 14
+          },
+          "second_frame": {
+            "samples_ms": [
+              18.19999998807907,
+              14.799999982118607,
+              15.299999982118607,
+              17,
+              15.199999988079071,
+              13.900000005960464,
+              14.300000011920929,
+              15.100000023841858,
+              15.199999988079071,
+              14.599999994039536,
+              13.900000005960464,
+              14
+            ],
+            "p50_ms": 14.799999982118607,
+            "p95_ms": 18.19999998807907
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 13.5,
+                  "synchronous_ms": 13.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                15.699999988079071,
+                18.19999998807907
+              ],
+              "window_ms": 370.5,
+              "sync_ms": 14,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.100000023841858,
+                  "synchronous_ms": 11.100000023841858,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                12.799999982118607,
+                14.799999982118607
+              ],
+              "window_ms": 374.90000000596046,
+              "sync_ms": 11.400000005960464,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.5,
+                  "synchronous_ms": 11.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13.299999982118607,
+                15.299999982118607
+              ],
+              "window_ms": 378.2999999821186,
+              "sync_ms": 11.799999982118607,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 12.800000011920929,
+                  "synchronous_ms": 12.800000011920929,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                14.899999976158142,
+                17
+              ],
+              "window_ms": 371.5,
+              "sync_ms": 13.199999988079071,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.100000023841858,
+                  "synchronous_ms": 11.100000023841858,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13,
+                15.199999988079071
+              ],
+              "window_ms": 377.39999997615814,
+              "sync_ms": 11.5,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 10.300000011920929,
+                  "synchronous_ms": 10.300000011920929,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                11.900000005960464,
+                13.900000005960464
+              ],
+              "window_ms": 368.40000000596046,
+              "sync_ms": 10.800000011920929,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 10.900000005960464,
+                  "synchronous_ms": 10.900000005960464,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                12.400000005960464,
+                14.300000011920929
+              ],
+              "window_ms": 371.80000001192093,
+              "sync_ms": 11.100000023841858,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.199999988079071,
+                  "synchronous_ms": 11.199999988079071,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                12.800000011920929,
+                15.100000023841858
+              ],
+              "window_ms": 375.60000002384186,
+              "sync_ms": 11.5,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.399999976158142,
+                  "synchronous_ms": 11.399999976158142,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13.099999994039536,
+                15.199999988079071
+              ],
+              "window_ms": 373.19999998807907,
+              "sync_ms": 11.699999988079071,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 10.799999982118607,
+                  "synchronous_ms": 10.799999982118607,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                12.400000005960464,
+                14.599999994039536
+              ],
+              "window_ms": 375,
+              "sync_ms": 11.099999994039536,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 10.299999982118607,
+                  "synchronous_ms": 10.299999982118607,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                11.900000005960464,
+                13.900000005960464
+              ],
+              "window_ms": 372.10000002384186,
+              "sync_ms": 10.5,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 10.599999994039536,
+                  "synchronous_ms": 10.599999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                12.099999994039536,
+                14
+              ],
+              "window_ms": 374.7999999821186,
+              "sync_ms": 10.899999976158142,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "8b8f6f7885f2bbb5a20749eeb45d6aa45bff2a5e196d918655c10636f61338fa",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "ba680851dd434ff880a2022d0c5fa2a8cba9d8f2a474f6834b7e6710bf536e5e",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "59f75df16d290c3f3ad60c7b34b9ac19d6fa666e88d4001d468f14f7ff5e78a4",
+            "/static/images/shadox-mark.svg": "610c811b58231a95296c95cffa167448a2fa987425c061ab3c0aa97a0d2f68cb",
+            "/static/js/asset-auth.js": "4f4f2a3aaddc0fe03f80a37bf9e655ccf8bfdddb96d344c09728475f1d32393d",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "5c8388090e1f8025acd924a804d105161df6f4fdaf048c09394a2e235127d830",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "a74e42bef611c37d4ea260477bf4e4061c6e38b3ba0bff58c95798031966c315",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "96b8ddab5387677ee5456e48bf2d6aa49e08d13f4c90960d5ebd8a822220905b",
+            "/static/js/canvas-name-dialog.js": "798f1ee9ed4a757679089bd39615e4498bc3ece44327cbb1b119a172912c8089",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "691400cb6bf0b88a2e48478356fd902dca3f75d3a0c13bd8871f32dc27100a9e",
+            "/static/js/canvas/classic/canvas-execution.js": "67d7ba17f852306a623407125812b8ffb696adcd1a5c0a51194ec4861e447cbe",
+            "/static/js/canvas/classic/canvas-library.js": "8cbe27aabfa67ed828bb515269b25b678eb00dac759c86cc3df15161e733b05d",
+            "/static/js/canvas/classic/canvas-media-editor.js": "a53f43a21c6440db3dff83eb7423dc47387031670baca684c774a0f4c7e471cc",
+            "/static/js/canvas/classic/canvas-results.js": "8927b42ea91d4c99168cf1da8dd9bc274ec2d5e8822227e3114b23a5d94b8536",
+            "/static/js/canvas/classic/canvas-session.js": "57eeaac7232b8449458121a9601244ab67c05c9db81acc3cb53a3455d22ad4be",
+            "/static/js/canvas/classic/canvas-workspace.js": "188dc78768c8a29c2c62cb34c1280139c638d8cd0120f6668659d33c4caabe68",
+            "/static/js/frontend-version.js": "d6e82ac0f9a1bfa448d6edcf54ed36a8ecd7e319a39c9b53fad4ed4e40ee92cc",
+            "/static/js/member-media-preview.js": "6716701ae1ced15a84f0129a19d52654a98f004a58736699bba2d031852154bb",
+            "/static/js/studio-frame-messages.js": "ad1385b80cec7c95e493c62fba74223291ecbd42fcbfbe4b29fba11bbfe3bbb5",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "a4f9313341d87bc7013ac90c77fc00a6cba114fce9d493e9cc73eb661c65bca7",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "refreshSelectionVisuals": {
+                "count": 1,
+                "inclusive_ms": 14.699999988079071,
+                "synchronous_ms": 14.699999988079071,
+                "following_ms": 0
+              },
+              "renderLinks": {
+                "count": 1,
+                "inclusive_ms": 14.5,
+                "synchronous_ms": 14.5,
+                "following_ms": 0
+              },
+              "portPoint": {
+                "count": 100,
+                "inclusive_ms": 13.299999952316284,
+                "synchronous_ms": 13.299999952316284,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 10.899999916553497,
+            "domCalls": {
+              "getBoundingClientRect": 134,
+              "querySelectorAll": 104,
+              "querySelector": 300,
+              "setAttribute": 198,
+              "innerHTML": 2
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 9.899999976158142,
+              "querySelectorAll": 0,
+              "querySelector": 0.4999999701976776,
+              "setAttribute": 0.29999998211860657,
+              "innerHTML": 0.19999998807907104
+            },
+            "frames": [
+              17.5,
+              20
+            ],
+            "window_ms": 383.60000002384186,
+            "sync_ms": 15.5,
+            "replacedNodes": 0,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 0.021929,
+              "ScriptDuration": 0.0039,
+              "LayoutDuration": 0.002035,
+              "RecalcStyleDuration": 0.011179,
+              "LayoutCount": 101,
+              "RecalcStyleCount": 102
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 10.644,
+              "layout_ms": 1.566,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 15.534
+            },
+            "following": {
+              "style_ms": 0.561,
+              "layout_ms": 0.157,
+              "paint_ms": 1.315,
+              "raf_ms": 0.869,
+              "timer_ms": 0,
+              "task_ms": 5.278
+            },
+            "sync_trace_ms": 15.534,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        },
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 1000,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 1000,
+            "edges": 999
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              365.7999999821186,
+              277.60000002384186,
+              278.80000001192093,
+              286,
+              294.09999999403954,
+              335,
+              293.19999998807907,
+              307.69999998807907,
+              286.40000000596046,
+              276.90000000596046,
+              341.90000000596046,
+              285.09999999403954
+            ],
+            "p50_ms": 286.40000000596046,
+            "p95_ms": 365.7999999821186
+          },
+          "second_frame": {
+            "samples_ms": [
+              410.89999997615814,
+              307.60000002384186,
+              312.80000001192093,
+              316.90000000596046,
+              328.90000000596046,
+              370.7000000178814,
+              326.90000000596046,
+              340,
+              325.09999999403954,
+              305.59999999403954,
+              391.5,
+              328.5
+            ],
+            "p50_ms": 326.90000000596046,
+            "p95_ms": 410.89999997615814
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 364.40000000596046,
+                  "synchronous_ms": 364.40000000596046,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                386.2999999821186,
+                410.89999997615814
+              ],
+              "window_ms": 766.1999999880791,
+              "sync_ms": 365.7999999821186,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 276.40000000596046,
+                  "synchronous_ms": 276.40000000596046,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                292.90000000596046,
+                307.60000002384186
+              ],
+              "window_ms": 669.3000000119209,
+              "sync_ms": 277.60000002384186,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 277.59999999403954,
+                  "synchronous_ms": 277.59999999403954,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                295.69999998807907,
+                312.80000001192093
+              ],
+              "window_ms": 670.0999999940395,
+              "sync_ms": 278.80000001192093,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 284.7000000178814,
+                  "synchronous_ms": 284.7000000178814,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                301.69999998807907,
+                316.90000000596046
+              ],
+              "window_ms": 679.1999999880791,
+              "sync_ms": 286,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 293,
+                  "synchronous_ms": 293,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                310.59999999403954,
+                328.90000000596046
+              ],
+              "window_ms": 684.1999999880791,
+              "sync_ms": 294.09999999403954,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 333.5,
+                  "synchronous_ms": 333.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                352.30000001192093,
+                370.7000000178814
+              ],
+              "window_ms": 726.9000000059605,
+              "sync_ms": 335,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 292.09999999403954,
+                  "synchronous_ms": 292.09999999403954,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                309.69999998807907,
+                326.90000000596046
+              ],
+              "window_ms": 683.6999999880791,
+              "sync_ms": 293.19999998807907,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 306.40000000596046,
+                  "synchronous_ms": 306.40000000596046,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                324.69999998807907,
+                340
+              ],
+              "window_ms": 691.8999999761581,
+              "sync_ms": 307.69999998807907,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 285.09999999403954,
+                  "synchronous_ms": 285.09999999403954,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                305.7000000178814,
+                325.09999999403954
+              ],
+              "window_ms": 676.9000000059605,
+              "sync_ms": 286.40000000596046,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 275.7000000178814,
+                  "synchronous_ms": 275.7000000178814,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                293.09999999403954,
+                305.59999999403954
+              ],
+              "window_ms": 662.4000000059605,
+              "sync_ms": 276.90000000596046,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 340.40000000596046,
+                  "synchronous_ms": 340.40000000596046,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                360.30000001192093,
+                391.5
+              ],
+              "window_ms": 748.1000000238419,
+              "sync_ms": 341.90000000596046,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 283,
+                  "synchronous_ms": 283,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                306.90000000596046,
+                328.5
+              ],
+              "window_ms": 692.9000000059605,
+              "sync_ms": 285.09999999403954,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "8b8f6f7885f2bbb5a20749eeb45d6aa45bff2a5e196d918655c10636f61338fa",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "ba680851dd434ff880a2022d0c5fa2a8cba9d8f2a474f6834b7e6710bf536e5e",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "59f75df16d290c3f3ad60c7b34b9ac19d6fa666e88d4001d468f14f7ff5e78a4",
+            "/static/images/shadox-mark.svg": "610c811b58231a95296c95cffa167448a2fa987425c061ab3c0aa97a0d2f68cb",
+            "/static/js/asset-auth.js": "4f4f2a3aaddc0fe03f80a37bf9e655ccf8bfdddb96d344c09728475f1d32393d",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "5c8388090e1f8025acd924a804d105161df6f4fdaf048c09394a2e235127d830",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "a74e42bef611c37d4ea260477bf4e4061c6e38b3ba0bff58c95798031966c315",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "96b8ddab5387677ee5456e48bf2d6aa49e08d13f4c90960d5ebd8a822220905b",
+            "/static/js/canvas-name-dialog.js": "798f1ee9ed4a757679089bd39615e4498bc3ece44327cbb1b119a172912c8089",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "691400cb6bf0b88a2e48478356fd902dca3f75d3a0c13bd8871f32dc27100a9e",
+            "/static/js/canvas/classic/canvas-execution.js": "67d7ba17f852306a623407125812b8ffb696adcd1a5c0a51194ec4861e447cbe",
+            "/static/js/canvas/classic/canvas-library.js": "8cbe27aabfa67ed828bb515269b25b678eb00dac759c86cc3df15161e733b05d",
+            "/static/js/canvas/classic/canvas-media-editor.js": "a53f43a21c6440db3dff83eb7423dc47387031670baca684c774a0f4c7e471cc",
+            "/static/js/canvas/classic/canvas-results.js": "8927b42ea91d4c99168cf1da8dd9bc274ec2d5e8822227e3114b23a5d94b8536",
+            "/static/js/canvas/classic/canvas-session.js": "57eeaac7232b8449458121a9601244ab67c05c9db81acc3cb53a3455d22ad4be",
+            "/static/js/canvas/classic/canvas-workspace.js": "188dc78768c8a29c2c62cb34c1280139c638d8cd0120f6668659d33c4caabe68",
+            "/static/js/frontend-version.js": "d6e82ac0f9a1bfa448d6edcf54ed36a8ecd7e319a39c9b53fad4ed4e40ee92cc",
+            "/static/js/member-media-preview.js": "6716701ae1ced15a84f0129a19d52654a98f004a58736699bba2d031852154bb",
+            "/static/js/studio-frame-messages.js": "ad1385b80cec7c95e493c62fba74223291ecbd42fcbfbe4b29fba11bbfe3bbb5",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "a4f9313341d87bc7013ac90c77fc00a6cba114fce9d493e9cc73eb661c65bca7",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "refreshSelectionVisuals": {
+                "count": 1,
+                "inclusive_ms": 308.69999998807907,
+                "synchronous_ms": 308.69999998807907,
+                "following_ms": 0
+              },
+              "renderLinks": {
+                "count": 1,
+                "inclusive_ms": 307.90000000596046,
+                "synchronous_ms": 307.90000000596046,
+                "following_ms": 0
+              },
+              "portPoint": {
+                "count": 1000,
+                "inclusive_ms": 299.1000000536442,
+                "synchronous_ms": 299.1000000536442,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 193.8000001013279,
+            "domCalls": {
+              "getBoundingClientRect": 1034,
+              "querySelectorAll": 1004,
+              "querySelector": 3000,
+              "setAttribute": 1998,
+              "innerHTML": 2
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 168.9000000655651,
+              "querySelectorAll": 0.6000000536441803,
+              "querySelector": 17.700000047683716,
+              "setAttribute": 4.399999916553497,
+              "innerHTML": 2.2000000178813934
+            },
+            "frames": [
+              330.80000001192093,
+              349.59999999403954
+            ],
+            "window_ms": 708.2000000178814,
+            "sync_ms": 312.2000000178814,
+            "replacedNodes": 0,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 0.356372,
+              "ScriptDuration": 0.041926,
+              "LayoutDuration": 0.09787699999999999,
+              "RecalcStyleDuration": 0.192777,
+              "LayoutCount": 1001,
+              "RecalcStyleCount": 1004
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 187.154,
+              "layout_ms": 93.501,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 312.18
+            },
+            "following": {
+              "style_ms": 5.803,
+              "layout_ms": 1.129,
+              "paint_ms": 6.117,
+              "raf_ms": 13.418,
+              "timer_ms": 0,
+              "task_ms": 38.163
+            },
+            "sync_trace_ms": 312.18,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "version": "baseline",
+      "baseline_commit": "8b8ef5c",
+      "box_mode": "full",
+      "measured_at": "2026-10-04T18:28:09.626Z",
+      "environment": {
+        "cpu": "AMD Ryzen 5 5600XT 6-Core Processor            ",
+        "logical_cpus": 12,
+        "platform": "win32",
+        "release": "10.0.19045",
+        "node": "v24.18.1",
+        "viewport": "1280x900",
+        "headless": true,
+        "samples": 12,
+        "warmups": 2
+      },
+      "method": "Trusted Playwright gestures on production HTML/scripts. Fixed API and text-only synthetic documents. No replaced save implementation. Lean timings include event handler through first microtask, then first/second RAF arrival; 350ms follow-up window. Profile is a separate instrumented CDP trace, excluded from percentiles. Second RAF is a presentation opportunity, not physical display latency.",
+      "results": [
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 100,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 100,
+            "edges": 99
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              28.200000017881393,
+              32,
+              27.900000005960464,
+              27.599999994039536,
+              29.099999994039536,
+              53.80000001192093,
+              26.900000005960464,
+              29.799999982118607,
+              33,
+              26.400000005960464,
+              35.30000001192093,
+              27.900000005960464
+            ],
+            "p50_ms": 28.200000017881393,
+            "p95_ms": 53.80000001192093
+          },
+          "second_frame": {
+            "samples_ms": [
+              39.70000001788139,
+              46.900000005960464,
+              40.19999998807907,
+              41,
+              41.599999994039536,
+              72,
+              39.599999994039536,
+              41,
+              45,
+              38.19999998807907,
+              48.20000001788139,
+              41.10000002384186
+            ],
+            "p50_ms": 41,
+            "p95_ms": 72
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 27.599999994039536,
+                  "synchronous_ms": 27.599999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                35.30000001192093,
+                39.70000001788139
+              ],
+              "window_ms": 391.90000000596046,
+              "sync_ms": 28.200000017881393,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 31.5,
+                  "synchronous_ms": 31.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                40.599999994039536,
+                46.900000005960464
+              ],
+              "window_ms": 395.19999998807907,
+              "sync_ms": 32,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 27.5,
+                  "synchronous_ms": 27.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                34.599999994039536,
+                40.19999998807907
+              ],
+              "window_ms": 391,
+              "sync_ms": 27.900000005960464,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 27.200000017881393,
+                  "synchronous_ms": 27.200000017881393,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                36,
+                41
+              ],
+              "window_ms": 404.2999999821186,
+              "sync_ms": 27.599999994039536,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 28.700000017881393,
+                  "synchronous_ms": 28.700000017881393,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                36.69999998807907,
+                41.599999994039536
+              ],
+              "window_ms": 395.09999999403954,
+              "sync_ms": 29.099999994039536,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 52.900000005960464,
+                  "synchronous_ms": 52.900000005960464,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                64.80000001192093,
+                72
+              ],
+              "window_ms": 433.2000000178814,
+              "sync_ms": 53.80000001192093,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 26.19999998807907,
+                  "synchronous_ms": 26.19999998807907,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                33.80000001192093,
+                39.599999994039536
+              ],
+              "window_ms": 395,
+              "sync_ms": 26.900000005960464,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 29.200000017881393,
+                  "synchronous_ms": 29.200000017881393,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                36.69999998807907,
+                41
+              ],
+              "window_ms": 391.59999999403954,
+              "sync_ms": 29.799999982118607,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 32.599999994039536,
+                  "synchronous_ms": 32.599999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                40,
+                45
+              ],
+              "window_ms": 403.59999999403954,
+              "sync_ms": 33,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 25.799999982118607,
+                  "synchronous_ms": 25.799999982118607,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                33.5,
+                38.19999998807907
+              ],
+              "window_ms": 397.69999998807907,
+              "sync_ms": 26.400000005960464,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 34.69999998807907,
+                  "synchronous_ms": 34.69999998807907,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                43.10000002384186,
+                48.20000001788139
+              ],
+              "window_ms": 398.80000001192093,
+              "sync_ms": 35.30000001192093,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 27.400000005960464,
+                  "synchronous_ms": 27.400000005960464,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                35.80000001192093,
+                41.10000002384186
+              ],
+              "window_ms": 391.30000001192093,
+              "sync_ms": 27.900000005960464,
+              "replacedNodes": 100,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "e6b45d5af33f84b280b7d261c6b00e5d451f08a34d094410641732281bdd206f",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "7cd7b713c5071ea6f532f70d42e63830042308659db3d9a6b745dabe8e661c8d",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "87d62483c8f97c8bfb452c9c66d5d0e5ef32a261c116a5671100933048a6fe93",
+            "/static/images/shadox-mark.svg": "2e1781fa78d83358c6413fc5b9e8deccdbb16f100ef55532ab7dd530bcc4c88e",
+            "/static/js/asset-auth.js": "25b6ae7f66d440933c7438af4f446b7e5167e340e2f3427bb67b56ab8cc9aa52",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "16ca177e802b33926e52fbbf58cad78960f3336cd44c6e639621d822bfbc8044",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "62e47c4be789afb0130a009eea30178884aac17da0744cd4d58221a47e51bc38",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "b0b08d4d150eb4620b0b13fc0b6c8c8d7825b3435a7cd1d4135e665e5f77a188",
+            "/static/js/canvas-name-dialog.js": "1e1f15fa53d71510ceb74998986a5ec7c8595ed59a850fc701b4e31b6498d195",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "1183e1fb2e08e91397d22b491d014841cb9afc19079108038b6dcb56ad1e3ff7",
+            "/static/js/canvas/classic/canvas-execution.js": "cf8aadf281dd6e19b7fcb039722addef8560d9340152d970788ea55859748dff",
+            "/static/js/canvas/classic/canvas-library.js": "4638114af3f3156a51460b2b86fc8f07981fddcdc2a1b629160f232196257651",
+            "/static/js/canvas/classic/canvas-media-editor.js": "51434e74ddceb48ca4c218569360c627e80c271eea4eb95bca13c22dd45d606f",
+            "/static/js/canvas/classic/canvas-results.js": "ea6c9ec30334a2f7854b6889a36bc0de787c8e25a39544dcbb40d8ddd2aada48",
+            "/static/js/canvas/classic/canvas-session.js": "1632505385869a587489c3df3161d0b438c9cd122d8eb5e89b05f8f71e8cf4de",
+            "/static/js/canvas/classic/canvas-workspace.js": "1805bc374125fc21a26691307b153f626a98b97e50eb276a8870b80a05e594f4",
+            "/static/js/frontend-version.js": "4bb299c6201a961171a600ec88fed95f0ba331d2cf40a6d4e4690d7823a8b66f",
+            "/static/js/member-media-preview.js": "8df3ed9466bae88eff9cee26f0ba286909d4f90de75ad34eb5b8153c9cc82c41",
+            "/static/js/studio-frame-messages.js": "556be909ba938e33504cb9bda180c8f5e06fc216dd085dfe3816a67acce17085",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "4d441b611ad99837ada0bf32e4662288ec979f8875930a7342ade06c4df05e72",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "render": {
+                "count": 1,
+                "inclusive_ms": 40.099999994039536,
+                "synchronous_ms": 40.099999994039536,
+                "following_ms": 0
+              },
+              "renderNode": {
+                "count": 16,
+                "inclusive_ms": 4,
+                "synchronous_ms": 4,
+                "following_ms": 0
+              },
+              "renderNodePlaceholder": {
+                "count": 84,
+                "inclusive_ms": 1.6999999284744263,
+                "synchronous_ms": 1.6999999284744263,
+                "following_ms": 0
+              },
+              "refreshGeometry": {
+                "count": 3,
+                "inclusive_ms": 16.80000001192093,
+                "synchronous_ms": 4.699999988079071,
+                "following_ms": 12.100000023841858
+              },
+              "renderLinks": {
+                "count": 3,
+                "inclusive_ms": 16.80000001192093,
+                "synchronous_ms": 4.699999988079071,
+                "following_ms": 12.100000023841858
+              },
+              "portPoint": {
+                "count": 300,
+                "inclusive_ms": 13.70000010728836,
+                "synchronous_ms": 3.800000011920929,
+                "following_ms": 9.900000095367432
+              },
+              "refreshIcons": {
+                "count": 1,
+                "inclusive_ms": 4,
+                "synchronous_ms": 4,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 10.799999982118607,
+            "domCalls": {
+              "getBoundingClientRect": 198,
+              "querySelectorAll": 344,
+              "createElement": 116,
+              "innerHTML": 120,
+              "querySelector": 812,
+              "appendChild": 480,
+              "setAttribute": 2505
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 3.800000011920929,
+              "querySelectorAll": 0.19999998807907104,
+              "createElement": 0,
+              "innerHTML": 2.4999999701976776,
+              "querySelector": 1.5000000298023224,
+              "appendChild": 0.800000011920929,
+              "setAttribute": 1.9999999701976776
+            },
+            "frames": [
+              53.900000005960464,
+              61
+            ],
+            "window_ms": 418.19999998807907,
+            "sync_ms": 41.400000005960464,
+            "replacedNodes": 100,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 0.074886,
+              "ScriptDuration": 0.020104999999999998,
+              "LayoutDuration": 0.015744,
+              "RecalcStyleDuration": 0.020295,
+              "LayoutCount": 400,
+              "RecalcStyleCount": 401
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 15.049,
+              "layout_ms": 10.656,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 41.307
+            },
+            "following": {
+              "style_ms": 5.229,
+              "layout_ms": 3.883,
+              "paint_ms": 3.123,
+              "raf_ms": 12.988,
+              "timer_ms": 0,
+              "task_ms": 30.42
+            },
+            "sync_trace_ms": 41.307,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        },
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 1000,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 1000,
+            "edges": 999
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              800.3000000119209,
+              820.0999999940395,
+              806.8999999761581,
+              804.7000000178814,
+              791.5,
+              779.5999999940395,
+              825.7999999821186,
+              810.5,
+              802.2999999821186,
+              825.4000000059605,
+              794.8000000119209,
+              797.2999999821186
+            ],
+            "p50_ms": 802.2999999821186,
+            "p95_ms": 825.7999999821186
+          },
+          "second_frame": {
+            "samples_ms": [
+              1087.0999999940395,
+              1127.8999999761581,
+              1098.199999988079,
+              1098.300000011921,
+              1079.699999988079,
+              1089.7000000178814,
+              1131.0999999940395,
+              1126.5999999940395,
+              1090.2999999821186,
+              1165.5,
+              1084.5999999940395,
+              1097.3999999761581
+            ],
+            "p50_ms": 1097.3999999761581,
+            "p95_ms": 1165.5
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 797.4000000059605,
+                  "synchronous_ms": 797.4000000059605,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                953.5,
+                1087.0999999940395
+              ],
+              "window_ms": 1324.300000011921,
+              "sync_ms": 800.3000000119209,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 817.0999999940395,
+                  "synchronous_ms": 817.0999999940395,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                981.3999999761581,
+                1127.8999999761581
+              ],
+              "window_ms": 1354.8999999761581,
+              "sync_ms": 820.0999999940395,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 803.8999999761581,
+                  "synchronous_ms": 803.8999999761581,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                958.8999999761581,
+                1098.199999988079
+              ],
+              "window_ms": 1335.0999999940395,
+              "sync_ms": 806.8999999761581,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 801.6999999880791,
+                  "synchronous_ms": 801.6999999880791,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                960.3000000119209,
+                1098.300000011921
+              ],
+              "window_ms": 1328,
+              "sync_ms": 804.7000000178814,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 788.7000000178814,
+                  "synchronous_ms": 788.7000000178814,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                944.4000000059605,
+                1079.699999988079
+              ],
+              "window_ms": 1311.5999999940395,
+              "sync_ms": 791.5,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 776.7999999821186,
+                  "synchronous_ms": 776.7999999821186,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                934.4000000059605,
+                1089.7000000178814
+              ],
+              "window_ms": 1307.5999999940395,
+              "sync_ms": 779.5999999940395,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 822.0999999940395,
+                  "synchronous_ms": 822.0999999940395,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                985.5999999940395,
+                1131.0999999940395
+              ],
+              "window_ms": 1359.7999999821186,
+              "sync_ms": 825.7999999821186,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 807.8000000119209,
+                  "synchronous_ms": 807.8000000119209,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                971.8999999761581,
+                1126.5999999940395
+              ],
+              "window_ms": 1352.699999988079,
+              "sync_ms": 810.5,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 799.8000000119209,
+                  "synchronous_ms": 799.8000000119209,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                957.7999999821186,
+                1090.2999999821186
+              ],
+              "window_ms": 1326.5999999940395,
+              "sync_ms": 802.2999999821186,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 822.5999999940395,
+                  "synchronous_ms": 822.5999999940395,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                1010.0999999940395,
+                1165.5
+              ],
+              "window_ms": 1384.4000000059605,
+              "sync_ms": 825.4000000059605,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 792,
+                  "synchronous_ms": 792,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                950.8000000119209,
+                1084.5999999940395
+              ],
+              "window_ms": 1319.4000000059605,
+              "sync_ms": 794.8000000119209,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "render": {
+                  "count": 1,
+                  "inclusive_ms": 794.2999999821186,
+                  "synchronous_ms": 794.2999999821186,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                953.8999999761581,
+                1097.3999999761581
+              ],
+              "window_ms": 1327.3999999761581,
+              "sync_ms": 797.2999999821186,
+              "replacedNodes": 1000,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "e6b45d5af33f84b280b7d261c6b00e5d451f08a34d094410641732281bdd206f",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "7cd7b713c5071ea6f532f70d42e63830042308659db3d9a6b745dabe8e661c8d",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "87d62483c8f97c8bfb452c9c66d5d0e5ef32a261c116a5671100933048a6fe93",
+            "/static/images/shadox-mark.svg": "2e1781fa78d83358c6413fc5b9e8deccdbb16f100ef55532ab7dd530bcc4c88e",
+            "/static/js/asset-auth.js": "25b6ae7f66d440933c7438af4f446b7e5167e340e2f3427bb67b56ab8cc9aa52",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "16ca177e802b33926e52fbbf58cad78960f3336cd44c6e639621d822bfbc8044",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "62e47c4be789afb0130a009eea30178884aac17da0744cd4d58221a47e51bc38",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "b0b08d4d150eb4620b0b13fc0b6c8c8d7825b3435a7cd1d4135e665e5f77a188",
+            "/static/js/canvas-name-dialog.js": "1e1f15fa53d71510ceb74998986a5ec7c8595ed59a850fc701b4e31b6498d195",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "1183e1fb2e08e91397d22b491d014841cb9afc19079108038b6dcb56ad1e3ff7",
+            "/static/js/canvas/classic/canvas-execution.js": "cf8aadf281dd6e19b7fcb039722addef8560d9340152d970788ea55859748dff",
+            "/static/js/canvas/classic/canvas-library.js": "4638114af3f3156a51460b2b86fc8f07981fddcdc2a1b629160f232196257651",
+            "/static/js/canvas/classic/canvas-media-editor.js": "51434e74ddceb48ca4c218569360c627e80c271eea4eb95bca13c22dd45d606f",
+            "/static/js/canvas/classic/canvas-results.js": "ea6c9ec30334a2f7854b6889a36bc0de787c8e25a39544dcbb40d8ddd2aada48",
+            "/static/js/canvas/classic/canvas-session.js": "1632505385869a587489c3df3161d0b438c9cd122d8eb5e89b05f8f71e8cf4de",
+            "/static/js/canvas/classic/canvas-workspace.js": "1805bc374125fc21a26691307b153f626a98b97e50eb276a8870b80a05e594f4",
+            "/static/js/frontend-version.js": "4bb299c6201a961171a600ec88fed95f0ba331d2cf40a6d4e4690d7823a8b66f",
+            "/static/js/member-media-preview.js": "8df3ed9466bae88eff9cee26f0ba286909d4f90de75ad34eb5b8153c9cc82c41",
+            "/static/js/studio-frame-messages.js": "556be909ba938e33504cb9bda180c8f5e06fc216dd085dfe3816a67acce17085",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "4d441b611ad99837ada0bf32e4662288ec979f8875930a7342ade06c4df05e72",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "render": {
+                "count": 1,
+                "inclusive_ms": 1080.0999999940395,
+                "synchronous_ms": 1080.0999999940395,
+                "following_ms": 0
+              },
+              "renderNode": {
+                "count": 16,
+                "inclusive_ms": 4.100000023841858,
+                "synchronous_ms": 4.100000023841858,
+                "following_ms": 0
+              },
+              "renderNodePlaceholder": {
+                "count": 984,
+                "inclusive_ms": 31.799999713897705,
+                "synchronous_ms": 31.799999713897705,
+                "following_ms": 0
+              },
+              "refreshGeometry": {
+                "count": 3,
+                "inclusive_ms": 466.39999997615814,
+                "synchronous_ms": 152.5,
+                "following_ms": 313.89999997615814
+              },
+              "renderLinks": {
+                "count": 3,
+                "inclusive_ms": 466.39999997615814,
+                "synchronous_ms": 152.5,
+                "following_ms": 313.89999997615814
+              },
+              "portPoint": {
+                "count": 3000,
+                "inclusive_ms": 440.99999979138374,
+                "synchronous_ms": 144.00000002980232,
+                "following_ms": 296.9999997615814
+              },
+              "refreshIcons": {
+                "count": 1,
+                "inclusive_ms": 4,
+                "synchronous_ms": 4,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 103.30000030994415,
+            "domCalls": {
+              "getBoundingClientRect": 1098,
+              "querySelectorAll": 2144,
+              "createElement": 1016,
+              "innerHTML": 1020,
+              "querySelector": 7112,
+              "appendChild": 1380,
+              "setAttribute": 7905
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 15.199999988079071,
+              "querySelectorAll": 1.399999976158142,
+              "createElement": 2.299999952316284,
+              "innerHTML": 21.799999952316284,
+              "querySelector": 43.700000166893005,
+              "appendChild": 4.700000047683716,
+              "setAttribute": 14.20000022649765
+            },
+            "frames": [
+              1273.3999999761581,
+              1448.7999999821186
+            ],
+            "window_ms": 1640.0999999940395,
+            "sync_ms": 1085.5,
+            "replacedNodes": 1000,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 1.5048469999999998,
+              "ScriptDuration": 0.159306,
+              "LayoutDuration": 0.847851,
+              "RecalcStyleDuration": 0.410567,
+              "LayoutCount": 4000,
+              "RecalcStyleCount": 4000
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 357.965,
+              "layout_ms": 628.041,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 1085.445
+            },
+            "following": {
+              "style_ms": 53.151,
+              "layout_ms": 205.379,
+              "paint_ms": 18.915,
+              "raf_ms": 328.24,
+              "timer_ms": 0,
+              "task_ms": 413.437
+            },
+            "sync_trace_ms": 1085.445,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        }
+      ]
+    },
+    {
+      "batch": 2,
+      "version": "candidate",
+      "baseline_commit": "8bcffe0+selection-patch",
+      "box_mode": "selection",
+      "measured_at": "2026-10-04T18:28:50.349Z",
+      "environment": {
+        "cpu": "AMD Ryzen 5 5600XT 6-Core Processor            ",
+        "logical_cpus": 12,
+        "platform": "win32",
+        "release": "10.0.19045",
+        "node": "v24.18.1",
+        "viewport": "1280x900",
+        "headless": true,
+        "samples": 12,
+        "warmups": 2
+      },
+      "method": "Trusted Playwright gestures on production HTML/scripts. Fixed API and text-only synthetic documents. No replaced save implementation. Lean timings include event handler through first microtask, then first/second RAF arrival; 350ms follow-up window. Profile is a separate instrumented CDP trace, excluded from percentiles. Second RAF is a presentation opportunity, not physical display latency.",
+      "results": [
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 100,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 100,
+            "edges": 99
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              12.800000011920929,
+              11.700000017881393,
+              11.600000023841858,
+              11.900000005960464,
+              13.800000011920929,
+              12.099999994039536,
+              15.200000017881393,
+              12,
+              12.5,
+              10.800000011920929,
+              12.299999982118607,
+              10.700000017881393
+            ],
+            "p50_ms": 12,
+            "p95_ms": 15.200000017881393
+          },
+          "second_frame": {
+            "samples_ms": [
+              16.599999994039536,
+              17.099999994039536,
+              15.300000011920929,
+              16.099999994039536,
+              18.30000001192093,
+              16.099999994039536,
+              20.200000017881393,
+              16.5,
+              16.5,
+              14.300000011920929,
+              16.799999982118607,
+              13.900000005960464
+            ],
+            "p50_ms": 16.5,
+            "p95_ms": 20.200000017881393
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 12.599999994039536,
+                  "synchronous_ms": 12.599999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                14.400000005960464,
+                16.599999994039536
+              ],
+              "window_ms": 376.5,
+              "sync_ms": 12.800000011920929,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.400000005960464,
+                  "synchronous_ms": 11.400000005960464,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13.800000011920929,
+                17.099999994039536
+              ],
+              "window_ms": 382.80000001192093,
+              "sync_ms": 11.700000017881393,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.199999988079071,
+                  "synchronous_ms": 11.199999988079071,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13,
+                15.300000011920929
+              ],
+              "window_ms": 376,
+              "sync_ms": 11.600000023841858,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.599999994039536,
+                  "synchronous_ms": 11.599999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13.900000005960464,
+                16.099999994039536
+              ],
+              "window_ms": 376.7000000178814,
+              "sync_ms": 11.900000005960464,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 13.600000023841858,
+                  "synchronous_ms": 13.600000023841858,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                15.400000005960464,
+                18.30000001192093
+              ],
+              "window_ms": 376,
+              "sync_ms": 13.800000011920929,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.799999982118607,
+                  "synchronous_ms": 11.799999982118607,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13.800000011920929,
+                16.099999994039536
+              ],
+              "window_ms": 372.7000000178814,
+              "sync_ms": 12.099999994039536,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 14.900000005960464,
+                  "synchronous_ms": 14.900000005960464,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                17.100000023841858,
+                20.200000017881393
+              ],
+              "window_ms": 384.90000000596046,
+              "sync_ms": 15.200000017881393,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.700000017881393,
+                  "synchronous_ms": 11.700000017881393,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                13.699999988079071,
+                16.5
+              ],
+              "window_ms": 373.2999999821186,
+              "sync_ms": 12,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 12.300000011920929,
+                  "synchronous_ms": 12.300000011920929,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                14.199999988079071,
+                16.5
+              ],
+              "window_ms": 379.59999999403954,
+              "sync_ms": 12.5,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 10.5,
+                  "synchronous_ms": 10.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                12.200000017881393,
+                14.300000011920929
+              ],
+              "window_ms": 378.80000001192093,
+              "sync_ms": 10.800000011920929,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 11.900000005960464,
+                  "synchronous_ms": 11.900000005960464,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                14.299999982118607,
+                16.799999982118607
+              ],
+              "window_ms": 369.90000000596046,
+              "sync_ms": 12.299999982118607,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 10.599999994039536,
+                  "synchronous_ms": 10.599999994039536,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                11.900000005960464,
+                13.900000005960464
+              ],
+              "window_ms": 377.80000001192093,
+              "sync_ms": 10.700000017881393,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "8b8f6f7885f2bbb5a20749eeb45d6aa45bff2a5e196d918655c10636f61338fa",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "ba680851dd434ff880a2022d0c5fa2a8cba9d8f2a474f6834b7e6710bf536e5e",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "59f75df16d290c3f3ad60c7b34b9ac19d6fa666e88d4001d468f14f7ff5e78a4",
+            "/static/images/shadox-mark.svg": "610c811b58231a95296c95cffa167448a2fa987425c061ab3c0aa97a0d2f68cb",
+            "/static/js/asset-auth.js": "4f4f2a3aaddc0fe03f80a37bf9e655ccf8bfdddb96d344c09728475f1d32393d",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "5c8388090e1f8025acd924a804d105161df6f4fdaf048c09394a2e235127d830",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "a74e42bef611c37d4ea260477bf4e4061c6e38b3ba0bff58c95798031966c315",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "96b8ddab5387677ee5456e48bf2d6aa49e08d13f4c90960d5ebd8a822220905b",
+            "/static/js/canvas-name-dialog.js": "798f1ee9ed4a757679089bd39615e4498bc3ece44327cbb1b119a172912c8089",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "691400cb6bf0b88a2e48478356fd902dca3f75d3a0c13bd8871f32dc27100a9e",
+            "/static/js/canvas/classic/canvas-execution.js": "67d7ba17f852306a623407125812b8ffb696adcd1a5c0a51194ec4861e447cbe",
+            "/static/js/canvas/classic/canvas-library.js": "8cbe27aabfa67ed828bb515269b25b678eb00dac759c86cc3df15161e733b05d",
+            "/static/js/canvas/classic/canvas-media-editor.js": "a53f43a21c6440db3dff83eb7423dc47387031670baca684c774a0f4c7e471cc",
+            "/static/js/canvas/classic/canvas-results.js": "8927b42ea91d4c99168cf1da8dd9bc274ec2d5e8822227e3114b23a5d94b8536",
+            "/static/js/canvas/classic/canvas-session.js": "57eeaac7232b8449458121a9601244ab67c05c9db81acc3cb53a3455d22ad4be",
+            "/static/js/canvas/classic/canvas-workspace.js": "188dc78768c8a29c2c62cb34c1280139c638d8cd0120f6668659d33c4caabe68",
+            "/static/js/frontend-version.js": "d6e82ac0f9a1bfa448d6edcf54ed36a8ecd7e319a39c9b53fad4ed4e40ee92cc",
+            "/static/js/member-media-preview.js": "6716701ae1ced15a84f0129a19d52654a98f004a58736699bba2d031852154bb",
+            "/static/js/studio-frame-messages.js": "ad1385b80cec7c95e493c62fba74223291ecbd42fcbfbe4b29fba11bbfe3bbb5",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "a4f9313341d87bc7013ac90c77fc00a6cba114fce9d493e9cc73eb661c65bca7",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "refreshSelectionVisuals": {
+                "count": 1,
+                "inclusive_ms": 13.099999994039536,
+                "synchronous_ms": 13.099999994039536,
+                "following_ms": 0
+              },
+              "renderLinks": {
+                "count": 1,
+                "inclusive_ms": 12.900000005960464,
+                "synchronous_ms": 12.900000005960464,
+                "following_ms": 0
+              },
+              "portPoint": {
+                "count": 100,
+                "inclusive_ms": 11.800000041723251,
+                "synchronous_ms": 11.800000041723251,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 11,
+            "domCalls": {
+              "getBoundingClientRect": 134,
+              "querySelectorAll": 104,
+              "querySelector": 300,
+              "setAttribute": 198,
+              "innerHTML": 2
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 9.599999994039536,
+              "querySelectorAll": 0,
+              "querySelector": 0.6000000238418579,
+              "setAttribute": 0.4000000059604645,
+              "innerHTML": 0.3999999761581421
+            },
+            "frames": [
+              15.700000017881393,
+              18.400000005960464
+            ],
+            "window_ms": 378,
+            "sync_ms": 13.900000005960464,
+            "replacedNodes": 0,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 0.020367,
+              "ScriptDuration": 0.0032629999999999994,
+              "LayoutDuration": 0.001714,
+              "RecalcStyleDuration": 0.010347,
+              "LayoutCount": 101,
+              "RecalcStyleCount": 102
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 9.841,
+              "layout_ms": 1.316,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 13.849
+            },
+            "following": {
+              "style_ms": 0.514,
+              "layout_ms": 0.146,
+              "paint_ms": 1.334,
+              "raf_ms": 0.807,
+              "timer_ms": 0,
+              "task_ms": 5.368
+            },
+            "sync_trace_ms": 13.849,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        },
+        {
+          "kind": "classic",
+          "action": "box",
+          "count": 1000,
+          "topology": "fanin",
+          "actual": {
+            "nodes": 1000,
+            "edges": 999
+          },
+          "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+          "synchronous": {
+            "samples_ms": [
+              276.90000000596046,
+              341.10000002384186,
+              281.19999998807907,
+              276.69999998807907,
+              289.39999997615814,
+              300.80000001192093,
+              337.7999999821186,
+              302.09999999403954,
+              286.19999998807907,
+              275.30000001192093,
+              295.09999999403954,
+              331.2999999821186
+            ],
+            "p50_ms": 289.39999997615814,
+            "p95_ms": 341.10000002384186
+          },
+          "second_frame": {
+            "samples_ms": [
+              306.2999999821186,
+              369.60000002384186,
+              308.7999999821186,
+              304.2999999821186,
+              319.19999998807907,
+              334.19999998807907,
+              384.19999998807907,
+              343.39999997615814,
+              316.39999997615814,
+              310.40000000596046,
+              326,
+              361.09999999403954
+            ],
+            "p50_ms": 319.19999998807907,
+            "p95_ms": 384.19999998807907
+          },
+          "samples": [
+            {
+              "id": 3,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 275.60000002384186,
+                  "synchronous_ms": 275.60000002384186,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                293.40000000596046,
+                306.2999999821186
+              ],
+              "window_ms": 658.5,
+              "sync_ms": 276.90000000596046,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 4,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 339.7000000178814,
+                  "synchronous_ms": 339.7000000178814,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                357.30000001192093,
+                369.60000002384186
+              ],
+              "window_ms": 729.9000000059605,
+              "sync_ms": 341.10000002384186,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 5,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 280,
+                  "synchronous_ms": 280,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                296.7999999821186,
+                308.7999999821186
+              ],
+              "window_ms": 673.0999999940395,
+              "sync_ms": 281.19999998807907,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 6,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 275.09999999403954,
+                  "synchronous_ms": 275.09999999403954,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                292.09999999403954,
+                304.2999999821186
+              ],
+              "window_ms": 661.8999999761581,
+              "sync_ms": 276.69999998807907,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 7,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 288.2999999821186,
+                  "synchronous_ms": 288.2999999821186,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                306.2999999821186,
+                319.19999998807907
+              ],
+              "window_ms": 680.5,
+              "sync_ms": 289.39999997615814,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 8,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 299.7000000178814,
+                  "synchronous_ms": 299.7000000178814,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                319.90000000596046,
+                334.19999998807907
+              ],
+              "window_ms": 692.4000000059605,
+              "sync_ms": 300.80000001192093,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 9,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 336.5,
+                  "synchronous_ms": 336.5,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                362.40000000596046,
+                384.19999998807907
+              ],
+              "window_ms": 739.2999999821186,
+              "sync_ms": 337.7999999821186,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 10,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 300.60000002384186,
+                  "synchronous_ms": 300.60000002384186,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                322,
+                343.39999997615814
+              ],
+              "window_ms": 691.1999999880791,
+              "sync_ms": 302.09999999403954,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 11,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 285.09999999403954,
+                  "synchronous_ms": 285.09999999403954,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                303.39999997615814,
+                316.39999997615814
+              ],
+              "window_ms": 668.7999999821186,
+              "sync_ms": 286.19999998807907,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 12,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 274.10000002384186,
+                  "synchronous_ms": 274.10000002384186,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                293.69999998807907,
+                310.40000000596046
+              ],
+              "window_ms": 662.3000000119209,
+              "sync_ms": 275.30000001192093,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 13,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 294.09999999403954,
+                  "synchronous_ms": 294.09999999403954,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                312.2000000178814,
+                326
+              ],
+              "window_ms": 682.0999999940395,
+              "sync_ms": 295.09999999403954,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            },
+            {
+              "id": 14,
+              "event": "mouseup",
+              "trusted": true,
+              "calls": {
+                "refreshSelectionVisuals": {
+                  "count": 1,
+                  "inclusive_ms": 330.09999999403954,
+                  "synchronous_ms": 330.09999999403954,
+                  "following_ms": 0
+                }
+              },
+              "requested": [],
+              "affected": [],
+              "dom_ms": 0,
+              "domCalls": {},
+              "domInclusive": {},
+              "frames": [
+                347.5,
+                361.09999999403954
+              ],
+              "window_ms": 710,
+              "sync_ms": 331.2999999821186,
+              "replacedNodes": 0,
+              "selected": [
+                "node-0"
+              ],
+              "changedText": [],
+              "llmEnabled": null
+            }
+          ],
+          "save_calls_before_profile": 0,
+          "save_requests_before_profile": 0,
+          "source_manifest": {
+            "/static/css/canvas-focus.css": "69e82fb1716b00a5b2d138e237826b124394a6dbcbc4b0cc620a5d1bab862e83",
+            "/static/css/canvas-ledger-ui.css": "e4488616944b56936d3d9413247dca942fb2c54f42ab7204c65c773c2276c9c5",
+            "/static/css/canvas-name-dialog.css": "8b8f6f7885f2bbb5a20749eeb45d6aa45bff2a5e196d918655c10636f61338fa",
+            "/static/css/canvas-node-cards.css": "5f0ad6bbe3c097cb613e9daa844cf1b16b51a883dc91ef83f4602bc11d628dfd",
+            "/static/css/canvas.css": "d30fcdcd8a101edfc4f53ae052da31c777f8f27e39cd6df9055ea6842eade98d",
+            "/static/css/shadox-brand.css": "89553704ef0c60e2cf69ee3130be1cf66c9f0461997f392cc6c98bbfacb4d269",
+            "/static/css/studio-workbench.css": "ba680851dd434ff880a2022d0c5fa2a8cba9d8f2a474f6834b7e6710bf536e5e",
+            "/static/css/theme.css": "e06020ca1b3813864a9668271db14789575802b2b787aef4ebda3e7e92a9ea23",
+            "/static/css/utilities.css": "59f75df16d290c3f3ad60c7b34b9ac19d6fa666e88d4001d468f14f7ff5e78a4",
+            "/static/images/shadox-mark.svg": "610c811b58231a95296c95cffa167448a2fa987425c061ab3c0aa97a0d2f68cb",
+            "/static/js/asset-auth.js": "4f4f2a3aaddc0fe03f80a37bf9e655ccf8bfdddb96d344c09728475f1d32393d",
+            "/static/js/canvas-api.js": "73af9cad4cfd779e4d4f5823d1fab87b7259f9591ce77143bf05524527f7b168",
+            "/static/js/canvas-core.js": "5c8388090e1f8025acd924a804d105161df6f4fdaf048c09394a2e235127d830",
+            "/static/js/canvas-focus.js": "c72be5b5de63f1d76101767fa11252f4adb82a987b099544a40e420748853b2c",
+            "/static/js/canvas-gate-model.js": "a74e42bef611c37d4ea260477bf4e4061c6e38b3ba0bff58c95798031966c315",
+            "/static/js/canvas-ledger.js": "dc314fd985335e7e59263b0449843b539277a051d3f956167c1520bfb719d094",
+            "/static/js/canvas-media-loader.js": "96b8ddab5387677ee5456e48bf2d6aa49e08d13f4c90960d5ebd8a822220905b",
+            "/static/js/canvas-name-dialog.js": "798f1ee9ed4a757679089bd39615e4498bc3ece44327cbb1b119a172912c8089",
+            "/static/js/canvas.js": "17cc59e28b1228c1f2fac437cb1937e2d3261874c4a06ca1846c52186f682b5b",
+            "/static/js/canvas/classic/canvas-document.js": "691400cb6bf0b88a2e48478356fd902dca3f75d3a0c13bd8871f32dc27100a9e",
+            "/static/js/canvas/classic/canvas-execution.js": "67d7ba17f852306a623407125812b8ffb696adcd1a5c0a51194ec4861e447cbe",
+            "/static/js/canvas/classic/canvas-library.js": "8cbe27aabfa67ed828bb515269b25b678eb00dac759c86cc3df15161e733b05d",
+            "/static/js/canvas/classic/canvas-media-editor.js": "a53f43a21c6440db3dff83eb7423dc47387031670baca684c774a0f4c7e471cc",
+            "/static/js/canvas/classic/canvas-results.js": "8927b42ea91d4c99168cf1da8dd9bc274ec2d5e8822227e3114b23a5d94b8536",
+            "/static/js/canvas/classic/canvas-session.js": "57eeaac7232b8449458121a9601244ab67c05c9db81acc3cb53a3455d22ad4be",
+            "/static/js/canvas/classic/canvas-workspace.js": "188dc78768c8a29c2c62cb34c1280139c638d8cd0120f6668659d33c4caabe68",
+            "/static/js/frontend-version.js": "d6e82ac0f9a1bfa448d6edcf54ed36a8ecd7e319a39c9b53fad4ed4e40ee92cc",
+            "/static/js/member-media-preview.js": "6716701ae1ced15a84f0129a19d52654a98f004a58736699bba2d031852154bb",
+            "/static/js/studio-frame-messages.js": "ad1385b80cec7c95e493c62fba74223291ecbd42fcbfbe4b29fba11bbfe3bbb5",
+            "/static/js/theme.js": "6f48df5293faa4ad56f6c8cea14dc514457b72cfad5a2a3b17e98bdf455ce14e",
+            "/static/js/video-duration-policy.js": "a4f9313341d87bc7013ac90c77fc00a6cba114fce9d493e9cc73eb661c65bca7",
+            "/static/js/volcengine-video-billing.js": "e8343394a69b4f0412325f3eb3a2eba36d1316a807a098fd627039a4b0fca9d0",
+            "/static/vendor/css/fonts.css": "f6ce5721f3c06d97e563c766fbedf8b00fdc0baeb1c46c1b705ce615ff19c671",
+            "/static/vendor/fonts/shadox/cormorant-garamond-italic.woff2": "b25fd6a66314122257980ac9fd0fa56c2cfb73970b09acdce214e1b18fb2f51d",
+            "/static/vendor/fonts/shadox/space-grotesk.woff2": "8e085aa438094f11487a836652edd5c054fa6a96f63fc7c282105ee3a4b08c07",
+            "/static/vendor/js/lucide.js": "82a83a2ffe91c253267e8fa4723df599911baf26f8aad22b39014bf4715f0301"
+          },
+          "profile": {
+            "id": 1,
+            "event": "mouseup",
+            "trusted": true,
+            "calls": {
+              "refreshSelectionVisuals": {
+                "count": 1,
+                "inclusive_ms": 303.2999999821186,
+                "synchronous_ms": 303.2999999821186,
+                "following_ms": 0
+              },
+              "renderLinks": {
+                "count": 1,
+                "inclusive_ms": 302.69999998807907,
+                "synchronous_ms": 302.69999998807907,
+                "following_ms": 0
+              },
+              "portPoint": {
+                "count": 1000,
+                "inclusive_ms": 293.39999997615814,
+                "synchronous_ms": 293.39999997615814,
+                "following_ms": 0
+              }
+            },
+            "requested": [],
+            "affected": [],
+            "dom_ms": 186.79999974370003,
+            "domCalls": {
+              "getBoundingClientRect": 1034,
+              "querySelectorAll": 1004,
+              "querySelector": 3000,
+              "setAttribute": 1998,
+              "innerHTML": 2
+            },
+            "domInclusive": {
+              "getBoundingClientRect": 161.89999997615814,
+              "querySelectorAll": 0.3999999761581421,
+              "querySelector": 17.69999986886978,
+              "setAttribute": 4.699999898672104,
+              "innerHTML": 2.100000023841858
+            },
+            "frames": [
+              325.90000000596046,
+              339.09999999403954
+            ],
+            "window_ms": 693.3000000119209,
+            "sync_ms": 306.09999999403954,
+            "replacedNodes": 0,
+            "selected": [
+              "node-0"
+            ],
+            "changedText": [],
+            "llmEnabled": null,
+            "cdp_delta": {
+              "TaskDuration": 0.34114,
+              "ScriptDuration": 0.040841999999999996,
+              "LayoutDuration": 0.09946999999999999,
+              "RecalcStyleDuration": 0.183826,
+              "LayoutCount": 1001,
+              "RecalcStyleCount": 1002
+            }
+          },
+          "trace": {
+            "synchronous": {
+              "style_ms": 180.058,
+              "layout_ms": 95.03,
+              "paint_ms": 0,
+              "raf_ms": 0,
+              "timer_ms": 0,
+              "task_ms": 306.093
+            },
+            "following": {
+              "style_ms": 3.963,
+              "layout_ms": 1.112,
+              "paint_ms": 6.631,
+              "raf_ms": 13.011,
+              "timer_ms": 0,
+              "task_ms": 33.578
+            },
+            "sync_trace_ms": 306.093,
+            "note": "Main renderer thread; durations are interval unions per category. Nested categories overlap; do not add task/RAF/timer to layout/style/paint."
+          }
+        }
+      ]
+    }
+  ],
+  "comparisons": [
+    {
+      "batch": 1,
+      "count": 100,
+      "improvement_percent": {
+        "synchronous": {
+          "p50_ms": 59.57446804688098,
+          "p95_ms": 62.86472150302469
+        },
+        "second_frame": {
+          "p50_ms": 64.92891000984027,
+          "p95_ms": 65.98130843349706
+        }
+      },
+      "p50_target_50_percent_met": true
+    },
+    {
+      "batch": 1,
+      "count": 1000,
+      "improvement_percent": {
+        "synchronous": {
+          "p50_ms": 64.66378778458231,
+          "p95_ms": 58.68533996024748
+        },
+        "second_frame": {
+          "p50_ms": 70.52830869088618,
+          "p95_ms": 65.44445379041142
+        }
+      },
+      "p50_target_50_percent_met": true
+    },
+    {
+      "batch": 2,
+      "count": 100,
+      "improvement_percent": {
+        "synchronous": {
+          "p50_ms": 57.44680853762094,
+          "p95_ms": 71.7472118689342
+        },
+        "second_frame": {
+          "p50_ms": 59.756097560975604,
+          "p95_ms": 71.94444441960918
+        }
+      },
+      "p50_target_50_percent_met": true
+    },
+    {
+      "batch": 2,
+      "count": 1000,
+      "improvement_percent": {
+        "synchronous": {
+          "p50_ms": 63.92870497536979,
+          "p95_ms": 58.694599172774545
+        },
+        "second_frame": {
+          "p50_ms": 70.91306725031768,
+          "p95_ms": 67.03560703662986
+        }
+      },
+      "p50_target_50_percent_met": true
+    }
+  ],
+  "resumed_at": [
+    "2026-10-04T18:28:09.305Z"
+  ],
+  "resource_comparison": "Raw hashes retained; text with different hashes must match after CRLF/LF normalization. Binary bytes and static resource URLs must match exactly; only the approved workspace replacement differs.",
+  "newline_only_resources": [
+    "/static/css/canvas-name-dialog.css",
+    "/static/css/studio-workbench.css",
+    "/static/css/utilities.css",
+    "/static/images/shadox-mark.svg",
+    "/static/js/asset-auth.js",
+    "/static/js/canvas-core.js",
+    "/static/js/canvas-gate-model.js",
+    "/static/js/canvas-media-loader.js",
+    "/static/js/canvas-name-dialog.js",
+    "/static/js/canvas/classic/canvas-document.js",
+    "/static/js/canvas/classic/canvas-execution.js",
+    "/static/js/canvas/classic/canvas-library.js",
+    "/static/js/canvas/classic/canvas-media-editor.js",
+    "/static/js/canvas/classic/canvas-results.js",
+    "/static/js/canvas/classic/canvas-session.js",
+    "/static/js/frontend-version.js",
+    "/static/js/member-media-preview.js",
+    "/static/js/studio-frame-messages.js",
+    "/static/js/video-duration-policy.js"
+  ]
+}

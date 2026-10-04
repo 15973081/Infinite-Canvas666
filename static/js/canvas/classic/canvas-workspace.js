@@ -3440,8 +3440,7 @@ function finishSelection(){
     selectDrag = null;
     document.body.classList.remove('canvas-selecting');
     endWindowPointerSession();
-    render();
-    if(workflowTransferModal?.classList.contains('open')) updateWorkflowTransferMeta();
+    refreshSelectionVisuals();
 }
 
 function renderSelectionHub(){
