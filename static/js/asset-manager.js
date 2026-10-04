@@ -4706,7 +4706,7 @@ document.querySelectorAll('[data-tab]').forEach(btn => {
     });
 });
 refreshBtn?.addEventListener('click', () => refreshCurrentManager().catch(err => setStatus(err.message || '加载失败')));
-window.addEventListener('message', event => {
+window.StudioFrameMessages.subscribe(['studio-theme'], event => {
     if(event.data?.type === 'studio-theme') window.StudioTheme?.apply?.(event.data.theme);
 });
 document.addEventListener('DOMContentLoaded', () => loadInitialAssetManager().catch(err => setStatus(err.message || '加载失败')));

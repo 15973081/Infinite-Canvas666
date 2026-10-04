@@ -89,7 +89,7 @@ test('main toggle passes its actual event and synchronously updates embedded the
     assert.match(html,/StudioThemeTransition.run\(\(\) => broadcastTheme\(next\), event\)/);
     const sync=html.match(/function syncThemeToFrame\(iframe\) \{([\s\S]*?)\n        function broadcastTheme/)[0];
     let applied,posts=0;
-    const context={window:{StudioTheme:{get:()=> 'dark'}}};vm.runInNewContext(sync.replace(/\n        function broadcastTheme$/,''),context);
+    const context={window:{StudioTheme:{get:()=> 'dark'},StudioFrameMessages:{send:frame=>frame.contentWindow.postMessage()}}};vm.runInNewContext(sync.replace(/\n        function broadcastTheme$/,''),context);
     context.syncThemeToFrame({contentWindow:{StudioTheme:{apply:t=>applied=t},postMessage:()=>posts++}});
     assert.equal(applied,'dark');assert.equal(posts,0);
     context.syncThemeToFrame({contentWindow:{postMessage:()=>posts++}});assert.equal(posts,1);

@@ -17,8 +17,7 @@ async function refreshCanvasConfigFromSettings(){
     });
     if(typeof render === 'function') render();
 }
-window.addEventListener('message', event => {
-    if(event.origin && event.origin !== location.origin) return;
+window.StudioFrameMessages.subscribe(['canvas_updated','canvas_locked','canvas_unlocked','providers-changed','workflows-changed','comfy-instances-changed','canvas-focus'], event => {
 
     if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
     if(event.data?.type === 'canvas_locked') handleCanvasLockedMessage(event.data);
@@ -629,14 +628,11 @@ async function loadConfig(){
 }
 
 // 监听 API 设置页面的变更广播，实时刷新画布的模型/平台下拉
-try {
-    const apiChannel = new BroadcastChannel('studio-api');
-    apiChannel.onmessage = async (e) => {
-        if(e.data?.type === 'providers-changed' || e.data?.type === 'workflows-changed' || e.data?.type === 'comfy-instances-changed'){
-            await refreshCanvasConfigFromSettings();
-        }
-    };
-} catch(e) { /* 不支持 BroadcastChannel 的旧浏览器忽略 */ }
+window.StudioFrameMessages.subscribeApi(async e => {
+    if(e.data?.type === 'providers-changed' || e.data?.type === 'workflows-changed' || e.data?.type === 'comfy-instances-changed'){
+        await refreshCanvasConfigFromSettings();
+    }
+});
 async function loadCanvasList(openFirst=true, options={}){
     try {
         const refreshFolders = options.refreshFolders === true;

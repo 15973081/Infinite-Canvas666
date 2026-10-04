@@ -27,6 +27,7 @@
             } catch(e) {}
         })();
     </script>
+    <script src="/static/js/studio-frame-messages.js"></script>
     <script src="/static/js/theme.js?v=2026.06.15.1781457289"></script>
     <script src="/static/js/theme-transition.js?v=2026.09.16.2"></script>
     <style>
@@ -1368,29 +1369,18 @@
             }
             // 切换到画布时通知刷新工作流列表（防止在 comfyui-settings 修改后画布未及时更新）
             if (id === 'canvas' && target.src) {
-                try { target.contentWindow?.postMessage({ type: 'canvas-focus' }, '*'); } catch(e) {}
+                window.StudioFrameMessages.send(target, { type: 'canvas-focus' });
             }
             resetStudioRootScroll();
         }
 
         function forwardStudioApiChange(data) {
             if(!data || !['providers-changed','workflows-changed','comfy-instances-changed'].includes(data.type)) return;
-            document.querySelectorAll('iframe').forEach(iframe => {
-                try {
-                    if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage(data, '*');
-                } catch(e) {}
-            });
+            window.StudioFrameMessages.broadcast(data);
         }
 
-        window.addEventListener('message', event => {
-            if (event.origin && event.origin !== location.origin) return;
-            forwardStudioApiChange(event.data);
-        });
-
-        try {
-            const studioApiChannel = new BroadcastChannel('studio-api');
-            studioApiChannel.onmessage = event => forwardStudioApiChange(event.data);
-        } catch(e) {}
+        window.StudioFrameMessages.subscribe(['providers-changed','workflows-changed','comfy-instances-changed'], event => forwardStudioApiChange(event.data));
+        window.StudioFrameMessages.subscribeApi(event => forwardStudioApiChange(event.data));
 
         async function restoreActivePage() {
             if (window.CanvasSession) await window.CanvasSession.ready;
@@ -1426,7 +1416,7 @@
                             return;
                         }
                     } catch(e) {}
-                    iframe.contentWindow.postMessage({ type: 'studio-theme', theme }, '*');
+                    window.StudioFrameMessages.send(iframe, { type: 'studio-theme', theme });
                 }
             } catch (e) {}
         }
@@ -1465,17 +1455,11 @@
         }
 
         function syncLanguageToFrame(frame) {
-            try {
-                frame.contentWindow?.postMessage({ type:'studio-lang', lang:'zh' }, '*');
-            } catch(e) {}
+            window.StudioFrameMessages.send(frame, { type:'studio-lang', lang:'zh' });
         }
 
         function broadcastLanguage() {
-            document.querySelectorAll('iframe').forEach(frame => {
-                try {
-                    frame.contentWindow?.postMessage({ type:'studio-lang', lang:'zh' }, '*');
-                } catch(e) {}
-            });
+            window.StudioFrameMessages.broadcast({ type:'studio-lang', lang:'zh' });
         }
 
         // listen for theme changes triggered by theme.js
@@ -1492,11 +1476,9 @@
         });
 
         // sync theme when iframe loads
-        document.querySelectorAll('iframe').forEach(f => {
-            f.addEventListener('load', () => {
-                syncThemeToFrame(f);
-                syncLanguageToFrame(f);
-            });
+        window.StudioFrameMessages.watchFrameLoads(frame => {
+            syncThemeToFrame(frame);
+            syncLanguageToFrame(frame);
         });
 
         function maintenanceCountdown(snapshot = {}) {
@@ -1508,9 +1490,7 @@
         }
 
         function forwardMaintenanceToFrames(snapshot) {
-            document.querySelectorAll('iframe').forEach(iframe => {
-                try { iframe.contentWindow?.postMessage({type:'maintenance_changed', data:snapshot}, '*'); } catch(e) {}
-            });
+            window.StudioFrameMessages.broadcast({type:'maintenance_changed', data:snapshot});
         }
 
         function showTransientBanner(text, refresh = false) {
@@ -1662,15 +1642,8 @@
                     if(window.CanvasSession) window.CanvasSession.observeStatus(data);
                 } else if(data.type === 'maintenance_changed') {
                     handleMaintenanceSnapshot(data.data || {});
-                } else if(data.type === 'cloud_status' || data.type === 'canvas_updated') {
-                    // 内容更新只通知当前显示的页面。
-                    const iframe = document.querySelector('iframe.active');
-                    if(iframe?.contentWindow) iframe.contentWindow.postMessage(data, '*');
-                } else if(['canvas_locked','canvas_unlocked','asset_library_updated'].includes(data.type)) {
-                    // 锁和素材库变化也要通知后台页面，保持各页面状态一致。
-                    document.querySelectorAll('iframe').forEach(iframe => {
-                        if(iframe?.contentWindow) iframe.contentWindow.postMessage(data, '*');
-                    });
+                } else {
+                    window.StudioFrameMessages.forwardUpdate(data);
                 }
             };
             socket.onerror = () => {

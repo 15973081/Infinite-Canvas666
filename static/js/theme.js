@@ -124,11 +124,7 @@
     }
 
     function broadcastScale(mode){
-        document.querySelectorAll('iframe').forEach(frame => {
-            try {
-                frame.contentWindow?.postMessage({ type: 'studio-ui-scale', mode }, '*');
-            } catch(e) {}
-        });
+        window.StudioFrameMessages.broadcast({ type: 'studio-ui-scale', mode });
     }
 
     function setScaleMode(mode, shouldBroadcast = true){
@@ -179,7 +175,7 @@
         applyTheme(currentTheme());
         applyScale(currentScaleMode());
     });
-    window.addEventListener('message', event => {
+    window.StudioFrameMessages.subscribe(['studio-theme', 'studio-ui-scale'], event => {
         if(event.data?.type === 'studio-theme') applyTheme(event.data.theme);
         if(event.data?.type === 'studio-ui-scale') setScaleMode(event.data.mode, false);
     });

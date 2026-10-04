@@ -17,6 +17,7 @@
         })();
     </script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
+    <script src="/static/js/studio-frame-messages.js"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
     <script src="/static/js/history-pager.js?v=20260914"></script>
@@ -255,7 +256,7 @@
             const loader = document.getElementById('loadMoreTrigger');
             if(loader && !isLoading) loader.innerText = tr('online.loadMore');
         }
-        window.addEventListener('message', event => {
+        window.StudioFrameMessages.subscribe(['studio-lang','providers-changed','workflows-changed'], event => {
             if(event.data?.type === 'studio-lang') applyLanguage();
             if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed') scheduleProviderRefresh();
         });
@@ -405,10 +406,7 @@
             clearTimeout(apiSyncTimer);
             apiSyncTimer = setTimeout(refreshProvidersFromApiSettings, 150);
         }
-        try {
-            const studioApiChannel = new BroadcastChannel('studio-api');
-            studioApiChannel.addEventListener('message', () => scheduleProviderRefresh());
-        } catch(e) {}
+        window.StudioFrameMessages.subscribeApi(() => scheduleProviderRefresh());
         // 页面重新可见时也兜底刷新一次（切回标签页 / iframe 重新展示）
         document.addEventListener('visibilitychange', () => { if(!document.hidden) scheduleProviderRefresh(); });
 

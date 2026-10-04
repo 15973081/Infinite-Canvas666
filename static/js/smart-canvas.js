@@ -500,9 +500,7 @@ smartComposer.bind();
 smartWorkspaceView.bind();
 bindSmartImageEditorViewport();
 window.addEventListener('studio-theme-change', event => applyTheme(event.detail?.theme || 'light'));
-try {
-    const apiChannel = new BroadcastChannel('studio-api');
-    apiChannel.onmessage = async event => {
+window.StudioFrameMessages.subscribeApi(async event => {
         if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed'){
             await refreshSmartConfigFromSettings();
         }
@@ -510,11 +508,9 @@ try {
         if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
         if(event.data?.type === 'canvas_locked') handleSmartCanvasLocked(event.data);
         if(event.data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(event.data);
-    };
-} catch(e) {}
+});
 // Focus refresh is shared with the policy watcher below.
-window.addEventListener('message', event => {
-    if(event.origin && event.origin !== location.origin) return;
+window.StudioFrameMessages.subscribe(['studio-theme','providers-changed','workflows-changed','comfy-instances-changed','asset_library_updated','canvas_updated','canvas_locked','canvas_unlocked'], event => {
     if(event.data?.type === 'studio-theme') applyTheme(event.data.theme || 'light');
     if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed') refreshSmartConfigFromSettings();
     if(event.data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(event.data);

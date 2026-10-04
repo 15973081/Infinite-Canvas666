@@ -17,6 +17,7 @@
         })();
     </script>
     <script src="/static/vendor/js/lucide.js?v=2026.06.9.1779672342"></script>
+    <script src="/static/js/studio-frame-messages.js"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
     <link rel="stylesheet" href="/static/css/theme.css?v=2026.06.9.1779672341">
     <style>
@@ -515,7 +516,7 @@
             if(!currentConversation?.title || currentConversation.title === '新对话' || currentConversation.title === 'New Chat') setChatTitle('');
             renderThreads();
         }
-        window.addEventListener('message', event => {
+        window.StudioFrameMessages.subscribe(['studio-lang'], event => {
             if(event.data?.type === 'studio-lang') applyLanguage();
         });
         window.addEventListener('studio-lang-change', () => {
@@ -697,16 +698,13 @@
                 saveChatSettings();
             } catch(e) {}
         }
-        try {
-            const apiChannel = new BroadcastChannel('studio-api');
-            apiChannel.onmessage = async (e) => {
-                if(e.data?.type === 'providers-changed'){
-                    await loadConfig();
-                    renderProviderControls();
-                    updateModelLabel();
-                }
-            };
-        } catch(e) {}
+        window.StudioFrameMessages.subscribeApi(async e => {
+            if(e.data?.type === 'providers-changed'){
+                await loadConfig();
+                renderProviderControls();
+                updateModelLabel();
+            }
+        });
 
         function setProvider(p, kind=activePickerKind()) {
             if(kind === 'image') activeImageProvider = p;

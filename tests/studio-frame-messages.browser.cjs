@@ -1,0 +1,95 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {chromium}=require('playwright');
+const {fixture:canvasFixture,origin:canvasOrigin}=require('./helpers/canvas-browser.cjs');
+const origin='http://studio-messages.test',root=path.resolve(__dirname,'..');
+const protocol=fs.readFileSync(path.join(root,'static/js/studio-frame-messages.js'),'utf8');
+async function fixture(t){
+    const browser=await chromium.launch({channel:'chrome',headless:true});t.after(()=>browser.close());
+    const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.addInitScript(()=>{
+        window.CanvasSession={ready:Promise.resolve(),url:x=>x,socketUrl:x=>x,observeStatus(){}};
+        window.WebSocket=class{static OPEN=1;static CONNECTING=0;constructor(){this.readyState=1;window.sockets||=[];window.sockets.push(this);}close(){this.readyState=3;}};
+    });
+    await page.route('**/*',async route=>{
+        const u=new URL(route.request().url());if(u.origin!==origin)return route.abort();
+        if(u.pathname==='/static/index.html')return route.fulfill({contentType:'text/html',path:path.join(root,'static/index.html')});
+        if(u.pathname.endsWith('.html'))return route.fulfill({contentType:'text/html',body:`<!doctype html><script>${protocol}</script><script>
+            window.received=[];StudioFrameMessages.subscribe(['canvas_updated','cloud_status','canvas_locked','canvas_unlocked','asset_library_updated','studio-lang','studio-theme','studio-ui-scale','canvas-focus','providers-changed','maintenance_changed'],event=>received.push(event.data));
+            window.StudioTheme={apply(theme){received.push({type:'sync-theme',theme});}};
+            </script>`});
+        if(u.pathname==='/api/maintenance/status')return route.fulfill({json:{mode:'normal',boot_id:'test'}});
+        if(u.pathname.startsWith('/api/'))return route.fulfill({json:{enabled:false}});
+        const filename=path.resolve(root,'.'+u.pathname);
+        if(filename.startsWith(root+path.sep)&&fs.existsSync(filename))return route.fulfill({path:filename});
+        return route.fulfill({status:404,body:''});
+    });
+    await page.goto(origin+'/static/index.html');await page.waitForFunction(()=>document.querySelector('iframe.active')?.contentWindow.received);
+    await page.evaluate(()=>switchUI(null,'gpt-chat'));
+    await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received);
+    await page.waitForLoadState('networkidle');
+    await page.evaluate(()=>document.querySelectorAll('iframe').forEach(f=>{if(f.contentWindow.received)f.contentWindow.received.length=0;}));
+    return {page,errors};
+}
+async function counts(page,type){return page.evaluate(type=>['online','gpt-chat'].map(id=>document.getElementById('frame-'+id).contentWindow.received.filter(m=>m.type===type).length),type);}
+test('production shell switches foreground routing and broadcasts lock/library payloads',async t=>{
+    const {page,errors}=await fixture(t);
+    await page.evaluate(()=>{sockets[0].onmessage({data:JSON.stringify({type:'canvas_updated',canvas_id:'a'})});});
+    await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.some(m=>m.type==='canvas_updated'));
+    assert.deepEqual(await counts(page,'canvas_updated'),[0,1]);
+    await page.evaluate(()=>{switchUI(null,'online');sockets[0].onmessage({data:JSON.stringify({type:'canvas_updated',canvas_id:'b'})});
+        for(const type of ['canvas_locked','canvas_unlocked','asset_library_updated'])sockets[0].onmessage({data:JSON.stringify({type,extra:{keep:true}})});});
+    await page.waitForFunction(()=>document.getElementById('frame-online').contentWindow.received.some(m=>m.type==='asset_library_updated'));
+    assert.deepEqual(await counts(page,'canvas_updated'),[1,1]);
+    for(const type of ['canvas_locked','canvas_unlocked','asset_library_updated'])assert.deepEqual(await counts(page,type),[1,1]);
+    assert.deepEqual(errors,[]);
+});
+test('real postMessage accepts only parent/owned frames and API forwarding keeps payload',async t=>{
+    const {page,errors}=await fixture(t);
+    await page.evaluate(()=>document.getElementById('frame-online').contentWindow.eval("parent.postMessage({type:'providers-changed',extra:9}, location.origin)"));
+    await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.some(m=>m.type==='providers-changed'));
+    assert.deepEqual(await counts(page,'providers-changed'),[1,1]);
+    // A sibling is same-origin, but is not the receiving iframe's parent.
+    await page.evaluate(()=>document.getElementById('frame-online').contentWindow.eval("parent.document.getElementById('frame-gpt-chat').contentWindow.postMessage({type:'studio-lang',lang:'spoof'}, location.origin)"));
+    await page.evaluate(()=>window.postMessage({type:'providers-changed'},location.origin));
+    await page.waitForTimeout(50);
+    assert.deepEqual(await counts(page,'studio-lang'),[0,0]);assert.deepEqual(await counts(page,'providers-changed'),[1,1]);
+    const channel=await page.evaluate(()=>{window.testChannel=new BroadcastChannel('studio-api');testChannel.postMessage({type:'providers-changed',extra:11});return true;});assert.equal(channel,true);
+    await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.filter(m=>m.type==='providers-changed').length===2);
+    assert.deepEqual(await counts(page,'providers-changed'),[2,2]);
+    assert.deepEqual(errors,[]);
+});
+test('cached exit resumes once, while permanent exit blocks late socket/API delivery',async t=>{
+    const {page,errors}=await fixture(t);
+    await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true})));
+    await page.evaluate(()=>sockets[0].onmessage({data:JSON.stringify({type:'canvas_locked'})}));await page.waitForTimeout(30);
+    assert.deepEqual(await counts(page,'canvas_locked'),[0,0]);
+    await page.evaluate(()=>{window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));sockets[0].onmessage({data:JSON.stringify({type:'canvas_locked'})});});
+    await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.some(m=>m.type==='canvas_locked'));
+    assert.deepEqual(await counts(page,'canvas_locked'),[1,1]);
+    await page.evaluate(()=>{window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));sockets[0].onmessage({data:JSON.stringify({type:'canvas_locked'})});window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
+    await page.waitForTimeout(30);assert.deepEqual(await counts(page,'canvas_locked'),[1,1]);assert.deepEqual(errors,[]);
+});
+for(const kind of ['classic','smart'])test(kind+' production iframe keeps message handling and theme after cache return',async t=>{
+    const {page,errors}=await canvasFixture(t,kind);
+    await page.route('**/message-host.html',route=>route.fulfill({contentType:'text/html',body:`<script>${protocol}</script><iframe id="child" src="/static/${kind==='classic'?'canvas':'smart-canvas'}.html?id=canvas-test"></iframe>`}));
+    await page.goto(canvasOrigin+'/message-host.html');
+    const child=await (await page.waitForSelector('#child')).contentFrame();
+    await child.waitForFunction(()=>typeof handleCanvasUpdatedMessage==='function');
+    if(kind==='classic')await child.evaluate(()=>openCanvas('canvas-test'));
+    await child.waitForFunction(()=>typeof canvas!=='undefined'&&canvas?.id==='canvas-test');await page.waitForLoadState('networkidle');
+    await child.evaluate(()=>{window.messageUpdates=[];handleCanvasUpdatedMessage=data=>messageUpdates.push(data);});
+    await page.evaluate(()=>{
+        StudioFrameMessages.send(document.getElementById('child'),{type:'canvas_updated',canvas_id:'a'});
+        StudioFrameMessages.send(document.getElementById('child'),{type:'studio-theme',theme:'dark'});
+    });
+    await child.waitForFunction(()=>messageUpdates.length===1&&document.body.classList.contains('studio-theme-dark'));
+    await child.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true})));
+    await page.evaluate(()=>StudioFrameMessages.send(document.getElementById('child'),{type:'canvas_updated',canvas_id:'paused'}));
+    await page.waitForTimeout(30);assert.equal(await child.evaluate(()=>messageUpdates.length),1);
+    await child.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true})));
+    await page.evaluate(()=>StudioFrameMessages.send(document.getElementById('child'),{type:'canvas_updated',canvas_id:'resumed'}));
+    await child.waitForFunction(()=>messageUpdates.length===2);
+    await child.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false})));
+    await page.evaluate(()=>StudioFrameMessages.send(document.getElementById('child'),{type:'canvas_updated',canvas_id:'late'}));
+    await page.waitForTimeout(30);assert.equal(await child.evaluate(()=>messageUpdates.length),2);assert.deepEqual(errors,[]);
+});
