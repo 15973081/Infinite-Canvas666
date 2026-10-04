@@ -10,7 +10,8 @@ test('Smart composer session is lazy, frozen and not exposed through entry or ot
 
 test('Smart composer document/task notifications preserve core operations and do not create another data store',()=>{
  const owner=functionSource(source,'createSmartComposer');assert.doesNotMatch(owner,/\b(?:selectedId|selectedIds|selectedImage|nodes|undoStack|redoStack)\s*=(?!=)/);
- assert.match(owner,/if\(switchedNode\) savePromptDraftForCurrent\(\)/);assert.match(owner,/if\(switchedNode\)\{\s*settings = smartSettingsForNode\(subject\);\s*loadPromptDraft\(subject\);/);
- assert.doesNotMatch(owner,/scheduleSave\(|pushUndo\(|clone.*nodes/);assert.match(functionSource(owner,'smartComposerChanges'),/baseline\.settings/);
+ assert.match(owner,/if\(switchedNode\)\{inputVersion\+\+;savePromptDraftForCurrent\(\)/);assert.match(owner,/if\(switchedNode\)\{\s*settings = smartSettingsForNode\(subject\);\s*loadPromptDraft\(subject\);/);
+ const passive=['documentReplaced','documentImported','outputSelected','finishCascade','close','updateComposer','savePromptDraftForCurrent','persistActiveSmartSettings'].map(name=>functionSource(owner,name)).join('\n');
+ assert.doesNotMatch(passive,/scheduleSave\(|pushUndo\(|clone.*nodes/);assert.match(functionSource(owner,'smartComposerChanges'),/baseline\.settings/);
  for(const name of ['activeComposerNode','smartComposerChanges','savePromptDraftForCurrent'])assert.match(functionSource(source,name),/return smartComposer\./);
 });

@@ -4678,13 +4678,14 @@ function clearPromptInput(...args){return smartComposer.clearInput(...args);}
 function smartComposerChanges(...args){return smartComposer.changes(...args);}
 function savePromptDraftForCurrent(...args){return smartComposer.saveDraft(...args);}
 function setPromptDraftForNode(...args){return smartComposer.setDraftForNode(...args);}
+function applySmartOutpaintComposer(...args){return smartComposer.applyOutpaint(...args);}
 function updateComposer(...args){return smartComposer.refresh(...args);}
 
 // Composer owns its input-target session; selection, settings and node drafts
 // remain the existing shared business data, never copied into another store.
 function createSmartComposer(){
     let lastComposerNodeId='',activeComposerSubject=null,smartComposerBaseline=null,targetCanvasId='';
-    let paused=false,destroyed=false;
+    let paused=false,destroyed=false,inputVersion=0;
     const listeners=[];
     function clearListeners(){for(const [type,fn] of listeners)window.removeEventListener(type,fn);listeners.length=0;}
     function bind(){
@@ -4693,8 +4694,8 @@ function createSmartComposer(){
             window.addEventListener(type,fn);listeners.push([type,fn]);
         }
     }
-    function documentReplaced(){if(destroyed)return;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
-    function documentImported(){if(!destroyed)activeComposerSubject=null;}
+    function documentReplaced(){if(destroyed)return;inputVersion++;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
+    function documentImported(){if(!destroyed){inputVersion++;activeComposerSubject=null;}}
     function outputSelected(){if(!destroyed && activeComposerSubject?.id && smartSelection.nodeId===activeComposerSubject.id)lastComposerNodeId=smartSelection.nodeId+':node';}
     function finishCascade(){if(destroyed)return;documentReplaced();composer.classList.remove('open');}
     function close({saveDraft=true,clearInput=false}={}){
@@ -4703,7 +4704,7 @@ function createSmartComposer(){
         if(cascadeRunBtn)cascadeRunBtn.style.display='none';setPromptInputLocked(false);
         if(clearInput)setPromptText('');
     }
-    function pause(){if(!destroyed)paused=true;}
+    function pause(){if(!destroyed){inputVersion++;paused=true;}}
     function resume(){if(!destroyed && paused){paused=false;updateComposer();}}
     function destroy(){if(destroyed)return;documentReplaced();smartComposerBaseline=null;clearListeners();if(typeof composer!=='undefined')composer?.classList.remove('open');destroyed=true;paused=false;}
     function activeSettingsSubject(){
@@ -4790,6 +4791,89 @@ function createSmartComposer(){
         }
     }
 
+    function clearManualSmartVideoUrl(){
+        settings.videoTempShLinks = (settings.videoTempShLinks || []).filter(item => item?.manual !== true);
+    }
+
+    function applyManualVideoUrlToSmartRef(ref, manualUrl){
+        if(!manualUrl) return;
+        const sourceUrl = mediaRefSourceUrl(ref) || manualUrl;
+        settings.videoTempShLinks = [
+            ...(settings.videoTempShLinks || []).filter(item => item?.source !== sourceUrl),
+            {source:sourceUrl, url:manualUrl, manual:true}
+        ];
+    }
+
+    async function setManualMediaUrls(){
+        if(paused || destroyed)return '';
+        const node = activeSettingsSubject();
+        if(!node) return '';
+        savePromptDraftForCurrent();
+        const refs = currentUploadMediaRefs(node);
+        const version=++inputVersion, documentId=canvas?.id;
+        const sources=JSON.stringify(refs.map(mediaRefSourceUrl));
+        const firstLocal = refs.find(ref => ref?.url && !isRemoteVideoReferenceUrl(ref.url));
+        const firstAny = firstLocal || refs[0] || null;
+        const linkedUrls = currentSmartMediaLinks(node);
+        const currentLinks = linkedUrls.length ? linkedUrls : (firstAny ? [tempShUploadedUrlFor(mediaRefSourceUrl(firstAny))] : []);
+        const value = await openAssetNameDialog({
+            title:refs.length > 1 ? `输入 ${refs.length} 个媒体网址 / 火山素材 URI` : '输入媒体网址 / 火山素材 URI',
+            value:currentLinks.filter(isRemoteVideoReferenceUrl).join('\n'),
+            placeholder:refs.length > 1 ? '每行一个链接，按图1/图2顺序对应' : 'https://example.com/media 或 asset://asset-xxx',
+            cancelValue:null,
+            multiline:refs.length > 1
+        });
+        if(value === null || paused || destroyed || version!==inputVersion || canvas?.id!==documentId ||
+            !nodes.includes(node) || activeSettingsSubject()!==node ||
+            JSON.stringify(currentUploadMediaRefs(node).map(mediaRefSourceUrl))!==sources) return '';
+        const urls = splitManualMediaUrls(value);
+        if(!urls.length){
+            clearManualSmartVideoUrl();
+            persistActiveSmartSettings();
+            scheduleSave();
+            render();
+            toast('已清除手动网址');
+            return '';
+        }
+        const invalid = urls.find(url => !isRemoteVideoReferenceUrl(url));
+        if(invalid){
+            toast('请输入 http/https 媒体网址或 asset:// 火山素材 URI');
+            return '';
+        }
+        clearManualSmartVideoUrl();
+        const targets = refs.length ? refs : [firstAny].filter(Boolean);
+        urls.forEach((url, index) => {
+            const target = targets[index] || targets[targets.length - 1] || {url};
+            applyManualVideoUrlToSmartRef(target, url);
+        });
+        persistActiveSmartSettings();
+        scheduleSave();
+        render();
+        toast(`已设置 ${urls.length} 个媒体网址`);
+        return urls[0] || '';
+    }
+
+    function applyOutpaintSizeToSmartParams(width, height, subject){
+        const w = Math.max(1, Math.round(Number(width) || 0));
+        const h = Math.max(1, Math.round(Number(height) || 0));
+        if(!w || !h) return;
+        if(!subject || !isSmartImageNode(subject)) return;
+        subject.outpaintSize = {width:w, height:h};
+        subject.runSettings = withOutpaintDisplaySettings(subject, cloneSmartSettings(subject.runSettings || settings));
+        if(activeSettingsSubject()?.id === subject.id){
+            settings = smartSettingsForNode(subject);
+            renderDynamicParams();
+        }
+    }
+
+    function applyOutpaint(width, height, subject){
+        if(paused || destroyed || !nodes.includes(subject) || !isSmartImageNode(subject))return false;
+        applyOutpaintSizeToSmartParams(width,height,subject);
+        setPromptDraftForNode(subject,'Remove white area and fill the scene');
+        promptInput.dataset.preserveDraftOnce='1';
+        return true;
+    }
+
     function updateComposer(){
         const node = selectedNode();
         if(lastComposerNodeId && (canvas?.id!==targetCanvasId || (activeComposerSubject && !nodes.includes(activeComposerSubject))))documentReplaced();
@@ -4807,7 +4891,7 @@ function createSmartComposer(){
         const composerKey = `${node.id}:node`;
         const switchedNode = lastComposerNodeId !== composerKey;
         // Save the previous node's draft before changing the composer owner.
-        if(switchedNode) savePromptDraftForCurrent();
+        if(switchedNode){inputVersion++;savePromptDraftForCurrent();}
         lastComposerNodeId = composerKey;
         activeComposerSubject = subject;
         targetCanvasId=canvas?.id || '';
@@ -4839,7 +4923,7 @@ function createSmartComposer(){
     }
     return Object.freeze({
         get state(){return Object.freeze({open:Boolean(!destroyed && typeof composer!=='undefined' && composer?.classList.contains('open')),nodeId:activeComposerNode()?.id||'',targetValid:Boolean(activeComposerNode()),canvasId:targetCanvasId,paused,destroyed});},
-        activeNode:activeComposerNode,settingsSubject:activeSettingsSubject,changes:smartComposerChanges,
+        activeNode:activeComposerNode,settingsSubject:activeSettingsSubject,changes:smartComposerChanges,applyOutpaint,setManualMediaUrls,
         bind,pause,resume,destroy,close,documentReplaced,documentImported,outputSelected,finishCascade,
         refresh:(...args)=>{if(!paused && !destroyed)return updateComposer(...args);},
         // Existing background saves must still flush the paused page's input.

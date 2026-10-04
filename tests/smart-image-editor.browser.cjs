@@ -73,13 +73,39 @@ test('Smart grouped crop replaces only its original index and saves once with un
 
 test('Smart outpaint keeps centered margins and parameter/prompt writeback',async t=>{
     const {page,errors}=await editor(t,'outpaint');
+    await page.evaluate(()=>{window.outpaintApplications=0;const apply=applySmartOutpaintComposer;applySmartOutpaintComposer=(...args)=>{outpaintApplications++;return apply(...args);};});
     const b=await page.locator('[data-outpaint-handle="right"]').boundingBox();
     await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width/2+30,b.y+b.height/2);await page.mouse.up();
     await page.evaluate(()=>applyImageEdit());
     assert.deepEqual(await page.evaluate(()=>({upload:editUploads[0],saves:editSaves})),{upload:{name:'first_outpaint.png',w:380,h:240,white:14400,black:0,changed:14400},saves:1});
     assert.equal(await page.evaluate(()=>nodes[0].promptDraftText),'Remove white area and fill the scene');
     assert.deepEqual(await page.evaluate(()=>nodes[0].outpaintSize),{width:380,height:240});
+    assert.equal(await page.evaluate(()=>outpaintApplications),1);
+    assert.deepEqual(await page.evaluate(()=>({width:nodes[0].runSettings.customWidth,height:nodes[0].runSettings.customHeight,locked:nodes[0].runSettings.outpaintResolutionLocked,text:promptPlainText()})),
+        {width:380,height:240,locked:true,text:'Remove white area and fill the scene'});
     assert.deepEqual(errors,[]);
+});
+
+for(const change of ['close','reopen','canvas'])test(`Smart outpaint late receipt after ${change} cannot change drafts or input settings`,async t=>{
+    const {page,errors}=await editor(t,'outpaint');
+    await page.evaluate(()=>{
+        const upload=CanvasApi.uploadAi;
+        CanvasApi.uploadAi=async form=>{const result=await upload(form);await new Promise(resolve=>{window.outpaintRelease=resolve;});return result;};
+        window.outpaintApplications=0;const apply=applySmartOutpaintComposer;
+        applySmartOutpaintComposer=(...args)=>{outpaintApplications++;return apply(...args);};
+        window.outpaintRequest=applyImageEdit();
+    });
+    await page.waitForFunction(()=>typeof outpaintRelease==='function');
+    await page.evaluate(change=>{
+        if(change==='close')closeImageEditor();
+        if(change==='reopen')openImageEditor('b');
+        if(change==='canvas')canvas={...canvas,id:'other-canvas'};
+    },change);
+    if(change==='reopen')await page.waitForFunction(()=>smartImageEditor.state.ready);
+    const before=await page.evaluate(()=>JSON.stringify({nodes,settings,input:promptInput.innerHTML,marker:promptInput.dataset.preserveDraftOnce}));
+    await page.evaluate(async()=>{outpaintRelease();await outpaintRequest;});
+    assert.equal(await page.evaluate(()=>JSON.stringify({nodes,settings,input:promptInput.innerHTML,marker:promptInput.dataset.preserveDraftOnce})),before);
+    assert.equal(await page.evaluate(()=>outpaintApplications),0);assert.equal(await page.evaluate(()=>editSaves),0);assert.deepEqual(errors,[]);
 });
 
 test('Smart mask appends to the same group and editor undo remains separate from canvas history',async t=>{

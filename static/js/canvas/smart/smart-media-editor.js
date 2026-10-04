@@ -68,9 +68,6 @@ function currentSmartMediaLinks(node=null){
     }).filter(Boolean);
 }
 
-function clearManualSmartVideoUrl(){
-    settings.videoTempShLinks = (settings.videoTempShLinks || []).filter(item => item?.manual !== true);
-}
 
 function splitManualMediaUrls(text){
     return String(text || '')
@@ -96,58 +93,8 @@ async function uploadMediaRefToCloud(ref){
     return uploadedUrl;
 }
 
-function applyManualVideoUrlToSmartRef(ref, manualUrl){
-    if(!manualUrl) return;
-    const sourceUrl = mediaRefSourceUrl(ref) || manualUrl;
-    settings.videoTempShLinks = [
-        ...(settings.videoTempShLinks || []).filter(item => item?.source !== sourceUrl),
-        {source:sourceUrl, url:manualUrl, manual:true}
-    ];
-}
 
-async function setCurrentSmartManualVideoUrl(){
-    const node = activeSettingsSubject();
-    if(!node) return '';
-    savePromptDraftForCurrent();
-    const refs = currentUploadMediaRefs(node);
-    const firstLocal = refs.find(ref => ref?.url && !isRemoteVideoReferenceUrl(ref.url));
-    const firstAny = firstLocal || refs[0] || null;
-    const linkedUrls = currentSmartMediaLinks(node);
-    const currentLinks = linkedUrls.length ? linkedUrls : (firstAny ? [tempShUploadedUrlFor(mediaRefSourceUrl(firstAny))] : []);
-    const value = await openAssetNameDialog({
-        title:refs.length > 1 ? `输入 ${refs.length} 个媒体网址 / 火山素材 URI` : '输入媒体网址 / 火山素材 URI',
-        value:currentLinks.filter(isRemoteVideoReferenceUrl).join('\n'),
-        placeholder:refs.length > 1 ? '每行一个链接，按图1/图2顺序对应' : 'https://example.com/media 或 asset://asset-xxx',
-        cancelValue:null,
-        multiline:refs.length > 1
-    });
-    if(value === null) return '';
-    const urls = splitManualMediaUrls(value);
-    if(!urls.length){
-        clearManualSmartVideoUrl();
-        persistActiveSmartSettings();
-        scheduleSave();
-        render();
-        toast('已清除手动网址');
-        return '';
-    }
-    const invalid = urls.find(url => !isRemoteVideoReferenceUrl(url));
-    if(invalid){
-        toast('请输入 http/https 媒体网址或 asset:// 火山素材 URI');
-        return '';
-    }
-    clearManualSmartVideoUrl();
-    const targets = refs.length ? refs : [firstAny].filter(Boolean);
-    urls.forEach((url, index) => {
-        const target = targets[index] || targets[targets.length - 1] || {url};
-        applyManualVideoUrlToSmartRef(target, url);
-    });
-    persistActiveSmartSettings();
-    scheduleSave();
-    render();
-    toast(`已设置 ${urls.length} 个媒体网址`);
-    return urls[0] || '';
-}
+async function setCurrentSmartManualVideoUrl(){return smartComposer.setManualMediaUrls();}
 
 async function uploadCurrentSmartVideosToCloud(){
     const node = activeSettingsSubject();
@@ -2284,19 +2231,6 @@ function createSmartImageEditor(){
         return true;
     }
 
-    function applyOutpaintSizeToSmartParams(width, height, subject=currentEditImage().node){
-        const w = Math.max(1, Math.round(Number(width) || 0));
-        const h = Math.max(1, Math.round(Number(height) || 0));
-        if(!w || !h) return;
-        if(!subject || !isSmartImageNode(subject)) return;
-        subject.outpaintSize = {width:w, height:h};
-        subject.runSettings = withOutpaintDisplaySettings(subject, cloneSmartSettings(subject.runSettings || settings));
-        if(activeSettingsSubject()?.id === subject.id){
-            settings = smartSettingsForNode(subject);
-            renderDynamicParams();
-        }
-    }
-
     async function applyImageCrop(){
         const origin = capture(true);
         if(!loaded || !accept(origin)) return;
@@ -2343,9 +2277,7 @@ function createSmartImageEditor(){
         const file = blob ? await uploadCroppedBlob(blob, `${base}_outpaint.png`) : null;
         if(!accept(origin)) return;
         if(file && replaceEditedImage(file)){
-            applyOutpaintSizeToSmartParams(outW, outH, node);
-            setPromptDraftForNode(node, 'Remove white area and fill the scene');
-            promptInput.dataset.preserveDraftOnce = '1';
+            applySmartOutpaintComposer(outW, outH, node);
             closeImageEditor();
             render();
             scheduleSave();
