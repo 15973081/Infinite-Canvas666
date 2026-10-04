@@ -391,7 +391,7 @@ function smartGenerationLogCost(log){
 }
 
 function formatSmartCost(value){
-    return `¥${new Intl.NumberFormat('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:6}).format(Number(value || 0) / 1000000)}`;
+    return window.CanvasCore.formatCostAmount(value);
 }
 
 function smartCanvasCostTotals(logs=canvas?.logs || []){
@@ -485,9 +485,7 @@ function renderSmartCanvasLog(){
         const taskId = req.task_id || req.taskId || req.prompt_id || req.promptId || '';
         const backend = req.workflow_json || req.workflow || req.provider_id || req.providerId || req.backend || '';
         const cost = smartGenerationLogCost(log);
-        const costAmount = cost?.currency && cost.currency !== 'CNY'
-            ? `${cost.currency} ${new Intl.NumberFormat('zh-CN', {maximumFractionDigits:6}).format(Number(cost.amount_micros || 0)/1000000)}`
-            : formatSmartCost(cost?.amount_micros);
+        const costAmount = window.CanvasCore.formatCostAmount(cost?.amount_micros, cost?.currency);
         const costChip = cost?.status === 'priced'
             ? `<span class="log-chip ${cost.source === 'estimated' ? 'cost-estimated' : ''}" title="${cost.source === 'estimated' ? '根据历史价格回算' : '调用时价格快照'}">${escapeHtml(costAmount)}${cost.source === 'estimated' ? ' 预估' : ''}</span>`
             : cost?.status === 'unknown' ? `<span class="log-chip cost-unknown">${escapeHtml(window.VolcengineVideoBilling?.pendingLabel(cost) || '待核算')}</span>` : '';

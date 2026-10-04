@@ -41,6 +41,15 @@
         return String(name || fallback).replace(/[\\/:*?"<>|]+/g, '_').trim() || fallback;
     }
 
+    // Shared display only: prices, totals and ledger ownership remain in their callers.
+    function formatCostAmount(amountMicros, currency='CNY'){
+        const amount = Number(amountMicros || 0) / 1000000;
+        if(currency && currency !== 'CNY'){
+            return `${currency} ${new Intl.NumberFormat('zh-CN', {maximumFractionDigits:6}).format(amount)}`;
+        }
+        return `¥${new Intl.NumberFormat('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:6}).format(amount)}`;
+    }
+
     function escapeHtml(str){
         return String(str == null ? '' : str).replace(/[&<>"']/g, s => ({
             '&':'&amp;',
@@ -303,6 +312,7 @@
         apiErrorMessage,
         responseErrorMessage,
         safeFileName,
+        formatCostAmount,
         escapeHtml,
         parseSizeValue,
         parseSizePair,
