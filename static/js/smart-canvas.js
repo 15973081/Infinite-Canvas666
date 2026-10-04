@@ -441,9 +441,6 @@ function closeSmartCanvasShortcuts(){
 const smartRenderedNodes = new WeakMap();
 let smartRenderedConnectionStates = new Map();
 
-let previewCompareOn = false;
-let previewCompareIndex = -1;
-let previewMetaExtraText = '';
 
 
 let smartImageToolBusy = false;

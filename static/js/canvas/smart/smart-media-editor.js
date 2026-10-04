@@ -663,7 +663,7 @@ function createSmartImageEditor(){
         if(paused || destroyed)return;generation++;cancelFrames();cancelGestures();removeEditTextInlineEditor(true);releaseGridImages();
         for(const scope of [...listeners.keys()])if(scope!=='lifecycle')clearListeners(scope);
         if(!loaded)clearSmartEditableImage();
-        window.CanvasMediaLoader?.unwatch(element('cropImage'));pauseSmartEditorPreview();smartPreviewGestures.pause();paused=true;
+        window.CanvasMediaLoader?.unwatch(element('cropImage'));pauseSmartEditorPreview();paused=true;
     }
     function resume(){
         if(!paused || destroyed)return;paused=false;bind();smartPreviewGestures.resume();
@@ -1076,7 +1076,6 @@ function createSmartImageEditor(){
         if(mode !== 'brush') removeEditTextInlineEditor(true);
         imageEditMode = ['preview','crop','outpaint','mask','brush','grid'].includes(mode) ? mode : 'preview';
         const cropCanvasEl = element('cropCanvas');
-        const previewStageEl = element('previewStage');
         const editStageEl = element('imageEditStage');
         const editPanelEl = imageEditModal?.querySelector('.image-edit-panel');
         const previewDownloadBtn = element('previewDownloadBtn');
@@ -1088,7 +1087,6 @@ function createSmartImageEditor(){
         const isPreview = imageEditMode === 'preview';
         if(!isPreview) leaveSmartEditorPreview();
         cropCanvasEl.style.display = isPreview ? 'none' : '';
-        previewStageEl.style.display = isPreview ? 'inline-flex' : 'none';
         editStageEl?.classList.toggle('preview-mode', isPreview);
         editPanelEl?.classList.toggle('video-preview-mode', isVideoPreview);
         if(previewDownloadBtn) previewDownloadBtn.style.display = isPreview ? 'inline-flex' : 'none';
@@ -1114,10 +1112,8 @@ function createSmartImageEditor(){
         syncGridOperationControls();
         syncGridGapValue();
         const applyBtn = element('imageEditApplyBtn');
-        element('compareToggleBtn').style.display = isPreview && !isVideoPreview ? 'inline-flex' : 'none';
         element('panoramaToggleBtn').style.display = isPreview && !isVideoPreview ? 'inline-flex' : 'none';
         element('panoramaExportBtn').style.display = isPreview && !isVideoPreview && smartEditorPreviewState().panoramaEnabled ? 'inline-flex' : 'none';
-        element('compareThumbs').style.display = 'none';
         if(isPreview){
             element('imageEditTitle').textContent = isVideoPreview ? '预览视频' : '预览图片';
             element('imageEditSub').textContent = isVideoPreview ? '' : '滚轮缩放，拖动查看，右下角可拉动对比原图';
@@ -2712,6 +2708,7 @@ function createSmartImageEditor(){
         openDetached:(node,index=0)=>openImageEditor(node.id,index,node),
         guardPreviewCallback:fn=>{const origin=capture(true);return (...args)=>{if(accept(origin))return fn(...args);};},
         schedulePreviewFrame:fn=>scheduleFrame(fn,'preview'),
+        imageResolution:()=>{const image=element('cropImage');return Object.freeze({width:Number(image?.naturalWidth||0),height:Number(image?.naturalHeight||0)});},
         currentEditImage,
         setImageEditMode:(...args)=>{if(!destroyed && !paused && cropState && targetValid())return setImageEditMode(...args);},
         undoEditDrawing:(...args)=>{if(!destroyed && !paused && cropState && targetValid())return undoEditDrawing(...args);},

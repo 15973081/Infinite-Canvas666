@@ -790,25 +790,15 @@ function setPanoramaEnabled(enabled){
     panoramaState.enabled = next;
     const stage = document.getElementById('previewStage');
     const pano = document.getElementById('panoramaStage');
-    const currentImg = document.getElementById('previewCurrentImage');
-    const compareLayer = document.getElementById('previewCompareLayer');
-    const compareHandle = document.getElementById('previewCompareHandle');
     const toggle = document.getElementById('panoramaToggleBtn');
     const exportBtn = document.getElementById('panoramaExportBtn');
-    const compareToggle = document.getElementById('compareToggleBtn');
-    const compareThumbs = document.getElementById('compareThumbs');
     const previewTools = document.getElementById('imagePreviewTools');
     stage?.classList.toggle('panorama-on', next);
     previewTools?.classList.toggle('panorama-tools-on', next);
     if(pano) pano.style.display = next ? 'block' : 'none';
-    if(currentImg) currentImg.style.display = next ? 'none' : 'block';
-    if(compareLayer && next) compareLayer.style.display = 'none';
-    if(compareHandle && next) compareHandle.style.display = 'none';
     if(toggle) toggle.classList.toggle('active', next);
     if(exportBtn) exportBtn.style.display = next ? 'inline-flex' : 'none';
-    if(compareToggle) compareToggle.style.display = next ? 'none' : 'inline-flex';
-    if(compareThumbs && next){ compareThumbs.style.display = 'none'; compareThumbs.innerHTML = ''; }
-    previewCompareOn = next ? false : previewCompareOn;
+    smartPreviewGestures.setPanoramaPresentation(next);
     if(next){
         smartPreviewGestures.resetPose();
         applyPreviewTransform();
@@ -896,249 +886,16 @@ function applyPanoramaRatio(value){
     resizePanoramaViewer();
 }
 
-function setPreviewComparePos(clientX){
-    const frame = document.getElementById('previewFrame');
-    const stage = document.getElementById('previewStage');
-    if(!frame || !stage) return;
-    const rect = frame.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / Math.max(1, rect.width)) * 100));
-    smartPreviewGestures.setComparePosition(pct);
-    stage.style.setProperty('--compare-pos', `${pct}%`);
-}
-
-function syncPreviewFrameSize(){
-    const frame = document.getElementById('previewFrame');
-    if(panoramaState.enabled){
-        resizePanoramaViewer();
-        return;
-    }
-    const currentImg = document.getElementById('previewCurrentImage');
-    const currentVideo = document.getElementById('previewCurrentVideo');
-    const compareImg = document.getElementById('previewCompareImage');
-    const currentMedia = currentVideo && currentVideo.style.display !== 'none' ? currentVideo : currentImg;
-    if(!frame || !currentMedia) return;
-    const w = currentMedia.clientWidth || currentMedia.videoWidth || currentMedia.naturalWidth || 1;
-    const h = currentMedia.clientHeight || currentMedia.videoHeight || currentMedia.naturalHeight || 1;
-    frame.style.width = `${w}px`;
-    frame.style.height = `${h}px`;
-    if(compareImg){
-        compareImg.style.width = `${w}px`;
-        compareImg.style.height = `${h}px`;
-    }
-}
-
-function previewResolutionText(){
-    const editing = currentEditImage();
-    const image = editing.image || {};
-    const currentImg = document.getElementById('previewCurrentImage');
-    const currentVideo = document.getElementById('previewCurrentVideo');
-    const cropImg = document.getElementById('cropImage');
-    const w = Number(image.natural_w || image.width || image.w || 0) || Number(currentVideo?.videoWidth || 0) || Number(currentImg?.naturalWidth || 0) || Number(cropImg?.naturalWidth || 0);
-    const h = Number(image.natural_h || image.height || image.h || 0) || Number(currentVideo?.videoHeight || 0) || Number(currentImg?.naturalHeight || 0) || Number(cropImg?.naturalHeight || 0);
-    if(!w || !h) return '';
-    return `分辨率: ${Math.round(w)} x ${Math.round(h)}`;
-}
-
-function updatePreviewMetaHint(extraText=previewMetaExtraText){
-    previewMetaExtraText = extraText || '';
-    const hint = document.getElementById('previewMetaHint');
-    if(!hint) return;
-    hint.textContent = [previewResolutionText(), previewMetaExtraText].filter(Boolean).join(' · ');
-}
-
-function rememberPreviewImageResolution(){
-    const editing = currentEditImage();
-    const image = editing.image;
-    if(!image) return;
-    const currentImg = document.getElementById('previewCurrentImage');
-    const currentVideo = document.getElementById('previewCurrentVideo');
-    const cropImg = document.getElementById('cropImage');
-    const w = Number(currentVideo?.videoWidth || 0) || Number(currentImg?.naturalWidth || 0) || Number(cropImg?.naturalWidth || 0);
-    const h = Number(currentVideo?.videoHeight || 0) || Number(currentImg?.naturalHeight || 0) || Number(cropImg?.naturalHeight || 0);
-    if(w > 0 && h > 0 && (!image.natural_w || !image.natural_h)){
-        image.natural_w = w;
-        image.natural_h = h;
-        scheduleSave();
-    }
-}
-
-function previewCompareSources(){
-    const editing = currentEditImage();
-    const node = editing.node;
-    if(!node) return [];
-    const savedRefs = Array.isArray(node.runInputRefs) ? node.runInputRefs.filter(ref => ref?.url) : [];
-    const upstream = savedRefs.length ? savedRefs : inputImagesFor(node);
-    const dedup = [];
-    const seen = new Set();
-    for(const img of upstream){
-        if(!img?.url || seen.has(img.url) || mediaKindForItem(img) !== 'image') continue;
-        seen.add(img.url);
-        dedup.push(img);
-    }
-    if(dedup.length) return dedup;
-    const sourceId = node.sourceNodeId;
-    if(sourceId){
-        const src = nodes.find(n => n.id === sourceId);
-        if(src && (src.images || []).length){
-            for(const img of src.images){
-                if(!img?.url || seen.has(img.url) || mediaKindForItem(img) !== 'image') continue;
-                seen.add(img.url);
-                dedup.push(img);
-            }
-        }
-    }
-    return dedup;
-}
-
-function refreshComparePanel(){
-    const stage = document.getElementById('previewStage');
-    const compareImg = document.getElementById('previewCompareImage');
-    const currentImg = document.getElementById('previewCurrentImage');
-    const currentVideo = document.getElementById('previewCurrentVideo');
-    const compareLayer = document.getElementById('previewCompareLayer');
-    const compareHandle = document.getElementById('previewCompareHandle');
-    const thumbsEl = document.getElementById('compareThumbs');
-    const toggle = document.getElementById('compareToggleBtn');
-    const panoramaToggle = document.getElementById('panoramaToggleBtn');
-    const editing = currentEditImage();
-    const curUrl = editing.image?.url || '';
-    const isVideoPreview = mediaKindForItem(editing.image || {}) === 'video';
-    const isPreviewMode = smartImageEditor.state.mode === 'preview';
-    if(panoramaToggle){
-        panoramaToggle.style.display = isPreviewMode && !isVideoPreview ? 'inline-flex' : 'none';
-        panoramaToggle.classList.toggle('active', panoramaState.enabled);
-    }
-    if(!isPreviewMode && panoramaState.enabled) disposePanoramaPreview();
-    if(panoramaState.enabled && isPreviewMode && !isVideoPreview){
-        currentImg.onload = null;
-        currentImg.onerror = null;
-        currentImg.style.display = 'none';
-        stage?.classList.remove('compare-on');
-        if(compareLayer) compareLayer.style.display = 'none';
-        if(compareHandle) compareHandle.style.display = 'none';
-        if(thumbsEl){ thumbsEl.style.display = 'none'; thumbsEl.innerHTML = ''; }
-        if(toggle) toggle.classList.remove('active');
-        updatePreviewMetaHint('360全景：拖动转动，滚轮缩放，可调整视窗比例');
-        return;
-    }
-    const onCurrentLoaded = smartImageEditor.guardPreviewCallback(() => {
-        rememberPreviewImageResolution();
-        syncPreviewFrameSize();
-        updatePreviewMetaHint();
-    });
-    if(isVideoPreview){
-        currentImg.onload = null;
-        currentImg.onerror = null;
-        currentImg.removeAttribute('src');
-        currentImg.style.display = 'none';
-        if(currentVideo){
-            const previewSrc = displayMediaUrl(editing.image || curUrl);
-            currentVideo.style.display = 'block';
-            currentVideo.onloadedmetadata = onCurrentLoaded;
-            currentVideo.onloadeddata = onCurrentLoaded;
-            if(currentVideo.getAttribute('src') !== previewSrc){
-                window.CanvasMediaLoader?.watch(currentVideo, stage, curUrl);
-                currentVideo.src = previewSrc;
-                currentVideo.load?.();
-            }
-            if(currentVideo.readyState >= 1) smartImageEditor.schedulePreviewFrame(onCurrentLoaded);
-        }
-        previewCompareOn = false;
-        previewCompareIndex = -1;
-        stage.classList.remove('compare-on');
-        if(compareLayer) compareLayer.style.display = 'none';
-        if(compareHandle) compareHandle.style.display = 'none';
-        if(thumbsEl){ thumbsEl.style.display = 'none'; thumbsEl.innerHTML = ''; }
-        if(toggle){
-            toggle.disabled = true;
-            toggle.style.opacity = '.45';
-            toggle.classList.remove('active');
-            toggle.title = '无原图可对比';
-        }
-        if(panoramaToggle) panoramaToggle.style.display = 'none';
-        updatePreviewMetaHint(editing.node?.runPrompt ? `提示词：${editing.node.runPrompt.slice(0, 60)}` : '');
-        return;
-    }
-    if(currentVideo){
-        window.CanvasMediaLoader?.unwatch(currentVideo);
-        currentVideo.pause?.();
-        currentVideo.onloadedmetadata = null;
-        currentVideo.onloadeddata = null;
-        currentVideo.removeAttribute('src');
-        currentVideo.load?.();
-        currentVideo.style.display = 'none';
-    }
-    currentImg.style.display = 'block';
-    currentImg.onload = onCurrentLoaded;
-    currentImg.onerror = null;
-    ensureSmartEditableImage().catch(() => {});
-    if(currentImg.complete && currentImg.naturalWidth) smartImageEditor.schedulePreviewFrame(onCurrentLoaded);
-    const sources = previewCompareSources();
-    const hasSource = sources.length > 0;
-    if(toggle){
-        toggle.disabled = !hasSource;
-        toggle.style.opacity = hasSource ? '1' : '.45';
-        toggle.title = hasSource ? '点击查看输入端缩略图' : '无原图可对比';
-        toggle.classList.toggle('active', hasSource && previewCompareOn);
-    }
-    if(!hasSource){
-        previewCompareOn = false;
-        previewCompareIndex = -1;
-        stage.classList.remove('compare-on');
-        if(compareLayer) compareLayer.style.display = 'none';
-        if(compareHandle) compareHandle.style.display = 'none';
-        thumbsEl.style.display = 'none';
-        updatePreviewMetaHint(editing.node?.runPrompt ? `提示词：${editing.node.runPrompt.slice(0, 60)}` : '');
-        return;
-    }
-    const sliderActive = previewCompareOn && previewCompareIndex >= 0 && previewCompareIndex < sources.length;
-    if(sliderActive){
-        const src = sources[previewCompareIndex];
-        compareImg.src = src?.url || '';
-        compareImg.onload = smartImageEditor.guardPreviewCallback(syncPreviewFrameSize);
-        syncPreviewFrameSize();
-        stage.classList.add('compare-on');
-        if(compareLayer) compareLayer.style.display = '';
-        if(compareHandle) compareHandle.style.display = '';
-    } else {
-        stage.classList.remove('compare-on');
-        if(compareLayer) compareLayer.style.display = 'none';
-        if(compareHandle) compareHandle.style.display = 'none';
-    }
-    if(previewCompareOn){
-        thumbsEl.style.display = 'inline-flex';
-        thumbsEl.innerHTML = sources.map((s, i) => `<button type="button" class="compare-thumb ${i === previewCompareIndex ? 'active' : ''}" data-compare-idx="${i}" title="${escapeHtml(i === previewCompareIndex ? '点击取消对比' : '点击与该图对比')}">${smartPreviewImgHtml(s.url, 256)}</button>`).join('');
-        bindSmartPreviewImageFallbacks(thumbsEl);
-        thumbsEl.querySelectorAll('[data-compare-idx]').forEach(btn => {
-            btn.onclick = e => {
-                e.preventDefault(); e.stopPropagation();
-                const idx = Number(btn.dataset.compareIdx);
-                previewCompareIndex = (previewCompareIndex === idx) ? -1 : idx;
-                refreshComparePanel();
-            };
-        });
-    } else {
-        thumbsEl.style.display = 'none';
-        thumbsEl.innerHTML = '';
-    }
-    let txt = editing.node?.runPrompt ? `提示词：${editing.node.runPrompt.slice(0, 60)}` : '';
-    if(previewCompareOn && !sliderActive) txt = (txt ? `${txt} · ` : '') + '点缩略图开始对比';
-    updatePreviewMetaHint(txt);
-}
-
-function togglePreviewCompare(){
-    const sources = previewCompareSources();
-    if(!sources.length){ toast('该图片没有原图可对比'); return; }
-    previewCompareOn = !previewCompareOn;
-    if(previewCompareOn && (previewCompareIndex < 0 || previewCompareIndex >= sources.length)) previewCompareIndex = 0;
-    if(!previewCompareOn) previewCompareIndex = -1;
-    refreshComparePanel();
-}
+function setPreviewComparePos(clientX){return smartPreviewGestures.setComparePositionAt(clientX);}
+function syncPreviewFrameSize(){return smartPreviewGestures.syncFrameSize();}
+function updatePreviewMetaHint(...args){return smartPreviewGestures.updateMetadata(...args);}
+function refreshComparePanel(){return smartPreviewGestures.refresh();}
+function togglePreviewCompare(){return smartPreviewGestures.toggleComparison();}
 
 function currentPreviewVideo(){
     if(!smartImageEditor.state.open) return null;
     if(mediaKindForItem(currentEditImage().image || {}) !== 'video') return null;
-    return document.getElementById('previewCurrentVideo');
+    return smartPreviewGestures.video();
 }
 
 function videoFrameStep(){
@@ -1331,7 +1088,7 @@ function syncVideoTrimUi(updateInputs=true){
 }
 
 function resetVideoTrimState(){
-    const video = document.getElementById('previewCurrentVideo');
+    const video = smartPreviewGestures.video();
     if(videoTrimState.previewing) video?.pause?.();
     videoTrimState = {active:false, start:0, end:0, duration:0, previewing:false, busy:false, sourceUrl:''};
     const panel = document.getElementById('videoTrimPanel');
@@ -1364,7 +1121,7 @@ async function toggleVideoTrimPanel(){
 
 function stopVideoTrimPreview(){
     if(!videoTrimState.previewing) return;
-    document.getElementById('previewCurrentVideo')?.pause?.();
+    smartPreviewGestures.pauseVideo();
     videoTrimState.previewing = false;
 }
 
@@ -1534,6 +1291,8 @@ function bindSmartPanoramaControls(){
     });
 }
 
+// The existing preview owner also owns ordinary comparison, metadata and media
+// presentation. The editor remains the sole owner of the target and navigation.
 function createSmartPreviewGestures(){
     let previewZoom = 1.0;
     let previewPan = {x:0, y:0};
@@ -1542,20 +1301,349 @@ function createSmartPreviewGestures(){
     let previewComparePos = 50;
 
     let paused=false,destroyed=false,captured=null;
+    let previewCompareOn = false;
+    let previewCompareIndex = -1;
+    let previewMetaExtraText = '';
+
+    let active=false, viewRevision=0, comparisonCount=0;
+    const dom=new Map(), mediaIds=['previewCurrentImage','previewCompareImage','previewCurrentVideo'];
+    const frames=new Set(), thumbnailCleanup=[];
+    const element=id=>{if(destroyed)return null;if(!dom.has(id))dom.set(id,document.getElementById(id));return dom.get(id);};
+    // Invalidate callbacks both when this view changes and when the editor target
+    // or mode changes. Do not keep a second copy of the current image target.
+    function guard(fn){const revision=viewRevision;return smartImageEditor.guardPreviewCallback((...args)=>{if(!destroyed && !paused && active && revision===viewRevision)return fn(...args);});}
+    function queueFrame(fn){if(destroyed || paused || !active)return;const callback=guard(fn);const id=requestAnimationFrame(()=>{frames.delete(id);callback();});frames.add(id);}
+    function clearFrames(){for(const id of frames)cancelAnimationFrame(id);frames.clear();}
+    function clearThumbnails(){
+        for(const dispose of thumbnailCleanup.splice(0))dispose();
+        const host=element('compareThumbs');
+        host?.querySelectorAll('img').forEach(img=>{window.CanvasMediaLoader?.unwatch(img);img.onload=null;img.onerror=null;img.removeAttribute('src');img.removeAttribute('data-canvas-media-src');});
+        if(host){host.innerHTML='';host.style.display='none';}
+    }
+    function invalidateView(){
+        viewRevision++;clearFrames();clearThumbnails();
+        for(const id of mediaIds){const media=element(id);if(media){media.onload=null;media.onerror=null;media.onloadedmetadata=null;media.onloadeddata=null;}}
+    }
+    function resetComparison(){previewCompareOn=false;previewCompareIndex=-1;comparisonCount=0;}
+    function hideComparison({clearSource=true}={}){
+        endCompare();clearThumbnails();
+        element('previewStage')?.classList.remove('compare-on');
+        for(const id of ['previewCompareLayer','previewCompareHandle']){const el=element(id);if(el)el.style.display='none';}
+        element('compareToggleBtn')?.classList.remove('active');
+        if(clearSource){const image=element('previewCompareImage');if(image){image.onload=null;image.onerror=null;window.CanvasMediaLoader?.unwatch(image);image.removeAttribute('src');}}
+    }
+    function renderMetadata(){
+        const hint=element('previewMetaHint');if(hint)hint.textContent=[previewResolutionText(),previewMetaExtraText].filter(Boolean).join(' · ');
+    }
+    // Repair associated control state once at the command boundary; the presenter
+    // below only reads that choice. Existing dimension discovery/save is retained.
+    function refresh(){
+        if(destroyed || paused || !active || !smartImageEditor.isPreviewing())return;
+        invalidateView();
+        const editing=currentEditImage(),kind=mediaKindForItem(editing.image||{});
+        const sources=kind==='image'?previewCompareSources():[];
+        comparisonCount=sources.length;
+        if(kind!=='image' || !sources.length){resetComparison();hideComparison();}
+        else if(previewCompareIndex>=sources.length)previewCompareIndex=-1;
+        const prompt=editing.node?.runPrompt?`提示词：${editing.node.runPrompt.slice(0,60)}`:'';
+        previewMetaExtraText=panoramaState.enabled?'360全景：拖动转动，滚轮缩放，可调整视窗比例':prompt;
+        if(!panoramaState.enabled && previewCompareOn && previewCompareIndex<0)previewMetaExtraText+=(prompt?' · ':'')+'点缩略图开始对比';
+        element('previewStage').style.display='inline-flex';
+        element('compareToggleBtn').style.display=kind==='image'?'inline-flex':'none';
+        renderPreview(editing,sources);
+    }
+    function selectComparison(index){
+        if(!usable() || panoramaState.enabled || mediaKindForItem(currentEditImage().image||{})!=='image')return;
+        const sources=previewCompareSources(),next=Number(index);
+        if(!previewCompareOn || !Number.isInteger(next) || next<0 || next>=sources.length){refresh();return;}
+        previewCompareIndex=previewCompareIndex===next?-1:next;refresh();
+    }
+    function bindThumbnailFallbacks(host){
+        host.querySelectorAll('img[data-preview-src][data-original-src]').forEach(img=>{
+            const handler=guard(()=>{
+                if(!img.isConnected || img.dataset.mediaPriorityPaused || img.dataset.canvasMediaSrc)return;
+                if(img.dataset.smartGroupSrc && !img.hasAttribute('src'))return;
+                const original=img.dataset.originalSrc||'';
+                if(original && img.getAttribute('src')!==original)img.src=window.MemberMediaUrl?window.MemberMediaUrl(original):original;
+            });
+            img.dataset.previewFallbackBound='1';img.addEventListener('error',handler);
+            thumbnailCleanup.push(()=>img.removeEventListener('error',handler));
+        });
+    }
+    function clearImage(){
+        if(destroyed)return;
+        invalidateView();const image=element('previewCurrentImage');
+        if(image){window.CanvasMediaLoader?.unwatch(image);image.removeAttribute('src');}
+    }
+    function setImageSource(url){if(destroyed || paused || !active || !currentEditImage().image)return;const image=element('previewCurrentImage');if(image){image.crossOrigin='anonymous';image.src=url;}}
+    function prepare(){
+        if(destroyed)return;active=true;invalidateView();resetComparison();previewMetaExtraText='';
+        hideComparison();const hint=element('previewMetaHint');if(hint)hint.textContent='';cancel();resetPreviewTransform();
+    }
+    function leave(){
+        if(destroyed)return;invalidateView();cancel();hideComparison();
+        const stage=element('previewStage');if(stage)stage.style.display='none';
+        const toggle=element('compareToggleBtn');if(toggle)toggle.style.display='none';
+    }
+    // Closing releases per-view work. Scoped controls remain reusable until pause
+    // or destroy; neither operation touches workspace listeners.
+    function release(){
+        if(destroyed)return;invalidateView();cancel();resetPreviewTransform();resetComparison();previewMetaExtraText='';hideComparison();
+        for(const id of mediaIds){const media=element(id);if(!media)continue;window.CanvasMediaLoader?.unwatch(media);media.pause?.();media.removeAttribute('src');if(id==='previewCurrentVideo'){media.load?.();media.style.display='none';}}
+        const hint=element('previewMetaHint');if(hint)hint.textContent='';
+        const frame=element('previewFrame');if(frame){frame.style.width='';frame.style.height='';}
+        active=false;
+    }
+    function pausePresentation(){
+        invalidateView();
+        for(const id of mediaIds){const media=element(id);if(media){window.CanvasMediaLoader?.unwatch(media);media.pause?.();}}
+    }
+    function setPanoramaPresentation(next){
+        if(destroyed)return;
+        const image=element('previewCurrentImage');if(image)image.style.display=next?'none':'block';
+        const toggle=element('compareToggleBtn');if(toggle)toggle.style.display=next?'none':'inline-flex';
+        if(next){previewCompareOn=false;invalidateView();hideComparison();}
+    }
+    function setPreviewComparePos(clientX){
+        const frame = element('previewFrame');
+        const stage = element('previewStage');
+        if(!frame || !stage) return;
+        const rect = frame.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / Math.max(1, rect.width)) * 100));
+        previewComparePos=pct;
+        stage.style.setProperty('--compare-pos', `${pct}%`);
+    }
+
+    function syncPreviewFrameSize(){
+        const frame = element('previewFrame');
+        if(panoramaState.enabled){
+            resizePanoramaViewer();
+            return;
+        }
+        const currentImg = element('previewCurrentImage');
+        const currentVideo = element('previewCurrentVideo');
+        const compareImg = element('previewCompareImage');
+        const currentMedia = currentVideo && currentVideo.style.display !== 'none' ? currentVideo : currentImg;
+        if(!frame || !currentMedia) return;
+        const w = currentMedia.clientWidth || currentMedia.videoWidth || currentMedia.naturalWidth || 1;
+        const h = currentMedia.clientHeight || currentMedia.videoHeight || currentMedia.naturalHeight || 1;
+        frame.style.width = `${w}px`;
+        frame.style.height = `${h}px`;
+        if(compareImg){
+            compareImg.style.width = `${w}px`;
+            compareImg.style.height = `${h}px`;
+        }
+    }
+
+    function previewResolutionText(){
+        const editing = currentEditImage();
+        const image = editing.image || {};
+        const currentImg = element('previewCurrentImage');
+        const currentVideo = element('previewCurrentVideo');
+        const originalSize=smartImageEditor.imageResolution();
+        const w = Number(image.natural_w || image.width || image.w || 0) || Number(currentVideo?.videoWidth || 0) || Number(currentImg?.naturalWidth || 0) || originalSize.width;
+        const h = Number(image.natural_h || image.height || image.h || 0) || Number(currentVideo?.videoHeight || 0) || Number(currentImg?.naturalHeight || 0) || originalSize.height;
+        if(!w || !h) return '';
+        return `分辨率: ${Math.round(w)} x ${Math.round(h)}`;
+    }
+
+    function updatePreviewMetaHint(extraText=previewMetaExtraText){
+        if(destroyed || paused || !active || !currentEditImage().image)return;
+        previewMetaExtraText = extraText || '';
+        const hint = element('previewMetaHint');
+        if(!hint) return;
+        hint.textContent = [previewResolutionText(), previewMetaExtraText].filter(Boolean).join(' · ');
+    }
+
+    function rememberPreviewImageResolution(){
+        const editing = currentEditImage();
+        const image = editing.image;
+        if(!image) return;
+        const currentImg = element('previewCurrentImage');
+        const currentVideo = element('previewCurrentVideo');
+        const originalSize=smartImageEditor.imageResolution();
+        const w = Number(currentVideo?.videoWidth || 0) || Number(currentImg?.naturalWidth || 0) || originalSize.width;
+        const h = Number(currentVideo?.videoHeight || 0) || Number(currentImg?.naturalHeight || 0) || originalSize.height;
+        if(w > 0 && h > 0 && (!image.natural_w || !image.natural_h)){
+            image.natural_w = w;
+            image.natural_h = h;
+            scheduleSave();
+        }
+    }
+
+    function previewCompareSources(){
+        const editing = currentEditImage();
+        const node = editing.node;
+        if(!node) return [];
+        const savedRefs = Array.isArray(node.runInputRefs) ? node.runInputRefs.filter(ref => ref?.url) : [];
+        const upstream = savedRefs.length ? savedRefs : inputImagesFor(node);
+        const dedup = [];
+        const seen = new Set();
+        for(const img of upstream){
+            if(!img?.url || seen.has(img.url) || mediaKindForItem(img) !== 'image') continue;
+            seen.add(img.url);
+            dedup.push(img);
+        }
+        if(dedup.length) return dedup;
+        const sourceId = node.sourceNodeId;
+        if(sourceId){
+            const src = nodes.find(n => n.id === sourceId);
+            if(src && (src.images || []).length){
+                for(const img of src.images){
+                    if(!img?.url || seen.has(img.url) || mediaKindForItem(img) !== 'image') continue;
+                    seen.add(img.url);
+                    dedup.push(img);
+                }
+            }
+        }
+        return dedup;
+    }
+
+    function renderPreview(editing,sources){
+        const stage = element('previewStage');
+        const compareImg = element('previewCompareImage');
+        const currentImg = element('previewCurrentImage');
+        const currentVideo = element('previewCurrentVideo');
+        const compareLayer = element('previewCompareLayer');
+        const compareHandle = element('previewCompareHandle');
+        const thumbsEl = element('compareThumbs');
+        const toggle = element('compareToggleBtn');
+        const panoramaToggle = element('panoramaToggleBtn');
+        const curUrl = editing.image?.url || '';
+        const isVideoPreview = mediaKindForItem(editing.image || {}) === 'video';
+        const isPreviewMode = smartImageEditor.state.mode === 'preview';
+        if(panoramaToggle){
+            panoramaToggle.style.display = isPreviewMode && !isVideoPreview ? 'inline-flex' : 'none';
+            panoramaToggle.classList.toggle('active', panoramaState.enabled);
+        }
+        if(!isPreviewMode && panoramaState.enabled) disposePanoramaPreview();
+        if(panoramaState.enabled && isPreviewMode && !isVideoPreview){
+            currentImg.onload = null;
+            currentImg.onerror = null;
+            currentImg.style.display = 'none';
+            stage?.classList.remove('compare-on');
+            if(compareLayer) compareLayer.style.display = 'none';
+            if(compareHandle) compareHandle.style.display = 'none';
+            if(thumbsEl){ thumbsEl.style.display = 'none'; thumbsEl.innerHTML = ''; }
+            if(toggle) toggle.classList.remove('active');
+            renderMetadata();
+            return;
+        }
+        const onCurrentLoaded = guard(() => {
+            rememberPreviewImageResolution();
+            syncPreviewFrameSize();
+            renderMetadata();
+        });
+        if(isVideoPreview){
+            currentImg.onload = null;
+            currentImg.onerror = null;
+            currentImg.removeAttribute('src');
+            currentImg.style.display = 'none';
+            if(currentVideo){
+                const previewSrc = displayMediaUrl(editing.image || curUrl);
+                currentVideo.style.display = 'block';
+                currentVideo.onloadedmetadata = onCurrentLoaded;
+                currentVideo.onloadeddata = onCurrentLoaded;
+                if(currentVideo.getAttribute('src') !== previewSrc){
+                    window.CanvasMediaLoader?.watch(currentVideo, stage, curUrl);
+                    currentVideo.src = previewSrc;
+                    currentVideo.load?.();
+                }
+                if(currentVideo.readyState >= 1) queueFrame(onCurrentLoaded);
+            }
+            stage.classList.remove('compare-on');
+            if(compareLayer) compareLayer.style.display = 'none';
+            if(compareHandle) compareHandle.style.display = 'none';
+            if(thumbsEl){ thumbsEl.style.display = 'none'; thumbsEl.innerHTML = ''; }
+            if(toggle){
+                toggle.disabled = true;
+                toggle.style.opacity = '.45';
+                toggle.classList.remove('active');
+                toggle.title = '无原图可对比';
+            }
+            if(panoramaToggle) panoramaToggle.style.display = 'none';
+            renderMetadata();
+            return;
+        }
+        if(currentVideo){
+            window.CanvasMediaLoader?.unwatch(currentVideo);
+            currentVideo.pause?.();
+            currentVideo.onloadedmetadata = null;
+            currentVideo.onloadeddata = null;
+            currentVideo.removeAttribute('src');
+            currentVideo.load?.();
+            currentVideo.style.display = 'none';
+        }
+        currentImg.style.display = 'block';
+        currentImg.onload = onCurrentLoaded;
+        currentImg.onerror = null;
+        ensureSmartEditableImage().catch(() => {});
+        if(currentImg.complete && currentImg.naturalWidth) queueFrame(onCurrentLoaded);
+        const hasSource = sources.length > 0;
+        if(toggle){
+            toggle.disabled = !hasSource;
+            toggle.style.opacity = hasSource ? '1' : '.45';
+            toggle.title = hasSource ? '点击查看输入端缩略图' : '无原图可对比';
+            toggle.classList.toggle('active', hasSource && previewCompareOn);
+        }
+        if(!hasSource){
+            stage.classList.remove('compare-on');
+            if(compareLayer) compareLayer.style.display = 'none';
+            if(compareHandle) compareHandle.style.display = 'none';
+            thumbsEl.style.display = 'none';
+            renderMetadata();
+            return;
+        }
+        const sliderActive = previewCompareOn && previewCompareIndex >= 0 && previewCompareIndex < sources.length;
+        if(sliderActive){
+            const src = sources[previewCompareIndex];
+            compareImg.onload = guard(syncPreviewFrameSize);
+            compareImg.src = src?.url || '';
+            syncPreviewFrameSize();
+            stage.classList.add('compare-on');
+            if(compareLayer) compareLayer.style.display = '';
+            if(compareHandle) compareHandle.style.display = '';
+        } else {
+            stage.classList.remove('compare-on');
+            if(compareLayer) compareLayer.style.display = 'none';
+            if(compareHandle) compareHandle.style.display = 'none';
+        }
+        if(previewCompareOn){
+            thumbsEl.style.display = 'inline-flex';
+            thumbsEl.innerHTML = sources.map((s, i) => `<button type="button" class="compare-thumb ${i === previewCompareIndex ? 'active' : ''}" data-compare-idx="${i}" title="${escapeHtml(i === previewCompareIndex ? '点击取消对比' : '点击与该图对比')}">${smartPreviewImgHtml(s.url, 256)}</button>`).join('');
+            bindThumbnailFallbacks(thumbsEl);
+        } else {
+            thumbsEl.style.display = 'none';
+            thumbsEl.innerHTML = '';
+        }
+        renderMetadata();
+    }
+
+    function togglePreviewCompare(){
+        if(!usable() || panoramaState.enabled || mediaKindForItem(currentEditImage().image||{})!=='image')return;
+        const sources=previewCompareSources();
+        if(!sources.length){resetComparison();refresh();toast('该图片没有原图可对比');return;}
+        previewCompareOn=!previewCompareOn;
+        if(previewCompareOn && (previewCompareIndex<0 || previewCompareIndex>=sources.length))previewCompareIndex=0;
+        if(!previewCompareOn)previewCompareIndex=-1;
+        refresh();
+    }
+
+
     const records=new Map();
     function clear(scope){for(const [el,type,fn,options] of records.get(scope)||[])el.removeEventListener(type,fn,options);records.delete(scope);}
-    function usable(){return !destroyed && !paused && smartImageEditor.isPreviewing();}
+    function usable(){return active && !destroyed && !paused && smartImageEditor.isPreviewing();}
     function listen(scope,el,type,fn,options){if(!el)return;const handler=e=>{if(usable())fn(e);};el.addEventListener(type,handler,options);if(!records.has(scope))records.set(scope,[]);records.get(scope).push([el,type,handler,options]);}
     function endCompare(){previewCompareDrag=false;if(captured){try{if(captured.el.hasPointerCapture?.(captured.id))captured.el.releasePointerCapture(captured.id);}catch{}}captured=null;}
-    function endPan(){if(previewPanDrag)document.getElementById('previewStage')?.classList.remove('panning');previewPanDrag=null;}
+    function endPan(){if(previewPanDrag)element('previewStage')?.classList.remove('panning');previewPanDrag=null;}
     function cancel(){endCompare();endPan();}
-    function pause(){if(destroyed)return;cancel();for(const scope of [...records.keys()])clear(scope);paused=true;}
+    function pause(){if(destroyed || paused)return;pausePresentation();cancel();for(const scope of [...records.keys()])clear(scope);paused=true;}
     function resume(){if(destroyed)return;paused=false;bindSmartPreviewPanEvents();bindSmartPreviewCompareEvents();}
-    function destroy(){pause();destroyed=true;}
+    function destroy(){if(destroyed)return;release();for(const scope of [...records.keys()])clear(scope);dom.clear();destroyed=true;}
     function moveCompare(event){if(!previewCompareDrag)return false;if(!usable()){cancel();return false;}event.preventDefault();setPreviewComparePos(event.clientX);return true;}
     function movePan(event){if(!previewPanDrag)return false;if(!usable()){cancel();return false;}
         if(previewPanDrag){
-            const stage = document.getElementById('previewStage');
+            const stage = element('previewStage');
             previewPan = {
                 x:previewPanDrag.startX + (event.clientX - previewPanDrag.clientX),
                 y:previewPanDrag.startY + (event.clientY - previewPanDrag.clientY)
@@ -1579,7 +1667,7 @@ function createSmartPreviewGestures(){
         const oldZoom = previewZoom;
         const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
         previewZoom = Math.max(0.05, previewZoom * factor);
-        const frame = document.getElementById('previewFrame');
+        const frame = element('previewFrame');
         const rect = frame?.getBoundingClientRect();
         if(rect){
             const originX = event.clientX - rect.left - rect.width / 2;
@@ -1595,7 +1683,7 @@ function createSmartPreviewGestures(){
     function bindSmartPreviewPanEvents(){
         if(paused || destroyed)return;
         clear('bindSmartPreviewPanEvents');
-        listen('bindSmartPreviewPanEvents', document.getElementById('previewStage'), 'mousedown', event => {
+        listen('bindSmartPreviewPanEvents', element('previewStage'), 'mousedown', event => {
             if(smartImageEditor.state.mode !== 'preview' || event.button !== 0) return;
             if(event.target.closest('.preview-tools-overlay, .preview-download-overlay')) return;
             if(event.target.closest('.preview-compare-handle')) return;
@@ -1609,7 +1697,7 @@ function createSmartPreviewGestures(){
                     yaw:panoramaState.yaw,
                     pitch:panoramaState.pitch
                 };
-                document.getElementById('previewStage')?.classList.add('panning');
+                element('previewStage')?.classList.add('panning');
                 return;
             }
             previewPanDrag = {clientX:event.clientX, clientY:event.clientY, startX:previewPan.x, startY:previewPan.y};
@@ -1618,7 +1706,8 @@ function createSmartPreviewGestures(){
     function bindSmartPreviewCompareEvents(){
         if(paused || destroyed)return;
         clear('bindSmartPreviewCompareEvents');
-        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'mousedown', event => {
+        listen('bindSmartPreviewCompareEvents',element('compareThumbs'),'click',event=>{const button=event.target.closest('[data-compare-idx]');if(!button)return;event.preventDefault();event.stopPropagation();selectComparison(button.dataset.compareIdx);});
+        listen('bindSmartPreviewCompareEvents', element('previewCompareHandle'), 'mousedown', event => {
             if(smartImageEditor.state.mode !== 'preview' || !previewCompareOn || previewCompareIndex < 0) return;
             event.preventDefault();
             event.stopPropagation();
@@ -1626,7 +1715,7 @@ function createSmartPreviewGestures(){
             previewCompareDrag = true;
             setPreviewComparePos(event.clientX);
         });
-        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointerdown', event => {
+        listen('bindSmartPreviewCompareEvents', element('previewCompareHandle'), 'pointerdown', event => {
             if(smartImageEditor.state.mode !== 'preview' || !previewCompareOn || previewCompareIndex < 0) return;
             event.preventDefault();
             event.stopPropagation();
@@ -1636,13 +1725,13 @@ function createSmartPreviewGestures(){
             previewCompareDrag = true;
             setPreviewComparePos(event.clientX);
         });
-        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointermove', event => {
+        listen('bindSmartPreviewCompareEvents', element('previewCompareHandle'), 'pointermove', event => {
             if(!previewCompareDrag) return;
             event.preventDefault();
             event.stopPropagation();
             setPreviewComparePos(event.clientX);
         });
-        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointerup', event => {
+        listen('bindSmartPreviewCompareEvents', element('previewCompareHandle'), 'pointerup', event => {
             if(previewCompareDrag){
                 event.preventDefault();
                 event.stopPropagation();
@@ -1650,14 +1739,14 @@ function createSmartPreviewGestures(){
             previewCompareDrag = false;
             endCompare();
         });
-        listen('bindSmartPreviewCompareEvents', document.getElementById('previewCompareHandle'), 'pointercancel', event => {
+        listen('bindSmartPreviewCompareEvents', element('previewCompareHandle'), 'pointercancel', event => {
             previewCompareDrag = false;
             endCompare();
         });
     }
     function applyPreviewTransform(){
         if(destroyed)return;
-        const frame = document.getElementById('previewFrame');
+        const frame = element('previewFrame');
         if(frame){
             frame.style.transform = panoramaState.enabled ? '' : `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`;
         }
@@ -1668,35 +1757,27 @@ function createSmartPreviewGestures(){
         previewZoom = 1.0;
         previewPan = {x:0, y:0};
         previewComparePos = 50;
-        document.getElementById('previewStage')?.style.setProperty('--compare-pos', `${previewComparePos}%`);
+        element('previewStage')?.style.setProperty('--compare-pos', `${previewComparePos}%`);
         applyPreviewTransform();
     }
-    return Object.freeze({get state(){return Object.freeze({zoom:previewZoom,pan:Object.freeze({...previewPan}),comparePos:previewComparePos,dragging:Boolean(previewPanDrag||previewCompareDrag)});},
+    return Object.freeze({get state(){return Object.freeze({active,paused,compareOn:previewCompareOn,compareIndex:previewCompareIndex,compareActive:Boolean(active && !paused && previewCompareOn && previewCompareIndex>=0 && previewCompareIndex<comparisonCount && smartImageEditor.isPreviewing() && !panoramaState.enabled),extraText:previewMetaExtraText,zoom:previewZoom,pan:Object.freeze({...previewPan}),comparePos:previewComparePos,dragging:Boolean(previewPanDrag||previewCompareDrag)});},
+        refresh,toggleComparison:togglePreviewCompare,selectComparison,updateMetadata:updatePreviewMetaHint,prepare,leave,release,clearImage,setImageSource,setPanoramaPresentation,
+        // Video trim still borrows the same player through this results-only bridge.
+        syncFrameSize:syncPreviewFrameSize,setComparePositionAt:setPreviewComparePos,video:()=>element('previewCurrentVideo'),pauseVideo:()=>element('previewCurrentVideo')?.pause?.(),
         bindSmartPreviewPanEvents,bindSmartPreviewCompareEvents,applyPreviewTransform,resetPreviewTransform,moveCompare,movePan,endCompare,endPan,cancel,pause,resume,destroy,zoom,
-        resetPose(){if(!destroyed){previewZoom=1;previewPan={x:0,y:0};}},setComparePosition(value){if(!destroyed)previewComparePos=value;}});
+        resetPose(){if(!destroyed){previewZoom=1;previewPan={x:0,y:0};}}});
 }
 function smartEditorPreviewState(){return Object.freeze({panoramaEnabled:panoramaState.enabled,fov:panoramaState.fov,dragging:Boolean(panoramaState.drag||smartPreviewGestures.state.dragging)});}
 function prepareSmartEditorPreview(){
     if(smartAudioLightbox.classList.contains('open'))closeSmartAudioLightbox();
-    resetVideoTrimState();previewCompareOn=false;previewCompareIndex=-1;disposePanoramaPreview();smartPreviewGestures.cancel();resetPreviewTransform();
+    resetVideoTrimState();disposePanoramaPreview();smartPreviewGestures.prepare();
 }
-function leaveSmartEditorPreview(){smartPreviewGestures.cancel();if(panoramaState.enabled)disposePanoramaPreview();}
-function clearSmartEditorPreviewImage(){const img=document.getElementById('previewCurrentImage');if(img){img.onload=null;img.onerror=null;img.removeAttribute('src');}}
-function setSmartEditorPreviewSource(url){const img=document.getElementById('previewCurrentImage');if(img){img.crossOrigin='anonymous';img.src=url;}}
-function releaseSmartEditorPreview(){
-    clearSmartEditorPreviewImage();resetVideoTrimState();disposePanoramaPreview();smartPreviewGestures.cancel();resetPreviewTransform();
-    for(const id of ['previewCurrentImage','previewCompareImage','previewCurrentVideo']){const el=document.getElementById(id);if(!el)continue;window.CanvasMediaLoader?.unwatch(el);el.onload=null;el.onerror=null;el.onloadedmetadata=null;el.onloadeddata=null;el.pause?.();el.removeAttribute('src');if(id==='previewCurrentVideo'){el.load?.();el.style.display='none';}}
-}
+function leaveSmartEditorPreview(){smartPreviewGestures.leave();if(panoramaState.enabled)disposePanoramaPreview();}
+function clearSmartEditorPreviewImage(){return smartPreviewGestures.clearImage();}
+function setSmartEditorPreviewSource(url){return smartPreviewGestures.setImageSource(url);}
+function releaseSmartEditorPreview(){resetVideoTrimState();disposePanoramaPreview();smartPreviewGestures.release();}
 function zoomSmartEditorPreview(event){return smartPreviewGestures.zoom(event);}
 function resizeSmartEditorPreview(){if(panoramaState.enabled)resizePanoramaViewer();}
 function retrySmartEditorPreview(source){if(panoramaState.enabled)loadPanoramaTexture(source);}
 
-function pauseSmartEditorPreview(){
-    for(const id of ['previewCurrentImage','previewCompareImage','previewCurrentVideo']){
-        const media=document.getElementById(id);if(!media)continue;
-        window.CanvasMediaLoader?.unwatch(media);media.onload=null;media.onerror=null;media.onloadedmetadata=null;media.onloadeddata=null;media.pause?.();
-    }
-    // This releases the existing renderer through its existing lifecycle entry.
-    // Its algorithms, export and controls remain owned by results.
-    if(panoramaState.enabled)disposePanoramaPreview();
-}
+function pauseSmartEditorPreview(){smartPreviewGestures.pause();if(panoramaState.enabled)disposePanoramaPreview();}
