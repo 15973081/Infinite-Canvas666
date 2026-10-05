@@ -205,7 +205,7 @@ const initialSmartSettings = cloneSmartSettings(settings);
 let canvasDefaultSmartSettings = cloneSmartSettings(settings);
 let recentSmartSettingsByMode = {};
 
-async function backToCanvasList(){
+async function backToCanvasList(options={}){
     if(window.MemberCanvasEdit && !await window.MemberCanvasEdit.leave()) return;
     savePromptDraftForCurrent();
     clearTimeout(saveTimer);
@@ -220,7 +220,8 @@ async function backToCanvasList(){
     }
     releaseSmartCanvasLockOnExit();
     await window.FrontendVersion?.checkForUpdate?.();
-    const target = window.CanvasSession?.enabled ? window.CanvasSession.url('/static/canvas.html') : '/static/canvas.html';
+    let target = window.CanvasSession?.enabled ? window.CanvasSession.url('/static/canvas.html') : '/static/canvas.html';
+    if(options.create === true) target += (target.includes('?') ? '&' : '?') + 'create=classic';
     window.location.replace(window.FrontendVersion?.versionedUrl(target) || target);
 }
 

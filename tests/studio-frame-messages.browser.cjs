@@ -7,6 +7,8 @@ async function fixture(t,options={}){
     const browser=await chromium.launch({channel:'chrome',headless:true});t.after(()=>browser.close());
     const page=await browser.newPage(),errors=[],codecRequests=[];page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript(()=>{
+        // Routing tests exercise two known frames regardless of the product's home default.
+        localStorage.setItem('studio_active_page','online');
         window.CanvasSession={ready:Promise.resolve(),url:x=>x,socketUrl:x=>x,observeStatus(){}};
         window.WebSocket=class{static OPEN=1;static CONNECTING=0;constructor(url){this.url=url;this.readyState=1;window.sockets||=[];window.sockets.push(this);}close(){this.readyState=3;}};
     });

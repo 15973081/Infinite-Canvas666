@@ -1,0 +1,38 @@
+[
+  {
+    "variant": "before",
+    "count": 100,
+    "paintMs": 340,
+    "medianRenderMs": 54.19999999925494,
+    "domNodes": 4250,
+    "businessRequests": 5,
+    "errors": []
+  },
+  {
+    "variant": "after",
+    "count": 100,
+    "paintMs": 132,
+    "medianRenderMs": 52.20000000111759,
+    "domNodes": 4350,
+    "businessRequests": 5,
+    "errors": []
+  },
+  {
+    "variant": "before",
+    "count": 500,
+    "paintMs": 548,
+    "medianRenderMs": 252,
+    "domNodes": 21250,
+    "businessRequests": 5,
+    "errors": []
+  },
+  {
+    "variant": "after",
+    "count": 500,
+    "paintMs": 132,
+    "medianRenderMs": 256.40000000037253,
+    "domNodes": 21750,
+    "businessRequests": 5,
+    "errors": []
+  }
+]

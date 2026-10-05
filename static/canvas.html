@@ -28,6 +28,7 @@
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
 <link rel="stylesheet" href="/static/css/canvas-name-dialog.css">
     <link rel="stylesheet" href="/static/css/utilities.css">
+    <link rel="stylesheet" href="/static/css/canvas-home.css">
 </head>
 <body class="studio-skin studio-canvas">
     <div id="shell" class="shell no-canvas">
@@ -56,64 +57,32 @@
             </div>
         </div>
 
-        <div id="canvasGate" class="canvas-gate gate-loading">
-            <div class="gate-panel">
-<section class="studio-directory-hero"><div><div class="studio-eyebrow"><span class="shadox-display">shadox</span><span>YOUR CREATIVE SPACE</span></div><h1>让灵感，<br><span>继续发生。</span></h1><p>从一个想法开始，走向无限种可能。</p></div><svg class="studio-directory-art" viewBox="0 0 340 200" aria-hidden="true"><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(-10) scale(1) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(-8) scale(0.97) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(-6) scale(0.94) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(-4) scale(0.91) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(-2) scale(0.88) translate(-170 -100)"/><path class="studio-art-accent" d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(0) scale(0.85) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(2) scale(0.8200000000000001) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(4) scale(0.79) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(6) scale(0.76) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(8) scale(0.73) translate(-170 -100)"/><path d="M170 100C110 10 40 22 38 88C36 158 109 185 170 100C231 15 304 42 302 112C300 178 230 190 170 100Z" transform="translate(170 100) rotate(10) scale(0.7) translate(-170 -100)"/></svg><span class="studio-art-label">IDEAS WITHOUT LIMITS — ∞</span></section>
-                <div class="gate-head">
-                    <div class="gate-head-text">
-                        <button id="gateBackBtn" class="gate-back-link" type="button"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i><span>返回画布列表</span></button>
-                        <div class="gate-title-row">
-                            <div id="gateTitleText" class="gate-title">选择画布</div>
-                            <span id="gateCountPill" class="gate-count-pill">0</span>
-                        </div>
-                        <div id="gateSubtitle" class="gate-subtitle">打开已有画布，或新建一个开始创作。</div>
-                    </div>
-                    <div class="gate-head-actions">
-                        <div id="gateSearch" class="gate-search" role="search">
+        <div id="canvasGate" class="canvas-gate gate-loading" aria-busy="true">
+          <div class="gate-panel">
+            <header class="studio-home-welcome"><div class="studio-eyebrow">YOUR CREATIVE SPACE</div><h1>今天，从一个想法开始。</h1><p>把灵感变成作品，接着上次的创作继续。</p></header>
+            <section class="studio-start" aria-labelledby="studioStartTitle"><h2 id="studioStartTitle">开始创作</h2><div class="studio-start-grid"><button id="gateCreateBtn" class="studio-start-card" type="button"><span class="studio-index-head"><span>(01)</span><span>CLASSIC</span></span><span class="studio-index-body"><strong>经典画布</strong><small>自由连接节点，编排创作流程。</small></span><span class="studio-index-action"><span class="studio-index-label">开始创作</span><span class="studio-index-plus" aria-hidden="true">+</span></span></button><button id="gateCreateSmartBtn" class="studio-start-card" type="button"><span class="studio-index-head"><span>(02)</span><span>ASSISTED</span></span><span class="studio-index-body"><strong>智能画布</strong><small>描述想法，与 AI 一起完成创作。</small></span><span class="studio-index-action"><span class="studio-index-label">开始创作</span><span class="studio-index-plus" aria-hidden="true">+</span></span></button></div></section>
+            <section id="studioRecent" hidden aria-labelledby="studioRecentTitle"><div class="studio-section-head"><h2 id="studioRecentTitle">最近画布</h2><span>接着上次的灵感</span></div><div id="studioRecentList" class="studio-recent-list"></div></section>
+            <div class="gate-head"><div class="gate-head-text"><button id="gateBackBtn" class="gate-back-link" type="button"><i data-lucide="arrow-left"></i>返回画布列表</button><div class="gate-title-row"><div id="gateTitleText" class="gate-title">全部画布</div><span id="gateCountPill" class="gate-count-pill">0 个</span></div><div id="gateSubtitle" class="gate-subtitle"></div></div></div>
+            <div class="studio-library-tools"><div id="gateSearch" class="gate-search" role="search">
                             <i data-lucide="search" class="w-4 h-4" aria-hidden="true"></i>
                             <input id="gateSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索画布名称" aria-label="搜索画布名称">
                             <button id="gateSearchClear" class="gate-search-clear" type="button" title="清空搜索" aria-label="清空搜索">
                                 <i data-lucide="x" class="w-3.5 h-3.5" aria-hidden="true"></i>
                             </button>
                         </div>
-
-
-
-                        <button id="gateAssetManagerBtn" class="gate-icon-btn gate-manager-btn" type="button" title="资产库管理" aria-label="资产库管理" hidden>
-                            <i data-lucide="library" class="w-4 h-4"></i>
-                            <span>素材库管理</span>
-                        </button>
-                        <button id="gateCreateBtn" class="primary-btn" type="button"><i data-lucide="plus" class="w-4 h-4"></i><span>新建画布</span></button>
-                        <button id="gateCreateSmartBtn" class="smart-create-btn" type="button"><i data-lucide="sparkles" class="w-4 h-4"></i><span>新建智能画布</span></button>
-                    </div>
-                </div>
-                <div id="gateStatus" class="gate-status">正在加载画布列表...</div>
-                <div class="trash-note"><i data-lucide="info" class="w-3.5 h-3.5 inline-block align-text-bottom mr-1"></i><span>回收站中的画布会在 30 天后自动清理。</span></div>
-                <div class="studio-library-tools"><div id="gateSortSwitch" class="gate-sort" role="group" aria-label="排序方式">
-                            <button type="button" class="gate-sort-btn active" data-sort="recent">最近编辑</button>
-                            <button type="button" class="gate-sort-btn" data-sort="name">名称</button>
-                        </div>
-<button id="gateRefreshBtn" class="gate-icon-btn" type="button" title="刷新列表" aria-label="刷新列表">
-                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                        </button>
-<button id="gateTrashBtn" class="gate-icon-btn gate-trash-entry" type="button" title="打开回收站" aria-label="打开回收站">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            <span id="gateTrashCount" class="gate-trash-badge">0</span>
-                        </button></div>
-                <div class="gate-browser">
-                    <aside class="gate-folder-pane" aria-label="画布文件夹">
+              <div class="studio-pick"><button class="studio-pick-trigger" id="studioFolderTrigger" type="button" aria-expanded="false" aria-controls="studioFolderMenu"><span id="studioFolderLabel">全部文件夹</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div id="studioFolderMenu" class="studio-pick-menu" hidden><aside class="gate-folder-pane" aria-label="画布文件夹">
                         <div class="gate-folder-head">
                             <span>文件夹</span>
                             <button id="gateNewFolderBtn" class="gate-folder-add" type="button" title="新建文件夹" aria-label="新建文件夹"><i data-lucide="folder-plus" class="w-3.5 h-3.5"></i></button>
                         </div>
                         <div id="gateFolderTree" class="gate-folder-tree"></div>
-                    </aside>
-                    <div class="gate-canvas-pane">
-                        <div id="gateFolderBar" class="gate-folder-bar"></div>
-                        <div id="gateCanvasList" class="gate-list"></div><footer class="studio-directory-footer"><span class="shadox-wordmark">shadox</span> — CREATIVE STUDIO</footer>
-                    </div>
-                </div>
+                    </aside></div></div>
+              <div class="studio-pick"><button class="studio-pick-trigger" id="studioSortTrigger" type="button" aria-expanded="false" aria-controls="studioSortMenu"><span id="studioSortLabel">最近编辑</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div id="studioSortMenu" class="studio-pick-menu studio-sort-menu" hidden><div id="gateSortSwitch" class="gate-sort" role="group" aria-label="排序方式"><button type="button" class="gate-sort-btn active" data-sort="recent">最近编辑</button><button type="button" class="gate-sort-btn" data-sort="name">名称</button></div></div></div>
+              <button id="gateRefreshBtn" class="gate-icon-btn" type="button" title="刷新列表" aria-label="刷新列表"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button><button id="gateTrashBtn" class="gate-icon-btn gate-trash-entry" type="button" title="打开回收站" aria-label="打开回收站"><i data-lucide="trash-2" class="w-4 h-4"></i><span id="gateTrashCount" class="gate-trash-badge">0</span></button><button id="gateAssetManagerBtn" type="button" hidden>素材库管理</button>
             </div>
+            <div id="gateStatus" class="gate-status" role="status" aria-live="polite">正在加载画布列表…</div><div id="studioHomeFeedback" role="status" aria-live="polite" hidden></div><div class="trash-note">回收站中的画布会在 30 天后自动清理。</div>
+            <div class="gate-browser"><div class="gate-canvas-pane"><div id="gateFolderBar" class="gate-folder-bar"></div><div id="gateCanvasList" class="gate-list"></div><footer class="studio-home-footer">SHADOX / CREATIVE STUDIO</footer></div></div>
+          </div>
         </div>
 
         <div id="board" class="board editor-only">
@@ -436,6 +405,7 @@
     <script data-canvas-module="media-editor" src="/static/js/canvas/classic/canvas-media-editor.js"></script>
     <script data-canvas-module="execution" src="/static/js/canvas/classic/canvas-execution.js"></script>
     <script data-canvas-module="results" src="/static/js/canvas/classic/canvas-results.js"></script>
+    <script src="/static/js/canvas-home.js"></script>
     <script data-canvas-module="app" src="/static/js/canvas.js?v=2026.09.22.1"></script>
     <script src="/static/js/canvas-focus.js"></script>
 </body>

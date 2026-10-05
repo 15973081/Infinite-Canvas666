@@ -194,19 +194,19 @@ body.studio-theme-dark .mini-ratio {
     border-color: #25262b !important;
 }
 
-html.studio-theme-dark body input,
-html.studio-theme-dark body textarea,
-html.studio-theme-dark body select,
-body.studio-theme-dark input,
-body.studio-theme-dark textarea,
-body.studio-theme-dark select {
+html.studio-theme-dark body input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body select:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark select:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     color: #e8e8ea !important;
 }
 
-html.studio-theme-dark body input::placeholder,
-html.studio-theme-dark body textarea::placeholder,
-body.studio-theme-dark input::placeholder,
-body.studio-theme-dark textarea::placeholder {
+html.studio-theme-dark body input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::placeholder,
+html.studio-theme-dark body textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::placeholder,
+body.studio-theme-dark input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::placeholder,
+body.studio-theme-dark textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::placeholder{
     color: #657286 !important;
 }
 
@@ -312,10 +312,10 @@ body.studio-theme-dark .select-shell:focus-within {
     box-shadow: 0 20px 44px rgba(0,0,0,.28) !important;
 }
 
-html.studio-theme-dark body .console-card textarea,
+html.studio-theme-dark body .console-card textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body #prompt,
 html.studio-theme-dark body #promptInput,
-body.studio-theme-dark .console-card textarea,
+body.studio-theme-dark .console-card textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark #prompt,
 body.studio-theme-dark #promptInput {
     color: #e5e9f0 !important;
@@ -374,8 +374,8 @@ body.studio-theme-dark .ios-slider {
     background: #2a3444 !important;
 }
 
-html.studio-theme-dark body .ios-switch input:checked + .ios-slider,
-body.studio-theme-dark .ios-switch input:checked + .ios-slider {
+html.studio-theme-dark body .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background: #d8dee9 !important;
 }
 
@@ -390,75 +390,75 @@ body.studio-theme-dark .composer-wrap {
     background: linear-gradient(to top,#0f141d 82%,rgba(15,20,29,0)) !important;
 }
 
-html.studio-theme-dark body .canvas-gate,
-body.studio-theme-dark .canvas-gate {
+html.studio-theme-dark body .canvas-gate:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-gate:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background-color: #0f141d !important;
     background-image: radial-gradient(rgba(148,163,184,.18) 1px, transparent 1px) !important;
 }
 
-html.studio-theme-dark body .gate-panel,
-html.studio-theme-dark body .canvas-item,
-html.studio-theme-dark body .canvas-open,
-body.studio-theme-dark .gate-panel,
-body.studio-theme-dark .canvas-item,
-body.studio-theme-dark .canvas-open {
+html.studio-theme-dark body .gate-panel:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .canvas-item:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .canvas-open:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .gate-panel:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-item:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-open:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background: #171d29 !important;
     border-color: #2a3444 !important;
     color: #e5e9f0 !important;
 }
 
-html.studio-theme-dark body .canvas-item:hover,
-body.studio-theme-dark .canvas-item:hover {
+html.studio-theme-dark body .canvas-item:hover:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-item:hover:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background: #202838 !important;
 }
 
-html.studio-theme-dark body .canvas-item.active,
-body.studio-theme-dark .canvas-item.active {
+html.studio-theme-dark body .canvas-item.active:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-item.active:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background: #263247 !important;
     color: #e5e9f0 !important;
 }
 
-html.studio-theme-dark body .canvas-card-title,
-html.studio-theme-dark body .gate-title,
-html.studio-theme-dark body .gate-name-input,
-body.studio-theme-dark .canvas-card-title,
-body.studio-theme-dark .gate-title,
-body.studio-theme-dark .gate-name-input {
+html.studio-theme-dark body .canvas-card-title:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .gate-title:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .gate-name-input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-card-title:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .gate-title:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .gate-name-input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     color: #e5e9f0 !important;
 }
 
-html.studio-theme-dark body .canvas-card-time,
-html.studio-theme-dark body .gate-subtitle,
-body.studio-theme-dark .canvas-card-time {
+html.studio-theme-dark body .canvas-card-time:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .gate-subtitle:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-card-time:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     color: #8f9aab !important;
 }
 
-body.studio-theme-dark .gate-subtitle {
+body.studio-theme-dark .gate-subtitle:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     color: #8f9aab !important;
 }
 
-html.studio-theme-dark body .canvas-preview-mark,
-html.studio-theme-dark body .canvas-delete,
+html.studio-theme-dark body .canvas-preview-mark:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .canvas-delete:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body .secondary-btn,
-html.studio-theme-dark body .gate-back,
-html.studio-theme-dark body .gate-trash-entry,
+html.studio-theme-dark body .gate-back:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .gate-trash-entry:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body .create-cancel,
-html.studio-theme-dark body .gate-create-row,
-html.studio-theme-dark body .gate-actions,
-html.studio-theme-dark body .trash-note,
+html.studio-theme-dark body .gate-create-row:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .gate-actions:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body .trash-note:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body .emoji-picker,
 html.studio-theme-dark body .create-menu,
 html.studio-theme-dark body .selection-hub,
 html.studio-theme-dark body .output-preview,
-body.studio-theme-dark .canvas-preview-mark,
-body.studio-theme-dark .canvas-delete,
+body.studio-theme-dark .canvas-preview-mark:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-delete:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark .secondary-btn,
-body.studio-theme-dark .gate-back,
-body.studio-theme-dark .gate-trash-entry,
+body.studio-theme-dark .gate-back:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .gate-trash-entry:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark .create-cancel,
-body.studio-theme-dark .gate-create-row,
-body.studio-theme-dark .gate-actions,
-body.studio-theme-dark .trash-note,
+body.studio-theme-dark .gate-create-row:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .gate-actions:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .trash-note:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark .emoji-picker,
 body.studio-theme-dark .create-menu,
 body.studio-theme-dark .selection-hub,
@@ -468,8 +468,8 @@ body.studio-theme-dark .output-preview {
     color: #d8dee9 !important;
 }
 
-html.studio-theme-dark body .gate-trash-badge,
-body.studio-theme-dark .gate-trash-badge {
+html.studio-theme-dark body .gate-trash-badge:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .gate-trash-badge:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background: #d8dee9 !important;
     color: #10141d !important;
     border-color: #111722 !important;
@@ -482,9 +482,9 @@ body.studio-theme-dark .secondary-btn.active {
     color: #10141d !important;
 }
 
-html.studio-theme-dark body .canvas-delete:hover,
+html.studio-theme-dark body .canvas-delete:hover:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body .create-cancel:hover,
-body.studio-theme-dark .canvas-delete:hover,
+body.studio-theme-dark .canvas-delete:hover:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark .create-cancel:hover {
     background: rgba(248,113,113,.14) !important;
     border-color: rgba(248,113,113,.32) !important;
@@ -498,8 +498,8 @@ body.studio-theme-dark .canvas-restore:hover {
     color: #6ee7b7 !important;
 }
 
-html.studio-theme-dark body .canvas-delete-box,
-body.studio-theme-dark .canvas-delete-box {
+html.studio-theme-dark body .canvas-delete-box:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .canvas-delete-box:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background: #202838 !important;
     border: 1px solid #2a3444;
 }
@@ -716,7 +716,7 @@ html.studio-theme-dark body .shell .output-grid img,
 html.studio-theme-dark body .shell .output-preview img,
 html.studio-theme-dark body .shell .blank-image,
 html.studio-theme-dark body .shell .input-item,
-html.studio-theme-dark body .shell .prompt-node textarea,
+html.studio-theme-dark body .shell .prompt-node textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body .shell .llm-system,
 html.studio-theme-dark body .shell .llm-chat-input,
 html.studio-theme-dark body .shell .model-input,
@@ -725,7 +725,7 @@ body.studio-theme-dark .shell .output-grid img,
 body.studio-theme-dark .shell .output-preview img,
 body.studio-theme-dark .shell .blank-image,
 body.studio-theme-dark .shell .input-item,
-body.studio-theme-dark .shell .prompt-node textarea,
+body.studio-theme-dark .shell .prompt-node textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark .shell .llm-system,
 body.studio-theme-dark .shell .llm-chat-input,
 body.studio-theme-dark .shell .model-input {
@@ -921,13 +921,13 @@ body.studio-theme-dark .btn-render:hover {
     color: #0f141d !important;
 }
 
-html.studio-theme-dark body input[type=range]::-webkit-slider-runnable-track,
-body.studio-theme-dark input[type=range]::-webkit-slider-runnable-track {
+html.studio-theme-dark body input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-runnable-track,
+body.studio-theme-dark input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-runnable-track{
     background: #2a3444 !important;
 }
 
-html.studio-theme-dark body input[type=range]::-webkit-slider-thumb,
-body.studio-theme-dark input[type=range]::-webkit-slider-thumb {
+html.studio-theme-dark body input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-thumb,
+body.studio-theme-dark input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-thumb{
     background: #d8dee9 !important;
 }
 
@@ -1045,13 +1045,13 @@ html.studio-theme-dark body .glass-btn,
 html.studio-theme-dark body .btn-render,
 html.studio-theme-dark body .mode-glider,
 html.studio-theme-dark body .engine-btn.active,
-html.studio-theme-dark body .ios-switch input:checked + .ios-slider,
+html.studio-theme-dark body .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body #cloud-progress-bar,
 body.studio-theme-dark .glass-btn,
 body.studio-theme-dark .btn-render,
 body.studio-theme-dark .mode-glider,
 body.studio-theme-dark .engine-btn.active,
-body.studio-theme-dark .ios-switch input:checked + .ios-slider,
+body.studio-theme-dark .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark #cloud-progress-bar {
     background: #e8e8ea !important;
     color: #08090c !important;
@@ -1072,12 +1072,12 @@ body.studio-theme-dark .mode-glider + .mode-btn.active {
     color: #08090c !important;
 }
 
-html.studio-theme-dark body input,
-html.studio-theme-dark body textarea,
-html.studio-theme-dark body select,
-body.studio-theme-dark input,
-body.studio-theme-dark textarea,
-body.studio-theme-dark select {
+html.studio-theme-dark body input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body select:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark select:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background-color: #0c0d10 !important;
     border-color: #32343a !important;
     color: #e8e8ea !important;
@@ -1227,18 +1227,18 @@ html.studio-theme-dark body .resolution-toggle,
 html.studio-theme-dark body .select-shell,
 html.studio-theme-dark body .mode-switch,
 html.studio-theme-dark body .mini-ratio,
-html.studio-theme-dark body input,
-html.studio-theme-dark body textarea,
-html.studio-theme-dark body select,
+html.studio-theme-dark body input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+html.studio-theme-dark body select:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark .model-pill,
 body.studio-theme-dark .ratio-grid,
 body.studio-theme-dark .resolution-toggle,
 body.studio-theme-dark .select-shell,
 body.studio-theme-dark .mode-switch,
 body.studio-theme-dark .mini-ratio,
-body.studio-theme-dark input,
-body.studio-theme-dark textarea,
-body.studio-theme-dark select {
+body.studio-theme-dark input:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark textarea:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark select:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background-color: #111722 !important;
     border-color: #334155 !important;
     color: #e5e9f0 !important;
@@ -1266,7 +1266,7 @@ html.studio-theme-dark body .model-option.active,
 html.studio-theme-dark body .ratio-option.active,
 html.studio-theme-dark body .resolution-option.active,
 html.studio-theme-dark body .provider-btn.active,
-html.studio-theme-dark body .ios-switch input:checked + .ios-slider,
+html.studio-theme-dark body .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 html.studio-theme-dark body #cloud-progress-bar,
 html.studio-theme-dark body #downloadBtn,
 html.studio-theme-dark body #lightboxDownload,
@@ -1279,7 +1279,7 @@ body.studio-theme-dark .model-option.active,
 body.studio-theme-dark .ratio-option.active,
 body.studio-theme-dark .resolution-option.active,
 body.studio-theme-dark .provider-btn.active,
-body.studio-theme-dark .ios-switch input:checked + .ios-slider,
+body.studio-theme-dark .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark #cloud-progress-bar,
 body.studio-theme-dark #downloadBtn,
 body.studio-theme-dark #lightboxDownload,
@@ -1434,13 +1434,13 @@ body.studio-theme-dark label {
     color: #e5e9f0 !important;
 }
 
-html.studio-theme-dark body input[type=range]::-webkit-slider-runnable-track,
-body.studio-theme-dark input[type=range]::-webkit-slider-runnable-track {
+html.studio-theme-dark body input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-runnable-track,
+body.studio-theme-dark input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-runnable-track{
     background: #2a3444 !important;
 }
 
-html.studio-theme-dark body input[type=range]::-webkit-slider-thumb,
-body.studio-theme-dark input[type=range]::-webkit-slider-thumb {
+html.studio-theme-dark body input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-thumb,
+body.studio-theme-dark input[type=range]:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *)::-webkit-slider-thumb{
     background: #d8dee9 !important;
     border-color: #0f141d !important;
 }
@@ -1580,7 +1580,7 @@ html.studio-theme-dark body .control-panel,
 html.studio-theme-dark body .composer,
 html.studio-theme-dark body .history-popover,
 html.studio-theme-dark body .model-panel,
-html.studio-theme-dark body .gate-panel,
+html.studio-theme-dark body .gate-panel:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
 body.studio-theme-dark .console-card,
 body.studio-theme-dark .nano-input,
 body.studio-theme-dark .upload-item,
@@ -1592,7 +1592,7 @@ body.studio-theme-dark .control-panel,
 body.studio-theme-dark .composer,
 body.studio-theme-dark .history-popover,
 body.studio-theme-dark .model-panel,
-body.studio-theme-dark .gate-panel {
+body.studio-theme-dark .gate-panel:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     overflow: hidden !important;
     background-clip: padding-box !important;
 }
@@ -1623,15 +1623,15 @@ body.studio-theme-dark .ios-switch .ios-slider:before {
     box-shadow: 0 3px 9px rgba(0,0,0,.32) !important;
 }
 
-html.studio-theme-dark body .ios-switch input:checked + .ios-slider,
-body.studio-theme-dark .ios-switch input:checked + .ios-slider {
+html.studio-theme-dark body .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *),
+body.studio-theme-dark .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *){
     background: #d8dee9 !important;
     border-color: #d8dee9 !important;
     box-shadow: 0 0 0 3px rgba(216,222,233,.12) !important;
 }
 
-html.studio-theme-dark body .ios-switch input:checked + .ios-slider:before,
-body.studio-theme-dark .ios-switch input:checked + .ios-slider:before {
+html.studio-theme-dark body .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *):before,
+body.studio-theme-dark .ios-switch input:checked + .ios-slider:not(#canvasGate, #canvasGate *, .canvas-name-dialog, .canvas-name-dialog *):before{
     background: #10141d !important;
     box-shadow: 0 2px 7px rgba(16,20,29,.22) !important;
 }

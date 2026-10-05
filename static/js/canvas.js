@@ -529,7 +529,7 @@ async function moveCanvasToFolder(id, folderId){
 }
 function refreshGateViewControls(model=canvasGateModel()){
     canvasGate.classList.toggle('trash-mode', trashMode);
-    if(gateTitleText) gateTitleText.textContent = trashMode ? '回收站' : '选择画布';
+    if(gateTitleText) gateTitleText.textContent = trashMode ? '回收站' : '全部画布';
     if(gateSubtitle) gateSubtitle.textContent = trashMode ? '已删除画布可恢复，30 天后自动清理。' : '打开已有画布，或新建一个开始创作。';
     const trashCount = deletedCanvases.length;
     if(gateTrashCount){
@@ -547,6 +547,7 @@ function refreshGateViewControls(model=canvasGateModel()){
         sortSwitch.classList.toggle('hidden', trashMode);
         sortSwitch.querySelectorAll('[data-sort]').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.sort === canvasSortMode);
+            btn.setAttribute('aria-pressed', String(btn.dataset.sort === canvasSortMode));
         });
     }
     if(gateSearchInput){
@@ -560,6 +561,7 @@ function refreshGateViewControls(model=canvasGateModel()){
         gateSearchClear.setAttribute('aria-label', '清空搜索');
     }
     renderFolderTree(model);
+    window.CanvasHome?.syncControls();
 }
 function setCanvasMode(open){
     shell.classList.toggle('no-canvas', !open);
@@ -617,11 +619,13 @@ window.StudioFrameMessages.subscribeApi(async e => {
 });
 async function loadCanvasList(openFirst=true, options={}){
     try {
+        window.CanvasHome?.setLoadState('loading', ()=>loadCanvasList(false,{refreshFolders:true}));
         const refreshFolders = options.refreshFolders === true;
         const canvasPromise = window.CanvasApi.listCanvases();
         if(refreshFolders) await loadCanvasFolders();
         const data = await canvasPromise;
         canvases = data.canvases || [];
+        window.CanvasHome?.setLoadState('ready');
         sortCanvasListByUpdated();
         refreshGateViewControls();
         renderCanvasList();
@@ -633,6 +637,7 @@ async function loadCanvasList(openFirst=true, options={}){
         }
     } catch(e) {
         setStatus('画布列表加载失败');
+        window.CanvasHome?.setLoadState('error', ()=>loadCanvasList(false,{refreshFolders:true}));
         console.error(e);
     } finally {
         if(canvasGate.classList.contains('gate-loading')){
@@ -643,13 +648,16 @@ async function loadCanvasList(openFirst=true, options={}){
 }
 async function loadTrashList(){
     try {
+        window.CanvasHome?.setLoadState('loading', ()=>loadTrashList());
         const data = await window.CanvasApi.listTrashCanvases();
         deletedCanvases = data.canvases || [];
+        window.CanvasHome?.setLoadState('ready');
         refreshGateViewControls();
         renderCanvasList();
         setStatus(deletedCanvases.length ? '回收站' : '回收站为空');
     } catch(e) {
         setStatus('回收站加载失败');
+        window.CanvasHome?.setLoadState('error', ()=>loadTrashList());
         console.error(e);
     }
 }
@@ -679,6 +687,7 @@ function renderCanvasList(model=canvasGateModel()){
     const before = visible ? panel.getBoundingClientRect().height : 0;
     panel?._gateResize?.cancel();
     renderCanvasListInto(gateCanvasList, model);
+    window.CanvasHome?.renderRecent({items:canvases, trashMode, folderId:activeFolderId, query:canvasSearchQuery, open:openCanvas, formatTime:formatCanvasTime});
     if(!visible || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const after = panel.getBoundingClientRect().height;
     if(Math.abs(after - before) > 1){
@@ -768,7 +777,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
             ? `<div class="gate-list-empty-icon"><i data-lucide="search-x" class="w-6 h-6"></i></div>没有找到匹配的画布`
             : (model.emptyKind === 'trash'
                 ? `<div class="gate-list-empty-icon"><i data-lucide="trash-2" class="w-6 h-6"></i></div>回收站为空`
-                : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>暂无画布<br>点击右上方「新建画布」开始创作`);
+                : `<div class="gate-list-empty-icon"><i data-lucide="layout-grid" class="w-6 h-6"></i></div>暂无画布<br>选择上方经典画布或智能画布，开始第一份创作`);
         list.appendChild(empty);
         refreshIcons();
         return;
@@ -784,7 +793,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
             : '';
         row.innerHTML = `
             <div class="canvas-open" role="button" tabindex="${trashMode ? '-1' : '0'}">
-                <div class="studio-canvas-cover studio-neutral-cover" aria-hidden="true"><strong class="studio-cover-title">${escapeHtml(item.title || '未命名画布')}</strong></div><div class="studio-card-type">${isSmartCanvas ? '智能画布' : '普通画布'}${pinned ? ' · 已置顶' : ''}</div>
+                ${window.CanvasHome.coverMarkup(item, escapeHtml)}<div class="studio-card-type">${isSmartCanvas ? '智能画布' : '经典画布'}${pinned ? ' · 已置顶' : ''}</div>
                 <div class="canvas-card-icon-row">
                     <span class="canvas-preview-mark ${color ? `icon-has-color cc-${escapeAttr(color)}` : ''}" role="button" tabindex="0" title="${trashMode ? '已删除画布' : ('编辑图标 / 颜色 / 负责人')}">${renderCanvasIcon(view.icon, 16)}</span>
                     ${isSmartCanvas ? `<span class="canvas-kind-chip">智能</span>` : ''}
@@ -925,7 +934,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
                 }
             }
             menu.appendChild(actions);
-            menu.addEventListener('click', e => e.stopPropagation());
+            menu.addEventListener('click', e => {e.stopPropagation();if(e.target.closest('button'))menu.open=false;});
             menu.addEventListener('pointerdown', e => e.stopPropagation());
             menu.addEventListener('dragstart', e => e.preventDefault());
             menu.addEventListener('toggle', () => {
