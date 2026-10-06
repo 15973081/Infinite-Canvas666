@@ -59,17 +59,9 @@
         @media (max-width:640px){ .size-row{ grid-template-columns:1fr; } }
         .masonry-item { aspect-ratio:1/1; border-radius:24px; overflow:hidden; background:#fff; border:1px solid #f1f5f9; transition:all .5s var(--easing); }
         .masonry-item:hover { transform:translateY(-6px); box-shadow:0 20px 40px rgba(0,0,0,.08); }
-        .gallery-lightbox { background:rgba(255,255,255,.99); backdrop-filter:blur(22px) saturate(1.05); }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
     </style>
 
-    <style>
-        html:not(.studio-theme-dark) body:not(.studio-theme-dark) #lightbox.gallery-lightbox {
-            background: rgba(255,255,255,.99) !important;
-            backdrop-filter: blur(22px) saturate(1.05) !important;
-            -webkit-backdrop-filter: blur(22px) saturate(1.05) !important;
-        }
-    </style>
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/studio-generation.css">
@@ -216,24 +208,28 @@
         </section>
     </div>
 
-    <div id="lightbox" onclick="handleOutsideClick(event)" class="hidden fixed inset-0 z-50 gallery-lightbox flex flex-col items-center justify-center p-8">
-        <button onclick="closeLightbox()" class="absolute top-10 right-10 text-gray-400 hover:text-black"><i data-lucide="x" class="w-8 h-8"></i></button>
-        <div class="w-full flex flex-col items-center pointer-events-none" style="max-width:min(1280px, 92vw)">
+    <div id="lightbox" onclick="handleOutsideClick(event)" class="hidden gallery-lightbox" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
+        <div class="gallery-preview">
+            <header class="gallery-preview-header">
+                <span id="lightboxTitle">图片预览</span>
+                <span class="gallery-preview-hint">滚轮缩放 · 拖动查看 · 双击复位</span>
+                <button id="lightboxClose" onclick="closeLightbox()" aria-label="关闭图片预览"><i data-lucide="x"></i></button>
+            </header>
             <div id="lightboxFrame" class="studio-preview-frame pointer-events-auto">
-                <img id="lightboxImg" class="studio-preview-img" alt="preview">
-                <div data-no-pan class="absolute top-6 left-6 bg-black/50 backdrop-blur-md text-white px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest shadow-2xl pointer-events-auto z-10">
+                <img id="lightboxImg" class="studio-preview-img" alt="生成图片预览">
+                <div data-no-pan class="gallery-preview-resolution">
                     <span id="lightboxRes">0x0</span>
                 </div>
-                <button id="lightboxDownload" onclick="downloadLightboxImage(event)" data-no-pan class="absolute top-6 right-6 bg-black text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl hover:scale-105 transition-transform pointer-events-auto z-10">
+                <button id="lightboxDownload" onclick="downloadLightboxImage(event)" aria-label="下载图片" data-no-pan>
                     <i data-lucide="download" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div id="lightboxCard" class="w-full mt-16 pointer-events-auto bg-white border border-gray-100 rounded-[2rem] p-8 shadow-sm flex justify-between items-center gap-8">
-                <div class="flex-1">
-                    <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-2">Prompt</span>
-                    <p id="lightboxPrompt" class="text-gray-700 text-sm leading-relaxed max-h-32 overflow-y-auto pr-2"></p>
+            <div id="lightboxCard">
+                <div class="gallery-preview-caption">
+                    <span class="gallery-preview-label">PROMPT / 提示词</span>
+                    <p id="lightboxPrompt"></p>
                 </div>
-                <button id="sameStyleBtn" onclick="applySameStyle()" class="bg-black text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><i data-lucide="copy" class="w-4 h-4"></i><span>复用</span></button>
+                <button id="sameStyleBtn" onclick="applySameStyle()"><i data-lucide="copy" class="w-4 h-4"></i><span>复用</span></button>
             </div>
         </div>
     </div>
@@ -747,6 +743,8 @@
             }
         }
         let lightboxPreview = null;
+        let lightboxReturnFocus = null;
+        let lightboxPreviousOverflow = '';
         function ensureLightboxPreview(){
             if(!lightboxPreview && window.StudioImagePreview){
                 lightboxPreview = StudioImagePreview.attach(document.getElementById('lightboxFrame'));
@@ -754,6 +752,10 @@
             return lightboxPreview;
         }
         function openLightbox(data){
+            if(document.getElementById('lightbox').classList.contains('hidden')){
+                lightboxReturnFocus = document.activeElement;
+                lightboxPreviousOverflow = document.body.style.overflow;
+            }
             currentLightboxData = data;
             const img = document.getElementById('lightboxImg');
             const res = document.getElementById('lightboxRes');
@@ -765,13 +767,25 @@
             document.getElementById('lightboxPrompt').textContent = data.prompt || '';
             document.getElementById('lightbox').classList.replace('hidden','flex');
             document.body.style.overflow='hidden';
+            document.querySelector('.container-box').inert = true;
             lucide.createIcons();
+            document.getElementById('lightboxClose').focus({preventScroll:true});
         }
         function closeLightbox(){
             if(lightboxPreview) lightboxPreview.reset();
             document.getElementById('lightbox').classList.replace('flex','hidden');
-            document.body.style.overflow='auto';
+            document.body.style.overflow=lightboxPreviousOverflow;
+            document.querySelector('.container-box').inert = false;
+            if(lightboxReturnFocus?.isConnected) lightboxReturnFocus.focus({preventScroll:true});
         }
+        document.getElementById('lightbox').addEventListener('keydown', e => {
+            if(e.key === 'Escape'){ e.preventDefault(); closeLightbox(); }
+            if(e.key === 'Tab'){
+                const buttons = [...document.querySelectorAll('#lightbox button')].filter(button => !button.disabled);
+                const next = (buttons.indexOf(document.activeElement) + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
+                e.preventDefault(); buttons[next].focus();
+            }
+        });
         function handleOutsideClick(e){ if(e.target.id === 'lightbox') closeLightbox(); }
         async function downloadOnlineImage(value){
             const url = onlineMediaUrl(value);

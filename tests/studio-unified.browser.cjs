@@ -1,6 +1,54 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 
+test('history preview follows themes and fits the viewport without losing image interactions',async t=>{
+ const {page,writes,errors}=await fixture(t,'classic',false);
+ await page.goto('http://canvas-modules.test/static/online.html');
+ await page.waitForFunction(()=>Boolean(window.StudioTheme));
+ const before=writes.length;
+ for(const theme of ['dark','light']){
+  for(const [width,height,scale] of [[1280,720,'100'],[768,600,'115'],[390,844,'115'],[1280,600,'140']]){
+   await page.setViewportSize({width,height});
+   await page.evaluate(({theme,scale})=>{StudioTheme.apply(theme);StudioScale.set(scale,false);}, {theme,scale});
+   await page.locator('#promptInput').focus();
+   await page.evaluate(()=>openLightbox({images:['/test-image.svg'],prompt:'预览回归 '.repeat(180)}));
+   await page.waitForFunction(()=>document.querySelector('#lightboxImg').naturalWidth===320);
+   const geometry=await page.locator('.gallery-preview').evaluate(el=>{
+    const bounds=node=>{const r=node.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
+    const frame=document.querySelector('#lightboxFrame');
+    return {box:bounds(el),close:bounds(document.querySelector('#lightboxClose')),footer:bounds(document.querySelector('#lightboxCard')),frame:bounds(frame),
+     fill:getComputedStyle(frame).backgroundColor,palette:getComputedStyle(document.body).getPropertyValue('--studio-page').trim(),
+     overflow:el.scrollWidth>el.clientWidth||el.scrollHeight>el.clientHeight};
+   });
+   for(const name of ['box','close','footer','frame']){
+    const b=geometry[name];
+    assert.ok(b.left>=-1&&b.top>=-1&&b.right<=width+1&&b.bottom<=height+1,`${theme}/${scale}/${width} ${name}: ${JSON.stringify(b)}`);
+   }
+   assert.equal(geometry.overflow,false,'all preview controls fit inside the panel');
+   assert.ok(geometry.frame.height>100,'preview retains usable image space');
+   assert.equal(geometry.fill,theme==='dark'?'rgb(9, 11, 9)':'rgb(243, 244, 237)');
+   assert.equal(await page.locator('#lightboxClose').evaluate(el=>el===document.activeElement),true);
+   await page.locator('#lightboxClose').press('Shift+Tab');
+   assert.equal(await page.locator('#sameStyleBtn').evaluate(el=>el===document.activeElement),true,'focus stays inside preview');
+   await page.locator('#sameStyleBtn').press('Escape');
+   assert.equal(await page.locator('#lightbox').isVisible(),false);
+   assert.equal(await page.locator('#promptInput').evaluate(el=>el===document.activeElement),true,'focus returns to opener');
+  }
+ }
+ await page.setViewportSize({width:1280,height:900});
+ await page.evaluate(()=>{StudioScale.set('100',false);openLightbox({images:['/test-image.svg'],prompt:'保留原始提示词'});});
+ const frame=page.locator('#lightboxFrame');
+ await frame.hover();await page.mouse.wheel(0,-100);
+ await page.waitForFunction(()=>document.querySelector('#lightboxImg').style.transform.includes('scale(1.1)'));
+ await frame.dblclick();
+ assert.ok((await page.locator('#lightboxImg').getAttribute('style')).includes('scale(1)'),'double click resets existing preview zoom');
+ await page.getByRole('button',{name:'复用',exact:true}).click();
+ assert.equal(await page.locator('#promptInput').inputValue(),'保留原始提示词');
+ assert.equal(await page.locator('#lightbox').isVisible(),false);
+ assert.equal(writes.length,before,'preview and reuse must not generate or write business data');
+ assert.deepEqual(errors,[]);
+});
+
 test('production page controls share readable opaque surfaces across both themes',async t=>{
  const {page,writes}=await fixture(t,'classic',false);
  const pages={
