@@ -7,6 +7,7 @@ test('live workbench creates, saves and opens both canvas types through producti
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  const origin=process.env.STUDIO_TEST_URL;
+ const out=process.env.STUDIO_TEST_SCREENSHOT_DIR || path.resolve(__dirname,'../docs/design/cyber');fs.mkdirSync(out,{recursive:true});
  assert.match(origin,/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/);
  const login=await page.request.post(origin+'/api/auth/login',{data:{username:process.env.STUDIO_TEST_USER,password:process.env.STUDIO_TEST_PASSWORD}});
  assert.equal(login.ok(),true);
@@ -21,6 +22,8 @@ test('live workbench creates, saves and opens both canvas types through producti
  await frame.locator('#board').click({button:'right',position:{x:400,y:350}});
  await frame.getByRole('button',{name:'提示词',exact:true}).click();
  await frame.getByRole('textbox',{name:'提示词',exact:true}).fill('保存回归输入');
+ assert.equal(await frame.locator('.node').first().evaluate(el=>getComputedStyle(el).borderRadius),'18px');
+ await page.screenshot({path:path.join(out,'after-classic-editor-light.png')});
  await frame.locator('#backToManagerBtn').click();
  await frame.locator('#gateSearchInput').fill(title+' 经典');
  await frame.locator('.canvas-open').click();
@@ -32,13 +35,13 @@ test('live workbench creates, saves and opens both canvas types through producti
  await frame.getByRole('button',{name:'创建画布',exact:true}).click();
  await page.waitForFunction(()=>document.getElementById('frame-canvas').contentWindow.location.pathname.endsWith('/smart-canvas.html'));
  frame=canvasFrame();await frame.waitForLoadState();
+ await page.screenshot({path:path.join(out,'after-smart-editor-light.png')});
  // The sidebar must follow the smart editor's save/lease guard and land in creation.
  await page.locator('#studioNewCanvas').click();
  await page.waitForFunction(()=>document.getElementById('frame-canvas').contentWindow.location.pathname.endsWith('/canvas.html'));
  frame=canvasFrame();await frame.locator('#canvasNameField').waitFor({state:'visible'});
  await frame.getByRole('button',{name:'取消',exact:true}).click();
  await frame.locator('#gateSearchInput').fill('');
- const out=path.resolve(__dirname,'../docs/design/cyber');fs.mkdirSync(out,{recursive:true});
  for(const theme of ['dark','light']){
   await page.evaluate(theme=>broadcastTheme(theme),theme);
   await frame.waitForFunction(()=>{

@@ -1,6 +1,16 @@
 (() => {
  'use strict';
  const sidebar=document.getElementById('studioSidebar'),backdrop=document.getElementById('studioSidebarBackdrop'),toggle=document.getElementById('studioMobileMenu'),stage=document.querySelector('.stage'),mobile=window.matchMedia('(max-width:760px)');
+ function syncContextLocation(){
+  const bar=document.querySelector('.member-session-bar');if(!bar)return;
+  let label=bar.querySelector('.studio-context-location');
+  if(!label){label=document.createElement('span');label.className='studio-context-location';bar.insertBefore(label,bar.querySelector('.member-session-account'));}
+  label.textContent=sidebar.querySelector('.nav-item.active .nav-text')?.textContent.trim()||'创作工作台';
+ }
+ new MutationObserver(syncContextLocation).observe(sidebar,{subtree:true,attributes:true,attributeFilter:['class']});
+ window.addEventListener('member-session:ready',syncContextLocation);
+ window.addEventListener('member-session:profile',syncContextLocation);
+ syncContextLocation();
  function closeMobile(restore=false){sidebar.classList.remove('mobile-open');backdrop.hidden=true;toggle.setAttribute('aria-expanded','false');stage.inert=false;if(restore)toggle.focus();}
  toggle.addEventListener('click',()=>{if(sidebar.classList.contains('mobile-open'))return closeMobile(true);sidebar.classList.add('mobile-open');backdrop.hidden=false;toggle.setAttribute('aria-expanded','true');stage.inert=true;sidebar.querySelector('#studioNewCanvas').focus();});
  backdrop.addEventListener('click',()=>closeMobile(true));

@@ -1,6 +1,16 @@
 @import url('/static/css/studio-tokens.css');
 
-/* Shell only: embedded editors keep their existing component styles. */
+/* Balanced shell: the context bar sits beside the full-height sidebar. */
+body.studio-home{--studio-sidebar-width:64px}
+body.studio-home:has(.sidebar.is-pinned){--studio-sidebar-width:224px}
+html.member-workspace-shell body.studio-home>.app-shell{margin-top:0;height:100dvh!important}
+html.member-workspace-shell body.studio-home .stage{padding-top:56px;box-sizing:border-box}
+html.member-workspace-shell body.studio-home .stage iframe{top:56px;height:calc(100% - 56px)}
+body.studio-home .member-session-bar{left:var(--studio-sidebar-width);height:56px;background:var(--studio-nav);border-color:var(--studio-border);padding-inline:24px;transition:left .18s ease}
+body.studio-home .member-session-brand{display:none}
+body.studio-home .member-session-spaces{display:flex;align-items:center;gap:8px;min-width:0}
+body.studio-home .member-session-spaces::before{content:'WORKSPACE';font:9px var(--studio-font-mono);letter-spacing:1.2px;color:var(--studio-text-muted)}
+body.studio-home .studio-context-location{border-left:1px solid var(--studio-border);padding-left:16px;color:var(--studio-text-muted);font-size:11px}
 body.studio-home{font-family:var(--studio-font);color:var(--studio-text);background:var(--studio-page)}
 body.studio-home .app-shell{background:var(--studio-page);height:100dvh}
 body.studio-home .stage{min-width:0;margin:0;border:0;border-radius:0;background:var(--studio-page)}
@@ -37,6 +47,13 @@ body.studio-home .stage{min-width:0;margin:0;border:0;border-radius:0;background
 .studio-mobile-header,.studio-sidebar-backdrop{display:none}
 @keyframes studio-sheen{to{left:130%}}
 @media(max-width:760px){
+ body.studio-home .member-session-bar{left:0;top:52px;height:48px;padding-inline:12px;transition:none}
+ html.member-workspace-shell body.studio-home .stage{padding-top:48px}
+ html.member-workspace-shell body.studio-home .stage iframe{top:48px;height:calc(100% - 48px)}
+ body.studio-home .member-session-spaces::before,body.studio-home .studio-context-location{display:none}
+ body.studio-home .member-space-menu{top:100px}
+ html.member-workspace-shell body.studio-home .sidebar{top:100px;height:calc(100dvh - 100px)}
+ html.member-workspace-shell body.studio-home .studio-sidebar-backdrop{top:100px}
  .studio-home .app-shell{padding-top:52px;box-sizing:border-box}
  .studio-mobile-header{display:flex;align-items:center;gap:12px;position:absolute;inset:0 0 auto;height:52px;padding:0 16px;background:var(--studio-nav);border-bottom:1px solid var(--studio-border);z-index:22}
  .studio-mobile-header button{display:grid;place-items:center;width:32px;height:32px;border:0;background:transparent;color:var(--studio-text);cursor:pointer}

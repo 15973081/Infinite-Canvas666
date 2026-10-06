@@ -11,7 +11,7 @@ async function fixture(t){
  await page.route('**/*',route=>route.abort());
  await page.setContent('<body class="studio-skin studio-content studio-smart-canvas"><div id="shell"><div id="world"></div></div></body>');
  await page.evaluate(html=>{const doc=new DOMParser().parseFromString(html,'text/html');document.getElementById('world').append(doc.getElementById('composer'));},readCanvasSource('static/smart-canvas.html','utf8'));
- for(const name of ['smart-canvas.css','studio-workbench.css','smart-composer.css'])await page.addStyleTag({content:readCanvasSource('static/css/'+name,'utf8').replace(/^@import.*$/gm,'')});
+ for(const name of ['smart-canvas.css','studio-tokens.css','studio-components.css','studio-workbench.css','smart-composer.css','studio-editor.css'])await page.addStyleTag({content:readCanvasSource('static/css/'+name,'utf8').replace(/^@import.*$/gm,'')});
  await page.addScriptTag({path:'static/vendor/js/lucide.js'});
  await page.addScriptTag({path:'static/js/video-duration-policy.js'});
  await page.evaluate(labels=>{
@@ -71,7 +71,7 @@ test('card layout fits desktop and narrow screens in both themes',async t=>{
    composer.style.left=width===390?'14px':'230px';
   },{dark,width});
   const card=await page.locator('.composer-card').boundingBox();assert.ok(card.x>=0&&card.x+card.width<=width);
-  assert.equal(await page.locator('.composer-card').evaluate(e=>getComputedStyle(e).backgroundColor),dark?'rgb(43, 48, 53)':'rgb(250, 249, 245)');
+  assert.equal(await page.locator('.composer-card').evaluate(e=>getComputedStyle(e).backgroundColor),dark?'rgb(18, 22, 17)':'rgb(255, 255, 255)');
   for(const selector of ['#runBtn','#engineSelect','#cascadeRunBtn','.composer-advanced summary','.model-control > .smart-pill']){
    const b=await page.locator(selector).boundingBox();assert.ok(b.x>=card.x&&b.x+b.width<=card.x+card.width+1,selector);
   }

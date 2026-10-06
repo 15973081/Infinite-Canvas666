@@ -1,0 +1,90 @@
+/* Studio chat: migrated component skin. Styles live with the component; shared tokens own color. */
+body.studio-chat .chat-main{background-image:linear-gradient(var(--studio-grid) 1px,transparent 1px),linear-gradient(90deg,var(--studio-grid) 1px,transparent 1px);background-size:32px 32px}
+body.studio-chat .chat-main>.topbar{border-bottom:1px solid var(--studio-border)}
+body.studio-chat .title-block h1{font-size:20px;letter-spacing:-.3px}
+html body.studio-chat :is(.composer,.chat-rail,.model-picker-popover,.bubble){border-radius:var(--studio-radius-card)}
+html body.studio-chat :is(.model-picker-button,.send-btn,.upload-btn,.action-btn,.rail-new,.rail-close){border-radius:var(--studio-radius-control);font-weight:500}
+body.studio-chat .upload-btn{background:var(--studio-page);border-color:var(--studio-border);color:var(--studio-text-muted)}
+body.studio-chat .bubble.user{background:var(--studio-selected);color:var(--studio-text);border:1px solid var(--studio-border)}
+body.studio-chat .empty-state-text{font-weight:500;letter-spacing:1px;color:var(--studio-text-muted)}
+body.studio-chat .empty-state svg{width:36px;height:36px;color:var(--studio-text-muted)}
+html body.studio-chat .messages{background:transparent}
+@media(max-width:640px){body.studio-chat .model-picker-body{grid-template-columns:110px minmax(0,1fr)}body.studio-chat .model-picker-option{white-space:normal;overflow-wrap:anywhere}body.studio-chat .composer textarea{font-size:16px}}
+body.studio-skin :is(.topbar .panel,.toolbar,.composer){border-color:var(--st-line);box-shadow:none}
+
+html body.studio-skin {
+ --soft-2:var(--st-soft);--line-2:var(--st-line);--strong:var(--st-accent);--strong-text:var(--st-ink);
+ --chat-bg:var(--st-bg);--chat-panel:var(--st-panel);--chat-panel-2:var(--st-bg);--chat-soft:var(--st-soft);
+ --chat-line:var(--st-line);--chat-line-2:var(--st-line);--chat-text:var(--st-text);--chat-muted:var(--st-muted);--chat-faint:var(--st-muted);
+ --chat-strong:var(--st-accent);--chat-strong-text:var(--st-ink);--chat-strong-hover:var(--st-accent);
+ --chat-active-bg:var(--st-soft);--chat-active-text:var(--st-text);--chat-active-border:var(--st-line);--chat-user-bg:var(--st-soft);--chat-user-text:var(--st-text);
+ --ms-glass:var(--st-panel);
+}
+
+html body.studio-skin :is(.chat-shell,.chat-main,.chat-main>.topbar) {background-color:var(--st-bg);color:var(--st-text)}
+
+html body.studio-skin .composer-body {background:transparent;border:0;border-radius:0}
+
+html body.studio-skin :is(.composer textarea,.composer-body textarea) {background:transparent;color:var(--st-text)}
+
+html body.studio-skin .chat-main .messages {background:transparent}
+
+html body.studio-skin .chat-main :is(.action-btn,.attach-btn,.model-trigger) {background:var(--st-soft);border-color:var(--st-line);color:var(--st-text)}
+
+html body.studio-skin .chat-main .title-block h1{font-weight:600;color:var(--st-text)}
+
+html body.studio-skin .thread-item{background:transparent;color:var(--st-text);border-color:transparent;box-shadow:none;padding-right:44px}
+
+html body.studio-skin .thread-item:hover{background:var(--st-soft);border-color:var(--st-line)}
+
+html body.studio-skin .thread-item.active{background:var(--st-soft);border-color:var(--st-muted)}
+
+html body.studio-skin .thread-delete{width:28px;height:28px;top:10px;right:8px;background:transparent;color:var(--st-muted);border:0;border-radius:var(--studio-radius-control);opacity:.65}
+
+html body.studio-skin .thread-delete:hover{background:var(--st-bg);color:var(--st-text);opacity:1}
+
+html body.studio-skin :is(.thread-delete,.thread-item):focus-visible{outline:1px solid var(--st-muted);outline-offset:1px;box-shadow:none}
+
+html body.studio-skin .chat-delete-dialog{width:400px;max-width:calc(100vw - 48px);padding:24px;background:var(--st-panel);color:var(--st-text);border:1px solid var(--st-line);border-radius:var(--studio-radius-control);box-shadow:0 24px 70px #0003}
+
+html body.studio-skin .chat-delete-dialog::backdrop{background:rgba(20,23,22,.5);backdrop-filter:blur(5px)}
+
+html body.studio-skin .chat-delete-dialog h2{margin:0 0 12px;font-size:18px;font-weight:600;color:var(--st-text)}
+
+html body.studio-skin .chat-delete-dialog p{margin:0;color:var(--st-muted);font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+
+html body.studio-skin .chat-delete-dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+
+html body.studio-skin .chat-delete-dialog button{padding:9px 18px;border:1px solid var(--st-line);border-radius:var(--studio-radius-control);background:var(--st-soft);color:var(--st-text);font-size:13px}
+
+html body.studio-skin .chat-delete-dialog button[data-delete]{background:#a94f45;color:#fff;border-color:transparent}
+
+html body.studio-skin .chat-delete-dialog button:disabled{opacity:.5;cursor:wait}
+
+html body.studio-skin .chat-delete-dialog button:focus-visible{outline:2px solid var(--st-muted);outline-offset:3px}
+
+html body.studio-skin .chat-delete-dialog .delete-error{color:#c5786e;margin-top:12px}
+
+html body.studio-skin :is(.model-picker-button,.model-picker-button:hover,.model-picker-popover,.model-picker-scope){
+ background:var(--st-panel);color:var(--st-text);border-color:var(--st-line);
+ box-shadow:none;
+}
+
+html body.studio-skin .model-picker-button{border-radius:var(--studio-radius-control);transform:none}
+
+html body.studio-skin .model-picker-button:hover{background:var(--st-soft)}
+
+html body.studio-skin .model-picker-popover{right:auto;width:var(--model-picker-width,min(380px,calc((100vw - 24px) / var(--studio-ui-scale,1))));max-width:calc((100vw - 24px) / var(--studio-ui-scale,1));border-radius:var(--studio-radius-control);box-shadow:0 10px 30px #0002;backdrop-filter:none}
+
+html body.studio-skin .model-picker-popover.open{animation:studio-model-menu-in .14s ease-out}
+
+html body.studio-skin .model-picker-option{flex-shrink:0;border-radius:var(--studio-radius-control);font-weight:500;transition:background .14s ease,color .14s ease}
+
+html body.studio-skin .model-picker-option.active{background:var(--studio-selected);color:var(--studio-text);box-shadow:inset 2px 0 var(--studio-accent-label)}
+html body.studio-skin .model-picker-option.active svg{color:var(--studio-accent-label)}
+
+html body.studio-skin .model-picker-head{background:var(--st-panel)}
+
+@keyframes studio-model-menu-in{from{opacity:0}to{opacity:1}}
+
+@media(prefers-reduced-motion:reduce){html body.studio-skin .model-picker-popover.open{animation:none}}
