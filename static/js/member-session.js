@@ -7,6 +7,7 @@
     document.documentElement.classList.add('member-session-pending');
     let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0, maintenance = null;
     let workspaceChoices = null;
+    let storageSnapshot = null, storageUpdated = 0;
     const accountPaths = new Set(['/api/account/billing','/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
@@ -168,11 +169,70 @@
     window.addEventListener('pageshow',()=>{
         document.querySelectorAll('.member-space-transition').forEach(node=>node.remove());
     });
+    function createWorkspaceStorage() {
+        const brief=element('span','素材 …','member-space-usage-brief');
+        const card=element('section',undefined,'member-space-storage');
+        card.setAttribute('aria-label','当前工作空间素材占用');
+        const heading=element('div',undefined,'member-storage-heading');
+        const refresh=button('刷新用量',()=>load(true));
+        heading.append(element('span','当前空间 · 素材占用'),refresh);
+        const total=element('strong','正在统计…','member-storage-total');
+        const status=element('p','','member-storage-status');status.setAttribute('role','status');
+        const composition=element('div',undefined,'member-storage-composition');composition.setAttribute('aria-hidden','true');
+        const list=element('dl',undefined,'member-storage-breakdown');
+        const note=element('p','按空间已登记文件统计，含派生预览和待清理文件；不含外链、数据库、备份及临时缓存。','member-storage-note');
+        card.append(heading,total,status,composition,list,note);
+        const bytes=value=>{
+            if(value===0)return '0 B';
+            const units=['B','KB','MB','GB','TB'],index=Math.min(4,Math.floor(Math.log(value)/Math.log(1024)));
+            return new Intl.NumberFormat('zh-CN',{maximumFractionDigits:index ? 1 : 0}).format(value/1024**index)+' '+units[index];
+        };
+        function render(data){
+            brief.textContent='素材 '+bytes(data.bytes);brief.title='当前空间已登记素材占用，展开查看明细';
+            total.textContent=bytes(data.bytes);
+            list.replaceChildren();composition.replaceChildren();
+            for(const [kind,label] of [['image','图片'],['video','视频'],['audio','音频'],['workflow','工作流'],['file','其他文件']]){
+                const entry=data.by_kind[kind] || {bytes:0,files:0};
+                const row=element('div');row.dataset.kind=kind;
+                row.append(element('dt',label),element('dd',bytes(entry.bytes)+' · '+entry.files+' 个'));list.append(row);
+                if(entry.bytes>0&&data.bytes>0){const part=element('span');part.dataset.kind=kind;part.style.flexGrow=entry.bytes/data.bytes;composition.append(part);}
+            }
+            composition.hidden=data.bytes===0;
+            const details=[data.files+' 个文件','未设配额'];
+            if(data.retained_bytes)details.push('待清理 '+bytes(data.retained_bytes));
+            if(data.pending_files)details.push(data.pending_files+' 个上传尚未计入');
+            if(data.unknown_files)details.push(data.unknown_files+' 个文件大小待确认');
+            status.textContent=details.join(' · ');
+            total.title='统计时间：'+new Date(data.updated_at).toLocaleString('zh-CN');
+        }
+        let pending=null;
+        async function load(force=false){
+            if(blocked)return;
+            if(pending)return pending;
+            if(!force&&storageSnapshot&&Date.now()-storageUpdated<60000){render(storageSnapshot);return;}
+            refresh.disabled=true;card.setAttribute('aria-busy','true');
+            pending=(async()=>{
+                try{
+                    const response=await window.fetch('/api/workspace/storage',{cache:'no-store',signal:AbortSignal.timeout(15000)});
+                    const data=await response.json();
+                    if(!response.ok)throw new Error(errorText(data));
+                    if(data.workspace_id!==context.workspace.id||!Number.isSafeInteger(data.bytes)||data.bytes<0||!data.by_kind)throw new Error('统计响应不完整，请重试。');
+                    storageSnapshot=data;storageUpdated=Date.now();render(data);
+                }catch(error){
+                    if(storageSnapshot){render(storageSnapshot);status.textContent+=' · 更新失败，显示上次统计';}
+                    else {brief.textContent='素材 —';total.textContent='暂时无法统计';status.textContent='用量加载失败，请点击刷新用量重试。';}
+                }finally{refresh.disabled=false;card.setAttribute('aria-busy','false');pending=null;}
+            })();
+            return pending;
+        }
+        return {brief,card,load};
+    }
     function createSpaceMenu() {
         const menu=element('details',undefined,'member-session-spaces');
         const summary=element('summary',undefined,'member-session-space');
         summary.title='切换工作空间'; summary.setAttribute('aria-label','切换工作空间');
         summary.append(element('span',context.workspace.name));
+        const storage=createWorkspaceStorage();summary.append(storage.brief);
         const dropdown=element('div',undefined,'member-space-menu');
         const heading=element('strong','工作空间'), list=element('div',undefined,'member-space-list');
         const message=element('p','', 'member-space-message'); message.setAttribute('role','status');
@@ -232,11 +292,13 @@
             if(menu.open){
                 bar?.querySelector('.member-session-account')?.removeAttribute('open');
                 void load();document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape,true);window.addEventListener('blur',close);
+                void storage.load();
             } else {
                 document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape,true);window.removeEventListener('blur',close);
             }
         });
-        dropdown.append(heading,list,message,refresh);menu.append(summary,dropdown);return menu;
+        dropdown.append(storage.card,heading,list,message,refresh);menu.append(summary,dropdown);
+        void storage.load();return menu;
     }
     function renderBar() {
         bar?.remove();

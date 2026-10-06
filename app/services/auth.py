@@ -323,6 +323,14 @@ def member_profile(request: Request, data: ProfileInput):
     return {"member": update_profile(request.scope.get("member_principal"), data.display_name, data.avatar)}
 
 
+@router.get("/api/workspace/storage")
+def workspace_storage():
+    if not member_auth_enabled():
+        raise HTTPException(404)
+    from app.services.workspace_storage import usage
+    return JSONResponse(usage(), headers={"Cache-Control": "no-store"})
+
+
 @router.get("/api/management-entry")
 def management_entry():
     from app.services.management_entry import management_url

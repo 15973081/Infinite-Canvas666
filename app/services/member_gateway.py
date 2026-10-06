@@ -65,6 +65,8 @@ def permissions(path, method):
         return ('canvas.read',)
     if path == '/api/maintenance/status' and method == 'GET':
         return ('canvas.read',)
+    if path == '/api/workspace/storage' and method == 'GET':
+        return ('canvas.read',)
     if path.startswith('/api/conversations') and method in {'GET', 'POST', 'DELETE'}:
         return ('canvas.read',)  # Private member conversation, not shared canvas write.
     if path in {'/api/chat', '/api/chat/stream'} and method == 'POST':
