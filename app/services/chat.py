@@ -96,8 +96,11 @@ def upstream_message_from_record(item):
     if role not in {"user", "assistant"} or item.get("type") == "image":
         return None
     attachments = item.get("attachments") or []
+    from app.services.prompt_skills import prompt_context
+    text = item.get("content", "")
+    if role == 'user':
+        text += prompt_context(item.get('skill_refs') or [])
     if attachments and role == "user":
-        text = item.get("content", "")
         blocks = attachment_text_blocks(attachments)
         if blocks:
             text = f"{text}\n\n以下是用户上传附件的可读内容，请在回答时参考：\n\n" + "\n\n---\n\n".join(blocks)
@@ -107,4 +110,4 @@ def upstream_message_from_record(item):
             if url:
                 content.append({"type": "image_url", "image_url": {"url": url}})
         return {"role": role, "content": content}
-    return {"role": role, "content": item.get("content", "")}
+    return {"role": role, "content": text}

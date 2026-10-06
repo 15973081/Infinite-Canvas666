@@ -16,7 +16,7 @@ from app.storage.settings import media_backend
 
 TABLES = ('canvases','assets','asset_aliases','canvas_assets','workspace_documents',
           'ledger_entries','ledger_aliases','ledger_conflicts','ledger_imports','ledger_versions')
-DOCUMENT_KINDS = ('canvas_folders','asset_library','prompt_libraries','shared_folders','canvas_backup')
+DOCUMENT_KINDS = ('canvas_folders','asset_library','prompt_libraries','shared_folders','canvas_backup','skill_library')
 ASSET_FILTER = "role<>'task-result-source'"
 
 

@@ -33,6 +33,8 @@ def prepare_chat(payload):
 async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
     _conv_provider, chat_base, chat_hdrs, model = prepare_chat(payload)
+    from app.services.prompt_skills import resolve
+    selected_skills = resolve(payload.skill_ids)
     conversation = (
         load_conversation(user_id, payload.conversation_id)
         if payload.conversation_id
@@ -50,6 +52,7 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
         "created_at": now_ms(),
         "attachments": refs,
         "mode": payload.mode,
+        "skill_refs": selected_skills,
     }
     conversation["messages"].append(user_message)
     conversation["updated_at"] = now_ms()
@@ -99,6 +102,8 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
 async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
     _stream_provider, chat_base, chat_hdrs, model = prepare_chat(payload)
+    from app.services.prompt_skills import resolve
+    selected_skills = resolve(payload.skill_ids)
     conversation = (
         load_conversation(user_id, payload.conversation_id)
         if payload.conversation_id
@@ -115,6 +120,7 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
         "created_at": now_ms(),
         "attachments": refs,
         "mode": payload.mode,
+        "skill_refs": selected_skills,
     }
     conversation["messages"].append(user_message)
     conversation["updated_at"] = now_ms()

@@ -159,6 +159,7 @@ class ApiProviderPayload(BaseModel):
 # ── Chat ──
 
 class ChatRequest(BaseModel):
+    skill_ids: List[str] = Field(default_factory=list, max_length=6)
     conversation_id: str = ""
     message: str = Field(min_length=1, max_length=LLM_MESSAGE_MAX_LENGTH)
     model: str = ""

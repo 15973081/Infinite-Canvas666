@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/studio-chat.css">
+    <link rel="stylesheet" href="/static/css/chat-skills.css">
 </head>
 <body class="studio-skin studio-content studio-chat">
     <div class="chat-shell">
@@ -59,6 +60,14 @@
                     <div id="composerBody" class="composer-body">
                         <textarea id="messageInput" rows="4" placeholder="输入消息，Enter 发送..." oninput="autoGrow(this)" onkeydown="handleKey(event)"></textarea>
                         <div id="refStrip" class="ref-strip"></div>
+                        <div id="chatSkillSelection" class="chat-skill-selection" aria-label="本次对话选择的 Skill"></div>
+                        <div id="chatSkillPicker" class="chat-skill-picker" hidden>
+                            <div class="chat-skill-picker-head"><span>本次提示词优化</span><button id="chatSkillClose" type="button" aria-label="关闭 Skill 选择">关闭</button></div>
+                            <input id="chatSkillSearch" type="search" aria-label="搜索已启用 Skill" placeholder="搜索已启用 Skill…" maxlength="160">
+                            <div id="chatSkillOptions" role="listbox" aria-label="已启用 Skill"></div>
+                            <div id="chatSkillStatus" role="status" aria-live="polite"></div>
+                            <a href="/static/skill-library.html" id="chatSkillLibrary">安装与启用 Skill →</a>
+                        </div>
                         <div class="composer-inside-foot">
                             <div class="left-tools">
                                 <div class="inline-controls">
@@ -66,6 +75,7 @@
                                     <button type="button" class="upload-btn" onclick="document.getElementById('attachmentInput')?.click()" title="上传附件" aria-label="上传附件">
                                         <i data-lucide="paperclip"></i>
                                     </button>
+                                    <button id="chatSkillButton" type="button" class="upload-btn" title="选择提示词 Skill" aria-label="选择提示词 Skill" aria-expanded="false">@</button>
                                     <div id="modelPicker" class="model-picker">
                                         <button id="modelPickerBtn" class="model-picker-button" onclick="event.stopPropagation();toggleModelPicker()" title="选择平台和模型">
                                             <i data-lucide="boxes"></i>
@@ -505,7 +515,10 @@
         }
 
         async function newConversation(){
-            const data = await fetch('/api/conversations', {method:'POST', headers:headers(), body:JSON.stringify({title:'新对话'})}).then(r=>r.json());
+            window.ChatSkills?.clear();
+            const response = await fetch('/api/conversations', {method:'POST', headers:headers(), body:JSON.stringify({title:'新对话'})});
+            const data = await response.json();
+            if(!response.ok || !data.conversation) throw new Error(chatErrorMessage(data.detail,response.status));
             currentConversation = data.conversation;
             rememberConversation(currentConversation.id);
             setChatTitle(currentConversation.title);
@@ -515,7 +528,13 @@
         }
 
         async function openConversation(id, closePanel=false){
-            const data = await fetch(`/api/conversations/${id}`, {headers:{'X-User-ID':userId}}).then(r=>r.json());
+            window.ChatSkills?.clear();
+            const response = await fetch(`/api/conversations/${id}`, {headers:{'X-User-ID':userId}});
+            const data = await response.json();
+            if(!response.ok || !data.conversation) {
+                if(response.status === 404) { rememberConversation(''); return; }
+                throw new Error(chatErrorMessage(data.detail,response.status));
+            }
             currentConversation = data.conversation;
             rememberConversation(currentConversation.id);
             setChatTitle(currentConversation.title);
@@ -686,6 +705,7 @@
             text.textContent = msg.type === 'image' ? (msg.agent_reply || tr('chat.generated')) : (msg.content || '');
             text.className = 'bubble-text';
             bubble.appendChild(text);
+            window.ChatSkills?.decorate(bubble, msg.skill_refs);
             if(msg.attachments?.length){
                 const thumbs = document.createElement('div');
                 thumbs.className = 'thumbs';
@@ -825,7 +845,7 @@
             body.classList.toggle('has-overflow', body.scrollHeight > body.clientHeight + 2);
         }
         function autoGrow(el){ el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px'; updateComposerOverflow(); }
-        function handleKey(e){ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); } }
+        function handleKey(e){ if(e.isComposing || e.keyCode === 229 || window.ChatSkills?.handleKey(e)) return; if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); } }
         window.addEventListener('keydown', e => {
             if(e.key === 'Escape') closeImagePreview();
         });
@@ -835,9 +855,11 @@
             const message = input.value.trim();
             if(!message) return;
             const btn = document.getElementById('sendBtn');
+            if(btn.disabled) return;
             btn.disabled = true;
             const requestedSize = chatSizeFromPrompt(message);
             const pendingRefs = refs.slice();
+            const pendingSkills = window.ChatSkills?.snapshot() || [];
             refs = [];
             renderRefs();
             input.value = '';
@@ -846,13 +868,16 @@
                 currentConversation = {id:'', title:'新对话', messages:[]};
                 document.getElementById('messages').innerHTML = '';
             }
-            addMessageBubble({role:'user', content:message, attachments:pendingRefs});
+            addMessageBubble({role:'user', content:message, attachments:pendingRefs, skill_refs:pendingSkills});
             const assistantBubble = addMessageBubble({role:'assistant', content: ''});
             assistantBubble.bubble.classList.add('streaming');
             scrollBottom();
             try {
-                await streamChatMessage(message, pendingRefs, assistantBubble);
+                await streamChatMessage(message, pendingRefs, assistantBubble, pendingSkills);
+                window.ChatSkills?.clear();
             } catch(err) {
+                if(!input.value) { input.value = message; autoGrow(input); }
+                if(!refs.length) { refs = pendingRefs; renderRefs(); }
                 renderMessages([...(currentConversation.messages || []), {role:'assistant', content:err.message || tr('chat.requestFailed')}]);
             } finally {
                 btn.disabled = false;
@@ -877,7 +902,7 @@
             return typeof message === 'string' ? message : (status === 403 ? '没有发送对话的权限，请联系管理员。' : tr('chat.requestFailed'));
         }
 
-        async function streamChatMessage(message, pendingRefs, assistantBubble){
+        async function streamChatMessage(message, pendingRefs, assistantBubble, pendingSkills=[]){
             // 固定本次请求使用的配置；后续切换模型不影响已经发出的请求。
             const currentProvider = provider;
             const currentChatModel = activeChatModel || config.chat_model;
@@ -891,7 +916,8 @@
                     mode:'chat',
                     model: currentChatModel,
                     provider: currentProvider,
-                    reference_images: pendingRefs
+                    reference_images: pendingRefs,
+                    skill_ids: pendingSkills.map(skill => skill.id)
                 })
             });
             if(!response.ok){
@@ -901,6 +927,7 @@
             const decoder = new TextDecoder();
             let pendingEventText = '';
             let assistantText = '';
+            let completed = false;
             while(true){
                 const {value, done} = await reader.read();
                 if(done) break;
@@ -928,6 +955,7 @@
                         throw new Error(chatErrorMessage(event.detail));
                     }
                     if(event.type === 'done'){
+                        completed = true;
                         // 完成后以服务端会话替换流式预览，并更新会话列表。
                         assistantBubble.bubble.classList.remove('streaming');
                         currentConversation = event.conversation;
@@ -938,6 +966,7 @@
                     }
                 }
             }
+            if(!completed) throw new Error('回复连接中断，输入与 Skill 选择已保留，请重试。');
             assistantBubble.bubble.classList.remove('streaming');
         }
 
@@ -953,5 +982,6 @@
             updateComposerOverflow();
         };
     </script>
+    <script src="/static/js/chat-skills.js"></script>
 </body>
 </html>

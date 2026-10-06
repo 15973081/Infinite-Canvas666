@@ -52,6 +52,16 @@ def selected_workspace(scope):
 
 
 def permissions(path, method):
+    if path == '/api/skills' and method == 'GET':
+        return ('asset.read',)
+    if path in {'/api/skills/preview', '/api/skills/import'} and method == 'POST':
+        return ('asset.upload', 'asset.manage')
+    if re.fullmatch(r'/api/skills/[^/]+/preference', path) and method == 'PATCH':
+        return ('asset.read',)
+    if re.fullmatch(r'/api/skills/[^/]+/install', path) and method in {'POST', 'DELETE'}:
+        return ('asset.read', 'asset.manage')
+    if re.fullmatch(r'/api/skills/[^/]+', path):
+        return ('asset.read',) if method == 'GET' else ('asset.manage',) if method in {'PATCH', 'DELETE'} else None
     """Explicit classification; rules are intentionally ordered most specific first."""
     if path.startswith(MANAGEMENT_PREFIXES) or (path == '/api/providers' and method != 'GET'):
         az.fail('management_entry_required')

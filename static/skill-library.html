@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN" data-studio-scale="off">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>Skill 库 · shadox</title><link rel="icon" href="/static/images/shadox-mark.svg" type="image/svg+xml">
+ <script>try{if((localStorage.getItem('studio_theme')||localStorage.getItem('canvas_theme'))==='dark')document.documentElement.classList.add('studio-theme-dark','theme-dark')}catch(e){}</script>
+ <script src="/static/js/studio-frame-messages.js"></script><script src="/static/js/theme.js"></script>
+ <link rel="stylesheet" href="/static/css/studio-tokens.css"><link rel="stylesheet" href="/static/css/studio-skills.css">
+</head>
+<body class="studio-skin studio-content">
+ <main class="skill-page">
+  <header class="skill-head"><div><span class="skill-index">RESOURCE / 02</span><h1>Skill 库</h1><p>整理提示词方法，在 GPT 对话中用 @ 选择。仅作用于文字对话。</p></div><div class="skill-actions"><button id="skillTemplateDownload" type="button">下载模板</button><button id="skillRefresh" type="button">刷新</button><button id="skillImport" class="skill-primary" type="button" disabled>＋ 导入 Skill</button></div></header>
+  <div class="skill-toolbar"><nav id="skillScopes" aria-label="技能范围"><button type="button" data-scope="all" aria-pressed="true">全部</button><button type="button" data-scope="installed" aria-pressed="false">已安装</button><button type="button" data-scope="workspace" aria-pressed="false">本空间</button><button type="button" data-scope="shared" aria-pressed="false">跨空间共享</button></nav><input id="skillSearch" type="search" aria-label="搜索技能、描述或上传者" placeholder="搜索技能、描述或上传者…" maxlength="160"></div>
+  <p class="skill-notice">安装到当前空间后，勾选启用供本人选择。其他空间的共享技能可安装固定版本，上传者和来源始终可见。</p>
+  <div id="skillStatus" role="status" aria-live="polite"></div><section id="skillGrid" class="skill-grid" aria-label="技能列表" aria-busy="true"></section>
+  <button id="skillMore" type="button" hidden>加载更多</button>
+ </main>
+ <input id="skillFile" type="file" accept=".md,.zip" hidden>
+ <template id="skillTemplate">---
+name: prompt-refiner
+description: 将想法整理为清楚、具体、可复用的创作提示词。
+---
+你是一名提示词编辑，工作仅限本轮文字对话。
+
+1. 判断用户的创作目标、主体、场景、构图与风格；关键信息不足时先提问。
+2. 保留用户意图，去掉冲突或含糊描述，不编造事实。
+3. 输出一版可直接复制的提示词，再简短说明改进点。
+4. 用户未指定语言时使用中文。
+5. 不执行脚本、调用平台工具或修改画布、素材、设置；不声称已经完成任何平台操作。
+</template>
+ <script src="/static/js/skill-library.js"></script>
+</body></html>
