@@ -4,6 +4,23 @@
     function create(win, limit=4) {
         const doc=win.document, entries=new Map(), owners=new Set(), viewers=new Map();
         let active=0, deferred=[];
+        function nodeStatus(e,text,error=false){
+            e.statusText=text;e.statusError=error;
+            if(!e.img.closest?.('.node,.image-node'))return;
+            if(!e.status){
+                const host=e.img.parentElement;if(!host)return;
+                host.classList.add('canvas-node-media-host');
+                e.status=doc.createElement('div');e.status.className='canvas-node-media-state';e.status.setAttribute('role','status');host.append(e.status);
+            }
+            if(e.status.parentElement!==e.img.parentElement){e.img.parentElement.classList.add('canvas-node-media-host');e.img.parentElement.append(e.status);}
+            e.status.hidden=!text;e.status.classList.toggle('failed',error);e.status.textContent=text||'';
+            e.status.classList.toggle('loading',e.state==='loading');
+            if(error){
+                e.img.dataset.nodeMediaError='1';
+                const retry=doc.createElement('button');retry.type='button';retry.textContent='重试';
+                retry.onclick=event=>{event.stopPropagation();delete e.img.dataset.nodeMediaError;e.state='queued';e.img.removeAttribute('src');nodeStatus(e,'等待加载…');pump();};e.status.append(retry);
+            }else delete e.img.dataset.nodeMediaError;
+        }
         const escape=value=>String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
         const observer=win.IntersectionObserver ? new win.IntersectionObserver(changes=>{
             changes.forEach(({target,isIntersecting})=>{const e=entries.get(target);if(e)e.visible=isIntersecting;});
@@ -11,7 +28,7 @@
         }, {rootMargin:'120px'}) : null;
         function finish(e) {
             if(e.state!=='loading' || !e.img.hasAttribute('src') || !e.img.complete) return;
-            e.state='done';active--;pump();
+            e.state='done';active--;nodeStatus(e,e.img.naturalWidth?'':'素材加载失败',!e.img.naturalWidth);pump();
         }
         function prune() {
             for(const [img,e] of entries){
@@ -21,6 +38,7 @@
                     img.removeAttribute('src');
                 }
                 img.removeEventListener('load',e.finish);img.removeEventListener('error',e.finish);
+                e.status?.remove();
                 observer?.unobserve(img);entries.delete(img);
             }
         }
@@ -33,6 +51,7 @@
                 const url=win.MemberMediaUrl ? win.MemberMediaUrl(e.url) : e.url;
                 if(!url){e.state='blocked';continue;}
                 e.state='loading';active++;
+                nodeStatus(e,'素材加载中…');
                 delete e.img.dataset.mediaPriorityPaused;
                 e.img.loading='eager';e.img.fetchPriority='low';e.img.decoding='async';
                 e.img.src=url;
@@ -42,8 +61,9 @@
             const images=[...(root.querySelectorAll?.('img[data-canvas-media-src]') || [])];
             if(root.matches?.('img[data-canvas-media-src]'))images.push(root);
             for(const img of images){
-                if(entries.has(img))continue;
+                if(entries.has(img)){const e=entries.get(img);nodeStatus(e,e.statusText,e.statusError);continue;}
                 const e={img,url:img.dataset.canvasMediaSrc,state:'queued',visible:!observer};
+                nodeStatus(e,'等待加载…');
                 e.finish=()=>finish(e);entries.set(img,e);
                 img.addEventListener('load',e.finish);img.addEventListener('error',e.finish);
                 observer?.observe(img);
@@ -61,6 +81,7 @@
                 if(e.state!=='loading')continue;
                 // Suppress ordinary thumbnail error fallbacks for intentional cancellation.
                 e.img.dataset.mediaPriorityPaused='1';e.state='queued';active--;
+                nodeStatus(e,'等待加载…');
                 e.img.removeAttribute('src');
             }
         }

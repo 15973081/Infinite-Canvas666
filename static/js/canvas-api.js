@@ -283,7 +283,7 @@
         uploadCache(key, null);
         return upload;
     }
-    async function uploadAi(form, options={}){
+    async function uploadAiRaw(form, options={}){
         if(!uploadCapabilities){
             uploadCapabilities = uploadJson('/api/media/uploads/capabilities').catch(error => {
                 uploadCapabilities = null;
@@ -291,12 +291,20 @@
             });
         }
         const capability = await uploadCapabilities;
-        if(!capability.resumable) return json('/api/ai/upload', {method:'POST', body:form}, options);
+        if(!capability.resumable) return json('/api/ai/upload', {method:'POST', body:form}, {...options,checkOk:true});
         const files = form.getAll('files');
         if(files.some(file => !file.size || file.size>capability.max_file_bytes)) throw new Error('文件为空或超过上传大小限制');
         const uploaded = [];
         for(const file of files) uploaded.push(await resumableUpload(file, options));
         return {files:uploaded};
+    }
+    async function uploadAi(form, options={}){
+        const files=form.getAll('files'),total=files.reduce((sum,file)=>sum+(file.size||0),0),loaded=new Map();
+        const state=window.StudioTransferStatus?.begin({nodeId:options.nodeId,name:files.length===1 ? files[0].name||'素材' : files.length+' 个素材'});
+        try{
+            const data=await uploadAiRaw(form,{...options,onProgress:progress=>{loaded.set(progress.file,progress.loaded);state?.progress({loaded:[...loaded.values()].reduce((a,b)=>a+b,0),total});options.onProgress?.(progress);}});
+            state?.finish();return data;
+        }catch(error){state?.fail(error);throw error;}
     }
 
     function createAssetItem(payload, options={}){

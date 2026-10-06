@@ -11,7 +11,7 @@ function pickMediaForNode(nodeId){
     input.accept = 'image/*,video/*,audio/*';
     input.multiple = true;
     input.onchange = () => {
-        if(input.files?.length) fillImageNode(nodeId, input.files, {group:input.files.length > 1});
+        if(input.files?.length) fillImageNode(nodeId, input.files, {group:input.files.length > 1}).catch(error=>setStatus(error.message||'素材上传失败'));
     };
     input.click();
 }
@@ -393,6 +393,7 @@ function createGroupForUploadedNodes(created, point){
 
 async function uploadMediaFiles(files, point, onlyImages=false, opts={}){
     if(!ensureCanvas()) return;
+    const origin=canvas.id;
     const supported = [...files].filter(file => {
         const kind = mediaKindForUpload(file);
         return onlyImages ? kind === 'image' : ['image','video','audio'].includes(kind);
@@ -400,7 +401,8 @@ async function uploadMediaFiles(files, point, onlyImages=false, opts={}){
     if(!supported.length) return [];
     const form = new FormData();
     supported.forEach(file => form.append('files', file));
-        const data = await window.CanvasApi.uploadAi(form);
+    const data = await window.CanvasApi.uploadAi(form);
+    if(canvas?.id!==origin || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canEdit : isCanvasLockedByOther()))throw new Error('画布或编辑资格已变化，未将上传结果加入画布');
     const base = point || screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
     const created = [];
     (data.files || []).forEach((file, i) => {
@@ -560,6 +562,7 @@ async function handleImageNodeDropEvent(e, nodeId, highlightEl){
 
 async function fillImageNode(nodeId, files, opts={}){
     if(!ensureCanvas()) return;
+    const origin=canvas.id;
     const imgs = [...files].filter(file => ['image','video','audio'].includes(mediaKindForUpload(file)));
     if(!imgs.length) return;
     if(opts.group && imgs.length > 1){
@@ -593,7 +596,8 @@ async function fillImageNode(nodeId, files, opts={}){
     }
     const form = new FormData();
     form.append('files', imgs[0]);
-    const data = await window.CanvasApi.uploadAi(form);
+    const data = await window.CanvasApi.uploadAi(form,{nodeId});
+    if(canvas?.id!==origin || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canEdit : isCanvasLockedByOther()))throw new Error('画布或编辑资格已变化，未将上传结果加入节点');
     const file = data.files?.[0];
     const node = nodes.find(n => n.id === nodeId);
     if(file && node){

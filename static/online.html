@@ -22,6 +22,8 @@
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
     <script src="/static/js/history-pager.js?v=20260914"></script>
+    <link rel="stylesheet" href="/static/css/studio-transfer-status.css">
+    <script src="/static/js/studio-transfer-status.js"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
     <style>
         @import url('/static/vendor/css/fonts.css?v=2026.06.9.1779672342');
@@ -264,6 +266,7 @@
             updateSizeUI();
         });
         let refs = {1:null,2:null,3:null,4:null};
+        const refUploads=new Map();
         let refDims = {1:null,2:null,3:null,4:null};
         let provider = 'comfly';
         let selectedModel = 'gpt-image-2';
@@ -553,16 +556,23 @@
             const item = [...(e.clipboardData?.items || [])].find(x => x.kind === 'file' && x.type.startsWith('image/'));
             if (item) handleFile(item.getAsFile(), firstEmptySlot());
         });
-        function firstEmptySlot(){ return [1,2,3,4].find(id => !refs[id]) || 1; }
+        function firstEmptySlot(){ return [1,2,3,4].find(id => !refs[id]&&!refUploads.has(id)) || 1; }
 
         async function handleFile(file, index){
             if(!file) return;
+            const token={},state=window.StudioTransferStatus?.begin({name:file.name});
+            refUploads.set(index,token);refs[index]=null;
+            const preview=document.getElementById(`prev${index}`),label=document.createElement('span');
+            preview.parentElement.querySelector('.studio-reference-upload')?.remove();
+            label.className='studio-reference-upload';label.textContent='当前素材上传中';label.setAttribute('role','status');preview.parentElement.append(label);
             const reader = new FileReader();
             reader.onload = e => {
+                if(refUploads.get(index)!==token)return;
                 const prev = document.getElementById(`prev${index}`);
                 prev.src = e.target.result; prev.classList.remove('hidden');
                 document.getElementById(`del${index}`).classList.remove('hidden');
                 getImageDimensions(e.target.result).then(dim => {
+                    if(refUploads.get(index)!==token)return;
                     refDims[index] = dim;
                     updateSizeUI();
                 }).catch(() => {});
@@ -570,11 +580,19 @@
             reader.readAsDataURL(file);
             const form = new FormData();
             form.append('files', file);
-            const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(r=>r.json());
-            refs[index] = data.files[0];
+            try {
+                const response=await fetch('/api/ai/upload', {method:'POST', body:form});
+                const data=await response.json();
+                if(!response.ok||!data.files?.[0]?.url)throw new Error(typeof data.detail==='string'?data.detail:'素材上传失败，请重新选择文件');
+                if(refUploads.get(index)===token)refs[index]=data.files[0];
+                state?.finish();
+            }catch(error){state?.fail(error);if(refUploads.get(index)===token)clearSlot(index);}
+            finally{label.remove();if(refUploads.get(index)===token)refUploads.delete(index);}
         }
         function clearSlot(index, ev){
             if(ev) ev.stopPropagation();
+            refUploads.delete(index);
+            document.getElementById(`prev${index}`).parentElement.querySelector('.studio-reference-upload')?.remove();
             refs[index] = null;
             refDims[index] = null;
             document.getElementById(`prev${index}`).src = '';
@@ -654,6 +672,7 @@
         }
 
         async function submitImage(){
+            if(refUploads.size){alert('当前素材上传中，请等待上传完成后再生成。');return;}
             const prompt = document.getElementById('promptInput').value.trim();
             if(!prompt){
                 alert(tr('online.promptRequired'));

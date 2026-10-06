@@ -1135,12 +1135,14 @@ async function openCanvas(id){
         if(!await window.MemberCanvasEdit.leave()) return;
     }
     const openSeq = ++openCanvasRequestSeq;
-    setStatus('Opening...');
+    const loadingState=window.StudioTransferStatus?.begin({kind:'canvas'});
+    setStatus('画布节点加载中…');
     try {
         const data = await window.CanvasApi.getCanvas(id, {errorFallback:'打开画布失败'});
         if(openSeq !== openCanvasRequestSeq) return;
         resetCascadeRuntimeState();
         const nextCanvas = data.canvas;
+        loadingState?.phase('正在准备 '+(nextCanvas.nodes?.length||0)+' 个节点…');
         const touched = await touchCanvasOpened(nextCanvas.id);
         if(openSeq !== openCanvasRequestSeq) return;
         if(touched?.updated_at) nextCanvas.updated_at = Number(touched.updated_at);
@@ -1192,8 +1194,9 @@ async function openCanvas(id){
         return canvas;
     } catch(e) {
         setStatus('打开画布失败');
+        loadingState?.fail(e);
         console.error(e);
-    }
+    } finally {loadingState?.finish();}
 }
 
 async function returnToCanvasManager(){

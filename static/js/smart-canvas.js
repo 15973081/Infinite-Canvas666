@@ -299,9 +299,11 @@ async function loadCanvas(options={}){
     if(!canvasId) return;
     const requestedId=canvasId, entry=window.MemberCanvasEdit?.active, epoch=entry?.lease.epoch;
     if(options.observe && !window.MemberCanvasEdit?.canRefresh) return;
+    const loadingState=!options.observe ? window.StudioTransferStatus?.begin({kind:'canvas'}) : null;
     try {
         const data = await window.CanvasApi.getCanvas(canvasId, {errorFallback:'读取画布失败'});
         if(!data?.canvas) throw new Error('画布数据为空');
+        loadingState?.phase('正在准备 '+(data.canvas.nodes?.length||0)+' 个节点…');
         if(canvasId!==requestedId || data.canvas.id!==requestedId) return;
         if(options.observe && (entry!==window.MemberCanvasEdit?.active || epoch!==entry?.lease.epoch || !window.MemberCanvasEdit?.canRefresh ||
             !Number.isSafeInteger(data.canvas.revision) || data.canvas.revision<=Number(canvas?.revision || 0))) return canvas;
@@ -376,7 +378,8 @@ async function loadCanvas(options={}){
         } else { await checkSmartCanvasLock(); startSmartCanvasLockPolling(); }
         window.CanvasCover?.openRequested();
         return canvas;
-    } catch(e) { toast(e?.message || '智能画布加载失败'); }
+    } catch(e) { loadingState?.fail(e);toast(e?.message || '智能画布加载失败'); }
+    finally {loadingState?.finish();}
 }
 
 // 跨页"素材库 → 画布"剪贴板：素材库管理页把所选素材写进这个 localStorage key，

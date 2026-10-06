@@ -598,6 +598,9 @@ function assetErrorText(data, fallback='操作失败'){
     return window.CanvasSession?.errorText(data) || fallback;
 }
 async function apiJson(url, options={}){
+    const uploading=options.body instanceof FormData && options.body.has('files');
+    const state=uploading ? window.StudioTransferStatus?.begin({name:options.body.getAll('files').length+' 个素材'}) : null;
+    try {
     const res = await fetch(url, options);
     const data = await res.json().catch(() => ({}));
     if(!res.ok){
@@ -605,7 +608,9 @@ async function apiJson(url, options={}){
         error.status = res.status;
         throw error;
     }
+    state?.finish();
     return data;
+    } catch(error) {state?.fail(error);throw error;}
 }
 function formatDate(value){
     const num = Number(value || 0);
@@ -2672,12 +2677,13 @@ function renderPromptDetail(item, readonly){
 async function uploadFiles(files){
     const cat = activeAssetCategory();
     if(!cat) throw new Error('请先创建图片分组');
+    const libraryId=activeAssetLibraryId,categoryId=activeAssetCategoryId;
     const form = new FormData();
     [...files].forEach(file => form.append('files', file));
     const uploaded = await apiJson('/api/ai/upload', {method:'POST', body:form});
     const items = (uploaded.files || []).filter(file => file?.url).map(file => ({
-        library_id:activeAssetLibraryId,
-        category_id:activeAssetCategoryId,
+        library_id:libraryId,
+        category_id:categoryId,
         url:file.url,
         name:file.name || 'asset'
     }));
@@ -2685,7 +2691,7 @@ async function uploadFiles(files){
     const data = await apiJson('/api/asset-library/items/batch', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({library_id:activeAssetLibraryId, category_id:activeAssetCategoryId, items})
+        body:JSON.stringify({library_id:libraryId, category_id:categoryId, items})
     });
     assetLibrary = data.library || assetLibrary;
     selectedAssetIds.clear();

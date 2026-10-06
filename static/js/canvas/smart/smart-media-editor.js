@@ -413,12 +413,14 @@ function setSmartDropCopyEffect(e, includeAsset=false){
     }
 }
 
-async function uploadFiles(files){
+async function uploadFiles(files, options={}){
     const supported = [...(files || [])].filter(isSupportedUploadFile);
     if(!supported.length) return [];
     const form = new FormData();
     supported.forEach(file => form.append('files', file, file.name || 'media'));
-    const data = await window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:'素材上传失败'});
+    const origin=canvas?.id;
+    const data = await window.CanvasApi.uploadAi(form, {checkOk:true, errorFallback:'素材上传失败',...options});
+    if(canvas?.id!==origin || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canEdit : isSmartCanvasLocked()))throw new Error('画布或编辑资格已变化，未将上传结果加入画布');
     return (data.files || []).map((file, index) => ({
         ...file,
         kind:file.kind || mediaKindForFile(supported[index])
@@ -457,7 +459,8 @@ async function handleFiles(files, targetId='', opts={}){
     try {
         const fileList = [...(files || [])].filter(isSupportedUploadFile);
         if(!fileList.length) return;
-        const uploaded = await uploadFiles(fileList);
+        const uploaded = await uploadFiles(fileList,{nodeId:targetId});
+        if(targetId&&!nodes.some(node=>node.id===targetId))throw new Error('目标节点已移除，未加入上传结果');
         if(!uploaded.length) return;
         if(!opts.skipUndo) pushUndo();
         appendImagesToSmartNode(uploaded.map((file, index) => ({...file, kind:file.kind || mediaKindForFile(fileList[index])})), targetId, opts);
