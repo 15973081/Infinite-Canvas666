@@ -17,11 +17,9 @@ async function refreshCanvasConfigFromSettings(){
     });
     if(typeof render === 'function') render();
 }
-window.StudioFrameMessages.subscribe(['canvas_updated','canvas_locked','canvas_unlocked','providers-changed','workflows-changed','comfy-instances-changed','canvas-focus'], event => {
+window.StudioFrameMessages.subscribe(['canvas_updated','providers-changed','workflows-changed','comfy-instances-changed','canvas-focus'], event => {
 
     if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
-    if(event.data?.type === 'canvas_locked') handleCanvasLockedMessage(event.data);
-    if(event.data?.type === 'canvas_unlocked') handleCanvasUnlockedMessage(event.data);
     if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed'){
         refreshCanvasConfigFromSettings();
     }
@@ -65,13 +63,6 @@ const gateFolderTree = document.getElementById('gateFolderTree');
 const gateFolderBar = document.getElementById('gateFolderBar');
 const gateNewFolderBtn = document.getElementById('gateNewFolderBtn');
 const backToManagerBtn = document.getElementById('backToManagerBtn');
-const canvasLockBadge = document.getElementById('canvasLockBadge');
-const canvasLockLabel = document.getElementById('canvasLockLabel');
-const canvasIdentityBtn = document.getElementById('canvasIdentityBtn');
-const canvasIdentityLabel = document.getElementById('canvasIdentityLabel');
-const canvasLockOverlay = document.getElementById('canvasLockOverlay');
-const canvasLockOverlayMsg = document.getElementById('canvasLockOverlayMsg');
-const canvasLockRetryBtn = document.getElementById('canvasLockRetryBtn');
 const currentCanvasTitle = document.getElementById('currentCanvasTitle');
 const currentCanvasTime = document.getElementById('currentCanvasTime');
 const workflowTransferToggle = document.getElementById('workflowTransferToggle');
@@ -215,11 +206,6 @@ const CLIENT_ID = (() => {
         return 'canvas_' + Math.random().toString(36).slice(2);
     }
 })();
-const CANVAS_USER_NAME_KEY = 'canvasUserName';
-const CANVAS_LOCK_POLL_MS = 5000;
-let canvasLockHolder = null; // {client_id, username, ip, acquired_at} | null (null = no lock)
-let canvasLockPollTimer = null;
-let canvasLockedByOther = false;
 const LTX_DIRECTOR_WORKFLOW = 'LTXDirectorv2-API.json';
 const LTX_DIRECTOR_WF_NODE = '46';
 const LTX_DIRECTOR_SEED_NODE = '94:28';
@@ -572,7 +558,6 @@ function setCanvasMode(open){
         classicImageEditor.reset();
         classicOutputPreview.reset();
         clearConnectionHover();
-        clearLocalCanvasLock();
         nodesEl.innerHTML = '';
         linksEl.innerHTML = '';
         linkControlsEl.innerHTML = '';
@@ -1185,12 +1170,7 @@ async function openCanvas(id){
                 reload:async () => { const loaded=await openCanvas(id); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 changed:lease => { if(!lease.canEdit){ clearTimeout(saveTimer); saveTimer=null; } else resumeCanvasImageTasks(); }
             });
-        } else checkCanvasLock().then(() => {
-            if(!canvasLockedByOther && !canvasLockHolder){
-                acquireCanvasLock();
-            }
-            startCanvasLockPolling();
-        });
+        }
         return canvas;
     } catch(e) {
         setStatus('打开画布失败');
@@ -1207,8 +1187,6 @@ async function returnToCanvasManager(){
     remoteSyncTimer = null;
     if(canvas && localCanvasDirty) await saveCanvas();
     stopCanvasRemotePolling();
-    stopCanvasLockPolling();
-    await releaseCanvasLock();
     classicOutputPreview.reset();
     canvas = null;
     nodes = [];
@@ -1233,13 +1211,12 @@ window.addEventListener('frontend:before-reload', event => {
     }
 });
 
-// beforeunload — protect unsaved work and release lock on tab close
+// beforeunload — protect unsaved work; MemberCanvasEdit owns lease release.
 window.addEventListener('beforeunload', event => {
     if(localCanvasDirty || savingCanvasNow || saveCanvasAgain || saveTimer){
         event.preventDefault();
         event.returnValue = '';
     }
-    releaseCanvasLockOnExit();
 });
 
 function requestDeleteCanvas(id, event){
@@ -1464,7 +1441,6 @@ window.onload = async () => {
     if(window.CanvasSession) await window.CanvasSession.ready;
     applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem(CANVAS_THEME_KEY) || 'light');
     applyQuickToolbarState();
-    updateCanvasIdentityButton();
 
     document.title = 'shadox';
     classicOutputPreview.bind();

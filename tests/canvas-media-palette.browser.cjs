@@ -44,8 +44,8 @@ async function mountWorkspaceControls(page,kind){
  await page.getByRole('button',{name:'开始编辑',exact:true}).click();
  await page.waitForFunction(()=>MemberCanvasEdit.canEdit);
  await page.locator('.member-canvas-edit').waitFor({state:'visible'});
- if(kind==='classic')assert.equal(await page.locator('#canvasLockBadge').isVisible(),false,'workspace toolbar hides the legacy lock badge');
- else if(await page.locator('#smartLockBadge').count())assert.equal(await page.locator('#smartLockBadge').isVisible(),false);
+
+ assert.equal(await page.locator('#canvasLockBadge,#smartLockBadge,#canvasLockOverlay,#smartLockOverlay').count(),0,'legacy lock UI is removed from both canvases');
 }
 for(const kind of ['classic','smart'])test(`${kind} media cards, trim and preview controls follow both themes`,async t=>{
  const {page,errors,writes,record}=await fixture(t,kind,true);

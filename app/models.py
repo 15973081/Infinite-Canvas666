@@ -233,11 +233,6 @@ class CanvasMoveRequest(BaseModel):
     folder_id: str = ""
 
 
-class CanvasLockRequest(BaseModel):
-    client_id: str
-    username: str = ""
-
-
 class CanvasMetaUpdate(BaseModel):
     cover_style: Optional[Literal["type", "editorial", "sage", "ink"]] = None
     title: Optional[str] = None
@@ -448,7 +443,7 @@ __all__ = [
     "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
-    "CanvasFolderUpdateRequest", "CanvasMoveRequest", "CanvasLockRequest",
+    "CanvasFolderUpdateRequest", "CanvasMoveRequest",
     "CanvasMetaUpdate", "CanvasSaveRequest",
     "CanvasAssetCheckRequest", "CanvasAssetDownloadRequest",
     "CanvasWorkflowExportRequest",

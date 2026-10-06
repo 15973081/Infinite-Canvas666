@@ -218,7 +218,6 @@ async function backToCanvasList(options={}){
             return;
         }
     }
-    releaseSmartCanvasLockOnExit();
     await window.FrontendVersion?.checkForUpdate?.();
     let target = window.CanvasSession?.enabled ? window.CanvasSession.url('/static/canvas.html') : '/static/canvas.html';
     if(options.create === true) target += (target.includes('?') ? '&' : '?') + 'create=classic';
@@ -289,8 +288,6 @@ let canvasSyncTimer = null;
 let canvasMetaPollTimer = null;
 let smartServerNodeIds = new Set();
 let smartServerConnectionKeys = new Set();
-let smartCanvasLockHolder = null;
-let smartCanvasLockPollTimer = null;
 
 const smartAssetHover = window.CanvasCore.createAssetHoverController(showAssetHoverPreviewNow, hideAssetHoverPreviewNow, positionAssetHoverPreviewNow);
 bindSmartAssetPanelLifecycle();
@@ -375,7 +372,7 @@ async function loadCanvas(options={}){
                     if(cascadeRunBtn) cascadeRunBtn.disabled=!lease.canEdit;
                 }
             });
-        } else { await checkSmartCanvasLock(); startSmartCanvasLockPolling(); }
+        }
         window.CanvasCover?.openRequested();
         return canvas;
     } catch(e) { loadingState?.fail(e);toast(e?.message || '智能画布加载失败'); }
@@ -511,17 +508,13 @@ window.StudioFrameMessages.subscribeApi(async event => {
         }
         if(event.data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(event.data);
         if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
-        if(event.data?.type === 'canvas_locked') handleSmartCanvasLocked(event.data);
-        if(event.data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(event.data);
 });
 // Focus refresh is shared with the policy watcher below.
-window.StudioFrameMessages.subscribe(['studio-theme','providers-changed','workflows-changed','comfy-instances-changed','asset_library_updated','canvas_updated','canvas_locked','canvas_unlocked'], event => {
+window.StudioFrameMessages.subscribe(['studio-theme','providers-changed','workflows-changed','comfy-instances-changed','asset_library_updated','canvas_updated'], event => {
     if(event.data?.type === 'studio-theme') applyTheme(event.data.theme || 'light');
     if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed') refreshSmartConfigFromSettings();
     if(event.data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(event.data);
     if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
-    if(event.data?.type === 'canvas_locked') handleSmartCanvasLocked(event.data);
-    if(event.data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(event.data);
 
 });
 
@@ -546,7 +539,6 @@ window.addEventListener('beforeunload', event => {
         event.preventDefault();
         event.returnValue = '';
     }
-    releaseSmartCanvasLockOnExit();
 });
 window.addEventListener('frontend:before-reload', event => {
     if(typeof event.detail?.waitUntil !== 'function') return;

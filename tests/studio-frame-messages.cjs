@@ -18,8 +18,14 @@ for(const type of ['cloud_status','canvas_updated'])test(type+' goes only to the
     const f=fixture(),data={type,data:{id:'a'}};f.api.forwardUpdate(data);f.setActive(f.frames[1]);f.api.forwardUpdate(data);
     assert.deepEqual(f.posts.map(p=>p.i),[0,1]);assert.ok(f.posts.every(p=>p.data===data&&p.origin==='https://studio.test'));
 });
-for(const type of ['canvas_locked','canvas_unlocked','asset_library_updated'])test(type+' includes background pages',()=>{
+for(const type of ['asset_library_updated'])test(type+' includes background pages',()=>{
     const f=fixture();f.api.forwardUpdate({type});assert.deepEqual(f.posts.map(p=>p.i),[0,1]);
+});
+
+test('retired editing-lock messages are not delivered to frames',()=>{
+    const f=fixture();
+    for(const type of ['canvas_locked','canvas_unlocked'])assert.equal(f.api.send(f.frames[0],{type}),false);
+    assert.equal(f.posts.length,0);
 });
 test('unknown protocol and removed frames cannot receive messages',()=>{
     const f=fixture();assert.equal(f.api.send(f.frames[0],{type:'unknown'}),false);

@@ -195,7 +195,6 @@ test('leaving the canvas releases cached node-array references', () => {
     context.renderMinimap();
     context.scheduleMinimapRender();
     context.shell = {classList: {toggle() {}}};
-    context.clearLocalCanvasLock = () => {};
     context.clearConnectionHover = () => {};
     context.classicWorkspaceView = {reset(){}};
     context.linksEl = {};

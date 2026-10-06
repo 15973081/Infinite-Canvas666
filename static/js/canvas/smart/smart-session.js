@@ -4,23 +4,8 @@
  * Uses the entry's existing shared bindings; do not duplicate permission or document state.
  */
 
-function isSmartCanvasLocked(){ return window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canEdit : Boolean(smartCanvasLockHolder && smartCanvasLockHolder.client_id !== smartClientId); }
-
-function smartCanvasUserName(){
-    if(window.CanvasSession?.enabled) return window.CanvasSession.context?.member.display_name || '';
-    try { return (localStorage.getItem('canvasUserName') || '').trim(); } catch(e) { return ''; }
-}
-
-function smartCanvasLockDisplay(holder=smartCanvasLockHolder){
-    const name = String(holder?.username || '').trim() || '未命名用户';
-    return holder?.ip ? `${name} · ${holder.ip}` : name;
-}
-
-function smartCanvasLockTitle(holder=smartCanvasLockHolder){
-    if(!holder) return '';
-    const lockedAt = Number(holder.acquired_at || 0);
-    return [`用户：${String(holder.username || '').trim() || '未命名用户'}`, `IP：${holder.ip || '未知'}`, `客户端：${holder.client_id || '未知'}`, lockedAt ? `锁定时间：${new Date(lockedAt).toLocaleString()}` : ''].filter(Boolean).join('\n');
-}
+// Business modules share the workspace lease; missing permission UI stays read-only.
+function isSmartCanvasLocked(){ return !window.MemberCanvasEdit?.canEdit; }
 
 function updateSmartCanvasNav(){
     const title = canvas?.title || '智能画布';
@@ -28,93 +13,6 @@ function updateSmartCanvasNav(){
     const date = new Date(value && value < 10000000000 ? value * 1000 : value);
     document.getElementById('smartTitle').textContent = title;
     document.getElementById('smartCanvasTime').textContent = value && !Number.isNaN(date.getTime()) ? date.toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '--';
-}
-
-function updateSmartCanvasLockUi(){
-    const wasLocked = document.body.classList.contains('smart-canvas-readonly');
-    const locked = isSmartCanvasLocked();
-    const badge = document.getElementById('smartLockBadge');
-    const label = document.getElementById('smartLockLabel');
-    const overlay = document.getElementById('smartLockOverlay');
-    const message = document.getElementById('smartLockMessage');
-    document.body.classList.toggle('smart-canvas-readonly', locked);
-    if(locked){
-        clearTimeout(saveTimer);
-        saveTimer = null;
-    }
-    if(badge && label){
-        badge.hidden = !smartCanvasLockHolder;
-        badge.className = `smart-lock-badge ${locked ? 'other' : 'mine'}`;
-        label.textContent = locked ? `${smartCanvasLockDisplay()} 编辑中` : `你正在编辑${smartCanvasLockHolder?.ip ? ` · ${smartCanvasLockHolder.ip}` : ''}`;
-        badge.title = smartCanvasLockTitle();
-    }
-    if(overlay) overlay.hidden = !locked;
-    if(message && locked) message.textContent = `${smartCanvasLockDisplay()} 正在编辑此画布`;
-    if(runBtn) runBtn.disabled = locked || smartCascadeAnyRunning();
-    if(cascadeRunBtn) cascadeRunBtn.disabled = locked;
-    refreshIcons();
-    if(wasLocked && !locked && smartCanvasDirty) scheduleSave();
-}
-
-async function acquireSmartCanvasLock(){
-    if(window.CanvasSession?.enabled) return false;
-    if(!canvasId) return false;
-    try {
-        const response = await window.CanvasApi.acquireCanvasLock(canvasId, {client_id:smartClientId, username:smartCanvasUserName()});
-        const data = await response.json().catch(() => ({}));
-        smartCanvasLockHolder = response.ok ? data.holder || null : data.detail?.holder || null;
-        updateSmartCanvasLockUi();
-        return response.ok;
-    } catch(e) { return false; }
-}
-
-async function checkSmartCanvasLock(){
-    if(window.CanvasSession?.enabled) return window.MemberCanvasEdit?.active?.lease.refresh().catch(() => {});
-    if(!canvasId) return;
-    const data = await window.CanvasApi.checkCanvasLock(canvasId);
-    if(!data) return;
-    smartCanvasLockHolder = data.holder || null;
-    if(!smartCanvasLockHolder || smartCanvasLockHolder.client_id === smartClientId) await acquireSmartCanvasLock();
-    else updateSmartCanvasLockUi();
-}
-
-async function tryAcquireSmartCanvasLock(){
-    const button = document.getElementById('smartLockRetryBtn');
-    if(button) button.disabled = true;
-    await checkSmartCanvasLock();
-    if(button) button.disabled = false;
-    toast(isSmartCanvasLocked() ? '画布仍在被其他人编辑中' : '已获得编辑权限');
-}
-
-function startSmartCanvasLockPolling(){
-    if(window.CanvasSession?.enabled) return;
-    clearInterval(smartCanvasLockPollTimer);
-    smartCanvasLockPollTimer = setInterval(checkSmartCanvasLock, 5000);
-}
-
-function releaseSmartCanvasLockOnExit(){
-    if(window.CanvasSession?.enabled) return;
-    if(!canvasId || smartCanvasLockHolder?.client_id !== smartClientId) return;
-    const payload = {client_id:smartClientId, username:smartCanvasUserName()};
-    try {
-        if(navigator.sendBeacon?.(`/api/canvases/${encodeURIComponent(canvasId)}/lock/release`, new Blob([JSON.stringify(payload)], {type:'application/json'}))) return;
-    } catch(e) {}
-    window.CanvasApi.releaseCanvasLockKeepalive(canvasId, payload);
-}
-
-function handleSmartCanvasLocked(data){
-    if(window.CanvasSession?.enabled) return;
-    if(data?.canvas_id !== canvasId || data.holder?.client_id === smartClientId) return;
-    smartCanvasLockHolder = data.holder || null;
-    updateSmartCanvasLockUi();
-}
-
-function handleSmartCanvasUnlocked(data){
-    if(window.CanvasSession?.enabled) return;
-    if(data?.canvas_id !== canvasId || data.released_by === smartClientId) return;
-    smartCanvasLockHolder = null;
-    updateSmartCanvasLockUi();
-    setTimeout(acquireSmartCanvasLock, 120);
 }
 
 function mergeSmartImageLists(localImgs, remoteImgs){
@@ -290,8 +188,6 @@ async function connectAssetLibrarySyncSocket(){
                 const data = JSON.parse(event.data);
                 if(data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(data);
                 if(data?.type === 'canvas_updated') handleCanvasUpdatedMessage(data);
-                if(data?.type === 'canvas_locked') handleSmartCanvasLocked(data);
-                if(data?.type === 'canvas_unlocked') handleSmartCanvasUnlocked(data);
             } catch(e) {}
         };
         socket.onclose = () => {
@@ -323,5 +219,5 @@ function canvasTaskWriteGuard(...targets){
 
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartSessionVisibility(){
-    document.addEventListener('visibilitychange', () => { if(!document.hidden && canvasId) checkSmartCanvasLock(); });
+    document.addEventListener('visibilitychange', () => { if(!document.hidden && canvasId) window.MemberCanvasEdit?.active?.lease.refresh().catch(() => {}); });
 }

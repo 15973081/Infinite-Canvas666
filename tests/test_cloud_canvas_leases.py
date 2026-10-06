@@ -21,6 +21,22 @@ def setup_canvas(world, kind='classic'):
     return '/api/canvases/' + canvas['id'], canvas
 
 
+def test_retired_canvas_lock_routes_are_gone_and_workspace_lease_still_saves(world):
+    from main import app
+    from app import state
+    assert not hasattr(state, 'canvas_lock_manager')
+    assert not any(route.path.endswith(('/lock', '/lock/release')) for route in app.routes if hasattr(route, 'path'))
+    path, canvas = setup_canvas(world)
+    client = world['editor']
+    head = headers(world['a'])
+    assert client.get(path + '/lock', headers=head).status_code == 403
+    lease = acquire(world, path)
+    saved = save(world, path, lease, title='工作空间租约保存')
+    assert saved.status_code == 200, saved.text
+    revision = saved.json()['canvas']['revision']
+    assert client.post(path + '/edit-lease/release', headers=proof(world, lease, revision)).status_code == 200
+
+
 @pytest.mark.parametrize('kind', ['classic', 'smart'])
 def test_real_frontend_client_transfer_reject_takeover_and_final_save(world, kind):
     from app.services import members

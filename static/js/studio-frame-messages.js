@@ -3,7 +3,7 @@
     'use strict';
     const apiTypes = ['providers-changed', 'workflows-changed', 'comfy-instances-changed'];
     const currentTypes = ['cloud_status', 'canvas_updated'];
-    const allTypes = ['canvas_locked', 'canvas_unlocked', 'asset_library_updated'];
+    const allTypes = ['asset_library_updated'];
     const types = new Set([...apiTypes, ...currentTypes, ...allTypes,
         'studio-theme', 'studio-lang', 'studio-ui-scale', 'canvas-focus', 'maintenance_changed']);
 

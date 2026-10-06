@@ -17,7 +17,9 @@ async function fixture(t, kind, member, options={}) {
         nodes:[], connections:[], logs:[], settings:{}, viewport:{x:0,y:0,scale:1}};
     await page.addInitScript(({member}) => {
         window.WebSocket = class extends EventTarget { close() {} };
-        if (!member) return;
+        // Non-member fixtures isolate legacy business adapters, not retired lock UI.
+        // Production access fails closed without MemberCanvasEdit.
+        if (!member){window.MemberCanvasEdit={canEdit:true,canRefresh:true,markDirty(){},send:(url,init,transport=fetch)=>transport(url,init),leave:async()=>true};return;}
         // Exercise the production canvas and task guard against a changing lease.
         // The membership service itself has separate HTTP/lease regression tests.
         window.CanvasSession = {enabled:true, ready:Promise.resolve(), paused:false,
@@ -52,7 +54,6 @@ async function fixture(t, kind, member, options={}) {
             else if(url.pathname==='/api/canvases') result={canvases:[record]};
             else if(url.pathname==='/api/canvases/trash') result={canvases:[]};
             else if(url.pathname==='/api/canvas-folders') result={folders:[]};
-            else if(url.pathname.endsWith('/lock')) result={holder:method==='POST'?{...request.postDataJSON(),ip:'127.0.0.1'}:null};
             else if(url.pathname==='/api/canvases/canvas-test') {
                 if(method==='PUT'){Object.assign(record,request.postDataJSON());record.updated_at++;record.revision++;}
                 result={canvas:record};

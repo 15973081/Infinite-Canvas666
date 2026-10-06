@@ -76,7 +76,7 @@ function resetCanvasSaveSnapshot(){
 async function saveCanvas(){
     // 远端状态应用期间不回写；成员模式还需具备当前保存权限。
     if(!canvas || applyingRemoteCanvas) return;
-    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canSave) return;
+    if(window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canSave : isCanvasLockedByOther()) return;
     if(savingCanvasNow){
         // 当前请求结束后再保存，避免两个请求同时写入同一版本。
         saveCanvasAgain = true;
@@ -223,7 +223,7 @@ async function flushClassicCanvasBeforeFrontendReload(){
             await new Promise(resolve => setTimeout(resolve, 80));
             continue;
         }
-        if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canSave) return false;
+        if(window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canSave : isCanvasLockedByOther()) return false;
         await saveCanvas();
         // Follow actual edits made during the write immediately, without
         // waiting for a timer that the finishing UI may cancel.

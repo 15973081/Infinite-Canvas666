@@ -77,7 +77,6 @@
                 <div id="smartTitle" class="smart-title">智能画布</div>
                 <div id="smartCanvasTime" class="smart-canvas-time">--</div>
             </div>
-            <div id="smartLockBadge" class="smart-lock-badge" hidden><i data-lucide="lock"></i><span id="smartLockLabel"></span></div>
             <div id="memberCanvasStatus"></div>
         </div>
         <div id="createMenu" class="create-menu">
@@ -474,15 +473,6 @@
         </div>
         <div id="toast" class="toast"></div>
         <div id="mentionPreview" class="mention-preview"><img alt="preview"></div>
-        <div id="smartLockOverlay" class="smart-lock-overlay" hidden>
-            <div class="smart-lock-card">
-                <i data-lucide="lock"></i>
-                <strong>画布编辑中</strong>
-                <span id="smartLockMessage"></span>
-                <small>你只能查看、移动和缩放画布，等对方退出后会自动解锁。</small>
-                <button id="smartLockRetryBtn" type="button" onclick="tryAcquireSmartCanvasLock()"><i data-lucide="refresh-cw"></i><span>刷新状态</span></button>
-            </div>
-        </div>
     </div>
     <script src="/static/js/volcengine-video-billing.js"></script>
     <script src="/static/js/canvas-ledger.js"></script>

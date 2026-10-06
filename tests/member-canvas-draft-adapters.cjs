@@ -52,7 +52,7 @@ for(const kind of ['classic','smart']) test(kind+' rejects mismatched or malform
 
 for(const direction of ['smart','list']) test('standalone member navigation to '+direction+' preserves the selected space',async()=>{
     const context={canvasId:'a',canvas:null,saveTimer:null,window:{CanvasSession:{enabled:true,url:path=>new URL(path,'http://canvas.local').href+(path.includes('?')?'&':'?')+'workspace=chosen-space'},location:{}},
-        clearTimeout(){},savePromptDraftForCurrent(){},releaseSmartCanvasLockOnExit(){}};
+        clearTimeout(){},savePromptDraftForCurrent(){}};
     context.window.location.replace=value=>{context.destination=value;};
     vm.createContext(context);
     const path=direction==='smart'?'static/js/canvas.js':'static/js/smart-canvas.js';

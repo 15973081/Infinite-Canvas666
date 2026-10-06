@@ -130,25 +130,6 @@
         return request(`/api/canvases/${encodeURIComponent(id)}/backups/${encodeURIComponent(filename)}`, {method:'DELETE'});
     }
 
-    function checkCanvasLock(id){
-        return jsonOr(`/api/canvases/${encodeURIComponent(id)}/lock`, null);
-    }
-
-    function acquireCanvasLock(id, payload){
-        return request(`/api/canvases/${encodeURIComponent(id)}/lock`, jsonBodyInit('POST', payload));
-    }
-
-    function releaseCanvasLock(id, clientId){
-        return request(`/api/canvases/${encodeURIComponent(id)}/lock?client_id=${encodeURIComponent(clientId)}`, {method:'DELETE'});
-    }
-
-    function releaseCanvasLockKeepalive(id, payload){
-        return request(`/api/canvases/${encodeURIComponent(id)}/lock/release`, {
-            ...jsonBodyInit('POST', payload),
-            keepalive:true
-        });
-    }
-
     let uploadCapabilities;
     async function uploadJson(path, init={}){
         const response = await fetch(path, init);
@@ -513,10 +494,6 @@
         listCanvasBackups,
         restoreCanvasBackup,
         deleteCanvasBackup,
-        checkCanvasLock,
-        acquireCanvasLock,
-        releaseCanvasLock,
-        releaseCanvasLockKeepalive,
         uploadAi,
         createAssetItem,
         createAssetItemsBatch,

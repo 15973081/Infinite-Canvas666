@@ -82,8 +82,6 @@ def permissions(path, method):
         return ('canvas.read',) if method == 'GET' else ('canvas.create',) if method == 'POST' and path == '/api/canvases' else None
     if path.startswith('/api/canvas-folders'):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method in {'POST', 'PATCH', 'DELETE'} else None
-    if re.fullmatch(r'/api/canvases/[^/]+/lock(?:/release)?', path):
-        az.fail('collaboration_protocol_pending', 503)  # Replaced by C2 lease routes.
     if re.fullmatch(r'/api/canvases/[^/]+/task-results(?:/[^/]+/join)?', path):
         from app.services.canvas_task_results import PERMISSIONS
         return PERMISSIONS if method == 'GET' and path.endswith('/task-results') else (*PERMISSIONS, 'canvas.edit') if method == 'POST' and path.endswith('/join') else None

@@ -443,7 +443,7 @@ function scheduleSave(){
 
 async function saveCanvas(options={}){
     const force = options.force === true;
-    // 成员模式检查保存权限，旧模式检查画布锁；强制保存也不能跳过此检查。
+    // 保存必须通过当前工作空间权限检查；强制保存也不能跳过此检查。
     if(!canvasId || !canvas || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canSave : isSmartCanvasLocked())){
         return false;
     }

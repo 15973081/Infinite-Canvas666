@@ -42,10 +42,6 @@
                     <div id="currentCanvasTitle" class="current-canvas-title">未命名画布</div>
                     <div id="currentCanvasTime" class="current-canvas-time">--</div>
                 </div>
-                <div id="canvasLockBadge" class="canvas-lock-badge" style="display:none" title="">
-                    <i data-lucide="lock" class="w-3.5 h-3.5"></i>
-                    <span id="canvasLockLabel"></span>
-                </div>
                 <div id="memberCanvasStatus"></div>
                 <p id="saveState" style="display:none">请选择或新建画布</p>
             </div>
@@ -378,17 +374,6 @@
                 </div>
             </div>
         </aside>
-        <div id="canvasLockOverlay" class="canvas-lock-overlay" style="display:none">
-            <div class="canvas-lock-overlay-card">
-                <i data-lucide="lock" class="w-6 h-6 canvas-lock-overlay-icon"></i>
-                <div class="canvas-lock-overlay-title">画布编辑中</div>
-                <div id="canvasLockOverlayMsg" class="canvas-lock-overlay-msg"></div>
-                <div class="canvas-lock-overlay-hint">你只能移动和缩放画布，编辑操作暂时不可用。<br>等对方退出后会自动解锁。</div>
-                <button id="canvasLockRetryBtn" class="canvas-lock-retry-btn" type="button" onclick="tryAcquireCanvasLock()">
-                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span>刷新状态</span>
-                </button>
-            </div>
-        </div>
     </div>
 
     <script src="/static/js/volcengine-video-billing.js"></script>

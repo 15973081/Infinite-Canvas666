@@ -27,7 +27,7 @@ async function fixture(t,options={}){
             return route.fulfill({contentType:'text/javascript',body});
         }
         if(u.pathname.endsWith('.html'))return route.fulfill({contentType:'text/html',body:`<!doctype html><script>${protocol}</script><script>
-            window.received=[];StudioFrameMessages.subscribe(['canvas_updated','cloud_status','canvas_locked','canvas_unlocked','asset_library_updated','studio-lang','studio-theme','studio-ui-scale','canvas-focus','providers-changed','maintenance_changed'],event=>received.push(event.data));
+            window.received=[];StudioFrameMessages.subscribe(['canvas_updated','cloud_status','asset_library_updated','studio-lang','studio-theme','studio-ui-scale','canvas-focus','providers-changed','maintenance_changed'],event=>received.push(event.data));
             window.StudioTheme={apply(theme){received.push({type:'sync-theme',theme});}};
             </script>`});
         if(u.pathname==='/api/maintenance/status')return route.fulfill({json:{mode:'normal',boot_id:'test'}});
@@ -44,16 +44,16 @@ async function fixture(t,options={}){
     return {page,errors,codecRequests};
 }
 async function counts(page,type){return page.evaluate(type=>['online','gpt-chat'].map(id=>document.getElementById('frame-'+id).contentWindow.received.filter(m=>m.type===type).length),type);}
-test('production shell switches foreground routing and broadcasts lock/library payloads',async t=>{
+test('production shell switches foreground routing and broadcasts library payloads',async t=>{
     const {page,errors}=await fixture(t);
     await page.evaluate(()=>{sockets[0].onmessage({data:JSON.stringify({type:'canvas_updated',canvas_id:'a'})});});
     await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.some(m=>m.type==='canvas_updated'));
     assert.deepEqual(await counts(page,'canvas_updated'),[0,1]);
     await page.evaluate(()=>{switchUI(null,'online');sockets[0].onmessage({data:JSON.stringify({type:'canvas_updated',canvas_id:'b'})});
-        for(const type of ['canvas_locked','canvas_unlocked','asset_library_updated'])sockets[0].onmessage({data:JSON.stringify({type,extra:{keep:true}})});});
+        for(const type of ['asset_library_updated'])sockets[0].onmessage({data:JSON.stringify({type,extra:{keep:true}})});});
     await page.waitForFunction(()=>document.getElementById('frame-online').contentWindow.received.some(m=>m.type==='asset_library_updated'));
     assert.deepEqual(await counts(page,'canvas_updated'),[1,1]);
-    for(const type of ['canvas_locked','canvas_unlocked','asset_library_updated'])assert.deepEqual(await counts(page,type),[1,1]);
+    for(const type of ['asset_library_updated'])assert.deepEqual(await counts(page,type),[1,1]);
     assert.deepEqual(errors,[]);
 });
 test('production stats connection reconnects with original delay, retires old callbacks and restores presentation',async t=>{
@@ -122,15 +122,15 @@ test('cached exit resumes once, while permanent exit blocks late socket/API deli
     const {page,errors}=await fixture(t);
     await page.evaluate(()=>window.oldSocketMessage=sockets[0].onmessage);
     await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true})));
-    await page.evaluate(()=>oldSocketMessage({data:JSON.stringify({type:'canvas_locked'})}));await page.waitForTimeout(30);
-    assert.deepEqual(await counts(page,'canvas_locked'),[0,0]);
+    await page.evaluate(()=>oldSocketMessage({data:JSON.stringify({type:'asset_library_updated'})}));await page.waitForTimeout(30);
+    assert.deepEqual(await counts(page,'asset_library_updated'),[0,0]);
     await page.evaluate(()=>{window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
     await page.waitForFunction(()=>sockets.length===2);
-    await page.evaluate(()=>sockets[1].onmessage({data:JSON.stringify({type:'canvas_locked'})}));
-    await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.some(m=>m.type==='canvas_locked'));
-    assert.deepEqual(await counts(page,'canvas_locked'),[1,1]);
-    await page.evaluate(()=>{const old=sockets[1].onmessage;window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));old({data:JSON.stringify({type:'canvas_locked'})});window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
-    await page.waitForTimeout(30);assert.deepEqual(await counts(page,'canvas_locked'),[1,1]);assert.deepEqual(errors,[]);
+    await page.evaluate(()=>sockets[1].onmessage({data:JSON.stringify({type:'asset_library_updated'})}));
+    await page.waitForFunction(()=>document.getElementById('frame-gpt-chat').contentWindow.received.some(m=>m.type==='asset_library_updated'));
+    assert.deepEqual(await counts(page,'asset_library_updated'),[1,1]);
+    await page.evaluate(()=>{const old=sockets[1].onmessage;window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));old({data:JSON.stringify({type:'asset_library_updated'})});window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));});
+    await page.waitForTimeout(30);assert.deepEqual(await counts(page,'asset_library_updated'),[1,1]);assert.deepEqual(errors,[]);
 });
 for(const kind of ['classic','smart'])test(kind+' production iframe keeps message handling and theme after cache return',async t=>{
     const {page,errors}=await canvasFixture(t,kind);
