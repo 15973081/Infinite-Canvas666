@@ -1,0 +1,26 @@
+.online-import-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.online-import-actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:8px 12px;background:var(--studio-panel);color:var(--studio-text);border:1px solid var(--studio-border);border-radius:var(--studio-radius-editor-control);font:500 12px/1.4 var(--studio-font);cursor:pointer;transition:background var(--studio-motion),border-color var(--studio-motion)}
+.online-import-actions button svg{width:15px;height:15px;stroke-width:1.6}
+.online-import-actions button:hover{background:var(--studio-selected);border-color:var(--studio-accent-label)}
+.online-import-actions button:focus-visible,.online-import-dialog :is(button,select,a,input):focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
+#resultActions{position:absolute;bottom:16px;left:16px;right:16px;z-index:2}#resultActions[hidden]{display:none}
+.masonry-item .online-import-actions{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:8px;background:var(--studio-panel);border-top:1px solid var(--studio-border);display:grid;grid-template-columns:1fr 1fr}
+.masonry-item .online-import-actions button{padding:6px;min-height:34px;font-size:11px;border-radius:6px}
+.masonry-item .online-history-caption{padding-bottom:70px}
+body.history-bulk-selecting .masonry-item .online-import-actions{visibility:hidden;pointer-events:none}
+.online-import-dialog{width:min(460px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;box-sizing:border-box;padding:24px;color:var(--studio-text);background:var(--studio-panel);border:1px solid var(--studio-border);border-top-color:var(--studio-accent-label);border-radius:var(--studio-radius-editor);box-shadow:0 24px 72px var(--studio-shadow);font:14px/1.6 var(--studio-font)}
+.online-import-dialog::backdrop{background:var(--studio-overlay);backdrop-filter:blur(5px)}
+.online-import-dialog header{display:flex;justify-content:space-between;align-items:center;gap:16px}.online-import-dialog h2{font-size:18px;font-weight:600;margin:0}
+.online-import-close{padding:4px 8px;color:var(--studio-text-muted);background:transparent;border:1px solid var(--studio-border);border-radius:8px;cursor:pointer}
+.online-import-summary{margin:12px 0 20px;font-size:12px;color:var(--studio-text-muted)}
+.online-import-fields{display:grid;gap:16px}.online-import-field{display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--studio-text-muted)}
+.online-import-field :is(select,input[type=search]){box-sizing:border-box;width:100%;min-height:44px;padding:8px 12px;background:var(--studio-surface-soft);color:var(--studio-text);border:1px solid var(--studio-border);border-radius:10px;font:14px var(--studio-font)}
+.online-import-field input[type=search]::placeholder{color:var(--studio-text-muted);opacity:1}
+.online-import-search-status{margin:-8px 0 0;color:var(--studio-text-muted);font-size:12px}
+.online-import-field:has(input[type=checkbox]){flex-direction:row;align-items:center;justify-content:space-between}.online-import-field input[type=checkbox]{width:18px;height:18px;accent-color:var(--studio-focus)}
+.online-import-message{min-height:24px;margin:18px 0 12px;font-size:12px;color:var(--studio-text-muted);overflow-wrap:anywhere}.online-import-message.error{color:var(--studio-error)}
+.online-import-submit{width:100%;min-height:44px;padding:10px 16px;background:var(--studio-accent);color:var(--studio-accent-text);border:1px solid var(--studio-accent);border-radius:10px;font:600 14px var(--studio-font);cursor:pointer}.online-import-submit:disabled,.online-import-close:disabled{opacity:.5;cursor:wait}.online-import-submit[hidden]{display:none}
+.online-import-link{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:8px 12px;border:1px solid var(--studio-border);border-radius:10px;color:var(--studio-accent-label);text-decoration:none;background:var(--studio-surface-soft)}
+body.studio-online #lightboxCard{flex-wrap:wrap}body.studio-online #lightboxCard .online-import-actions{flex-shrink:0}
+@media(max-width:640px){.online-import-dialog{padding:20px}.online-import-actions button,.masonry-item .online-import-actions button{min-height:44px}body.studio-online #lightboxCard .online-import-actions{width:100%}body.studio-online #lightboxCard .online-import-actions button{flex:1}.masonry-item .online-import-actions{gap:4px;padding:6px}.masonry-item .online-import-actions button svg{display:none}}
+@media(prefers-reduced-motion:reduce){.online-import-actions button{transition:none}}

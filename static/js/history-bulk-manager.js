@@ -136,7 +136,22 @@
         exitBtn.type = 'button';
         exitBtn.className = 'hbm-btn hbm-primary hbm-hide';
 
-        bar.append(manageBtn, spacer, countEl, selectAllBtn, deleteBtn, exitBtn);
+        // Pages opt in to additional actions; selection and deletion stay shared.
+        const extraActions = (opts.actions || []).map(action => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'hbm-btn hbm-hide';
+            button.dataset.hbmAction = action.id;
+            const label = document.createElement('span');
+            label.textContent = action.label;
+            button.append(label);
+            button.addEventListener('click', () => {
+                if(selecting && !button.disabled) action.run(selectedCards());
+            });
+            return {button, action};
+        });
+
+        bar.append(manageBtn, spacer, countEl, selectAllBtn, ...extraActions.map(entry => entry.button), deleteBtn, exitBtn);
         masonry.parentNode.insertBefore(bar, masonry);
 
         function cards(){
@@ -155,6 +170,7 @@
             selectAllBtn.textContent = allSelected ? tr('bulk.deselectAll') : tr('bulk.selectAll');
             deleteLabel.textContent = tr('bulk.deleteSelected');
             deleteBtn.disabled = sel.length === 0;
+            extraActions.forEach(({button, action}) => button.disabled = sel.length === 0 || (action.enabled && !action.enabled(sel)));
             exitBtn.textContent = tr('bulk.exit');
             if(window.lucide && lucide.createIcons) lucide.createIcons();
         }
@@ -164,6 +180,7 @@
             document.body.classList.add('history-bulk-selecting');
             manageBtn.classList.add('hbm-hide');
             [countEl, selectAllBtn, deleteBtn, exitBtn].forEach(el => el.classList.remove('hbm-hide'));
+            extraActions.forEach(({button}) => button.classList.remove('hbm-hide'));
             refreshLabels();
         }
         function exit(){
@@ -172,6 +189,7 @@
             cards().forEach(c => c.classList.remove('hbm-selected'));
             manageBtn.classList.remove('hbm-hide');
             [countEl, selectAllBtn, deleteBtn, exitBtn].forEach(el => el.classList.add('hbm-hide'));
+            extraActions.forEach(({button}) => button.classList.add('hbm-hide'));
             refreshLabels();
         }
 

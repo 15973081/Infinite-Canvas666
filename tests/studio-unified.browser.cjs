@@ -29,8 +29,8 @@ test('history preview follows themes and fits the viewport without losing image 
    assert.equal(geometry.fill,theme==='dark'?'rgb(9, 11, 9)':'rgb(243, 244, 237)');
    assert.equal(await page.locator('#lightboxClose').evaluate(el=>el===document.activeElement),true);
    await page.locator('#lightboxClose').press('Shift+Tab');
-   assert.equal(await page.locator('#sameStyleBtn').evaluate(el=>el===document.activeElement),true,'focus stays inside preview');
-   await page.locator('#sameStyleBtn').press('Escape');
+   assert.equal(await page.locator('#lightboxCard [data-online-import="library"]').evaluate(el=>el===document.activeElement),true,'focus stays inside preview');
+   await page.locator('#lightboxCard [data-online-import="library"]').press('Escape');
    assert.equal(await page.locator('#lightbox').isVisible(),false);
    assert.equal(await page.locator('#promptInput').evaluate(el=>el===document.activeElement),true,'focus returns to opener');
   }

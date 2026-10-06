@@ -11,7 +11,7 @@ for (const paused of [false,true]) test('online thumbnail and original fallback 
     const card={dataset:{},querySelector:()=>image};
     const masonry={appendChild(){}};
     const context=vm.createContext({window:{MemberMediaUrl:url=>mediaUrl(url,session,'http://localhost:8768/')},URLSearchParams,HISTORY_THUMB_WIDTH:320,
-        document:{getElementById:id=>id==='masonry'?masonry:null,createElement:()=>card},lucide:{createIcons(){}},tr:()=>'',openLightbox(){}});
+        document:{getElementById:id=>id==='masonry'?masonry:null,createElement:()=>card},lucide:{createIcons(){}},tr:()=>'',escapeHtml:value=>String(value).replace(/</g,'&lt;'),openLightbox(){}});
     vm.runInContext(helper,context);
     context.renderImageCard({timestamp:123,images:['/assets/output/test.png'],prompt:'test'});
     const preview=image.src;

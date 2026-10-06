@@ -22,6 +22,7 @@
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
     <script src="/static/js/history-pager.js?v=20260914"></script>
+    <script src="/static/js/online-imports.js"></script>
     <link rel="stylesheet" href="/static/css/studio-transfer-status.css">
     <script src="/static/js/studio-transfer-status.js"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
@@ -68,6 +69,7 @@
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/studio-generation.css">
+    <link rel="stylesheet" href="/static/css/online-imports.css">
 </head>
 <body class="studio-skin studio-content studio-online">
     <div class="container-box min-h-screen flex flex-col">
@@ -200,6 +202,7 @@
                     <div id="placeholder" class="text-center space-y-4 opacity-20"><i data-lucide="layout" class="w-12 h-12 mx-auto stroke-[1px]"></i><p class="text-[10px] font-black tracking-[0.5em] uppercase">画布就绪</p></div>
                     <img id="outputImg" class="hidden w-full h-full object-contain p-8 cursor-zoom-in" onclick="zoomImage()">
                     <a id="downloadBtn" href="#" download class="hidden absolute top-8 right-8 w-12 h-12 bg-white/90 shadow-2xl rounded-2xl flex items-center justify-center hover:bg-black hover:text-white"><i data-lucide="download" class="w-4 h-4"></i></a>
+                    <div id="resultActions" hidden></div>
                 </div>
             </div>
         </main>
@@ -658,6 +661,7 @@
                             void downloadOnlineImage(result.images[0]);
                         };
                         downloadButton.classList.remove('hidden');
+                        document.getElementById('resultActions').hidden = false;
                         renderImageCard(result, true);
                         return;
                     }
@@ -723,7 +727,7 @@
             const multi = Array.isArray(data.images) && data.images.length > 1
                 ? `<div class="absolute top-3 right-3 bg-black/60 text-white text-[10px] font-black px-2 py-0.5 rounded-full pointer-events-none">×${data.images.length}</div>` : '';
             card.innerHTML = `<img class="w-full h-full object-cover block group-hover:scale-105 transition-transform duration-1000" loading="lazy" decoding="async" fetchpriority="low" alt="">${multi}
-                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 p-6 flex flex-col justify-end"><p class="text-white text-[10px] font-medium line-clamp-2 uppercase tracking-wider">${data.prompt || tr('online.onlineImageFallback')}</p></div>`;
+                <div class="online-history-caption absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 p-6 flex flex-col justify-end"><p class="text-white text-[10px] font-medium line-clamp-2 uppercase tracking-wider">${escapeHtml(data.prompt || tr('online.onlineImageFallback'))}</p></div>`;
             const thumbnail = card.querySelector('img');
             thumbnail.dataset.originalSrc = originalUrl;
             thumbnail.addEventListener('error', () => {
@@ -732,6 +736,7 @@
                 thumbnail.src = onlineMediaUrl(originalUrl);
             });
             thumbnail.src = onlineMediaUrl(thumbnailUrl);
+            window.OnlineImports?.attach(card, () => data, 'card');
             isNew ? document.getElementById('masonry').prepend(card) : document.getElementById('masonry').appendChild(card);
             lucide.createIcons();
         }
@@ -865,7 +870,9 @@
             if(res.success) document.getElementById(`history-${ts}`)?.remove();
         }
         const observer = new IntersectionObserver(entries => { if(entries[0].isIntersecting && currentIndex < allHistory.length) loadHistory(1); }, {threshold:.1});
-        window.onload = async () => { applyLanguage(); setRatio('square'); setResolution('1k'); await initModels(); await loadHistory(0); window.HistoryBulkManager?.attach({masonry:'#masonry'}); observer.observe(document.getElementById('loadMoreTrigger')); document.getElementById('loadMoreTrigger').onclick = () => loadHistory(1); };
+        window.OnlineImports?.attach(document.getElementById('resultActions'), () => currentResult);
+        window.OnlineImports?.attach(document.getElementById('lightboxCard'), () => currentLightboxData);
+        window.onload = async () => { applyLanguage(); setRatio('square'); setResolution('1k'); await initModels(); await loadHistory(0); window.HistoryBulkManager?.attach({masonry:'#masonry',actions:window.OnlineImports?.bulkActions() || []}); observer.observe(document.getElementById('loadMoreTrigger')); document.getElementById('loadMoreTrigger').onclick = () => loadHistory(1); };
     </script>
 </body>
 </html>
