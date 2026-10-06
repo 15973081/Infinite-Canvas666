@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/canvas-home.css">
     <link rel="stylesheet" href="/static/css/studio-editor.css">
+    <link rel="stylesheet" href="/static/css/canvas-cover.css">
 </head>
 <body class="studio-skin studio-canvas">
     <div id="shell" class="shell no-canvas">
@@ -50,6 +51,7 @@
             </div>
             <div id="quickToolbar" class="panel toolbar editor-only" role="toolbar" aria-label="画布管理工具">
                 <div class="toolbar-fixed">
+                    <button id="canvasCoverToggle" class="tool-btn" type="button" onclick="editCanvasCover()" title="画布封面" aria-label="画布封面"><i data-lucide="photo"></i><span>封面</span></button>
                     <button id="workflowTransferToggle" class="tool-btn toolbar-workflow" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open" class="w-4 h-4"></i><span>工作流</span></button>
                     <button id="canvasAssetToggle" class="tool-btn toolbar-asset canvas-asset-toggle" type="button" title="资产库" aria-label="资产库"><i data-lucide="library" class="w-4 h-4"></i><span>资产库</span></button>
                     <button id="canvasCostToggle" class="tool-btn toolbar-cost" type="button" onclick="openCanvasCost(event)" title="费用仪表盘" aria-label="费用仪表盘"><i data-lucide="circle-dollar-sign" class="w-4 h-4"></i><span id="canvasCostToggleLabel">费用 ¥0.00</span></button>
@@ -408,6 +410,7 @@
     <script data-canvas-module="execution" src="/static/js/canvas/classic/canvas-execution.js"></script>
     <script data-canvas-module="results" src="/static/js/canvas/classic/canvas-results.js"></script>
     <script src="/static/js/canvas-home.js"></script>
+    <script src="/static/js/canvas-cover.js"></script>
     <script data-canvas-module="app" src="/static/js/canvas.js?v=2026.09.22.1"></script>
     <script src="/static/js/canvas-focus.js"></script>
 </body>

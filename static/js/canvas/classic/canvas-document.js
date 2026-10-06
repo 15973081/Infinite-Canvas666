@@ -43,6 +43,7 @@ function canvasSavePayload(){
     return {
         title:canvas.title,
         icon:canvas.icon || '🧩',
+        cover:canvas.cover || null,
         nodes:serializableCanvasNodes(),
         connections,
         logs:canvas.logs || [],
@@ -57,6 +58,7 @@ function canvasSaveSnapshot(payload){
     return JSON.stringify({
         title:payload.title || '',
         icon:payload.icon || '',
+        cover:payload.cover || null,
         nodes:payload.nodes || [],
         connections:payload.connections || [],
         logs:payload.logs || []

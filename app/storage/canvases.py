@@ -4,9 +4,11 @@ from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 from app.storage.database import connection
 from app.storage.workspace import current_workspace
+from app.services.canvas_cover import cover_sql
 
 _RECORD_COLUMNS = """id,title,kind,revision,created_at,updated_at,deleted_at,
     jsonb_build_object('icon',document->'icon','owner',document->'owner','color',document->'color',
+    'cover',document->'cover',
     'cover_style',document->'cover_style','pinned',document->'pinned','folder_id',document->'folder_id',
     'node_count',jsonb_array_length(coalesce(document->'nodes','[]'::jsonb))) AS document"""
 
@@ -52,11 +54,12 @@ def list_records(include_deleted=False):
         with connection() as conn:
             # Expand JSON once per row: separate document-> expressions repeatedly
             # decompress large historical canvases even though only labels are returned.
-            rows = conn.execute("""SELECT c.id,c.title,c.kind,c.revision,c.created_at,c.updated_at,c.deleted_at,
+            rows = conn.execute(f"""SELECT c.id,c.title,c.kind,c.revision,c.created_at,c.updated_at,c.deleted_at,
                 jsonb_build_object('icon',m.icon,'owner',m.owner,'color',m.color,'cover_style',m.cover_style,
+                    'cover',m.cover,'cover_media',{cover_sql('m.nodes', 'm.cover')},
                     'pinned',m.pinned,'folder_id',m.folder_id,'node_count',jsonb_array_length(coalesce(m.nodes,'[]'::jsonb))) AS document
                 FROM canvases c CROSS JOIN LATERAL jsonb_to_record(c.document) AS m(
-                    icon jsonb,owner jsonb,color jsonb,cover_style jsonb,pinned jsonb,folder_id jsonb,nodes jsonb,purged_at text)
+                    icon jsonb,owner jsonb,color jsonb,cover_style jsonb,cover jsonb,pinned jsonb,folder_id jsonb,nodes jsonb,purged_at text)
                 WHERE c.workspace_id=%s AND c.id>%s AND (c.deleted_at IS NOT NULL)=%s
                     AND coalesce(m.purged_at,'0') IN ('0','') ORDER BY c.id LIMIT 100""", (current_workspace(), after, include_deleted)).fetchall()
         if not rows:

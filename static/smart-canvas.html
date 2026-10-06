@@ -30,6 +30,7 @@
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/smart-composer.css">
     <link rel="stylesheet" href="/static/css/studio-editor.css">
+    <link rel="stylesheet" href="/static/css/canvas-cover.css">
 </head>
 <body class="studio-skin studio-content studio-smart-canvas">
     <div id="shell" class="shell">
@@ -146,6 +147,7 @@
             </div>
         </div>
         <div class="smart-top-tools" role="group" aria-label="画布工具">
+        <button id="smartCoverToggle" class="smart-backup-toggle" type="button" onclick="editCanvasCover()" title="画布封面" aria-label="画布封面"><i data-lucide="photo"></i><span>封面</span></button>
         <button id="smartWorkflowToggle" class="smart-workflow-toggle" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open"></i><span>工作流</span></button>
         <button id="smartShortcutToggle" class="smart-shortcut-toggle" type="button" onclick="openSmartCanvasShortcuts()" title="快捷键" aria-label="快捷键"><i data-lucide="keyboard"></i><span>快捷键</span></button>
         <button id="smartCostToggle" class="smart-cost-toggle" type="button" onclick="openSmartCanvasCost(event)" title="费用仪表盘" aria-label="费用仪表盘"><i data-lucide="circle-dollar-sign"></i><span id="smartCostToggleLabel">费用 ¥0.00</span></button>
@@ -492,6 +494,7 @@
     <script src="/static/js/canvas-editable-image.js"></script>
     <script src="/static/js/member-media-preview.js"></script>
     <script src="/static/js/asset-auth.js"></script>
+    <script src="/static/js/canvas-cover.js"></script>
     <script data-canvas-module="document" src="/static/js/canvas/smart/smart-document.js"></script>
     <script data-canvas-module="session" src="/static/js/canvas/smart/smart-session.js"></script>
     <script data-canvas-module="workspace" src="/static/js/canvas/smart/smart-workspace.js"></script>

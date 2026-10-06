@@ -474,6 +474,7 @@ async function saveCanvas(options={}){
             const response = await window.CanvasApi.saveCanvas(canvasId, {
                 title:storageCanvas.title || '智能画布',
                 icon:storageCanvas.icon || 'sparkles',
+                cover:storageCanvas.cover || null,
                 nodes:storageCanvas.nodes || [],
                 connections:storageCanvas.connections || [],
                 viewport:storageCanvas.viewport || {x:0,y:0,scale:1},

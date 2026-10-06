@@ -247,7 +247,14 @@ class CanvasMetaUpdate(BaseModel):
     pinned: Optional[bool] = None
 
 
+class CanvasCoverSelection(BaseModel):
+    node_id: str = Field(default="", max_length=128)
+    index: int = Field(default=-1, ge=-1, le=100000, strict=True)
+    text: str = Field(default="", max_length=80)
+
+
 class CanvasSaveRequest(BaseModel):
+    cover: Optional[CanvasCoverSelection] = None
     task_result_version: int = Field(default=0, ge=0, strict=True)
     title: str = "未命名画布"
     icon: str = "🧩"

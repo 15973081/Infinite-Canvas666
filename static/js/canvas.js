@@ -917,7 +917,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
             menu.appendChild(summary);
             const actions = document.createElement('div');
             actions.className = 'studio-card-menu-items';
-            for(const [selector, label] of [['.canvas-card-edit','重命名'],['.canvas-folder-btn','移动到文件夹'],['.canvas-preview-mark','封面样式'],['.canvas-pin-btn',pinned ? '取消置顶' : '置顶'],['.canvas-delete','移入回收站']]){
+            for(const [selector, label] of [['.canvas-card-edit','重命名'],['.canvas-folder-btn','移动到文件夹'],['.canvas-preview-mark','编辑封面'],['.canvas-pin-btn',pinned ? '取消置顶' : '置顶'],['.canvas-delete','移入回收站']]){
                 const control = row.querySelector(selector);
                 if(!control) continue;
                 if(control.tagName !== 'BUTTON') {
@@ -956,6 +956,7 @@ function renderCanvasListInto(list, model=canvasGateModel()){
     });
     refreshIcons();
     renderCanvasMetaPopover();
+    window.CanvasCover?.bind(list);
 }
 function closeCanvasMetaPopover(){
     emojiPickerCanvasId = null;
@@ -1084,10 +1085,10 @@ async function createCanvas(customTitle = ''){
 async function createSmartCanvas(){
     setCreateMode(true, 'smart');
 }
-async function openSmartCanvasPage(id){
+async function openSmartCanvasPage(id, editCover=false){
     if(!id) return;
     await window.FrontendVersion?.checkForUpdate?.();
-    const path = `/static/smart-canvas.html?id=${encodeURIComponent(id)}`;
+    const path = `/static/smart-canvas.html?id=${encodeURIComponent(id)}${editCover ? '&cover=1':''}`;
     const target = window.CanvasSession?.enabled ? window.CanvasSession.url(path) : path;
     window.location.href = window.FrontendVersion?.versionedUrl(target) || target;
 }
@@ -1460,42 +1461,10 @@ window.onload = async () => {
 
 bindClassicCardMenuDismissal();
 
-function openCanvasCoverStyle(item){
-    if(document.querySelector('.studio-cover-dialog')) return;
-    const origin = document.activeElement;
-    const dialog = document.createElement('dialog');
-    dialog.className = 'studio-cover-dialog';
-    dialog.setAttribute('aria-labelledby','coverStyleTitle');
-    dialog.innerHTML = '<h2 id="coverStyleTitle">封面样式</h2><p>用画布名称作为封面，选择适合这份创作的排版。</p><div class="studio-cover-options" role="group" aria-label="封面风格"></div><p class="studio-cover-error" role="alert" hidden></p><footer><button type="button" class="cover-cancel">取消</button><button type="button" class="cover-save">保存样式</button></footer>';
-    let choice = item.cover_style || 'type', busy = false;
-    const options = dialog.querySelector('.studio-cover-options');
-    for(const [key,label] of [['type','经典大字'],['editorial','杂志衬线'],['sage','鼠尾草'],['ink','墨色']]){
-        const button = document.createElement('button');button.type='button';button.dataset.coverStyle=key;
-        const sample=document.createElement('strong');sample.className='studio-cover-title';sample.textContent=item.title || '未命名画布';
-        const caption=document.createElement('span');caption.textContent=label;
-        button.append(sample,caption);button.setAttribute('aria-pressed',String(choice===key));
-        button.onclick=()=>{choice=key;options.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));};options.append(button);
-    }
-    dialog.querySelector('.cover-cancel').onclick=()=>dialog.close();
-    dialog.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
-    dialog.addEventListener('keydown',e=>e.stopPropagation());
-    dialog.addEventListener('close',()=>{dialog.remove();if(origin?.isConnected)origin.focus();});
-    dialog.querySelector('.cover-save').onclick=async()=>{
-        if(busy)return;busy=true;
-        dialog.querySelectorAll('button').forEach(b=>b.disabled=true);
-        const error=dialog.querySelector('.studio-cover-error');error.hidden=true;
-        try{
-            if(choice!== (item.cover_style || 'type')){
-                const data=await window.CanvasApi.patchCanvasMeta(item.id,{cover_style:choice});
-                if(data.canvas)updateCanvasListRecord(data.canvas);
-                if(canvas?.id===item.id)canvas.cover_style=choice;
-                renderCanvasList();
-            }
-            dialog.close();
-        }catch(e){error.textContent=e.message || '保存失败，请重试';error.hidden=false;}
-        finally{busy=false;dialog.querySelectorAll('button').forEach(b=>b.disabled=false);}
-    };
-    document.body.append(dialog);dialog.showModal();
+async function openCanvasCoverStyle(item){
+    if(item.kind === 'smart') return openSmartCanvasPage(item.id, true);
+    await openCanvas(item.id);
+    if(canvas?.id === item.id) window.editCanvasCover();
 }
 
 // Apply availability and policies together; never rebuild a field while it is being edited.

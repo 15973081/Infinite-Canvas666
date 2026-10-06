@@ -374,6 +374,7 @@ async function loadCanvas(options={}){
                 }
             });
         } else { await checkSmartCanvasLock(); startSmartCanvasLockPolling(); }
+        window.CanvasCover?.openRequested();
         return canvas;
     } catch(e) { toast(e?.message || '智能画布加载失败'); }
 }

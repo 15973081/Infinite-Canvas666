@@ -1401,6 +1401,8 @@ def _save_canvas_update(canvas_id: str, payload: CanvasSaveRequest):
     canvas["icon"] = (payload.icon or canvas.get("icon") or "layers")[:32]
     canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))
     canvas["nodes"] = payload.nodes
+    if "cover" in fields_set:
+        canvas["cover"] = payload.cover.model_dump() if payload.cover else None
     canvas['task_result_version'] = payload.task_result_version
     canvas["connections"] = payload.connections
     if canvas["kind"] == "smart":

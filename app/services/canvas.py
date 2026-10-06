@@ -213,7 +213,9 @@ def normalize_canvas_color(value):
     return color if color in CANVAS_COLORS else ""
 
 def canvas_record(data):
-    return {
+    from app.services.canvas_cover import resolve_cover
+    record = {
+        "cover": data.get("cover"),
         "cover_style": data.get("cover_style") or "type",
         "id": data.get("id"),
         "title": data.get("title", "未命名画布"),
@@ -228,6 +230,11 @@ def canvas_record(data):
         "folder_id": normalize_canvas_folder_id(data.get("folder_id")),
         "node_count": data.get("node_count", len(data.get("nodes", []))),
     }
+    if "nodes" in data:
+        record["cover_media"] = resolve_cover(data.get("nodes"), data.get("cover"))
+    elif "cover_media" in data:
+        record["cover_media"] = data["cover_media"]
+    return record
 
 def cleanup_expired_canvas_trash():
     if postgres_enabled():

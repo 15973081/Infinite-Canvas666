@@ -40,7 +40,7 @@
    for(const item of recent){const button=document.createElement('button');button.type='button';button.className='studio-recent-item';button.title=item.title||'未命名画布';const type=document.createElement('span');type.className='studio-recent-type';type.textContent=item.kind==='smart'?'智能':'经典';const info=document.createElement('span');info.className='studio-recent-info';const title=document.createElement('strong');title.textContent=item.title||'未命名画布';const time=document.createElement('small');time.textContent=formatTime(item.updated_at||item.created_at);info.append(title,time);button.append(type,info);button.onclick=()=>open(item.id);fragment.append(button);}
    list.replaceChildren(fragment);
   },
-  coverMarkup(item,escape){return `<div class="studio-canvas-cover" aria-hidden="true"><span class="studio-cover-label">${item.kind==='smart'?'ASSISTED':'CLASSIC'} / SHADOX</span><strong class="studio-cover-title">${escape(item.title||'未命名画布')}</strong></div>`;},
+  coverMarkup(item){return window.CanvasCover.markup(item);},
   setLoadState(state,onRetry){
    retry=onRetry||retry;const feedback=byId('studioHomeFeedback');feedback.replaceChildren();feedback.hidden=state==='ready';byId('canvasGate').setAttribute('aria-busy',String(state==='loading'));
    if(state==='ready'){
