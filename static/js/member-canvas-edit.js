@@ -450,7 +450,7 @@
         catch(error) {if(entry===active){entry.feedback=error.message;render();}}
         if(entry===active) timer=setTimeout(() => tick(entry),Math.min(5000,(entry.lease.status?.heartbeat_seconds || 5)*1000));
     }
-    // Directory metadata changes need a short lease, not a mounted canvas editor.
+    // Directory metadata changes and trash restoration need a short lease.
     const directoryWrites = new Map();
     function writeFromList(id, path, init, transport) {
         const previous = directoryWrites.get(id) || Promise.resolve();
@@ -607,7 +607,7 @@
                     return active.lease.write(path,init,transport);
                 }
             }
-            if(url.origin===location.origin && match && ((match[2]==='/folder' && init.method?.toUpperCase()==='PATCH') || (match[2]==='/meta' && init.method?.toUpperCase()==='POST'))) {
+            if(url.origin===location.origin && match && ((match[2]==='/folder' && init.method?.toUpperCase()==='PATCH') || (['/meta','/restore'].includes(match[2]) && init.method?.toUpperCase()==='POST'))) {
                 return writeFromList(decodeURIComponent(match[1]), path, init, transport);
             }
             if(url.origin===location.origin && match && !['GET','HEAD'].includes((init.method || 'GET').toUpperCase()) && !match[2].startsWith('/edit-lease') && match[2]!=='/touch') {

@@ -1294,18 +1294,31 @@ async function deleteCanvas(id, event){
 async function restoreCanvas(id, event){
     event?.preventDefault();
     event?.stopPropagation();
-    setStatus('Restoring...');
+    const button = event?.currentTarget;
+    if(button?.disabled) return;
+    if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
+    const report = message => {
+        setStatus(message);
+        const feedback = document.getElementById('studioHomeFeedback');
+        if(feedback){feedback.textContent=message;feedback.hidden=false;}
+    };
+    report('正在恢复画布…');
     try {
         const res = await window.CanvasApi.restoreCanvas(id);
-        if(!res.ok) throw new Error('恢复画布失败');
+        if(!res.ok){
+            const data = await res.clone().json().catch(()=>({}));
+            throw new Error(data.detail?.message || ({permission_denied:'你没有恢复画布的权限。',canvas_revision_conflict:'画布状态已改变，请刷新回收站后重试。',canvas_not_found:'画布已被清理或当前不可访问。'}[data.detail?.code]) || (typeof data.detail==='string' ? data.detail : '恢复画布失败，请稍后重试。'));
+        }
         pendingPurgeCanvasId = null;
         deletedCanvases = deletedCanvases.filter(item => item.id !== id);
         await loadCanvasList(false);
         await loadTrashList();
-        setStatus('画布已恢复');
+        report('画布已恢复，可返回画布列表打开。');
     } catch(e) {
-        setStatus('恢复画布失败');
+        report(e?.message || '恢复画布失败，请稍后重试。');
         console.error(e);
+    } finally {
+        if(button){button.disabled=false;button.removeAttribute('aria-busy');}
     }
 }
 async function purgeCanvas(id, event){

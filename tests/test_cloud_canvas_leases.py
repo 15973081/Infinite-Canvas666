@@ -418,6 +418,32 @@ def test_directory_rename_returns_revision_and_preserves_content(world, kind):
 
 
 @pytest.mark.parametrize('kind', ['classic', 'smart'])
+def test_trash_restore_with_directory_lease_preserves_document(world, kind):
+    client, head = world['editor'], headers(world['a'])
+    path, original = setup_canvas(world, kind)
+    lease = acquire(world, path)
+    removed = client.delete(path, headers=proof(world, lease))
+    assert removed.status_code == 200, removed.text
+    revision = client.get(path + '/edit-lease', headers=head).json()['revision']
+    assert client.post(path + '/edit-lease/release', headers=proof(world, lease, revision)).status_code == 200
+    assert client.get(path, headers=head).status_code == 404
+    assert any(row['id'] == original['id'] for row in client.get('/api/canvases/trash', headers=head).json()['canvases'])
+    assert client.post(path + '/restore', headers=head).status_code == 428
+    lease = acquire(world, path)
+    restored = client.post(path + '/restore', headers=proof(world, lease))
+    assert restored.status_code == 200, restored.text
+    record = restored.json()['canvas']
+    assert not record.get('deleted_at')
+    assert record['revision'] == lease['revision'] + 1
+    assert client.post(path + '/edit-lease/release', headers=proof(world, lease, record['revision'])).status_code == 200
+    saved = client.get(path, headers=head).json()['canvas']
+    for key in ('title', 'kind', 'nodes', 'connections'):
+        assert saved[key] == original[key]
+    assert not any(row['id'] == original['id'] for row in client.get('/api/canvases/trash', headers=head).json()['canvases'])
+    assert client.get(path + '/edit-lease', headers=head).json()['holder'] is None
+
+
+@pytest.mark.parametrize('kind', ['classic', 'smart'])
 def test_directory_cover_style_persists_without_changing_content(world, kind):
     client, head = world['editor'], headers(world['a'])
     path, original = setup_canvas(world, kind)

@@ -428,11 +428,11 @@ function folderFixture({locked=false,writeStatus=200}={}) {
         }
         if(path.endsWith('/edit-lease'))return reply({...status,revision,holder:held?status.holder:null});
         if(path.endsWith('/release')) {assert.equal(new Headers(init.headers).get('X-Canvas-Revision'),String(revision));held=false;return reply({released:true,revision});}
-        if(path.endsWith('/folder') || path.endsWith('/meta')) {
+        if(path.endsWith('/folder') || path.endsWith('/meta') || path.endsWith('/restore')) {
             assert.equal(new Headers(init.headers).get('X-Canvas-Edit-Token'),'folder-proof');
             assert.equal(new Headers(init.headers).get('X-Canvas-Revision'),String(revision));
             if(writeStatus!==200)return reply({detail:'missing folder'},writeStatus);
-            revision++;return reply({canvas:{id:'a',...JSON.parse(init.body),revision}});
+            revision++;return reply({canvas:{id:'a',...JSON.parse(init.body || '{}'),revision}});
         }
         throw new Error('Unexpected request '+path);
     };
@@ -472,4 +472,19 @@ test('directory rename acquires a lease and returns the saved title',async()=>{
 });
 test('directory rename cannot take over an active editor',async()=>{
  const f=folderFixture({locked:true});await assert.rejects(f.context.CanvasApi.patchCanvasMeta('a',{title:'新名称'}),/已有成员正在编辑/);assert.equal(f.calls.length,1);
+});
+
+test('trash restore acquires a short lease without opening a deleted canvas and releases the new revision',async()=>{
+ const f=folderFixture();const result=await f.context.CanvasApi.restoreCanvas('a');
+ assert.equal(result.ok,true);assert.equal((await result.json()).canvas.revision,4);
+ assert.equal(f.api.active,null);assert.equal(f.held(),false);
+ assert.deepEqual(f.calls.map(([path])=>path),['/api/canvases/a/edit-lease/acquire','/api/canvases/a/restore','/api/canvases/a/edit-lease','/api/canvases/a/edit-lease/release']);
+ assert.deepEqual(JSON.parse(f.calls[0][1].body),{});
+ await assert.rejects(f.context.CanvasApi.saveCanvas('a',{nodes:[]}));
+});
+
+test('trash restore cannot take over another editor or bypass server permissions',async()=>{
+ const locked=folderFixture({locked:true});await assert.rejects(locked.context.CanvasApi.restoreCanvas('a'),/已有成员正在编辑/);assert.equal(locked.calls.length,1);
+ const denied=folderFixture({writeStatus:403});const result=await denied.context.CanvasApi.restoreCanvas('a');assert.equal(result.status,403);assert.equal(denied.held(),false);
+ assert.ok(denied.calls.at(-1)[0].endsWith('/release'));
 });
