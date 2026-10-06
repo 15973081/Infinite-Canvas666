@@ -1,0 +1,21 @@
+/* Shared media chrome. Per-editor CSS retains geometry and media layout. */
+.canvas-video-play,.smart-video-play{
+    border:1px solid var(--studio-border-strong);background:var(--studio-media-chrome);color:var(--studio-text);
+    box-shadow:0 4px 16px var(--studio-shadow);backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.canvas-video-play:hover,.smart-video-play:hover{
+    background:var(--studio-accent);color:var(--studio-accent-text);border-color:var(--studio-accent);
+    box-shadow:0 0 12px var(--studio-glow),0 4px 16px var(--studio-shadow);
+}
+.canvas-video-play:focus-visible,.smart-video-play:focus-visible{
+    outline:2px solid var(--studio-focus);outline-offset:3px;
+}
+.output-video-badge,.asset-video-badge{border:1px solid var(--studio-border);font-weight:600}
+.output-trim-panel,.video-trim-panel{color:var(--studio-text)}
+.output-trim-panel :is(input,button),.video-trim-panel :is(input,button){transition:border-color var(--studio-motion),background var(--studio-motion)}
+.output-trim-panel button:hover:not(:disabled),.video-trim-current-btn:hover:not(:disabled){border-color:var(--studio-border-strong)}
+.output-trim-range input:focus-visible,.video-trim-range-input:focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px;border-radius:6px}
+body.studio-skin :is(.output-trim-panel,.video-trim-panel) :is(button,input):disabled{
+    background:var(--studio-surface-muted);color:var(--studio-text-muted);border-color:var(--studio-border);opacity:1;box-shadow:none;
+}
+@media(prefers-reduced-motion:reduce){.canvas-video-play,.smart-video-play,.output-trim-panel :is(input,button),.video-trim-panel :is(input,button){transition:none}}
