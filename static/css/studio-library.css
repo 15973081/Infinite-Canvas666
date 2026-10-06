@@ -15,6 +15,10 @@ body.studio-library .tree-action-bar{background:var(--studio-surface-muted);bord
 body.studio-library .tree-action-bar button{border-radius:var(--studio-radius-control);color:var(--studio-text-muted)}
 body.studio-library .tree-action-bar button:hover{background:var(--studio-panel);color:var(--studio-text)}
 body.studio-library :is(.tree-row.active .tree-row-name,.tree-parent.contains-active .tree-row-name){font-weight:500}
+body.studio-library .tree-row-icon svg{width:16px;height:16px}
+body.studio-library .tree-child .tree-row-icon svg{width:14px;height:14px}
+body.studio-library .manager-tree-toggle{display:flex;align-items:center;justify-content:center}
+body.studio-library .manager-tree-toggle svg{width:12px;height:12px}
 body.studio-library .asset-card.active{border-color:var(--studio-accent-label);box-shadow:0 0 0 1px var(--studio-accent-label)}
 body.studio-library .selection-marquee{background:var(--studio-glow);border-color:var(--studio-accent-label)}
 body.studio-library .catalog-dialog{border-radius:var(--studio-radius-dialog);border-top-color:var(--studio-accent-label);background:var(--studio-panel);color:var(--studio-text)}

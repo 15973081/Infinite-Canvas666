@@ -68,6 +68,22 @@
 
 ## 后续组件整理
 
+### Tabler 精密工具图标（2026-10-07）
+
+按选定草稿将工作台、画布首页、两种编辑器、在线生成、聊天和素材库的通用图标接入本地 Tabler Outline。统一使用 24px 绘制网格、1.5px 线宽和主题文字色；导航显示 18px，素材分类显示 16px、子项 14px、展开箭头 12px。素材分类的文本三角替换为 chevron，经典画布子项采用面板图标，避免小尺寸文件格式文字干扰。
+
+SVG 来自 [Tabler 官方仓库固定版本](https://github.com/tabler/tabler-icons/tree/a4ce1404bc6d24d3c365afe7b258d6bf6f48d62d)，使用 MIT 许可；许可文件保存在 `static/vendor/tabler-icons-LICENSE.txt`。`tools/build_studio_icons.py` 可用项目 Python 重新生成本地资源。188 个现有名称映射到 168 个图标，本地图标数据约 37KB，原资源约 402KB；这是文件大小对比，未作为实测加载性能结论。
+
+`studio-icons.js` 保留业务模块现有 `data-lucide` 和 `lucide.createIcons()` 调用契约，重复刷新保留 SVG 实例和监听器，兼容原有尺寸、动画类、ARIA 与内联事件。核心入口不再请求图标 CDN，旧生成器页面保留原有资源。没有改变生成、保存、权限、恢复和连接算法。
+
+图标、统一视觉和工作台最终检查共 9 项通过；相关画布模块、素材库、经典连线和智能选择检查 62 项通过，成员媒体地址检查 5 项通过。并发执行时工作台手机焦点检查曾出现一次时序失败，无生产代码调整后独立复测及最终组合复测均通过。JavaScript 语法和 Git diff 空白检查通过；已有 `canvas-execution.js`、`canvas-session.js` 的工作区改动哈希保持不变。
+
+运行中的 8768 页面已核对素材分类、画布操作菜单、深浅主题和手机导航，手机 Escape 关闭正常。实际素材空间为空，带媒体及编辑器回归由接口夹具检查；没有执行删除或付费生成请求。
+
+- [深色素材分类](after-tabler-library-dark.jpg) / [浅色素材分类](after-tabler-library-light.jpg)
+- [画布操作菜单](after-tabler-home-menu-dark.jpg)
+- [手机导航](after-tabler-mobile-navigation-dark.jpg)
+
 ### 图片预览补齐（2026-10-06）
 
 历史卡片预览仍使用 online.html 的强制白底和 image-preview.js 的旧深蓝画框。删除预览入口的重复内联覆盖，将弹窗、画框、提示词和下载/复用按钮归入 studio-generation.css，复用现有主题变量。限制 iframe 内弹窗尺寸，兼容界面缩放；新增关闭标签、Escape 关闭和弹窗内键盘焦点循环，保留原有缩放、拖动及复用逻辑。

@@ -403,7 +403,7 @@ function decorateManagerNavigation(){
         heading.className='manager-tree-heading';
         const toggle=document.createElement('button');
         toggle.type='button'; toggle.className='manager-tree-toggle'; toggle.dataset.managerToggle=key;
-        toggle.textContent=expanded ? '▾' : '▸'; toggle.setAttribute('aria-expanded',String(expanded));
+        toggle.innerHTML=`<i data-lucide="${expanded ? 'chevron-down' : 'chevron-right'}" aria-hidden="true"></i>`; toggle.setAttribute('aria-expanded',String(expanded));
         toggle.setAttribute('aria-label',`${expanded ? '折叠' : '展开'}${row.textContent.trim()}`);
         branch.insertBefore(heading,row); heading.append(toggle,row);
         children.hidden=!expanded;
@@ -1485,7 +1485,7 @@ function renderCanvasAssetTreeBranch(cat){
                 const count = canvasAssetCountForCanvas(canvas.id);
                 return `<button class="tree-row tree-child ${active ? 'active' : ''}" type="button" data-canvas-asset-canvas="${escapeAttr(canvas.id)}" data-canvas-asset-canvas-cat="${escapeAttr(cat.id)}">
                     <span class="tree-elbow"></span>
-                    <span class="tree-row-icon"><i data-lucide="${canvas.kind === 'smart' ? 'sparkles' : 'file-image'}"></i></span>
+                    <span class="tree-row-icon"><i data-lucide="${canvas.kind === 'smart' ? 'sparkles' : 'layout-dashboard'}"></i></span>
                     <span class="tree-row-name" title="${escapeAttr(canvas.title || '未命名画布')}">${escapeHtml(canvas.title || '未命名画布')}${canvas.asset_source_state && canvas.asset_source_state !== 'active' ? '<small class="canvas-source-status">'+canvasSourceStateLabel(canvas.asset_source_state)+'</small>' : ''}</span>
                     <span class="tree-row-count">${count}</span>
                 </button>`;
@@ -3039,7 +3039,8 @@ async function handleClick(event){
         const collapsed=!managerViews.collapsed[key];
         managerViews.collapsed[key]=collapsed;
         navToggle.setAttribute('aria-expanded',String(!collapsed));
-        navToggle.textContent=collapsed ? '▸' : '▾';
+        navToggle.innerHTML=`<i data-lucide="${collapsed ? 'chevron-right' : 'chevron-down'}" aria-hidden="true"></i>`;
+        window.lucide?.createIcons({root:navToggle});
         navToggle.setAttribute('aria-label',`${collapsed ? '展开' : '折叠'}${navToggle.nextElementSibling.textContent.trim()}`);
         navToggle.closest('.tree-branch').querySelector(':scope > .tree-children').hidden=collapsed;
         rememberManagerView(captureManagerView());

@@ -28,6 +28,8 @@
         })();
     </script>
     <script src="/static/js/studio-frame-messages.js"></script>
+    <script src="/static/vendor/js/tabler-icons.js"></script>
+    <script src="/static/js/studio-icons.js"></script>
     <script src="/static/js/studio-stats-connection.js"></script>
     <script src="/static/js/theme.js?v=2026.06.15.1781457289"></script>
     <script src="/static/js/theme-transition.js?v=2026.09.16.2"></script>
@@ -537,25 +539,25 @@
 <body class="studio-skin studio-home">
 
     <div class="app-shell">
-        <header class="studio-mobile-header"><button id="studioMobileMenu" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="studioSidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="shadox-wordmark">shadox</span><span>创作工作台</span></header>
+        <header class="studio-mobile-header"><button id="studioMobileMenu" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="studioSidebar"><svg data-tabler="menu-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="shadox-wordmark">shadox</span><span>创作工作台</span></header>
         <button class="studio-sidebar-backdrop" id="studioSidebarBackdrop" type="button" aria-label="关闭导航" hidden></button>
         <aside class="sidebar" id="studioSidebar">
-            <div class="studio-sidebar-brand"><a class="shadox-wordmark" href="/" aria-label="shadox 工作台">shadox</a><button id="sidebarLogoToggle" type="button" class="studio-sidebar-toggle" onclick="toggleSidebarPinned(event)" aria-label="收起导航栏" aria-controls="studioSidebar" aria-expanded="true" title="收起导航栏"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16m6-11-3 3 3 3"/></svg></button></div>
-            <button id="studioNewCanvas" class="studio-new-canvas" type="button" title="新建画布" aria-label="新建画布"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="nav-text">新建画布</span></button>
+            <div class="studio-sidebar-brand"><a class="shadox-wordmark" href="/" aria-label="shadox 工作台">shadox</a><button id="sidebarLogoToggle" type="button" class="studio-sidebar-toggle" onclick="toggleSidebarPinned(event)" aria-label="收起导航栏" aria-controls="studioSidebar" aria-expanded="true" title="收起导航栏"><svg data-tabler="layout-sidebar-left-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16m6-11-3 3 3 3"/></svg></button></div>
+            <button id="studioNewCanvas" class="studio-new-canvas" type="button" title="新建画布" aria-label="新建画布"><svg data-tabler="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="nav-text">新建画布</span></button>
             <nav aria-label="工作台导航">
                 <div class="studio-nav-label">创作</div>
-                <button class="nav-item active" type="button" data-page="canvas" title="画布首页" aria-label="画布首页" onclick="switchUI(this, 'canvas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12"/></svg><span class="nav-text">画布首页</span></button>
-                <button class="nav-item" type="button" data-page="online" title="在线生成" aria-label="在线生成" onclick="switchUI(this, 'online')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m3 16 5-5 5 5 4-4 4 4"/><circle cx="15" cy="8" r="1"/></svg><span class="nav-text">在线生成</span></button>
-                <button class="nav-item" type="button" data-page="gpt-chat" title="GPT 对话" aria-label="GPT 对话" onclick="switchUI(this, 'gpt-chat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v13H9l-5 4V4Z"/><path d="M8 9h8M8 13h5"/></svg><span class="nav-text">GPT 对话</span></button>
+                <button class="nav-item active" type="button" data-page="canvas" title="画布首页" aria-label="画布首页" onclick="switchUI(this, 'canvas')"><svg data-tabler="layout-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12"/></svg><span class="nav-text">画布首页</span></button>
+                <button class="nav-item" type="button" data-page="online" title="在线生成" aria-label="在线生成" onclick="switchUI(this, 'online')"><svg data-tabler="photo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m3 16 5-5 5 5 4-4 4 4"/><circle cx="15" cy="8" r="1"/></svg><span class="nav-text">在线生成</span></button>
+                <button class="nav-item" type="button" data-page="gpt-chat" title="GPT 对话" aria-label="GPT 对话" onclick="switchUI(this, 'gpt-chat')"><svg data-tabler="message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v13H9l-5 4V4Z"/><path d="M8 9h8M8 13h5"/></svg><span class="nav-text">GPT 对话</span></button>
                 <div class="studio-nav-label">资源</div>
-                <button class="nav-item" type="button" data-page="asset-manager" title="素材库" aria-label="素材库" onclick="switchUI(this, 'asset-manager')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M7 7V3h10v4M8 12h8M8 16h5"/></svg><span class="nav-text">素材库</span></button>
+                <button class="nav-item" type="button" data-page="asset-manager" title="素材库" aria-label="素材库" onclick="switchUI(this, 'asset-manager')"><svg data-tabler="archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M7 7V3h10v4M8 12h8M8 16h5"/></svg><span class="nav-text">素材库</span></button>
             </nav>
             <div class="side-actions">
                 <button class="side-pill" onclick="toggleTheme(event)" id="theme-toggle-btn" type="button" title="切换夜间模式">
-                    <svg id="icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg data-tabler="moon" id="icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                     </svg>
-                    <svg id="icon-sun" style="display:none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg data-tabler="sun" id="icon-sun" style="display:none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="5"></circle>
                         <line x1="12" y1="1" x2="12" y2="3"></line>
                         <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -569,18 +571,18 @@
                     <span class="side-pill-text">黑夜模式</span>
                 </button>
                 <button class="side-pill settings-fold-toggle" id="settings-fold-toggle" onclick="toggleSidebarSettings()" type="button" title="更多设置" aria-expanded="false">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg data-tabler="settings" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.36 1.08V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1.08-.36H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .36-1.08V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.22.38.58.69 1 .86.2.08.42.13.65.14H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
                     </svg>
                     <span class="side-pill-text">更多设置</span>
-                    <svg class="settings-fold-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg data-tabler="chevron-down" class="settings-fold-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
                 </button>
                 <div class="settings-fold-group is-collapsed" id="settings-fold-group">
                     <a id="management-entry" class="side-pill" title="管理平台" target="_blank" rel="noopener noreferrer" hidden>
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg data-tabler="link" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M15 7h3a5 5 0 0 1 0 10h-3"></path>
                             <path d="M9 17H6A5 5 0 0 1 6 7h3"></path>
                             <line x1="8" y1="12" x2="16" y2="12"></line>
