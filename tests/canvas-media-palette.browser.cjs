@@ -20,8 +20,37 @@ async function themedSurface(page,selector){
  const rgb=css.background.match(/[\d.]+/g).map(Number);assert.ok(rgb[2]<=rgb[1],'no legacy blue surface: '+selector+' '+css.background);
  assert.ok(css.contrast>=4.5,selector+' text contrast '+JSON.stringify(css));
 }
+async function mountWorkspaceControls(page,kind){
+ // Exercise the production member toolbar, not the legacy standalone lock UI.
+ let editing=false;
+ await page.route('**/api/canvases/canvas-test/edit-lease**',async route=>{
+  if(route.request().url().endsWith('/acquire'))editing=true;
+  await route.fulfill({json:{generation:1,revision:1,edit_token:editing?'palette-fixture-token':null,
+   holder:editing?{is_self:true,display_name:'测试成员'}:null,
+   server_time:new Date().toISOString(),expires_at:new Date(Date.now()+60000).toISOString()}});
+ });
+ await page.route('**/api/canvases/canvas-test/page-state',route=>route.fulfill({json:{presence:{online_members:1,members:[{id:'member-1',display_name:'测试成员',is_self:true,activity:editing?'editing':'viewing'}]}}}));
+ await page.evaluate(()=>{
+  CanvasSession.context.workspace.permissions=['canvas.read','canvas.edit','asset.read'];
+  // The fixture's HTTP test hostname is not a secure context; localhost is.
+  if(!crypto.randomUUID)crypto.randomUUID=()=>{const bytes=crypto.getRandomValues(new Uint8Array(16));bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');};
+ });
+ const memberStyles=await page.addStyleTag({url:'/static/css/member-canvas-edit.css'});
+ // The server injects member styles before the page's studio styles.
+ await memberStyles.evaluate(node=>document.head.insertBefore(node,document.head.querySelector('link[rel="stylesheet"]')));
+ await page.addScriptTag({url:'/static/js/canvas-edit-lease.js'});
+ await page.addScriptTag({url:'/static/js/member-canvas-edit.js'});
+ await page.evaluate(kind=>kind==='classic'?openCanvas('canvas-test'):loadCanvas('canvas-test'),kind);
+ await page.getByRole('button',{name:'开始编辑',exact:true}).click();
+ await page.waitForFunction(()=>MemberCanvasEdit.canEdit);
+ await page.locator('.member-canvas-edit').waitFor({state:'visible'});
+ if(kind==='classic')assert.equal(await page.locator('#canvasLockBadge').isVisible(),false,'workspace toolbar hides the legacy lock badge');
+ else if(await page.locator('#smartLockBadge').count())assert.equal(await page.locator('#smartLockBadge').isVisible(),false);
+}
 for(const kind of ['classic','smart'])test(`${kind} media cards, trim and preview controls follow both themes`,async t=>{
- const {page,errors,writes}=await fixture(t,kind,false);
+ const {page,errors,writes,record}=await fixture(t,kind,true);
+ record.title='媒体组件配色验收';record.updated_at=Date.UTC(2026,9,7);
+ await mountWorkspaceControls(page,kind);
  let videoRequests=0;
  await page.route('**/assets/palette-video.webm',async route=>{videoRequests++;await serveVideo(route);});
  await page.route('**/api/media-preview?*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#556a41"/><path d="M0 140L90 60 180 140 250 40 320 140" fill="#8aa563"/></svg>'}));
@@ -70,6 +99,7 @@ for(const kind of ['classic','smart'])test(`${kind} media cards, trim and previe
  await page.emulateMedia({reducedMotion:'reduce'});
  assert.equal(await page.locator(play).first().evaluate(el=>getComputedStyle(el).transitionDuration),'0s','reduced motion suppresses decorative transitions');
  assert.equal(writes.filter(row=>row.path.includes('video-trim')).length,0,'palette inspection never submits a trim');
- assert.ok(writes.every(row=>/^\/api\/canvases\/canvas-test(?:\/(?:touch|lock))?$/.test(row.path)),'palette inspection uses only existing canvas/session requests');
+ assert.equal(writes.filter(row=>row.path.endsWith('/lock')).length,0,'workspace mode never acquires a legacy edit lock');
+ assert.ok(writes.every(row=>/^\/api\/canvases\/canvas-test(?:\/touch)?$/.test(row.path)),'palette inspection uses only existing canvas/session requests');
  assert.deepEqual(errors,[]);
 });
