@@ -293,7 +293,9 @@
             finally {loading=false;refresh.disabled=false;}
         }
         const outside=event => {if(!menu.contains(event.target)) close();};
-        const escape=event => {if(event.key==='Escape'){close();summary.focus();}};
+        const escape=event => {if(event.key==='Escape' && menu.open){close();summary.focus();}};
+        // Keyboard dismissal must work before the deferred toggle event fires.
+        menu.addEventListener('keydown',escape);
         menu.addEventListener('toggle',() => {
             if(menu.open){
                 bar?.querySelector('.member-session-account')?.removeAttribute('open');
