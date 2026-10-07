@@ -2,7 +2,7 @@
 
 /* Directory owns its visual layer; no editor/node selectors here. */
 #canvasGate{align-items:flex-start;justify-content:center;overflow:auto;padding:32px;background-color:var(--studio-page);background-image:linear-gradient(var(--studio-grid) 1px,transparent 1px),linear-gradient(90deg,var(--studio-grid) 1px,transparent 1px);background-size:32px 32px;color:var(--studio-text);font-family:var(--studio-font)}
-#canvasGate .gate-panel{width:100%;max-width:1240px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;min-width:0;animation:none}
+#canvasGate .gate-panel{width:100%;max-width:1440px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;min-width:0;animation:none}
 #canvasGate button,#canvasGate input{font-family:inherit}
 #canvasGate svg{stroke-width:1.5}
 #canvasGate button:focus-visible,#canvasGate summary:focus-visible,#canvasGate .canvas-open:focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
@@ -69,7 +69,7 @@
 #canvasGate .gate-sort-btn{height:36px;text-align:left;border-radius:0;color:var(--studio-text-muted);font-size:12px;font-weight:400;padding:8px 10px}
 #canvasGate .gate-sort-btn.active{background:var(--studio-selected);box-shadow:inset 2px 0 var(--studio-accent-label);color:var(--studio-text)}
 #canvasGate .gate-browser{display:block}#canvasGate .gate-canvas-pane{min-width:0}#canvasGate .gate-folder-bar{display:none}
-#canvasGate .gate-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0;padding:0;border:0;border-radius:0;background:transparent;max-height:none;overflow:visible;scrollbar-gutter:auto}
+#canvasGate .gate-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:16px;margin:0;padding:0;border:0;border-radius:0;background:transparent;max-height:none;overflow:visible;scrollbar-gutter:auto}
 #canvasGate .canvas-item{aspect-ratio:auto;min-width:0;border:1px solid var(--studio-border);border-radius:var(--studio-radius-card);background:var(--studio-panel);box-shadow:none;cursor:default;transition:border-color .16s,box-shadow .18s;isolation:isolate}
 #canvasGate .canvas-item:hover{border-color:var(--studio-text-muted);box-shadow:0 0 18px var(--studio-glow)}
 #canvasGate .canvas-item.active{border-color:var(--studio-accent-label);background:var(--studio-selected)}
