@@ -1063,9 +1063,13 @@ body.smart-asset-panel-resizing,body.smart-asset-panel-resizing * { cursor:col-r
 .asset-dialog-btn { height:30px; padding:0 12px; border-radius:999px; font-size:11px; font-weight:700; }
 .asset-dialog-btn.secondary { background:var(--soft); color:var(--muted); border:1px solid var(--line); }
 .asset-dialog-btn.primary { background:var(--strong); color:var(--strong-text); }
-.asset-hover-preview { position:fixed; z-index:88; display:none; width:260px; max-height:300px; border-radius:16px; overflow:hidden; background:var(--card); border:1px solid var(--line); box-shadow:0 24px 70px rgba(15,23,42,.22); pointer-events:none; }
-.asset-hover-preview img,.asset-hover-preview video { width:100%; max-height:260px; display:block; object-fit:contain; background:var(--soft); }
-.asset-hover-preview .asset-hover-name { padding:8px 10px; color:var(--text); font-size:11px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-top:1px solid var(--line); }
+.asset-file-preview { width:100%; height:100%; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:16px; background:var(--soft); color:var(--muted); font-size:11px; }
+.asset-file-symbol { width:42px; height:42px; border:1px solid var(--line); border-radius:12px; display:flex; align-items:center; justify-content:center; background:var(--card); color:var(--text); }
+.asset-file-symbol svg { width:23px; height:23px; }
+.asset-hover-preview { position:fixed; z-index:88; display:none; width:min(260px,calc(100vw - 28px)); max-height:calc(100vh - 28px); border-radius:16px; overflow:hidden; background:var(--card); border:1px solid var(--line); box-shadow:0 12px 32px var(--shadow); pointer-events:none; }
+.asset-hover-stage { height:min(220px,calc(100vh - 90px)); min-height:80px; display:flex; align-items:center; justify-content:center; background:var(--soft); overflow:hidden; }
+.asset-hover-stage img { width:100%; height:100%; display:block; object-fit:contain; }
+.asset-hover-preview .asset-hover-name { padding:10px 12px; color:var(--text); font-size:11px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border-top:1px solid var(--line); }
 .toast { position:absolute; top:24px; right:24px; z-index:60; max-width:360px; padding:10px 13px; border-radius:14px; background:var(--panel); border:1px solid var(--line); color:var(--text); box-shadow:0 16px 44px var(--shadow); font-size:12px; font-weight:800; opacity:0; transform:translateY(-8px); pointer-events:none; transition:.18s ease; }
 .toast.show { opacity:1; transform:translateY(0); }
 .selection-box { position:absolute; z-index:18; border:1px solid var(--strong); background:rgba(15,23,42,.08); border-radius:10px; pointer-events:none; display:none; }

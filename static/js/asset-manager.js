@@ -715,10 +715,11 @@ function promptCountForCategory(category, lib=activePromptLibrary()){
 }
 function assetKind(item){
     const url = String(item?.url || '').toLowerCase();
-    const kind = String(item?.kind || item?.type || '').toLowerCase();
+    const kind = String(item?.kind || item?.mediaKind || item?.type || item?.mime_type || item?.mime || '').toLowerCase();
     if(kind.includes('video') || /\.(mp4|webm|mov|m4v)(\?|#|$)/.test(url)) return 'video';
-    if(kind.includes('audio') || /\.(mp3|wav|flac|ogg|m4a)(\?|#|$)/.test(url)) return 'audio';
+    if(kind.includes('audio') || /\.(mp3|wav|flac|ogg|m4a|aac)(\?|#|$)/.test(url)) return 'audio';
     if(kind.includes('text') || /\.(txt|json|csv|srt|vtt|md)(\?|#|$)/.test(url)) return 'text';
+    if(kind === 'file' || /\.(pdf|docx?|xlsx?|bin|zip)(\?|#|$)/.test(url)) return 'file';
     return 'image';
 }
 function workflowKindLabel(item){
@@ -732,6 +733,7 @@ function assetKindLabel(item){
     if(kind === 'video') return '视频';
     if(kind === 'audio') return '音频';
     if(kind === 'text') return '文本';
+    if(kind === 'file') return '文件';
     return '图片';
 }
 function assetDisplayMediaUrl(url){
@@ -757,7 +759,12 @@ function assetThumb(item){
     if(kind === 'video') return `<video src="${escapeAttr(assetDisplayMediaUrl(original))}" muted preload="none" playsinline></video>`;
     if(kind === 'audio') return `<div class="asset-file-icon"><i data-lucide="file-audio"></i><span>音频</span></div>`;
     if(kind === 'text') return `<div class="asset-file-icon"><i data-lucide="file-text"></i><span>文本</span></div>`;
+    if(kind === 'file') return `<div class="asset-file-icon"><i data-lucide="file"></i><span>文件</span></div>`;
     return `<img src="${escapeAttr(preview)}" data-original-src="${escapeAttr(original)}" alt="${escapeAttr(item.name || 'asset')}" loading="lazy" decoding="async" fetchpriority="low">`;
+}
+function assetAudioDetailHtml(item, source='asset'){
+    const extension = String(item.file || item.url || item.name || '').split(/[?#]/)[0].match(/\.(mp3|wav|flac|ogg|m4a|aac)$/i)?.[1]?.toUpperCase() || 'AUDIO';
+    return `<div class="detail-media asset-audio-detail"><div class="asset-audio-heading"><span class="asset-audio-symbol"><i data-lucide="file-audio"></i></span><div><strong>音频素材</strong><span>${extension}</span></div></div><p>试听后可作为画布的音频参考素材。</p><button class="asset-btn" type="button" data-${source}-preview="${escapeAttr(item.id)}"><i data-lucide="play"></i><span>试听音频</span></button></div>`;
 }
 function workflowThumb(item){
     return `<div class="asset-file-icon workflow-file-icon"><i data-lucide="workflow"></i><span>${escapeHtml(workflowKindLabel(item))}</span></div>`;
@@ -1634,11 +1641,11 @@ function renderCanvasAssetDetail(item){
             </div>
         </div>
         <div class="detail-scroll">
-            <div class="detail-media">
+            ${kind === 'audio' ? assetAudioDetailHtml(item,'canvas-asset') : `<div class="detail-media">
                 ${canPreview
                     ? `<button class="detail-media-frame detail-media-zoomable" type="button" data-canvas-asset-preview="${escapeAttr(item.id)}" title="${kind === 'video' ? '点击预览视频' : '点击放大预览'}">${assetThumb(item)}</button>`
                     : `<div class="detail-media-frame">${assetThumb(item)}</div>`}
-            </div>
+            </div>`}
             <div class="detail-body">
                 <div class="detail-name">${escapeHtml(item.name || '画布资产')}</div>
                 ${canvasAssetsData.catalog_enabled ? `<div class="catalog-detail-actions">${item.staging_pending ? `<p role="status">${escapeHtml(item.storage_status)}${item.cleanup_failed ? '（上次清理失败，可重试）' : ''}</p>` : ''}<button class="asset-btn" data-catalog-action="references" data-catalog-id="${escapeAttr(item.id)}">查看引用</button>${canvasAssetsData.can_manage ? `<button class="asset-btn" data-catalog-action="edit" ${item.staging_pending ? 'disabled' : ''} data-catalog-id="${escapeAttr(item.id)}">编辑信息</button><button class="asset-btn" data-catalog-action="${item.trashed ? 'restore' : 'trash'}" ${item.staging_pending ? 'disabled' : ''} data-catalog-id="${escapeAttr(item.id)}">${item.trashed ? '恢复素材' : '移入回收站'}</button>${item.trashed ? `<button class="asset-btn" data-catalog-action="purge" data-catalog-id="${escapeAttr(item.id)}">${item.deleting ? '重试彻底删除' : '彻底删除'}</button>` : ''}` : ''}</div><p>${escapeHtml(item.category || '未分类')} · ${escapeHtml((item.tags || []).join('、') || '无标签')}</p>` : ''}
@@ -1844,7 +1851,7 @@ function renderLocalUploadDetail(item){
             </div>
         </div>
         <div class="detail-scroll">
-            <div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-localup-preview="${escapeAttr(item.id)}" title="点击放大预览">${assetThumb(item)}</button></div>
+            ${assetKind(item) === 'audio' ? assetAudioDetailHtml(item,'localup') : `<div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-localup-preview="${escapeAttr(item.id)}" title="点击放大预览">${assetThumb(item)}</button></div>`}
             <div class="detail-body">
                 <div class="detail-name">${escapeHtml(item.name || '本地素材')}</div>
                 <div class="detail-meta-grid">
@@ -1919,7 +1926,7 @@ function renderLocalDetail(item){
             </div>
         </div>
         <div class="detail-scroll">
-            <div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-local-preview="${escapeAttr(item.id)}" title="点击放大预览">${localAssetThumb(item)}</button></div>
+            ${assetKind(item) === 'audio' ? assetAudioDetailHtml(item,'local') : `<div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-local-preview="${escapeAttr(item.id)}" title="点击放大预览">${localAssetThumb(item)}</button></div>`}
             <div class="detail-body">
                 <div class="detail-name">${escapeHtml(item.name || '本地素材')}</div>
                 <div class="detail-meta-grid">
@@ -2410,7 +2417,7 @@ function renderAssetDetail(item){
                 </div>
             </div>
             <div class="detail-scroll">
-                <div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-asset-preview="${escapeAttr(item.id)}" title="点击放大预览">${assetThumb(item)}</button></div>
+                ${assetKind(item) === 'audio' ? assetAudioDetailHtml(item) : `<div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-asset-preview="${escapeAttr(item.id)}" title="点击放大预览">${assetThumb(item)}</button></div>`}
                 <div class="inline-edit-form">
                     <label class="inline-edit-field"><span>素材名称</span><input id="assetEditName" type="text" value="${escapeAttr(item.name || '')}" placeholder="素材名称"></label>
                     <div class="detail-meta-grid">
@@ -2432,7 +2439,7 @@ function renderAssetDetail(item){
             </div>
         </div>
         <div class="detail-scroll">
-            <div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-asset-preview="${escapeAttr(item.id)}" title="点击放大预览">${assetThumb(item)}</button></div>
+            ${assetKind(item) === 'audio' ? assetAudioDetailHtml(item) : `<div class="detail-media"><button class="detail-media-frame detail-media-zoomable" type="button" data-asset-preview="${escapeAttr(item.id)}" title="点击放大预览">${assetThumb(item)}</button></div>`}
             <div class="detail-body">
                 <input class="detail-name-input" data-asset-inline-name="${escapeAttr(item.id)}" type="text" value="${escapeAttr(item.name || 'asset')}" title="直接修改名称">
                 <div class="detail-meta-grid">
@@ -3479,13 +3486,14 @@ function showDetailPreview(source, id){
                 : findAssetItem(id);
     if(!item) return;
     const kind = source === 'local' ? (item.kind || localItemKind(item)) : assetKind(item);
-    if(!['image','video'].includes(kind)){
-        setStatus('仅图片和视频支持预览');
+    if(!['image','video','audio'].includes(kind)){
+        setStatus('此文件类型暂不支持预览');
         return;
     }
     const url = assetDisplayMediaUrl(source === 'local' ? localObjectUrl(item) : item.url);
     if(!url) return;
-    document.querySelector('.asset-lightbox')?.remove();
+    closeDetailPreview();
+    if(kind === 'audio'){ openAssetAudioPreview(item,url); return; }
     const overlay = document.createElement('div');
     overlay.className = 'asset-lightbox';
     overlay.dataset.scale = '1';
@@ -3501,8 +3509,27 @@ function showDetailPreview(source, id){
     document.body.appendChild(overlay);
     document.body.classList.add('asset-lightbox-open');
 }
+function openAssetAudioPreview(item,url){
+    const dialog = document.createElement('dialog');
+    dialog.className = 'asset-audio-dialog';
+    dialog.setAttribute('aria-label','音频预览');
+    dialog.innerHTML = `<div class="asset-audio-dialog-head"><strong>音频预览</strong><button class="asset-icon-btn" type="button" aria-label="关闭音频预览"><i data-lucide="x"></i></button></div><span class="asset-audio-symbol"><i data-lucide="file-audio"></i></span><h2></h2><audio controls preload="none"></audio><p role="status"></p>`;
+    dialog.querySelector('h2').textContent = item.name || '音频素材';
+    const audio = dialog.querySelector('audio');
+    audio.src = url;
+    audio.onerror = () => { dialog.querySelector('[role=status]').textContent = '音频加载失败，请确认素材仍可访问。'; };
+    dialog.querySelector('button').onclick = () => dialog.close();
+    dialog.addEventListener('click',event=>{if(event.target === dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left || event.clientX>r.right || event.clientY<r.top || event.clientY>r.bottom)dialog.close();}});
+    dialog.addEventListener('close',()=>{audio.onerror=null;audio.pause();audio.removeAttribute('src');audio.load();dialog.remove();},{once:true});
+    document.body.append(dialog);
+    refreshIcons();
+    dialog.showModal();
+}
 function closeDetailPreview(){
-    document.querySelector('.asset-lightbox')?.remove();
+    document.querySelector('.asset-audio-dialog[open]')?.close();
+    const overlay = document.querySelector('.asset-lightbox');
+    overlay?.querySelectorAll('video,audio').forEach(media=>{media.pause();media.removeAttribute('src');media.load();});
+    overlay?.remove();
     document.body.classList.remove('asset-lightbox-open');
     lightboxPanState = null;
 }

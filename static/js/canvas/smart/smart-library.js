@@ -1466,7 +1466,7 @@ function setAssetLibraryFromResponse(data, options={}){
 
 function toggleAssetLibrary(open=!smartAssetPanel.state.open){
     if(!smartAssetPanel.elements.assetPanel || !smartAssetPanel.elements.assetToggle) return;
-    if(!open) finishSmartAssetPanelResize();
+    if(!open){ finishSmartAssetPanelResize(); hideAssetHoverPreview(); }
     applySmartAssetPanelWidth(smartAssetPanel.state.width, {updatePreferred:false});
     smartAssetPanel.setOpen(!!open);
     if(smartAssetPanel.state.open) loadAssetLibrary();
@@ -1484,30 +1484,44 @@ function assetCategoryForMention(){
 
 function assetMediaKind(item){
     if(!item) return 'image';
-    if(item.kind === 'workflow' || item.type === 'workflow') return 'workflow';
-    if(item.kind === 'video' || item.type === 'video') return 'video';
-    if(item.kind === 'audio' || item.type === 'audio') return 'audio';
-    const url = String(item.url || item.thumbnail || '').toLowerCase().split('?')[0];
+    const explicit = String(item.kind || item.mediaKind || item.type || '').toLowerCase();
+    if(['image','video','audio','text','file','workflow'].includes(explicit)) return explicit;
+    const mime = String(item.mime_type || item.mime || item.content_type || explicit).toLowerCase();
+    if(mime.startsWith('audio/')) return 'audio';
+    if(mime.startsWith('video/')) return 'video';
+    if(mime.startsWith('text/')) return 'text';
+    const url = String(item.url || item.thumbnail || '').toLowerCase().split(/[?#]/)[0];
     const name = String(item.name || '').toLowerCase();
     if(/\.(mp4|webm|mov|m4v|avi|mkv)$/.test(url) || /\.(mp4|webm|mov|m4v|avi|mkv)$/.test(name)) return 'video';
     if(/\.(mp3|wav|m4a|aac|ogg|flac)$/.test(url) || /\.(mp3|wav|m4a|aac|ogg|flac)$/.test(name)) return 'audio';
     if(/\.(json|zip)$/.test(url) || /\.(json|zip)$/.test(name)) return 'workflow';
+    if(/\.(txt|md|csv|srt|vtt)$/.test(url) || /\.(txt|md|csv|srt|vtt)$/.test(name)) return 'text';
+    if(/\.(pdf|docx?|xlsx?|bin)$/.test(url) || /\.(pdf|docx?|xlsx?|bin)$/.test(name)) return 'file';
     return 'image';
+}
+
+function smartAssetFilePreviewHtml(kind, unavailable=false){
+    const label = unavailable ? '暂无法预览' : ({audio:'音频素材',video:'视频素材',text:'文本素材',workflow:'工作流',file:'文件素材'}[kind] || '图片素材');
+    const icon = unavailable ? 'image-off' : ({audio:'file-audio',video:'film',text:'file-text',workflow:'workflow',file:'file'}[kind] || 'image');
+    return `<div class="asset-file-preview"><span class="asset-file-symbol"><i data-lucide="${icon}"></i></span><span>${label}</span></div>`;
 }
 
 function assetThumbHtml(item){
     const url = escapeAttr(item.url || '');
     const thumb = item.thumbnail || item.thumb || item.preview || item.url || '';
     const kind = assetMediaKind(item);
-    const faceBadge = smartFaceVerifiedBadgeHtml(assetRegisteredUris(item));
+    const assetUris = assetRegisteredUris(item);
+    const faceBadge = smartFaceVerifiedBadgeHtml(assetUris, false, {...item, asset_item_id:item.id, asset_uris:assetUris});
     if(kind === 'video'){
-        return `<div class="asset-thumb-wrap">${smartVideoPreviewHtml(item, 512, 'class="asset-thumb" alt=""')}<span class="asset-video-badge"><i data-lucide="film"></i>VIDEO</span></div>`;
+        const thumbnail = item.thumbnail || item.thumb || item.preview;
+        const preview = smartMediaPreviewUrl(item,512);
+        const media = thumbnail ? smartPreviewImgHtml(thumbnail,512,'class="asset-thumb" alt=""')
+            : preview !== displayMediaUrl(item) ? smartVideoPreviewHtml(item,512,'class="asset-thumb" alt=""')
+            : smartAssetFilePreviewHtml('video');
+        return `<div class="asset-thumb-wrap">${media}<span class="asset-video-badge"><i data-lucide="film"></i>VIDEO</span>${faceBadge}</div>`;
     }
-    if(kind === 'audio'){
-        return `<div class="asset-thumb-wrap media-thumb audio-thumb asset-thumb"><i data-lucide="file-audio"></i><span>${escapeHtml(item.name || 'Audio')}</span></div>`;
-    }
-    if(kind === 'workflow'){
-        return `<div class="asset-thumb-wrap media-thumb workflow-thumb asset-thumb"><i data-lucide="workflow"></i><span>${escapeHtml(item.name || 'Workflow')}</span></div>`;
+    if(['audio','text','file','workflow'].includes(kind)){
+        return `<div class="asset-thumb-wrap asset-thumb">${smartAssetFilePreviewHtml(kind)}${kind === 'audio' ? faceBadge : ''}</div>`;
     }
     return `<div class="asset-thumb-wrap">${smartPreviewImgHtml({...item, url:thumb}, 512, 'class="asset-thumb" alt=""')}${faceBadge}</div>`;
 }
@@ -1610,7 +1624,7 @@ function positionAssetHoverPreviewNow(event){
     const pad = 14;
     const w = smartAssetPanel.elements.assetHoverPreview.offsetWidth || 260;
     const h = smartAssetPanel.elements.assetHoverPreview.offsetHeight || 300;
-    let left = event.clientX - w - 16;
+    let left = smartAssetPanel.elements.assetPanel.getBoundingClientRect().left - w - 12;
     if(left < pad) left = event.clientX + 16;
     left = Math.max(pad, Math.min(window.innerWidth - w - pad, left));
     const top = Math.max(pad, Math.min(window.innerHeight - h - pad, event.clientY + 12));
@@ -1620,23 +1634,27 @@ function positionAssetHoverPreviewNow(event){
 
 function showAssetHoverPreviewNow(event, item){
     if(!smartAssetPanel.elements.assetHoverPreview || !item?.url) return;
-    let media = smartAssetPanel.elements.assetHoverPreview.querySelector('img,video');
-    const name = smartAssetPanel.elements.assetHoverPreview.querySelector('.asset-hover-name');
-    if(media?.tagName?.toLowerCase() !== 'img'){
-        media?.pause?.();
-        media?.removeAttribute('src');
-        media?.replaceWith(document.createElement('img'));
-        media = smartAssetPanel.elements.assetHoverPreview.querySelector('img');
+    const preview = smartAssetPanel.elements.assetHoverPreview;
+    const kind = assetMediaKind(item);
+    const url = item.previewUrl || smartMediaPreviewUrl(item, 512);
+    // Audio/files and unavailable thumbnails never enter the image decoder.
+    const visual = !item.unavailable && (kind === 'image' || (kind === 'video' && url !== displayMediaUrl(item)));
+    preview.innerHTML = `<div class="asset-hover-stage">${visual ? '<img alt="" decoding="async">' : smartAssetFilePreviewHtml(kind,item.unavailable)}</div><div class="asset-hover-name"></div>`;
+    preview.querySelector('.asset-hover-name').textContent = item.name || '未命名素材';
+    const media = preview.querySelector('img');
+    if(media){
+        media.onerror = () => {
+            if(!preview.contains(media)) return;
+            preview.querySelector('.asset-hover-stage').innerHTML = smartAssetFilePreviewHtml(kind,true);
+            refreshIcons();
+            positionAssetHoverPreviewNow(event);
+        };
+        media.src = url;
     }
-    // Reuse the already loaded library thumbnail; hover must not fetch/play
-    // full originals while the user is trying to drag a card.
-    media.decoding = 'async';
-    media.src = item.previewUrl || smartMediaPreviewUrl(item, 512);
-    media.alt = 'asset preview';
-    name.textContent = item.name || 'asset';
+    refreshIcons();
     smartAssetPanel.elements.assetHoverPreview.hidden = false;
     smartAssetPanel.elements.assetHoverPreview.style.display = 'block';
-    positionAssetHoverPreview(event);
+    positionAssetHoverPreviewNow(event);
 }
 
 function hideAssetHoverPreviewNow(){
@@ -1644,6 +1662,7 @@ function hideAssetHoverPreviewNow(){
     smartAssetPanel.elements.assetHoverPreview.style.display = 'none';
     smartAssetPanel.elements.assetHoverPreview.hidden = true;
     const media = smartAssetPanel.elements.assetHoverPreview.querySelector('img,video');
+    if(media) media.onerror = null;
     media?.pause?.();
     media?.removeAttribute('src');
     media?.load?.();
@@ -1709,8 +1728,13 @@ function beginAssetInlineRename(assetId){
 
 function bindAssetItemEvents(events=smartAssetPanel.events('cards')){
     smartAssetPanel.elements.assetGrid.querySelectorAll('.asset-item').forEach(el => {
-        const thumb = el.querySelector('.asset-thumb');
-        events.on(thumb, 'mouseenter', e => showAssetHoverPreview(e, {url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind, previewUrl:thumb?.currentSrc || thumb?.querySelector('img')?.currentSrc}));
+        const thumb = el.querySelector('.asset-thumb-wrap') || el.querySelector('.asset-thumb');
+        events.on(thumb, 'mouseenter', e => {
+            const image = thumb?.tagName === 'IMG' ? thumb : thumb?.querySelector('img');
+            showAssetHoverPreview(e, {url:el.dataset.url, name:el.dataset.name, kind:el.dataset.kind,
+                previewUrl:image?.dataset.canvasMediaSrc || image?.currentSrc,
+                unavailable:el.dataset.kind === 'image' && (!image || (image.complete && !image.naturalWidth && image.hasAttribute('src')))});
+        });
         events.on(thumb, 'mousemove', e => positionAssetHoverPreview(e));
         events.on(thumb, 'mouseleave', hideAssetHoverPreview);
         events.on(el, 'dragstart', e => {

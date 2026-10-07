@@ -188,7 +188,8 @@ function canvasAssetUrisFaceVerified(assetUris){
 }
 
 function canvasAssetFaceVerified(item){
-    return canvasAssetUrisFaceVerified(canvasAssetRegisteredUris(item));
+    const provider = (apiProviders || []).find(p => p.id === 'volcengine');
+    return window.CanvasAssetAuth.resolve({},item,provider).ready;
 }
 
 function canvasNodeAssetDragPayload(node){
@@ -259,7 +260,7 @@ function canvasAssetThumbHtml(item){
         return `<div class="canvas-asset-thumb-wrap">${canvasVideoPreviewHtml(item?.url || '', 512, 'class="canvas-asset-thumb" alt=""')}<div class="canvas-asset-video-badge"><i data-lucide="play"></i><span>VIDEO</span></div>${faceBadge}</div>`;
     }
     if(kind === 'audio'){
-        return `<div class="canvas-asset-thumb-wrap canvas-asset-file-thumb"><i data-lucide="file-audio" class="w-6 h-6"></i><span>${escapeHtml(item?.name || 'audio')}</span></div>`;
+        return `<div class="canvas-asset-thumb-wrap canvas-asset-file-thumb"><i data-lucide="file-audio" class="w-6 h-6"></i><span>${escapeHtml(item?.name || 'audio')}</span>${faceBadge}</div>`;
     }
     if(kind === 'workflow'){
         return `<div class="canvas-asset-thumb-wrap canvas-asset-file-thumb workflow-thumb"><i data-lucide="workflow" class="w-6 h-6"></i><span>${escapeHtml(item?.name || 'workflow')}</span></div>`;
