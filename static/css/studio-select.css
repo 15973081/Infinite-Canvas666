@@ -1,0 +1,30 @@
+.studio-select{position:relative;width:100%;min-width:0;font-family:var(--studio-font)}
+.studio-select .studio-select-native{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0!important;pointer-events:none}
+.studio-select-trigger{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:38px;padding:9px 12px;background:var(--studio-surface-muted);color:var(--studio-text);border:1px solid var(--studio-border);border-radius:var(--studio-radius-control);text-align:left;font:500 12px/1.5 var(--studio-font);cursor:pointer;transition:background var(--studio-motion),border-color var(--studio-motion),box-shadow var(--studio-motion)}
+.studio-select-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.studio-select-arrow{width:6px;height:6px;flex:none;border-right:1.5px solid var(--studio-text-muted);border-bottom:1.5px solid var(--studio-text-muted);transform:translateY(-2px) rotate(45deg);transition:transform var(--studio-motion)}
+.studio-select-trigger:hover:not(:disabled){background:var(--studio-selected);border-color:var(--studio-border-strong)}
+.studio-select-trigger:focus-visible{outline:2px solid var(--studio-focus);outline-offset:2px}
+.studio-select.is-open{z-index:60}
+.studio-select.is-open .studio-select-trigger{border-color:var(--studio-accent-label);box-shadow:0 0 12px var(--studio-glow)}
+.studio-select.is-open .studio-select-arrow{transform:translateY(2px) rotate(225deg);border-color:var(--studio-accent-label)}
+.studio-select-trigger:disabled{opacity:.5;cursor:not-allowed}
+.studio-select-menu{position:absolute;top:calc(100% + 6px);left:0;width:100%;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;padding:6px;max-height:300px;background:var(--studio-panel);color:var(--studio-text);border:1px solid var(--studio-border-strong);border-top:2px solid var(--studio-accent-label);border-radius:var(--studio-radius-dialog);box-shadow:0 12px 30px var(--studio-shadow);animation:studio-select-enter .14s ease-out}
+.studio-select-menu[hidden]{display:none}
+.studio-select-menu.align-end{left:auto;right:0}
+.studio-select-menu.open-above{top:auto;bottom:calc(100% + 6px)}
+.studio-select-search{width:100%;min-width:0;min-height:36px;box-sizing:border-box;flex:none;padding:8px 10px;background:var(--studio-page);border:1px solid var(--studio-border);border-radius:var(--studio-radius-control);color:var(--studio-text);font:12px/1.5 var(--studio-font);outline:none}
+.studio-select-search::placeholder{color:var(--studio-text-muted)}
+.studio-select-search:focus{border-color:var(--studio-focus)}
+.studio-select-list{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--studio-border-strong) transparent;outline:none}
+.studio-select-option{position:relative;display:block;width:100%;min-height:36px;padding:8px 28px 8px 12px;border:0;border-radius:var(--studio-radius-control);background:transparent;color:var(--studio-text);font:12px/1.5 var(--studio-font);text-align:left;overflow-wrap:anywhere;cursor:pointer}
+.studio-select-option+.studio-select-option{margin-top:2px}
+.studio-select-option[aria-selected=true]{background:var(--studio-selected);box-shadow:inset 2px 0 var(--studio-accent-label)}
+.studio-select-option[aria-selected=true]::after{content:'✓';position:absolute;right:10px;color:var(--studio-accent-label);font-size:13px}
+.studio-select-option.is-active{outline:1px solid var(--studio-border-strong);outline-offset:-1px;background:var(--studio-surface-muted)}
+.studio-select-option.is-active[aria-selected=true]{background:var(--studio-selected)}
+.studio-select-option:disabled{color:var(--studio-text-muted);opacity:.5;cursor:not-allowed}
+.studio-select-empty{margin:0;padding:12px;color:var(--studio-text-muted);font-size:12px}
+@keyframes studio-select-enter{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:640px){.studio-select-trigger,.studio-select-option{min-height:42px}.studio-select-search{font-size:16px;min-height:42px}}
+@media(prefers-reduced-motion:reduce){.studio-select-menu{animation:none}.studio-select-trigger,.studio-select-arrow{transition:none}}

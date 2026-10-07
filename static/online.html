@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/static/images/shadox-mark.svg?v=1" type="image/svg+xml">
-    <title>在线生图</title>
+    <title>图片工作台</title>
     <script>
         (function(){
             try {
@@ -70,6 +70,8 @@
 <link rel="stylesheet" href="/static/css/studio-workbench.css">
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/studio-generation.css">
+    <link rel="stylesheet" href="/static/css/studio-select.css">
+    <script src="/static/js/studio-select.js" defer></script>
     <link rel="stylesheet" href="/static/css/online-imports.css">
     <link rel="stylesheet" href="/static/css/online-inbox.css">
 </head>
@@ -77,7 +79,7 @@
     <div class="container-box min-h-screen flex flex-col">
         <header class="flex justify-between items-end mb-16">
             <div class="space-y-1">
-                <h1 class="text-4xl font-extrabold tracking-tighter italic">在线生图</h1>
+                <h1 class="text-4xl font-extrabold tracking-tighter italic">图片工作台</h1>
                 <p class="text-[10px] font-bold uppercase tracking-[0.4em] text-gray-400">GPT / NANO BANANA IMAGE STUDIO</p>
             </div>
             <nav class="hidden md:flex gap-8 text-[11px] font-bold uppercase tracking-widest text-gray-400">
@@ -130,38 +132,38 @@
                         <span>模型</span>
                     </div>
                     <div class="size-row">
-                        <label class="size-field">
-                            <select id="providerSelect" class="size-select" onchange="setProvider(this.value)"></select>
-                        </label>
-                        <label class="size-field">
-                            <select id="modelSelect" class="size-select" onchange="setModel(this.value)"></select>
-                        </label>
+                        <div class="size-field">
+                            <select id="providerSelect" class="size-select" data-studio-select data-select-label="厂商" onchange="setProvider(this.value)"></select>
+                        </div>
+                        <div class="size-field">
+                            <select id="modelSelect" class="size-select" data-studio-select data-select-label="模型" onchange="setModel(this.value)"></select>
+                        </div>
                     </div>
                     <div id="adaptiveExtras" class="size-row" style="margin-top:2px;">
-                        <label id="qualityField" class="size-field">
-                            <select id="qualitySelect" class="size-select" onchange="setQuality(this.value)" title="Quality">
+                        <div id="qualityField" class="size-field">
+                            <select id="qualitySelect" class="size-select" data-studio-select data-select-label="生成质量" onchange="setQuality(this.value)" title="Quality">
                                 <option value="auto">自动</option>
                                 <option value="low">低</option>
                                 <option value="medium">中</option>
                                 <option value="high">高</option>
                             </select>
-                        </label>
-                        <label id="countField" class="size-field">
-                            <select id="countSelect" class="size-select" onchange="setCount(this.value)" title="Count">
+                        </div>
+                        <div id="countField" class="size-field">
+                            <select id="countSelect" class="size-select" data-studio-select data-select-label="图片数量" onchange="setCount(this.value)" title="Count">
                                 <option value="1" selected>×1</option>
                                 <option value="2">×2</option>
                                 <option value="3">×3</option>
                                 <option value="4">×4</option>
                             </select>
-                        </label>
+                        </div>
                     </div>
                     <div class="control-label mt-1">
                         <i data-lucide="ruler" class="w-3.5 h-3.5"></i>
                         <span>尺寸</span>
                     </div>
                     <div class="size-row">
-                        <label id="resolutionField" class="size-field">
-                            <select id="resolutionSelect" class="size-select" onchange="setResolution(this.value)">
+                        <div id="resolutionField" class="size-field">
+                            <select id="resolutionSelect" class="size-select" data-studio-select data-select-label="分辨率" onchange="setResolution(this.value)">
                                 <option value="1k" selected>1K</option>
                                 <option value="2k">2K</option>
                                 <option value="4k">4K</option>
@@ -172,9 +174,9 @@
                                 <input id="sizeCustomHeight" class="size-custom" type="number" min="64" step="64" placeholder="高度" oninput="setCustomSize()">
                                 <button id="fitImageSizeBtn" class="size-fit-btn" type="button" onclick="fitCustomSizeToImage(event)">适配图片</button>
                             </span>
-                        </label>
-                        <label id="ratioField" class="size-field">
-                            <select id="ratioSelect" class="size-select" onchange="setRatio(this.value)">
+                        </div>
+                        <div id="ratioField" class="size-field">
+                            <select id="ratioSelect" class="size-select" data-studio-select data-select-label="画面比例" onchange="setRatio(this.value)">
                                 <option value="">比例为空</option>
                                 <option value="square" selected>1:1 方图</option>
                                 <option value="portrait">2:3 竖图</option>
@@ -189,7 +191,7 @@
                                 <input id="ratioCustomWidth" class="size-custom" type="number" min="1" step="1" placeholder="宽" oninput="setCustomRatio()">
                                 <input id="ratioCustomHeight" class="size-custom" type="number" min="1" step="1" placeholder="高" oninput="setCustomRatio()">
                             </span>
-                        </label>
+                        </div>
                     </div>
                 </div>
 
@@ -248,12 +250,12 @@
             'online.deleteConfirm': '删除这条记录？',
             'online.loadingArchives': '正在加载归档...',
             'online.loadMore': '加载更多归档',
-            'online.onlineImageFallback': '在线生图',
+            'online.onlineImageFallback': '图片工作台',
             'online.promptRequired': '请输入提示词',
             'online.rhApp': '应用',
             'online.rhNoEntries': '未配置工作流 / 应用',
             'online.rhWorkflow': '工作流',
-            'online.title': '在线生图'
+            'online.title': '图片工作台'
         };
         function tr(key){ return PAGE_I18N[key] || key; }
         function applyLanguage(){
@@ -350,10 +352,11 @@
             const providers = imageProviders();
             if(!providers.some(p => p.id === provider)) provider = providers[0]?.id || 'comfly';
             providerSelect.innerHTML = providers.map(p => `<option value="${escapeHtml(p.id)}" ${p.id === provider ? 'selected' : ''}>${escapeHtml(p.name || p.id)}</option>`).join('');
-            const modelsForProvider = providerModels(provider);
+            const modelsForProvider = providers.length ? providerModels(provider) : [];
             if(!modelsForProvider.includes(selectedModel)) selectedModel = modelsForProvider[0] || models.gpt;
             modelSelect.innerHTML = modelsForProvider.map(m => `<option value="${escapeHtml(m)}" ${m === selectedModel ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('');
             updateAdaptivePanel();
+            updateSizeUI();
         }
 
         /* ---- 协议自适应：根据所选 provider 的 protocol 调整参数栏 ----
@@ -380,6 +383,7 @@
             const cf = document.getElementById('countField');
             const cs = document.getElementById('countSelect');
             if(cs) cs.value = String(outputCount);
+            window.StudioSelect?.refresh();
         }
         function setQuality(next){ quality = next || 'auto'; }
         function setCount(next){ outputCount = Math.max(1, Math.min(4, parseInt(next, 10) || 1)); }
@@ -518,6 +522,7 @@
             sizeCustomHeightInput.value = customHeight;
             if(fitImageSizeBtn) fitImageSizeBtn.disabled = !firstReferenceDimension();
             updateResolutionUI();
+            window.StudioSelect?.refresh();
         }
 
         function updateResolutionUI(){}

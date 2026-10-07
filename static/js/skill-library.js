@@ -48,7 +48,7 @@
      try{
       await api('/api/skills/import',{method:'POST',body});
       delete e.dataset.locked;e.close();await load();
-      status.textContent='已导入并安装，GPT 对话中输入 @ 即可选择。';
+      status.textContent='已导入并安装，AI 对话中输入 @ 即可选择。';
       dropState(canImport?'success':'disabled',canImport?'导入完成，可以继续拖入下一个 Skill。':dropMessage.textContent);
      }catch(err){
       error.textContent=err.message;setActivity('导入失败 · 文件与可见范围已保留，可重试',false);submit.textContent='重试导入';
