@@ -6,7 +6,7 @@
   const check=(label,value)=>{const wrap=node('label',undefined,'check'),e=node('input');e.type='checkbox';e.checked=value;wrap.append(e,document.createTextNode(label));return [wrap,e];};
   const localTime=ms=>{if(!ms)return '';const d=new Date(ms);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
   async function create({catalog,save}){
-    const root=node('section',undefined,'provider-editor'),pick=node('div',undefined,'provider-fields'),body=node('div');
+    const root=node('section',undefined,'provider-editor model-billing'),pick=node('div',undefined,'provider-fields model-billing-picker'),body=node('div');
     root.append(node('p','供应商连接与凭证在“供应商与分配”中维护；此处单独配置模型开放范围、分档单价与有效期折扣。','muted'),pick,body);
     if(!catalog.providers.length){body.append(node('p','请先保存一个供应商。'));return root;}
     let rows=catalog.providers,dirty=false,saving=false;
@@ -22,14 +22,14 @@
     function render(){
       dirty=false;body.replaceChildren();if(!model.value){body.append(node('p','该分类暂无模型，请到供应商页面添加。'));return;}
       const row=rows.find(r=>r.id===provider.value),k=kind.value,m=model.value,key=k+':'+m;let config=structuredClone(row.config),version=row.version;
-      const form=node('form'),policy=config.model_policies?.[key]||{},access=node('section',undefined,'provider-block');body.append(form);
+      const form=node('form',undefined,'model-billing-form'),policy=config.model_policies?.[key]||{},access=node('section',undefined,'provider-block model-billing-access');body.append(form);
       access.append(node('h3','模型使用范围'),node('p','隐藏或停用后不能发起新任务，模型配置与历史账单保留。已提交到上游的任务仍可取回结果。','muted'));
-      const [vl,visible]=check('向成员显示',policy.visible!==false),[el,enabled]=check('允许新任务',policy.enabled!==false);access.append(vl,el);
+      const [vl,visible]=check('向成员显示',policy.visible!==false),[el,enabled]=check('允许新任务',policy.enabled!==false),flags=node('div',undefined,'model-billing-access-flags');flags.append(vl,el);access.append(flags);
       const [rl,restricted]=check('限制开放规格',Array.isArray(policy.resolutions));const sizeChecks=[];
-      if(k!=='chat'){access.append(rl);const sizes=node('div',undefined,'toolbar');for(const s of k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']){const [l,c]=check(s.toUpperCase(),policy.resolutions?policy.resolutions.includes(s):true);sizes.append(l);sizeChecks.push([s,c]);}access.append(sizes);}
+      if(k!=='chat'){access.append(rl);const sizes=node('div',undefined,'toolbar model-billing-sizes');for(const s of k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']){const [l,c]=check(s.toUpperCase(),policy.resolutions?policy.resolutions.includes(s):true);sizes.append(l);sizeChecks.push([s,c]);}access.append(sizes);}
       let durationMin, durationMax;
       if(k==='video'){
-        const block=node('section',undefined,'provider-block'),grid=node('div',undefined,'provider-fields');
+        const block=node('section',undefined,'provider-block model-billing-duration'),grid=node('div',undefined,'provider-fields');
         block.append(node('h3','视频时长范围'),node('p','两项均留空时沿用模型默认规则。设置后前端和新任务按此范围限制，单位为整数秒；自动时长不可选。','muted'));
         const [minLabel,minInput]=input('最短秒数',policy.duration_min??'','number'),[maxLabel,maxInput]=input('最长秒数',policy.duration_max??'','number');
         durationMin=minInput;durationMax=maxInput;
@@ -39,7 +39,7 @@
       form.append(access);const priceInputs=[];
       let chatMode,chatPrices;
       if(k==='chat'){
-        const block=node('section',undefined,'provider-block chat-billing-block');
+        const block=node('section',undefined,'provider-block chat-billing-block model-billing-prices');
         block.append(node('h3','对话计费 · CNY'),node('p',`仅配置 ${row.config.name||row.id} / ${m}。Token 与按次计费互斥；两项关闭表示不计费。保存只影响新调用，历史账单保留价格快照。`,'muted'));
         const current=(config.model_prices||[]).find(p=>p.kind==='chat'&&p.model===m&&!p.effective_to);
         const [tl,tokens]=check('开启 Token 计费',current?.billing_type==='per_million_tokens');
@@ -65,7 +65,7 @@
         chatMode={tokens,calls,streamUsage};chatPrices={inp,out,cache,unit};form.append(block);
       }
       if(k!=='chat'){
-        const priceBlock=node('section',undefined,'provider-block');priceBlock.append(node('h3','基础价格 · CNY'),node('p','先按规格单价 × 数量计算基础金额，再应用下面的折扣。空白表示未配置；0 表示免费。分档价优先于通用价。保存后只影响新任务，历史金额不重算。','muted'));
+        const priceBlock=node('section',undefined,'provider-block model-billing-prices');priceBlock.append(node('h3','基础价格 · CNY'),node('p','先按规格单价 × 数量计算基础金额，再应用下面的折扣。空白表示未配置；0 表示免费。分档价优先于通用价。保存后只影响新任务，历史金额不重算。','muted'));
         const existing=config.model_prices||[],tokenMode=k==='video'&&(row.id==='volcengine'||config.protocol==='volcengine');
         const current=existing.find(p=>p.kind===k&&p.model===m&&!p.effective_to);
         const [bl,billing]=select('计费单位',k==='image'?[['per_image','元 / 张'],['per_call','元 / 次']]:tokenMode?[['per_million_tokens','元 / 百万输出 tokens']]:[['per_second','元 / 秒'],['per_call','元 / 次']],current?.billing_type||(k==='image'?'per_image':tokenMode?'per_million_tokens':'per_second'));priceBlock.append(bl);
@@ -74,17 +74,17 @@
           for(const hasVideo of tokenMode?[false,true]:[null]){
             const match=p=>p.kind===k&&p.model===m&&(p.resolution||'')===resolution&&(hasVideo===null||p.has_video_input===hasVideo)&&(p.service_tier||'default')==='default';
             const old=existing.find(p=>match(p)&&!p.effective_to);
-            const [l,e]=input((resolution?resolution.toUpperCase():'通用')+(hasVideo===null?'':hasVideo?' · 有视频输入':' · 无视频输入'),old?.unit_price??'','number');e.min='0';e.step='0.000001';grid.append(l);priceInputs.push({e,match,resolution,hasVideo});
+            const [l,e]=input((resolution?resolution.toUpperCase():'通用')+(hasVideo===null?'':hasVideo?' · 有视频输入':' · 无视频输入'),old?.unit_price??'','number');e.min='0';e.step='0.000001';e.placeholder='未配置';grid.append(l);priceInputs.push({e,match,resolution,hasVideo});
           }
         }
         form.append(priceBlock);form.billingSelect=billing;
       }
       const discountInputs=[];
       if(k!=='chat'){
-        const block=node('section',undefined,'provider-block'),list=node('div');block.append(node('h3','当前模型的限时折扣'),node('p',`仅适用于 ${row.config.name||row.id} / ${m}（${k==='image'?'图片':'视频'}）。其他模型的优惠时段与支付比例分别配置；未配置或不在优惠时段时按基础价格计费。`,'muted'),node('p','按任务提交时刻匹配，开始时间包含、结束时间不含。支付比例 80% = 八折；100% = 不打折。具体规格优先于通用折扣，只应用一条；同规格时段重叠或交叉范围不明确时不能保存。不与账号折扣叠加。时间使用当前浏览器时区。','muted'),list);
-        function add(row={}){const line=node('div',undefined,'provider-fields');const [sl,start]=input('开始时间',localTime(row.effective_from),'datetime-local'),[tl,end]=input('结束时间（不含）',localTime(row.effective_to),'datetime-local'),[pl,rate]=input('支付比例（%）',row.rate!=null?String(Number(row.rate)*100):'100','number'),[nl,label]=input('折扣说明',row.label||'');rate.min='0';rate.max='100';rate.step='0.0001';start.required=true;label.maxLength=120;const remove=node('button','删除此时段');remove.type='button';const [resLabel,resolution]=select('适用分辨率',[['','全部'],...(k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']).map(s=>[s,s.toUpperCase()])],row.resolution||'');
+        const block=node('section',undefined,'provider-block model-billing-discounts'),list=node('div',undefined,'model-billing-discount-list');block.append(node('h3','当前模型的限时折扣'),node('p',`仅适用于 ${row.config.name||row.id} / ${m}（${k==='image'?'图片':'视频'}）。其他模型的优惠时段与支付比例分别配置；未配置或不在优惠时段时按基础价格计费。`,'muted'),node('p','按任务提交时刻匹配，开始时间包含、结束时间不含。支付比例 80% = 八折；100% = 不打折。具体规格优先于通用折扣，只应用一条；同规格时段重叠或交叉范围不明确时不能保存。不与账号折扣叠加。时间使用当前浏览器时区。','muted'),list);
+        function add(row={}){const line=node('div',undefined,'provider-fields model-billing-discount-rule');const [sl,start]=input('开始时间',localTime(row.effective_from),'datetime-local'),[tl,end]=input('结束时间（不含）',localTime(row.effective_to),'datetime-local'),[pl,rate]=input('支付比例（%）',row.rate!=null?String(Number(row.rate)*100):'100','number'),[nl,label]=input('折扣说明',row.label||'');rate.min='0';rate.max='100';rate.step='0.0001';start.required=true;label.maxLength=120;const remove=node('button','删除此时段','danger');remove.type='button';const [resLabel,resolution]=select('适用分辨率',[['','全部'],...(k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']).map(s=>[s,s.toUpperCase()])],row.resolution||'');
           const [videoLabel,video]=select('视频输入',[['','全部'],['false','无视频输入'],['true','有视频输入']],typeof row.has_video_input==='boolean'?String(row.has_video_input):'');
-          const preview=node('p','','muted');
+          const preview=node('p','','muted model-billing-discount-preview');
           function refreshPreview(){
             const percent=Number(rate.value);
             if(!rate.value.trim()||!Number.isFinite(percent)||percent<0||percent>100){preview.textContent='请输入 0–100 的支付比例。';return;}
@@ -97,7 +97,7 @@
           const record={line,start,end,rate,label,resolution,video,refreshPreview};remove.onclick=()=>{line.remove();discountInputs.splice(discountInputs.indexOf(record),1);dirty=true;};rate.required=true;line.append(sl,tl,pl,nl,preview,remove);list.append(line);discountInputs.push(record);refreshPreview();}
         (config.model_discounts||[]).filter(r=>r.kind===k&&r.model===m).forEach(add);const plus=node('button','添加折扣时段');plus.type='button';plus.onclick=()=>{add({effective_from:Date.now()});dirty=true;};block.append(plus);form.append(block);
       }
-      const [reasonLabel,reason]=input('修改原因');reason.required=true;reason.maxLength=1000;const submit=node('button','保存当前模型配置','primary'),status=node('p','','muted');status.setAttribute('role','status');const footer=node('section',undefined,'provider-block');footer.append(reasonLabel,submit,status);form.append(footer);form.oninput=form.onchange=()=>{dirty=true;discountInputs.forEach(r=>r.refreshPreview());};
+      const [reasonLabel,reason]=input('修改原因');reason.required=true;reason.maxLength=1000;reason.placeholder='简要说明本次调整，便于后续核对';const submit=node('button','保存当前模型配置','primary'),status=node('p','','muted model-billing-status');status.setAttribute('role','status');const footer=node('section',undefined,'provider-block model-billing-footer');footer.append(reasonLabel,submit,status);form.append(footer);form.oninput=form.onchange=()=>{dirty=true;discountInputs.forEach(r=>r.refreshPreview());};
       form.onsubmit=async event=>{event.preventDefault();if(saving)return;saving=true;
         const controls=[...root.querySelectorAll('input,select,button')].map(control=>[control,control.disabled]);
         controls.forEach(([control])=>{control.disabled=true;});status.textContent='正在保存，请稍候再编辑或切换模型…';try{

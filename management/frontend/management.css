@@ -13,3 +13,63 @@ dialog.wide{width:min(1080px,92vw)}
 @media(max-width:640px){.tos-fields{grid-template-columns:1fr}}
 
 .database-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:18px;margin-top:18px}.database-grid .card{overflow-wrap:anywhere}.database-grid button{margin:0 6px 6px 0}.database-success{color:#17734a}.database-result{margin-top:12px}
+
+/* Keep model configuration a native form, with a compact reading order. */
+.model-billing { padding:24px; border-radius:14px; }
+.model-billing > .muted { margin:0 0 20px; padding:12px 16px; background:#f5f8fd; border:1px solid #e4ebf5; border-radius:8px; font-size:13px; line-height:1.65; }
+.model-billing label { min-width:0; margin:0; gap:7px; font-size:13px; font-weight:500; line-height:1.5; }
+.model-billing input,.model-billing select { min-width:0; min-height:40px; padding:9px 12px; border-color:#d4dce8; border-radius:8px; }
+.model-billing input::placeholder { color:#8a97aa; font-weight:400; }
+.model-billing input[type=number] { font-variant-numeric:tabular-nums; }
+.model-billing .check { font-weight:400; }
+.model-billing .check input { width:16px; height:16px; min-height:0; margin:0; padding:0; flex-shrink:0; accent-color:#2358d8; }
+.model-billing-picker { gap:16px; padding-bottom:22px; margin-bottom:22px; border-bottom:1px solid #e5eaf1; }
+.model-billing-form { display:grid; grid-template-columns:minmax(250px,.8fr) minmax(0,1.4fr); gap:20px; align-items:start; }
+.model-billing .provider-block { min-width:0; padding:20px; border:1px solid #e5eaf1; border-radius:10px; }
+.model-billing .provider-block h3 { display:flex; align-items:center; gap:9px; margin:0 0 10px; font-size:15px; line-height:1.5; }
+.model-billing .provider-block h3::before { content:""; width:3px; height:14px; border-radius:2px; background:#2358d8; flex-shrink:0; }
+.model-billing .provider-block > p { font-size:12px; line-height:1.7; margin:0 0 16px; }
+.model-billing .provider-fields { gap:14px 16px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.model-billing .model-billing-picker { grid-template-columns:minmax(0,1fr) minmax(0,.65fr) minmax(0,1.35fr); }
+.model-billing-access { background:#fafbfd; }
+.model-billing-access-flags { display:grid; gap:10px; margin-bottom:18px; }
+.model-billing-access-flags .check { padding:11px 12px; border:1px solid #e1e7f0; border-radius:8px; background:#fff; }
+.model-billing-sizes { gap:8px; margin:12px 0 0; }
+.model-billing-sizes .check { padding:7px 10px; background:#fff; border:1px solid #dce4f0; border-radius:6px; font-size:12px; }
+.model-billing .model-billing-duration { margin-top:18px; padding:18px 0 0; border:0; border-top:1px solid #e0e6ee; border-radius:0; }
+.model-billing-prices > label { max-width:320px; margin-bottom:16px; }
+.model-billing .chat-billing-switches { gap:10px; margin-bottom:16px; }
+.model-billing .chat-billing-switches .check { margin:0; padding:10px 12px; background:#f8fafc; }
+.model-billing .chat-billing-block > .check { margin:16px 0 10px; }
+.model-billing .chat-billing-block > label:not(.check) { margin:16px 0; }
+.model-billing .chat-billing-mode { margin-bottom:0; padding:10px 12px; font-size:12px; }
+.model-billing-discounts,.model-billing-footer { grid-column:1/-1; }
+.model-billing .model-billing-discounts > p { margin-bottom:10px; }
+.model-billing-discount-list { display:grid; gap:12px; margin:16px 0; }
+.model-billing-discount-list:empty { margin:0 0 16px; }
+.model-billing .model-billing-discount-rule { grid-template-columns:repeat(3,minmax(0,1fr)); padding:16px; border:1px solid #e0e6ee; border-radius:8px; background:#f8fafc; }
+.model-billing-discount-preview { grid-column:1/-2; align-self:center; margin:0; font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
+.model-billing-discount-rule > button { justify-self:end; align-self:center; padding:8px 12px; background:#fff; }
+.model-billing .model-billing-footer { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px 20px; background:#f8fafc; }
+.model-billing-footer > button { align-self:end; min-height:40px; white-space:nowrap; }
+.model-billing .model-billing-status { grid-column:1/-1; margin:0; padding-top:8px; }
+.model-billing-status:empty { display:none; }
+@media(max-width:1150px) {
+  .model-billing-form { grid-template-columns:1fr; }
+  .model-billing-access-flags { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:760px) {
+  .model-billing { padding:18px; }
+  .model-billing .model-billing-picker { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .model-billing-picker > label:last-child { grid-column:1/-1; }
+  .model-billing .provider-block { padding:16px; }
+  .model-billing .model-billing-discount-rule { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .model-billing-discount-preview { grid-column:1/-1; }
+  .model-billing .model-billing-duration { padding:16px 0 0; }
+}
+@media(max-width:480px) {
+  .model-billing { padding:14px; }
+  .model-billing .provider-fields,.model-billing-access-flags,.model-billing .model-billing-footer { grid-template-columns:1fr; }
+  .model-billing-picker > label:last-child { grid-column:auto; }
+  .model-billing-footer > button { width:100%; }
+}
