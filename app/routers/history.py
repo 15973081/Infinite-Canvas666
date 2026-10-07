@@ -17,6 +17,64 @@ from app.services.chat import *
 
 router = APIRouter()
 
+# Online works keep one record per image, independent of generation batches.
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import Literal
+
+
+class OnlineWorkSelection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    id: str = Field(min_length=1,max_length=80)
+    revision: int = Field(ge=1)
+
+
+class OnlineWorkMetadata(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    name: str | None = Field(default=None,min_length=1,max_length=240)
+    folder: str | None = Field(default=None,max_length=80)
+    tags: list[str] | None = Field(default=None,max_length=20)
+
+    @model_validator(mode='after')
+    def clean(self):
+        if self.name is not None:
+            self.name=self.name.strip()
+            if not self.name: raise ValueError('名称不能为空')
+        if self.folder is not None: self.folder=self.folder.strip()
+        if self.tags is not None:
+            if any(len(tag)>40 for tag in self.tags): raise ValueError('标签最多40字')
+            self.tags=list(dict.fromkeys(tag.strip() for tag in self.tags if tag.strip()))
+        return self
+
+
+class OnlineWorkMutation(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    action: Literal['edit','save','trash','restore','purge']
+    items: list[OnlineWorkSelection] = Field(min_length=1,max_length=200)
+    metadata: OnlineWorkMetadata = Field(default_factory=OnlineWorkMetadata)
+    confirm_permanent: bool = False
+
+    @model_validator(mode='after')
+    def unique(self):
+        if len({item.id for item in self.items})!=len(self.items): raise ValueError('不能重复选择作品')
+        if self.metadata.name is not None and len(self.items)!=1: raise ValueError('重命名请只选择一个作品')
+        return self
+
+
+@router.get('/api/online-works')
+def online_works(state: str='inbox',q: str='',owner: str='all',folder: str='',model: str='',cursor: str=None,limit: int=30,references: str='all'):
+    if not postgres_enabled(): raise HTTPException(409,'收件箱需要 PostgreSQL 存储模式')
+    from app.services.online_inbox import page
+    return page(state,q,owner,folder,model,cursor,limit,references)
+
+
+@router.post('/api/online-works/actions')
+def online_work_actions(payload: OnlineWorkMutation):
+    if not postgres_enabled(): raise HTTPException(409,'收件箱需要 PostgreSQL 存储模式')
+    from app.services.online_inbox import mutate
+    body=payload.model_dump()
+    body['metadata']=payload.metadata.model_dump(exclude_none=True)
+    return mutate(body)
+
 @router.get("/api/history")
 def get_history_api(type: str = None):
     if postgres_enabled():
@@ -71,6 +129,9 @@ def get_queue_status(client_id: str):
 @router.post("/api/history/delete")
 def delete_history(req: DeleteHistoryRequest):
     if postgres_enabled():
+        from app.services.online_inbox import trash_history
+        if trash_history(req.timestamp):
+            return {'success':True,'recycled':True,'message':'已移入在线作品回收站，可恢复；彻底删除后才释放空间'}
         from app.storage.history import delete_timestamp
         return {"success": delete_timestamp(req.timestamp)}
     if not os.path.exists(HISTORY_FILE):

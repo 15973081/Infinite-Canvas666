@@ -318,6 +318,15 @@ def add_asset_library_item(payload: AssetLibraryAddRequest):
         raise HTTPException(status_code=404, detail="分类不存在")
     if cat.get("type") != "image":
         raise HTTPException(status_code=400, detail="该分类暂不支持添加媒体")
+    if postgres_enabled():
+        from app.storage import media
+        existing=media.get_asset(payload.url)
+        if existing:
+            item={'id':'asset_'+uuid.uuid4().hex[:12],'name':(payload.name or existing['display_name'])[:120],
+                  'url':media.stable_url(existing),'media_asset_id':existing['id'],'kind':existing['kind'],'created_at':now_ms()}
+            cat.setdefault('items',[]).append(item)
+            save_asset_library(lib)
+            return {'library':lib,'item':item}
     src = output_file_from_url(payload.url)
     if not src:
         raise HTTPException(status_code=400, detail="只支持保存本地 /assets 或 /output 媒体")
@@ -338,6 +347,14 @@ def batch_add_asset_library_items(payload: AssetLibraryBatchAddRequest):
     for entry in (payload.items or [])[:200]:
         entry.category_id = payload.category_id
         entry.library_id = payload.library_id
+        if postgres_enabled():
+            from app.storage import media
+            existing=media.get_asset(entry.url)
+            if existing:
+                item={'id':'asset_'+uuid.uuid4().hex[:12],'name':(entry.name or existing['display_name'])[:120],
+                      'url':media.stable_url(existing),'media_asset_id':existing['id'],'kind':existing['kind'],'created_at':now_ms()}
+                cat.setdefault('items',[]).append(item);added.append(item)
+                continue
         src = output_file_from_url(entry.url)
         if not src:
             continue
@@ -972,4 +989,3 @@ from app.services.assets import (
 
 # ── Explicit imports for PIL symbols (resolved via wildcard but invisible to static analysis) ──
 from PIL import Image
-

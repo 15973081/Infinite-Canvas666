@@ -228,6 +228,7 @@
                 showMessage(result.notice || `已保存 ${result.count} 张图片到素材库。`);
                 dialog.ui.fields.replaceChildren(link('打开素材库','/static/asset-manager.html'));
             }
+            root.dispatchEvent(new CustomEvent('online-import-complete',{detail:{destination:state.destination,data:state.data,result}}));
             if(state===targetState)dialog.ui.submit.hidden=true;
         }catch(error){showMessage(error.message,true);dialog.ui.submit.disabled=false;}
         finally{if(state){state.busy=false;dialog.ui.close.disabled=false;dialog.ui.fields.inert=false;}}

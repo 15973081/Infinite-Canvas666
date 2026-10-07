@@ -23,6 +23,7 @@
     <script src="/static/js/image-preview.js?v=2026.06.9.1779672341"></script>
     <script src="/static/js/history-pager.js?v=20260914"></script>
     <script src="/static/js/online-imports.js"></script>
+    <script src="/static/js/online-inbox.js"></script>
     <link rel="stylesheet" href="/static/css/studio-transfer-status.css">
     <script src="/static/js/studio-transfer-status.js"></script>
     <script src="/static/js/history-bulk-manager.js?v=2026.06.9.1780450958"></script>
@@ -70,6 +71,7 @@
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/studio-generation.css">
     <link rel="stylesheet" href="/static/css/online-imports.css">
+    <link rel="stylesheet" href="/static/css/online-inbox.css">
 </head>
 <body class="studio-skin studio-content studio-online">
     <div class="container-box min-h-screen flex flex-col">
@@ -207,7 +209,7 @@
             </div>
         </main>
 
-        <section class="mt-32">
+        <section id="onlineWorksSection" class="mt-32">
             <div class="flex items-center gap-6 mb-12"><h2 class="text-[11px] font-black uppercase tracking-[0.5em]">归档</h2><div class="h-px flex-1 bg-gray-100"></div></div>
             <div id="masonry" class="masonry-grid"></div>
             <div id="loadMoreTrigger" class="py-20 text-center text-gray-300 text-[10px] font-bold uppercase tracking-widest cursor-pointer hover:text-black">Load More Archive</div>
@@ -644,7 +646,7 @@
 
                     if(task.status === 'succeeded'){
                         const result = task.result || {};
-                        if(!result.images?.[0]) throw new Error('生成任务未返回图片');
+                        if(!result.images?.[0]) throw new Error(result.media_expired?'作品已被彻底清理，原任务和费用记录仍保留':'生成任务未返回图片');
 
                         // 先移除等待卡片，再同步主预览、下载入口和历史记录。
                         document.getElementById(`pending-${taskId}`)?.remove();
@@ -716,6 +718,7 @@
             return window.MemberMediaUrl ? window.MemberMediaUrl(url) : (window.CanvasSession?.enabled ? '' : url);
         }
         function renderImageCard(data, isNew=false){
+            if(window.onlineInbox){ if(isNew) void window.onlineInbox.refresh(); return; }
             if(!data.images?.[0] || document.getElementById(`history-${data.timestamp}`)) return;
             const originalUrl = data.images[0];
             const thumbnailUrl = `/api/media-preview?${new URLSearchParams({url:originalUrl, w:String(HISTORY_THUMB_WIDTH)})}`;
@@ -872,7 +875,16 @@
         const observer = new IntersectionObserver(entries => { if(entries[0].isIntersecting && currentIndex < allHistory.length) loadHistory(1); }, {threshold:.1});
         window.OnlineImports?.attach(document.getElementById('resultActions'), () => currentResult);
         window.OnlineImports?.attach(document.getElementById('lightboxCard'), () => currentLightboxData);
-        window.onload = async () => { applyLanguage(); setRatio('square'); setResolution('1k'); await initModels(); await loadHistory(0); window.HistoryBulkManager?.attach({masonry:'#masonry',actions:window.OnlineImports?.bulkActions() || []}); observer.observe(document.getElementById('loadMoreTrigger')); document.getElementById('loadMoreTrigger').onclick = () => loadHistory(1); };
+        window.onload = async () => {
+            applyLanguage(); setRatio('square'); setResolution('1k'); await initModels();
+            if(window.CanvasSession?.enabled && window.OnlineInbox){
+                window.onlineInbox=OnlineInbox.attach(document.getElementById('onlineWorksSection'),{preview:openLightbox});
+                await window.onlineInbox.ready;
+            }else{
+                await loadHistory(0); window.HistoryBulkManager?.attach({masonry:'#masonry',actions:window.OnlineImports?.bulkActions() || []});
+                observer.observe(document.getElementById('loadMoreTrigger')); document.getElementById('loadMoreTrigger').onclick = () => loadHistory(1);
+            }
+        };
     </script>
 </body>
 </html>

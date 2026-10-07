@@ -26,6 +26,9 @@ def check_references(conn, ids, aliases):
         for row in conn.execute(query, (current_workspace(),)):
             if contains_ref(row['value'], ids, aliases):
                 raise HTTPException(409, f"素材仍被{kind}「{row['label']}」引用，不能彻底删除")
+    for row in conn.execute("SELECT name,snapshot,asset_id FROM online_works WHERE workspace_id=%s AND state NOT IN ('purging','purged')", (current_workspace(),)):
+        if row['asset_id'] in ids or contains_ref(row['snapshot'],ids,aliases):
+            raise HTTPException(409, f"素材仍被在线作品「{row['name']}」引用，不能彻底删除")
 
 
 def delete_object(asset):

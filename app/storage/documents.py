@@ -34,6 +34,12 @@ def put(kind, key, value, expected_revision=None):
                 raise HTTPException(409, "Document changed; reload before saving")
         else:
             row = conn.execute("INSERT INTO workspace_documents(workspace_id,kind,id,value) VALUES(%s,%s,%s,%s) ON CONFLICT(workspace_id,kind,id) DO UPDATE SET value=excluded.value,revision=workspace_documents.revision+1,updated_at=now() RETURNING revision", (current_workspace(), kind, key, Jsonb(value))).fetchone()
+        if kind == 'history':
+            from app.services.online_inbox import register
+            register(conn, key, value)
+        elif kind == 'asset_library':
+            from app.services.online_inbox import mark_library_saved
+            mark_library_saved(conn,value)
         if versions is not None:
             versions[(current_workspace(), kind, key)] = row["revision"]
         return row["revision"]

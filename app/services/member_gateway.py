@@ -52,6 +52,10 @@ def selected_workspace(scope):
 
 
 def permissions(path, method):
+    if path == '/api/online-works' and method == 'GET':
+        return ('asset.read',)
+    if path == '/api/online-works/actions' and method == 'POST':
+        return ('asset.read','asset.manage')
     if path == '/api/skills' and method == 'GET':
         return ('asset.read',)
     if path in {'/api/skills/preview', '/api/skills/import'} and method == 'POST':

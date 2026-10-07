@@ -198,6 +198,12 @@
                 if(entry.bytes>0&&data.bytes>0){const part=element('span');part.dataset.kind=kind;part.style.flexGrow=entry.bytes/data.bytes;composition.append(part);}
             }
             composition.hidden=data.bytes===0;
+            if(data.online_works){
+                for(const [kind,label] of [['inbox','在线未整理'],['saved','在线已保留'],['trash','在线回收站']]){
+                    const row=element('div');
+                    row.append(element('dt',label),element('dd',bytes(data.online_works.bytes?.[kind] || 0)+' · 原件分类'));list.append(row);
+                }
+            }
             const details=[data.files+' 个文件','未设配额'];
             if(data.retained_bytes)details.push('待清理 '+bytes(data.retained_bytes));
             if(data.pending_files)details.push(data.pending_files+' 个上传尚未计入');

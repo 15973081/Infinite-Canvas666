@@ -15,7 +15,7 @@ from app.storage import backup, database, media
 from app.storage.settings import media_backend
 
 TABLES = ('canvases','assets','asset_aliases','canvas_assets','workspace_documents',
-          'ledger_entries','ledger_aliases','ledger_conflicts','ledger_imports','ledger_versions')
+          'ledger_entries','ledger_aliases','ledger_conflicts','ledger_imports','ledger_versions','online_works')
 DOCUMENT_KINDS = ('canvas_folders','asset_library','prompt_libraries','shared_folders','canvas_backup','skill_library')
 ASSET_FILTER = "role<>'task-result-source'"
 
@@ -97,13 +97,14 @@ def verify(directory):
             raise ValueError('Export path escaped bundle')
         return path
     manifest = json.loads(local('manifest.json').read_text(encoding='utf-8'))
-    expected = {table+'.jsonl' for table in TABLES}|{'objects.jsonl'}
+    tables = TABLES if 'online_works.jsonl' in manifest.get('files',{}) else tuple(t for t in TABLES if t!='online_works')
+    expected = {table+'.jsonl' for table in tables}|{'objects.jsonl'}
     if manifest.get('format') != 'workspace-shared-export-v1' or set(manifest['files']) != expected:
         raise ValueError('Invalid workspace export manifest')
     for name,info in manifest['files'].items():
         if backup.digest(local(name)) != (info['size'],info['sha256']):
             raise ValueError('Export checksum mismatch')
-    for table in TABLES:
+    for table in tables:
         count = 0
         with local(table+'.jsonl').open(encoding='utf-8') as source:
             for line in source:

@@ -1,0 +1,36 @@
+/* Managed online works use the approved studio palette and spacing. */
+.online-inbox{margin:64px 0 32px;color:var(--studio-text);font:13px/1.5 var(--studio-font)}
+.inbox-heading{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:20px}
+.inbox-heading h2{font-size:20px;margin:0 0 4px}.inbox-heading p,.inbox-footnote{color:var(--studio-text-muted);margin:0;font-size:12px}
+.inbox-summary{font-family:var(--studio-font-mono);color:var(--studio-text-muted);font-size:12px}
+.inbox-tools{position:sticky;top:0;z-index:15;background:var(--studio-page);padding:12px 0;border-bottom:1px solid var(--studio-border);margin-bottom:20px}
+.inbox-tabs,.inbox-filters,.inbox-bulk{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.inbox-filters{margin-top:12px}.inbox-bulk{margin-top:12px;min-height:36px}
+.online-inbox button,.inbox-dialog button{border:1px solid var(--studio-border);background:var(--studio-panel);color:var(--studio-text);padding:8px 12px;min-height:36px;border-radius:var(--studio-radius-control);font:inherit;cursor:pointer;transition:border-color var(--studio-motion),background var(--studio-motion)}
+.online-inbox button:hover,.inbox-dialog button:hover{border-color:var(--studio-border-strong)}
+.online-inbox button:disabled,.inbox-dialog button:disabled{opacity:.5;cursor:default}
+.online-inbox button[aria-selected=true],.online-inbox .inbox-primary,.inbox-dialog .inbox-primary{background:var(--studio-accent);border-color:var(--studio-accent);color:var(--studio-accent-text)}
+.online-inbox .inbox-danger,.inbox-dialog .inbox-danger{color:var(--studio-error);border-color:var(--studio-error);background:var(--studio-danger-surface)}
+.online-inbox input:not([type=checkbox]),.online-inbox select,.inbox-dialog input{height:38px;min-width:0;border:1px solid var(--studio-border);background:var(--studio-panel);color:var(--studio-text);padding:8px 12px;border-radius:var(--studio-radius-control);font:inherit}
+.inbox-search{flex:1;min-width:180px!important}.inbox-filters select{max-width:180px}
+.online-inbox :focus-visible,.inbox-dialog :focus-visible{outline:2px solid var(--studio-focus);outline-offset:3px}
+.inbox-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.inbox-card{background:var(--studio-panel);border:1px solid var(--studio-border);border-radius:12px;overflow:hidden;min-width:0}
+.inbox-card:has(input:checked){border-color:var(--studio-focus);box-shadow:0 0 0 1px var(--studio-focus)}
+.inbox-cover{position:relative;aspect-ratio:4/3;background:var(--studio-surface-muted);overflow:hidden}
+.inbox-cover>button{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;border-radius:0;background:transparent}.inbox-cover img{width:100%;height:100%;object-fit:cover;display:block;transition:transform var(--studio-motion)}
+.inbox-cover>button:hover img{transform:scale(1.025)}
+.inbox-select{position:absolute;top:12px;left:12px;z-index:1;display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--studio-border);border-radius:8px;background:var(--studio-panel)}
+.inbox-select input{accent-color:var(--studio-accent-label);width:17px;height:17px;cursor:pointer}
+.inbox-badge{position:absolute;right:12px;top:12px;background:var(--studio-panel);color:var(--studio-text-muted);padding:3px 8px;border:1px solid var(--studio-border);font-size:11px;border-radius:6px;pointer-events:none}
+.inbox-card-body{padding:12px}.inbox-card h3{margin:0 0 6px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbox-meta{color:var(--studio-text-muted);font-size:11px;overflow-wrap:anywhere}
+.inbox-card-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}.inbox-card-actions button{min-height:32px;font-size:11px;padding:5px 8px}
+.inbox-status{padding:16px 0;color:var(--studio-text-muted);white-space:pre-line}.inbox-status.error{color:var(--studio-error)}
+.inbox-empty{padding:56px 20px;text-align:center;border:1px dashed var(--studio-border);grid-column:1/-1;color:var(--studio-text-muted)}
+.inbox-more:not([hidden]){display:block;margin:24px auto}.inbox-footnote{margin-top:16px}
+.inbox-dialog{width:min(480px,calc(100vw - 32px));padding:24px;border:1px solid var(--studio-border-strong);border-radius:16px;background:var(--studio-panel);color:var(--studio-text);box-shadow:0 24px 80px var(--studio-shadow);font:13px/1.5 var(--studio-font)}
+.inbox-dialog::backdrop{background:var(--studio-overlay);backdrop-filter:blur(4px)}
+.inbox-dialog h3{margin:0 0 16px;font-size:18px}.inbox-dialog label{display:grid;gap:6px;margin:12px 0}.inbox-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.inbox-dialog p{white-space:pre-line;overflow-wrap:anywhere;color:var(--studio-text-muted)}
+@media(max-width:1100px){.inbox-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.inbox-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.inbox-heading{align-items:flex-start;flex-direction:column}.inbox-search{flex-basis:100%}.inbox-filters select{flex:1 1 calc(50% - 8px);min-width:140px;max-width:none}.inbox-tabs button{flex:1}.inbox-tools{position:static}}
+@media(max-width:420px){.inbox-grid{grid-template-columns:minmax(0,1fr)}.inbox-search{flex-basis:100%}}
+@media(prefers-reduced-motion:reduce){.online-inbox *,.inbox-dialog *{transition:none!important}}
