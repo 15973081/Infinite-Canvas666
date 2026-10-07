@@ -3178,7 +3178,7 @@ function renderInputPromptPreview(node){
 
 function smartReferencePreviewHtml(ref){
     const kind = mediaKindForItem(ref);
-    if(kind === 'audio') return '<span class="smart-ref-symbol" aria-hidden="true">♪</span>';
+    if(kind === 'audio') return '<span class="smart-ref-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/></svg></span>';
     if(String(ref.url || '').startsWith('asset://')) return '<span class="smart-ref-symbol" aria-hidden="true">▧</span>';
     return kind === 'video' ? smartVideoPreviewHtml(ref, 256, 'alt=""') : smartPreviewImgHtml(ref, 256, 'alt=""');
 }
@@ -3225,7 +3225,10 @@ function renderSmartMediaGroups(node){
         const title = {image:'图片',audio:'音频',video:'视频'}[kind];
         return `<section class="smart-ref-group"><div class="smart-ref-heading">${title}<span>${group.length}</span></div><div class="smart-ref-list smart-ref-list-${kind}">${group.map(ref => {
             const i = refs.indexOf(ref);
-            return `<div class="input-thumb smart-ref-item smart-ref-${kind}" data-thumb-index="${i}" data-kind="${kind}" data-url="${escapeAttr(ref.url)}" data-source-url="${escapeAttr(ref.originalLocalUrl || ref.url)}" data-node-id="${escapeAttr(ref.nodeId || '')}" data-image-index="${ref.imageIndex ?? ''}" draggable="${!ref.manual}"><button type="button" class="smart-ref-preview" data-ref-preview="${i}" aria-label="预览${ref.referenceLabel}">${kind === 'audio' ? '▷' : smartReferencePreviewHtml(ref)}${kind === 'video' ? '<span class="smart-ref-play">▷</span>' : ''}</button><button type="button" class="smart-ref-alias" data-ref-insert="${i}" title="插入引用">${ref.referenceLabel}</button>${kind === 'audio' ? `<span class="smart-ref-name" title="${escapeAttr(ref.name || ref.url)}">${escapeHtml(ref.name || fileNameFromUrl(ref.url))}</span>` : ''}</div>`;
+            const preview = `<button type="button" class="smart-ref-preview" data-ref-preview="${i}" aria-label="预览${escapeAttr(ref.referenceLabel)}">${kind === 'audio' ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z"/></svg>' : smartReferencePreviewHtml(ref)}${kind === 'video' ? '<span class="smart-ref-play">▷</span>' : ''}</button>`;
+            const alias = `<button type="button" class="smart-ref-alias" data-ref-insert="${i}" title="插入引用">${escapeHtml(ref.referenceLabel)}</button>`;
+            const content = kind === 'audio' ? `${preview}<div class="smart-ref-audio-copy">${alias}<span class="smart-ref-name" title="${escapeAttr(ref.name || ref.url)}">${escapeHtml(ref.name || fileNameFromUrl(ref.url))}</span></div>` : preview + alias;
+            return `<div class="input-thumb smart-ref-item smart-ref-${kind}" data-thumb-index="${i}" data-kind="${kind}" data-url="${escapeAttr(ref.url)}" data-source-url="${escapeAttr(ref.originalLocalUrl || ref.url)}" data-node-id="${escapeAttr(ref.nodeId || '')}" data-image-index="${ref.imageIndex ?? ''}" draggable="${!ref.manual}">${content}</div>`;
         }).join('')}</div></section>`;
     }).join('') + (plan.invalid.length ? '<div class="smart-ref-error">存在失效引用，请在提示词中重新选择素材。</div>' : '');
     // Include source metadata: equal markup alone does not imply equal insert/preview targets.
@@ -3262,14 +3265,34 @@ function renderSmartMediaGroups(node){
     });
 }
 
+function syncSmartAudioReferenceTokens(){
+    const parts = collectPromptParts();
+    promptInput.querySelectorAll('.mention-image-token').forEach(token => {
+        const ref = parts.find(part => part.type === 'image' && part.url === token.dataset.url);
+        if(!ref || mediaKindForItem(ref) !== 'audio') return;
+        token.dataset.kind = 'audio';
+        const oldLabel = token.querySelector('span:last-child')?.textContent || ref.name || '音频';
+        const label = /^@?(?:图片|图)\d*$/.test(oldLabel.trim()) ? '@音频' : oldLabel;
+        // Legacy rich drafts can contain an image preview for an audio URL.
+        if(label !== oldLabel || token.querySelector('img,video') || !token.querySelector('.smart-ref-symbol svg')){
+            token.innerHTML = `${smartReferencePreviewHtml(ref)}<span>${escapeHtml(label)}</span>`;
+        }
+        token.classList.toggle('smart-ref-unsupported', !smartTypedVideoInputs());
+        token.title = smartTypedVideoInputs() ? (ref.name || '音频素材') : '音频仅用于视频生成，请切换到视频模式';
+    });
+}
+
 function renderInputThumbsRow(node){
     if(!inputThumbsRow) return;
+    syncSmartAudioReferenceTokens();
     inputThumbsRow.classList.toggle('typed-media-inputs', smartTypedVideoInputs());
     if(smartTypedVideoInputs()) return renderSmartMediaGroups(node);
     delete inputThumbsRow._smartRefRenderKey;
-    const dedup = node ? visibleReferenceImagesFor(node) : [];
-    inputThumbsRow.classList.toggle('has-items', dedup.length > 0);
-    if(!dedup.length){ inputThumbsRow.innerHTML = ''; return; }
+    const allRefs = node ? visibleReferenceImagesFor(node) : [];
+    const audioRefs = allRefs.filter(isAudioMediaItem);
+    const dedup = allRefs.filter(ref => !isAudioMediaItem(ref));
+    inputThumbsRow.classList.toggle('has-items', allRefs.length > 0);
+    if(!allRefs.length){ inputThumbsRow.innerHTML = ''; return; }
     const thumbsHtml = dedup.map((img, i) => {
         const isVid = isVideoMediaItem(img);
         const isSelf = node ? isSelfReferenceForNode(node, img) : false;
@@ -3281,7 +3304,8 @@ function renderInputThumbsRow(node){
         const sourceUrl = img.originalLocalUrl || img.url || '';
         return `<div class="input-thumb ${isSelf ? 'input-self' : ''}" draggable="false" data-thumb-index="${i}" data-node-id="${escapeHtml(img.nodeId || '')}" data-image-index="${img.imageIndex ?? ''}" data-url="${escapeHtml(img.url || '')}" data-source-url="${escapeHtml(sourceUrl)}" title="${escapeHtml(`${img.name || '输入 {n}'.replace('{n}', String(i + 1))} · ${title}`)}">${inner}<span class="input-thumb-label">${escapeHtml(label)}</span></div>`;
     }).join('');
-    inputThumbsRow.innerHTML = `<div class="input-thumb-list">${thumbsHtml}${dedup.length > 1 ? `<span class="input-thumb-count">${escapeHtml('{n} 输入图'.replace('{n}', String(dedup.length)))}</span>` : ''}</div>`;
+    const audioHtml = audioRefs.length ? `<div class="smart-audio-input-note">${smartReferencePreviewHtml(audioRefs[0])}<span>音频素材仅用于视频生成，图片生成不会使用。</span></div>` : '';
+    inputThumbsRow.innerHTML = `${dedup.length ? `<div class="input-thumb-list">${thumbsHtml}${dedup.length > 1 ? `<span class="input-thumb-count">${escapeHtml('{n} 输入图'.replace('{n}', String(dedup.length)))}</span>` : ''}</div>` : ''}${audioHtml}`;
     bindSmartPreviewImageFallbacks(inputThumbsRow);
     bindInputThumbsDrag(node, dedup);
 }

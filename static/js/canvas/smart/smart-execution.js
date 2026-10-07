@@ -1117,6 +1117,7 @@ function inputMentionCandidateImages(node){
     const current = node ? [...(smartTypedVideoInputs() ? smartMediaReferencePlan(node, defaultReferenceImagesFor(node), collectPromptParts()).refs : []), ...lineImagesFor(node)] : [];
     const seen = new Set();
     return current.filter(img => {
+        if(!smartTypedVideoInputs() && isAudioMediaItem(img)) return false;
         if(!img?.url || seen.has(img.url)) return false;
         seen.add(img.url);
         return true;
@@ -1177,10 +1178,13 @@ function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=fal
         return {prompt:[inputPromptTextFor(node, ctx).trim(), body.trim()].filter(Boolean).join('\n\n'), displayPrompt:originalPromptTextFromParts(parts), refs:plan.refs, mentioned:parts.some(part => part.type === 'image')};
     }
     const originalPrompt = originalPromptTextFromParts(parts);
+    if(parts.some(part => part.type === 'image' && isAudioMediaItem(part))){
+        throw new Error('图片生成不支持音频引用，请切换视频模式或移除提示词中的音频引用。');
+    }
     const blockedRefs = blockedInputRefKeys(node);
     const hasOverrideImages = Array.isArray(overrideDefaultImages);
     const filteredDefaultImages = (hasOverrideImages ? overrideDefaultImages : defaultReferenceImagesFor(node, consumeDefault, ctx))
-        .filter(img => !blockedRefs.has(inputRefKey(img)));
+        .filter(img => !isAudioMediaItem(img) && !blockedRefs.has(inputRefKey(img)));
     const defaultRefs = uniqueReferenceImages(filteredDefaultImages);
     const refs = defaultRefs.map((img, index) => ({...img, role:`image_${index + 1}`}));
     let hasMentionToken = false;

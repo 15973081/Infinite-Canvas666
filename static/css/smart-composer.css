@@ -23,8 +23,22 @@ body.studio-smart-canvas #shell #composer .composer-card {
 #composer .smart-ref-preview { height:54px; }
 #composer .input-thumb.smart-ref-video { width:88px; }
 #composer .smart-ref-alias { padding:5px; background:var(--st-soft); font-size:10px; }
-#composer .input-thumb.smart-ref-audio { width:160px; height:38px; }
-#composer .smart-ref-audio .smart-ref-preview { width:30px; height:30px; }
+#composer .input-thumb.smart-ref-audio { width:196px; height:54px; gap:10px; padding:8px; border-radius:10px; box-sizing:border-box; background:var(--st-soft); }
+#composer .smart-ref-audio .smart-ref-preview { width:32px; height:32px; border:1px solid var(--st-line); border-radius:8px; background:var(--st-panel); color:var(--st-text); }
+#composer .smart-ref-audio .smart-ref-preview:hover { border-color:var(--studio-accent-label); background:var(--studio-selected); }
+#composer .smart-ref-audio-copy { display:flex; flex-direction:column; flex:1; min-width:0; gap:2px; }
+#composer .smart-ref-audio .smart-ref-alias { align-self:flex-start; padding:0; background:transparent; font-weight:600; line-height:1.4; }
+#composer .smart-ref-audio .smart-ref-alias:hover { color:var(--studio-accent-label); text-decoration:underline; }
+#composer .smart-ref-audio .smart-ref-name { display:block; line-height:1.4; }
+#composer .smart-ref-list-audio { max-height:120px; }
+#composer .smart-ref-preview:focus-visible,#composer .smart-ref-alias:focus-visible { outline:2px solid var(--studio-focus); outline-offset:-2px; }
+#composer .input-thumbs-row:not(.typed-media-inputs) { flex-wrap:wrap; }
+#composer .smart-audio-input-note { display:flex; align-items:center; gap:8px; flex-basis:100%; min-width:0; padding:9px 12px; border:1px solid var(--st-line); border-radius:9px; background:var(--st-soft); color:var(--st-muted); font-size:11px; line-height:1.5; }
+#composer .smart-ref-symbol { width:18px; min-width:18px; flex:none; color:var(--st-muted); }
+#composer .mention-image-token { border-radius:7px; height:24px; font-weight:500; background:var(--st-soft); border-color:var(--st-line); }
+#composer .mention-image-token img { border-radius:4px; background:var(--st-panel); }
+#composer .mention-image-token[data-kind=audio] { padding-left:5px; }
+#composer .mention-image-token.smart-ref-unsupported { color:var(--studio-warning); border-style:dashed; }
 #composer .smart-ref-invalid, #composer .smart-ref-error { flex-basis:100%; }
 #composer .prompt-row { border:1px solid var(--st-line); border-radius:12px; background:color-mix(in srgb,var(--st-soft) 45%,var(--st-panel)); transition:border-color .15s; }
 #composer .prompt-row:focus-within { border-color:var(--st-muted); }

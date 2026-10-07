@@ -5,12 +5,17 @@
  */
 
 function createSmartAssetPanel(){
+    let width = SMART_ASSET_PANEL_DEFAULT_WIDTH;
+    try {
+        const stored = Number(localStorage.getItem(SMART_ASSET_PANEL_WIDTH_KEY));
+        if(Number.isFinite(stored) && stored > 0) width = stored;
+    } catch(e) {}
     return window.CanvasCore.createAssetPanelController({
-        batchSize:ASSET_SIDEBAR_BATCH_SIZE,
+        batchSize:ASSET_SIDEBAR_BATCH_SIZE, width,
         normalizeSelection:normalizeSmartAssetSelection,
         selectionChanged:smartAssetSelectionChanged,
-        onDestroy(){ smartAssetHover.destroy(); },
-        ids:['assetToggle', 'assetPanel', 'assetCloseBtn', 'assetLibrarySelect', 'assetCategorySelect', 'assetGrid', 'assetNameSearch', 'assetDropZone', 'workflowEmpty', 'assetImageControls', 'assetAddCategoryBtn', 'assetRenameCategoryBtn', 'assetHoverPreview']
+        onDestroy(){ finishSmartAssetPanelResize(); smartAssetHover.destroy(); },
+        ids:['assetToggle', 'assetPanel', 'assetResizeHandle', 'assetCloseBtn', 'assetLibrarySelect', 'assetCategorySelect', 'assetGrid', 'assetNameSearch', 'assetDropZone', 'workflowEmpty', 'assetImageControls', 'assetAddCategoryBtn', 'assetRenameCategoryBtn', 'assetHoverPreview']
     });
 }
 
@@ -72,6 +77,7 @@ function selectSmartMentionCategory(id){
 function bindSmartAssetPanelLifecycle(){
     const events = smartAssetPanel.events('lifecycle');
     events.on(window, 'pagehide', event => {
+        finishSmartAssetPanelResize();
         smartAssetPanel.suspendReads();
         smartAssetPanel.cancelRefresh();
         if(event.persisted) hideAssetHoverPreview();
@@ -1460,6 +1466,8 @@ function setAssetLibraryFromResponse(data, options={}){
 
 function toggleAssetLibrary(open=!smartAssetPanel.state.open){
     if(!smartAssetPanel.elements.assetPanel || !smartAssetPanel.elements.assetToggle) return;
+    if(!open) finishSmartAssetPanelResize();
+    applySmartAssetPanelWidth(smartAssetPanel.state.width, {updatePreferred:false});
     smartAssetPanel.setOpen(!!open);
     if(smartAssetPanel.state.open) loadAssetLibrary();
     render();
@@ -2073,8 +2081,93 @@ function bindSmartLibraryDropEvents(){
     events.on(smartAssetPanel.elements.assetPanel, 'drop', handleAssetPanelDrop);
 }
 
+function smartAssetPanelMetrics(){
+    const panel = smartAssetPanel.elements.assetPanel;
+    const style = getComputedStyle(panel);
+    // Pointer coordinates are physical pixels; panel widths are CSS pixels under UI zoom.
+    const scale = panel.getBoundingClientRect().width / parseFloat(style.width) || 1;
+    const max = Math.max(0, window.innerWidth / scale - (parseFloat(style.right) || 0) - 22);
+    return {scale, max, min:Math.min(SMART_ASSET_PANEL_DEFAULT_WIDTH, max)};
+}
+
+function applySmartAssetPanelWidth(width, {persist=false, updatePreferred=true}={}){
+    const {assetPanel:panel, assetResizeHandle:handle} = smartAssetPanel.elements;
+    if(!panel) return;
+    const {min, max} = smartAssetPanelMetrics();
+    const value = Number.isFinite(Number(width)) ? Number(width) : SMART_ASSET_PANEL_DEFAULT_WIDTH;
+    const next = Math.floor(Math.min(Math.max(value, min), max));
+    panel.style.maxWidth = `${max}px`;
+    panel.style.width = `${next}px`;
+    if(updatePreferred) smartAssetPanel.setWidth(next);
+    handle?.setAttribute('aria-valuemin', String(Math.floor(min)));
+    handle?.setAttribute('aria-valuemax', String(Math.floor(max)));
+    handle?.setAttribute('aria-valuenow', String(next));
+    if(persist){
+        try { localStorage.setItem(SMART_ASSET_PANEL_WIDTH_KEY, String(smartAssetPanel.state.width)); } catch(e) {}
+    }
+}
+
+function finishSmartAssetPanelResize(){
+    smartAssetPanel.clearEvents('resize');
+    if(!smartAssetPanel.state.resize) return;
+    smartAssetPanel.setResize(null);
+    smartAssetPanel.elements.assetPanel?.classList.remove('resizing');
+    document.body.classList.remove('smart-asset-panel-resizing');
+    applySmartAssetPanelWidth(smartAssetPanel.state.width, {persist:true});
+}
+
+function bindSmartAssetPanelResize(){
+    const events = smartAssetPanel.events('resize-controls');
+    const {assetPanel:panel, assetResizeHandle:handle} = smartAssetPanel.elements;
+    applySmartAssetPanelWidth(smartAssetPanel.state.width, {updatePreferred:false});
+    events.on(handle, 'pointerdown', event => {
+        if(event.button !== 0 || !event.isPrimary) return;
+        event.preventDefault();
+        event.stopPropagation();
+        finishSmartAssetPanelResize();
+        smartAssetPanel.setResize({pointerId:event.pointerId, startX:event.clientX,
+            startWidth:parseFloat(getComputedStyle(panel).width), scale:smartAssetPanelMetrics().scale});
+        panel.classList.add('resizing');
+        document.body.classList.add('smart-asset-panel-resizing');
+        const dragEvents = smartAssetPanel.events('resize');
+        dragEvents.on(window, 'pointermove', move => {
+            const drag = smartAssetPanel.state.resize;
+            if(!drag || move.pointerId !== drag.pointerId) return;
+            move.preventDefault();
+            applySmartAssetPanelWidth(drag.startWidth + (drag.startX - move.clientX) / drag.scale);
+        }, {passive:false});
+        const end = event => {
+            if(event.pointerId === smartAssetPanel.state.resize?.pointerId) finishSmartAssetPanelResize();
+        };
+        dragEvents.on(window, 'pointerup', end);
+        dragEvents.on(window, 'pointercancel', end);
+        dragEvents.on(window, 'blur', finishSmartAssetPanelResize);
+    });
+    events.on(handle, 'dblclick', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        applySmartAssetPanelWidth(SMART_ASSET_PANEL_DEFAULT_WIDTH, {persist:true});
+    });
+    events.on(handle, 'keydown', event => {
+        if(!['ArrowLeft','ArrowRight','Home'].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const step = event.shiftKey ? 64 : 24;
+        const width = event.key === 'Home' ? SMART_ASSET_PANEL_DEFAULT_WIDTH
+            : parseFloat(getComputedStyle(panel).width) + (event.key === 'ArrowLeft' ? step : -step);
+        applySmartAssetPanelWidth(width, {persist:true});
+    });
+    const reflow = () => {
+        finishSmartAssetPanelResize();
+        applySmartAssetPanelWidth(smartAssetPanel.state.width, {updatePreferred:false});
+    };
+    events.on(window, 'resize', reflow);
+    events.on(window, 'studio-ui-scale-change', reflow);
+}
+
 function bindSmartAssetPanelEvents(){
     if(smartAssetPanel.destroyed) return;
+    bindSmartAssetPanelResize();
     const events = smartAssetPanel.events('controls');
     events.on(smartAssetPanel.elements.assetPanel, 'pointerdown', e => e.stopPropagation());
     events.on(smartAssetPanel.elements.assetPanel, 'mousedown', e => e.stopPropagation());
