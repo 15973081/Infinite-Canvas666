@@ -369,7 +369,7 @@ async function loadCanvas(options={}){
                 changed:lease => {
                     document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
                     if(lease.canEdit) resumeSmartPendingTasks();
-                    if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;}
+                    if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;cancelSmartNodeGestures();}
                     if(runBtn) runBtn.disabled=!lease.canEdit || smartCascadeAnyRunning();
                     if(cascadeRunBtn) cascadeRunBtn.disabled=!lease.canEdit;
                 }

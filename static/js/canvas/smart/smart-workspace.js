@@ -2497,6 +2497,7 @@ function bindPromptNodeControls(el, node){
     if(instructionEl) { bindScrollableText(instructionEl); instructionEl.oninput = e => { node.llmInstruction = e.target.value; scheduleSave(); }; }
     const instructionResizeEl = el.querySelector('[data-llm-instruction-resize]');
     if(instructionResizeEl) instructionResizeEl.addEventListener('mousedown', e => {
+        if(isSmartCanvasLocked()) return;
         if(e.button !== 0) return;
         e.preventDefault(); e.stopPropagation();
         llmInstructionResizeState = {id:node.id, startY:e.clientY, startH:promptLlmInstructionHeight(node), startNodeH:promptNodeLayoutSize(node).height};
@@ -2756,6 +2757,7 @@ function updatePortDragVisual(){
 }
 
 function handlePortDrop(drag, e){
+    if(isSmartCanvasLocked()){ discardPendingUndo(); return; }
     const {targetId, targetPort, hit} = (() => {
         const hitEl = document.elementFromPoint(e.clientX, e.clientY);
         const portEl = hitEl?.closest?.('.node-port');
@@ -2970,6 +2972,7 @@ function bindNodeEvents(elements=null){
         });
         el.querySelectorAll('.thumb-item').forEach(item => {
             item.addEventListener('mousedown', e => {
+                if(isSmartCanvasLocked()) return;
                 if(e.target.closest('video,audio')) return;
                 if(e.button !== 0 || e.target.closest('.mini-x')) return;
                 if(e.detail >= 2) return;
@@ -2981,6 +2984,7 @@ function bindNodeEvents(elements=null){
             });
         });
         el.querySelector('.node-resize-handle')?.addEventListener('mousedown', e => {
+            if(isSmartCanvasLocked()) return;
             if(e.button !== 0) return;
             e.preventDefault(); e.stopPropagation();
             const node = nodes.find(n => n.id === id);
@@ -2991,6 +2995,7 @@ function bindNodeEvents(elements=null){
             capturePendingUndo();
         });
         const beginNodeDrag = e => {
+            if(isSmartCanvasLocked()) return;
             if(e.button !== 0 || e.target.closest('.mini-x, .smart-node-floating-menu, .node-resize-handle, .thumb-item, .node-port, select, input, button')) return;
             if(e.target.closest('.prompt-node-pill, textarea:not(.prompt-node-text)')) return;
             e.preventDefault(); e.stopPropagation();
@@ -3010,6 +3015,7 @@ function bindNodeEvents(elements=null){
         };
         el.querySelectorAll('.node-port').forEach(port => {
             port.addEventListener('mousedown', e => {
+                if(isSmartCanvasLocked()) return;
                 if(e.button !== 0) return;
                 e.preventDefault(); e.stopPropagation();
                 const portType = port.dataset.port;
@@ -3035,7 +3041,9 @@ function bindNodeEvents(elements=null){
         el.ondrop = async e => {
             e.preventDefault();
             e.stopPropagation();
+            if(isSmartCanvasLocked()) return;
             const payload = await resolveSmartImageDropPayload(e.dataTransfer);
+            if(isSmartCanvasLocked()) return;
             if(payload.type === 'none') return;
             await handleSmartImageDropPayload(payload, id);
         };
@@ -3784,11 +3792,37 @@ function openCreateMenu(event){
 }
 
 function createNodeFromMenu(type){
+    if(isSmartCanvasLocked()){ closeCreateMenu(); return; }
     const p = createMenuPoint || viewportCenter();
     closeCreateMenu();
     if(type === 'prompt') return createPromptNode(p.x - 158, p.y - 97);
     if(type === 'loop') return createLoopNode(p.x - 135, p.y - 95);
     return createImageNodeAt(p);
+}
+
+// Permission changes must cancel mouse sessions too: the mouseup may arrive
+// after viewing starts, or even after a new editing lease has been obtained.
+function cancelSmartNodeGestures(){
+    const active = Boolean(portDragState || dragState || resizeState || llmInstructionResizeState || thumbDragState);
+    if(!active){ closeCreateMenu(); return; }
+    restoreDraggedNodePosition();
+    const resize = resizeState || llmInstructionResizeState;
+    if(resize){
+        const node = nodes.find(n => n.id === resize.id);
+        const original = pendingUndoSnapshot?.nodes.find(n => n.id === resize.id);
+        if(node && original){
+            for(const key of ['w','h','scale','llmInstructionHeight']){
+                if(Object.prototype.hasOwnProperty.call(original,key)) node[key] = original[key];
+                else delete node[key];
+            }
+        }
+    }
+    portDragState = dragState = resizeState = llmInstructionResizeState = thumbDragState = null;
+    discardPendingUndo();
+    document.body.classList.remove('smart-node-drag','smart-node-resize','smart-llm-instr-resize');
+    shell.classList.remove('port-dragging');
+    clearPortDragVisual(); clearDropHighlight(); setAssetDragOver(false);
+    closeCreateMenu(); render();
 }
 
 // Called once by smart-canvas.js, at its original initialization position.
@@ -3858,6 +3892,7 @@ function bindSmartWorkspaceGestures(){
     smartMinimap.bind();
     window.onmousemove = e => {
         lastMouseWorld = screenToWorld(e);
+        if(isSmartCanvasLocked()) cancelSmartNodeGestures();
         if(smartMinimap.move(e)) return;
         if(portDragState){
             e.preventDefault();
@@ -4001,6 +4036,7 @@ function bindSmartWorkspaceGestures(){
         if(target) setDropHighlight(target.id);
     };
     window.onmouseup = e => {
+        if(isSmartCanvasLocked()) cancelSmartNodeGestures();
         document.body.classList.remove('smart-node-drag');
         document.body.classList.remove('smart-node-resize');
         if(portDragState){
