@@ -47,9 +47,9 @@
         if(ref.face_auth_status && ref.face_auth_status !== 'Active' && status === 'Active') status = ref.face_auth_status;
         const uri = String(reg ? reg.asset_uri || '' : cached.volcengine || '').trim();
         const providerId = String(reg?.provider_id || cached.volcengine_provider_id || 'volcengine');
-        const project = String(reg?.project_name || cached.volcengine_project_name || 'default');
+        const project = String(reg?.project_name || cached.volcengine_project_name || 'default').trim();
         if(status === 'Active' && !uri.startsWith('asset://')) status = 'Missing';
-        if(status && provider && (providerId !== provider.id || project !== String(provider.volcengine_project_name || 'default'))){
+        if(status && provider && (providerId !== provider.id || project !== String(provider.volcengine_project_name || 'default').trim())){
             status = 'ScopeMismatch';
         }
         const uris = status === 'Active' ? {volcengine:uri,volcengine_provider_id:providerId,volcengine_project_name:project} : {};

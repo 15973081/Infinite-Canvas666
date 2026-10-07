@@ -67,3 +67,20 @@ def test_revoked_credentials_are_reflected_on_next_read(catalog):
         catalog[0]['secret_fields'].remove('volcengine_secret_access_key')
         capability = member_gateway.public_provider_config()['providers'][0]['avatar_registration']
         assert capability['supported'] and not capability['credentials_configured']
+
+
+@pytest.mark.parametrize('project', ['seedance-companyA', 'default', ''])
+def test_member_response_preserves_registration_project_without_credentials(catalog, project):
+    catalog.append(dict(config={
+        'id': 'volcengine', 'protocol': 'volcengine', 'enabled': True,
+        'volcengine_project_name': project,
+        'volcengine_access_key_id': 'must-not-leak',
+        'volcengine_secret_access_key': 'must-not-leak',
+    }, primary=True, secret_fields=['volcengine_access_key_id', 'volcengine_secret_access_key']))
+    with workspace_scope('assigned'):
+        data = member_gateway.public_provider_config()
+    assert data['providers'][0]['volcengine_project_name'] == project
+    assert data['api_providers'][0]['volcengine_project_name'] == project
+    assert 'must-not-leak' not in str(data)
+    with workspace_scope('unassigned'):
+        assert member_gateway.public_provider_config()['providers'] == []

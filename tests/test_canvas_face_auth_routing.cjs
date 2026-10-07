@@ -266,6 +266,25 @@ for(const mode of ['classic','smart']) test(`${mode}: changing the configured pr
     if(mode==='classic') await s.run(); else await assert.rejects(s.run([s.image]),/供应商或项目/);
     assert.equal(s.payload(),undefined);
 });
+
+for(const mode of ['classic','smart']) for(const cachedOnly of [false,true]) test(`${mode}: non-default ProjectName resolves ${cachedOnly?'cached':'library'} certification`,()=>{
+    const s=mode==='classic'?classic():smart();
+    const provider={id:'volcengine',volcengine_project_name:'seedance-companyA'};
+    s.context.apiProviders=[provider];
+    s.image.asset_uris={volcengine:'asset://verified',volcengine_provider_id:provider.id,volcengine_project_name:'seedance-companyA'};
+    const item=libraryItem();
+    Object.assign(item.registrations.volcengine,{provider_id:provider.id,project_name:'seedance-companyA'});
+    s.context[mode==='classic'?'canvasAssetLibraries':'assetLibraries']=()=>cachedOnly?[]:[{categories:[{items:[item]}]}];
+    const resolve=()=>s.context[mode==='classic'?'canvasFaceAuthState':'smartFaceAuthState'](s.image);
+    assert.equal(resolve().status,'Active');assert.equal(resolve().ready,true);
+    provider.volcengine_project_name=' seedance-companyA ';
+    assert.equal(resolve().ready,true,'same normalization as the server scope check');
+    provider.volcengine_project_name='seedance-companyB';
+    assert.equal(resolve().status,'ScopeMismatch');assert.equal(resolve().ready,false);
+    assert.equal(resolve().uris.volcengine,undefined,'another project cannot reuse the asset URI');
+    provider.volcengine_project_name='seedance-companyA';
+    assert.equal(resolve().ready,true,'returning to the original project restores readiness');
+});
 test('smart: dedupe upgrades the original slot to the authenticated source without changing numbering',async()=>{
     const s=smart(),other={id:'other',images:[{url:s.image.url,kind:'image'}]};
     s.context.nodes.push(other);
