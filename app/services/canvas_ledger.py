@@ -137,6 +137,13 @@ def price_log(log, providers=(), frozen_price=None):
     info = identity(log, providers)
     saved = log.get("cost") or {}
     unknown = {**info, "status": "unknown", "reason": "missing_price", "source": "estimated"}
+    if info['kind'] == 'chat' and saved.get('status') != 'priced':
+        from app.services.chat_billing import calculate
+        price = (frozen_price if frozen_price is not None else saved['price_snapshot']
+                 if isinstance(saved.get('price_snapshot'), dict) else
+                 historical_price(info, log.get('createdAt', 0), providers, log.get('request')))
+        outcome = 'rejected' if log.get('status') == 'failed' else 'succeeded' if log.get('status') == 'success' else 'uncertain'
+        return {**info, **calculate(price, log.get('raw_usage'), outcome)}
     if log.get("status") == "failed" and saved.get("billing_source") != "volcengine_usage":
         return {**unknown, "status": "excluded", "reason": "failed"}
     if saved.get("status") == "priced":
@@ -419,14 +426,14 @@ def task_run_ms(task):
 
 def task_log(task):
     result = task.get("result") or {}
-    if task.get("status") not in ("succeeded", "failed") and task.get("upstream_status") != "succeeded":
+    if task.get("status") not in ("succeeded", "failed") and task.get("upstream_status") != "succeeded" and not (task.get('type') == 'llm' and task.get('status') == 'needs_review'):
         return None
     request = task.get("billing_request") or {}
     kind = "chat" if task.get("type") == "llm" else "video" if task.get("type") == "video" else "image"
     log = {"id": "task-log:" + str(task["id"]), "canvas_task_id": task["id"],
            "createdAt": int(float(task.get("created_at") or 0) * 1000),
            "_task_updated_at": task.get("updated_at") or task.get("created_at") or 0,
-           "status": "failed" if task.get("status") == "failed" else "success",
+           "status": "uncertain" if task.get('status') == 'needs_review' else "failed" if task.get("status") == "failed" else "success",
            "nodeType": "llm" if kind == "chat" else "video" if kind == "video" else "generator", "billingKind": kind,
            "providerId": task.get("provider_id", ""), "platform": task.get("provider_name") or task.get("provider_id", ""),
            "billingModel": task.get("model", ""), "model": task.get("model", ""),
@@ -436,6 +443,8 @@ def task_log(task):
     if kind == "chat":
         log["text"] = result.get("text", "")
         log["raw_usage"] = copy.deepcopy(result.get("raw_usage"))
+        if result.get('billing_outcome') == 'uncertain' and log['status'] == 'success':
+            log['status'] = 'uncertain'
     log["runMs"] = task_run_ms(task)
     if log["runMs"] is not None:
         log["runMsSource"] = "task"

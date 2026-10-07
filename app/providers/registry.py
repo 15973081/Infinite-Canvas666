@@ -28,7 +28,7 @@ from app.utils import model_list_from_values, mask_secret, strip_auth_scheme, be
 from app.models import ApiProviderPayload
 
 REMOVED_PROVIDER_IDS = {"runninghub", "modelscope", "comfyui", "comfy"}
-MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call", "per_million_tokens"}
+MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call", "per_million_tokens", "disabled"}
 
 
 def normalize_model_prices(rows):
@@ -39,7 +39,21 @@ def normalize_model_prices(rows):
         kind = str(raw.get("kind") or "").strip().lower()
         model = str(raw.get("model") or "").strip()[:180]
         billing_type = str(raw.get("billing_type") or "").strip().lower()
-        if kind not in {"image", "video"} or not model or billing_type not in MODEL_PRICE_BILLING_TYPES:
+        if kind not in {"image", "video", "chat"} or not model or billing_type not in MODEL_PRICE_BILLING_TYPES:
+            continue
+        if kind == 'chat':
+            from app.services.chat_billing import normalize_price
+            try:
+                price = normalize_price(raw)
+                start, end = int(raw.get('effective_from') or 0), int(raw.get('effective_to') or 0)
+                if start < 0 or end < 0 or (end and end <= start):
+                    continue
+            except (ValueError, TypeError, OverflowError):
+                continue
+            normalized.append({'kind': kind, 'model': model, **price, 'currency': 'CNY',
+                               'effective_from': start, 'effective_to': end})
+            continue
+        if billing_type == 'disabled':
             continue
         if raw.get("unit_price") is None or isinstance(raw.get("unit_price"), bool) or not str(raw["unit_price"]).strip():
             continue
@@ -92,16 +106,16 @@ def merge_model_price_history(existing_rows, desired_rows, effective_at=None):
 
     for key, old in active.items():
         new = desired.get(key)
-        comparable = ("billing_type", "unit_price", "currency")
-        if new and all(old[field] == new[field] for field in comparable):
+        comparable = ("billing_type", "unit_price", "currency", "input_price", "output_price", "cached_input_price", "stream_usage")
+        if new and all(old.get(field) == new.get(field) for field in comparable):
             history.append(old)
         else:
             history.append({**old, "effective_to": now})
 
     for key, new in desired.items():
         old = active.get(key)
-        comparable = ("billing_type", "unit_price", "currency")
-        if old and all(old[field] == new[field] for field in comparable):
+        comparable = ("billing_type", "unit_price", "currency", "input_price", "output_price", "cached_input_price", "stream_usage")
+        if old and all(old.get(field) == new.get(field) for field in comparable):
             continue
         had_history = any(model_price_key(row) == key for row in existing)
         history.append({**new, "effective_from": now, "effective_to": 0})

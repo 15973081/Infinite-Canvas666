@@ -98,7 +98,11 @@ async def _execute_scoped(row):
         current = tasks.get(task_id)
         if current.get("status") in tasks.ACTIVE:
             current.update(status="needs_review", error=str(exc))
-            tasks.save(current)
+            if current.get('type') == 'llm':
+                from app.services.canvas_tasks import save_canvas_task
+                await asyncio.to_thread(save_canvas_task, current)
+            else:
+                tasks.save(current)
     finally:
         stopped.set()
         await asyncio.to_thread(heartbeat.join, 20)

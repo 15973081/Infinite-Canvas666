@@ -88,6 +88,11 @@ def normalized(provider_id, value, previous=None):
         result.pop('primary', None)
         if 'model_prices' in value and len(result['model_prices']) != len(value['model_prices']):
             az.fail('invalid_provider_prices', 400)
+        # A chat model has exactly one active mode; reject ambiguous config
+        # supplied through advanced JSON/import rather than silently choosing.
+        chats = [p['model'] for p in result['model_prices'] if p['kind'] == 'chat' and not p['effective_to']]
+        if len(chats) != len(set(chats)):
+            az.fail('invalid_provider_prices', 400)
         for field in ('model_policies', 'model_discounts', 'media_input_modes'):
             if field not in value and previous and field in previous: result[field] = previous[field]
         result['model_prices'] = (list((previous or {}).get('model_prices') or []) if 'model_prices' not in value

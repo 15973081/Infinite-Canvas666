@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="/static/css/utilities.css">
     <link rel="stylesheet" href="/static/css/studio-chat.css">
     <link rel="stylesheet" href="/static/css/chat-skills.css">
+    <link rel="stylesheet" href="/static/css/chat-cost.css">
 </head>
 <body class="studio-skin studio-content studio-chat">
     <div class="chat-shell">
@@ -706,6 +707,7 @@
             text.className = 'bubble-text';
             bubble.appendChild(text);
             window.ChatSkills?.decorate(bubble, msg.skill_refs);
+            window.ChatCost?.decorate(bubble, msg.cost);
             if(msg.attachments?.length){
                 const thumbs = document.createElement('div');
                 thumbs.className = 'thumbs';
@@ -983,5 +985,6 @@
         };
     </script>
     <script src="/static/js/chat-skills.js"></script>
+    <script src="/static/js/chat-cost.js"></script>
 </body>
 </html>

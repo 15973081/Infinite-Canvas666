@@ -1,4 +1,4 @@
-"""Account expense read models; ownership comes only from persisted server tasks."""
+"""Account expense read models; ownership comes from server tasks/chat calls."""
 from fastapi import HTTPException
 from app.services import authorization as az
 from app.storage.workspace import current_workspace
@@ -50,8 +50,8 @@ def report(actor, *, personal=False, workspace=None, member_id='', from_ms=0, to
         if from_ms: clauses.append('e.created_at>=%s'); args.append(from_ms)
         if to_ms: clauses.append('e.created_at<%s'); args.append(to_ms)
         if canvas_query:
-            clauses.append("(e.canvas_id ILIKE %s OR g.document->>'title' ILIKE %s)")
-            args.extend(['%'+canvas_query+'%']*2)
+            clauses.append("(e.canvas_id ILIKE %s OR g.document->>'title' ILIKE %s OR e.log_json->>'conversation_title' ILIKE %s OR e.log_json->>'conversation_id' ILIKE %s)")
+            args.extend(['%'+canvas_query+'%']*4)
         if account_query and not personal:
             clauses.append("(coalesce(m.username,o.username,'') ILIKE %s OR coalesce(m.display_name,o.display_name,'待归属') ILIKE %s)")
             args.extend(['%'+account_query+'%']*2)
@@ -77,16 +77,21 @@ def report(actor, *, personal=False, workspace=None, member_id='', from_ms=0, to
             ''' + scope + ''' GROUP BY coalesce(a.member_id,o.member_id),coalesce(m.username,o.username,''),coalesce(m.display_name,nullif(o.display_name,''),'待归属'),coalesce(m.status,'unknown'),e.currency
             ORDER BY member_id NULLS LAST,e.currency LIMIT 201''',args).fetchall()
         rows = conn.execute('''SELECT e.id,e.workspace_id,w.name AS workspace_name,
-            nullif(e.canvas_id,'__account_tasks__') AS canvas_id,
-            coalesce(g.document->>'title',nullif(e.canvas_id,'__account_tasks__'),'独立生成任务') AS canvas_title,
+            CASE WHEN e.canvas_id IN ('__account_tasks__','__account_chats__') THEN NULL ELSE e.canvas_id END AS canvas_id,
+            CASE WHEN e.source='chat' THEN coalesce(e.log_json->>'conversation_title','GPT 对话')
+                ELSE coalesce(g.document->>'title',nullif(e.canvas_id,'__account_tasks__'),'独立生成任务') END AS canvas_title,
             e.created_at,e.kind,e.status,e.cost_status,e.estimated,e.currency,e.amount_micros::text,
             e.cost_json->>'base_amount_micros' AS base_amount_micros,e.cost_json->>'discount_amount_micros' AS discount_amount_micros,
             e.cost_json->>'discount_rate' AS discount_rate,e.cost_json->'discount_snapshot' AS discount_snapshot,
             e.cost_json->>'unit_price' AS unit_price,e.cost_json->>'quantity' AS quantity,
             e.cost_json->>'resolution' AS resolution,e.cost_json->>'price_effective_from' AS price_effective_from,
+            e.cost_json->>'billing_type' AS billing_type,e.cost_json->'usage' AS token_usage,
+            e.cost_json->>'input_price' AS input_price,e.cost_json->>'output_price' AS output_price,
+            e.cost_json->>'cached_input_price' AS cached_input_price,e.cost_json->>'reason' AS cost_reason,
+            e.log_json->>'conversation_id' AS conversation_id,
             coalesce(e.log_json->>'providerId','') AS provider,
             coalesce(e.log_json->>'billingModel',e.log_json->>'model','') AS model,
-            o.task_id,coalesce(a.member_id,o.member_id) AS member_id,o.member_id AS original_member_id,a.reason AS assignment_reason,a.actor_id AS assigned_by,o.username AS account_at_creation,o.display_name AS name_at_creation,
+            o.task_id,o.chat_call_id,coalesce(a.member_id,o.member_id) AS member_id,o.member_id AS original_member_id,a.reason AS assignment_reason,a.actor_id AS assigned_by,o.username AS account_at_creation,o.display_name AS name_at_creation,
             coalesce(m.username,o.username,'') AS username,
             coalesce(m.display_name,nullif(o.display_name,''),'待归属') AS display_name,
             CASE WHEN a.entry_id IS NOT NULL THEN 'manual' ELSE coalesce(o.attribution,'unassigned') END AS attribution

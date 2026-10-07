@@ -1,7 +1,7 @@
 /* Independent model access, prices and discount configuration. */
 (() => {
   const node=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
-  const select=(label,items,value)=>{const wrap=node('label',label),e=node('select');for(const [v,t] of items)e.append(new Option(t,v));e.value=value;wrap.append(e);return [wrap,e];};
+  const select=(label,items,value)=>{const wrap=node('label',label),e=node('select');e.setAttribute('aria-label',label);for(const [v,t] of items)e.append(new Option(t,v));e.value=value;wrap.append(e);return [wrap,e];};
   const input=(label,value='',type='text')=>{const wrap=node('label',label),e=node('input');e.type=type;e.value=value;wrap.append(e);return [wrap,e];};
   const check=(label,value)=>{const wrap=node('label',undefined,'check'),e=node('input');e.type='checkbox';e.checked=value;wrap.append(e,document.createTextNode(label));return [wrap,e];};
   const localTime=ms=>{if(!ms)return '';const d=new Date(ms);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
@@ -37,6 +37,33 @@
         grid.append(minLabel,maxLabel);block.append(grid);access.append(block);
       }
       form.append(access);const priceInputs=[];
+      let chatMode,chatPrices;
+      if(k==='chat'){
+        const block=node('section',undefined,'provider-block chat-billing-block');
+        block.append(node('h3','对话计费 · CNY'),node('p',`仅配置 ${row.config.name||row.id} / ${m}。Token 与按次计费互斥；两项关闭表示不计费。保存只影响新调用，历史账单保留价格快照。`,'muted'));
+        const current=(config.model_prices||[]).find(p=>p.kind==='chat'&&p.model===m&&!p.effective_to);
+        const [tl,tokens]=check('开启 Token 计费',current?.billing_type==='per_million_tokens');
+        const [cl,calls]=check('开启按次计费',current?.billing_type==='per_call');
+        const switches=node('div',undefined,'chat-billing-switches');switches.append(tl,cl);block.append(switches);
+        const tokenFields=node('div',undefined,'provider-fields');
+        const [il,inp]=input('输入价格（元 / 百万 Token）',current?.input_price??'','number');
+        const [ol,out]=input('输出价格（元 / 百万 Token）',current?.output_price??'','number');
+        const [cacheLabel,cache]=input('缓存输入价格（选填）',current?.cached_input_price??'','number');
+        cache.placeholder='留空按输入价格计算';tokenFields.append(il,ol,cacheLabel);block.append(tokenFields);
+        const [ul,streamUsage]=check('请求流式用量（兼容接口）',current?.stream_usage!==false);block.append(ul);
+        block.append(node('p','用量由供应商返回。缓存输入属于总输入的一部分，不重复计数；缺少用量时标记待核算。接口不支持流式用量参数时可关闭此项，不会自动重发请求。','muted'));
+        const [callLabel,unit]=input('单次询问价格（元 / 次）',current?.unit_price??'','number');block.append(callLabel);
+        for(const field of [inp,out,cache,unit]){field.min='0';field.step='0.000001';}
+        const modeNote=node('p','','chat-billing-mode');modeNote.setAttribute('role','status');block.append(modeNote);
+        function refreshMode(){
+          inp.disabled=out.disabled=cache.disabled=streamUsage.disabled=!tokens.checked;
+          inp.required=out.required=tokens.checked;unit.disabled=!calls.checked;unit.required=calls.checked;
+          modeNote.textContent=tokens.checked?'当前模式：Token 计费 · 输入与输出分别核算':calls.checked?'当前模式：按次计费 · 一次有效模型调用计一次':'当前模式：不计费 · 保存后生效，仍保留用量记录';
+        }
+        tokens.onchange=()=>{if(tokens.checked)calls.checked=false;refreshMode();};
+        calls.onchange=()=>{if(calls.checked)tokens.checked=false;refreshMode();};refreshMode();
+        chatMode={tokens,calls,streamUsage};chatPrices={inp,out,cache,unit};form.append(block);
+      }
       if(k!=='chat'){
         const priceBlock=node('section',undefined,'provider-block');priceBlock.append(node('h3','基础价格 · CNY'),node('p','先按规格单价 × 数量计算基础金额，再应用下面的折扣。空白表示未配置；0 表示免费。分档价优先于通用价。保存后只影响新任务，历史金额不重算。','muted'));
         const existing=config.model_prices||[],tokenMode=k==='video'&&(row.id==='volcengine'||config.protocol==='volcengine');
@@ -86,6 +113,13 @@
           for(const p of priceInputs){next.model_prices=next.model_prices.filter(r=>r.effective_to||!p.match(r));const text=p.e.value.trim();if(text!==''){if(!/^\d+(?:\.\d{1,6})?$/.test(text))throw Error('单价最多六位小数。');next.model_prices.push({kind:k,model:m,billing_type:form.billingSelect.value,unit_price:text,currency:'CNY',effective_from:0,effective_to:0,...(p.resolution?{resolution:p.resolution}:{}),...(p.hasVideo!==null?{has_video_input:p.hasVideo,service_tier:'default'}:{})});}}
           next.model_discounts=(next.model_discounts||[]).filter(r=>r.kind!==k||r.model!==m);
           for(const r of discountInputs){const start=new Date(r.start.value).getTime(),end=r.end.value?new Date(r.end.value).getTime():0;if(!Number.isFinite(start)||!Number.isFinite(end)||end&&end<=start)throw Error('请检查折扣起止时间。');next.model_discounts.push({kind:k,model:m,rate:(Number(r.rate.value)/100).toFixed(6),effective_from:start,effective_to:end,label:r.label.value.trim(),...(r.resolution.value?{resolution:r.resolution.value}:{}),...(k==='video'&&r.video.value!==''?{has_video_input:r.video.value==='true'}:{})});}
+        }else{
+          if(chatMode.tokens.checked&&chatMode.calls.checked)throw Error('Token 与按次计费不能同时开启。');
+          const price={kind:'chat',model:m,currency:'CNY',effective_from:0,effective_to:0,billing_type:'disabled'};
+          function value(field){const text=field.value.trim();if(!/^\d+(?:\.\d{1,6})?$/.test(text)||!Number.isFinite(Number(text)))throw Error('请输入非负单价，最多六位小数；0 表示免费。');return text;}
+          if(chatMode.tokens.checked){price.billing_type='per_million_tokens';price.input_price=value(chatPrices.inp);price.output_price=value(chatPrices.out);price.stream_usage=chatMode.streamUsage.checked;if(chatPrices.cache.value.trim()!=='')price.cached_input_price=value(chatPrices.cache);}
+          else if(chatMode.calls.checked){price.billing_type='per_call';price.unit_price=value(chatPrices.unit);}
+          next.model_prices=(next.model_prices||[]).filter(p=>p.effective_to||p.kind!=='chat'||p.model!==m);next.model_prices.push(price);
         }
         const saved=await save(row,{config:next,expected_version:version,reason:reason.value});
         row.version=saved.version;row.config=saved.config;config=structuredClone(saved.config);version=saved.version;

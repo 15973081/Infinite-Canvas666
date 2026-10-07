@@ -39,6 +39,9 @@ def export(directory, workspace):
             elif table == 'workspace_documents':
                 conditions += ' AND kind=ANY(%s)'
                 args.append(list(DOCUMENT_KINDS))
+            elif table == 'ledger_entries':
+                # Personal chat billing includes private conversation titles.
+                conditions += " AND source<>'chat'"
             count = 0
             with conn.cursor(name='export_'+table) as cursor, (directory/(table+'.jsonl')).open('x',encoding='utf-8',newline='\n') as target:
                 cursor.execute(sql.SQL('SELECT * FROM {} WHERE '+conditions).format(sql.Identifier(table)),args)
@@ -76,7 +79,7 @@ def export(directory, workspace):
                 'media_backend':media_backend(),'counts':counts,'files':files,
                 'object_count':object_count,'object_bytes':object_bytes,'unfinished_assets':unfinished,
                 'document_kinds':list(DOCUMENT_KINDS),
-                'excluded':['private_conversations','identity_and_sessions','provider_configuration',
+                'excluded':['private_conversations','private_chat_billing','identity_and_sessions','provider_configuration',
                             'task_execution_and_checkpoints','unfinished_upload_bytes'],
                 'restore':'Shared-data export only; database disaster recovery requires a platform backup.'}
     pending = directory/'manifest.pending'

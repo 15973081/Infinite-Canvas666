@@ -65,6 +65,9 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
         msg = upstream_message_from_record(item)
         if msg:
             upstream_messages.append(msg)
+    from app.services import chat_billing
+    billing = await asyncio.to_thread(chat_billing.begin, _conv_provider, model, conversation, user_id)
+    raw_usage, outcome = None, 'uncertain'
     try:
         async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
             conv_req_body = {"model": model, "messages": upstream_messages}
@@ -77,20 +80,30 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
             )
             response.raise_for_status()
             raw = response.json()
+            raw_data = unwrap_apimart_response(raw) if isinstance(raw, dict) else raw
+            raw_usage = raw_data.get('usage') if isinstance(raw_data, dict) else None
+            content = text_from_chat_response(raw).strip()
+            if content:
+                outcome = 'succeeded'
     except httpx.HTTPStatusError as exc:
+        outcome = 'rejected' if exc.response.status_code < 500 else 'uncertain'
         body = exc.response.text or ""
         friendly = friendly_chat_error_detail(body, model, _conv_provider)
         raise HTTPException(status_code=exc.response.status_code, detail=friendly or f"上游接口错误：{body}") from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"请求上游接口失败：{exc}") from exc
-    raw_data = unwrap_apimart_response(raw) if isinstance(raw, dict) else raw
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail='上游回复格式无效，费用待核对。') from exc
+    finally:
+        cost = chat_billing.finish(billing, raw_usage, outcome)
     assistant_message = {
         "id": uuid.uuid4().hex,
         "role": "assistant",
-        "content": text_from_chat_response(raw).strip() or "接口返回了空回复。",
+        "content": content or "接口返回了空回复。",
         "created_at": now_ms(),
         "model": model,
-        "raw_usage": raw_data.get("usage") if isinstance(raw_data, dict) else None,
+        "raw_usage": raw_usage,
+        "cost": cost,
     }
 
     conversation["messages"].append(assistant_message)
@@ -133,19 +146,27 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
         if msg:
             upstream_messages.append(msg)
 
+    from app.services import chat_billing
+    billing = await asyncio.to_thread(chat_billing.begin, _stream_provider, model, conversation, user_id)
     async def stream():
         content_parts = []
         raw_usage = None
-        yield sse_event({"type": "meta", "conversation": conversation})
+        outcome, completed = 'uncertain', False
         try:
+            yield sse_event({"type": "meta", "conversation": conversation})
+            body = {"model": model, "messages": upstream_messages, "stream": True}
+            price = billing['price'] or {}
+            if price.get('billing_type') == 'per_million_tokens' and price.get('stream_usage', True) and _stream_provider.get('protocol', 'openai') == 'openai':
+                body['stream_options'] = {'include_usage': True}
             async with httpx.AsyncClient(timeout=AI_REQUEST_TIMEOUT) as client:
                 async with client.stream(
                     "POST",
                     f"{chat_base}/chat/completions",
                     headers=chat_hdrs,
-                    json={"model": model, "messages": upstream_messages, "stream": True},
+                    json=body,
                 ) as response:
                     if response.status_code >= 400:
+                        outcome = 'rejected' if response.status_code < 500 else 'uncertain'
                         detail = await response.aread()
                         body = detail.decode("utf-8", errors="ignore")
                         friendly = friendly_chat_error_detail(body, model, _stream_provider)
@@ -157,6 +178,7 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
                         if line.startswith("data:"):
                             line = line[5:].strip()
                         if line == "[DONE]":
+                            completed = True
                             break
                         try:
                             chunk = json.loads(line)
@@ -164,14 +186,26 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
                             continue
                         if isinstance(chunk, dict) and chunk.get("usage"):
                             raw_usage = chunk.get("usage")
+                        if isinstance(chunk, dict) and chunk.get('error'):
+                            yield sse_event({'type': 'error', 'detail': '上游流式回复失败，费用待核对。'})
+                            return
+                        if isinstance(chunk, dict) and any(c.get('finish_reason') is not None for c in chunk.get('choices', []) if isinstance(c, dict)):
+                            completed = True
                         delta = text_delta_from_chat_chunk(chunk)
                         if delta:
                             content_parts.append(delta)
                             yield sse_event({"type": "delta", "delta": delta})
+            if not completed:
+                yield sse_event({'type': 'error', 'detail': '回复连接中断，费用待核对；未自动重试。'})
+                return
+            if ''.join(content_parts).strip():
+                outcome = 'succeeded'
         except httpx.HTTPError as exc:
             log_net_error("对话(流式) 网络/TLS错误", exc)
             yield sse_event({"type": "error", "detail": f"请求上游接口失败：{exc}"})
             return
+        finally:
+            cost = chat_billing.finish(billing, raw_usage, outcome)
 
         assistant_message = {
             "id": uuid.uuid4().hex,
@@ -180,6 +214,7 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
             "created_at": now_ms(),
             "model": model,
             "raw_usage": raw_usage,
+            "cost": cost,
         }
         conversation["messages"].append(assistant_message)
         conversation["updated_at"] = now_ms()

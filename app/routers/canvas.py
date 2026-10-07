@@ -958,11 +958,12 @@ async def execute_canvas_llm(payload: CanvasLLMRequest, *, durable=False):
         raise HTTPException(status_code=502, detail=f"解析上游响应失败：{exc}") from exc
     try:
         text = text_from_chat_response(raw).strip() if isinstance(raw, dict) else ""
+        billing_outcome = 'succeeded' if text else 'uncertain'
         text = text or "接口返回了空回复。"
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"解析回复内容失败：{exc}") from exc
     raw_data = unwrap_apimart_response(raw) if isinstance(raw, dict) else {}
-    return {"text": text, "model": model, "raw_usage": raw_data.get("usage")}
+    return {"text": text, "model": model, "raw_usage": raw_data.get("usage"), "billing_outcome": billing_outcome}
 
 @router.get("/api/canvases")
 def canvases():
