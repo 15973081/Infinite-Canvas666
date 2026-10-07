@@ -16,11 +16,13 @@ from app.services.canvas_ledger import record_task,append_logs
 pytestmark=pytest.mark.skipif(os.getenv('ACCOUNT_BILLING_INTEGRATION')!='1',reason='requires isolated local PostgreSQL')
 
 @pytest.fixture
-def world():
+def world(monkeypatch):
+    monkeypatch.setenv('AUTH_MODE', 'members')
     class Rollback(Exception): pass
     try:
         with connection() as conn:
-            assert conn.execute('SELECT current_database() AS name').fetchone()['name'].startswith('canvas_delivery_')
+            scope = conn.execute('SELECT current_database() AS name,current_schema() AS schema').fetchone()
+            assert scope['name'].startswith('canvas_delivery_') or scope['schema'].startswith('cloud_test_')
             prefix='bill_'+uuid.uuid4().hex
             spaces=[prefix+'a',prefix+'b']
             for wid in spaces: conn.execute('INSERT INTO workspaces(id,name) VALUES(%s,%s)',(wid,'Billing test'))
@@ -47,6 +49,14 @@ def world():
     except Rollback: pass
 
 
+def billing_output(conn, workspace, kind='video'):
+    asset_id = 'ast_' + uuid.uuid4().hex
+    conn.execute('''INSERT INTO assets(id,workspace_id,kind,status,bucket,region,object_key,object_version_id,size_bytes,sha256,content_type)
+        VALUES(%s,%s,%s,'ready','billing-test','test',%s,'test-version',1,%s,%s)''',
+        (asset_id,workspace,kind,asset_id,'0'*64,'video/mp4' if kind=='video' else 'image/png'))
+    return '/api/media/' + asset_id + '/content'
+
+
 def complete(conn,workspace,actor,tid,canvas_id=None,currency='CNY',amount=1234567):
     with workspace_scope(workspace):
         task={'id':tid,'type':'video','status':'queued','canvas_id':canvas_id,'created_at':time.time(),'model':'test-model','requested_by':'forged-account'}
@@ -57,7 +67,7 @@ def complete(conn,workspace,actor,tid,canvas_id=None,currency='CNY',amount=12345
         conn.execute("UPDATE tasks SET lease_owner='billing-test',lease_token=%s,lease_until=now()+interval '1 hour' WHERE id=%s",(token,tid))
         lease=tasks.lease_context.set((tid,token))
         try:
-            stored.update(status='succeeded',requested_by='forged-account',result={'cost':{'status':'priced','amount_micros':amount,'currency':currency,'kind':'video','source':'actual'}})
+            stored.update(status='succeeded',requested_by='forged-account',result={'videos':[billing_output(conn,workspace)],'cost':{'status':'priced','amount_micros':amount,'currency':currency,'kind':'video','source':'actual'}})
             result=save_canvas_task(stored)
         finally: tasks.lease_context.reset(lease)
         return result
@@ -198,7 +208,7 @@ def test_real_provider_snapshot_discount_and_time_report(world):
         token=uuid.uuid4();conn.execute("UPDATE tasks SET lease_owner='billing-test',lease_token=%s,lease_until=now()+interval '1 hour' WHERE id=%s",(token,tid))
         lease=tasks.lease_context.set((tid,token))
         try:
-            task.update(status='succeeded',result={'images':['test-only-image-a','test-only-image-b']})
+            task.update(status='succeeded',result={'images':[billing_output(conn,spaces[0],'image'),billing_output(conn,spaces[0],'image')]})
             save_canvas_task(task)
         finally: tasks.lease_context.reset(lease)
     mine=report(actors[0],personal=True)

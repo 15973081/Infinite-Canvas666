@@ -23,7 +23,7 @@ def result_task(world, canvas, tmp_path, kind='online-image'):
         tasks.save({'id': tid, 'type': kind, 'status': 'succeeded', 'canvas_id': canvas['id'],
                     'result': {'videos' if kind == 'video' else 'images': [{'url': media.stable_url(asset)}],
                                'raw': {'private': 'upstream-secret'}, 'cost': {'amount': 7}}},
-                   {'prompt': 'private-prompt', 'model': 'test'})
+                   {'prompt': 'private-prompt', 'model': 'test'}, historical=True)
         with database.connection() as conn:
             conn.execute('UPDATE tasks SET canvas_revision=%s,canvas_edit_generation=1 WHERE id=%s', (canvas['revision'], tid))
     return tid, asset

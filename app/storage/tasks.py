@@ -129,6 +129,9 @@ def save(task, request_payload=None, *, historical=False):
                                (status, Jsonb(value), Jsonb(value.get("result")), value.get("upstream_task_id") or None, value.get("error") or None, now, status in TERMINAL, status, Jsonb(sorted(referenced_ids(value.get("result")))), task_id)).fetchone()
         else:
             if not historical:
+                from app.storage.settings import member_auth_enabled
+                if member_auth_enabled() and value.get('type') in {'online-image', 'video'} and not requester:
+                    raise HTTPException(401, {'code': 'task_requester_required'})
                 from app.services.maintenance_control import ensure
                 ensure(conn, workspace, 'write')
             payload = clean_request(request_payload or {}) if historical else normalize(clean_request(request_payload or {}), strict=True)
@@ -174,6 +177,9 @@ def save(task, request_payload=None, *, historical=False):
                 canvas, edit_lease = canvas_admission
                 row = conn.execute('UPDATE tasks SET canvas_revision=%s,canvas_edit_generation=%s WHERE workspace_id=%s AND id=%s RETURNING *',
                                    (canvas['revision'], edit_lease['generation'], workspace, task_id)).fetchone()
+        if not historical:
+            from app.storage.generation_outputs import record
+            record(conn, row)
         return decode(row)
 
 

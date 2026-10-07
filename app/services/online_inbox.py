@@ -37,8 +37,12 @@ def register(conn, history_id, value):
                         (current_workspace(), history_id[5:] if history_id.startswith('task:') else '')).fetchone()
     if is_canvas_task(task):
         return
-    access = current_access.get()
-    owner = task['requested_by'] if task else access.principal.member_id if access else None
+    if task and (task['status'] != 'succeeded' or not isinstance(task['result'], dict)
+                 or value.get('images') != task['result'].get('images')):
+        raise HTTPException(409, {'code': 'task_history_result_mismatch'})
+    # A caller writing/importing history is not necessarily its author.
+    # Only an exact server-task association may establish ownership.
+    owner = task['requested_by'] if task else None
     from app.services.canvas_asset_catalog import aliases_for, key_for
     aliases = aliases_for(conn)
     for index, raw in enumerate(value.get('images') or []):
