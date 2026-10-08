@@ -16,15 +16,24 @@ pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reas
 PRIVATE = 'private-upstream-error-and-prompt'
 
 
+def requester(world):
+    from app.services import members
+    login=members.login(world['people'][0]['username'],PASSWORD,audience='workbench',source='review-fixture-'+uuid.uuid4().hex)
+    return members.resolve_session(login['token'],'workbench')
+
+
 def make_task(world, *, status='needs_review', kind='video', upstream=None, workspace=None, paid=False):
     from app.storage import tasks, database
     from app.storage.workspace import workspace_scope
     wid = workspace or world['a']['id']
     tid = 'review-' + uuid.uuid4().hex
     with workspace_scope(wid):
-        tasks.save({'id': tid, 'type': kind, 'status': status, 'upstream_task_id': upstream,
-                    'provider_id': 'comfly', 'error': PRIVATE},
-                   {'provider_id': 'comfly', 'model': 'test', 'prompt': PRIVATE})
+        from app.services.member_context import access_scope
+        principal=requester(world)
+        with access_scope(principal,wid,()):
+            tasks.save({'id': tid, 'type': kind, 'status': status, 'upstream_task_id': upstream,
+                        'provider_id': 'comfly', 'error': PRIVATE},
+                       {'provider_id': 'comfly', 'model': 'test', 'prompt': PRIVATE})
         with database.connection() as c:
             c.execute('UPDATE tasks SET requested_by=%s,error_message=%s WHERE id=%s', (world['people'][0]['id'], PRIVATE, tid))
             if paid:
@@ -121,7 +130,7 @@ def test_stale_form_and_worker_lease_block_review(world, platform):
         assert submit(platform, world, tid, payload(recovered,'cancel_unsubmitted')).status_code == 200
 
 
-def test_polling_recovery_requires_original_account_and_worker_never_generates(world, platform, monkeypatch):
+def test_polling_recovery_requires_original_account_and_worker_never_generates(world, platform, monkeypatch, tmp_path):
     from app.storage import database, tasks, worker
     from app.storage.workspace import workspace_scope
     from app.routers import canvas
@@ -143,7 +152,10 @@ def test_polling_recovery_requires_original_account_and_worker_never_generates(w
         calls.append((task_id, request.provider_id))
         current = tasks.get(task_id)
         assert current['upstream_task_id'] == 'known-upstream'
-        current.update(status='succeeded', result=None, error='')
+        from app.storage import media
+        result_path=tmp_path/'recovered.mp4'; result_path.write_bytes(b'isolated recovered video')
+        output=media.publish(result_path)
+        current.update(status='succeeded', result={'videos':[media.stable_url(output)]}, error='')
         tasks.save(current)
     new_generation = AsyncMock(side_effect=AssertionError('must not submit another paid task'))
     monkeypatch.setattr(canvas,'resume_canvas_video_task',resume)
@@ -168,7 +180,7 @@ def test_checkpoint_review_resumes_publication_even_during_maintenance(world, pl
     from app.routers import providers
     from test_cloud_finalization import new_task, claim, assert_committed
     with workspace_scope(world['a']['id']):
-        tid,cid = new_task(count=1)
+        tid,cid = new_task(count=1,principal=requester(world))
         row = claim(tid)
         token = tasks.lease_context.set((tid,row['lease_token']))
         stream=io.BytesIO()

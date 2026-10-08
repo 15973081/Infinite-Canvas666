@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
 const tr = () => '请求失败，请重试';
 const provider = 'test', activeChatModel = 'test', config = {}, currentConversation = {id: ''};
 const headers = () => ({});
+global.document = {getElementById: () => null};
 (async () => {
     assert.equal(chatErrorMessage({message:'模型已停用'}), '模型已停用');
     assert.match(chatErrorMessage({code:'route_not_migrated'}), /聊天接口/);
@@ -23,7 +24,9 @@ const headers = () => ({});
     await assert.rejects(streamChatMessage('test', [], {}), /权限/);
     global.fetch = async () => ({ok:false, status:502, json:async () => {throw new SyntaxError('HTML gateway response');}});
     await assert.rejects(streamChatMessage('test', [], {}), /请求失败/);
-    global.fetch = async () => ({ok:true, body:{getReader: () => ({read: async () => ({value:Buffer.from('data: {"type":"error","detail":{"message":"上游暂不可用"}}\n\n'),done:false})})}});
+    global.fetch = async url => url === '/api/chat/budget'
+        ? {ok:true, json:async () => ({over_limit:false})}
+        : ({ok:true, body:{getReader: () => ({read: async () => ({value:Buffer.from('data: {"type":"error","detail":{"message":"上游暂不可用"}}\n\n'),done:false})})}});
     await assert.rejects(streamChatMessage('test', [], {}), /上游暂不可用/);
 })().catch(e => {console.error(e); process.exitCode=1;});
 '''

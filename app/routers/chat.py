@@ -29,6 +29,23 @@ def prepare_chat(payload):
     return provider, base, headers, model
 
 
+@router.post('/api/chat/budget')
+async def context_budget(payload:ChatRequest,request:Request,x_user_id:str=Header(default='')):
+    user_id=safe_user_id(x_user_id,request)
+    provider,_,_,model=prepare_chat(payload)
+    from app.services.prompt_skills import resolve
+    selected=resolve(payload.skill_ids)
+    conversation=load_conversation(user_id,payload.conversation_id) if payload.conversation_id else {'messages':[]}
+    record={'role':'user','content':payload.message,'skill_refs':selected,
+            'attachments':[ref.model_dump() for ref in payload.reference_images if ref.url]}
+    messages=[{'role':'system','content':SYSTEM_PROMPT}]
+    for item in [*conversation['messages'],record][-MAX_HISTORY_MESSAGES:]:
+        message=await asyncio.to_thread(upstream_message_from_record,item)
+        if message: messages.append(message)
+    from app.services.chat_context_budget import measure
+    return JSONResponse(measure(provider,model,messages),headers={'Cache-Control':'private, no-store'})
+
+
 @router.post("/api/chat")
 async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(default="")):
     user_id = safe_user_id(x_user_id, request)
@@ -63,6 +80,8 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
         msg = await asyncio.to_thread(upstream_message_from_record, item)
         if msg:
             upstream_messages.append(msg)
+    from app.services.chat_context_budget import enforce
+    enforce(_conv_provider,model,upstream_messages)
     save_conversation(user_id, conversation)
     from app.services import chat_billing
     billing = await asyncio.to_thread(chat_billing.begin, _conv_provider, model, conversation, user_id)
@@ -142,6 +161,8 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
         msg = await asyncio.to_thread(upstream_message_from_record, item)
         if msg:
             upstream_messages.append(msg)
+    from app.services.chat_context_budget import enforce
+    enforce(_stream_provider,model,upstream_messages)
     save_conversation(user_id, conversation)
 
     from app.services import chat_billing

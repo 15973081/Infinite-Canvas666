@@ -120,8 +120,14 @@ def task_with_lease(world, pid, *, upstream=False):
     from app.storage import tasks
     from app.storage.database import connection
     task_id = 'provider-task-' + uuid.uuid4().hex
-    tasks.save({'id': task_id, 'type': 'video', 'status': 'queued', 'provider_id': pid},
-               request_payload={'provider_id': pid, 'model': 'test-video', 'prompt': 'no real generation'})
+    from app.services import members
+    from app.services.member_context import access_scope
+    from app.storage.workspace import current_workspace
+    login=members.login(world['people'][0]['username'],PASSWORD,audience='workbench',source='provider-fixture-'+uuid.uuid4().hex)
+    principal=members.resolve_session(login['token'],'workbench')
+    with access_scope(principal,current_workspace(),()):
+        tasks.save({'id': task_id, 'type': 'video', 'status': 'queued', 'provider_id': pid},
+                   request_payload={'provider_id': pid, 'model': 'test-video', 'prompt': 'no real generation'})
     row = tasks.claim('provider-test')
     assert row['id'] == task_id
     token = tasks.lease_context.set((task_id, row['lease_token']))

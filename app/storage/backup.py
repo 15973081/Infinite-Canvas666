@@ -53,8 +53,8 @@ def dump(path):
         assets = conn.execute("SELECT id,bucket,region,object_key,object_version_id,size_bytes,sha256,status FROM assets ORDER BY id").fetchall()
         subprocess.run([pg_tool("pg_dump"), "--format=custom", "--schema=" + database.schema_name(), "--snapshot=" + snapshot, "--file=" + str(objects_dir / "database.dump")],
                        env=pg_environment(), check=True, capture_output=True, timeout=600, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    # Originals are immutable and physical deletion is disabled. Release the DB
-    # snapshot before potentially slow object IO; only copy the frozen manifest.
+    # Release the DB snapshot before slow object IO; copy only frozen versions.
+    # Concurrent physical deletion may fail the copy; then no manifest is published.
     backend = media.store()
     for index, asset in enumerate(assets):
         if asset["status"] != "ready":
@@ -69,10 +69,12 @@ def dump(path):
             raise ValueError("Backup object checksum mismatch: " + asset["id"])
         asset["backup_file"] = target.name
     dump_size, dump_hash = digest(objects_dir / "database.dump")
+    from app.storage.deletion_ledger import identity
+    ledger=identity(create=True)
     manifest = {"format_version": 2, "created_at": time.time(), "database_dump": path.name,
                 "database_size_bytes": dump_size, "database_sha256": dump_hash,
                 "schema": database.schema_name(), "media_backend": media_backend(),
-                "objects_directory": objects_dir.name, "objects": assets,
+                "objects_directory": objects_dir.name, "objects": assets,"deletion_ledger":ledger,
                 "note": "All ready versions, including retained originals, are included. In-flight uploads are not durable backups; restart unfinished uploads after disaster recovery."}
     # Hard links publish without overwriting an existing destination. Keep the
     # dump inside the bundle too, so failed publication cannot lose exported data.
@@ -128,7 +130,7 @@ def verify(path):
     return manifest
 
 
-def restore_objects(path, destination):
+def restore_objects(path, destination, *, deletion_records=None, deletion_ledger_directory=None):
     """Restore local simulation versions into a new, independent directory.
 
     Database restore is deliberately separate and must target an isolated DB.
@@ -136,6 +138,10 @@ def restore_objects(path, destination):
     """
     path = Path(path).resolve()
     manifest = verify(path)
+    if deletion_records is None:
+        from app.storage.deletion_ledger import load
+        _,deletion_records=load(manifest.get('deletion_ledger'),deletion_ledger_directory)
+    deleted={asset['id']:asset for record in deletion_records for asset in record['objects']}
     if manifest["media_backend"] != "filesystem":
         raise ValueError("Local object restore requires a filesystem backup")
     destination = Path(destination).resolve()
@@ -149,9 +155,16 @@ def restore_objects(path, destination):
         # Reuse exactly the live store's path validation without changing env or
         # instantiating a store at the production path.
         restored = media.FilesystemStore(temp)
-        count, total = 0, 0
+        count, total, skipped = 0, 0, 0
         for asset in manifest["objects"]:
             if asset["status"] != "ready":
+                continue
+            removal=deleted.get(asset['id'])
+            if removal:
+                if (asset['object_key']!=removal['object_key'] or asset['bucket']!=removal['bucket']
+                    or (removal.get('object_version_id') and asset['object_version_id']!=removal['object_version_id'])):
+                    raise ValueError('Restored deletion object identity mismatch')
+                skipped+=1
                 continue
             target = restored.path(asset["object_key"], asset["object_version_id"])
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -171,4 +184,4 @@ def restore_objects(path, destination):
         except BaseException:
             # A partial new directory remains explicit; existing data is untouched.
             raise
-    return {"object_root": str(destination), "objects": count, "object_bytes": total}
+    return {"object_root": str(destination), "objects": count, "object_bytes": total,"deletions_skipped":skipped}

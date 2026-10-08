@@ -28,13 +28,24 @@ class AttachmentShare(BaseModel):
 
 
 @router.get('/api/chat/attachments')
-def attachment_list(offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100)):
-    return chat_attachments.list_owned(offset,limit)
+def attachment_list(offset:int=Query(0,ge=0),limit:int=Query(50,ge=1,le=100),sort:str=Query('newest',pattern='^(newest|size)$'),unreferenced:bool=False):
+    return JSONResponse(chat_attachments.list_owned(offset,limit,sort,unreferenced),headers={'Cache-Control':'private, no-store'})
 
 
 @router.post('/api/chat/attachments')
 async def attachment_upload(files:List[UploadFile]=File(...)):
     return await asyncio.to_thread(chat_attachments.upload,files)
+
+
+@router.get('/api/chat/attachments/audit')
+def attachment_audit(before:Optional[int]=Query(None,ge=1,le=9223372036854775807),limit:int=Query(50,ge=1,le=100)):
+    return JSONResponse(chat_attachments.list_audit(before,limit),headers={'Cache-Control':'private, no-store'})
+
+
+@router.post('/api/chat/attachments/preview')
+def attachment_preview(payload:AIReference):
+    from app.services.attachment_preview import preview
+    return JSONResponse(preview(payload.model_dump()),headers={'Cache-Control':'private, no-store'})
 
 
 @router.patch('/api/chat/attachments/{asset_id}')
@@ -76,8 +87,9 @@ def delete_conversation(conversation_id: str, request: Request, x_user_id: str =
             from app.storage.media import referenced_ids
             for asset_id in sorted(set(referenced_ids(conversation))):
                 try:
-                    chat_attachments.delete(asset_id,True)
-                    cleanup.append({'id':asset_id,'deleted':True})
+                    result=chat_attachments.delete(asset_id,True)
+                    cleanup.append({'id':asset_id,'deleted':bool(result.get('deleted')),
+                                    **({'message':'后台正在清理，请在附件管理中查看进度。'} if result.get('pending') else {})})
                 except HTTPException as exc:
                     cleanup.append({'id':asset_id,'deleted':False,'message':exc.detail})
         return {"ok": True,'attachment_cleanup':cleanup}

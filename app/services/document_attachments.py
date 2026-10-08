@@ -54,8 +54,9 @@ def _markdown_cell(value):
     return value.replace('\\', '\\\\').replace('|', '\\|').replace('\r\n', '\n').replace('\r', '\n').replace('\n', '<br>')
 
 
-def _xlsx_markdown(path, limit):
+def _xlsx_markdown(path, limit, selection=None):
     from openpyxl import load_workbook
+    from openpyxl.utils.cell import range_boundaries
 
     book = load_workbook(path, data_only=False)
     try:
@@ -65,25 +66,36 @@ def _xlsx_markdown(path, limit):
             size = len(parts[0])
             scanned = 0
             populated = False
+            selected={item['name']:item['region'] for item in selection} if selection is not None else None
+            if selected is not None and (not selected or len(selected)!=len(selection) or set(selected)-set(book.sheetnames)):
+                raise DocumentContentError('请选择有效且不重复的工作表。')
             for sheet in book.worksheets:
-                area = sheet.max_row * sheet.max_column
+                if selected is not None and sheet.title not in selected: continue
+                bounds=(1,1,sheet.max_column,sheet.max_row)
+                if selected is not None and selected[sheet.title]:
+                    bounds=range_boundaries(selected[sheet.title].upper())
+                min_col,min_row,max_col,max_row=bounds
+                if (min_col>max_col or min_row>max_row or min_row<1 or min_col<1
+                    or max_col>sheet.max_column or max_row>sheet.max_row):
+                    raise DocumentContentError('选择区域超出工作表范围或起止顺序错误。')
+                area = (max_row-min_row+1)*(max_col-min_col+1)
                 scanned += area
                 if scanned > MAX_SHEET_CELLS:
                     raise DocumentContentError('表格范围过大，请删除多余空白行列或拆分工作表。')
                 merged = {}
                 for region in sheet.merged_cells.ranges:
                     anchor = sheet.cell(region.min_row, region.min_col)
-                    for row in range(region.min_row, region.max_row+1):
-                        for col in range(region.min_col, region.max_col+1):
+                    for row in range(max(min_row,region.min_row), min(max_row,region.max_row)+1):
+                        for col in range(max(min_col,region.min_col), min(max_col,region.max_col)+1):
                             merged[(row, col)] = anchor
                 heading = '\n\n## '+sheet.title.replace('\n', ' ')+'\n'
                 parts.append(heading)
                 size += len(heading)
-                header = '| 原始行号 | '+' | '.join(f'列 {i}' for i in range(1, sheet.max_column+1))+' |\n'
-                header += '| --- | '+' | '.join('---' for _ in range(sheet.max_column))+' |\n'
+                header = '| 原始行号 | '+' | '.join(f'列 {i}' for i in range(min_col,max_col+1))+' |\n'
+                header += '| --- | '+' | '.join('---' for _ in range(min_col,max_col+1))+' |\n'
                 parts.append(header)
                 size += len(header)
-                for cells in sheet.iter_rows():
+                for cells in sheet.iter_rows(min_row=min_row,max_row=max_row,min_col=min_col,max_col=max_col):
                     values = []
                     for cell in cells:
                         source = merged.get((cell.row, cell.column), cell)

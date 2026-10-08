@@ -43,6 +43,7 @@ def main(argv=None):
         os.environ["APP_RUNTIME_DIR"] = str(Path(directory) / "runtime")
         os.environ["AUTH_DB_PATH"] = str(Path(directory) / "auth.sqlite3")
         os.environ["OBJECT_STORE_ROOT"] = str(Path(directory) / "objects")
+        os.environ["DELETION_LEDGER_ROOT"] = str(Path(directory) / "deletion-ledger")
         os.environ["MEDIA_TEMP_DIR"] = str(Path(directory) / "tmp")
         os.environ["MEDIA_BACKEND"] = "filesystem"
         os.environ["CLOUD_ACCESS_USER"] = "canvas-test"
@@ -62,6 +63,7 @@ def main(argv=None):
             suites.append("test_cloud_canvas_asset_page.py")
             suites.append("test_cloud_chat.py")
             suites.append("test_cloud_chat_attachments.py")
+            suites.append("test_cloud_account_data.py")
             suites.append("test_cloud_online_imports.py")
             suites.append("test_cloud_skills.py")
             suites.append("test_cloud_chat_billing.py")

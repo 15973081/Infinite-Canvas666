@@ -7,6 +7,9 @@ read_versions = ContextVar("document_read_versions", default=None)
 
 
 def get(kind, key="default", default=None):
+    if kind=='conversation':
+        from app.storage.deletion_ledger import document_blocked
+        if document_blocked(current_workspace(),key): return default
     with connection() as conn:
         row = conn.execute("SELECT value,revision FROM workspace_documents WHERE workspace_id=%s AND kind=%s AND id=%s", (current_workspace(), kind, key)).fetchone()
         versions = read_versions.get()
@@ -17,6 +20,9 @@ def get(kind, key="default", default=None):
 
 def put(kind, key, value, expected_revision=None):
     from fastapi import HTTPException
+    if kind=='conversation':
+        from app.storage.deletion_ledger import document_blocked
+        if document_blocked(current_workspace(),key): raise HTTPException(409,'对话已删除或账号已注销，不能重新保存。')
     versions = read_versions.get()
     if expected_revision is None and versions is not None:
         expected_revision = versions.get((current_workspace(), kind, key))
@@ -69,4 +75,14 @@ def list_values(kind, prefix="", batch_size=100):
 
 def delete(kind, key):
     with connection() as conn:
+        if kind=='conversation':
+            from app.services.member_context import current_access
+            access=current_access.get()
+            if access:
+                if not key.startswith(access.principal.member_id+'/'):
+                    from fastapi import HTTPException
+                    raise HTTPException(404,'对话不存在。')
+                from app.storage.deletion_ledger import write_record
+                write_record({'version':1,'kind':'conversation','workspace_id':current_workspace(),
+                              'owner_id':access.principal.member_id,'document_id':key,'objects':[]})
         return conn.execute("DELETE FROM workspace_documents WHERE workspace_id=%s AND kind=%s AND id=%s", (current_workspace(), kind, key)).rowcount

@@ -77,6 +77,8 @@ def audit(conn, actor, action, target=None, workspace=None, details=None):
 def active_member(conn, principal):
     if not isinstance(principal, Principal):
         fail('authentication_required', 401)
+    from app.storage.deletion_ledger import member_blocked
+    if member_blocked(principal.member_id): fail('authentication_required',401)
     row = conn.execute('''SELECT m.id,m.username,m.display_name,m.avatar,m.auth_version
         FROM members m JOIN member_sessions s ON s.member_id=m.id
         WHERE m.id=%s AND s.id=%s AND s.audience=%s AND m.status='active'
@@ -135,9 +137,16 @@ def authorized(principal, action, workspace=None):
 
 def assert_administrators(conn):
     """Called before grant/member changes commit, under exclusive policy lock."""
-    if not conn.execute('''SELECT 1 FROM platform_member_roles g
+    from app.storage.deletion_ledger import member_blocked
+    eligible = {}
+    def usable(member_id):
+        if member_id not in eligible:
+            eligible[member_id] = not member_blocked(member_id)
+        return eligible[member_id]
+    holders=conn.execute('''SELECT g.member_id FROM platform_member_roles g
         JOIN roles r ON r.id=g.role_id AND r.active AND r.builtin_key='superadmin'
-        JOIN members m ON m.id=g.member_id AND m.status='active' LIMIT 1''').fetchone():
+        JOIN members m ON m.id=g.member_id AND m.status='active' ''').fetchall()
+    if not any(usable(row['member_id']) for row in holders):
         fail('last_platform_administrator', 409)
     # Existing default may predate identity provisioning. Once a workspace has
     # an admin template, it must retain an active holder while enabled.
@@ -149,6 +158,13 @@ def assert_administrators(conn):
             WHERE g.workspace_id=w.id) LIMIT 1''').fetchone()
     if orphan:
         fail('last_workspace_administrator', 409)
+    candidates=conn.execute('''SELECT g.workspace_id,g.member_id FROM workspace_member_roles g
+        JOIN workspaces w ON w.id=g.workspace_id AND w.status='active'
+        JOIN roles r ON r.id=g.role_id AND r.active AND r.builtin_key='admin'
+        JOIN members m ON m.id=g.member_id AND m.status='active' ''').fetchall()
+    spaces={row['workspace_id'] for row in candidates}
+    protected={row['workspace_id'] for row in candidates if usable(row['member_id'])}
+    if spaces-protected: fail('last_workspace_administrator',409)
 
 
 def validate_permissions(conn, principal, permission_ids, workspace=None):

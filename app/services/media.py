@@ -704,6 +704,8 @@ def reference_to_data_url(ref, max_size=None):
 def is_image_reference(ref):
     if not isinstance(ref, dict):
         return False
+    if ref.get('selection'):
+        return False
     kind = str(ref.get("kind") or "").strip().lower()
     mime = str(ref.get("mime") or "").strip().lower()
     url = str(ref.get("url") or "").strip().lower()
@@ -746,7 +748,11 @@ def attachment_text_blocks(refs, limit_each=MAX_ATTACHMENT_TEXT_CHARS):
             continue
         path = output_file_from_url(ref.get("url", ""))
         try:
-            text = read_text_attachment(path, limit_each) if path else ""
+            if ref.get('selection'):
+                from app.services.attachment_preview import selected_text
+                text=selected_text(path,ref['selection'],limit_each)
+            else:
+                text = read_text_attachment(path, limit_each) if path else ""
         except HTTPException as exc:
             name = ref.get("name") or os.path.basename(path)
             raise HTTPException(exc.status_code, f'附件“{name}”：{exc.detail}') from exc

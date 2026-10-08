@@ -361,6 +361,7 @@ def provider_proxy_url(provider):
 
 
 def normalize_provider(item):
+    from app.services.chat_context_budget import normalize_limits
     from app.services.model_commercial import policies, discounts
     if str(item.get("id") or "").strip().lower() in REMOVED_PROVIDER_IDS:
         raise HTTPException(410, "该供应商集成已移除")
@@ -399,6 +400,7 @@ def normalize_provider(item):
         "primary": bool(item.get("primary", False)),
         "image_models": model_list_from_values(item.get("image_models") or []),
         "chat_models": model_list_from_values(item.get("chat_models") or []),
+        "chat_context_limits": normalize_limits(item.get('chat_context_limits') or {}),
         "video_models": model_list_from_values(item.get("video_models") or []),
         "model_prices": normalize_model_prices(item.get("model_prices") or []),
         "model_policies": policies(item.get("model_policies") or {}),

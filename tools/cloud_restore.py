@@ -15,6 +15,7 @@ def main(argv=None):
     parser.add_argument('--database',required=True,help='Expected name of an existing empty target database')
     parser.add_argument('--destination',required=True,help='New private output directory')
     parser.add_argument('--reason',required=True)
+    parser.add_argument('--deletion-ledger',help='Current independent deletion ledger directory, if relocated')
     args=parser.parse_args(argv)
     # The target DSN is never put in argv, output or exception messages.
     url=os.getenv('RESTORE_DATABASE_URL')
@@ -24,7 +25,8 @@ def main(argv=None):
     logging.disable(logging.CRITICAL)
     try:
         from app.storage.restore import restore
-        print(json.dumps({'ok':True,**restore(args.source,url,args.database,args.destination,reason=args.reason)},ensure_ascii=False))
+        print(json.dumps({'ok':True,**restore(args.source,url,args.database,args.destination,reason=args.reason,
+                                           deletion_ledger_directory=args.deletion_ledger)},ensure_ascii=False))
         return 0
     except (Exception,KeyboardInterrupt):
         print(json.dumps({'ok':False,'code':'restore_incomplete_keep_target_isolated'}),file=sys.stderr)

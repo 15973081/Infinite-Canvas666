@@ -152,6 +152,8 @@ def visible(conn, skill_id, *, install=False, lock=False):
          current_access.get().principal.member_id if current_access.get() else None,current_workspace())).fetchone()
     if not row:
         invalid('技能不存在或未向当前空间共享。', 404)
+    from app.storage.deletion_ledger import skill_blocked
+    if skill_blocked(row['origin_workspace_id'],skill_id): invalid('Skill 原包已彻底删除。',404)
     return row
 
 
@@ -291,6 +293,9 @@ def purge(skill_id, confirm=False):
         if conn.execute('SELECT 1 FROM workspace_skill_installs WHERE skill_id=%s LIMIT 1',(skill_id,)).fetchone():
             invalid('仍有空间安装此 Skill，请由各空间卸载后再彻底删除原包。',409)
         conn.execute('SET CONSTRAINTS prompt_skill_current_version DEFERRED')
+        from app.storage.deletion_ledger import write_record
+        write_record({'version':1,'kind':'skill','workspace_id':skill['origin_workspace_id'],
+                      'skill_id':skill_id,'owner_id':skill['uploader_id'] or '', 'objects':[]})
         conn.execute('DELETE FROM prompt_skill_versions WHERE skill_id=%s',(skill_id,))
         conn.execute('DELETE FROM prompt_skills WHERE id=%s',(skill_id,))
         az.audit(conn,principal,'skill.purge',skill_id,current_workspace())
@@ -307,7 +312,7 @@ def resolve(skill_ids):
     with connection() as conn:
         member_id,_,_=actor(conn)
         for skill_id in dict.fromkeys(skill_ids):
-            row=conn.execute('''SELECT s.id,s.name,i.version_id,v.content,v.sha256
+            row=conn.execute('''SELECT s.id,s.name,s.origin_workspace_id,i.version_id,v.content,v.sha256
                 FROM workspace_skill_installs i JOIN prompt_skills s ON s.id=i.skill_id
                 JOIN prompt_skill_versions v ON v.skill_id=i.skill_id AND v.id=i.version_id
                 JOIN member_skill_preferences p ON p.workspace_id=i.workspace_id AND p.skill_id=i.skill_id
@@ -315,6 +320,8 @@ def resolve(skill_ids):
                 (current_workspace(),skill_id,member_id)).fetchone()
             if not row:
                 invalid('技能未安装或未启用，请在 Skill 库中检查后重新选择。',409)
+            from app.storage.deletion_ledger import skill_blocked
+            if skill_blocked(row['origin_workspace_id'],skill_id): invalid('Skill 原包已彻底删除，请重新选择。',409)
             content=row['content']
             context=content['instructions']
             if content.get('references'):

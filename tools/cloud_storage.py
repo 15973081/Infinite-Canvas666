@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--report")
     parser.add_argument("--destination")
+    parser.add_argument("--deletion-ledger",help="Current independent deletion ledger directory, if relocated")
     parser.add_argument("--task-id")
     parser.add_argument("--workspace", help="Existing target workspace for legacy migration")
     parser.add_argument("--asset-id", action="append", help="Exact staging upload asset ID (repeatable)")
@@ -35,7 +36,7 @@ def main():
         else:
             if not args.destination:
                 parser.error("restore-objects requires --destination (a new object directory)")
-            print(backup.restore_objects(args.source, args.destination))
+            print(backup.restore_objects(args.source, args.destination,deletion_ledger_directory=args.deletion_ledger))
         return
     os.environ["STORAGE_ENV_FILE"] = args.env
     from app.storage.settings import load_storage_env, validate

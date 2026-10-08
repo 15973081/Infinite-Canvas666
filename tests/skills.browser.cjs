@@ -96,6 +96,166 @@ test('private chat attachment manager supports sharing, deletion retry and mobil
  failDelete=false;await dialog.getByRole('button',{name:'重试删除'}).click();await dialog.getByText('没有本人上传的对话附件。').waitFor();assert.ok(writes.at(-1).url.includes('confirm_permanent=true'));assert.deepEqual(errors,[]);
 });
 
+test('attachment capacity, unused filter, size order and confirmed batch deletion',async t=>{
+ const {page,errors}=await fixture(t,'gpt-chat');
+ const files=[{id:'ast_'+'2'.repeat(32),name:'使用中.txt',size:10,status:'ready',shared:false,referenced:true},
+  {id:'ast_'+'3'.repeat(32),name:'未发送.xlsx',size:100,status:'ready',shared:false,referenced:false}];
+ const calls=[],deletes=[];page.on('dialog',dialog=>dialog.accept());
+ await page.route('**/api/chat/attachments**',route=>{const req=route.request(),url=new URL(req.url());if(req.method()==='DELETE'){deletes.push(url.pathname.split('/').at(-1));files.splice(files.findIndex(f=>f.id===deletes.at(-1)),1);return route.fulfill({json:{deleted:true}});}calls.push(url.search);let shown=files.filter(f=>url.searchParams.get('unreferenced')!=='true'||!f.referenced);if(url.searchParams.get('sort')==='size')shown.sort((a,b)=>b.size-a.size);return route.fulfill({json:{files:shown,next_offset:null,usage:{used_bytes:110,reserved_bytes:0,quota_bytes:1024,remaining_bytes:914}}});});
+ await page.getByRole('button',{name:'我的对话附件'}).click();const dialog=page.getByRole('dialog',{name:'我的对话附件'});
+ await dialog.getByText(/已占用.*剩余/).waitFor();assert.ok(await dialog.getByRole('progressbar',{name:'个人附件容量'}).isVisible());
+ await dialog.getByRole('combobox',{name:'附件排序'}).selectOption('size');await page.waitForTimeout(50);
+ assert.match(await dialog.locator('article').first().innerText(),/未发送.xlsx/);
+ await dialog.getByRole('checkbox',{name:'仅看未引用'}).check();await page.waitForTimeout(50);
+ assert.equal(await dialog.locator('article').count(),1);assert.ok(calls.some(url=>url.includes('sort=size')&&url.includes('unreferenced=true')));
+ await dialog.getByRole('checkbox',{name:'选择 未发送.xlsx'}).check();await dialog.getByRole('button',{name:'删除选中的未引用附件'}).click();
+ await dialog.getByText('没有本人上传的对话附件。').waitFor();assert.deepEqual(deletes,['ast_'+'3'.repeat(32)]);assert.equal(files[0].name,'使用中.txt');assert.deepEqual(errors,[]);
+});
+
+test('context preflight displays estimate and preserves input without starting an over-limit chat',async t=>{
+ const {page,calls,errors}=await fixture(t,'gpt-chat');
+ await page.route('**/api/chat/budget',route=>route.fulfill({json:{estimated_input_tokens:250000,context_tokens:131072,reserved_output_tokens:4096,over_limit:true,source:'platform_default'}}));
+ await page.locator('#messageInput').fill('保留这段超长请求');await page.locator('#sendBtn').click();
+ await page.locator('#chatContextBudget').waitFor({state:'visible'});
+ await page.getByText(/请减少引用、拆分附件或切换更大容量模型/).waitFor();
+ assert.equal(await page.locator('#messageInput').inputValue(),'保留这段超长请求');
+ assert.equal(calls.filter(call=>call.path==='/api/chat/stream').length,0);
+ assert.match(await page.locator('#chatContextBudget').innerText(),/平台默认上限/);assert.deepEqual(errors,[]);
+});
+
+test('attachment manager explains load failures, retries and preserves visible files on refresh failure',async t=>{
+ const {page,errors}=await fixture(t,'gpt-chat');let fail=true;
+ await page.route('**/api/chat/attachments**',route=>fail
+  ? route.fulfill({status:403,json:{detail:{code:'permission_denied'}}})
+  : route.fulfill({json:{files:[{id:'ast_'+'4'.repeat(32),name:'《沉锋》第三集B_分镜V5.xlsx',size:287232,status:'ready',shared:false,referenced:false,url:'/assets/storyboard.xlsx'}],next_offset:null,usage:{used_bytes:287232,reserved_bytes:0,quota_bytes:1024**3,remaining_bytes:1024**3-287232}}}));
+ await page.getByRole('button',{name:'我的对话附件'}).click();
+ const dialog=page.getByRole('dialog',{name:'我的对话附件',exact:true});
+ await dialog.getByText('当前账号没有查看或管理附件的权限。').waitFor();
+ assert.ok(await dialog.getByRole('progressbar',{name:'个人附件容量'}).isHidden());
+ assert.ok(await dialog.getByRole('button',{name:'删除选中的未引用附件'}).isDisabled());
+ await page.evaluate(()=>StudioTheme.set('light'));
+ await dialog.screenshot({path:path.join(out,'attachments-upgraded-error-light.png')});
+ fail=false;await dialog.getByRole('button',{name:'重试加载',exact:true}).click();
+ await dialog.getByRole('heading',{name:'《沉锋》第三集B_分镜V5.xlsx'}).waitFor();
+ assert.ok(await dialog.getByRole('progressbar',{name:'个人附件容量'}).isVisible());
+ await dialog.screenshot({path:path.join(out,'attachments-upgraded-light.png')});
+ await dialog.getByRole('checkbox',{name:'选择 《沉锋》第三集B_分镜V5.xlsx'}).check();
+ assert.ok(await dialog.getByRole('button',{name:'删除选中的未引用附件'}).isEnabled());
+ fail=true;await dialog.getByRole('button',{name:'刷新',exact:true}).click();
+ await dialog.getByText('当前账号没有查看或管理附件的权限。').waitFor();
+ assert.equal(await dialog.locator('article').count(),1);
+ assert.ok(await dialog.getByRole('checkbox',{name:'选择 《沉锋》第三集B_分镜V5.xlsx'}).isChecked());
+ fail=false;await dialog.getByRole('button',{name:'重试加载',exact:true}).click();
+ await dialog.getByRole('checkbox',{name:'选择 《沉锋》第三集B_分镜V5.xlsx'}).waitFor();
+ await page.evaluate(()=>StudioTheme.set('dark'));await dialog.screenshot({path:path.join(out,'attachments-upgraded-dark.png')});
+ await page.setViewportSize({width:390,height:844});
+ assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth));
+ await dialog.screenshot({path:path.join(out,'attachments-upgraded-mobile.png')});
+ await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});
+ assert.equal(await page.evaluate(()=>document.activeElement.id),'chatAttachmentManager');assert.deepEqual(errors,[]);
+});
+
+test('personal attachment audit loads pages, retries, and returns focus on mobile',async t=>{
+ const {page,errors}=await fixture(t,'gpt-chat');let fail=true;const auditCalls=[];
+ await page.route('**/api/chat/attachments**',route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname.endsWith('/audit')){
+   auditCalls.push(url.search);
+   if(fail)return route.fulfill({status:503,json:{detail:'记录加载失败，请重试。'}});
+   const older=url.searchParams.has('before');
+   return route.fulfill({json:{events:[{label:older?'共享给空间':'原文件清理完成',actor:older?'本人':'后台任务',asset_id:'ast_'+'1'.repeat(32),created_at:'2026-10-08T00:00:00Z',attempts:older?undefined:2}],next_before:older?null:'12'}});
+  }
+  return route.fulfill({json:{files:[],next_offset:null}});
+ });
+ await page.getByRole('button',{name:'我的对话附件'}).click();
+ const manager=page.getByRole('dialog',{name:'我的对话附件',exact:true});
+ await manager.getByRole('button',{name:'共享与删除记录',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'附件共享与删除记录',exact:true});
+ await dialog.getByText('记录加载失败，请重试。').waitFor();fail=false;
+ await dialog.getByRole('button',{name:'重试加载记录'}).click();await dialog.getByText(/原文件清理完成.*后台任务/).waitFor();
+ await dialog.getByRole('button',{name:'加载更多记录'}).click();await dialog.getByText(/共享给空间.*本人/).waitFor();
+ assert.ok(auditCalls.includes('?before=12'));assert.equal(await dialog.locator('article').count(),2);
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});
+ assert.equal(await page.evaluate(()=>document.activeElement.textContent),'共享与删除记录');
+ assert.ok(await manager.isVisible());assert.deepEqual(errors,[]);
+});
+
+for(const kind of ['docx','xlsx'])test(kind+' preview applies authoritative ranges and sends selection metadata',async t=>{
+ const {page,calls,errors}=await fixture(t,'gpt-chat');const seen=[];let fail=true;
+ const ref={name:'分镜.'+kind,url:'/assets/input/preview.'+kind,kind:'file'};
+ await page.route('**/api/chat/attachments',route=>route.fulfill({json:{files:[ref]}}));
+ await page.route('**/api/chat/attachments/preview',route=>{
+  const payload=route.request().postDataJSON();seen.push(payload);
+  if(fail)return route.fulfill({status:503,json:{detail:'解析暂时失败，请重试。'}});
+  if(payload.selection?.sheets?.some(s=>s.region==='B3:A2'))return route.fulfill({status:422,json:{detail:'选择区域起止顺序错误。'}});
+  return route.fulfill({json:{kind,sha256:'a'.repeat(64),sections:kind==='docx'?[{id:'section-0',title:'第一章'},{id:'section-1',title:'第二章'}]:[],
+   sheets:kind==='xlsx'?[{name:'分镜',rows:20,columns:4,hidden:false},{name:'人物',rows:10,columns:3,hidden:true}]:[],
+   warnings:['内嵌图片内容未分析。'],text:payload.selection?'选择范围正文':'完整预览正文',characters:20,preview_truncated:false,truncated:false}});
+ });
+ await page.locator('#attachmentInput').setInputFiles({name:ref.name,mimeType:'application/octet-stream',buffer:Buffer.from('office fixture')});
+ await page.getByRole('button',{name:'解析预览',exact:true}).click();const dialog=page.getByRole('dialog',{name:'附件解析预览',exact:true});
+ await dialog.getByText('解析暂时失败，请重试。').waitFor();fail=false;
+ await dialog.getByRole('button',{name:'更新预览'}).click();await dialog.getByText('完整预览正文').waitFor();
+ await dialog.getByRole('checkbox',{name:'引用全文',exact:true}).uncheck();
+ if(kind==='docx')await dialog.getByRole('checkbox',{name:'第二章',exact:true}).uncheck();
+ else{
+  await dialog.getByRole('checkbox',{name:/人物/}).uncheck();
+  await dialog.getByRole('textbox',{name:'分镜 单元格区域'}).fill('B3:A2');
+  await dialog.getByRole('button',{name:'应用引用范围'}).click();await dialog.getByText('选择区域起止顺序错误。').waitFor();assert.ok(await dialog.isVisible());
+  await dialog.getByRole('textbox',{name:'分镜 单元格区域'}).fill('A2:B3');
+  await dialog.getByRole('button',{name:'更新预览'}).click();await dialog.getByText('选择范围正文').waitFor();
+ }
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await dialog.screenshot({path:path.join(out,'chat-document-preview-'+kind+'-mobile.png')});
+ await dialog.getByRole('button',{name:'应用引用范围'}).click();await dialog.waitFor({state:'detached'});
+ await page.getByRole('button',{name:'已选范围',exact:true}).waitFor();
+ await page.locator('#messageInput').fill('分析所选范围');await page.locator('#sendBtn').click();await page.waitForFunction(()=>!document.getElementById('sendBtn').disabled);
+ const payload=JSON.parse(calls.find(c=>c.path==='/api/chat/stream').body),selection=payload.reference_images[0].selection;
+ assert.equal(selection.sha256,'a'.repeat(64));assert.equal(selection.kind,kind);
+ if(kind==='docx')assert.deepEqual(selection.sections,['section-0']);else assert.deepEqual(selection.sheets,[{name:'分镜',region:'A2:B3'}]);
+ assert.ok(seen.some(p=>p.selection));assert.deepEqual(errors,[]);
+});
+
+test('personal data retries reads and native ZIP download avoids buffering in JavaScript',async t=>{
+ const {page,errors}=await fixture(t,'gpt-chat');let readFail=true,exportFail=true;const writes=[];
+ await page.route('**/api/account/data',route=>readFail?route.fulfill({status:503,json:{detail:'读取暂时失败'}}):route.fulfill({json:{member:{id:'m1',username:'member-test',display_name:'林岳'},conversations:2,objects:3,bytes:4096,workspaces:[],retained:['费用与审计独立保留。']}}));
+ await page.route('**/api/account/data/export',route=>{
+  writes.push(route.request().postData());
+  if(exportFail)return route.fulfill({status:409,json:{detail:'附件仍在清理，请稍后重新导出。'}});
+  return route.fulfill({headers:{'Content-Disposition':'attachment; filename="personal-data.zip"'},contentType:'application/zip',body:'PK-download-test'});
+ });
+ await page.addScriptTag({url:origin+'/static/js/account-data.js'});await page.evaluate(()=>CanvasAccountData.show());
+ const dialog=page.getByRole('dialog',{name:'个人数据',exact:true});await dialog.getByText('读取暂时失败').waitFor();readFail=false;
+ await dialog.getByRole('button',{name:'重试读取'}).click();await dialog.getByText(/本人对话 2 个/).waitFor();
+ const downloadButton=dialog.getByRole('button',{name:'导出本人数据（ZIP）'});
+ await downloadButton.click();await dialog.getByText('附件仍在清理，请稍后重新导出。').waitFor();
+ exportFail=false;const download=page.waitForEvent('download');await downloadButton.click();assert.equal((await download).suggestedFilename(),'personal-data.zip');
+ assert.ok(writes.every(body=>new URLSearchParams(body).get('member_id')==='m1'));
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await dialog.screenshot({path:path.join(out,'personal-data-mobile.png')});await page.keyboard.press('Escape');await dialog.waitFor({state:'detached'});assert.deepEqual(errors,[]);
+});
+
+test('account closure requires typed confirmation, preserves blockers, clears password and disables export after success',async t=>{
+ const {page,errors}=await fixture(t,'gpt-chat');let blocker=true;const writes=[];
+ await page.route('**/api/account/data',route=>route.fulfill({json:{member:{id:'m1',username:'member-test',display_name:'林岳'},conversations:2,objects:3,bytes:4096,workspaces:[],retained:['共享画布和费用保留。']}}));
+ await page.route('**/api/account/data/close',route=>{
+  writes.push(route.request().postDataJSON());
+  return blocker?route.fulfill({status:409,json:{detail:{code:'last_workspace_administrator'}}}):route.fulfill({json:{closed:true,pending_attachments:3,message:'账号已注销，附件后台清理。'}});
+ });
+ await page.addScriptTag({url:origin+'/static/js/account-data.js'});await page.evaluate(()=>CanvasAccountData.show());
+ const dialog=page.getByRole('dialog',{name:'个人数据',exact:true}),password=dialog.getByLabel('账号密码'),confirmation=dialog.getByLabel('输入“注销并删除本人数据”');
+ await password.fill('test-password-12345');await confirmation.fill('不完整确认');await dialog.getByRole('button',{name:'注销账号并清理本人数据'}).click();
+ await dialog.getByText('请完整输入确认文字。').waitFor();assert.equal(writes.length,0);
+ await confirmation.fill('注销并删除本人数据');await dialog.getByRole('button',{name:'注销账号并清理本人数据'}).click();
+ await dialog.getByText('你是最后一位管理员，请先完成管理员交接。').waitFor();assert.equal(await password.inputValue(),'');
+ blocker=false;await password.fill('test-password-12345');await dialog.getByRole('button',{name:'注销账号并清理本人数据'}).click();
+ await dialog.getByRole('link',{name:'返回登录页'}).waitFor();assert.ok(await dialog.getByRole('button',{name:'导出本人数据（ZIP）'}).isDisabled());
+ assert.equal(writes.length,2);assert.ok(writes.every(w=>w.confirmation==='注销并删除本人数据'));
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await dialog.screenshot({path:path.join(out,'account-closed-mobile.png')});assert.deepEqual(errors,[]);
+});
+
 async function transfer(page,files){
  return page.evaluateHandle(files=>{
   const data=new DataTransfer();

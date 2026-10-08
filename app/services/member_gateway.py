@@ -22,6 +22,8 @@ PUBLIC = {'/static/js/infinity-hero.js', '/static/vendor/js/three-0.160.0.module
           '/static/login.html', '/static/css/login.css', '/static/js/login.js',
           '/static/js/frontend-version.js', '/api/frontend/version'}
 ACCOUNT = {'/api/account/billing', '/api/management-entry', '/api/auth/logout', '/api/auth/workspaces', '/api/auth/profile'}
+ACCOUNT.update({'/api/account/data','/api/account/data/export'})
+ACCOUNT.add('/api/account/data/close')
 MANAGEMENT_PREFIXES = ('/api/shared-folders', '/api/comfyui/', '/api/workflows',
                        '/api/providers/', '/api/config/token', '/api/maintenance/start', '/api/maintenance/cancel')
 
@@ -52,6 +54,12 @@ def selected_workspace(scope):
 
 
 def permissions(path, method):
+    if path=='/api/chat/attachments/preview' and method=='POST':
+        return ('canvas.read',)
+    if path=='/api/chat/attachments/audit' and method=='GET':
+        return ('canvas.read',)
+    if path=='/api/chat/budget' and method=='POST':
+        return ('generation.submit','provider.use')
     if path == '/api/chat/attachments':
         return ('asset.upload',) if method == 'POST' else ('canvas.read',) if method == 'GET' else None
     if re.fullmatch(r'/api/chat/attachments/ast_[a-f0-9]{32}', path) and method in {'PATCH', 'DELETE'}:

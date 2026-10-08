@@ -71,6 +71,7 @@
                             <div id="chatSkillStatus" role="status" aria-live="polite"></div>
                             <a href="/static/skill-library.html" id="chatSkillLibrary">前往 Skill 库（新窗口） →</a>
                         </div>
+                        <div id="chatContextBudget" role="status" aria-live="polite" hidden style="font-size:12px;color:var(--studio-muted);padding:6px 0;overflow-wrap:anywhere"></div>
                         <div class="composer-inside-foot">
                             <div class="left-tools">
                                 <div class="inline-controls">
@@ -793,6 +794,12 @@
             node.className = 'thumb file-thumb';
             node.title = attachmentName(ref);
             node.innerHTML = `<i data-lucide="file"></i><span class="thumb-name">${escapeHtml(attachmentName(ref))}</span>`;
+            if(/\.(docx|xlsx)$/i.test(attachmentName(ref))){
+                node.tabIndex=0; node.setAttribute('role','button');
+                node.setAttribute('aria-label','预览 '+attachmentName(ref));
+                node.onclick=() => window.ChatAttachmentPreview.open(ref,null,node);
+                node.onkeydown=e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();node.click();} };
+            }
             return node;
         }
 
@@ -800,7 +807,8 @@
             if(isImageRef(ref)){
                 return `<div class="ref-chip"><img src="${escapeHtml(ref.url)}" title="${escapeHtml(attachmentName(ref))}"><button onclick="removeRef(${i})">×</button></div>`;
             }
-            return `<div class="ref-chip file"><i data-lucide="file"></i><span class="ref-file-name" title="${escapeHtml(attachmentName(ref))}">${escapeHtml(attachmentName(ref))}</span><button onclick="removeRef(${i})">×</button></div>`;
+            const preview=/\.(docx|xlsx)$/i.test(attachmentName(ref)) ? `<button class="ref-preview" onclick="previewRef(${i},this)">${ref.selection?'已选范围':'解析预览'}</button>` : '';
+            return `<div class="ref-chip file"><i data-lucide="file"></i><span class="ref-file-name" title="${escapeHtml(attachmentName(ref))}">${escapeHtml(attachmentName(ref))}</span>${preview}<button aria-label="移除 ${escapeHtml(attachmentName(ref))}" onclick="removeRef(${i})">×</button></div>`;
         }
 
         async function uploadFiles(files){
@@ -827,6 +835,15 @@
         }
 
         function removeRef(i){ refs.splice(i,1); renderRefs(); }
+        function previewRef(i,trigger){
+            const ref=refs[i];
+            window.ChatAttachmentPreview.open(ref,selection => {
+                if(!refs.includes(ref)) return;
+                if(selection) ref.selection=selection; else delete ref.selection;
+                renderRefs();
+                document.querySelectorAll('#refStrip .ref-chip')[refs.indexOf(ref)]?.querySelector('.ref-preview')?.focus();
+            },trigger);
+        }
 
         window.addEventListener('paste', e => {
             const files = [...(e.clipboardData?.items || [])].filter(x => x.kind === 'file').map(x => x.getAsFile()).filter(Boolean);
@@ -919,18 +936,26 @@
             const currentProvider = provider;
             const currentChatModel = activeChatModel || config.chat_model;
 
+            const payload = {
+                conversation_id: currentConversation.id || '', message, mode:'chat',
+                model:currentChatModel, provider:currentProvider, reference_images:pendingRefs,
+                skill_ids:pendingSkills.map(skill => skill.id)
+            };
+            const budgetResponse = await fetch('/api/chat/budget', {
+                method:'POST', headers:headers(), body:JSON.stringify(payload)
+            });
+            const budget = await budgetResponse.json().catch(() => ({}));
+            if(!budgetResponse.ok) throw new Error(chatErrorMessage(budget.detail,budgetResponse.status));
+            const budgetStatus=document.getElementById('chatContextBudget');
+            if(budgetStatus && Number.isFinite(budget.estimated_input_tokens)) {
+                budgetStatus.hidden=false;
+                budgetStatus.textContent=`本次发送预检：上下文保守估算 ${budget.estimated_input_tokens.toLocaleString()} / ${budget.context_tokens.toLocaleString()} token，回复预留 ${budget.reserved_output_tokens.toLocaleString()}；${budget.source==='model_config'?'模型配置上限':'平台默认上限，需管理员核对模型容量'}。`;
+            }
+            if(budget.over_limit) throw new Error(`上下文保守估算 ${Number(budget.estimated_input_tokens).toLocaleString()} token，超过 ${Number(budget.context_tokens).toLocaleString()} 的上限（含回复预留）。请减少引用、拆分附件或切换更大容量模型。`);
             const response = await fetch('/api/chat/stream', {
                 method:'POST',
                 headers:headers(),
-                body:JSON.stringify({
-                    conversation_id: currentConversation.id || '',
-                    message,
-                    mode:'chat',
-                    model: currentChatModel,
-                    provider: currentProvider,
-                    reference_images: pendingRefs,
-                    skill_ids: pendingSkills.map(skill => skill.id)
-                })
+                body:JSON.stringify(payload)
             });
             if(!response.ok){
                 throw new Error(chatErrorMessage((await response.json().catch(() => ({}))).detail, response.status));
@@ -997,5 +1022,6 @@
     <script src="/static/js/chat-skills.js"></script>
     <script src="/static/js/chat-cost.js"></script>
     <script src="/static/js/chat-attachment-manager.js"></script>
+    <script src="/static/js/chat-attachment-preview.js"></script>
 </body>
 </html>

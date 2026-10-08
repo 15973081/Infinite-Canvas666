@@ -143,6 +143,8 @@ def login(username, password, *, audience='workbench', source='unknown', remembe
         candidate = password_hash(password, salt)[1]
         if not row or row['status'] != 'active' or not hmac.compare_digest(candidate, row['password_digest'] or ''):
             az.fail('invalid_credentials', 401)
+        from app.storage.deletion_ledger import member_blocked
+        if member_blocked(row['id']): az.fail('invalid_credentials',401)
         token, sid = secrets.token_urlsafe(32), identifier('session')
         ttl = 30 * 86400 if remember else 12 * 3600
         conn.execute('''INSERT INTO member_sessions(id,token_hash,member_id,audience,expires_at)
@@ -159,6 +161,8 @@ def resolve_session(token, audience='workbench'):
             JOIN members m ON m.id=s.member_id WHERE s.token_hash=%s AND s.audience=%s
             AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND m.status='active' ''',
             (token_hash(token), audience)).fetchone()
+        from app.storage.deletion_ledger import member_blocked
+        if row and member_blocked(row['member_id']): return None
         return az.Principal(row['member_id'], row['id'], row['audience']) if row else None
 
 
@@ -172,8 +176,10 @@ def logout(actor):
 def reset_member(actor, member_id):
     with az.policy_transaction(change=True) as conn:
         az.require(conn, actor, 'member.manage')
+        from app.storage.deletion_ledger import member_blocked
+        if member_blocked(member_id): az.fail('member_closed',409)
         _protect_superadmin(conn, actor, member_id)
-        row = conn.execute("UPDATE members SET status='invited',password_salt=NULL,password_digest=NULL,auth_version=auth_version+1 WHERE id=%s RETURNING id", (member_id,)).fetchone()
+        row = conn.execute("UPDATE members SET status='invited',password_salt=NULL,password_digest=NULL,auth_version=auth_version+1 WHERE id=%s AND closed_at IS NULL RETURNING id", (member_id,)).fetchone()
         if not row:
             az.fail('member_not_found', 404)
         az.assert_administrators(conn)
@@ -205,6 +211,8 @@ def set_member_status(actor, member_id, status):
         row = conn.execute('SELECT * FROM members WHERE id=%s', (member_id,)).fetchone()
         if not row:
             az.fail('member_not_found', 404)
+        from app.storage.deletion_ledger import member_blocked
+        if row['closed_at'] or member_blocked(member_id): az.fail('member_closed',409)
         if status == 'active' and not row['password_digest']:
             az.fail('activation_required', 409)
         conn.execute('UPDATE members SET status=%s,auth_version=auth_version+1 WHERE id=%s', (status, member_id))
@@ -288,8 +296,11 @@ def assign_roles(actor, member_id, role_ids, workspace=None):
                 az.fail('workspace_unavailable')
         else:
             az.require(conn, actor, 'space.members.manage' if workspace else 'role.manage', workspace)
-        if not conn.execute("SELECT 1 FROM members WHERE id=%s AND status<>'disabled'", (member_id,)).fetchone():
+        if not conn.execute("SELECT 1 FROM members WHERE id=%s AND status IN ('active','invited')", (member_id,)).fetchone():
             az.fail('member_unavailable', 404)
+        from app.storage.deletion_ledger import member_blocked
+        if member_blocked(member_id):
+            az.fail('member_closed', 409)
         if workspace is None:
             _protect_superadmin(conn, actor, member_id)
             old = conn.execute('SELECT role_id FROM platform_member_roles WHERE member_id=%s', (member_id,)).fetchall()

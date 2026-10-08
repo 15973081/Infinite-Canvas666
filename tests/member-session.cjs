@@ -39,6 +39,16 @@ function harness({member='alice', selected='space_a', parent, search='', failBus
 }
 async function settle(){for(let i=0;i<20;i++) await new Promise(resolve=>setImmediate(resolve));}
 
+test('personal data routes remain account scoped without workspace injection',async()=>{
+    const h=harness();await h.window.CanvasSession.ready;
+    for(const path of ['/api/account/data','/api/account/data/export']){
+        await h.window.fetch(path,{method:path.endsWith('/export')?'POST':'GET',headers:{'X-Member-ID':'alice'}});
+        const call=h.calls.at(-1),headers=new Headers(call.init.headers);
+        assert.equal(headers.get('X-Member-ID'),'alice');assert.equal(headers.has('X-Workspace-ID'),false);
+        assert.equal(new URL(call.url,'http://localhost').searchParams.has('workspace'),false);
+    }
+});
+
 test('query-bound media reads keep credentials and selectors without redirecting member headers',async()=>{
     const h=harness();await h.window.CanvasSession.ready;
     for(const path of ['/assets/cloud/photo.png','/output/photo.png','/api/media-preview','/api/media/ast_'+'a'.repeat(32)+'/content']){

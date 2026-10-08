@@ -30,6 +30,15 @@ def image_space(world, platform):
         yield pid
 
 
+def image_principal(world):
+    from app.services import members
+    from test_cloud_member_gateway import PASSWORD
+    import uuid
+    token = members.login(world['people'][0]['username'], PASSWORD,
+                          audience='workbench', source='receipt-' + uuid.uuid4().hex)['token']
+    return members.resolve_session(token, 'workbench')
+
+
 def row_for(tid):
     from app.storage import database
     with database.connection() as conn:
@@ -46,7 +55,7 @@ def test_each_upstream_receipt_survives_interruption_before_polling(image_space,
     from app.storage import worker, tasks, image_receipts, media, finalization
     from app.services import media as helpers
     from app.routers import providers
-    tid, cid = new_task(count=2, provider_id=image_space)
+    tid, cid = new_task(count=2, provider_id=image_space, principal=image_principal(world))
     from app.storage import database
     with database.connection() as conn:
         conn.execute("UPDATE tasks SET requested_by=%s WHERE id=%s", (world["people"][0]["id"], tid))
@@ -245,7 +254,7 @@ def test_management_recovers_image_receipts_with_original_account_during_drain(i
     from app.services import maintenance_control
     from app.routers import providers
     from test_cloud_task_reviews import detail, payload, submit
-    tid, cid = new_task(count=2, provider_id=image_space)
+    tid, cid = new_task(count=2, provider_id=image_space, principal=image_principal(world))
     row = claim(tid)
     context = tasks.lease_context.set((tid, row["lease_token"]))
     try:
@@ -306,7 +315,7 @@ def test_management_recovers_image_receipts_with_original_account_during_drain(i
 def test_missing_image_receipt_cannot_be_resubmitted_through_management(image_space, world, platform):
     from app.storage import database
     from test_cloud_task_reviews import detail, payload, submit
-    tid, _ = new_task(count=2, provider_id=image_space)
+    tid, _ = new_task(count=2, provider_id=image_space, principal=image_principal(world))
     with database.connection() as conn:
         conn.execute("UPDATE tasks SET status='needs_review',upstream_task_id='one-id-for-two-images' WHERE id=%s", (tid,))
     overview = detail(platform, world, tid)
@@ -315,10 +324,10 @@ def test_missing_image_receipt_cannot_be_resubmitted_through_management(image_sp
     assert submit(platform, world, tid, payload(overview, 'resume_polling')).status_code == 409
 
 
-def test_legacy_query_network_failure_keeps_original_id(image_space, monkeypatch):
+def test_legacy_query_network_failure_keeps_original_id(image_space, world, monkeypatch):
     from app.storage import database, tasks, worker
     from app.routers import providers
-    tid, _ = new_task(count=1, provider_id=image_space)
+    tid, _ = new_task(count=1, provider_id=image_space, principal=image_principal(world))
     with database.connection() as conn:
         conn.execute("UPDATE tasks SET status='polling',upstream_task_id='legacy-original' WHERE id=%s", (tid,))
     async def offline(*args, **kwargs):

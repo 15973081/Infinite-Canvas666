@@ -33,13 +33,19 @@ def target_environment(url):
     return config, env, uri
 
 
-def fencing_sql(conn, manifest, restore_id, reason):
+def fencing_sql(conn, manifest, restore_id, reason, deletion_records=()):
     schema = sql.Identifier(manifest['schema']).as_string(conn)
     literal = lambda value: sql.Literal(value).as_string(conn)
     expected = ','.join('('+str(version)+','+literal(hashlib.sha256(source.encode()).hexdigest())+')'
                         for version, source in database.migrations())
     assets = literal(json.dumps(manifest['objects']))
     details = literal(json.dumps({'restore_id':restore_id,'backup_sha256':manifest['database_sha256'],'reason':reason}))
+    deletion_rows=[{**asset,'owner_id':record['owner_id']} for record in deletion_records for asset in record['objects']]
+    deletion_json=literal(json.dumps(deletion_rows))
+    deletion_roots_json=literal(json.dumps([r for r in deletion_records if r['kind']=='attachment']))
+    conversations_json=literal(json.dumps([r for r in deletion_records if r['kind']=='conversation']))
+    skills_json=literal(json.dumps([r for r in deletion_records if r['kind']=='skill']))
+    accounts_json=literal(json.dumps([{'owner_id':r['owner_id']} for r in deletion_records if r['kind']=='account']))
     return f"""
 SET LOCAL search_path TO {schema}, pg_catalog;
 CREATE TEMP TABLE restore_expected_migrations(version integer,sha256 text) ON COMMIT DROP;
@@ -49,6 +55,52 @@ DO $$ BEGIN
  UNION ALL (SELECT * FROM restore_expected_migrations EXCEPT ALL SELECT version,sha256 FROM schema_migrations)) THEN
  RAISE EXCEPTION 'restore_schema_version_mismatch'; END IF;
 END $$;
+CREATE TEMP TABLE restore_deleted_conversations ON COMMIT DROP AS
+ SELECT * FROM jsonb_to_recordset({conversations_json}::jsonb) AS d(workspace_id text,document_id text,owner_id text);
+DELETE FROM workspace_documents w USING restore_deleted_conversations d
+ WHERE w.kind='conversation' AND w.workspace_id=d.workspace_id AND w.id=d.document_id;
+CREATE TEMP TABLE restore_deleted_skills ON COMMIT DROP AS
+ SELECT * FROM jsonb_to_recordset({skills_json}::jsonb) AS d(workspace_id text,skill_id text,owner_id text);
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM prompt_skills s JOIN restore_deleted_skills d ON d.skill_id=s.id
+ WHERE s.origin_workspace_id<>d.workspace_id OR coalesce(s.uploader_id,'')<>d.owner_id) THEN
+ RAISE EXCEPTION 'restore_skill_deletion_identity_mismatch'; END IF;
+END $$;
+DELETE FROM member_skill_preferences WHERE skill_id IN (SELECT skill_id FROM restore_deleted_skills);
+DELETE FROM workspace_skill_installs WHERE skill_id IN (SELECT skill_id FROM restore_deleted_skills);
+UPDATE workspace_documents SET value=jsonb_set(value,'{{skills}}',coalesce((SELECT jsonb_agg(item)
+ FROM jsonb_array_elements(coalesce(value->'skills','[]'::jsonb)) item
+ WHERE item->>'id' NOT IN (SELECT skill_id FROM restore_deleted_skills)),'[]'::jsonb)),revision=revision+1
+ WHERE kind='skill_library' AND EXISTS(SELECT 1 FROM restore_deleted_skills);
+SET CONSTRAINTS prompt_skill_current_version DEFERRED;
+DELETE FROM prompt_skill_versions WHERE skill_id IN (SELECT skill_id FROM restore_deleted_skills);
+DELETE FROM prompt_skills WHERE id IN (SELECT skill_id FROM restore_deleted_skills);
+CREATE TEMP TABLE restore_closed_accounts ON COMMIT DROP AS
+ SELECT * FROM jsonb_to_recordset({accounts_json}::jsonb) AS d(owner_id text);
+DELETE FROM workspace_documents WHERE kind='conversation' AND EXISTS(
+ SELECT 1 FROM restore_closed_accounts d WHERE starts_with(id,d.owner_id||'/'));
+DELETE FROM member_skill_preferences WHERE member_id IN(SELECT owner_id FROM restore_closed_accounts);
+DELETE FROM canvas_draft_copies WHERE member_id IN(SELECT owner_id FROM restore_closed_accounts);
+DELETE FROM workspace_member_roles WHERE member_id IN(SELECT owner_id FROM restore_closed_accounts);
+DELETE FROM workspace_members WHERE member_id IN(SELECT owner_id FROM restore_closed_accounts);
+DELETE FROM platform_member_roles WHERE member_id IN(SELECT owner_id FROM restore_closed_accounts);
+UPDATE prompt_skills SET uploader_name='已注销成员' WHERE uploader_id IN(SELECT owner_id FROM restore_closed_accounts);
+UPDATE members SET status='closed',closed_at=coalesce(closed_at,clock_timestamp()),
+ username='closed_'||substr(encode(sha256(convert_to(id,'UTF8')),'hex'),1,32),display_name='已注销成员',avatar='',
+ password_salt=NULL,password_digest=NULL WHERE id IN(SELECT owner_id FROM restore_closed_accounts);
+INSERT INTO account_closures(member_id) SELECT id FROM members WHERE id IN(SELECT owner_id FROM restore_closed_accounts)
+ ON CONFLICT DO NOTHING;
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM members m JOIN restore_closed_accounts d ON d.owner_id=m.id) AND (
+ NOT EXISTS(SELECT 1 FROM platform_member_roles g JOIN roles r ON r.id=g.role_id AND r.active AND r.builtin_key='superadmin'
+ JOIN members m ON m.id=g.member_id AND m.status='active') OR EXISTS(
+ SELECT 1 FROM workspaces w WHERE w.status='active' AND EXISTS(SELECT 1 FROM roles r WHERE r.workspace_id=w.id AND r.builtin_key='admin')
+ AND NOT EXISTS(SELECT 1 FROM workspace_member_roles g JOIN roles r ON r.id=g.role_id AND r.active AND r.builtin_key='admin'
+ JOIN members m ON m.id=g.member_id AND m.status='active' WHERE g.workspace_id=w.id))) THEN
+ RAISE EXCEPTION 'restore_administrator_transfer_required'; END IF;
+END $$;
+INSERT INTO management_events(action,target_id,details)
+ SELECT 'account.close_replayed',owner_id,jsonb_build_object('owner_id',owner_id,'restore_id',{literal(restore_id)}) FROM restore_closed_accounts;
 CREATE TEMP TABLE restore_expected_assets ON COMMIT DROP AS
 SELECT * FROM jsonb_to_recordset({assets}::jsonb) AS a(id text,bucket text,region text,object_key text,
  object_version_id text,size_bytes bigint,sha256 text,status text);
@@ -59,6 +111,33 @@ DO $$ BEGIN
  SELECT id,bucket,region,object_key,object_version_id,size_bytes,sha256,status FROM assets)) THEN
  RAISE EXCEPTION 'restore_asset_manifest_mismatch'; END IF;
 END $$;
+CREATE TEMP TABLE restore_deletion_objects ON COMMIT DROP AS
+SELECT * FROM jsonb_to_recordset({deletion_json}::jsonb) AS d(id text,workspace_id text,owner_id text,
+ bucket text,object_key text,object_version_id text,unpublished boolean);
+DO $$ BEGIN
+ IF EXISTS (SELECT 1 FROM assets a JOIN restore_deletion_objects d ON d.id=a.id WHERE
+ a.workspace_id<>d.workspace_id OR a.metadata->>'chat_owner' IS DISTINCT FROM d.owner_id
+ OR a.bucket<>d.bucket OR a.object_key<>d.object_key
+ OR (d.object_version_id IS NOT NULL AND a.object_version_id IS DISTINCT FROM d.object_version_id)) THEN
+ RAISE EXCEPTION 'restore_deletion_identity_mismatch'; END IF;
+END $$;
+UPDATE assets a SET status='deleted',display_name='',deleted_at=coalesce(deleted_at,clock_timestamp()),updated_at=clock_timestamp()
+ FROM restore_deletion_objects d WHERE a.id=d.id AND a.workspace_id=d.workspace_id;
+INSERT INTO chat_attachment_deletions(workspace_id,asset_id,owner_id,objects,state,completed_at)
+ SELECT d.workspace_id,d.asset_id,d.owner_id,d.objects,'succeeded',clock_timestamp()
+ FROM jsonb_to_recordset({deletion_roots_json}::jsonb) AS d(workspace_id text,asset_id text,owner_id text,objects jsonb)
+ WHERE EXISTS(SELECT 1 FROM assets a WHERE a.workspace_id=d.workspace_id AND a.id=d.asset_id)
+ ON CONFLICT(workspace_id,asset_id) DO UPDATE SET state='succeeded',completed_at=clock_timestamp(),
+ lease_token=NULL,lease_until=NULL,last_error='';
+INSERT INTO management_events(action,target_id,workspace_id,details)
+ SELECT DISTINCT 'chat.attachment.delete_replayed',d.id,d.workspace_id,jsonb_build_object('owner_id',d.owner_id,'restore_id',{literal(restore_id)})
+ FROM restore_deletion_objects d JOIN assets a ON a.id=d.id AND a.workspace_id=d.workspace_id;
+UPDATE chat_attachment_deletions j SET state='succeeded',completed_at=clock_timestamp(),lease_token=NULL,
+ lease_until=NULL,last_error='' WHERE EXISTS(SELECT 1 FROM restore_deletion_objects d
+ WHERE d.id=j.asset_id AND d.workspace_id=j.workspace_id);
+DELETE FROM chat_upload_reservations;
+UPDATE chat_attachment_deletions SET lease_token=NULL,lease_until=NULL,available_at=clock_timestamp()
+ WHERE state<>'succeeded';
 CREATE TEMP TABLE restore_counts AS SELECT
  (SELECT count(*) FROM member_sessions WHERE revoked_at IS NULL) AS sessions,
  (SELECT count(*) FROM canvas_edit_leases) AS canvas_leases,
@@ -79,7 +158,7 @@ UPDATE tasks SET status='needs_review',error_code='database_restored_requires_re
  error_message='数据库已恢复；请核对备份之后的提交与结果，未重新生成',updated_at=clock_timestamp()
  WHERE status IN ('queued','running','submitting','polling','finalizing');
 UPDATE tasks SET lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE lease_token IS NOT NULL;
-UPDATE assets SET status='failed',updated_at=clock_timestamp() WHERE id IN
+UPDATE assets SET status='failed',updated_at=clock_timestamp() WHERE status<>'deleted' AND id IN
  (SELECT asset_id FROM media_uploads WHERE status IN ('initiating','uploading','verifying'));
 UPDATE media_uploads SET status='aborted',updated_at=clock_timestamp()
  WHERE status IN ('initiating','uploading','verifying');
@@ -98,11 +177,13 @@ SELECT json_build_object('restore_id',{literal(restore_id)},'fenced',true,'count
 """
 
 
-def restore(path, target_url, expected_database, destination, *, reason):
+def restore(path, target_url, expected_database, destination, *, reason, deletion_ledger_directory=None):
     path, destination = Path(path).resolve(), Path(destination).resolve()
     if not isinstance(reason,str) or not reason.strip() or len(reason)>1000:
         raise ValueError('Restore reason required')
     manifest = backup.verify(path)
+    from app.storage import deletion_ledger
+    ledger,records=deletion_ledger.load(manifest.get('deletion_ledger'),deletion_ledger_directory)
     if manifest['media_backend']!='filesystem' or not re.fullmatch(r'[a-z][a-z0-9_]{0,62}',manifest['schema']):
         raise ValueError('Restore requires a local filesystem bundle with a valid schema')
     if destination.exists() or path.is_relative_to(destination) or destination.is_relative_to(path.with_suffix('.objects')):
@@ -122,11 +203,15 @@ def restore(path, target_url, expected_database, destination, *, reason):
         if occupied or guard.execute('SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() LIMIT 1').fetchone():
             raise ValueError('Restore target must be empty and have no other clients')
         destination.mkdir(parents=True)
-        objects = backup.restore_objects(path,destination/'objects')
+        objects = backup.restore_objects(path,destination/'objects',deletion_records=records)
+        # Collect deletions committed while copying; later deletions are also
+        # blocked by the live ledger at every private-media read entry point.
+        ledger,records=deletion_ledger.load(manifest['deletion_ledger'],ledger['directory'])
+        removed=deletion_ledger.prune_restored_objects(destination/'objects',manifest,records)
         source_sql, fence_sql = destination/'database.sql', destination/'fence.sql'
         subprocess.run([backup.pg_tool('pg_restore'),'--no-owner','--no-privileges','--file='+str(source_sql),str(path)],
                        check=True,capture_output=True,timeout=600,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-        fence_sql.write_text(fencing_sql(guard,manifest,restore_id,reason.strip()),encoding='utf-8')
+        fence_sql.write_text(fencing_sql(guard,manifest,restore_id,reason.strip(),records),encoding='utf-8')
         # DDL, records and credential invalidation become visible together.
         result = subprocess.run([backup.pg_tool('psql'),'-X','-qAt','--no-password','--set=ON_ERROR_STOP=1',
             '--single-transaction','--file='+str(source_sql),'--file='+str(fence_sql)],env=env,
@@ -137,12 +222,14 @@ def restore(path, target_url, expected_database, destination, *, reason):
         values = {'DATABASE_BACKEND':'postgres','DATABASE_URL':uri,'DATABASE_SCHEMA':manifest['schema'],
                   'AUTH_MODE':'members','MEDIA_BACKEND':'filesystem','OBJECT_STORE_ROOT':str(destination/'objects'),
                   'MEDIA_TEMP_DIR':str(destination/'tmp'),'APP_RUNTIME_DIR':str(destination/'runtime'),
+                  'DELETION_LEDGER_ROOT':ledger['directory'],
                   'MEDIA_SIGNING_KEY':secrets.token_urlsafe(48),'CLOUD_EMBEDDED_WORKER':'false'}
         with os.fdopen(os.open(destination/'storage.env',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as file:
             file.write(''.join(k+'='+v+'\n' for k,v in values.items()))
         receipt = {**summary,'database':expected_database,'schema':manifest['schema'],
                    'objects':objects['objects'],'object_bytes':objects['object_bytes'],
                    'backup_sha256':manifest['database_sha256'],'mode':'recovering'}
+        receipt['deleted_objects_replayed']=removed+objects['deletions_skipped']
         with (destination/'restore-complete.json').open('x',encoding='utf-8') as file:
             json.dump(receipt,file,ensure_ascii=False,indent=2)
         return receipt

@@ -140,9 +140,28 @@ async def _consume(stop):
             pass
 
 
+async def consume_attachment_cleanup(stop):
+    from app.services.chat_attachment_cleanup import run_pending
+    while not stop.is_set():
+        try:
+            await asyncio.to_thread(run_pending)
+            if not stop.is_set():
+                from app.services.account_closure import reconcile
+                await asyncio.to_thread(reconcile)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception('Attachment cleanup iteration failed')
+        try:
+            await asyncio.wait_for(stop.wait(),timeout=30)
+        except asyncio.TimeoutError:
+            pass
+
+
 def start():
     stop = asyncio.Event()
     consumers = [asyncio.create_task(consume(stop)) for _ in range(max(1, min(8, int(os.getenv("CLOUD_WORKER_CONCURRENCY", "2")))))]
+    consumers.append(asyncio.create_task(consume_attachment_cleanup(stop)))
     return stop, consumers
 
 

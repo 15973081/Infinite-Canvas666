@@ -15,6 +15,27 @@ def contains_ref(value, ids, aliases):
     return False
 
 
+def referenced_asset_ids(conn):
+    """One inventory per request; match the conservative deletion checks."""
+    found=set()
+    def collect(value):
+        if isinstance(value,str):
+            asset_id=media.id_from_ref(value)
+            if asset_id: found.add(asset_id)
+        elif isinstance(value,dict):
+            for child in value.values(): collect(child)
+        elif isinstance(value,list):
+            for child in value: collect(child)
+    for query in (
+        'SELECT document AS value FROM canvases WHERE workspace_id=%s',
+        'SELECT value FROM workspace_documents WHERE workspace_id=%s',
+        'SELECT jsonb_build_array(request,result,input_asset_ids,output_asset_ids,legacy_metadata) AS value FROM tasks WHERE workspace_id=%s',
+        "SELECT jsonb_build_array(asset_id,snapshot) AS value FROM online_works WHERE workspace_id=%s AND state NOT IN ('purging','purged')",
+    ):
+        for row in conn.execute(query,(current_workspace(),)): collect(row['value'])
+    return found
+
+
 def check_references(conn, ids, aliases, ignored_document_kinds=()):
     # Include recycled/purged canvases and retained backups: they remain recoverable.
     sources = [

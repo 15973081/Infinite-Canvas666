@@ -15,7 +15,7 @@ from PIL import Image
 pytestmark = pytest.mark.skipif(os.getenv("CLOUD_INTEGRATION_TEST") != "1", reason="Use tools/cloud_test.py")
 
 
-def new_task(kind="online-image", count=2, provider_id="comfly", model_name="test"):
+def new_task(kind="online-image", count=2, provider_id="comfly", model_name="test", principal=None):
     from app.storage import canvases, tasks
     from app.models import OnlineImageRequest, CanvasVideoRequest
     cid = uuid.uuid4().hex
@@ -26,9 +26,18 @@ def new_task(kind="online-image", count=2, provider_id="comfly", model_name="tes
     if kind == "online-image":
         args["n"] = count
     payload = model(**args).model_dump(mode="json")
-    tasks.save({"id": tid, "type": kind, "status": "queued", "canvas_id": cid,
-                "provider_id": provider_id, "model": model_name, "billing_request": args,
-                "billing_price": {"unit_price": "0.05", "billing_type": "per_image" if kind == "online-image" else "per_call", "currency": "CNY"}}, payload)
+    from contextlib import nullcontext
+    scope=nullcontext()
+    if principal:
+        from app.services.canvas_leases import acquire,Proof
+        from app.services.member_context import access_scope
+        from app.storage.workspace import current_workspace
+        lease=acquire(principal,cid)
+        scope=access_scope(principal,current_workspace(),(),edit_proof=Proof(lease['edit_token'],lease['generation'],1))
+    with scope:
+        tasks.save({"id": tid, "type": kind, "status": "queued", "canvas_id": cid,
+                    "provider_id": provider_id, "model": model_name, "billing_request": args,
+                    "billing_price": {"unit_price": "0.05", "billing_type": "per_image" if kind == "online-image" else "per_call", "currency": "CNY"}}, payload)
     return tid, cid
 
 

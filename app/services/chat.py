@@ -63,12 +63,15 @@ def list_conversations(user_id, limit=100, offset=0):
     if postgres_enabled():
         from app.storage.database import connection
         with connection() as conn:
-            return conn.execute("""SELECT value->>'id' AS id, value->>'title' AS title,
+            rows=conn.execute("""SELECT id AS document_key,value->>'id' AS id, value->>'title' AS title,
                 value->'created_at' AS created_at, value->'updated_at' AS updated_at,
                 left(coalesce(jsonb_path_query_array(value, '$.messages[*] ? (@.role != "system")')->-1->>'content',''),800) AS last_message
                 FROM workspace_documents WHERE workspace_id=%s AND kind='conversation' AND starts_with(id,%s)
                 ORDER BY CASE WHEN jsonb_typeof(value->'updated_at')='number' THEN (value->>'updated_at')::numeric ELSE 0 END DESC,id DESC
                 LIMIT %s OFFSET %s""", (current_workspace(), user_id + "/", limit, offset)).fetchall()
+        from app.storage.deletion_ledger import document_blocked
+        return [{key:value for key,value in row.items() if key!='document_key'} for row in rows
+                if not document_blocked(current_workspace(),row['document_key'])]
     records = []
     for filename in os.listdir(user_dir(user_id)):
         if not filename.endswith(".json"):

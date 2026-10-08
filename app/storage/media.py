@@ -165,6 +165,9 @@ def assert_chat_asset_access(asset):
     owner = (asset.get('metadata') or {}).get('chat_owner')
     if not owner:
         return
+    from app.storage.deletion_ledger import blocked
+    if blocked(asset):
+        raise HTTPException(404,'素材已删除')
     from app.services.member_context import current_access
     access = current_access.get()
     if access is None and (asset.get('metadata') or {}).get('chat_shared',False):
@@ -401,6 +404,11 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
                                   (workspace,parent_asset_id)).fetchone()
             if parent and (parent.get('metadata') or {}).get('chat_owner'):
                 metadata.update({key: parent['metadata'][key] for key in ('chat_owner','chat_shared') if key in parent['metadata']})
+                from app.services.chat_attachments import usage
+                conn.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',('chat-quota:'+metadata['chat_owner'],))
+                if size>usage(conn,metadata['chat_owner'])['remaining_bytes']:
+                    raise HTTPException(413,'个人附件容量不足，无法生成新的预览。')
+                metadata['expected_bytes']=size
         conn.execute("INSERT INTO assets(workspace_id,id,kind,status,display_name,bucket,region,object_key,parent_asset_id,role,metadata) VALUES(%s,%s,%s,'uploading',%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING", (workspace, media_id, kind, name, bucket, region, key, parent_asset_id, role, Jsonb(metadata)))
         if not conn.execute("SELECT 1 FROM assets WHERE workspace_id=%s AND id=%s", (workspace, media_id)).fetchone():
             raise HTTPException(409, "素材 ID 不可用于当前空间")

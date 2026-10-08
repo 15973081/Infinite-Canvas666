@@ -9,6 +9,8 @@
     let workspaceChoices = null;
     let storageSnapshot = null, storageUpdated = 0;
     const accountPaths = new Set(['/api/account/billing','/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
+    accountPaths.add('/api/account/data'); accountPaths.add('/api/account/data/export');
+    accountPaths.add('/api/account/data/close');
     const element = (tag, text, className) => {
         const node = document.createElement(tag);
         if (text !== undefined) node.textContent = text;
@@ -321,7 +323,9 @@
         summary.append(avatar,element('span',context.member.display_name));
         const menu=element('div',undefined,'member-session-account-menu');
         menu.append(element('small','当前账号'),element('strong',context.member.display_name),
-            button('我的费用',async () => {account.open=false;try {await import('/static/js/billing-view.js');await window.CanvasBillingUI.showPersonal();}catch(error){window.alert(error.message);}}),button('成员资料',() => {account.open=false;return profile();}),button('退出登录',async () => {
+            button('我的费用',async () => {account.open=false;try {await import('/static/js/billing-view.js');await window.CanvasBillingUI.showPersonal();}catch(error){window.alert(error.message);}}),
+            button('个人数据',async () => {account.open=false;try {await import('/static/js/account-data.js');await window.CanvasAccountData.show();}catch(error){window.alert(error.message);}}),
+            button('成员资料',() => {account.open=false;return profile();}),button('退出登录',async () => {
                 account.open=false;
                 try { await logout(); } catch (error) { window.alert(error.message); }
             }));

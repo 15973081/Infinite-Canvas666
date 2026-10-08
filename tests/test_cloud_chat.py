@@ -18,6 +18,7 @@ def chat_world(world, monkeypatch):
     provider_control.save(world['operator'], provider_id, {
         'name': 'DeepSeek test', 'base_url': 'https://chat.invalid', 'enabled': True,
         'chat_models': ['deepseek-test', 'hidden-test', 'disabled-test'],
+        'chat_context_limits': {'deepseek-test':25_000_000},
         'model_policies': {'chat:hidden-test': {'visible': False}, 'chat:disabled-test': {'enabled': False}},
     }, 0, secrets={'api_key': 'isolated-chat-key'}, reason='隔离聊天验收')
     assignments = provider_control.assignments(world['operator'], world['a']['id'])
@@ -61,12 +62,49 @@ def test_member_chat_roundtrip_and_private_history(chat_world, path):
     assert len(w['calls']) == 1
     assert w['editor'].get('/api/conversations/'+cid, headers=headers(w['a'])).status_code == 200
     assert w['viewer'].get('/api/conversations/'+cid, headers=headers(w['a'])).status_code == 404
-    # Even an editor with an assigned provider cannot reuse someone else's conversation.
     own = w['viewer'].post('/api/conversations', headers=headers(w['a']), json={'title': 'private'}).json()
     other_id = own.get('id') or own['conversation']['id']
     assert w['editor'].post(path, headers=headers(w['a']), json={**w['payload'], 'conversation_id': other_id}).status_code == 404
     assert w['outsider'].get('/api/conversations/'+cid, headers=headers(w['b'])).status_code == 404
     assert len(w['calls']) == 1
+
+
+@pytest.mark.parametrize('path',['/api/chat','/api/chat/stream'])
+def test_member_context_budget_rejects_before_history_billing_and_upstream(chat_world,path):
+    from app.storage.database import connection
+    w=chat_world
+    with connection() as conn:
+        conn.execute("UPDATE managed_providers SET config=jsonb_set(config,'{chat_context_limits}',%s::jsonb) WHERE id=%s",
+                     (json.dumps({'deepseek-test':1024}),w['payload']['provider']))
+    before=w['editor'].get('/api/conversations',headers=headers(w['a'])).json()
+    request={**w['payload'],'message':'超长正文'*2000}
+    preflight=w['editor'].post('/api/chat/budget',headers=headers(w['a']),json=request)
+    assert preflight.status_code==200,preflight.text
+    assert preflight.json()['over_limit'] and preflight.json()['source']=='model_config'
+    rejected=w['editor'].post(path,headers=headers(w['a']),json=request)
+    assert rejected.status_code==413,rejected.text
+    assert not w['calls']
+    assert w['editor'].get('/api/conversations',headers=headers(w['a'])).json()==before
+    with connection() as conn:
+        assert conn.execute('SELECT count(*) AS n FROM ai_chat_calls WHERE workspace_id=%s',(w['a']['id'],)).fetchone()['n']==0
+
+
+def test_member_context_preflight_includes_retained_history_and_respects_private_conversation(chat_world):
+    from app.services.chat import save_conversation,new_conversation
+    from app.storage.workspace import workspace_scope
+    w=chat_world
+    with workspace_scope(w['a']['id']):
+        conversation=new_conversation(w['people'][0]['id'],persist=False)
+        conversation['messages']=[{'role':'assistant','content':'历史'*1000}]
+        save_conversation(w['people'][0]['id'],conversation)
+    simple=w['editor'].post('/api/chat/budget',headers=headers(w['a']),json=w['payload'])
+    history=w['editor'].post('/api/chat/budget',headers=headers(w['a']),json={**w['payload'],'conversation_id':conversation['id']})
+    assert simple.status_code==history.status_code==200
+    assert history.json()['estimated_input_tokens']-simple.json()['estimated_input_tokens']==6064
+    from app.services import members
+    members.assign_roles(w['operator'],w['people'][1]['id'],[w['a']['roles']['editor']],w['a']['id'])
+    foreign=w['viewer'].post('/api/chat/budget',headers=headers(w['a']),json={**w['payload'],'conversation_id':conversation['id']})
+    assert foreign.status_code==404 and not w['calls']
 
 
 @pytest.mark.parametrize('path', ['/api/chat', '/api/chat/stream'])

@@ -40,12 +40,27 @@ class TokenRequest(BaseModel):
 
 # ── AI Reference ──
 
+class AttachmentSheetRange(BaseModel):
+    model_config = {'extra':'forbid'}
+    name: str = Field(min_length=1,max_length=31)
+    region: str = Field(default='',max_length=32,pattern=r'^(?:[A-Za-z]{1,3}[1-9][0-9]{0,6}:[A-Za-z]{1,3}[1-9][0-9]{0,6})?$')
+
+
+class AttachmentSelection(BaseModel):
+    model_config = {'extra':'forbid'}
+    kind: Literal['docx','xlsx']
+    sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+    sections: List[str] = Field(default_factory=list,max_length=200)
+    sheets: List[AttachmentSheetRange] = Field(default_factory=list,max_length=100)
+
+
 class AIReference(BaseModel):
     url: str = ""
     name: str = ""
     role: str = ""
     kind: str = ""
     mime: str = ""
+    selection: Optional[AttachmentSelection] = None
 
 
 # ── Online Image ──
@@ -137,6 +152,7 @@ class ApiProviderPayload(BaseModel):
     primary: bool = False
     image_models: List[str] = []
     chat_models: List[str] = []
+    chat_context_limits: Dict[str, int] = {}
     video_models: List[str] = []
     model_prices: Optional[List[Dict[str, Any]]] = None
     model_protocols: Dict[str, str] = {}
