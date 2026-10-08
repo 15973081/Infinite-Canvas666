@@ -38,6 +38,29 @@ def invite(client, name='新成员'):
     return response.json()
 
 
+def test_member_search_status_and_cursor_are_applied_together(platform):
+    from app.services import members
+    c = platform['client']
+    prefix = 'filter-' + uuid.uuid4().hex[:10]
+    people = [invite(c, prefix + suffix) for suffix in ('Alpha', 'Beta', 'Gamma')]
+    members.activate(people[0]['activation_token'], PASSWORD)
+    members.activate(people[1]['activation_token'], PASSWORD)
+    members.set_member_status(platform['operator'], people[1]['member']['id'], 'disabled')
+    for status, person in zip(('active', 'disabled', 'invited'), people):
+        response = c.get('/api/members', params={'search': prefix, 'status': status})
+        assert response.status_code == 200
+        assert [row['id'] for row in response.json()['members']] == [person['member']['id']]
+    username = people[0]['member']['username']
+    assert c.get('/api/members', params={'search': username.upper()}).json()['members'][0]['id'] == people[0]['member']['id']
+    first = c.get('/api/members', params={'search': prefix, 'limit': 1}).json()
+    second = c.get('/api/members', params={'search': prefix, 'limit': 1, 'after': first['next']}).json()
+    assert first['members'][0]['id'] != second['members'][0]['id']
+    assert c.get('/api/members', params={'status': 'invalid'}).status_code == 422
+    assert not c.get('/api/members', params={'search': prefix + '%'}).json()['members']
+    wid = space(c, platform['operator'].member_id)['id']
+    assert not c.get('/api/members', params={'workspace': wid, 'search': prefix, 'status': 'invited'}).json()['members']
+
+
 def space(client, administrator):
     response = client.post('/api/workspaces', json={'name': '管理验收空间', 'administrator_id': administrator})
     assert response.status_code == 201, response.text

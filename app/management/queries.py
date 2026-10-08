@@ -39,20 +39,25 @@ def require_assignment(conn, actor, workspace):
         az.require(conn, actor, 'space.members.manage' if workspace else 'role.manage', workspace)
 
 
-def directory(actor, *, workspace=None, search='', after='', limit=50):
+def directory(actor, *, workspace=None, search='', after='', limit=50, status=''):
+    if status not in ('', 'active', 'invited', 'disabled'):
+        az.fail('invalid_member_status')
+    pattern = '%' + search.strip().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
     with az.policy_transaction() as conn:
         if workspace:
             require_assignment(conn, actor, workspace)
             rows = conn.execute('''SELECT m.id,m.username,m.display_name,m.avatar,m.status,m.auth_version
                 FROM members m JOIN workspace_members w ON w.member_id=m.id
                 WHERE w.workspace_id=%s AND m.id>%s
-                AND (m.username ILIKE %s OR m.display_name ILIKE %s) ORDER BY m.id LIMIT %s''',
-                (workspace, after, '%' + search + '%', '%' + search + '%', limit + 1)).fetchall()
+                AND (m.username ILIKE %s OR m.display_name ILIKE %s)
+                AND (%s='' OR m.status=%s) ORDER BY m.id LIMIT %s''',
+                (workspace, after, pattern, pattern, status, status, limit + 1)).fetchall()
         else:
             az.require(conn, actor, 'member.manage')
             rows = conn.execute('''SELECT id,username,display_name,avatar,status,auth_version FROM members
-                WHERE id>%s AND (username ILIKE %s OR display_name ILIKE %s) ORDER BY id LIMIT %s''',
-                (after, '%' + search + '%', '%' + search + '%', limit + 1)).fetchall()
+                WHERE id>%s AND (username ILIKE %s OR display_name ILIKE %s)
+                AND (%s='' OR status=%s) ORDER BY id LIMIT %s''',
+                (after, pattern, pattern, status, status, limit + 1)).fetchall()
         result = []
         for row in rows[:limit]:
             if workspace:

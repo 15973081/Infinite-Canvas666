@@ -319,8 +319,9 @@ def create_app(static_dir=None):
 
     @app.get('/api/members')
     def directory_members(request: Request, workspace: str | None = None, search: str = Query('', max_length=80),
-                          after: str = Query('', max_length=80), limit: int = Query(50, ge=1, le=100)):
-        return queries.directory(actor(request), workspace=workspace, search=search, after=after, limit=limit)
+                          after: str = Query('', max_length=80), limit: int = Query(50, ge=1, le=100),
+                          status: str = Query('', pattern=r'^(active|invited|disabled)?$')):
+        return queries.directory(actor(request), workspace=workspace, search=search, after=after, limit=limit, status=status)
 
     @app.get('/api/member-lookup')
     def member_lookup(request: Request, username: str = Query(min_length=1, max_length=64), workspace: str | None = None):

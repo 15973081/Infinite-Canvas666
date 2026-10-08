@@ -34,12 +34,12 @@
     const submit=el('button','保存图片工具配置');submit.type='submit';submit.className='primary';footer.append(submit,status);
     let revision=data.revision,busy=false;
     form.onsubmit=async event=>{
-      event.preventDefault();if(busy)return;busy=true;
+      event.preventDefault();if(busy)return;busy=true;form.dataset.saving='true';
       const config=Object.fromEntries(Object.entries(controls).map(([kind,fields])=>[kind,Object.fromEntries(Object.entries(fields).map(([key,control])=>[key,key==='enabled'?control.checked:control.value]))]));
       const inputs=[...form.querySelectorAll('input,select,textarea,button')];inputs.forEach(e=>e.disabled=true);status.textContent='正在保存…';
-      try{const result=await save({config,expected_revision:revision,reason:reason.value});revision=result.revision;status.textContent='已保存，新提交的任务将使用此配置。';reason.value='';}
+      try{const result=await save({config,expected_revision:revision,reason:reason.value});revision=result.revision;status.textContent='已保存，新提交的任务将使用此配置。';reason.value='';form.dataset.dirty='false';}
       catch(error){status.textContent=error.message || '保存失败，请刷新后重试。';}
-      finally{busy=false;inputs.forEach(e=>e.disabled=false);}
+      finally{busy=false;form.dataset.saving='false';inputs.forEach(e=>e.disabled=false);}
     };
     return form;
   }

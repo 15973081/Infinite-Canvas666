@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 class Element {
-    constructor(tag, text='') { this.tag=tag; this.textContent=text; this.children=[]; this._value=''; this.disabled=false; }
+    constructor(tag, text='') { this.tag=tag; this.textContent=text; this.children=[]; this._value=''; this.disabled=false; this.dataset={}; }
     append(...items) { this.children.push(...items); if(this.tag==='select'&&!this._value)this._value=this.children[0]?.value||''; }
     replaceChildren(...items) { this.children=[]; this._value=''; this.append(...items); }
     setAttribute() {}

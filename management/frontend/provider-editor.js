@@ -83,13 +83,26 @@
     const extras=Object.fromEntries(Object.entries(config).filter(([key])=>!explicit.includes(key)&&!['ms_loras','ms_defaults_version'].includes(key)));
     field(advanced,'advanced','附加配置 JSON',JSON.stringify(extras,null,2),{type:'textarea',hint:'model_protocols 可为单个模型指定协议；model_prices 为价格记录。留空字段不改变其他空间分配。'}).maxLength=2000000;
     if(row.version)advanced.append(action('协议与任务端点诊断',()=>{if(form.dataset.dirty==='true'){status.textContent='请先保存当前配置，再进行诊断。';return;}diagnose();}));
+    const navigation=node('div',undefined,'provider-section-tabs');navigation.setAttribute('role','tablist');navigation.setAttribute('aria-label','供应商配置分区');
+    const groups=[['连接',[basic]],['凭证',[credentials,volc]],['模型',[models]],['高级配置',[mediaModes,advanced]]];
+    const sectionPanels=[],sectionTabs=[];
+    function activate(index,focus=false){sectionPanels.forEach((panel,i)=>panel.hidden=i!==index);sectionTabs.forEach((tab,i)=>{tab.setAttribute('aria-selected',String(i===index));tab.tabIndex=i===index?0:-1;});if(focus)sectionTabs[index].focus();}
+    groups.forEach(([name,sections],index)=>{
+      const panel=node('div',undefined,'provider-section-panel'),tab=action(name,()=>activate(index));
+      const id='provider-section-'+index;panel.id=id;panel.setAttribute('role','tabpanel');tab.id=id+'-tab';tab.setAttribute('role','tab');tab.setAttribute('aria-controls',id);panel.setAttribute('aria-labelledby',tab.id);
+      panel.append(...sections);navigation.append(tab);sectionPanels.push(panel);sectionTabs.push(tab);
+      tab.onkeydown=event=>{let target;if(event.key==='ArrowRight')target=(index+1)%groups.length;if(event.key==='ArrowLeft')target=(index+groups.length-1)%groups.length;if(event.key==='Home')target=0;if(event.key==='End')target=groups.length-1;if(target!==undefined){event.preventDefault();activate(target,true);}};
+    });
+    advanced.open=true;form.append(navigation,...sectionPanels);activate(0);
+    form.addEventListener('invalid',event=>{const index=sectionPanels.findIndex(panel=>panel.contains(event.target));if(index>=0)activate(index);},true);
     const footer=node('div',undefined,'provider-save-footer');field(footer,'reason','本次修改说明',row.version?'调整供应商配置':'配置供应商连接',{required:true,hint:'随配置变更记录，便于回溯。'}).maxLength=1000;
     const status=node('p','','provider-save-status');status.setAttribute('role','status');const bottom=node('button','保存配置','primary');bottom.type='submit';footer.append(bottom,status);form.append(footer);
-    form.oninput=()=>{form.dataset.dirty='true';onDirty(true);};form.onchange=()=>{form.dataset.dirty='true';onDirty(true);};
-    form.onsubmit=async e=>{e.preventDefault();if(!current())return;saveButton.disabled=bottom.disabled=true;status.textContent='正在保存…';
-      try{const value=payload(row,new FormData(form));await save(value);if(current()){form.dataset.dirty='false';onDirty(false);status.textContent='配置已保存';}}
+    form.oninput=()=>{form.dataset.dirty='true';onDirty(true);status.textContent='有未保存的修改';};form.onchange=form.oninput;
+    form.onsubmit=async e=>{e.preventDefault();if(!current()||form.dataset.saving==='true')return;
+      let controls=[];status.textContent='正在保存…';
+      try{const value=payload(row,new FormData(form));form.dataset.saving='true';controls=[...form.querySelectorAll('input,textarea,select,button')].map(control=>[control,control.disabled]);controls.forEach(([control])=>control.disabled=true);await save(value);if(current()){form.dataset.dirty='false';onDirty(false);status.textContent='配置已保存';}}
       catch(error){if(current())status.textContent=error.message;}
-      finally{saveButton.disabled=bottom.disabled=false;}
+      finally{form.dataset.saving='false';controls.forEach(([control,disabled])=>control.disabled=disabled);}
     };
     return form;
   }

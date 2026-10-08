@@ -3,6 +3,32 @@
   const $ = (s) => document.querySelector(s);
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
   const names = {imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
+  let memberSearch = '', memberStatus = '';
+  let navigationReturnFocus;
+  function closeNavigation(restoreFocus = true) {
+    const wasOpen = $('#shell').classList.contains('navigation-open');
+    $('#shell').classList.remove('navigation-open');
+    $('#navigation-backdrop').hidden = true;
+    $('#open-navigation').setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('navigation-locked');
+    $('#shell main').inert = false;
+    $('#admin-navigation').removeAttribute('role');
+    $('#admin-navigation').removeAttribute('aria-modal');
+    if (restoreFocus && wasOpen) navigationReturnFocus?.focus();
+    navigationReturnFocus = null;
+  }
+  function openNavigation() {
+    navigationReturnFocus = document.activeElement;
+    $('#shell').classList.add('navigation-open');
+    $('#navigation-backdrop').hidden = false;
+    $('#open-navigation').setAttribute('aria-expanded', 'true');
+    document.body.classList.add('navigation-locked');
+    $('#shell main').inert = true;
+    $('#admin-navigation').setAttribute('role', 'dialog');
+    $('#admin-navigation').setAttribute('aria-modal', 'true');
+    $('#admin-navigation').setAttribute('aria-label', '管理导航');
+    $('#close-navigation').focus();
+  }
   const errors = {
     invalid_model_policy:'请检查模型开关、开放规格和视频秒数范围（正整数，最短不大于最长）。',
     invalid_model_discount:'折扣支付比例须为 0–100%，结束时间须晚于开始时间，同一规格的时段不能重叠；交叉规格必须有明确包含关系，具体规格覆盖通用规则。',
@@ -112,24 +138,25 @@
   function dialog(title, elements, submit, confirmText = '确认保存', wide = false) {
     const d = $('#dialog'), f = $('#dialog-form'), error = el('p', '', 'dialog-error');
     error.setAttribute('role', 'alert'); error.hidden = true;
-    d.classList.toggle('wide', wide); f.reset(); $('#dialog-body').replaceChildren(el('h2', title), ...elements, error);
+    d.classList.toggle('wide', wide); f.reset(); f.dataset.dirty='false'; $('#dialog-body').replaceChildren(el('h2', title), ...elements, error);
     $('#confirm-dialog').textContent = confirmText; $('#confirm-dialog').hidden = !submit; $('#cancel-dialog').textContent = submit ? '取消' : '关闭';
     f.onsubmit = e => { e.preventDefault(); execute(async () => {
       error.hidden = true;
-      try { await submit(new FormData(f)); }
+      f.dataset.saving='true';
+      try { await submit(new FormData(f)); f.dataset.dirty='false'; }
       catch (failure) {
         if (!error.isConnected || !d.open) return;
         error.textContent = failure.message; error.hidden = false; return;
-      }
+      } finally {f.dataset.saving='false';}
       if (!error.isConnected || !d.open) return;
-      $('#message').hidden = true; d.close(); await refresh();
+      d.close(); await refresh(); notice('操作已完成');
     }, $('#confirm-dialog')); };
     if (!d.open) d.showModal();
   }
   function tokenDialog(token) {
     dialog('成员激活凭证', [el('p', '请将此凭证交给对应成员，用于首次设置密码。凭证在 24 小时后失效，请妥善保存。'), el('div', token, 'token')], null);
   }
-  function showLogin() { me = null; serial++; $('#shell').hidden = $('#unavailable').hidden = true; $('#login').hidden = false; $('#dialog').close(); $('#content').replaceChildren(); }
+  function showLogin() { closeNavigation(false); me = null; serial++; $('#shell').hidden = $('#unavailable').hidden = true; $('#login').hidden = false; $('#dialog').close(); $('#content').replaceChildren(); }
   async function refresh() {
     try { me = await api('/api/me'); } catch(e) {
       if (e.status !== 401) { serial++; $('#shell').hidden = $('#login').hidden = true; $('#unavailable').hidden = false; $('#unavailable-reason').textContent = e.message; $('#dialog').close(); $('#content').replaceChildren(); }
@@ -146,8 +173,19 @@
   async function render() {
     const requestSerial = ++serial, content = $('#content');
     $('#title').textContent = names[view];
-    document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
-    content.replaceChildren(el('p', '正在读取…', 'muted'));
+    document.querySelectorAll('[data-view]').forEach(b => {
+      const active = b.dataset.view === view;
+      b.classList.toggle('active', active);
+      if (active) {
+        b.setAttribute('aria-current', 'page');
+        const group = b.closest('.nav-group');
+        if (group) group.open = true;
+        $('#section-label').textContent = group ? group.querySelector('summary').textContent : '工作空间 / OVERVIEW';
+      } else b.removeAttribute('aria-current');
+    });
+    const loading = el('p', '正在加载' + names[view] + '…', 'loading-state');
+    loading.setAttribute('role', 'status'); content.setAttribute('aria-busy', 'true'); content.replaceChildren(loading);
+    try {
     const result = await ({
       imageTools: imageToolsView,
       modelBilling: modelBillingView,
@@ -167,6 +205,12 @@
     // A page/scope change or logout increments serial while this view is loading.
     // Its late response must not replace the newer page.
     if (requestSerial === serial) content.replaceChildren(...result);
+    } catch (error) {
+      if (requestSerial !== serial || !me) return;
+      const failed = el('section', undefined, 'card error-state');
+      failed.append(el('h2', names[view] + '加载失败'), el('p', error.message), button('重新加载', render));
+      content.replaceChildren(failed);
+    } finally { if (requestSerial === serial) content.setAttribute('aria-busy', 'false'); }
   }
   async function imageToolsView(){
     if(!me.permissions.includes('provider.configure'))return denied();
@@ -247,6 +291,7 @@
       cards.append(overviewMetric('已登记素材容量', data.assets ? overviewBytes(data.assets.ready_bytes) : null,
         '已就绪原件与预览的合计；未完成上传、内部缓存和备份不在其中，实际磁盘占用可能更高。'));
       cards.append(overviewMetric('任务总数', data.tasks?.total, data.tasks ? '排队 ' + data.tasks.queued + ' · 执行中 ' + data.tasks.active + ' · 待核对 ' + data.tasks.needs_review : '需要任务核对权限。'));
+      if (data.tasks?.needs_review) cards.append(button('处理待核对任务 · ' + data.tasks.needs_review, () => { view='tasks'; taskStatus='needs_review'; taskAfter=''; return render(); }, 'primary'));
     }
     const maintenance = el('section', undefined, 'card'); maintenance.append(el('h2', '维护与服务'));
     const modes = {normal:'正常开放',scheduled:'已计划维护',draining:'正在排空',read_only:'只读',offline:'暂停访问',recovering:'恢复检查'};
@@ -257,7 +302,18 @@
       if (data.maintenance.drain_deadline) maintenance.append(el('p', '收尾截止：' + new Date(data.maintenance.drain_deadline).toLocaleString(), 'muted'));
       const services = data.services || [];
       if (!services.length) maintenance.append(el('p', '尚无业务服务心跳记录。', 'muted'));
-      services.forEach(service => maintenance.append(el('p', (service.kind === 'workbench' ? '工作台' : '生成执行服务') + '：在线 ' + service.online + ' · 失联未确认 ' + service.unknown + ' · 已记录停止 ' + service.stopped)));
+      const currentServices = el('div', undefined, 'service-grid');
+      const history = el('details', undefined, 'service-history');
+      history.append(el('summary', '历史服务记录 · 失联未确认 ' + services.reduce((n, s) => n + (s.unknown || 0), 0)));
+      services.forEach(service => {
+        const name = service.kind === 'workbench' ? '工作台' : '生成执行服务';
+        const row = el('div', undefined, 'service-status');
+        row.append(el('span', name), el('strong', service.online ? '在线 ' + service.online : '无在线心跳', service.online ? 'status-online' : 'status-warning'));
+        currentServices.append(row);
+        history.append(el('p', name + '：失联未确认 ' + service.unknown + ' · 已记录停止 ' + service.stopped, 'muted'));
+      });
+      maintenance.append(currentServices);
+      if (services.length) maintenance.append(history);
       maintenance.append(el('p', '服务心跳反映最近上报状态。维护发布前仍需完成维护中心的逐项核对。', 'muted'), button('打开维护中心', () => { view='maintenance'; return render(); }));
     } else maintenance.append(el('p', '未授权，需要当前范围的维护权限。', 'muted'));
     const backup = el('section', undefined, 'card'); backup.append(el('h2', '最近备份'));
@@ -266,12 +322,22 @@
       backup.append(el('p', '记录 ' + data.backup.total + ' · 待完成 ' + data.backup.pending));
       backup.append(el('p', latest ? (states[latest.status] || latest.status) + ' · ' + new Date(latest.completed_at || latest.created_at).toLocaleString() : '尚无备份记录。', 'muted'));
       backup.append(button('查看备份记录', () => { view='backups'; backupAfter=''; return render(); }));
+      if (latest?.status === 'failed') backup.append(button('检查最近失败备份', () => { view='backups'; backupAfter=''; return render(); }, 'danger'));
     } else backup.append(el('p', '未授权，需要当前范围的备份读取权限。', 'muted'));
     return [toolbar, summary, cards, maintenance, backup];
   }
   async function memberView() {
     if (!(workspace ? allowed('space.members.manage') || me.permissions.includes('space.assign') : allowed('member.manage'))) return denied();
-    const data = await api(scoped('/api/members', {after: pageAfter}));
+    const data = await api(scoped('/api/members', {after: pageAfter, search: memberSearch, status: memberStatus}));
+    const filters = el('form', undefined, 'toolbar member-filters');
+    const searchLabel = el('label', '账号或名称'), search = el('input'); search.type='search'; search.maxLength=80; search.placeholder='搜索账号或成员名称'; search.value=memberSearch; searchLabel.append(search);
+    const statusLabel = el('label', '成员状态'), status = el('select');
+    for (const [value, name] of [['','全部状态'],['active','已激活'],['invited','待激活'],['disabled','已停用']]) { const option=el('option',name); option.value=value; status.append(option); }
+    status.value=memberStatus; statusLabel.append(status);
+    const apply=el('button','搜索','primary'); apply.type='submit';
+    filters.append(searchLabel,statusLabel,apply,button('重置筛选',()=>{memberSearch=memberStatus=pageAfter='';return render();}));
+    filters.onsubmit=event=>{event.preventDefault();memberSearch=search.value.trim();memberStatus=status.value;pageAfter='';return execute(render,apply);};
+    status.onchange=()=>{memberSearch=search.value.trim();memberStatus=status.value;pageAfter='';return execute(render);};
     const toolbar = el('div', undefined, 'toolbar');
     if (!workspace) toolbar.append(button('创建成员', () => {
       dialog('创建成员', [field('username', '登录账号'), field('display_name', '显示名称')], async f => {
@@ -293,14 +359,16 @@
       if (workspace && allowed('space.members.manage')) ops.push(button('撤销空间', () => dialog('撤销空间成员', [el('p', `将撤销 ${m.display_name} 在当前空间的访问资格。其他空间的资格不受影响。`)], () => call(`/api/workspaces/${workspace}/members/${m.id}?expected_version=${m.auth_version}`, 'DELETE'), '确认撤销'), 'danger'));
       if (!workspace) {
         ops.push(button(m.status === 'disabled' ? '启用' : '停用', () => dialog('更改成员状态', [el('p', `${m.display_name}：${m.status === 'disabled' ? '恢复账号访问' : '停用账号并撤销全部登录会话'}。`)], () => call('/api/members/' + m.id, 'PATCH', {status: m.status === 'disabled' ? 'active' : 'disabled'}))));
-        ops.push(button('重置密码', () => dialog('重置成员登录', [el('p', `为 ${m.display_name} 生成新激活凭证，旧会话将失效。`)], async () => { const r = await call('/api/members/' + m.id + '/reset', 'POST'); setTimeout(() => tokenDialog(r.activation_token), 0); }, '确认重置')));
-        ops.push(button('撤销会话', () => dialog('撤销成员会话', [el('p', `${m.display_name} 将需要重新登录工作台与管理平台。`)], () => call('/api/members/' + m.id + '/revoke-sessions', 'POST'), '确认撤销')));
+        const more=el('details',undefined,'row-more'); more.append(el('summary','更多操作'));
+        more.append(button('重置密码', () => dialog('重置成员登录', [el('p', `为 ${m.display_name} 生成新激活凭证，旧会话将失效。`)], async () => { const r = await call('/api/members/' + m.id + '/reset', 'POST'); setTimeout(() => tokenDialog(r.activation_token), 0); }, '确认重置')));
+        more.append(button('撤销会话', () => dialog('撤销成员会话', [el('p', `${m.display_name} 将需要重新登录工作台与管理平台。`)], () => call('/api/members/' + m.id + '/revoke-sessions', 'POST'), '确认撤销')));
+        ops.push(more);
       }
       return [labelText(m.display_name, m.username), {active: '已激活', invited: '待激活', disabled: '已停用'}[m.status], String(m.role_ids.length), actions(...ops)];
     });
     const pages = el('div', undefined, 'toolbar'); if (pageAfter) pages.append(button('回到首页', () => { pageAfter = ''; return render(); }));
     if (data.next) pages.append(button('下一页', () => { pageAfter = data.next; return render(); }));
-    return [toolbar, rows.length ? table(['成员', '状态', '角色数量', '操作'], rows) : el('div', '当前范围还没有成员。', 'empty'), pages];
+    return [filters, toolbar, rows.length ? table(['成员', '状态', '角色数量', '操作'], rows) : el('div', memberSearch || memberStatus ? '没有符合筛选条件的成员，请调整搜索或重置筛选。' : '当前范围还没有成员。', 'empty'), pages];
   }
   async function assignDialog(m) {
     const data = await api(scoped('/api/roles'));
@@ -445,8 +513,10 @@
   }
   let providerSelection='', providerDraft=null, providerDirty=false;
   function leaveProviderEditor() {
-    if(providerDirty && !window.confirm('当前供应商配置尚未保存，确认放弃这些修改？'))return false;
-    providerDirty=false;return true;
+    if(document.querySelector('#content form[data-saving="true"], #dialog[open] form[data-saving="true"]')){notice('正在保存，请等待完成后再切换。');return false;}
+    const forms=document.querySelectorAll('#content form[data-dirty="true"], #dialog[open] form[data-dirty="true"]');
+    if((providerDirty||forms.length)&&!window.confirm('当前配置尚未保存，确认放弃这些修改？'))return false;
+    forms.forEach(form=>form.dataset.dirty='false');providerDirty=false;return true;
   }
   function editProvider(row) {
     if(!leaveProviderEditor())return;
@@ -892,10 +962,30 @@
       actions(button('查看待核对页面', () => showPageReports()), button('查看已核对页面', () => showPageReports(true))));
     return [summary, toolbar, metrics, pages, releaseChecksPanel(activity.release_checks), services];
   }
-  $('#cancel-dialog').onclick = () => $('#dialog').close();
-  $('#scope').onchange = () => execute(() => { if(view==='providers'&&!leaveProviderEditor()){$('#scope').value=workspace;return;} workspace = $('#scope').value; occupancyAfter = ''; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
-  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { if(view==='providers'&&!leaveProviderEditor())return; view = b.dataset.view; occupancyAfter = ''; pageAfter = auditBefore = ''; return render(); }, b));
-  $('#logout').onclick = () => execute(async () => { await call('/api/auth/logout', 'POST'); showLogin(); });
+  function closeDialog(){const form=$('#dialog-form');if(form.dataset.saving==='true'){notice('正在保存，请等待完成。');return;}if(form.dataset.dirty==='true'&&!window.confirm('弹窗中有未保存的修改，确认关闭？'))return;form.dataset.dirty='false';$('#dialog').close();}
+  $('#cancel-dialog').onclick = closeDialog;
+  $('#dialog').addEventListener('cancel',event=>{event.preventDefault();closeDialog();});
+  document.addEventListener('input',event=>{const form=event.target.closest('form');if(form&&(form.closest('#content')||form.id==='dialog-form')&&!form.classList.contains('member-filters'))form.dataset.dirty='true';});
+  document.addEventListener('change',event=>{const form=event.target.closest('form');if(form&&(form.closest('#content')||form.id==='dialog-form')&&!form.classList.contains('member-filters'))form.dataset.dirty='true';});
+  window.addEventListener('beforeunload',event=>{if(providerDirty||document.querySelector('#content form[data-dirty="true"], #dialog[open] form[data-dirty="true"], form[data-saving="true"]')){event.preventDefault();event.returnValue='';}});
+  $('#scope').onchange = () => execute(() => { if(!leaveProviderEditor()){$('#scope').value=workspace;return;} workspace = $('#scope').value; occupancyAfter = ''; backupAfter = ''; taskAfter = ''; pageAfter = auditBefore = ''; return render(); });
+  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => execute(() => { if(!leaveProviderEditor())return; closeNavigation(); view = b.dataset.view; occupancyAfter = ''; pageAfter = auditBefore = ''; return render(); }, b));
+  $('#open-navigation').onclick = openNavigation;
+  $('#close-navigation').onclick = () => closeNavigation();
+  $('#navigation-backdrop').onclick = () => closeNavigation();
+  const mobileNavigation = window.matchMedia('(max-width: 760px)');
+  mobileNavigation.addEventListener('change', () => closeNavigation(false));
+  document.addEventListener('keydown', event => {
+    if (!$('#shell').classList.contains('navigation-open')) return;
+    if (event.key === 'Escape') { event.preventDefault(); closeNavigation(); }
+    if (event.key === 'Tab') {
+      const controls = Array.from($('#admin-navigation').querySelectorAll('button,summary,a[href]')).filter(e => e.getClientRects().length && !e.disabled);
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  });
+  $('#logout').onclick = () => execute(async () => { if(!leaveProviderEditor())return; await call('/api/auth/logout', 'POST'); showLogin(); });
   $('#unavailable-logout').onclick = $('#logout').onclick;
   $('#retry').onclick = () => execute(refresh);
   $('#login-form').onsubmit = e => { e.preventDefault(); execute(async () => {

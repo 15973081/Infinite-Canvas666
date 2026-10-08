@@ -17,7 +17,10 @@ function text(nodes){return flatten(nodes).map(node=>node.text).join(' ');}
 test('selected scope displays real resource counts and navigates to maintenance and backups',async()=>{
   const calls=[],c=harness(async path=>{calls.push(path);return data();}),nodes=await c.overview(),value=text(nodes);
   assert.deepEqual(calls,['/api/overview?workspace=space_a']);
-  for(const phrase of ['设计空间','经典 2 · 智能 1 · 回收站 4','派生预览 2 份','1.5 KiB','排队 3 · 执行中 2 · 待核对 1','今晚维护','在线 1 · 失联未确认 2 · 已记录停止 3','失败'])assert.ok(value.includes(phrase),phrase);
+  for(const phrase of ['设计空间','经典 2 · 智能 1 · 回收站 4','派生预览 2 份','1.5 KiB','排队 3 · 执行中 2 · 待核对 1','今晚维护','在线 1','失联未确认 2 · 已记录停止 3','失败'])assert.ok(value.includes(phrase),phrase);
+  const serviceHistory=flatten(nodes).find(n=>n.css==='service-history');
+  assert.ok(serviceHistory); assert.equal(serviceHistory.tag,'details');
+  assert.ok(!text(flatten(nodes).filter(n=>n.css==='service-status')).includes('失联未确认'));
   flatten(nodes).find(n=>n.text==='打开维护中心').action();assert.equal(c.view,'maintenance');assert.ok(c.rendered);
   flatten(nodes).find(n=>n.text==='查看备份记录').action();assert.equal(c.view,'backups');assert.equal(c.backupAfter,'');
   flatten(nodes).find(n=>n.text==='刷新概览').action();assert.ok(c.refreshed);

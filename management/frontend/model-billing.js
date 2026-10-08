@@ -94,11 +94,11 @@
             ).join('；')+'（单位同基础价格；实际按时段及最具体规则匹配，不叠加。基础价已含优惠时会再次打折。）';
           }
           line.append(resLabel);if(k==='video')line.append(videoLabel);
-          const record={line,start,end,rate,label,resolution,video,refreshPreview};remove.onclick=()=>{line.remove();discountInputs.splice(discountInputs.indexOf(record),1);dirty=true;};rate.required=true;line.append(sl,tl,pl,nl,preview,remove);list.append(line);discountInputs.push(record);refreshPreview();}
-        (config.model_discounts||[]).filter(r=>r.kind===k&&r.model===m).forEach(add);const plus=node('button','添加折扣时段');plus.type='button';plus.onclick=()=>{add({effective_from:Date.now()});dirty=true;};block.append(plus);form.append(block);
+          const record={line,start,end,rate,label,resolution,video,refreshPreview};remove.onclick=()=>{line.remove();discountInputs.splice(discountInputs.indexOf(record),1);dirty=true;form.dataset.dirty='true';};rate.required=true;line.append(sl,tl,pl,nl,preview,remove);list.append(line);discountInputs.push(record);refreshPreview();}
+        (config.model_discounts||[]).filter(r=>r.kind===k&&r.model===m).forEach(add);const plus=node('button','添加折扣时段');plus.type='button';plus.onclick=()=>{add({effective_from:Date.now()});dirty=true;form.dataset.dirty='true';};block.append(plus);form.append(block);
       }
-      const [reasonLabel,reason]=input('修改原因');reason.required=true;reason.maxLength=1000;reason.placeholder='简要说明本次调整，便于后续核对';const submit=node('button','保存当前模型配置','primary'),status=node('p','','muted model-billing-status');status.setAttribute('role','status');const footer=node('section',undefined,'provider-block model-billing-footer');footer.append(reasonLabel,submit,status);form.append(footer);form.oninput=form.onchange=()=>{dirty=true;discountInputs.forEach(r=>r.refreshPreview());};
-      form.onsubmit=async event=>{event.preventDefault();if(saving)return;saving=true;
+      const [reasonLabel,reason]=input('修改原因');reason.required=true;reason.maxLength=1000;reason.placeholder='简要说明本次调整，便于后续核对';const submit=node('button','保存当前模型配置','primary'),status=node('p','','muted model-billing-status');status.setAttribute('role','status');const footer=node('section',undefined,'provider-block model-billing-footer');footer.append(reasonLabel,submit,status);form.append(footer);form.oninput=form.onchange=()=>{dirty=true;form.dataset.dirty='true';discountInputs.forEach(r=>r.refreshPreview());};
+      form.onsubmit=async event=>{event.preventDefault();if(saving)return;saving=true;form.dataset.saving='true';
         const controls=[...root.querySelectorAll('input,select,button')].map(control=>[control,control.disabled]);
         controls.forEach(([control])=>{control.disabled=true;});status.textContent='正在保存，请稍候再编辑或切换模型…';try{
         const next=structuredClone(config);delete next.id;delete next.primary;
@@ -123,8 +123,8 @@
         }
         const saved=await save(row,{config:next,expected_version:version,reason:reason.value});
         row.version=saved.version;row.config=saved.config;config=structuredClone(saved.config);version=saved.version;
-        status.textContent=`已保存 ${m} 的配置；其他模型配置不变，历史任务费用保持原快照。`;dirty=false;
-      }catch(error){status.textContent=error.message;}finally{saving=false;controls.forEach(([control,disabled])=>{control.disabled=disabled;});}};
+        status.textContent=`已保存 ${m} 的配置；其他模型配置不变，历史任务费用保持原快照。`;dirty=false;form.dataset.dirty='false';
+      }catch(error){status.textContent=error.message;}finally{saving=false;form.dataset.saving='false';controls.forEach(([control,disabled])=>{control.disabled=disabled;});}};
     }
     models();return root;
   }
