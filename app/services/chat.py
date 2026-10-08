@@ -33,7 +33,7 @@ def save_conversation(user_id, conversation):
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(conversation, f, ensure_ascii=False, indent=2)
 
-def new_conversation(user_id, title="新对话"):
+def new_conversation(user_id, title="新对话", *, persist=True):
     timestamp = now_ms()
     conversation = {
         "id": uuid.uuid4().hex,
@@ -42,7 +42,8 @@ def new_conversation(user_id, title="新对话"):
         "updated_at": timestamp,
         "messages": [],
     }
-    save_conversation(user_id, conversation)
+    if persist:
+        save_conversation(user_id, conversation)
     return conversation
 
 def load_conversation(user_id, conversation_id):

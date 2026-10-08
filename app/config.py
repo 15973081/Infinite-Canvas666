@@ -42,7 +42,7 @@ GLOBAL_CONFIG_FILE = os.path.join(RUNTIME_DIR, "global_config.json")
 APP_VERSION = "2026.06.03"
 
 # ── Misc constants ──
-MAX_ATTACHMENT_TEXT_CHARS = 12000
+MAX_ATTACHMENT_TEXT_CHARS = 100000
 AVATAR_SUPPORTED_PLATFORMS = {"apimart", "volcengine"}
 
 # ── Config constants ──

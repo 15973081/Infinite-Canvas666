@@ -38,7 +38,7 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
     conversation = (
         load_conversation(user_id, payload.conversation_id)
         if payload.conversation_id
-        else new_conversation(user_id, display_title(payload.message))
+        else new_conversation(user_id, display_title(payload.message), persist=False)
     )
     if not conversation.get("messages"):
         conversation["title"] = display_title(payload.message)
@@ -56,15 +56,14 @@ async def chat(payload: ChatRequest, request: Request, x_user_id: str = Header(d
     }
     conversation["messages"].append(user_message)
     conversation["updated_at"] = now_ms()
-    save_conversation(user_id, conversation)
-
     _conv_is_apimart = is_apimart_provider(_conv_provider)
     history = conversation["messages"][-MAX_HISTORY_MESSAGES:]
     upstream_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for item in history:
-        msg = upstream_message_from_record(item)
+        msg = await asyncio.to_thread(upstream_message_from_record, item)
         if msg:
             upstream_messages.append(msg)
+    save_conversation(user_id, conversation)
     from app.services import chat_billing
     billing = await asyncio.to_thread(chat_billing.begin, _conv_provider, model, conversation, user_id)
     raw_usage, outcome = None, 'uncertain'
@@ -120,7 +119,7 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
     conversation = (
         load_conversation(user_id, payload.conversation_id)
         if payload.conversation_id
-        else new_conversation(user_id, display_title(payload.message))
+        else new_conversation(user_id, display_title(payload.message), persist=False)
     )
     if not conversation.get("messages"):
         conversation["title"] = display_title(payload.message)
@@ -137,14 +136,13 @@ async def chat_stream(payload: ChatRequest, request: Request, x_user_id: str = H
     }
     conversation["messages"].append(user_message)
     conversation["updated_at"] = now_ms()
-    save_conversation(user_id, conversation)
-
     history = conversation["messages"][-MAX_HISTORY_MESSAGES:]
     upstream_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for item in history:
-        msg = upstream_message_from_record(item)
+        msg = await asyncio.to_thread(upstream_message_from_record, item)
         if msg:
             upstream_messages.append(msg)
+    save_conversation(user_id, conversation)
 
     from app.services import chat_billing
     billing = await asyncio.to_thread(chat_billing.begin, _stream_provider, model, conversation, user_id)

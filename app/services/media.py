@@ -17,12 +17,9 @@ import functools
 import random
 import shutil
 import subprocess
-import html as html_lib
 import urllib.parse
 import urllib.request
 import uuid
-import zipfile
-import xml.etree.ElementTree as ET
 from typing import List, Dict, Any, Optional, Tuple
 from io import BytesIO
 
@@ -725,27 +722,19 @@ def read_text_attachment(path, limit=MAX_ATTACHMENT_TEXT_CHARS):
     ext = os.path.splitext(path or "")[1].lower()
     if not path or not os.path.isfile(path):
         return ""
+    from app.services.document_attachments import OFFICE_EXTENSIONS, office_attachment_text, clip_attachment_text
+    if ext in OFFICE_EXTENSIONS:
+        return office_attachment_text(path, limit)
     try:
-        if ext == ".docx":
-            with zipfile.ZipFile(path) as archive:
-                raw = archive.read("word/document.xml")
-            root = ET.fromstring(raw)
-            parts = []
-            for node in root.iter():
-                if node.tag.endswith("}t") and node.text:
-                    parts.append(node.text)
-                elif node.tag.endswith("}p"):
-                    parts.append("\n")
-            return html_lib.unescape("".join(parts)).strip()[:limit]
         if ext in TEXT_ATTACHMENT_EXTS:
             with open(path, "rb") as f:
                 data = f.read(min(os.path.getsize(path), limit * 4))
             for encoding in ("utf-8-sig", "utf-8", "gb18030"):
                 try:
-                    return data.decode(encoding, errors="strict").strip()[:limit]
+                    return clip_attachment_text(data.decode(encoding, errors="strict").strip(), limit)
                 except UnicodeDecodeError:
                     continue
-            return data.decode("utf-8", errors="replace").strip()[:limit]
+            return clip_attachment_text(data.decode("utf-8", errors="replace").strip(), limit)
     except Exception as exc:
         print(f"[chat] failed to read attachment text {path}: {exc}")
     return ""
@@ -756,7 +745,11 @@ def attachment_text_blocks(refs, limit_each=MAX_ATTACHMENT_TEXT_CHARS):
         if not isinstance(ref, dict) or is_image_reference(ref):
             continue
         path = output_file_from_url(ref.get("url", ""))
-        text = read_text_attachment(path, limit_each) if path else ""
+        try:
+            text = read_text_attachment(path, limit_each) if path else ""
+        except HTTPException as exc:
+            name = ref.get("name") or os.path.basename(path)
+            raise HTTPException(exc.status_code, f'附件“{name}”：{exc.detail}') from exc
         if not text:
             continue
         name = ref.get("name") or os.path.basename(path)
