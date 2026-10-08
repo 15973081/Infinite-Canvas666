@@ -472,7 +472,8 @@ function renderSmartCanvasLog(){
         if(target) target.textContent = ledger && !ledger.ready ? '读取中…' : value;
     });
     if(summary && ledger && !ledger.ready) summary.textContent = '正在读取全部费用流水…';
-    smartLogList.innerHTML = logs.length ? logs.map((log,index) => {
+    const costMode = smartLogList.closest('.log-panel')?.classList.contains('cost-mode');
+    const logMarkup = logs.length ? logs.map((log,index) => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = typeof item === 'string' ? item : (item?.url || '');
             if(!url) return '';
@@ -495,7 +496,7 @@ function renderSmartCanvasLog(){
             taskId ? `ID ${taskId}` : '',
             backend && backend!==log.platform ? backend : ''
         ].filter(Boolean);
-        return `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
+        const detail = `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
             <div class="log-main">
                 <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? '失败' : '成功')}</span>
                     <time class="log-entry-date">${escapeHtml(date)}</time><span class="log-entry-cost">${costChip}</span></div>
@@ -510,7 +511,10 @@ function renderSmartCanvasLog(){
             </div>
             <div class="log-thumbs">${thumbs}</div>
         </article>`;
+        return costMode ? window.CanvasLedger.costRow(log,index,{escape:escapeHtml,date,model:log.model,cost:costChip,thumbs,detail}) : detail;
     }).join('') : `<div class="log-empty">${escapeHtml('还没有生成日志')}</div>`;
+    smartLogList.innerHTML=costMode && logs.length ? window.CanvasLedger.costTable(logMarkup) : logMarkup;
+    window.CanvasLedger.bindCostDetails(smartLogList);
     bindSmartPreviewImageFallbacks(smartLogList);
     smartLogList.querySelectorAll('[data-url]').forEach(el => {
         el.onclick = e => {
@@ -527,7 +531,7 @@ function openSmartCanvasLog(mode='logs'){
     if(!canvas) return;
     document.getElementById('smartLogPanel')?.classList.toggle('cost-mode', mode === 'cost');
     const title = document.getElementById('smartLogTitle');
-    if(title) title.textContent = mode === 'cost' ? '费用仪表盘' : '生成日志';
+    if(title) title.textContent = mode === 'cost' ? '费用中心' : '生成日志';
     void window.CanvasLedger?.refresh(canvas.id);
     renderSmartCanvasLog();
     smartLogModal.classList.add('open');

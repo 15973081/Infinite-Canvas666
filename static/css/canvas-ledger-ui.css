@@ -1,4 +1,56 @@
 /* Shared generation history presentation for classic and smart canvases. */
+.log-panel.cost-mode{width:min(980px,94vw);background:var(--studio-panel);color:var(--studio-text)}
+.cost-mode .log-head{padding:24px 28px 12px;border:0;flex-shrink:0}
+.cost-mode .log-title{font-size:22px;font-weight:600}
+.cost-mode .log-cost-summary{font-size:12px;font-weight:400;color:var(--studio-muted,var(--studio-text-muted))}
+.cost-mode .cost-dashboard{grid-template-columns:1.3fr 1fr;grid-template-rows:repeat(3,auto);column-gap:36px;row-gap:6px;padding:20px 28px 24px;border-bottom:1px solid var(--studio-border);flex-shrink:0}
+.cost-mode .cost-card{padding:0;border:0;border-radius:0;background:transparent;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cost-mode .cost-card span,.cost-mode .cost-card small{font-size:12px;font-weight:400}
+.cost-mode .cost-card strong{font-size:14px;font-weight:500;margin:0;font-variant-numeric:tabular-nums}
+.cost-mode .cost-card-total{grid-row:1 / 4;display:block;border-right:1px solid var(--studio-border);padding-right:24px}
+.cost-mode .cost-card-total strong{font-size:42px;line-height:1.3;margin:8px 0;letter-spacing:-1.5px}
+.cost-mode .cost-card:not(.cost-card-total) small:empty{display:none}
+.cost-mode .cost-card:not(.cost-card-total) small:not(:empty){font-size:11px}
+.cost-mode .ledger-controls{padding:16px 28px 12px;background:transparent;border:0;flex-shrink:0}
+.ledger-filters,.ledger-pagination{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cost-mode .ledger-actions{gap:10px;font-size:12px;flex-direction:column;align-items:stretch}
+.cost-mode .ledger-pagination [data-recover]{margin-left:auto}
+.cost-mode .ledger-actions input,.cost-mode .ledger-actions button{font-size:12px;font-weight:400;min-height:32px;border-radius:6px}
+.cost-mode .ledger-note{margin-top:8px;font-size:11px;font-weight:400}
+.cost-mode .log-list{padding:0 28px 20px;display:block}
+.cost-ledger-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;color:var(--studio-text)}
+.cost-ledger-table th{background:var(--studio-page);font-weight:400;font-size:12px;color:var(--studio-text-muted);padding:10px 8px;text-align:left}
+.cost-ledger-table th:first-child{width:25%}.cost-ledger-table th:nth-child(2){width:36%}.cost-ledger-table th:nth-child(3){width:15%}.cost-ledger-table th:nth-child(4){width:10%}.cost-ledger-table th:nth-child(5){width:14%}
+.cost-ledger-row>td{padding:16px 8px;border-bottom:1px solid var(--studio-border);vertical-align:middle;overflow-wrap:anywhere}
+.cost-ledger-row time{display:block;font-size:12px;line-height:1.6}
+.cost-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--studio-success);margin-top:4px}
+.cost-status:before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}.cost-status.is-failed{color:var(--studio-error)}
+.cost-model{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cost-ledger-row small{display:block;color:var(--studio-text-muted);font-size:11px;margin-top:5px}
+.cost-ledger-table .cost-amount{text-align:right;font-variant-numeric:tabular-nums}
+.cost-amount .log-chip{display:inline;padding:0;border:0;background:transparent;color:var(--studio-text);font-weight:500;font-size:13px;height:auto}
+.cost-unpriced,.cost-amount .cost-unknown{color:var(--studio-text-muted);font-size:11px}
+.cost-detail-toggle{font:inherit;font-size:12px;border:1px solid var(--studio-border);color:var(--studio-text);background:transparent;padding:6px 9px;border-radius:6px;cursor:pointer}
+.cost-detail-toggle:focus-visible{outline:2px solid var(--studio-focus);outline-offset:2px}
+.cost-ledger-table .cost-resource{text-align:right}
+.cost-resource .log-thumbs{width:100%;max-width:none;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px}
+.cost-resource .log-thumbs img,.cost-resource .log-thumbs video{width:52px;height:52px;object-fit:cover;border-radius:8px;cursor:pointer}
+.cost-no-output{color:var(--studio-text-muted);font-size:11px}
+.cost-detail-row[hidden]{display:none}.cost-detail-row>td{padding:12px 0 18px;border-bottom:1px solid var(--studio-border)}
+.cost-detail-row .log-item{display:block;box-shadow:none;background:var(--studio-page);border:0;border-radius:8px;padding:16px}
+.cost-detail-row .log-thumbs{display:none}.cost-detail-row .log-entry-cost{display:none}
+.cost-detail-row .log-prompt{border:0;padding:12px 0 0;background:transparent}
+@media(max-width:640px){
+ .cost-mode .log-head{padding:16px}.cost-mode .cost-dashboard{padding:14px 16px 18px;column-gap:16px}
+ .cost-mode .cost-card-total strong{font-size:28px}.cost-mode .cost-card-total{padding-right:12px}
+ .cost-mode .ledger-controls{padding:12px 16px}.cost-mode .log-list{padding:0 12px 16px}
+ .cost-ledger-table th,.cost-ledger-row>td{padding:10px 3px;font-size:11px}
+ .cost-ledger-table th:first-child{width:23%}.cost-ledger-table th:nth-child(2){width:29%}.cost-ledger-table th:nth-child(3){width:17%}.cost-ledger-table th:nth-child(4){width:15%}.cost-ledger-table th:nth-child(5){width:16%}
+ .cost-model{font-size:12px}.cost-ledger-row time{font-size:11px}.cost-ledger-row small{font-size:10px}
+ .cost-resource .log-thumbs img,.cost-resource .log-thumbs video{width:36px;height:36px}
+ .cost-detail-toggle{padding:5px 6px;font-size:11px}.cost-amount .log-chip{font-size:11px}
+ .cost-mode .cost-card:not(.cost-card-total) small{display:none}
+}
 .log-panel{width:min(980px,94vw);height:min(780px,88vh);max-height:88vh}
 .log-head{height:auto;min-height:70px;padding:15px 22px;gap:14px}
 .log-title{font-size:16px;letter-spacing:-.01em}

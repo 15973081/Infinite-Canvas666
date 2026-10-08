@@ -174,7 +174,7 @@
         let controls=document.getElementById(controlId);
         if(!controls){
             controls=document.createElement('div'); controls.id=controlId; controls.className='ledger-controls';
-            controls.innerHTML='<div class="ledger-actions"><label>开始 <input type="date" name="ledger-from"></label><label>结束 <input type="date" name="ledger-to"></label><button data-clear>全部日期</button><button data-prev>上一页</button><span data-page></span><button data-next>下一页</button><button data-refresh>刷新</button><button data-recover>日志恢复</button></div><div class="ledger-note" aria-live="polite"></div>';
+            controls.innerHTML='<div class="ledger-actions"><div class="ledger-filters"><label>开始 <input type="date" name="ledger-from"></label><label>结束 <input type="date" name="ledger-to"></label><button data-clear>全部日期</button><button data-refresh>刷新</button></div><div class="ledger-pagination"><button data-prev>上一页</button><span data-page></span><button data-next>下一页</button><button data-recover>日志恢复</button></div></div><div class="ledger-note" aria-live="polite"></div>';
             controls.addEventListener('click', e=>{
                 e.stopPropagation();
                 const button=e.target.closest('button'); if(!button) return;
@@ -204,7 +204,7 @@
         const note=controls.querySelector('.ledger-note');
         note.classList.toggle('ledger-error',Boolean(s.error));
         note.textContent=s.error || (s.loading ? '正在读取全部流水…' : s.pending ? `${s.pending} 条流水正在保存…` : '费用合计覆盖所选日期的全部流水；每页显示 50 条。历史缺失可用“日志恢复”核对。');
-        const other=state(id).result?.totals.other_currencies || {};
+        const other=state(id).result?.totals?.other_currencies || {};
         if(Object.keys(other).length) note.textContent+=' 其他币种未折算进人民币合计。';
     }
     function durationLabel(ms,format,unknown='耗时未知'){
@@ -270,7 +270,27 @@
             });
         });
     }
-    root.CanvasLedger={view, record, refresh, readAll, mount, recover, durationLabel,promptMarkup,recordText,copyText,bindLogPrompts,
+    function costRow(log,index,{escape,date,model,cost,thumbs,detail}){
+        return `<tr class="cost-ledger-row"><td><time>${escape(date)}</time><span class="cost-status ${log.status==='failed'?'is-failed':''}">${log.status==='failed'?'失败':'成功'}</span></td>
+            <td><span class="cost-model" title="${escape(model)}">${escape(model || '-')}</span><small>${escape(log.platform || '-')} · 输出 ${(log.outputs || []).length}</small></td>
+            <td class="cost-amount">${cost || '<span class="cost-unpriced">未计价</span>'}</td>
+            <td><button type="button" class="cost-detail-toggle" data-cost-detail="${index}" aria-expanded="false">详情</button></td>
+            <td class="cost-resource"><div class="log-thumbs">${thumbs || '<span class="cost-no-output">无输出</span>'}</div></td></tr>
+            <tr class="cost-detail-row" data-cost-detail-row="${index}" hidden><td colspan="5">${detail}</td></tr>`;
+    }
+    function costTable(rows){
+        return `<table class="cost-ledger-table"><thead><tr><th>时间 / 状态</th><th>模型</th><th class="cost-amount">费用</th><th></th><th class="cost-resource">资源</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    function bindCostDetails(list){
+        list.querySelectorAll('[data-cost-detail]').forEach(button=>{
+            const row=list.querySelector(`[data-cost-detail-row="${button.dataset.costDetail}"]`);
+            button.onclick=e=>{
+                e.stopPropagation(); row.hidden=!row.hidden;
+                button.textContent=row.hidden?'详情':'收起';button.setAttribute('aria-expanded',String(!row.hidden));
+            };
+        });
+    }
+    root.CanvasLedger={view, record, refresh, readAll, mount, recover, durationLabel,promptMarkup,recordText,copyText,bindLogPrompts,costRow,costTable,bindCostDetails,
         revision:id=>state(id).result?.revision ?? -1};
     // A totals label calling view() must not subscribe the entire page to
     // perpetual full-ledger downloads. Poll only an explicitly open panel.

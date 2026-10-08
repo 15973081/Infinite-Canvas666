@@ -480,7 +480,8 @@ function renderCanvasLog(){
         if(target) target.textContent = ledger && !ledger.ready ? '读取中…' : value;
     });
     if(summary && ledger && !ledger.ready) summary.textContent = '正在读取全部费用流水…';
-    list.innerHTML = logs.length ? logs.map((log,index) => {
+    const costMode = list.closest('.log-panel')?.classList.contains('cost-mode');
+    const logMarkup = logs.length ? logs.map((log,index) => {
         const thumbs = (log.outputs || []).slice(0, 8).map(item => {
             const url = outputUrlValue(item);
             if(!url) return '';
@@ -509,7 +510,7 @@ function renderCanvasLog(){
             idText ? `ID ${idText}` : '',
             backendText && backendText!==log.platform ? backendText : '',
         ].filter(Boolean);
-        return `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
+        const detail = `<article class="log-item ${log.status === 'failed' ? 'failed' : ''}" data-log-index="${index}">
             <div class="log-main">
                 <div class="log-entry-head"><span class="log-chip ${log.status === 'failed' ? 'status-failed' : 'status-ok'}">${escapeHtml(log.status === 'failed' ? '失败' : '成功')}</span>
                     <time class="log-entry-date">${escapeHtml(date)}</time><span class="log-entry-cost">${costChip}</span></div>
@@ -524,7 +525,10 @@ function renderCanvasLog(){
             </div>
             <div class="log-thumbs">${thumbs}</div>
         </article>`;
+        return costMode ? window.CanvasLedger.costRow(log,index,{escape:escapeHtml,date,model:taskLabel,cost:costChip,thumbs,detail}) : detail;
     }).join('') : `<div class="log-empty">还没有生成日志</div>`;
+    list.innerHTML=costMode && logs.length ? window.CanvasLedger.costTable(logMarkup) : logMarkup;
+    window.CanvasLedger.bindCostDetails(list);
     bindCanvasPreviewImageFallbacks(list);
     list.querySelectorAll('[data-url]').forEach(el => {
         el.onclick = e => {
@@ -554,7 +558,7 @@ function openCanvasLog(event, mode='logs'){
     const list = document.getElementById('logList') || (typeof logList !== 'undefined' ? logList : null);
     modal?.querySelector('.log-panel')?.classList.toggle('cost-mode', mode === 'cost');
     const title = document.getElementById('canvasLogTitle');
-    if(title) title.textContent = mode === 'cost' ? '费用仪表盘' : '生成日志';
+    if(title) title.textContent = mode === 'cost' ? '费用中心' : '生成日志';
     modal?.classList.add('open');
     if(canvas?.id)void window.CanvasLedger?.refresh(canvas.id);
     if(list && !list.innerHTML) list.innerHTML = `<div class="log-empty">还没有生成日志</div>`;
