@@ -59,6 +59,14 @@ test('skill library search, install, enable, preview, retry and responsive theme
 });
 test('GPT @ selection stays visible, is keyboard accessible and only sends skill IDs',async t=>{
  const {page,calls,errors,setChatFail}=await fixture(t,'gpt-chat');await page.waitForFunction(()=>typeof ChatSkills!=='undefined'&&typeof config!=='undefined');
+ const trigger=page.locator('#chatSkillButton'),icon=trigger.locator('svg');
+ const metrics=await page.evaluate(()=>[...document.querySelectorAll('.upload-btn svg')].map(svg=>{const style=getComputedStyle(svg);return {width:style.width,height:style.height,stroke:style.strokeWidth};}));
+ assert.deepEqual(metrics[1],metrics[0]);assert.equal(await icon.getAttribute('aria-hidden'),'true');
+ await icon.click();await page.locator('.chat-skill-option').waitFor();assert.equal(await trigger.getAttribute('aria-expanded'),'true');
+ await icon.locator('circle').click();assert.equal(await page.locator('#chatSkillPicker').isVisible(),false);assert.equal(await trigger.getAttribute('aria-expanded'),'false');
+ await trigger.focus();await trigger.press('Enter');await page.locator('.chat-skill-option').waitFor();await page.locator('#chatSkillSearch').press('Escape');
+ await page.locator('#chatTitle').click();
+ for(const theme of ['light','dark']){await page.evaluate(theme=>StudioTheme.set(theme),theme);await page.waitForTimeout(250);await page.locator('.composer').screenshot({path:path.join(out,'chat-skill-trigger-'+theme+'.png')});}
  const input=page.locator('#messageInput');await input.fill('优化一段夜景 @prompt');await page.locator('.chat-skill-option').waitFor();
  const box=await page.locator('#chatSkillPicker').boundingBox();assert.ok(box.y>=0&&box.width>200);assert.ok(await page.locator('#chatSkillPicker').isVisible());
  await page.screenshot({path:path.join(out,'chat-at-dark.png')});await input.press('Enter');assert.equal(calls.filter(c=>c.path==='/api/chat/stream').length,0);assert.match(await page.locator('#chatSkillSelection').innerText(),/@prompt-review/);assert.equal(await input.inputValue(),'优化一段夜景 ');

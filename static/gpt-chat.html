@@ -76,7 +76,9 @@
                                     <button type="button" class="upload-btn" onclick="document.getElementById('attachmentInput')?.click()" title="上传附件" aria-label="上传附件">
                                         <i data-lucide="paperclip"></i>
                                     </button>
-                                    <button id="chatSkillButton" type="button" class="upload-btn" title="选择提示词 Skill" aria-label="选择提示词 Skill" aria-expanded="false">@</button>
+                                    <button id="chatSkillButton" type="button" class="upload-btn" title="选择提示词 Skill" aria-label="选择提示词 Skill" aria-haspopup="listbox" aria-expanded="false" aria-controls="chatSkillOptions">
+                                        <svg class="studio-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>
+                                    </button>
                                     <div id="modelPicker" class="model-picker">
                                         <button id="modelPickerBtn" class="model-picker-button" onclick="event.stopPropagation();toggleModelPicker()" title="选择平台和模型">
                                             <i data-lucide="boxes"></i>
