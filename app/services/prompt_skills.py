@@ -145,9 +145,11 @@ def visible(conn, skill_id, *, install=False, lock=False):
         FROM prompt_skills s JOIN workspaces w ON w.id=s.origin_workspace_id
         LEFT JOIN members m ON m.id=s.uploader_id
         WHERE s.id=%s AND ((s.deleted_at IS NULL AND (s.origin_workspace_id=%s OR s.visibility='shared'))
-          OR (%s AND EXISTS(SELECT 1 FROM workspace_skill_installs i WHERE i.workspace_id=%s AND i.skill_id=s.id)))'''
+          OR (%s AND EXISTS(SELECT 1 FROM workspace_skill_installs i WHERE i.workspace_id=%s AND i.skill_id=s.id))
+          OR (%s AND s.uploader_id=%s AND s.origin_workspace_id=%s))'''
         + (' FOR UPDATE OF s' if lock else ''),
-        (skill_id, current_workspace(), not install, current_workspace())).fetchone()
+        (skill_id, current_workspace(), not install, current_workspace(),not install,
+         current_access.get().principal.member_id if current_access.get() else None,current_workspace())).fetchone()
     if not row:
         invalid('技能不存在或未向当前空间共享。', 404)
     return row
@@ -166,15 +168,17 @@ def catalog(query='', scope='all', offset=0, limit=60):
             LEFT JOIN members m ON m.id=s.uploader_id
             LEFT JOIN workspace_skill_installs i ON i.skill_id=s.id AND i.workspace_id=%s
             LEFT JOIN member_skill_preferences p ON p.workspace_id=i.workspace_id AND p.skill_id=i.skill_id AND p.member_id=%s
-            WHERE ((s.deleted_at IS NULL AND (s.origin_workspace_id=%s OR s.visibility='shared')) OR i.skill_id IS NOT NULL)
+            WHERE ((s.deleted_at IS NULL AND (s.origin_workspace_id=%s OR s.visibility='shared')) OR i.skill_id IS NOT NULL
+                OR (s.uploader_id=%s AND s.origin_workspace_id=%s))
             AND (%s='all' OR (%s='installed' AND i.skill_id IS NOT NULL) OR (%s='enabled' AND i.skill_id IS NOT NULL AND p.enabled) OR (%s='shared' AND s.visibility='shared' AND s.deleted_at IS NULL) OR (%s='workspace' AND s.origin_workspace_id=%s))
             AND (s.name ILIKE %s OR s.description ILIKE %s OR coalesce(m.display_name,s.uploader_name) ILIKE %s)
             ORDER BY s.updated_at DESC,s.id LIMIT %s OFFSET %s''',
-            (current_workspace(), member_id, current_workspace(), scope,scope,scope,scope,scope,current_workspace(),
+            (current_workspace(), member_id, current_workspace(), member_id,current_workspace(),scope,scope,scope,scope,scope,current_workspace(),
              '%'+query+'%', '%'+query+'%', '%'+query+'%', limit+1,offset)).fetchall()
         manage = may_manage(conn, principal)
         for row in rows:
             row['can_edit'] = owns(conn, row, member_id, principal)
+            row['can_purge'] = row['can_edit'] and row['withdrawn'] and not row['installed_version_id']
             row['can_install'] = manage and not row['withdrawn'] and (row['visibility']=='shared' or row['origin_workspace_id']==current_workspace())
             row['can_uninstall'] = manage and (principal is None or row['installed_by']==member_id or 'space.roles.manage' in az.effective_permissions(conn,member_id,current_workspace()))
         return {'skills': rows[:limit], 'has_more':len(rows)>limit, 'can_import':manage and may_manage(conn,principal,'asset.upload'), 'prompt_only':True}
@@ -270,6 +274,27 @@ def change(skill_id, visibility=None, remove=False):
             conn.execute('UPDATE prompt_skills SET visibility=%s,updated_at=now() WHERE id=%s',(visibility,skill_id))
         az.audit(conn,principal,'skill.withdraw' if remove else 'skill.visibility',skill_id,current_workspace(),{'visibility':visibility})
     return {'ok':True}
+
+
+def purge(skill_id, confirm=False):
+    """Erase the original package only after all pinned installations are removed."""
+    if not confirm:
+        invalid('请确认彻底删除 Skill 原包。')
+    from app.services import authorization as az
+    with connection() as conn:
+        member_id,_,principal = actor(conn)
+        skill = conn.execute('SELECT * FROM prompt_skills WHERE id=%s FOR UPDATE',(skill_id,)).fetchone()
+        if not skill or not owns(conn,skill,member_id,principal):
+            invalid('技能不存在或无权彻底删除。',404)
+        if not skill['deleted_at']:
+            invalid('请先撤下发布，再彻底删除原包。',409)
+        if conn.execute('SELECT 1 FROM workspace_skill_installs WHERE skill_id=%s LIMIT 1',(skill_id,)).fetchone():
+            invalid('仍有空间安装此 Skill，请由各空间卸载后再彻底删除原包。',409)
+        conn.execute('SET CONSTRAINTS prompt_skill_current_version DEFERRED')
+        conn.execute('DELETE FROM prompt_skill_versions WHERE skill_id=%s',(skill_id,))
+        conn.execute('DELETE FROM prompt_skills WHERE id=%s',(skill_id,))
+        az.audit(conn,principal,'skill.purge',skill_id,current_workspace())
+    return {'deleted':True,'retained_history':True}
 
 
 def resolve(skill_ids):

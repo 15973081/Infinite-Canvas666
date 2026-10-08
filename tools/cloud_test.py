@@ -61,6 +61,7 @@ def main(argv=None):
             suites.append("test_cloud_workbench_performance.py")
             suites.append("test_cloud_canvas_asset_page.py")
             suites.append("test_cloud_chat.py")
+            suites.append("test_cloud_chat_attachments.py")
             suites.append("test_cloud_online_imports.py")
             suites.append("test_cloud_skills.py")
             suites.append("test_cloud_chat_billing.py")

@@ -15,7 +15,7 @@ def contains_ref(value, ids, aliases):
     return False
 
 
-def check_references(conn, ids, aliases):
+def check_references(conn, ids, aliases, ignored_document_kinds=()):
     # Include recycled/purged canvases and retained backups: they remain recoverable.
     sources = [
         ('SELECT title AS label, document AS value FROM canvases WHERE workspace_id=%s', '画布'),
@@ -24,6 +24,8 @@ def check_references(conn, ids, aliases):
     ]
     for query, kind in sources:
         for row in conn.execute(query, (current_workspace(),)):
+            if kind == '素材库或备份' and row['label'] in ignored_document_kinds:
+                continue
             if contains_ref(row['value'], ids, aliases):
                 raise HTTPException(409, f"素材仍被{kind}「{row['label']}」引用，不能彻底删除")
     for row in conn.execute("SELECT name,snapshot,asset_id FROM online_works WHERE workspace_id=%s AND state NOT IN ('purging','purged')", (current_workspace(),)):

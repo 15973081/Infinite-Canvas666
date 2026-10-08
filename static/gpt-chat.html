@@ -27,6 +27,7 @@
     <link rel="stylesheet" href="/static/css/studio-chat.css">
     <link rel="stylesheet" href="/static/css/chat-skills.css">
     <link rel="stylesheet" href="/static/css/chat-cost.css">
+    <link rel="stylesheet" href="/static/css/chat-attachments.css">
 </head>
 <body class="studio-skin studio-content studio-chat">
     <div class="chat-shell">
@@ -37,6 +38,7 @@
                         <h1 id="chatTitle">新对话</h1>
                     </div>
                     <div class="top-actions">
+                        <button id="chatAttachmentManager" type="button" class="action-btn" title="我的对话附件" aria-label="我的对话附件" hidden><i data-lucide="paperclip"></i><span>附件管理</span></button>
                         <button onclick="event.stopPropagation();newConversation()" class="action-btn" title="新对话"><i data-lucide="plus"></i><span>新建</span></button>
                         <button onclick="event.stopPropagation();toggleHistory()" class="action-btn history-toggle" title="历史"><i data-lucide="history"></i><span>历史</span></button>
                         <aside id="historyPopover" class="chat-rail">
@@ -554,9 +556,10 @@
             dialog.className = 'chat-delete-dialog';
             dialog.setAttribute('aria-labelledby','chatDeleteTitle');
             dialog.setAttribute('aria-describedby','chatDeleteDescription');
-            dialog.innerHTML = '<h2 id="chatDeleteTitle">删除对话？</h2><p id="chatDeleteDescription"></p><p class="delete-error" role="alert" hidden></p><footer><button type="button" data-cancel autofocus>取消</button><button type="button" data-delete>删除对话</button></footer>';
+            dialog.innerHTML = '<h2 id="chatDeleteTitle">删除对话？</h2><p id="chatDeleteDescription"></p><label data-cleanup-label><input type="checkbox" data-cleanup>同时删除本人上传且未被其他地方引用的附件</label><p class="delete-error" role="alert" hidden></p><footer><button type="button" data-cancel autofocus>取消</button><button type="button" data-delete>删除对话</button></footer>';
+            dialog.querySelector('[data-cleanup-label]').hidden = !window.CanvasSession?.enabled;
             const item = conversations.find(item => item.id === id);
-            dialog.querySelector('#chatDeleteDescription').textContent = '“' + (item?.title || defaultTitle()) + '”及其中的消息将被删除，此操作无法撤销。';
+            dialog.querySelector('#chatDeleteDescription').textContent = '“' + (item?.title || defaultTitle()) + '”及其中的消息将被删除。默认保留原附件；备份和已发送给模型供应商的数据不在此次删除范围。';
             const cancel = dialog.querySelector('[data-cancel]');
             const remove = dialog.querySelector('[data-delete]');
             let busy = false;
@@ -571,8 +574,12 @@
                 const error = dialog.querySelector('.delete-error');
                 error.hidden = true;
                 try {
-                    const response = await fetch('/api/conversations/' + encodeURIComponent(id), {method:'DELETE', headers:{'X-User-ID':userId}});
-                    if(!response.ok) throw new Error('删除失败，请稍后重试。');
+                    const cleanup = dialog.querySelector('[data-cleanup]').checked;
+                    const response = await fetch('/api/conversations/' + encodeURIComponent(id) + (cleanup ? '?delete_unused_attachments=true' : ''), {method:'DELETE', headers:{'X-User-ID':userId}});
+                    const data = await response.json().catch(()=>({}));
+                    if(!response.ok) throw new Error(chatErrorMessage(data.detail, response.status));
+                    const pending = (data.attachment_cleanup || []).filter(item=>!item.deleted);
+                    if(pending.length) alert('对话已删除，部分附件仍被引用、非本人上传或清理未完成。请到附件管理中检查并重试。');
                 } catch(e) {
                     error.textContent = e.message || '删除失败，请稍后重试。';
                     error.hidden = false;
@@ -803,7 +810,8 @@
             const form = new FormData();
             [...files].slice(0, available).forEach(file => form.append('files', file));
             try {
-                const data = await fetch('/api/ai/upload', {method:'POST', body:form}).then(async r => { if(!r.ok) throw new Error(chatErrorMessage((await r.json().catch(() => ({}))).detail, r.status)); return r.json(); });
+                const endpoint = window.CanvasSession?.enabled ? '/api/chat/attachments' : '/api/ai/upload';
+                const data = await fetch(endpoint, {method:'POST', body:form}).then(async r => { if(!r.ok) throw new Error(chatErrorMessage((await r.json().catch(() => ({}))).detail, r.status)); return r.json(); });
                 refs.push(...(data.files || []));
                 renderRefs();
             } catch(e) {
@@ -988,5 +996,6 @@
     </script>
     <script src="/static/js/chat-skills.js"></script>
     <script src="/static/js/chat-cost.js"></script>
+    <script src="/static/js/chat-attachment-manager.js"></script>
 </body>
 </html>

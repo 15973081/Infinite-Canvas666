@@ -17,7 +17,7 @@ from app.storage.settings import media_backend
 TABLES = ('canvases','assets','asset_aliases','canvas_assets','workspace_documents',
           'ledger_entries','ledger_aliases','ledger_conflicts','ledger_imports','ledger_versions','online_works')
 DOCUMENT_KINDS = ('canvas_folders','asset_library','prompt_libraries','shared_folders','canvas_backup','skill_library')
-ASSET_FILTER = "role<>'task-result-source'"
+ASSET_FILTER = "role<>'task-result-source' AND (NOT (metadata ? 'chat_owner') OR metadata->>'chat_shared'='true')"
 
 
 def export(directory, workspace):
@@ -79,7 +79,7 @@ def export(directory, workspace):
                 'media_backend':media_backend(),'counts':counts,'files':files,
                 'object_count':object_count,'object_bytes':object_bytes,'unfinished_assets':unfinished,
                 'document_kinds':list(DOCUMENT_KINDS),
-                'excluded':['private_conversations','private_chat_billing','identity_and_sessions','provider_configuration',
+                'excluded':['private_conversations','private_chat_attachments','private_chat_billing','identity_and_sessions','provider_configuration',
                             'task_execution_and_checkpoints','unfinished_upload_bytes'],
                 'restore':'Shared-data export only; database disaster recovery requires a platform backup.'}
     pending = directory/'manifest.pending'

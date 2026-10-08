@@ -22,6 +22,8 @@
 
 ## 验证
 
+附件默认权限、原文件存储位置、删除及备份边界见 [AI 对话数据边界](chat-data-boundaries.md)。
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_document_attachments.py tests/test_prompt_skills.py tests/test_chat_error_ui.py tests/test_chat_billing.py -q
 ```

@@ -128,6 +128,7 @@ def asset_ids(value):
 def lock_ready(conn, ids):
     if not ids:
         return
+    media.lock_retained_references(conn,ids)
     rows = conn.execute("SELECT id,status,deleted_at FROM assets WHERE workspace_id=%s AND role<>'task-result-source' AND id=ANY(%s) ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()
     if len(rows) != len(ids) or any(row["status"] != "ready" or row["deleted_at"] for row in rows):
         raise HTTPException(409, "任务引用的素材不存在、已删除或尚未就绪")

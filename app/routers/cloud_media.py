@@ -150,6 +150,11 @@ async def content(asset_id: str, variant: str = "original"):
     asset = await run_in_threadpool(media.get_asset, asset_id)
     if not asset:
         raise HTTPException(404, "素材不存在")
+    if (asset.get('metadata') or {}).get('chat_owner'):
+        path = await run_in_threadpool(media.materialize, asset_id)
+        inline = asset['content_type'].startswith(('image/', 'video/', 'audio/'))
+        return FileResponse(path, media_type=asset['content_type'], filename=None if inline else asset['display_name'],
+                            headers={'Cache-Control':'private, no-store', 'X-Content-Type-Options':'nosniff', 'Content-Security-Policy':'sandbox'})
     return RedirectResponse(await run_in_threadpool(media.browser_url, asset), status_code=307, headers={"Cache-Control": "private, no-store"})
 
 

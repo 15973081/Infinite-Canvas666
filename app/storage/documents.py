@@ -22,7 +22,7 @@ def put(kind, key, value, expected_revision=None):
         expected_revision = versions.get((current_workspace(), kind, key))
     with connection() as conn:
         from app.storage.media import lock_retained_references
-        lock_retained_references(conn, value)
+        lock_retained_references(conn, value, allow_private=kind == 'conversation')
         if expected_revision == 0:
             row = conn.execute("INSERT INTO workspace_documents(workspace_id,kind,id,value) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING revision", (current_workspace(), kind, key, Jsonb(value))).fetchone()
             if not row:

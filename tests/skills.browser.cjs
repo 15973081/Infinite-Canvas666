@@ -82,6 +82,20 @@ test('an unavailable remembered conversation returns an empty composer without l
  await page.locator('#chatSkillButton').click();await page.locator('.chat-skill-option').waitFor();assert.deepEqual(errors,[]);
 });
 
+test('private chat attachment manager supports sharing, deletion retry and mobile layout',async t=>{
+ const {page,errors}=await fixture(t,'gpt-chat');
+ const files=[{id:'ast_'+'1'.repeat(32),name:'《沉锋》第三集B_分镜V5.xlsx',size:2048,kind:'file',status:'ready',shared:false,url:'/assets/cloud/test/分镜.xlsx'}];
+ let failDelete=true;const writes=[];page.on('dialog',dialog=>dialog.accept());
+ await page.route('**/api/chat/attachments**',route=>{const req=route.request();if(req.method()==='GET')return route.fulfill({json:{files,next_offset:null}});writes.push({method:req.method(),url:req.url(),body:req.postData()});if(req.method()==='PATCH'){files[0].shared=req.postDataJSON().shared;return route.fulfill({json:{shared:files[0].shared}});}if(failDelete){files[0].status='deleting';return route.fulfill({status:503,json:{detail:'附件已停止访问，但原文件清理未完成，请重试删除。'}});}files.length=0;return route.fulfill({json:{deleted:true}});});
+ await page.getByRole('button',{name:'我的对话附件'}).click();const dialog=page.getByRole('dialog',{name:'我的对话附件'});
+ await dialog.getByText(/《沉锋》第三集B_分镜V5.xlsx/).waitFor();
+ await dialog.getByRole('button',{name:'共享给当前空间'}).click();await dialog.getByRole('button',{name:'取消共享'}).waitFor();assert.deepEqual(JSON.parse(writes[0].body),{shared:true});
+ await dialog.getByRole('button',{name:'彻底删除'}).click();await dialog.getByText(/原文件清理未完成/).waitFor();
+ await dialog.getByRole('button',{name:'关闭',exact:true}).click();await page.getByRole('button',{name:'我的对话附件'}).click();await dialog.getByRole('button',{name:'重试删除'}).waitFor();
+ await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(out,'chat-private-attachments-mobile.png')});
+ failDelete=false;await dialog.getByRole('button',{name:'重试删除'}).click();await dialog.getByText('没有本人上传的对话附件。').waitFor();assert.ok(writes.at(-1).url.includes('confirm_permanent=true'));assert.deepEqual(errors,[]);
+});
+
 async function transfer(page,files){
  return page.evaluateHandle(files=>{
   const data=new DataTransfer();

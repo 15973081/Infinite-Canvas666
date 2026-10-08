@@ -151,12 +151,29 @@ def get_assets(refs, ready=True):
     result = {}
     for ref, asset_id in ids.items():
         row = assets.get(asset_id)
+        if row:
+            assert_chat_asset_access(row)
         if row and row["role"] == "task-result-source" and current_access.get() is not None:
             raise HTTPException(404, "素材不存在")
         if ready and asset_id and (not row or row["status"] != "ready" or row["deleted_at"]):
             raise HTTPException(404, "素材不存在或尚未就绪")
         result[ref] = row
     return result
+
+
+def assert_chat_asset_access(asset):
+    owner = (asset.get('metadata') or {}).get('chat_owner')
+    if not owner:
+        return
+    from app.services.member_context import current_access
+    access = current_access.get()
+    if access is None and (asset.get('metadata') or {}).get('chat_shared',False):
+        from app.storage.tasks import lease_context
+        if lease_context.get():
+            return  # Trusted task execution may consume explicitly shared input.
+    if access is None or (access.principal.member_id != owner and
+                          not (asset.get('metadata') or {}).get('chat_shared', False)):
+        raise HTTPException(404, '素材不存在')
 
 
 def get_asset(ref, ready=True):
@@ -355,7 +372,7 @@ def _discard_unpublished_object(storage, workspace, media_id, key, version):
                        workspace, media_id, key, version, exc_info=True)
 
 
-def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asset_id=None, role="original"):
+def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asset_id=None, role="original", metadata=None):
     path = Path(path)
     size, digest = file_digest(path)
     existing = get_asset(asset_id or legacy_ref, ready=False) if asset_id or legacy_ref else None
@@ -371,12 +388,20 @@ def publish(path, display_name=None, legacy_ref=None, asset_id=None, parent_asse
     kind = mime.split("/")[0] if mime.split("/")[0] in {"image", "video", "audio"} else "workflow" if name.lower().endswith(".zip") else "file"
     # Every attempt owns a separate key. Failed attempts cannot overwrite ready data.
     workspace = current_workspace()
+    metadata = dict(metadata or {})
     key = "media/" + workspace + "/" + media_id + "/" + uuid.uuid4().hex + (Path(name).suffix[:12] or ".bin")
     bucket = os.getenv("TOS_BUCKET", "local-simulation") if media_backend() == "tos" else "local-simulation"
     region = os.getenv("TOS_REGION", "local") if media_backend() == "tos" else "local"
     with connection() as conn:
-        lock_retained_references(conn, [media_id, parent_asset_id])
-        conn.execute("INSERT INTO assets(workspace_id,id,kind,status,display_name,bucket,region,object_key,parent_asset_id,role) VALUES(%s,%s,%s,'uploading',%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING", (workspace, media_id, kind, name, bucket, region, key, parent_asset_id, role))
+        lock_retained_references(conn, [media_id, parent_asset_id], allow_private=True)
+        if parent_asset_id:
+            # Read ownership under the same lock used by sharing/revocation.
+            # A concurrent preview must not restore an outdated shared flag.
+            parent = conn.execute('SELECT metadata FROM assets WHERE workspace_id=%s AND id=%s FOR SHARE',
+                                  (workspace,parent_asset_id)).fetchone()
+            if parent and (parent.get('metadata') or {}).get('chat_owner'):
+                metadata.update({key: parent['metadata'][key] for key in ('chat_owner','chat_shared') if key in parent['metadata']})
+        conn.execute("INSERT INTO assets(workspace_id,id,kind,status,display_name,bucket,region,object_key,parent_asset_id,role,metadata) VALUES(%s,%s,%s,'uploading',%s,%s,%s,%s,%s,%s,%s) ON CONFLICT(id) DO NOTHING", (workspace, media_id, kind, name, bucket, region, key, parent_asset_id, role, Jsonb(metadata)))
         if not conn.execute("SELECT 1 FROM assets WHERE workspace_id=%s AND id=%s", (workspace, media_id)).fetchone():
             raise HTTPException(409, "素材 ID 不可用于当前空间")
     storage = store()
@@ -454,6 +479,9 @@ def signature(asset_id, version, expires, member=""):
 
 
 def browser_url(asset, provider=False):
+    assert_chat_asset_access(asset)
+    if (asset.get('metadata') or {}).get('chat_owner') and not provider:
+        return f"/api/media/{asset['id']}/content?workspace={quote(current_workspace(), safe='')}"
     if asset.get("role") == "task-result-source":
         raise HTTPException(404, "内部任务检查点不可分享")
     if asset.get("workspace_id", "default") != current_workspace():
@@ -581,7 +609,7 @@ async def download_remote(url, prefix="media_", category="output", provider=None
     raise HTTPException(502, "远程素材重定向次数过多")
 
 
-def lock_retained_references(conn, value):
+def lock_retained_references(conn, value, *, allow_private=False):
     """Coordinate document publication with permanent asset deletion."""
     ids = set(referenced_ids(value))
     # Query only aliases mentioned by this document, rather than the entire
@@ -602,6 +630,10 @@ def lock_retained_references(conn, value):
             'SELECT asset_id FROM asset_aliases WHERE workspace_id=%s AND legacy_ref=ANY(%s)',
             (current_workspace(), sorted(legacy_refs))))
     if ids:
-        rows=conn.execute('SELECT id,status FROM assets WHERE workspace_id=%s AND id=ANY(%s) ORDER BY id FOR SHARE', (current_workspace(),sorted(ids))).fetchall()
+        rows=conn.execute('SELECT id,status,metadata FROM assets WHERE workspace_id=%s AND id=ANY(%s) ORDER BY id FOR SHARE', (current_workspace(),sorted(ids))).fetchall()
+        for row in rows:
+            assert_chat_asset_access(row)
+            if not allow_private and (row.get('metadata') or {}).get('chat_owner') and not row['metadata'].get('chat_shared'):
+                raise HTTPException(409, '私有对话附件不能保存到共享画布或任务，请先在附件管理中主动共享。')
         if any(r['status'] in ('deleting','deleted') for r in rows):
             raise HTTPException(409, '引用的素材正在删除或已彻底删除，请刷新后重试')

@@ -52,6 +52,12 @@ def selected_workspace(scope):
 
 
 def permissions(path, method):
+    if path == '/api/chat/attachments':
+        return ('asset.upload',) if method == 'POST' else ('canvas.read',) if method == 'GET' else None
+    if re.fullmatch(r'/api/chat/attachments/ast_[a-f0-9]{32}', path) and method in {'PATCH', 'DELETE'}:
+        return ('canvas.read',)
+    if re.fullmatch(r'/api/skills/[^/]+/purge', path) and method == 'POST':
+        return ('asset.manage',)
     if path == '/api/online-works' and method == 'GET':
         return ('asset.read',)
     if path == '/api/online-works/actions' and method == 'POST':

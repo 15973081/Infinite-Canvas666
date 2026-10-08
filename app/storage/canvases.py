@@ -136,6 +136,8 @@ def save(canvas, touch=True):
                 (access.principal.member_id, revision is None, access.principal.member_id, current_workspace(), value['id'])).fetchone()
         ids = sorted(referenced_ids({key: item for key, item in value.items() if key != '_task_results'}))
         if ids:
+            from app.storage.media import lock_retained_references
+            lock_retained_references(conn,ids)
             ready = conn.execute("SELECT id FROM assets WHERE workspace_id=%s AND id=ANY(%s) AND status='ready' AND deleted_at IS NULL ORDER BY id FOR SHARE", (current_workspace(), ids)).fetchall()
             if {r["id"] for r in ready} != set(ids):
                 raise HTTPException(400, "画布引用了尚未就绪或不存在的素材")

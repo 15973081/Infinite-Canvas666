@@ -18,6 +18,14 @@ class Visibility(BaseModel):
     model_config=ConfigDict(extra='forbid')
     visibility:Literal['workspace','shared']
 
+class Purge(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    confirm_permanent:bool=False
+
+@router.post('/api/skills/{skill_id}/purge')
+def purge(skill_id:str,payload:Purge):
+    return service.purge(skill_id,payload.confirm_permanent)
+
 async def package(file):
     data=await file.read(service.MAX_PACKAGE+1)
     if len(data)>service.MAX_PACKAGE:
