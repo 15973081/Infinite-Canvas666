@@ -21,7 +21,7 @@ from app.services.member_context import current_access
 
 MAX_PACKAGE = 2 * 1024 * 1024
 MAX_TEXT = 120000
-MAX_CONTEXT = 48000
+MAX_CONTEXT = 1000000
 
 
 def invalid(message, status=400):
@@ -294,8 +294,9 @@ def resolve(skill_ids):
             if content.get('references'):
                 context+='\n\n参考文字：\n'+ '\n\n'.join(path+'\n'+value for path,value in content['references'].items())
             result.append({'id':row['id'],'name':row['name'],'version_id':row['version_id'],'sha256':row['sha256'],'context':context})
-    if sum(len(item['context']) for item in result)>MAX_CONTEXT:
-        invalid('所选技能正文过长，请减少本次引用数量。')
+    context_length = sum(len(item['context']) for item in result)
+    if context_length > MAX_CONTEXT:
+        invalid(f'所选技能正文及参考文件共 {context_length:,} 字符，超过本次引用上限 {MAX_CONTEXT:,} 字符，请减少引用数量。')
     return result
 
 

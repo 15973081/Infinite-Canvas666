@@ -57,17 +57,20 @@ def test_skill_chat_is_prompt_only_and_history_survives_uninstall(chat_world,pat
     invalid=w['editor'].post(path,headers=headers(w['a']),json={**w['payload'],'skill_ids':[sid]})
     assert invalid.status_code==409 and len(w['calls'])==before
 
-def test_uninstalled_foreign_and_disabled_skills_rejected_before_history(chat_world):
+@pytest.mark.parametrize('path', ['/api/chat', '/api/chat/stream'])
+def test_uninstalled_foreign_and_disabled_skills_rejected_before_history(chat_world, path):
     w=chat_world; sid=upload(w['outsider'],w['b'],'shared')
     before=w['editor'].get('/api/conversations',headers=headers(w['a'])).json()
     for value in [sid,'skl_missing']:
-        r=w['editor'].post('/api/chat',headers=headers(w['a']),json={**w['payload'],'skill_ids':[value]})
+        r=w['editor'].post(path,headers=headers(w['a']),json={**w['payload'],'skill_ids':[value]})
         assert r.status_code==409,r.text
     assert not w['calls']
     assert w['editor'].get('/api/conversations',headers=headers(w['a'])).json()==before
     assert w['editor'].post('/api/skills/'+sid+'/install',headers=headers(w['a'])).status_code==200
     assert w['editor'].patch('/api/skills/'+sid+'/preference',headers=headers(w['a']),json={'enabled':False}).status_code==200
-    assert w['editor'].post('/api/chat',headers=headers(w['a']),json={**w['payload'],'skill_ids':[sid]}).status_code==409
+    assert w['editor'].post(path,headers=headers(w['a']),json={**w['payload'],'skill_ids':[sid]}).status_code==409
+    assert not w['calls']
+    assert w['editor'].get('/api/conversations',headers=headers(w['a'])).json()==before
 
 def test_package_preview_and_import_rejections(world):
     w=world
@@ -76,3 +79,44 @@ def test_package_preview_and_import_rejections(world):
     assert w['viewer'].post('/api/skills/import',headers=headers(w['a']),files={'file':('SKILL.md',MD)}).status_code==403
     assert w['editor'].post('/api/skills/import',headers=headers(w['a']),files={'file':('bad.zip',bundle({'../SKILL.md':MD}))}).status_code==400
     assert w['editor'].post('/api/skills/import',headers=headers(w['a']),files={'file':('SKILL.md',MD)},data={'visibility':'public'}).status_code==422
+
+
+@pytest.mark.parametrize('path', ['/api/chat', '/api/chat/stream'])
+def test_six_large_skills_preserved_in_upstream_snapshot_and_history(chat_world, path):
+    from app.services.prompt_skills import MAX_TEXT
+    w = chat_world
+    ids, expected = [], []
+    for index in range(6):
+        instructions = f'正文{index}开始\n' + '文' * 59900 + f'\n正文{index}结束'
+        beginning, ending = f'\n  参考{index}开始🙂\n', f'\n  参考{index}结束\n'
+        reference = beginning + '图' * (MAX_TEXT - len(instructions) - len(beginning) - len(ending)) + ending
+        manifest = f'---\nname: full-{index}\ndescription: Complete text\n---\n{instructions}'.encode('utf-8')
+        response = w['editor'].post('/api/skills/import', headers=headers(w['a']),
+            files={'file': ('full.zip', bundle({'SKILL.md': manifest,
+                'references/full.txt': reference.encode('utf-8')}), 'application/zip')},
+            data={'visibility': 'workspace'})
+        assert response.status_code == 200, response.text
+        ids.append(response.json()['id'])
+        expected.append(instructions + '\n\n参考文字：\nreferences/full.txt\n' + reference)
+
+    before = w['editor'].get('/api/conversations', headers=headers(w['a'])).json()
+    rejected = w['editor'].post(path, headers=headers(w['a']),
+        json={**w['payload'], 'skill_ids': [*ids, ids[0]]})
+    assert rejected.status_code == 422, rejected.text
+    assert not w['calls']
+    assert w['editor'].get('/api/conversations', headers=headers(w['a'])).json() == before
+
+    response = w['editor'].post(path, headers=headers(w['a']), json={**w['payload'], 'skill_ids': ids})
+    assert response.status_code == 200, response.text[:1000]
+    result = ([json.loads(line[5:]) for line in response.text.splitlines() if line.startswith('data:')][-1]
+              if path.endswith('/stream') else response.json())
+    refs = result['conversation']['messages'][0]['skill_refs']
+    assert [ref['context'] for ref in refs] == expected
+    assert [ref['id'] for ref in refs] == ids
+    assert sum(map(len, expected)) > 720000
+    from app.services.prompt_skills import prompt_context
+    upstream = json.loads(w['calls'][-1].content)
+    assert upstream['messages'][1] == {'role': 'user', 'content': w['payload']['message'] + prompt_context(refs)}
+    cid = result['conversation']['id']
+    history = w['editor'].get('/api/conversations/' + cid, headers=headers(w['a'])).json()
+    assert [ref['context'] for ref in history['conversation']['messages'][0]['skill_refs']] == expected
