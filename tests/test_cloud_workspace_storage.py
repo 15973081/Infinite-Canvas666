@@ -67,3 +67,23 @@ def test_workspace_storage_empty_and_access_boundaries(world):
     assert world['viewer'].get('/api/workspace/storage',headers=headers(a)).status_code == 200
     members.remove_workspace_member(world['operator'],world['people'][1]['id'],a['id'])
     assert world['viewer'].get('/api/workspace/storage',headers=headers(a)).status_code == 403
+
+
+def test_chat_attachments_are_separate_from_canvas_totals(world):
+    from app.storage.database import connection
+    from psycopg.types.json import Jsonb
+    a = world['a']
+    with connection() as conn:
+        asset(conn,a['id'],'image',1024)
+        original = asset(conn,a['id'],'file',8192)
+        preview = asset(conn,a['id'],'image',512,parent=original)
+        pending = asset(conn,a['id'],'file',32,status='uploading',version=None)
+        conn.execute('UPDATE assets SET metadata=%s WHERE id=ANY(%s)',
+                     (Jsonb({'chat_owner':world['people'][0]['id'],'chat_shared':True}),[original,preview,pending]))
+    response = world['viewer'].get('/api/workspace/storage',headers=headers(a))
+    assert response.status_code == 200
+    data = response.json()
+    assert data['bytes'] == 1024 and data['files'] == 1 and data['pending_files'] == 0
+    assert data['chat_attachments']['bytes'] == 8704 and data['chat_attachments']['pending_files'] == 1
+    assert data['physical_media_bytes'] == 9728
+    assert 'chat_owner' not in response.text and world['people'][0]['id'] not in response.text

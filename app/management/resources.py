@@ -56,7 +56,7 @@ def overview(actor, workspace=None):
                 values = conn.execute("""SELECT count(*) FILTER(WHERE role<>'preview') AS originals,
                     count(*) FILTER(WHERE role='preview') AS previews, coalesce(sum(size_bytes),0) AS ready_bytes
                     FROM assets WHERE workspace_id=%s AND status='ready' AND deleted_at IS NULL
-                    AND role<>'task-result-source'""", (workspace,)).fetchone()
+                    AND role<>'task-result-source' AND coalesce(metadata->>'chat_owner','')=''""", (workspace,)).fetchone()
                 # Preserve exact large byte totals when decoded by JavaScript.
                 result['assets'] = {**values, 'ready_bytes': str(values['ready_bytes'])}
             if _allowed(conn, actor, 'task.review', workspace):

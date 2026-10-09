@@ -182,7 +182,7 @@
         const status=element('p','','member-storage-status');status.setAttribute('role','status');
         const composition=element('div',undefined,'member-storage-composition');composition.setAttribute('aria-hidden','true');
         const list=element('dl',undefined,'member-storage-breakdown');
-        const note=element('p','按空间已登记文件统计，含派生预览和待清理文件；不含外链、数据库、备份及临时缓存。','member-storage-note');
+        const note=element('p','按画布已登记素材统计，含派生预览和待清理文件；AI 对话附件单独管理，不计入此用量。不含外链、数据库、备份及临时缓存。','member-storage-note');
         card.append(heading,total,status,composition,list,note);
         const bytes=value=>{
             if(value===0)return '0 B';
