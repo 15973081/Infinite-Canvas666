@@ -7,6 +7,7 @@ const muxStub=`export class BufferTarget{buffer=new Uint8Array([1,2,3])} export 
 async function browserFixture(t){
     const server=http.createServer((req,res)=>{
         if(req.url==='/input.mp4'){res.setHeader('Content-Type','video/mp4');return res.end(input);}
+        if(req.url==='/input.svg'){res.setHeader('Content-Type','image/svg+xml');return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="768"><rect width="1536" height="768" fill="orange"/></svg>');}
         if(req.url.startsWith('/static/')){res.setHeader('Content-Type',req.url.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8');return res.end(fs.readFileSync(path.join(root,req.url)));}
         res.setHeader('Content-Type','text/html; charset=utf-8');
         res.end('<html><head><link rel="stylesheet" href="/static/css/local-depth-video.css"></head><body><button id="origin">Open</button><script src="/static/js/local-depth-video.js"></script></body></html>');
@@ -18,7 +19,7 @@ async function browserFixture(t){
         window.encodedFrames=[];window.workerCalls=[];window.saved=0;window.terminated=0;
         Object.defineProperty(navigator,'gpu',{value:{requestAdapter:async()=>({features:new Set(['shader-f16'])})}});
         window.Worker=class {
-            postMessage(data){window.workerCalls.push(data.type);if(window.stallWorker)return;
+            postMessage(data){window.workerCalls.push(data.type);if(data.type==='frame')window.frameSize=[data.width,data.height];if(window.stallWorker)return;
                 setTimeout(()=>{if(this.dead)return;
                     if(window.failWorker){this.onmessage({data:{id:data.id,type:'error',message:'test model failure'}});return;}
                     this.onmessage({data:data.type==='load'?{id:data.id,type:'ready'}:{id:data.id,type:'frame',width:2,height:2,channels:1,pixels:new Uint8Array([0,80,160,255]).buffer}});
@@ -59,14 +60,58 @@ test('model failure is retryable; cancel and close terminate pending inference',
 });
 test('smart save checks editing lease, canvas, and source before and after upload',async()=>{
     const source=fs.readFileSync(path.join(root,'static/js/canvas/smart/smart-media-editor.js'),'utf8').replace(/\r\n/g,'\n');
-    const start=source.indexOf('function openSmartLocalDepthVideo('),code=source.slice(start,source.indexOf('\n}',start)+2);
-    for(const change of ['lock','canvas','source'])for(const after of [false,true]){
-        const node={id:'v',x:1,y:1,images:[{url:'/input.mp4',kind:'video'}]},ctx=vm.createContext({nodes:[node],canvas:{id:'one'},locked:false,saves:0,uploads:0,mediaKindForItem:i=>i.kind,imageForDisplay:i=>i,displayMediaUrl:i=>i.url,canvasTaskWriteGuard:()=>({check(){}}),window:{LocalDepthVideo:{open:o=>o}},pushUndo(){},appendImagesToSmartNode(){ctx.saves++},isSmartCanvasLocked:()=>ctx.locked});
+    const code=['openSmartLocalDepthVideo','openSmartLocalDepthImage','openSmartLocalDepthMedia'].map(name=>{const start=source.indexOf(`function ${name}(`);return source.slice(start,source.indexOf('\n}',start)+2)}).join('\n');
+    for(const kind of ['image','video'])for(const change of ['lock','canvas','source'])for(const after of [false,true]){
+        const node={id:'v',x:1,y:1,images:[{url:'/input.mp4',kind}]},ctx=vm.createContext({nodes:[node],canvas:{id:'one'},locked:false,saves:0,uploads:0,mediaKindForItem:i=>i.kind,imageForDisplay:i=>i,displayMediaUrl:i=>i.url,canvasTaskWriteGuard:()=>({check(){}}),window:{LocalDepthVideo:{open:o=>o},LocalDepthImage:{open:o=>o}},pushUndo(){},appendImagesToSmartNode(){ctx.saves++},isSmartCanvasLocked:()=>ctx.locked});
         const mutate=()=>{if(change==='lock')ctx.locked=true;else if(change==='canvas')ctx.canvas.id='two';else node.images[0].url='replaced';};
         ctx.uploadFiles=async()=>{ctx.uploads++;if(after)mutate();return [{url:'/result.mp4'}]};
-        vm.runInContext(code,ctx);const panel=ctx.openSmartLocalDepthVideo('v',0);if(!after)mutate();
+        vm.runInContext(code,ctx);const panel=ctx.openSmartLocalDepthMedia('v',0,kind);if(!after)mutate();
         await assert.rejects(panel.save({}),/变化/);assert.equal(ctx.saves,0);assert.equal(ctx.uploads,after?1:0);
     }
+});
+test('local image exports grayscale PNG, preserves aspect ratio and never needs a video encoder',async t=>{
+    const {page,requests}=await browserFixture(t);
+    await page.evaluate(()=>{
+        Object.defineProperty(window,'VideoEncoder',{value:undefined});
+        LocalDepthImage.open({url:'/input.svg',save:async file=>{window.saved++;window.savedType=file.type;window.savedName=file.name}});
+    });
+    assert.deepEqual(await page.evaluate(()=>workerCalls),[]);
+    assert.equal(await page.locator('[data-fps]').count(),0);
+    await page.locator('.local-depth-start').click();await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
+    await page.waitForFunction(()=>document.querySelector('.local-depth-preview').naturalWidth===1024);
+    const output=await page.locator('.local-depth-preview').evaluate(img=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const ctx=c.getContext('2d');ctx.drawImage(img,0,0);return {size:[c.width,c.height],pixel:[...ctx.getImageData(100,100,1,1).data]}});
+    assert.deepEqual(output.size,[1024,512]);assert.equal(output.pixel[0],output.pixel[1]);assert.equal(output.pixel[1],output.pixel[2]);assert.equal(output.pixel[3],255);
+    assert.deepEqual(await page.evaluate(()=>frameSize),[518,259]);
+    assert.equal(await page.evaluate(()=>workerCalls.filter(t=>t==='frame').length),1);
+    assert.ok(requests.every(r=>r.method==='GET'));assert.ok(requests.every(r=>!r.url.includes('mediabunny')));assert.equal(await page.evaluate(()=>saved),0);
+    const download=page.waitForEvent('download');await page.locator('[data-download]').click();assert.equal((await download).suggestedFilename(),'depth-image.png');
+    await page.locator('[data-save]').click();await page.waitForFunction(()=>saved===1);assert.equal(await page.evaluate(()=>savedType),'image/png');assert.equal(await page.evaluate(()=>savedName),'depth-image.png');
+});
+test('image cancel/retry leaves local download available in read-only mode',async t=>{
+    const {page}=await browserFixture(t);
+    await page.evaluate(()=>{LocalDepthImage.open({url:'/input.svg'});window.stallWorker=true});
+    await page.locator('.local-depth-start').click();await page.waitForFunction(()=>workerCalls.includes('load'));
+    await page.locator('.local-depth-start').click();await page.waitForFunction(()=>document.querySelector('.local-depth-status').textContent.includes('已取消'));
+    await page.evaluate(()=>window.stallWorker=false);await page.locator('.local-depth-start').click();await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
+    assert.equal(await page.locator('[data-save]').isDisabled(),true);assert.equal(await page.evaluate(()=>saved),0);
+});
+test('smart image toolbar opens local depth and creates a separate image node only when saved',async t=>{
+    const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
+    await page.evaluate(()=>{nodes=[{id:'depth-source',type:'smart-image',x:20,y:20,images:[{url:'/test-image.svg',kind:'image',name:'input.svg'}]}];smartSelection.createdNode('depth-source');render();});
+    assert.equal(await page.locator('[data-smart-node-action="depth-local"]').count(),1);
+    assert.equal(await page.locator('[data-smart-node-action="depth"]').count(),1,'existing managed depth stays available');
+    await page.locator('[data-smart-node-action="depth-local"]').click();assert.equal(await page.locator('#localDepthTitle').textContent(),'本地深度图');await page.keyboard.press('Escape');
+    await page.evaluate(async()=>{
+        const open=LocalDepthImage.open;LocalDepthImage.open=options=>options;
+        const panel=openSmartLocalDepthImage('depth-source',0);LocalDepthImage.open=open;
+        window.imageUploads=0;uploadFiles=async files=>{imageUploads++;if(files[0].type!=='image/png')throw Error('wrong type');return [{url:'/depth.png',kind:'image',name:'depth-image.png'}]};
+        await panel.save(new File(['test'],'depth-image.png',{type:'image/png'}));
+    });
+    assert.equal(await page.evaluate(()=>nodes.length),2);assert.equal(await page.evaluate(()=>imageUploads),1);
+    assert.equal(await page.evaluate(()=>nodes.find(n=>n.id==='depth-source').images[0].url),'/test-image.svg');
+    assert.equal(await page.evaluate(()=>nodes.find(n=>n.id!=='depth-source').images[0].kind),'image');
+    await page.evaluate(()=>{MemberCanvasEdit.setEditable(false);const open=LocalDepthImage.open;LocalDepthImage.open=options=>options;window.readOnlySave=Boolean(openSmartLocalDepthImage('depth-source',0).save);LocalDepthImage.open=open;});
+    assert.equal(await page.evaluate(()=>readOnlySave),false);assert.deepEqual(errors,[]);
 });
 test('smart video toolbar opens the local panel and keeps existing preview behavior',async t=>{
     const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);

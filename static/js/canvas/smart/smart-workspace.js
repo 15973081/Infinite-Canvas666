@@ -2302,6 +2302,9 @@ function runSmartNodeToolbarAction(nodeId, action){
     if(action === 'depth-video' && kind === 'video'){
         return openSmartLocalDepthVideo(nodeId, index);
     }
+    if(action === 'depth-local' && kind === 'image'){
+        return openSmartLocalDepthImage(nodeId, index);
+    }
     if(kind !== 'image' && action !== 'preview'){
         toast('当前素材不支持该操作');
         return;
@@ -4425,6 +4428,7 @@ function smartNodeToolbarHtml(node){
             {key:'panorama', icon:'globe', label:'全景图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()},
             {key:'depth', icon:'layers', label:'深度图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()}
         ] : []),
+        ...(canEditImage ? [{key:'depth-local', icon:'layers', label:'深度图（本地）', enabled:true}] : []),
         ...(kind === 'video' ? [{key:'depth-video', icon:'layers', label:'深度视频', enabled:true}] : []),
         {key:'asset', icon:'library-big', label:'素材库', enabled:kind === 'image' || kind === 'video'},
         {key:'auth', icon:'shield-check', label:'认证', enabled:kind === 'image' || kind === 'video'},

@@ -414,24 +414,34 @@ function setSmartDropCopyEffect(e, includeAsset=false){
 }
 
 function openSmartLocalDepthVideo(nodeId, index){
+    return openSmartLocalDepthMedia(nodeId,index,'video');
+}
+
+function openSmartLocalDepthImage(nodeId, index){
+    return openSmartLocalDepthMedia(nodeId,index,'image');
+}
+
+function openSmartLocalDepthMedia(nodeId, index, kind){
     const source = nodes.find(node => node.id === nodeId);
     const item = source?.images?.[index];
-    if(!item?.url || mediaKindForItem(imageForDisplay(item)) !== 'video') return;
+    if(!item?.url || mediaKindForItem(imageForDisplay(item)) !== kind) return;
     const origin = canvas?.id, sourceUrl = item.url;
+    const title = kind === 'image' ? '本地深度图' : '深度视频';
     const guard = canvasTaskWriteGuard(source);
     const check = () => {
-        try {guard.check();} catch(_) {throw new Error('画布或编辑资格已变化，请重新打开深度视频；结果仍可本地下载');}
+        try {guard.check();} catch(_) {throw new Error(`画布或编辑资格已变化，请重新打开${title}；结果仍可本地下载`);}
         if(isSmartCanvasLocked() || canvas?.id !== origin || nodes.find(node => node.id === nodeId)?.images?.[index]?.url !== sourceUrl){
-            throw new Error('画布、源素材或编辑权限已变化，请重新打开深度视频');
+            throw new Error(`画布、源素材或编辑权限已变化，请重新打开${title}`);
         }
     };
-    return window.LocalDepthVideo.open({
+    const tool = kind === 'image' ? window.LocalDepthImage : window.LocalDepthVideo;
+    return tool.open({
         url:displayMediaUrl(imageForDisplay(item)),
-        save:async file => {
+        save:isSmartCanvasLocked() ? undefined : async file => {
             check();
             const uploaded = await uploadFiles([file],{nodeId});
             check();
-            if(!uploaded.length) throw new Error('上传未返回视频结果');
+            if(!uploaded.length) throw new Error('上传未返回素材结果');
             pushUndo();
             appendImagesToSmartNode(uploaded,'',{forceNew:true,point:{x:(source.x || 0)+420,y:(source.y || 0)+180}});
         }
