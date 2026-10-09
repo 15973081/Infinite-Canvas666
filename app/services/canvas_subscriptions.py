@@ -28,6 +28,9 @@ def snapshot(actor, canvas_id):
         if mode not in {'offline', 'recovering'}:
             detail['collaboration'] = canvas_leases.transfer_snapshot(conn, actor, workspace, canvas, row)
             detail['collaboration']['lease'].pop('server_time', None)
+            # Renewals extend a private deadline; they do not change public
+            # collaboration state. Expiry is still reflected by holder/state.
+            detail['collaboration']['lease'].pop('expires_at', None)
         encoded = json.dumps(detail, sort_keys=True, default=str, ensure_ascii=False).encode()
         return {'type': 'canvas_state', 'workspace_id': workspace, 'canvas_id': canvas_id,
                 'revision': canvas['revision'], 'generation': row['generation'],

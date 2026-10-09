@@ -6,7 +6,8 @@
     if(!loadedBuildId || loadedBuildId === '__FRONTEND_BUILD_ID__') return;
     meta.dataset.runtimeLoaded = 'true';
 
-    const CHECK_INTERVAL_MS = 30000;
+    const CHECK_INTERVAL_MS = 300000;
+    let lastAutomaticCheck = 0;
     let latestBuildId = loadedBuildId;
     let checkRequest = null;
     let checkTimer = null;
@@ -153,23 +154,30 @@
 
     function scheduleChecks(){
         clearInterval(checkTimer);
-        checkTimer = window.setInterval(checkForUpdate, CHECK_INTERVAL_MS);
+        if(parentVersionController()) return;
+        checkTimer = window.setInterval(automaticCheck, CHECK_INTERVAL_MS);
     }
 
-    window.addEventListener('focus', checkForUpdate);
+    function automaticCheck(){
+        if(document.hidden || parentVersionController() || Date.now()-lastAutomaticCheck<30000)return;
+        lastAutomaticCheck=Date.now();
+        return checkForUpdate();
+    }
+
+    window.addEventListener('focus', automaticCheck);
     window.addEventListener('pageshow', event => {
-        if(event.persisted) checkForUpdate();
+        if(event.persisted) automaticCheck();
     });
     document.addEventListener('visibilitychange', () => {
-        if(!document.hidden) checkForUpdate();
+        if(!document.hidden) automaticCheck();
     });
     if(document.readyState === 'loading'){
         document.addEventListener('DOMContentLoaded', () => {
-            checkForUpdate();
+            automaticCheck();
             scheduleChecks();
         }, {once:true});
     } else {
-        checkForUpdate();
+        automaticCheck();
         scheduleChecks();
     }
 

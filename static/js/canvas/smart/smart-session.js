@@ -155,15 +155,18 @@ function handleCanvasUpdatedMessage(data={}){
 function startCanvasMetaPoll(){
     // WS / iframe 转发不可靠时的兜底：定期看服务器 updated_at 是否变新，变新就合并拉取
     if(canvasMetaPollTimer) return;
+    let checking=false;
     canvasMetaPollTimer = setInterval(async () => {
         if(!canvasId || !canvas) return;
+        if(document.hidden || checking || (window.CanvasSession?.enabled && window.MemberCanvasEdit?.active))return;
         if(canvasSyncInFlight || dragState || selectionState) return;
+        checking=true;
         try {
             const meta = await window.CanvasApi.getCanvasMeta(canvasId, null);
             if(!meta) return;
             if(window.CanvasSession?.enabled ? Number(meta.revision)>Number(canvas.revision || 0) : Number(meta.updated_at || 0)>Number(canvas.updated_at || 0)) mergeReloadCanvasNow();
-        } catch(e) {}
-    }, 8000);
+        } catch(e) {} finally {checking=false;}
+    }, 30000);
 }
 
 async function connectAssetLibrarySyncSocket(){

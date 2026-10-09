@@ -30,6 +30,23 @@ test('read recovery survives an expired edit lease, reconnects, and never change
     assert.deepEqual(task,original);
 });
 
+test('idle recovery uses a minute interval; hidden pages stop reads and visible pending tasks resume',async()=>{
+    let timer,hidden=false,items=[],syncs=0,reads=0,status='running',now=0;
+    const context={module:{exports:{}},console,setTimeout:(fn,ms)=>(timer={fn,ms}),clearTimeout(){}};
+    vm.runInNewContext(require('node:fs').readFileSync(require.resolve('../static/js/canvas-task-results.js'),'utf8'),context);
+    const observer=context.module.exports.recovery({list:()=>items,current:()=>true,allowed:()=>true,
+        visible:()=>!hidden,now:()=>now,changed(){},apply(){},sync:async()=>{syncs++;},read:async()=>{reads++;return {id:'task',status};}});
+    try{
+        await observer.refresh();assert.equal(syncs,1);assert.equal(timer.ms,60000);
+        hidden=true;await timer.fn();assert.equal(syncs,1);assert.equal(reads,0);
+        items=[{id:'task',task:{taskId:'task'}}];hidden=false;
+        await observer.refresh();assert.equal(syncs,2);assert.equal(reads,1);assert.equal(timer.ms,5000);
+        status='succeeded';await timer.fn();assert.equal(timer.ms,60000);
+        now=60000;assert.equal(observer.get(items[0].task).status,'succeeded');
+        items=[];await timer.fn();assert.equal(timer.ms,60000);
+    }finally{observer.stop();}
+});
+
 for(const change of ['canvas','rights','node'])test('delayed response discarded after '+change,async t=>{
     const gate=deferred(),task={taskId:'task'},item={id:'task',canvasId:'c',task};let current=true,rights=true,items=[item],writes=0,changes=0;
     const observer=results.recovery({list:()=>items,current:()=>current,allowed:()=>rights,changed(){changes++;},apply(){writes++;},read:()=>gate.promise});

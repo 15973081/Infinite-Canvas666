@@ -9,7 +9,7 @@ const apiSource=fs.readFileSync('static/js/canvas-api.js','utf8');
 const status={canvas_id:'a',generation:1,revision:3,holder:{id:'member',display_name:'甲',is_self:true},server_time:'2026-09-14T00:00:00Z',expires_at:'2026-09-14T00:01:00Z'};
 const reply=(data,code=200)=>new Response(JSON.stringify(data),{status:code});
 function fixture() {
-    const calls=[],records=new Map(),queries=[],listeners=new Map(),timers=new Map(),downloads=[]; let sequence=0;
+    const calls=[],records=new Map(),queries=[],listeners=new Map(),timers=new Map(),delays=new Map(),downloads=[]; let sequence=0;
     const element=(tag='div')=>({tagName:tag.toUpperCase(),value:'',children:[],classList:{toggle(){},remove(){}},setAttribute(){},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},addEventListener(){},remove(){this.removed=true;},click(){downloads.push(this.download);},showModal(){},close(){},querySelectorAll(selector){return this.children.filter(node=>node.tagName===selector.toUpperCase());}});
     const database={transaction(){
         const transaction={abort(){this.aborted=true;queueMicrotask(()=>this.onabort?.());},objectStore:()=>({
@@ -24,7 +24,7 @@ function fixture() {
         indexedDB:{open(){const request={result:database};queueMicrotask(()=>request.onsuccess());return request;}},
         IDBKeyRange:{bound:(lower,upper)=>({lower,upper})},
         document:{body:element(),querySelectorAll:()=>[],createElement:element},
-        setTimeout(fn){timers.set(++sequence,fn);return sequence;},clearTimeout(id){timers.delete(id);},
+        setTimeout(fn,ms){timers.set(++sequence,fn);delays.set(sequence,ms);return sequence;},clearTimeout(id){timers.delete(id);delays.delete(id);},
         addEventListener(name,fn){listeners.set(name,fn);},
         CanvasSession:{enabled:true,context:{member:{id:'member'},workspace:{id:'space',permissions:['canvas.read','canvas.edit']}}},
         fetch:async(path,init={})=>{calls.push([path,init]);
@@ -38,9 +38,35 @@ function fixture() {
     context.window=context;context.parent=context;
     context.CanvasEditLease=class extends Lease {constructor(options){super({...options,fetch:context.fetch,now:()=>0});}};
     vm.createContext(context);vm.runInContext(source,context);vm.runInContext(apiSource,context);
-    return {context,calls,records,queries,listeners,timers,downloads,database,api:context.MemberCanvasEdit,
+    return {context,calls,records,queries,listeners,timers,delays,downloads,database,api:context.MemberCanvasEdit,
         mount:()=>context.MemberCanvasEdit.mount({id:'a',dirty:()=>false,snapshot:()=>({id:'a',kind:'classic',revision:3,nodes:[],connections:[]}),reload:async()=>({revision:3}),flush:async()=>true})};
 }
+test('healthy idle subscription suppresses transfer polling but keeps a minute fallback',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    const entry=f.api.active;entry.subscription={healthy:true};
+    const count=()=>f.calls.filter(([path])=>path.endsWith('/transfers')).length;
+    const tick=()=>[...f.timers].find(([id])=>f.delays.get(id)===15000)[1]();
+    assert.equal(count(),1);assert.equal(f.delays.get(entry.reportTimer),20000);
+    await tick();assert.equal(count(),1);
+    entry.lastStateAt=Date.now()-61000;await tick();assert.equal(count(),2);
+    entry.subscription.healthy=false;await tick();assert.equal(count(),3);
+    f.context.document.hidden=true;await tick();assert.equal(count(),3);
+});
+
+test('hidden editor renews at the server heartbeat without transfer requests',async()=>{
+    const f=fixture();await f.mount();await new Promise(setImmediate);
+    const entry=f.api.active;await entry.lease.start(async()=>({revision:3}));
+    const transport=entry.lease.transport;entry.lease.transport=async(path,init)=>{
+        if(path.endsWith('/renew')){f.calls.push([path,init]);return reply({...status,heartbeat_seconds:10});}
+        return transport(path,init);
+    };
+    f.context.document.hidden=true;
+    const tick=[...f.timers].find(([id])=>f.delays.get(id)===15000)[1];
+    const before=f.calls.length;await tick();
+    assert.deepEqual(f.calls.slice(before).map(([path])=>path),['/api/canvases/a/edit-lease/renew']);
+    assert.ok([...f.delays.values()].includes(10000));assert.equal(entry.lease.canSave,true);
+    entry.reportSuspended=true;const suspended=f.calls.length;await tick();assert.equal(f.calls.length,suspended);
+});
 test('opening a member canvas only observes; saves require explicit start',async()=>{
     const f=fixture();await f.mount();await new Promise(setImmediate);
     assert.deepEqual(f.calls.map(([path])=>path).sort(),['/api/canvases/a/edit-lease/transfers','/api/canvases/a/page-state']);

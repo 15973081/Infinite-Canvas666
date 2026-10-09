@@ -5,12 +5,12 @@
         constructor({id,workspace,url,onChange,onDisconnect=()=>{},valid=()=>true,
             socketFactory=url=>new WebSocket(url),delay=(...args)=>setTimeout(...args),cancel=id=>clearTimeout(id)}) {
             Object.assign(this,{id,workspace,url,onChange,onDisconnect,valid,socketFactory,delay,cancel});
-            this.stopped=true;this.socket=null;this.retry=null;this.watchdog=null;
+            this.stopped=true;this.socket=null;this.retry=null;this.watchdog=null;this.healthy=false;
             this.revision=0;this.generation=0;this.attempt=0;
         }
         start() {if(!this.stopped)return;this.stopped=false;this.connect();}
         stop() {
-            this.stopped=true;this.cancel(this.retry);this.cancel(this.watchdog);
+            this.stopped=true;this.healthy=false;this.cancel(this.retry);this.cancel(this.watchdog);
             const socket=this.socket;this.socket=null;try{socket?.close();}catch(_){}
         }
         reconnect() {
@@ -24,7 +24,7 @@
             try {socket=this.socketFactory(this.url);} catch(_) {
                 this.onDisconnect('实时连接未建立，正在重试；查看状态由轮询补充。');this.reconnect();return;
             }
-            this.socket=socket;let sequence=0,marker=null;
+            this.socket=socket;this.healthy=false;let sequence=0,marker=null;
             const current=()=>!this.stopped && this.socket===socket && this.valid();
             const watch=()=>{this.cancel(this.watchdog);this.watchdog=this.delay(()=>{if(current())socket.close();},25000);};
             watch();
@@ -39,7 +39,7 @@
                 if(value.revision<this.revision || value.generation<this.generation) {
                     this.stop();this.onDisconnect('服务器版本发生回退，已暂停编辑，请保留草稿并重新打开画布。');return;
                 }
-                this.revision=value.revision;this.generation=value.generation;this.attempt=0;watch();
+                this.revision=value.revision;this.generation=value.generation;this.attempt=0;this.healthy=true;watch();
                 const next=[value.revision,value.generation,value.stamp].join(':');
                 if(next===marker)return;marker=next;
                 Promise.resolve().then(()=>{if(current())return this.onChange(value);}).catch(()=>{
@@ -49,7 +49,7 @@
             socket.onerror=()=>{if(current())socket.close();};
             socket.onclose=event=>{
                 if(!current())return;
-                this.socket=null;this.cancel(this.watchdog);
+                this.socket=null;this.healthy=false;this.cancel(this.watchdog);
                 if(event.code===1008) {
                     this.stop();this.onDisconnect('画布订阅权限已失效，请检查账号与空间；当前草稿保留。');return;
                 }

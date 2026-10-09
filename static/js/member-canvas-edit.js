@@ -73,7 +73,8 @@
     async function reportTick(entry) {
         if(entry!==active || entry.reportClosed || entry.reportSuspended) return;
         await reportPage(entry);
-        if(entry===active && !entry.reportClosed && !entry.reportSuspended) entry.reportTimer=setTimeout(() => reportTick(entry),10000);
+        // Keep within the server's 35-second presence expiry, including hidden pages.
+        if(entry===active && !entry.reportClosed && !entry.reportSuspended) entry.reportTimer=setTimeout(() => reportTick(entry),20000);
     }
     async function preserveDraft(entry) {
         assertDraftScope(entry);
@@ -416,6 +417,7 @@
                     if(entry.options.dirty()) {await persist(entry);throw new Error('交接已批准，但本页有未保存内容，请点击开始编辑，保留草稿后再接管。');}
                     return entry.options.reload();
                 });
+                entry.lastStateAt=Date.now();
                 if(validEntry(entry) && api.canRefresh && !entry.options.busy?.() && entry.options.refresh &&
                     entry.lease.status?.revision>Number(entry.options.snapshot().revision || 0)) await entry.options.refresh();
             } while(entry.refreshAgain && validEntry(entry));
@@ -432,6 +434,7 @@
                 if(!validEntry(entry))return;
                 entry.streamMessage='';entry.lease.setMaintenance(value.maintenance.mode);
                 if(!['offline','recovering'].includes(value.maintenance.mode))await refreshState(entry);
+                entry.refreshTasks?.();
                 render();
             },onDisconnect:message=>{
                 if(entry!==active)return;
@@ -442,13 +445,21 @@
         entry.subscription.start();
     }
     async function tick(entry) {
-        if(entry!==active) return;
+        if(!validEntry(entry)) return;
+        if(entry.ticking)return;
+        entry.ticking=true;
         try {
             if(entry.lease.canSave) await entry.lease.renew();
-            await refreshState(entry);
+            // Real-time hints handle changes. HTTP is a slower fallback; renewals
+            // remain independent of visibility so a hidden editor cannot lose its lock.
+            if(!document.hidden && (!entry.subscription?.healthy || entry.lease.pending ||
+                Date.now()-(entry.lastStateAt || 0)>=60000)) await refreshState(entry);
         }
         catch(error) {if(entry===active){entry.feedback=error.message;render();}}
-        if(entry===active) timer=setTimeout(() => tick(entry),Math.min(5000,(entry.lease.status?.heartbeat_seconds || 5)*1000));
+        finally {entry.ticking=false;}
+        const delay=entry.lease.canSave ? Math.max(1000,Math.min(10000,(entry.lease.status?.heartbeat_seconds || 5)*1000)) :
+            entry.lease.pending ? 5000 : 15000;
+        if(validEntry(entry)) timer=setTimeout(() => tick(entry),delay);
     }
     // Directory metadata changes and trash restoration need a short lease.
     const directoryWrites = new Map();

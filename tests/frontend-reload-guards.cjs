@@ -4,6 +4,25 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync('static/js/frontend-version.js','utf8');
 const turn=()=>new Promise(setImmediate);
+test('automatic version checks belong to the parent, throttle focus and pause when hidden',async()=>{
+    let now=100000,reads=0,parentReads=0,interval;
+    function load(parent){
+        const listeners=new Map(),document={readyState:'complete',hidden:false,
+            querySelector:()=>({content:'old',dataset:{}}),addEventListener:(name,fn)=>listeners.set(name,fn)};
+        const window={addEventListener:(name,fn)=>listeners.set(name,fn),setInterval:(fn,ms)=>{interval={fn,ms};},location:{href:'http://canvas.local/'}};
+        window.parent=parent || window;
+        vm.runInNewContext(source,{window,document,Date:{now:()=>now},clearInterval(){},
+            fetch:async()=>{reads++;return {ok:true,json:async()=>({build_id:'old'})};}});
+        return {window,document,listeners};
+    }
+    const root=load();await turn();assert.equal(reads,1);assert.equal(interval.ms,300000);
+    root.listeners.get('focus')();await turn();assert.equal(reads,1);
+    now+=300000;root.document.hidden=true;interval.fn();await turn();assert.equal(reads,1);
+    root.document.hidden=false;root.listeners.get('visibilitychange')();await turn();assert.equal(reads,2);
+    interval=null;const child=load({FrontendVersion:{checkForUpdate:async()=>{parentReads++;return 'old';}}});
+    child.listeners.get('focus')();await turn();assert.equal(interval,null);assert.equal(parentReads,0);assert.equal(reads,2);
+    await child.window.FrontendVersion.checkForUpdate();assert.equal(parentReads,1);
+});
 function fixture(){
     const timers=new Map(),navigations=[];let sequence=0,banner;
     function frame(){

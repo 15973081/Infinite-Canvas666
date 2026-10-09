@@ -35,9 +35,11 @@ test('replayed or rolled-back generations cannot overwrite newer state even afte
     }
 });
 test('heartbeats keep transport live without repeatedly refreshing the document',async()=>{
-    const f=fixture();f.send(state());await settle();const first=f.subscription.watchdog;
+    const f=fixture();assert.equal(f.subscription.healthy,false);f.send(state());await settle();const first=f.subscription.watchdog;
+    assert.equal(f.subscription.healthy,true);
     f.send(state({sequence:2}));await settle();assert.equal(f.messages.length,1);assert.equal(f.timers.has(first),false);
     f.timers.get(f.subscription.watchdog).fn();assert.equal(f.sockets[0].closed,true);assert.equal(f.errors.length,1);
+    assert.equal(f.subscription.healthy,false);
 });
 test('intentional stop and account changes suppress old callbacks; revoked subscriptions do not retry',async()=>{
     const f=fixture();f.setValid(false);f.send(state());await settle();assert.equal(f.messages.length,0);

@@ -76,6 +76,7 @@ async function syncRemoteCanvasNow(){
 async function checkRemoteCanvasVersion(){
     if(!canvas || applyingRemoteCanvas || remoteSyncBusy) return;
     if(document.hidden) return;
+    if(window.CanvasSession?.enabled && window.MemberCanvasEdit?.active)return;
     if(lastCanvasWsUpdatedAt && Date.now() - lastCanvasWsUpdatedAt < REMOTE_SYNC_WS_QUIET_MS) return;
     remoteSyncBusy = true;
     try {

@@ -29,8 +29,10 @@
     const taskKey=task=>String(task?.canvasTaskId || task?.taskId || '');
     // Display observations live outside the saved document. Losing edit rights
     // must neither mutate that document nor stop authorized status reads.
-    function recovery({list,read,apply,changed,current,allowed,sync,now=Date.now}) {
+    function recovery({list,read,apply,changed,current,allowed,sync,now=Date.now,
+        visible=()=>typeof document==='undefined' || !document.hidden}) {
         const states=new Map();let stopped=false,busy=false,timer=null;
+        const unsettled=status=>['checking','running','disconnected'].includes(status);
         const live=()=>!stopped && current();
         const present=item=>live() && allowed() && list().some(row=>row.task===item.task && row.id===item.id);
         function update(item,status){
@@ -41,13 +43,14 @@
         function get(task){
             if(!live() || !allowed())return {status:'unavailable',label:labels.unavailable};
             const value=states.get(taskKey(task));
-            const status=value?.task===task ? (now()-value.at>15000 ? 'disconnected' : value.status) : 'checking';
+            const status=value?.task===task ? (unsettled(value.status) && now()-value.at>15000 ? 'disconnected' : value.status) : 'checking';
             return {status,label:labels[status] || labels.checking};
         }
         async function refresh(){
             if(busy || stopped)return;
             clearTimeout(timer);busy=true;
             try {
+                if(!visible())return;
                 if(!live() || !allowed()){states.clear();changed();return;}
                 if(sync)await sync(()=>live() && allowed());
                 if(!live() || !allowed())return;
@@ -80,7 +83,14 @@
                 // A failed sync keeps the old delivery cursor for the next retry.
                 console.warn('Canvas task reconciliation failed', error);
             } finally {
-                busy=false;if(live())timer=setTimeout(refresh,5000);
+                busy=false;
+                if(live()){
+                    const pending=list().some(item=>{
+                        const state=states.get(item.id);
+                        return state?.task!==item.task || unsettled(state.status);
+                    });
+                    timer=setTimeout(refresh,visible() && pending ? 5000 : 60000);
+                }
             }
         }
         return {get,refresh,stop(){stopped=true;clearTimeout(timer);states.clear();}};

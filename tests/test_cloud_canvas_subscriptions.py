@@ -157,3 +157,16 @@ def test_expired_lease_changes_stamp_even_without_new_generation_or_revision(wor
         value=receive(ws,lambda v:v['stamp']!=initial['stamp'])
         assert value['generation']==lease['generation'] and value['revision']==canvas['revision']
         assert world['viewer'].get(path+'/edit-lease',headers=headers(world['a'])).json()['holder'] is None
+
+
+def test_renewal_keeps_subscription_stamp_stable(world):
+    path,canvas=setup_canvas(world)
+    lease=acquire(world,path)
+    with connect(world,canvas) as ws:
+        initial=ws.receive_json()
+        renewed=world['editor'].post(path+'/edit-lease/renew',headers=proof(world,lease))
+        assert renewed.status_code==200,renewed.text
+        assert renewed.json()['expires_at']!=lease['expires_at']
+        heartbeat=ws.receive_json()
+        assert heartbeat['stamp']==initial['stamp']
+        assert heartbeat['sequence']>initial['sequence']
