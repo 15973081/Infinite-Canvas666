@@ -38,7 +38,7 @@
             <div id="composer" class="composer">
                 <div class="composer-card">
                     <div class="composer-head">
-                        <div class="composer-heading"><span class="composer-mark"><i data-lucide="sparkles"></i></span><strong id="composerHeading">生成</strong></div>
+                        <div class="composer-heading"><strong id="composerHeading">生成</strong></div>
                         <div class="composer-head-left">
                             <div id="apiKindToggle" class="kind-toggle" style="display:none">
                                 <button type="button" data-kind="image" class="active"><i data-lucide="image"></i><span>图片</span></button>
@@ -51,9 +51,6 @@
                     <div class="prompt-row">
                         <div class="composer-prompt-label">提示词<span>输入 @ 引用素材</span></div>
                         <div id="promptInput" class="prompt-input" contenteditable="true" role="textbox" aria-label="生成提示词" aria-multiline="true" data-placeholder="描述你想生成或编辑的图片..."></div>
-                        <button id="composerTemplateBtn" class="composer-template-btn" type="button" title="模板库" aria-label="模板库">
-                            <i data-lucide="library"></i><span>模板库</span>
-                        </button>
                         <div id="mentionPicker" class="mention-picker"></div>
                         <div id="promptResize" class="prompt-resize" title="拖拽调整文本框高度"></div>
                     </div>
@@ -87,10 +84,10 @@
                         <div class="create-card-title">上传节点</div>
                     </span>
                 </button>
-                <button class="create-card" type="button" role="menuitem" data-create-type="prompt" title="手写提示词或用 LLM 生成文本">
+                <button class="create-card" type="button" role="menuitem" data-create-type="prompt" title="编辑文本并连接到图片或视频生成节点">
                     <span class="create-card-icon"><i data-lucide="text-cursor-input"></i></span>
                     <span>
-                        <div class="create-card-title">提示词</div>
+                        <div class="create-card-title">文本节点</div>
                     </span>
                 </button>
                 <button class="create-card" type="button" role="menuitem" data-create-type="generate-image" title="独立的图片提示词与生成参数">
@@ -110,41 +107,6 @@
             </div>
         </div>
         <input id="fileInput" type="file" accept="image/*,video/*,audio/*" multiple hidden>
-        <div id="promptPresetPanel" class="prompt-preset-panel">
-            <div class="prompt-preset-panel-head">
-                <span>提示词预设</span>
-                <button id="promptPresetClose" type="button" title="关闭"><i data-lucide="x"></i></button>
-            </div>
-            <div id="promptPresetStatus" class="prompt-preset-status"></div>
-            <div class="prompt-preset-fields">
-                <select id="promptPresetSelect"></select>
-                <input id="promptPresetName" type="text" placeholder="预设名称">
-                <textarea id="promptPresetText" placeholder="预设内容"></textarea>
-            </div>
-            <div class="prompt-preset-actions">
-                <button id="promptPresetApply" type="button">应用</button>
-                <button id="promptPresetDelete" class="danger" type="button">删除</button>
-                <span style="flex:1"></span>
-                <button id="promptPresetNew" type="button">存为新预设</button>
-                <button id="promptPresetSave" class="primary" type="button">保存修改</button>
-            </div>
-        </div>
-        <div id="promptTemplatePanel" class="prompt-template-panel">
-            <div class="prompt-template-head">
-                <div>
-                    <strong>提示词模板库</strong>
-                    <span>内置标准库 + 我的预设</span>
-                </div>
-                <button id="promptTemplateClose" type="button" title="关闭"><i data-lucide="x"></i></button>
-            </div>
-            <select id="promptTemplateLibrarySelect" class="prompt-template-library-select" title="选择提示词库"></select>
-            <div class="prompt-template-search">
-                <i data-lucide="search"></i>
-                <input id="promptTemplateSearch" type="search" placeholder="搜索模板...">
-            </div>
-            <div id="promptTemplateCats" class="prompt-template-cats"></div>
-            <div id="promptTemplateBody" class="prompt-template-body"></div>
-        </div>
         <div id="minimap" class="smart-minimap" aria-hidden="true">
             <div id="minimapContent" class="smart-minimap-content">
                 <div id="minimapViewport" class="smart-minimap-viewport"></div>

@@ -455,30 +455,11 @@ function smartNodeInputThumbsHtml(images, opts={}){
     return `<div class="smart-node-input-thumbs">${items}${more}</div>`;
 }
 
-function promptLlmInstructionHeight(node){
-    const h = Number(node?.llmInstructionHeight);
-    if(!Number.isFinite(h)) return PROMPT_LLM_INSTRUCTION_DEFAULT_H;
-    return Math.max(PROMPT_LLM_INSTRUCTION_MIN_H, Math.min(PROMPT_LLM_INSTRUCTION_MAX_H, Math.round(h)));
-}
-
-function promptNodeExpandedHeight(node){
-    // 指令文本框（发送给 LLM 的内容）可拖动加高，超出默认高度的部分要叠加进节点高度。
-    const extra = Math.max(0, promptLlmInstructionHeight(node) - PROMPT_LLM_INSTRUCTION_DEFAULT_H);
-    return (node?.llmSystemEnabled ? 344 : 292) + smartNodeInputThumbsHeight(promptNodeInputImages(node)) + extra;
-}
-
 function promptNodeLayoutSize(node){
-    const oldCollapsedH = 230;
-    const oldExpandedH = node?.llmSystemEnabled ? 400 : 340;
-    const explicitW = Number(node?.w);
-    const explicitH = Number(node?.h);
-    const width = !Number.isFinite(explicitW) || explicitW === 360 ? 316 : explicitW;
-    const fallbackH = node?.llmEnabled ? promptNodeExpandedHeight(node) : 194;
-    const legacyExpandedH = node?.llmSystemEnabled ? 344 : 292;
-    const height = !Number.isFinite(explicitH) || explicitH === oldCollapsedH || explicitH === oldExpandedH || explicitH === legacyExpandedH
-        ? fallbackH
-        : Math.max(explicitH, fallbackH);
-    return {width:Math.round(width), height:Math.round(height)};
+    return {
+        width:Math.round(Math.max(160, Number(node?.w) || 316)),
+        height:Math.round(Math.max(120, Number(node?.h) || 260))
+    };
 }
 
 function imageLayout(images, scale=1, node=null){
@@ -634,6 +615,7 @@ function renderSmartNodeHtml(node){
     const hint = node.localDepth ? '深度视频 · 本地生成' : isPending ? escapeHtml('正在生成…') : (imgs.length > 1 ? escapeHtml('多图会作为同一组参考图发送') : imgs.length ? escapeHtml('点击后在下方输入编辑需求') : escapeHtml('支持图片 / 视频 / 音频，也可直接文生图'));
     return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         ${generationKind ? `<div class="generation-node-caption"><i data-lucide="${generationKind === 'video' ? 'film' : 'image'}"></i><span>${generationTitle}</span></div>` : ''}
+        ${isPrompt ? '<div class="generation-node-caption text-node-caption"><i data-lucide="type"></i><span>文本节点</span></div>' : ''}
         <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
         ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button></div>` : ''}
         ${smartNodeToolbarHtml(node)}
@@ -930,19 +912,6 @@ function exitZoomPreviewToNode(nodeId){
 function toggleZoomPreview(){
     if(zoomPreviewState) exitZoomPreview();
     else enterZoomPreview();
-}
-
-function chatProviderOptions(selectedId=''){
-    const selected = resolveChatProviderId(selectedId);
-    return chatApiProviders().map(provider => `<option value="${escapeHtml(provider.id)}" ${provider.id === selected ? 'selected' : ''}>${escapeHtml(provider.name || provider.id)}</option>`).join('');
-}
-
-function chatModelOptions(selectedModel='', providerId=''){
-    const selectedProvider = resolveChatProviderId(providerId);
-    const models = providerChatModels(selectedProvider);
-    const selected = resolveChatModel(selectedModel, selectedProvider);
-    if(!models.length && window.CanvasSession?.enabled) return '<option value="" disabled selected>暂无可用模型</option>';
-    return [...new Set([selected, ...models].filter(Boolean))].map(model => `<option value="${escapeHtml(model)}" ${model === selected ? 'selected' : ''}>${escapeHtml(model)}</option>`).join('');
 }
 
 function renderVideoProviderControl(providers){
@@ -2036,35 +2005,8 @@ function restoreMediaPlaybackStates(states){
 }
 
 function promptNodeBodyHtml(node){
-    node.llmProvider = resolveChatProviderId(node.llmProvider || '');
-    node.llmModel = resolveChatModel(node.llmModel || '', node.llmProvider);
-    node.llmSystemEnabled = node.llmSystemEnabled === true;
-    const readonly = node.llmEnabled ? 'readonly' : '';
-    const systemPrompt = (node.llmSystemPrompt || '').trim();
-    const inputThumbs = smartNodeInputThumbsHtml(promptNodeInputImages(node));
-    const templateActive = activePromptTemplateNodeId() === node.id;
-    const llmParams = node.llmEnabled ? `
-        <div class="prompt-node-llm">
-            <select class="prompt-node-control prompt-llm-provider">${chatProviderOptions(node.llmProvider)}</select>
-            <select class="prompt-node-control prompt-llm-model">${chatModelOptions(node.llmModel, node.llmProvider)}</select>
-            <div class="prompt-llm-instruction-wrap">
-                <textarea class="prompt-node-control prompt-llm-instruction" placeholder="${escapeHtml('输入给 LLM 的文本，运行后会写入上方提示词')}" style="height:${promptLlmInstructionHeight(node)}px">${escapeHtml(node.llmInstruction || '')}</textarea>
-                <div class="prompt-llm-instruction-resize prompt-node-control" data-llm-instruction-resize="1" title="拖动调整高度"><span></span></div>
-            </div>
-            <div class="prompt-node-llm-actions">
-                <button class="prompt-node-run prompt-node-control" type="button" ${node.running ? 'disabled' : ''}><i data-lucide="${node.running ? 'loader-2' : 'play'}"></i><span>${node.running ? escapeHtml('运行中') : escapeHtml('运行')}</span></button>
-                <button class="prompt-node-pill prompt-node-control prompt-system-toggle ${node.llmSystemEnabled ? 'active' : ''}" type="button"><i data-lucide="${node.llmSystemEnabled ? 'toggle-right' : 'toggle-left'}"></i><span>${escapeHtml(node.llmSystemEnabled ? '关闭系统提示词' : '启用系统提示词')}</span></button>
-            </div>
-            ${node.llmSystemEnabled ? `<textarea class="prompt-node-control prompt-llm-system" placeholder="${escapeHtml('系统提示词开启后会随请求一起发送')}">${escapeHtml(systemPrompt || 'You are a helpful prompt assistant.')}</textarea>` : ''}
-        </div>` : '';
     return `<div class="prompt-node-card">
-        <textarea class="prompt-node-text prompt-node-control" ${readonly} placeholder="${escapeHtml('输入提示词...')}">${escapeHtml(node.text || '')}</textarea>
-        <div class="prompt-node-tools">
-            <button class="prompt-node-pill prompt-node-control prompt-preset-edit ${templateActive ? 'active' : ''}" type="button"><i data-lucide="library"></i><span>模板库</span></button>
-            <button class="prompt-node-pill prompt-llm-toggle ${node.llmEnabled ? 'active' : ''}" type="button"><i data-lucide="sparkles"></i><span>LLM</span></button>
-        </div>
-        ${node.llmEnabled ? inputThumbs : ''}
-        ${llmParams}
+        <textarea class="prompt-node-text prompt-node-control" aria-label="节点文本" ${isSmartCanvasLocked() ? 'readonly' : ''} placeholder="输入文本...">${escapeHtml(node.text || '')}</textarea>
     </div>`;
 }
 
@@ -2454,75 +2396,16 @@ function clearPortDragVisual(){
 }
 
 function bindPromptNodeControls(el, node){
-    el.querySelectorAll('.prompt-node-control, .prompt-node-pill').forEach(control => {
-        control.addEventListener('mousedown', e => e.stopPropagation());
-        control.addEventListener('click', e => e.stopPropagation());
-        control.addEventListener('dblclick', e => e.stopPropagation());
-    });
     const textEl = el.querySelector('.prompt-node-text');
-    if(textEl) {
-        bindScrollableText(textEl);
-        textEl.oninput = e => { node.text = e.target.value; scheduleSave(); };
-    }
-    const presetEdit = el.querySelector('.prompt-preset-edit');
-    if(presetEdit) presetEdit.onclick = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        editPromptPresetForNode(node);
-    };
-    const toggle = el.querySelector('.prompt-llm-toggle');
-    if(toggle) toggle.onclick = e => {
-        e.preventDefault(); e.stopPropagation();
-        node.llmEnabled = !node.llmEnabled;
-        if(node.llmEnabled){
-            node.llmProvider = resolveChatProviderId(node.llmProvider || '');
-            node.llmModel = resolveChatModel(node.llmModel || '', node.llmProvider);
-            node.h = Math.max(Number(node.h) || 0, promptNodeExpandedHeight(node));
-            node.w = Math.max(Number(node.w) || 0, 316);
-        } else {
-            node.h = 194;
-            node.w = Math.max(Number(node.w) || 0, 316);
-        }
-        refreshSmartNodes([node.id], {forceIds:[node.id]});
+    if(!textEl) return;
+    bindScrollableText(textEl);
+    textEl.addEventListener('click', event => event.stopPropagation());
+    textEl.addEventListener('dblclick', event => event.stopPropagation());
+    textEl.oninput = event => {
+        if(isSmartCanvasLocked()){textEl.value = node.text || ''; return;}
+        node.text = event.target.value;
         scheduleSave();
     };
-    const providerEl = el.querySelector('.prompt-llm-provider');
-    if(providerEl) providerEl.onchange = e => {
-        e.stopPropagation();
-        node.llmProvider = resolveChatProviderId(e.target.value);
-        node.llmModel = resolveChatModel('', node.llmProvider);
-        refreshSmartNodes([node.id], {forceIds:[node.id]});
-        scheduleSave();
-    };
-    const modelEl = el.querySelector('.prompt-llm-model');
-    if(modelEl) modelEl.onchange = e => { e.stopPropagation(); node.llmModel = e.target.value; scheduleSave(); };
-    const systemToggleEl = el.querySelector('.prompt-system-toggle');
-    if(systemToggleEl) systemToggleEl.onclick = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const prevHeight = Number(node.h) || 0;
-        node.llmSystemEnabled = !node.llmSystemEnabled;
-        if(node.llmSystemEnabled) node.h = Math.max(prevHeight, promptNodeExpandedHeight(node));
-        else if(prevHeight <= 364) node.h = promptNodeExpandedHeight(node);
-        refreshSmartNodes([node.id], {forceIds:[node.id]});
-        scheduleSave();
-    };
-    const systemEl = el.querySelector('.prompt-llm-system');
-    if(systemEl) { bindScrollableText(systemEl); systemEl.oninput = e => { node.llmSystemPrompt = e.target.value; scheduleSave(); }; }
-    const instructionEl = el.querySelector('.prompt-llm-instruction');
-    if(instructionEl) { bindScrollableText(instructionEl); instructionEl.oninput = e => { node.llmInstruction = e.target.value; scheduleSave(); }; }
-    const instructionResizeEl = el.querySelector('[data-llm-instruction-resize]');
-    if(instructionResizeEl) instructionResizeEl.addEventListener('mousedown', e => {
-        if(isSmartCanvasLocked()) return;
-        if(e.button !== 0) return;
-        e.preventDefault(); e.stopPropagation();
-        llmInstructionResizeState = {id:node.id, startY:e.clientY, startH:promptLlmInstructionHeight(node), startNodeH:promptNodeLayoutSize(node).height};
-        // 拖动期间屏蔽文本框的指针/选区，否则上拉时光标滑到上方输入框会被它抢走（选中文字/失焦）。
-        document.body.classList.add('smart-node-resize', 'smart-llm-instr-resize');
-        capturePendingUndo();
-    });
-    const runEl = el.querySelector('.prompt-node-run');
-    if(runEl) runEl.onclick = e => { e.preventDefault(); e.stopPropagation(); runPromptLLMNode(node.id); };
 }
 
 function bindLoopNodeControls(el, node){
@@ -2809,16 +2692,9 @@ function handlePortDrop(drag, e){
     if(hit?.closest?.('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.smart-minimap')){
         discardPendingUndo(); render(); return;
     }
-    const p = screenToWorld(e);
-    undoSuppressed = true;
-    const newNode = createImageNodeAt(p, [], {select:true, skipUndo:true});
-    undoSuppressed = false;
-    const fromId = drag.fromPort === 'out' ? drag.fromId : newNode.id;
-    const toId = drag.fromPort === 'out' ? newNode.id : drag.fromId;
-    connectInputNode(fromId, toId);
-    commitPendingUndo();
+    discardPendingUndo();
     render();
-    scheduleSave();
+    openCreateMenu(e, {connection:{fromId:drag.fromId, fromPort:drag.fromPort}});
 }
 
 function bindNodeEvents(elements=null){
@@ -3808,12 +3684,24 @@ function finishSelection(event){
 
 function closeCreateMenu({restoreFocus=false}={}){
     createMenu?.classList.remove('open');
+    if(createMenu) createMenu._connection = null;
     if(restoreFocus && createMenu?._previousFocus?.isConnected)createMenu._previousFocus.focus();
 }
 
-function openCreateMenu(event){
+function openCreateMenu(event, {connection=null}={}){
     if(!createMenu || !canvas || isSmartCanvasLocked()) return;
     createMenuPoint = screenToWorld(event);
+    createMenu._connection = connection;
+    createMenu.setAttribute('aria-label', connection ? '连接生成节点' : '新建节点');
+    createMenu.querySelectorAll('[data-create-type]').forEach(item => {
+        const kind = item.dataset.createType;
+        item.hidden = Boolean(connection && !['generate-image','generate-video'].includes(kind));
+        if(kind === 'generate-image' || kind === 'generate-video'){
+            item.querySelector('.create-card-title').textContent = kind === 'generate-image'
+                ? (connection ? '图片提示词' : '图片生成')
+                : (connection ? '视频提示词' : '视频生成');
+        }
+    });
     if(!createMenu.classList.contains('open'))createMenu._previousFocus=document.activeElement;
     createMenu.classList.add('open');
     refreshIcons();
@@ -3822,14 +3710,28 @@ function openCreateMenu(event){
     const top = Math.max(12, Math.min(window.innerHeight - h - 12, event.clientY + 4));
     createMenu.style.left = `${left}px`;
     createMenu.style.top = `${top}px`;
-    createMenu.querySelector('[role="menuitem"]')?.focus({preventScroll:true});
+    createMenu.querySelector('[role="menuitem"]:not([hidden])')?.focus({preventScroll:true});
 }
 
 function createNodeFromMenu(type){
     if(isSmartCanvasLocked()){ closeCreateMenu(); return; }
     const p = createMenuPoint || viewportCenter();
+    const connection = createMenu?._connection;
     closeCreateMenu();
-    if(type === 'prompt') return createPromptNode(p.x - 158, p.y - 97);
+    if(connection){
+        if(!['generate-image','generate-video'].includes(type) || !nodes.some(node => node.id === connection.fromId)) return;
+        pushUndo();
+        const node = createGenerationNodeAt(p, type === 'generate-video' ? 'video' : 'image', {select:false, skipUndo:true});
+        const fromId = connection.fromPort === 'out' ? connection.fromId : node.id;
+        const toId = connection.fromPort === 'out' ? node.id : connection.fromId;
+        connectInputNode(fromId, toId);
+        smartSelection.createdNode(node.id);
+        render();
+        scheduleSave();
+        promptInput.focus({preventScroll:true});
+        return node;
+    }
+    if(type === 'prompt') return createPromptNode(p.x - 158, p.y - 130);
     if(type === 'loop') return createLoopNode(p.x - 135, p.y - 95);
     if(type === 'generate-image') return createGenerationNodeAt(p, 'image');
     if(type === 'generate-video') return createGenerationNodeAt(p, 'video');
@@ -3839,23 +3741,23 @@ function createNodeFromMenu(type){
 // Permission changes must cancel mouse sessions too: the mouseup may arrive
 // after viewing starts, or even after a new editing lease has been obtained.
 function cancelSmartNodeGestures(){
-    const active = Boolean(portDragState || dragState || resizeState || llmInstructionResizeState || thumbDragState);
+    const active = Boolean(portDragState || dragState || resizeState || thumbDragState);
     if(!active){ closeCreateMenu(); return; }
     restoreDraggedNodePosition();
-    const resize = resizeState || llmInstructionResizeState;
+    const resize = resizeState;
     if(resize){
         const node = nodes.find(n => n.id === resize.id);
         const original = pendingUndoSnapshot?.nodes.find(n => n.id === resize.id);
         if(node && original){
-            for(const key of ['w','h','scale','llmInstructionHeight']){
+            for(const key of ['w','h','scale']){
                 if(Object.prototype.hasOwnProperty.call(original,key)) node[key] = original[key];
                 else delete node[key];
             }
         }
     }
-    portDragState = dragState = resizeState = llmInstructionResizeState = thumbDragState = null;
+    portDragState = dragState = resizeState = thumbDragState = null;
     discardPendingUndo();
-    document.body.classList.remove('smart-node-drag','smart-node-resize','smart-llm-instr-resize');
+    document.body.classList.remove('smart-node-drag','smart-node-resize');
     shell.classList.remove('port-dragging');
     clearPortDragVisual(); clearDropHighlight(); setAssetDragOver(false);
     closeCreateMenu(); render();
@@ -3921,6 +3823,9 @@ function bindSmartWorkspaceGestures(){
         openCreateMenu(e);
     };
     shell.onclick = e => {
+        // Releasing a dragged port also emits a click on the blank canvas.
+        // Later pointerdowns dismiss the menu before reaching this handler.
+        if(createMenu?._connection) return;
         if(selectionJustFinished) return;
         if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
         if(smartImageEditor.state.open) return;
@@ -3986,21 +3891,6 @@ function bindSmartWorkspaceGestures(){
             node.h = Math.max(minH, Math.round(resizeState.startH + dy));
             node.scale = 1;
             updateNodeElementDuringResize(node);
-            return;
-        }
-        if(llmInstructionResizeState){
-            const node = nodes.find(n => n.id === llmInstructionResizeState.id);
-            if(!node) return;
-            const dy = (e.clientY - llmInstructionResizeState.startY) / viewport.scale;
-            const newInstrH = Math.max(PROMPT_LLM_INSTRUCTION_MIN_H, Math.min(PROMPT_LLM_INSTRUCTION_MAX_H, Math.round(llmInstructionResizeState.startH + dy)));
-            node.llmInstructionHeight = newInstrH;
-            // 只把“指令框的高度变化量”叠加到节点总高度上，保留用户手动拉大的上方区域，避免上方被重置变小。
-            node.h = Math.max(promptNodeExpandedHeight(node), Math.round(llmInstructionResizeState.startNodeH + (newInstrH - llmInstructionResizeState.startH)));
-            node.w = Math.max(Number(node.w) || 0, 316);
-            node.scale = 1;
-            updateNodeElementDuringResize(node);
-            const ta = world.querySelector(`.image-node[data-id="${CSS.escape(node.id)}"] .prompt-llm-instruction`);
-            if(ta) ta.style.height = `${promptLlmInstructionHeight(node)}px`;
             return;
         }
         if(thumbDragState){
@@ -4101,15 +3991,6 @@ function bindSmartWorkspaceGestures(){
             } else { discardPendingUndo(); }
             resizeState = null;
             if(changed) render();
-            scheduleSave();
-        }
-        if(llmInstructionResizeState){
-            const node = nodes.find(n => n.id === llmInstructionResizeState.id);
-            const changed = node && promptLlmInstructionHeight(node) !== llmInstructionResizeState.startH;
-            document.body.classList.remove('smart-node-resize', 'smart-llm-instr-resize');
-            if(changed) commitPendingUndo(); else discardPendingUndo();
-            llmInstructionResizeState = null;
-            render();
             scheduleSave();
         }
         if(thumbDragState){
@@ -4357,7 +4238,7 @@ function bindSmartComposerInputEvents(){
     document.addEventListener('pointerdown',event=>{if(createMenu?.classList.contains('open') && !createMenu.contains(event.target))closeCreateMenu();},true);
     shell.addEventListener('wheel',()=>closeCreateMenu(),{passive:true});
     createMenu?.addEventListener('keydown',event=>{
-        const items=[...createMenu.querySelectorAll('[role="menuitem"]')];
+        const items=[...createMenu.querySelectorAll('[role="menuitem"]:not([hidden])')];
         const index=items.indexOf(document.activeElement);
         if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){
             event.preventDefault();event.stopPropagation();
@@ -4439,11 +4320,9 @@ function bindSmartComposerInputEvents(){
     document.addEventListener('click', event => {
         if(!event.target.closest('.smart-control')) closeAllSmartPopovers();
         if(!event.target.closest('.mention-picker') && !event.target.closest('#promptInput')) closeMentionPicker();
-        if(!event.target.closest('.prompt-preset-panel') && !event.target.closest('.prompt-preset-edit') && !event.target.closest('.prompt-preset-save')) closePromptPresetPanel();
-        if(!event.target.closest('.prompt-template-panel') && !event.target.closest('.prompt-preset-edit') && !event.target.closest('#composerTemplateBtn')) closePromptTemplatePanel();
     });
     document.addEventListener('keydown', event => {
-        if(event.key === 'Escape') { closeAllSmartPopovers(); closeCreateMenu(); closeSmartCanvasLog(); closeSmartCanvasShortcuts(); closePromptPresetPanel(); closePromptTemplatePanel(); }
+        if(event.key === 'Escape') { closeAllSmartPopovers(); closeCreateMenu(); closeSmartCanvasLog(); closeSmartCanvasShortcuts(); }
     });
 }
 
@@ -4491,53 +4370,6 @@ function smartNodeToolbarHtml(node){
         </button>`).join('')}</div>`;
 }
 
-
-// Prompt panels delegate document/selection writes; these checks never replace the session/save gates.
-function selectSmartPromptPanelTarget(canvasId,nodeId){
-    if(canvas?.id !== canvasId || !nodes.some(n => n.id === nodeId)) return false;
-    smartSelection.panelTarget(nodeId);
-    return true;
-}
-
-function applySmartPromptPanelText(target,text,presetId='',closePanel=()=>{}){
-    if(canvas?.id !== target.canvasId) return false;
-    if(target.kind === 'composer'){
-        setPromptText(text);
-        delete promptInput.dataset.preserveDraftOnce;
-        savePromptDraftForCurrent();
-        renderInputThumbsRow(selectedNode());
-        closePanel();
-    } else {
-        const node = nodes.find(n => n.id === target.nodeId);
-        if(!node) return false;
-        node.text = text; node.promptPresetId = presetId;
-        closePanel();
-        render();
-    }
-    scheduleSave();
-    return true;
-}
-
-function bindSmartPromptPanelPreset(canvasId,nodeId,presetId){
-    if(canvas?.id !== canvasId) return;
-    const node = nodes.find(n => n.id === nodeId);
-    if(node) node.promptPresetId = presetId;
-}
-
-function syncSmartPromptPanelPreset(canvasId,presetId,text,nodeId=''){
-    if(canvas?.id !== canvasId) return;
-    nodes.forEach(node => {if(node.promptPresetId === presetId && (!nodeId || node.id === nodeId)) node.text = text;});
-}
-
-function removeSmartPromptPanelPreset(canvasId,presetId){
-    if(canvas?.id !== canvasId) return;
-    nodes.forEach(node => {if(node.promptPresetId === presetId) node.promptPresetId = '';});
-}
-
-function finishSmartPromptPanelEdit(canvasId){
-    if(canvas?.id !== canvasId) return;
-    render(); scheduleSave();
-}
 
 function selectSmartImageEditorTarget(nodeId,index){return smartSelection.editorTarget(nodeId,index);}
 

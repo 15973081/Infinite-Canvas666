@@ -27,7 +27,7 @@ function fixture(entry){
  if(entry==='smart')install(c,'smart-canvas.js','runPromptLLMNode');else install(c,'canvas.js','callCanvasLLM',entry==='chat'?'runLLMChat':'runLLMNode');
  return {c,node,upstream,lease,calls,messages,atPoll,release,record:()=>record,flushFail:()=>failFlush=true,start:()=>entry==='smart'?c.runPromptLLMNode(node.id):entry==='chat'?c.runLLMChat(node.id):c.runLLMNode(node.id)};
 }
-for(const entry of ['node','chat','smart']){
+for(const entry of ['node','chat']){
  test(entry+' persists once and applies text through the real input receipt',async()=>{
   const f=fixture(entry),waiting=f.start();await f.atPoll;f.release();await waiting;
   assert.equal(f.node[entry==='smart'?'text':'outputText'],'saved reply');assert.equal(f.node.result_task_id,f.record().id);

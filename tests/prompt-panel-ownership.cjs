@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 
-for(const kind of ['classic','smart']){
+for(const kind of ['classic']){
     test(`${kind}: prompt UI bindings and DOM names are private to the factory; workspace owns document writes`,()=>{
         const folder=path.join(__dirname,'../static/js/canvas',kind);
         const library=fs.readFileSync(path.join(folder,kind==='classic'?'canvas-library.js':'smart-library.js'),'utf8');

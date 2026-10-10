@@ -30,7 +30,6 @@ test('Smart entry and callers have no writable selection aliases; undo retains i
  const owner=functionSource(source,'createSmartSelection');
  for(const file of ['static/js/smart-canvas.js',...['workspace','document','execution','results','media-editor','library','session'].map(n=>'static/js/canvas/smart/smart-'+n+'.js')]){
   let text=fs.readFileSync(file,'utf8').replace(owner,'');
-  if(file.endsWith('smart-workspace.js'))text=text.replace(functionSource(source,'chatProviderOptions'),'');
   assert.doesNotMatch(text,/(?<![.\w])(?:selectedId|selectedIds|selectedImage|imageClickTimer)\b(?!\s*:)/,file);
   assert.doesNotMatch(text,/\b(?:let|var)\s+(?:selectedId|selectedIds|selectedImage|imageClickTimer)\b/,file);
   assert.doesNotMatch(text,/\bsmartSelection\.(?:nodeId|ids|image|state)\s*=(?!=)/,file);

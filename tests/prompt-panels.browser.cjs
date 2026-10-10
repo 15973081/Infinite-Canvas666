@@ -28,7 +28,7 @@ async function scenario(page,kind){
     },kind);
 }
 
-for(const kind of ['classic','smart']){
+for(const kind of ['classic']){
     test(`${kind}: prompt commands own choices, immutable snapshots and DOM mirrors; paint never repairs selection`,async t=>{
         const {page,errors}=await fixture(t,kind,false);await scenario(page,kind);
         const result=await page.evaluate(async kind=>{
@@ -189,7 +189,7 @@ for(const kind of ['classic','smart']){
     });
 }
 
-for(const kind of ['classic','smart']){
+for(const kind of ['classic']){
     test(`${kind}: cached return resumes an interrupted open without reviving its old callback`,async t=>{
         const {page,errors}=await fixture(t,kind,false);await scenario(page,kind);
         const result=await page.evaluate(async kind=>{
@@ -241,46 +241,4 @@ test('classic: manager library selection uses the same command, clears only its 
         return {state,selected:classicLibraryManager.state.promptIds.length,assets:classicLibraryManager.state.assetIds.length,loads};
     });
     assert.deepEqual(result,{state:['two','view','two-a'],selected:0,assets:1,loads:0});assert.deepEqual(errors,[]);
-});
-
-test('smart: node/composer template apply, independent preset session, DOM mirrors and scoped preset bindings',async t=>{
-    const {page,errors}=await fixture(t,'smart',false);await scenario(page,'smart');
-    const result=await page.evaluate(async()=>{
-        const {owner}=promptTest;
-        promptPresets=[{id:'local',name:'Local',text:'local text',category:'custom'}];owner.dataChanged();
-        nodes.forEach(n=>n.promptPresetId='local');
-        openPromptPresetPanel('p','local');
-        const simultaneous=owner.state.open&&owner.state.preset.open&&Object.isFrozen(owner.state.preset);
-        document.getElementById('promptPresetSelect').value=''; // DOM cannot change selection.
-        document.getElementById('promptPresetPanel').dataset.nodeId='q';
-        document.getElementById('promptPresetName').value='Edited';document.getElementById('promptPresetText').value='edited text';
-        owner.savePreset();
-        const scoped=nodes.map(n=>n.text);
-        const stored=JSON.parse(localStorage.getItem(PROMPT_PRESETS_KEY))[0].text;
-        const savesAfterEdit=promptTest.saves;
-        owner.confirmDelete();const armed=owner.state.preset.deleteArmed&&promptPresets.length===1;
-        owner.selectPreset('local');const disarmed=!owner.state.preset.deleteArmed;
-        owner.confirmDelete();owner.confirmDelete();
-        const deleted=promptPresets.length===0&&nodes.every(n=>!n.promptPresetId);
-        const savesAfterDelete=promptTest.saves;
-        owner.close();await owner.selectLibrary('system');await owner.open('p','system-a',{target:'composer'});
-        applyPromptTemplateToNode('full');
-        const composer=promptPlainText(),pressed=document.getElementById('composerTemplateBtn').getAttribute('aria-pressed');
-        return {simultaneous,scoped,stored,savesAfterEdit,armed,disarmed,deleted,savesAfterDelete,composer,pressed,saves:promptTest.saves};
-    });
-    assert.deepEqual(result,{simultaneous:true,scoped:['edited text','other'],stored:'edited text',savesAfterEdit:1,armed:true,disarmed:true,deleted:true,savesAfterDelete:2,
-        composer:'alpha text\n\nNegative prompt:\nnegative\n\nParams:\nsteps: 20',pressed:'false',saves:3});assert.deepEqual(errors,[]);
-});
-
-test('smart: local template editing updates all bound nodes; readonly template controls and outside close preserve permission rules',async t=>{
-    const {page,errors}=await fixture(t,'smart',false);await scenario(page,'smart');
-    const result=await page.evaluate(async()=>{
-        const {owner}=promptTest;promptPresets=[{id:'local',name:'Local',text:'local text',category:'custom'}];
-        nodes.forEach(n=>n.promptPresetId='local');await owner.selectLibrary('system');owner.selectTemplate('mine:local');owner.startEditing();
-        document.querySelector('[data-template-edit-name]').value='Updated';document.querySelector('[data-template-edit-text]').value='all updated';
-        await savePromptTemplateEdit();const texts=nodes.map(n=>n.text);
-        owner.selectTemplate('system-a');const disabled=document.querySelector('[data-template-edit]').disabled;
-        document.body.click();return {texts,disabled,closed:!owner.state.open,saves:promptTest.saves};
-    });
-    assert.deepEqual(result,{texts:['all updated','all updated'],disabled:true,closed:true,saves:1});assert.deepEqual(errors,[]);
 });

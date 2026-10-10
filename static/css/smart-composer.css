@@ -6,10 +6,8 @@ body.studio-smart-canvas #shell #composer .composer-card {
     gap:14px; padding:18px; border-radius:20px; box-shadow:0 12px 36px #00000018;
 }
 #composer .composer-head { padding:0 0 12px; border-bottom:1px solid var(--st-line); }
-#composer .composer-heading { display:flex; align-items:center; gap:10px; font-size:14px; }
+#composer .composer-heading { display:flex; align-items:center; font-size:14px; }
 #composer .composer-heading strong { font-weight:600; letter-spacing:.03em; }
-#composer .composer-mark { width:30px; height:30px; border-radius:10px; display:grid; place-items:center; background:var(--st-accent); color:var(--st-ink); }
-#composer .composer-mark svg { width:16px; height:16px; }
 #composer .kind-toggle { border:0; border-radius:9px; padding:3px; gap:3px; background:var(--st-soft); }
 #composer .kind-toggle button { height:27px; padding:0 12px; border-radius:7px; font-size:11px; gap:6px; }
 #composer .kind-toggle button.active { background:var(--st-panel); color:var(--st-text); box-shadow:0 1px 4px #00000012; }
@@ -45,7 +43,8 @@ body.studio-smart-canvas #shell #composer .composer-card {
 #composer .composer-prompt-label { display:flex; align-items:center; gap:12px; padding:12px 44px 0 14px; font-size:11px; font-weight:600; }
 #composer .composer-prompt-label span { color:var(--st-muted); font-size:10px; font-weight:400; }
 #composer .prompt-input { border:0; border-radius:0 0 12px 12px; background:transparent; padding:12px 14px 16px; line-height:1.8; font-size:13px; }
-body.studio-smart-canvas #shell #composer .prompt-input { background:transparent!important; }
+/* The prompt row owns the surface and focus border; its editor stays seamless. */
+body.studio-smart-canvas #shell #composer .prompt-input { background:transparent!important; border:0; outline:none; box-shadow:none; }
 #composer .prompt-input:focus { box-shadow:none; }
 #composer .prompt-input:empty::before { font-size:12px; }
 body.studio-smart-canvas #shell #composer .composer-template-btn { background:transparent!important; border:0; top:6px; right:8px; }

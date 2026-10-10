@@ -1297,10 +1297,6 @@ async function loadManagerData(tab, {refresh=false, reset=false}={}){
         if(key === 'assets'){
             const data = await apiJson('/api/asset-library');
             applyAssetLibraryData(data, {reset});
-        } else if(key === 'prompts') {
-            const data = await apiJson('/api/prompt-libraries');
-            promptLibrary = data.library || {libraries:[]};
-
         } else if(key === 'canvas-assets') {
             await loadCanvasAssetPage(0); // /api/canvas-assets, bounded server query
         } else if(key === 'providers') {
@@ -1328,7 +1324,7 @@ async function loadInitialAssetManager(){
     await loadManagerData('assets', {reset:true});
     if(token!==managerTabSwitchToken) return;
     Object.values(managerViews.tabs).forEach(restoreManagerDescriptor);
-    if(['assets','workflows','prompts','canvas-assets'].includes(managerViews.activeTab)) activeTab=managerViews.activeTab;
+    if(['assets','workflows','canvas-assets'].includes(managerViews.activeTab)) activeTab=managerViews.activeTab;
     await loadManagerData(activeTab);
     if(token!==managerTabSwitchToken) return;
     render();
@@ -1342,7 +1338,7 @@ async function loadInitialAssetManager(){
 async function switchManagerTab(tab){
     rememberManagerView(captureManagerView());
     clearTimeout(searchRenderTimer);
-    const nextTab = ['assets','workflows','prompts','canvas-assets'].includes(tab) ? tab : 'assets';
+    const nextTab = ['assets','workflows','canvas-assets'].includes(tab) ? tab : 'assets';
     const token = ++managerTabSwitchToken;
     activeTab = nextTab;
     selectedAssetIds.clear();
@@ -1399,8 +1395,7 @@ function render({resetScroll=false}={}){
     const previousAssetView = captureAssetViewState();
     if(previousAssetView) persistAssetViewSession(previousAssetView);
     document.querySelectorAll('[data-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === activeTab));
-    if(activeTab === 'prompts') renderPromptManager();
-    else if(activeTab === 'workflows') renderWorkflowManager();
+    if(activeTab === 'workflows') renderWorkflowManager();
     else if(activeTab === 'canvas-assets') renderCanvasAssetsManager();
     else {
         renderAssetManager();
@@ -3061,7 +3056,7 @@ async function handleClick(event){
     }
     if(handleManagerSelectionClick(target)) return;
     const tabBtn = target.closest?.('[data-tab]');
-    if(tabBtn){ activeTab = tabBtn.dataset.tab || 'assets'; selectedAssetIds.clear(); selectedWorkflowIds.clear(); selectedPromptIds.clear(); selectedLocalIds.clear(); selectedLocalUploadIds.clear(); selectedCanvasAssetIds.clear(); render(); return; }
+    if(tabBtn){ switchManagerTab(tabBtn.dataset.tab || 'assets'); return; }
     if(target.closest?.('#refreshBtn')){ await refreshCurrentManager(); return; }
     const assetPreview = target.closest?.('[data-asset-preview]');
     if(assetPreview){ showDetailPreview('asset', assetPreview.dataset.assetPreview || ''); return; }

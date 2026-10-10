@@ -98,6 +98,9 @@ body.smart-node-drag .image-wrap:hover .image-resolution-badge { opacity:0 !impo
 .prompt-node-text::-webkit-scrollbar-corner, .prompt-node-llm textarea::-webkit-scrollbar-corner { background:transparent; }
 .prompt-node-text:focus { border-color:var(--strong); background:var(--card); }
 .prompt-node-text[readonly] { cursor:default; color:var(--muted); }
+.image-node.prompt-smart-node { padding:20px; border-radius:12px; box-shadow:none; }
+.prompt-smart-node .prompt-node-text { height:100%; min-height:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; font-size:14px; line-height:1.65; font-weight:400; }
+.prompt-smart-node .prompt-node-text:focus { background:transparent; }
 .prompt-node-tools { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
 .prompt-node-pill { height:24px; padding:0 8px; border-radius:9px; border:1px solid rgba(148,163,184,.34); background:rgba(255,255,255,.62); color:var(--muted); display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:650; }
 .theme-dark .prompt-node-pill { background:rgba(15,23,42,.42); border-color:rgba(148,163,184,.26); }
@@ -243,6 +246,7 @@ body.smart-llm-instr-resize .prompt-node-llm select { pointer-events:none !impor
 .create-menu.open { display:block; }
 .create-menu-grid { display:flex; flex-direction:column; gap:2px; }
 .create-card { width:100%; min-height:40px; padding:8px 10px; border-radius:7px; border:0; background:transparent; color:var(--text); display:flex; align-items:center; justify-content:flex-start; gap:10px; text-align:left; }
+.create-card[hidden] { display:none; }
 .create-card:hover,.create-card:focus-visible { background:var(--soft); outline:2px solid transparent; }
 .create-card-icon { width:22px; height:22px; display:flex; align-items:center; justify-content:center; color:var(--muted,var(--text)); }
 .create-card-icon i,.create-card-icon svg { width:17px; height:17px; }

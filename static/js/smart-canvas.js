@@ -51,7 +51,6 @@ let selectionState = null;
 let isRKeyDown = false;
 let selectionJustFinished = false;
 let resizeState = null;
-let llmInstructionResizeState = null;
 let thumbDragState = null;
 let uploadTargetId = '';
 let pendingGroupUploadPoint = null;
@@ -77,15 +76,6 @@ let localAssetLibrary = {items:[], tree:null};
 let mentionSource = 'input';
 let mentionAssetCategoryId = '';
 let assetLibraryUpdatedAt = 0;
-const PROMPT_PRESETS_KEY = 'smart_canvas_prompt_presets_v1';
-const PROMPT_TEMPLATE_GROUPS_KEY = 'smart_canvas_prompt_template_groups_v1';
-const PROMPT_TEMPLATE_OVERRIDES_KEY = 'smart_canvas_prompt_template_overrides_v1';
-let promptPresets = [];
-let builtinPromptTemplates = [];
-let promptLibraries = [];
-let promptTemplateGroups = [];
-let promptTemplateOverrides = {hiddenBuiltinIds:[], editedBuiltins:{}};
-const smartPromptPanels = createSmartPromptPanels();
 let createMenuPoint = {x:0, y:0};
 let nodeClipboard = null;
 let suppressImageClickUntil = 0;
@@ -249,9 +239,6 @@ const MEDIA_GROUP_MAX_VISIBLE_ROWS = 3;
 const EMPTY_UPLOAD_NODE_WIDTH = 208;
 const EMPTY_UPLOAD_NODE_HEIGHT = 128;
 
-const PROMPT_LLM_INSTRUCTION_DEFAULT_H = 58;
-const PROMPT_LLM_INSTRUCTION_MIN_H = 40;
-const PROMPT_LLM_INSTRUCTION_MAX_H = 400;
 
 
 
@@ -311,7 +298,6 @@ async function loadCanvas(options={}){
         smartMinimap.reset();
         smartAudioPreview.reset();
         if(!options.observe || canvas?.id !== data.canvas.id){
-            smartPromptPanels.reset();
             smartImageEditor.reset();
         }
         canvas = data.canvas;
@@ -368,6 +354,7 @@ async function loadCanvas(options={}){
                 },
                 changed:lease => {
                     document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
+                    world.querySelectorAll('.prompt-node-text').forEach(input => { input.readOnly = !lease.canEdit; });
                     if(lease.canEdit) resumeSmartPendingTasks();
                     if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;cancelSmartNodeGestures();}
                     if(runBtn) runBtn.disabled=!lease.canEdit || smartCascadeAnyRunning();
@@ -524,16 +511,13 @@ window.StudioFrameMessages.subscribe(['studio-theme','providers-changed','workfl
 window.onload = async () => {
     if(window.CanvasSession) await window.CanvasSession.ready;
     applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light');
-    loadPromptPresets();
-    loadPromptTemplateGroups();
-    loadPromptTemplateOverrides();
     if(window.lucide) lucide.createIcons();
     connectAssetLibrarySyncSocket();
     await loadConfig();
     await loadCanvas();
     syncApiKindToggleVisibility();
     render();
-    const background = () => Promise.all([loadPromptTemplates(), loadAssetLibrary()]);
+    const background = () => loadAssetLibrary();
     if(window.CanvasMediaLoader) window.CanvasMediaLoader.defer(background);
     else background();
 };

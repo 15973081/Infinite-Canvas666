@@ -592,30 +592,23 @@ function createNode(x, y, images=[], options={}){
     return node;
 }
 
-function createGenerationNodeAt(point, kind){
+function createGenerationNodeAt(point, kind, options={}){
     const generationKind = kind === 'video' ? 'video' : 'image';
     const layout = imageLayout([], 1, {type:'smart-image', generationKind});
-    return createNode((point?.x || 0) - layout.width / 2, (point?.y || 0) - layout.height / 2, [], {generationKind});
+    return createNode((point?.x || 0) - layout.width / 2, (point?.y || 0) - layout.height / 2, [], {...options, generationKind});
 }
 
 function createPromptNode(x, y, options={}){
     if(!options.skipUndo) pushUndo();
-    const providerId = resolveChatProviderId();
     const node = {
         id:uid('prompt'),
         type:'smart-prompt',
         x,
         y,
         w:316,
-        h:194,
-        title:'Prompt',
+        h:260,
+        title:'文本节点',
         text:'',
-        llmEnabled:false,
-        llmProvider:providerId,
-        llmModel:resolveChatModel('', providerId),
-        llmSystemEnabled:false,
-        llmSystemPrompt:'You are a helpful prompt assistant.',
-        llmInstruction:'',
         created_at:Date.now()
     };
     nodes.push(node);

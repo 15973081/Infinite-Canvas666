@@ -38,7 +38,7 @@ test('blank canvas double-click opens a compact menu; right-click does not open 
 
 test('all menu actions create at the double-click world point, including keyboard activation',async t=>{
     const {page,errors}=await fixture(t,'smart',true);
-    for(const [kind,type,offset] of [['image','smart-image',null],['prompt','smart-prompt',[158,97]],['generate-image','smart-image',null],['generate-video','smart-image',null],['loop','smart-loop',[135,95]]]){
+    for(const [kind,type,offset] of [['image','smart-image',null],['prompt','smart-prompt',[158,130]],['generate-image','smart-image',null],['generate-video','smart-image',null],['loop','smart-loop',[135,95]]]){
         await page.evaluate(()=>{nodes=[];canvas.nodes=nodes;clearSelection();render();});
         await page.mouse.dblclick(800,400);
         const point=await page.evaluate(()=>({...createMenuPoint}));

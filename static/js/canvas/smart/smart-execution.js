@@ -169,16 +169,6 @@ function smartSettingsForNode(node){
     return resolved;
 }
 
-function promptNodeInputImages(node){
-    if(!node?.llmEnabled) return [];
-    return promptNodeInputMediaForLLM(node).filter(img => img?.url);
-}
-
-function promptNodeInputMediaForLLM(node){
-    const refs = smartImageUsesWorkflowInput(node) ? workflowInputImagesFor(node) : inputImagesFor(node);
-    return (refs || []).filter(ref => ref?.url);
-}
-
 function imageProviders(){
     return (apiProviders || []).filter(p => p.enabled !== false && p.has_key && p.id !== 'volcengine' && (p.image_models || []).length);
 }
@@ -197,27 +187,6 @@ function smartRunNeedsPrompt(sourceSettings=settings){
     sourceSettings = sourceSettings || settings;
     if(sourceSettings.engine === 'comfy' && sourceSettings.comfyMode === 'enhance') return false;
     return true;
-}
-
-function chatApiProviders(){
-    return (apiProviders || []).filter(p => p.enabled !== false && p.has_key && (p.chat_models || []).length);
-}
-
-function resolveChatProviderId(providerId=''){
-    const providers = chatApiProviders();
-    if(providers.some(p => p.id === providerId)) return providerId;
-    return providers[0]?.id || 'comfly';
-}
-
-function providerChatModels(providerId){
-    const provider = chatApiProviders().find(p => p.id === providerId);
-    return [...new Set(provider?.chat_models || [])];
-}
-
-function resolveChatModel(model='', providerId=''){
-    const models = providerChatModels(resolveChatProviderId(providerId));
-    if(window.CanvasSession?.enabled) return models.includes(model) ? model : models[0] || '';
-    return models.includes(model) ? model : (models[0] || model || 'gpt-4o-mini');
 }
 
 function apiProviderById(providerId){
@@ -2859,41 +2828,6 @@ async function runGeneration(){
             render();
         }
     }
-}
-
-async function runPromptLLMNode(nodeId){
-    const node=nodes.find(n=>n.id===nodeId);
-    if(!node || node.type!=='smart-prompt' || node.running)return;
-    if(window.CanvasSession?.enabled && !window.MemberCanvasEdit?.canEdit)return;
-    const message=(node.llmInstruction||node.text||'').trim();
-    if(!message){toast('请先输入给 LLM 的文本');return;}
-    const writeGuard=canvasTaskWriteGuard(node);
-    node.llmEnabled=true;node.running=true;render();
-    try {
-        const provider=resolveChatProviderId(node.llmProvider||'');
-        const model=resolveChatModel(node.llmModel||'',provider);
-        const mediaRefs=promptNodeInputMediaForLLM(node);
-        const payload={message,messages:[],model,provider,
-            images:imageRefsOnly(mediaRefs).map(img=>img.url).filter(Boolean).slice(0,8),
-            videos:videoRefsOnly(mediaRefs).map(video=>video.url).filter(Boolean).slice(0,3),
-            system_prompt:node.llmSystemEnabled ? ((node.llmSystemPrompt||'').trim()||'You are a helpful prompt assistant.') : ''};
-        const inputBinding=smartTaskInputBinding(node,node,writeGuard);
-        let task;
-        if(inputBinding){
-            if(!window.CanvasLLMTasks)throw new Error('对话组件已更新，请保存并刷新页面。');
-            const {provider,...body}=payload;
-            task=await window.CanvasLLMTasks.run({...body,provider_id:provider},{binding:inputBinding,canvasId:canvas.id});
-        } else {
-            const response=await fetch('/api/canvas-llm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-            if(!response.ok)throw new Error(await response.text());
-            task={result:await response.json()};
-        }
-        const apply=()=>{node.text=task.result.text.trim();node.llmProvider=provider;node.llmModel=model;
-            if(task.id)node.result_task_id=task.id;node.running=false;};
-        if(inputBinding)inputBinding.apply(task,apply,task.id);else {writeGuard.check();apply();}
-        scheduleSave();
-    } catch(error){if(writeGuard.valid())toast((error.message||'LLM 运行失败').slice(0,240));}
-    finally {if(writeGuard.valid()){node.running=false;render();}}
 }
 
 function comfyFieldKind(field){

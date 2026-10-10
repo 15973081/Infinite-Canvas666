@@ -51,7 +51,7 @@ class AssetManagerLazyLoadingTest(unittest.TestCase):
         loader = _function_source(self.source, "loadManagerData")
         switcher = _function_source(self.source, "switchManagerTab")
 
-        self.assertIn("/api/prompt-libraries", loader)
+        self.assertNotIn("/api/prompt-libraries", loader)
         self.assertIn("/api/canvas-assets", loader)
         self.assertIn("await loadCanvasAssetPage(0)", loader)
         self.assertNotIn("canvasAssetsData =", loader)

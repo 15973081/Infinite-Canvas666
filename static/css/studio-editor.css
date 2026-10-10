@@ -184,6 +184,9 @@ body.studio-smart-canvas #shell .loop-smart-seg button{background:transparent!im
 body.studio-smart-canvas #shell .loop-smart-seg button.active,body.studio-smart-canvas #shell :is(.loop-smart-toggle.active,.prompt-node-pill.active,.loop-smart-counter-token,.loop-smart-token-chip,.run-btn,.smart-top-tools>button.active){background:var(--st-accent)!important;border-color:var(--st-accent);color:var(--st-ink)!important;box-shadow:none}
 
 body.studio-smart-canvas #shell :is(.prompt-node-text,.prompt-input,.loop-smart-text):focus{border-color:var(--st-muted);box-shadow:0 0 0 2px var(--st-soft)}
+html body.studio-smart-canvas #shell .image-node.prompt-smart-node{padding:20px;border-radius:12px;box-shadow:none}
+html body.studio-smart-canvas #shell .prompt-smart-node .prompt-node-text{background:transparent!important;border:0;box-shadow:none;outline:none;color:var(--st-text)!important}
+html body.studio-smart-canvas #shell .prompt-smart-node:focus-within{border-color:var(--st-accent)}
 
 body.studio-smart-canvas #shell .loop-smart-count input{background:transparent!important;color:var(--st-text)!important}
 
