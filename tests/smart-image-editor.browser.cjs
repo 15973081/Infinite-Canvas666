@@ -108,15 +108,15 @@ for(const change of ['close','reopen','canvas'])test(`Smart outpaint late receip
     assert.equal(await page.evaluate(()=>outpaintApplications),0);assert.equal(await page.evaluate(()=>editSaves),0);assert.deepEqual(errors,[]);
 });
 
-test('Smart mask appends to the same group and editor undo remains separate from canvas history',async t=>{
-    const {page,errors}=await editor(t,'mask');const history=await page.evaluate(()=>undoStack.length);
+test('Smart brush undo remains separate from canvas history',async t=>{
+    const {page,errors}=await editor(t,'brush');const history=await page.evaluate(()=>undoStack.length);
     await stroke(page);assert.equal(await page.evaluate(()=>smartImageEditor.state.undoCount),1);
     await page.evaluate(()=>undoEditDrawing());assert.equal(await page.evaluate(()=>smartImageEditor.state.redoCount),1);
     await page.evaluate(()=>redoEditDrawing());assert.equal(await page.evaluate(()=>undoStack.length),history);
     await page.evaluate(()=>applyImageEdit());
-    const r=await page.evaluate(()=>({upload:editUploads[0],role:nodes[0].images.at(-1).role,count:nodes[0].images.length,selected:smartSelection.image,saves:editSaves}));
-    assert.equal(r.upload.w,320);assert.equal(r.upload.h,240);assert.ok(r.upload.white>0&&r.upload.black>0);assert.equal(r.upload.white+r.upload.black,320*240);
-    assert.equal(r.role,'mask');assert.equal(r.count,3);assert.deepEqual(r.selected,{nodeId:'a',index:2});assert.equal(r.saves,1);assert.deepEqual(errors,[]);
+    const r=await page.evaluate(()=>({upload:editUploads[0],count:nodes[0].images.length,selected:smartSelection.image,saves:editSaves}));
+    assert.equal(r.upload.w,320);assert.equal(r.upload.h,240);assert.ok(r.upload.changed>0);
+    assert.equal(r.count,2);assert.deepEqual(r.selected,{nodeId:'a',index:0});assert.equal(r.saves,1);assert.deepEqual(errors,[]);
 });
 
 for(const tool of ['free','rect','ellipse','label','text'])test(`Smart ${tool} brush retains pixels, local history and one save`,async t=>{
@@ -130,16 +130,12 @@ for(const tool of ['free','rect','ellipse','label','text'])test(`Smart ${tool} b
     assert.equal(r.upload.w,320);assert.equal(r.upload.h,240);assert.ok(r.upload.changed>0);assert.equal(r.name,'first_paint.png');assert.equal(r.saves,1);assert.deepEqual(errors,[]);
 });
 
-test('Smart grid split keeps row/column ordering and metadata; join retains output size and separate undo behavior',async t=>{
+test('Smart grid join retains output size and separate undo behavior',async t=>{
     const {page,errors}=await editor(t,'grid');
-    await page.evaluate(()=>{applyGridPreset(2,2);});await page.evaluate(()=>applyImageEdit());
-    let r=await page.evaluate(()=>({uploads:editUploads.map(x=>[x.w,x.h]),output:nodes.at(-1).images.map(x=>[x.grid.row,x.grid.col]),title:nodes.at(-1).title,saves:editSaves}));
-    assert.deepEqual(r,{uploads:[[160,120],[160,120],[160,120],[160,120]],output:[[0,0],[0,1],[1,0],[1,1]],title:'Grid',saves:2});
-    await page.evaluate(()=>openImageEditor('a'));await page.waitForFunction(()=>smartImageEditor.state.ready);await modeTo(page,'grid');
     await page.evaluate(()=>{setGridOperationMode('join');applyGridJoinPreset(1,2);setGridJoinOutputSize(1024);});
     const history=await page.evaluate(()=>undoStack.length);await page.evaluate(()=>applyImageEdit());
-    r=await page.evaluate(()=>({upload:editUploads.at(-1),title:nodes.at(-1).title,history:undoStack.length,saves:editSaves}));
-    assert.equal(r.upload.w,1024);assert.equal(r.upload.h,384);assert.equal(r.upload.changed,0);assert.equal(r.title,'Grid Join');assert.equal(r.history,history);assert.equal(r.saves,4);assert.deepEqual(errors,[]);
+    const r=await page.evaluate(()=>({upload:editUploads.at(-1),title:nodes.at(-1).title,history:undoStack.length,saves:editSaves}));
+    assert.equal(r.upload.w,1024);assert.equal(r.upload.h,384);assert.equal(r.upload.changed,0);assert.equal(r.title,'Grid Join');assert.equal(r.history,history);assert.equal(r.saves,2);assert.deepEqual(errors,[]);
 });
 
 test('Smart preview navigation has one target, preserves group indices and does not save; mode transitions cancel gestures',async t=>{
@@ -225,16 +221,26 @@ test('Smart detached log preview remains independent of node selection and canno
     await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>smartImageEditor.state.open),false);assert.deepEqual(errors,[]);
 });
 
-test('Smart custom grid lines and gaps retain geometry and local undo',async t=>{
-    const {page,errors}=await editor(t,'grid');
-    await page.evaluate(()=>{applyGridPreset(2,2);toggleGridCustomMode();});
-    const b=await page.locator('#editDrawCanvas').boundingBox();
-    await page.locator('#editDrawCanvas').click({position:{x:b.width/2,y:b.height/2}});
-    assert.equal(await page.evaluate(()=>smartImageEditor.state.gridLineCount),1);
-    await page.evaluate(()=>undoGridCustomLine());assert.equal(await page.evaluate(()=>smartImageEditor.state.gridLineCount),0);
-    await page.evaluate(()=>{applyGridPreset(2,2);document.getElementById('gridGapSize').value='40';document.getElementById('gridGapSize').dispatchEvent(new Event('input'));});
-    await page.evaluate(()=>applyImageEdit());
-    assert.deepEqual(await page.evaluate(()=>editUploads.map(x=>[x.w,x.h])),[[140,100],[140,100],[140,100],[140,100]]);assert.deepEqual(errors,[]);
+test('Smart removes mask and grid splitting from toolbars, editor controls and execution while preserving group join',async t=>{
+    const {page,errors}=await editor(t,'preview');
+    assert.equal(await page.locator('[data-smart-node-action="mask"],[data-smart-node-action="grid"],[data-image-edit-mode="mask"],#imageMaskTools,.grid-split-control,#gridSplitModeBtn').count(),0);
+    assert.deepEqual(await page.evaluate(()=>[typeof applyGridPreset,typeof toggleGridCustomMode,typeof smartImageEditor.applyGridPreset]),['undefined','undefined','undefined']);
+    const before=await page.evaluate(()=>JSON.stringify(nodes));
+    await page.evaluate(()=>{setImageEditMode('mask',true);runSmartNodeToolbarAction('b','mask');runSmartNodeToolbarAction('b','grid');applyImageEdit();});
+    assert.equal(await page.evaluate(()=>smartImageEditor.state.mode),'preview');
+    assert.equal(await page.evaluate(()=>JSON.stringify(nodes)),before);assert.equal(await page.evaluate(()=>editUploads.length),0);
+    await page.evaluate(()=>openImageEditor('b'));await page.waitForFunction(()=>smartImageEditor.state.ready);
+    assert.equal(await page.locator('[data-image-edit-mode="grid"]').isDisabled(),true);
+    assert.equal(await page.locator('[data-image-edit-mode="grid"]').isVisible(),false);
+    assert.equal(await page.locator('[data-node-id="b"][data-smart-node-action="grid-join"]').count(),0);
+    await page.evaluate(()=>setImageEditMode('grid',true));assert.equal(await page.evaluate(()=>smartImageEditor.state.mode),'preview');
+    await page.evaluate(()=>{closeImageEditor();runSmartNodeToolbarAction('a','grid-join');});
+    await page.waitForFunction(()=>smartImageEditor.state.ready && smartImageEditor.state.mode==='grid');
+    assert.equal(await page.locator('#imageEditTitle').textContent(),'宫格拼接');
+    assert.equal(await page.locator('#imageEditApplyBtn').innerText(),'输出拼接');
+    await page.evaluate(()=>setGridOperationMode('split'));
+    assert.equal(await page.evaluate(()=>smartImageEditor.state.gridOperationMode),'join');
+    assert.deepEqual(errors,[]);
 });
 
 test('Smart grid join pointer reorder retains indices and closing releases pointer capture',async t=>{

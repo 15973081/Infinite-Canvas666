@@ -6,12 +6,11 @@ const results=fs.readFileSync(path.join(root,'canvas/smart/smart-results.js'),'u
 const entry=fs.readFileSync(path.join(root,'smart-canvas.js'),'utf8');
 const owned=['cropState','cropDrag','imageEditMode','imageEditModeTouched','editDrawState','editTextItems',
     'editTextSelectedId','editTextDrag','editTextDirty','editTextInlineEditor','editDrawUndoStack','editDrawRedoStack',
-    'brushTool','brushLabelCounter','gridCustomMode','gridCustomLines','gridCustomOrientation','gridCustomHistory',
-    'gridCustomDrag','gridOperationMode','gridJoinLayout','gridJoinDrag','gridJoinImageCache','gridJoinUserMoved','gridJoinOutputSize',
+    'brushTool','brushLabelCounter','gridOperationMode','gridJoinLayout','gridJoinDrag','gridJoinImageCache','gridJoinUserMoved','gridJoinOutputSize',
     'imageEditZoom','imageEditBaseW','imageEditBaseH','imageEditPanDrag','smartEditableResource','smartEditableJob'];
 const preview=['previewZoom','previewPan','previewPanDrag','previewCompareDrag','previewComparePos'];
 
-test('Smart editor privately owns 31 original bindings and dedicated DOM/history; snapshot is frozen and construction is lazy',()=>{
+test('Smart editor privately owns its bindings and dedicated DOM/history; snapshot is frozen and construction is lazy',()=>{
     const context=vm.createContext({});vm.runInContext(media,context);
     for(const name of [...owned,'editDrawCanvas','editTextCanvas','editDrawSnapshot','gridSplitRects','imageEditModal']){
         assert.equal(vm.runInContext('typeof '+name,context),'undefined',name);

@@ -294,7 +294,8 @@ for(const kind of ['classic', 'smart']) {
             else openImageEditor('label-image');
         }, kind);
         await page.waitForFunction(() => document.getElementById('cropImage').naturalWidth > 0);
-        const labels = await page.evaluate(() => ['crop','outpaint','mask','brush','grid','preview'].map(mode => {
+        const modes = kind === 'classic' ? ['crop','outpaint','mask','brush','grid','preview'] : ['crop','outpaint','brush','preview'];
+        const labels = await page.evaluate(modes => modes.map(mode => {
             setImageEditMode(mode);
             return {
                 title:document.getElementById('imageEditTitle').textContent,
@@ -302,11 +303,11 @@ for(const kind of ['classic', 'smart']) {
                 apply:document.getElementById('imageEditApplyBtn').textContent,
                 hidden:document.getElementById('imageEditApplyBtn').style.display === 'none'
             };
-        }));
-        assert.deepEqual(labels.map(item => item.title), ['裁剪图片','扩图','遮罩编辑','画笔编辑','宫格切分','预览图片']);
-        assert.deepEqual(labels.slice(0,5).map(item => item.apply), ['应用裁剪','应用扩图','生成遮罩节点','应用画笔','切分到 Output']);
+        }), modes);
+        assert.deepEqual(labels.map(item => item.title), kind === 'classic' ? ['裁剪图片','扩图','遮罩编辑','画笔编辑','宫格切分','预览图片'] : ['裁剪图片','扩图','画笔编辑','预览图片']);
+        assert.deepEqual(labels.slice(0,-1).map(item => item.apply), kind === 'classic' ? ['应用裁剪','应用扩图','生成遮罩节点','应用画笔','切分到 Output'] : ['应用裁剪','应用扩图','应用画笔']);
         assert.ok(labels.every(item => item.hint && !/^(canvas|smart)\./.test(item.hint)));
-        assert.equal(labels[5].hidden, true);
+        assert.equal(labels.at(-1).hidden, true);
         const hints = await page.evaluate(kind => {
             // Supply different upstream counts while exercising the production renderer.
             const renderHints = [];

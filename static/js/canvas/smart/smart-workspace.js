@@ -2268,12 +2268,11 @@ function runSmartNodeToolbarAction(nodeId, action){
     if(action === 'panorama' || action === 'depth'){
         return runManagedImageTool(action, nodeId, index);
     }
-    const modeMap = {crop:'crop', outpaint:'outpaint', mask:'mask', brush:'brush', grid:'grid'};
+    const modeMap = {crop:'crop', outpaint:'outpaint', brush:'brush', 'grid-join':'grid'};
+    if(!modeMap[action]) return;
+    if(action === 'grid-join' && (node.images || []).filter(img => img?.url && mediaKindForItem(imageForDisplay(img)) === 'image').length < 2) return;
     openImageEditor(nodeId, index);
-    setImageEditMode(modeMap[action] || 'preview', true);
-    if(action === 'grid' && canGridJoinCurrentNode()){
-        setGridOperationMode('join');
-    }
+    setImageEditMode(modeMap[action], true);
 }
 
 function smartChangedConnectionNodes(...args){return smartWorkspaceView.changedConnections(...args);}
@@ -4346,14 +4345,12 @@ function smartNodeToolbarHtml(node){
     const kind = mediaKindForItem(item);
     const canEditImage = kind === 'image';
     const imageCount = images.filter(img => mediaKindForItem(imageForDisplay(img)) === 'image' && imageForDisplay(img)?.url).length;
-    const gridLabel = imageCount > 1 ? '宫格拼接' : '宫格切分';
     const actions = [
         {key:'preview', icon:'eye', label:'预览', enabled:kind === 'image' || kind === 'video'},
         {key:'crop', icon:'crop', label:'裁剪', enabled:canEditImage},
         {key:'outpaint', icon:'expand', label:'扩图', enabled:canEditImage},
-        {key:'mask', icon:'brush', label:'遮罩', enabled:canEditImage},
         {key:'brush', icon:'paintbrush', label:'画笔', enabled:canEditImage},
-        {key:'grid', icon:'grid-3x3', label:gridLabel, enabled:canEditImage},
+        ...(canEditImage && imageCount > 1 ? [{key:'grid-join', icon:'grid-3x3', label:'宫格拼接', enabled:true}] : []),
         ...(canEditImage && window.CanvasSession?.enabled ? [
             {key:'panorama', icon:'globe', label:'全景图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()},
             {key:'depth', icon:'layers', label:'深度图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()}
