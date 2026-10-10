@@ -447,7 +447,7 @@ function startSmartLocalDepthVideo(nodeId,index,targetId=''){
         try{guard.check();}catch(_){throw new Error('画布、节点或编辑资格已变化，请重新生成；已生成的本地结果仍可下载。');}
         if(!present() || isSmartCanvasLocked() || nodes.find(node=>node.id===nodeId)?.images?.[index]?.url!==url)throw new Error('源素材、画布或编辑资格已变化，生成已停止。');
     };
-    const paint=()=>{if(present())refreshSmartNodes([target.id]);};
+    const paint=()=>{if(present())refreshSmartNodes([target.id],{forceIds:[target.id]});};
     job.save=async()=>{
         check();if(!job.file)throw new Error('当前页面没有可保存的结果，请重新生成。');
         target.localDepth.status='saving';paint();
@@ -458,11 +458,14 @@ function startSmartLocalDepthVideo(nodeId,index,targetId=''){
     };
     job.runner=window.LocalDepthVideo.generate({url:displayMediaUrl(imageForDisplay(item)),config,check,
         onProgress:state=>{
-            if(!present() || !target.localDepth || target.localDepth.status==='saving')return;
+            if(!present() || target.localDepth?.status!=='running')return;
             const extracting=state.text.startsWith('提取 ');
             target.localDepth.phase=extracting?'生成深度视频':state.text.includes('读取视频')?'读取素材':'准备模型';
             target.localDepth.progress=extracting?Math.min(100,Math.max(0,state.progress || 0)):null;
-            if(Date.now()-job.lastPaint>250){job.lastPaint=Date.now();paint();}
+            if(Date.now()-job.lastPaint>250){
+                job.lastPaint=Date.now();
+                if(!updateSmartLocalDepthProgress(target))paint();
+            }
         },
         onResult:async file=>{job.file=file;await job.save();},
         onError:error=>{if(!present() || !target.localDepth)return;target.localDepth.status=error.name==='AbortError'?'cancelled':'failed';target.localDepth.error=error.name==='AbortError'?'已取消':error.message;paint();},
@@ -483,13 +486,30 @@ function startSmartLocalDepthVideo(nodeId,index,targetId=''){
     },1000);
     job.check=check;render();scheduleSave();return target;
 }
-function smartLocalDepthBodyHtml(node){
+function smartLocalDepthPresentation(node){
     const state=node.localDepth,job=smartLocalDepthState().jobs.get(node.id),busy=Boolean(job?.busy);
     const saving=state.status==='saving' && busy;
     const label=saving?'保存结果':busy?(state.phase || '准备生成'):state.status==='failed'?(state.error || '生成失败'):state.status==='cancelled'?'已取消':'生成已中断';
     const percent=busy && Number.isFinite(state.progress)?Math.round(state.progress):null;
-    return `<div class="local-depth-node" role="status"><span class="local-depth-node-icon ${busy?'is-busy':''}"><i data-lucide="layers"></i></span><strong>${escapeHtml(label)}</strong>
-        <span class="local-depth-node-sub">${busy?'本地处理 · '+(saving?'仅上传生成结果':percent===null?'首次加载可能稍慢':percent+'%'):'可在当前页面重试，配置位于控制中心'}</span>
+    const sub=busy?'本地处理 · '+(saving?'仅上传生成结果':percent===null?'首次加载可能稍慢':percent+'%'):'可在当前页面重试，配置位于控制中心';
+    return {job,busy,saving,label,percent,sub};
+}
+function updateSmartLocalDepthProgress(node){
+    const root=world.querySelector(`.image-node[data-id="${CSS.escape(node.id)}"] .local-depth-node`);
+    if(!root || !node.localDepth)return false;
+    const {busy,label,percent,sub}=smartLocalDepthPresentation(node);
+    const progress=root.querySelector('progress'),title=root.querySelector('strong'),subtitle=root.querySelector('.local-depth-node-sub');
+    if(!busy || node.localDepth.status!=='running' || !progress || !title || !subtitle)return false;
+    if(title.textContent!==label)title.textContent=label;
+    if(subtitle.textContent!==sub)subtitle.textContent=sub;
+    if(percent===null){if(progress.hasAttribute('value'))progress.removeAttribute('value');}
+    else if(!progress.hasAttribute('value') || progress.value!==percent)progress.value=percent;
+    return true;
+}
+function smartLocalDepthBodyHtml(node){
+    const {job,busy,saving,label,percent,sub}=smartLocalDepthPresentation(node);
+    return `<div class="local-depth-node" role="status"><span class="local-depth-node-icon"><i data-lucide="layers"></i></span><strong>${escapeHtml(label)}</strong>
+        <span class="local-depth-node-sub">${escapeHtml(sub)}</span>
         ${busy?`<progress max="100" ${percent===null?'':`value="${percent}"`} aria-label="生成进度"></progress>`:''}
         <div class="local-depth-node-actions">${busy?`<button data-local-depth-action="cancel" ${saving?'disabled':''}>取消</button>`:`<button data-local-depth-action="retry" ${isSmartCanvasLocked()?'disabled':''}>${job?.file?'重试保存':'重新生成'}</button>`}
         ${job?.file?'<button data-local-depth-action="download">下载结果</button>':''}</div></div>`;
@@ -505,7 +525,7 @@ async function runSmartLocalDepthAction(id,action){
         finally{
             job.busy=false;node.running=false;
             if(nodes.includes(node)){
-                refreshSmartNodes([id]);
+                refreshSmartNodes([id],{forceIds:[id]});
                 if(!node.localDepth){job.runner.close();job.file=null;smartLocalDepthState().jobs.delete(id);}
                 if(!isSmartCanvasLocked())scheduleSave();
             }

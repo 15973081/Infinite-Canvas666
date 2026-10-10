@@ -138,6 +138,81 @@ test('smart video creates one result node, keeps preview behavior and saves into
     assert.deepEqual(errors,[]);
 });
 
+test('smart media toolbar follows editing access without another node click or remount',async t=>{
+    const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
+    await page.evaluate(()=>{
+        MemberCanvasEdit.setEditable(false);
+        nodes=[{id:'source',type:'smart-image',x:20,y:140,images:[{url:'/input.mp4',kind:'video'}]},
+            {id:'image',type:'smart-image',x:400,y:140,images:[{url:'/test-image.svg',kind:'image'}]}];
+        smartSelection.createdNode('source');render();
+        window.originalNode=world.querySelector('[data-id="source"]');
+        window.originalVideo=originalNode.querySelector('video');
+        window.depthControl=originalNode.querySelector('[data-smart-node-action="depth-video"]');
+        window.generatedJobs=0;
+        LocalDepthVideo.generate=()=>{generatedJobs++;return {close(){},cancel(){},download(){}};};
+    });
+    const disabled=()=>page.evaluate(()=>['depth-video','depth','panorama'].map(action=>world.querySelector(`[data-smart-node-action="${action}"]`).disabled));
+    assert.deepEqual(await disabled(),[true,true,true]);
+    await page.evaluate(()=>MemberCanvasEdit.setEditable(true));
+    assert.deepEqual(await disabled(),[false,false,false]);
+    assert.equal(await page.evaluate(()=>originalNode.isConnected && originalVideo===originalNode.querySelector('video') && depthControl===originalNode.querySelector('[data-smart-node-action="depth-video"]')),true);
+    await page.evaluate(()=>{smartImageToolBusy=true;MemberCanvasEdit.options.changed(MemberCanvasEdit.active.lease);});
+    assert.deepEqual(await disabled(),[false,true,true],'permission refresh preserves the managed image tools busy state');
+    await page.evaluate(()=>{smartImageToolBusy=false;MemberCanvasEdit.options.changed(MemberCanvasEdit.active.lease);});
+    assert.deepEqual(await disabled(),[false,false,false]);
+    await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
+    assert.deepEqual(await disabled(),[true,true,true]);
+    await page.evaluate(()=>runSmartNodeToolbarAction('source','depth-video'));
+    assert.equal(await page.evaluate(()=>generatedJobs),0,'read-only access still blocks generation');
+    await page.evaluate(()=>{render();MemberCanvasEdit.setEditable(true);});
+    assert.deepEqual(await disabled(),[false,false,false]);
+    await page.locator('[data-smart-node-action="depth-video"]').click();
+    assert.equal(await page.evaluate(()=>generatedJobs),1);
+    assert.equal(await page.locator('.local-depth-node').count(),1);
+    assert.deepEqual(errors,[]);
+});
+
+test('smart depth progress keeps the card, icon and focused cancel button mounted without breathing animation',async t=>{
+    const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
+    await page.addStyleTag({path:path.join(root,'static/css/local-depth-video.css')});
+    await page.evaluate(()=>{
+        nodes=[{id:'source',type:'smart-image',x:20,y:140,images:[{url:'/input.mp4',kind:'video'}]}];
+        LocalDepthVideo.generate=options=>{window.depthOptions=options;return {close(){},cancel(){window.depthCancelled=true;options.onError(new DOMException('cancel','AbortError'));options.onFinally();},download(){}};};
+        window.depthTarget=startSmartLocalDepthVideo('source',0);
+        window.depthCard=document.querySelector(`.image-node[data-id="${depthTarget.id}"]`);
+        window.depthIcon=depthCard.querySelector('.local-depth-node-icon svg');
+        window.depthButton=depthCard.querySelector('[data-local-depth-action="cancel"]');
+        window.depthBar=depthCard.querySelector('progress');
+        window.sourceVideo=document.querySelector('.image-node[data-id="source"] video');
+        for(let i=1;i<=20;i++){
+            smartLocalDepthState().jobs.get(depthTarget.id).lastPaint=0;
+            depthOptions.onProgress({text:`提取 ${i} / 50 帧`,progress:i*2});
+        }
+    });
+    assert.deepEqual(await page.evaluate(()=>({
+        card:depthCard===document.querySelector(`.image-node[data-id="${depthTarget.id}"]`),
+        icon:depthIcon===depthCard.querySelector('.local-depth-node-icon svg'),
+        button:depthButton===depthCard.querySelector('[data-local-depth-action="cancel"]'),
+        bar:depthBar===depthCard.querySelector('progress'),video:sourceVideo===document.querySelector('.image-node[data-id="source"] video'),
+        value:depthBar.value,label:depthCard.querySelector('.local-depth-node-sub').textContent,
+        animation:getComputedStyle(depthCard.querySelector('.local-depth-node-icon')).animationName
+    })),{card:true,icon:true,button:true,bar:true,video:true,value:40,label:'本地处理 · 40%',animation:'none'});
+    await page.locator('[data-local-depth-action="cancel"]').focus();
+    await page.evaluate(()=>{
+        const send=state=>{smartLocalDepthState().jobs.get(depthTarget.id).lastPaint=0;depthOptions.onProgress(state);};
+        send({text:'正在读取视频…',progress:null});
+        window.wasIndeterminate=!depthBar.hasAttribute('value');
+        send({text:'提取 35 / 50 帧',progress:70});
+    });
+    assert.deepEqual(await page.evaluate(()=>({focus:document.activeElement===depthButton,indeterminate:wasIndeterminate,value:depthBar.value})),{focus:true,indeterminate:true,value:70});
+    await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>depthCancelled),true);
+    assert.equal(await page.locator('.local-depth-node strong').textContent(),'已取消');
+    await page.evaluate(()=>depthOptions.onProgress({text:'提取 50 / 50 帧',progress:100}));
+    assert.equal(await page.evaluate(()=>depthTarget.localDepth.progress),70);
+    assert.equal(await page.locator('[data-local-depth-action="retry"]').count(),1);
+    assert.deepEqual(errors,[]);
+});
+
 test('headless generation uses configured fps and produces a file without opening a panel',async t=>{
     const {page,requests}=await browserFixture(t);
     await page.keyboard.press('Escape');

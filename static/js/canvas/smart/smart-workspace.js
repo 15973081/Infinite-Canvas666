@@ -4336,6 +4336,17 @@ function renderSmartNodePlaceholderHtml(node){
     </div>`;
 }
 
+function smartNodeGenerationToolEnabled(action){
+    return !isSmartCanvasLocked() && (action === 'depth-video' || !smartImageToolBusy);
+}
+
+function updateSmartNodeToolbarAccess(){
+    // Lease changes update existing controls without interrupting media playback.
+    world.querySelectorAll('[data-smart-node-action="depth-video"],[data-smart-node-action="depth"],[data-smart-node-action="panorama"]').forEach(button => {
+        button.disabled = !smartNodeGenerationToolEnabled(button.dataset.smartNodeAction);
+    });
+}
+
 function smartNodeToolbarHtml(node){
     const isImageNode = node?.type === 'smart-image' || !node?.type;
     const images = node?.images || [];
@@ -4352,11 +4363,11 @@ function smartNodeToolbarHtml(node){
         {key:'brush', icon:'paintbrush', label:'画笔', enabled:canEditImage},
         ...(canEditImage && imageCount > 1 ? [{key:'grid-join', icon:'grid-3x3', label:'宫格拼接', enabled:true}] : []),
         ...(canEditImage && window.CanvasSession?.enabled ? [
-            {key:'panorama', icon:'globe', label:'全景图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()},
-            {key:'depth', icon:'layers', label:'深度图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()}
+            {key:'panorama', icon:'globe', label:'全景图', enabled:smartNodeGenerationToolEnabled('panorama')},
+            {key:'depth', icon:'layers', label:'深度图', enabled:smartNodeGenerationToolEnabled('depth')}
         ] : []),
         ...(canEditImage ? [{key:'depth-local', icon:'layers', label:'深度图（本地）', enabled:true}] : []),
-        ...(kind === 'video' ? [{key:'depth-video', icon:'layers', label:'生成深度视频', enabled:!isSmartCanvasLocked()}] : []),
+        ...(kind === 'video' ? [{key:'depth-video', icon:'layers', label:'生成深度视频', enabled:smartNodeGenerationToolEnabled('depth-video')}] : []),
         {key:'asset', icon:'library-big', label:'素材库', enabled:kind === 'image' || kind === 'video'},
         {key:'auth', icon:'shield-check', label:'认证', enabled:kind === 'image' || kind === 'video'},
         {key:'download', icon:'download', label:'下载', enabled:true}
