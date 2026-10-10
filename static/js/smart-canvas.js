@@ -440,6 +440,7 @@ if(apiKindToggle){
             e.preventDefault();
             e.stopPropagation();
             const kind = btn.dataset.kind;
+            if(smartGenerationKind(selectedNode())) return;
             if(kind === settings.apiKind) return;
             settings.apiKind = kind;
             applyRecentSmartSettingsForCurrentMode();

@@ -132,6 +132,16 @@ function stripOutpaintDisplaySettings(settingsObj, node=null){
     return clean;
 }
 
+function smartGenerationKind(node){
+    return isSmartImageNode(node) && ['image','video'].includes(node.generationKind) ? node.generationKind : '';
+}
+
+function enforceSmartGenerationKind(node, source){
+    const kind = smartGenerationKind(node);
+    if(!kind) return source;
+    return {...source, apiKind:kind, engine:isApiLikeEngine(source?.engine) ? source.engine : 'api'};
+}
+
 function smartSettingsForNode(node){
     const nodeSettings = stripOutpaintDisplaySettings(node?.runSettings || {}, node);
     const recentSettings = Object.keys(nodeSettings).length ? {} : recentSmartSettingsForMode();
@@ -140,7 +150,23 @@ function smartSettingsForNode(node){
         ...recentSettings,
         ...nodeSettings
     };
-    return withOutpaintDisplaySettings(node, base);
+    const resolved = enforceSmartGenerationKind(node, withOutpaintDisplaySettings(node, base));
+    const kind = smartGenerationKind(node);
+    if(kind){
+        // New nodes and chain runs need the same model defaults as the visible
+        // composer, even when that node has never been opened for editing.
+        if(resolved.engine === 'volcengine') sanitizeSmartApiSelection(resolved);
+        else {
+            clearVolcengineSelectionOutsideVolcengine(resolved);
+            const providers = kind === 'video' ? videoApiProviders() : imageProviders();
+            const providerKey = kind === 'video' ? 'videoProvider' : 'provider_id';
+            const modelKey = kind === 'video' ? 'videoModel' : 'model';
+            if(!providers.some(provider => provider.id === resolved[providerKey])) resolved[providerKey] = providers[0]?.id || '';
+            const models = kind === 'video' ? providerVideoModels(resolved[providerKey]) : providerImageModels(resolved[providerKey]);
+            if(!models.includes(resolved[modelKey])) resolved[modelKey] = models[0] || '';
+        }
+    }
+    return resolved;
 }
 
 function promptNodeInputImages(node){
@@ -1278,6 +1304,8 @@ function createPendingOutputFromSource(sourceNode, expectedCount, meta, options=
         created_at:Date.now()
     };
     output._selectAfterRunId = options.selectOutput ? output.id : sourceNode.id;
+    const generationKind = smartGenerationKind(sourceNode);
+    if(generationKind) output.generationKind = generationKind;
     nodes.push(output);
     if(options.connectSource === false) addConnection(sourceNode.id, output.id, 'flow');
     else connectInputNode(sourceNode.id, output.id);

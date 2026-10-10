@@ -81,6 +81,8 @@ html body.studio-smart-canvas .smart-top-tools>button.active{background:var(--st
 
 html body.studio-smart-canvas .image-node.empty-node{border-radius:12px;background:var(--st-panel);border-color:var(--st-line);border-style:dashed;box-shadow:none;overflow:visible}
 
+html body.studio-smart-canvas .image-node.generation-node.empty-node{border-style:solid}
+
 html body.studio-smart-canvas .image-node.empty-node>.node-head{height:24px;border-radius:11px 11px 0 0;background:transparent!important;border-bottom-color:transparent!important;box-shadow:none;padding:0 10px;flex-shrink:0}
 
 html body.studio-smart-canvas .image-node.empty-node>.node-head .node-title{font-weight:500;letter-spacing:0}

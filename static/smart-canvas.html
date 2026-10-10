@@ -38,7 +38,7 @@
             <div id="composer" class="composer">
                 <div class="composer-card">
                     <div class="composer-head">
-                        <div class="composer-heading"><span class="composer-mark"><i data-lucide="sparkles"></i></span><strong>生成</strong></div>
+                        <div class="composer-heading"><span class="composer-mark"><i data-lucide="sparkles"></i></span><strong id="composerHeading">生成</strong></div>
                         <div class="composer-head-left">
                             <div id="apiKindToggle" class="kind-toggle" style="display:none">
                                 <button type="button" data-kind="image" class="active"><i data-lucide="image"></i><span>图片</span></button>
@@ -92,6 +92,14 @@
                     <span>
                         <div class="create-card-title">提示词</div>
                     </span>
+                </button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="generate-image" title="独立的图片提示词与生成参数">
+                    <span class="create-card-icon"><i data-lucide="image"></i></span>
+                    <span><div class="create-card-title">图片生成</div></span>
+                </button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="generate-video" title="独立的视频提示词与生成参数">
+                    <span class="create-card-icon"><i data-lucide="film"></i></span>
+                    <span><div class="create-card-title">视频生成</div></span>
                 </button>
                 <button class="create-card" type="button" role="menuitem" data-create-type="loop" title="设置一键运行轮数和批次">
                     <span class="create-card-icon"><i data-lucide="repeat-2"></i></span>
@@ -257,7 +265,7 @@
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>Ctrl</kbd><kbd>V</kbd></span><span>粘贴节点或剪贴板图片</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>A</kbd></span><span>打开/关闭资源库</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>Z</kbd></span><span>缩小画布视图</span></div>
-                    <div class="shortcut-item"><span class="shortcut-keys"><kbd>右键</kbd></span><span>在画布空白处新建节点</span></div>
+                    <div class="shortcut-item"><span class="shortcut-keys"><kbd>双击</kbd></span><span>在画布空白处新建节点</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>空白处</kbd></span><span>拖动画布</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>滚轮</kbd></span><span>缩放画布或预览图片</span></div>
                     <div class="shortcut-item"><span class="shortcut-keys"><kbd>Del</kbd></span><span>删除选中节点</span></div>

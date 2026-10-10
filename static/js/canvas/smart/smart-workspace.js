@@ -490,8 +490,9 @@ function imageLayout(images, scale=1, node=null){
         const explicitW = Number(node?.w);
         const explicitH = Number(node?.h);
         const pending = Number(node?.pending) > 0 || Boolean(node?.queued);
-        const fallbackW = pending ? 260 * s : EMPTY_UPLOAD_NODE_WIDTH;
-        const fallbackH = pending ? 180 * s : EMPTY_UPLOAD_NODE_HEIGHT;
+        const generationKind = smartGenerationKind(node);
+        const fallbackW = pending ? 260 * s : generationKind === 'video' ? 320 : generationKind === 'image' ? 240 : EMPTY_UPLOAD_NODE_WIDTH;
+        const fallbackH = pending ? 180 * s : generationKind === 'video' ? 180 : generationKind === 'image' ? 240 : EMPTY_UPLOAD_NODE_HEIGHT;
         return {
             cols:1,
             rows:1,
@@ -614,6 +615,8 @@ function renderSmartNodeHtml(node){
     const isPrompt = node.type === 'smart-prompt';
     const isLoop = node.type === 'smart-loop';
     const isImageNode = node.type === 'smart-image' || !node.type;
+    const generationKind = smartGenerationKind(node);
+    const generationTitle = generationKind === 'video' ? '视频生成' : '图片生成';
     const pendingCount = smartNodePendingCount(node);
     const recoveryOnly = Boolean(isImageNode && imgs.length === 0 && window.CanvasSession?.enabled && smartPendingTasks(node).length);
     const isQueued = Boolean(node.queued && imgs.length === 0 && !pendingCount);
@@ -625,11 +628,12 @@ function renderSmartNodeHtml(node){
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
     const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : '';
     const singleMediaTitle = singleMediaKind === 'video' ? 'Video' : singleMediaKind === 'audio' ? 'Audio' : singleMediaKind === 'text' ? 'Text' : singleMediaKind === 'file' ? 'File' : 'Image';
-    const title = node.localDepth ? '深度视频' : isPending ? escapeHtml('生成中') : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml('上传节点')));
+    const title = node.localDepth ? '深度视频' : generationKind ? generationTitle : isPending ? escapeHtml('生成中') : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml('上传节点')));
     const body = nodeBodyHtml(node, layout);
     const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button>`;
     const hint = node.localDepth ? '深度视频 · 本地生成' : isPending ? escapeHtml('正在生成…') : (imgs.length > 1 ? escapeHtml('多图会作为同一组参考图发送') : imgs.length ? escapeHtml('点击后在下方输入编辑需求') : escapeHtml('支持图片 / 视频 / 音频，也可直接文生图'));
-    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+        ${generationKind ? `<div class="generation-node-caption"><i data-lucide="${generationKind === 'video' ? 'film' : 'image'}"></i><span>${generationTitle}</span></div>` : ''}
         <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
         ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button></div>` : ''}
         ${smartNodeToolbarHtml(node)}
@@ -1091,6 +1095,7 @@ function renderDynamicParams(persist=true){
     const advancedOpen=!!dynamicParams.querySelector('.composer-advanced')?.open;
     settings.engine = ['api','volcengine','modelscope','comfy'].includes(settings.engine) ? settings.engine : 'api';
     settings.apiKind = settings.apiKind === 'video' ? 'video' : 'image';
+    settings = enforceSmartGenerationKind(selectedNode(), settings);
     clearVolcengineSelectionOutsideVolcengine(settings);
     engineSelect.value = settings.engine;
     syncApiKindToggleVisibility();
@@ -2239,6 +2244,11 @@ function smartNodeMediaBodyHtml(node, layout){
         return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
     }
     if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`;
+    const generationKind = smartGenerationKind(node);
+    if(generationKind) return `<button class="generation-node-placeholder" type="button" aria-label="编辑${generationKind === 'video' ? '视频' : '图片'}生成提示词">
+        <i data-lucide="${generationKind === 'video' ? 'clapperboard' : 'image'}" aria-hidden="true"></i>
+        <span>点击输入提示词</span>
+    </button>`;
     return `<button class="node-drop" type="button" data-upload-action="files" aria-label="上传图片、视频或音频">
         <span class="upload-node-label"><span class="upload-node-main"><i data-lucide="plus" aria-hidden="true"></i></span><span class="upload-node-title">放入素材</span></span>
         <span class="upload-node-sub">点击或拖入</span>
@@ -2823,6 +2833,18 @@ function bindNodeEvents(elements=null){
             smartSelection.clickNode(id, el);
         };
         el.ondblclick = e => e.stopPropagation();
+        const generationPlaceholder = el.querySelector('.generation-node-placeholder');
+        generationPlaceholder?.addEventListener('mousedown', e => {
+            if(e.button !== 0) return;
+            e.preventDefault(); e.stopPropagation();
+        }, true);
+        generationPlaceholder?.addEventListener('click', e => {
+            e.preventDefault(); e.stopPropagation();
+            if(isSmartCanvasLocked()) return;
+            smartSelection.createdNode(id);
+            render();
+            promptInput.focus({preventScroll:true});
+        });
         const nodeDrop = el.querySelector('.node-drop');
         nodeDrop?.addEventListener('mousedown', e => {
             if(e.button !== 0) return;
@@ -3809,6 +3831,8 @@ function createNodeFromMenu(type){
     closeCreateMenu();
     if(type === 'prompt') return createPromptNode(p.x - 158, p.y - 97);
     if(type === 'loop') return createLoopNode(p.x - 135, p.y - 95);
+    if(type === 'generate-image') return createGenerationNodeAt(p, 'image');
+    if(type === 'generate-video') return createGenerationNodeAt(p, 'video');
     return createImageNodeAt(p);
 }
 
@@ -3886,6 +3910,9 @@ function bindSmartWorkspaceGestures(){
             e.stopPropagation();
             return;
         }
+    };
+    shell.ondblclick = e => {
+        if(didPan || e.ctrlKey || e.metaKey || e.shiftKey || isRKeyDown) return;
         if(e.target.closest('.image-node,.composer,.smart-nav,.smart-top-tools,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap,.local-depth-backdrop'))return;
         if(smartImageEditor.state.open) return;
         e.preventDefault();
@@ -3893,7 +3920,6 @@ function bindSmartWorkspaceGestures(){
         if(zoomPreviewState || isSmartCanvasLocked()){closeCreateMenu();return;}
         openCreateMenu(e);
     };
-    shell.ondblclick = null;
     shell.onclick = e => {
         if(selectionJustFinished) return;
         if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
@@ -4318,7 +4344,11 @@ function bindSmartWorkspaceGestures(){
 
 function syncApiKindToggleVisibility(){
     if(!apiKindToggle) return;
-    apiKindToggle.style.display = isApiLikeEngine(settings.engine) ? 'inline-flex' : 'none';
+    const kind = smartGenerationKind(selectedNode());
+    const heading = document.getElementById('composerHeading');
+    if(heading) heading.textContent = kind === 'video' ? '视频生成' : kind === 'image' ? '图片生成' : '生成';
+    promptInput?.setAttribute('aria-label', kind === 'video' ? '视频生成提示词' : kind === 'image' ? '图片生成提示词' : '生成提示词');
+    apiKindToggle.style.display = !kind && isApiLikeEngine(settings.engine) ? 'inline-flex' : 'none';
     apiKindToggle.querySelectorAll('[data-kind]').forEach(btn => btn.classList.toggle('active', btn.dataset.kind === (settings.apiKind || 'image')));
 }
 
@@ -4572,6 +4602,7 @@ function createSmartComposer(){
         if(!composer?.classList?.contains('open')) return;
         const subject = activeComposerNode();
         if(!subject) return;
+        settings = enforceSmartGenerationKind(subject, settings);
         subject.runSettings = settingsForStorage(settings);
         if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
         rememberRecentSmartSettings(settings, subject);
@@ -4620,7 +4651,7 @@ function createSmartComposer(){
             }
         }
         if(changes.settings){
-            subject.runSettings = cloneSmartSettings(settings);
+            subject.runSettings = cloneSmartSettings(enforceSmartGenerationKind(subject, settings));
             if(smartComposerBaseline?.nodeId === subject.id){
                 smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
             }

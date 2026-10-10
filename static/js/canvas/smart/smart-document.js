@@ -573,6 +573,16 @@ function createNode(x, y, images=[], options={}){
     if(!options.skipUndo) pushUndo();
     const nodeImages = (images || []).map(img => ({...img}));
     const node = {id:uid('smart'), type:'smart-image', x, y, title:nodeImages.length > 1 ? 'Group' : nodeImages.length ? 'Image' : '上传节点', images:nodeImages, created_at:Date.now()};
+    if(['image','video'].includes(options.generationKind)){
+        node.generationKind = options.generationKind;
+        node.title = node.generationKind === 'video' ? '视频生成' : '图片生成';
+        const recent = recentSmartSettingsForMode();
+        const defaults = canvasDefaultSmartSettings || initialSmartSettings;
+        const engine = isApiLikeEngine(recent.engine) ? recent.engine : isApiLikeEngine(defaults.engine) ? defaults.engine : 'api';
+        node.runSettings = settingsForStorage(smartSettingsForNode({
+            ...node, runSettings:{...recentSmartSettingsForMode(`${engine}:${node.generationKind}`), engine, apiKind:node.generationKind}
+        }));
+    }
     node.scale = nodeImages.length > 1 ? MEDIA_GROUP_DEFAULT_SCALE : mediaNodeDefaultScale(node);
     inheritNodeMetaFromImage(node);
     nodes.push(node);
@@ -580,6 +590,12 @@ function createNode(x, y, images=[], options={}){
     render();
     scheduleSave();
     return node;
+}
+
+function createGenerationNodeAt(point, kind){
+    const generationKind = kind === 'video' ? 'video' : 'image';
+    const layout = imageLayout([], 1, {type:'smart-image', generationKind});
+    return createNode((point?.x || 0) - layout.width / 2, (point?.y || 0) - layout.height / 2, [], {generationKind});
 }
 
 function createPromptNode(x, y, options={}){
