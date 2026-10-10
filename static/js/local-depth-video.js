@@ -2,6 +2,60 @@
 (() => {
     const MAX_BYTES = 256 * 1024 * 1024, MAX_SECONDS = 120;
     let current;
+    let localModelFiles;
+    const settingsKey = () => {
+        const context=window.CanvasSession?.context;
+        return 'local-depth-settings:'+JSON.stringify([context?.member?.id || 'local',context?.workspace?.id || 'local']);
+    };
+    function settings(value) {
+        const clean={source:['auto','modelscope','huggingface'].includes(value?.source)?value.source:'auto',
+            resolution:[640,960].includes(Number(value?.resolution))?Number(value.resolution):960,
+            fps:[15,30].includes(Number(value?.fps))?Number(value.fps):30};
+        return clean;
+    }
+    function getSettings(){try{return settings(JSON.parse(localStorage.getItem(settingsKey())));}catch(_){return settings();}}
+    function openSettings(){
+        document.querySelector('.local-depth-settings-backdrop')?.remove();
+        const previous=document.activeElement,root=document.createElement('div'),config=getSettings();
+        root.className='local-depth-backdrop local-depth-settings-backdrop';
+        root.innerHTML=`<section class="local-depth-dialog local-depth-settings" role="dialog" aria-modal="true" aria-label="控制中心">
+            <header class="local-depth-header"><div><h2>控制中心</h2><p class="local-depth-note">本地深度视频 · 默认生成配置</p></div><button data-close aria-label="关闭">×</button></header>
+            <dl><dt>分辨率</dt><dd><select data-resolution aria-label="输出分辨率"><option value="960">960px</option><option value="640">640px · 更快</option></select></dd><dt>帧率</dt><dd><select data-fps aria-label="输出帧率"><option value="30">30 fps</option><option value="15">15 fps · 更快</option></select></dd></dl>
+            <p class="local-depth-note">点击视频上的“生成深度视频”，进度与结果直接显示在新节点中。原视频在浏览器处理，仅生成结果保存到画布。</p>
+            <details><summary>模型与缓存</summary><dl><dt>模型</dt><dd>Depth Anything V2 Small · fp16</dd><dt>下载源</dt><dd><select data-source aria-label="模型下载源"><option value="auto">自动（优先 ModelScope）</option><option value="modelscope">ModelScope</option><option value="huggingface">Hugging Face</option></select></dd></dl>
+            <p class="local-depth-note">首次下载约 49.6 MB，图片与视频共用缓存。需要 WebGPU；运行库需网络连接。视频最长 2 分钟、最大 256 MB；输出为无音轨灰度相对深度。</p>
+            <div class="local-depth-actions"><button data-local>选择本地模型目录</button><button data-cache>清除模型缓存</button><input data-files type="file" webkitdirectory multiple hidden></div><p data-model-state class="local-depth-note"></p></details>
+            <footer class="local-depth-actions"><span data-status role="status" class="local-depth-note"></span><button data-save>保存配置</button></footer></section>`;
+        document.body.append(root);const q=selector=>root.querySelector(selector);
+        q('[data-resolution]').value=config.resolution;q('[data-fps]').value=config.fps;q('[data-source]').value=config.source;
+        const modelState=()=>{q('[data-model-state]').textContent=localModelFiles?'已选择本地模型，仅本次页面有效。':'使用在线下载源，自动复用缓存。';q('[data-source]').disabled=Boolean(localModelFiles);q('[data-local]').textContent=localModelFiles?'改用在线模型':'选择本地模型目录';};modelState();
+        const close=()=>{root.remove();document.removeEventListener('keydown',keyboard,true);previous?.isConnected && previous.focus();};
+        function keyboard(event){
+            event.stopPropagation();
+            if(event.key==='Escape'){event.preventDefault();close();}
+            if(event.key==='Tab'){
+                const controls=[...root.querySelectorAll('button:not(:disabled),select:not(:disabled),summary')].filter(el=>el.getClientRects().length);
+                const first=controls[0],last=controls.at(-1);
+                if(event.shiftKey && document.activeElement===first){event.preventDefault();last.focus();}
+                else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
+            }
+        }
+        q('[data-close]').onclick=close;
+        q('[data-save]').onclick=()=>{try{localStorage.setItem(settingsKey(),JSON.stringify(settings({resolution:q('[data-resolution]').value,fps:q('[data-fps]').value,source:q('[data-source]').value})));close();}catch(_){q('[data-status]').textContent='配置保存失败，请检查浏览器存储权限。';}};
+        q('[data-local]').onclick=()=>{if(localModelFiles){localModelFiles=undefined;modelState();}else q('[data-files]').click();};
+        q('[data-files]').onchange=event=>{
+            const entries=[...event.target.files].map(file=>({file,path:file.webkitRelativePath.split('/').slice(1).join('/')}));
+            const files=['config.json','preprocessor_config.json','onnx/model_fp16.onnx'].map(path=>entries.find(entry=>entry.path===path));
+            if(files.some(entry=>!entry) || files[2].file.size>60*1048576 || files.slice(0,2).some(entry=>entry.file.size>1048576)){q('[data-model-state]').textContent='目录不完整或模型过大，请选择 V2 Small fp16 模型目录。';return;}
+            localModelFiles=files;modelState();
+        };
+        q('[data-cache]').onclick=async()=>{
+            const button=q('[data-cache]');button.disabled=true;
+            try{for(const name of await caches.keys()){const cache=await caches.open(name);for(const req of await cache.keys()){const url=new URL(req.url);if(url.hostname==='huggingface.co' && url.pathname.startsWith('/onnx-community/depth-anything-v2-small/'))await cache.delete(req);}}q('[data-model-state]').textContent='模型缓存已清除，下次使用将重新加载。';}
+            catch(_){q('[data-model-state]').textContent='缓存清理失败，请重试。';}finally{button.disabled=false;}
+        };
+        document.addEventListener('keydown',keyboard,true);q('[data-close]').focus();
+    }
     const abortError = () => new DOMException('已取消', 'AbortError');
     function waitEvent(target, event, signal, action) {
         return new Promise((resolve, reject) => {
@@ -18,7 +72,7 @@
         return [Math.max(2, Math.round(width * ratio / 2) * 2), Math.max(2, Math.round(height * ratio / 2) * 2)];
     }
     function open(options) {
-        if(current?.close() === false) return current;
+        if(!options.background && current?.close() === false) return current;
         const isImage = options.kind === 'image', title = isImage ? '本地深度图' : '深度视频';
         const fileName = isImage ? 'depth-image.png' : 'depth-video.mp4', mime = isImage ? 'image/png' : 'video/mp4';
         const byteLimit = isImage ? 32 * 1048576 : MAX_BYTES;
@@ -33,11 +87,12 @@
             <button class="local-depth-start">开始提取</button><progress class="local-depth-progress" max="100" value="0"></progress><p class="local-depth-status" role="status" aria-live="polite">模型将在开始提取时加载。</p></div></div>
             <footer class="local-depth-actions"><button data-download disabled>下载 ${isImage ? 'PNG' : 'MP4'}</button><button data-save disabled>保存到画布（上传结果）</button><button data-local>选择本地模型目录</button><button data-cache>清除模型缓存</button><input data-model-files type="file" webkitdirectory multiple hidden></footer>
             <p class="local-depth-note" data-model-note>自动模式优先 ModelScope，失败后切换 Hugging Face，两者复用同一缓存。也可选择本地模型目录。运行库仍需 CDN 连接。</p><p class="local-depth-note"><a href="https://modelscope.cn/models/onnx-community/depth-anything-v2-small/files" target="_blank" rel="noopener noreferrer" style="color:inherit">ModelScope 模型文件</a> · <a href="https://huggingface.co/onnx-community/depth-anything-v2-small/tree/c70d1ddbcd93c9bda8098268cc3554adf5e8dd4f" target="_blank" rel="noopener noreferrer" style="color:inherit">Hugging Face 固定版本</a> · ${isImage ? '相对深度，不能作为测量距离。' : '单帧相对深度，非测量距离；视频可能出现帧间闪烁。'}</p></section>`;
-        document.body.append(root);
+        if(!options.background)document.body.append(root);
         const q = selector => root.querySelector(selector), preview = q('.local-depth-preview'), start = q('.local-depth-start'), status = q('.local-depth-status'), progress = q('progress');
-        preview.src = options.url;
+        if(!options.background)preview.src = options.url;
         let controller, worker, pending = new Map(), serial = 0, result, resultUrl, inputUrl, output, busy = false, saving = false, closed = false, decoder, modelFiles, depthCanvas;
-        function message(text, error=false) {if(closed) return; status.textContent = text; status.classList.toggle('local-depth-error', error);}
+        if(options.background){const config=settings(options.config);q('[data-resolution]').value=config.resolution;q('[data-fps]').value=config.fps;q('[data-source]').value=config.source;modelFiles=localModelFiles;}
+        function message(text, error=false) {if(closed) return; status.textContent = text; status.classList.toggle('local-depth-error', error);options.onProgress?.({text,progress:progress.hasAttribute('value')?Number(progress.value):null,error});}
         function stop() {
             controller?.abort(); worker?.terminate(); worker = null;
             for(const task of pending.values()) task.reject(abortError()); pending.clear();
@@ -49,7 +104,7 @@
             if(closed) return true;
             closed = true; stop(); if(resultUrl) URL.revokeObjectURL(resultUrl);
             preview.pause?.(); preview.removeAttribute('src'); preview.load?.(); root.remove(); document.removeEventListener('keydown', keyboard, true);
-            if(previousFocus?.isConnected) previousFocus.focus(); if(current?.close === close) current = null;
+            if(!options.background && previousFocus?.isConnected) previousFocus.focus(); if(current?.close === close) current = null;
             return true;
         }
         function keyboard(event) {
@@ -92,12 +147,13 @@
             for(let n=0;n<frame.width*frame.height;n++) {const v = pixels[n*frame.channels], offset = n*4; image.data[offset] = image.data[offset+1] = image.data[offset+2] = v; image.data[offset+3] = 255;}
             gray.getContext('2d').putImageData(image,0,0); render.getContext('2d').drawImage(gray,0,0,render.width,render.height);
         }
-        function complete(blob,width,height,duration) {
+        async function complete(blob,width,height,duration) {
             result = blob;
-            if(resultUrl) URL.revokeObjectURL(resultUrl); resultUrl = URL.createObjectURL(result); preview.src = resultUrl;
+            if(resultUrl) URL.revokeObjectURL(resultUrl); resultUrl = URL.createObjectURL(result); if(!options.background)preview.src = resultUrl;
             q('[data-download]').disabled = false; q('[data-save]').disabled = !options.save;
             progress.value = 100;
             message(`完成 · ${width} × ${height}${isImage ? '' : ` · ${duration.toFixed(1)} 秒`} · ${(result.size/1048576).toFixed(1)} MB。结果仅保存在当前浏览器页面。`);
+            await options.onResult?.(new File([blob],fileName,{type:mime}),{width,height,duration});
         }
         async function processImage(signal,check) {
             decoder = new Image();
@@ -113,14 +169,14 @@
             const frame = await request('frame',{pixels:rgba.data.buffer,width:capture.width,height:capture.height},[rgba.data.buffer]);check();
             drawDepth(frame,render);
             const blob = await new Promise((resolve,reject)=>render.toBlob(blob=>blob ? resolve(blob) : reject(new Error('PNG 导出失败')),'image/png'));check();
-            complete(blob,render.width,render.height);
+            await complete(blob,render.width,render.height);
         }
         async function run() {
             if(busy) {stop(); return;}
             busy = true; start.textContent = '取消提取'; q('[data-cache]').disabled = q('[data-local]').disabled = true; q('[data-download]').disabled = true; q('[data-save]').disabled = true;
             q('[data-resolution]').disabled = q('[data-source]').disabled = true; if(!isImage) q('[data-fps]').disabled = true;
             controller = new AbortController(); const signal = controller.signal;
-            const check = () => {if(signal.aborted || closed) throw abortError();};
+            const check = () => {if(signal.aborted || closed) throw abortError();options.check?.();};
             try {
                 if(!isSecureContext || !navigator.gpu || (!isImage && !window.VideoEncoder)) throw new Error(isImage ? '需要 HTTPS 与本机 WebGPU 支持，请使用新版 Chrome / Edge。' : '需要 HTTPS、本机 WebGPU 与 WebCodecs 支持，请使用新版 Chrome / Edge。');
                 const adapter = await navigator.gpu.requestAdapter(); check();
@@ -167,13 +223,15 @@
                     progress.value = (i+1)/frames*100; message(`提取 ${i+1} / ${frames} 帧 · ${Math.round(progress.value)}%`);
                 }
                 await output.finalize(); check();
-                complete(new Blob([output.target.buffer],{type:'video/mp4'}),width,height,duration); output = null;
+                await complete(new Blob([output.target.buffer],{type:'video/mp4'}),width,height,duration); output = null;
             } catch(error) {
                 message(error.name === 'AbortError' ? '已取消，可重新开始。' : `提取失败：${error.message}。可重试、更换模型下载源或选择本地目录；运行库仍需 CDN 连接。`,error.name !== 'AbortError');
+                options.onError?.(error);
             } finally {
                 if(output) {try {await output.cancel();} catch(_) {} output = null;}
                 stop(); busy = false;
                 if(!closed) {start.textContent = '重新提取'; q('[data-cache]').disabled = q('[data-local]').disabled = false; q('[data-resolution]').disabled = false; if(!isImage) q('[data-fps]').disabled = false; q('[data-source]').disabled = Boolean(modelFiles);}
+                options.onFinally?.();
             }
         }
         start.onclick = run; q('.local-depth-close').onclick = close;
@@ -215,9 +273,10 @@
                 message(count ? '已清除本模型缓存，下次使用将重新下载。' : '没有找到本模型缓存。');
             } catch(error) {message(`无法清除缓存：${error.message}`,true);} finally {if(!closed) button.disabled = false;}
         };
+        if(options.background)return {run,close,cancel:stop,download:()=>q('[data-download]').onclick(),get result(){return result;}};
         document.addEventListener('keydown',keyboard,true); q('.local-depth-close').focus();
         current = {close}; return current;
     }
-    window.LocalDepthVideo = {open};
+    window.LocalDepthVideo = {open,openSettings,getSettings,generate:options=>{const job=open({...options,background:true});queueMicrotask(()=>job.run());return job;}};
     window.LocalDepthImage = {open:options=>open({...options,kind:'image'})};
 })();

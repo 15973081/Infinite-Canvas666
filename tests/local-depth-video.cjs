@@ -113,16 +113,118 @@ test('smart image toolbar opens local depth and creates a separate image node on
     await page.evaluate(()=>{MemberCanvasEdit.setEditable(false);const open=LocalDepthImage.open;LocalDepthImage.open=options=>options;window.readOnlySave=Boolean(openSmartLocalDepthImage('depth-source',0).save);LocalDepthImage.open=open;});
     assert.equal(await page.evaluate(()=>readOnlySave),false);assert.deepEqual(errors,[]);
 });
-test('smart video toolbar opens the local panel and keeps existing preview behavior',async t=>{
+test('smart video creates one result node, keeps preview behavior and saves into the same node',async t=>{
     const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
     await page.route('**/input.mp4',route=>route.fulfill({contentType:'video/mp4',body:input}));
     await page.evaluate(()=>{nodes=[{id:'depth-source',type:'smart-image',x:20,y:20,images:[{url:'/input.mp4',kind:'video',name:'input.mp4'}]}];smartSelection.createdNode('depth-source');render();});
+    await page.evaluate(()=>{
+        window.depthUploads=0;
+        LocalDepthVideo.generate=options=>{window.depthOptions=options;return {close(){},cancel(){options.onError(new DOMException('cancel','AbortError'));options.onFinally();},download(){window.depthDownloaded=true;}};};
+        uploadFiles=async()=>{depthUploads++;return [{url:'/result.mp4',kind:'video',name:'depth-video.mp4'}];};
+    });
     assert.equal(await page.locator('[data-smart-node-action="depth-video"]').count(),1);
     await page.evaluate(()=>runSmartNodeToolbarAction('depth-source','depth-video'));
-    assert.equal(await page.locator('.local-depth-dialog').count(),1);
-    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.local-depth-dialog').count(),0);
+    assert.equal(await page.evaluate(()=>nodes.length),2);assert.equal(await page.locator('.local-depth-node').count(),1);
+    assert.equal(await page.evaluate(()=>nodes[1].x>=nodeRect(nodes[0]).x+nodeRect(nodes[0]).width+60),true);
+    assert.equal(await page.locator('.composer.open').count(),0);
+    await page.evaluate(()=>runSmartNodeToolbarAction('depth-source','depth-video'));assert.equal(await page.evaluate(()=>nodes.length),2);
+    await page.evaluate(async()=>{depthOptions.onProgress({text:'提取 3 / 30 帧',progress:10});await depthOptions.onResult(new File(['depth'],'depth-video.mp4',{type:'video/mp4'}));depthOptions.onFinally();});
+    assert.equal(await page.evaluate(()=>depthUploads),1);assert.equal(await page.evaluate(()=>nodes.length),2);
+    assert.equal(await page.evaluate(()=>nodes[1].images[0].url),'/result.mp4');assert.equal(await page.locator('.local-depth-node').count(),0);
     await page.evaluate(()=>runSmartNodeToolbarAction('depth-source','preview'));
     await page.waitForFunction(()=>document.getElementById('previewCurrentVideo').currentSrc.includes('input.mp4'));
     assert.deepEqual(await page.evaluate(()=>nodes[0].images.map(({url,kind,name})=>({url,kind,name}))),[{url:'/input.mp4',kind:'video',name:'input.mp4'}]);
+    assert.deepEqual(errors,[]);
+});
+
+test('headless generation uses configured fps and produces a file without opening a panel',async t=>{
+    const {page,requests}=await browserFixture(t);
+    await page.keyboard.press('Escape');
+    await page.evaluate(()=>{
+        window.generated=null;window.backgroundError=null;
+        window.backgroundJob=LocalDepthVideo.generate({url:'/input.mp4',config:{source:'modelscope',resolution:640,fps:15},
+            onResult:file=>{window.generated={type:file.type,name:file.name};},onError:error=>{window.backgroundError=error.message;}});
+    });
+    await page.waitForFunction(()=>generated || backgroundError);
+    assert.equal(await page.evaluate(()=>backgroundError),null);assert.equal(await page.locator('[role=dialog]').count(),0);
+    assert.equal(await page.evaluate(()=>workerCalls.filter(type=>type==='frame').length),15);
+    assert.deepEqual(await page.evaluate(()=>generated),{type:'video/mp4',name:'depth-video.mp4'});
+    assert.ok(requests.every(request=>request.method==='GET'));
+    await page.evaluate(()=>backgroundJob.close());
+});
+
+test('headless cancel stops model loading and exposes cancellation for the node',async t=>{
+    const {page}=await browserFixture(t);await page.keyboard.press('Escape');
+    await page.evaluate(()=>{
+        window.stallWorker=true;window.cancelState=null;
+        window.backgroundJob=LocalDepthVideo.generate({url:'/input.mp4',onError:error=>{window.cancelState=error.name;}});
+    });
+    await page.waitForFunction(()=>workerCalls.includes('load'));await page.evaluate(()=>backgroundJob.cancel());
+    await page.waitForFunction(()=>cancelState==='AbortError');
+    assert.equal(await page.locator('[role=dialog]').count(),0);assert.ok(await page.evaluate(()=>terminated>0));
+    await page.evaluate(()=>backgroundJob.close());
+});
+
+test('removing a pending node disposes the job and restored placeholders require an explicit retry',async t=>{
+    const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
+    await page.evaluate(()=>{
+        nodes=[{id:'source',type:'smart-image',images:[{url:'/input.mp4',kind:'video'}]}];window.closedJobs=0;
+        LocalDepthVideo.generate=()=>({close(){closedJobs++;},cancel(){},download(){}});
+        const target=startSmartLocalDepthVideo('source',0);window.savedPlaceholder=JSON.parse(JSON.stringify(target));nodes=nodes.filter(node=>node!==target);render();
+    });
+    await page.waitForFunction(()=>closedJobs===1 && smartLocalDepthState().jobs.size===0);
+    await page.evaluate(()=>{nodes.push(savedPlaceholder);render();});
+    assert.equal(await page.locator('.local-depth-node strong').textContent(),'生成已中断');
+    assert.equal(await page.locator('[data-local-depth-action="retry"]').textContent(),'重新生成');assert.deepEqual(errors,[]);
+});
+
+test('control center persists validated scoped defaults and keeps advanced model options collapsed',async t=>{
+    const {page}=await browserFixture(t);await page.keyboard.press('Escape');
+    await page.evaluate(()=>LocalDepthVideo.openSettings());
+    assert.equal(await page.locator('.local-depth-settings details').evaluate(el=>el.open),false);
+    await page.locator('[data-resolution]').selectOption('640');await page.locator('[data-fps]').selectOption('15');
+    await page.locator('summary').click();await page.locator('[data-source]').selectOption('huggingface');await page.locator('[data-save]').click();
+    assert.deepEqual(await page.evaluate(()=>LocalDepthVideo.getSettings()),{source:'huggingface',resolution:640,fps:15});
+    await page.evaluate(()=>{window.CanvasSession={context:{member:{id:'other'},workspace:{id:'space'}}};});
+    assert.deepEqual(await page.evaluate(()=>LocalDepthVideo.getSettings()),{source:'auto',resolution:960,fps:30});
+    await page.evaluate(()=>LocalDepthVideo.openSettings());await page.setViewportSize({width:390,height:800});
+    assert.ok(await page.locator('.local-depth-settings').evaluate(el=>el.getBoundingClientRect().right<=innerWidth));
+    await page.keyboard.press('Escape');assert.equal(await page.locator('[role=dialog]').count(),0);
+});
+
+test('node upload failure retains download and retries saving without regenerating',async t=>{
+    const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
+    await page.evaluate(async()=>{
+        nodes=[{id:'source',type:'smart-image',images:[{url:'/input.mp4',kind:'video'}]}];window.generatedJobs=0;window.uploadAttempts=0;
+        LocalDepthVideo.generate=options=>{generatedJobs++;window.jobOptions=options;return {close(){},cancel(){},download(){window.didDownload=true;}};};
+        uploadFiles=async()=>{if(++uploadAttempts===1)throw new Error('network');return [{url:'/result.mp4',kind:'video'}];};
+        window.target=startSmartLocalDepthVideo('source',0);
+        try{await jobOptions.onResult(new File(['file'],'depth.mp4',{type:'video/mp4'}));}catch(error){jobOptions.onError(error);}jobOptions.onFinally();
+    });
+    assert.equal(await page.locator('[data-local-depth-action="retry"]').textContent(),'重试保存');
+    await page.locator('[data-local-depth-action="download"]').click();assert.equal(await page.evaluate(()=>didDownload),true);
+    await page.locator('[data-local-depth-action="retry"]').click();await page.waitForFunction(()=>target.images.length===1);
+    assert.equal(await page.evaluate(()=>generatedJobs),1);assert.equal(await page.evaluate(()=>uploadAttempts),2);assert.deepEqual(errors,[]);
+});
+
+test('local result cannot write after source, target or lease changes',async t=>{
+    const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
+    for(const mutation of ['source','target','lease']){
+        const outcome=await page.evaluate(async mutation=>{
+            for(const job of smartLocalDepthState().jobs.values())job.runner.close();smartLocalDepthState().jobs.clear();
+            if(!MemberCanvasEdit.canEdit)MemberCanvasEdit.setEditable(true);
+            nodes=[{id:'source',type:'smart-image',images:[{url:'/input.mp4',kind:'video'}]}];let uploads=0;
+            LocalDepthVideo.generate=options=>{window.protectedOptions=options;return {close(){},cancel(){},download(){}};};
+            uploadFiles=async()=>{uploads++;return [{url:'/result.mp4',kind:'video'}];};
+            const target=startSmartLocalDepthVideo('source',0);
+            if(mutation==='source')nodes[0].images[0].url='/changed.mp4';
+            if(mutation==='target')nodes=nodes.filter(node=>node!==target);
+            if(mutation==='lease')MemberCanvasEdit.setEditable(false);
+            let rejected=false;try{await protectedOptions.onResult(new File(['file'],'depth.mp4',{type:'video/mp4'}));}catch(_){rejected=true;}protectedOptions.onFinally();
+            return {uploads,rejected,images:target.images.length};
+        },mutation);
+        assert.deepEqual(outcome,{uploads:0,rejected:true,images:0});
+    }
     assert.deepEqual(errors,[]);
 });

@@ -617,7 +617,7 @@ function renderSmartNodeHtml(node){
     const pendingCount = smartNodePendingCount(node);
     const recoveryOnly = Boolean(isImageNode && imgs.length === 0 && window.CanvasSession?.enabled && smartPendingTasks(node).length);
     const isQueued = Boolean(node.queued && imgs.length === 0 && !pendingCount);
-    const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued && !recoveryOnly;
+    const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued && !recoveryOnly && !node.localDepth;
     const isHistory = isHistoryGroupNode(node);
     const isGroup = isImageNode && imgs.length > 1;
     const faceVerified = isImageNode && imgs.length > 0 && imgs.every(img => smartFaceAuthState(img).ready);
@@ -625,10 +625,10 @@ function renderSmartNodeHtml(node){
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
     const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : '';
     const singleMediaTitle = singleMediaKind === 'video' ? 'Video' : singleMediaKind === 'audio' ? 'Audio' : singleMediaKind === 'text' ? 'Text' : singleMediaKind === 'file' ? 'File' : 'Image';
-    const title = isPending ? escapeHtml('生成中') : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml('上传节点')));
+    const title = node.localDepth ? '深度视频' : isPending ? escapeHtml('生成中') : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml('上传节点')));
     const body = nodeBodyHtml(node, layout);
     const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button>`;
-    const hint = isPending ? escapeHtml('正在生成…') : (imgs.length > 1 ? escapeHtml('多图会作为同一组参考图发送') : imgs.length ? escapeHtml('点击后在下方输入编辑需求') : escapeHtml('支持图片 / 视频 / 音频，也可直接文生图'));
+    const hint = node.localDepth ? '深度视频 · 本地生成' : isPending ? escapeHtml('正在生成…') : (imgs.length > 1 ? escapeHtml('多图会作为同一组参考图发送') : imgs.length ? escapeHtml('点击后在下方输入编辑需求') : escapeHtml('支持图片 / 视频 / 音频，也可直接文生图'));
     return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
         ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button></div>` : ''}
@@ -2194,6 +2194,7 @@ function smartLoopBodyHtml(node){
 }
 
 function nodeBodyHtml(node, layout){
+    if(node.localDepth && !(node.images || []).length)return smartLocalDepthBodyHtml(node);
     const tasks=window.CanvasSession?.enabled ? smartPendingTasks(node) : [];
     const body=smartNodeMediaBodyHtml(node,layout);
     if(!tasks.length)return body;
@@ -2838,6 +2839,10 @@ function bindNodeEvents(elements=null){
                 e.preventDefault(); e.stopPropagation();
                 deleteNodeFromButton(id);
             });
+        });
+        el.querySelectorAll('[data-local-depth-action]').forEach(btn=>{
+            btn.addEventListener('mousedown',event=>{event.preventDefault();event.stopPropagation();},true);
+            btn.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();runSmartLocalDepthAction(id,btn.dataset.localDepthAction);});
         });
         el.querySelectorAll('[data-smart-node-action]').forEach(btn => {
             btn.addEventListener('mousedown', e => {
@@ -4429,7 +4434,7 @@ function smartNodeToolbarHtml(node){
             {key:'depth', icon:'layers', label:'深度图', enabled:!smartImageToolBusy && !isSmartCanvasLocked()}
         ] : []),
         ...(canEditImage ? [{key:'depth-local', icon:'layers', label:'深度图（本地）', enabled:true}] : []),
-        ...(kind === 'video' ? [{key:'depth-video', icon:'layers', label:'深度视频', enabled:true}] : []),
+        ...(kind === 'video' ? [{key:'depth-video', icon:'layers', label:'生成深度视频', enabled:!isSmartCanvasLocked()}] : []),
         {key:'asset', icon:'library-big', label:'素材库', enabled:kind === 'image' || kind === 'video'},
         {key:'auth', icon:'shield-check', label:'认证', enabled:kind === 'image' || kind === 'video'},
         {key:'download', icon:'download', label:'下载', enabled:true}
@@ -4703,6 +4708,7 @@ function createSmartComposer(){
 
     function updateComposer(){
         const node = selectedNode();
+        if(node?.localDepth){close();return;}
         if(lastComposerNodeId && (canvas?.id!==targetCanvasId || (activeComposerSubject && !nodes.includes(activeComposerSubject))))documentReplaced();
         if(smartCascadeSilentSelection && !activeComposerSubject){
             composer.classList.remove('open');

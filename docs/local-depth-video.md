@@ -6,14 +6,18 @@
 
 结果在面板预览，可「下载 PNG」；「保存到画布（上传结果）」经上传前后权限、画布、源素材检查后创建新的图片节点，不替换原图。只读模式仍能本地处理和下载，保存按钮禁用。默认不上传原图、像素或生成结果，不提交收费任务，也不增加服务器模型存储；明确保存后才按普通画布素材计入存储并沿用其删除方式。
 
-视频素材浮动工具栏 →「深度视频」。默认 960px / 30fps / 灰度，可选 640px、15fps。输出最长边不超过源视频尺寸和所选上限，保留原片时长，无音轨。最大输入 256 MiB、120 秒，编码数据超过 64 MiB 时停止。
+视频素材浮动工具栏 →「生成深度视频」：立即创建结果节点，不打开提取面板。节点显示准备、生成百分比、保存结果；可取消，失败可重试。处理成功后只上传生成的 MP4 并填入同一个节点，不替换原视频、不提交收费生成任务。上传失败保留当前页面的文件，可下载或重试保存，无需再次推理；保存成功释放本地结果和 Worker 资源。
+
+画布顶部「控制中心」设置默认分辨率、帧率；「模型与缓存」默认折叠，提供下载源、本地目录和缓存清理。配置存入当前浏览器的 localStorage，按成员和空间区分，不改变其他成员配置。默认 960px / 30fps / 灰度，可选 640px、15fps。输出最长边不超过源视频尺寸和所选上限，保留原片时长，无音轨。最大输入 256 MiB、120 秒，编码数据超过 64 MiB 时停止。
+
+同一页面一次运行一个本地深度视频任务。删除结果节点、切换画布或失去编辑资格会停止生成；上传前后检查源素材、目标节点、画布和编辑资格。页面刷新后本地任务不能继续，保留的占位节点显示中断并允许重新生成；本地文件不写入画布 JSON。生成结果沿用画布普通素材的存储和删除规则。
 
 ## 模型与加载
 
 - [Depth Anything V2 Small ONNX fp16](https://huggingface.co/onnx-community/depth-anything-v2-small/blob/c70d1ddbcd93c9bda8098268cc3554adf5e8dd4f/onnx/model_fp16.onnx)，固定 revision `c70d1ddbcd93c9bda8098268cc3554adf5e8dd4f`，文件 49,642,442 字节，Apache 2.0。SHA-256：`2df6223f206b5164e21f664ace61dabeb9bb6a49b8b5a3e00510b4807d0f5b04`。
 - [Transformers.js 3.8.1](https://huggingface.co/docs/transformers.js/guides/webgpu) 的 `depth-estimation` pipeline，使用 WebGPU、fp16。运行库从 jsDelivr 按固定版本加载，模型支持 ModelScope / Hugging Face。
-- 面板「下载源」提供自动、ModelScope、Hugging Face。自动模式优先 [ModelScope 同名模型库](https://modelscope.cn/models/onnx-community/depth-anything-v2-small)，失败后按文件切换 Hugging Face；手动选择时只使用指定源。ModelScope 固定 revision `412694b964262937af8683baa8a5433485787a9a`，使用支持 CORS 的 `/models/{model}/resolve/{revision}/{file}`，LFS 文件重定向由浏览器处理。两源三个文件均逐个核对长度、SHA-256，再加入同一 `transformers-cache` 缓存，不因切换源复制一份模型。
-- 仅点击「开始提取」才创建 Worker、加载运行库和模型；不在页面启动或打开面板时预下载。模型使用浏览器 Cache Storage，显示来源、缓存命中、下载进度与切源状态，失败可重试。单次文件请求或连续读取停滞 30 秒时超时，单文件最长下载 4 分钟。损坏缓存会被移除并重新下载，部分下载不写缓存。关闭/取消终止 Worker，释放推理资源；模型缓存仍可复用。浏览器可能自行回收缓存，缓存失败时仍可执行，但下次可能重新下载。
+- 控制中心（视频）或面板（图片）的「下载源」提供自动、ModelScope、Hugging Face。自动模式优先 [ModelScope 同名模型库](https://modelscope.cn/models/onnx-community/depth-anything-v2-small)，失败后按文件切换 Hugging Face；手动选择时只使用指定源。ModelScope 固定 revision `412694b964262937af8683baa8a5433485787a9a`，使用支持 CORS 的 `/models/{model}/resolve/{revision}/{file}`，LFS 文件重定向由浏览器处理。两源三个文件均逐个核对长度、SHA-256，再加入同一 `transformers-cache` 缓存，不因切换源复制一份模型。
+- 仅点击「生成深度视频」或图片面板的「开始提取」才创建 Worker、加载运行库和模型；不在页面启动或打开配置时预下载。模型使用浏览器 Cache Storage，显示来源、缓存命中、下载进度与切源状态，失败可重试。单次文件请求或连续读取停滞 30 秒时超时，单文件最长下载 4 分钟。损坏缓存会被移除并重新下载，部分下载不写缓存。关闭/取消终止 Worker，释放推理资源；模型缓存仍可复用。浏览器可能自行回收缓存，缓存失败时仍可执行，但下次可能重新下载。
 - 「清除模型缓存」只删除本模型的 Hugging Face 缓存条目，不删除其他模型、画布资源或浏览器 HTTP 缓存。运行库/WASM 也有额外下载流量，49.6 MB 仅指模型。
 
 也可在 [ModelScope 文件页](https://modelscope.cn/models/onnx-community/depth-anything-v2-small/files)或 [Hugging Face 指定版本文件页](https://huggingface.co/onnx-community/depth-anything-v2-small/tree/c70d1ddbcd93c9bda8098268cc3554adf5e8dd4f)下载以下三个文件，保留目录结构，再点击「选择本地模型目录」选择根目录：

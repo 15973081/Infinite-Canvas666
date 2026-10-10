@@ -414,7 +414,103 @@ function setSmartDropCopyEffect(e, includeAsset=false){
 }
 
 function openSmartLocalDepthVideo(nodeId, index){
-    return openSmartLocalDepthMedia(nodeId,index,'video');
+    return startSmartLocalDepthVideo(nodeId,index);
+}
+
+function smartLocalDepthState(){
+    if(!smartLocalDepthState.value){
+        const state={jobs:new Map(),sweep:null};
+        window.addEventListener('pagehide',()=>{for(const job of state.jobs.values())job.runner.close();state.jobs.clear();clearInterval(state.sweep);state.sweep=null;});
+        smartLocalDepthState.value=state;
+    }
+    return smartLocalDepthState.value;
+}
+function startSmartLocalDepthVideo(nodeId,index,targetId=''){
+    if(isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
+    const source=nodes.find(node=>node.id===nodeId),item=source?.images?.[index];
+    if(!item?.url || mediaKindForItem(imageForDisplay(item))!=='video')return;
+    const state=smartLocalDepthState(),jobs=state.jobs;
+    for(const [id,job] of jobs){if(canvas?.id!==job.origin || !nodes.includes(job.target)){job.runner.close();jobs.delete(id);}}
+    const active=[...jobs.values()].find(job=>job.busy);
+    if(active){smartSelection.createdNode(active.target.id);toast('已有深度视频正在生成。');return active.target;}
+    let target=targetId?nodes.find(node=>node.id===targetId):null;
+    if(targetId && !target)return;
+    pushUndo();
+    if(!target){const rect=nodeRect(source);target=createNode(rect.x+rect.width+60,rect.y,[],{select:true,skipUndo:true});}
+    target.w=320;target.h=260;
+    jobs.get(target.id)?.runner.close();
+    const origin=canvas.id,url=item.url,config=window.LocalDepthVideo.getSettings(),guard=canvasTaskWriteGuard(source,target);
+    target.localDepth={sourceId:nodeId,index,status:'running',progress:0,config};target.running=true;target.runStartedAt=Date.now();delete target.runFinishedAt;
+    const job={origin,target,busy:true,file:null,runner:null,lastPaint:0};jobs.set(target.id,job);
+    const present=()=>canvas?.id===origin && nodes.includes(target);
+    const check=()=>{
+        try{guard.check();}catch(_){throw new Error('画布、节点或编辑资格已变化，请重新生成；已生成的本地结果仍可下载。');}
+        if(!present() || isSmartCanvasLocked() || nodes.find(node=>node.id===nodeId)?.images?.[index]?.url!==url)throw new Error('源素材、画布或编辑资格已变化，生成已停止。');
+    };
+    const paint=()=>{if(present())refreshSmartNodes([target.id]);};
+    job.save=async()=>{
+        check();if(!job.file)throw new Error('当前页面没有可保存的结果，请重新生成。');
+        target.localDepth.status='saving';paint();
+        const uploaded=await uploadFiles([job.file],{nodeId:target.id});check();
+        if(!uploaded.length)throw new Error('上传未返回素材结果');
+        target.images=uploaded;delete target.localDepth;delete target.w;delete target.h;target.running=false;target.runFinishedAt=Date.now();
+        paint();scheduleSave();
+    };
+    job.runner=window.LocalDepthVideo.generate({url:displayMediaUrl(imageForDisplay(item)),config,check,
+        onProgress:state=>{
+            if(!present() || !target.localDepth || target.localDepth.status==='saving')return;
+            const extracting=state.text.startsWith('提取 ');
+            target.localDepth.phase=extracting?'生成深度视频':state.text.includes('读取视频')?'读取素材':'准备模型';
+            target.localDepth.progress=extracting?Math.min(100,Math.max(0,state.progress || 0)):null;
+            if(Date.now()-job.lastPaint>250){job.lastPaint=Date.now();paint();}
+        },
+        onResult:async file=>{job.file=file;await job.save();},
+        onError:error=>{if(!present() || !target.localDepth)return;target.localDepth.status=error.name==='AbortError'?'cancelled':'failed';target.localDepth.error=error.name==='AbortError'?'已取消':error.message;paint();},
+        onFinally:()=>{
+            job.busy=false;
+            if(present()){
+                target.running=false;paint();if(!isSmartCanvasLocked())scheduleSave();
+                if(!target.localDepth){job.runner.close();job.file=null;jobs.delete(target.id);}
+            }
+        }
+    });
+    if(!state.sweep)state.sweep=setInterval(()=>{
+        for(const [id,entry] of jobs){
+            if(canvas?.id!==entry.origin || !nodes.includes(entry.target)){entry.runner.close();jobs.delete(id);}
+            else if(entry.busy){try{entry.check();}catch(_){entry.runner.cancel();}}
+        }
+        if(!jobs.size){clearInterval(state.sweep);state.sweep=null;}
+    },1000);
+    job.check=check;render();scheduleSave();return target;
+}
+function smartLocalDepthBodyHtml(node){
+    const state=node.localDepth,job=smartLocalDepthState().jobs.get(node.id),busy=Boolean(job?.busy);
+    const saving=state.status==='saving' && busy;
+    const label=saving?'保存结果':busy?(state.phase || '准备生成'):state.status==='failed'?(state.error || '生成失败'):state.status==='cancelled'?'已取消':'生成已中断';
+    const percent=busy && Number.isFinite(state.progress)?Math.round(state.progress):null;
+    return `<div class="local-depth-node" role="status"><span class="local-depth-node-icon ${busy?'is-busy':''}"><i data-lucide="layers"></i></span><strong>${escapeHtml(label)}</strong>
+        <span class="local-depth-node-sub">${busy?'本地处理 · '+(saving?'仅上传生成结果':percent===null?'首次加载可能稍慢':percent+'%'):'可在当前页面重试，配置位于控制中心'}</span>
+        ${busy?`<progress max="100" ${percent===null?'':`value="${percent}"`} aria-label="生成进度"></progress>`:''}
+        <div class="local-depth-node-actions">${busy?`<button data-local-depth-action="cancel" ${saving?'disabled':''}>取消</button>`:`<button data-local-depth-action="retry" ${isSmartCanvasLocked()?'disabled':''}>${job?.file?'重试保存':'重新生成'}</button>`}
+        ${job?.file?'<button data-local-depth-action="download">下载结果</button>':''}</div></div>`;
+}
+async function runSmartLocalDepthAction(id,action){
+    const node=nodes.find(node=>node.id===id),job=smartLocalDepthState().jobs.get(id);
+    if(action==='cancel'){job?.runner.cancel();return;}
+    if(action==='download'){job?.runner.download();return;}
+    if(!node?.localDepth || isSmartCanvasLocked())return;
+    if(job?.file){
+        if(job.busy)return;job.busy=true;node.running=true;
+        try{await job.save();}catch(error){node.localDepth.status='failed';node.localDepth.error=error.message;}
+        finally{
+            job.busy=false;node.running=false;
+            if(nodes.includes(node)){
+                refreshSmartNodes([id]);
+                if(!node.localDepth){job.runner.close();job.file=null;smartLocalDepthState().jobs.delete(id);}
+                if(!isSmartCanvasLocked())scheduleSave();
+            }
+        }
+    }else startSmartLocalDepthVideo(node.localDepth.sourceId,node.localDepth.index,id);
 }
 
 function openSmartLocalDepthImage(nodeId, index){
