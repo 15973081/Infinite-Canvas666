@@ -2,6 +2,21 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 
+test('lightweight upload placeholder supports keyboard file selection and fills the original node',async t=>{
+    const {page,errors}=await fixture(t,'smart',true);
+    await page.evaluate(()=>{
+        window.uploadTarget=createNode(400,200,[],{select:true});
+        uploadFiles=async files=>[{url:'/test-image.svg',kind:'image',name:files[0].name}];
+    });
+    const rect=await page.locator('.empty-node').boundingBox();assert.equal(rect.width,208);assert.equal(rect.height,128);
+    assert.equal(await page.locator('.upload-node-title').textContent(),'放入素材');
+    const chooser=page.waitForEvent('filechooser');await page.getByRole('button',{name:'上传图片、视频或音频'}).focus();await page.keyboard.press('Enter');
+    await (await chooser).setFiles({name:'input.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64')});
+    await page.waitForFunction(()=>uploadTarget.images.length===1);
+    assert.equal(await page.evaluate(()=>nodes.length),1);assert.equal(await page.evaluate(()=>uploadTarget.images[0].name),'input.png');
+    assert.equal(await page.locator('.empty-node').count(),0);assert.deepEqual(errors,[]);
+});
+
 test('blank canvas right-click opens a compact menu; double-click no longer opens it',async t=>{
     const {page,errors}=await fixture(t,'smart',true);
     await page.mouse.dblclick(900,600);assert.equal(await page.locator('#createMenu.open').count(),0);

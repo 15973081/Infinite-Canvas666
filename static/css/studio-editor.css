@@ -79,19 +79,19 @@ html body.studio-smart-canvas .smart-top-tools>button:hover{background:var(--st-
 
 html body.studio-smart-canvas .smart-top-tools>button.active{background:var(--st-accent);color:var(--st-ink)}
 
-html body.studio-smart-canvas .image-node.empty-node{border-radius:18px;background:var(--st-panel);border-color:var(--st-line);box-shadow:0 6px 20px #00000012;overflow:visible}
+html body.studio-smart-canvas .image-node.empty-node{border-radius:12px;background:var(--st-panel);border-color:var(--st-line);border-style:dashed;box-shadow:none;overflow:visible}
 
-html body.studio-smart-canvas .image-node.empty-node>.node-head{border-radius:17px 17px 0 0;background:transparent!important;border-bottom-color:transparent!important;box-shadow:none;padding:0 14px;flex-shrink:0}
+html body.studio-smart-canvas .image-node.empty-node>.node-head{height:24px;border-radius:11px 11px 0 0;background:transparent!important;border-bottom-color:transparent!important;box-shadow:none;padding:0 10px;flex-shrink:0}
 
 html body.studio-smart-canvas .image-node.empty-node>.node-head .node-title{font-weight:500;letter-spacing:0}
 
-html body.studio-smart-canvas .image-node.empty-node>.node-body{padding:0 10px 8px}
+html body.studio-smart-canvas .image-node.empty-node>.node-body{padding:12px}
 
-html body.studio-smart-canvas .image-node.empty-node .node-drop{border-radius:12px;background:var(--st-bg);border-color:var(--st-line);font-weight:400}
+html body.studio-smart-canvas .image-node.empty-node .node-drop{border-radius:8px;background:transparent;border:0;font-weight:400}
 
-html body.studio-smart-canvas .image-node.empty-node .upload-node-main{border-radius:12px;box-shadow:none;background:var(--st-panel);border-color:var(--st-line)}
+html body.studio-smart-canvas .image-node.empty-node .upload-node-main{box-shadow:none;background:transparent;border:0}
 
-html body.studio-smart-canvas .image-node.empty-node .upload-node-title{font-weight:600}
+html body.studio-smart-canvas .image-node.empty-node .upload-node-title{font-weight:500}
 
 html body.studio-smart-canvas .image-node.empty-node>.node-hint{padding:0 14px 12px;color:var(--st-muted);font-weight:400}
 
