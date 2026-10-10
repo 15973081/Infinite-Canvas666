@@ -3785,21 +3785,23 @@ function finishSelection(event){
     setTimeout(() => { selectionJustFinished = false; }, 0);
 }
 
-function closeCreateMenu(){
+function closeCreateMenu({restoreFocus=false}={}){
     createMenu?.classList.remove('open');
+    if(restoreFocus && createMenu?._previousFocus?.isConnected)createMenu._previousFocus.focus();
 }
 
 function openCreateMenu(event){
-    if(!createMenu || isSmartCanvasLocked()) return;
+    if(!createMenu || !canvas || isSmartCanvasLocked()) return;
     createMenuPoint = screenToWorld(event);
-    const w = 420;
-    const h = 286;
-    const left = Math.max(14, Math.min(window.innerWidth - w - 14, event.clientX + 8));
-    const top = Math.max(14, Math.min(window.innerHeight - h - 14, event.clientY + 8));
-    createMenu.style.left = `${left}px`;
-    createMenu.style.top = `${top}px`;
+    if(!createMenu.classList.contains('open'))createMenu._previousFocus=document.activeElement;
     createMenu.classList.add('open');
     refreshIcons();
+    const {width:w,height:h}=createMenu.getBoundingClientRect();
+    const left = Math.max(12, Math.min(window.innerWidth - w - 12, event.clientX + 4));
+    const top = Math.max(12, Math.min(window.innerHeight - h - 12, event.clientY + 4));
+    createMenu.style.left = `${left}px`;
+    createMenu.style.top = `${top}px`;
+    createMenu.querySelector('[role="menuitem"]')?.focus({preventScroll:true});
 }
 
 function createNodeFromMenu(type){
@@ -3885,13 +3887,14 @@ function bindSmartWorkspaceGestures(){
             e.stopPropagation();
             return;
         }
-    };
-    shell.ondblclick = e => {
-        if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
+        if(e.target.closest('.image-node,.composer,.smart-nav,.smart-top-tools,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap,.local-depth-backdrop'))return;
         if(smartImageEditor.state.open) return;
         e.preventDefault();
+        e.stopPropagation();
+        if(zoomPreviewState || isSmartCanvasLocked()){closeCreateMenu();return;}
         openCreateMenu(e);
     };
+    shell.ondblclick = null;
     shell.onclick = e => {
         if(selectionJustFinished) return;
         if(didPan || e.target.closest('.image-node,.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu')) return;
@@ -4322,6 +4325,20 @@ function syncApiKindToggleVisibility(){
 
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartComposerInputEvents(){
+    document.addEventListener('pointerdown',event=>{if(createMenu?.classList.contains('open') && !createMenu.contains(event.target))closeCreateMenu();},true);
+    shell.addEventListener('wheel',()=>closeCreateMenu(),{passive:true});
+    createMenu?.addEventListener('keydown',event=>{
+        const items=[...createMenu.querySelectorAll('[role="menuitem"]')];
+        const index=items.indexOf(document.activeElement);
+        if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){
+            event.preventDefault();event.stopPropagation();
+            const next=event.key==='Home'?0:event.key==='End'?items.length-1:(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;
+            items[next]?.focus();
+        }else if(event.key==='Escape' || event.key==='Tab'){
+            if(event.key==='Escape')event.preventDefault();
+            event.stopPropagation();closeCreateMenu({restoreFocus:true});
+        }
+    });
     createMenu?.addEventListener('mousedown', event => event.stopPropagation());
     createMenu?.addEventListener('click', event => {
         event.stopPropagation();
