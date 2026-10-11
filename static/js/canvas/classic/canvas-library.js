@@ -2031,7 +2031,6 @@ function createClassicLibraryManager(){
 
     function bindClassicAssetManagerEventsImpl(){
         if(destroyed||paused)return;ensureElements();clear(bindings);
-        listen(gateAssetManagerBtn,'click',openAssetManager);
         document.querySelectorAll('[data-manager-tab]').forEach(btn => {
             listen(btn,'click', () => {
                 selectClassicAssetManagerTab(btn.dataset.managerTab);

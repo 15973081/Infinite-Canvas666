@@ -27,7 +27,7 @@ function fixture(){
     const timers=new Map(),navigations=[];let sequence=0,banner;
     function frame(){
         const listeners=new Map(),frames=[];
-        const win={CustomEvent:class {constructor(type,options){this.type=type;this.detail=options.detail;}},
+        const win={CustomEvent:class {constructor(type,options={}){this.type=type;this.detail=options.detail;}},
             addEventListener(type,fn){const list=listeners.get(type)||[];list.push(fn);listeners.set(type,list);},
             dispatchEvent(event){for(const fn of listeners.get(event.type)||[]) fn(event);},
             document:{querySelectorAll:()=>frames}};
@@ -45,21 +45,24 @@ function fixture(){
     return {root,frame,timers,navigations,button,message,api:root.win.FrontendVersion};
 }
 test('refresh waits for nested iframe saves once before preserving scoped navigation',async()=>{
-    const f=fixture(),child=f.frame(),nested=f.frame();let release,visited=0;
+    const f=fixture(),child=f.frame(),nested=f.frame();let release,visited=0,authorized=0;
     f.root.frames.push({contentWindow:child.win});child.frames.push({contentWindow:nested.win});
     nested.win.addEventListener('frontend:before-reload',e=>{visited++;e.detail.waitUntil(new Promise(r=>release=r));});
+    nested.win.addEventListener('frontend:will-reload',()=>{authorized++;});
     await f.api.checkForUpdate();
     const pending=f.api.refreshToLatestBuild();assert.equal(f.api.refreshToLatestBuild(),pending);
     await turn();assert.equal(f.navigations.length,0);assert.equal(f.button.disabled,true);assert.equal(visited,1);
-    release(true);assert.equal(await pending,true);
+    assert.equal(authorized,0);release(true);assert.equal(await pending,true);assert.equal(authorized,1);
     const url=new URL(f.navigations[0]);assert.equal(url.searchParams.get('workspace'),'A');assert.equal(url.searchParams.get('id'),'canvas');assert.equal(url.searchParams.get('__frontend_build'),'new');
     assert.equal(f.timers.size,0);
 });
 test('failed child save blocks refresh and allows an explicit retry',async()=>{
     const f=fixture(),child=f.frame();f.root.frames.push({contentWindow:child.win});
+    let authorized=0;child.win.addEventListener('frontend:will-reload',()=>{authorized++;});
     child.win.addEventListener('frontend:before-reload',e=>e.detail.waitUntil(false));
     await f.api.checkForUpdate();assert.equal(await f.api.refreshToLatestBuild(),false);
     assert.equal(f.navigations.length,0);assert.equal(f.button.disabled,false);assert.match(f.message.textContent,/保留草稿/);
+    assert.equal(authorized,0);
     child.listeners.clear();assert.equal(await f.api.refreshToLatestBuild(),true);assert.equal(f.navigations.length,1);
 });
 test('timeout keeps the page, resets the button, and ignores a late success',async()=>{

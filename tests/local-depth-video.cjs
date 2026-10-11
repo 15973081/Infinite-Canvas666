@@ -36,14 +36,18 @@ async function browserFixture(t){
 test('local extraction is lazy, preserves timestamps, and saves only on explicit click',async t=>{
     const {page,requests}=await browserFixture(t);
     assert.deepEqual(await page.evaluate(()=>workerCalls),[]);
+    assert.equal(await page.evaluate(()=>LocalDepthVideo.hasUnfinishedWork()),false);
     await page.locator('.local-depth-start').click();
     await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
     if(!process.env.DEPTH_MEDIA_BUNDLE){const frames=await page.evaluate(()=>encodedFrames);assert.equal(frames.length,30);assert.equal(frames[0][0],0);assert.equal(frames.at(-1)[0],29/30);assert.ok(Math.abs(frames.reduce((n,f)=>n+f[1],0)-1)<1e-6);}
     assert.equal(await page.evaluate(()=>saved),0);assert.ok(requests.every(r=>r.method==='GET'));
     assert.equal(await page.evaluate(()=>workerCalls.filter(t=>t==='frame').length),30);
     assert.match(await page.locator('.local-depth-status').textContent(),/仅保存在当前浏览器/);
+    assert.equal(await page.evaluate(()=>LocalDepthVideo.hasUnfinishedWork()),true);
+    assert.equal(await page.evaluate(()=>window.dispatchEvent(new Event('beforeunload',{cancelable:true}))),false,'unsaved local result protects browser navigation');
     if(process.env.DEPTH_MEDIA_BUNDLE){const duration=await page.locator('video').evaluate(v=>new Promise(resolve=>{if(v.readyState>=1)resolve(v.duration);else v.onloadedmetadata=()=>resolve(v.duration)}));assert.ok(Math.abs(duration-1)<.01);}
     await page.locator('[data-save]').click();await page.waitForFunction(()=>saved===1);assert.equal(await page.evaluate(()=>savedType),'video/mp4');
+    await page.waitForFunction(()=>!LocalDepthVideo.hasUnfinishedWork());
     await page.keyboard.press('Escape');assert.equal(await page.locator('[role=dialog]').count(),0);assert.equal(await page.evaluate(()=>document.activeElement.id),'origin');
 });
 test('model failure is retryable; cancel and close terminate pending inference',async t=>{

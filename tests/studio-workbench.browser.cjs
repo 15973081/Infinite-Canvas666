@@ -3,14 +3,10 @@ const {chromium}=require('playwright');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 
 test('directory menus retain filtering, counts and keyboard focus without business writes',async t=>{
- const {page,writes,errors}=await fixture(t,'classic',false);
- await page.evaluate(()=>{
-  setCanvasMode(false);canvas=null;
-  canvases=[{id:'a',title:'Alpha',updated_at:1},{id:'b',title:'Beta',kind:'smart',folder_id:'brand',updated_at:2},{id:'c',title:'Gamma',updated_at:3},{id:'d',title:'Delta',updated_at:4}];
-  canvasFolders=[{id:'brand',name:'品牌项目'}];renderCanvasList();
- });
+ const {page,writes,errors}=await fixture(t,'classic',false,{directory:true,record:{title:'Alpha'},
+  extraRecords:[{id:'b',title:'Beta',kind:'smart',folder_id:'brand',updated_at:2},{id:'c',title:'Gamma',updated_at:3},{id:'d',title:'Delta',updated_at:4}],folders:[{id:'brand',name:'品牌项目'}]});
  const before=writes.length;
- assert.equal(await page.locator('#studioRecentList button').count(),3);
+ assert.equal(await page.locator('#studioRecentList a').count(),3);
  await page.locator('#studioFolderTrigger').press('ArrowDown');
  assert.equal(await page.locator('.gate-folder-node.active .gate-folder-main').evaluate(el=>el===document.activeElement),true);
  await page.locator('.gate-folder-node.active .gate-folder-main').press('End');
@@ -30,8 +26,7 @@ test('directory menus retain filtering, counts and keyboard focus without busine
 });
 
 test('directory fits small screens and exposes failed-load recovery and reduced motion',async t=>{
- const {page,errors}=await fixture(t,'classic',false);
- await page.evaluate(()=>{setCanvasMode(false);canvas=null;});
+ const {page,errors}=await fixture(t,'classic',false,{directory:true});
  for(const theme of ['light','dark'])for(const width of [320,390,768,1440]){
   await page.setViewportSize({width,height:900});
   await page.evaluate(theme=>StudioTheme.apply(theme),theme);
@@ -49,19 +44,13 @@ test('directory fits small screens and exposes failed-load recovery and reduced 
  assert.deepEqual(errors,[]);
 });
 
-test('sidebar create preserves failed-save and member leave guards',async t=>{
- const {page}=await fixture(t,'classic',false);
- const result=await page.evaluate(async()=>{
-  const current=canvas;let closed=0,created=0;
-  flushClassicCanvasBeforeFrontendReload=async()=>false;
-  returnToCanvasManager=async()=>{closed++;canvas=null;};setCreateMode=()=>created++;
-  const failure=await CanvasHome.beginCreate();
-  const retained=canvas===current;
-  CanvasSession={enabled:true};returnToCanvasManager=async()=>{closed++;};
-  const denied=await CanvasHome.beginCreate();
-  return {failure,retained,denied,closed,created};
- });
- assert.deepEqual(result,{failure:false,retained:true,denied:false,closed:1,created:0});
+test('directory create waits for initialization and has no document to flush',async t=>{
+ const {page,errors}=await fixture(t,'classic',false,{directory:true});
+ await page.evaluate(()=>CanvasHome.beginCreate());
+ assert.equal(await page.locator('#canvasNameField').isVisible(),true);
+ assert.equal(await page.evaluate(()=>typeof canvas),'undefined');
+ await page.getByRole('button',{name:'取消',exact:true}).click();
+ assert.deepEqual(errors,[]);
 });
 
 async function shellFixture(t,stored){

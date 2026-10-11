@@ -37,7 +37,7 @@ function fixture() {
         }};
     context.window=context;context.parent=context;
     context.CanvasEditLease=class extends Lease {constructor(options){super({...options,fetch:context.fetch,now:()=>0});}};
-    vm.createContext(context);vm.runInContext(source,context);vm.runInContext(apiSource,context);
+    vm.createContext(context);vm.runInContext(fs.readFileSync('static/js/canvas-directory-writes.js','utf8'),context);vm.runInContext(source,context);vm.runInContext(apiSource,context);
     return {context,calls,records,queries,listeners,timers,delays,downloads,database,api:context.MemberCanvasEdit,
         mount:()=>context.MemberCanvasEdit.mount({id:'a',dirty:()=>false,snapshot:()=>({id:'a',kind:'classic',revision:3,nodes:[],connections:[]}),reload:async()=>({revision:3}),flush:async()=>true})};
 }

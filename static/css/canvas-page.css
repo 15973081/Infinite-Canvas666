@@ -1,0 +1,22 @@
+/* Dedicated document pages have their own viewport, outside the workbench iframe. */
+html.standalone-canvas .canvas-open{color:inherit;text-decoration:none}
+.canvas-navigation-group{position:relative;display:flex;align-items:center;gap:10px;width:max-content;max-width:calc(100vw - 44px);flex-shrink:0;pointer-events:none}
+html.standalone-canvas body.studio-smart-canvas #shell .canvas-navigation-group{position:absolute;left:22px;top:22px;z-index:56}
+html.standalone-canvas body.studio-skin #shell .canvas-navigation-group :is(.canvas-nav,.smart-nav){position:relative;left:auto;top:auto;max-width:min(320px,calc(100vw - 98px));min-width:0;pointer-events:auto}
+.canvas-share-action{position:relative;flex:0 0 40px;pointer-events:auto}
+html.standalone-canvas body.studio-skin #shell .canvas-link-copy{display:flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--st-line,#d9ddd3);background:var(--st-panel,#fff)!important;color:var(--st-muted,#77816c)!important;border-radius:12px;box-shadow:0 3px 12px #0000000d;cursor:pointer;transition:background .15s,color .15s}
+html.standalone-canvas body.studio-skin #shell .canvas-link-copy:hover{background:var(--st-soft,#f3f4ee)!important;color:var(--st-text,#222)!important}
+.canvas-link-copy:focus-visible{outline:2px solid var(--st-accent,#b5dd29);outline-offset:3px}.canvas-link-copy svg{width:18px;height:18px}.canvas-link-copy:disabled{cursor:wait;opacity:.65}
+.canvas-share-feedback{position:absolute;right:0;top:calc(100% + 10px);width:max-content;max-width:260px;padding:7px 10px;border:1px solid var(--st-line,#d9ddd3);border-radius:8px;background:var(--st-panel,#fff);color:var(--st-text,#222);box-shadow:0 3px 12px #0000000d;font:12px/1.5 system-ui;pointer-events:none}.canvas-share-feedback:empty{display:none}
+html.standalone-canvas #canvasGate{display:none!important}
+html.standalone-canvas #shell.no-canvas>.topbar{display:flex}
+.canvas-route-error{position:fixed;z-index:100010;left:50%;top:50%;transform:translate(-50%,-50%);width:min(430px,calc(100vw - 64px));padding:28px;background:var(--st-panel,#fff);color:var(--st-text,#222);border:1px solid var(--st-line,#ddd);border-radius:16px;box-shadow:0 12px 80px #0003;font:14px/1.6 system-ui}
+.canvas-route-error a{color:inherit;margin-left:16px}.canvas-route-error button{padding:8px 14px;cursor:pointer}
+.studio-canvas .canvas-open{color:inherit;text-decoration:none}.studio-recent-item{text-decoration:none}
+@media(max-width:1100px){
+ html.standalone-canvas body.studio-smart-canvas #shell .smart-top-tools{top:112px;left:22px;right:auto;width:max-content;max-width:calc(100% - 44px);overflow-x:auto;box-sizing:border-box}
+ html.standalone-canvas body.studio-smart-canvas #shell .smart-top-tools>button{flex:0 0 auto}
+ html.standalone-canvas body.studio-canvas #shell>.topbar{flex-direction:column;gap:30px}
+ html.standalone-canvas body.studio-canvas #shell #quickToolbar{max-width:100%;overflow-x:auto;box-sizing:border-box}
+}
+@media(max-width:640px){html.standalone-canvas body.studio-skin #shell :is(.canvas-nav-meta,.smart-nav-meta){min-width:0;max-width:140px}}

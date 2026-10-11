@@ -6,7 +6,7 @@
  * See docs/canvas-eight-module-refactor.md for boundaries and follow-up rules.
  */
 const params = new URLSearchParams(location.search);
-const canvasId = params.get('id') || '';
+const canvasId = window.CanvasNavigation?.canvasId || params.get('id') || '';
 const shell = document.getElementById('shell');
 const world = document.getElementById('world');
 const composer = document.getElementById('composer');
@@ -198,6 +198,7 @@ let canvasDefaultSmartSettings = cloneSmartSettings(settings);
 let recentSmartSettingsByMode = {};
 
 async function backToCanvasList(options={}){
+    if(window.CanvasNavigation)return window.CanvasNavigation.go(window.CanvasNavigation.homeUrl()+(options.create?'?create=classic':''));
     if(window.MemberCanvasEdit && !await window.MemberCanvasEdit.leave()) return;
     savePromptDraftForCurrent();
     clearTimeout(saveTimer);
@@ -345,7 +346,7 @@ async function loadCanvas(options={}){
                 taskRecovery:smartTaskRecovery(),
                 snapshot:() => ({...canvas,nodes:JSON.parse(JSON.stringify(nodes)),settings:settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings)}),
                 refresh:()=>loadCanvas({observe:true}),restore:restoreSmartMemberDraft,busy:() => Boolean(smartSaveInFlight) || smartSaveAgain || smartCascadeAnyRunning() || nodes.some(smartNodeInFlight),
-                openCopy:async copy => {window.location.assign('/static/smart-canvas.html?id='+encodeURIComponent(copy.id)+'&workspace='+encodeURIComponent(window.CanvasSession.context.workspace.id));},
+                openCopy:async copy => window.CanvasNavigation.go(window.CanvasNavigation.canvasUrl(copy.id)),
                 reload:async () => { const loaded=await loadCanvas(); if(!loaded) throw new Error('画布重载失败，请重试'); return loaded; },
                 flush:async () => {
                     clearTimeout(saveTimer); saveTimer=null;
@@ -511,17 +512,26 @@ window.StudioFrameMessages.subscribe(['studio-theme','providers-changed','workfl
 
 window.onload = async () => {
     if(window.CanvasSession) await window.CanvasSession.ready;
+    window.CanvasNavigation?.adopt(canvasId);
     applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light');
     if(window.lucide) lucide.createIcons();
     connectAssetLibrarySyncSocket();
     await loadConfig();
-    await loadCanvas();
+    if(!await loadCanvas()){window.CanvasNavigation?.failure();return;}
     syncApiKindToggleVisibility();
     render();
     const background = () => loadAssetLibrary();
     if(window.CanvasMediaLoader) window.CanvasMediaLoader.defer(background);
     else background();
 };
+window.CanvasNavigation?.setLeaveGuard(async()=>{
+    if(!window.CanvasNavigation.confirmLocalWork())return false;
+    savePromptDraftForCurrent();
+    if(window.CanvasSession?.enabled)return await window.MemberCanvasEdit.leave();
+    clearTimeout(saveTimer);saveTimer=null;
+    const saved=await saveCanvas({force:true});
+    return saved!==false && !smartCanvasDirty && !smartSaveInFlight && !smartSaveAgain;
+});
 window.addEventListener('beforeunload', event => {
     if(smartCanvasDirty || smartSaveInFlight || saveTimer){
         event.preventDefault();
@@ -530,16 +540,13 @@ window.addEventListener('beforeunload', event => {
 });
 window.addEventListener('frontend:before-reload', event => {
     if(typeof event.detail?.waitUntil !== 'function') return;
-    if(window.CanvasSession?.enabled){
-        event.detail.waitUntil(window.MemberCanvasEdit.prepareReload());
-        return;
-    }
-    event.detail.waitUntil((async () => {
+    event.detail.waitUntil(window.CanvasNavigation.prepareReload(async () => {
+        if(window.CanvasSession?.enabled)return window.MemberCanvasEdit.prepareReload();
         clearTimeout(saveTimer);
         saveTimer = null;
         const saved = await saveCanvas({force:true});
         return saved !== false && !smartCanvasDirty && !smartSaveInFlight && !smartSaveAgain;
-    })());
+    }));
 });
 bindSmartSessionVisibility();
 

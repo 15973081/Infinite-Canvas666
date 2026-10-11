@@ -404,7 +404,7 @@ for(const kind of ['classic','smart']) {
                 const start=()=>document.getElementById('minimap').dispatchEvent(new MouseEvent('mousedown',mouse));
                 start();const old=[...frames.values()];
                 if(kind==='classic'){
-                    const next={...structuredClone(canvas),id:'canvas-next',nodes:[]};
+                    const next={...structuredClone(canvas),title:'Reloaded document',nodes:[]};
                     const originalGet=window.CanvasApi.getCanvas;
                     window.CanvasApi.getCanvas=async()=>({canvas:next});
                     try {await openCanvas(next.id);}finally{window.CanvasApi.getCanvas=originalGet;}

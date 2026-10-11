@@ -1,4 +1,4 @@
-/* Classic gate data -> presentation model. It does not own documents or UI state. */
+/* Canvas directory data -> presentation model. It does not own documents or UI state. */
 (() => {
     'use strict';
     const normalizeFolderId = value => String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -75,5 +75,5 @@
     }
     const api = Object.freeze({normalizeFolderId, compareRecords, visibleItems, folderChildren, countInFolder, folderLabel, folderDepth, build});
     if(typeof module === 'object' && module.exports) module.exports = api;
-    else window.ClassicCanvasGateModel = api;
+    else window.CanvasDirectoryModel = api;
 })();

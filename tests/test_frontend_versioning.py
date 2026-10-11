@@ -98,10 +98,10 @@ class FrontendVersioningTests(unittest.TestCase):
     def test_runtime_checks_on_load_focus_visibility_and_interval(self):
         self.assertIn("fetch('/api/frontend/version'", VERSION_CLIENT)
         self.assertIn("cache:'no-store'", VERSION_CLIENT)
-        self.assertIn("window.addEventListener('focus', checkForUpdate)", VERSION_CLIENT)
+        self.assertIn("window.addEventListener('focus', automaticCheck)", VERSION_CLIENT)
         self.assertIn("window.addEventListener('pageshow'", VERSION_CLIENT)
         self.assertIn("document.addEventListener('visibilitychange'", VERSION_CLIENT)
-        self.assertIn("window.setInterval(checkForUpdate, CHECK_INTERVAL_MS)", VERSION_CLIENT)
+        self.assertIn("window.setInterval(automaticCheck, CHECK_INTERVAL_MS)", VERSION_CLIENT)
         self.assertIn("parentVersionController()", VERSION_CLIENT)
         self.assertIn("parentController.checkForUpdate()", VERSION_CLIENT)
         self.assertIn("url.searchParams.set('__frontend_build', latestBuildId)", VERSION_CLIENT)
@@ -123,7 +123,8 @@ class FrontendVersioningTests(unittest.TestCase):
         self.assertIn("frontend:before-reload", VERSION_CLIENT)
         self.assertIn("Promise.allSettled(pending)", VERSION_CLIENT)
         self.assertIn("flushClassicCanvasBeforeFrontendReload", CLASSIC_CLIENT)
-        self.assertIn("event.detail.waitUntil(flushClassicCanvasBeforeFrontendReload())", CLASSIC_CLIENT)
+        self.assertIn("event.detail.waitUntil(window.CanvasNavigation.prepareReload", CLASSIC_CLIENT)
+        self.assertIn("window.MemberCanvasEdit.prepareReload() : flushClassicCanvasBeforeFrontendReload()", CLASSIC_CLIENT)
         self.assertIn("saveCanvas({force:true})", SMART_CLIENT)
         self.assertRegex(
             SMART_CLIENT,
@@ -153,6 +154,24 @@ def test_member_canvas_pages_load_binding_protocol_before_business_scripts():
             assert 'defer' not in re.search(r'<script[^>]*canvas-task-bindings.js[^>]*>', page).group()
         login = static_pages.versioned_static_html('<html><head></head><body><form id="login-form"></form></body></html>')
         assert 'canvas-task-bindings.js' not in login
+
+
+def test_directory_and_shell_do_not_boot_an_editor_session():
+    with mock.patch('app.storage.settings.member_auth_enabled', return_value=True):
+        for filename in ['index.html', 'canvas-home.html']:
+            page = static_pages.versioned_static_html((ROOT / 'static' / filename).read_text(encoding='utf-8'))
+            scripts = re.findall(r'<script\b[^>]*src="([^"]+)"', page)
+            names = [url.split('?')[0] for url in scripts]
+            assert '/static/js/member-session.js' in names
+            assert not any('member-canvas-edit' in name or 'canvas-task-' in name or '/canvas/classic/' in name for name in names)
+            assert '/static/js/canvas.js' not in names and '/static/js/smart-canvas.js' not in names
+            if filename == 'canvas-home.html':
+                assert names.index('/static/js/canvas-edit-lease.js') < names.index('/static/js/canvas-directory-writes.js') < names.index('/static/js/canvas-home.js')
+                assert '/static/js/canvas-api.js' not in names
+                assert '/static/css/canvas.css' not in page
+                assert 'id="board"' not in page and 'id="nodes"' not in page
+        editor = (ROOT / 'static/canvas.html').read_text(encoding='utf-8')
+        assert 'id="canvasGate"' not in editor and '/static/js/canvas-home.js' not in editor
 
 
 class IndependentAssetCacheTests(unittest.TestCase):

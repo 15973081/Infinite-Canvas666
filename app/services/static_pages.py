@@ -246,8 +246,20 @@ def versioned_static_html(html: str) -> str:
     if member_auth_enabled() and 'id="login-form"' not in versioned and '/static/js/member-session.js' not in versioned:
         # Blocking script installs the request gate before inline scripts or
         # iframes can start business requests without a selected workspace.
+        directory = '<meta name="canvas-page-role" content="directory">' in html
+        workbench = '<meta name="canvas-page-role" content="workbench">' in html
+        styles = ['member-session']
+        scripts = ['member-session', 'member-media']
+        if not workbench:
+            scripts += ['canvas-edit-lease', 'canvas-directory-writes']
+        if not directory and not workbench:
+            styles += ['member-canvas-edit']
+            scripts += ['canvas-subscription', 'canvas-task-results', 'canvas-task-bindings',
+                        'canvas-llm-tasks', 'member-canvas-edit']
+        injected = ''.join(f'\n<link rel="stylesheet" href="/static/css/{name}.css">' for name in styles)
+        injected += ''.join(f'\n<script src="/static/js/{name}.js"></script>' for name in scripts)
         versioned = re.sub(r'(<head(?:\s[^>]*)?>)',
-            r'\1\n<link rel="stylesheet" href="/static/css/member-session.css">\n<script src="/static/js/member-session.js"></script>\n<link rel="stylesheet" href="/static/css/member-canvas-edit.css">\n<script src="/static/js/canvas-edit-lease.js"></script>\n<script src="/static/js/canvas-subscription.js"></script>\n<script src="/static/js/member-media.js"></script>\n<script src="/static/js/canvas-task-results.js"></script>\n<script src="/static/js/canvas-task-bindings.js"></script>\n<script src="/static/js/canvas-llm-tasks.js"></script>\n<script src="/static/js/member-canvas-edit.js"></script>',
+            lambda match: match[1] + injected,
             versioned, count=1, flags=re.I)
     return versioned_static_references(versioned, build_id)
 

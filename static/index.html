@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 
 <head>
+    <meta name="canvas-page-role" content="workbench">
     <meta name="frontend-build-id" content="__FRONTEND_BUILD_ID__">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -614,7 +615,7 @@
         <main class="stage">
             <iframe class="active" id="frame-online" data-src="/static/online.html?v=2026.07.14.2" scrolling="yes"></iframe>
             <iframe id="frame-gpt-chat" data-src="/static/gpt-chat.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
-            <iframe id="frame-canvas" data-src="/static/canvas.html?v=2026.08.25.4" scrolling="yes"></iframe>
+            <iframe id="frame-canvas" data-src="/static/canvas-home.html" scrolling="yes"></iframe>
             <iframe id="frame-asset-manager" data-src="/static/asset-manager.html?v=2026.06.15.1781461370" scrolling="yes"></iframe>
             <iframe id="frame-skill-library" data-src="/static/skill-library.html" scrolling="yes" title="Skill 库"></iframe>
 
@@ -761,6 +762,10 @@
             document.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
             const target = document.getElementById('frame-' + id);
             target.classList.add('active');
+            if(id==='canvas' && !target.src && new URLSearchParams(location.search).get('create')==='classic'){
+                target.dataset.src += (target.dataset.src.includes('?')?'&':'?')+'create=classic';
+                const clean=new URL(location.href);clean.searchParams.delete('create');history.replaceState(history.state,'',clean);
+            }
             if (!target.src) target.src = window.CanvasSession ? window.CanvasSession.url(target.dataset.src) : target.dataset.src;
             if(!options.skipRemember) localStorage.setItem(ACTIVE_PAGE_KEY, id);
             // sync theme to newly activated iframe
@@ -790,7 +795,7 @@
             if (window.CanvasSession) await window.CanvasSession.ready;
             restoreSidebarPinned();
             const savedId = localStorage.getItem(ACTIVE_PAGE_KEY);
-            const id = PAGE_IDS.includes(savedId) && !LOCAL_PAGE_IDS.includes(savedId) ? savedId : DEFAULT_PAGE_ID;
+            const id = /^\/workspaces\/[^/]+$/.test(location.pathname) ? 'canvas' : PAGE_IDS.includes(savedId) && !LOCAL_PAGE_IDS.includes(savedId) ? savedId : DEFAULT_PAGE_ID;
             restoreLocalNav(id);
             restoreSidebarSettings(id);
             const trigger = document.querySelector(`[onclick*="'${id}'"],[onclick*='"${id}"']`);

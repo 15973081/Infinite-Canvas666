@@ -33,7 +33,6 @@ function applyRemoteCanvasData(remote){
         if(!window.CanvasSession?.enabled) pruneMissingComfyWorkflows();
         refreshMissingCanvasAssets().then(() => render());
         selected = new Set([...localSelectedIds].filter(id => nodes.some(node => node.id === id)));
-        renderCanvasList();
         render();
         resumeCanvasImageTasks();
         if(currentCanvasTitle) currentCanvasTitle.textContent = canvas.title || '未命名画布';

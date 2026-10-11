@@ -18,6 +18,6 @@
  mobile.addEventListener('change',()=>closeMobile());window.StudioShell={closeMobile};
  document.getElementById('studioNewCanvas').addEventListener('click',async()=>{
   const button=document.getElementById('studioNewCanvas');button.disabled=true;
-  try{switchUI(document.querySelector('[data-page="canvas"]'),'canvas');const frame=document.getElementById('frame-canvas');if(frame.contentWindow?.backToCanvasList){await frame.contentWindow.backToCanvasList({create:true});return;}if(!frame.contentWindow?.CanvasHome||typeof frame.contentWindow?.setCreateMode!=='function')await new Promise(resolve=>frame.addEventListener('load',resolve,{once:true}));await frame.contentWindow?.CanvasHome?.beginCreate();}finally{button.disabled=false;}
+  try{switchUI(document.querySelector('[data-page="canvas"]'),'canvas');const frame=document.getElementById('frame-canvas');if(!frame.contentWindow?.CanvasHome)await new Promise(resolve=>frame.addEventListener('load',resolve,{once:true}));await frame.contentWindow?.CanvasHome?.beginCreate();}finally{button.disabled=false;}
  });
 })();

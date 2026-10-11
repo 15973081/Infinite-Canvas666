@@ -100,7 +100,7 @@
                         try { sessionStorage.setItem('canvas:workspace:' + member.id, space.id); } catch (_) {}
                         if (initial) { panel.remove(); panel = null; resolve(space); }
                         else {
-                            const target = new URL(location.href); target.searchParams.set('workspace', space.id);
+                            const target = new URL('/workspaces/'+encodeURIComponent(space.id),location.origin);
                             // A canvas identifier from the old space must not follow the switch.
                             target.searchParams.delete('id'); target.searchParams.delete('canvas_id');
                             location.assign(target.pathname + target.search);
@@ -266,7 +266,7 @@
                         let veil=null;
                         try {
                             if(!await flushPages()) throw new Error('当前画布保存尚未完成，请处理后再切换空间。');
-                            const target=new URL(location.href);target.searchParams.set('workspace',workspace.id);
+                            const target=new URL('/workspaces/'+encodeURIComponent(workspace.id),location.origin);
                             target.searchParams.delete('id');target.searchParams.delete('canvas_id');
                             try {sessionStorage.setItem('canvas:workspace:'+context.member.id,workspace.id);} catch(_) {}
                             veil=element('div','正在切换到 '+workspace.name+'…','member-space-transition');
@@ -341,7 +341,10 @@
             if (status.mode !== 'members') throw new Error('服务模式已改变，请重新打开工作台。');
             if (inherited && inherited.member.id !== status.member.id) throw new Error('登录账号已改变，请重新打开工作台。');
             const spaces = (await json('/api/auth/workspaces', {headers:{'X-Member-ID':status.member.id}})).workspaces;
-            const requested = new URL(location.href).searchParams.get('workspace');
+            const routeWorkspace=location.pathname.match(/^\/workspaces\/([\w-]+)(?:\/|$)/)?.[1];
+            const queryWorkspace=new URL(location.href).searchParams.get('workspace');
+            if(routeWorkspace && queryWorkspace && routeWorkspace!==queryWorkspace)throw new Error('链接中的空间信息不一致。');
+            const requested = routeWorkspace || queryWorkspace;
             if (inherited && requested && requested !== inherited.workspace.id) throw new Error('嵌入页面的空间与工作台不一致。');
             let saved = '';
             try { saved = sessionStorage.getItem('canvas:workspace:' + status.member.id) || ''; } catch (_) {}

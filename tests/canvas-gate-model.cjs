@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const model=require('../static/js/canvas-gate-model.js');
+const model=require('../static/js/canvas-directory-model.js');
 const frozen=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(frozen);Object.freeze(value);}return value;};
 const records=()=>[{id:'a',title:'ＡLPHA 10',folder_id:'one',updated_at:10},
     {id:'b',title:'alpha 2',folder_id:'one',pinned:true,created_at:5},

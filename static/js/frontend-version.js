@@ -126,6 +126,12 @@
             if(!await runReloadGuards()) throw new Error('保存尚未完成。页面尚未刷新，请检查画布状态并保留草稿后重试。');
             const url = new URL(window.location.href);
             url.searchParams.set('__frontend_build', latestBuildId);
+            // Only authorize local job disposal once every save guard succeeded.
+            const notify = win => {
+                win.dispatchEvent(new win.CustomEvent('frontend:will-reload'));
+                for(const frame of win.document.querySelectorAll('iframe'))notify(frame.contentWindow);
+            };
+            notify(window);
             window.location.replace(url.toString());
             return true;
         } catch(error) {

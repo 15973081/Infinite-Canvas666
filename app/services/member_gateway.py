@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse, RedirectResponse
 from app.services import members, authorization as az
 from app.services.member_context import access_scope
 from app.storage.workspace import workspace_scope
+from app.services.canvas_pages import page_address, page_error
 
 COOKIE = 'canvas_member_session'
 PUBLIC = {'/static/js/infinity-hero.js', '/static/vendor/js/three-0.160.0.module.js', '/login', '/api/auth/login', '/api/auth/status', '/api/auth/activate',
@@ -45,6 +46,11 @@ def selected_workspace(scope):
     headers = dict(scope.get('headers', []))
     header = headers.get(b'x-workspace-id', b'').decode('latin-1')
     values = parse_qs(scope.get('query_string', b'').decode('latin-1')).get('workspace', [])
+    page = page_address(scope.get('path', ''))
+    if page:
+        if (header and header != page[1]) or any(value != page[1] for value in values):
+            az.fail('workspace_selector_conflict', 400)
+        header = page[1]
     if len(values) > 1 or (header and values and header != values[0]):
         az.fail('workspace_selector_conflict', 400)
     value = header or (values[0] if values else '')
@@ -54,6 +60,8 @@ def selected_workspace(scope):
 
 
 def permissions(path, method):
+    if page_address(path) and method in {'GET', 'HEAD'}:
+        return ('canvas.read',)
     if path=='/api/chat/attachments/preview' and method=='POST':
         return ('canvas.read',)
     if path=='/api/chat/attachments/audit' and method=='GET':
@@ -227,8 +235,10 @@ async def dispatch(app, scope, receive, send):
         return await app(scope, receive, send)
     actor = await asyncio.to_thread(principal, scope)
     if actor is None:
-        if scope['type'] == 'http' and method == 'GET' and (path == '/' or path.endswith('.html')):
-            return await RedirectResponse('/login?next=' + quote(path, safe=''), 303)(scope, receive, send)
+        if scope['type'] == 'http' and method == 'GET' and (path == '/' or path.endswith('.html') or page_address(path)):
+            query = scope.get('query_string', b'').decode('latin-1')
+            destination = path + ('?' + query if query else '')
+            return await RedirectResponse('/login?next=' + quote(destination, safe=''), 303)(scope, receive, send)
         return await reject(scope, receive, send, HTTPException(401, {'code': 'authentication_required'}))
     scope['member_principal'] = actor
     scope['auth_user'] = actor.member_id
@@ -274,4 +284,7 @@ async def dispatch(app, scope, receive, send):
 async def reject(scope, receive, send, exc):
     if scope['type'] == 'websocket':
         return await send({'type': 'websocket.close', 'code': 1008})
+    page = page_address(scope.get('path', ''))
+    if page and scope.get('method') == 'GET':
+        return await page_error(exc.status_code, page[1])(scope, receive, send)
     return await JSONResponse({'detail': exc.detail}, exc.status_code, headers={**(exc.headers or {}), 'Cache-Control': 'no-store'})(scope, receive, send)

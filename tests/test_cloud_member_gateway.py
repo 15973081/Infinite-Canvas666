@@ -201,6 +201,35 @@ def test_workspace_selector_and_viewer_write_permissions(world):
     assert viewer.post('/api/canvases', headers=headers(a), json={'title': 'denied'}).status_code == 403
 
 
+def test_standalone_canvas_pages_select_editor_and_enforce_workspace_access(world):
+    from fastapi.testclient import TestClient
+    from main import app
+    from urllib.parse import parse_qs, urlsplit
+    a, b = world['a'], world['b']
+    home = '/workspaces/' + a['id']
+    assert world['viewer'].get(home).status_code == 200
+    assert world['outsider'].get(home).status_code == 403
+    for kind, script in [('classic', '/static/js/canvas.js'), ('smart', '/static/js/smart-canvas.js')]:
+        created = world['editor'].post('/api/canvases', headers=headers(a), json={'title': 'Private canvas', 'kind': kind}).json()['canvas']
+        path = home + '/canvases/' + created['id']
+        with TestClient(app) as anonymous:
+            response = anonymous.get(path + '?cover=1', follow_redirects=False)
+            assert response.status_code == 303
+            assert parse_qs(urlsplit(response.headers['location']).query)['next'] == [path + '?cover=1']
+        response = world['viewer'].get(path)
+        assert response.status_code == 200 and script in response.text
+        assert 'no-store' in response.headers['cache-control']
+        assert '/static/js/member-session.js' in response.text
+        assert world['viewer'].get(path + '?workspace=' + b['id']).status_code == 400
+        assert world['viewer'].get(path, headers=headers(b)).status_code == 400
+        forbidden = world['outsider'].get(path)
+        assert forbidden.status_code == 403 and '返回画布首页' in forbidden.text
+        hidden = world['outsider'].get('/workspaces/' + b['id'] + '/canvases/' + created['id'])
+        assert hidden.status_code == 404 and 'Private canvas' not in hidden.text
+    missing = world['editor'].get(home + '/canvases/not-found')
+    assert missing.status_code == 404 and '返回画布首页' in missing.text
+
+
 def test_conversation_identity_ignores_claimed_user_and_is_scoped(world):
     a = world['a']
     forged = {**headers(a), 'X-User-ID': world['people'][1]['id']}

@@ -17,11 +17,11 @@ class Node {
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); }
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
 }
-function harness({member='alice', selected='space_a', parent, search='', failBusiness=false}={}) {
+function harness({member='alice', selected='space_a', parent, search='', pathname='/static/canvas.html', failBusiness=false}={}) {
     const calls=[], body=new Node('body'), nodes=[], store=new Map();
     if (selected) store.set('canvas:workspace:' + member, selected);
     const spaces = [{id:'space_a',name:'A',permissions:['canvas.read']},{id:'space_b',name:'B',permissions:['canvas.edit']}];
-    const location = {href:'http://localhost/static/canvas.html' + search, origin:'http://localhost',host:'localhost',pathname:'/static/canvas.html',search,replace(){},assign(){},reload(){}};
+    const location = {href:'http://localhost'+pathname + search, origin:'http://localhost',host:'localhost',pathname,search,replace(){},assign(){},reload(){}};
     const document = {addEventListener(){},removeEventListener(){},readyState:'complete',body,documentElement:new Node('html'),createElement(tag){const node = new Node(tag);nodes.push(node);return node;}, querySelectorAll(){return [];}};
     const window = {location,document,events:{},addEventListener(name,fn){this.events[name]=fn;},removeEventListener(){},dispatchEvent(){},alert(){},fetch:async (url,init={}) => {
         calls.push({url:String(url),init});
@@ -38,6 +38,14 @@ function harness({member='alice', selected='space_a', parent, search='', failBus
     return {window,calls,nodes,store};
 }
 async function settle(){for(let i=0;i<20;i++) await new Promise(resolve=>setImmediate(resolve));}
+
+test('canonical page workspace overrides remembered space and refuses conflicting query',async()=>{
+    const h=harness({selected:'space_b',pathname:'/workspaces/space_a/canvases/one'});
+    await h.window.CanvasSession.ready;
+    assert.equal(h.window.CanvasSession.context.workspace.id,'space_a');
+    const conflict=harness({pathname:'/workspaces/space_a/canvases/one',search:'?workspace=space_b'});
+    await assert.rejects(conflict.window.CanvasSession.ready,/不一致/);
+});
 
 test('personal data routes remain account scoped without workspace injection',async()=>{
     const h=harness();await h.window.CanvasSession.ready;
@@ -146,7 +154,7 @@ test('space dropdown preserves the page until saving succeeds and drops old canv
     await options[1].events.click();assert.equal(destination,'');assert.equal(h.store.get('canvas:workspace:alice'),'space_a');
     assert.match(h.nodes.find(n=>n.className==='member-space-message').textContent,/保存尚未完成/);
     h.window.FrontendVersion.flushPages=async()=>true;
-    await options[1].events.click();assert.equal(destination,'/static/canvas.html?workspace=space_b');
+    await options[1].events.click();assert.equal(destination,'/workspaces/space_b');
 });
 
 test('logout forgets the space only after saving succeeds; refresh still restores selection',async()=>{

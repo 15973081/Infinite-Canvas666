@@ -127,10 +127,6 @@ async function saveCanvas(){
         lastSavedCanvasSnapshot = submittedSnapshot;
         if(currentCanvasTime) currentCanvasTime.textContent = formatCanvasTime(canvas.updated_at);
         setStatus(localCanvasDirty ? 'Saving...' : 'Saved');
-        if(data.canvas) {
-            updateCanvasListRecord(data.canvas);
-            refreshGateViewControls();
-        }
     } catch(e) {
         setStatus('Save failed');
         console.error(e);
@@ -168,7 +164,6 @@ function restoreClassicMemberDraft(draft){
     selected.clear();
     localCanvasDirty = true;
     render();
-    renderCanvasList();
     window.MemberCanvasEdit.markDirty();
     setStatus('草稿已恢复，请检查后保存');
 }

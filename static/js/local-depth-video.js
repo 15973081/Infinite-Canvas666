@@ -2,6 +2,16 @@
 (() => {
     const MAX_BYTES = 256 * 1024 * 1024, MAX_SECONDS = 120;
     let current;
+    const pageJobs=new Set();
+    let pageExitAllowed=false;
+    const hasUnfinishedWork=()=>[...pageJobs].some(job=>job.pending());
+    window.addEventListener('beforeunload',event=>{
+        if(!pageExitAllowed && hasUnfinishedWork()){event.preventDefault();event.returnValue='';}
+        pageExitAllowed=false;
+    });
+    window.addEventListener('frontend:will-reload',()=>{pageExitAllowed=true;});
+    window.addEventListener('pagehide',()=>{for(const job of [...pageJobs])job.dispose();});
+    window.addEventListener('pageshow',()=>{pageExitAllowed=false;});
     let localModelFiles;
     const settingsKey = () => {
         const context=window.CanvasSession?.context;
@@ -91,6 +101,9 @@
         const q = selector => root.querySelector(selector), preview = q('.local-depth-preview'), start = q('.local-depth-start'), status = q('.local-depth-status'), progress = q('progress');
         if(!options.background)preview.src = options.url;
         let controller, worker, pending = new Map(), serial = 0, result, resultUrl, inputUrl, output, busy = false, saving = false, closed = false, decoder, modelFiles, depthCanvas;
+        let retained=false;
+        const pageJob={pending:()=>!closed && (busy || saving || Boolean(result && !retained)),dispose:()=>{stop();saving=false;close();}};
+        pageJobs.add(pageJob);
         if(options.background){const config=settings(options.config);q('[data-resolution]').value=config.resolution;q('[data-fps]').value=config.fps;q('[data-source]').value=config.source;modelFiles=localModelFiles;}
         function message(text, error=false) {if(closed) return; status.textContent = text; status.classList.toggle('local-depth-error', error);options.onProgress?.({text,progress:progress.hasAttribute('value')?Number(progress.value):null,error});}
         function stop() {
@@ -103,6 +116,7 @@
             if(saving) return false;
             if(closed) return true;
             closed = true; stop(); if(resultUrl) URL.revokeObjectURL(resultUrl);
+            pageJobs.delete(pageJob);
             preview.pause?.(); preview.removeAttribute('src'); preview.load?.(); root.remove(); document.removeEventListener('keydown', keyboard, true);
             if(!options.background && previousFocus?.isConnected) previousFocus.focus(); if(current?.close === close) current = null;
             return true;
@@ -154,6 +168,7 @@
             progress.value = 100;
             message(`完成 · ${width} × ${height}${isImage ? '' : ` · ${duration.toFixed(1)} 秒`} · ${(result.size/1048576).toFixed(1)} MB。结果仅保存在当前浏览器页面。`);
             await options.onResult?.(new File([blob],fileName,{type:mime}),{width,height,duration});
+            if(options.onResult)retained=true;
         }
         async function processImage(signal,check) {
             decoder = new Image();
@@ -173,6 +188,7 @@
         }
         async function run() {
             if(busy) {stop(); return;}
+            pageExitAllowed=false;retained=false;
             busy = true; start.textContent = '取消提取'; q('[data-cache]').disabled = q('[data-local]').disabled = true; q('[data-download]').disabled = true; q('[data-save]').disabled = true;
             q('[data-resolution]').disabled = q('[data-source]').disabled = true; if(!isImage) q('[data-fps]').disabled = true;
             controller = new AbortController(); const signal = controller.signal;
@@ -258,7 +274,7 @@
         q('[data-save]').onclick = async () => {
             if(!result || saving || busy) return; saving = true; q('[data-save]').disabled = true; start.disabled = true;
             message('正在上传生成结果并保存到画布…');
-            try {await options.save(new File([result],fileName,{type:mime})); message('已保存到画布。');}
+            try {await options.save(new File([result],fileName,{type:mime})); retained=true;message('已保存到画布。');}
             catch(error) {message(`保存失败：${error.message}。结果仍可本地下载。`,true); q('[data-save]').disabled = false;}
             finally {saving = false; start.disabled = false;}
         };
@@ -277,6 +293,6 @@
         document.addEventListener('keydown',keyboard,true); q('.local-depth-close').focus();
         current = {close}; return current;
     }
-    window.LocalDepthVideo = {open,openSettings,getSettings,generate:options=>{const job=open({...options,background:true});queueMicrotask(()=>job.run());return job;}};
+    window.LocalDepthVideo = {open,openSettings,getSettings,hasUnfinishedWork,allowPageExit:()=>{pageExitAllowed=true;},generate:options=>{const job=open({...options,background:true});queueMicrotask(()=>job.run());return job;}};
     window.LocalDepthImage = {open:options=>open({...options,kind:'image'})};
 })();

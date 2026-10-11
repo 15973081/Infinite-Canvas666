@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs/promises'),path=require('node:path');
 const {fixture,origin}=require('./helpers/canvas-browser.cjs');
-const shots=path.resolve(__dirname,'../docs/design/canvas-covers');
+const shots=path.resolve(__dirname,'../.local/canvas-home-split/canvas-covers');
 const nodes=[{id:'picture',type:'image',title:'建筑草图',url:'/assets/test.png',x:100,y:100},
  {id:'video',type:'output',title:'城市夜景',images:[{url:'/output/first.mp4',kind:'video'}],x:500,y:100},
  {id:'later',type:'image',title:'海边片段',url:'https://example.test/later.webm',mediaKind:'video',x:800,y:100}];
@@ -52,17 +52,13 @@ for(const kind of ['classic','smart'])test(kind+': cover selection, saving, fall
 });
 
 test('directory shows compact cover data with no graph fetches or original video requests',async t=>{
- const {page,record,errors}=await fixture(t,'classic',false);
- const requests=[];page.on('request',r=>requests.push(r.url()));
- await page.evaluate(()=>{
-  setCanvasMode(false);canvas=null;
-  canvases=[{id:'a',title:'夜景 / 项目',kind:'classic',cover:null,cover_media:{node_id:'v',index:0,kind:'video',url:'/output/cover.mp4'}},
-   {id:'b',title:'未命名画布',kind:'smart',cover:{text:'自定义文字'},cover_media:null}];renderCanvasList();
- });
+ const {page,errors,requests}=await fixture(t,'classic',false,{directory:true,
+  record:{title:'夜景 / 项目',kind:'classic',cover:null,cover_media:{node_id:'v',index:0,kind:'video',url:'/output/cover.mp4'}},
+  extraRecords:[{id:'b',title:'未命名画布',kind:'smart',cover:{text:'自定义文字'},cover_media:null}]});
  assert.equal(await page.locator('#canvasGate video').count(),0);
  assert.equal(await page.locator('#canvasGate .studio-cover-title').first().innerText(),'夜景 / 项目');
  assert.equal(await page.locator('#canvasGate .studio-cover-title').nth(1).innerText(),'自定义文字');
- assert.ok(!requests.some(url=>url.includes('/api/canvases/')&&!url.endsWith('/lock')),'render has no per-card document fetch');
+ assert.ok(!requests.some(url=>url.includes('/api/canvases/')&&!url.endsWith('/trash')),'render has no per-card document fetch');
  assert.ok(!requests.some(url=>url.endsWith('/output/cover.mp4')),'only thumbnail requested');
  const summaries=page.locator('.studio-card-menu summary');await summaries.first().click();
  assert.equal(await page.getByRole('button',{name:'编辑封面',exact:true}).first().count(),1);

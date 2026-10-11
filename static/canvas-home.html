@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="canvas-page-role" content="directory">
+<title>画布首页 · shadox</title>
+<script src="/static/js/canvas-navigation.js"></script>
+<script src="/static/vendor/js/tabler-icons.js"></script>
+<script src="/static/js/studio-icons.js"></script>
+<script src="/static/js/studio-frame-messages.js"></script>
+<script src="/static/js/theme.js"></script>
+<link rel="stylesheet" href="/static/css/canvas-home-base.css">
+<link rel="stylesheet" href="/static/css/studio-workbench.css">
+<link rel="stylesheet" href="/static/css/utilities.css">
+<link rel="stylesheet" href="/static/css/canvas-name-dialog.css">
+<link rel="stylesheet" href="/static/css/canvas-home.css">
+<link rel="stylesheet" href="/static/css/canvas-cover.css">
+</head>
+<body class="studio-skin studio-canvas-home"><main id="shell" class="shell">
+        <div id="canvasGate" class="canvas-gate gate-loading" aria-busy="true">
+          <div class="gate-panel">
+            <header class="studio-home-welcome"><div class="studio-eyebrow">YOUR CREATIVE SPACE</div><h1>今天，从一个想法开始。</h1><p>把灵感变成作品，接着上次的创作继续。</p></header>
+            <section class="studio-start" aria-labelledby="studioStartTitle"><h2 id="studioStartTitle">开始创作</h2><div class="studio-start-grid"><button id="gateCreateBtn" class="studio-start-card" type="button"><span class="studio-index-head"><span>(01)</span><span>CLASSIC</span></span><span class="studio-index-body"><strong>经典画布</strong><small>自由连接节点，编排创作流程。</small></span><span class="studio-index-action"><span class="studio-index-label">开始创作</span><span class="studio-index-plus" aria-hidden="true">+</span></span></button><button id="gateCreateSmartBtn" class="studio-start-card" type="button"><span class="studio-index-head"><span>(02)</span><span>ASSISTED</span></span><span class="studio-index-body"><strong>智能画布</strong><small>描述想法，与 AI 一起完成创作。</small></span><span class="studio-index-action"><span class="studio-index-label">开始创作</span><span class="studio-index-plus" aria-hidden="true">+</span></span></button></div></section>
+            <section id="studioRecent" hidden aria-labelledby="studioRecentTitle"><div class="studio-section-head"><h2 id="studioRecentTitle">最近修改</h2><span>按最后修改时间排序</span></div><div id="studioRecentList" class="studio-recent-list"></div></section>
+            <div class="gate-head"><div class="gate-head-text"><button id="gateBackBtn" class="gate-back-link" type="button"><i data-lucide="arrow-left"></i>返回画布列表</button><div class="gate-title-row"><div id="gateTitleText" class="gate-title">全部画布</div><span id="gateCountPill" class="gate-count-pill">0 个</span></div><div id="gateSubtitle" class="gate-subtitle"></div></div></div>
+            <div class="studio-library-tools"><div id="gateSearch" class="gate-search" role="search">
+                            <i data-lucide="search" class="w-4 h-4" aria-hidden="true"></i>
+                            <input id="gateSearchInput" type="search" autocomplete="off" spellcheck="false" placeholder="搜索画布名称" aria-label="搜索画布名称">
+                            <button id="gateSearchClear" class="gate-search-clear" type="button" title="清空搜索" aria-label="清空搜索">
+                                <i data-lucide="x" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                            </button>
+                        </div>
+              <div class="studio-pick"><button class="studio-pick-trigger" id="studioFolderTrigger" type="button" aria-expanded="false" aria-controls="studioFolderMenu"><span id="studioFolderLabel">全部文件夹</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div id="studioFolderMenu" class="studio-pick-menu" hidden><aside class="gate-folder-pane" aria-label="画布文件夹">
+                        <div class="gate-folder-head">
+                            <span>文件夹</span>
+                            <button id="gateNewFolderBtn" class="gate-folder-add" type="button" title="新建文件夹" aria-label="新建文件夹"><i data-lucide="folder-plus" class="w-3.5 h-3.5"></i></button>
+                        </div>
+                        <div id="gateFolderTree" class="gate-folder-tree"></div>
+                    </aside></div></div>
+              <div class="studio-pick"><button class="studio-pick-trigger" id="studioSortTrigger" type="button" aria-expanded="false" aria-controls="studioSortMenu"><span id="studioSortLabel">最近编辑</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div id="studioSortMenu" class="studio-pick-menu studio-sort-menu" hidden><div id="gateSortSwitch" class="gate-sort" role="group" aria-label="排序方式"><button type="button" class="gate-sort-btn active" data-sort="recent">最近编辑</button><button type="button" class="gate-sort-btn" data-sort="name">名称</button></div></div></div>
+              <button id="gateRefreshBtn" class="gate-icon-btn" type="button" title="刷新列表" aria-label="刷新列表"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button><button id="gateTrashBtn" class="gate-icon-btn gate-trash-entry" type="button" title="打开回收站" aria-label="打开回收站"><i data-lucide="trash-2" class="w-4 h-4"></i><span id="gateTrashCount" class="gate-trash-badge">0</span></button><button id="gateAssetManagerBtn" type="button" hidden>素材库管理</button>
+            </div>
+            <div id="gateStatus" class="gate-status" role="status" aria-live="polite">正在加载画布列表…</div><div id="studioHomeFeedback" role="status" aria-live="polite" hidden></div><div class="trash-note">回收站中的画布会在 30 天后自动清理。</div>
+            <div class="gate-browser"><div class="gate-canvas-pane"><div id="gateFolderBar" class="gate-folder-bar"></div><div id="gateCanvasList" class="gate-list"></div><footer class="studio-home-footer">SHADOX / CREATIVE STUDIO</footer></div></div>
+          </div>
+        </div>
+
+
+</main>
+<script src="/static/js/canvas-directory-model.js"></script>
+<script src="/static/js/canvas-directory-api.js"></script>
+<script src="/static/js/canvas-name-dialog.js"></script>
+<script src="/static/js/canvas-media-loader.js"></script>
+<script src="/static/js/canvas-cover-preview.js"></script>
+<script src="/static/js/canvas-home.js"></script>
+</body></html>

@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {fixture,origin}=require('./helpers/canvas-browser.cjs');
 
 for(const kind of ['classic','smart'])test(`${kind} trash restores through the production member guard and shows failures`,{timeout:15000},async t=>{
- const {page,errors}=await fixture(t,'classic',false);
+ const {page,errors}=await fixture(t,'classic',false,{directory:true});
  const item={id:'deleted-test',kind,title:'回收站恢复验收',revision:3,deleted_at:1,nodes:[],connections:[]};
  let deleted=true,held=false,deny=false,restoreCalls=0,finishRestore;
  const calls=[];
@@ -23,16 +23,16 @@ for(const kind of ['classic','smart'])test(`${kind} trash restores through the p
   }
   return route.fulfill({json:{}});
  });
- await page.goto(origin+'/static/canvas.html');
- await page.waitForFunction(()=>typeof setTrashMode==='function'&&typeof apiProviders!=='undefined');
+ await page.goto(origin+'/static/canvas-home.html');
+ await page.evaluate(()=>CanvasHome.ready);
  await page.evaluate(()=>{
   // The intercepted .test origin lacks the secure-context UUID API available on localhost.
   crypto.randomUUID ||= ()=> 'fixture-page-id';
   window.CanvasSession={enabled:true,paused:false,context:{member:{id:'member-1'},workspace:{id:'workspace-1',permissions:['canvas.read','canvas.edit','canvas.restore']}}};
  });
  await page.addScriptTag({url:origin+'/static/js/canvas-edit-lease.js'});
- await page.addScriptTag({url:origin+'/static/js/member-canvas-edit.js'});
- assert.equal(await page.evaluate(()=>Boolean(window.MemberCanvasEdit)),true,'production member guard installed');
+ await page.addScriptTag({url:origin+'/static/js/canvas-directory-writes.js'});
+ assert.equal(await page.evaluate(()=>Boolean(window.CanvasDirectoryWrites)),true,'production catalog guard installed');
  await page.getByRole('button',{name:'打开回收站',exact:true}).click();
  const restore=page.getByRole('button',{name:'恢复画布 回收站恢复验收',exact:true});
  await restore.waitFor({state:'visible'});
@@ -44,21 +44,22 @@ for(const kind of ['classic','smart'])test(`${kind} trash restores through the p
  finishRestore();
  await page.waitForFunction(()=>document.querySelector('#studioHomeFeedback').textContent.includes('画布已恢复'));
  assert.equal(await restore.count(),0);assert.equal(held,false);
- assert.equal(await page.evaluate(()=>MemberCanvasEdit.active),null);
+ assert.equal(await page.evaluate(()=>MemberCanvasEdit.active),undefined);
  assert.equal(calls.some(row=>row.path==='/api/canvases/deleted-test'),false,'deleted document is never opened');
  await page.getByRole('button',{name:'返回画布列表',exact:true}).click();
+ await page.locator('[data-canvas-id="deleted-test"]').waitFor();
  assert.equal(await page.locator('[data-canvas-id="deleted-test"]').count(),1);
  if(kind==='classic'){
-  fs.mkdirSync(path.resolve('docs/design/trash-restore'),{recursive:true});
-  await page.screenshot({path:path.resolve('docs/design/trash-restore/restored-list.png')});
+  fs.mkdirSync(path.resolve('.local/canvas-home-split/trash-restore'),{recursive:true});
+  await page.screenshot({path:path.resolve('.local/canvas-home-split/trash-restore/restored-list.png')});
  }
  // A denied restore remains in trash, explains the failure, and can be retried.
  deleted=true;item.deleted_at=1;deny=true;finishRestore=null;
  await page.getByRole('button',{name:'打开回收站',exact:true}).click();await restore.click();
  while(!finishRestore)await new Promise(setImmediate);
  finishRestore();
- await page.waitForFunction(()=>document.querySelector('#studioHomeFeedback').textContent.includes('没有恢复画布的权限'));
+ await page.waitForFunction(()=>document.querySelector('#studioHomeFeedback').textContent.includes('没有此操作权限'));
  assert.equal(await restore.isEnabled(),true);assert.equal(held,false);assert.equal(restoreCalls,2);
- if(kind==='classic')await page.screenshot({path:path.resolve('docs/design/trash-restore/permission-feedback.png')});
+ if(kind==='classic')await page.screenshot({path:path.resolve('.local/canvas-home-split/trash-restore/permission-feedback.png')});
  assert.deepEqual(errors,[]);
 });

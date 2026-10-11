@@ -461,39 +461,6 @@
             entry.lease.pending ? 5000 : 15000;
         if(validEntry(entry)) timer=setTimeout(() => tick(entry),delay);
     }
-    // Directory metadata changes and trash restoration need a short lease.
-    const directoryWrites = new Map();
-    function writeFromList(id, path, init, transport) {
-        const previous = directoryWrites.get(id) || Promise.resolve();
-        const operation = previous.catch(() => {}).then(async () => {
-            if (active?.id === id && active.lease.canSave) return active.lease.write(path, init, transport);
-            const lease = new window.CanvasEditLease({id, fetch:transport});
-            let proof = null;
-            try {
-                // Only metadata is submitted; the server loads the document
-                // under the revision proof, so no editor snapshot is needed here.
-                await lease.start(async () => ({revision:lease.revision}));
-                proof = lease.headers();
-                return await lease.write(path, init, transport);
-            } finally {
-                if (proof) {
-                    try {
-                        // A failed response may have paused the helper. Recheck ownership
-                        // before releasing, including when the write result was lost.
-                        const state = await lease.request('');
-                        if (state.holder?.is_self && state.generation === lease.generation) {
-                            await lease.request('/release', {method:'POST', headers:{...proof, 'X-Canvas-Revision':String(state.revision)}});
-                        }
-                    } catch (error) { console.warn('目录操作的编辑资格释放未确认，将自动到期。', error); }
-                }
-                lease.dispose();
-            }
-        });
-        directoryWrites.set(id, operation);
-        const clear = () => { if (directoryWrites.get(id) === operation) directoryWrites.delete(id); };
-        operation.then(clear, clear);
-        return operation;
-    }
     const api={
         openTaskResults:showTaskResults,
         taskState:task=>active?.taskRecovery?.get(task) || {status:'checking',label:'正在核对后台任务'},
@@ -618,9 +585,8 @@
                     return active.lease.write(path,init,transport);
                 }
             }
-            if(url.origin===location.origin && match && ((match[2]==='/folder' && init.method?.toUpperCase()==='PATCH') || (['/meta','/restore'].includes(match[2]) && init.method?.toUpperCase()==='POST'))) {
-                return writeFromList(decodeURIComponent(match[1]), path, init, transport);
-            }
+            const directoryId=window.CanvasDirectoryWrites.matches(path,init);
+            if(directoryId)return window.CanvasDirectoryWrites.write(directoryId,path,init,transport,active?.lease);
             if(url.origin===location.origin && match && !['GET','HEAD'].includes((init.method || 'GET').toUpperCase()) && !match[2].startsWith('/edit-lease') && match[2]!=='/touch') {
                 if(!active || decodeURIComponent(match[1])!==active.id) return Promise.reject(new Error('请先打开画布并开始编辑。'));
                 return active.lease.write(path,init,transport);

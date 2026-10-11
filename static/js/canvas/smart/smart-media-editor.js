@@ -421,6 +421,7 @@ function smartLocalDepthState(){
     if(!smartLocalDepthState.value){
         const state={jobs:new Map(),sweep:null};
         window.addEventListener('pagehide',()=>{for(const job of state.jobs.values())job.runner.close();state.jobs.clear();clearInterval(state.sweep);state.sweep=null;});
+        window.addEventListener('pageshow',event=>{if(event.persisted)render();});
         smartLocalDepthState.value=state;
     }
     return smartLocalDepthState.value;
