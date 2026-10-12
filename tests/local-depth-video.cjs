@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..');
 // Two real H.264 frames, one second. No supplier or model network calls in regression tests.
 const input=Buffer.from('AAAAHGZ0eXBpc29tAAACAGlzb21hdmMxbXA0MQAAArRtb292AAAAbG12aGQAAAAA5u37f+bt+38AAOEAAADhAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACQHRyYWsAAABcdGtoZAAAAAPm7ft/5u37fwAAAAEAAAAAAADhAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAEAAAAAAAdxtZGlhAAAAIG1kaGQAAAAA5u37f+bt+38AAAACAAAAAlXEAAAAAAA3aGRscgAAAABtaGxydmlkZQAAAAAAAAAAAAAAAE1lZGlhYnVubnlWaWRlb0hhbmRsZXIAAAABfW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAT1zdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABEk1lZGlhYnVubnkgdjEuNjEuMwAAAAAAAAAAAAAAAAAAGP//AAAALGF2Y0MBZAwJ/+EAEWdkDAmsGNCEk1AQ0BB4RCNQAQAEaM48gP34+AAAAAATY29scm5jbHgAAQANAAEAAAAAFGJ0cnQAAAAAAAACMAAAAjAAAAAYc3R0cwAAAAAAAAABAAAAAgAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAIAAAAeAAAAKAAAABhzdGNvAAAAAAAAAAIAAALYAAAC9gAAABRzdHNzAAAAAAAAAAEAAAABAAAATm1kYXQAAAAaZbgABAn///h6KAAIJ/k5OTrrrrrrrrrrrrwAAAAkYeAAfkCfN//8PRQABBI+JxeJ8T57F5/P5/Pefz+fzyZ/P5/A','base64');
 const muxStub=`export class BufferTarget{buffer=new Uint8Array([1,2,3])} export class Mp4OutputFormat{} export class Output{constructor(o){this.target=o.target}addVideoTrack(){}async start(){}async finalize(){}async cancel(){window.encodingCancelled=true}} export class CanvasSource{async add(t,d){window.encodedFrames.push([t,d])}}`;
-async function browserFixture(t){
+async function browserFixture(t,{realWorker=false}={}){
     const server=http.createServer((req,res)=>{
         if(req.url==='/input.mp4'){res.setHeader('Content-Type','video/mp4');return res.end(input);}
         if(req.url==='/input.svg'){res.setHeader('Content-Type','image/svg+xml');return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="768"><rect width="1536" height="768" fill="orange"/></svg>');}
@@ -14,12 +14,14 @@ async function browserFixture(t){
     }).listen(0,'127.0.0.1');await new Promise(resolve=>server.on('listening',resolve));
     const browser=await chromium.launch({channel:'chrome',headless:true,args:['--explicitly-allowed-ports='+server.address().port]});t.after(async()=>{await browser.close();await new Promise(resolve=>server.close(resolve));});
     const page=await browser.newPage({viewport:{width:1100,height:750}}),requests=[];
+    page.setDefaultTimeout(15000);
     await page.route('https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/**',route=>route.fulfill({contentType:'text/javascript',body:process.env.DEPTH_MEDIA_BUNDLE?fs.readFileSync(process.env.DEPTH_MEDIA_BUNDLE):muxStub}));
-    await page.addInitScript(()=>{
+    await page.addInitScript(realWorker=>{
         window.encodedFrames=[];window.workerCalls=[];window.saved=0;window.terminated=0;
         Object.defineProperty(navigator,'gpu',{value:{requestAdapter:async()=>({features:new Set(['shader-f16'])})}});
+        if(realWorker)return;
         window.Worker=class {
-            postMessage(data){window.workerCalls.push(data.type);if(data.type==='frame')window.frameSize=[data.width,data.height];if(window.stallWorker)return;
+            postMessage(data){window.workerCalls.push(data.type);if(data.type==='load')window.loadedModel={source:data.source,files:data.files?.map(entry=>entry.path)};if(data.type==='frame')window.frameSize=[data.width,data.height];if(window.stallWorker)return;
                 setTimeout(()=>{if(this.dead)return;
                     if(window.failWorker){this.onmessage({data:{id:data.id,type:'error',message:'test model failure'}});return;}
                     this.onmessage({data:data.type==='load'?{id:data.id,type:'ready'}:{id:data.id,type:'frame',width:2,height:2,channels:1,pixels:new Uint8Array([0,80,160,255]).buffer}});
@@ -27,7 +29,7 @@ async function browserFixture(t){
             }
             terminate(){this.dead=true;window.terminated++;}
         };
-    });
+    },realWorker);
     page.on('request',request=>requests.push({method:request.method(),url:request.url()}));
     await page.goto('http://127.0.0.1:'+server.address().port);
     await page.evaluate(()=>{document.getElementById('origin').focus();LocalDepthVideo.open({url:'/input.mp4',save:async file=>{window.saved++;window.savedType=file.type}});});
@@ -98,6 +100,102 @@ test('image cancel/retry leaves local download available in read-only mode',asyn
     await page.locator('.local-depth-start').click();await page.waitForFunction(()=>document.querySelector('.local-depth-status').textContent.includes('已取消'));
     await page.evaluate(()=>window.stallWorker=false);await page.locator('.local-depth-start').click();await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
     assert.equal(await page.locator('[data-save]').isDisabled(),true);assert.equal(await page.evaluate(()=>saved),0);
+});
+
+test('image uses the control center model source and selected local directory on its first load',async t=>{
+    const {page}=await browserFixture(t);
+    await page.evaluate(()=>LocalDepthVideo.openSettings());
+    await page.locator('.local-depth-settings summary').click();
+    await page.locator('.local-depth-settings [data-source]').selectOption('huggingface');
+    await page.locator('.local-depth-settings [data-save]').click();
+    await page.evaluate(()=>LocalDepthImage.open({url:'/input.svg'}));
+    assert.equal(await page.locator('[data-source]').inputValue(),'huggingface');
+    await page.locator('.local-depth-start').click();
+    await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
+    assert.equal(await page.evaluate(()=>loadedModel.source),'huggingface');
+    await page.evaluate(()=>{
+        LocalDepthVideo.openSettings();
+        const files=['config.json','preprocessor_config.json','onnx/model_fp16.onnx'].map(path=>{
+            const file=new File(['fixture'],path.split('/').at(-1));
+            Object.defineProperty(file,'webkitRelativePath',{value:'model/'+path});return file;
+        });
+        document.querySelector('.local-depth-settings [data-files]').onchange({target:{files}});
+    });
+    await page.locator('.local-depth-settings [data-close]').click();
+    await page.evaluate(()=>LocalDepthImage.open({url:'/input.svg'}));
+    assert.equal(await page.locator('[data-source]').isDisabled(),true);
+    await page.locator('.local-depth-start').click();
+    await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
+    assert.deepEqual(await page.evaluate(()=>loadedModel.files),['config.json','preprocessor_config.json','onnx/model_fp16.onnx']);
+});
+
+// Exercise the real module worker and browser import/fetch failures, with a tiny
+// runtime stand-in so regressions do not require a GPU or external downloads.
+const runtimeStub=`
+export const env={backends:{onnx:{wasm:{}}}};
+export class RawImage{constructor(){}}
+export async function pipeline(){
+    const response=await fetch(env.backends.onnx.wasm.wasmPaths+'ort-wasm-simd-threaded.jsep.wasm');
+    if(!response.ok)throw new Error('Failed to fetch WASM');
+    return async()=>({depth:{width:2,height:2,channels:1,data:new Uint8Array([0,80,160,255])}});
+}`;
+const runtimeRoute=/^https:\/\/(?:cdn\.jsdelivr\.net\/npm|fastly\.jsdelivr\.net\/npm|unpkg\.com)\/@huggingface\/transformers@3\.8\.1\/dist\//;
+for(const failedFile of ['transformers.min.js','ort-wasm-simd-threaded.jsep.wasm']){
+    test(`cold image automatically recovers when primary ${failedFile} cannot load`,async t=>{
+        const {page,requests}=await browserFixture(t,{realWorker:true});
+        await page.route(runtimeRoute,route=>{
+            const url=new URL(route.request().url());
+            if(url.hostname==='cdn.jsdelivr.net'&&url.pathname.endsWith(failedFile))return route.abort('failed');
+            return route.fulfill({contentType:'text/javascript',body:url.pathname.endsWith('.js')?runtimeStub:'ok'});
+        });
+        await page.evaluate(()=>LocalDepthImage.open({url:'/input.svg'}));
+        await page.locator('.local-depth-start').click();
+        await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
+        const runtimeRequests=requests.filter(r=>runtimeRoute.test(r.url));
+        assert.ok(runtimeRequests.some(r=>r.url.includes('fastly.jsdelivr.net')));
+        assert.ok(runtimeRequests.some(r=>r.url.includes('fastly.jsdelivr.net')&&r.url.endsWith('.wasm')));
+        assert.equal(runtimeRequests.some(r=>r.url.includes('unpkg.com')),false);
+        assert.equal(requests.some(r=>r.url.includes('mediabunny')),false,'image never warms up through video');
+        assert.equal(requests.some(r=>r.method!=='GET'),false,'pixels and results stay local');
+        assert.match(await page.locator('.local-depth-status').textContent(),/^完成/);
+    });
+}
+
+test('runtime exhaustion stops after three sources and leaves an explicit retry',async t=>{
+    const {page,requests}=await browserFixture(t,{realWorker:true});
+    await page.route(runtimeRoute,route=>route.abort('failed'));
+    await page.evaluate(()=>LocalDepthImage.open({url:'/input.svg'}));
+    await page.locator('.local-depth-start').click();
+    await page.waitForFunction(()=>document.querySelector('.local-depth-status').classList.contains('local-depth-error'));
+    assert.match(await page.locator('.local-depth-status').textContent(),/^推理运行库加载失败/);
+    assert.equal(requests.filter(r=>runtimeRoute.test(r.url)).length,3);
+    assert.equal(await page.locator('progress').getAttribute('value'),'0');
+    assert.equal(await page.evaluate(()=>LocalDepthVideo.hasUnfinishedWork()),false);
+    await page.unroute(runtimeRoute);
+    await page.route(runtimeRoute,route=>route.fulfill({contentType:'text/javascript',body:route.request().url().endsWith('.js')?runtimeStub:'ok'}));
+    await page.locator('.local-depth-start').click();
+    await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
+});
+
+test('model download errors are not mistaken for runtime errors or retried through every CDN',async t=>{
+    const {page,requests}=await browserFixture(t,{realWorker:true});
+    await page.route(runtimeRoute,route=>route.fulfill({contentType:'text/javascript',body:runtimeStub.replace("const response=await fetch", "await env.customCache.match('/models/config.json');const response=await fetch")}));
+    await page.route(/^https:\/\/(modelscope.cn|huggingface.co)\//,route=>route.abort('failed'));
+    await page.evaluate(()=>LocalDepthImage.open({url:'/input.svg'}));
+    await page.locator('.local-depth-start').click();
+    await page.waitForFunction(()=>document.querySelector('.local-depth-status').classList.contains('local-depth-error'));
+    assert.match(await page.locator('.local-depth-status').textContent(),/^模型文件加载失败/);
+    assert.equal(requests.filter(r=>runtimeRoute.test(r.url)).length,1);
+});
+
+test('source image fetch errors identify the material instead of recommending a model change',async t=>{
+    const {page}=await browserFixture(t);
+    await page.route('**/input.svg',route=>route.abort('failed'));
+    await page.evaluate(()=>LocalDepthImage.open({url:'/input.svg'}));
+    await page.locator('.local-depth-start').click();
+    await page.waitForFunction(()=>document.querySelector('.local-depth-status').classList.contains('local-depth-error'));
+    assert.match(await page.locator('.local-depth-status').textContent(),/^源素材读取失败/);
+    assert.deepEqual(await page.evaluate(()=>workerCalls),[]);
 });
 test('smart image toolbar opens local depth and creates a separate image node only when saved',async t=>{
     const {page,errors}=await require('./helpers/canvas-browser.cjs').fixture(t,'smart',true);
