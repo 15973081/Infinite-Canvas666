@@ -4,18 +4,34 @@ const root=path.resolve(__dirname,'..');
 // Two real H.264 frames, one second. No supplier or model network calls in regression tests.
 const input=Buffer.from('AAAAHGZ0eXBpc29tAAACAGlzb21hdmMxbXA0MQAAArRtb292AAAAbG12aGQAAAAA5u37f+bt+38AAOEAAADhAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACQHRyYWsAAABcdGtoZAAAAAPm7ft/5u37fwAAAAEAAAAAAADhAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAEAAAAAAAdxtZGlhAAAAIG1kaGQAAAAA5u37f+bt+38AAAACAAAAAlXEAAAAAAA3aGRscgAAAABtaGxydmlkZQAAAAAAAAAAAAAAAE1lZGlhYnVubnlWaWRlb0hhbmRsZXIAAAABfW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAT1zdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABEk1lZGlhYnVubnkgdjEuNjEuMwAAAAAAAAAAAAAAAAAAGP//AAAALGF2Y0MBZAwJ/+EAEWdkDAmsGNCEk1AQ0BB4RCNQAQAEaM48gP34+AAAAAATY29scm5jbHgAAQANAAEAAAAAFGJ0cnQAAAAAAAACMAAAAjAAAAAYc3R0cwAAAAAAAAABAAAAAgAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAEAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAIAAAAeAAAAKAAAABhzdGNvAAAAAAAAAAIAAALYAAAC9gAAABRzdHNzAAAAAAAAAAEAAAABAAAATm1kYXQAAAAaZbgABAn///h6KAAIJ/k5OTrrrrrrrrrrrrwAAAAkYeAAfkCfN//8PRQABBI+JxeJ8T57F5/P5/Pefz+fzyZ/P5/A','base64');
 const muxStub=`export class BufferTarget{buffer=new Uint8Array([1,2,3])} export class Mp4OutputFormat{} export class Output{constructor(o){this.target=o.target}addVideoTrack(){}async start(){}async finalize(){}async cancel(){window.encodingCancelled=true}} export class CanvasSource{async add(t,d){window.encodedFrames.push([t,d])}}`;
-async function browserFixture(t,{realWorker=false}={}){
+async function browserFixture(t,{realWorker=false,cachedSource=false}={}){
+    let objectServer,objectOrigin;
+    const objectRequests=[];
+    if(cachedSource){
+        objectServer=http.createServer((req,res)=>{
+            objectRequests.push({origin:req.headers.origin || null});
+            res.setHeader('Content-Type','image/svg+xml');
+            res.setHeader('Cache-Control','private, max-age=600');
+            if(req.headers.origin)res.setHeader('Access-Control-Allow-Origin',req.headers.origin);
+            // Deliberately omit Vary: Origin, matching the observed TOS response.
+            res.end('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="8"><rect width="16" height="8" fill="orange"/></svg>');
+        }).listen(0,'127.0.0.1');
+        await new Promise(resolve=>objectServer.on('listening',resolve));
+        objectOrigin='http://127.0.0.1:'+objectServer.address().port;
+    }
     const server=http.createServer((req,res)=>{
+        if(cachedSource && req.url==='/cached-source.svg'){res.writeHead(307,{Location:objectOrigin+'/image.svg','Cache-Control':'private, no-store'});return res.end();}
         if(req.url==='/input.mp4'){res.setHeader('Content-Type','video/mp4');return res.end(input);}
         if(req.url==='/input.svg'){res.setHeader('Content-Type','image/svg+xml');return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="768"><rect width="1536" height="768" fill="orange"/></svg>');}
         if(req.url.startsWith('/static/')){res.setHeader('Content-Type',req.url.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8');return res.end(fs.readFileSync(path.join(root,req.url)));}
         res.setHeader('Content-Type','text/html; charset=utf-8');
         res.end('<html><head><link rel="stylesheet" href="/static/css/local-depth-video.css"></head><body><button id="origin">Open</button><script src="/static/js/local-depth-video.js"></script></body></html>');
     }).listen(0,'127.0.0.1');await new Promise(resolve=>server.on('listening',resolve));
-    const browser=await chromium.launch({channel:'chrome',headless:true});t.after(async()=>{await browser.close();await new Promise(resolve=>server.close(resolve));});
+    const browser=await chromium.launch({channel:'chrome',headless:true,args:['--explicitly-allowed-ports='+[server.address().port,objectServer?.address().port].filter(Boolean).join(',')]});t.after(async()=>{await browser.close();await new Promise(resolve=>server.close(resolve));if(objectServer)await new Promise(resolve=>objectServer.close(resolve));});
     const page=await browser.newPage({viewport:{width:1100,height:750}}),requests=[];
     page.setDefaultTimeout(15000);
-    await page.route('https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/**',route=>route.fulfill({contentType:'text/javascript',body:process.env.DEPTH_MEDIA_BUNDLE?fs.readFileSync(process.env.DEPTH_MEDIA_BUNDLE):muxStub}));
+    // Playwright routing disables the HTTP cache, which would hide this regression.
+    if(!cachedSource)await page.route('https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/**',route=>route.fulfill({contentType:'text/javascript',body:process.env.DEPTH_MEDIA_BUNDLE?fs.readFileSync(process.env.DEPTH_MEDIA_BUNDLE):muxStub}));
     await page.addInitScript(realWorker=>{
         window.encodedFrames=[];window.workerCalls=[];window.saved=0;window.terminated=0;
         Object.defineProperty(navigator,'gpu',{value:{requestAdapter:async()=>({features:new Set(['shader-f16'])})}});
@@ -33,8 +49,24 @@ async function browserFixture(t,{realWorker=false}={}){
     page.on('request',request=>requests.push({method:request.method(),url:request.url()}));
     await page.goto('http://127.0.0.1:'+server.address().port);
     await page.evaluate(()=>{document.getElementById('origin').focus();LocalDepthVideo.open({url:'/input.mp4',save:async file=>{window.saved++;window.savedType=file.type}});});
-    return {page,requests};
+    return {page,requests,objectRequests};
 }
+
+test('local image reads pixels after a no-CORS preview populated the real browser cache',async t=>{
+    const {page,requests,objectRequests}=await browserFixture(t,{cachedSource:true});
+    await page.evaluate(()=>LocalDepthImage.open({url:'/cached-source.svg'}));
+    await page.waitForFunction(()=>document.querySelector('.local-depth-preview').naturalWidth===16);
+    assert.deepEqual(objectRequests,[{origin:null}]);
+    const ordinaryRead=await page.evaluate(async()=>{try{await fetch('/cached-source.svg');return 'ok';}catch(error){return error.message;}});
+    assert.equal(ordinaryRead,'Failed to fetch','control request reproduces cached preview CORS failure');
+    assert.equal(objectRequests.length,1,'failed control used the cached response');
+    await page.locator('.local-depth-start').click();
+    await page.waitForFunction(()=>!document.querySelector('[data-download]').disabled);
+    assert.equal(objectRequests.length,2,'pixel read fetched a fresh response');
+    assert.match(objectRequests[1].origin,/^http:\/\/127\.0\.0\.1:/);
+    assert.match(await page.locator('.local-depth-status').textContent(),/^完成/);
+    assert.equal(requests.some(r=>r.method!=='GET'),false);
+});
 test('local extraction is lazy, preserves timestamps, and saves only on explicit click',async t=>{
     const {page,requests}=await browserFixture(t);
     assert.deepEqual(await page.evaluate(()=>workerCalls),[]);
