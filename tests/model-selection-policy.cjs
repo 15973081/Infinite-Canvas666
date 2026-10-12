@@ -227,7 +227,8 @@ test('smart refresh waits for active parameter editing to finish',()=>{
 });
 
 test('a revoked chat model is not restored through a member-mode fallback',()=>{
-    for(const source of [classic,smart]){
+    // Smart canvas no longer has a text-chat node or resolveChatModel.
+    for(const source of [classic]){
         const c=context(source,['resolveChatModel'],{window:{CanvasSession:{enabled:true}},providerChatModels:()=>[],resolveChatProviderId:x=>x});
         assert.equal(c.resolveChatModel('removed','p'),'');
     }

@@ -8,9 +8,9 @@ const source = fs.readFileSync(path.join(__dirname, '../static/js/asset-manager.
 function fixture(){
  const session={enabled:true,context:{member:{id:'member-a'},workspace:{id:'space-a'}}};
  const opened=[],appended=[];
- const document={querySelector:()=>null,createElement:()=>({dataset:{},click(){this.clicked=true;},remove(){this.removed=true;}}),body:{appendChild:e=>appended.push(e),classList:{add:()=>{}}}};
+ const document={querySelector:()=>null,createElement:()=>({dataset:{},click(){this.clicked=true;},remove(){this.removed=true;}}),body:{appendChild:e=>appended.push(e),classList:{add:()=>{},remove:()=>{}}}};
  const context=vm.createContext({window:{MemberMediaUrl:u=>mediaUrl(u,session,'http://localhost:8772/static/asset-manager.html'),open:(...args)=>opened.push(args)},document,escapeHtml:String,escapeAttr:s=>String(s).replaceAll('&','&amp;'),setStatus:()=>{}});
- for(const name of ['assetDisplayMediaUrl','openAssetUrl','assetKind','assetMediaPreviewUrl','assetThumb','downloadUrl','showDetailPreview','openAssetItem','openLocalItem']){
+ for(const name of ['assetDisplayMediaUrl','openAssetUrl','assetKind','assetMediaPreviewUrl','assetThumb','downloadUrl','closeDetailPreview','showDetailPreview','openAssetItem','openLocalItem']){
   const start=source.search(new RegExp('^(?:async )?function '+name+'\\(','m'));assert.ok(start>=0,name);
   vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),context);
  }

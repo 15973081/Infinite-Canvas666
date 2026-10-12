@@ -12,7 +12,7 @@ async function browserFixture(t){
         res.setHeader('Content-Type','text/html; charset=utf-8');
         res.end('<html><head><link rel="stylesheet" href="/static/css/local-depth-video.css"></head><body><button id="origin">Open</button><script src="/static/js/local-depth-video.js"></script></body></html>');
     }).listen(0,'127.0.0.1');await new Promise(resolve=>server.on('listening',resolve));
-    const browser=await chromium.launch({channel:'chrome',headless:true});t.after(async()=>{await browser.close();await new Promise(resolve=>server.close(resolve));});
+    const browser=await chromium.launch({channel:'chrome',headless:true,args:['--explicitly-allowed-ports='+server.address().port]});t.after(async()=>{await browser.close();await new Promise(resolve=>server.close(resolve));});
     const page=await browser.newPage({viewport:{width:1100,height:750}}),requests=[];
     await page.route('https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/**',route=>route.fulfill({contentType:'text/javascript',body:process.env.DEPTH_MEDIA_BUNDLE?fs.readFileSync(process.env.DEPTH_MEDIA_BUNDLE):muxStub}));
     await page.addInitScript(()=>{

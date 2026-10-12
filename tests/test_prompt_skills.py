@@ -53,7 +53,7 @@ def installed_skills(monkeypatch):
             self.row = rows.get(params[1])
             return self
         def fetchone(self):
-            return self.row
+            return {**self.row, 'origin_workspace_id': 'workspace'} if self.row else None
     @contextmanager
     def connection():
         yield Connection()
@@ -108,7 +108,7 @@ def test_resolve_context_limit_preserves_all_text_or_rejects(monkeypatch, length
     instructions = '正文头' + '全' * (length - len(suffix) - 6) + '正文尾'
     expected = instructions + suffix
     assert len(expected) == length
-    row = {'id': 'skl_full', 'name': 'full', 'version_id': 'skv_fixed',
+    row = {'id': 'skl_full', 'name': 'full', 'version_id': 'skv_fixed', 'origin_workspace_id': 'workspace',
            'sha256': 'test', 'content': {'instructions': instructions,
                                       'references': {'references/full.txt': reference}}}
 

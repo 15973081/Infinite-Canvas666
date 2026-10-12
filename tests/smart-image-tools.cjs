@@ -18,7 +18,7 @@ function fixture({enabled=true,wait=false}={}){
   escapeAttr:s=>s,escapeHtml:s=>s,
   queueAndResumeSmartApiTasks:async(output,result,opts)=>calls.push({output,result,opts}),smartPendingTasks:()=>[],pauseSmartTaskInput(){},
  };
- installSmartSelection(ctx);vm.runInContext('let smartImageToolBusy=false;'+['smartNodeToolbarImageIndex','smartNodeToolbarHtml','runSmartNodeToolbarAction','runManagedImageTool','runApiGeneration'].map(fn).join('\n'),ctx);
+ installSmartSelection(ctx);vm.runInContext('let smartImageToolBusy=false;'+['smartNodeGenerationToolEnabled','smartNodeToolbarImageIndex','smartNodeToolbarHtml','runSmartNodeToolbarAction','runManagedImageTool','runApiGeneration'].map(fn).join('\n'),ctx);
  return {ctx,calls,notes,node,release};
 }
 test('selected image transforms use administrator settings and existing task bindings without changing the source',async()=>{

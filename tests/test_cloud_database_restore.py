@@ -117,7 +117,11 @@ def test_real_restore_preserves_business_data_and_invalidates_every_old_session(
         database.check()
         with database.connection() as c:
             for table,rows in bundle['preserved'].items():
-                assert c.execute(sql.SQL('SELECT * FROM {} ORDER BY 1').format(sql.Identifier(table))).fetchall()==rows,table
+                # Composite keys can share their first column; physical row order
+                # is not preserved by pg_dump/restore. Compare complete rows.
+                restored=c.execute(sql.SQL('SELECT * FROM {}').format(sql.Identifier(table))).fetchall()
+                canonical=lambda values: sorted(json.dumps(row,sort_keys=True,default=str) for row in values)
+                assert canonical(restored)==canonical(rows),table
             assert c.execute('SELECT count(*) AS n FROM member_sessions WHERE revoked_at IS NULL').fetchone()['n']==0
             assert c.execute('SELECT token_hash,generation FROM canvas_edit_leases').fetchone()=={'token_hash':None,'generation':bundle['lease']['generation']+1}
             assert {r['status'] for r in c.execute("SELECT status FROM tasks WHERE id<>'restore-task-succeeded'")}=={'needs_review'}
