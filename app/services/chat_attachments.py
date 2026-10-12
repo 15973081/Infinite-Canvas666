@@ -114,13 +114,13 @@ def list_owned(offset=0, limit=50, sort='newest', unreferenced=False):
             WHERE a.workspace_id=%s AND a.role='chat-attachment' AND a.metadata->>'chat_owner'=%s
             AND a.status<>'deleted' ORDER BY '''+order,(current_workspace(),owner)).fetchall()
         from app.services.canvas_asset_purge import referenced_asset_ids
-        references=referenced_asset_ids(conn)
         families=conn.execute('''WITH RECURSIVE family AS (
             SELECT id AS root_id,id FROM assets WHERE workspace_id=%s AND role='chat-attachment'
                 AND metadata->>'chat_owner'=%s AND status<>'deleted'
             UNION SELECT f.root_id,a.id FROM assets a JOIN family f ON a.parent_asset_id=f.id WHERE a.workspace_id=%s)
             SELECT root_id,array_agg(id) AS ids FROM family GROUP BY root_id''',
             (current_workspace(),owner,current_workspace())).fetchall()
+        references=referenced_asset_ids(conn,{asset_id for family in families for asset_id in family['ids']})
         referenced={f['root_id'] for f in families if references.intersection(f['ids'])}
         for row in rows:
             row['referenced']=row['id'] in referenced

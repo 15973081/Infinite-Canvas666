@@ -4,6 +4,13 @@ from app.storage.database import connection
 from app.storage.workspace import current_workspace
 from app.storage import media
 
+_INDEXED_REFERENCE_SOURCES = (
+    ('canvases','asset_reference_candidates(document)','', 'title', '画布','document'),
+    ('workspace_documents','asset_reference_candidates(value)','', 'kind', '素材库或备份','value'),
+    ('tasks','(asset_reference_candidates(request) || asset_reference_candidates(result) || asset_reference_candidates(input_asset_ids) || asset_reference_candidates(output_asset_ids) || asset_reference_candidates(legacy_metadata))','', 'id', '任务','jsonb_build_array(request,result,input_asset_ids,output_asset_ids,legacy_metadata)'),
+    ('online_works','(ARRAY[asset_id] || asset_reference_candidates(snapshot))'," AND state NOT IN ('purging','purged')", 'name', '在线作品','jsonb_build_array(asset_id,snapshot)'),
+)
+
 
 def contains_ref(value, ids, aliases):
     if isinstance(value, str):
@@ -15,8 +22,31 @@ def contains_ref(value, ids, aliases):
     return False
 
 
-def referenced_asset_ids(conn):
+def referenced_asset_ids(conn, asset_ids=None):
     """One inventory per request; match the conservative deletion checks."""
+    if asset_ids is not None:
+        candidates=sorted(set(asset_ids))
+        if not candidates:
+            return set()
+        # PostgreSQL maintains the candidate indexes atomically. Validate the
+        # small matching subset with the original scalar parser, including keys
+        # or prose that merely contain an ID but are not references.
+        found=set()
+        remaining=set(candidates)
+        def collect(value):
+            if isinstance(value,str):
+                asset_id=media.id_from_ref(value)
+                if asset_id in remaining: found.add(asset_id);remaining.remove(asset_id)
+            elif isinstance(value,dict):
+                for child in value.values(): collect(child)
+            elif isinstance(value,list):
+                for child in value: collect(child)
+        for table,expression,extra,_,_,value in _INDEXED_REFERENCE_SOURCES:
+            query=f'SELECT {value} AS value FROM {table} WHERE workspace_id=%s AND {expression} && %s::text[]'+extra
+            for row in conn.execute(query,(current_workspace(),candidates)):
+                collect(row['value'])
+                if not remaining:return found
+        return found
     found=set()
     def collect(value):
         if isinstance(value,str):
@@ -37,6 +67,19 @@ def referenced_asset_ids(conn):
 
 
 def check_references(conn, ids, aliases, ignored_document_kinds=()):
+    if not aliases:
+        # New private attachments have canonical IDs, without legacy aliases.
+        # Keep the same authoritative deletion guard, using exact source indexes.
+        if not ids:
+            return
+        for table,expression,extra,label,kind,value in _INDEXED_REFERENCE_SOURCES:
+            args=[current_workspace(),sorted(ids)]
+            if table=='workspace_documents' and ignored_document_kinds:
+                extra+=' AND kind<>ALL(%s::text[])';args.append(list(ignored_document_kinds))
+            for row in conn.execute(f'SELECT {label} AS label,{value} AS value FROM {table} WHERE workspace_id=%s AND {expression} && %s::text[]'+extra,args):
+                if contains_ref(row['value'],ids,{}):
+                    raise HTTPException(409,f"素材仍被{kind}「{row['label']}」引用，不能彻底删除")
+        return
     # Include recycled/purged canvases and retained backups: they remain recoverable.
     sources = [
         ('SELECT title AS label, document AS value FROM canvases WHERE workspace_id=%s', '画布'),
