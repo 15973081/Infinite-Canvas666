@@ -215,7 +215,9 @@
                 if(!adapter?.features.has('shader-f16')) throw new Error('当前显卡不支持 WebGPU fp16，无法运行此模型。');
                 message(`正在读取${isImage ? '图片' : '视频'}…`); progress.removeAttribute('value');
                 stage='media';
-                const response = await fetch(options.url, {signal}); check();
+                // Image previews can cache a TOS response without CORS headers.
+                // Pixel reads need a fresh CORS response, not that preview cache entry.
+                const response = await fetch(options.url, {signal,cache:'no-store'}); check();
                 if(!response.ok) throw new Error('素材读取失败，请重新打开或检查访问权限。');
                 const sizeError = () => new Error(isImage ? '图片超过 32 MB，请先压缩。' : '视频超过 256 MB，请先裁剪。');
                 if(Number(response.headers.get('content-length')) > byteLimit) {await response.body?.cancel(); throw sizeError();}
