@@ -1,4 +1,4 @@
-/* Smart canvas: Generation, cascade/loop scheduling, cancellation and task recovery.
+/* Smart canvas: Generation, cascade scheduling, cancellation and task recovery.
  * Browser classic script (not an ES module); loaded before smart-canvas.js.
  * Function declarations only: initialization is explicitly invoked by the entry.
  * Uses the entry's existing shared bindings; do not duplicate permission or document state.
@@ -6,17 +6,13 @@
 
 function activeSmartCascadeCount(){ return smartCascadeRuns.size; }
 
-function smartCascadeRunForLoop(loopId){ return loopId ? smartCascadeRuns.get(loopId) || null : null; }
-
-function smartCascadeIsLoopRunning(loopId){ return Boolean(smartCascadeRunForLoop(loopId)); }
-
-function syncSmartCascadeLegacyState(preferredLoopId=''){
+function syncSmartCascadeLegacyState(preferredRunId=''){
     const activeIds = [...smartCascadeRuns.keys()];
     smartCascadeRunning = activeIds.length > 0;
-    smartCascadeActiveLoopId = preferredLoopId && smartCascadeRuns.has(preferredLoopId)
-        ? preferredLoopId
+    smartCascadeActiveRunId = preferredRunId && smartCascadeRuns.has(preferredRunId)
+        ? preferredRunId
         : (activeIds[0] || '');
-    const activeRun = smartCascadeActiveLoopId ? smartCascadeRuns.get(smartCascadeActiveLoopId) : null;
+    const activeRun = smartCascadeActiveRunId ? smartCascadeRuns.get(smartCascadeActiveRunId) : null;
     smartCascadeStopRequested = Boolean(activeRun?.stopRequested);
     smartCascadeRunPath = activeRun?.runPath || null;
 }
@@ -856,7 +852,7 @@ function isSelfReferenceForNode(node, img){
     return Boolean(node?.id && img?.nodeId === node.id);
 }
 
-function candidateInputImagesFor(node, consume=false, ctx=smartLoopContext){
+function candidateInputImagesFor(node, consume=false, ctx=null){
     const inputs = (smartImageUsesWorkflowInput(node, ctx) ? workflowInputImagesFor(node, consume, ctx) : inputImagesFor(node, consume, ctx))
         .filter(img => img?.url);
     if(!inputs.length) return [];
@@ -865,149 +861,31 @@ function candidateInputImagesFor(node, consume=false, ctx=smartLoopContext){
     return inputs;
 }
 
-function defaultInputImagesFor(node, consume=false, ctx=smartLoopContext){
+function defaultInputImagesFor(node, consume=false, ctx=null){
     return candidateInputImagesFor(node, consume, ctx);
 }
 
-function splitSmartPromptItems(text){
-    const trimmed = String(text || '').trim();
-    if(!trimmed) return [];
-    const numbered = trimmed.split(/\s*(?:^|\s)\d+\s*[.、)）．]\s+/).map(s => s.trim()).filter(Boolean);
-    if(numbered.length >= 2) return numbered;
-    const lines = trimmed.split(/\r?\n+/).map(s => s.trim()).filter(Boolean);
-    return lines.length >= 2 ? lines : [trimmed];
-}
-
-function smartLoopPromptFieldValues(node){
-    const fields = Array.isArray(node?.variablePrompts)
-        ? node.variablePrompts.map(text => String(text || '').trim())
-        : [];
-    if(fields.length) return fields;
-    return splitSmartPromptItems(node?.variablePrompt || '');
-}
-
-function smartLoopActivePromptFieldValues(node){
-    return smartLoopPromptFieldValues(node).filter(Boolean);
-}
-
-function setSmartLoopPromptFieldValues(node, values){
-    if(!node || node.type !== 'smart-loop') return;
-    const fields = (values || []).map(text => String(text || '').trim());
-    node.variablePrompts = fields.length ? fields : [''];
-    node.variablePrompt = fields.filter(Boolean).join('\n');
-}
-
-function smartLoopPromptFieldText(node, fieldIndex){
-    const values = smartLoopPromptFieldValues(node);
-    return values[fieldIndex] || '';
-}
-
-function smartLoopSelectedLocalPrompt(node, ctx=smartLoopContext){
-    const values = smartLoopActivePromptFieldValues(node);
-    if(!values.length) return '';
-    const startBase = Math.max(1, Number(node?.loopStart) || 1);
-    const index = Math.max(1, Number(ctx?.index || startBase) || startBase);
-    return values[(index - 1) % values.length] || '';
-}
-
-function smartLoopUpstreamPromptPreviewHeight(node){
-    return smartLoopInputPromptItems(node).length ? 78 : 0;
-}
-
-function smartLoopInputPromptItems(node){
-    if(!node?.showPrompt || smartLoopPromptVisiting.has(node.id)) return [];
-    smartLoopPromptVisiting.add(node.id);
-    try {
-        return inputNodesFor(node).flatMap(input => {
-            if(input.type === 'smart-prompt') return String(input.text || '').trim() ? [String(input.text || '').trim()] : [];
-            if(input.type === 'smart-loop') {
-                const text = smartLoopPrompt(input);
-                return text ? [text] : [];
-            }
-            return [];
-        }).filter(Boolean);
-    } finally {
-        smartLoopPromptVisiting.delete(node.id);
-    }
-}
-
-function smartLoopSelectedInputPrompt(node, ctx=smartLoopContext){
-    const items = smartLoopInputPromptItems(node);
-    if(!items.length) return '';
-    const startBase = Math.max(1, Number(node?.loopStart) || 1);
-    const index = Math.max(1, Number(ctx?.index || startBase) || startBase);
-    return items[(index - 1) % items.length] || '';
-}
-
-function smartLoopPrompt(node, ctx=smartLoopContext){
-    if(!node?.showPrompt) return '';
-    const count = smartLoopCount(node);
-    const startBase = Math.max(1, Number(node.loopStart) || 1);
-    const index = Math.max(1, Number(ctx?.index || startBase) || startBase);
-    const total = Math.max(1, Number(ctx?.total || count) || count);
-    const selected = smartLoopSelectedInputPrompt(node, ctx);
-    const localPrompt = smartLoopSelectedLocalPrompt(node, ctx);
-    const combined = [selected, localPrompt].map(text => String(text || '').trim()).filter(Boolean).join('\n\n');
-    return String(combined || '')
-        .replaceAll('《计数》', String(index))
-        .replaceAll('[计数]', String(index))
-        .replaceAll(`[计数]`, String(index))
-        .replaceAll('《总数》', String(total))
-        .replaceAll('[总数]', String(total))
-        .replaceAll('《进度》', `${index}/${total}`)
-        .replaceAll('[进度]', `${index}/${total}`)
-        .trim();
-}
-
-function smartLoopInputImages(node, ctx=smartLoopContext){
-    if(!node?.imageInput) return [];
-    const refs = inputNodesFor(node).flatMap(input => {
-        if(input?.type === 'smart-loop') return smartLoopInputImages(input, ctx);
-        return imagesForNode(input);
-    }).filter(img => img?.url);
-    if(!refs.length) return [];
-    const startBase = Math.max(1, Number(node.loopStart) || 1);
-    const batchSize = Math.max(1, Math.min(100, Number(node.imageBatchSize) || 1));
-    const currentIndex = Math.max(1, Number(ctx?.index || startBase) || startBase);
-    return refs.slice(Math.max(0, currentIndex - 1), Math.max(0, currentIndex - 1) + batchSize)
-        .map((img, i) => ({...img, name:img.name || `循环图片 ${currentIndex + i}`}));
-}
-
-function smartLoopPreviewImages(node){
-    if(!node?.imageInput) return [];
-    return inputNodesFor(node).flatMap(input => {
-        if(input?.type === 'smart-loop') return smartLoopInputImages(input, {index:Number(node.loopStart) || 1});
-        return imagesForNode(input);
-    }).filter(img => img?.url);
-}
-
-function outputImagesForNode(node, consume=false, ctx=smartLoopContext){
-    if(node?.type === 'smart-loop') return smartLoopInputImages(node, ctx);
+function outputImagesForNode(node, consume=false, ctx=null){
     return imagesForNode(node).filter(img => img?.url);
 }
 
-function selfReferenceImagesForNode(node, consume=false, ctx=smartLoopContext){
+function selfReferenceImagesForNode(node, consume=false, ctx=null){
     return outputImagesForNode(node, consume, ctx).filter(img => img?.url);
 }
 
-function textForNode(node, ctx=smartLoopContext){
+function textForNode(node, ctx=null){
     if(!node) return '';
     if(node.type === 'smart-prompt') return node.text || '';
-    if(node.type === 'smart-loop') return smartLoopPrompt(node, ctx);
     return '';
 }
 
 function promptInputNodesFor(node){
-    return inputNodesFor(node).filter(input => input?.type === 'smart-prompt' || input?.type === 'smart-loop');
+    return inputNodesFor(node).filter(input => input?.type === 'smart-prompt');
 }
 
-function inputPromptTextFor(node, ctx=smartLoopContext){
-    const directText = promptInputNodesFor(node).map(input => textForNode(input, ctx)).filter(Boolean);
-    const relayText = Array.isArray(ctx?.relayPromptNodeIds)
-        ? ctx.relayPromptNodeIds.map(id => nodes.find(n => n.id === id)).map(input => textForNode(input, ctx)).filter(Boolean)
-        : [];
+function inputPromptTextFor(node, ctx=null){
     const seen = new Set();
-    return [...directText, ...relayText].filter(text => {
+    return promptInputNodesFor(node).map(input => textForNode(input, ctx)).filter(text => {
         const key = String(text || '').trim();
         if(!key || seen.has(key)) return false;
         seen.add(key);
@@ -1015,15 +893,11 @@ function inputPromptTextFor(node, ctx=smartLoopContext){
     }).join('\n\n');
 }
 
-function upstreamLoopPromptNodesFor(node){
-    return promptInputNodesFor(node).filter(input => input?.type === 'smart-loop' && input.showPrompt);
-}
-
-function inputImagesFor(node, consume=false, ctx=smartLoopContext){
+function inputImagesFor(node, consume=false, ctx=null){
     return inputNodesFor(node).flatMap(input => outputImagesForNode(input, consume, ctx));
 }
 
-function workflowInputImagesFor(node, consume=false, ctx=smartLoopContext){
+function workflowInputImagesFor(node, consume=false, ctx=null){
     return workflowInputNodesFor(node).flatMap(input => outputImagesForNode(input, consume, ctx));
 }
 
@@ -1044,7 +918,7 @@ function isInputRefBlocked(node, img){
     return blockedInputRefKeys(node).has(inputRefKey(img));
 }
 
-function activeInputImagesFor(node, consume=false, ctx=smartLoopContext){
+function activeInputImagesFor(node, consume=false, ctx=null){
     return inputImagesFor(node, consume, ctx).filter(img => img?.url && !isInputRefBlocked(node, img));
 }
 
@@ -1062,7 +936,7 @@ function toggleInputRefBlocked(node, img){
     scheduleSave();
 }
 
-function defaultReferenceImagesFor(node, consume=false, ctx=smartLoopContext){
+function defaultReferenceImagesFor(node, consume=false, ctx=null){
     if(!node) return [];
     const self = selfReferenceImagesForNode(node, consume, ctx).filter(img => img?.url);
     const upstream = defaultInputImagesFor(node, consume, ctx);
@@ -1163,7 +1037,7 @@ function originalPromptTextFromParts(parts){
     return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=false, ctx=smartLoopContext){
+function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=false, ctx=null){
     const parts = collectPromptParts();
     if(smartTypedVideoInputs()){
         const base = Array.isArray(overrideDefaultImages) ? overrideDefaultImages : defaultReferenceImagesFor(node, consumeDefault, ctx);
@@ -1283,118 +1157,6 @@ function createPendingOutputFromSource(sourceNode, expectedCount, meta, options=
     return output;
 }
 
-function createParallelLoopOutputNode(templateNode, sourceNode, roundIndex, roundOffset=0){
-    const rect = nodeRect(templateNode);
-    const output = cloneSmartNode(templateNode, 0, 0);
-    output.id = uid('smart');
-    output.type = 'smart-image';
-    output.x = (Number(templateNode.x) || 0) + (Number(rect.width) || 260) + 80;
-    output.y = (Number(templateNode.y) || 0) + roundOffset * ((Number(rect.height) || 180) + 28);
-    output.title = `Image ${roundIndex}`;
-    output.images = [];
-    output.pending = 0;
-    output.running = false;
-    output.created_at = Date.now();
-    delete output.w;
-    delete output.h;
-    delete output.historyFor;
-    delete output.isHistoryGroup;
-    delete output.sourceNodeId;
-    delete output.runAt;
-    delete output.runPrompt;
-    delete output.runModelPrompt;
-    delete output.runPromptRefs;
-    delete output.runInputRefs;
-    // 克隆自模板节点会带上 inputNodeIds（含上游提示词节点），而生成出的输出槽并未真正
-    // 连线到这些上游；若不清空，节点即便没有任何连线也会一直显示"上游输入xxxx"。
-    output.inputNodeIds = [];
-    delete output.blockedInputRefs;
-    nodes.push(output);
-    connectInputNode(sourceNode.id, output.id);
-    return output;
-}
-
-function loopOutputSlotsForRoot(rootNode){
-    if(!rootNode?.id) return [];
-    return downstreamNodesForId(rootNode.id)
-        .filter(n => isSmartImageNode(n) && !isHistoryGroupNode(n))
-        .sort((a, b) => {
-            const ax = Number(a.x) || 0, bx = Number(b.x) || 0;
-            if(ax !== bx) return ax - bx;
-            return (Number(a.y) || 0) - (Number(b.y) || 0);
-        });
-}
-
-function loopOutputSlotForRound(rootNode, loopNode, roundIndex, slotIndex){
-    if(!rootNode?.id) return null;
-    const candidates = loopOutputSlotsForRoot(rootNode)
-        .filter(node => node.sourceNodeId === rootNode.id)
-        .filter(node => !loopNode?.id || !node.loopSourceId || node.loopSourceId === loopNode.id);
-    const untagged = candidates.filter(node => !Number.isFinite(Number(node.loopRoundIndex)) && !Number.isFinite(Number(node.loopSlotIndex)));
-    return candidates.find(node => Number(node.loopRoundIndex) === Number(roundIndex))
-        || candidates.find(node => Number(node.loopSlotIndex) === Number(slotIndex))
-        || untagged[Math.max(0, Number(slotIndex) || 0)]
-        || null;
-}
-
-function tagLoopOutputSlot(output, rootNode, loopNode, roundIndex, slotIndex){
-    if(!output) return output;
-    output.sourceNodeId = rootNode?.id || output.sourceNodeId || '';
-    output.loopSourceId = loopNode?.id || output.loopSourceId || '';
-    output.loopRootId = rootNode?.id || output.loopRootId || '';
-    output.loopRoundIndex = Number(roundIndex) || 0;
-    output.loopSlotIndex = Math.max(0, Number(slotIndex) || 0);
-    return output;
-}
-
-function createLoopOutputSlot(rootNode, roundIndex, roundOffset=0, options={}){
-    const rootRect = nodeRect(rootNode);
-    const output = cloneSmartNode(rootNode, 0, 0);
-    output.id = uid('smart');
-    output.type = 'smart-image';
-    output.x = (Number(rootNode.x) || 0) + (Number(rootRect.width) || 260) + 80;
-    output.title = `Image ${roundIndex}`;
-    output.images = [];
-    output.pending = options.pending ? Math.max(1, Number(options.pending) || 1) : 0;
-    output.running = Boolean(options.pending);
-    output.queued = Boolean(options.queued);
-    if(options.pending){
-        output.runStartedAt = nowMs();
-        output.runTimerHidden = false;
-    }
-    output.created_at = Date.now();
-    delete output.w;
-    delete output.h;
-    delete output.historyFor;
-    delete output.isHistoryGroup;
-    delete output.sourceNodeId;
-    delete output.runAt;
-    delete output.runPrompt;
-    delete output.runModelPrompt;
-    delete output.runPromptRefs;
-    delete output.runInputRefs;
-    delete output.runFinishedAt;
-    delete output.runElapsedMs;
-    // 同 createParallelLoopOutputNode：清空克隆带来的 inputNodeIds，否则输出槽虽只用 flow
-    // 连接到 root，却会因继承 root 的 inputNodeIds 而误显示上游提示词输入。
-    output.inputNodeIds = [];
-    delete output.blockedInputRefs;
-    tagLoopOutputSlot(output, rootNode, options.loopNode || null, roundIndex, options.slotIndex ?? roundOffset);
-    const slots = loopOutputSlotsForRoot(rootNode).map(nodeRect);
-    let y = (Number(rootNode.y) || 0) + roundOffset * ((Number(rootRect.height) || 180) + 28);
-    slots.forEach(rect => {
-        if((Number(rect.x) || 0) >= (Number(output.x) || 0) - 24){
-            y = Math.max(y, (Number(rect.y) || 0) + (Number(rect.height) || 0) + 28);
-        }
-    });
-    output.y = y;
-    nodes.push(output);
-    addConnection(rootNode.id, output.id, 'flow');
-        const runPath = smartCascadePathForCtx(options.ctx || options.runState);
-        if(runPath?.states) runPath.states[`${rootNode.id}->${output.id}`] = 'wait';
-    return output;
-}
-
 function extractCurrentImagesToSource(node, meta=null){
     const imgs = (node.images || []).slice();
     if(!imgs.length) return null;
@@ -1475,72 +1237,6 @@ function restoreSourceVisualState(node, state){
     });
 }
 
-function finishLoopTargetPreviewState(node){
-    if(!node) return;
-    node.pending = 0;
-    node.running = false;
-    node.queued = false;
-    delete node.pendingTasks;
-    node.runFinishedAt = nowMs();
-    if(!node.runStartedAt) node.runStartedAt = node.runFinishedAt;
-    node.runElapsedMs = Math.max(0, node.runFinishedAt - Number(node.runStartedAt || node.runFinishedAt));
-    node.runTimerHidden = false;
-    if((node.images || []).some(img => img?.url)){
-        node.title = node.images.length > 1 ? 'Group' : 'Image';
-        node.scale = node.images.length > 1 ? MEDIA_GROUP_DEFAULT_SCALE : MEDIA_NODE_DEFAULT_SCALE;
-        node.outputKind = mediaKindForUrls(node.images || [], (node.images || []).some(isVideoMediaItem) ? 'video' : 'image');
-        delete node.w;
-        delete node.h;
-    }
-}
-
-function refsForDirectLoopRound(loopNode, loopIndex, total){
-    if(!loopNode?.imageInput) return [];
-    return outputImagesForNode(loopNode, true, {index:loopIndex, total, nodeId:loopNode.id})
-        .filter(ref => ref?.url)
-        .map((ref, index) => ({
-            ...ref,
-            role:ref.role || `image_${index + 1}`,
-            name:ref.name || `循环图片 ${loopIndex + index}`
-        }));
-}
-
-function showDirectLoopRoundPreview(loopNode, target, refs, loopIndex, total){
-    if(!loopNode?.imageInput || !isSmartImageNode(target)) return false;
-    const cleanRefs = (refs || []).filter(ref => ref?.url);
-    if(!cleanRefs.length) return false;
-    const preview = cleanRefs.map((ref, index) => stripImageGenerationMeta({
-        url:ref.url || '',
-        name:ref.name || `循环图片 ${loopIndex + index}`,
-        kind:ref.kind || (isVideoMediaItem(ref) ? 'video' : 'image'),
-        nodeId:ref.nodeId || '',
-        imageIndex:ref.imageIndex ?? '',
-        loopInputPreview:true
-    })).filter(ref => ref.url);
-    if(!preview.length) return false;
-    target.images = preview;
-    target.pending = 0;
-    target.running = true;
-    target.runStartedAt = nowMs();
-    delete target.runFinishedAt;
-    delete target.runElapsedMs;
-    target.runTimerHidden = false;
-    target.runInputRefs = cleanRefs.map(ref => ({
-        url:ref.url || '',
-        name:ref.name || '',
-        nodeId:ref.nodeId || '',
-        imageIndex:ref.imageIndex ?? '',
-        kind:ref.kind || ''
-    })).filter(ref => ref.url);
-    target.outputKind = mediaKindForUrls(preview, preview.some(isVideoMediaItem) ? 'video' : 'image');
-    target.scale = preview.length > 1 ? MEDIA_GROUP_DEFAULT_SCALE : MEDIA_NODE_DEFAULT_SCALE;
-    target.title = total > 1 ? `Image ${loopIndex}/${total}` : (target.title || 'Image');
-    delete target.w;
-    delete target.h;
-    render();
-    return true;
-}
-
 function directImageInputsFor(node){
     const upstream = smartImageUsesWorkflowInput(node) ? workflowInputNodesFor(node) : inputNodesFor(node);
     return upstream
@@ -1564,17 +1260,7 @@ function directImageInputsForKinds(node, kinds=['input']){
 }
 
 function primaryImageInputFor(node, options={}){
-    const direct = options.includeFlow
-        ? directImageInputsForKinds(node, ['input', 'flow'])[0]
-        : directImageInputsFor(node)[0];
-    if(direct) return direct;
-    const inputs = options.includeFlow ? upstreamNodesForKinds(node, ['input', 'flow']) : (smartImageUsesWorkflowInput(node) ? workflowInputNodesFor(node) : inputNodesFor(node));
-    const loop = inputs.find(n => n?.type === 'smart-loop');
-    if(loop?.imageInput){
-        const upstream = upstreamNodesForKinds(loop, options.includeFlow ? ['input', 'flow'] : ['input']).find(n => isSmartImageNode(n) && (n.images || []).some(img => img?.url));
-        if(upstream) return upstream;
-    }
-    return null;
+    return (options.includeFlow ? directImageInputsForKinds(node, ['input', 'flow']) : directImageInputsFor(node))[0] || null;
 }
 
 function hasDownstreamImageNode(node){
@@ -1622,25 +1308,6 @@ function upstreamNodesForId(nodeId, kinds=['input']){
     return result;
 }
 
-function resolveSmartCascadeLoop(nodeId){
-    const loops = upstreamNodesForId(nodeId, ['input', 'flow']).filter(n => n.type === 'smart-loop');
-    if(!loops.length) return null;
-    const loop = loops[loops.length - 1];
-    return {node:loop, count:smartLoopCount(loop), mode:loop.mode === 'parallel' ? 'parallel' : 'serial'};
-}
-
-function relayLoopPromptNodesForEdge(sourceNode, targetNode){
-    if(!sourceNode?.id || !targetNode?.id) return [];
-    const directLoopIds = new Set(promptInputNodesFor(targetNode).filter(n => n?.type === 'smart-loop' && n.showPrompt).map(n => n.id));
-    return inputNodesFor(sourceNode)
-        .filter(n => n?.type === 'smart-loop' && n.showPrompt && !directLoopIds.has(n.id));
-}
-
-function relayLoopPromptNodesForTarget(node){
-    if(!node?.id) return [];
-    return inputNodesFor(node).filter(n => n?.type === 'smart-loop' && n.showPrompt);
-}
-
 function downstreamNodesForId(nodeId){
     const result = [];
     const seen = new Set([nodeId]);
@@ -1678,7 +1345,7 @@ function downstreamCascadeTargetsFor(node){
     return (canvas?.connections || [])
         .filter(conn => conn.from === node.id && ['input','flow'].includes(conn.kind || 'flow'))
         .map(conn => nodes.find(n => n.id === conn.to))
-        .filter(n => n && !isHistoryGroupNode(n) && (isSmartImageNode(n) || n.type === 'smart-loop'))
+        .filter(n => n && !isHistoryGroupNode(n) && isSmartImageNode(n))
         .sort((a, b) => {
             const ax = Number(a.x) || 0, bx = Number(b.x) || 0;
             if(ax !== bx) return ax - bx;
@@ -1686,19 +1353,10 @@ function downstreamCascadeTargetsFor(node){
         });
 }
 
-function directLoopRunTargets(loop){
-    if(!loop?.id) return [];
-    return downstreamImageTargetsFor(loop)
-        .filter(node => !hasDownstreamWorkflowImageNode(node));
-}
-
 function smartCascadeGraphForTail(tail){
     const path = smartImageChainTo(tail?.id, {includeFlow:true}).filter(n => isSmartImageNode(n) && !isHistoryGroupNode(n));
     if(!path.length) return {root:null, path:[], edges:[], children:new Map()};
-    const loop = resolveSmartCascadeLoop(tail?.id);
-    const loopRoots = loop?.node?.id ? downstreamImageTargetsFor(loop.node) : [];
-    const loopRoot = loopRoots.find(n => path.some(p => p.id === n.id));
-    const root = loopRoot || path[0];
+    const root = path[0];
     const edges = [];
     const children = new Map();
     const seenEdges = new Set();
@@ -1722,70 +1380,13 @@ function smartCascadeGraphForTail(tail){
     return {root, path, edges, children};
 }
 
-function cascadeTailForLoop(loopId){
-    const loop = nodes.find(n => n.id === loopId && n.type === 'smart-loop');
-    const directTargets = directLoopRunTargets(loop);
-    if(directTargets.length) return directTargets[directTargets.length - 1];
-    const directImages = downstreamImageTargetsFor({id:loopId});
-    const directIds = new Set(directImages.map(n => n.id));
-    const candidates = downstreamNodesForId(loopId)
-        .filter(n => isSmartImageNode(n))
-        .filter(n => !isHistoryGroupNode(n))
-        .filter(n => canRunSmartCascade(n));
-    if(!candidates.length) return null;
-    return candidates.sort((a, b) => {
-        const ad = directIds.has(a.id) ? 1 : 0;
-        const bd = directIds.has(b.id) ? 1 : 0;
-        if(ad !== bd) return ad - bd;
-        const ax = Number(a.x) || 0, bx = Number(b.x) || 0;
-        if(ax !== bx) return bx - ax;
-        return (Number(b.y) || 0) - (Number(a.y) || 0);
-    })[0];
-}
-
 function canRunSmartCascade(node){
-    if(!isSmartImageNode(node) || isHistoryGroupNode(node)) return false;
-    const graph = smartCascadeGraphForTail(node);
-    const loop = resolveSmartCascadeLoop(node.id);
-    if(loop && isDirectLoopTargetRun(loop, node, graph)) return true;
-    if(hasDownstreamImageNode(node)) return false;
-    if(graph.edges.length) return true;
-    return Boolean(loop);
-}
-
-function isDirectLoopTargetRun(loop, tail, graph){
-    if(!loop?.node?.id || !tail?.id) return false;
-    if(graph?.root?.id !== tail.id) return false;
-    if(hasDownstreamWorkflowImageNode(tail)) return false;
-    return downstreamImageTargetsFor(loop.node).some(node => node.id === tail.id);
+    if(!isSmartImageNode(node) || isHistoryGroupNode(node) || hasDownstreamImageNode(node)) return false;
+    return smartCascadeGraphForTail(node).edges.length > 0;
 }
 
 function cascadeConnectionKeys(){
-    const keys = new Set();
-    const addKey = (from, to) => {
-        if(from && to) keys.add(`${from}->${to}`);
-    };
-    const activeLoopIds = new Set(smartCascadeRuns.keys());
-    const loops = activeLoopIds.size
-        ? nodes.filter(n => n?.type === 'smart-loop' && activeLoopIds.has(n.id))
-        : nodes.filter(n => n?.type === 'smart-loop');
-    loops.forEach(loop => {
-        const tail = cascadeTailForLoop(loop.id);
-        if(!tail) return;
-        const graph = smartCascadeGraphForTail(tail);
-        if(!graph.root) return;
-        const chainIds = new Set(graph.path.map(n => n.id));
-        graph.edges.forEach(edge => addKey(edge.source.id, edge.target.id));
-        (canvas?.connections || []).forEach(conn => {
-            if((conn.kind || 'flow') === 'history') return;
-            const toNode = nodes.find(n => n.id === conn.to);
-            if(conn.from === loop.id && (chainIds.has(conn.to) || downstreamNodesForId(conn.to).some(n => chainIds.has(n.id)))) addKey(conn.from, conn.to);
-            if(toNode && chainIds.has(toNode.id)){
-                inputNodesFor(toNode).filter(n => n?.type === 'smart-loop' && n.showPrompt).forEach(inputLoop => addKey(inputLoop.id, toNode.id));
-            }
-        });
-    });
-    return keys;
+    return new Set([...smartCascadeRuns.values()].flatMap(run => Object.keys(run.runPath?.states || {})));
 }
 
 function coolRunButton(ms=2000){
@@ -1951,7 +1552,7 @@ function replaceOutputsToNodeWithHistory(node, additions, kind='image', meta=nul
     delete node.h;
     if(meta) attachRunMeta(node, meta);
     const afterRight = (Number(node.x) || 0) + nodeRect(node).width;
-    const skipShift = options.skipShift || Boolean(smartLoopContext?.nodeId);
+    const skipShift = options.skipShift;
     if(!skipShift) pushRightSideNodes(node, afterRight - beforeRight + 36);
     smartSelection.outputsReplaced();
     return next;
@@ -1974,7 +1575,7 @@ function appendOutputsToNode(node, additions, kind='image', options={}){
     delete node.w;
     delete node.h;
     const afterRight = (Number(node.x) || 0) + nodeRect(node).width;
-    const skipShift = options.skipShift || Boolean(smartLoopContext?.nodeId);
+    const skipShift = options.skipShift;
     if(!skipShift) pushRightSideNodes(node, afterRight - beforeRight + 36);
     return next;
 }
@@ -1983,13 +1584,12 @@ function syncCascadeRunButton(node=selectedNode()){
     if(!cascadeRunBtn) return;
     const visible = canRunSmartCascade(node);
     cascadeRunBtn.style.display = visible ? 'inline-flex' : 'none';
-    const nodeLoopId = resolveSmartCascadeLoop(node?.id)?.node?.id || '';
-    const loopRunState = smartCascadeRunForLoop(nodeLoopId);
-    const runningForNode = Boolean(loopRunState);
-    cascadeRunBtn.disabled = !visible || (!runningForNode && Boolean(node?.running)) || Boolean(loopRunState?.stopRequested);
+    const runState = smartCascadeRuns.get(smartCascadeActiveRunId) || null;
+    const runningForNode = Boolean(runState);
+    cascadeRunBtn.disabled = !visible || (!runningForNode && Boolean(node?.running)) || Boolean(runState?.stopRequested);
     cascadeRunBtn.classList.toggle('is-stop', runningForNode);
     cascadeRunBtn.innerHTML = runningForNode
-        ? `<i data-lucide="square"></i><span>${escapeHtml(smartCascadeStopText(Boolean(loopRunState?.stopRequested)))}</span>`
+        ? `<i data-lucide="square"></i><span>${escapeHtml(smartCascadeStopText(Boolean(runState?.stopRequested)))}</span>`
         : `<i data-lucide="workflow"></i><span>${escapeHtml('一键运行')}</span>`;
     refreshIcons();
 }
@@ -2007,7 +1607,7 @@ function loadNodePromptDraftToInput(node){
     }
 }
 
-function buildPromptRequestForNode(node, defaultImages, ctx=smartLoopContext){
+function buildPromptRequestForNode(node, defaultImages, ctx=null){
     const oldHtml = promptInput.innerHTML;
     loadNodePromptDraftToInput(node);
     try {
@@ -2066,17 +1666,17 @@ async function generateComfyUrlsWithSettings(runSettings, prompt, refs){
     throw new Error("此功能已移除，历史内容保留。请新建通用 API 节点并明确选择供应商。");
 }
 
-async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=smartLoopContext){
+async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=null){
     const outputNode = targetNode || sourceNode;
     if(!sourceNode || !targetNode || !outputNode) return [];
-    const requestNode = sourceNode?.type === 'smart-loop' ? targetNode : sourceNode;
+    const requestNode = sourceNode;
     const writeGuard=canvasTaskWriteGuard(sourceNode,targetNode);
     writeGuard.check();
     const previousSettings = cloneSmartSettings(settings);
     const runSettings = {...cloneSmartSettings(settings), ...cloneSmartSettings(smartSettingsForNode(requestNode) || {})};
     settings = runSettings;
     const outpaintSize = validOutpaintSize(requestNode);
-    const selfRefs = sourceNode?.type === 'smart-loop' ? [] : selfReferenceImagesForNode(sourceNode, false, ctx).filter(img => img?.url);
+    const selfRefs = selfReferenceImagesForNode(sourceNode, false, ctx).filter(img => img?.url);
     const sourceRefs = (selfRefs.length ? selfRefs : defaultReferenceImagesFor(requestNode, false, ctx)).filter(img => img?.url);
     const refsForRequest = sourceRefs.length
         ? sourceRefs
@@ -2155,7 +1755,7 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
                 const url = typeof item === 'string' ? item : item?.url || '';
                 return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:(typeof item === 'object' && item.kind) || result.kind, generatedResult:true}));
             }).filter(item => item.url);
-            replaceOutputsToNodeWithHistory(outputNode, additions, result.kind, null, {skipShift:Boolean(ctx?.nodeId)});
+            replaceOutputsToNodeWithHistory(outputNode, additions, result.kind);
         }
         outputNode.runPrompt = targetPromptState.runPrompt;
         outputNode.runModelPrompt = targetPromptState.runModelPrompt;
@@ -2184,110 +1784,7 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=sma
     }
 }
 
-async function runLoopRoundIntoSlot(loopNode, rootNode, outputSlot, loopIndex, ctx){
-    if(!loopNode || !rootNode || !outputSlot) return [];
-    const writeGuard=canvasTaskWriteGuard(loopNode,rootNode,outputSlot);
-    writeGuard.check();
-    const previousSettings = cloneSmartSettings(settings);
-    const edgeKey = `${rootNode.id}->${outputSlot.id}`;
-    const runSettings = {...cloneSmartSettings(settings), ...cloneSmartSettings(smartSettingsForNode(rootNode) || {})};
-    settings = runSettings;
-    let inputBinding=null;
-    let restoredSettings=false;
-    try {
-        const refsForRequest = outputImagesForNode(loopNode, true, ctx).filter(img => img?.url);
-        const request = buildPromptRequestForNode(rootNode, refsForRequest.length ? refsForRequest : null, ctx);
-        const prompt = (request.prompt || '').trim();
-        const displayPrompt = (request.displayPrompt || '').trim();
-        if((!prompt || !displayPrompt) && smartRunNeedsPrompt(runSettings)) throw new Error('链路节点缺少提示词');
-        const meta = {
-            prompt,
-            displayPrompt:request.displayPrompt || '',
-            promptRefs:(request.refs || []).map(ref => ({...ref})).filter(ref => ref.url),
-            inputRefs:(request.refs || []).map(ref => ({...ref})).filter(ref => ref.url),
-            sourceNodeId:rootNode.id,
-            settings:JSON.parse(JSON.stringify(runSettings)),
-            createdAt:Date.now()
-        };
-        const logKind = isApiLikeEngine(runSettings.engine) && runSettings.apiKind === 'video' ? 'video' : 'image';
-        const runLog = smartRunSnapshot(rootNode, prompt, request.refs || [], logKind);
-        const runLogStart = nowMs();
-        const expectedCount = isApiLikeEngine(runSettings.engine) && runSettings.apiKind !== 'video'
-            ? Math.max(1, Math.min(8, Number(runSettings.count || 1)))
-            : 1;
-        outputSlot.queued = false;
-        outputSlot.running = true;
-        outputSlot.pending = expectedCount;
-        outputSlot.runStartedAt = nowMs();
-        delete outputSlot.runFinishedAt;
-        delete outputSlot.runElapsedMs;
-        outputSlot.runTimerHidden = false;
-        const runPath = smartCascadePathForCtx(ctx);
-        if(runPath?.states) {
-            runPath.states[edgeKey] = 'active';
-            refreshConnectionLayer();
-        }
-        render();
-        settings = previousSettings;
-        restoredSettings=true;
-        inputBinding=smartTaskInputBinding(rootNode,outputSlot,writeGuard);
-        let result;
-        const asyncApiKind = isApiLikeEngine(runSettings.engine) ? (runSettings.apiKind === 'video' ? 'video' : 'image') : '';
-        if(asyncApiKind){
-            const taskResult = asyncApiKind === 'video'
-                ? await runApiVideoGeneration(prompt, request.refs || [], runSettings, inputBinding)
-                : await runApiGeneration(prompt, request.refs || [], runSettings, inputBinding);
-            writeGuard.check(); inputBinding?.check();
-            const pendingResult = await queueAndResumeSmartApiTasks(outputSlot, taskResult, {
-                kind:asyncApiKind,
-                startedAt:runLogStart,
-                run:{...runLog, kind:asyncApiKind, settings:cloneSmartSettings(runLog.settings)}
-            });
-            writeGuard.check(); inputBinding?.check();
-            if(pendingResult.recoverable){
-                outputSlot.queued = false;
-                return [];
-            }
-            result = {urls:pendingResult.outputs, kind:asyncApiKind};
-        } else {
-            result = await generateUrlsForCurrentSettings(outputSlot, prompt, request.refs || [], runSettings, inputBinding);
-        }
-        writeGuard.check(); inputBinding?.check();
-        if(!result.urls?.length) throw new Error(result.kind === 'video' ? '没有返回视频' : '没有返回图片');
-        let additions;
-        if(asyncApiKind){
-            additions = (outputSlot.images || []).map(img => stripImageGenerationMeta({...img})).filter(img => img?.url);
-            if(meta) attachRunMeta(outputSlot, meta);
-        } else {
-            const ext = result.kind === 'video' ? 'mp4' : result.kind === 'audio' ? 'mp3' : result.kind === 'text' ? 'txt' : 'png';
-            additions = result.urls.map((item, i) => {
-                const url = typeof item === 'string' ? item : item?.url || '';
-                return stripImageGenerationMeta(copyMediaSizeFields(item, {url, name:(typeof item === 'object' && item.name) || `output-${i + 1}.${ext}`, kind:(typeof item === 'object' && item.kind) || result.kind, generatedResult:true}));
-            }).filter(item => item.url);
-            replaceOutputsToNodeWithHistory(outputSlot, additions, result.kind, meta, {skipShift:Boolean(ctx?.nodeId)});
-        }
-        if(runPath?.states) {
-            runPath.states[edgeKey] = 'done';
-            refreshConnectionLayer();
-        }
-        if(!asyncApiKind){
-            addSmartGenerationLog({run:{...runLog, kind:result.kind || logKind}, outputs:result.urls, runMs:nowMs() - runLogStart});
-        }
-        return additions;
-    } catch(e) {
-        try{inputBinding?.check();}catch(changed){e=changed;}
-        pauseSmartTaskInput(outputSlot,inputBinding,writeGuard,e);
-        if(e?.resultPending || !writeGuard.valid())throw e?.inputChanged ? e : writeGuard.pause();
-        outputSlot.queued = false;
-        outputSlot.pending = 0;
-        outputSlot.running = false;
-        throw e;
-    } finally {
-        if(!restoredSettings && writeGuard.valid())settings = previousSettings;
-    }
-}
-
-function appendCascadeRefsToReceiver(node, refs, ctx=smartLoopContext){
+function appendCascadeRefsToReceiver(node, refs, ctx=null){
     if(!node || !refs?.length) return [];
     const additions = refs
         .filter(ref => ref?.url)
@@ -2297,7 +1794,7 @@ function appendCascadeRefsToReceiver(node, refs, ctx=smartLoopContext){
             kind:ref.kind || (isVideoMediaItem(ref) ? 'video' : 'image')
         }));
     if(!additions.length) return [];
-    replaceOutputsToNodeWithHistory(node, additions, mediaKindForUrls(additions, additions.some(isVideoMediaItem) ? 'video' : 'image'), null, {skipShift:Boolean(ctx?.nodeId)});
+    replaceOutputsToNodeWithHistory(node, additions, mediaKindForUrls(additions, additions.some(isVideoMediaItem) ? 'video' : 'image'));
     render();
     return additions;
 }
@@ -2328,12 +1825,12 @@ function throwIfSmartCascadeStopRequested(runState=null){
     if(runState?.stopRequested || (!runState && smartCascadeStopRequested)) throw smartCascadeAbortError();
 }
 
-function requestSmartCascadeStop(loopId=''){
-    const runState = loopId ? smartCascadeRunForLoop(loopId) : (smartCascadeRuns.get(smartCascadeActiveLoopId) || [...smartCascadeRuns.values()][0] || null);
+function requestSmartCascadeStop(){
+    const runState = smartCascadeRuns.get(smartCascadeActiveRunId) || [...smartCascadeRuns.values()][0] || null;
     if(runState){
         if(runState.stopRequested) return;
         runState.stopRequested = true;
-        syncSmartCascadeLegacyState(runState.runKey || runState.loopId || loopId);
+        syncSmartCascadeLegacyState(runState.runKey);
     } else {
         if(!smartCascadeRunning || smartCascadeStopRequested) return;
         smartCascadeStopRequested = true;
@@ -2342,227 +1839,81 @@ function requestSmartCascadeStop(loopId=''){
     render();
 }
 
-function smartCascadeParallelLimit(chain=[]){
-    const hasComfy = (chain || []).some(node => smartSettingsForNode(node)?.engine === 'comfy');
-    return hasComfy ? Math.max(1, Math.min(6, Number(comfyInstanceCount) || 1)) : 6;
-}
-
-async function runSmartCascadeRoundsWithLimit(roundIndexes, limit, runner, runState=null){
-    let next = 0;
-    const workerCount = Math.max(1, Math.min(Number(limit) || 1, roundIndexes.length));
-    const workers = Array.from({length:workerCount}, async () => {
-        while(next < roundIndexes.length){
-            if(runState?.stopRequested || (!runState && smartCascadeStopRequested)) break;
-            const roundOffset = next++;
-            const current = roundIndexes[roundOffset];
-            try {
-                await runner(current, roundOffset);
-            } catch(e) {
-                if(e?.smartCascadeStopped) break;
-                throw e;
-            }
-        }
-    });
-    await Promise.all(workers);
-}
-
 async function runSmartCascade(targetNode=null){
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const tail = targetNode || selectedNode();
     if(!canRunSmartCascade(tail)){ toast('请选择链路结尾图片节点'); return; }
+    if(smartCascadeAnyRunning()){ requestSmartCascadeStop(); return; }
     savePromptDraftForCurrent();
     const graph = smartCascadeGraphForTail(tail);
-    const chain = graph.path;
-    const loop = resolveSmartCascadeLoop(tail.id);
-    const loopId = loop?.node?.id || '';
-    if(loopId && smartCascadeIsLoopRunning(loopId)){ requestSmartCascadeStop(loopId); return; }
-    if(!loopId && smartCascadeAnyRunning()){ requestSmartCascadeStop(); return; }
-    const directLoopTargetRun = Boolean(loop && isDirectLoopTargetRun(loop, tail, graph));
-    const singleNodeLoopRun = Boolean(loop && (chain.length === 1 || directLoopTargetRun));
-    if(!graph.edges.length && !singleNodeLoopRun){ toast('没有可一键运行的上游链路'); return; }
     const originalSelected = smartSelection.nodeId;
     const originalSettings = cloneSmartSettings(settings);
     const originalPromptHtml = promptInput.innerHTML;
-    const runKey = loopId || `cascade-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const writeGuard=canvasTaskWriteGuard(tail,loop?.node,graph.root,...chain.map(value=>typeof value==='string' ? nodes.find(n=>n.id===value) : value));
+    const runKey = 'cascade-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const writeGuard = canvasTaskWriteGuard(tail, graph.root, ...graph.path);
     writeGuard.check();
-    const runState = {runKey, loopId, stopRequested:false, runPath:null,writeGuard};
+    const runState = {runKey, stopRequested:false, runPath:{states:{}}, writeGuard};
+    graph.edges.forEach(edge => {runState.runPath.states[edge.key] = 'wait';});
     smartCascadeRuns.set(runKey, runState);
     syncSmartCascadeLegacyState(runKey);
     smartCascadeSilentSelection = true;
     runBtn.disabled = true;
     cascadeRunBtn.disabled = false;
     pushUndo();
-    const totalRounds = loop?.count || 1;
-    const startIndex = Math.max(1, Number(loop?.node?.loopStart) || 1);
-    const batchSize = loop?.node?.imageInput ? Math.max(1, Math.min(100, Number(loop.node.imageBatchSize) || 1)) : 1;
-    const endIndex = startIndex + (totalRounds - 1) * batchSize;
-    const loopMode = loop?.mode === 'parallel' ? 'parallel' : 'serial';
-    const parallelLimit = loopMode === 'parallel' && totalRounds > 1 ? smartCascadeParallelLimit(chain) : 1;
-    const precreateSingleSlots = singleNodeLoopRun && loopMode === 'parallel' && totalRounds > 1 && parallelLimit > 1;
-    let singleLoopSlots = [];
-    if(singleNodeLoopRun){
-        runState.runPath = {states:{}};
-        smartCascadeRunPath = runState.runPath;
-    }
-    if(singleNodeLoopRun){
-        singleLoopSlots = Array.from({length:totalRounds}, (_, round) => {
-            const loopIndex = startIndex + round * batchSize;
-            const slot = loopOutputSlotForRound(tail, loop.node, loopIndex, round);
-            return slot ? tagLoopOutputSlot(slot, tail, loop.node, loopIndex, round) : null;
-        });
-        singleLoopSlots.filter(Boolean).forEach(slot => { runState.runPath.states[`${tail.id}->${slot.id}`] = 'wait'; });
-        if(precreateSingleSlots){
-            for(let slotOffset = 0; slotOffset < totalRounds; slotOffset++){
-                if(singleLoopSlots[slotOffset]) continue;
-                const loopIndex = startIndex + slotOffset * batchSize;
-                singleLoopSlots[slotOffset] = createLoopOutputSlot(tail, loopIndex, slotOffset, {queued:true, loopNode:loop.node, slotIndex:slotOffset, runState});
-            }
-        }
-        render();
-    }
-    if(!singleNodeLoopRun){
-        const runStates = {};
-        if(loop?.node?.id && graph.root?.id) runStates[`${loop.node.id}->${graph.root.id}`] = 'wait';
-        graph.edges.forEach(edge => { runStates[edge.key] = 'wait'; });
-        runState.runPath = {states:runStates};
-        smartCascadeRunPath = runState.runPath;
-        refreshConnectionLayer();
-        updateComposer();
-    }
-    const ownsUi=smartTaskUiGuard();
-    let resultDeferred=false;
+    refreshConnectionLayer();
+    updateComposer();
+    const ownsUi = smartTaskUiGuard();
+    const ctx = {runState};
     try {
-        const runRound = async (loopIndex=startIndex, options={}) => {
+        const runBranch = async (source, incomingRefs=[]) => {
             throwIfSmartCascadeStopRequested(runState);
-            const ctx = loop ? {index:loopIndex, total:endIndex, nodeId:loop.node.id, forceWorkflow:chain.length > 1 && !singleNodeLoopRun, runState} : {runState};
-            if(parallelLimit === 1) smartLoopContext = ctx;
-            if(singleNodeLoopRun){
-                const refs = refsForDirectLoopRound(loop.node, loopIndex, endIndex);
-                if(directLoopTargetRun && parallelLimit === 1) showDirectLoopRoundPreview(loop.node, tail, refs, loopIndex, endIndex);
-                const slotIndex = Math.max(0, Math.floor((loopIndex - startIndex) / batchSize));
-                const outputTarget = tagLoopOutputSlot(
-                    options.outputTarget || singleLoopSlots[slotIndex] || loopOutputSlotForRound(tail, loop.node, loopIndex, slotIndex) || createLoopOutputSlot(tail, loopIndex, slotIndex, {loopNode:loop.node, slotIndex, runState}),
-                    tail,
-                    loop.node,
-                    loopIndex,
-                    slotIndex
-                );
-                singleLoopSlots[slotIndex] = outputTarget;
-                await runLoopRoundIntoSlot(loop.node, tail, outputTarget, loopIndex, ctx);
-                return;
-            }
-            const producedRefs = new Map();
-            const runBranch = async (source, incomingRefs=[]) => {
+            const targets = graph.children.get(source.id) || [];
+            let sharedRefs = incomingRefs;
+            for(let index = 0; index < targets.length; index++){
                 throwIfSmartCascadeStopRequested(runState);
-                let targets = graph.children.get(source.id) || [];
-                const loopPrompts = isSmartImageNode(source) ? upstreamLoopPromptNodesFor(source) : [];
-                const sourceLoopPrompts = isSmartImageNode(source) ? relayLoopPromptNodesForTarget(source) : [];
-                if(runState.runPath && sourceLoopPrompts.length && source?.id){
-                    sourceLoopPrompts.forEach(loopNode => {
-                        runState.runPath.states[`${loopNode.id}->${source.id}`] = 'done';
-                    });
-                    refreshConnectionLayer();
-                }
-                if(loopPrompts.length && targets.length > 1){
-                    const firstLoop = loopPrompts[0];
-                    const startBase = Math.max(1, Number(firstLoop.loopStart) || 1);
-                    const currentIndex = Math.max(1, Number(ctx?.index || startBase) || startBase);
-                    const selectedTarget = targets[(currentIndex - 1) % targets.length];
-                    if(runState.runPath && firstLoop?.id && source?.id){
-                        runState.runPath.states[`${firstLoop.id}->${source.id}`] = 'done';
-                        refreshConnectionLayer();
+                const target = targets[index];
+                const edgeKey = source.id + '->' + target.id;
+                let outputs;
+                runState.runPath.states[edgeKey] = 'active';
+                refreshConnectionLayer();
+                try {
+                    if(index === 0){
+                        outputs = await runCascadeStepIntoNode(source, target, incomingRefs, ctx);
+                        writeGuard.check();
+                        sharedRefs = cascadeRefsFromOutputs(outputs, target);
+                    } else {
+                        outputs = appendCascadeRefsToReceiver(target, sharedRefs, ctx);
                     }
-                    targets = [selectedTarget].filter(Boolean);
+                } catch(err){
+                    if(err?.resultPending || !writeGuard.valid()) throw err?.inputChanged ? err : writeGuard.pause();
+                    if(/缺少提示词|需要输入文本|need prompt/i.test(err.message || '') && incomingRefs.length){
+                        outputs = appendCascadeRefsToReceiver(target, incomingRefs, ctx);
+                        if(index === 0) sharedRefs = cascadeRefsFromOutputs(outputs, target);
+                    } else throw err;
                 }
-                let sharedRefs = incomingRefs;
-                for(let index = 0; index < targets.length; index++){
-                    throwIfSmartCascadeStopRequested(runState);
-                    const target = targets[index];
-                    const edgeKey = `${source.id}->${target.id}`;
-                    let outputs = [];
-                    const relayLoops = isSmartImageNode(source) && isSmartImageNode(target)
-                        ? relayLoopPromptNodesForEdge(source, target)
-                        : [];
-                    const stepCtx = relayLoops.length && isSmartImageNode(target)
-                        ? {...(ctx || {}), relayPromptNodeIds:[...new Set([...(ctx?.relayPromptNodeIds || []), ...relayLoops.map(n => n.id)])]}
-                        : ctx;
-                    try {
-                        if(runState.runPath && relayLoops.length && source?.id && isSmartImageNode(target)){
-                            relayLoops.forEach(loopNode => {
-                                runState.runPath.states[`${loopNode.id}->${source.id}`] = 'done';
-                            });
-                            refreshConnectionLayer();
-                        }
-                        if(runState.runPath){
-                            runState.runPath.states[edgeKey] = 'active';
-                            refreshConnectionLayer();
-                        }
-                        if(target.type === 'smart-loop'){
-                            outputs = outputImagesForNode(source, true, ctx).filter(img => img?.url);
-                            sharedRefs = cascadeRefsFromOutputs(outputs, source);
-                        } else if(index === 0){
-                            outputs = await runCascadeStepIntoNode(source, target, incomingRefs, stepCtx);
-                            writeGuard.check();
-                            sharedRefs = cascadeRefsFromOutputs(outputs, target);
-                        } else {
-                            outputs = appendCascadeRefsToReceiver(target, sharedRefs, stepCtx);
-                        }
-                    } catch(err) {
-                        if(err?.resultPending || !writeGuard.valid())throw err?.inputChanged ? err : writeGuard.pause();
-                        if(/缺少提示词|需要输入文本|need prompt/i.test(err.message || '') && incomingRefs.length){
-                            outputs = appendCascadeRefsToReceiver(target, incomingRefs, stepCtx);
-                            if(index === 0){
-                                sharedRefs = cascadeRefsFromOutputs(outputs, target);
-                            }
-                        } else {
-                            throw err;
-                        }
-                    }
-                    if(runState.runPath){
-                        runState.runPath.states[edgeKey] = 'done';
-                        refreshConnectionLayer();
-                    }
-                    const refs = target.type === 'smart-loop' ? sharedRefs : (index === 0 ? sharedRefs : cascadeRefsFromOutputs(outputs, target));
-                    producedRefs.set(target.id, refs);
-                    throwIfSmartCascadeStopRequested(runState);
-                    await runBranch(target, refs);
-                }
-            };
-            const rootRefs = defaultReferenceImagesFor(graph.root, true, ctx).filter(img => img?.url);
-            producedRefs.set(graph.root.id, rootRefs);
-            await runBranch(graph.root, rootRefs);
+                runState.runPath.states[edgeKey] = 'done';
+                refreshConnectionLayer();
+                const refs = index === 0 ? sharedRefs : cascadeRefsFromOutputs(outputs, target);
+                throwIfSmartCascadeStopRequested(runState);
+                await runBranch(target, refs);
+            }
         };
-        const roundIndexes = Array.from({length:totalRounds}, (_, round) => startIndex + round * batchSize);
-        if(loopMode === 'parallel' && totalRounds > 1){
-            const parallelTargets = singleNodeLoopRun
-                ? singleLoopSlots
-                : [];
-            if(parallelTargets.length) render();
-            await runSmartCascadeRoundsWithLimit(roundIndexes, parallelLimit, (loopIndex, roundOffset) => {
-                const outputTarget = parallelTargets[roundOffset] || null;
-                return runRound(loopIndex, {outputTarget});
-            }, runState);
-        } else {
-            for(const loopIndex of roundIndexes){
-                throwIfSmartCascadeStopRequested(runState);
-                await runRound(loopIndex);
-            }
-        }
+        const rootRefs = defaultReferenceImagesFor(graph.root, true, ctx).filter(img => img?.url);
+        await runBranch(graph.root, rootRefs);
         throwIfSmartCascadeStopRequested(runState);
-        if(parallelLimit === 1) smartLoopContext = null;
         if(ownsUi()){
-        smartSelection.taskFinished();
-        settings = originalSettings;
-        promptInput.innerHTML = originalPromptHtml;
+            smartSelection.taskFinished();
+            settings = originalSettings;
+            promptInput.innerHTML = originalPromptHtml;
         }
         scheduleSave();
-        toast(totalRounds > 1
-            ? (loopMode === 'parallel' ? `并发运行完成：${totalRounds} 轮` : `循环运行完成：${totalRounds} 轮`)
-            : '一键运行完成');
-    } catch(e) {
-        if(e?.resultPending || !writeGuard.valid()){resultDeferred=true;if(e?.inputChanged && writeGuard.valid())toast(e.message);writeGuard.pause();return;}
-        if(parallelLimit === 1) smartLoopContext = null;
+        toast('一键运行完成');
+    } catch(e){
+        if(e?.resultPending || !writeGuard.valid()){
+            if(e?.inputChanged && writeGuard.valid()) toast(e.message);
+            writeGuard.pause();
+            return;
+        }
         if(ownsUi()){
             smartSelection.taskFailed(originalSelected);
             settings = originalSettings;
@@ -2570,30 +1921,19 @@ async function runSmartCascade(targetNode=null){
         }
         toast(e?.smartCascadeStopped ? '已停止一键运行' : (e.message || '生成失败').slice(0, 160));
     } finally {
-        if(smartCascadeRuns.get(runKey)===runState){
+        if(smartCascadeRuns.get(runKey) === runState){
             smartCascadeRuns.delete(runKey);
             syncSmartCascadeLegacyState();
-            if(smartLoopContext?.runState===runState)smartLoopContext=null;
-            if(!smartCascadeAnyRunning())smartCascadeSilentSelection=false;
+            if(!smartCascadeAnyRunning()) smartCascadeSilentSelection = false;
         }
         if(writeGuard.valid()){
             smartCascadeSilentSelection = false;
             runBtn.disabled = smartCascadeAnyRunning();
             cascadeRunBtn.disabled = false;
-            if(directLoopTargetRun && !resultDeferred) finishLoopTargetPreviewState(tail);
             scheduleSave();
             render();
         }
     }
-}
-
-function runSmartCascadeFromLoop(loopId){
-    const loop = nodes.find(n => n.id === loopId && n.type === 'smart-loop');
-    if(!loop){ toast('没有找到循环节点'); return; }
-    const tail = cascadeTailForLoop(loop.id);
-    if(!tail){ toast('请把循环节点连接到下游图片链路'); return; }
-    smartSelection.taskTail(tail.id);
-    runSmartCascade(tail);
 }
 
 function smartTaskInputDocument(){
@@ -2652,7 +1992,7 @@ async function runGeneration(){
     const runSettings = smartSettingsForNode(node);
     settings = {...settings, ...cloneSmartSettings(runSettings || {})};
     let request;
-    try { request = buildPromptRequest(node, null, true, smartLoopContext); }
+    try { request = buildPromptRequest(node, null, true, null); }
     catch(error){ settings = previousSettings; toast(error.message || '素材引用无效'); return; }
     const prompt = request.prompt.trim();
     const refs = request.refs;
@@ -2684,7 +2024,7 @@ async function runGeneration(){
     const expectedCount = settings.apiKind === 'video' ? 1 : Math.max(1, Math.min(8, Number(settings.count || 1)));
     const apiConcurrentRun = isApiLikeEngine(settings.engine) || settings.engine === 'modelscope';
     const nodeHasImages = (node.images || []).some(img => img?.url);
-    const workflowModeRun = smartImageUsesWorkflowInput(node, smartLoopContext);
+    const workflowModeRun = smartImageUsesWorkflowInput(node, null);
     const sourceVisualState = nodeHasImages && !workflowModeRun ? {
         images:(node.images || []).map(img => ({...img})),
         title:node.title,

@@ -78,6 +78,7 @@ function mediaItemForStorage(item){
 
 function canvasForStorage(source=canvas){
     const clean = JSON.parse(JSON.stringify(source || {}));
+    removeRetiredSmartLoopNodes(clean);
     clean.settings = settingsForStorage(canvasDefaultSmartSettings || initialSmartSettings);
     (clean.nodes || []).forEach(node => {
         if(node.type==='smart-prompt')delete node.running;
@@ -100,7 +101,8 @@ function smartWorkflowFilename(ext='json'){
 
 function serializableSmartNode(node){
     const base = JSON.parse(JSON.stringify(node || {}));
-    const copy = normalizeLegacySmartNode(base) || {};
+    const copy = normalizeLegacySmartNode(base);
+    if(!copy) return null;
     if(Array.isArray(copy.images)) copy.images = copy.images.map(img => mediaItemForStorage(stripImageGenerationMeta(img))).filter(Boolean);
     if(copy.runSettings) copy.runSettings = settingsForStorage(copy.runSettings);
     copy.running = false;
@@ -114,7 +116,7 @@ function serializableSmartNode(node){
 function selectedSmartWorkflowPayload(){
     const ids = selectedNodeIds();
     const idSet = new Set(ids);
-    const selectedNodes = nodes.filter(node => idSet.has(node.id)).map(serializableSmartNode);
+    const selectedNodes = nodes.filter(node => idSet.has(node.id)).map(serializableSmartNode).filter(Boolean);
     const selectedSet = new Set(selectedNodes.map(node => node.id));
     const selectedConnections = (canvas?.connections || [])
         .filter(conn => selectedSet.has(conn.from) && selectedSet.has(conn.to))
@@ -198,8 +200,10 @@ async function exportSelectedSmartWorkflow(includeResources=false){
 }
 
 function insertSmartWorkflowIntoCanvas(imported){
-    const srcNodes = (imported.nodes || []).filter(Boolean);
-    const srcConnections = (imported.connections || []).filter(Boolean);
+    const sourceDocument = JSON.parse(JSON.stringify(imported));
+    removeRetiredSmartLoopNodes(sourceDocument);
+    const srcNodes = sourceDocument.nodes;
+    const srcConnections = (sourceDocument.connections || []).filter(Boolean);
     if(!canvas || !srcNodes.length) throw new Error('工作流中没有可导入的节点');
     pushUndo();
     const minX = Math.min(...srcNodes.map(n => Number(n.x || 0)));
@@ -289,6 +293,7 @@ function rememberRecentSmartSettings(source=settings, node=null){
 
 function normalizeLegacySmartNode(node){
     if(!node || typeof node !== 'object') return node;
+    if(node.type === 'smart-loop') return null;
     if(node.type==='smart-prompt')delete node.running;
     if(node.type === 'smart-container'){
         const fallbackImage = node.inputImage?.url ? stripImageGenerationMeta({
@@ -339,13 +344,15 @@ function createImageNodeAt(point, images=[], options={}){
 
 function restoreSmartMemberDraft(draft){
     if(!canvas || draft.id!==canvas.id || draft.kind!=='smart' || !Array.isArray(draft.nodes) || !Array.isArray(draft.connections)) throw new Error('智能画布草稿格式不完整，请先导出保留。');
-    const restoredNodes=JSON.parse(JSON.stringify(draft.nodes)).map(serializableSmartNode);
+    const restoredDocument=JSON.parse(JSON.stringify(draft));
+    removeRetiredSmartLoopNodes(restoredDocument);
+    const restoredNodes=restoredDocument.nodes.map(serializableSmartNode).filter(Boolean);
     clearTimeout(saveTimer); saveTimer=null;
     undoStack.length=0; pendingUndoSnapshot=null;
     canvas.title=draft.title || canvas.title;
     canvas.icon=draft.icon || canvas.icon;
     canvas.nodes=nodes=restoredNodes;
-    canvas.connections=JSON.parse(JSON.stringify(draft.connections));
+    canvas.connections=restoredDocument.connections;
     canvasUsesConnections=true;
     if(draft.settings){
         canvasDefaultSmartSettings=settingsForStorage(draft.settings);
@@ -644,23 +651,11 @@ function createPromptNode(x, y, options={}){
     return node;
 }
 
-function createLoopNode(x, y, options={}){
-    if(!options.skipUndo) pushUndo();
-    const node = {id:uid('loop'), type:'smart-loop', x, y, w:340, h:168, title:'Loop', count:1, mode:'serial', showPrompt:false, imageInput:false, loopStart:1, imageBatchSize:1, variablePrompt:'', created_at:Date.now()};
-    nodes.push(node);
-    if(options.select !== false) smartSelection.createdNode(node.id);
-    render();
-    scheduleSave();
-    return node;
-}
-
 function cloneSmartNode(node, dx=0, dy=0){
     const copy = JSON.parse(JSON.stringify(node));
     copy.id = uid(
         node.type === 'smart-prompt'
             ? 'prompt'
-            : node.type === 'smart-loop'
-            ? 'loop'
             : 'smart'
     );
     copy.x = (Number(node.x) || 0) + dx;
@@ -877,19 +872,6 @@ function disconnectConnection(index){
     scheduleSave();
 }
 
-function insertLoopNodeIntoConnection(loopNode, hit){
-    if(!loopNode || loopNode.type !== 'smart-loop' || !hit?.conn) return false;
-    const conn = hit.conn;
-    const kind = conn.kind || 'flow';
-    canvas.connections = (canvas.connections || []).filter((c, index) => index !== hit.index);
-    nodes.forEach(n => {
-        if(Array.isArray(n.inputNodeIds)) n.inputNodeIds = n.inputNodeIds.filter(id => !(n.id === conn.to && id === conn.from));
-    });
-    addConnection(conn.from, loopNode.id, kind === 'flow' ? 'flow' : 'input');
-    connectInputNode(loopNode.id, conn.to);
-    return true;
-}
-
 function deleteImage(id, imageIndex){
     const node = nodes.find(n => n.id === id);
     if(!node || imageIndex < 0) return;
@@ -924,16 +906,6 @@ function connectInputNode(fromId, toId){
     const from = nodes.find(n => n.id === fromId);
     const to = nodes.find(n => n.id === toId);
     if(!from || !to || from.id === to.id) return false;
-    if(to.type === 'smart-loop'){
-        const looksImage = isSmartImageNode(from) || (from.type === 'smart-loop' && from.imageInput);
-        const looksPrompt = from.type === 'smart-prompt' || (from.type === 'smart-loop' && from.showPrompt);
-        if(looksImage && !to.imageInput) to.imageInput = true;
-        if(looksPrompt && !to.showPrompt) to.showPrompt = true;
-        if(looksImage || looksPrompt) fitSmartLoopNode(to);
-        const canImage = Boolean(to.imageInput) && looksImage;
-        const canPrompt = Boolean(to.showPrompt) && looksPrompt;
-        if(!canImage && !canPrompt) return false;
-    }
     to.inputNodeIds = Array.from(new Set([...(to.inputNodeIds || []), from.id]));
     addConnection(from.id, to.id, 'input');
     return true;
@@ -1175,4 +1147,25 @@ function bindSmartWorkflowTransferEvents(){
         if(file) importSmartWorkflowFile(file);
         else toast('请拖入 JSON 或 ZIP 工作流文件');
     });
+}
+
+// Retire loop controls from saved canvases, drafts and workflow imports.
+// Preserve generated media nodes and remove references to the retired controls.
+function removeRetiredSmartLoopNodes(document){
+    if(!document) return false;
+    const originalNodes = Array.isArray(document.nodes) ? document.nodes : [];
+    const retiredIds = new Set(originalNodes.filter(node => node?.type === 'smart-loop').map(node => node.id));
+    const keptNodes = originalNodes.filter(node => node && !retiredIds.has(node.id));
+    let changed = keptNodes.length !== originalNodes.length;
+    keptNodes.forEach(node => {
+        if(!Array.isArray(node.inputNodeIds)) return;
+        const inputs = node.inputNodeIds.filter(id => !retiredIds.has(id));
+        if(inputs.length !== node.inputNodeIds.length){node.inputNodeIds = inputs; changed = true;}
+    });
+    const connections = Array.isArray(document.connections) ? document.connections : [];
+    const keptConnections = connections.filter(conn => !retiredIds.has(conn.from) && !retiredIds.has(conn.to));
+    if(keptConnections.length !== connections.length) changed = true;
+    document.nodes = keptNodes;
+    if(Array.isArray(document.connections)) document.connections = keptConnections;
+    return changed;
 }

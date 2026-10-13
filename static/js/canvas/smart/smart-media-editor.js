@@ -50,7 +50,7 @@ function renderedInputMediaRefs(){
 
 function currentSmartMediaRefs(node){
     if(!node) return [];
-    const request = buildPromptRequest(node, null, true, smartLoopContext);
+    const request = buildPromptRequest(node, null, true, null);
     return (request.refs || []).filter(ref => ref?.url && ['image','video'].includes(mediaKindForItem(ref)));
 }
 

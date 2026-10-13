@@ -123,7 +123,7 @@ function smartRun(stage,outcome){
  const w=fixture(),source={id:'src',type:'smart-image',images:[{url:'original'}]},out={id:'out',images:[]};
  const gate=deferred(),counts={render:0,save:0,log:0,finish:0,error:0,restore:0};let reached=false;
  const boundary=async at=>{if(at===stage){reached=true;await gate.promise;if(outcome==='failure')throw Error('upstream failed');}};
- const c={window:w,nodes:[source],canvas:{id:'c',connections:[]},settings:{engine:'api',apiKind:'image',count:1},smartLoopContext:null,
+ const c={window:w,nodes:[source],canvas:{id:'c',connections:[]},settings:{engine:'api',apiKind:'image',count:1},
   selectedId:'src',selectedNode:()=>source,isSmartCanvasLocked:()=>false,cloneSmartSettings:s=>({...s}),smartSettingsForNode:()=>({engine:'api',apiKind:'image',count:1}),buildPromptRequest:()=>({prompt:'hello',refs:[]}),
   snapshotRunMeta:()=>({}),smartRunSnapshot:()=>({nodeId:'src',settings:{}}),rememberRecentSmartSettings:()=>{},nowMs:()=>1000,isApiLikeEngine:e=>e==='api',smartImageUsesWorkflowInput:()=>false,
   pushUndo:()=>{},stripRunInputMeta:m=>m,undoSuppressed:false,createPendingOutputFromSource:()=>{c.nodes.push(out);return out;},coolNodeRunningState:()=>{},coolRunButton:()=>{},render:()=>counts.render++,runBtn:{},
@@ -233,9 +233,9 @@ test('smart cascade outer cleanup leaves another canvas and a newer run untouche
   const graph={path:[source,out],root:source,edges:[{key:'src->out'}],children:new Map([['src',[out]]])};
   const c={window:w,nodes:[source,out],canvas:{id:'c'},settings:{},selectedId:'out',selectedIds:[],selectedImage:{},smartComposer:{finishCascade(){},outputSelected(){}},
    smartCascadeRuns:new Map(),smartCascadeSilentSelection:false,smartLoopContext:null,smartCascadeRunPath:null,promptInput:{innerHTML:'original'},composer:{classList:{remove:()=>{}}},runBtn:{},cascadeRunBtn:{},
-   isSmartCanvasLocked:()=>false,selectedNode:()=>out,canRunSmartCascade:()=>true,savePromptDraftForCurrent:()=>{},smartCascadeGraphForTail:()=>graph,resolveSmartCascadeLoop:()=>null,
+   isSmartCanvasLocked:()=>false,selectedNode:()=>out,canRunSmartCascade:()=>true,savePromptDraftForCurrent:()=>{},smartCascadeGraphForTail:()=>graph,
    smartCascadeAnyRunning:()=>c.smartCascadeRuns.size>0,cloneSmartSettings:s=>({...s}),syncSmartCascadeLegacyState:()=>{},pushUndo:()=>{},refreshConnectionLayer:()=>counts.render++,updateComposer:()=>counts.render++,
-   isSmartImageNode:()=>true,upstreamLoopPromptNodesFor:()=>[],relayLoopPromptNodesForTarget:()=>[],relayLoopPromptNodesForEdge:()=>[],defaultReferenceImagesFor:()=>[],
+   isSmartImageNode:()=>true,defaultReferenceImagesFor:()=>[],
    runCascadeStepIntoNode:async()=>{reached=true;await gate.promise;if(outcome==='failure')throw Error('failed');if(outcome==='paused')throw api.pending();return [{url:'result'}];},cascadeRefsFromOutputs:r=>r,
    scheduleSave:()=>counts.save++,render:()=>counts.render++,toast:()=>counts.error++,tr:s=>s};
   installSmartSelection(c);
@@ -248,18 +248,18 @@ test('smart cascade outer cleanup leaves another canvas and a newer run untouche
   if(replacement)assert.equal([...c.smartCascadeRuns.values()][0],replacement);else assert.equal(c.smartCascadeRuns.size,0);
  }
 });
-for(const kind of ['step','loop'])test('smart '+kind+' guarded writeback preserves target state on late success/failure',async()=>{
+test('smart step guarded writeback preserves target state on late success/failure',async()=>{
  for(const outcome of ['success','failure','paused'])for(const scenario of ['unchanged','handoff','source','target','canvas']){
-  const w=fixture(),source={id:'src',type:'smart-image'},out={id:'out',images:[{url:'old'}],promptDraftText:'keep'},loop={id:'loop'},gate=deferred(),counts={render:0,log:0,replace:0};let reached=false;
+  const w=fixture(),source={id:'src',type:'smart-image'},out={id:'out',images:[{url:'old'}],promptDraftText:'keep'},gate=deferred(),counts={render:0,log:0,replace:0};let reached=false;
   const wait=async()=>{reached=true;await gate.promise;if(outcome==='failure')throw Error('failed');if(outcome==='paused')throw api.pending();return {urls:[{url:'result'}],kind:'image',outputs:[{url:'result'}]};};
-  const c={window:w,nodes:[source,out,loop],canvas:{id:'c'},settings:{engine:'api',apiKind:'image'},smartLoopContext:null,cloneSmartSettings:s=>({...s}),smartSettingsForNode:()=>({}),
+  const c={window:w,nodes:[source,out],canvas:{id:'c'},settings:{engine:'api',apiKind:'image'},cloneSmartSettings:s=>({...s}),smartSettingsForNode:()=>({}),
    validOutpaintSize:()=>null,selfReferenceImagesForNode:()=>[],defaultReferenceImagesFor:()=>[],outputImagesForNode:()=>[],buildPromptRequestForNode:()=>({prompt:'hello',displayPrompt:'hello',refs:[]}),smartRunNeedsPrompt:()=>true,
    isApiLikeEngine:()=>true,smartRunSnapshot:()=>({settings:{}}),nowMs:()=>1,rememberRecentSmartSettings:()=>{},render:()=>counts.render++,smartCascadePathForCtx:()=>null,
    generateUrlsForCurrentSettings:wait,runApiGeneration:async()=>({taskIds:['t']}),queueAndResumeSmartApiTasks:wait,stripImageGenerationMeta:x=>x,copyMediaSizeFields:(item,x)=>x,
    replaceOutputsToNodeWithHistory:()=>counts.replace++,attachRunMeta:()=>counts.replace++,addSmartGenerationLog:()=>counts.log++,tr:s=>s};
   installSmartSelection(c);
- install(c,'smart-canvas.js','canvasTaskWriteGuard',kind==='step'?'runCascadeStepIntoNode':'runLoopRoundIntoSlot');
-  const waiting=(kind==='step'?c.runCascadeStepIntoNode(source,out,[]):c.runLoopRoundIntoSlot(loop,source,out,1,{})).then(value=>({value}),error=>({error}));
+ install(c,'smart-canvas.js','canvasTaskWriteGuard','runCascadeStepIntoNode');
+  const waiting=c.runCascadeStepIntoNode(source,out,[]).then(value=>({value}),error=>({error}));
   await until(()=>reached);change(c,scenario,source,out);const before=clone({nodes:c.nodes,settings:c.settings,counts});gate.resolve();const result=await waiting;
   if(scenario==='unchanged'&&outcome!=='paused'){assert.equal(Boolean(result.error),outcome==='failure');if(outcome==='success')assert.ok(counts.replace>0);}
   else{assert.equal(result.error.resultPending,true);assert.deepEqual(clone({nodes:c.nodes,settings:c.settings,counts}),before,outcome+scenario);}

@@ -17,21 +17,20 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
  const config={engine:'api',apiKind:kind,provider_id:'p',model:'m',videoProvider:'p',videoModel:'v',count,videoTempShLinks:[]};
  const src={id:'src',type:'smart-image',images:branch?[{url:'/assets/cloud/ast_original/original.png',runPrompt:'old metadata'}]:[],promptDraftHtml:'original',promptDraftText:'original',runSettings:clone(config)};
  const target={id:'out',type:'smart-image',images:[]};
- const loop={id:'loop',type:'smart-loop',images:[],prompt:'loop input',loopStart:1};
  const win={CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}},MemberCanvasEdit:{active:{memberId:'m',workspaceId:'w',lease},get canSave(){return lease.canEdit;},get canEdit(){return lease.canEdit;},markDirty(){}}};
  win.VideoDurationPolicy=require('../static/js/video-duration-policy.js');win.CanvasTaskBindings=bindings;win.CanvasTaskResults={guard:(targets,read)=>guards.guard(targets,read,win),capture:()=>guards.capture(win),pending:guards.pending};
  const requests=[],records=new Map(),counts={save:0,submit:0},timers=[];
  let reached=false,serverDocument=null;
  const boundary=async where=>{if(stage===where){reached=true;await gate.promise;}};
- const c={window:win,canvasId:'c',canvas:{id:'c',kind:'smart',title:'test',logs:[],connections:entry==='main'?[]:[{from:'src',to:'out'},...(entry==='loop'?[{from:'loop',to:'src'}]:[])]},
-  nodes:entry==='main'?[src]:[loop,src,target],selectedId:'src',selectedImage:{},settings:clone(config),canvasDefaultSmartSettings:clone(config),initialSmartSettings:clone(config),
+ const c={window:win,canvasId:'c',canvas:{id:'c',kind:'smart',title:'test',logs:[],connections:entry==='main'?[]:[{from:'src',to:'out'}]},
+  nodes:entry==='main'?[src]:[src,target],selectedId:'src',selectedImage:{},settings:clone(config),canvasDefaultSmartSettings:clone(config),initialSmartSettings:clone(config),
   composer:{classList:{contains:()=>true,toggle(){},remove(){}}},smartCascadeSilentSelection:false,isSmartImageNode:n=>n?.type==='smart-image',
   loadPromptDraft:n=>{c.promptInput.innerHTML=n.promptDraftHtml||'';},promptInputNodesFor:()=>[],setPromptInputLocked(){},syncCascadeRunButton(){},positionComposerForNode(){},renderInputPromptPreview(){},updateProviderModels(){},
   promptInput:{innerHTML:'original',dataset:{},style:{setProperty(){}}},activeComposerNode:()=>c.nodes.find(n=>n.id===c.smartSelection.nodeId),selectedNode:()=>c.nodes.find(n=>n.id===c.smartSelection.nodeId),promptPlainText:()=>c.promptInput.innerHTML,
   smartClientId:'page',smartSaveInFlight:null,smartSaveAgain:false,smartCanvasDirty:false,smartSaveErrorNotified:false,canvasSyncInFlight:false,saveTimer:null,viewport:{x:0,y:0,scale:1},
-  smartServerNodeIds:new Set(),smartServerConnectionKeys:new Set(),smartLoopContext:null,activeSmartTaskPolls:new Map(),activeSmartNodeResumes:new Map(),transientSmartCloudLinks:[],
+  smartServerNodeIds:new Set(),smartServerConnectionKeys:new Set(),activeSmartTaskPolls:new Map(),activeSmartNodeResumes:new Map(),transientSmartCloudLinks:[],
   setTimeout:(fn,ms)=>{if(ms===2000)queueMicrotask(fn);else timers.push(fn);return 1;},clearTimeout(){},Date,JSON,Object,console,AbortSignal,
-  isSmartCanvasLocked:()=>!lease.canEdit,cloneSmartSettings:s=>clone(s||{}),updateSmartCanvasNav(){},responseErrorMessage:async()=> 'save failed',
+  isSmartCanvasLocked:()=>!lease.canEdit,cloneSmartSettings:s=>clone(s||{}),updateSmartCanvasNav(){},syncPixmaxSaveStatus(){},responseErrorMessage:async()=> 'save failed',
   tr:s=>s,toast:s=>c.message=s,nowMs:()=>1000,render(){},refreshSmartNodes(){},refreshConnectionLayer(){},pushUndo(){},undoSuppressed:false,
   smartSettingsForNode:n=>n.runSettings||c.settings,buildPromptRequest:()=>({prompt:c.promptInput.innerHTML,displayPrompt:c.promptInput.innerHTML,refs:[]}),
   buildPromptRequestForNode:n=>({prompt:n.promptDraftText,displayPrompt:n.promptDraftText,refs:[]}),smartRunNeedsPrompt:()=>true,
@@ -63,11 +62,11 @@ function fixture(kind='image',{stage='poll',branch=false,count=2,entry='main',st
   await boundary('poll');return {ok:true,json:async()=>clone(records.get(url.split('/').at(-1)))};
  };
  installSmartSelection(c);
- install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','pauseSmartTaskInput','canvasForStorage','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',
-  'createSmartComposer','smartComposerChanges','savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode','runLoopRoundIntoSlot');
+ install(c,'resultMediaUrls','canvasTaskWriteGuard','smartTaskInputDocument','smartTaskInputBinding','attachSmartTaskBinding','smartTaskUiGuard','pauseSmartTaskInput','canvasForStorage','removeRetiredSmartLoopNodes','settingsForStorage','mediaItemForStorage','stripImageGenerationMeta',
+  'createSmartComposer','smartComposerChanges','savePromptDraftForCurrent','saveCanvas','scheduleSave','runApiGeneration','runApiVideoGeneration','pollSmartCanvasTask','queueAndResumeSmartApiTasks','resumeSmartPendingNode','finalizeSmartPendingTask','runGeneration','generateUrlsForCurrentSettings','runCascadeStepIntoNode');
  c.smartComposer=c.createSmartComposer();c.smartComposer.refresh();
  vm.runInContext(readCanvasSource(path.join(__dirname,'../static/js/canvas-api.js'),'utf8'),c);
- return {c,src,target,loop,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):entry==='loop'?c.runLoopRoundIntoSlot(loop,src,target,1,{}):c.runGeneration()};
+ return {c,src,target,lease,requests,records,counts,gate,timers,reached:()=>reached,get out(){return entry!=='main'||branch?target:src;},start:()=>entry==='step'?c.runCascadeStepIntoNode(src,target,[]):c.runGeneration()};
 }
 test('smart partial batch submission keeps and completes the accepted sibling',async()=>{
  const f=fixture('image'),transport=f.c.fetch;let attempts=0;
@@ -92,7 +91,7 @@ for(const tool of ['panorama','depth'])for(const changed of [false,true])test('m
  if(changed)assert.equal(f.c.promptInput.innerHTML,'keep new prompt');
  else assert.equal(f.c.message,undefined);
 });
-for(const kind of ['image','video'])for(const entry of ['main','step','loop']){
+for(const kind of ['image','video'])for(const entry of ['main','step']){
  test('smart '+entry+' '+kind+' binds saved input through real POST, poll and result write',async()=>{
   const f=fixture(kind,{entry}),waiting=f.start();await until(f.reached);f.gate.resolve();await waiting;
   assert.equal(f.out.images.length,kind==='image'?2:1);assert.ok(f.counts.save>=1);assert.equal(f.c.message,undefined);
@@ -135,7 +134,7 @@ for(const kind of ['image','video'])test('smart '+kind+' failed preflight save n
  const f=fixture(kind);f.c.window.CanvasApi.saveCanvas=async()=>({ok:false,status:409});await f.start();assert.equal(f.requests.length,0);assert.equal(f.out.images.length,0);
 });
 test('smart video archive during in-flight POST advances its own baseline',async()=>{
- const f=fixture('video',{entry:'loop',stage:'submit'});f.target.images=[{url:'/assets/cloud/ast_old/old.png'}];const waiting=f.start();await until(f.reached);await until(()=>f.c.nodes.some(n=>n.id==='history'));
+ const f=fixture('video',{entry:'step',stage:'submit'});f.target.images=[{url:'/assets/cloud/ast_old/old.png'}];const waiting=f.start();await until(f.reached);await until(()=>f.c.nodes.some(n=>n.id==='history'));
  assert.equal(f.target.images.length,0);assert.equal(f.c.nodes.find(n=>n.id==='history').images[0].url,'/assets/cloud/ast_old/old.png');
  f.gate.resolve();await waiting;assert.equal(f.target.images.length,1);assert.equal(f.target.pendingTasks,undefined);
 });

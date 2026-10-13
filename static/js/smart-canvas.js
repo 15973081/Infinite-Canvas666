@@ -46,7 +46,6 @@ const smartMinimap = createSmartMinimap();
 const smartSelection = createSmartSelection();
 const smartComposer = createSmartComposer();
 let dragState = null;
-let loopInsertPreview = null;
 let selectionState = null;
 let isRKeyDown = false;
 let selectionJustFinished = false;
@@ -84,12 +83,11 @@ let lastConfigRefreshAt = 0;
 let zoomPreviewState = null;
 let runTimerInterval = null;
 let smartCascadeRunning = false;
-let smartCascadeActiveLoopId = '';
+let smartCascadeActiveRunId = '';
 let smartCascadeStopRequested = false;
 let smartCascadeSilentSelection = false;
 let smartCascadeRunPath = null;
 const smartCascadeRuns = new Map();
-let smartLoopContext = null;
 let transientSmartCloudLinks = [];
 let runBtnCooldownToken = 0;
 let smartRunStateToken = 0;
@@ -312,6 +310,7 @@ async function loadCanvas(options={}){
         document.title = canvas.title || '智能画布';
         updateSmartCanvasNav();
         updateSmartCanvasCostButton();
+        const cleanedRetiredNodes = removeRetiredSmartLoopNodes(canvas);
         nodes = (Array.isArray(canvas.nodes) ? canvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
         nodes.forEach(n => {
             const pendingTasks = smartPendingTasks(n);
@@ -336,7 +335,7 @@ async function loadCanvas(options={}){
         updateProviderModels();
         applyViewport();
         render();
-        if(cleanedDetachedInputs) scheduleSave();
+        if(cleanedDetachedInputs || cleanedRetiredNodes) scheduleSave();
         resumeSmartPendingTasks();
         startCanvasMetaPoll();
         if(window.CanvasSession?.enabled){
@@ -405,7 +404,6 @@ const SMART_IMAGE_DROP_TEXT_TYPES = [
 ];
 const SMART_IMAGE_DROP_TYPE_HINT_RE = /^(?:files?|image\/.+|text\/(?:uri-list|html|plain|x-moz-url|x-file-url)|downloadurl|public\.(?:file-url|url)|uniformresourcelocator|filenamew?)$|application\/x-qt-(?:windows-mime|image)|application\/x-moz-file|com\.eagle/i;
 
-const smartLoopPromptVisiting = new Set();
 
 class ImageTaskRecoverSignal extends Error {
     constructor(info){
@@ -452,12 +450,7 @@ if(promptResize){
 }
 runBtn.onclick = runGeneration;
 cascadeRunBtn.onclick = () => {
-    const node = selectedNode();
-    const loopId = resolveSmartCascadeLoop(node?.id)?.node?.id || '';
-    if(loopId && smartCascadeIsLoopRunning(loopId)) {
-        requestSmartCascadeStop(loopId);
-        return;
-    }
+    if(smartCascadeAnyRunning()){ requestSmartCascadeStop(); return; }
     runSmartCascade();
 };
 fileInput.onchange = () => {

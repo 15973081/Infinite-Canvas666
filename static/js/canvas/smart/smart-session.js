@@ -97,6 +97,7 @@ function mergeSmartConnections(localConns, remoteConns, nodeIds){
 function applyMergedServerCanvas(serverCanvas){
     if(window.CanvasSession?.enabled) return false;
     if(!serverCanvas || !canvas) return false;
+    removeRetiredSmartLoopNodes(serverCanvas);
     const remoteNodes = (Array.isArray(serverCanvas.nodes) ? serverCanvas.nodes : []).map(normalizeLegacySmartNode).filter(Boolean);
     const mergedNodes = mergeSmartNodeLists(nodes, remoteNodes);
     const nodeIds = new Set(mergedNodes.map(n => n.id));

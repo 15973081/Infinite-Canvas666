@@ -149,7 +149,7 @@ function setSmartImageMode(node, mode){
     delete node.imageMode;
 }
 
-function smartImageUsesWorkflowInput(node, ctx=smartLoopContext){
+function smartImageUsesWorkflowInput(node, ctx=null){
     return Boolean(isSmartImageNode(node) && ctx?.forceWorkflow);
 }
 
@@ -479,7 +479,6 @@ function imageLayout(images, scale=1, node=null){
         return {cols:1,rows:1,width:oldDefault?w:Number(node.w)||w,height:oldDefault?h:Number(node.h)||h,thumb:96,single:true};
     }
     if(node?.type === 'smart-prompt') return {cols:1, rows:1, ...promptNodeLayoutSize(node), thumb:96, single:true};
-    if(node?.type === 'smart-loop') return {cols:1, rows:1, width:Math.round(Number(node.w) || smartLoopWidth(node)), height:Math.round(Math.max(Number(node.h) || 0, smartLoopHeight(node))), thumb:96, single:true};
     const count = (images || []).length;
     const s = node?.type === 'smart-image' || !node?.type ? mediaNodeDefaultScale(node) : (Number.isFinite(scale) && scale > 0 ? scale : 1);
     if(count === 0){
@@ -524,31 +523,6 @@ function imageLayout(images, scale=1, node=null){
     const width = Math.max(Math.round(226*s), cols * cell + PAD);
     const height = visibleRows * cell - 8 + PAD;
     return {cols, rows, visibleRows, width, height, thumb};
-}
-
-function smartLoopCount(node){
-    return Math.max(1, Math.min(100, Number(node?.count || 1) || 1));
-}
-
-function smartLoopWidth(node){
-    return 340;
-}
-
-function smartLoopHeight(node){
-    let h = 168;
-    if(node?.imageInput) h += 72;
-    if(node?.showPrompt) {
-        const promptCount = Math.max(1, smartLoopPromptFieldValues(node).length);
-        h += 94 + promptCount * 58 + smartLoopUpstreamPromptPreviewHeight(node);
-    }
-    h += smartNodeInputThumbsHeight(smartLoopPreviewImages(node));
-    return h;
-}
-
-function fitSmartLoopNode(node){
-    if(!node || node.type !== 'smart-loop') return;
-    node.w = smartLoopWidth(node);
-    node.h = smartLoopHeight(node);
 }
 
 function withSmartComputation(...args){return smartWorkspaceView.withComputation(...args);}
@@ -612,7 +586,6 @@ function renderSmartNodeHtml(node){
     const scale = nodeScale(node);
     const layout = imageLayout(imgs, scale, node);
     const isPrompt = node.type === 'smart-prompt';
-    const isLoop = node.type === 'smart-loop';
     const isImageNode = node.type === 'smart-image' || !node.type;
     const generationKind = smartGenerationKind(node);
     const generationTitle = generationKind === 'video' ? '视频生成节点' : '图像生成节点';
@@ -627,12 +600,12 @@ function renderSmartNodeHtml(node){
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
     const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : '';
     const body = nodeBodyHtml(node, layout);
-    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
-        ${!isPrompt && !isLoop ? pixmaxNodeCaption(node,singleMediaKind==='audio'?'audio':generationKind==='video'||singleMediaKind==='video'?'video':'image',node.localDepth?'视频生成节点-深度':generationKind?generationTitle:singleMediaKind==='video'?'视频节点':singleMediaKind==='audio'?'音频节点':'图像节点') : ''}
+    return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
+        ${!isPrompt ? pixmaxNodeCaption(node,singleMediaKind==='audio'?'audio':generationKind==='video'||singleMediaKind==='video'?'video':'image',node.localDepth?'视频生成节点-深度':generationKind?generationTitle:singleMediaKind==='video'?'视频节点':singleMediaKind==='audio'?'音频节点':'图像节点') : ''}
         ${isPrompt ? pixmaxNodeCaption(node,'text','文本生成节点') : ''}
         ${smartNodeToolbarHtml(node)}
         <div class="node-body">${body}</div>
-        ${imgs.length || pendingCount || isQueued || recoveryOnly || isPrompt || isLoop ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
+        ${imgs.length || pendingCount || isQueued || recoveryOnly || isPrompt ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
         ${pixmaxNodePorts()}
     </div>`;
 }
@@ -2034,136 +2007,6 @@ function promptNodeBodyHtml(node){
     </div>`;
 }
 
-function loopNumberControlHtml({label, value, key, min=1, max=100, quick=[1,2,3,4,5,6,8,10]}){
-    const v = Math.max(min, Math.min(max, Number(value) || min));
-    return `<div class="loop-number-control">
-        <button class="loop-smart-control loop-number-trigger" type="button"><span>${escapeHtml(label)}</span><strong>${v}</strong></button>
-        <div class="loop-number-popover">
-            <div class="loop-number-grid">
-                ${quick.map(n => `<button type="button" class="loop-smart-control loop-number-cell ${n === v ? 'active' : ''}" data-loop-number="${escapeHtml(key)}" data-loop-value="${n}">${n}</button>`).join('')}
-            </div>
-            <label class="loop-number-custom">
-                <span>${escapeHtml('自定义')}</span>
-                <input class="loop-smart-control loop-number-input" type="number" min="${min}" max="${max}" step="1" data-loop-number-input="${escapeHtml(key)}" value="${v}">
-            </label>
-        </div>
-    </div>`;
-}
-
-function smartLoopTokenLabel(token){
-    if(token === '《计数》' || token === '[计数]') return '计数';
-    return token;
-}
-
-function smartLoopTokenChipHtml(token){
-    return `<span class="loop-smart-token-chip" contenteditable="false" data-token="${escapeHtml(token)}"><span>${escapeHtml(smartLoopTokenLabel(token))}</span><button type="button" aria-label="${escapeHtml('删除')}" title="${escapeHtml('删除')}">×</button></span>`;
-}
-
-function smartLoopVariableHtml(text){
-    return String(text || '').split(/(《计数》|\[计数\])/g).map(part => {
-        if(part === '《计数》' || part === '[计数]') return smartLoopTokenChipHtml('《计数》');
-        return escapeHtml(part);
-    }).join('');
-}
-
-function smartLoopEditorText(editor){
-    const walk = node => {
-        if(node.nodeType === Node.TEXT_NODE) return node.nodeValue || '';
-        if(node.nodeType !== Node.ELEMENT_NODE) return '';
-        if(node.classList?.contains('loop-smart-token-chip')) return node.dataset.token || '';
-        if(node.tagName === 'BR') return '\n';
-        return [...node.childNodes].map(walk).join('');
-    };
-    return [...(editor?.childNodes || [])].map(walk).join('').replace(/\u00a0/g, ' ');
-}
-
-function insertSmartLoopToken(editor, token){
-    if(!editor) return;
-    editor.focus();
-    const chipWrap = document.createElement('span');
-    chipWrap.innerHTML = smartLoopTokenChipHtml(token);
-    const chip = chipWrap.firstElementChild;
-    const spacer = document.createTextNode(' ');
-    const sel = window.getSelection();
-    if(sel && sel.rangeCount && editor.contains(sel.anchorNode)){
-        const range = sel.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(spacer);
-        range.insertNode(chip);
-        range.setStartAfter(spacer);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-    } else {
-        editor.appendChild(chip);
-        editor.appendChild(spacer);
-    }
-}
-
-function smartLoopBodyHtml(node){
-    node.count = smartLoopCount(node);
-    node.mode = node.mode === 'parallel' ? 'parallel' : 'serial';
-    node.loopStart = Math.max(1, Number(node.loopStart) || 1);
-    node.imageBatchSize = Math.max(1, Math.min(100, Number(node.imageBatchSize) || 1));
-    node.showPrompt = Boolean(node.showPrompt);
-    node.imageInput = Boolean(node.imageInput);
-    const imageCount = smartLoopInputImages(node, {index:node.loopStart}).length;
-    const loopThumbs = smartNodeInputThumbsHtml(smartLoopPreviewImages(node));
-    const promptItems = smartLoopInputPromptItems(node);
-    const promptFields = smartLoopPromptFieldValues(node);
-    const visiblePromptFields = promptFields.length ? promptFields : [''];
-    const promptHint = promptItems.length
-        ? `识别到 ${promptItems.length} 条提示词，按计数轮流输出`
-        : '可使用 [计数] 作为变量';
-    const currentUpstreamPrompt = smartLoopSelectedInputPrompt(node, {index:node.loopStart});
-    const defaultPrompt = '现在生成第《计数》张卖点图片';
-    const loopRunState = smartCascadeRunForLoop(node.id);
-    const loopRunning = Boolean(loopRunState);
-    const loopStopping = Boolean(loopRunState?.stopRequested);
-    return `<div class="loop-smart-card ${node.imageInput ? 'has-image' : ''} ${node.showPrompt ? 'has-prompt' : ''}">
-        <div class="loop-smart-row loop-smart-top">
-            <div class="loop-smart-seg">
-                <button type="button" class="loop-smart-control ${node.mode !== 'parallel' ? 'active' : ''}" data-loop-mode="serial">${escapeHtml('循环')}</button>
-                <button type="button" class="loop-smart-control ${node.mode === 'parallel' ? 'active' : ''}" data-loop-mode="parallel" title="${escapeHtml('智能画布会按轮落盘，避免覆盖同一目标节点')}">${escapeHtml('并发')}</button>
-            </div>
-        </div>
-        <div class="loop-smart-row">
-            <button class="loop-smart-control loop-smart-toggle ${node.imageInput ? 'active' : ''}" type="button" data-loop-toggle="image"><i data-lucide="image"></i><span>${escapeHtml('图片')}</span></button>
-            <button class="loop-smart-control loop-smart-toggle ${node.showPrompt ? 'active' : ''}" type="button" data-loop-toggle="prompt"><i data-lucide="text-cursor-input"></i><span>${escapeHtml('提示词')}</span></button>
-        </div>
-        ${node.imageInput ? `<div class="loop-smart-panel">
-            ${loopThumbs}
-            <div class="loop-smart-mini">
-                ${loopNumberControlHtml({label:'批次', value:node.imageBatchSize, key:'imageBatchSize', max:100, quick:[1,2,3,4,5,6,8,10]})}
-            </div>
-            <div class="loop-smart-note">${imageCount ? escapeHtml(`当前会输出 ${imageCount} 张图片`) : escapeHtml('把图片或图片组连接到左侧输入口')}</div>
-        </div>` : ''}
-        ${node.showPrompt ? `<div class="loop-smart-panel prompt-panel">
-            ${currentUpstreamPrompt ? `<div class="loop-smart-upstream">
-                <div class="loop-smart-upstream-label">${escapeHtml(promptHint)}</div>
-                <div class="loop-smart-upstream-text">${escapeHtml(currentUpstreamPrompt)}</div>
-            </div>` : ''}
-            <div class="loop-smart-prompt-list">
-                ${visiblePromptFields.map((value, index) => `<div class="loop-smart-prompt-item">
-                    <div class="loop-smart-prompt-index">${index + 1}</div>
-                    <div class="loop-smart-control loop-smart-text" contenteditable="true" data-loop-prompt-index="${index}" data-placeholder="${escapeHtml('例如：现在生成第[计数]个卖点')}">${smartLoopVariableHtml(value || (index === 0 && !promptFields.length ? defaultPrompt : ''))}</div>
-                    <button class="loop-smart-control loop-smart-icon-btn" type="button" data-loop-prompt-delete="${index}" ${visiblePromptFields.length <= 1 ? 'disabled' : ''} title="${escapeHtml('删除')}" aria-label="${escapeHtml('删除')}">×</button>
-                </div>`).join('')}
-            </div>
-            <div class="loop-smart-row loop-smart-prompt-actions">
-                <button class="loop-smart-control loop-smart-token loop-smart-counter-token" type="button" data-loop-token="《计数》">${escapeHtml('计数')}</button>
-                <span class="loop-smart-note">${escapeHtml(promptHint)}</span>
-                <button class="loop-smart-control loop-smart-add-prompt" type="button" data-loop-prompt-add="1" title="新增" aria-label="新增"><i data-lucide="plus"></i></button>
-            </div>
-        </div>` : ''}
-        <div class="loop-smart-footer">
-            ${loopNumberControlHtml({label:'起始计数', value:node.loopStart, key:'loopStart', max:9999, quick:[1,2,3,4,5,6,8,10]})}
-            ${loopNumberControlHtml({label:'次数', value:node.count, key:'count', max:100, quick:[1,2,3,4,5,6,8,10]})}
-            <button class="loop-smart-control loop-smart-run ${loopRunning ? 'is-stop' : ''}" type="button" data-loop-run="${escapeHtml(node.id)}" ${loopStopping ? 'disabled' : ''}><i data-lucide="${loopRunning ? 'square' : 'workflow'}"></i><span>${escapeHtml(loopRunning ? smartCascadeStopText(loopStopping) : '一键运行')}</span></button>
-        </div>
-    </div>`;
-}
-
 function nodeBodyHtml(node, layout){
     if(node.localDepth && !(node.images || []).length)return smartLocalDepthBodyHtml(node);
     const tasks=window.CanvasSession?.enabled ? smartPendingTasks(node) : [];
@@ -2184,7 +2027,6 @@ function nodeBodyHtml(node, layout){
 
 function smartNodeMediaBodyHtml(node, layout){
     if(node.type === 'smart-prompt') return promptNodeBodyHtml(node);
-    if(node.type === 'smart-loop') return smartLoopBodyHtml(node);
     const imgs = (node.images || []).map(imageForDisplay);
     if(window.CanvasSession?.enabled && smartPendingTasks(node).length && !imgs.length)return '';
     const pendingCount = smartNodePendingCount(node);
@@ -2448,163 +2290,6 @@ function bindPromptNodeControls(el, node){
     textEl.addEventListener('blur',()=>{view.textContent=node.text||'双击开始输入...';view.classList.toggle('empty',!node.text?.trim());view.scrollTop=textEl.scrollTop;view.hidden=false;textEl.hidden=true;textEl.readOnly=true;changed=false;});
 }
 
-function bindLoopNodeControls(el, node){
-    el.querySelectorAll('.loop-smart-control').forEach(control => {
-        control.addEventListener('mousedown', e => e.stopPropagation());
-        control.addEventListener('click', e => e.stopPropagation());
-        control.addEventListener('dblclick', e => e.stopPropagation());
-    });
-    const loopNumberBounds = key => {
-        if(key === 'loopStart') return {min:1, max:9999};
-        if(key === 'imageBatchSize') return {min:1, max:100};
-        return {min:1, max:100};
-    };
-    const normalizeLoopNumber = (key, rawValue) => {
-        const bounds = loopNumberBounds(key);
-        return Math.max(bounds.min, Math.min(bounds.max, Number(rawValue) || bounds.min));
-    };
-    const syncLoopNumberUi = (source, key, value) => {
-        const control = source?.closest?.('.loop-number-control');
-        if(!control) return;
-        const display = control.querySelector('.loop-number-trigger strong');
-        if(display) display.textContent = value;
-        control.querySelectorAll('[data-loop-value]').forEach(cell => {
-            cell.classList.toggle('active', Number(cell.dataset.loopValue) === value);
-        });
-    };
-    const setLoopNumber = (key, rawValue, rerender=true, source=null) => {
-        const value = normalizeLoopNumber(key, rawValue);
-        if(key === 'count') node.count = smartLoopCount({count:value});
-        if(key === 'loopStart') node.loopStart = value;
-        if(key === 'imageBatchSize') node.imageBatchSize = value;
-        scheduleSave();
-        if(rerender) refreshSmartNodes([node.id], {forceIds:[node.id]});
-        else syncLoopNumberUi(source, key, value);
-    };
-    el.querySelectorAll('[data-loop-number]').forEach(btn => {
-        btn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            setLoopNumber(btn.dataset.loopNumber, btn.dataset.loopValue, true);
-        };
-    });
-    el.querySelectorAll('[data-loop-number-input]').forEach(input => {
-        input.oninput = e => {
-            e.stopPropagation();
-            setLoopNumber(input.dataset.loopNumberInput, input.value, false, input);
-        };
-        input.onchange = e => {
-            e.stopPropagation();
-            setLoopNumber(input.dataset.loopNumberInput, input.value, true);
-        };
-    });
-    el.querySelectorAll('[data-loop-mode]').forEach(btn => {
-        btn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            const previousMode = node.mode === 'parallel' ? 'parallel' : 'serial';
-            node.mode = btn.dataset.loopMode === 'parallel' ? 'parallel' : 'serial';
-            refreshSmartNodes([node.id], {forceIds:[node.id]});
-            if(previousMode !== node.mode && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
-                const segment = world.querySelector('.image-node[data-id="' + CSS.escape(node.id) + '"] .loop-smart-seg');
-                if(segment){
-                    segment.classList.add('studio-switch-motion');
-                    segment.addEventListener('animationend',()=>segment.classList.remove('studio-switch-motion'),{once:true});
-                }
-            }
-            scheduleSave();
-        };
-    });
-    el.querySelectorAll('[data-loop-toggle]').forEach(btn => {
-        btn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            if(btn.dataset.loopToggle === 'image') node.imageInput = !node.imageInput;
-            if(btn.dataset.loopToggle === 'prompt') {
-                node.showPrompt = !node.showPrompt;
-                if(node.showPrompt && !smartLoopActivePromptFieldValues(node).length) setSmartLoopPromptFieldValues(node, ['现在生成第《计数》张卖点图片']);
-            }
-            fitSmartLoopNode(node);
-            refreshSmartNodes([node.id], {forceIds:[node.id]});
-            scheduleSave();
-        };
-    });
-    const syncPromptFieldsFromDom = () => {
-        const values = [...el.querySelectorAll('[data-loop-prompt-index]')]
-            .sort((a, b) => Number(a.dataset.loopPromptIndex) - Number(b.dataset.loopPromptIndex))
-            .map(input => smartLoopEditorText(input));
-        setSmartLoopPromptFieldValues(node, values);
-    };
-    let activePromptEditor = null;
-    el.querySelectorAll('.loop-smart-text').forEach(text => {
-        bindScrollableText(text);
-        text.onfocus = () => { activePromptEditor = text; };
-        text.oninput = () => { syncPromptFieldsFromDom(); scheduleSave(); };
-        text.addEventListener('click', e => {
-            const remove = e.target.closest?.('.loop-smart-token-chip button');
-            if(!remove) return;
-            e.preventDefault();
-            e.stopPropagation();
-            remove.closest('.loop-smart-token-chip')?.remove();
-            syncPromptFieldsFromDom();
-            scheduleSave();
-        });
-    });
-    el.querySelectorAll('[data-loop-prompt-add]').forEach(btn => {
-        btn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            syncPromptFieldsFromDom();
-            const values = smartLoopPromptFieldValues(node);
-            setSmartLoopPromptFieldValues(node, [...values, '']);
-            fitSmartLoopNode(node);
-            refreshSmartNodes([node.id], {forceIds:[node.id]});
-            scheduleSave();
-        };
-    });
-    el.querySelectorAll('[data-loop-prompt-delete]').forEach(btn => {
-        btn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            syncPromptFieldsFromDom();
-            const removeIndex = Number(btn.dataset.loopPromptDelete);
-            const values = smartLoopPromptFieldValues(node);
-            if(values.length <= 1) return;
-            values.splice(removeIndex, 1);
-            setSmartLoopPromptFieldValues(node, values);
-            fitSmartLoopNode(node);
-            refreshSmartNodes([node.id], {forceIds:[node.id]});
-            scheduleSave();
-        };
-    });
-    const firstText = el.querySelector('.loop-smart-text');
-    const targetPromptEditor = () => activePromptEditor && el.contains(activePromptEditor) ? activePromptEditor : firstText;
-    el.querySelectorAll('[data-loop-token]').forEach(btn => {
-        btn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            const text = targetPromptEditor();
-            if(!text) return;
-            const token = btn.dataset.loopToken || '《计数》';
-            insertSmartLoopToken(text, token);
-            syncPromptFieldsFromDom();
-            scheduleSave();
-        };
-    });
-    el.querySelectorAll('[data-loop-run]').forEach(btn => {
-        btn.onclick = e => {
-            e.preventDefault();
-            e.stopPropagation();
-            const loopId = btn.dataset.loopRun || node.id;
-            if(smartCascadeIsLoopRunning(loopId)){
-                requestSmartCascadeStop(loopId);
-                return;
-            }
-            runSmartCascadeFromLoop(loopId);
-        };
-    });
-}
-
 function bindScrollableText(el){
     if(!el || el.dataset.scrollBound === '1') return;
     el.dataset.scrollBound = '1';
@@ -2752,7 +2437,6 @@ function bindNodeEvents(elements=null){
         if(!isSmartStudioNode(nodeForControls))bindPixmaxNodeName(el,nodeForControls);
         if(isSmartStudioNode(nodeForControls)) bindSmartStudioNode(el,nodeForControls);
         if(nodeForControls?.type === 'smart-prompt') bindPromptNodeControls(el, nodeForControls);
-        if(nodeForControls?.type === 'smart-loop') bindLoopNodeControls(el, nodeForControls);
         el.onclick = e => {
             e.stopPropagation();
             if(Date.now() < suppressNodeClickUntil) return;
@@ -3031,7 +2715,7 @@ function rectOverlapNode(draggedId, x, y, w, h, excludeIds=[]){
 
 function dragConnectTargetFor(sourceNode, point=lastMouseWorld){
     if(!sourceNode || (dragState?.group || []).length > 1) return null;
-    if(['smart-prompt', 'smart-loop'].includes(sourceNode.type) && point){
+    if(sourceNode.type === 'smart-prompt' && point){
         return rectOverlapNode(sourceNode.id, point.x - 1, point.y - 1, 2, 2, dragState?.groupIds || []);
     }
     const r = nodeRect(sourceNode);
@@ -3042,9 +2726,8 @@ function canAutoConnectDraggedNode(sourceNode, targetNode){
     if(!sourceNode || !targetNode || sourceNode.id === targetNode.id) return false;
     if(isHistoryGroupNode(sourceNode) || isHistoryGroupNode(targetNode)) return false;
     if(isSmartStudioNode(sourceNode) || isSmartStudioNode(targetNode))return true;
-    if(isSmartImageNode(sourceNode)) return isSmartImageNode(targetNode) || targetNode.type === 'smart-loop' || targetNode.type === 'smart-prompt';
-    if(sourceNode.type === 'smart-prompt') return isSmartImageNode(targetNode) || targetNode.type === 'smart-loop';
-    if(sourceNode.type === 'smart-loop') return isSmartImageNode(targetNode);
+    if(isSmartImageNode(sourceNode)) return isSmartImageNode(targetNode) || targetNode.type === 'smart-prompt';
+    if(sourceNode.type === 'smart-prompt') return isSmartImageNode(targetNode);
     return false;
 }
 
@@ -3068,51 +2751,6 @@ function setDropHighlight(targetId){
     if(!targetId) return;
     const el = world.querySelector(`.image-node[data-id="${targetId}"]`);
     if(el) el.classList.add('drop-target');
-}
-
-function connectionMidpoint(conn){
-    const fromNode = nodes.find(n => n.id === conn?.from);
-    const toNode = nodes.find(n => n.id === conn?.to);
-    if(!fromNode || !toNode) return null;
-    const fr = nodeRect(fromNode), tr = nodeRect(toNode);
-    if((conn.kind || 'flow') === 'history'){
-        return {x:(fr.x + fr.width / 2 + tr.x + tr.width / 2) / 2, y:(fr.y + fr.height + tr.y) / 2};
-    }
-    return {x:(fr.x + fr.width + tr.x) / 2, y:(fr.y + fr.height / 2 + tr.y + tr.height / 2) / 2};
-}
-
-function insertionConnectionForNode(node){
-    if(!node || node.type !== 'smart-loop' || !canvas?.connections?.length) return null;
-    const r = nodeRect(node);
-    const cx = (Number(r.x) || 0) + (Number(r.width) || 0) / 2;
-    const cy = (Number(r.y) || 0) + (Number(r.height) || 0) / 2;
-    let best = null;
-    (canvas.connections || []).forEach((conn, index) => {
-        const kind = conn.kind || 'flow';
-        if(!['input','flow'].includes(kind)) return;
-        if(conn.from === node.id || conn.to === node.id) return;
-        const fromNode = nodes.find(n => n.id === conn.from);
-        const toNode = nodes.find(n => n.id === conn.to);
-        if(!fromNode || !toNode || isHistoryGroupNode(fromNode) || isHistoryGroupNode(toNode)) return;
-        const mid = connectionMidpoint(conn);
-        if(!mid) return;
-        const score = Math.hypot(cx - mid.x, cy - mid.y);
-        if(score > 96) return;
-        if(!best || score < best.score) best = {conn, index, score};
-    });
-    return best;
-}
-
-function updateLoopInsertPreview(){
-    const node = dragState ? nodes.find(n => n.id === dragState.id) : null;
-    const next = node?.type === 'smart-loop' && dragState.ctrlGroup && (dragState.group || []).length <= 1
-        ? insertionConnectionForNode(node)
-        : null;
-    const nextPreview = next ? {index:next.index} : null;
-    const changed = (loopInsertPreview?.index ?? -1) !== (nextPreview?.index ?? -1);
-    loopInsertPreview = nextPreview;
-    if(changed) refreshConnectionLayer();
-    return next;
 }
 
 function currentComposerSubject(){
@@ -3403,7 +3041,7 @@ function sameOrderedIds(a, b){
 
 function reorderInputSourceNodes(currentNode, movedId, targetId, placement='before'){
     if(!currentNode || !movedId || !targetId || movedId === targetId) return false;
-    const sourceNodes = smartImageUsesWorkflowInput(currentNode, smartLoopContext)
+    const sourceNodes = smartImageUsesWorkflowInput(currentNode, null)
         ? workflowInputNodesFor(currentNode)
         : inputNodesFor(currentNode);
     const sourceIds = sourceNodes.map(n => n.id).filter(Boolean);
@@ -3778,6 +3416,7 @@ function openCreateMenu(event, {connection=null}={}){
 }
 
 function createNodeFromMenu(type){
+    if(!['image','prompt','generate-image','generate-video','director','editor','storyboard','audio','model'].includes(type)) return;
     if(isSmartCanvasLocked()){ closeCreateMenu(); return; }
     const point = createMenuPoint || viewportCenter();
     const connection = createMenu?._connection;
@@ -3807,7 +3446,6 @@ function createNodeFromMenu(type){
         return node;
     }
     if(type === 'prompt') return createPromptNode(origin.x, origin.y);
-    if(type === 'loop') return createLoopNode(p.x - 135, p.y - 95);
     if(type === 'generate-image') return createGenerationNodeAt(p, 'image');
     if(type === 'generate-video') return createGenerationNodeAt(p, 'video');
     if(['director','editor','storyboard','audio','model'].includes(type)) return createSmartStudioNode(type,p);
@@ -3971,8 +3609,8 @@ function bindSmartWorkspaceGestures(){
             if(!node) return;
             const dx = (e.clientX - resizeState.startX) / viewport.scale;
             const dy = (e.clientY - resizeState.startY) / viewport.scale;
-            const minW = node.type === 'smart-prompt' ? 240 : node.type === 'smart-loop' ? 252 : 48;
-            const minH = node.type === 'smart-prompt' ? 240 : node.type === 'smart-loop' ? 132 : 48;
+            const minW = node.type === 'smart-prompt' ? 240 : 48;
+            const minH = node.type === 'smart-prompt' ? 240 : 48;
             node.w = Math.max(minW, Math.round(resizeState.startW + dx));
             node.h = Math.max(minH, Math.round(resizeState.startH + dy));
             node.scale = 1;
@@ -4043,14 +3681,13 @@ function bindSmartWorkspaceGestures(){
             setAssetDragOver(false);
         }
         const draggedRect = nodeRect(node);
-        const target = (dragState.ctrlGroup || ['smart-image','smart-prompt','smart-loop'].includes(node.type))
-            ? (['smart-prompt','smart-loop'].includes(node.type)
+        const target = (dragState.ctrlGroup || ['smart-image','smart-prompt'].includes(node.type))
+            ? (node.type === 'smart-prompt'
                 ? dragConnectTargetFor(node, screenToWorld(e))
                 : rectOverlapNode(node.id, draggedRect.x, draggedRect.y, draggedRect.width, draggedRect.height, dragState.groupIds))
             : null;
         setDropHighlight(target?.id || '');
         moveNodeElementsDuringDrag();
-        updateLoopInsertPreview();
         if(target) setDropHighlight(target.id);
     };
     window.onmouseup = e => {
@@ -4117,78 +3754,13 @@ function bindSmartWorkspaceGestures(){
                 scheduleSave();
                 return;
             }
-            const autoTarget = draggedNode ? dragConnectTargetFor(draggedNode, screenToWorld(e)) : null;
-            // Original canvas overlaps only move cards. Connections are made through handles.
-            if(draggedNode?.type!=='smart-loop'){
-                commitPendingUndo();clearDropHighlight();dragState=null;
-                suppressNodeClickUntil=Date.now()+180;render();scheduleSave();return;
-            }
-            const insertHit = draggedNode?.type === 'smart-loop' && dragState.ctrlGroup && (dragState.group || []).length <= 1
-                ? insertionConnectionForNode(draggedNode)
-                : null;
-            const draggedRect = draggedNode ? nodeRect(draggedNode) : null;
-            const groupTarget = draggedNode && (draggedNode.images || []).length && (dragState.group || []).length <= 1 && draggedRect
-                ? rectOverlapNode(draggedNode.id, draggedRect.x, draggedRect.y, draggedRect.width, draggedRect.height, dragState.groupIds)
-                : null;
-            if(
-                insertHit &&
-                insertLoopNodeIntoConnection(draggedNode, insertHit)
-            ){
-                stateChanged = true;
-                render();
-            } else if(
-                groupTarget &&
-                (groupTarget.images || []).length > 1 &&
-                mergeImageNodesIntoGroup(draggedNode.id, groupTarget.id)
-            ){
-                stateChanged = true;
-                render();
-            } else if(
-                draggedNode &&
-                autoTarget &&
-                !dragState.ctrlGroup &&
-                (dragState.group || []).length <= 1 &&
-                canAutoConnectDraggedNode(draggedNode, autoTarget) &&
-                connectInputNode(draggedNode.id, autoTarget.id)
-            ){
-                stateChanged = true;
-                restoreDraggedNodePosition();
-                smartSelection.primaryReleased(draggedNode.id);
-                render();
-            } else if(draggedNode && (draggedNode.images || []).length && (dragState.ctrlGroup || (dragState.group || []).length <= 1)){
-                const r = nodeRect(draggedNode);
-                const target = rectOverlapNode(draggedNode.id, r.x, r.y, r.width, r.height, dragState.groupIds);
-                if(target && (target.images || []).length && (dragState.ctrlGroup || (target.images || []).length > 1)){
-                    stateChanged = true;
-                    mergeImageNodesIntoGroup(draggedNode.id, target.id);
-                    render();
-                } else if(target && !dragState.ctrlGroup && (dragState.group || []).length <= 1){
-                    stateChanged = true;
-                    connectInputNode(draggedNode.id, target.id);
-                    if(!dragState.thumbDetached) restoreDraggedNodePosition();
-                    smartSelection.primaryReleased(draggedNode.id);
-                    render();
-                } else if((dragState.group || []).some(item => {
-                    const n = nodes.find(x => x.id === item.id);
-                    return n && (Math.abs((Number(n.x) || 0) - item.ox) > 1 || Math.abs((Number(n.y) || 0) - item.oy) > 1);
-                })){
-                    stateChanged = true;
-                }
-            } else if((dragState.group || []).some(item => {
-                const n = nodes.find(x => x.id === item.id);
-                return n && (Math.abs((Number(n.x) || 0) - item.ox) > 1 || Math.abs((Number(n.y) || 0) - item.oy) > 1);
-            }) || (draggedNode && (Math.abs((draggedNode.x || 0) - dragState.ox) > 1 || Math.abs((draggedNode.y || 0) - dragState.oy) > 1))){
-                stateChanged = true;
-            }
-            if(dragState.thumbDetached) stateChanged = true;
-            if(stateChanged) commitPendingUndo();
-            else discardPendingUndo();
-            if(stateChanged || dragState.thumbDetached) suppressNodeClickUntil = Date.now() + 180;
+            // Connections are made through handles; overlapping cards only moves them.
+            commitPendingUndo();
             clearDropHighlight();
-            loopInsertPreview = null;
             dragState = null;
+            suppressNodeClickUntil = Date.now() + 180;
+            render();
             scheduleSave();
-            refreshConnectionLayer();
         }
     };
     shell.addEventListener('wheel', e => {
@@ -4940,10 +4512,9 @@ function createSmartWorkspaceView(){
             const fr = nodeRect(fromNode), tr = nodeRect(toNode);
             const kind = conn.kind || 'flow';
             const isHistory = kind === 'history';
-            const isInsertPreview = loopInsertPreview?.index === conn.index;
             const edgeKey = `${conn.from}->${conn.to}`;
             const cascadeState = smartCascadeEdgeState(edgeKey);
-            const isCascade = !isHistory && (cascadeKeys.has(edgeKey) || Boolean(cascadeState) || isInsertPreview);
+            const isCascade = !isHistory && (cascadeKeys.has(edgeKey) || Boolean(cascadeState));
             const isPendingLine = Boolean(toNode.pending && !isCascade);
             const fx = isHistory ? fr.x + fr.width / 2 : fr.x + fr.width;
             const fy = isHistory ? fr.y + fr.height : fr.y + fr.height / 2;
@@ -5018,7 +4589,7 @@ function createSmartWorkspaceView(){
         (canvas?.connections || []).forEach((conn,index) => {
             const key = `${conn.from}->${conn.to}`;
             const state = JSON.stringify([conn.from,conn.to,conn.kind,cascadeKeys.has(key),
-                smartCascadeEdgeState(key),loopInsertPreview?.index === index,Boolean(byId.get(conn.to)?.pending)]);
+                smartCascadeEdgeState(key),Boolean(byId.get(conn.to)?.pending)]);
             next.set(index,state);
             if(smartRenderedConnectionStates.get(index) !== state){changed.add(conn.from);changed.add(conn.to);}
         });

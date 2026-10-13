@@ -43,10 +43,10 @@ test('classic partial node refresh passes the same affected ids to immediate and
 test('connection presentation changes refresh endpoints even without a node markup change',()=>{
     let state='';
     const ctx=vm.createContext({nodes:[{id:'a'},{id:'b'},{id:'c'}],canvas:{connections:[{from:'a',to:'b'},{from:'b',to:'c'}]},
-        cascadeConnectionKeys:()=>new Set(),loopInsertPreview:null,
+        cascadeConnectionKeys:()=>new Set(),
         smartCascadeEdgeState:key=>key==='a->b'?state:''});
     load(ctx,'smart-canvas.js','smartChangedConnectionNodes');ctx.smartChangedConnectionNodes();
     assert.deepEqual([...ctx.smartChangedConnectionNodes()],[]);
     state='active';assert.deepEqual([...ctx.smartChangedConnectionNodes()],['a','b']);
-    ctx.loopInsertPreview={index:1};assert.deepEqual([...ctx.smartChangedConnectionNodes()],['b','c']);
+    ctx.nodes[2].pending=1;assert.deepEqual([...ctx.smartChangedConnectionNodes()],['b','c']);
 });

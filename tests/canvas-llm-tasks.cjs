@@ -51,7 +51,7 @@ for(const entry of ['node','chat']){
 }
 
 test('smart prompt busy state is transient across save and result joining',()=>{
- const c={canvasDefaultSmartSettings:{},initialSmartSettings:{},settingsForStorage:x=>x,mediaItemForStorage:x=>x,stripImageGenerationMeta:x=>x};vm.createContext(c);install(c,'smart-canvas.js','canvasForStorage');
+ const c={canvasDefaultSmartSettings:{},initialSmartSettings:{},settingsForStorage:x=>x,mediaItemForStorage:x=>x,stripImageGenerationMeta:x=>x};vm.createContext(c);install(c,'smart-canvas.js','canvasForStorage','removeRetiredSmartLoopNodes');
  const original={nodes:[{id:'prompt',type:'smart-prompt',running:true,text:'keep'},{id:'image',type:'smart-image',running:true,pendingTasks:[{taskId:'other'}]}]};
  const saved=c.canvasForStorage(original);assert.equal(saved.nodes[0].running,undefined);assert.equal(saved.nodes[0].text,'keep');
  assert.equal(original.nodes[0].running,true);assert.equal(saved.nodes[1].running,true);assert.equal(saved.nodes[1].pendingTasks[0].taskId,'other');

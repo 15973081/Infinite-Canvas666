@@ -22,7 +22,7 @@ function adapter(kind) {
         window:{MemberCanvasEdit:{markDirty:()=>context.markCount++}}};
     vm.createContext(context);
     if(kind==='smart')installSmartSelection(context);
-    for(const name of kind==='classic' ? ['serializableCanvasNode','resetTransientRunState','restoreClassicMemberDraft'] : ['serializableSmartNode','restoreSmartMemberDraft']) {
+    for(const name of kind==='classic' ? ['serializableCanvasNode','resetTransientRunState','restoreClassicMemberDraft'] : ['serializableSmartNode','removeRetiredSmartLoopNodes','restoreSmartMemberDraft']) {
         vm.runInContext(sourceFunction(path,name),context);
     }
     return {context,restore:context[kind==='classic'?'restoreClassicMemberDraft':'restoreSmartMemberDraft']};

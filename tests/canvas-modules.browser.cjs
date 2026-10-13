@@ -308,24 +308,13 @@ for(const kind of ['classic', 'smart']) {
         assert.deepEqual(labels.slice(0,-1).map(item => item.apply), kind === 'classic' ? ['应用裁剪','应用扩图','生成遮罩节点','应用画笔','切分到 Output'] : ['应用裁剪','应用扩图','应用画笔']);
         assert.ok(labels.every(item => item.hint && !/^(canvas|smart)\./.test(item.hint)));
         assert.equal(labels.at(-1).hidden, true);
-        const hints = await page.evaluate(kind => {
-            // Supply different upstream counts while exercising the production renderer.
-            const renderHints = [];
-            for(const count of [0,1,12]) {
-                const node = {id:'loop-label-test',type:kind === 'classic' ? 'loop' : 'smart-loop',imageInput:true};
-                if(kind === 'classic') {
-                    loopInputImageRefs = () => Array.from({length:count}, () => ({url:'/test-image.svg'}));
-                    renderHints.push(renderLoopBody(node).querySelector('.loop-image-hint-only').textContent);
-                } else {
-                    smartLoopInputImages = () => Array.from({length:count}, () => ({url:'/test-image.svg'}));
-                    const host = document.createElement('div');
-                    host.innerHTML = smartLoopBodyHtml(node);
-                    renderHints.push(host.querySelector('.loop-smart-note').textContent);
-                }
-            }
-            return renderHints;
-        }, kind);
-        assert.deepEqual(hints, ['把图片或图片组连接到左侧输入口','当前会输出 1 张图片','当前会输出 12 张图片']);
+        if(kind === 'classic'){
+            const hints = await page.evaluate(() => [0,1,12].map(count => {
+                loopInputImageRefs = () => Array.from({length:count}, () => ({url:'/test-image.svg'}));
+                return renderLoopBody({id:'loop-label-test',type:'loop',imageInput:true}).querySelector('.loop-image-hint-only').textContent;
+            }));
+            assert.deepEqual(hints, ['把图片或图片组连接到左侧输入口','当前会输出 1 张图片','当前会输出 12 张图片']);
+        }
         if(kind === 'smart') {
             const toggles = await page.evaluate(() => {
                 const host = document.createElement('div');
