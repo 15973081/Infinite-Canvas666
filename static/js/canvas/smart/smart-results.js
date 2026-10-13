@@ -573,16 +573,6 @@ function nodeRunElapsedMs(node){
     return 0;
 }
 
-function runTimePillHtml(node){
-    if(!node || node.runTimerHidden || node.type === 'smart-prompt') return '';
-    if(window.CanvasSession?.enabled && smartPendingTasks(node).length)return '';
-    const running = Boolean(smartNodePendingCount(node) || node.running);
-    if(!running && !node.runFinishedAt) return '';
-    const cls = running ? '' : ' done';
-    const elapsed=nodeRunElapsedMs(node);
-    return `<span class="run-time-pill${cls}" data-run-timer="${escapeHtml(node.id)}">${elapsed===null?'耗时未知':formatRunDuration(elapsed)}</span>`;
-}
-
 function hideRunTimerForNode(node){
     if(!node || node.runTimerHidden || smartNodePendingCount(node) || node.running || !node.runFinishedAt) return false;
     node.runTimerHidden = true;
@@ -591,6 +581,10 @@ function hideRunTimerForNode(node){
 }
 
 function refreshRunTimerPills(){
+    if(!document.querySelector('[data-run-timer]')){
+        if(runTimerInterval){clearInterval(runTimerInterval);runTimerInterval=null;}
+        return;
+    }
     const active = nodes.some(n => n.type !== 'smart-prompt' && !n.runTimerHidden && (smartNodePendingCount(n) || n.running));
     const byId = new Map(nodes.map(node => [node.id, node]));
     document.querySelectorAll('[data-run-timer]').forEach(el => {

@@ -75,7 +75,7 @@ function positionPixmaxVideoToolbars(){
     const scale=safeScale(viewport.scale),bounds=shell.getBoundingClientRect();
     shell.style.setProperty('--pixmax-toolbar-scale',1/scale);
     shell.style.setProperty('--pixmax-toolbar-width',Math.max(200,bounds.width-24)+'px');
-    world.querySelectorAll('.image-node.selected .pixmax-video-toolbar').forEach(toolbar=>{
+    world.querySelectorAll('.image-node.selected .smart-node-floating-menu').forEach(toolbar=>{
         const card=toolbar.parentElement.getBoundingClientRect(),center=card.left+card.width/2;
         const half=toolbar.offsetWidth/2;
         const x=Math.max(bounds.left+half+12,Math.min(center,bounds.right-half-12));
@@ -154,7 +154,6 @@ function createSmartStudioNode(kind, point, options={}){
 function renderSmartStudioNode(node){
     const rect = imageLayout([],1,node);
     const kind = node.type.slice(6);
-    const icon = {director:'clapperboard',editor:'monitor-play',storyboard:'layout-grid',audio:'music',model:'box'}[kind];
     const label = {director:'编辑场景',editor:'编辑剪辑',storyboard:'打开分镜节点 →',audio:'上传音频',model:'上传 3D 模型'}[kind];
     const media = node.studioPreview || node.images?.[0];
     const previewUrl=media&&(kind==='editor'?pixmaxMediaPoster(media):mediaKindForItem(media)==='image'?displayMediaUrl(media):'');
@@ -162,7 +161,6 @@ function renderSmartStudioNode(node){
     const body = hasPreview ? `<img class="pixmax-studio-preview" src="${escapeAttr(previewUrl)}" alt="${escapeAttr(smartStudioTitle(node))}">` : kind==='storyboard'?`<div class="pixmax-storyboard-card">${pixmaxSvg('storyboard')}<div class="pixmax-steps"><span class="active"><em>✓</em><small>确认镜头</small></span><b></b><span><em>2</em><small>准备资产</small></span><b></b><span><em>3</em><small>生成提示词</small></span></div><button type="button" data-studio-open>打开分镜节点 →</button></div>`:`<div class="pixmax-studio-placeholder">${pixmaxSvg(kind==='audio'?'audio-fill':kind==='editor'?'editor-fill':kind==='director'?'director-fill':'model')}</div>`;
     return `<div class="image-node pixmax-studio-node ${isNodeSelected(node.id)?'selected':''}" data-id="${escapeAttr(node.id)}" style="left:${node.x}px;top:${node.y}px;width:${rect.width}px;height:${rect.height}px">
         ${pixmaxNodeCaption(node,kind,smartStudioTitle(node))}
-        <div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="删除节点"><i data-lucide="trash-2"></i></button>${hasPreview||kind==='model'&&media?`<button type="button" class="mini-x" data-studio-open title="${label}"><i data-lucide="${icon}"></i></button>`:''}</div>
         <div class="node-body">${body}</div><div class="node-resize-handle" data-resize="1"></div>
         ${['director','editor','storyboard'].includes(kind)?pixmaxNodePorts().replace(/<div class="node-port port-out"[\s\S]*$/,''):pixmaxNodePorts()}
         ${kind==='storyboard'?'':`<div class="pixmax-studio-launcher">${kind==='model'&&media?`<small>${escapeHtml(media.name || '3D 模型')}</small>`:''}<button type="button" data-studio-open>${label}</button><button type="button" class="pixmax-studio-more" data-studio-menu aria-label="节点操作">···</button></div>`}

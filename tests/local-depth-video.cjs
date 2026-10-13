@@ -258,11 +258,13 @@ test('smart video creates one result node, keeps preview behavior and saves into
     });
     assert.equal(await page.locator('[data-smart-node-action="depth-video"]').count(),1);
     await page.evaluate(()=>runSmartNodeToolbarAction('depth-source','depth-video'));
+    await page.getByRole('dialog',{name:'深度视频参数'}).getByRole('button',{name:'开始提取'}).click();
     assert.equal(await page.locator('.local-depth-dialog').count(),0);
     assert.equal(await page.evaluate(()=>nodes.length),2);assert.equal(await page.locator('.local-depth-node').count(),1);
     assert.equal(await page.evaluate(()=>nodes[1].x>=nodeRect(nodes[0]).x+nodeRect(nodes[0]).width+60),true);
     assert.equal(await page.locator('.composer.open').count(),0);
-    await page.evaluate(()=>runSmartNodeToolbarAction('depth-source','depth-video'));assert.equal(await page.evaluate(()=>nodes.length),2);
+    await page.evaluate(()=>runSmartNodeToolbarAction('depth-source','depth-video'));
+    await page.getByRole('dialog',{name:'深度视频参数'}).getByRole('button',{name:'开始提取'}).click();assert.equal(await page.evaluate(()=>nodes.length),2);
     await page.evaluate(async()=>{depthOptions.onProgress({text:'提取 3 / 30 帧',progress:10});await depthOptions.onResult(new File(['depth'],'depth-video.mp4',{type:'video/mp4'}));depthOptions.onFinally();});
     assert.equal(await page.evaluate(()=>depthUploads),1);assert.equal(await page.evaluate(()=>nodes.length),2);
     assert.equal(await page.evaluate(()=>nodes[1].images[0].url),'/result.mp4');assert.equal(await page.locator('.local-depth-node').count(),0);
@@ -286,6 +288,8 @@ test('smart media toolbar follows editing access without another node click or r
         LocalDepthVideo.generate=()=>{generatedJobs++;return {close(){},cancel(){},download(){}};};
     });
     const disabled=()=>page.evaluate(()=>['depth-video','depth','panorama'].map(action=>world.querySelector(`[data-smart-node-action="${action}"]`).disabled));
+    await page.locator('.image-node[data-id="source"] video').waitFor();
+    await page.evaluate(()=>window.originalVideo=originalNode.querySelector('video'));
     assert.deepEqual(await disabled(),[true,true,true]);
     await page.evaluate(()=>MemberCanvasEdit.setEditable(true));
     assert.deepEqual(await disabled(),[false,false,false]);
@@ -301,6 +305,7 @@ test('smart media toolbar follows editing access without another node click or r
     await page.evaluate(()=>{render();MemberCanvasEdit.setEditable(true);});
     assert.deepEqual(await disabled(),[false,false,false]);
     await page.locator('[data-smart-node-action="depth-video"]').click();
+    await page.getByRole('dialog',{name:'深度视频参数'}).getByRole('button',{name:'开始提取'}).click();
     assert.equal(await page.evaluate(()=>generatedJobs),1);
     assert.equal(await page.locator('.local-depth-node').count(),1);
     assert.deepEqual(errors,[]);
@@ -323,6 +328,8 @@ test('smart depth progress keeps the card, icon and focused cancel button mounte
             depthOptions.onProgress({text:`提取 ${i} / 50 帧`,progress:i*2});
         }
     });
+    await page.locator('.image-node[data-id="source"] video').waitFor();
+    await page.evaluate(()=>window.sourceVideo=document.querySelector('.image-node[data-id="source"] video'));
     assert.deepEqual(await page.evaluate(()=>({
         card:depthCard===document.querySelector(`.image-node[data-id="${depthTarget.id}"]`),
         icon:depthIcon===depthCard.querySelector('.local-depth-node-icon svg'),

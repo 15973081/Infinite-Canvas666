@@ -39,9 +39,14 @@ body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary {
   color: #fafafa;
 }
 
-/* Video actions stay legible and reachable while the canvas zooms and pans. */
-.smart-node-floating-menu.pixmax-video-toolbar {
+/* Card actions stay legible and reachable while the canvas zooms and pans. */
+.shell .smart-node-floating-menu {
+  position: absolute;
+  left: 50%;
+  z-index: 90;
   display: none;
+  align-items: center;
+  gap: 4px;
   width: max-content;
   max-width: var(--pixmax-toolbar-width, calc(100vw - 24px));
   height: 40px;
@@ -55,14 +60,17 @@ body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary {
   opacity: 1;
   pointer-events: auto;
   transition: none;
+  white-space: nowrap;
+  cursor: default;
 }
-.image-node.selected .pixmax-video-toolbar { display: flex; }
-.world.smart-multi-selected .pixmax-video-toolbar { display: none; }
+.image-node.selected .smart-node-floating-menu { display: flex; }
+.world.smart-multi-selected .smart-node-floating-menu { display: none; }
+.smart-node-floating-menu:not(.pixmax-video-toolbar) { overflow-x:auto; }
 .pixmax-video-toolbar-scroll { display:flex; align-items:center; max-width:100%; overflow-x:auto; scrollbar-width:thin; }
-.pixmax-video-toolbar button { height:30px; padding:0 8px; gap:4px; border-radius:8px; font-size:14px; font-weight:400; flex-shrink:0; color:#aeb6c5; }
-.pixmax-video-toolbar button svg { width:16px; height:16px; }
-.pixmax-video-toolbar button:hover { background:#252529; color:#fafafa; transform:none; }
-.pixmax-video-toolbar button:disabled { opacity:1; color:#59606b; cursor:not-allowed; background:transparent; }
+.shell .smart-node-floating-menu button { display:inline-flex; align-items:center; justify-content:center; height:30px; padding:0 8px; gap:4px; border:0; border-radius:8px; background:transparent; font-size:14px; line-height:1; font-weight:400; flex-shrink:0; color:#aeb6c5; cursor:pointer; transition:none; }
+.shell .smart-node-floating-menu button svg { width:16px; height:16px; }
+.shell .smart-node-floating-menu button:hover { background:#252529; color:#fafafa; transform:none; }
+.shell .smart-node-floating-menu button:disabled { opacity:1; color:#59606b; cursor:not-allowed; background:transparent; }
 .pixmax-video-toolbar-divider { height:20px; width:1px; margin:0 4px; background:#313136; flex-shrink:0; }
 .pixmax-video-depth-menu { position:fixed; z-index:100105; width:300px; padding:16px; background:#141416; border:1px solid #313136; border-radius:12px; color:#aeb6c5; font:14px/1.5 Inter,system-ui,sans-serif; }
 .pixmax-video-depth-menu header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
@@ -92,39 +100,6 @@ body.studio-smart-canvas .video-trim-point label { font-weight:400; }
 
 .composer-head:not(:has(#apiKindToggle[style*="inline-flex"])) {
   display: none;
-}
-
-.media-video-card>.smart-video-play {
-  left: auto;
-  right: 8px;
-  top: 8px;
-  width: 28px;
-  height: 28px;
-  transform: none;
-  opacity: 0;
-  border: 1px solid #313136;
-  border-radius: 8px;
-  background: #141416;
-  color: #aeb6c5;
-  padding: 6px;
-}
-
-.media-video-card:hover>.smart-video-play {
-  opacity: 1;
-}
-
-.media-video-card>.smart-video-play:before {
-  display: none;
-}
-
-.media-video-card>.smart-video-play:hover {
-  transform: none;
-}
-
-.media-video-card>.smart-video-play svg {
-  display: block!important;
-  width: 14px;
-  height: 14px;
 }
 
 .pixmax-topbar .canvas-focus-toggle {
@@ -758,10 +733,6 @@ button,input,textarea {
   outline: 1px solid #aeb6c5;
 }
 
-.node-head,.node-hint {
-  display: none;
-}
-
 .generation-node-caption {
   position: absolute;
   top: -20px;
@@ -902,28 +873,6 @@ button,input,textarea {
   opacity: 1;
 }
 
-.floating-node-actions {
-  display: none !important;
-  position: absolute;
-  left: 50%;
-  top: -60px;
-  transform: translateX(-50%);
-  height: 32px;
-  display: flex;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid #313136;
-  border-radius: 8px;
-  background: #141416;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 8;
-}
-
-.image-node.selected .floating-node-actions {
-  display: none;
-}
-
 .mini-x {
   display: flex;
   align-items: center;
@@ -944,20 +893,6 @@ button,input,textarea {
 .mini-x svg {
   width: 14px;
   height: 14px;
-}
-
-.image-wrap>.image-delete {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  opacity: 0;
-  pointer-events: none;
-  background: #141416;
-}
-
-.image-wrap:hover>.image-delete {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .node-port {

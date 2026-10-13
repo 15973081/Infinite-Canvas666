@@ -626,20 +626,12 @@ function renderSmartNodeHtml(node){
     const faceVerifying = isImageNode && !faceVerified && imgs.some(img => ['Queued','Uploading','Processing'].includes(smartFaceAuthState(img).status));
     const isPending = ((pendingCount || isQueued) && imgs.length === 0);
     const singleMediaKind = imgs.length === 1 ? mediaKindForItem(imgs[0]) : '';
-    const singleMediaTitle = singleMediaKind === 'video' ? 'Video' : singleMediaKind === 'audio' ? 'Audio' : singleMediaKind === 'text' ? 'Text' : singleMediaKind === 'file' ? 'File' : 'Image';
-    const title = node.localDepth ? '深度视频' : generationKind ? generationTitle : isPending ? escapeHtml('生成中') : (node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : (imgs.length > 1 ? 'Group' : imgs.length ? singleMediaTitle : escapeHtml('上传节点')));
     const body = nodeBodyHtml(node, layout);
-    const deleteBtn = isGroup ? '' : `<button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button>`;
-    const hint = node.localDepth ? '深度视频 · 本地生成' : isPending ? escapeHtml('正在生成…') : (imgs.length > 1 ? escapeHtml('多图会作为同一组参考图发送') : imgs.length ? escapeHtml('点击后在下方输入编辑需求') : escapeHtml('支持图片 / 视频 / 音频，也可直接文生图'));
     return `<div class="image-node ${isEmpty ? 'empty-node' : ''} ${generationKind ? 'generation-node' : ''} ${recoveryOnly ? 'task-recovery-node' : ''} ${isGroup ? 'group-node' : ''} ${isHistory ? 'history-group-node' : ''} ${isPrompt ? 'prompt-smart-node' : ''} ${isLoop ? 'loop-smart-node' : ''} ${faceVerified ? 'face-verified' : ''} ${faceVerifying ? 'face-verifying' : ''} ${isNodeSelected(node.id) ? 'selected' : ''} ${(dragState?.groupIds?.includes(node.id) || dragState?.id === node.id) ? 'dragging' : ''} ${node.running ? 'node-running' : ''} ${isPending ? 'node-pending' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         ${!isPrompt && !isLoop ? pixmaxNodeCaption(node,singleMediaKind==='audio'?'audio':generationKind==='video'||singleMediaKind==='video'?'video':'image',node.localDepth?'视频生成节点-深度':generationKind?generationTitle:singleMediaKind==='video'?'视频节点':singleMediaKind==='audio'?'音频节点':'图像节点') : ''}
         ${isPrompt ? pixmaxNodeCaption(node,'text','文本生成节点') : ''}
-        <div class="node-head"><div class="node-title">${title}</div><div class="node-actions">${deleteBtn}</div></div>
-        ${!isEmpty && !isGroup ? `<div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="${escapeHtml('删除节点')}"><i data-lucide="trash-2"></i></button></div>` : ''}
         ${smartNodeToolbarHtml(node)}
-        ${runTimePillHtml(node)}
         <div class="node-body">${body}</div>
-        ${recoveryOnly ? '' : `<div class="node-hint">${hint}</div>`}
         ${imgs.length || pendingCount || isQueued || recoveryOnly || isPrompt || isLoop ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
         ${pixmaxNodePorts()}
     </div>`;
@@ -1915,7 +1907,7 @@ function singleMediaHtml(img, w, h){
     if(isVideoMediaItem(img)){
         const preview=smartMediaPreviewUrl(img,768),source=displayMediaUrl(img);
         const poster=img.poster || img.thumbnailUrl || (preview!==source?preview:'');
-        return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px"><div class="pixmax-player-mount" data-src="${escapeAttr(source)}" data-url="${escapeAttr(img.url)}" data-poster="${escapeAttr(poster)}" data-duration="${Number(img.duration)||0}"></div><button class="smart-video-play" type="button" title="放大视频" aria-label="打开视频预览"><i data-lucide="maximize-2"></i></button></div>`;
+        return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px"><div class="pixmax-player-mount" data-src="${escapeAttr(source)}" data-url="${escapeAttr(img.url)}" data-poster="${escapeAttr(poster)}" data-duration="${Number(img.duration)||0}"></div></div>`;
     }
     return smartPreviewImgHtml(img, 768, `class="node-img" draggable="false" style="width:${w}px;height:${h}px"`);
 }
@@ -2217,7 +2209,7 @@ function smartNodeMediaBodyHtml(node, layout){
         const maxHeight = visibleRows * Number(layout.thumb || 96) + Math.max(0, visibleRows - 1) * 8;
         return `<div class="thumb-grid" data-thumb-scroll="1" style="--thumb-cols:${layout.cols}; --thumb-size:${layout.thumb}px; --thumb-max-height:${maxHeight}px">${imgs.map((img, i) => `<div class="thumb-item ${smartVolcengineFaceVerified(img?.asset_uris, img) ? 'face-verified' : ''} ${img?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === i ? 'image-selected' : ''}" data-image-index="${i}" data-media-signature="${escapeAttr(`${mediaKindForItem(img)}:${img?.url || ''}`)}">${thumbMediaHtml(img, imgs.length > 48)}${imageResolutionBadgeHtml(img)}${smartFaceVerifiedBadgeHtml(img?.asset_uris, true, img)}<button class="mini-x image-delete" type="button" data-image-index="${i}" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`).join('')}</div>`;
     }
-    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}<button class="mini-x image-delete" type="button" data-image-index="0" title="${escapeHtml('删除')}"><i data-lucide="trash-2"></i></button></div>`;
+    if(imgs[0]) return `<div class="image-wrap ${smartVolcengineFaceVerified(imgs[0]?.asset_uris, imgs[0]) ? 'face-verified' : ''} ${imgs[0]?.face_auth_status === 'Processing' ? 'face-verifying' : ''} ${smartSelection.image.nodeId === node.id && smartSelection.image.index === 0 ? 'image-selected' : ''}" data-image-index="0" data-media-signature="${escapeAttr(`${mediaKindForItem(imgs[0])}:${imgs[0]?.url || ''}`)}" style="--node-img-w:${layout.width}px;--node-img-h:${layout.height}px">${singleMediaHtml(imgs[0], layout.width, layout.height)}${imageResolutionBadgeHtml(imgs[0])}${smartFaceVerifiedBadgeHtml(imgs[0]?.asset_uris, true, imgs[0])}</div>`;
     const generationKind = smartGenerationKind(node);
     if(generationKind) return `<button class="generation-node-placeholder" type="button" aria-label="编辑${generationKind === 'video' ? '视频' : '图片'}生成提示词">
         ${pixmaxSvg(generationKind==='video'?'video-fill':'image-fill')}
@@ -4453,10 +4445,7 @@ function bindSmartComposerInputEvents(){
 
 function renderSmartNodePlaceholderHtml(node){
     const layout = imageLayout(node.images || [], nodeScale(node), node);
-    const kind = mediaKindForItem(node.images?.[0] || {});
-    const title = node.type === 'smart-prompt' ? 'Prompt' : node.type === 'smart-loop' ? 'Loop' : ((node.images || []).length > 1 ? 'Group' : kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : 'Image');
     return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
-        <div class="node-head"><div class="node-title">${escapeHtml(title)}</div></div>
         <div class="node-port port-in" data-port="in" title="input"></div>
         <div class="node-port port-out" data-port="out" title="output"></div>
     </div>`;
