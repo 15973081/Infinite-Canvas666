@@ -1,24 +1,12 @@
 (function(){
-    const KEY = 'studio_theme';
-    const LEGACY_KEY = 'canvas_theme';
+    // Dark classes support existing page styles; appearance has no preference or toggle.
+    document.documentElement.classList.add('studio-theme-dark', 'theme-dark');
+    function initializeBody(){
+        document.body?.classList.add('studio-theme-dark', 'theme-dark');
+    }
+    initializeBody();
     const SCALE_KEY = 'studio_ui_scale_mode';
     const SCALE_OPTIONS = ['auto', '100', '115', '125', '140'];
-
-    function currentTheme(){
-        return localStorage.getItem(KEY) || localStorage.getItem(LEGACY_KEY) || 'light';
-    }
-
-    function applyTheme(theme){
-        const next = theme === 'dark' ? 'dark' : 'light';
-        const dark = next === 'dark';
-        document.documentElement.classList.toggle('studio-theme-dark', dark);
-        document.documentElement.classList.toggle('theme-dark', dark);
-        if(document.body){
-            document.body.classList.toggle('studio-theme-dark', dark);
-            document.body.classList.toggle('theme-dark', dark);
-        }
-        window.dispatchEvent(new CustomEvent('studio-theme-change', { detail: { theme: next } }));
-    }
 
     function ensureScaleStyle(){
         if(document.getElementById('studio-scale-style')) return;
@@ -147,18 +135,6 @@
         }, 160);
     }
 
-    window.StudioTheme = {
-        key: KEY,
-        get: currentTheme,
-        apply: applyTheme,
-        set(theme){
-            const next = theme === 'dark' ? 'dark' : 'light';
-            localStorage.setItem(KEY, next);
-            localStorage.setItem(LEGACY_KEY, next);
-            applyTheme(next);
-        }
-    };
-
     window.StudioScale = {
         key: SCALE_KEY,
         options: SCALE_OPTIONS.slice(),
@@ -168,19 +144,16 @@
         set: setScaleMode
     };
 
-    applyTheme(currentTheme());
     applyScale(currentScaleMode());
 
     document.addEventListener('DOMContentLoaded', () => {
-        applyTheme(currentTheme());
+        initializeBody();
         applyScale(currentScaleMode());
     });
-    window.StudioFrameMessages.subscribe(['studio-theme', 'studio-ui-scale'], event => {
-        if(event.data?.type === 'studio-theme') applyTheme(event.data.theme);
+    window.StudioFrameMessages.subscribe(['studio-ui-scale'], event => {
         if(event.data?.type === 'studio-ui-scale') setScaleMode(event.data.mode, false);
     });
     window.addEventListener('storage', event => {
-        if(event.key === KEY || event.key === LEGACY_KEY) applyTheme(currentTheme());
         if(event.key === SCALE_KEY) applyScale(currentScaleMode());
     });
     window.addEventListener('resize', scheduleAutoScaleRefresh);

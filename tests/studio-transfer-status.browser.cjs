@@ -26,8 +26,8 @@ for(const kind of ['classic','smart']){
   assert.equal(await page.locator('.node video,.image-node video').count(),0);
   fail=false;await page.locator('.canvas-node-media-state.failed button').press('Enter');
   await page.waitForFunction(()=>!document.querySelector('.canvas-node-media-state.failed'));
-  for(const theme of ['dark','light']){
-   await page.evaluate(theme=>StudioTheme.apply(theme),theme);fs.mkdirSync(shots,{recursive:true});await page.screenshot({path:path.join(shots,kind+'-loading-'+theme+'.png')});
+  for(const theme of ['dark']){
+   fs.mkdirSync(shots,{recursive:true});await page.screenshot({path:path.join(shots,kind+'-loading-'+theme+'.png')});
   }
   for(const route of pending.splice(0))await route.fulfill({contentType:'image/svg+xml',body:svg});
   await page.waitForFunction(()=>[...document.querySelectorAll('.canvas-node-media-state')].every(el=>el.hidden));

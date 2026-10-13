@@ -58,7 +58,7 @@ for(const kind of ['classic','smart'])test(`${kind} clean cost table preserves r
     await panel.getByRole('button',{name:'收起',exact:true}).click();
     assert.ok(await panel.locator('.cost-detail-row').first().isHidden());
     const out=path.resolve(__dirname,'../.local/cost-center');fs.mkdirSync(out,{recursive:true});
-    for(const theme of ['light','dark']){await page.evaluate(theme=>StudioTheme.set(theme),theme);await panel.screenshot({path:path.join(out,kind+'-'+theme+'.png')});}
+    for(const theme of ['dark']){await panel.screenshot({path:path.join(out,kind+'-'+theme+'.png')});}
     await page.setViewportSize({width:390,height:844});
     assert.ok(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth));
     await thumbnail.click();assert.equal((await page.evaluate(()=>resourceClicks)).length,3);

@@ -27,8 +27,8 @@ for(const kind of ['classic','smart'])test(kind+': cover selection, saving, fall
  await button.click();await dialog.waitFor();
  assert.equal(await dialog.getByRole('button',{name:'建筑草图 · 图片',exact:true}).getAttribute('aria-pressed'),'true');
  await fs.mkdir(shots,{recursive:true});
- for(const theme of ['dark','light']){
-  await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+ for(const theme of ['dark']){
+
   await page.screenshot({path:path.join(shots,kind+'-cover-'+theme+'.png')});
  }
  await page.setViewportSize({width:390,height:844});

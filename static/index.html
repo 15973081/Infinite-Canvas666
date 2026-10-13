@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html class="studio-theme-dark theme-dark studio-route-booting" lang="zh-CN">
 
 <head>
+<meta name="color-scheme" content="dark">
     <meta name="canvas-page-role" content="workbench">
     <meta name="frontend-build-id" content="__FRONTEND_BUILD_ID__">
     <meta charset="UTF-8">
@@ -10,56 +11,22 @@
     <title>shadox · 创作空间</title>
     <style>
         /* Match the destination before external styles and workspace data load. */
-        html { background:#f3f4ed; }
-        html:is(.studio-theme-dark,.theme-dark) { background:#090b09; }
+        html { background:#090b09; color-scheme:dark; }
         html.studio-route-booting body {
             visibility: hidden !important;
         }
     </style>
-    <script>
-        (function(){
-            try {
-                var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
-                if(theme === 'dark') {
-                    document.documentElement.classList.add('studio-theme-dark');
-                    document.documentElement.classList.add('theme-dark');
-                }
-                document.documentElement.classList.add('studio-route-booting');
-            } catch(e) {}
-        })();
-    </script>
     <script src="/static/js/studio-frame-messages.js"></script>
     <script src="/static/vendor/js/tabler-icons.js"></script>
     <script src="/static/js/studio-icons.js"></script>
     <script src="/static/js/studio-stats-connection.js"></script>
-    <script src="/static/js/theme.js?v=2026.06.15.1781457289"></script>
-    <script src="/static/js/theme-transition.js?v=2026.09.16.2"></script>
+    <script src="/static/js/studio-display.js?v=2026.10.14.1"></script>
     <style>
         @import url('/static/vendor/css/fonts.css?v=2026.06.15.1781457289');
 
         :root {
             --accent: #000000;
             --fluid-ease: cubic-bezier(0.3, 0, 0, 1);
-            --bg: #ffffff;
-            --sidebar-bg: #ffffff;
-            --stage-bg: #fcfcfc;
-            --border: #f2f2f2;
-            --stage-border: #f0f0f0;
-            --text: #121212;
-            --muted: #999;
-            --nav-hover-bg: #fafafa;
-            --monitor-bg: rgba(255, 255, 255, 0.7);
-            --monitor-border: rgba(0, 0, 0, 0.05);
-            --monitor-shadow: rgba(0, 0, 0, 0.04);
-            --divider: rgba(0, 0, 0, 0.1);
-            --scrollbar: #d8d8d8;
-            --scrollbar-hover: #c0c0c0;
-            --author-name: #000;
-            --social-icon: #ccc;
-        }
-
-        html.theme-dark,
-        body.theme-dark {
             --bg: #0f141d;
             --sidebar-bg: #0f141d;
             --stage-bg: #111722;
@@ -555,23 +522,6 @@
                 <button class="nav-item" type="button" data-page="skill-library" title="Skill 库" aria-label="Skill 库" onclick="switchUI(this, 'skill-library')"><svg data-tabler="book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 3H20v19H6.5A2.5 2.5 0 0 1 4 19.5v-14A2.5 2.5 0 0 1 6.5 3Z"/></svg><span class="nav-text">Skill 库</span></button>
             </nav>
             <div class="side-actions">
-                <button class="side-pill" onclick="toggleTheme(event)" id="theme-toggle-btn" type="button" title="切换夜间模式">
-                    <svg data-tabler="moon" id="icon-moon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                    </svg>
-                    <svg data-tabler="sun" id="icon-sun" style="display:none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="5"></circle>
-                        <line x1="12" y1="1" x2="12" y2="3"></line>
-                        <line x1="12" y1="21" x2="12" y2="23"></line>
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                        <line x1="1" y1="12" x2="3" y2="12"></line>
-                        <line x1="21" y1="12" x2="23" y2="12"></line>
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                    </svg>
-                    <span class="side-pill-text">黑夜模式</span>
-                </button>
                 <button class="side-pill settings-fold-toggle" id="settings-fold-toggle" onclick="toggleSidebarSettings()" type="button" title="更多设置" aria-expanded="false">
                     <svg data-tabler="settings" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -768,8 +718,6 @@
             }
             if (!target.src) target.src = window.CanvasSession ? window.CanvasSession.url(target.dataset.src) : target.dataset.src;
             if(!options.skipRemember) localStorage.setItem(ACTIVE_PAGE_KEY, id);
-            // sync theme to newly activated iframe
-            syncThemeToFrame(target);
             syncLanguageToFrame(target);
             if(LOCAL_PAGE_IDS.includes(id)) {
                 setLocalNavCollapsed(false, { skipRemember:true });
@@ -825,56 +773,6 @@
             }, 60000);
         }
 
-        // --- 夜间模式 ---
-
-        function syncThemeToFrame(iframe) {
-            const theme = (window.StudioTheme || {get: () => 'light'}).get();
-            try {
-                if (iframe && iframe.contentWindow) {
-                    // Update same-origin contents before the host captures its new theme snapshot.
-                    try {
-                        if(iframe.contentWindow.StudioTheme){
-                            iframe.contentWindow.StudioTheme.apply(theme);
-                            return;
-                        }
-                    } catch(e) {}
-                    window.StudioFrameMessages.send(iframe, { type: 'studio-theme', theme });
-                }
-            } catch (e) {}
-        }
-
-        function broadcastTheme(theme) {
-            if (window.StudioTheme) {
-                window.StudioTheme.set(theme);
-            }
-            document.querySelectorAll('iframe').forEach(f => syncThemeToFrame(f));
-            updateThemeIcon(theme);
-        }
-
-        function updateThemeIcon(theme) {
-            const moon = document.getElementById('icon-moon');
-            const sun = document.getElementById('icon-sun');
-            const themeButton = document.getElementById('theme-toggle-btn');
-            themeButton.querySelector('.side-pill-text').textContent = theme === 'dark' ? '浅色模式' : '深色模式';
-            themeButton.title = theme === 'dark' ? '切换浅色模式' : '切换深色模式';
-            if (theme === 'dark') {
-                moon.style.display = 'none';
-                sun.style.display = 'block';
-            } else {
-                moon.style.display = 'block';
-                sun.style.display = 'none';
-            }
-        }
-
-        function toggleTheme(event) {
-            const current = window.StudioTheme ? window.StudioTheme.get() : 'light';
-            const next = current === 'dark' ? 'light' : 'dark';
-            if(window.StudioThemeTransition){
-                return window.StudioThemeTransition.run(() => broadcastTheme(next), event);
-            }
-            broadcastTheme(next);
-        }
-
         function toggleLanguage() {
             document.querySelectorAll('iframe').forEach(frame => syncLanguageToFrame(frame));
         }
@@ -887,22 +785,12 @@
             window.StudioFrameMessages.broadcast({ type:'studio-lang', lang:'zh' });
         }
 
-        // listen for theme changes triggered by theme.js
-        window.addEventListener('studio-theme-change', (e) => {
-            updateThemeIcon(e.detail.theme);
-        });
-
-        // init icon state on load
         window.addEventListener('DOMContentLoaded', () => {
-            const theme = window.StudioTheme ? window.StudioTheme.get() : 'light';
-            updateThemeIcon(theme);
             broadcastLanguage();
             fetchMaintenanceStatus();
         });
 
-        // sync theme when iframe loads
         window.StudioFrameMessages.watchFrameLoads(frame => {
-            syncThemeToFrame(frame);
             syncLanguageToFrame(frame);
         });
 

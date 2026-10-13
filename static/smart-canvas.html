@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-studio-scale="off">
+<html class="studio-theme-dark theme-dark" lang="zh-CN" data-studio-scale="off">
 <head>
+<meta name="color-scheme" content="dark">
     <meta name="frontend-build-id" content="__FRONTEND_BUILD_ID__">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,23 +11,12 @@
     <link rel="icon" href="/static/images/shadox-mark.svg?v=1" type="image/svg+xml">
     <title>智能画布</title>
     <script src="/static/js/canvas-navigation.js"></script>
-    <script>
-        (function(){
-            try {
-                var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
-                if(theme === 'dark') {
-                    document.documentElement.classList.add('theme-dark');
-                    document.documentElement.classList.add('studio-theme-dark');
-                }
-            } catch(e) {}
-        })();
-    </script>
     <script src="/static/vendor/js/tabler-icons.js"></script>
     <script src="/static/js/studio-icons.js"></script>
     <script src="/static/js/pixmax-canvas-assets.js"></script>
     <script src="/static/js/pixmax-canvas-layout.js"></script>
     <script src="/static/js/studio-frame-messages.js"></script>
-    <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
+    <script src="/static/js/studio-display.js?v=2026.10.14.1"></script>
     <link rel="stylesheet" href="/static/vendor/pixmax/editors.css">
     <link rel="stylesheet" href="/static/css/smart-canvas-services.css">
     <link rel="stylesheet" href="/static/css/canvas-ledger-ui.css">

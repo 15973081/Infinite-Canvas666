@@ -24,7 +24,7 @@ async function fixture(t){
  await page.goto(origin);await page.waitForFunction(()=>document.querySelector('.member-space-usage-brief')?.textContent==='素材 3 GB');
  return {page,errors,requests,setResult:(value,code=200)=>{result=value;status=code;}};
 }
-test('workspace usage is scoped, cached, accessible and fits dark/light/mobile views',async t=>{
+test('workspace usage is scoped, cached, accessible and fits dark mobile/desktop views',async t=>{
  const {page,errors,requests}=await fixture(t);
  await page.frameLocator('iframe').locator('body').waitFor();
  await page.waitForFunction(()=>document.querySelector('iframe').contentWindow.CanvasSession?.context);
@@ -38,7 +38,7 @@ test('workspace usage is scoped, cached, accessible and fits dark/light/mobile v
  await page.locator('.member-session-space').press('Escape');
  assert.equal(await page.locator('.member-session-spaces').getAttribute('open'),null);
  assert.equal(await page.locator('.member-session-space').evaluate(el=>el===document.activeElement),true);
- for(const theme of ['dark','light'])for(const width of [320,390,768,1440]){
+ for(const theme of ['dark'])for(const width of [320,390,768,1440]){
   await page.setViewportSize({width,height:844});await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;document.documentElement.classList.toggle('theme-dark',theme==='dark');},theme);
   await page.locator('.member-session-space').click();
   assert.equal(await page.locator('.member-space-menu').evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;}),true,theme+width);

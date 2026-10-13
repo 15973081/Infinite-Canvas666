@@ -170,14 +170,6 @@ function isNodeInCanvasViewport(node, margin=400){
 
 function scheduleViewportRefresh(...args){return classicWorkspaceView.scheduleViewport(...args);}
 
-function applyTheme(theme){
-    const dark = theme === 'dark';
-    document.documentElement.classList.toggle('studio-theme-dark', dark);
-    document.documentElement.classList.toggle('theme-dark', dark);
-    document.body.classList.toggle('studio-theme-dark', dark);
-    document.body.classList.toggle('theme-dark', dark);
-    shell.classList.toggle('theme-dark', dark);
-}
 
 function applyQuickToolbarState(){
     const toolbar = document.getElementById('quickToolbar');

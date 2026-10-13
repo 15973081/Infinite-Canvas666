@@ -5,7 +5,7 @@
     const currentTypes = ['cloud_status', 'canvas_updated'];
     const allTypes = ['asset_library_updated'];
     const types = new Set([...apiTypes, ...currentTypes, ...allTypes,
-        'studio-theme', 'studio-lang', 'studio-ui-scale', 'canvas-focus', 'maintenance_changed']);
+        'studio-lang', 'studio-ui-scale', 'canvas-focus', 'maintenance_changed']);
 
     function create(window) {
         const document = window.document;

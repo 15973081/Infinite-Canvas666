@@ -78,8 +78,8 @@ test('loading retry and locked canvas failure preserve the selected target',asyn
 });
 test('import dialog fits mobile and both themes, with keyboard dismissal and restored focus',async t=>{
  const f=await online(t),{page}=f;
- for(const theme of ['dark','light'])for(const width of [1280,768,390]){
-  await page.setViewportSize({width,height:844});await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+ for(const theme of ['dark'])for(const width of [1280,768,390]){
+  await page.setViewportSize({width,height:844});
   const opener=page.locator('.masonry-item [data-online-import="canvas"]');await opener.click();
   if(width===390)assert.ok(await opener.evaluate(el=>el.getBoundingClientRect().height)>=44,'mobile actions retain a touch-sized hit area');
   const dialog=page.getByRole('dialog');await dialog.locator('#onlineImportCanvas').waitFor();
@@ -109,8 +109,8 @@ test('multi-selection imports selected records, retaining prompts and existing s
  await libraryAction.click();await dialog.locator('#onlineImportCategory').selectOption('cat');await dialog.getByRole('button',{name:'导入',exact:true}).click();await dialog.getByRole('link',{name:'打开素材库'}).waitFor();
  assert.equal(f.calls.filter(c=>c.path.endsWith('/items/batch'))[0].body.items.length,3);
  await dialog.getByRole('button',{name:'关闭'}).click();await page.getByRole('button',{name:'取消全选',exact:true}).click();assert.equal(await canvasAction.isEnabled(),false);
- for(const theme of ['dark','light']){
-  await page.evaluate(theme=>StudioTheme.apply(theme),theme);await page.setViewportSize({width:390,height:844});
+ for(const theme of ['dark']){
+  await page.setViewportSize({width:390,height:844});
   const geometry=await page.locator('.hbm-toolbar').evaluate(el=>({width:el.scrollWidth,client:el.clientWidth,heights:[...el.querySelectorAll('button:not(.hbm-hide)')].map(b=>b.getBoundingClientRect().height)}));
   assert.ok(geometry.width<=geometry.client);assert.ok(geometry.heights.every(h=>h>=44));
  }

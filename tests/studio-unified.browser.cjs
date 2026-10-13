@@ -1,15 +1,15 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {fixture}=require('./helpers/canvas-browser.cjs');
 
-test('history preview follows themes and fits the viewport without losing image interactions',async t=>{
+test('history preview uses dark surfaces and fits the viewport without losing image interactions',async t=>{
  const {page,writes,errors}=await fixture(t,'classic',false);
  await page.goto('http://canvas-modules.test/static/online.html');
- await page.waitForFunction(()=>Boolean(window.StudioTheme));
+ await page.waitForFunction(()=>Boolean(window.StudioScale));
  const before=writes.length;
- for(const theme of ['dark','light']){
+ for(const theme of ['dark']){
   for(const [width,height,scale] of [[1280,720,'100'],[768,600,'115'],[390,844,'115'],[1280,600,'140']]){
    await page.setViewportSize({width,height});
-   await page.evaluate(({theme,scale})=>{StudioTheme.apply(theme);StudioScale.set(scale,false);}, {theme,scale});
+   await page.evaluate(({theme,scale})=>{StudioScale.set(scale,false);}, {theme,scale});
    await page.locator('#promptInput').focus();
    await page.evaluate(()=>openLightbox({images:['/test-image.svg'],prompt:'预览回归 '.repeat(180)}));
    await page.waitForFunction(()=>document.querySelector('#lightboxImg').naturalWidth===320);
@@ -26,7 +26,7 @@ test('history preview follows themes and fits the viewport without losing image 
    }
    assert.equal(geometry.overflow,false,'all preview controls fit inside the panel');
    assert.ok(geometry.frame.height>100,'preview retains usable image space');
-   assert.equal(geometry.fill,theme==='dark'?'rgb(9, 11, 9)':'rgb(243, 244, 237)');
+   assert.equal(geometry.fill,'rgb(9, 11, 9)');
    assert.equal(await page.locator('#lightboxClose').evaluate(el=>el===document.activeElement),true);
    await page.locator('#lightboxClose').press('Shift+Tab');
    assert.equal(await page.locator('#lightboxCard [data-online-import="library"]').evaluate(el=>el===document.activeElement),true,'focus stays inside preview');
@@ -49,7 +49,7 @@ test('history preview follows themes and fits the viewport without losing image 
  assert.deepEqual(errors,[]);
 });
 
-test('production page controls share readable opaque surfaces across both themes',async t=>{
+test('production page controls share readable opaque dark surfaces',async t=>{
  const {page,writes}=await fixture(t,'classic',false);
  const pages={
   online:['#promptInput','.tool-panel','.result-frame','#modelSelect'],
@@ -58,10 +58,10 @@ test('production page controls share readable opaque surfaces across both themes
  };
  for(const [name,selectors] of Object.entries(pages)){
   await page.goto('http://canvas-modules.test/static/'+name+'.html');
-  await page.waitForFunction(()=>Boolean(window.StudioTheme));
+  await page.waitForFunction(()=>Boolean(window.StudioScale));
   const initialWrites=writes.length;
-  for(const theme of ['dark','light']){
-   await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+  for(const theme of ['dark']){
+
    await page.locator('body').evaluate(async el=>{await new Promise(requestAnimationFrame);await Promise.all(el.getAnimations({subtree:true}).filter(a=>a.effect.getComputedTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))});
    for(const selector of selectors){
     const styles=await page.locator(selector).first().evaluate(el=>{
@@ -101,8 +101,8 @@ test('history selection toolbar keeps neutral disabled state, themed selection a
   grid._hbm.refresh();
  });
  const before=writes.length;
- for(const theme of ['dark','light']){
-  await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+ for(const theme of ['dark']){
+
   await page.getByRole('button',{name:'管理',exact:true}).click();
   const remove=page.getByRole('button',{name:'删除所选',exact:true});
   assert.equal(await remove.isEnabled(),false);

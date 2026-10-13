@@ -40,12 +40,6 @@ function refreshIcons(){window.lucide?.createIcons();}
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 const escapeAttr=escapeHtml;
 function setStatus(message){gateStatus.textContent=message;const feedback=document.getElementById('studioHomeFeedback');feedback.textContent=message;feedback.hidden=!message;}
-function applyTheme(theme){
-    document.documentElement.classList.toggle('theme-dark',theme==='dark');
-    document.documentElement.classList.toggle('studio-theme-dark',theme==='dark');
-    document.body.classList.toggle('theme-dark',theme==='dark');
-    document.body.classList.toggle('studio-theme-dark',theme==='dark');
-}
 function formatCanvasTime(value){
     if(!value) return '--';
     const raw = Number(value);
@@ -1005,10 +999,8 @@ window.addEventListener('resize', () => requestAnimationFrame(positionCanvasMeta
 window.CanvasNavigation.setLeaveGuard(async()=>{window.CanvasHome.remember();return window.CanvasDirectoryApi.flush();});
 window.addEventListener('frontend:before-reload',event=>event.detail?.waitUntil?.(window.CanvasDirectoryApi.flush()));
 window.addEventListener('beforeunload',event=>{if(window.CanvasDirectoryApi.busy){event.preventDefault();event.returnValue='';}});
-window.addEventListener('studio-theme-change',event=>applyTheme(event.detail?.theme||'light'));
-window.StudioFrameMessages.subscribe(['studio-theme','canvas-focus','canvas_updated'],event=>{
-    if(event.data?.type==='studio-theme')applyTheme(event.data.theme);
-    else if(!document.hidden&&!window.CanvasDirectoryApi.busy)void refreshDirectory();
+window.StudioFrameMessages.subscribe(['canvas-focus','canvas_updated'],event=>{
+    if(!document.hidden&&!window.CanvasDirectoryApi.busy)void refreshDirectory();
 });
 async function refreshDirectory(){
     await ready;
@@ -1029,7 +1021,6 @@ window.CanvasHome.refresh=refreshDirectory;
 window.addEventListener('pageshow',event=>{if(event.persisted)void refreshDirectory();});
 (async()=>{
     if(window.CanvasSession)await window.CanvasSession.ready;
-    applyTheme(localStorage.getItem('studio_theme')||localStorage.getItem('canvas_theme')||'light');
     await loadCanvasList(false,{refreshFolders:true});
     lastFocusRefresh=Date.now();
     window.CanvasHome.restore();

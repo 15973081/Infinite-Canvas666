@@ -29,7 +29,7 @@ test('retired editing-lock messages are not delivered to frames',()=>{
 });
 test('unknown protocol and removed frames cannot receive messages',()=>{
     const f=fixture();assert.equal(f.api.send(f.frames[0],{type:'unknown'}),false);
-    const old=f.frames.pop();assert.equal(f.api.send(old,{type:'studio-theme'}),false);f.api.forwardUpdate({type:'studio-theme'});assert.equal(f.posts.length,0);
+    const old=f.frames.pop();assert.equal(f.api.send(old,{type:'studio-ui-scale'}),false);f.api.forwardUpdate({type:'studio-ui-scale'});assert.equal(f.posts.length,0);
 });
 for(const child of [false,true])test('receiver validates origin and '+(child?'parent':'owned iframe')+' source',()=>{
     const f=fixture(child);let count=0;f.api.subscribe(['studio-lang'],()=>count++);

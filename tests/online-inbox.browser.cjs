@@ -25,7 +25,7 @@ async function main(){
   await inbox.getByLabel('选择 保留画面').check();await inbox.getByRole('button',{name:'移入回收站',exact:true}).click();await inbox.getByText('已移入回收站，可以恢复',{exact:true}).waitFor();
   await inbox.getByRole('tab',{name:'回收站',exact:true}).click();await inbox.getByRole('button',{name:'恢复',exact:true}).click();await inbox.getByText('作品已恢复',{exact:true}).waitFor();
   await inbox.getByRole('tab',{name:'已保留',exact:true}).click();await inbox.getByRole('heading',{name:'保留画面'}).waitFor();
-  await page.evaluate(()=>StudioTheme.set('dark'));
+
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.inbox-card-actions button')).backgroundColor==='rgb(18, 22, 17)');
   await inbox.scrollIntoViewIfNeeded();await inbox.screenshot({path:path.join(out,'inbox-desktop-dark.png'),animations:'disabled',style:'.member-session-bar{visibility:hidden}'});
   await inbox.getByRole('tab',{name:'未整理',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===1);
@@ -40,7 +40,7 @@ async function main(){
   await inbox.getByLabel('作品引用状态').selectOption('referenced');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===1);
   assert.equal(await inbox.getByRole('heading',{name:'保留画面',exact:true}).count(),0,'library image remains referenced');
   await inbox.getByLabel('作品引用状态').selectOption('all');await page.waitForFunction(()=>document.querySelectorAll('.inbox-card').length===2);
-  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>StudioTheme.set('light'));
+  await page.setViewportSize({width:390,height:844});
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.inbox-card-actions button')).backgroundColor==='rgb(255, 255, 255)');
   await inbox.scrollIntoViewIfNeeded();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile overflow');
   assert.ok(await inbox.getByLabel('作品引用状态').evaluate(el=>el.getBoundingClientRect().width>=140),'reference filter label has room on mobile');

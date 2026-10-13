@@ -8,14 +8,14 @@ const root = path.resolve(__dirname, '..');
 const origin = 'http://utilities.test';
 
 for(const name of ['index', 'canvas', 'online', 'gpt-chat']) {
-    test(`${name}: static utilities cover initial and dynamic markup at both breakpoints and themes`, async t => {
+    test(`${name}: static utilities cover initial and dynamic markup at both breakpoints`, async t => {
         const html = fs.readFileSync(path.join(root, 'static', name + '.html'), 'utf8');
         assert.doesNotMatch(html, /tailwindcss-cdn|cdn\.tailwindcss|text\/tailwindcss/);
         assert.equal((html.match(/href="\/static\/css\/utilities\.css"/g) || []).length, 1);
         assert.ok(html.indexOf('href="/static/css/utilities.css"') > html.lastIndexOf('</style>'), 'utilities retain their cascade order');
         const browser = await chromium.launch({channel:'chrome', headless:true});
         t.after(() => browser.close());
-        for(const width of [390,1280]) for(const dark of [false,true]) {
+        for(const width of [390,1280]) for(const dark of [true]) {
             const page = await browser.newPage({viewport:{width,height:900}});
             const failures = [];
             page.on('pageerror', error => failures.push(error.message));

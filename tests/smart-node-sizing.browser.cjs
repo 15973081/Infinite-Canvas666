@@ -21,8 +21,8 @@ test('image/video nodes share default bounds while retaining media proportions',
     assert.ok(sizes.every(s=>s.display[0]===s.width&&s.display[1]===s.height),'rendered cards agree with connection geometry');
     const fs=require('node:fs'),path=require('node:path');
     const out=path.resolve(__dirname,'../.local/node-sizing');fs.mkdirSync(out,{recursive:true});
-    for(const theme of ['light','dark']){
-        await page.evaluate(theme=>applyTheme(theme),theme);
+    for(const theme of ['dark']){
+
         await page.screenshot({path:path.join(out,theme+'.png'),animations:'disabled'});
     }
     assert.deepEqual(errors,[]);

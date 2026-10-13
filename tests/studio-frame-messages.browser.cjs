@@ -27,8 +27,7 @@ async function fixture(t,options={}){
             return route.fulfill({contentType:'text/javascript',body});
         }
         if(u.pathname.endsWith('.html'))return route.fulfill({contentType:'text/html',body:`<!doctype html><script>${protocol}</script><script>
-            window.received=[];StudioFrameMessages.subscribe(['canvas_updated','cloud_status','asset_library_updated','studio-lang','studio-theme','studio-ui-scale','canvas-focus','providers-changed','maintenance_changed'],event=>received.push(event.data));
-            window.StudioTheme={apply(theme){received.push({type:'sync-theme',theme});}};
+            window.received=[];StudioFrameMessages.subscribe(['canvas_updated','cloud_status','asset_library_updated','studio-lang','studio-ui-scale','canvas-focus','providers-changed','maintenance_changed'],event=>received.push(event.data));
             </script>`});
         if(u.pathname==='/api/maintenance/status')return route.fulfill({json:{mode:'normal',boot_id:'test'}});
         if(u.pathname.startsWith('/api/'))return route.fulfill({json:{enabled:false}});
@@ -143,7 +142,6 @@ for(const kind of ['classic','smart'])test(kind+' production iframe keeps messag
     await child.evaluate(()=>{window.messageUpdates=[];handleCanvasUpdatedMessage=data=>messageUpdates.push(data);});
     await page.evaluate(()=>{
         StudioFrameMessages.send(document.getElementById('child'),{type:'canvas_updated',canvas_id:'a'});
-        StudioFrameMessages.send(document.getElementById('child'),{type:'studio-theme',theme:'dark'});
     });
     await child.waitForFunction(()=>messageUpdates.length===1&&document.body.classList.contains('studio-theme-dark'));
     await child.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true})));

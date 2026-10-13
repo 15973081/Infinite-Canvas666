@@ -51,12 +51,12 @@ test('custom selects use direct lists, commit one change, preserve dependencies,
  assert.equal(writes.length,before,'selecting settings does not generate or write data');
  assert.deepEqual(errors,[]);
 });
-test('select menus fit both themes, mobile and UI zoom with reduced motion', async t => {
+test('select menus fit dark surfaces, mobile and UI zoom with reduced motion', async t => {
  const {page, errors} = await online(t);
  fs.mkdirSync('.local/studio-select',{recursive:true});
- for(const theme of ['dark','light']) for(const [width,height,scale] of [[1280,720,'100'],[390,844,'115'],[768,600,'140']]) {
+ for(const theme of ['dark']) for(const [width,height,scale] of [[1280,720,'100'],[390,844,'115'],[768,600,'140']]) {
   await page.setViewportSize({width,height});
-  await page.evaluate(({theme,scale}) => {StudioTheme.apply(theme);StudioScale.set(scale,false);},{theme,scale});
+  await page.evaluate(({theme,scale}) => {StudioScale.set(scale,false);},{theme,scale});
   for(const label of ['厂商','模型','生成质量','图片数量','分辨率','画面比例']) {
    const trigger=page.getByRole('combobox',{name:label,exact:true});await trigger.scrollIntoViewIfNeeded();await trigger.click();
    const menu=page.locator('.studio-select-menu:not([hidden])');

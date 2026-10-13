@@ -6,12 +6,13 @@ test('studio pages render local Tabler geometry, including dynamic library and c
  const warnings=[];page.on('console',message=>{if(message.text().includes('Unknown studio icon:'))warnings.push(message.text());});
  const external=[];page.on('request',request=>{if(!request.url().startsWith(origin))external.push(request.url());});
  await page.route(/\/api\/canvas-assets(?:\?|$)/,route=>route.fulfill({json:{categories:[],canvases:[{id:'c',title:'品牌画布',kind:'classic'},{id:'s',title:'智能开始',kind:'smart'}],items:[]}}));
- for(const name of ['canvas','smart-canvas','online','gpt-chat','asset-manager']){
-  await page.goto(origin+'/static/'+name+'.html');
+ for(const name of ['canvas-home','canvas','smart-canvas','online','gpt-chat','asset-manager']){
+  await page.goto(origin+'/static/'+name+'.html'+(['canvas','smart-canvas'].includes(name)?'?id=canvas-test':''));
   await page.waitForFunction(()=>Boolean(window.StudioIcons)&&document.querySelector('svg[data-studio-icon]'));
+  await page.waitForLoadState('networkidle');
   const before=writes.length;
-  if(name==='canvas'){
-   await page.evaluate(()=>{setCanvasMode(false);canvas=null;canvases=[{id:'a',title:'品牌画布',kind:'classic',updated_at:1}];renderCanvasList();});
+  if(name==='canvas-home'){
+   await page.evaluate(()=>CanvasHome.ready);
    await page.locator('.studio-card-menu summary').click();
    assert.equal(await page.locator('.studio-card-menu [data-tabler="folder-symlink"]').count(),1);
   }
@@ -31,8 +32,8 @@ test('studio pages render local Tabler geometry, including dynamic library and c
    valid:el.tagName.toLowerCase()==='svg'&&JSON.stringify([...el.children].map(n=>[n.tagName,Object.fromEntries([...n.attributes].map(a=>[a.name,a.value]))]))===JSON.stringify(StudioIcons.icons[el.dataset.tabler])})));
   assert.ok(actual.length>0,name+' has real icons');
   assert.ok(actual.every(icon=>icon.tag==='svg'&&icon.target&&icon.stroke==='1.5'&&icon.valid),name+': '+JSON.stringify(actual.filter(icon=>!icon.valid)));
-  for(const theme of ['dark','light']){
-   await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+  for(const theme of ['dark']){
+
    for(const width of [390,1280]){
     await page.setViewportSize({width,height:900});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,name+' fits '+width);

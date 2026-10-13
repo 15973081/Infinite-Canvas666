@@ -60,10 +60,10 @@ test('optional video controls are hidden, preserve values and stay usable after 
  await page.locator('[data-toggle-param="videoMultimodal"]').click();
  assert.deepEqual(await page.evaluate(()=>[settings.videoUseFrameRoles,settings.videoMultimodal]),[false,true]);
 });
-test('card layout fits desktop and narrow screens in both themes',async t=>{
+test('card layout fits desktop and narrow screens on the dark canvas',async t=>{
  const page=await fixture(t);
  fs.mkdirSync('.local/composer-preview',{recursive:true});
- for(const dark of [true,false])for(const width of [1000,390]){
+ for(const dark of [true])for(const width of [1000,390]){
   await page.setViewportSize({width,height:850});
   await page.evaluate(({dark,width})=>{
    document.documentElement.classList.toggle('theme-dark',dark);document.documentElement.classList.toggle('studio-theme-dark',dark);

@@ -52,8 +52,8 @@ test('video mode audio references keep type, alias insertion, preview routing an
  await page.locator('.smart-ref-audio [data-ref-preview]').click();
  assert.equal(await page.evaluate(()=>previewedRef.kind),'audio');
  fs.mkdirSync('.local/smart-audio-reference',{recursive:true});
- for(const theme of ['light','dark']){
-  await page.evaluate(theme=>{StudioTheme.apply(theme);viewport={x:0,y:0,scale:1};applyViewport();},theme);
+ for(const theme of ['dark']){
+  await page.evaluate(theme=>{viewport={x:0,y:0,scale:1};applyViewport();},theme);
   await page.locator('.smart-ref-audio').screenshot({path:'.local/smart-audio-reference/'+theme+'-reference.png',animations:'disabled'});
   await page.locator('.media-audio-card').screenshot({path:'.local/smart-audio-reference/'+theme+'-node.png',animations:'disabled'});
   const sizes=await page.locator('.smart-ref-audio').evaluate(el=>({w:el.clientWidth,scroll:el.scrollWidth,h:el.clientHeight}));

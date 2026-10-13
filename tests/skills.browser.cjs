@@ -41,7 +41,7 @@ async function fixture(t,pageName){
  await page.goto(origin+'/static/'+pageName+'.html');
  return {page,calls,errors,skills,setFail:value=>fail=value,setChatFail:value=>chatFail=value,setCanImport:value=>canImport=value};
 }
-test('skill library search, install, enable, preview, retry and responsive themes',async t=>{
+test('skill library search, install, enable, preview, retry and responsive dark layout',async t=>{
  const {page,calls,errors,setFail}=await fixture(t,'skill-library');await page.locator('.skill-card').first().waitFor();
  assert.match(await page.locator('#skillGrid').innerText(),/上传者：林岳/);assert.match(await page.locator('#skillGrid').innerText(),/影像实验室/);
  await page.getByRole('button',{name:'安装到本空间'}).click();await page.getByRole('checkbox',{name:'启用 cinematic-prompts'}).waitFor();
@@ -53,7 +53,7 @@ test('skill library search, install, enable, preview, retry and responsive theme
  await page.locator('.skill-card').first().getByRole('button',{name:'查看详情'}).click();await page.getByRole('dialog').getByText('先确认目标，再优化提示词。',{exact:true}).waitFor();
  await page.keyboard.press('Escape');assert.equal(await page.getByRole('dialog').count(),0);
  await page.locator('#skillFile').setInputFiles({name:'SKILL.md',mimeType:'text/markdown',buffer:Buffer.from('sample')});const dialog=page.getByRole('dialog');await dialog.getByRole('combobox').selectOption('shared');await dialog.getByRole('button',{name:'确认导入并安装'}).click();await dialog.waitFor({state:'detached'});assert.ok(calls.some(c=>c.path==='/api/skills/import'&&c.body.includes('shared')));
- for(const theme of ['dark','light']){await page.evaluate(theme=>StudioTheme.set(theme),theme);assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),theme==='dark'?'rgb(9, 11, 9)':'rgb(243, 244, 237)');await page.screenshot({path:path.join(out,'library-'+theme+'.png')});}
+ for(const theme of ['dark']){assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(9, 11, 9)');await page.screenshot({path:path.join(out,'library-'+theme+'.png')});}
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:path.join(out,'library-mobile.png')});
  setFail(true);await page.getByRole('button',{name:'刷新',exact:true}).click();await page.getByRole('button',{name:'加载失败，点击重试'}).waitFor();setFail(false);await page.getByRole('button',{name:'加载失败，点击重试'}).click();await page.locator('.skill-card').first().waitFor();assert.deepEqual(errors,[]);
 });
@@ -66,7 +66,7 @@ test('GPT @ selection stays visible, is keyboard accessible and only sends skill
  await icon.locator('circle').click();assert.equal(await page.locator('#chatSkillPicker').isVisible(),false);assert.equal(await trigger.getAttribute('aria-expanded'),'false');
  await trigger.focus();await trigger.press('Enter');await page.locator('.chat-skill-option').waitFor();await page.locator('#chatSkillSearch').press('Escape');
  await page.locator('#chatTitle').click();
- for(const theme of ['light','dark']){await page.evaluate(theme=>StudioTheme.set(theme),theme);await page.waitForTimeout(250);await page.locator('.composer').screenshot({path:path.join(out,'chat-skill-trigger-'+theme+'.png')});}
+ for(const theme of ['dark']){await page.waitForTimeout(250);await page.locator('.composer').screenshot({path:path.join(out,'chat-skill-trigger-'+theme+'.png')});}
  const input=page.locator('#messageInput');await input.fill('优化一段夜景 @prompt');await page.locator('.chat-skill-option').waitFor();
  const box=await page.locator('#chatSkillPicker').boundingBox();assert.ok(box.y>=0&&box.width>200);assert.ok(await page.locator('#chatSkillPicker').isVisible());
  await page.screenshot({path:path.join(out,'chat-at-dark.png')});await input.press('Enter');assert.equal(calls.filter(c=>c.path==='/api/chat/stream').length,0);assert.match(await page.locator('#chatSkillSelection').innerText(),/@prompt-review/);assert.equal(await input.inputValue(),'优化一段夜景 ');
@@ -133,7 +133,7 @@ test('attachment manager explains load failures, retries and preserves visible f
  await dialog.getByText('当前账号没有查看或管理附件的权限。').waitFor();
  assert.ok(await dialog.getByRole('progressbar',{name:'个人附件容量'}).isHidden());
  assert.ok(await dialog.getByRole('button',{name:'删除选中的未引用附件'}).isDisabled());
- await page.evaluate(()=>StudioTheme.set('light'));
+
  await dialog.screenshot({path:path.join(out,'attachments-upgraded-error-light.png')});
  fail=false;await dialog.getByRole('button',{name:'重试加载',exact:true}).click();
  await dialog.getByRole('heading',{name:'《沉锋》第三集B_分镜V5.xlsx'}).waitFor();
@@ -147,7 +147,7 @@ test('attachment manager explains load failures, retries and preserves visible f
  assert.ok(await dialog.getByRole('checkbox',{name:'选择 《沉锋》第三集B_分镜V5.xlsx'}).isChecked());
  fail=false;await dialog.getByRole('button',{name:'重试加载',exact:true}).click();
  await dialog.getByRole('checkbox',{name:'选择 《沉锋》第三集B_分镜V5.xlsx'}).waitFor();
- await page.evaluate(()=>StudioTheme.set('dark'));await dialog.screenshot({path:path.join(out,'attachments-upgraded-dark.png')});
+ await dialog.screenshot({path:path.join(out,'attachments-upgraded-dark.png')});
  await page.setViewportSize({width:390,height:844});
  assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth));
  await dialog.screenshot({path:path.join(out,'attachments-upgraded-mobile.png')});
@@ -304,7 +304,7 @@ test('MD and ZIP drag import highlight, keyboard upload and file validation shar
  const choosing=page.waitForEvent('filechooser');await page.keyboard.press('Enter');
  const chooser=await choosing;await chooser.setFiles({name:'SKILL.md',mimeType:'text/markdown',buffer:Buffer.from('skill')});
  await dialog.getByRole('combobox').waitFor();await page.keyboard.press('Escape');
- await page.evaluate(()=>StudioTheme.set('light'));await page.emulateMedia({reducedMotion:'reduce'});
+ await page.emulateMedia({reducedMotion:'reduce'});
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.equal(await page.locator('#skillDropzone').evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
  await page.screenshot({path:path.join(out,'library-drop-mobile.png')});assert.deepEqual(errors,[]);

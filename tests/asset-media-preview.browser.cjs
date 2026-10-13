@@ -15,8 +15,8 @@ test('Smart sidebar shows typed previews with no audio/file/video original reque
     await page.locator('#assetPanel').evaluate(el=>Promise.all(el.getAnimations().map(a=>a.finished)));
     const requests=[];page.on('request',r=>requests.push(new URL(r.url()).pathname));
     const preview=page.locator('#assetHoverPreview');
-    for(const theme of ['light','dark']){
-        await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+    for(const theme of ['dark']){
+
         for(const id of ['audio','file','video']){
             await page.locator(`[data-asset-id=${id}] .asset-thumb-wrap`).hover();
             await preview.waitFor({state:'visible'});
@@ -66,8 +66,8 @@ test('Library audio detail loads on demand, supports playback, and releases audi
     wav.write('RIFF');wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);
     wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(16000,40);
     await page.route('**/assets/sound.wav',route=>route.fulfill({contentType:'audio/wav',body:wav}));
-    for(const theme of ['light','dark']){
-        await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+    for(const theme of ['dark']){
+
         const button=page.getByRole('button',{name:'试听音频',exact:true});
         await button.focus();
         assert.equal(await page.locator('.asset-audio-detail .detail-media-frame').count(),0,'audio uses its own detail layout');

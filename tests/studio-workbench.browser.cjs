@@ -27,9 +27,9 @@ test('directory menus retain filtering, counts and keyboard focus without busine
 
 test('directory fits small screens and exposes failed-load recovery and reduced motion',async t=>{
  const {page,errors}=await fixture(t,'classic',false,{directory:true});
- for(const theme of ['light','dark'])for(const width of [320,390,768,1440]){
+ for(const theme of ['dark'])for(const width of [320,390,768,1440]){
   await page.setViewportSize({width,height:900});
-  await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+
   assert.equal(await page.locator('#canvasGate').evaluate(el=>el.scrollWidth<=el.clientWidth),true,`${theme} ${width}`);
   await page.locator('#studioFolderTrigger').click();
   assert.equal(await page.locator('#studioFolderMenu').evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight;}),true);

@@ -194,7 +194,6 @@ const RES_PIXEL_LIMIT = { '1k':1572864, '2k':4194304, '4k':8294400 };
 const CUSTOM_IMAGE_MODELS_KEY = 'canvas_custom_image_models';
 const MANAGED_IMAGE_MODELS_KEY = 'canvas_image_models_ordered';
 const MANAGED_CHAT_MODELS_KEY = 'canvas_chat_models_ordered';
-const CANVAS_THEME_KEY = 'canvas_theme';
 const QUICK_TOOLBAR_COLLAPSED_KEY = 'canvas_quick_toolbar_collapsed';
 const CANVAS_SESSION_VIEWPORTS_KEY = 'canvas_session_viewports_v1';
 let canvasSessionViewportFallback = {};
@@ -414,7 +413,6 @@ window.addEventListener('beforeunload', event => {
     }
 });
 
-window.addEventListener('studio-theme-change', event => applyTheme(event.detail?.theme || 'light'));
 bindClassicImageEditorControls();
 window.addEventListener('resize', () => {
     classicImageEditor.syncImageEditOverflow();
@@ -490,7 +488,6 @@ function escapeAttr(str){ return escapeHtml(str); }
 
 window.onload = async () => {
     if(window.CanvasSession) await window.CanvasSession.ready;
-    applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem(CANVAS_THEME_KEY) || 'light');
     applyQuickToolbarState();
 
     document.title = 'shadox';

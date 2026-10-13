@@ -47,7 +47,7 @@ async function mountWorkspaceControls(page,kind){
 
  assert.equal(await page.locator('#canvasLockBadge,#smartLockBadge,#canvasLockOverlay,#smartLockOverlay').count(),0,'legacy lock UI is removed from both canvases');
 }
-for(const kind of ['classic','smart'])test(`${kind} media cards, trim and preview controls follow both themes`,async t=>{
+for(const kind of ['classic','smart'])test(`${kind} media cards, trim and preview controls use the dark palette`,async t=>{
  const {page,errors,writes,record}=await fixture(t,kind,true);
  record.title='媒体组件配色验收';record.updated_at=Date.UTC(2026,9,7);
  await mountWorkspaceControls(page,kind);
@@ -65,8 +65,8 @@ for(const kind of ['classic','smart'])test(`${kind} media cards, trim and previe
  const card=kind==='classic'?'.output-img-wrap > img':'.media-video-card',play=kind==='classic'?'.output-video-play':'.smart-video-play';
  await page.waitForFunction(()=>document.querySelector('img[data-preview-kind="video"]')?.naturalWidth>0);
  assert.equal(videoRequests,0,'canvas thumbnails do not download videos');
- for(const theme of ['dark','light']){
-  await page.evaluate(theme=>StudioTheme.apply(theme),theme);
+ for(const theme of ['dark']){
+
   await themedSurface(page,card);await themedSurface(page,play);
   const playButton=page.locator(play).first();
   await page.keyboard.press('Tab');

@@ -218,13 +218,6 @@ async function backToCanvasList(options={}){
     window.location.replace(window.FrontendVersion?.versionedUrl(target) || target);
 }
 
-function applyTheme(theme){
-    const dark = theme === 'dark';
-    document.documentElement.classList.toggle('theme-dark', dark);
-    document.documentElement.classList.toggle('studio-theme-dark', dark);
-    document.body?.classList.toggle('theme-dark', dark);
-    document.body?.classList.toggle('studio-theme-dark', dark);
-}
 function toast(text){
     const el = document.getElementById('toast');
     el.textContent = text;
@@ -498,7 +491,6 @@ smartSelection.bind();
 smartComposer.bind();
 smartWorkspaceView.bind();
 bindSmartImageEditorViewport();
-window.addEventListener('studio-theme-change', event => applyTheme(event.detail?.theme || 'light'));
 window.StudioFrameMessages.subscribeApi(async event => {
         if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed'){
             await refreshSmartConfigFromSettings();
@@ -507,8 +499,7 @@ window.StudioFrameMessages.subscribeApi(async event => {
         if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
 });
 // Focus refresh is shared with the policy watcher below.
-window.StudioFrameMessages.subscribe(['studio-theme','providers-changed','workflows-changed','comfy-instances-changed','asset_library_updated','canvas_updated'], event => {
-    if(event.data?.type === 'studio-theme') applyTheme(event.data.theme || 'light');
+window.StudioFrameMessages.subscribe(['providers-changed','workflows-changed','comfy-instances-changed','asset_library_updated','canvas_updated'], event => {
     if(event.data?.type === 'providers-changed' || event.data?.type === 'workflows-changed' || event.data?.type === 'comfy-instances-changed') refreshSmartConfigFromSettings();
     if(event.data?.type === 'asset_library_updated') handleAssetLibraryUpdatedMessage(event.data);
     if(event.data?.type === 'canvas_updated') handleCanvasUpdatedMessage(event.data);
@@ -518,7 +509,6 @@ window.StudioFrameMessages.subscribe(['studio-theme','providers-changed','workfl
 window.onload = async () => {
     if(window.CanvasSession) await window.CanvasSession.ready;
     window.CanvasNavigation?.adopt(canvasId);
-    applyTheme(localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light');
     if(window.lucide) lucide.createIcons();
     connectAssetLibrarySyncSocket();
     await loadConfig();

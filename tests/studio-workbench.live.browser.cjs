@@ -83,8 +83,8 @@ test('live workbench creates, saves and opens both canvas types through producti
  frame=canvasFrame();
  await frame.getByRole('button',{name:'取消',exact:true}).click();
  await frame.locator('#gateSearchInput').fill('');
- for(const theme of ['dark','light']){
-  await page.evaluate(theme=>broadcastTheme(theme),theme);
+ for(const theme of ['dark']){
+
   await frame.waitForFunction(()=>{
    const background=getComputedStyle(document.getElementById('canvasGate')).backgroundColor;
    return [...document.querySelectorAll('.studio-start-card,.studio-recent-item')].every(el=>getComputedStyle(el).backgroundColor===background);
