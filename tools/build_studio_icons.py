@@ -15,6 +15,8 @@ COMMIT = 'a4ce1404bc6d24d3c365afe7b258d6bf6f48d62d'
 BASE = f'https://raw.githubusercontent.com/tabler/tabler-icons/{COMMIT}/'
 # Explicit semantic aliases, including dynamic menu/node choices.
 ALIASES = {
+ 'share-2':'share','bell':'bell','mouse-pointer-2':'pointer','map':'map','magnet':'magnet','minus':'minus','command':'command',
+ 'music':'music','box':'cube','monitor-play':'device-tv',
  'archive':'archive','arrow-left':'arrow-left','arrow-up':'arrow-up','arrow-up-right':'arrow-up-right',
  'audio-lines':'wave-sine','badge-check':'rosette-discount-check','ban':'ban','book-open':'book',
  'bookmark':'bookmark','bookmark-plus':'bookmark-plus','boxes':'packages','brush':'brush',

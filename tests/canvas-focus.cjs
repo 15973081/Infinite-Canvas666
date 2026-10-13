@@ -2,10 +2,10 @@ const test=require('node:test'),assert=require('node:assert/strict'),vm=require(
 const source=fs.readFileSync(require('node:path').join(__dirname,'../static/js/canvas-focus.js'),'utf8');
 function classes(){const set=new Set();return {toggle:(key,on)=>on?set.add(key):set.delete(key),add:key=>set.add(key),contains:key=>set.has(key)};}
 for(const smart of [false,true]) test((smart?'smart':'classic')+' focus preserves iframe and prioritizes modal Escape',()=>{
- const listeners={},parentListeners={},attrs={},host={append(node){this.button=node;}};
+ const listeners={},parentListeners={},attrs={},host={id:smart?'pixmaxSettingsMenu':'quickToolbar',append(node){this.button=node;}};
  let modal=false;
- const doc={documentElement:{classList:classes()},querySelector:s=>s==='#quickToolbar'?(!smart?host:null):{parentElement:host},getElementById:id=>id==='smartWorkflowToggle'&&smart?{}:null,
- createElement:()=>({classList:classes(),setAttribute:(k,v)=>attrs[k]=v,addEventListener:(k,v)=>listeners['button:'+k]=v,focus(){}}),
+ const doc={documentElement:{classList:classes()},querySelector:s=>s==='#quickToolbar'?(!smart?host:null):s==='#pixmaxSettingsMenu'?(smart?host:null):null,getElementById:id=>id==='smartWorkflowToggle'&&smart?{}:null,
+ createElement:()=>({classList:classes(),setAttribute:(k,v)=>attrs[k]=v,addEventListener:(k,v)=>listeners['button:'+k]=v,insertAdjacentHTML(){},focus(){}}),
  querySelectorAll:()=>modal?[{getAttribute:()=>null,getClientRects:()=>[{}]}]:[],defaultView:{getComputedStyle:()=>({display:'block',visibility:'visible'})}};
  const parentDoc={documentElement:{classList:classes()},querySelectorAll:()=>[]};
  const parent={document:parentDoc,addEventListener:(k,v)=>parentListeners[k]=v,removeEventListener:k=>delete parentListeners[k]};

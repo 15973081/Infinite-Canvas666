@@ -165,7 +165,8 @@ function pasteAssetsFromInbox(){
 function pickMediaForSmartNode(nodeId){
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*,video/*,audio/*';
+    const kind = smartGenerationKind(nodes.find(node => node.id === nodeId));
+    input.accept = kind ? `${kind}/*` : 'image/*,video/*,audio/*';
     input.multiple = true;
     input.onchange = () => {
         if(input.files?.length) handleFiles(input.files, nodeId);
@@ -226,7 +227,7 @@ function isSupportedUploadFile(file){
     const type = String(file?.type || '').toLowerCase();
     const name = String(file?.name || '').toLowerCase();
     return type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/')
-        || /\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v|mp3|wav|m4a|aac|ogg|flac)(\?|$)/.test(name);
+        || /\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v|mp3|wav|m4a|aac|ogg|flac|glb|gltf)(\?|$)/.test(name);
 }
 
 function dataTransferItemEntry(item){
@@ -437,7 +438,7 @@ function startSmartLocalDepthVideo(nodeId,index,targetId=''){
     let target=targetId?nodes.find(node=>node.id===targetId):null;
     if(targetId && !target)return;
     pushUndo();
-    if(!target){const rect=nodeRect(source);target=createNode(rect.x+rect.width+60,rect.y,[],{select:true,skipUndo:true});}
+    if(!target){const rect=nodeRect(source);target=createNode(rect.x+rect.width+60,rect.y,[],{select:true,skipUndo:true,generationKind:'video'});}
     target.w=320;target.h=260;
     jobs.get(target.id)?.runner.close();
     const origin=canvas.id,url=item.url,config=window.LocalDepthVideo.getSettings(),guard=canvasTaskWriteGuard(source,target);
@@ -585,11 +586,27 @@ function appendImagesToSmartNode(uploaded, targetId='', opts={}){
     let node = nodes.find(n => n.id === targetId) || selectedNode();
     if(node && !isSmartImageNode(node)) node = null;
     if(opts.forceNew) node = null;
+    const targetKind = smartGenerationKind(node);
+    if(targetId && targetKind && images.some(file => mediaKindForItem(file) !== targetKind)){
+        throw new Error(`${targetKind === 'video' ? '视频' : '图片'}节点仅接收${targetKind === 'video' ? '视频' : '图片'}，请使用对应节点。`);
+    }
+    // Blank-canvas imports split by media kind; a selected typed node receives only its kind.
+    const kinds = [...new Set(images.map(mediaKindForItem))];
+    if(!targetId && (kinds.length > 1 || (targetKind && kinds[0] !== targetKind))){
+        const center = opts.point || viewportCenter();
+        kinds.forEach((kind, index) => {
+            const matching = images.filter(file => mediaKindForItem(file) === kind);
+            const compatible = node && targetKind === kind;
+            appendImagesToSmartNode(matching, compatible ? node.id : '', {...opts, forceNew:!compatible, point:{x:center.x+index*(MEDIA_NODE_DEFAULT_SIZE+48), y:center.y}});
+        });
+        return;
+    }
     if(!node){
         const center = opts.point || viewportCenter();
-        undoSuppressed = true;
-        node = createImageNodeAt(center, []);
-        undoSuppressed = false;
+        node = createImageNodeAt(center, images, {skipUndo:true});
+        smartSelection.createdNode(node.id);
+        scheduleSave();
+        return;
     }
     const previousCount = (node.images || []).length;
     node.images = [...(node.images || []), ...images.map(file => ({...file, kind:file.kind || mediaKindForItem(file)}))];
@@ -611,6 +628,10 @@ async function handleFiles(files, targetId='', opts={}){
     try {
         const fileList = [...(files || [])].filter(isSupportedUploadFile);
         if(!fileList.length) return;
+        const targetKind = smartGenerationKind(nodes.find(node => node.id === targetId));
+        if(targetKind && fileList.some(file => mediaKindForFile(file) !== targetKind)){
+            throw new Error(`${targetKind === 'video' ? '视频' : '图片'}节点仅接收${targetKind === 'video' ? '视频' : '图片'}，请使用对应节点。`);
+        }
         const uploaded = await uploadFiles(fileList,{nodeId:targetId});
         if(targetId&&!nodes.some(node=>node.id===targetId))throw new Error('目标节点已移除，未加入上传结果');
         if(!uploaded.length) return;

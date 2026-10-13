@@ -16,11 +16,11 @@ test('separate image/video nodes show their own composer and retain independent 
     assert.equal(await page.locator('.generation-node-placeholder').count(),2);
     assert.equal(await page.locator('.node-drop').count(),0);
     const image=await page.locator('.generation-node').first().boundingBox(),video=await page.locator('.generation-node').last().boundingBox();
-    assert.equal(image.width,240);assert.equal(image.height,240);assert.equal(video.width,320);assert.equal(video.height,180);
-    assert.equal(await page.locator('.generation-node').first().evaluate(el=>getComputedStyle(el).borderStyle),'solid');
+    assert.equal(image.width,200);assert.equal(image.height,200);assert.equal(video.width,300);assert.equal(video.height,200);
+    assert.equal(await page.locator('.generation-node').first().evaluate(el=>getComputedStyle(el.querySelector('.node-body')).borderStyle),'solid');
     await page.mouse.move(image.x+18,image.y+image.height/2);await page.mouse.down();
     await page.mouse.move(image.x+68,image.y+image.height/2+25,{steps:5});await page.mouse.up();
-    assert.deepEqual(await page.evaluate(()=>({x:imageGenerator.x,y:imageGenerator.y})),{x:290,y:155});
+    assert.deepEqual(await page.evaluate(()=>({x:imageGenerator.x,y:imageGenerator.y})),{x:310,y:175});
     await page.getByRole('button',{name:'编辑图片生成提示词'}).click();
     assert.equal(await page.locator('#composerHeading').textContent(),'图片生成');
     assert.equal(await page.locator('#apiKindToggle').isVisible(),false);
@@ -63,7 +63,7 @@ test('generation identity, prompt settings and connections survive save/reload a
         return {count:nodes.length,kinds:added.map(n=>n.generationKind),drafts:added.map(n=>n.promptDraftText),settings:added.map(n=>n.runSettings.apiKind),connections:canvas.connections.length};
     });
     assert.deepEqual(imported,{count:4,kinds:['image','video'],drafts:['图片草稿','视频草稿'],settings:['image','video'],connections:2});
-    await page.evaluate(()=>{window.legacy=createNode(1000,600);});
+    await page.evaluate(()=>{window.legacy={id:'legacy',type:'smart-image',x:1000,y:600,images:[{url:'/test-image.svg',kind:'image'}]};nodes.push(legacy);smartSelection.createdNode(legacy.id);render();});
     assert.equal(await page.locator('#apiKindToggle').isVisible(),true);
     await page.locator('#apiKindToggle [data-kind="video"]').click();
     assert.equal(await page.evaluate(()=>settings.apiKind),'video');

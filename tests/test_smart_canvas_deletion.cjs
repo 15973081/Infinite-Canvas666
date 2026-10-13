@@ -9,7 +9,7 @@ function setup(){
     const calls={save:0,refresh:[],links:0,composer:0,audio:0,video:0,release:[],correction:[]};
     const elements=new Map();
     const ctx=vm.createContext({nodes:[],canvas:{connections:[]},canvasUsesConnections:true,
-        selectedId:'',selectedIds:[],selectedImage:{nodeId:'',index:-1},undoStack:[],undoSuppressed:false,UNDO_LIMIT:40,
+        selectedId:'',selectedIds:[],selectedImage:{nodeId:'',index:-1},undoStack:[],smartRedoStack:[],undoSuppressed:false,UNDO_LIMIT:40,isSmartCanvasLocked:()=>false,
         smartComposer:{documentReplaced(){}},smartImageEditor:{state:{nodeId:'',open:true}},
         smartAudioPreview:{nodeId:'',closeForNodes(ids){if(new Set(ids).has(this.nodeId))calls.audio++;}},smartWorkflowTransferModal:null,
         world:{querySelector:s=>elements.get(s.match(/data-id="(.*)"/)[1])},CSS:{escape:s=>s},
@@ -19,7 +19,7 @@ function setup(){
         scheduleSmartGeometryRefresh:(ids,passes)=>calls.correction.push({ids:[...ids],passes}),
         scheduleSave:()=>calls.save++,tr:s=>s,toast(){},render(){throw Error('unexpected full render');}});
     installSmartSelection(ctx);
-    for(const name of ['snapshotForUndo','pushUndo','performUndo','isSmartImageNode','isHistoryGroupNode','hasHistoryConnection','demoteHistoryGroupNode','historyGroupForNode','smartAffectedNodeIds','deleteNode','deleteSmartNodes','finishSmartNodeRemoval','clearNodeMediaBeforeDelete','deleteNodeFromButton']){
+    for(const name of ['snapshotForUndo','pushUndo','performUndo','smartGenerationKind','isSmartImageNode','isHistoryGroupNode','hasHistoryConnection','demoteHistoryGroupNode','historyGroupForNode','smartAffectedNodeIds','deleteNode','deleteSmartNodes','finishSmartNodeRemoval','clearNodeMediaBeforeDelete','deleteNodeFromButton']){
         const start=source.indexOf(`function ${name}(`);assert.ok(start>=0,name);
         vm.runInContext(source.slice(start,source.indexOf('\n}',start)+2),ctx);
     }

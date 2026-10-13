@@ -1,0 +1,13 @@
+{
+  "source": "User-supplied Pixmax frontend mirror",
+  "original_bundle_sha256": "6f2e22f83484de4b109f140cc31454b31f8d73a38efb40725f252497a6d7603b",
+  "components": {
+    "director": "$6e",
+    "editor": "ujt"
+  },
+  "changes": [
+    "Remove account/router bootstrap",
+    "Export editor mounts and scoped service context"
+  ],
+  "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
+}

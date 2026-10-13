@@ -102,6 +102,7 @@ let suppressNodeClickUntil = 0;
 let textSelectionGuard = null;
 const UNDO_LIMIT = 40;
 const undoStack = [];
+const smartRedoStack = [];
 let undoSuppressed = false;
 let pendingUndoSnapshot = null;
 
@@ -233,12 +234,14 @@ function toast(text){
 }
 
 const MEDIA_NODE_DEFAULT_SCALE = 2;
+const MEDIA_NODE_DEFAULT_SIZE = 200;
+const MEDIA_NODE_VIDEO_HEIGHT = 200;
 const MEDIA_GROUP_PREVIOUS_DEFAULT_SCALE = 1.6;
 const MEDIA_GROUP_DEFAULT_SCALE = 0.8;
 const MEDIA_GROUP_THUMB_BASE = 224;
 const MEDIA_GROUP_MAX_VISIBLE_ROWS = 3;
-const EMPTY_UPLOAD_NODE_WIDTH = 208;
-const EMPTY_UPLOAD_NODE_HEIGHT = 128;
+const EMPTY_UPLOAD_NODE_WIDTH = MEDIA_NODE_DEFAULT_SIZE;
+const EMPTY_UPLOAD_NODE_HEIGHT = MEDIA_NODE_VIDEO_HEIGHT;
 
 
 
@@ -310,6 +313,7 @@ async function loadCanvas(options={}){
         clearTimeout(saveTimer);
         saveTimer = null;
         undoStack.length = 0;
+        smartRedoStack.length = 0;
         pendingUndoSnapshot = null;
         canvasUsesConnections = Object.prototype.hasOwnProperty.call(canvas || {}, 'connections');
         document.title = canvas.title || '智能画布';
@@ -328,7 +332,8 @@ async function loadCanvas(options={}){
         canvas.connections = Array.isArray(canvas.connections) ? canvas.connections : [];
         const cleanedDetachedInputs = cleanupDetachedRunInputRefs();
         /* 不从服务端合并视野 —— 每台电脑保持各自的视角 */
-        /* viewport = {...viewport, ...(canvas.viewport || {})}; */
+        const savedViewport=canvas.viewport || {};
+        viewport={x:Number.isFinite(savedViewport.x)?savedViewport.x:0,y:Number.isFinite(savedViewport.y)?savedViewport.y:0,scale:Math.min(2,Math.max(.1,safeScale(savedViewport.scale||1)))};
         viewport.scale = safeScale(viewport.scale);
         if(canvas.settings) settings = {...settings, ...canvas.settings};
         canvasDefaultSmartSettings = cloneSmartSettings(settings);

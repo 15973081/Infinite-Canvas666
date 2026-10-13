@@ -36,7 +36,7 @@ test('Smart actual image clicks keep group composer and single-node drag/view sa
  assert.deepEqual(await state(p),{selectedId:'g',selectedIds:[],selectedImage:{nodeId:'',index:-1},saves:1,renders:0});
  assert.equal(await p.evaluate(()=>promptPlainText()),'Group draft');
  await p.locator('.image-node[data-id="a"] .image-wrap').click();await p.waitForFunction(()=>smartSelection.nodeId==='a');
- assert.deepEqual(await state(p),{selectedId:'a',selectedIds:[],selectedImage:{nodeId:'',index:-1},saves:2,renders:0});assert.deepEqual(errors,[]);
+ assert.deepEqual(await state(p),{selectedId:'a',selectedIds:[],selectedImage:{nodeId:'a',index:0},saves:2,renders:0});assert.deepEqual(errors,[]);
 });
 test('Smart native double click clears multiselect for preview and Escape closes without a delayed selection',async t=>{
  const {page:p,errors}=await selection(t);

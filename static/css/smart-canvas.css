@@ -299,6 +299,9 @@ body.smart-node-resize .smart-node-floating-menu,
 .generation-node-placeholder span { opacity:0; transition:opacity .15s; }
 .generation-node:hover .generation-node-placeholder span,.generation-node.selected .generation-node-placeholder span,.generation-node-placeholder:focus-visible span { opacity:1; }
 .generation-node-placeholder:focus-visible { outline:2px solid var(--strong); outline-offset:0; }
+.media-node-upload { position:absolute; right:12px; bottom:12px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; padding:6px; border:0; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; opacity:.65; }
+.media-node-upload svg { width:18px; height:18px; }
+.media-node-upload:hover,.media-node-upload:focus-visible { opacity:1; background:var(--panel); outline:1px solid var(--border); }
 .node-drop i { width:24px; height:24px; }
 .upload-node-label{display:flex;flex-direction:column;align-items:center;gap:10px}.upload-node-main { display:flex; align-items:center; justify-content:center; width:20px; height:20px; flex:0 0 auto; color:var(--strong,var(--text)); }
 .upload-node-main i,.upload-node-main svg { width:18px; height:18px; }

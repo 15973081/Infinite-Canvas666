@@ -91,6 +91,7 @@ test('Ending edit cancels unfinished node movement and size changes', async t =>
     const before = await documentState(p);
     for(const selector of ['.image-node[data-id="a"] .node-body', '.image-node[data-id="a"] .node-resize-handle']) {
         await p.evaluate(() => MemberCanvasEdit.setEditable(true));
+        await p.locator('.image-node[data-id="a"]').hover();
         const start = await point(p, selector);
         await drag(p, start, {x:start.x+60,y:start.y+60}, async () => {
             assert.equal(await p.evaluate(() => Boolean(dragState || resizeState)), true);
@@ -102,11 +103,13 @@ test('Ending edit cancels unfinished node movement and size changes', async t =>
     assert.deepEqual(errors, []);
 });
 
-test('Editing still creates a connected upload node by dragging an output port', async t => {
+test('Editing creates a connected typed media node after choosing the output kind', async t => {
     const {page:p, errors} = await setup(t);
     await drag(p, await point(p, '.image-node[data-id="a"] .node-port[data-port="out"]'), {x:470,y:580});
+    await p.getByRole('menuitem',{name:'视频节点',exact:true}).click();
     const state = await documentState(p);
     assert.equal(state.nodes.length, 3); assert.equal(state.connections.length, 1);
+    assert.equal(state.nodes[2].generationKind,'video');
     assert.equal(state.connections[0].from, 'a'); assert.equal(state.connections[0].to, state.nodes[2].id);
     assert.equal(state.undo, 1); assert.equal(state.dirty, true); assert.deepEqual(errors, []);
 });
@@ -122,9 +125,9 @@ test('Viewing retains canvas pan, zoom and media preview', async t => {
     await p.evaluate(() => MemberCanvasEdit.setEditable(false));
     await p.evaluate(() => gesturePreview.sync());
     const before = await documentState(p), viewportBefore = await p.evaluate(() => ({...viewport}));
-    await drag(p, {x:80,y:540}, {x:135,y:570});
+    await drag(p, {x:430,y:700}, {x:485,y:730});
     assert.notEqual(await p.evaluate(() => viewport.x), viewportBefore.x);
-    await p.mouse.wheel(0, -80);
+    await p.keyboard.down('Control');await p.mouse.wheel(0, -80);await p.keyboard.up('Control');
     await p.waitForFunction(scale => viewport.scale !== scale, viewportBefore.scale);
     await p.locator('.image-node[data-id="a"] .image-wrap img').click();
     await p.waitForFunction(() => document.querySelector('.member-media-preview')?.open);

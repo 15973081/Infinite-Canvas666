@@ -21,11 +21,11 @@ test('dragging an output offers image/video prompts and creates the chosen conne
         const undoCount=await page.evaluate(()=>undoStack.length);
         await dragPort(page,sourceId,'out',{x:800,y:300});
         assert.equal(await page.locator('#createMenu.open').count(),1);
-        assert.deepEqual((await page.locator('#createMenu [role="menuitem"]:visible').allTextContents()).map(text=>text.trim()),['图片提示词','视频提示词']);
-        const bounds=await page.locator('#createMenu').boundingBox();assert.ok(bounds.width<=220 && bounds.height<110);
+        assert.deepEqual((await page.locator('#createMenu [role="menuitem"]:visible').allTextContents()).map(text=>text.trim()),['文本节点','图像节点','视频节点','音频节点','3D模型生成节点','分镜脚本']);
+        const bounds=await page.locator('#createMenu').boundingBox();assert.ok(bounds.width<=360 && bounds.height<=470);
         assert.deepEqual(await page.evaluate(()=>({nodes:nodes.length,links:canvas.connections.length,undo:undoStack.length})),{nodes:1,links:0,undo:undoCount});
-        if(kind==='video'){await page.keyboard.press('End');await page.keyboard.press('Enter');}
-        else await page.getByRole('menuitem',{name:'图片提示词',exact:true}).click();
+        if(kind==='video')await page.getByRole('menuitem',{name:'视频节点',exact:true}).click();
+        else await page.getByRole('menuitem',{name:'图像节点',exact:true}).click();
         const result=await page.evaluate(()=>{
             const node=nodes[1],rect=nodeRect(node);
             return {id:node.id,kind:node.generationKind,mode:node.runSettings.apiKind,inputs:node.inputNodeIds,connections:canvas.connections,undo:undoStack.length,center:{x:rect.x+rect.width/2,y:rect.y+rect.height/2}};
@@ -33,7 +33,7 @@ test('dragging an output offers image/video prompts and creates the chosen conne
         assert.equal(result.kind,kind);assert.equal(result.mode,kind);
         assert.deepEqual(result.inputs,[sourceId]);
         assert.deepEqual(result.connections,[{from:sourceId,to:result.id,kind:'input'}]);
-        assert.equal(result.undo,undoCount+1);assert.deepEqual(result.center,{x:800,y:300});
+        assert.equal(result.undo,undoCount+1);assert.deepEqual(result.center,kind==='image'?{x:900,y:280}:{x:950,y:280});
         assert.equal(await page.locator('#composerHeading').textContent(),kind==='image'?'图片生成':'视频生成');
         assert.match(await page.locator('#inputPromptPreview').innerText(),/雨夜街道/);
         assert.equal(await page.locator('#apiKindToggle').isVisible(),false);
@@ -48,7 +48,7 @@ test('dragging an output offers image/video prompts and creates the chosen conne
     // Exercise the real history without a reload in between.
     await page.evaluate(()=>{smartSelection.createdNode(nodes[0].id);render();});
     await dragPort(page,sourceId,'out',{x:800,y:300});
-    await page.getByRole('menuitem',{name:'视频提示词',exact:true}).click();
+    await page.getByRole('menuitem',{name:'视频节点',exact:true}).click();
     await page.evaluate(()=>performUndo());
     assert.deepEqual(await page.evaluate(()=>({nodes:nodes.length,links:canvas.connections.length,inputs:nodes[0].inputNodeIds||[]})),{nodes:1,links:0,inputs:[]});
     assert.deepEqual(errors,[]);
@@ -61,10 +61,10 @@ test('input drag respects connection direction and zoom; direct drops keep conne
         viewport={x:40,y:20,scale:1.25};applyViewport();return target.id;
     });
     await dragPort(page,targetId,'in',{x:180,y:300});
-    await page.getByRole('menuitem',{name:'图片提示词',exact:true}).click();
+    await page.getByRole('menuitem',{name:'图像节点',exact:true}).click();
     const sourceId=await page.evaluate(()=>nodes[1].id);
-    assert.deepEqual(await page.evaluate(()=>({links:canvas.connections,inputs:nodes[0].inputNodeIds,point:{x:nodes[1].x+120,y:nodes[1].y+120}})),{
-        links:[{from:sourceId,to:targetId,kind:'input'}],inputs:[sourceId],point:{x:112,y:224}
+    assert.deepEqual(await page.evaluate(()=>({links:canvas.connections,inputs:nodes[0].inputNodeIds,point:{x:nodes[1].x+nodeRect(nodes[1]).width/2,y:nodes[1].y+nodeRect(nodes[1]).height/2}})),{
+        links:[{from:sourceId,to:targetId,kind:'input'}],inputs:[sourceId],point:{x:-28,y:204}
     });
     await page.evaluate(()=>performUndo());
     const textId=await page.evaluate(()=>{viewport={x:0,y:0,scale:1};applyViewport();return createPromptNode(40,120).id;});
@@ -83,9 +83,9 @@ test('cancelled, stale and readonly menus do not create nodes or undo entries; b
     for(const cancel of ['escape','outside','wheel']){
         await dragPort(page,sourceId,'out',{x:800,y:300});
         await page.keyboard.press('ArrowDown');
-        assert.equal(await page.evaluate(()=>document.activeElement.dataset.createType),'generate-video');
-        await page.keyboard.press('ArrowDown');
         assert.equal(await page.evaluate(()=>document.activeElement.dataset.createType),'generate-image');
+        await page.keyboard.press('ArrowDown');
+        assert.equal(await page.evaluate(()=>document.activeElement.dataset.createType),'generate-video');
         if(cancel==='escape')await page.keyboard.press('Escape');
         if(cancel==='outside')await page.mouse.click(650,140);
         if(cancel==='wheel'){await page.mouse.move(650,140);await page.mouse.wheel(0,50);}
@@ -93,8 +93,8 @@ test('cancelled, stale and readonly menus do not create nodes or undo entries; b
         assert.deepEqual(await page.evaluate(()=>({nodes:nodes.length,links:canvas.connections.length,undo:undoStack.length})),{nodes:1,links:0,undo:undoCount});
     }
     await page.mouse.dblclick(800,300);
-    assert.equal(await page.locator('#createMenu [role="menuitem"]:visible').count(),5);
-    assert.equal(await page.getByRole('menuitem',{name:'图片生成',exact:true}).count(),1);
+    assert.equal(await page.locator('#createMenu [role="menuitem"]:visible').count(),8);
+    assert.equal(await page.getByRole('menuitem',{name:'图像节点',exact:true}).count(),1);
     await page.keyboard.press('Escape');
     await dragPort(page,sourceId,'out',{x:800,y:300});
     await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
@@ -104,7 +104,7 @@ test('cancelled, stale and readonly menus do not create nodes or undo entries; b
     await page.evaluate(()=>MemberCanvasEdit.setEditable(true));
     await dragPort(page,sourceId,'out',{x:800,y:300});
     await page.evaluate(()=>{nodes=[];render();});
-    await page.getByRole('menuitem',{name:'视频提示词',exact:true}).click();
+    await page.getByRole('menuitem',{name:'视频节点',exact:true}).click();
     assert.deepEqual(await page.evaluate(()=>({nodes:nodes.length,undo:undoStack.length})),{nodes:0,undo:undoCount});
     assert.deepEqual(errors,[]);
 });

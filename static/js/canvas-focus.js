@@ -1,6 +1,6 @@
 /* Window-sized canvas focus mode: no navigation, reload or document writes. */
 (() => {
-    const host=document.querySelector('#quickToolbar') || document.querySelector('#smartWorkflowToggle')?.parentElement;
+    const host=document.querySelector('#pixmaxSettingsMenu') || document.querySelector('#quickToolbar') || document.querySelector('#smartWorkflowToggle')?.parentElement;
     if(!host) return;
     const button=document.createElement('button');
     button.type='button';button.className='tool-btn canvas-focus-toggle';
@@ -14,6 +14,7 @@
         button.setAttribute('aria-label',active?'退出全屏':'全屏画布');
         button.setAttribute('aria-pressed',String(active));
         button.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(active?shrink:expand)+'</svg>';
+        if(host.id==='pixmaxSettingsMenu')button.insertAdjacentHTML('beforeend','<span>'+(active?'退出全屏':'全屏画布')+'</span>');
     }
     function setFocus(value){
         active=value;

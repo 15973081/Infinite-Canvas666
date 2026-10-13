@@ -8,7 +8,7 @@ const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240"><r
 
 async function fixture(t, kind, member, options={}) {
     const sourceRoot=path.resolve(options.sourceRoot || root);
-    const browser = await chromium.launch({channel:'chrome', headless:true});
+    const browser = await chromium.launch({channel:'chrome', headless:true,args:options.secureOrigin?['--unsafely-treat-insecure-origin-as-secure='+origin]:[]});
     t.after(() => browser.close());
     const page = await browser.newPage({viewport:{width:1280, height:900}});
     page.setDefaultTimeout(15000);

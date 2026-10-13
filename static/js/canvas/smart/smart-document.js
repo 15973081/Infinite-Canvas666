@@ -8,6 +8,7 @@ function capturePendingUndo(){ pendingUndoSnapshot = snapshotForUndo(); }
 
 function commitPendingUndo(){
     if(pendingUndoSnapshot){
+        smartRedoStack.length=0;
         undoStack.push(pendingUndoSnapshot);
         if(undoStack.length > UNDO_LIMIT) undoStack.shift();
         pendingUndoSnapshot = null;
@@ -29,12 +30,15 @@ function snapshotForUndo(){
 function pushUndo(){
     if(undoSuppressed) return;
     if(!canvas) return;
+    smartRedoStack.length=0;
     undoStack.push(snapshotForUndo());
     if(undoStack.length > UNDO_LIMIT) undoStack.shift();
 }
 
 function performUndo(){
+    if(isSmartCanvasLocked())return;
     if(!undoStack.length){ toast('没有可撤销的操作'); return; }
+    smartRedoStack.push(snapshotForUndo());
     const snap = undoStack.pop();
     undoSuppressed = true;
     nodes = snap.nodes;
@@ -307,16 +311,29 @@ function normalizeLegacySmartNode(node){
         delete normalized.inputImage;
         delete normalized.steps;
         delete normalized.resultGrouping;
-        return normalized;
+        return normalizeLegacySmartNode(normalized);
     }
     if(!node.type) node.type = 'smart-image';
     if(node.type === 'smart-image') delete node.imageMode;
     if(node.type === 'smart-image' && node.historyFor) node.isHistoryGroup = true;
+    // Retain legacy IDs, prompts and connections; empty upload slots become image nodes.
+    if(node.type === 'smart-image' && !node.generationKind && !(node.images || []).length && !node.isHistoryGroup && !node.localDepth && !node.running && !node.pending && !(node.pendingTasks || []).length){
+        node.generationKind = node.runSettings?.apiKind === 'video' ? 'video' : 'image';
+        if(Number(node.w) === 208 && Number(node.h) === 128){delete node.w;delete node.h;}
+    }
     return node;
 }
 
+function newSmartMediaKind(images=[], options={}){
+    if(['image','video'].includes(options.generationKind)) return options.generationKind;
+    if(!images.length) return 'image';
+    const kinds = new Set(images.map(mediaKindForItem));
+    return kinds.size === 1 && ['image','video'].includes([...kinds][0]) ? [...kinds][0] : '';
+}
+
 function createImageNodeAt(point, images=[], options={}){
-    const layout = imageLayout(images || [], mediaNodeDefaultScale({type:'smart-image', images:images || []}), {type:'smart-image', images:images || []});
+    const preview = {type:'smart-image', images:images || [], generationKind:newSmartMediaKind(images || [], options)};
+    const layout = imageLayout(preview.images, mediaNodeDefaultScale(preview), preview);
     return createNode((point?.x || 0) - Math.round(layout.width / 2), (point?.y || 0) - Math.round(layout.height / 2), images, options);
 }
 
@@ -430,6 +447,7 @@ function scheduleSave(){
     if(isSmartCanvasLocked()) return;
     smartCanvasDirty = true;
     window.MemberCanvasEdit?.markDirty();
+    syncPixmaxSaveStatus();
     clearTimeout(saveTimer);
     if(smartSaveInFlight){
         smartSaveAgain = true;
@@ -443,6 +461,8 @@ function scheduleSave(){
 
 async function saveCanvas(options={}){
     const force = options.force === true;
+    // Manual save/lease release must include the editor's final unmount document.
+    if(force&&typeof smartStudioSession!=='undefined'&&smartStudioSession?.closing)await closeSmartStudio();
     // 保存必须通过当前工作空间权限检查；强制保存也不能跳过此检查。
     if(!canvasId || !canvas || (window.CanvasSession?.enabled ? !window.MemberCanvasEdit?.canSave : isSmartCanvasLocked())){
         return false;
@@ -540,10 +560,12 @@ async function saveCanvas(options={}){
         }
     })();
     smartSaveInFlight = operation;
+    syncPixmaxSaveStatus();
     try {
         return await operation;
     } finally {
         if(smartSaveInFlight === operation) smartSaveInFlight = null;
+        syncPixmaxSaveStatus();
         // 请求结束后统一安排后续保存，每次执行仍会重新检查权限和锁。
         if((smartSaveAgain || smartCanvasDirty) && !isSmartCanvasLocked()){
             clearTimeout(saveTimer);
@@ -573,9 +595,12 @@ function createNode(x, y, images=[], options={}){
     if(!options.skipUndo) pushUndo();
     const nodeImages = (images || []).map(img => ({...img}));
     const node = {id:uid('smart'), type:'smart-image', x, y, title:nodeImages.length > 1 ? 'Group' : nodeImages.length ? 'Image' : '上传节点', images:nodeImages, created_at:Date.now()};
-    if(['image','video'].includes(options.generationKind)){
-        node.generationKind = options.generationKind;
-        node.title = node.generationKind === 'video' ? '视频生成' : '图片生成';
+    const generationKind = newSmartMediaKind(nodeImages, options);
+    if(nodeImages.length===1&&nodeImages[0].name)node.label=nodeImages[0].name.replace(/\.[^.]+$/,'');
+    else if(!nodeImages.length&&generationKind)node.label=pixmaxUniqueNodeLabel(generationKind==='video'?'视频生成节点':'图像生成节点');
+    if(generationKind){
+        node.generationKind = generationKind;
+        node.title = node.generationKind === 'video' ? '视频节点' : '图片节点';
         const recent = recentSmartSettingsForMode();
         const defaults = canvasDefaultSmartSettings || initialSmartSettings;
         const engine = isApiLikeEngine(recent.engine) ? recent.engine : isApiLikeEngine(defaults.engine) ? defaults.engine : 'api';
@@ -605,9 +630,10 @@ function createPromptNode(x, y, options={}){
         type:'smart-prompt',
         x,
         y,
-        w:316,
-        h:260,
+        w:240,
+        h:240,
         title:'文本节点',
+        label:pixmaxUniqueNodeLabel('文本生成节点'),
         text:'',
         created_at:Date.now()
     };
@@ -662,8 +688,8 @@ function copySelectedNodes(){
     toast(`已复制 ${copiedNodes.length} 个节点`);
 }
 
-function pasteNodes(){
-    if(!canvas || !nodeClipboard?.nodes?.length || isEditableTarget(document.activeElement)) return;
+function pasteNodes({includeConnections=true}={}){
+    if(isSmartCanvasLocked() || !canvas || !nodeClipboard?.nodes?.length || isEditableTarget(document.activeElement)) return;
     lastNodePasteAt = Date.now();
     pushUndo();
     const sourceNodes = nodeClipboard.nodes;
@@ -682,11 +708,11 @@ function pasteNodes(){
     });
     copies.forEach(copy => {
         if(Array.isArray(copy.inputNodeIds)){
-            copy.inputNodeIds = copy.inputNodeIds.map(id => idMap.get(id)).filter(Boolean);
+            copy.inputNodeIds = includeConnections ? copy.inputNodeIds.map(id => idMap.get(id)).filter(Boolean) : [];
         }
-        if(copy.sourceNodeId) copy.sourceNodeId = idMap.get(copy.sourceNodeId) || '';
+        if(copy.sourceNodeId) copy.sourceNodeId = includeConnections ? idMap.get(copy.sourceNodeId) || '' : '';
     });
-    const newConnections = (nodeClipboard.connections || []).map(conn => ({
+    const newConnections = (includeConnections ? nodeClipboard.connections || [] : []).map(conn => ({
         ...conn,
         from:idMap.get(conn.from),
         to:idMap.get(conn.to)
@@ -802,7 +828,7 @@ function clearNodeMediaBeforeDelete(id){
     node.images = [];
     node.pending = 0;
     node.running = false;
-    node.title = '上传节点';
+    node.title = smartGenerationKind(node) === 'video' ? '视频节点' : '图片节点';
     delete node.w;
     delete node.h;
     const history = historyGroupForNode(node);

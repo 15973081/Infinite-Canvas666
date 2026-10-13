@@ -7,10 +7,11 @@ test('pure text node edits, scrolls, connects, resizes and saves without templat
     await page.reload();await page.waitForFunction(()=>canvas?.id==='canvas-test');
     await page.evaluate(()=>{window.textNode=createPromptNode(100,160);window.imageNode=createGenerationNodeAt({x:750,y:280},'image');connectInputNode(textNode.id,imageNode.id);});
     const editor=page.getByRole('textbox',{name:'节点文本'});
-    assert.equal(await page.locator('.text-node-caption').textContent(),'文本节点');
+    assert.equal(await page.locator('.prompt-smart-node .pixmax-node-name').inputValue(),'文本生成节点');
     assert.equal(await page.locator('.prompt-node-tools,.prompt-node-llm,#composerTemplateBtn,#promptTemplatePanel,#promptPresetPanel').count(),0);
     assert.deepEqual(await page.evaluate(()=>[typeof runPromptLLMNode,typeof smartPromptPanels,typeof loadPromptTemplates]),['undefined','undefined','undefined']);
     const content='城市雨夜，霓虹灯映在湿润的街道上。\n'.repeat(40);
+    await page.locator('.pixmax-text-view').dblclick();
     await editor.fill(content);
     assert.equal(await page.evaluate(()=>textNode.text),content);
     assert.equal(await editor.evaluate(el=>getComputedStyle(el).borderWidth),'0px');
@@ -23,9 +24,9 @@ test('pure text node edits, scrolls, connects, resizes and saves without templat
     const handle=await page.locator('.prompt-smart-node .node-resize-handle').boundingBox();
     await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
     await page.mouse.move(handle.x+handle.width/2+80,handle.y+handle.height/2+60,{steps:5});await page.mouse.up();
-    assert.deepEqual(await page.evaluate(()=>({w:textNode.w,h:textNode.h})),{w:396,h:320});
+    assert.deepEqual(await page.evaluate(()=>({w:textNode.w,h:textNode.h})),{w:320,h:300});
     await page.evaluate(()=>performUndo());
-    assert.deepEqual(await page.evaluate(()=>({w:nodes.find(n=>n.type==='smart-prompt').w,h:nodes.find(n=>n.type==='smart-prompt').h})),{w:316,h:260});
+    assert.deepEqual(await page.evaluate(()=>({w:nodes.find(n=>n.type==='smart-prompt').w,h:nodes.find(n=>n.type==='smart-prompt').h})),{w:240,h:240});
     await page.evaluate(()=>{smartSelection.createdNode(imageNode.id);render();});
     assert.match(await page.locator('#inputPromptPreview').innerText(),/城市雨夜/);
     await page.evaluate(async()=>saveCanvas({force:true}));
@@ -33,7 +34,7 @@ test('pure text node edits, scrolls, connects, resizes and saves without templat
     assert.equal(record.nodes.find(n=>n.type==='smart-prompt').llmEnabled,undefined);
     assert.equal(record.connections.length,1);
     await page.reload();await page.waitForFunction(()=>nodes.length===2);
-    assert.equal(await editor.inputValue(),content);
+    assert.equal(await page.locator('.pixmax-text-view').textContent(),content);
     assert.equal(requests.some(p=>/prompt-libraries|prompt-templates|canvas-llm/.test(p)),false);
     assert.deepEqual(errors,[]);
 });
@@ -44,13 +45,15 @@ test('legacy LLM prompt remains editable plain text and readonly input cannot ch
         nodes=[{id:'old',type:'smart-prompt',x:150,y:150,w:316,h:344,text:'已有文本',llmEnabled:true,llmInstruction:'旧指令',llmSystemEnabled:true}];canvas.nodes=nodes;render();
     });
     const editor=page.getByRole('textbox',{name:'节点文本'});
+    assert.equal(await page.locator('.pixmax-text-view').isVisible(),true);
+    await page.locator('.pixmax-text-view').dblclick();
     assert.equal(await editor.getAttribute('readonly'),null);
     await editor.fill('已有文本继续编辑');
     await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
-    assert.equal(await editor.getAttribute('readonly'),'');
+    assert.equal(await page.locator('.prompt-node-text').getAttribute('readonly'),'');
     await page.evaluate(()=>{const el=document.querySelector('.prompt-node-text');el.value='late input';el.dispatchEvent(new Event('input',{bubbles:true}));});
     assert.equal(await page.evaluate(()=>nodes[0].text),'已有文本继续编辑');
-    assert.equal(await editor.inputValue(),'已有文本继续编辑');
+    assert.equal(await page.locator('.prompt-node-text').inputValue(),'已有文本继续编辑');
     assert.equal(writes.filter(w=>/canvas-llm/.test(w.path)).length,0);assert.deepEqual(errors,[]);
 });
 

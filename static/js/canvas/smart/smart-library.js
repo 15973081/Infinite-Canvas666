@@ -205,6 +205,7 @@ function setAssetLibraryFromResponse(data, options={}){
 }
 
 function toggleAssetLibrary(open=!smartAssetPanel.state.open){
+    if(open && !smartAssetPanel.destroyed)bindSmartAssetPanelEvents();
     if(!smartAssetPanel.elements.assetPanel || !smartAssetPanel.elements.assetToggle) return;
     if(!open){ finishSmartAssetPanelResize(); hideAssetHoverPreview(); }
     applySmartAssetPanelWidth(smartAssetPanel.state.width, {updatePreferred:false});

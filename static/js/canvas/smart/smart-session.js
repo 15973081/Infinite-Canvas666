@@ -113,6 +113,7 @@ function applyMergedServerCanvas(serverCanvas){
     if(typeof refreshConnectionLayer === 'function') refreshConnectionLayer();
     // 远端合并后，旧撤销快照可能覆盖刚合并的服务器状态。
     undoStack.length = 0;
+    smartRedoStack.length = 0;
     pendingUndoSnapshot = null;
     resumeSmartPendingTasks();
     return true;

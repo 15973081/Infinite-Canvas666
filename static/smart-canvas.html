@@ -23,19 +23,21 @@
     </script>
     <script src="/static/vendor/js/tabler-icons.js"></script>
     <script src="/static/js/studio-icons.js"></script>
+    <script src="/static/js/pixmax-canvas-assets.js"></script>
+    <script src="/static/js/pixmax-canvas-layout.js"></script>
     <script src="/static/js/studio-frame-messages.js"></script>
     <script src="/static/js/theme.js?v=2026.06.9.1780456238"></script>
-    <link rel="stylesheet" href="/static/css/smart-canvas.css?v=2026.08.31.1">
+    <link rel="stylesheet" href="/static/vendor/pixmax/editors.css">
+    <link rel="stylesheet" href="/static/css/smart-canvas-services.css">
     <link rel="stylesheet" href="/static/css/canvas-ledger-ui.css">
     <link rel="stylesheet" href="/static/css/canvas-focus.css">
-<link rel="stylesheet" href="/static/css/studio-workbench.css">
-    <link rel="stylesheet" href="/static/css/smart-composer.css">
-    <link rel="stylesheet" href="/static/css/studio-editor.css">
     <link rel="stylesheet" href="/static/css/canvas-cover.css">
     <link rel="stylesheet" href="/static/css/canvas-page.css">
+    <link rel="stylesheet" href="/static/css/pixmax-canvas.css?v=2026.10.13.3">
 </head>
 <body class="studio-skin studio-content studio-smart-canvas">
-    <div id="shell" class="shell">
+    <div id="shell" class="shell" aria-label="工作区画布">
+        <svg class="pixmax-background" aria-hidden="true"><defs><pattern id="pixmaxGridPattern" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx=".5" cy=".5" r=".5" fill="#333"/></pattern></defs><rect width="100%" height="100%" fill="url(#pixmaxGridPattern)"/></svg>
         <div id="world" class="world">
             <div id="composer" class="composer">
                 <div class="composer-card">
@@ -70,8 +72,8 @@
                 </div>
             </div>
         </div>
-        <div class="smart-nav">
-            <button class="smart-nav-back" type="button" onclick="backToCanvasList()" title="返回画布管理" aria-label="返回画布管理"><i data-lucide="arrow-left"></i></button>
+        <div class="smart-nav pixmax-logo-bar">
+            <button class="smart-nav-back" type="button" onclick="backToCanvasList()" title="返回画布管理" aria-label="返回画布管理"><img src="/static/images/shadox-mark.svg" alt="返回画布"></button>
             <div class="smart-nav-meta">
                 <div id="smartTitle" class="smart-title">智能画布</div>
                 <div id="smartCanvasTime" class="smart-canvas-time">--</div>
@@ -79,33 +81,16 @@
             <div id="memberCanvasStatus"></div>
         </div>
         <div id="createMenu" class="create-menu" role="menu" aria-label="新建节点">
+            <div class="create-menu-heading">创建节点</div>
             <div class="create-menu-grid">
-                <button class="create-card" type="button" role="menuitem" data-create-type="image" title="支持图片、音频、视频和批量上传">
-                    <span class="create-card-icon"><i data-lucide="upload-cloud"></i></span>
-                    <span>
-                        <div class="create-card-title">上传节点</div>
-                    </span>
-                </button>
-                <button class="create-card" type="button" role="menuitem" data-create-type="prompt" title="编辑文本并连接到图片或视频生成节点">
-                    <span class="create-card-icon"><i data-lucide="text-cursor-input"></i></span>
-                    <span>
-                        <div class="create-card-title">文本节点</div>
-                    </span>
-                </button>
-                <button class="create-card" type="button" role="menuitem" data-create-type="generate-image" title="独立的图片提示词与生成参数">
-                    <span class="create-card-icon"><i data-lucide="image"></i></span>
-                    <span><div class="create-card-title">图片生成</div></span>
-                </button>
-                <button class="create-card" type="button" role="menuitem" data-create-type="generate-video" title="独立的视频提示词与生成参数">
-                    <span class="create-card-icon"><i data-lucide="film"></i></span>
-                    <span><div class="create-card-title">视频生成</div></span>
-                </button>
-                <button class="create-card" type="button" role="menuitem" data-create-type="loop" title="设置一键运行轮数和批次">
-                    <span class="create-card-icon"><i data-lucide="repeat-2"></i></span>
-                    <span>
-                        <div class="create-card-title">循环节点</div>
-                    </span>
-                </button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="prompt"><span class="create-card-icon"><i data-lucide="text-cursor-input"></i></span><span class="create-card-title">文本节点</span></button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="generate-image"><span class="create-card-icon"><i data-lucide="image"></i></span><span class="create-card-title">图像节点</span></button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="generate-video"><span class="create-card-icon"><i data-lucide="clapperboard"></i></span><span class="create-card-title">视频节点</span></button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="audio"><span class="create-card-icon"><i data-lucide="music"></i></span><span class="create-card-title">音频节点</span></button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="model"><span class="create-card-icon"><i data-lucide="box"></i></span><span class="create-card-title">3D模型生成节点</span></button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="director"><span class="create-card-icon"><i data-lucide="clapperboard"></i></span><span class="create-card-title">导演台</span><span class="create-card-promo"><span>2000+ 动作库</span><span>限时免费</span></span></button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="editor"><span class="create-card-icon"><i data-lucide="monitor-play"></i></span><span class="create-card-title">剪辑台</span><span class="create-card-badge">Beta</span></button>
+                <button class="create-card" type="button" role="menuitem" data-create-type="storyboard"><span class="create-card-icon"><i data-lucide="layout-grid"></i></span><span class="create-card-title">分镜脚本</span></button>
             </div>
         </div>
         <input id="fileInput" type="file" accept="image/*,video/*,audio/*" multiple hidden>
@@ -114,15 +99,44 @@
                 <div id="minimapViewport" class="smart-minimap-viewport"></div>
             </div>
         </div>
-        <div class="smart-top-tools" role="group" aria-label="画布工具">
-        <button class="smart-shortcut-toggle" type="button" onclick="LocalDepthVideo.openSettings()" title="控制中心" aria-label="控制中心"><i data-lucide="settings-2"></i><span>控制中心</span></button>
+        <div class="smart-top-tools pixmax-topbar" role="group" aria-label="画布状态">
+            <button class="pixmax-control" data-pixmax-save type="button" onclick="saveCanvas({force:true})" aria-label="保存画布" title="同步保存"><i data-lucide="cloud"></i></button>
+            <button id="smartWorkflowToggle" class="pixmax-control" type="button" aria-label="导入导出工作流" title="导入导出工作流"><i data-lucide="external-link"></i></button>
+            <button class="pixmax-control" type="button" onclick="copyPixmaxCanvasLink()" aria-label="复制画布链接" title="复制画布链接"><i data-lucide="share-2"></i></button>
+            <button class="pixmax-control" type="button" onclick="openSmartCanvasLog()" aria-label="任务消息" title="任务消息"><i data-lucide="bell"></i></button>
+        </div>
+        <div class="smart-top-tools pixmax-rail" role="toolbar" aria-label="创作工具">
+            <button class="primary" type="button" onclick="openPixmaxNodeMenu(event)" aria-label="添加节点" title="添加节点"><i data-lucide="plus"></i></button>
+            <button type="button" onclick="document.getElementById('fileInput').click()" aria-label="上传素材" title="上传素材"><i data-lucide="upload"></i></button>
+            <button id="assetToggle" type="button" aria-label="资产库" title="资产库"><i data-lucide="layers"></i></button>
+            <button type="button" onclick="showSmartCanvasBackups()" aria-label="画布历史" title="画布历史"><i data-lucide="history"></i></button>
+            <hr>
+            <button type="button" onclick="document.getElementById('pixmaxSettingsMenu').classList.toggle('open')" aria-label="更多工具" title="更多工具"><i data-lucide="command"></i></button>
+        </div>
+        <div id="pixmaxSettingsMenu" class="smart-top-tools pixmax-settings-menu">        <button class="smart-shortcut-toggle" type="button" onclick="LocalDepthVideo.openSettings()" title="控制中心" aria-label="控制中心"><i data-lucide="settings-2"></i><span>控制中心</span></button>
         <button id="smartCoverToggle" class="smart-backup-toggle" type="button" onclick="editCanvasCover()" title="画布封面" aria-label="画布封面"><i data-lucide="photo"></i><span>封面</span></button>
-        <button id="smartWorkflowToggle" class="smart-workflow-toggle" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open"></i><span>工作流</span></button>
+        <button id="retiredWorkflowToggle" class="smart-workflow-toggle" type="button" title="导入导出工作流" aria-label="导入导出工作流"><i data-lucide="package-open"></i><span>工作流</span></button>
         <button id="smartShortcutToggle" class="smart-shortcut-toggle" type="button" onclick="openSmartCanvasShortcuts()" title="快捷键" aria-label="快捷键"><i data-lucide="keyboard"></i><span>快捷键</span></button>
         <button id="smartCostToggle" class="smart-cost-toggle" type="button" onclick="openSmartCanvasCost(event)" title="费用中心" aria-label="费用中心"><i data-lucide="circle-dollar-sign"></i><span id="smartCostToggleLabel">费用 ¥0.00</span></button>
         <button id="smartLogToggle" class="smart-log-toggle" type="button" onclick="openSmartCanvasLog()" title="日志" aria-label="日志"><i data-lucide="list-todo"></i><span>日志</span></button>
         <button id="smartBackupToggle" class="smart-backup-toggle" type="button" onclick="showSmartCanvasBackups()" title="备份" aria-label="备份"><i data-lucide="hard-drive"></i><span>备份</span></button>
-        <button id="assetToggle" class="asset-toggle" type="button"><i data-lucide="library"></i><span>资产库</span></button>
+        <button id="retiredAssetToggle" class="asset-toggle" type="button"><i data-lucide="library"></i><span>资产库</span></button>
+        </div>
+        <div class="smart-top-tools pixmax-bottom-controls" role="toolbar" aria-label="视图工具">
+            <div class="pixmax-control-group">
+                <button type="button" class="active" data-pixmax-mode onclick="setPixmaxCanvasTool('preview')" aria-label="切换预览模式" aria-pressed="false" title="选择模式"><i data-lucide="mouse-pointer-2"></i></button>
+                <button type="button" onclick="document.getElementById('minimap').hidden=!document.getElementById('minimap').hidden" aria-label="切换缩略图" title="切换缩略图"><i data-lucide="map"></i></button>
+                <button type="button" onclick="this.classList.toggle('active');pixmaxSnapToGrid=this.classList.contains('active')" aria-label="吸附网格" title="吸附网格"><i data-lucide="magnet"></i></button>
+                <button type="button" onclick="tidyPixmaxCanvas()" aria-label="整理画布" title="整理画布"><i data-lucide="scan"></i></button>
+                <span class="separator"></span>
+                <button type="button" onclick="zoomPixmaxCanvas(1/1.2)" aria-label="缩小"><i data-lucide="minus"></i></button>
+                <span id="pixmaxZoomLabel" class="pixmax-zoom-label">100%</span>
+                <button type="button" onclick="zoomPixmaxCanvas(1.2)" aria-label="放大"><i data-lucide="plus"></i></button>
+            </div>
+            <div class="pixmax-control-group">
+                <button type="button" onclick="performUndo()" aria-label="撤销" title="撤销"><i data-lucide="undo-2"></i></button>
+                <button type="button" onclick="redoSmartCanvas()" aria-label="重做" title="重做"><i data-lucide="redo-2"></i></button>
+            </div>
         </div>
         <aside id="smartWorkflowTransferModal" class="workflow-transfer-panel">
             <div class="workflow-transfer-head">
@@ -429,6 +443,7 @@
     <script src="/static/js/canvas-cover.js"></script>
     <link rel="stylesheet" href="/static/css/local-depth-video.css">
     <script src="/static/js/local-depth-video.js"></script>
+    <script src="/static/js/smart-pixmax.js?v=2026.10.13.1"></script>
     <script data-canvas-module="document" src="/static/js/canvas/smart/smart-document.js"></script>
     <script data-canvas-module="session" src="/static/js/canvas/smart/smart-session.js"></script>
     <script data-canvas-module="workspace" src="/static/js/canvas/smart/smart-workspace.js"></script>
@@ -438,5 +453,6 @@
     <script data-canvas-module="results" src="/static/js/canvas/smart/smart-results.js"></script>
     <script data-canvas-module="app" src="/static/js/smart-canvas.js?v=2026.09.22.1"></script>
     <script src="/static/js/canvas-focus.js"></script>
+    <script type="module" src="/static/js/pixmax-canvas-player.js"></script>
 </body>
 </html>

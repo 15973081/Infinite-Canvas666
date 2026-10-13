@@ -1,0 +1,369 @@
+/* Pixmax canvas integration. Document state and permission guards belong to the canvas. */
+function isSmartStudioNode(node){
+    return ['smart-director','smart-editor','smart-storyboard','smart-audio','smart-model'].includes(node?.type);
+}
+
+function smartStudioTitle(node){
+    return node.title || {'smart-director':'导演台','smart-editor':'剪辑台','smart-storyboard':'分镜脚本','smart-audio':'音频生成节点','smart-model':'3D模型生成节点'}[node.type];
+}
+
+function pixmaxSvg(kind){return window.PixmaxCanvasAssets?.icons[kind] || '';}
+function pixmaxMediaPoster(media){
+    if(!media)return '';
+    const preview=smartMediaPreviewUrl(media,768);
+    return media.poster||media.thumbnailUrl||(preview!==displayMediaUrl(media)?preview:'');
+}
+function syncPixmaxSaveStatus(){
+    const button=document.querySelector('[data-pixmax-save]');if(!button)return;
+    const pending=smartSaveInFlight?'正在保存画布':smartCanvasDirty?'有未保存的更改，点击保存':'画布已保存';
+    button.setAttribute('aria-label',pending);button.title=pending;
+    button.querySelector('circle')?.setAttribute('fill',smartSaveInFlight?'#aeb6c5':smartCanvasDirty?'#ffbd59':'#229c66');
+}
+function pixmaxNameWidth(title){
+    const context=document.createElement('canvas').getContext('2d');context.font='12px Inter, system-ui, sans-serif';
+    return Math.min(180,Math.max(16,context.measureText(title).width+2));
+}
+function pixmaxNodeCaption(node,kind,label){
+    const title=node.label || (!node.generationKind&&node.images?.[0]?.name?node.images[0].name.replace(/\.[^.]+$/,''):label);
+    return `<div class="generation-node-caption">${pixmaxSvg(kind)}<input class="pixmax-node-name" aria-label="节点名称" value="${escapeAttr(title)}" style="width:${pixmaxNameWidth(title)}px" ${isSmartCanvasLocked()?'readonly':''}></div>`;
+}
+function pixmaxUniqueNodeLabel(base){
+    const labels=new Set(nodes.map(node=>node.label||(node.type==='smart-prompt'?'文本生成节点':node.generationKind==='video'?'视频生成节点':node.generationKind==='image'?'图像生成节点':'')));
+    if(!labels.has(base))return base;
+    let suffix=1;while(labels.has(base+'-'+suffix))suffix++;return base+'-'+suffix;
+}
+function pixmaxNodePorts(){return `<div class="node-port port-in" data-port="in" title="输入连接" role="button" aria-label="输入连接">${pixmaxSvg('connect')}</div><div class="node-port port-out" data-port="out" title="输出连接" role="button" aria-label="输出连接">${pixmaxSvg('connect')}</div>`;}
+function pixmaxNativeNodeType(node){
+    const native={'smart-prompt':'GenerateText','smart-director':'StageEditor','smart-editor':'VideoEditor','smart-storyboard':'StoryboardScript','smart-audio':'GenerateAudio','smart-model':'Generate3D'}[node?.type];
+    if(native)return native;
+    const kind=node?.generationKind||mediaKindForItem(node?.images?.[0]||{});
+    return (node?.generationKind?'Generate':'Base')+({video:'Video',audio:'Audio',model:'3D'}[kind]||'Image');
+}
+function pixmaxConnectionMenuTypes(node,port){
+    const kinds=window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(node)]?.[port==='out'?'source':'target']||[];
+    const menu={BaseText:'prompt',GenerateText:'prompt',BaseImage:'generate-image',GenerateImage:'generate-image',BaseAudio:'audio',GenerateAudio:'audio',BaseVideo:'generate-video',GenerateVideo:'generate-video',Base3D:'model',Generate3D:'model',StageEditor:'director',VideoEditor:'editor',StoryboardScript:'storyboard'};
+    return new Set(kinds.map(kind=>menu[kind]).filter(Boolean));
+}
+function pixmaxCanConnect(from,to){return !!window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(from)]?.source.includes(pixmaxNativeNodeType(to));}
+function bindPixmaxNodeName(el,node){
+    const input=el.querySelector('.pixmax-node-name');if(!input)return;
+    input.addEventListener('mousedown',event=>event.stopPropagation());
+    input.addEventListener('click',event=>event.stopPropagation());
+    input.addEventListener('input',()=>input.style.width=pixmaxNameWidth(input.value)+'px');
+    input.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Enter')input.blur();});
+    input.addEventListener('change',()=>{if(isSmartCanvasLocked()||!nodes.includes(node))return;const label=input.value.trim();if(label!==node.label){pushUndo();node.label=label;scheduleSave();}});
+}
+async function captureSmartPixmaxFrames(id,frames){
+    const owner=nodes.find(node=>node.id===id),origin=canvas,epoch=window.MemberCanvasEdit?.active?.lease?.epoch;
+    const valid=()=>canvas===origin&&nodes.includes(owner)&&!isSmartCanvasLocked()&&epoch===window.MemberCanvasEdit?.active?.lease?.epoch;
+    if(!owner||!valid())return;
+    const files=frames.map(frame=>new File([frame.blob],frame.fileName,{type:frame.blob.type}));
+    const uploaded=await uploadFiles(files);if(!valid())return;
+    if(uploaded.length!==files.length)throw new Error('截图上传失败');
+    pushUndo();uploaded.forEach((item,index)=>{const result=createNode(owner.x+nodeRect(owner).width+80,owner.y+index*240,[item],{skipUndo:true,select:false});result.label=(owner.label||'视频节点')+'-截帧';connectInputNode(owner.id,result.id);});
+    render();scheduleSave();toast('截图已插入画布');
+}
+
+function createSmartStudioNode(kind, point, options={}){
+    if(isSmartCanvasLocked()) return;
+    if(!options.skipUndo)pushUndo();
+    const type = 'smart-'+kind;
+    const [w,h]=window.PixmaxCanvasAssets.sizes[kind];
+    const node = {id:uid(kind),type,x:point.x-w/2,y:point.y-h/2,w,h,images:[],created_at:Date.now()};
+    if(kind === 'storyboard') node.shots = [];
+    nodes.push(node);
+    if(options.select!==false)smartSelection.createdNode(node.id);
+    render(); scheduleSave();
+    return node;
+}
+
+function renderSmartStudioNode(node){
+    const rect = imageLayout([],1,node);
+    const kind = node.type.slice(6);
+    const icon = {director:'clapperboard',editor:'monitor-play',storyboard:'layout-grid',audio:'music',model:'box'}[kind];
+    const label = {director:'编辑场景',editor:'编辑剪辑',storyboard:'打开分镜节点 →',audio:'上传音频',model:'上传 3D 模型'}[kind];
+    const media = node.studioPreview || node.images?.[0];
+    const previewUrl=media&&(kind==='editor'?pixmaxMediaPoster(media):mediaKindForItem(media)==='image'?displayMediaUrl(media):'');
+    const hasPreview=Boolean(previewUrl);
+    const body = hasPreview ? `<img class="pixmax-studio-preview" src="${escapeAttr(previewUrl)}" alt="${escapeAttr(smartStudioTitle(node))}">` : kind==='storyboard'?`<div class="pixmax-storyboard-card">${pixmaxSvg('storyboard')}<div class="pixmax-steps"><span class="active"><em>✓</em><small>确认镜头</small></span><b></b><span><em>2</em><small>准备资产</small></span><b></b><span><em>3</em><small>生成提示词</small></span></div><button type="button" data-studio-open>打开分镜节点 →</button></div>`:`<div class="pixmax-studio-placeholder">${pixmaxSvg(kind==='audio'?'audio-fill':kind==='editor'?'editor-fill':kind==='director'?'director-fill':'model')}</div>`;
+    return `<div class="image-node pixmax-studio-node ${isNodeSelected(node.id)?'selected':''}" data-id="${escapeAttr(node.id)}" style="left:${node.x}px;top:${node.y}px;width:${rect.width}px;height:${rect.height}px">
+        ${pixmaxNodeCaption(node,kind,smartStudioTitle(node))}
+        <div class="floating-node-actions"><button class="mini-x node-delete" type="button" title="删除节点"><i data-lucide="trash-2"></i></button>${hasPreview||kind==='model'&&media?`<button type="button" class="mini-x" data-studio-open title="${label}"><i data-lucide="${icon}"></i></button>`:''}</div>
+        <div class="node-body">${body}</div><div class="node-resize-handle" data-resize="1"></div>
+        ${['director','editor','storyboard'].includes(kind)?pixmaxNodePorts().replace(/<div class="node-port port-out"[\s\S]*$/,''):pixmaxNodePorts()}
+        ${kind==='storyboard'?'':`<div class="pixmax-studio-launcher">${kind==='model'&&media?`<small>${escapeHtml(media.name || '3D 模型')}</small>`:''}<button type="button" data-studio-open>${label}</button><button type="button" class="pixmax-studio-more" data-studio-menu aria-label="节点操作">···</button></div>`}
+    </div>`;
+}
+
+function bindSmartStudioNode(el,node){
+    bindPixmaxNodeName(el,node);
+    el.querySelector('[data-studio-menu]')?.addEventListener('click',event=>{event.stopPropagation();openSmartCanvasContext(event,node);});
+    el.querySelectorAll('[data-studio-open]').forEach(button => {
+        button.addEventListener('mousedown', event=>event.stopPropagation());
+        button.addEventListener('click', event=>{event.stopPropagation();if(Date.now()<suppressNodeClickUntil)return;openSmartStudio(node.id);});
+    });
+}
+
+function smartStudioResources(owner, all=false){
+    const incoming = new Set((canvas.connections || []).filter(edge=>edge.to===owner.id || edge.target===owner.id).map(edge=>edge.from || edge.source));
+    return nodes.filter(node=>node!==owner && (all || incoming.has(node.id))).flatMap(node=>(node.images || []).map((item,index)=>({
+        id:node.id+':'+index,name:item.name || node.title || '素材',
+        kind:node.type==='smart-model'?'model':mediaKindForItem(item),url:displayMediaUrl(item),previewUrl:pixmaxMediaPoster(item)
+    }))).filter(item=>['image','video','audio','model'].includes(item.kind));
+}
+
+// Persist the source address, then restore the current member's playback address.
+// The native editor removes clips whose resource URL is absent from importResources.
+function pixmaxStudioDocumentUrls(document, owner, playback){
+    if(!document)return document;
+    const aliases=new Map();
+    const incoming=new Set((canvas.connections||[]).filter(edge=>(edge.to||edge.target)===owner.id).map(edge=>edge.from||edge.source));
+    const absolute=value=>{try{return new URL(value,location.href).href;}catch{return value;}};
+    for(const source of nodes){
+        if(playback&&source!==owner&&!incoming.has(source.id))continue;
+        for(const item of source.images||[]){
+            const raw=item.url,current=displayMediaUrl(item);if(!raw||!current)continue;
+            const target=playback?current:raw;
+            for(const value of [raw,current,absolute(raw),absolute(current)])aliases.set(value,target);
+        }
+    }
+    const copy=JSON.parse(JSON.stringify(document));
+    const visit=value=>{
+        if(!value||typeof value!=='object')return;
+        if(typeof value.url==='string'&&aliases.has(value.url))value.url=aliases.get(value.url);
+        Object.values(value).forEach(visit);
+    };
+    visit(copy);return copy;
+}
+
+async function uploadSmartStudioMedia(node){
+    if(isSmartCanvasLocked()) return;
+    const input=document.createElement('input');input.type='file';
+    input.accept=node.type==='smart-model'?'.glb,.gltf':'audio/*';
+    input.onchange=async()=>{
+        if(!input.files.length || isSmartCanvasLocked())return;
+        const origin=canvas, owner=node;
+        try{
+            const result=await uploadFiles(input.files);
+            if(canvas!==origin || !nodes.includes(owner) || isSmartCanvasLocked())return;
+            if(!result.length)throw new Error('当前上传接口未接受该素材格式');
+            pushUndo();owner.images=result;render();scheduleSave();
+        }catch(error){toast(error.message);}
+    };
+    input.click();
+}
+
+let smartStudioSession=null;
+let pixmaxSnapToGrid=false;
+let pixmaxSpacePanning=false;
+let pixmaxCanvasMode='normal';
+let pixmaxPasteWithLinks=false;
+document.querySelectorAll('#createMenu .create-card').forEach(button=>{
+    const kind={prompt:'text','generate-image':'image','generate-video':'video'}[button.dataset.createType] || button.dataset.createType;
+    button.querySelector('.create-card-icon').innerHTML=pixmaxSvg('menu-'+kind);
+});
+for(const [selector,kinds] of [
+    ['.pixmax-topbar>button',['cloud','external','share','bell']],
+    ['.pixmax-rail>button',['add','upload','assets','history','more']],
+    ['.pixmax-bottom-controls .pixmax-control-group:first-child>button',['pointer','map','magnet','fit','minus','plus']],
+    ['.pixmax-bottom-controls .pixmax-control-group:last-child>button',['undo','redo']]
+])document.querySelectorAll(selector).forEach((button,index)=>{
+    const icon=button.querySelector('i,svg'),svg=pixmaxSvg('tool-'+kinds[index]);if(icon&&svg)icon.outerHTML=svg;
+});
+function openPixmaxNodeMenu(event){
+    closeSmartCanvasContext();const bounds=event.currentTarget.getBoundingClientRect();
+    openCreateMenu({clientX:bounds.right+16,clientY:bounds.top});
+    createMenuPoint=screenToWorld({clientX:innerWidth/2-200,clientY:innerHeight/2-100});
+}
+function zoomPixmaxCanvas(factor){
+    const cx=shell.clientWidth/2,cy=shell.clientHeight/2;
+    const x=(cx-viewport.x)/viewport.scale,y=(cy-viewport.y)/viewport.scale;
+    viewport.scale=Math.min(2,Math.max(.1,safeScale(viewport.scale*factor)));viewport.x=cx-x*viewport.scale;viewport.y=cy-y*viewport.scale;
+    applyViewport();scheduleSave();
+}
+function setPixmaxCanvasTool(tool){
+    pixmaxCanvasMode=tool==='select'?'normal':tool==='pan'?'gripper':pixmaxCanvasMode==='preview'?'normal':'preview';
+    shell.dataset.tool=pixmaxCanvasMode==='normal'?'select':'pan';
+    shell.dataset.canvasMode=pixmaxCanvasMode;
+    const button=document.querySelector('[data-pixmax-mode]');
+    if(button){button.classList.add('active');button.setAttribute('aria-pressed',String(pixmaxCanvasMode!=='normal'));button.title=pixmaxCanvasMode==='preview'?'预览模式':'选择模式';button.innerHTML=pixmaxSvg(pixmaxCanvasMode==='normal'?'tool-pointer':'tool-preview');}
+}
+function tidyPixmaxCanvas(){
+    if(isSmartCanvasLocked())return;
+    const roots=nodes.filter(node=>!node.parentId&&!isHistoryGroupNode(node));if(!roots.length)return;
+    const sizes=roots.map(node=>({id:node.id,...nodeRect(node)}));
+    const edges=(canvas.connections||[]).map(edge=>({source:edge.from,target:edge.to}));
+    const positions=window.PixmaxCanvasLayout.flow(sizes,edges,{direction:'LR'});
+    const dx=Math.min(...roots.map(n=>n.x))-Math.min(...[...positions.values()].map(p=>p.x));
+    const dy=Math.min(...roots.map(n=>n.y))-Math.min(...[...positions.values()].map(p=>p.y));
+    pushUndo();roots.forEach(node=>{const p=positions.get(node.id);node.x=p.x+dx;node.y=p.y+dy;});render();scheduleSave();
+}
+async function copyPixmaxCanvasLink(){
+    try{await navigator.clipboard.writeText(location.href);toast('已复制画布链接');}catch{toast('浏览器未允许复制，请复制地址栏中的画布链接');}
+}
+async function openSmartStudio(id){
+    const node=nodes.find(node=>node.id===id);
+    if(!node || isSmartCanvasLocked()) return;
+    if(node.type==='smart-audio' || node.type==='smart-model'&&!node.images?.length)return uploadSmartStudioMedia(node);
+    if(node.type==='smart-storyboard')return openSmartStoryboard(node);
+    if(smartStudioSession)await closeSmartStudio();
+    const overlay=document.createElement('div');overlay.className='pixmax-editor-overlay';
+    const iframe=document.createElement('iframe');iframe.title=smartStudioTitle(node);
+    const channel=typeof crypto.randomUUID==='function'?crypto.randomUUID():uid('editor');iframe.src='/static/pixmax-editor.html?channel='+encodeURIComponent(channel);
+    overlay.appendChild(iframe);document.body.appendChild(overlay);
+    const originCanvas=canvas, leaseEpoch=window.MemberCanvasEdit?.active?.lease?.epoch;
+    const kind=node.type==='smart-editor'?'editor':'director';
+    const resources=smartStudioResources(node);
+    if(node.type==='smart-model')resources.push(...node.images.map((item,index)=>({id:id+':'+index,name:item.name,kind:'model',url:displayMediaUrl(item)})));
+    smartStudioSession={overlay,iframe,node,channel,originCanvas,leaseEpoch,kind,closing:false};
+    const valid=()=>smartStudioSession?.iframe===iframe && canvas===originCanvas && nodes.includes(node) && !isSmartCanvasLocked() && window.MemberCanvasEdit?.active?.lease?.epoch===leaseEpoch;
+    const send=(type,payload={})=>iframe.contentWindow?.postMessage({pixmaxEditor:true,channel,type,...payload},location.origin);
+    const listener=async event=>{
+        const data=event.data;
+        if(event.source!==iframe.contentWindow || event.origin!==location.origin || !data?.pixmaxEditor || data.channel!==channel)return;
+        if(data.type==='closed'){overlay.remove();window.removeEventListener('message',listener);if(smartStudioSession?.iframe===iframe)smartStudioSession=null;return;}
+        if(!valid()){send('close');return;}
+        if(data.type==='ready')send('init',{kind,resources,allResources:smartStudioResources(node,true),document:pixmaxStudioDocumentUrls(node.studioDocument,node,true)});
+        if(data.type==='document'){
+            const saved=pixmaxStudioDocumentUrls(data.document,node,false);
+            if(JSON.stringify(node.studioDocument)!==JSON.stringify(saved)){pushUndo();node.studioDocument=saved;scheduleSave();}
+        }
+        if(data.type==='exit')closeSmartStudio();
+        if(data.type==='toast' || data.type==='error')toast(data.text);
+        if(data.type==='list-sources')send('reply',{requestId:data.requestId,result:{allResources:smartStudioResources(node,true),resources:smartStudioResources(node)}});
+        if(data.type==='sources'){
+            pushUndo();
+            for(const resourceId of data.resourceIds || []){
+                const sourceId=resourceId.slice(0,resourceId.lastIndexOf(':'));
+                if(nodes.some(source=>source.id===sourceId))connectInputNode(sourceId,node.id);
+            }
+            scheduleSave();send('reply',{requestId:data.requestId,result:true});
+        }
+        if(data.type==='remove-source'){
+            const sourceId=data.resourceId.slice(0,data.resourceId.lastIndexOf(':'));
+            pushUndo();canvas.connections=(canvas.connections||[]).filter(edge=>!(edge.from===sourceId&&edge.to===node.id));
+            node.inputNodeIds=(node.inputNodeIds||[]).filter(id=>id!==sourceId);
+            render();scheduleSave();send('reply',{requestId:data.requestId,result:true});
+        }
+        if(data.type==='export' || data.type==='upload'){
+            try{
+                const uploaded=await uploadFiles(data.files);
+                if(!valid())throw new Error('画布或编辑资格已变化');
+                if(uploaded.length!==data.files.length)throw new Error('部分素材上传失败');
+                if(data.type==='export'){
+                    pushUndo();
+                    if(kind==='editor'||mediaKindForItem(uploaded[0])==='image'){
+                        node.studioPreview=uploaded[0];
+                        const bounds=imageLayout([uploaded[0]],1,{type:'smart-image',generationKind:mediaKindForItem(uploaded[0])});
+                        node.w=bounds.width;node.h=bounds.height;
+                    }
+                    const result=createNode(node.x+Number(node.w || 320)+80,node.y,uploaded,{skipUndo:true,select:false});
+                    connectInputNode(node.id,result.id);render();scheduleSave();toast('已导出到画布');
+                    send('reply',{requestId:data.requestId,result:uploaded.map((item,index)=>({id:result.id+':'+index,name:item.name,kind:mediaKindForItem(item),url:displayMediaUrl(item)}))});
+                }else{
+                    pushUndo();
+                    const resources=uploaded.map((item,index)=>{
+                        const source=createNode(node.x-400,node.y+index*240,[item],{skipUndo:true,select:false});
+                        connectInputNode(source.id,node.id);
+                        return {id:source.id+':0',name:item.name,kind:mediaKindForItem(item),url:displayMediaUrl(item),previewUrl:pixmaxMediaPoster(item)};
+                    });
+                    render();scheduleSave();send('reply',{requestId:data.requestId,result:resources});
+                }
+            }catch(error){send('reply',{requestId:data.requestId,error:error.message});toast(error.message);}
+        }
+    };
+    window.addEventListener('message',listener);
+    smartStudioSession.listener=listener;
+    // Reopening loads persisted media as well as currently connected sources.
+    resources.push(...(node.images || []).filter(item=>kind==='editor').map((item,index)=>({id:id+':saved:'+index,name:item.name,kind:mediaKindForItem(item),url:displayMediaUrl(item)})));
+}
+
+function closeSmartStudio(){
+    const session=smartStudioSession;
+    if(!session)return;
+    if(session.closing)return session.closePromise;
+    session.closing=true;
+    session.iframe.contentWindow?.postMessage({pixmaxEditor:true,channel:session.channel,type:'close'},location.origin);
+    // The child saves its latest document while unmounting, then acknowledges closed.
+    session.closePromise=new Promise(resolve=>{
+        const finish=()=>{if(!session.overlay.isConnected){clearInterval(timer);clearTimeout(fallback);resolve();}};
+        const timer=setInterval(finish,50);
+        const fallback=setTimeout(()=>{session.overlay.remove();window.removeEventListener('message',session.listener);if(smartStudioSession===session)smartStudioSession=null;clearInterval(timer);resolve();},3000);
+    });
+    return session.closePromise;
+}
+
+function openSmartStoryboard(node){
+    const origin=canvas;
+    const modal=document.createElement('div');modal.className='pixmax-storyboard-modal';
+    modal.innerHTML=`<section><header><strong>分镜脚本</strong><button type="button" data-story-close aria-label="关闭分镜脚本">×</button></header><nav class="pixmax-story-tabs"><button type="button" data-story-step="0" class="active">1 确认镜头</button><button type="button" data-story-step="1">2 准备资产</button><button type="button" data-story-step="2">3 生成提示词</button></nav><div class="pixmax-story-body"></div><footer><button type="button" data-story-add>添加镜头</button><button type="button" data-story-export>插入画布</button><button type="button" data-story-save>保存并关闭</button></footer></section>`;
+    document.body.appendChild(modal);
+    const shots=JSON.parse(JSON.stringify(node.shots || []));
+    if(!shots.length)shots.push({duration:5,description:'',size:'全景',lighting:'',dialogue:'',sound:'',movement:'固定',asset:'',prompt:''});
+    const fields=[['duration','时长(s)'],['description','画面描述'],['size','景别'],['lighting','光影氛围'],['dialogue','对白 / 旁白'],['sound','音效'],['movement','运镜']];
+    let step=0;
+    const valid=()=>canvas===origin && nodes.includes(node) && !isSmartCanvasLocked();
+    const draw=()=>{
+        const columns=step===0?fields:step===1?[['description','画面描述'],['asset','素材 / 角色备注']]:[['prompt','生成提示词']];
+        modal.querySelector('.pixmax-story-body').innerHTML=`<table><thead><tr><th>镜号</th>${columns.map(field=>`<th>${field[1]}</th>`).join('')}<th></th></tr></thead><tbody>${shots.map((shot,index)=>`<tr><td>${index+1}</td>${columns.map(([key,label])=>`<td><textarea aria-label="镜头 ${index+1} ${label}" data-shot="${index}" data-field="${key}">${escapeHtml(String(shot[key] || ''))}</textarea></td>`).join('')}<td><button type="button" data-story-delete="${index}" aria-label="删除镜头 ${index+1}">×</button></td></tr>`).join('')}</tbody></table>`;
+    };
+    draw();
+    modal.addEventListener('input',event=>{const field=event.target.dataset.field;if(field)shots[Number(event.target.dataset.shot)][field]=field==='duration'?Math.max(.1,Number(event.target.value)||5):event.target.value;});
+    const save=()=>{if(!valid())return false;pushUndo();node.shots=shots;render();scheduleSave();return true;};
+    modal.addEventListener('click',event=>{
+        const button=event.target.closest('button');if(!button)return;
+        if(button.hasAttribute('data-story-close')){save();modal.remove();return;}
+        if(!valid()){modal.remove();return;}
+        if(button.hasAttribute('data-story-step')){
+            step=Number(button.dataset.storyStep);
+            if(step===2)shots.forEach(shot=>{if(!shot.prompt)shot.prompt=[shot.description,shot.size,shot.lighting,shot.movement,shot.asset].filter(Boolean).join('，');});
+            modal.querySelectorAll('[data-story-step]').forEach(tab=>tab.classList.toggle('active',Number(tab.dataset.storyStep)===step));draw();
+        }
+        if(button.hasAttribute('data-story-add')){shots.push({duration:5,description:'',size:'全景',movement:'固定'});draw();}
+        if(button.hasAttribute('data-story-delete')){shots.splice(Number(button.dataset.storyDelete),1);draw();}
+        if(button.hasAttribute('data-story-save')){save();modal.remove();}
+        if(button.hasAttribute('data-story-export')){
+            if(!save())return;
+            shots.forEach((shot,index)=>{const result=createPromptNode(node.x+400+index*360,node.y,{skipUndo:true,select:false});result.text=shot.prompt || [shot.description,shot.size,shot.lighting,shot.movement,shot.asset].filter(Boolean).join('，');connectInputNode(node.id,result.id);});
+            render();scheduleSave();modal.remove();
+        }
+    });
+}
+
+function openSmartCanvasContext(event,node){
+    if(isSmartCanvasLocked())return;
+    closeSmartCanvasContext();closeCreateMenu();
+    createMenuPoint=screenToWorld(event);
+    const menu=document.createElement('div');menu.className='pixmax-context-menu create-menu-context';menu.setAttribute('role','menu');
+    const media=node?.images?.[0]||node?.studioPreview;
+    menu.innerHTML=node?`${media?.url?'<button data-context-action="asset">保存到资产库</button>':''}<button data-context-action="copy">复制 <kbd>Ctrl C</kbd></button>${media?.url?'<button data-context-action="cover">设为项目封面</button>':''}<button data-context-action="delete">删除 <kbd>Delete</kbd></button>`:'<button data-context-action="upload">上传</button><button data-context-action="add">添加节点</button><hr><button data-context-action="undo">撤销 <kbd>Ctrl Z</kbd></button><button data-context-action="redo">重做 <kbd>Ctrl Shift Z</kbd></button><hr><button data-context-action="paste">粘贴 <kbd>Ctrl V</kbd></button><button data-context-action="paste-links">粘贴（保留连线） <kbd>Ctrl Shift V</kbd></button>';
+    shell.appendChild(menu);
+    menu.style.left=Math.max(8,Math.min(event.clientX,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))+'px';
+    menu.addEventListener('mousedown',event=>event.stopPropagation());
+    menu.addEventListener('wheel',event=>event.stopPropagation(),{passive:true});
+    const add=menu.querySelector('[data-context-action="add"]');
+    add?.addEventListener('mouseenter',()=>{const bounds=menu.getBoundingClientRect();openCreateMenu({clientX:bounds.right+8,clientY:bounds.top});createMenuPoint=screenToWorld(event);});
+    menu.addEventListener('click',action=>{
+        action.stopPropagation();const kind=action.target.closest('[data-context-action]')?.dataset.contextAction;
+        if(kind==='add'){const bounds=menu.getBoundingClientRect();openCreateMenu({clientX:bounds.right,clientY:bounds.top});createMenuPoint=screenToWorld(event);return;}
+        closeSmartCanvasContext();
+        if(kind==='upload')document.getElementById('fileInput').click();
+        if(kind==='copy'){if(!isNodeSelected(node.id))smartSelection.createdNode(node.id);copySelectedNodes();}
+        if(kind==='delete')deleteSmartNodes(isNodeSelected(node.id)?selectedNodeIds():[node.id]);
+        if(kind==='asset'){if(node.images?.[0])saveSmartImageToAssetLibrary(node.id,0);else addUrlToAssetLibrary(media.url,media.name||node.label||smartStudioTitle(node));}
+        if(kind==='cover'){pushUndo();canvas.cover={...(canvas.cover||{}),node_id:node.id,index:0};scheduleSave();toast('已设为项目封面');}
+        if(kind==='undo')performUndo();
+        if(kind==='redo')redoSmartCanvas();
+        if(kind==='paste'||kind==='paste-links')pasteNodes({includeConnections:kind==='paste-links'});
+    });
+}
+function closeSmartCanvasContext(){document.querySelector('.pixmax-context-menu')?.remove();}
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('.pixmax-context-menu,.create-menu'))closeSmartCanvasContext();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeSmartCanvasContext();if(smartStudioSession)closeSmartStudio();}});
+
+function redoSmartCanvas(){
+    if(isSmartCanvasLocked() || !smartRedoStack.length)return;
+    undoStack.push(snapshotForUndo());
+    const snapshot=smartRedoStack.pop();nodes=snapshot.nodes;canvas.nodes=nodes;canvas.connections=snapshot.connections;
+    smartSelection.restoreDocument(snapshot);smartComposer.documentReplaced();render();scheduleSave();
+}

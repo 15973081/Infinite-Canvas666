@@ -23,7 +23,7 @@ async function fixture(t){
    volcengineProvider:()=>({id:'volcengine',name:'火山引擎'}),volcengineVideoModels:()=>['doubao-seedance-2-0-mini-260615'],
    videoApiProviders:()=>[{id:'volcengine',name:'火山引擎'}],providerVideoModels:()=>['doubao-seedance-2-0-mini-260615'],
    normalizeSmartVideoResolution:()=>['480p','720p','1080p'],smartVideoDurationRange:()=>({min:1,max:60,auto:false}),
-   updatePromptPlaceholder(){},selectedNode:()=>null,renderInputThumbsRow(){},
+   updatePromptPlaceholder(){},selectedNode:()=>null,smartGenerationKind:()=>'',enforceSmartGenerationKind:(_,source)=>source,renderInputThumbsRow(){},promptInput:document.getElementById('promptInput'),
    persistActiveSmartSettings(){window.savedSettings={...settings};},scheduleSave(){window.saves=(window.saves||0)+1;},
    uploadCurrentSmartVideosToCloud:async()=>{window.cloudActions=(window.cloudActions||0)+1;},setCurrentSmartManualVideoUrl:async()=>{window.manualActions=(window.manualActions||0)+1;},
   });
