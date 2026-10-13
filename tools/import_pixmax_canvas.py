@@ -34,6 +34,8 @@ for key,symbol in {'text':'n_e','image':'Dh','video':'wg','audio':'Vce','model':
 icons['director-fill']=icons['menu-director']
 icons['editor-fill']=icons['menu-editor']
 icons['tool-preview']=icon('Cde')
+for key,symbol in {'trim':'m_','compliance':'Ag','annotation':'Nh','continuation':'dve','reshoot':'cve','parse':'rg','erase':'dg','upscale':'q_e','depth-video':'Tue','audio-separate':'Pm','download':'Qm','preview':'lh'}.items():
+    icons['video-tool-'+key]=icon(symbol)
 for key,marker in {
     'cloud':'M13.2105 13.2857', 'external':'M6.75 5.25H5.25',
     'share':'M12.0312 1.02539', 'bell':'M11.9999 11.5556',

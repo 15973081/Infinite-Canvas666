@@ -39,6 +39,49 @@ body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary {
   color: #fafafa;
 }
 
+/* Video actions stay legible and reachable while the canvas zooms and pans. */
+.smart-node-floating-menu.pixmax-video-toolbar {
+  display: none;
+  width: max-content;
+  max-width: var(--pixmax-toolbar-width, calc(100vw - 24px));
+  height: 40px;
+  padding: 4px 8px;
+  border: 1px solid #313136;
+  border-radius: 12px;
+  background: #141416;
+  box-shadow: none;
+  backdrop-filter: none;
+  transform: translateX(-50%) scale(var(--pixmax-toolbar-scale, 1));
+  opacity: 1;
+  pointer-events: auto;
+  transition: none;
+}
+.image-node.selected .pixmax-video-toolbar { display: flex; }
+.world.smart-multi-selected .pixmax-video-toolbar { display: none; }
+.pixmax-video-toolbar-scroll { display:flex; align-items:center; max-width:100%; overflow-x:auto; scrollbar-width:thin; }
+.pixmax-video-toolbar button { height:30px; padding:0 8px; gap:4px; border-radius:8px; font-size:14px; font-weight:400; flex-shrink:0; color:#aeb6c5; }
+.pixmax-video-toolbar button svg { width:16px; height:16px; }
+.pixmax-video-toolbar button:hover { background:#252529; color:#fafafa; transform:none; }
+.pixmax-video-toolbar button:disabled { opacity:1; color:#59606b; cursor:not-allowed; background:transparent; }
+.pixmax-video-toolbar-divider { height:20px; width:1px; margin:0 4px; background:#313136; flex-shrink:0; }
+.pixmax-video-depth-menu { position:fixed; z-index:100105; width:300px; padding:16px; background:#141416; border:1px solid #313136; border-radius:12px; color:#aeb6c5; font:14px/1.5 Inter,system-ui,sans-serif; }
+.pixmax-video-depth-menu header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.pixmax-video-depth-menu strong { font-weight:500; color:#fafafa; }
+.pixmax-video-depth-menu header button { width:24px; height:24px; background:transparent; color:inherit; font-size:22px; border:0; }
+.pixmax-video-depth-menu dl { display:grid; grid-template-columns:80px 1fr; gap:8px; margin:0 0 12px; }
+.pixmax-video-depth-menu dt { color:#9199a9; }
+.pixmax-video-depth-menu dd { margin:0; text-align:right; }
+.pixmax-video-depth-menu p { margin:4px 0; color:#9199a9; font-size:12px; }
+.pixmax-video-depth-menu footer { display:flex; gap:8px; margin-top:16px; }
+.pixmax-video-depth-menu footer button { flex:1; height:32px; border:0; border-radius:8px; background:#252529; color:#fafafa; }
+.pixmax-video-depth-menu button:focus-visible { outline:1px solid #aeb6c5; outline-offset:2px; }
+/* Existing preview/trim controls must sit above the member header and lease bar. */
+body.studio-smart-canvas .image-edit-modal { z-index:100100; }
+body.studio-smart-canvas .video-trim-panel { background:#141416; border-color:#313136; border-radius:12px; box-shadow:none; }
+body.studio-smart-canvas .video-trim-title,
+body.studio-smart-canvas .video-trim-summary,
+body.studio-smart-canvas .video-trim-point label { font-weight:400; }
+
 .composer:not(.open) {
   display: none;
 }

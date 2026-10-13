@@ -20,6 +20,20 @@ function reconcile(){
         const video=target.querySelector('video');
         if(video){video.dataset.url=target.dataset.url;video.classList.add('pixmax-inline-video');}
         const controlEvent=event=>event.composedPath().some(e=>e instanceof Element && e.matches('button,[role=slider]'));
+        // Native media stops bubbling. Route its picture surface through the
+        // canvas node handlers, while leaving playback controls with the player.
+        target.addEventListener('mousedown',event=>{
+            if(!controlEvent(event))target.closest('.image-node')?.onmousedown?.(event);
+        },true);
+        target.addEventListener('click',event=>{
+            if(!controlEvent(event))target.closest('.image-node')?.onclick?.(event);
+        },true);
+        target.addEventListener('dblclick',event=>{
+            if(controlEvent(event))return;
+            event.preventDefault();event.stopPropagation();
+            const item=target.closest('[data-image-index]'),owner=target.closest('.image-node');
+            window.openSmartVideoLightbox(owner.dataset.id,Number(item?.dataset.imageIndex||0));
+        },true);
         target.addEventListener('mousedown',event=>{if(controlEvent(event))event.stopPropagation();});
         target.addEventListener('click',event=>{if(controlEvent(event))event.stopPropagation();});
         target.addEventListener('wheel',event=>event.stopPropagation());

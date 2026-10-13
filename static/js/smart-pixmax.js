@@ -45,6 +45,80 @@ function pixmaxConnectionMenuTypes(node,port){
     return new Set(kinds.map(kind=>menu[kind]).filter(Boolean));
 }
 function pixmaxCanConnect(from,to){return !!window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(from)]?.source.includes(pixmaxNativeNodeType(to));}
+
+const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','annotation','continuation','reshoot','parse','erase','upscale','audio-separate','tags','video-history']);
+function pixmaxVideoToolbarActions(node){
+    const item=node?.images?.[smartNodeToolbarImageIndex(node)]||{};
+    const editing=!isSmartCanvasLocked();
+    const local=/^\/(assets|output)\//.test(item.url||'');
+    const later=(key,label,icon)=>({key,label,icon,enabled:false,hint:label+' · 后续接入',deferred:true});
+    return [
+        {key:'trim',label:'剪辑',icon:'scissors',enabled:editing&&local,hint:!editing?'请先开始编辑画布':!local?'剪辑仅支持已入库的视频':'剪辑'},
+        later('compliance','合规检测','shield-check'),later('annotation','标记','pencil'),
+        later('continuation','智能续写','history'),later('reshoot','片段重拍','camera'),
+        later('parse','解析','layout-grid'),later('erase','字幕擦除','captions'),later('upscale','超分','scan'),
+        {key:'depth-video',label:'深度视频',icon:'layers',enabled:editing,hint:editing?'深度视频 · 本地提取':'请先开始编辑画布'},
+        later('audio-separate','音频分离','audio-lines'),
+        {...later('tags','标签','tag'),compact:true}, {...later('video-history','生成历史','history'),compact:true},
+        {key:'download',label:'下载',icon:'download',enabled:true,compact:true},
+        {key:'preview',label:'放大预览',icon:'maximize-2',enabled:true,compact:true},
+        {key:'asset',label:'保存到资产库',icon:'library-big',enabled:editing,compact:true},
+        {key:'auth',label:'素材认证',icon:'shield-check',enabled:editing,compact:true,hint:editing?'素材认证 · 使用已配置平台':'请先开始编辑画布'}
+    ];
+}
+function pixmaxVideoToolbarHtml(node){
+    const actions=pixmaxVideoToolbarActions(node);
+    return `<div class="smart-node-floating-menu pixmax-video-toolbar" data-smart-node-menu="1" role="toolbar" aria-label="视频节点工具"><div class="pixmax-video-toolbar-scroll">${actions.map(action=>`${action.key==='tags'?'<span class="pixmax-video-toolbar-divider" aria-hidden="true"></span>':''}<button type="button" data-smart-node-action="${action.key}" data-node-id="${escapeAttr(node.id)}" ${action.enabled?'':'disabled'} ${action.deferred?'data-deferred="true"':''} aria-label="${escapeAttr(action.label)}" title="${escapeAttr(action.hint||action.label)}">${pixmaxSvg('video-tool-'+action.key)||`<i data-lucide="${action.icon}"></i>`}${action.compact?'':`<span>${action.label}</span>`}</button>`).join('')}</div></div>`;
+}
+function positionPixmaxVideoToolbars(){
+    if(!shell||!world)return;
+    const scale=safeScale(viewport.scale),bounds=shell.getBoundingClientRect();
+    shell.style.setProperty('--pixmax-toolbar-scale',1/scale);
+    shell.style.setProperty('--pixmax-toolbar-width',Math.max(200,bounds.width-24)+'px');
+    world.querySelectorAll('.image-node.selected .pixmax-video-toolbar').forEach(toolbar=>{
+        const card=toolbar.parentElement.getBoundingClientRect(),center=card.left+card.width/2;
+        const half=toolbar.offsetWidth/2;
+        const x=Math.max(bounds.left+half+12,Math.min(center,bounds.right-half-12));
+        toolbar.style.marginLeft=(x-center)/scale+'px';
+        const below=card.top-60<Math.max(bounds.top,56);
+        toolbar.style.top=below?'auto':-60/scale+'px';
+        toolbar.style.bottom=below?-52/scale+'px':'auto';
+        toolbar.style.transformOrigin=below?'center top':'center bottom';
+    });
+}
+let pixmaxVideoDepthMenu;
+function closePixmaxVideoDepthMenu(){
+    if(!pixmaxVideoDepthMenu)return;
+    const {root,outside,escape,anchor}=pixmaxVideoDepthMenu;
+    root.remove();document.removeEventListener('pointerdown',outside,true);document.removeEventListener('keydown',escape,true);
+    anchor?.setAttribute('aria-expanded','false');pixmaxVideoDepthMenu=null;
+}
+function openPixmaxVideoDepthMenu(nodeId,index){
+    if(pixmaxVideoDepthMenu?.nodeId===nodeId){closePixmaxVideoDepthMenu();return;}
+    closePixmaxVideoDepthMenu();
+    const node=nodes.find(node=>node.id===nodeId),item=node?.images?.[index];if(!item||isSmartCanvasLocked())return;
+    const origin=canvas,epoch=window.MemberCanvasEdit?.active?.lease?.epoch,url=item.url;
+    const valid=()=>canvas===origin&&nodes.includes(node)&&node.images?.[index]===item&&item.url===url&&!isSmartCanvasLocked()&&window.MemberCanvasEdit?.active?.lease?.epoch===epoch;
+    const config=window.LocalDepthVideo.getSettings();
+    const root=document.createElement('section');root.className='pixmax-video-depth-menu';root.setAttribute('role','dialog');root.setAttribute('aria-label','深度视频参数');
+    root.innerHTML=`<header><strong>深度视频</strong><button type="button" aria-label="关闭深度视频参数">×</button></header><dl><dt>模型</dt><dd>Depth Anything V2 Small · fp16</dd><dt>分辨率</dt><dd>${Number(config.resolution)}px</dd><dt>帧率</dt><dd>${Number(config.fps)} fps</dd><dt>深度样式</dt><dd>灰度</dd></dl><p>在浏览器本地逐帧提取。</p><p>首次执行需加载模型，逐帧推理耗时较长。</p><footer><button type="button" data-depth-settings>调整参数</button><button type="button" data-depth-start>开始提取</button></footer>`;
+    document.body.appendChild(root);
+    const anchor=world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="depth-video"]`);
+    const rect=anchor?.getBoundingClientRect()||{left:innerWidth/2,top:innerHeight/2,bottom:innerHeight/2};
+    root.style.left=Math.max(12,Math.min(rect.left,innerWidth-root.offsetWidth-12))+'px';
+    root.style.top=(rect.bottom+8+root.offsetHeight<innerHeight?rect.bottom+8:Math.max(12,rect.top-root.offsetHeight-8))+'px';
+    anchor?.setAttribute('aria-expanded','true');
+    const outside=event=>{if(!root.contains(event.target)&&!anchor?.contains(event.target))closePixmaxVideoDepthMenu();};
+    const escape=event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closePixmaxVideoDepthMenu();anchor?.focus({preventScroll:true});}};
+    pixmaxVideoDepthMenu={root,outside,escape,anchor,nodeId};
+    document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape,true);
+    root.addEventListener('keydown',event=>event.stopPropagation());
+    root.querySelector('header button').onclick=closePixmaxVideoDepthMenu;
+    root.querySelector('[data-depth-settings]').onclick=()=>{closePixmaxVideoDepthMenu();if(valid())window.LocalDepthVideo.openSettings();};
+    root.querySelector('[data-depth-start]').onclick=()=>{closePixmaxVideoDepthMenu();if(valid())startSmartLocalDepthVideo(nodeId,index);};
+    root.querySelector('[data-depth-start]').focus({preventScroll:true});
+}
+window.addEventListener('pagehide',closePixmaxVideoDepthMenu);
 function bindPixmaxNodeName(el,node){
     const input=el.querySelector('.pixmax-node-name');if(!input)return;
     input.addEventListener('mousedown',event=>event.stopPropagation());

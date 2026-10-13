@@ -308,6 +308,7 @@ function syncSelectionUi(){
             item.classList.toggle('image-selected', smartSelection.image.nodeId === id && smartSelection.image.index === index);
         });
     });
+    positionPixmaxVideoToolbars();
 }
 
 function isNodeSelected(id){
@@ -565,6 +566,7 @@ function applyViewport(){
     if(pattern){const gap=20*viewport.scale;pattern.setAttribute('width',gap);pattern.setAttribute('height',gap);pattern.setAttribute('x',viewport.x%gap);pattern.setAttribute('y',viewport.y%gap);const dot=pattern.querySelector('circle');dot.setAttribute('r',.5*viewport.scale);dot.setAttribute('cx',.5*viewport.scale);dot.setAttribute('cy',.5*viewport.scale);}
     const zoomLabel=document.getElementById('pixmaxZoomLabel');if(zoomLabel)zoomLabel.textContent=Math.round(viewport.scale*100)+'%';
     syncPixmaxSaveStatus();
+    positionPixmaxVideoToolbars();
     scheduleSmartMinimapRender(true);
     scheduleSmartViewportRefresh();
 }
@@ -2261,7 +2263,13 @@ function runSmartNodeToolbarAction(nodeId, action){
     const item = imageForDisplay(node.images?.[index]);
     if(!item?.url) return;
     const kind = mediaKindForItem(item);
+    if(PIXMAX_VIDEO_DEFERRED.has(action))return;
+    if(['trim','auth','asset','depth-video'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
     smartSelection.toolbarImage(nodeId, index);
+    if(action==='trim'&&kind==='video'){
+        openImageEditor(nodeId,index);
+        return toggleVideoTrimPanel();
+    }
     if(action === 'download'){
         downloadPreviewFile(node.images?.[index] || item);
         return;
@@ -2279,7 +2287,7 @@ function runSmartNodeToolbarAction(nodeId, action){
         return;
     }
     if(action === 'depth-video' && kind === 'video'){
-        return openSmartLocalDepthVideo(nodeId, index);
+        return openPixmaxVideoDepthMenu(nodeId,index);
     }
     if(action === 'depth-local' && kind === 'image'){
         return openSmartLocalDepthImage(nodeId, index);
@@ -2745,6 +2753,7 @@ function handlePortDrop(drag, e){
 }
 
 function bindNodeEvents(elements=null){
+    requestAnimationFrame(positionPixmaxVideoToolbars);
     (elements || world.querySelectorAll('.image-node')).forEach(el => {
         const id = el.dataset.id;
         const nodeForControls = nodes.find(n => n.id === id);
@@ -4458,9 +4467,15 @@ function smartNodeGenerationToolEnabled(action){
 }
 
 function updateSmartNodeToolbarAccess(){
+    if(isSmartCanvasLocked())closePixmaxVideoDepthMenu();
     // Lease changes update existing controls without interrupting media playback.
     world.querySelectorAll('[data-smart-node-action="depth-video"],[data-smart-node-action="depth"],[data-smart-node-action="panorama"]').forEach(button => {
         button.disabled = !smartNodeGenerationToolEnabled(button.dataset.smartNodeAction);
+    });
+    world.querySelectorAll('.pixmax-video-toolbar [data-smart-node-action]').forEach(button=>{
+        const node=nodes.find(node=>node.id===button.dataset.nodeId);
+        const action=pixmaxVideoToolbarActions(node).find(action=>action.key===button.dataset.smartNodeAction);
+        if(action){button.disabled=!action.enabled;button.title=action.hint||action.label;}
     });
 }
 
@@ -4471,6 +4486,7 @@ function smartNodeToolbarHtml(node){
     const item = imageForDisplay(images[smartNodeToolbarImageIndex(node)] || images.find(img => img?.url));
     if(!item?.url) return '';
     const kind = mediaKindForItem(item);
+    if(kind==='video')return pixmaxVideoToolbarHtml(node);
     const canEditImage = kind === 'image';
     const imageCount = images.filter(img => mediaKindForItem(imageForDisplay(img)) === 'image' && imageForDisplay(img)?.url).length;
     const actions = [
