@@ -24,9 +24,22 @@
     "upstreamVerification": "文本供应商响应在验收中使用测试替身；未调用收费生成服务",
     "navigatorEvidence": {
       "source": "static/js/pixmax-navigator.js",
-      "browserCases": 12,
+      "browserCases": 22,
       "verified": ["参考侧栏尺寸及默认展开", "跨层文件夹搜索", "节点内容搜索、类型筛选和定位", "重命名、pin、撤销和删除后的列表同步", "目录操作复用当前会员写入入口", "创建画布后当前保存失败时保留新画布", "切换画布前保存及失败阻止导航", "旧目录响应失效", "工作空间切换隔离", "只读用户及失效编辑资格", "可见区域缩放和移动端定位", "键盘切换页签和菜单"],
-      "remaining": ["侧栏删除和回收站操作", "与全部参考目录菜单逐项核对", "更多视觉细节和大目录性能验证"]
+      "remaining": ["参考文件夹与子画布的级联删除、文件夹移动及其他目录菜单逐项核对", "更多视觉细节和大目录性能验证"]
+    },
+    "navigatorDeletionEvidence": {
+      "source": ["static/js/pixmax-navigator.js", "static/js/canvas-name-dialog.js", "static/js/member-canvas-edit.js", "static/js/canvas-edit-lease.js", "static/js/canvas-navigation.js", "app/routers/canvas.py"],
+      "status": "canvas_delete_trash_restore_implemented_requires_final_verification",
+      "nativeContract": "参考工作区删除确认组件 oy 以 deleteTarget 名称校验输入；画布确认后永久删除，文件夹确认会同时删除子文件夹及画布。当前侧栏实现画布直接永久删除，并保留本项目已有的移入回收站和恢复入口；文件夹级联删除仍待适配。",
+      "mechanism": ["输入准确画布名称才允许确认；取消不写入，工作空间或编辑资格变化关闭旧确认", "当前画布删除由编辑所有者先提交最后修改；操作期间阻止新编辑，使用删除响应中的版本结束编辑资格，再导航首页", "保存失败不删除；删除结果不明暂停后续写入；已确认删除但结束编辑资格失败不会误报删除失败", "回收站列表只展示记录，搜索覆盖已删除画布；恢复通过临时编辑资格，不打开已删除文档", "直接永久删除按既有后端先移入回收站再 purge；第二步拒绝时明确显示已移入回收站且永久删除未确认，仍可恢复", "永久删除后不再显示恢复入口；保留现有素材、账单以及服务端审计用记录", "确认窗口居中，支持键盘输入、取消和重复点击防护；只读用户可浏览回收站，写入动作按权限禁用"],
+      "browserCases": 10,
+      "ownerCases": 3,
+      "databaseCases": 2,
+      "verified": ["准确名称、取消和单次删除；搜索、恢复、永久删除与直接永久删除当前画布", "真实浏览器加载生产会员编辑器，保存最后文本、冻结编辑、按删除后版本释放资格，离开时不再次保存已删除画布", "最终保存失败保留草稿；工作空间变化关闭旧确认；拒绝恢复保留记录与重试入口；永久删除拒绝说明部分结果", "真实 PostgreSQL 删除响应包含 ID、版本和删除时间，释放后可立即重新取得编辑资格并恢复", "真实 PostgreSQL 永久删除隐藏画布且拒绝恢复；已上传 PNG 仍可读取，保留既有服务端审计文档"],
+      "relatedRegression": "133 项前端、目录、导航、草稿与编辑资格检查及 93 项隔离数据库回归通过。旧首页恢复测试使用实际会员写入入口，不再通过夹具的直发请求绕过临时编辑资格。",
+      "preview": ".local/pixmax-directory-permanent-delete.png",
+      "remaining": ["文件夹与全部后代画布的原生级联删除，需要协调多画布的编辑资格和原子写入", "参考全部目录菜单、移动端及大目录性能最终对照"]
     },
     "nativeMediaEvidence": {
       "bugFixed": "参考接口的 /static/img 等媒体地址属于资产 ossDomain，不能直接请求接收应用的静态目录",

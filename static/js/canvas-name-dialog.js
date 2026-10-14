@@ -19,7 +19,10 @@
             input.value = options.value || '';
             input.placeholder = options.placeholder || '输入名称';
             confirm.textContent = options.confirm || '保存';
+            const matches=()=>options.requiredName===undefined||input.value.trim()===options.requiredName;
+            if(options.requiredName!==undefined){find('.name-dialog-hint').textContent='请输入“'+options.requiredName+'”以确认';input.oninput=()=>{confirm.disabled=!matches();};confirm.disabled=!matches();}
             let busy = false;
+            const observer=options.scopeValid?new MutationObserver(()=>{if(dialog.isConnected&&!options.scopeValid())dialog.close();}):null;
             const close = () => { if (!busy) dialog.close(); };
             find('.name-dialog-close').onclick = close;
             find('.name-dialog-cancel').onclick = close;
@@ -29,12 +32,13 @@
                 if (event.key === 'Enter' && (event.isComposing || event.keyCode === 229)) event.preventDefault();
             });
             dialog.addEventListener('close', () => {
-                dialog.remove(); current = null;
+                observer?.disconnect();dialog.remove(); current = null;
                 if (previous?.isConnected) previous.focus();
             });
             find('form').onsubmit = async event => {
                 event.preventDefault();
                 if (busy) return;
+                if(!matches())return;
                 const value = input.value.trim();
                 if (!value && !options.allowEmpty) {
                     error.textContent = '请输入名称'; error.hidden = false;
@@ -43,16 +47,18 @@
                 error.hidden = true; input.removeAttribute('aria-invalid');
                 busy = true; dialog.setAttribute('aria-busy', 'true');
                 dialog.querySelectorAll('button, input').forEach(el => { el.disabled = true; });
-                confirm.textContent = '保存中…';
+                confirm.textContent = options.busyText || '保存中…';
                 try { await options.onSubmit(value); busy = false; dialog.close(); }
                 catch (e) {
                     busy = false; dialog.removeAttribute('aria-busy');
                     dialog.querySelectorAll('button, input').forEach(el => { el.disabled = false; });
                     confirm.textContent = options.confirm || '保存';
+                    confirm.disabled=!matches();
                     error.textContent = e?.message || '保存失败，请重试'; error.hidden = false; input.focus();
                 }
             };
             document.body.appendChild(dialog); current = dialog;
+            observer?.observe(document.body,{attributes:true,childList:true,subtree:true});
             dialog.showModal(); input.focus(); input.select();
         }
     };

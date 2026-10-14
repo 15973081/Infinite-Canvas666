@@ -5,7 +5,7 @@
  */
 
 // Business modules share the workspace lease; missing permission UI stays read-only.
-function isSmartCanvasLocked(){ return !window.MemberCanvasEdit?.canEdit; }
+function isSmartCanvasLocked(){ return Boolean(canvas?.deleted_at)||!window.MemberCanvasEdit?.canEdit; }
 
 function updateSmartCanvasNav(){
     const title = canvas?.title || '智能画布';

@@ -1526,7 +1526,7 @@ def delete_canvas(canvas_id: str):
     if not canvas.get("deleted_at"):
         canvas["deleted_at"] = now_ms()
         save_canvas(canvas)
-    return {"ok": True}
+    return {"ok": True, "canvas": {key: canvas.get(key) for key in ('id', 'revision', 'deleted_at')}}
 
 @router.post("/api/canvases/{canvas_id}/restore")
 def restore_canvas(canvas_id: str):

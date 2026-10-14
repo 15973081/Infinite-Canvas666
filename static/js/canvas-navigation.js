@@ -9,13 +9,17 @@
     const canvasUrl=(id,{cover=false}={})=>homeUrl()+'/canvases/'+encodeURIComponent(id)+(cover?'?cover=1':'');
     const canvasId=match?.[2] || query.get('id') || '';
     if(canvasId)document.documentElement.classList.add('standalone-canvas');
-    async function go(url){
+    async function go(url,deletedId){
         if(navigating)return false;
         const target=new URL(url,location.origin);
         if(target.origin!==location.origin)return false;
         navigating=true;
         try {
-            if(!await leaveGuard())return false;
+            if(deletedId){
+                const current=location.pathname.match(/^\/workspaces\/[^/]+\/canvases\/([^/]+)$/)?.[1]||new URLSearchParams(location.search).get('id');
+                if(current!==deletedId||window.MemberCanvasEdit?.canSave)return false;
+                if(window.CanvasSession?.enabled&&window.MemberCanvasEdit?.leave&&!await window.MemberCanvasEdit.leave())return false;
+            }else if(!await leaveGuard())return false;
             window.LocalDepthVideo?.allowPageExit?.();
             window.PixmaxMediaTools?.allowPageExit?.();
             window.PixmaxVideoAnnotation?.allowPageExit?.();
@@ -58,7 +62,7 @@
         if(ready){window.LocalDepthVideo?.allowPageExit?.();window.PixmaxMediaTools?.allowPageExit?.();window.PixmaxVideoAnnotation?.allowPageExit?.();}
         return ready;
     }
-    window.CanvasNavigation=Object.freeze({canvasId,workspace,homeUrl,canvasUrl,bindLink,go,adopt,failure,confirmLocalWork,prepareReload,
+    window.CanvasNavigation=Object.freeze({canvasId,workspace,homeUrl,canvasUrl,bindLink,go:url=>go(url),afterDeletion:id=>go(homeUrl(),id),adopt,failure,confirmLocalWork,prepareReload,
         setLeaveGuard:guard=>{leaveGuard=guard;}});
     window.addEventListener('pageshow',event=>{
         // Explicit return disposes the lease UI. A history-restored document must

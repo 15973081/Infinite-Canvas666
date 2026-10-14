@@ -578,6 +578,10 @@
         },
         send(path,init={},transport=window.fetch.bind(window)) {
             const url=new URL(path,location.href), match=url.pathname.match(/^\/api\/canvases\/([^/]+)(.*)$/);
+            if(url.origin===location.origin&&match&&decodeURIComponent(match[1])===active?.id&&!match[2]&&init.method?.toUpperCase()==='DELETE') {
+                const entry=active;
+                return entry.lease.remove(async()=>entry===active&&validEntry(entry)&&await entry.options.flush(),transport);
+            }
             if(url.origin===location.origin && /^\/api\/canvas-(image|video|llm|audio|model)-tasks$/.test(url.pathname) && init.method?.toUpperCase()==='POST') {
                 const id=JSON.parse(init.body || '{}').canvas_id;
                 if(id) {

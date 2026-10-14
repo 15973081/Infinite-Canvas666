@@ -21,6 +21,45 @@ def setup_canvas(world, kind='classic'):
     return '/api/canvases/' + canvas['id'], canvas
 
 
+def test_deleted_canvas_acknowledges_revision_and_releases_ownership_before_restore(world):
+    path,canvas=setup_canvas(world,'smart');lease=acquire(world,path)
+    response=world['editor'].delete(path,headers=proof(world,lease,canvas['revision']))
+    assert response.status_code==200,response.text
+    deleted=response.json()['canvas'];assert deleted['id']==canvas['id'] and deleted['deleted_at'] and deleted['revision']>canvas['revision']
+    assert world['editor'].post(path+'/edit-lease/release',headers=proof(world,lease,deleted['revision'])).status_code==200
+    assert not any(item['id']==canvas['id'] for item in world['editor'].get('/api/canvases',headers=headers(world['a'])).json()['canvases'])
+    acquired=world['editor'].post(path+'/edit-lease/acquire',headers=headers(world['a']),json={})
+    assert acquired.status_code==200,acquired.text
+    restored=world['editor'].post(path+'/restore',headers=proof(world,acquired.json(),deleted['revision']))
+    assert restored.status_code==200 and not restored.json()['canvas'].get('deleted_at'),restored.text
+
+
+def test_native_permanent_delete_hides_canvas_and_preserves_uploaded_assets(world):
+    import io
+    from PIL import Image
+    from app.storage import database
+    from app.storage.workspace import workspace_scope
+    path,canvas=setup_canvas(world,'smart');lease=acquire(world,path)
+    content=io.BytesIO();Image.new('RGB',(16,16),'blue').save(content,format='PNG')
+    uploaded=world['editor'].post('/api/ai/upload',headers=headers(world['a']),files={'files':('retained.png',content.getvalue(),'image/png')})
+    assert uploaded.status_code==200,uploaded.text
+    source=uploaded.json()['files'][0]['url']
+    saved=world['editor'].put(path,headers=proof(world,lease,canvas['revision']),json={'nodes':[{'id':'source','type':'smart-image','images':[{'url':source,'kind':'image'}]}],'connections':[],'base_revision':canvas['revision']})
+    assert saved.status_code==200,saved.text
+    removed=world['editor'].delete(path,headers=proof(world,lease,saved.json()['canvas']['revision']))
+    assert removed.status_code==200,removed.text
+    revision=removed.json()['canvas']['revision']
+    assert world['editor'].post(path+'/edit-lease/release',headers=proof(world,lease,revision)).status_code==200
+    fresh=world['editor'].post(path+'/edit-lease/acquire',headers=headers(world['a']),json={});assert fresh.status_code==200,fresh.text
+    purged=world['editor'].delete(path+'/purge',headers=proof(world,fresh.json(),revision));assert purged.status_code==200,purged.text
+    assert world['editor'].post(path+'/restore',headers=proof(world,fresh.json(),revision)).status_code==404
+    assert not any(item['id']==canvas['id'] for item in world['editor'].get('/api/canvases/trash',headers=headers(world['a'])).json()['canvases'])
+    assert world['viewer'].get(source,headers=headers(world['a'])).content==content.getvalue()
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        retained=conn.execute('SELECT document FROM canvases WHERE id=%s',(canvas['id'],)).fetchone()['document']
+        assert retained['purged_at'] and retained['nodes'][0]['images'][0]['url']
+
+
 def test_retired_canvas_lock_routes_are_gone_and_workspace_lease_still_saves(world):
     from main import app
     from app import state

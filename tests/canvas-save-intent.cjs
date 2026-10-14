@@ -9,7 +9,7 @@ for(const [file,dirty,lock] of [['canvas.js','localCanvasDirty','isCanvasLockedB
  const end=source.indexOf('\nfunction ',start+1);
  const fn=source.slice(start,end).split('\nasync function ')[0];
  function setup(editable,initial=false){
-  const c={canvas:{},applyingRemoteCanvas:false,[dirty]:initial,saveTimer:null,savingCanvasNow:false,saveCanvasAgain:false,smartSaveInFlight:null,smartSaveAgain:false,marks:0,timers:0,setStatus(){},clearTimeout(){},setTimeout(){c.timers++;return 1;},saveCanvas(){},[lock]:()=>!editable};
+  const c={canvas:{},applyingRemoteCanvas:false,[dirty]:initial,saveTimer:null,savingCanvasNow:false,saveCanvasAgain:false,smartSaveInFlight:null,smartSaveAgain:false,marks:0,timers:0,setStatus(){},syncPixmaxSaveStatus(){},clearTimeout(){},setTimeout(){c.timers++;return 1;},saveCanvas(){},[lock]:()=>!editable};
   c.window={CanvasSession:{enabled:true},MemberCanvasEdit:{canEdit:editable,markDirty(){c.marks++;}}};
   vm.createContext(c);vm.runInContext(fn,c);return c;
  }

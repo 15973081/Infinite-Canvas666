@@ -2,7 +2,8 @@
 (() => {
     'use strict';
     let panel,toggleButton,list,menu,frame=null,requestVersion=0,scope='',tab='canvas',query='',type='',folder='',opened=true;
-    let records=[],folders=[],collapsed=new Set(),signature='',loading=false,disposed=false;
+    let records=[],folders=[],collapsed=new Set(),signature='',loading=false,disposed=false,trashMode=false;
+    const removedIds=new Set(),pendingIds=new Set();
     const labels={text:'文本生成节点',image:'图像节点',video:'视频节点',audio:'音频生成节点',model:'3D模型生成节点',storyboard:'分镜脚本',director:'导演台',editor:'剪辑台',frame:'分组'};
     const icons={text:'text-cursor-input',image:'image',video:'clapperboard',audio:'music',model:'box',storyboard:'layout-grid',director:'clapperboard',editor:'monitor-play',frame:'group'};
     const normalized=value=>String(value||'').normalize('NFKC').toLocaleLowerCase('zh-CN');
@@ -18,7 +19,7 @@
     function readPreferences(){
         let saved={};try{saved=JSON.parse(localStorage.getItem(storageKey())||'{}')||{};}catch(_){}
         opened=saved.opened!==false;tab=saved.tab==='nodes'?'nodes':'canvas';folder=String(saved.folder||'');
-        collapsed=new Set(Array.isArray(saved.collapsed)?saved.collapsed:[]);query='';type='';
+        collapsed=new Set(Array.isArray(saved.collapsed)?saved.collapsed:[]);query='';type='';trashMode=false;removedIds.clear();pendingIds.clear();
     }
     function status(value){if(panel)panel.querySelector('[role=status]').textContent=value||'';}
     function setOpened(value){
@@ -46,6 +47,7 @@
         }).join('')||'<p class="pixmax-directory-empty">'+(search||type?'没有匹配的节点':'添加节点，开始创作')+'</p>';
     }
     function canvasRows(){
+        if(trashMode)return trashRows();
         const search=normalized(query),seen=new Set();
         const model=window.CanvasDirectoryModel.build({canvases:records,deletedCanvases:[],folders,trashMode:false,folderId:'all',query:''});
         const grouped=new Map();
@@ -68,6 +70,10 @@
         records.filter(item=>item.folder_id&&!known.has(item.folder_id)&&(!search||normalized(item.title).includes(search))).forEach(item=>html+=row(item,0));
         return html||`<p class="pixmax-directory-empty">${loading?'正在加载画布…':search?'没有匹配的画布或文件夹':'新建画布，开始创作'}</p>`;
     }
+    function trashRows(){
+        const search=normalized(query),rows=records.filter(item=>!search||normalized(item.title).includes(search)).sort((a,b)=>(b.deleted_at||0)-(a.deleted_at||0));
+        return rows.map(item=>`<div class="pixmax-directory-row pixmax-directory-trash-row" data-trash-row="${escapeAttr(item.id)}"><div class="pixmax-directory-main"><i data-lucide="${item.kind==='smart'?'scan':'layout-grid'}"></i><span>${escapeHtml(item.title||'未命名画布')}</span></div><button type="button" data-canvas-restore="${escapeAttr(item.id)}" aria-label="恢复画布 ${escapeAttr(item.title)}" ${!can('canvas.restore')||pendingIds.has(item.id)?'disabled':''}>恢复</button><button type="button" data-canvas-purge="${escapeAttr(item.id)}" aria-label="永久删除画布 ${escapeAttr(item.title)}" ${!can('canvas.delete')||pendingIds.has(item.id)?'disabled':''}>删除</button></div>`).join('')||`<p class="pixmax-directory-empty">${loading?'正在加载回收站…':search?'没有匹配的已删除画布':'回收站为空'}</p>`;
+    }
     function draw(){
         if(!panel||disposed)return;
         if(scope!==currentScope()){
@@ -76,12 +82,15 @@
         panel.querySelector('[data-directory-title]').textContent=documentInScope()?canvas?.title||'智能画布':window.CanvasSession.context?.workspace?.name||'画布';
         panel.querySelector('[data-directory-create-canvas]').disabled=!can('canvas.create');
         panel.querySelector('[data-directory-create-folder]').disabled=!can('canvas.edit');
-        panel.querySelector('[data-directory-creations]').hidden=tab!=='canvas';
+        panel.querySelector('[data-directory-creations]').hidden=tab!=='canvas'||trashMode;
+        panel.querySelector('[data-directory-trash]').hidden=tab!=='canvas';
+        panel.querySelector('[data-directory-trash]').textContent=trashMode?'返回画布列表':'回收站';
+        panel.querySelector('[data-directory-trash]').setAttribute('aria-pressed',String(trashMode));
         panel.querySelector('[data-directory-type]').hidden=tab!=='nodes';
-        panel.querySelector('[data-directory-search]').placeholder=tab==='nodes'?'搜索节点名称或内容':'搜索画布或文件夹';
+        panel.querySelector('[data-directory-search]').placeholder=tab==='nodes'?'搜索节点名称或内容':trashMode?'搜索已删除画布':'搜索画布或文件夹';
         for(const button of panel.querySelectorAll('[data-directory-tab]')){button.setAttribute('aria-selected',String(button.dataset.directoryTab===tab));button.tabIndex=button.dataset.directoryTab===tab?0:-1;}
         if(!opened)return;
-        const current=documentInScope()&&records.find(item=>item.id===canvas?.id);if(current)current.title=canvas.title;
+        const current=!trashMode&&documentInScope()&&records.find(item=>item.id===canvas?.id);if(current)current.title=canvas.title;
         const html=tab==='nodes'?nodeRows():canvasRows();
         if(html!==signature){
             const scroll=list.scrollTop,active=document.activeElement;
@@ -105,11 +114,11 @@
             for(;;){
                 if(window.CanvasDirectoryApi.busy)await window.CanvasDirectoryApi.flush();
                 const epoch=window.CanvasDirectoryApi.epoch;
-                const [catalog,directory]=await Promise.all([window.CanvasDirectoryApi.listCanvases(),window.CanvasDirectoryApi.listCanvasFolders()]);
+                const [catalog,directory]=await Promise.all([trashMode?window.CanvasDirectoryApi.listTrashCanvases():window.CanvasDirectoryApi.listCanvases(),window.CanvasDirectoryApi.listCanvasFolders()]);
                 ensureScope(expected);if(version!==requestVersion)return;
                 if(epoch!==window.CanvasDirectoryApi.epoch)continue;
                 records=Array.isArray(catalog.canvases)?catalog.canvases:[];folders=Array.isArray(directory.folders)?directory.folders:[];
-                if(canvas&&documentInScope()&&!records.some(item=>item.id===canvas.id))records.unshift({id:canvas.id,title:canvas.title,kind:'smart',folder_id:canvas.folder_id||''});
+                if(!trashMode&&canvas&&documentInScope()&&!removedIds.has(canvas.id)&&!canvas.deleted_at&&!records.some(item=>item.id===canvas.id))records.unshift({id:canvas.id,title:canvas.title,kind:'smart',folder_id:canvas.folder_id||''});
                 if(folder&&!folders.some(item=>item.id===folder))folder='';break;
             }
         }catch(error){if(version===requestVersion){records=[];folders=[];status(error.message||'加载目录失败，请重试');}}
@@ -205,6 +214,44 @@
             await refresh();
         }});
     }
+    function removeCanvas(item,permanent=false){
+        if(!can('canvas.delete')||pendingIds.has(item.id))return;
+        const expected=currentScope(),origin=canvas,active=!trashMode&&item.id===canvas.id,needsTrash=permanent&&!trashMode,epoch=window.MemberCanvasEdit?.active?.lease?.epoch;
+        const valid=()=>!active||(canvas===origin&&documentInScope()&&!isSmartCanvasLocked()&&window.MemberCanvasEdit?.active?.lease?.epoch===epoch);
+        if(!valid())return;
+        const name=String(item.title||'未命名画布').trim();
+        window.CanvasNameDialog.open({title:permanent?'永久删除画布':'移入回收站',label:'输入画布名称以确认',requiredName:name,placeholder:name,confirm:permanent?'永久删除':'移入回收站',busyText:'正在删除…',scopeValid:()=>expected===currentScope()&&can('canvas.delete')&&(pendingIds.has(item.id)||valid()),description:permanent?'永久删除后，画布将无法从回收站恢复。已生成素材及账单记录仍保留。':'画布移入回收站后可以恢复。已生成素材及账单记录仍保留。',onSubmit:async()=>{
+            ensureScope(expected);if(!can('canvas.delete')||!valid())throw new Error('画布或编辑资格已变化，请重新打开');
+            if(active&&!window.CanvasNavigation.confirmLocalWork())throw new Error('已取消删除，请先保存本地处理结果');
+            pendingIds.add(item.id);documentChanged();
+            let moved=false;
+            try {
+                if(active&&!window.CanvasSession?.enabled&&!await saveCanvas({force:true}))throw new Error('当前更改尚未保存，请稍后重试');
+                ensureScope(expected);if(!valid())throw new Error('画布或编辑资格已变化，请重新打开');
+                if(needsTrash){
+                    const response=await window.CanvasDirectoryApi.deleteCanvas(item.id),result=await response.json();ensureScope(expected);if(result.ok!==true)throw new Error('删除结果尚未确认，请刷新目录核对');
+                    moved=true;removedIds.add(item.id);if(active&&canvas===origin){clearTimeout(saveTimer);saveTimer=null;canvas.deleted_at=result.canvas?.deleted_at||Date.now();}
+                }
+                const response=await (permanent?window.CanvasDirectoryApi.purgeCanvas(item.id):window.CanvasDirectoryApi.deleteCanvas(item.id)),result=await response.json();
+                ensureScope(expected);if(result.ok!==true)throw new Error('删除结果尚未确认，请刷新目录核对');
+                removedIds.add(item.id);
+                if(active&&canvas===origin){
+                    clearTimeout(saveTimer);saveTimer=null;canvas.deleted_at=result.canvas?.deleted_at||Date.now();
+                    if(!await window.CanvasNavigation.afterDeletion(item.id))status(permanent?'画布已永久删除，请返回画布管理':'画布已移入回收站，请返回画布管理');
+                }else{await refresh();status(permanent?'画布已永久删除':'画布已移入回收站');}
+            }catch(error){
+                if(moved&&expected===currentScope()){await refresh();error.message='画布已移入回收站；永久删除未确认：'+error.message;status(error.message);}
+                throw error;
+            }finally{if(expected===currentScope()){pendingIds.delete(item.id);documentChanged();}}
+        }});
+    }
+    async function restoreCanvas(item){
+        const expected=currentScope();if(!can('canvas.restore')||pendingIds.has(item.id))return;
+        pendingIds.add(item.id);status('正在恢复画布…');documentChanged();
+        try {const response=await window.CanvasDirectoryApi.restoreCanvas(item.id),result=await response.json();ensureScope(expected);if(result.canvas?.id!==item.id||result.canvas.deleted_at)throw new Error('恢复结果尚未确认，请刷新目录核对');removedIds.delete(item.id);await refresh();status('画布已恢复，可返回画布列表打开');}
+        catch(error){if(expected===currentScope())status(error.message||'恢复失败，请重试');}
+        finally{if(expected===currentScope()){pendingIds.delete(item.id);documentChanged();}}
+    }
     function bind(){
         if(panel||disposed)return;
         readPreferences();scope=currentScope();
@@ -212,6 +259,7 @@
         panel.innerHTML=`<header><a href="${escapeAttr(window.CanvasNavigation.homeUrl())}" data-directory-home aria-label="返回画布管理"><img src="/static/images/shadox-mark.svg" alt=""></a><strong data-directory-title></strong><button type="button" data-directory-close aria-label="关闭画布目录">×</button></header><div role="tablist" aria-label="目录类型"><button type="button" role="tab" data-directory-tab="canvas" aria-controls="pixmaxDirectoryList">画布</button><button type="button" role="tab" data-directory-tab="nodes" aria-controls="pixmaxDirectoryList">节点</button><button type="button" data-directory-refresh aria-label="刷新目录" title="刷新目录"><i data-lucide="refresh-cw"></i></button></div><label class="pixmax-directory-search"><i data-lucide="search"></i><input type="search" data-directory-search aria-label="搜索画布或节点" placeholder="搜索画布或文件夹"></label><div data-directory-creations class="pixmax-directory-creations"><button type="button" data-directory-create-canvas>新建画布</button><button type="button" data-directory-create-folder>新建文件夹</button></div><select data-directory-type aria-label="节点类型"><option value="">全部节点</option>${Object.entries(labels).map(([key,label])=>`<option value="${key}">${label}</option>`).join('')}</select><div class="pixmax-directory-list" id="pixmaxDirectoryList" role="tabpanel" data-folder-drop=""></div><p role="status"></p>`;
         toggleButton=document.createElement('button');toggleButton.type='button';toggleButton.className='pixmax-navigator-toggle';toggleButton.setAttribute('aria-label','画布目录');toggleButton.setAttribute('aria-controls',panel.id);toggleButton.innerHTML='<i data-tabler="layout-sidebar-left-collapse"></i>';
         list=panel.querySelector('.pixmax-directory-list');document.body.append(panel,toggleButton);
+        const trash=document.createElement('button');trash.type='button';trash.dataset.directoryTrash='';trash.className='pixmax-directory-trash';trash.textContent='回收站';list.after(trash);trash.onclick=()=>{trashMode=!trashMode;query='';panel.querySelector('[data-directory-search]').value='';closeMenu();signature='';records=[];void refresh();};
         window.lucide?.createIcons({root:panel});window.lucide?.createIcons({root:toggleButton});
         toggleButton.onclick=()=>setOpened(!opened);panel.querySelector('[data-directory-close]').onclick=()=>setOpened(false);
         panel.querySelector('[data-directory-home]').onclick=event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();void window.CanvasNavigation.go(window.CanvasNavigation.homeUrl());};
@@ -222,11 +270,13 @@
         panel.onclick=event=>{
             const target=event.target.closest('button,a');if(!target)return;
             if(target.dataset.directoryTab){tab=target.dataset.directoryTab;query='';panel.querySelector('[data-directory-search]').value='';closeMenu();savePreferences();documentChanged();}
-            if(target.hasAttribute('data-canvas-open')&&!(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)){event.preventDefault();if(target.dataset.canvasOpen!==canvas.id)void window.CanvasNavigation.go(target.href);}
+            if(target.hasAttribute('data-canvas-open')&&!(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)){event.preventDefault();if(target.dataset.canvasOpen!==canvas.id||canvas.deleted_at)void window.CanvasNavigation.go(target.href);}
+            if(target.dataset.canvasRestore){const item=records.find(item=>item.id===target.dataset.canvasRestore);if(item)void restoreCanvas(item);}
+            if(target.dataset.canvasPurge){const item=records.find(item=>item.id===target.dataset.canvasPurge);if(item)removeCanvas(item,true);}
             if(target.hasAttribute('data-folder-toggle')){folder=target.dataset.folderToggle;if(collapsed.has(folder))collapsed.delete(folder);else collapsed.add(folder);savePreferences();documentChanged();}
             if(target.dataset.nodeFocus){const node=nodes.find(item=>item.id===target.dataset.nodeFocus);if(node)focusNode(node);}
             if(target.dataset.nodeMenu){const node=nodes.find(item=>item.id===target.dataset.nodeMenu);if(node)openMenu(target,[{label:'定位节点',run:()=>focusNode(node)},{label:'重命名',disabled:isSmartCanvasLocked(),run:()=>renameNode(node)},{label:'标签',run:()=>window.PixmaxTags.openPicker([node.id],target)},{label:(window.PixmaxTags?.ids(node).length??node.pinned)?'取消 pin':'pin 到汇总',disabled:isSmartCanvasLocked(),run:()=>{if(isSmartCanvasLocked()||!nodes.includes(node)||!documentInScope()||!can('canvas.edit'))return;window.PixmaxTags.togglePin(node);documentChanged();}}]);}
-            if(target.dataset.canvasMenu){const item=records.find(item=>item.id===target.dataset.canvasMenu);if(item)openMenu(target,[{label:'打开画布',run:()=>item.id!==canvas.id&&window.CanvasNavigation.go(window.CanvasNavigation.canvasUrl(item.id))},{label:'重命名',disabled:!can('canvas.edit')||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>renameCanvas(item)},{label:'移动到文件夹',disabled:!can('canvas.edit')||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>moveCanvas(item)}]);}
+            if(target.dataset.canvasMenu){const item=records.find(item=>item.id===target.dataset.canvasMenu);if(item)openMenu(target,[{label:'打开画布',run:()=>item.id!==canvas.id&&window.CanvasNavigation.go(window.CanvasNavigation.canvasUrl(item.id))},{label:'重命名',disabled:!can('canvas.edit')||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>renameCanvas(item)},{label:'移动到文件夹',disabled:!can('canvas.edit')||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>moveCanvas(item)},{label:'移入回收站',disabled:!can('canvas.delete')||pendingIds.has(item.id)||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>removeCanvas(item)},{label:'永久删除',disabled:!can('canvas.delete')||pendingIds.has(item.id)||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>removeCanvas(item,true)}]);}
             if(target.dataset.folderMenu){const item=folders.find(item=>item.id===target.dataset.folderMenu);if(item)openMenu(target,[{label:'新建子文件夹',disabled:!can('canvas.edit'),run:()=>nameFolder(null,item.id)},{label:'重命名',disabled:!can('canvas.edit'),run:()=>nameFolder(item)}]);}
         };
         panel.addEventListener('keydown',event=>{
@@ -237,9 +287,9 @@
             }
         });
         panel.addEventListener('dragstart',event=>{const row=event.target.closest('[data-canvas-row]');if(!row)return;event.dataTransfer.setData('application/x-canvas-id',row.dataset.canvasRow);event.dataTransfer.effectAllowed='move';});
-        panel.addEventListener('dragover',event=>{if(can('canvas.edit')&&[...event.dataTransfer.types].includes('application/x-canvas-id')){event.preventDefault();event.dataTransfer.dropEffect='move';}});
+        panel.addEventListener('dragover',event=>{if(!trashMode&&can('canvas.edit')&&[...event.dataTransfer.types].includes('application/x-canvas-id')){event.preventDefault();event.dataTransfer.dropEffect='move';}});
         panel.addEventListener('drop',async event=>{
-            const target=event.target.closest('[data-folder-drop]'),id=event.dataTransfer.getData('application/x-canvas-id');if(!target||!id)return;event.preventDefault();
+            const target=event.target.closest('[data-folder-drop]'),id=event.dataTransfer.getData('application/x-canvas-id');if(trashMode||!target||!id)return;event.preventDefault();
             const expected=currentScope();try{
                 if(!can('canvas.edit')||(id===canvas.id&&isSmartCanvasLocked()))throw new Error('请先开始编辑画布');
                 if(id===canvas.id&&!await saveCanvas({force:true}))throw new Error('当前更改尚未保存，请稍后重试');

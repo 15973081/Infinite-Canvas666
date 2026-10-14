@@ -25,6 +25,25 @@ function fixture(handler) {
     }});
     return {lease,calls,setTime:value => {time=value;},start:() => lease.start(async () => ({revision:3}))};
 }
+
+test('active canvas deletion flushes while edits are frozen, releases the new revision and never saves after deletion',async()=>{
+    const f=fixture((path,init)=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):path.endsWith('/release')?json({released:true,revision:5}):init.method==='PUT'?json({canvas:{id:'a',revision:4}}):json({ok:true,canvas:{id:'a',revision:5,deleted_at:1}}));
+    await f.start();const response=await f.lease.remove(async()=>{assert.equal(f.lease.canEdit,false);assert.equal(f.lease.canSave,true);return (await f.lease.write('/api/canvases/a',{method:'PUT',body:'{}'})).ok;});
+    assert.equal(response.ok,true);assert.equal(f.lease.canSave,false);assert.equal(f.lease.finishing,false);
+    assert.deepEqual(f.calls.map(([path,init])=>[path,init.method]),[['/api/canvases/a/edit-lease/acquire','POST'],['/api/canvases/a','PUT'],['/api/canvases/a','DELETE'],['/api/canvases/a/edit-lease/release','POST']]);
+    assert.equal(new Headers(f.calls[2][1].headers).get('X-Canvas-Revision'),'4');assert.equal(f.calls[3][1].headers['X-Canvas-Revision'],'5');
+});
+
+test('unsaved changes prevent active canvas deletion and uncertain deletion stops further writes',async()=>{
+    const f=fixture((path,init)=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):Promise.reject(new Error('lost deletion response')));
+    await f.start();await assert.rejects(f.lease.remove(async()=>false),/尚未保存/);assert.equal(f.calls.length,1);assert.equal(f.lease.canEdit,true);
+    await assert.rejects(f.lease.remove(async()=>true),/lost deletion response/);assert.equal(f.calls.length,2);assert.equal(f.lease.canSave,false);
+});
+
+test('confirmed canvas deletion remains confirmed when lease release is unavailable',async()=>{
+    const f=fixture((path,init)=>path.endsWith('/acquire')?json(publicLease({edit_token:'private'})):path.endsWith('/release')?Promise.reject(new Error('release unavailable')):json({ok:true,canvas:{id:'a',revision:4,deleted_at:1}}));
+    await f.start();const response=await f.lease.remove(async()=>true);assert.equal((await response.json()).ok,true);assert.equal(f.lease.canSave,false);assert.equal(f.lease.state,'paused');assert.match(f.lease.message,/已移入回收站/);
+});
 test('public same-account holder cannot authorize another page', async () => {
     const f = fixture(() => json(publicLease()));
     await f.lease.refresh();

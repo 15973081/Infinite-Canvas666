@@ -32,6 +32,7 @@ for(const kind of ['classic','smart'])test(`${kind} trash restores through the p
  });
  await page.addScriptTag({url:origin+'/static/js/canvas-edit-lease.js'});
  await page.addScriptTag({url:origin+'/static/js/canvas-directory-writes.js'});
+ await page.addScriptTag({url:origin+'/static/js/member-canvas-edit.js'});
  assert.equal(await page.evaluate(()=>Boolean(window.CanvasDirectoryWrites)),true,'production catalog guard installed');
  await page.getByRole('button',{name:'打开回收站',exact:true}).click();
  const restore=page.getByRole('button',{name:'恢复画布 回收站恢复验收',exact:true});
@@ -44,7 +45,7 @@ for(const kind of ['classic','smart'])test(`${kind} trash restores through the p
  finishRestore();
  await page.waitForFunction(()=>document.querySelector('#studioHomeFeedback').textContent.includes('画布已恢复'));
  assert.equal(await restore.count(),0);assert.equal(held,false);
- assert.equal(await page.evaluate(()=>MemberCanvasEdit.active),undefined);
+ assert.equal(await page.evaluate(()=>MemberCanvasEdit.active),null);
  assert.equal(calls.some(row=>row.path==='/api/canvases/deleted-test'),false,'deleted document is never opened');
  await page.getByRole('button',{name:'返回画布列表',exact:true}).click();
  await page.locator('[data-canvas-id="deleted-test"]').waitFor();
