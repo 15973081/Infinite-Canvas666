@@ -11,7 +11,9 @@
             let response;
             if(window.CanvasSession?.enabled){
                 const target=window.CanvasDirectoryWrites.matches(path,init);
-                response=target ? await window.CanvasDirectoryWrites.write(target,path,init) : await fetch(path,init);
+                response=target ? (window.MemberCanvasEdit?.send
+                    ? await window.MemberCanvasEdit.send(path,init)
+                    : await window.CanvasDirectoryWrites.write(target,path,init)) : await fetch(path,init);
             }else response=await fetch(path,init);
             if(!response.ok){
                 const data=await response.clone().json().catch(()=>({}));

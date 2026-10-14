@@ -53,6 +53,35 @@ def supplier(calls):
     return respond
 
 
+@pytest.mark.parametrize('node_type', ['smart-prompt', 'smart-storyboard', 'smart-image'])
+def test_pixmax_creation_task_accepts_saved_nodes_and_keeps_structured_results_without_extra_cards(world, node_type):
+    path, canvas, lease, body = prepared(world, 'smart')
+    original = {'id': 'source', 'type': node_type, 'text': 'keep my reference',
+                'shots': [{'duration': 4, 'description': 'manual shot'}],
+                'assistantRequest': {'input': 'write a scene'}}
+    saved = world['editor'].put(path, headers=proof(world, lease, canvas['revision']), json={
+        'title': 'Pixmax creation', 'nodes': [original], 'connections': [], 'base_revision': canvas['revision']})
+    assert saved.status_code == 200, saved.text
+    canvas = saved.json()['canvas']
+    body['canvas_target']['base_revision'] = canvas['revision']
+    admitted = submit(world, body, lease)
+    assert admitted.status_code == 200, admitted.text
+    calls = []
+    with patch.object(httpx.AsyncClient, 'post', supplier(calls)):
+        completed = execute(world, admitted.json()['task_id'])
+    assert completed['status'] == 'succeeded' and len(calls) == 1
+    applied = {**original, 'creationResults': [{'taskId': completed['id'], 'text': completed['result']['text']}],
+               'assistantMessages': [{'role': 'assistant', 'content': completed['result']['text']}]}
+    result = world['editor'].put(path, headers=proof(world, lease, canvas['revision']), json={
+        'title': 'Pixmax creation', 'nodes': [applied], 'connections': [], 'base_revision': canvas['revision']})
+    assert result.status_code == 200, result.text
+    document = result.json()['canvas']
+    assert document['nodes'] == [applied]
+    assert document['nodes'][0]['text'] == original['text']
+    catalog = world['viewer'].get(path + '/task-results', headers=headers(world['a'])).json()['results']
+    assert catalog[0]['state'] == 'in_canvas'
+
+
 @pytest.mark.parametrize('kind', ['classic', 'smart'])
 def test_llm_worker_retains_text_usage_and_joins_after_target_deleted(world, kind):
     from app.storage.database import connection

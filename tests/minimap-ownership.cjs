@@ -49,6 +49,7 @@ function setup(kind) {
         vm.runInContext(functionSource(source,name),ctx);
     }
     const factory='create'+(kind==='classic'?'Classic':'Smart')+'Minimap';
+    if(kind==='smart')load('smartViewportBounds');
     const ownerName=kind+'Minimap';
     load(factory);
     if(kind==='classic') ['estimatedNodeRect','currentWorldViewRect','minimapNodeBounds','minimapBounds','startWindowPointerSession','endWindowPointerSession'].forEach(load);

@@ -710,6 +710,23 @@ button,input,textarea {
   border: 1px solid #313136;
 }
 
+/* Durable task recovery occupies the same card as its eventual media. */
+.image-node.task-recovery-node .node-body {
+  flex-direction: column;
+  align-items: stretch;
+  overflow: auto;
+  border: 0;
+}
+.image-node.task-recovery-node .task-recovery-status {
+  width: 100%;
+  min-height: 120px;
+  flex: 1 0 120px;
+  border: 1px solid #313136;
+  border-radius: inherit;
+}
+.image-node.task-recovery-node:hover .task-recovery-status,
+.image-node.task-recovery-node.selected .task-recovery-status { border-color: #aeb6c5; }
+
 .image-node:hover .node-body {
   border-color: #aeb6c5;
 }
@@ -988,6 +1005,9 @@ button,input,textarea {
 
 .pixmax-text-view {width:100%;height:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:20px;color:#fafafa;cursor:default;}
 .pixmax-text-view.empty {color:#4d5056;}
+.prompt-node-card {position:relative;}
+.pixmax-text-generate {position:absolute;right:4px;bottom:4px;display:none;border:1px solid #41434a;border-radius:8px;padding:7px 10px;background:#25262b;color:#fafafa;font-size:12px;cursor:pointer;}
+.prompt-smart-node.selected .pixmax-text-generate,.prompt-smart-node:hover .pixmax-text-generate {display:block;}
 .prompt-node-card [hidden] {display:none!important;}
 .shell[data-canvas-mode="gripper"],.shell.pixmax-space-pan {cursor:grab;}
 .shell[data-canvas-mode="preview"] {cursor:default;}

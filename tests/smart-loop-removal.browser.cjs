@@ -38,9 +38,10 @@ test('workflow import and member draft restoration retire loop nodes without los
     const imported=await page.evaluate(graph=>{
         insertSmartWorkflowIntoCanvas(graph);
         const output=nodes.find(n=>n.images?.length);
-        return {types:nodes.map(n=>n.type),links:canvas.connections.length,inputs:output.inputNodeIds,media:output.images[0].url};
+        return {types:nodes.map(n=>n.type),links:canvas.connections.length,inputs:output.inputNodeIds,sourceId:nodes.find(n=>n.type==='smart-prompt').id,media:output.images[0].url};
     },graph);
-    assert.deepEqual(imported,{types:['smart-prompt','smart-image'],links:1,inputs:['prompt'],media:'/test-image.svg'});
+    assert.deepEqual(imported,{types:['smart-prompt','smart-image'],links:1,inputs:[imported.sourceId],sourceId:imported.sourceId,media:'/test-image.svg'});
+    assert.notEqual(imported.sourceId,'prompt');
     const restored=await page.evaluate(graph=>{
         restoreSmartMemberDraft({id:canvas.id,kind:'smart',...graph});
         return {ids:nodes.map(n=>n.id),inputs:nodes[1].inputNodeIds,links:canvas.connections,media:nodes[1].images[0].url};

@@ -214,8 +214,10 @@ def included(document, task_id, items):
     if not items:
         return False
     if items[0].get('kind') == 'text':
-        return any(node.get('result_task_id') == task_id and
-                   node.get('text' if node.get('type') in {'prompt', 'smart-prompt'} else 'outputText') == items[0]['text']
+        return any((node.get('result_task_id') == task_id and
+                   node.get('text' if node.get('type') in {'prompt', 'smart-prompt'} else 'outputText') == items[0]['text']) or
+                   any(isinstance(result, dict) and result.get('taskId') == task_id and result.get('text') == items[0]['text']
+                       for result in (node.get('creationResults') if isinstance(node.get('creationResults'), list) else []))
                    for node in (document.get('nodes') or []))
     wanted = {item['media_asset_id'] for item in items}
     nodes = document.get('nodes') or []

@@ -16,7 +16,11 @@ async function fixture(t, kind, member, options={}) {
     page.on('pageerror', error => errors.push(error.message));
     const record = {id:'canvas-test', kind, title:'Module regression', revision:1, updated_at:1,
         nodes:[], connections:[], logs:[], settings:{}, viewport:{x:0,y:0,scale:1},...options.record};
-    await page.addInitScript(({member}) => {
+    await page.addInitScript(({member,navigatorOpen,permissions}) => {
+        // Other editor tests keep their canvas unobscured. Sidebar tests opt in
+        // to the production default; saved preferences survive fixture reloads.
+        const navigatorKey=member?'member-1:workspace-1:pixmax_navigator_v1':'pixmax_navigator_v1';
+        if(localStorage.getItem(navigatorKey)===null)localStorage.setItem(navigatorKey,JSON.stringify({opened:navigatorOpen}));
         window.WebSocket = class extends EventTarget { constructor(){super();this.readyState=1;setTimeout(()=>this.onopen?.(),0);} close(){this.readyState=3;} };
         // Non-member fixtures isolate legacy business adapters, not retired lock UI.
         // Production access fails closed without MemberCanvasEdit.
@@ -24,7 +28,7 @@ async function fixture(t, kind, member, options={}) {
         // Exercise the production canvas and task guard against a changing lease.
         // The membership service itself has separate HTTP/lease regression tests.
         window.CanvasSession = {enabled:true, ready:Promise.resolve(), paused:false,observeStatus(){},
-            context:{member:{id:'member-1',display_name:'Test member'},workspace:{id:'workspace-1'}},
+            context:{member:{id:'member-1',display_name:'Test member'},workspace:{id:'workspace-1',permissions}},
             socketUrl:url=>url,url:value=>{const url=new URL(value,location.origin);url.searchParams.set('workspace','workspace-1');return url.href;},storageKey:key=>'member-1:workspace-1:'+key};
         window.MemberCanvasEdit = {
             active:null, get canEdit(){return Boolean(this.active?.lease.canEdit);}, canRefresh:true,
@@ -43,7 +47,7 @@ async function fixture(t, kind, member, options={}) {
                 this.options.changed(this.active.lease);
             }
         };
-    }, {member});
+    }, {member,navigatorOpen:options.navigatorOpen===true,permissions:options.permissions||['canvas.read','canvas.create','canvas.edit']});
     await page.route('**/*', async route => {
         const request = route.request(), url = new URL(request.url());
         requests.push(url.pathname);
@@ -76,7 +80,7 @@ async function fixture(t, kind, member, options={}) {
         if(filename.endsWith('.html')){
             let body=fs.readFileSync(filename,'utf8');
             if(member&&body.includes('content="directory"'))body=body.replace('</head>','<script src="/static/js/canvas-edit-lease.js"></script><script src="/static/js/canvas-directory-writes.js"></script></head>');
-            if(member&&!body.includes('content="directory"')&&!body.includes('content="workbench"'))body=body.replace('</head>','<script src="/static/js/canvas-task-results.js"></script></head>');
+            if(member&&!body.includes('content="directory"')&&!body.includes('content="workbench"'))body=body.replace('</head>','<script src="/static/js/canvas-edit-lease.js"></script><script src="/static/js/canvas-directory-writes.js"></script><script src="/static/js/canvas-task-results.js"></script></head>');
             return route.fulfill({contentType:'text/html',body});
         }
         return route.fulfill({path:filename});

@@ -200,6 +200,8 @@ async function exportSelectedSmartWorkflow(includeResources=false){
 }
 
 function insertSmartWorkflowIntoCanvas(imported){
+    if(isSmartCanvasLocked())throw new Error('请先开始编辑画布');
+    if(window.PixmaxWorkflow?.isNative(imported))imported=window.PixmaxWorkflow.convert(imported);
     const sourceDocument = JSON.parse(JSON.stringify(imported));
     removeRetiredSmartLoopNodes(sourceDocument);
     const srcNodes = sourceDocument.nodes;
@@ -225,6 +227,7 @@ function insertSmartWorkflowIntoCanvas(imported){
     const newConnections = srcConnections
         .map(conn => ({...JSON.parse(JSON.stringify(conn)), from:idMap.get(conn.from), to:idMap.get(conn.to)}))
         .filter(conn => conn.from && conn.to);
+    newNodes.forEach(node=>{if(node.inputNodeIds)node.inputNodeIds=node.inputNodeIds.map(id=>idMap.get(id)).filter(Boolean);});
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     smartSelection.insertedNodes(newNodes.map(node => node.id));
@@ -237,6 +240,15 @@ function insertSmartWorkflowIntoCanvas(imported){
 async function importSmartWorkflowFile(file){
     if(!canvas || !file) return;
     try {
+        if(/\.json$/i.test(file.name)){
+            const native=JSON.parse(await file.text());
+            if(window.PixmaxWorkflow?.isNative(native)){
+                const converted=window.PixmaxWorkflow.convert(native);
+                insertSmartWorkflowIntoCanvas(converted);
+                if(converted.warnings.length)toast(converted.warnings.join('；'));
+                closeSmartWorkflowTransferModal();return;
+            }
+        }
         if(smartWorkflowTransferSub) smartWorkflowTransferSub.textContent = '正在导入工作流...';
         const form = new FormData();
         form.append('file', file);

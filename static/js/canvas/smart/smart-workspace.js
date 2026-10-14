@@ -5,6 +5,9 @@
  */
 
 function smartMediaPreviewUrl(itemOrUrl, size=512){
+    if(itemOrUrl&&typeof itemOrUrl==='object'&&itemOrUrl.thumbnailUrl&&Number(size)<=1024&&mediaKindForItem(itemOrUrl)==='image'){
+        return displayMediaUrl({url:itemOrUrl.thumbnailUrl,name:itemOrUrl.name||''});
+    }
     const url = typeof itemOrUrl === 'string' ? itemOrUrl : (itemOrUrl?.url || '');
     const displayUrl = displayMediaUrl(itemOrUrl);
     const raw = String(url || '');
@@ -299,6 +302,7 @@ function createSmartSelection(){
 }
 
 function syncSelectionUi(){
+    window.PixmaxNavigator?.documentChanged();
     world.classList.toggle('smart-multi-selected', selectedNodeIds().length > 1);
     world.querySelectorAll('.image-node').forEach(el => {
         const id = el.dataset.id || '';
@@ -623,10 +627,15 @@ function screenToWorld(event){
     };
 }
 
+function smartViewportBounds(){
+    return window.PixmaxNavigator?.viewportBounds?.()||{x:0,y:0,width:shell.clientWidth,height:shell.clientHeight};
+}
+
 function viewportCenter(){
+    const bounds=smartViewportBounds();
     return {
-        x:(shell.clientWidth / 2 - viewport.x) / viewport.scale,
-        y:(shell.clientHeight / 2 - viewport.y) / viewport.scale
+        x:(bounds.x+bounds.width / 2 - viewport.x) / viewport.scale,
+        y:(bounds.y+bounds.height / 2 - viewport.y) / viewport.scale
     };
 }
 
@@ -808,17 +817,19 @@ function minimapEventToWorld(event){
 }
 
 function centerViewportOnWorldPoint(point){
-    viewport.x = shell.clientWidth / 2 - point.x * viewport.scale;
-    viewport.y = shell.clientHeight / 2 - point.y * viewport.scale;
+    const bounds=smartViewportBounds();
+    viewport.x = bounds.x+bounds.width / 2 - point.x * viewport.scale;
+    viewport.y = bounds.y+bounds.height / 2 - point.y * viewport.scale;
     applyViewport();
     scheduleSave();
 }
 
 function fitAllNodesViewport(){
+    const bounds=smartViewportBounds();
     if(!nodes.length){
         viewport.scale = 0.45;
-        viewport.x = shell.clientWidth / 2;
-        viewport.y = shell.clientHeight / 2;
+        viewport.x = bounds.x+bounds.width / 2;
+        viewport.y = bounds.y+bounds.height / 2;
         applyViewport();
         scheduleSave();
         return;
@@ -831,12 +842,12 @@ function fitAllNodesViewport(){
     const pad = 160;
     const width = Math.max(1, maxX - minX + pad * 2);
     const height = Math.max(1, maxY - minY + pad * 2);
-    const nextScale = Math.max(0.06, Math.min(0.82, (shell.clientWidth - 80) / width, (shell.clientHeight - 80) / height));
+    const nextScale = Math.max(0.06, Math.min(0.82, (bounds.width - 80) / width, (bounds.height - 80) / height));
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
     viewport.scale = nextScale;
-    viewport.x = shell.clientWidth / 2 - cx * viewport.scale;
-    viewport.y = shell.clientHeight / 2 - cy * viewport.scale;
+    viewport.x = bounds.x+bounds.width / 2 - cx * viewport.scale;
+    viewport.y = bounds.y+bounds.height / 2 - cy * viewport.scale;
     applyViewport();
     scheduleSave();
 }
@@ -856,8 +867,9 @@ function exitZoomPreview(point=null){
     shell.classList.remove('zoom-preview');
     viewport.scale = prev.scale;
     if(point){
-        viewport.x = shell.clientWidth / 2 - point.x * viewport.scale;
-        viewport.y = shell.clientHeight / 2 - point.y * viewport.scale;
+        const bounds=smartViewportBounds();
+        viewport.x = bounds.x+bounds.width / 2 - point.x * viewport.scale;
+        viewport.y = bounds.y+bounds.height / 2 - point.y * viewport.scale;
     } else {
         viewport.x = prev.x;
         viewport.y = prev.y;
@@ -875,17 +887,18 @@ function exitZoomPreviewToNode(nodeId){
     const rect = nodeRect(node);
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
+    const bounds=smartViewportBounds();
     const fitScale = Math.min(
         1.15,
-        (shell.clientWidth - 160) / Math.max(1, rect.width),
-        (shell.clientHeight - 160) / Math.max(1, rect.height)
+        (bounds.width - 160) / Math.max(1, rect.width),
+        (bounds.height - 160) / Math.max(1, rect.height)
     );
     const readableScale = Math.min(1.15, Math.max(0.72, fitScale));
     zoomPreviewState = null;
     shell.classList.remove('zoom-preview');
     viewport.scale = Math.max(safeScale(prev.scale), readableScale);
-    viewport.x = shell.clientWidth / 2 - cx * viewport.scale;
-    viewport.y = shell.clientHeight / 2 - cy * viewport.scale;
+    viewport.x = bounds.x+bounds.width / 2 - cx * viewport.scale;
+    viewport.y = bounds.y+bounds.height / 2 - cy * viewport.scale;
     applyViewport();
     scheduleSave();
     return true;
@@ -1665,8 +1678,8 @@ function shellPoint(event){
     return {x:event.clientX - rect.left, y:event.clientY - rect.top};
 }
 
-function renderConnections(nodeIds=null){
-    return withSmartComputation(() => renderSmartConnectionPaths(nodeIds));
+function renderConnections(nodeIds=null,topology){
+    return withSmartComputation(() => renderSmartConnectionPaths(nodeIds,topology));
 }
 
 function renderSmartConnectionPaths(...args){return smartWorkspaceView.connectionPaths(...args);}
@@ -1878,8 +1891,7 @@ function singleMediaHtml(img, w, h){
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="node-img media-card media-file-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i></div><div class="media-card-title">${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</div><div class="media-card-sub">${isTextMediaItem(img) ? 'TEXT' : 'FILE'}</div></div>`;
     if(isAudioMediaItem(img)) return `<div class="node-img media-card media-audio-card" style="width:${w}px;height:${h}px"><div class="smart-audio-copy"><div class="smart-audio-title" title="${escapeAttr(img.name || 'Audio')}">${escapeHtml(img.name || 'Audio')}</div><div class="smart-audio-meta">${escapeHtml(smartAudioFormatLabel(img))} · 音频素材</div></div><div class="smart-audio-player"><button class="smart-audio-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button>${smartAudioWaveformSvg()}</div></div>`;
     if(isVideoMediaItem(img)){
-        const preview=smartMediaPreviewUrl(img,768),source=displayMediaUrl(img);
-        const poster=img.poster || img.thumbnailUrl || (preview!==source?preview:'');
+        const source=displayMediaUrl(img.previewVideoUrl?{...img,url:img.previewVideoUrl}:img),poster=pixmaxMediaPoster(img);
         return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px"><div class="pixmax-player-mount" data-src="${escapeAttr(source)}" data-url="${escapeAttr(img.url)}" data-poster="${escapeAttr(poster)}" data-duration="${Number(img.duration)||0}"></div></div>`;
     }
     return smartPreviewImgHtml(img, 768, `class="node-img" draggable="false" style="width:${w}px;height:${h}px"`);
@@ -2004,6 +2016,7 @@ function promptNodeBodyHtml(node){
     return `<div class="prompt-node-card">
         <div class="pixmax-text-view ${node.text?.trim()?'':'empty'}" role="presentation">${escapeHtml(node.text || '双击开始输入...')}</div>
         <textarea class="prompt-node-text prompt-node-control" aria-label="节点文本" hidden readonly placeholder="在此输入文本...">${escapeHtml(node.text || '')}</textarea>
+        <button type="button" class="pixmax-text-generate" data-text-generate aria-label="生成文本">生成文本 ↗</button>
     </div>`;
 }
 
@@ -2264,6 +2277,8 @@ function clearPortDragVisual(){
 }
 
 function bindPromptNodeControls(el, node){
+    el.querySelector('[data-text-generate]')?.addEventListener('mousedown',event=>event.stopPropagation());
+    el.querySelector('[data-text-generate]')?.addEventListener('click',event=>{event.stopPropagation();openPixmaxTextGeneration(node);});
     const textEl = el.querySelector('.prompt-node-text');
     if(!textEl) return;
     const view=el.querySelector('.pixmax-text-view');
@@ -3481,6 +3496,7 @@ function cancelSmartNodeGestures(){
 // Called once by smart-canvas.js, at its original initialization position.
 function bindSmartWorkspaceGestures(){
     shell.addEventListener('mousedown', e => {
+        if(e.target.closest('.pixmax-creation-sidebar'))return;
         if(!zoomPreviewState) return;
         if(e.button !== 0) return;
         if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
@@ -3488,6 +3504,7 @@ function bindSmartWorkspaceGestures(){
         e.stopPropagation();
     }, true);
     shell.addEventListener('click', e => {
+        if(e.target.closest('.pixmax-creation-sidebar'))return;
         if(!zoomPreviewState) return;
         if(e.button !== 0) return;
         if(e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
@@ -3498,6 +3515,7 @@ function bindSmartWorkspaceGestures(){
         else exitZoomPreview(screenToWorld(e));
     }, true);
     shell.onmousedown = e => {
+        if(e.target.closest('.pixmax-creation-sidebar'))return;
         if(zoomPreviewState && e.button === 0 && !e.target.closest('.composer,.smart-nav,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.image-edit-modal,.smart-audio-lightbox,.create-menu,.smart-minimap')) return;
         if(e.target.closest('.composer,.smart-nav,.smart-top-tools,.asset-panel,.asset-toggle,.smart-backup-toggle,.smart-log-toggle,.smart-cost-toggle,.smart-shortcut-toggle,.smart-workflow-toggle,.log-modal,.shortcut-modal,.smart-audio-lightbox,.create-menu,.smart-minimap,.pixmax-context-menu')) return;
         if(e.target.closest('.image-node') && shell.dataset.tool !== 'pan'&&!pixmaxSpacePanning)return;
@@ -3546,6 +3564,7 @@ function bindSmartWorkspaceGestures(){
         openCreateMenu(e);
     };
     shell.onclick = e => {
+        if(e.target.closest('.pixmax-creation-sidebar'))return;
         if(e.target.closest('.pixmax-context-menu'))return;
         // Releasing a dragged port also emits a click on the blank canvas.
         // Later pointerdowns dismiss the menu before reaching this handler.
@@ -4353,6 +4372,7 @@ function createSmartComposer(){
 function createSmartWorkspaceView(){
     let smartComputationContext=null,pendingSmartViewportRefresh=null;
     let smartViewportScrolls=new WeakMap(),smartRenderedNodes=new WeakMap(),smartRenderedConnectionStates=new Map();
+    let smartConnectionElements=new WeakMap();
     let smartGeometryFrame=null,smartGeometryPasses=0,smartGeometryAll=false;
     const smartGeometryNodes=new Set();
 
@@ -4371,6 +4391,7 @@ function createSmartWorkspaceView(){
         cancelGeometry();cancelViewport();
         clearFocusedRefreshes();
         smartRenderedNodes=new WeakMap();smartRenderedConnectionStates=new Map();smartViewportScrolls=new WeakMap();
+        smartConnectionElements=new WeakMap();
         const now=current();documentId=now.id;documentNodes=now.nodes;
     }
     function checkDocument(){
@@ -4500,11 +4521,13 @@ function createSmartWorkspaceView(){
         }
     }
 
-    function renderSmartConnectionPathsImpl(nodeIds=null){
+    function renderSmartConnectionPathsImpl(nodeIds=null,topology=smartConnectionTopology()){
         const byId = smartComputationContext.byId;
         const scope = nodeIds === null ? null : new Set(nodeIds);
-        const conns = (canvas?.connections || []).map((conn, index) => ({...conn, index}))
-            .filter(c => byId.has(c.from) && byId.has(c.to) && (!scope || scope.has(c.from) || scope.has(c.to)));
+        const conns=[];
+        (canvas?.connections || []).forEach((conn,index)=>{
+            if(byId.has(conn.from)&&byId.has(conn.to)&&(!scope||scope.has(conn.from)||scope.has(conn.to)))conns.push({...conn,index});
+        });
         const cascadeKeys = cascadeConnectionKeys();
         const paths = conns.map(conn => {
             const fromNode = byId.get(conn.from);
@@ -4539,7 +4562,7 @@ function createSmartWorkspaceView(){
             const width = kind === 'input' ? '1.9' : '1.6';
             return `<g class="smart-connection" data-conn-key="${conn.index}"><path class="${cls}" d="${curve}" stroke="${color}" stroke-width="${width}" fill="none" opacity="${opacity}"></path><path class="conn-hit" data-conn-index="${conn.index}" d="${curve}" stroke="transparent" stroke-width="14" fill="none"></path><circle cx="${tx}" cy="${ty}" r="3.5" fill="${color}" opacity=".66"></circle><g class="conn-cut" data-conn-index="${conn.index}" transform="translate(${mx} ${my})"><circle r="8" fill="var(--card)" stroke="${color}" stroke-width="1.4"></circle><path d="M-3 -3 L3 3 M3 -3 L-3 3" stroke="${color}" stroke-width="1.5" stroke-linecap="round"></path></g></g>`;
         }).join('');
-        return `<svg class="connection-layer" data-topology="${escapeHtml(smartConnectionTopology())}" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+        return `<svg class="connection-layer" data-topology="${escapeHtml(topology)}" width="6000" height="4000" viewBox="0 0 6000 4000" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
     }
 
     function scheduleSmartGeometryRefreshImpl(nodeIds=null, passes=1){
@@ -4567,19 +4590,26 @@ function createSmartWorkspaceView(){
         cancelSmartGeometryRefresh();
         const oldSvg = world.querySelector('svg.connection-layer');
         if(!oldSvg) return;
-        if(oldSvg.dataset.topology !== smartConnectionTopology()) nodeIds = null;
+        const topology=smartConnectionTopology();
+        if(oldSvg.dataset.topology !== topology) nodeIds = null;
+        if(nodeIds!==null&&!nodeIds.length)return;
         const tpl = document.createElement('template');
-        tpl.innerHTML = renderConnections(nodeIds).trim();
+        tpl.innerHTML = renderConnections(nodeIds,topology).trim();
         const nextSvg = tpl.content.firstElementChild;
         if(!nextSvg) return;
-        const existing = new Map([...oldSvg.querySelectorAll('.smart-connection')].map(el => [el.dataset.connKey, el]));
+        let existing=smartConnectionElements.get(oldSvg);
+        if(!existing){
+            existing=new Map([...oldSvg.querySelectorAll('.smart-connection')].map(el=>[el.dataset.connKey,el]));
+            smartConnectionElements.set(oldSvg,existing);
+        }
+        const retained=nodeIds===null?new Set():null;
         [...nextSvg.children].forEach(fresh => {
             const current = existing.get(fresh.dataset.connKey);
             if(current) patchSmartConnectionGroup(current, fresh);
-            else { oldSvg.appendChild(fresh); bindConnectionEvents(fresh); }
-            existing.delete(fresh.dataset.connKey);
+            else { oldSvg.appendChild(fresh); bindConnectionEvents(fresh);existing.set(fresh.dataset.connKey,fresh); }
+            retained?.add(fresh.dataset.connKey);
         });
-        if(nodeIds === null) existing.forEach(el => el.remove());
+        if(retained)existing.forEach((el,key)=>{if(!retained.has(key)){el.remove();existing.delete(key);}});
         oldSvg.dataset.topology = nextSvg.dataset.topology;
     }
 
@@ -4598,6 +4628,7 @@ function createSmartWorkspaceView(){
     }
 
     function renderImpl(){
+        window.PixmaxNavigator?.documentChanged();
         smartAudioPreview.dataChanged();
         cancelSmartGeometryRefresh();
         if(smartWorkflowTransferModal?.classList.contains('open')) updateSmartWorkflowTransferMeta();
@@ -4643,6 +4674,7 @@ function createSmartWorkspaceView(){
     }
 
     function refreshSmartNodesImpl(ids, {forceIds=[]}={}){
+        window.PixmaxNavigator?.documentChanged();
         smartAudioPreview.dataChanged();
         const affected = smartAffectedNodeIds(ids);
         const byId = new Map(nodes.map(node => [node.id, node]));

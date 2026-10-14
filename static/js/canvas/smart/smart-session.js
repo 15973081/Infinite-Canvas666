@@ -13,6 +13,7 @@ function updateSmartCanvasNav(){
     const date = new Date(value && value < 10000000000 ? value * 1000 : value);
     document.getElementById('smartTitle').textContent = title;
     document.getElementById('smartCanvasTime').textContent = value && !Number.isNaN(date.getTime()) ? date.toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '--';
+    window.PixmaxNavigator?.documentChanged();
 }
 
 function mergeSmartImageLists(localImgs, remoteImgs){

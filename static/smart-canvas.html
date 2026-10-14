@@ -15,6 +15,7 @@
     <script src="/static/js/studio-icons.js"></script>
     <script src="/static/js/pixmax-canvas-assets.js"></script>
     <script src="/static/js/pixmax-canvas-layout.js"></script>
+    <script src="/static/js/pixmax-workflow.js"></script>
     <script src="/static/js/studio-frame-messages.js"></script>
     <script src="/static/js/studio-display.js?v=2026.10.14.1"></script>
     <link rel="stylesheet" href="/static/vendor/pixmax/editors.css">
@@ -24,6 +25,13 @@
     <link rel="stylesheet" href="/static/css/canvas-cover.css">
     <link rel="stylesheet" href="/static/css/canvas-page.css">
     <link rel="stylesheet" href="/static/css/pixmax-canvas.css?v=2026.10.13.3">
+    <link rel="stylesheet" href="/static/css/pixmax-creation.css">
+    <link rel="stylesheet" href="/static/css/pixmax-navigator.css">
+    <link rel="stylesheet" href="/static/css/canvas-name-dialog.css">
+    <script src="/static/js/canvas-directory-model.js"></script>
+    <script src="/static/js/canvas-directory-api.js"></script>
+    <script src="/static/js/canvas-name-dialog.js"></script>
+    <script src="/static/js/pixmax-navigator.js"></script>
 </head>
 <body class="studio-skin studio-content studio-smart-canvas">
     <div id="shell" class="shell" aria-label="工作区画布">
@@ -126,6 +134,8 @@
             <div class="pixmax-control-group">
                 <button type="button" onclick="performUndo()" aria-label="撤销" title="撤销"><i data-lucide="undo-2"></i></button>
                 <button type="button" onclick="redoSmartCanvas()" aria-label="重做" title="重做"><i data-lucide="redo-2"></i></button>
+                <button type="button" onclick="openPixmaxPins()" aria-label="pin汇总" title="pin汇总"><i data-lucide="pin"></i></button>
+                <button type="button" onclick="openPixmaxAssistant()" aria-label="打开创作助手" title="打开创作助手"><i data-lucide="sparkles"></i></button>
             </div>
         </div>
         <aside id="smartWorkflowTransferModal" class="workflow-transfer-panel">
@@ -434,6 +444,7 @@
     <link rel="stylesheet" href="/static/css/local-depth-video.css">
     <script src="/static/js/local-depth-video.js"></script>
     <script src="/static/js/smart-pixmax.js?v=2026.10.13.1"></script>
+    <script src="/static/js/pixmax-creation.js"></script>
     <script data-canvas-module="document" src="/static/js/canvas/smart/smart-document.js"></script>
     <script data-canvas-module="session" src="/static/js/canvas/smart/smart-session.js"></script>
     <script data-canvas-module="workspace" src="/static/js/canvas/smart/smart-workspace.js"></script>

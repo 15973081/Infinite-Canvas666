@@ -354,6 +354,7 @@ async function loadCanvas(options={}){
                     document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
                     updateSmartNodeToolbarAccess();
                     world.querySelectorAll('.prompt-node-text').forEach(input => { input.readOnly = !lease.canEdit; });
+                    window.PixmaxNavigator?.documentChanged();
                     if(lease.canEdit) resumeSmartPendingTasks();
                     if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;cancelSmartNodeGestures();}
                     if(runBtn) runBtn.disabled=!lease.canEdit || smartCascadeAnyRunning();
@@ -508,6 +509,7 @@ window.onload = async () => {
     if(!await loadCanvas()){window.CanvasNavigation?.failure();return;}
     syncApiKindToggleVisibility();
     render();
+    window.PixmaxNavigator?.bind();
     const background = () => loadAssetLibrary();
     if(window.CanvasMediaLoader) window.CanvasMediaLoader.defer(background);
     else background();
