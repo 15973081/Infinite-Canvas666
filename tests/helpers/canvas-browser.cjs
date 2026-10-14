@@ -56,16 +56,19 @@ async function fixture(t, kind, member, options={}) {
         if(url.pathname.startsWith('/api/')) {
             const method=request.method();
             if(!['GET','HEAD'].includes(method)) writes.push({path:url.pathname,method,body:request.headers()['content-type']?.includes('application/json')?request.postDataJSON():null});
+            const answer=await options.apiHandler?.(request);
+            if(answer)return route.fulfill({status:answer.status,json:answer.body});
             let result={};
             if(url.pathname==='/api/config') result={api_providers:[],image_models:['gpt-image-2'],chat_models:['gpt-4o-mini'],video_models:[]};
             else if(url.pathname==='/api/canvases') result={canvases:[record,...(options.extraRecords||[])]};
             else if(url.pathname==='/api/canvases/trash') result={canvases:options.trashRecords||[]};
             else if(url.pathname==='/api/canvas-folders') result={folders:options.folders||[]};
-            else if(url.pathname==='/api/canvases/canvas-test') {
+            else if(url.pathname==='/api/canvases/'+record.id) {
                 if(method==='PUT'){Object.assign(record,request.postDataJSON());record.updated_at++;record.revision++;}
                 result={canvas:record};
             } else if(url.pathname.endsWith('/touch')) result={canvas:record};
             else if(url.pathname.endsWith('/meta')) result={updated_at:record.updated_at,revision:record.revision};
+            else if(url.pathname.endsWith('/task-results'))result={canvas_id:record.id,result_version:record.task_result_version||0,deliveries:[]};
             else if(url.pathname==='/api/asset-library') result={categories:[],libraries:[]};
             else if(url.pathname==='/api/local-assets') result={items:[],tree:null};
             else if(url.pathname==='/api/prompt-libraries') result={libraries:[]};
@@ -86,7 +89,7 @@ async function fixture(t, kind, member, options={}) {
         }
         return route.fulfill({path:filename});
     });
-    await page.goto(origin+(options.startPath || (options.directory?'/static/canvas-home.html':'/static/'+(kind==='classic'?'canvas.html':'smart-canvas.html')+'?id=canvas-test')));
+    await page.goto(origin+(options.startPath || (options.directory?'/static/canvas-home.html':'/static/'+(kind==='classic'?'canvas.html':'smart-canvas.html')+'?id='+encodeURIComponent(record.id))));
     if(options.directory){
         await page.waitForFunction(()=>window.CanvasHome?.ready);
         await page.evaluate(()=>CanvasHome.ready);
@@ -101,7 +104,7 @@ async function fixture(t, kind, member, options={}) {
     if(kind==='classic') {
         await page.waitForFunction(()=>typeof openCanvas==='function'&&typeof apiProviders!=='undefined');
     }
-    await page.waitForFunction(()=>typeof canvas!=='undefined'&&canvas?.id==='canvas-test');
+    await page.waitForFunction(id=>typeof canvas!=='undefined'&&canvas?.id===id,record.id);
     if(member)await page.waitForFunction(()=>Boolean(window.MemberCanvasEdit?.active));
     assert.equal(new Set(loaded).size,7,'all seven task files load once');
     assert.equal(loaded.length,7);

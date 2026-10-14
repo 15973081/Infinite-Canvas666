@@ -95,9 +95,33 @@
         }
         return {get,refresh,stop(){stopped=true;clearTimeout(timer);states.clear();}};
     }
-    function mergeDeliveries(document, response){
+    function validateDeliveries(document, response){
         if(response.canvas_id!==document.id || !Number.isSafeInteger(response.result_version) ||
             response.result_version<(document.task_result_version || 0) || !Array.isArray(response.deliveries))throw new Error('Invalid canvas deliveries');
+        const versions=new Set(),tasks=new Set();
+        for(const entry of response.deliveries){
+            if(!entry || !Number.isSafeInteger(entry.version) || entry.version<1 || entry.version>response.result_version || versions.has(entry.version) ||
+                typeof entry.task_id!=='string' || !entry.task_id || tasks.has(entry.task_id) || !entry.node || typeof entry.node.id!=='string' || !entry.node.id ||
+                (entry.node.images!==undefined && !Array.isArray(entry.node.images)) ||
+                (entry.node.images?.length ? entry.node.images.some(item=>!item || typeof item.url!=='string' || !item.url) : typeof entry.node.text!=='string'))throw new Error('Invalid canvas delivery');
+            versions.add(entry.version);tasks.add(entry.task_id);
+        }
+    }
+    function clearPending(nodes,taskIds){
+        const finished=new Set(taskIds),affected=new Set();
+        for(const node of nodes){
+            for(const [field,key] of [['_pending','canvasTaskId'],['pendingTasks','taskId']]){
+                if(!Array.isArray(node[field]))continue;
+                const remaining=node[field].filter(task=>!finished.has(task?.[key]));
+                if(remaining.length===node[field].length)continue;
+                node[field]=remaining;affected.add(node.id);
+                if(field==='pendingTasks'){node.pending=remaining.length;if(!node.pending)node.running=false;}
+            }
+        }
+        return [...affected];
+    }
+    function mergeDeliveries(document, response){
+        validateDeliveries(document,response);
         const nodes=document.nodes, affected=new Set(), clone=value=>JSON.parse(JSON.stringify(value));
         const append=result=>{
             const node=clone(result),taken=new Set(nodes.map(item=>item.id));let suffix=1;
@@ -120,15 +144,7 @@
             }else if(!nodes.some(node=>node.result_task_id===taskId && node.text===result.text)){
                 append(result);
             }
-            for(const node of nodes){
-                for(const [field,key] of [['_pending','canvasTaskId'],['pendingTasks','taskId']]){
-                    if(!Array.isArray(node[field]))continue;
-                    const remaining=node[field].filter(task=>task?.[key]!==taskId);
-                    if(remaining.length===node[field].length)continue;
-                    node[field]=remaining;affected.add(node.id);
-                    if(field==='pendingTasks'){node.pending=remaining.length;if(!node.pending)node.running=false;}
-                }
-            }
+            clearPending(nodes,[taskId]).forEach(id=>affected.add(id));
         }
         document.task_result_version=response.result_version;
         return [...affected];
@@ -140,7 +156,7 @@
         const ms=Math.round((end-start)*1000);
         return Number.isSafeInteger(ms) && ms>0 ? ms : null;
     }
-    const api={capture,guard,pending,recovery,elapsed,mergeDeliveries};
+    const api={capture,guard,pending,recovery,elapsed,validateDeliveries,clearPending,mergeDeliveries};
     if(typeof module==='object' && module.exports) module.exports=api;
     else window.CanvasTaskResults=api;
 })();

@@ -61,7 +61,7 @@
                     const record=await response.json();if(!valid())throw new Error('编辑资格已变化');
                     if(record.status!=='succeeded'){status.textContent=['failed','cancelled','needs_review'].includes(record.status)?'原任务需要核对，请查看生成结果':'后台正在处理，稍后查询已有任务';return;}
                     binding=await window.CanvasTaskBindings.recover({task:record,taskId:task.taskId,canvasId:canvas.id,kind:'smart',sourceId:node.id,targetId:node.id,read:smartTaskInputDocument,valid});
-                    pushUndo();binding.apply(()=>finalizeSmartPendingTask(node,record.id,resultMediaUrls(record.result?.models||[]),'model',record.result,record));render();scheduleSave();status.textContent='模型已加入节点';return;
+                    await commitSmartStudioTaskResult(node,record,'model',binding,{recovered:true,valid});status.textContent='模型已加入节点';return;
                 }
                 config=configuration();if(!providers().some(provider=>provider.id===config.provider_id&&provider.model_models.includes(config.model)))throw new Error('请选择已配置的 3D 模型');
                 const refs=references(node),views=selectedViews();request={...config,images:[],view_types:[]};
@@ -84,7 +84,7 @@
                 const record=await window.CanvasModelTasks.run(request,{binding,canvasId:canvas.id,onRemember:async receipt=>{
                     guard.check();binding.mutate(()=>{node.pendingTasks=[...smartPendingTasks(node),attachSmartTaskBinding({taskId:receipt.task_id,kind:'model',providerId:config.provider_id,model:config.model,startedAt:nowMs(),run:{nodeId:node.id,nodeType:node.type,kind:'model',prompt:request.prompt,settings:config,refs:refs.images}},binding)];node.pending=smartPendingTasks(node).length;});refreshSmartNodes([node.id]);scheduleSave();await saveCanvas({force:true});
                 }});
-                guard.check();pushUndo();binding.apply(record,()=>finalizeSmartPendingTask(node,record.id,resultMediaUrls(record.result?.models||[]),'model',record.result,record),record.id);render();scheduleSave();status.textContent='模型已加入节点';
+                guard.check();await commitSmartStudioTaskResult(node,record,'model',binding,{valid:()=>guard.valid()});status.textContent='模型已加入节点';
             }catch(error){
                 if(valid()&&error.resultPending&&error.taskId&&!smartPendingTasks(node).some(task=>task.taskId===error.taskId)){node.pendingTasks=[...smartPendingTasks(node),{taskId:error.taskId,kind:'model',paused:true,providerId:config?.provider_id,model:config?.model,run:{nodeId:node.id,kind:'model',prompt:request?.prompt||'',settings:config||{}}}];node.pending=0;render();scheduleSave();}
                 if(error.inputChanged&&canvas===origin&&nodes.includes(node)&&base.valid())pauseSmartTaskInput(node,binding,base,error);

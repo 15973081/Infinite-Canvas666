@@ -36,6 +36,18 @@ function pushUndo(){
     if(undoStack.length > UNDO_LIMIT) undoStack.shift();
 }
 
+function forgetSmartCompletedTaskProgress(taskIds){
+    for(const snapshot of [...undoStack,...smartRedoStack,pendingUndoSnapshot]){
+        if(snapshot?.nodes)window.CanvasTaskResults.clearPending(snapshot.nodes,taskIds);
+    }
+}
+
+function pushSmartTaskResultUndo(taskIds){
+    forgetSmartCompletedTaskProgress(taskIds);
+    pushUndo();
+    if(!undoSuppressed&&undoStack.length)window.CanvasTaskResults.clearPending(undoStack.at(-1).nodes,taskIds);
+}
+
 function performUndo(){
     if(isSmartCanvasLocked())return;
     if(!undoStack.length){ toast('没有可撤销的操作'); return; }

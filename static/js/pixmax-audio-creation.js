@@ -12,11 +12,6 @@
         if(sources.length>20||sources.some(source=>source.type!=='smart-prompt'))throw new Error('音频生成支持最多 20 个文本输入节点');
         return sources.map(source=>source.text||'').filter(Boolean).join('\n\n');
     }
-    function apply(node,record){
-        const title=node.title;
-        finalizeSmartPendingTask(node,record.id,resultMediaUrls(record.result?.audios||[]),'audio',record.result,record);
-        if(title===undefined)delete node.title;else node.title=title;
-    }
     async function open(node){
         if(isSmartCanvasLocked()||!nodes.includes(node))return;
         const root=pixmaxCreationModal('音频生成'),body=root.querySelector('.pixmax-creation-content'),saved=node.audioGeneration||{};
@@ -54,7 +49,7 @@
                     const record=await response.json();if(!valid())throw new Error('编辑资格已变化');
                     if(record.status==='succeeded'){
                         binding=await window.CanvasTaskBindings.recover({task:record,taskId:pending.taskId,canvasId:canvas.id,kind:'smart',sourceId:node.id,targetId:node.id,read:smartTaskInputDocument,valid});
-                        pushUndo();binding.apply(()=>apply(node,record));render();scheduleSave();status.textContent='音频已加入节点';run.textContent='生成音频';return;
+                        await commitSmartStudioTaskResult(node,record,'audio',binding,{recovered:true,valid});status.textContent='音频已加入节点';run.textContent='生成音频';return;
                     }
                     if(['failed','cancelled','needs_review'].includes(record.status))throw new Error('原任务未完成，请先在生成结果中核对');
                     status.textContent='后台正在处理，稍后查询已有任务';return;
@@ -74,7 +69,7 @@
                     guard.check();binding.mutate(()=>{node.pendingTasks=[...smartPendingTasks(node),attachSmartTaskBinding({taskId:receipt.task_id,kind:'audio',providerId:config.provider_id,model:config.model,startedAt:nowMs(),run:{nodeId:node.id,nodeType:node.type,kind:'audio',prompt:request.prompt,settings:config,refs:[]}},binding)];node.pending=smartPendingTasks(node).length;});
                     refreshSmartNodes([node.id]);scheduleSave();await saveCanvas({force:true});
                 }});
-                guard.check();pushUndo();binding.apply(record,()=>apply(node,record),record.id);render();scheduleSave();status.textContent='音频已加入节点';
+                guard.check();await commitSmartStudioTaskResult(node,record,'audio',binding,{valid:()=>guard.valid()});status.textContent='音频已加入节点';
             }catch(error){
                 if(valid()&&error.resultPending&&error.taskId&&!smartPendingTasks(node).some(task=>task.taskId===error.taskId)){
                     node.pendingTasks=[...smartPendingTasks(node),{taskId:error.taskId,kind:'audio',paused:true,providerId:config?.provider_id,model:config?.model,run:{nodeId:node.id,kind:'audio',prompt:request?.prompt||'',settings:config||{}}}];node.pending=0;render();scheduleSave();

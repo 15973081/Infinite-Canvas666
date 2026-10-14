@@ -1,0 +1,54 @@
+/* Real browser controls -> JSON-lines bridge -> authenticated ASGI/database. */
+const assert=require('node:assert/strict'),readline=require('node:readline');
+const {fixture}=require('./canvas-browser.cjs');
+const lines=readline.createInterface({input:process.stdin}),requests=new Map();let sequence=0,initial;
+const ready=new Promise(resolve=>initial=resolve);
+lines.on('line',line=>{const message=JSON.parse(line);if(message.initial){initial(message.initial);return;}const resolve=requests.get(message.id);requests.delete(message.id);resolve(message);});
+const watchdog=setTimeout(()=>{console.error('Browser/database bridge timed out');process.exit(2);},45000);watchdog.unref();
+async function transport(request,canvasId){
+    const url=new URL(request.url());
+    if(url.pathname!=='/api/canvases/'+canvasId&&!url.pathname.startsWith('/api/canvases/'+canvasId+'/task-results')&&!/^\/api\/canvas-(audio|model)-tasks(?:\/|$)/.test(url.pathname))return;
+    const id=++sequence,answer=new Promise(resolve=>requests.set(id,resolve));
+    process.stdout.write(JSON.stringify({id,path:url.pathname+url.search,method:request.method(),headers:request.headers(),body:request.postData()})+'\n');
+    return answer;
+}
+(async()=>{
+    const config=await ready,cleanup=[];let posts=0;
+    try{
+        const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,
+            apiHandler:request=>{if(request.method()==='POST'&&request.url().includes('/api/canvas-'+config.kind+'-tasks'))posts++;return transport(request,config.canvas.id);}});
+        await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
+        await page.evaluate(config=>{
+            apiProviders=[{id:config.providerId,has_key:true,audio_models:config.kind==='audio'?['speech-2.8-hd']:[],model_models:config.kind==='model'?['3.0']:[]}];
+            Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});
+            Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});
+            // Use the editor's actual private proof for writes. The browser's
+            // current revision supplies both headers and save body, as in the
+            // production lease adapter (which has separate integration tests).
+            MemberCanvasEdit.send=(url,init={},fetcher=fetch)=>{
+                if(['POST','PUT'].includes(init.method)){
+                    const headers=new Headers(init.headers);for(const [key,value] of Object.entries(config.proof))headers.set(key,value);
+                    headers.set('X-Canvas-Revision',String(canvas.revision));init={...init,headers};
+                    if(init.method==='PUT')init.body=JSON.stringify({...JSON.parse(init.body),base_revision:canvas.revision});
+                }
+                return fetcher(url,init);
+            };
+            openSmartStudio(nodes[0].id);
+        },config);
+        await page.getByRole('textbox',{name:config.kind==='audio'?'音频创作内容':'3D 模型描述'}).fill('雨夜陶瓷小猫');
+        await page.locator('[data-'+config.kind+'-run]').click();
+        await page.waitForFunction(kind=>!window[kind==='audio'?'PixmaxAudioCreation':'PixmaxModelCreation'].busy(),config.kind);
+        if(await page.evaluate(()=>nodes[0].images.length)!==1){
+            throw new Error('Unexpected result; dialog status: '+await page.locator('.pixmax-creation-status').textContent()+'; browser errors: '+errors.join('; ')+'; submissions: '+posts);
+        }
+        assert.equal(await page.evaluate(()=>canvas.task_result_version),1);
+        await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes[0].images.length),0);
+        assert.equal(await page.evaluate(()=>smartPendingTasks(nodes[0]).length),0);assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
+        await page.evaluate(()=>redoSmartCanvas());assert.equal(await page.evaluate(()=>nodes[0].images.length),1);assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
+        await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
+        await page.reload();await page.waitForFunction(id=>canvas?.id===id,config.canvas.id);
+        assert.equal(await page.evaluate(()=>nodes[0].images.length),0);assert.equal(await page.evaluate(()=>smartPendingTasks(nodes[0]).length),0);
+        assert.deepEqual(errors,[]);assert.equal(posts,1);
+        process.stdout.write(JSON.stringify({done:true,posts,revision:await page.evaluate(()=>canvas.revision)})+'\n');
+    }finally{for(const close of cleanup.reverse())await close();clearTimeout(watchdog);lines.close();}
+})().then(()=>process.exit(0)).catch(error=>{console.error(error.stack);process.exit(1);});

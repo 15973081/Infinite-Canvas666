@@ -2562,6 +2562,9 @@ async function resumeSmartPendingNode(node){
                 const result=inputBinding ? record.result||{} : record;
                 if(!targetStillCurrent() || canvas!==originCanvas || !validResult() || !nodes.includes(node) || !smartPendingTasks(node).includes(task)){deferred=true;return;}
                 const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(kind==='audio' ? result?.audios : kind==='model' ? result?.models : result?.images || result);
+                if(inputBinding&&['audio','model'].includes(kind)){
+                    await commitSmartStudioTaskResult(node,record,kind,inputBinding,{valid:()=>targetStillCurrent()&&canvas===originCanvas&&validResult()&&smartPendingTasks(node).includes(task)});return;
+                }
                 const apply=()=>{finalizeSmartPendingTask(node,task.taskId,outputs,kind,result,inputBinding?record:null);refreshSmartNodes([node.id]);scheduleSave();};
                 if(inputBinding)inputBinding.apply(record,apply,task.taskId);else apply();
             } catch(e) {
@@ -2622,14 +2625,51 @@ async function resumeSmartPendingNode(node){
     }
 }
 
+function smartTaskResultState(){
+    const current=smartTaskResultState.current;
+    if(current?.canvas===canvas)return current;
+    return smartTaskResultState.current={canvas,busy:new Set()};
+}
+
+async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=false,valid=()=>true}={}){
+    const origin=canvas,state=smartTaskResultState(),guard=canvasTaskWriteGuard(node),taskId=record.id;
+    const outputs=resultMediaUrls(record.result?.[kind==='audio'?'audios':'models']||[]);
+    if(record.status!=='succeeded'||!['audio','model'].includes(kind)||!outputs.length)throw window.CanvasTaskResults.pending();
+    if(state.busy.has(taskId))throw window.CanvasTaskResults.pending();
+    state.busy.add(taskId);
+    try{
+        if(!valid()||!guard.valid())throw window.CanvasTaskResults.pending();
+        const response=await window.CanvasApi.getCanvasTaskDeliveriesRequest(origin.id,origin.task_result_version||0);
+        if(!response.ok)throw new Error('生成结果交付暂未确认，请稍后查询原任务');
+        const data=await response.json();
+        if(canvas!==origin||!valid()||!guard.valid())throw window.CanvasTaskResults.pending();
+        window.CanvasTaskResults.validateDeliveries({id:origin.id,task_result_version:origin.task_result_version||0},data);
+        const write=()=>{
+            // First adopt every other observed delivery. The result being
+            // accepted here gets its own undo step; the cursor acknowledges the
+            // entire observed prefix, including those other deliveries.
+            const document={id:origin.id,nodes,task_result_version:origin.task_result_version||0};
+            window.CanvasTaskResults.mergeDeliveries(document,{...data,deliveries:data.deliveries.filter(entry=>entry.task_id!==taskId)});
+            const completed=[taskId,...data.deliveries.map(entry=>entry.task_id)];
+            pushSmartTaskResultUndo(completed);
+            finalizeSmartPendingTask(node,taskId,outputs,kind,record.result,record);
+            origin.task_result_version=document.task_result_version;
+        };
+        if(recovered)binding.apply(write);else binding.apply(record,write,taskId);
+        render();scheduleSave();
+    }catch(error){error.resultPending=true;error.taskId=taskId;throw error;}
+    finally{state.busy.delete(taskId);}
+}
+
 function smartTaskRecovery(){
     return {
         deliveryVersion:()=>canvas.task_result_version || 0,
-        deliveryBusy:()=>activeSmartTaskPolls.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || canvasSyncInFlight,
+        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || canvasSyncInFlight,
         mergeDeliveries:response=>{
             const document={id:canvas.id,nodes,task_result_version:canvas.task_result_version || 0};
             const affected=window.CanvasTaskResults.mergeDeliveries(document,response);
             canvas.task_result_version=document.task_result_version;
+            forgetSmartCompletedTaskProgress(response.deliveries.map(entry=>entry.task_id));
             refreshSmartNodes(affected);
         },
         list:()=>nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video','audio','model'].includes(task.kind || 'image'))
@@ -2643,6 +2683,7 @@ function smartTaskRecovery(){
                 sourceId:source.id,targetId:item.node.id,read:smartTaskInputDocument,valid});
             const result=record.result || {},outputs=item.kind==='video' ? resultMediaUrls(result) : resultMediaUrls(item.kind==='audio' ? result.audios : item.kind==='model' ? result.models : result.images || result);
             if(!outputs.length)return;
+            if(['audio','model'].includes(item.kind))return commitSmartStudioTaskResult(item.node,record,item.kind,binding,{recovered:true,valid});
             binding.apply(()=>{finalizeSmartPendingTask(item.node,item.id,outputs,item.kind,result,record);refreshSmartNodes([item.node.id]);scheduleSave();});
         }
     };

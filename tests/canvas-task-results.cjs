@@ -26,6 +26,14 @@ test('existing live result and server delivery are one output, even after smart 
  mergeDeliveries(document,{canvas_id:'c',result_version:1,deliveries:[{version:1,task_id:'a',target_id:'out',node:{id:'result_a',images:[image]}}]});
  assert.equal(document.nodes.length,1);assert.equal(document.nodes[0].images.length,1);assert.equal(document.nodes[0].pending,0);
 });
+
+test('invalid deliveries are rejected atomically before any node or cursor changes',()=>{
+ const valid={task_id:'a',version:1,node:{id:'result',images:[{url:'/output/a.png'}]}};
+ for(const invalid of [{...valid,task_id:'b',version:2,node:{id:'bad',images:[{}]}},{...valid,task_id:'b'}, {...valid,version:3}, {...valid,version:0}]){
+  const document={id:'c',nodes:[],task_result_version:0},before=JSON.stringify(document);
+  assert.throws(()=>mergeDeliveries(document,{canvas_id:'c',result_version:2,deliveries:[valid,invalid]}));assert.equal(JSON.stringify(document),before);
+ }
+});
 function fixture(){const entry={memberId:'m',workspaceId:'w',lease:{epoch:1,generation:2,canEdit:true}};return {CanvasSession:{enabled:true,context:{member:{id:'m'},workspace:{id:'w'}}},MemberCanvasEdit:{active:entry}};}
 test('late task result is rejected after transfer, pause, same-user reentry, or scope switch',()=>{
  for(const change of [w=>w.MemberCanvasEdit.active.lease.epoch++,w=>w.MemberCanvasEdit.active.lease.generation++,w=>w.MemberCanvasEdit.active.lease.canEdit=false,w=>w.CanvasSession.paused=true,w=>w.CanvasSession.context.member.id='other',w=>w.CanvasSession.context.workspace.id='other',w=>w.MemberCanvasEdit.active={...w.MemberCanvasEdit.active}]){
