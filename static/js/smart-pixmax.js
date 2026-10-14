@@ -167,12 +167,15 @@ function renderSmartStudioNode(node){
         ${pixmaxNodeCaption(node,kind,smartStudioTitle(node))}
         <div class="node-body">${body}</div><div class="node-resize-handle" data-resize="1"></div>
         ${['director','editor','storyboard'].includes(kind)?pixmaxNodePorts().replace(/<div class="node-port port-out"[\s\S]*$/,''):pixmaxNodePorts()}
-        ${kind==='storyboard'?'':`<div class="pixmax-studio-launcher"><button type="button" data-studio-open ${isSmartCanvasLocked()&&!baseModel?'disabled':''}>${['audio','model'].includes(kind)&&smartPendingTasks(node).some(task=>task.kind===kind)?kind==='model'?'查询 3D 任务':'查询音频任务':label}</button>${['audio','model'].includes(kind)?`<button type="button" data-studio-upload ${isSmartCanvasLocked()?'disabled':''}>${kind==='model'?'上传模型':'上传音频'}</button>`:''}<button type="button" class="pixmax-studio-more" data-studio-menu aria-label="节点操作">···</button></div>`}
+        ${kind==='storyboard'?'':`<div class="pixmax-studio-launcher"><button type="button" data-studio-open ${isSmartCanvasLocked()&&!baseModel?'disabled':''}>${['audio','model'].includes(kind)&&smartPendingTasks(node).some(task=>task.kind===kind)?kind==='model'?'查询 3D 任务':'查询音频任务':label}</button>${['audio','model'].includes(kind)?`<button type="button" data-studio-upload ${isSmartCanvasLocked()?'disabled':''}>${kind==='model'?'上传模型':'上传音频'}</button>`:''}${kind==='model'&&!baseModel&&media?.url?`<button type="button" data-studio-history aria-label="生成历史" title="生成历史" ${window.CanvasSession?.enabled?'':'disabled'}><i data-lucide="history" aria-hidden="true"></i></button>`:''}<button type="button" class="pixmax-studio-more" data-studio-menu aria-label="节点操作">···</button></div>`}
     </div>`;
 }
 
 function bindSmartStudioNode(el,node){
     bindPixmaxNodeName(el,node);
+    const history=el.querySelector('[data-studio-history]');
+    history?.addEventListener('mousedown',event=>event.stopPropagation());
+    history?.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();window.PixmaxGenerationHistory?.openNode(node,history);});
     for(const button of el.querySelectorAll('[data-studio-audio-play],[data-studio-model-preview],[data-studio-upload]')){
         button.addEventListener('mousedown',event=>event.stopPropagation());
         button.addEventListener('click',event=>{event.stopPropagation();if(button.hasAttribute('data-studio-audio-play'))openSmartAudioLightbox(node.id,Number(button.dataset.studioAudioPlay));else if(button.hasAttribute('data-studio-model-preview'))window.PixmaxModelPreview.open(node,Number(button.dataset.studioModelPreview));else if(!isSmartCanvasLocked())uploadSmartStudioMedia(node);});

@@ -2116,7 +2116,7 @@ function runSmartNodeToolbarAction(nodeId, action){
     const kind = mediaKindForItem(item);
     if(action==='tags')return window.PixmaxTags.openPicker([nodeId],world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="tags"]`));
     if(PIXMAX_VIDEO_DEFERRED.has(action))return;
-    if(action==='video-history')return window.PixmaxGenerationHistory?.openNode(node,world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="video-history"]`));
+    if(action==='video-history'||action==='image-history')return window.PixmaxGenerationHistory?.openNode(node,world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="${action}"]`));
     if(['trim','auth','asset','depth-video','audio-separate','annotation','parse'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
     smartSelection.toolbarImage(nodeId, index);
     if(action==='audio-separate'&&kind==='video')return window.PixmaxMediaTools.openAudioSeparate(nodeId,index);
@@ -4099,6 +4099,7 @@ function smartNodeToolbarHtml(node){
         ...(kind === 'video' ? [{key:'depth-video', icon:'layers', label:'生成深度视频', enabled:smartNodeGenerationToolEnabled('depth-video')}] : []),
         {key:'asset', icon:'library-big', label:'素材库', enabled:kind === 'image' || kind === 'video'},
         {key:'auth', icon:'shield-check', label:'认证', enabled:kind === 'image' || kind === 'video'},
+        ...(canEditImage && node.generationKind==='image' ? [{key:'image-history', icon:'history', label:'生成历史', enabled:!!window.CanvasSession?.enabled}] : []),
         {key:'download', icon:'download', label:'下载', enabled:true}
     ];
     return `<div class="smart-node-floating-menu" data-smart-node-menu="1">${actions.map(action => `

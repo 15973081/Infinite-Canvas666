@@ -124,3 +124,31 @@ test('readonly image detail uses native cursor-centred zoom, panning, bounds and
     await page.evaluate(()=>{const pane=document.querySelector('.history-image-view');for(let i=0;i<50;i++)pane.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:-100}));});assert.equal(await view.getAttribute('data-image-scale'),'5');assert.equal(await page.getByRole('button',{name:'放大图片'}).isDisabled(),true);
     await page.evaluate(()=>{const pane=document.querySelector('.history-image-view');for(let i=0;i<50;i++)pane.dispatchEvent(new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:100}));});assert.equal(await view.getAttribute('data-image-scale'),'0.5');assert.equal(await page.getByRole('button',{name:'缩小图片'}).isDisabled(),true);assert.equal(await page.evaluate(()=>JSON.stringify([nodes,viewport])),before);assert.deepEqual(errors,[]);
 });
+
+for(const readonly of [false,true])test(`image generation toolbar opens only its node history ${readonly?'for a viewer':'while editing'}`,async t=>{
+    const items=[{...asset(1),node_id:'image-current'},{...asset(2),node_id:'other-image'}],{page,queries,writes,errors}=await setup(t,{items});
+    await page.evaluate(()=>{nodes=[{id:'image-current',type:'smart-image',generationKind:'image',x:300,y:180,images:[{url:'/test-image.svg',kind:'image'}]},{id:'image-base',type:'smart-image',pixmaxSourceType:'BASE_IMAGE',x:750,y:300,images:[{url:'/test-image.svg',kind:'image'}]}];smartSelection.createdNode('image-current');render();});
+    if(readonly)await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
+    assert.equal(await page.locator('[data-id="image-base"] [data-smart-node-action="image-history"]').count(),0);
+    const before=await page.evaluate(()=>JSON.stringify([nodes,canvas.connections]));await page.locator('[data-smart-node-action="image-history"]').click();await card(page,1).waitFor();
+    assert.equal(await page.locator('.history-asset').count(),1);assert.equal(queries.at(-1).node_id,'image-current');assert.equal(queries.at(-1).kind,'image');assert.equal(queries.at(-1).limit,'15');
+    await card(page,1).hover();await card(page,1).locator('[data-history-view]').click();await page.locator('.history-image-view img').waitFor();assert.equal(await page.locator('[data-history-detail-insert]').isDisabled(),readonly);assert.equal(await page.locator('[data-history-prev]').isVisible(),false);assert.equal(await page.locator('[data-history-next]').isVisible(),false);
+    assert.equal(await page.evaluate(()=>JSON.stringify([nodes,canvas.connections])),before);assert.equal(writes.filter(item=>/canvas-.*-tasks$/.test(item.path)).length,0);assert.deepEqual(errors,[]);
+});
+
+for(const readonly of [false,true])test(`model generation launcher opens scoped history and a real readonly GLB ${readonly?'for a viewer':'while editing'}`,async t=>{
+    const items=[{...asset(4,'model'),node_id:'model-current'},{...asset(5,'model'),node_id:'other-model'}],{page,queries,writes,errors}=await setup(t,{items});
+    await page.evaluate(()=>{nodes=[{id:'model-current',type:'smart-model',x:400,y:150,w:340,h:300,images:[{url:'/assets/history-model.glb',kind:'model',name:'当前模型'}]}];smartSelection.createdNode('model-current');render();});
+    if(readonly)await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
+    const before=await page.evaluate(()=>JSON.stringify([nodes,canvas.connections]));await page.locator('[data-studio-history]').click();await card(page,4).waitFor();
+    assert.equal(await page.locator('.history-asset').count(),1);assert.equal(queries.at(-1).node_id,'model-current');assert.equal(queries.at(-1).kind,'model');assert.equal(queries.at(-1).limit,'15');
+    await card(page,4).hover();await card(page,4).locator('[data-history-view]').click();await page.locator('[data-history-model]').click();await page.waitForFunction(()=>PixmaxModelPreview.state.triangles===12);
+    await page.locator('.pixmax-model-preview').click({position:{x:10,y:10}});assert.equal(await page.evaluate(()=>PixmaxGenerationHistory.opened),true);
+    await page.keyboard.press('Escape');await page.locator('.pixmax-model-preview').waitFor({state:'detached'});assert.equal(await page.evaluate(()=>PixmaxGenerationHistory.opened),true);
+    assert.equal(await page.locator('[data-history-detail-insert]').isDisabled(),readonly);assert.equal(await page.locator('[data-history-prev]').isVisible(),false);assert.equal(await page.locator('[data-history-next]').isVisible(),false);assert.equal(await page.evaluate(()=>JSON.stringify([nodes,canvas.connections])),before);assert.equal(writes.filter(item=>/canvas-.*-tasks$/.test(item.path)).length,0);assert.deepEqual(errors,[]);
+});
+
+test('base models and model generation nodes without a result have no native history launcher',async t=>{
+    const {page,errors}=await setup(t);await page.evaluate(()=>{nodes=[{id:'base-model',type:'smart-model',pixmaxSourceType:'BASE_3D',x:200,y:180,images:[{url:'/assets/history-model.glb',kind:'model'}]},{id:'empty-model',type:'smart-model',x:650,y:180,images:[]}];render();});
+    assert.equal(await page.locator('[data-studio-history]').count(),0);assert.deepEqual(errors,[]);
+});
