@@ -170,13 +170,14 @@ function extensionForMediaItem(item, fallback='.png'){
     const kind = mediaKindForItem(item);
     if(kind === 'video') return '.mp4';
     if(kind === 'audio') return '.mp3';
+    if(kind === 'model') return '.glb';
     if(kind === 'text') return '.txt';
     return fallback;
 }
 
 function downloadNameForMediaItem(item, fallbackPrefix='canvas-output'){
     const localName = fileNameFromUrl(item?.url || '');
-    const preferred = localName || item?.name || '';
+    const preferred = mediaKindForItem(item)==='model' ? item?.name || localName : localName || item?.name || '';
     const ext = extensionForMediaItem(item);
     const randomName = `${fallbackPrefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}${ext}`;
     let name = safeExportFileName(preferred || randomName, randomName);

@@ -4652,6 +4652,7 @@ function createSmartWorkspaceView(){
     }
 
     function renderImpl(){
+        window.PixmaxModelPreview?.documentChanged();
         window.PixmaxVideoAnnotation?.documentChanged();
         window.PixmaxTags?.notifyChanged();
         window.PixmaxNavigator?.documentChanged();
@@ -4700,6 +4701,7 @@ function createSmartWorkspaceView(){
     }
 
     function refreshSmartNodesImpl(ids, {forceIds=[]}={}){
+        window.PixmaxModelPreview?.documentChanged();
         window.PixmaxVideoAnnotation?.documentChanged();
         window.PixmaxTags?.notifyChanged();
         window.PixmaxNavigator?.documentChanged();

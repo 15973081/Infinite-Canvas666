@@ -4659,3 +4659,7 @@ export async function mountCanvasVideoAnnotation(target, props, adapter, notify)
     context:new Map([[tCe,container],[MY,adapter.controller],[EC,adapter.graph]])});
 }
 export const unmountCanvasVideoAnnotation = instance => Of(instance);
+// The preview uses the reference's GLB loader, renderer and orbit controls.
+export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
+  PerspectiveCamera:Qo,AmbientLight:rs,DirectionalLight:ns,OrbitControls:Lc,
+  Box3:Cr,Vector3:ln};

@@ -578,7 +578,7 @@
         },
         send(path,init={},transport=window.fetch.bind(window)) {
             const url=new URL(path,location.href), match=url.pathname.match(/^\/api\/canvases\/([^/]+)(.*)$/);
-            if(url.origin===location.origin && /^\/api\/canvas-(image|video|llm|audio)-tasks$/.test(url.pathname) && init.method?.toUpperCase()==='POST') {
+            if(url.origin===location.origin && /^\/api\/canvas-(image|video|llm|audio|model)-tasks$/.test(url.pathname) && init.method?.toUpperCase()==='POST') {
                 const id=JSON.parse(init.body || '{}').canvas_id;
                 if(id) {
                     if(!active || id!==active.id) return Promise.reject(new Error('生成任务与当前编辑画布不一致。'));

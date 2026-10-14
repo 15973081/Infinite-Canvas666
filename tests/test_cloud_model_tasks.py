@@ -86,11 +86,72 @@ def test_model_unknown_paid_submission_keeps_review_and_unknown_cost(world,platf
         assert cost['status']=='unknown' and not cost.get('amount_micros')
 
 
+@pytest.mark.parametrize('remove_before_completion',[True,False])
+def test_model_deleted_target_delivers_or_joins_a_previewable_asset_once(world,platform,remove_before_completion):
+    from app.storage.database import connection
+    path,_,lease,body,_=prepared(world,platform);assert submit(world,body,lease).status_code==200
+    def remove():
+        document=world['editor'].get(path,headers=headers(world['a'])).json()['canvas']
+        response=world['editor'].put(path,headers=proof(world,lease,document['revision']),json={
+            'nodes':[],'connections':[],'base_revision':document['revision'],'task_result_version':document.get('task_result_version',0)})
+        assert response.status_code==200,response.text
+        assert response.json()['canvas']['nodes']==[]
+        return response.json()['canvas']
+    if remove_before_completion:remove()
+    calls=[]
+    with patch.object(httpx.AsyncClient,'post',supplier(calls,['DONE'])),patch.object(httpx.AsyncClient,'stream',stream),patch.object(socket,'getaddrinfo',dns):
+        task=execute(world,body['client_task_id'])
+    assert task['status']=='succeeded',task
+    if not remove_before_completion:
+        document=remove()
+        response=world['editor'].post(path+'/task-results/'+task['id']+'/join',headers=proof(world,lease,document['revision']))
+        assert response.status_code==200,response.text
+    document=world['viewer'].get(path,headers=headers(world['a'])).json()['canvas']
+    assert len(document['nodes'])==1
+    result=document['nodes'][0]
+    assert result['type']=='smart-model' and result['pixmaxSourceType']=='BASE_3D'
+    assert result['images'][0]['kind']=='model'
+    assert world['viewer'].get(result['images'][0]['url'],headers=headers(world['a'])).content==GLB.read_bytes()
+    repeated=world['editor'].post(path+'/task-results/'+task['id']+'/join',headers=proof(world,lease,document['revision']))
+    assert repeated.status_code==200 and repeated.json()['already_in_canvas']
+    assert len(repeated.json()['canvas']['nodes'])==1
+    assert sum(call['action']=='SubmitHunyuanTo3DProJob' for call in calls)==1
+    with connection() as conn:
+        assert conn.execute("SELECT count(*) AS n FROM ledger_entries WHERE log_json->>'canvas_task_id'=%s",(task['id'],)).fetchone()['n']==1
+
+
 def test_model_readonly_bad_version_and_missing_reference_are_rejected_before_supplier(world,platform):
     _,_,lease,body,_=prepared(world,platform)
     assert world['viewer'].post('/api/canvas-model-tasks',headers=headers(world['a']),json=body).status_code==403
     assert submit(world,{**body,'model':'3.1','generate_type':'LowPoly'},lease).status_code==422
     assert submit(world,{**body,'mode':'image','images':['/assets/cloud/ast_'+'a'*32+'/missing.png'],'prompt':''},lease).status_code in {400,404}
+
+
+def test_model_workflow_zip_keeps_glb_bytes_parameters_and_image_view_identity(world,platform,tmp_path):
+    import io,zipfile
+    from PIL import Image
+    from app.storage import media
+    from app.storage.workspace import workspace_scope
+    path,_,lease,body,_=prepared(world,platform);assert submit(world,body,lease).status_code==200
+    calls=[]
+    with patch.object(httpx.AsyncClient,'post',supplier(calls,['DONE'])),patch.object(httpx.AsyncClient,'stream',stream),patch.object(socket,'getaddrinfo',dns):
+        assert execute(world,body['client_task_id'])['status']=='succeeded'
+    document=world['editor'].get(path,headers=headers(world['a'])).json()['canvas']
+    with workspace_scope(world['a']['id']),media.operation_scope():
+        file=tmp_path/'front.png';Image.new('RGB',(256,256),(120,100,180)).save(file);url=media.stable_url(media.publish(file))
+    document['nodes'].append({'id':'front','type':'smart-image','images':[{'url':url,'kind':'image'}]})
+    document['nodes'][0]['modelViews']=[{'url':url,'view':'front'}]
+    exported=world['editor'].post('/api/canvas-workflows/export',headers=headers(world['a']),json={
+        'nodes':document['nodes'],'connections':[{'from':'front','to':'source','kind':'input'}],'include_resources':True})
+    assert exported.status_code==200,exported.text
+    with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
+        assert any(archive.read(name)==GLB.read_bytes() for name in archive.namelist() if name!='workflow.json')
+    imported=world['editor'].post('/api/canvas-workflows/import',headers=headers(world['a']),files={'file':('model.zip',exported.content,'application/zip')})
+    assert imported.status_code==200,imported.text
+    nodes=imported.json()['nodes'];generator=next(node for node in nodes if node['id']=='source');image=next(node for node in nodes if node['id']=='front')
+    assert generator['modelGeneration']==document['nodes'][0]['modelGeneration']
+    assert generator['modelViews']==[{'url':image['images'][0]['url'],'view':'front'}]
+    assert world['viewer'].get(generator['images'][0]['url'],headers=headers(world['a'])).content==GLB.read_bytes()
 
 
 def test_model_publication_failure_recovers_without_querying_or_resubmitting(world,platform):

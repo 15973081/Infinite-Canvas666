@@ -66,6 +66,10 @@
                     voice_modify_pitch:number(params.voiceModifyPitch),voice_modify_intensity:number(params.voiceModifyIntensity),voice_modify_timbre:number(params.voiceModifyTimbre),
                     voice_modify_sound_effects:String(params.voiceModifySoundEffects||''),music_mode:String(params.musicMode||'CUSTOM'),lyrics:String(params.lyrics||'')};
             }
+            if(source.type==='GENERATE_3D'){
+                node.modelGeneration={provider_id:'',model:params.model==='HUNYUAN_3D_PRO_31'?'3.1':'3.0',mode:{textTo3D:'text',imageTo3D:'image',multiTo3D:'multi'}[params.referModel]||'text',prompt:String(params.prompt||''),
+                    generate_type:String(params.generateType||'Normal'),enable_pbr:params.enablePBR===true||params.enablePBR==='true',face_count:number(params.faceCount,300000),polygon_type:String(params.polygonType||'triangle')};
+            }
             // Preserve native parameters for later capability mapping, never resume foreign tasks.
             node.pixmaxParams=JSON.parse(JSON.stringify(params));
             nodes.push(node);

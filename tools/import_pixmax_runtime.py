@@ -23,7 +23,7 @@ runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e(".
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
 runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index.js")', 'e("../node_modules/is-buffer/index.js")')
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
-for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(']:
+for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
 marker_hook = 'let n=N,r=jNt(),i=G(_);'
 assert runtime.count(marker_hook) == 1, 'Video annotation controller changed; inspect before importing'
@@ -72,13 +72,17 @@ export async function mountCanvasVideoAnnotation(target, props, adapter, notify)
     context:new Map([[tCe,container],[MY,adapter.controller],[EC,adapter.graph]])});
 }
 export const unmountCanvasVideoAnnotation = instance => Of(instance);
+// The preview uses the reference's GLB loader, renderer and orbit controls.
+export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
+  PerspectiveCamera:Qo,AmbientLight:rs,DirectionalLight:ns,OrbitControls:Lc,
+  Box3:Cr,Vector3:ln};
 '''
 (destination / 'editors.js').write_text(runtime, encoding='utf-8')
 (destination / 'editors.css').write_bytes((source / 'index-Dvu1CoBX.css').read_bytes())
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt'},
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'model_graphics': ['J1e','Dc','Lc']},
     'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')

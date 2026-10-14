@@ -112,8 +112,8 @@
                 const present=new Set(nodes.flatMap(node=>node.images || []).map(mediaId));
                 const missing=result.images.filter(item=>!present.has(mediaId(item)));
                 if(missing.length){
-                    let target=nodes.find(node=>node.id===delivery.target_id && ['output','smart-image','smart-audio'].includes(node.type));
-                    if(!target)target=nodes.find(node=>node.result_task_id===taskId && ['output','smart-image','smart-audio'].includes(node.type));
+                    let target=nodes.find(node=>node.id===delivery.target_id && ['output','smart-image','smart-audio','smart-model'].includes(node.type));
+                    if(!target)target=nodes.find(node=>node.result_task_id===taskId && ['output','smart-image','smart-audio','smart-model'].includes(node.type));
                     if(!target)target=append({...result,images:[]});
                     target.images=[...(target.images || []),...clone(missing)];affected.add(target.id);
                 }

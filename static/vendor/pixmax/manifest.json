@@ -5,7 +5,12 @@
     "director": "$6e",
     "editor": "ujt",
     "media_processor": "II",
-    "video_annotation": "WNt"
+    "video_annotation": "WNt",
+    "model_graphics": [
+      "J1e",
+      "Dc",
+      "Lc"
+    ]
   },
   "changes": [
     "Remove account/router bootstrap",

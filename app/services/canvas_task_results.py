@@ -106,6 +106,8 @@ def deliver_completed(conn, task_id, *, only_pending=False):
     if task['kind'] == 'llm':
         node.update(type='smart-prompt' if canvas['kind'] == 'smart' else 'prompt', text=items[0]['text'])
         node.pop('images')
+    if task['kind'] == 'model' and canvas['kind'] == 'smart':
+        node.update(type='smart-model', pixmaxSourceType='BASE_3D')
     registry['version'] += 1
     delivery = {'task_id': task_id, 'version': registry['version'], 'target_id': binding.get('target_node_id'), 'node': node}
     registry['entries'][task_id] = delivery
@@ -289,6 +291,8 @@ def join(canvas_id, task_id):
         if task['kind'] == 'llm':
             node = {'id': node_id, 'type': 'smart-prompt' if canvas['kind'] == 'smart' else 'prompt',
                     'x': x, 'y': 120, 'text': items[0]['text'], 'result_task_id': task_id, 'title': '对话生成结果'}
+        if task['kind'] == 'model' and canvas['kind'] == 'smart':
+            node.update(type='smart-model', pixmaxSourceType='BASE_3D')
         # Only remove this task's stale progress indicator; other tasks and graph data stay intact.
         for old in nodes:
             if isinstance(old.get('_pending'), list):

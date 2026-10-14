@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {capture,pending:pendingError}=require('../static/js/canvas-task-results.js');
 const {mergeDeliveries}=require('../static/js/canvas-task-results.js');
 
-for(const type of ['output','smart-image','smart-audio'])test(type+' server delivery preserves drafts, siblings and deleted targets without duplicates',()=>{
+for(const type of ['output','smart-image','smart-audio','smart-model'])test(type+' server delivery preserves drafts, siblings and deleted targets without duplicates',()=>{
  const make=(id,version)=>({task_id:id,version,target_id:'out',node:{id:'result_'+id,type,images:[{media_asset_id:'ast_'+id,url:'/api/media/ast_'+id+'/original'}],result_task_id:id}});
  const document={id:'c',nodes:[{id:'out',type,promptDraftText:'unsaved prompt',images:[],_pending:[{canvasTaskId:'a'},{canvasTaskId:'b'}],pendingTasks:[{taskId:'a'},{taskId:'b'}]}]};
  const original=document.nodes[0];
