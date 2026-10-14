@@ -39,9 +39,11 @@
         return [...result];
     }
     function remapReferences(node,map){if(node.frameId){const id=map.get(node.frameId);if(id)node.frameId=id;else delete node.frameId;}}
-    function renderFrame(node){const box=rect(node);return `<div class="image-node pixmax-frame-node ${isNodeSelected(node.id)?'selected':''}" data-id="${escapeAttr(node.id)}" style="left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px"><header class="pixmax-frame-header"><span data-frame-title role="button" tabindex="0" aria-label="分组 ${escapeAttr(node.label||'分组')}">${escapeHtml(node.label||'分组')}</span></header></div>`;}
+    function renderFrame(node){const box=rect(node),canRun=nodes.some(member=>member.frameId===node.id&&window.PixmaxBatchExecution?.kind(member));return `<div class="image-node pixmax-frame-node ${isNodeSelected(node.id)?'selected':''}" data-id="${escapeAttr(node.id)}" style="left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px"><header class="pixmax-frame-header"><span data-frame-title role="button" tabindex="0" aria-label="分组 ${escapeAttr(node.label||'分组')}">${escapeHtml(node.label||'分组')}</span></header><div class="pixmax-frame-toolbar"><button type="button" data-frame-run ${!canRun||isSmartCanvasLocked()?'disabled':''}>批量执行</button><button type="button" data-frame-ungroup ${isSmartCanvasLocked()?'disabled':''}>取消分组</button></div></div>`;}
     function bind(element,node){
         const title=element.querySelector('[data-frame-title]');
+        element.querySelector('[data-frame-run]').onclick=event=>{event.stopPropagation();window.PixmaxBatchExecution?.open(node);};
+        element.querySelector('[data-frame-ungroup]').onclick=event=>{event.stopPropagation();ungroup([node.id]);};
         element.onclick=event=>{event.stopPropagation();if(Date.now()>=suppressNodeClickUntil)smartSelection.clickNode(node.id,element);};
         element.oncontextmenu=event=>{event.preventDefault();event.stopPropagation();openSmartCanvasContext(event,node);};
         title.onkeydown=event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();event.stopPropagation();smartSelection.clickNode(node.id,element);}if(event.key==='F2'){event.preventDefault();event.stopPropagation();rename();}};
@@ -53,7 +55,7 @@
         }
         title.ondblclick=event=>{event.preventDefault();event.stopPropagation();rename();};
         const beginDrag=event=>{
-            if(event.button!==0||event.detail>=2||event.target.closest('input')||isSmartCanvasLocked()||shell.dataset.tool==='pan'||pixmaxSpacePanning)return;
+            if(event.button!==0||event.detail>=2||event.target.closest('input,button')||isSmartCanvasLocked()||shell.dataset.tool==='pan'||pixmaxSpacePanning)return;
             event.preventDefault();event.stopPropagation();document.activeElement?.blur?.();let frame=node;if(event.altKey)frame=duplicateForAltDrag(node);
             const ids=expand(isNodeSelected(frame.id)?selectedNodeIds():[frame.id]);capturePendingUndo();
             for(const id of ids){const item=nodes.find(node=>node.id===id);if(isFrame(item)){const box=rect(item);item.x=box.x;item.y=box.y;item.w=box.width;item.h=box.height;}}

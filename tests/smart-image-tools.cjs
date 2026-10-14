@@ -1,7 +1,8 @@
 const {installSmartSelection}=require('./helpers/smart-selection.cjs');
-const {readCanvasSource} = require('./helpers/canvas-source.cjs');
+const {readCanvasSource,functionSource} = require('./helpers/canvas-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=readCanvasSource('static/js/smart-canvas.js','utf8').replace(/\r\n/g,'\n');
+const native=fs.readFileSync('static/js/smart-pixmax.js','utf8');
 function fn(name){const start=source.indexOf(`function ${name}(`);assert.ok(start>=0);return (source.slice(start-6,start)==='async '?'async ':'')+source.slice(start,source.indexOf('\n}',start)+2);}
 function fixture({enabled=true,wait=false}={}){
  const calls=[],notes=[],node={id:'source',type:'smart-image',images:[{url:'/assets/one.png'},{url:'/assets/two.png'}]},buttons=[{},{}];
@@ -15,10 +16,10 @@ function fixture({enabled=true,wait=false}={}){
   fetch:async()=>{calls.push({fetch:true});await gate;return {ok:true,json:async()=>({revision:4,tools:{panorama:config,depth:config}})};},
   toast:message=>notes.push(message),nowMs:()=>1,pushUndo(){},createPendingOutputFromSource:(source,n,meta,opts)=>{calls.push({source,n,meta,opts});return {id:'output',images:[]};},
   smartTaskInputBinding:()=>binding,openImageEditor(){throw new Error('must not open editor');},openImagePreview(){throw new Error('must not open preview');},render(){},scheduleSave(){},sizeForRun:s=>s.customSize,imageRefsOnly:r=>r,
-  escapeAttr:s=>s,escapeHtml:s=>s,
+  escapeAttr:s=>s,escapeHtml:s=>s,pixmaxSvg:()=>'',pixmaxChatProviders:()=>[],
   queueAndResumeSmartApiTasks:async(output,result,opts)=>calls.push({output,result,opts}),smartPendingTasks:()=>[],pauseSmartTaskInput(){},
  };
- installSmartSelection(ctx);vm.runInContext('let smartImageToolBusy=false;'+['smartNodeToolbarImageIndex','smartNodeToolbarHtml','runSmartNodeToolbarAction','runManagedImageTool','runApiGeneration'].map(fn).join('\n'),ctx);
+ installSmartSelection(ctx);vm.runInContext(native.match(/const PIXMAX_VIDEO_DEFERRED=[^\n]+/)[0]+'\n'+['pixmaxVideoToolbarActions','pixmaxVideoToolbarHtml'].map(name=>functionSource(native,name)).join('\n')+'\nlet smartImageToolBusy=false;'+['smartNodeGenerationToolEnabled','smartNodeToolbarImageIndex','smartNodeToolbarHtml','runSmartNodeToolbarAction','runManagedImageTool','runApiGeneration'].map(fn).join('\n'),ctx);
  return {ctx,calls,notes,node,release};
 }
 test('selected image transforms use administrator settings and existing task bindings without changing the source',async()=>{

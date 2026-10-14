@@ -7,7 +7,7 @@ lines.on('line',line=>{const message=JSON.parse(line);if(message.initial){initia
 const watchdog=setTimeout(()=>{console.error('Browser/database bridge timed out');process.exit(2);},45000);watchdog.unref();
 async function transport(request,canvasId){
     const url=new URL(request.url());
-    if(url.pathname!=='/api/canvases/'+canvasId&&!url.pathname.startsWith('/api/canvases/'+canvasId+'/task-results')&&!/^\/api\/canvas-(audio|model|llm|image)-tasks(?:\/|$)/.test(url.pathname))return;
+    if(url.pathname!=='/api/canvases/'+canvasId&&url.pathname!=='/api/canvases/'+canvasId+'/batch-preview'&&!url.pathname.startsWith('/api/canvases/'+canvasId+'/task-results')&&!/^\/api\/canvas-(audio|model|llm|image)-tasks(?:\/|$)/.test(url.pathname))return;
     const id=++sequence,answer=new Promise(resolve=>requests.set(id,resolve));
     process.stdout.write(JSON.stringify({id,path:url.pathname+url.search,method:request.method(),headers:request.headers(),body:request.postData()})+'\n');
     return answer;
@@ -15,7 +15,7 @@ async function transport(request,canvasId){
 (async()=>{
     const config=await ready,cleanup=[];let posts=0;
     try{
-        const taskKind=config.kind==='parse'?'llm':['assets','shots','frame-drag'].includes(config.kind)?'image':config.kind;
+        const taskKind=config.kind==='parse'?'llm':['assets','shots','frame-drag','batch'].includes(config.kind)?'image':config.kind;
         const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,
             apiHandler:request=>{if(request.method()==='POST'&&request.url().includes('/api/canvas-'+taskKind+'-tasks'))posts++;return transport(request,config.canvas.id);}});
         await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
@@ -38,8 +38,26 @@ async function transport(request,canvasId){
                 }
                 return fetcher(url,init);
             };
-            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else if(config.kind==='shots')PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'image');else if(config.kind!=='frame-drag')openSmartStudio(nodes[0].id);
+            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else if(config.kind==='shots')PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'image');else if(!['frame-drag','batch'].includes(config.kind))openSmartStudio(nodes[0].id);
         },config);
+        if(config.kind==='batch'){
+            await page.evaluate(provider=>{
+                apiProviders=[{id:provider,has_key:true,image_models:['test']}];
+                for(const node of nodes)node.runSettings={engine:'api',apiKind:'image',provider_id:provider,model:'test',resolution:'1k',ratio:'square',count:1};
+                PixmaxCanvasFrames.create(nodes.map(node=>node.id));
+            },config.providerId);
+            await page.locator('[data-frame-run]').click();await page.locator('[data-batch-confirm]').waitFor();assert.equal(posts,0);
+            assert.match(await page.getByRole('dialog',{name:'批量执行'}).textContent(),/CNY 0.1/);
+            await page.locator('[data-batch-confirm]').click();await page.waitForFunction(()=>nodes.filter(node=>!PixmaxCanvasFrames.isFrame(node)).every(node=>node.images.length===1));
+            await page.waitForFunction(()=>!PixmaxBatchExecution.busy());assert.equal(posts,2);assert.equal(await page.evaluate(()=>canvas.task_result_version),2);
+            await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes.reduce((count,node)=>count+node.images.length,0)),1);
+            await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes.reduce((count,node)=>count+node.images.length,0)),0);
+            assert.equal(await page.evaluate(()=>nodes.every(node=>smartPendingTasks(node).length===0)),true);
+            await page.evaluate(()=>redoSmartCanvas());assert.equal(await page.evaluate(()=>nodes.reduce((count,node)=>count+node.images.length,0)),1);
+            assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);await page.reload();await page.waitForFunction(id=>canvas?.id===id,config.canvas.id);
+            assert.equal(await page.evaluate(()=>nodes.reduce((count,node)=>count+node.images.length,0)),1);assert.equal(await page.evaluate(()=>nodes.every(node=>smartPendingTasks(node).length===0)),true);
+            assert.deepEqual(errors,[]);process.stdout.write(JSON.stringify({done:true,posts,revision:await page.evaluate(()=>canvas.revision)})+'\n');return;
+        }
         if(config.kind==='frame-drag'){
             const taskId=await page.evaluate(async config=>{
                 const source=nodes.find(node=>node.id==='source'),target=nodes.find(node=>node.id==='target');

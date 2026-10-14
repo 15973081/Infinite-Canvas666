@@ -32,7 +32,7 @@ function pixmaxTextContext(node){
 }
 async function runPixmaxTextTask(node,request,apply,valid=()=>true,decode=text=>text){
     if(isSmartCanvasLocked())throw new Error('请先开始编辑画布');
-    if(pixmaxTextJobs.has(node))throw new Error('此节点正在生成，请等待当前任务完成');
+    if(pixmaxTextJobs.has(node)||window.PixmaxBatchExecution?.busy(node.id))throw new Error('此节点正在生成，请等待当前任务完成');
     if(!request.message?.trim())throw new Error('请先填写创作内容');
     pixmaxTextJobs.add(node);
     try{

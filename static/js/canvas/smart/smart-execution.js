@@ -1604,9 +1604,10 @@ function loadNodePromptDraftToInput(node){
             ? node.promptDraftHtml
             : (promptHtmlWithMentionTokens(node.runPrompt || node.promptDraftText || '', node.runPromptRefs || []) || node.promptDraftHtml);
     } else {
-        const rebuilt = promptHtmlWithMentionTokens(node?.runPrompt || '', node?.runPromptRefs || []);
+        const draft=typeof node?.promptDraftText==='string'?node.promptDraftText:node?.runPrompt||'';
+        const rebuilt = promptHtmlWithMentionTokens(draft, node?.runPromptRefs || []);
         if(rebuilt) promptInput.innerHTML = rebuilt;
-        else setPromptText(node?.runPrompt || '');
+        else setPromptText(draft);
     }
     if(node)window.PixmaxStoryboardMedia?.refreshPromptReferences(node,promptInput);
 }
@@ -1992,6 +1993,7 @@ async function runGeneration(){
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();
     if(!node) return;
+    if(window.PixmaxBatchExecution?.busy(node.id))return toast('此节点正在批量生成，请等待当前任务完成');
     const previousSettings = cloneSmartSettings(settings);
     const runSettings = smartSettingsForNode(node);
     settings = {...settings, ...cloneSmartSettings(runSettings || {})};
@@ -2181,7 +2183,7 @@ function comfyFieldKind(field){
     return 'setting';
 }
 
-async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=null,imageTool=null){
+async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=null,imageTool=null,options={}){
     if(!runSettings.provider_id || !runSettings.model) throw new Error('请先选择可用的 API 生图模型');
     if(runSettings.outpaintResolutionLocked === true){
         const error = smartOutpaintResolutionError(runSettings);
@@ -2190,6 +2192,7 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
     const count = Math.max(1, Math.min(8, Number(runSettings.count || 1)));
     const payload = {prompt, provider_id:runSettings.provider_id, model:runSettings.model, size:sizeForRun(runSettings), quality:runSettings.quality || 'auto', n:1, reference_images:imageRefsOnly(refs)};
     if(imageTool){payload.image_tool=imageTool.kind;payload.image_tool_revision=imageTool.revision;}
+    if(options.preview)return {...payload,n:count};
     if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
     const submitted = await Promise.allSettled(Array.from({length:count}, () => (window.CanvasApi?.createCanvasImageTaskRequest
         ? window.CanvasApi.createCanvasImageTaskRequest({...payload,canvas_id:canvasId})
@@ -2203,7 +2206,7 @@ async function runApiGeneration(prompt, refs, runSettings=settings,inputBinding=
     return {taskIds:tasks.map(task => task.task_id).filter(Boolean), count:tasks.length, providerId:payload.provider_id, model:payload.model,inputBinding};
 }
 
-async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null){
+async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBinding=null,options={}){
     if(!runSettings.videoModel) throw new Error('请先选择视频模型');
     if(!smartVideoResolutions(runSettings).includes(runSettings.videoResolution || '')) throw new Error('视频规格已变化，请重新选择模型和分辨率后生成。');
     try {
@@ -2252,6 +2255,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             trusted_asset: usesTrustedVolcengineAssets,
             task_mode: runSettings.videoTaskMode || 'auto'
         };
+        if(options.preview)return payload;
         if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
         const taskId = uid('canvas_vid');
         const submission = (window.CanvasApi?.createCanvasVideoTaskRequest
@@ -2271,7 +2275,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
         submission.catch(() => {});
         return {taskIds:[taskId], count:1, providerId:payload.provider_id, model:payload.model, submission,inputBinding};
     } finally {
-        transientSmartCloudLinks = [];
+        if(!options.preview)transientSmartCloudLinks = [];
     }
 }
 
@@ -2636,8 +2640,8 @@ function smartTaskResultState(){
 
 async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=false,valid=()=>true,prepareResult,applyResult}={}){
     const origin=canvas,state=smartTaskResultState(),guard=canvasTaskWriteGuard(node),taskId=record.id;
-    const outputs=kind==='llm'?(typeof record.result?.text==='string'&&record.result.text?[record.result.text]:[]):resultMediaUrls(record.result?.[kind==='audio'?'audios':kind==='image'?'images':'models']||[]);
-    if(record.status!=='succeeded'||!['audio','model','llm','image'].includes(kind)||!outputs.length||kind==='llm'&&!applyResult)throw window.CanvasTaskResults.pending();
+    const outputs=kind==='llm'?(typeof record.result?.text==='string'&&record.result.text?[record.result.text]:[]):resultMediaUrls(record.result?.[kind==='audio'?'audios':kind==='image'?'images':kind==='video'?'videos':'models']||[]);
+    if(record.status!=='succeeded'||!['audio','model','llm','image','video'].includes(kind)||!outputs.length||kind==='llm'&&!applyResult)throw window.CanvasTaskResults.pending();
     if(state.busy.has(taskId))throw window.CanvasTaskResults.pending();
     state.busy.add(taskId);
     try{
@@ -2652,7 +2656,7 @@ async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=f
             // accepted here gets its own undo step; the cursor acknowledges the
             // entire observed prefix, including those other deliveries.
             const document={id:origin.id,nodes,task_result_version:origin.task_result_version||0};
-            window.CanvasTaskResults.mergeDeliveries(document,{...data,deliveries:data.deliveries.filter(entry=>entry.task_id!==taskId)});
+            window.CanvasTaskResults.mergeDeliveries(document,{...data,deliveries:data.deliveries.filter(entry=>entry.task_id!==taskId&&!window.PixmaxBatchExecution?.ownsTask(entry.task_id))});
             prepareResult?.();
             const completed=[taskId,...data.deliveries.map(entry=>entry.task_id)];
             pushSmartTaskResultUndo(completed);
@@ -2668,7 +2672,7 @@ async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=f
 function smartTaskRecovery(){
     return {
         deliveryVersion:()=>canvas.task_result_version || 0,
-        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || window.PixmaxVideoParse?.busy() || window.PixmaxStoryboardAssets?.busy() || canvasSyncInFlight,
+        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || window.PixmaxBatchExecution?.busy() || window.PixmaxVideoParse?.busy() || window.PixmaxStoryboardAssets?.busy() || canvasSyncInFlight,
         mergeDeliveries:response=>{
             window.CanvasTaskResults.validateDeliveries({id:canvas.id,task_result_version:canvas.task_result_version||0},response);
             response=window.PixmaxVideoParse?.deliveryPrefix(response)||response;
@@ -2678,11 +2682,12 @@ function smartTaskRecovery(){
             forgetSmartCompletedTaskProgress(response.deliveries.map(entry=>entry.task_id));
             refreshSmartNodes(affected);
         },
-        list:()=>[...nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video','audio','model'].includes(task.kind || 'image'))
+        list:()=>[...nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video','audio','model'].includes(task.kind || 'image')||task.kind==='llm'&&task.batchFrameId)
             .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),...(window.PixmaxVideoParse?.pending()||[])],
         changed:item=>refreshSmartNodes(item ? [item.node.id] : nodes.filter(node=>smartPendingTasks(node).length).map(node=>node.id)),
         apply:async(item,record,current)=>{
             if(item.kind==='llm'&&item.node.videoAnalysis)return window.PixmaxVideoParse.recover(item.node,record,{valid:current});
+            if(item.kind==='llm'&&item.task.batchFrameId)return window.PixmaxBatchExecution?.recover(item,record,current);
             const source=nodes.find(node=>node.id===item.task.run?.nodeId),writeGuard=canvasTaskWriteGuard(source,item.node);
             const valid=()=>current() && Boolean(source) && writeGuard.valid() && smartPendingTasks(item.node).includes(item.task);
             if(!valid() || activeSmartTaskPolls.has(item.kind+':'+item.id) || item.kind==='audio' && window.PixmaxAudioCreation?.busy() || item.kind==='model' && window.PixmaxModelCreation?.busy())return;

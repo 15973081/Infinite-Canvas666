@@ -227,10 +227,10 @@ test('smart refresh waits for active parameter editing to finish',()=>{
 });
 
 test('a revoked chat model is not restored through a member-mode fallback',()=>{
-    for(const source of [classic,smart]){
-        const c=context(source,['resolveChatModel'],{window:{CanvasSession:{enabled:true}},providerChatModels:()=>[],resolveChatProviderId:x=>x});
-        assert.equal(c.resolveChatModel('removed','p'),'');
-    }
+    const c=context(classic,['resolveChatModel'],{window:{CanvasSession:{enabled:true}},providerChatModels:()=>[],resolveChatProviderId:x=>x});
+    assert.equal(c.resolveChatModel('removed','p'),'');
+    const native=context(fs.readFileSync('static/js/pixmax-creation.js','utf8'),['pixmaxChatProviders'],{apiProviders:[{id:'p',has_key:true,chat_models:[]}]});
+    assert.equal(native.pixmaxChatProviders().length,0);
 });
 
 test('an incompatible video policy presents no usable choices rather than sending a hidden spec',()=>{

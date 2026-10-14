@@ -39,7 +39,7 @@
         }
         if(smartPendingTasks(node).some(task=>task.kind==='audio')){run.textContent='查询已有音频任务';}
         run.onclick=async()=>{
-            if(jobs.has(node))return;jobs.add(node);run.disabled=true;let binding,config,request;
+            if(jobs.has(node)||window.PixmaxBatchExecution?.busy(node.id))return;jobs.add(node);run.disabled=true;let binding,config,request;
             try{
                 if(!valid())throw new Error('画布或编辑资格已变化，请重新打开音频生成');
                 const pending=smartPendingTasks(node).find(task=>task.kind==='audio');
@@ -79,5 +79,11 @@
             }finally{jobs.delete(node);run.disabled=!model.value;if(smartPendingTasks(node).some(task=>task.kind==='audio'))run.textContent='查询已有音频任务';}
         };
     }
-    window.PixmaxAudioCreation=Object.freeze({open,busy:()=>jobs.size>0});
+    function prepare(node){
+        const config=node.audioGeneration;if(!config||!providers().some(provider=>provider.id===config.provider_id&&provider.audio_models.includes(config.model)))throw new Error('请先配置音频供应商和模型');
+        const request={...config,prompt:[config.prompt,context(node)].filter(Boolean).join('\n\n')};
+        if(!request.prompt.trim()&&!(config.mode==='music'&&config.music_mode==='CUSTOM'&&config.lyrics?.trim()))throw new Error('请填写音频创作内容或连接文本节点');
+        return request;
+    }
+    window.PixmaxAudioCreation=Object.freeze({open,prepare,busy:node=>node?jobs.has(node):jobs.size>0});
 })();

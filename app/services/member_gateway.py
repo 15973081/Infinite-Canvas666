@@ -115,6 +115,8 @@ def permissions(path, method):
         return PERMISSIONS
     if path == '/api/canvas-audio-voices' and method == 'GET' or path == '/api/canvas-audio-voices/favorite' and method == 'PUT':
         return ('provider.use', 'task.read', 'asset.read')
+    if re.fullmatch(r'/api/canvases/[^/]+/batch-preview', path) and method == 'POST':
+        return ('canvas.read', 'canvas.edit', 'generation.submit', 'provider.use')
     if re.fullmatch(r'/api/canvas-(?:image|video|llm|audio|model)-tasks(?:/[^/]+)?', path):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:

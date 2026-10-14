@@ -52,7 +52,7 @@
         });observer.observe(document.body,{childList:true,subtree:true});
         if(pending())run.textContent='查询已有 3D 任务';
         run.onclick=async()=>{
-            if(jobs.has(node))return;jobs.add(node);run.disabled=true;let binding,config,request;
+            if(jobs.has(node)||window.PixmaxBatchExecution?.busy(node.id))return;jobs.add(node);run.disabled=true;let binding,config,request;
             try{
                 if(!valid())throw new Error('画布或编辑资格已变化，请重新打开 3D 生成');
                 const task=smartPendingTasks(node).find(task=>task.kind==='model');
@@ -92,5 +92,21 @@
             }finally{jobs.delete(node);run.disabled=!model.value&&!pending();run.textContent=pending()?'查询已有 3D 任务':'生成 3D 模型';}
         };
     }
-    window.PixmaxModelCreation=Object.freeze({open,busy:()=>jobs.size>0});
+    function prepare(node){
+        const config=node.modelGeneration;if(!config||!providers().some(provider=>provider.id===config.provider_id&&provider.model_models.includes(config.model)))throw new Error('请先配置 3D 供应商和模型');
+        const refs=references(node),request={...config,images:[],view_types:[]};
+        if(config.mode==='text'){
+            if(refs.images.length)throw new Error('文字生成模式请移除图片连接');request.prompt=[config.prompt,refs.text].filter(Boolean).join('\n\n');if(!request.prompt.trim())throw new Error('请填写模型描述或连接文本节点');
+        }else{
+            if(refs.textCount)throw new Error('图片生成模式请移除文本连接');if(!refs.images.length||config.mode==='image'&&refs.images.length!==1)throw new Error('请连接模式所需数量的图片节点');
+            request.images=refs.images.map(item=>item.url);if(config.generate_type!=='Sketch')request.prompt='';
+            if(config.mode==='multi'){
+                const paired=refs.images.map(item=>({url:item.url,view:(node.modelViews||[]).find(view=>key(view.url)===key(item.url))?.view||'front'}));
+                if(!paired.some(item=>item.view==='front')||new Set(paired.map(item=>item.view)).size!==paired.length)throw new Error('需要指定一个正面，各视角不可重复');
+                paired.sort((a,b)=>Number(b.view==='front')-Number(a.view==='front'));request.images=paired.map(item=>item.url);request.view_types=paired.map(item=>item.view);
+            }
+        }
+        return request;
+    }
+    window.PixmaxModelCreation=Object.freeze({open,prepare,busy:node=>node?jobs.has(node):jobs.size>0});
 })();
