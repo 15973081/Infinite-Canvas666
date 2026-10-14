@@ -29,12 +29,14 @@
             const selectedProvider=providerInput.value,selectedModel=model.value,input=body.querySelector('[data-audio-field="timbre_id"]');
             window.PixmaxAudioVoices.open({parent:root,node,provider:selectedProvider,model:selectedModel,value:input.value,
                 valid:()=>valid()&&providerInput.value===selectedProvider&&model.value===selectedModel,
-                onSelect:voice=>{input.value=voice.id;body.querySelector('[data-audio-voice]').textContent=voice.name+' ▾';}});
+                onSelect:voice=>{input.value=voice.id;body.querySelector('[data-audio-voice]').textContent=voice.name+' ▾';},
+                onDeleteSelected:()=>{input.value='';body.querySelector('[data-audio-voice]').textContent='选择音色 ▾';}});
         };
         function configuration(){
             const provider_id=providerInput.value,chosen=model.value;
             if(!providers().some(provider=>provider.id===provider_id&&provider.audio_models.includes(chosen)))throw new Error('请选择已配置的音频供应商和模型');
             const fields=Object.fromEntries([...body.querySelectorAll('[data-audio-field]')].map(input=>[input.dataset.audioField,input.type==='number'?Number(input.value):input.value]));
+            if(!chosen.startsWith('music-')&&!fields.timbre_id)throw new Error('请选择音色');
             return {provider_id,model:chosen,mode:chosen.startsWith('music-')?'music':'speech',...fields};
         }
         if(smartPendingTasks(node).some(task=>task.kind==='audio')){run.textContent='查询已有音频任务';}

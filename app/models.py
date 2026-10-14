@@ -308,6 +308,15 @@ class CanvasAudioVoiceRegistration(BaseModel):
     description: str = Field(default='', max_length=1000)
 
 
+class CanvasAudioVoiceDelete(BaseModel):
+    model_config = {'extra': 'forbid'}
+    provider_id: str = Field(min_length=1, max_length=96)
+    model: str = Field(min_length=1, max_length=180)
+    catalog_id: str = Field(pattern=r'^[a-f0-9]{64}$')
+    voice_id: str = Field(min_length=1, max_length=180)
+    retry: bool = Field(default=False, strict=True)
+
+
 class CanvasAudioTaskRequest(BaseModel):
     model_config = {'extra': 'forbid'}
     canvas_id: str = Field(min_length=1, max_length=96)
@@ -602,7 +611,7 @@ __all__ = [
     "OnlineImageRequest", "ImageTaskQueryRequest",
     "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
-    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasAudioVoiceRegistration", "CanvasModelTaskRequest",
+    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasAudioVoiceRegistration", "CanvasAudioVoiceDelete", "CanvasModelTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
     "CanvasFolderUpdateRequest", "CanvasMoveRequest",

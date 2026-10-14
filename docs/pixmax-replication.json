@@ -65,7 +65,7 @@
       "preview": ".local/pixmax-audio-generation.png",
       "relatedRegression": "78 项前端及租约、管理配置回归通过；新增输入验证与音频租约用例通过；64 项现有云任务和结果恢复回归、76 项模型策略及计费单元测试通过",
       "generationScope": "供应商响应使用测试替身，媒体为真实合成 MP3；未调用收费供应商，不代表线上账号已开通或生产环境已部署",
-      "remaining": ["录音克隆、删除及供应商已有音色登记/管理；文字设计及本项目音色的登记改名见 audioVoiceDesignEvidence", "参考固定试听样例来源及完整原生音色面板视觉对齐", "原生参数面板视觉与更多交互对齐", "已配置生产账号的真实语音和音乐生成最终验收"]
+      "remaining": ["录音克隆及供应商已有音色登记/管理；文字设计和本项目音色登记改名、删除见 audioVoiceDesignEvidence 与 audioVoiceDeletionEvidence", "参考固定试听样例来源及完整原生音色面板视觉对齐", "原生参数面板视觉与更多交互对齐", "已配置生产账号的真实语音和音乐生成最终验收"]
     },
     "audioVoiceEvidence": {
       "source": ["static/js/pixmax-audio-voices.js", "app/services/canvas_audio_voices.py"],
@@ -78,7 +78,7 @@
       "relatedRegression": "本轮 110 项音色设计、音频创作、音色库、历史、批量执行、输入绑定和结果恢复前端回归通过；44 项音频、历史及个人数据隔离数据库检查通过。详见 audioVoiceDesignEvidence；未使用生产供应商",
       "preview": ".local/pixmax-audio-voices.png",
       "previewScope": "UI 截图使用测试目录；浏览器及数据库播放真实合成 MP3；供应商目录和生成响应为测试替身，没有调用实际供应商",
-      "remaining": ["试听使用已有语音或文字音色设计 MP3，未取得参考的固定音色试听库；无样例音色禁用试听", "录音克隆、删除及供应商已有克隆/设计音色的登记和管理", "原生面板全部视觉细节、价格预览/余额适配与生产账号最终验收"]
+      "remaining": ["试听使用已有语音或文字音色设计 MP3，未取得参考的固定音色试听库；无样例音色禁用试听", "录音克隆及供应商已有克隆/设计音色的登记和管理；本项目生成音色删除见 audioVoiceDeletionEvidence", "原生面板全部视觉细节、价格预览/余额适配与生产账号最终验收"]
     },
     "audioVoiceDesignEvidence": {
       "source": ["static/js/pixmax-voice-design.js", "static/js/pixmax-audio-voices.js", "app/services/canvas_audio_tasks.py", "app/services/canvas_audio_voices.py", "app/storage/migrations/036_audio_voice_registrations.sql"],
@@ -93,7 +93,19 @@
       "verified": ["真实浏览器生成试听、填写登记信息、保存、重新进入编辑及选择音色；播放真实 MP3，返回与关闭后 src 移除且播放器暂停", "回执不明后重新打开恢复原任务，生成次数仍为 1；已有试听可在新建能力关闭后登记", "实际 PostgreSQL 与任务队列验证一次审计、一个账单和一次登记；跨空间、未登记使用、无权限、错误目录证明、忙碌节点和超长试听拒绝", "登记后用新 voice_id 执行正常配音，供应商模拟实际收到该 ID，画布仅加入正常配音结果；个人导出包含名称等元数据，账号关闭清理登记", "供应商响应未提供字符计费用量时费用保持未知，保留独立 voice-design 价格快照，不按描述长度虚构计费量"],
       "previews": [".local/pixmax-voice-design.png", ".local/pixmax-voice-registration.png"],
       "previewScope": "截图使用测试目录和实际合成 MP3；供应商响应均为隔离替身，不代表生产部署或真实声线质量验收。",
-      "remaining": ["录音生成、协议、10–60 秒/音量校验及录音资源清理的原生完整复刻", "克隆音色、删除、供应商已有音色登记及元数据迁移", "原生费用预览/余额、全过程状态和全部视觉细节；可用生产账号的最终验收"]
+      "remaining": ["录音生成、协议、10–60 秒/音量校验及录音资源清理的原生完整复刻", "克隆音色、供应商已有音色登记及元数据迁移；本项目生成音色删除见 audioVoiceDeletionEvidence", "原生费用预览/余额、全过程状态和全部视觉细节；可用生产账号的最终验收"]
+    },
+    "audioVoiceDeletionEvidence": {
+      "source": ["static/js/pixmax-audio-voices.js", "app/services/canvas_audio_voice_deletions.py", "app/storage/migrations/037_audio_voice_deletions.sql"],
+      "status": "owned_generated_voice_deletion_implemented_local_requires_final_verification",
+      "nativeContract": "参考 Re 删除确认调用 /voice/clone/delete，成功后停止试听、移除音色和收藏，并清除当前已选音色；本项目以本人登记的生成音色为删除边界。",
+      "upstreamContract": "https://platform.minimax.io/docs/api-reference/voice-management-delete",
+      "mechanism": ["按空间、供应商账号及音色持久化 pending/unknown/failed/deleted 操作；单次派发声明避免重复删除", "超时保留未知结果；查询完整的对应音色目录类别确认是否已删除；明确再次确认才允许重试", "删除状态阻止重新登记和继续配音；成功清理登记和收藏，保留已生成音频、画布结果与账单", "编辑资格、供应商账号和工作空间变化拒绝旧响应；系统音色和其他成员音色不能删除"],
+      "browserCases": 4,
+      "databaseCases": 3,
+      "verified": ["取消确认不请求，双击只请求一次，成功停止试听并清除当前选择", "重新打开先查询原操作，不自动重复供应商删除；编辑资格失效和跨空间迟到响应隔离", "真实 PostgreSQL 验证删除幂等、未知结果恢复、明确重试及历史保留", "已有 MP3 仍可读取，账单不变，重新登记和已删除音色配音拒绝；无权限、错误目录证明和系统音色拒绝"],
+      "relatedRegression": "114 项前端回归及 47 项隔离数据库检查通过；供应商使用测试替身，未实际删除生产音色。",
+      "remaining": ["录音克隆及供应商已有音色的完整登记/删除管理", "参考全部菜单视觉细节及生产账号最终验收"]
     },
     "modelBackendEvidence": {
       "source": ["app/services/canvas_model_tasks.py", "app/services/hunyuan3d.py", "static/js/pixmax-model-creation.js", "static/js/pixmax-model-preview.js"],

@@ -49,7 +49,10 @@ def admit():
         voice_id = row['request'].get('timbre_id')
         if row['kind'] == 'audio' and row['request'].get('mode') == 'speech' and isinstance(voice_id, str) and voice_id.startswith('canvas-voice-'):
             if not conn.execute('''SELECT 1 FROM audio_voice_registrations WHERE workspace_id=%s
-                AND provider_id=%s AND account_ref=%s AND voice_id=%s FOR SHARE''',
+                AND provider_id=%s AND account_ref=%s AND voice_id=%s
+                AND NOT EXISTS(SELECT 1 FROM audio_voice_deletions d WHERE d.workspace_id=audio_voice_registrations.workspace_id
+                AND d.provider_id=audio_voice_registrations.provider_id AND d.account_ref=audio_voice_registrations.account_ref
+                AND d.voice_id=audio_voice_registrations.voice_id AND d.state IN ('pending','unknown','deleted')) FOR SHARE''',
                 (workspace, row['provider_id'], row['provider_account_ref'], voice_id)).fetchone():
                 az.fail('audio_voice_not_registered', 403)
         identity = uuid.uuid4()

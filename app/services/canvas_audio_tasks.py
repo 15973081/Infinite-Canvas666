@@ -32,7 +32,10 @@ def validate_provider(provider, payload):
         from app.storage.workspace import current_workspace
         with database.connection() as conn:
             if not conn.execute('''SELECT 1 FROM audio_voice_registrations WHERE workspace_id=%s
-                AND provider_id=%s AND account_ref=%s AND voice_id=%s LIMIT 1''',
+                AND provider_id=%s AND account_ref=%s AND voice_id=%s
+                AND NOT EXISTS(SELECT 1 FROM audio_voice_deletions d WHERE d.workspace_id=audio_voice_registrations.workspace_id
+                AND d.provider_id=audio_voice_registrations.provider_id AND d.account_ref=audio_voice_registrations.account_ref
+                AND d.voice_id=audio_voice_registrations.voice_id AND d.state IN ('pending','unknown','deleted')) LIMIT 1''',
                 (current_workspace(), payload.provider_id, account_ref(payload.provider_id), payload.timbre_id)).fetchone():
                 raise HTTPException(403, {'code': 'audio_voice_not_registered'})
 

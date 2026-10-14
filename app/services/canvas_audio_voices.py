@@ -71,13 +71,16 @@ async def catalog(provider_id, model):
             response.raise_for_status()
             if len(response.content) > 8 * 1024 * 1024:
                 raise HTTPException(502, '音色目录超过大小限制')
-            voices = normalize(response.json())
+            value = response.json()
+            voices = normalize(value)
     except (httpx.HTTPError, ValueError):
         raise HTTPException(502, '音色目录读取失败，请稍后重试') from None
     with az.policy_transaction() as conn:
         _, _, current, owner = context(conn, provider_id, model)
         if current != account or owner != member:
             az.fail('audio_voice_account_changed', 409)
+        from app.services.canvas_audio_voice_deletions import reconcile
+        deletion_states={row['voice_id']:row['state'] for row in reconcile(conn,provider_id,account,member,value)}
         favorite = {row['voice_id'] for row in conn.execute('''SELECT voice_id FROM audio_voice_favorites
             WHERE workspace_id=%s AND member_id=%s AND provider_id=%s AND account_ref=%s''', (current_workspace(), member, provider_id, account))}
         samples = conn.execute('''SELECT DISTINCT ON(t.request->>'timbre_id') t.request->>'timbre_id' AS voice_id,a.*
@@ -99,6 +102,7 @@ async def catalog(provider_id, model):
             AND t.provider_id=%s AND t.provider_account_ref=%s AND t.kind='audio' AND t.request->>'mode'='design'
             AND t.status IN ('queued','running','submitting','polling','finalizing','needs_review','succeeded')
             AND NOT EXISTS(SELECT 1 FROM audio_voice_registrations r WHERE r.workspace_id=t.workspace_id AND r.member_id=t.requested_by AND r.task_id=t.id)
+            AND NOT EXISTS(SELECT 1 FROM audio_voice_deletions d WHERE d.workspace_id=t.workspace_id AND d.task_id=t.id AND d.state IN ('pending','unknown','deleted'))
             LIMIT 1''', (current_workspace(), member, provider_id, account)).fetchone()
     registered_by_id = {row['voice_id']: row for row in registered}
     # App-created voices appear only after registration in the current person's
@@ -115,6 +119,7 @@ async def catalog(provider_id, model):
             voice['preview_url'] = stable_url(row) if row.get('status') == 'ready' and not row.get('deleted_at') and not (row.get('metadata') or {}).get('chat_owner') else preview.get(voice['id'], '')
             voice['category'] = 'clone'
             voice['source'] = 'design'
+            voice['delete_state'] = deletion_states.get(voice['id'],'active')
     can_design = 'voice-design' in (provider.get('audio_models') or [])
     if can_design:
         try:
@@ -133,7 +138,8 @@ def design_tasks(provider_id, model, canvas_id, node_id):
         if canvas['deleted_at'] or not any(node.get('id') == node_id for node in canvas['document'].get('nodes', [])):
             az.fail('voice_design_node_not_found', 404)
         rows = conn.execute('''SELECT id,status,request,result,
-            EXISTS(SELECT 1 FROM audio_voice_registrations r WHERE r.workspace_id=tasks.workspace_id AND r.member_id=tasks.requested_by AND r.task_id=tasks.id) AS registered
+            (EXISTS(SELECT 1 FROM audio_voice_registrations r WHERE r.workspace_id=tasks.workspace_id AND r.member_id=tasks.requested_by AND r.task_id=tasks.id)
+             OR EXISTS(SELECT 1 FROM audio_voice_deletions d WHERE d.workspace_id=tasks.workspace_id AND d.task_id=tasks.id AND d.state IN ('pending','unknown','deleted'))) AS registered
             FROM tasks WHERE workspace_id=%s AND canvas_id=%s
             AND requested_by=%s AND provider_id=%s AND provider_account_ref=%s AND kind='audio'
             AND request->>'mode'='design' AND request->'_canvas_binding'->>'source_node_id'=%s
@@ -162,6 +168,10 @@ def register(payload):
         voice_id = (row.get('result') or {}).get('audio_info', {}).get('voice_id')
         if not isinstance(voice_id, str) or not 1 <= len(voice_id) <= 180:
             az.fail('voice_design_result_invalid', 409)
+        if conn.execute('''SELECT 1 FROM audio_voice_deletions WHERE workspace_id=%s AND provider_id=%s
+            AND account_ref=%s AND voice_id=%s AND state IN ('pending','unknown','deleted') FOR SHARE''',
+            (current_workspace(),payload.provider_id,account,voice_id)).fetchone():
+            az.fail('voice_delete_in_progress_or_deleted',409)
         if not payload.name.strip() or not payload.language.strip():
             az.fail('voice_registration_name_required', 400)
         conn.execute('''INSERT INTO audio_voice_registrations(workspace_id,member_id,provider_id,account_ref,voice_id,task_id,name,language,accent,gender,age,description)

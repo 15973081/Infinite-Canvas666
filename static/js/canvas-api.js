@@ -501,6 +501,13 @@
         return request('/api/canvas-audio-voices/design-tasks?'+new URLSearchParams({provider_id:provider,model,canvas_id:canvasId,node_id:nodeId}), {signal:AbortSignal.timeout(15000),...init});
     }
 
+    function deleteCanvasAudioVoice(payload,init={}){
+        return request('/api/canvas-audio-voices/delete',{...jsonBodyInit('POST',payload),signal:AbortSignal.timeout(30000),...init});
+    }
+    function getCanvasAudioVoiceDeleteStatus(payload,init={}){
+        return request('/api/canvas-audio-voices/delete-status',{...jsonBodyInit('POST',payload),signal:AbortSignal.timeout(25000),...init});
+    }
+
     function queryImageTask(payload, options={}){
         return json('/api/image-task-query', jsonBodyInit('POST', payload), {checkOk:true, ...options});
     }
@@ -581,6 +588,8 @@
         setCanvasAudioVoiceFavorite,
         registerCanvasAudioVoice,
         getCanvasAudioVoiceDesignTasks,
+        deleteCanvasAudioVoice,
+        getCanvasAudioVoiceDeleteStatus,
         queryImageTask
     };
 })();

@@ -3,15 +3,15 @@
     'use strict';
     let active=null;
     const languages={'Chinese':'中文','Chinese,Yue':'粤语','English':'英语','Japanese':'日语','Korean':'韩语','Spanish':'西班牙语','French':'法语','German':'德语'};
-    function close(){if(!active)return;const state=active;active=null;state.abort.abort();stop(state);state.observer.disconnect();state.root.remove();document.removeEventListener('keydown',state.escape,true);window.removeEventListener('pagehide',close);window.PixmaxVoiceDesign?.close();}
+    function close(){if(!active)return;const state=active;active=null;state.abort.abort();stop(state);state.observer.disconnect();state.confirm?.remove();state.root.remove();document.removeEventListener('keydown',state.escape,true);window.removeEventListener('pagehide',close);window.PixmaxVoiceDesign?.close();}
     function stop(state){if(state.audio){state.audio.pause();state.audio.removeAttribute('src');state.audio.load();state.audio.remove();state.audio=null;}state.playing='';}
-    function open({parent,node,provider,model,value,valid,onSelect}){
+    function open({parent,node,provider,model,value,valid,onSelect,onDeleteSelected}){
         close();const root=document.createElement('div');root.className='pixmax-voice-modal';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','音色选择');
         root.innerHTML=`<section><header><strong>音色选择</strong><button type="button" data-voice-close aria-label="关闭音色选择">×</button></header><nav role="tablist" aria-label="音色分类">${[['system','音色库'],['clone','我的音色'],['favorite','收藏音色']].map(([id,label])=>`<button type="button" role="tab" data-voice-tab="${id}" aria-selected="${id==='system'}">${label}</button>`).join('')}</nav><div class="pixmax-voice-controls"><input type="search" aria-label="搜索音色" placeholder="搜索音色名称或描述"><select aria-label="音色语言"></select><select aria-label="音色性别"></select><button type="button" data-voice-refresh>刷新</button></div><p role="status"></p><div data-voice-list></div><footer><button type="button" data-voice-more hidden>加载更多</button></footer></section>`;
         document.body.appendChild(root);
         const extra=document.createElement('details');extra.className='pixmax-voice-filters';extra.innerHTML='<summary>更多筛选</summary><label>口音<select aria-label="音色口音"></select></label><fieldset><legend>年龄</legend><div data-voice-ages></div></fieldset>';
         root.querySelector('[role=status]').before(extra);
-        const state={root,parent,provider,model,value,valid,onSelect,abort:new AbortController(),voices:[],category:'system',limit:50,request:0,audio:null,playing:'',escape:event=>{if(event.key==='Escape'&&!window.PixmaxVoiceDesign?.opened){event.preventDefault();event.stopImmediatePropagation();close();}},observer:null};active=state;
+        const state={root,parent,provider,model,value,valid,onSelect,abort:new AbortController(),voices:[],category:'system',limit:50,request:0,audio:null,playing:'',confirm:null,escape:event=>{if(event.key==='Escape'&&state.confirm?.isConnected){event.preventDefault();event.stopImmediatePropagation();state.confirm.remove();state.confirm=null;root.querySelector('input')?.focus();return;}if(event.key==='Escape'&&!window.PixmaxVoiceDesign?.opened){event.preventDefault();event.stopImmediatePropagation();close();}},observer:null};active=state;
         const status=root.querySelector('[role=status]'),list=root.querySelector('[data-voice-list]'),search=root.querySelector('input'),language=root.querySelector('[aria-label="音色语言"]'),gender=root.querySelector('[aria-label="音色性别"]'),accent=root.querySelector('[aria-label="音色口音"]'),ages=root.querySelector('[data-voice-ages]'),more=root.querySelector('[data-voice-more]');
         const usable=()=>active===state&&root.isConnected&&parent.isConnected&&valid();
         const design=document.createElement('button');design.type='button';design.dataset.voiceDesign='';design.disabled=true;design.textContent='文本生成音色';design.title='请为当前供应商配置 voice-design 音色设计模型';root.querySelector('.pixmax-voice-controls').appendChild(design);
@@ -32,6 +32,29 @@
             const query=search.value.trim().toLocaleLowerCase(),selectedAges=[...ages.querySelectorAll('input:checked')].map(input=>input.value),voices=state.voices.filter(voice=>(state.category==='favorite'?voice.favorite:voice.category===state.category)&&(!language.value||voice.language===language.value)&&(!gender.value||voice.gender===gender.value)&&(!accent.value||voice.accent===accent.value)&&(!selectedAges.length||selectedAges.includes(voice.age))&&(!query||[voice.name,voice.id,voice.description].join(' ').toLocaleLowerCase().includes(query)));
             list.innerHTML=voices.slice(0,state.limit).map(voice=>`<article data-voice-id="${escapeAttr(voice.id)}"><div><strong>${escapeHtml(voice.name)}</strong><small>${escapeHtml(languages[voice.language]||voice.language||'')}</small><p>${escapeHtml(voice.description)}</p></div><div class="pixmax-voice-actions">${voice.task_id?'<button type="button" data-voice-edit aria-label="编辑音色">编辑</button>':''}<button type="button" data-voice-preview ${voice.preview_url?'':'disabled'} aria-label="${escapeAttr((state.playing===voice.id?'停止试听 ':'试听音色 ')+voice.name)}" title="${voice.preview_url?'上次生成样例':'暂无试听样例'}">${state.playing===voice.id?'■':'▷'}</button><button type="button" data-voice-favorite aria-pressed="${voice.favorite}" aria-label="${escapeAttr((voice.favorite?'取消收藏 ':'收藏音色 ')+voice.name)}">${voice.favorite?'★':'☆'}</button><button type="button" data-voice-select ${voice.id===state.value?'aria-current="true"':''}>${voice.id===state.value?'已选中':'选择'}</button></div></article>`).join('');
             more.hidden=voices.length<=state.limit;if(!voices.length)list.innerHTML='<p class="pixmax-voice-empty">暂无音色</p>';
+            for(const card of list.querySelectorAll('[data-voice-id]')){
+                const voice=state.voices.find(item=>item.id===card.dataset.voiceId);if(!voice?.task_id)continue;
+                const blocked=['pending','unknown'].includes(voice.delete_state);if(blocked)card.querySelectorAll('[data-voice-select],[data-voice-edit],[data-voice-favorite]').forEach(button=>button.disabled=true);
+                const button=document.createElement('button');button.type='button';button.dataset.voiceDelete='';button.textContent=blocked?'查询删除结果':'删除';button.setAttribute('aria-label',button.textContent+' '+voice.name);card.querySelector('.pixmax-voice-actions').appendChild(button);
+            }
+        }
+        function deleted(voice){stop(state);state.voices=state.voices.filter(item=>item.id!==voice.id);if(state.value===voice.id){state.value='';onDeleteSelected?.();}render();status.textContent='音色已删除';}
+        async function checkDeleted(voice){
+            if(!usable())return;const proof=state.catalog,serial=state.request;
+            try{const response=await CanvasApi.getCanvasAudioVoiceDeleteStatus({provider_id:provider,model,catalog_id:proof,voice_id:voice.id},{signal:state.abort.signal});if(!usable()||state.catalog!==proof||serial!==state.request)return;if(!response.ok)throw Error(await responseErrorMessage(response,'删除结果查询失败'));const result=await response.json();if(result.voice_id!==voice.id)throw Error('音色删除标识不一致');
+                if(result.state==='deleted')deleted(voice);else{voice.delete_state=result.state;render();status.textContent='删除尚未确认';if(result.can_retry)confirmDelete(voice,true);}
+            }catch(error){if(usable())status.textContent=error.message||'删除结果查询失败，请稍后重试';}
+        }
+        function confirmDelete(voice,retry=false){
+            if(!usable())return;stop(state);state.confirm?.remove();const modal=pixmaxCreationModal('删除音色');modal.classList.add('pixmax-voice-delete-confirm');modal.tabIndex=-1;state.confirm=modal;modal.focus({preventScroll:true});
+            modal.querySelector('.pixmax-creation-content').innerHTML=`<p>${retry?'上次删除未确认，确认再次删除':'确认是否删除'}「${escapeHtml(voice.name)}」？</p><div class="pixmax-voice-delete-actions"><button type="button" data-voice-delete-cancel>取消</button><button type="button" data-voice-delete-confirm>确认删除</button></div>`;
+            const cancel=()=>{modal.remove();if(state.confirm===modal)state.confirm=null;root.querySelector('input')?.focus();};modal.querySelector('[data-creation-close]').onclick=cancel;modal.querySelector('[data-voice-delete-cancel]').onclick=cancel;
+            modal.querySelector('[data-voice-delete-confirm]').onclick=async event=>{
+                if(!usable()||event.target.disabled)return;event.target.disabled=true;const proof=state.catalog,serial=state.request;modal.querySelector('[role=status]').textContent='正在删除…';
+                try{const response=await CanvasApi.deleteCanvasAudioVoice({provider_id:provider,model,catalog_id:proof,voice_id:voice.id,retry},{signal:state.abort.signal});if(!usable()||state.catalog!==proof||serial!==state.request)return;if(!response.ok)throw Error(await responseErrorMessage(response,'音色删除失败'));const result=await response.json();if(result.voice_id!==voice.id)throw Error('音色删除标识不一致');
+                    cancel();if(result.state==='deleted')deleted(voice);else{voice.delete_state=result.state;render();status.textContent=result.state==='failed'?'音色未删除，请重试':'删除结果待确认，请查询原操作';}
+                }catch(error){if(usable()){voice.delete_state='unknown';cancel();render();status.textContent=error.message||'删除未确认，请查询原操作';}}
+            };
         }
         for(const input of [search,language,gender,accent,ages])input.addEventListener(input===search?'input':'change',()=>{state.limit=50;render();});
         more.onclick=()=>{state.limit+=50;render();};
@@ -43,6 +66,7 @@
         list.onclick=async event=>{
             const button=event.target.closest('button'),card=button?.closest('[data-voice-id]'),voice=state.voices.find(voice=>voice.id===card?.dataset.voiceId);if(!voice)return;
             if(!usable()){close();return;}
+            if(button.hasAttribute('data-voice-delete')){if(['pending','unknown'].includes(voice.delete_state))await checkDeleted(voice);else confirmDelete(voice);return;}
             if(button.hasAttribute('data-voice-edit')){create(voice);return;}
             if(button.hasAttribute('data-voice-select')){onSelect(voice);close();return;}
             if(button.hasAttribute('data-voice-preview')){

@@ -927,6 +927,18 @@ def canvas_audio_voice_registration(payload: CanvasAudioVoiceRegistration):
     return register(payload)
 
 
+@router.post('/api/canvas-audio-voices/delete')
+async def canvas_audio_voice_delete(payload: CanvasAudioVoiceDelete):
+    from app.services.canvas_audio_voice_deletions import delete
+    return await delete(payload)
+
+
+@router.post('/api/canvas-audio-voices/delete-status')
+async def canvas_audio_voice_delete_status(payload: CanvasAudioVoiceDelete):
+    from app.services.canvas_audio_voice_deletions import status
+    return await status(payload)
+
+
 @router.post('/api/canvas-audio-tasks')
 def create_canvas_audio_task(payload: CanvasAudioTaskRequest):
     from app.services.canvas_audio_tasks import create
