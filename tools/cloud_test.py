@@ -84,6 +84,7 @@ def main(argv=None):
             suites.append("test_cloud_video_analysis.py")
             suites.append("test_cloud_pixmax_video_parse.py")
             suites.append("test_cloud_pixmax_storyboard_assets.py")
+            suites.append("test_cloud_subject_library.py")
             return pytest.main([*(str(ROOT / "tests" / name) for name in suites), "-q", *(argv or [])])
         finally:
             try:

@@ -93,6 +93,22 @@
       "changes": ["播放器与编辑器约 7.6 MB JavaScript 按需加载", "局部连线更新复用 SVG 索引", "只复制受影响连线并复用拓扑摘要", "空刷新跳过无效更新"],
       "limit": "这是本项目优化前后的单次测量，不能据此断言整体帧率或相对 Pixmax 的快慢；当前已增加相邻边索引；结构摘要校验仍遍历图结构，后续还需同场景双方对照"
     },
+    "subjectLibraryDataEvidence": {
+      "status": "in_progress",
+      "phase": "data_backend_implemented",
+      "source": ["app/services/subject_library.py", "app/routers/subject_library.py", "app/services/member_gateway.py", "app/storage/documents.py", "app/services/account_data.py", "app/services/account_closure.py", "static/js/account-data.js", "tests/test_cloud_subject_library.py"],
+      "storage": "workspace_documents 的 subject_library 类型；TEAM 使用 team 键，PERSONAL 使用服务端登录成员的 personal:<member_id> 键。目录元数据按成员与空间隔离，素材仍使用现有空间权限。",
+      "verified": ["真实成员 HTTP 与 PostgreSQL 验证个人目录不可由另一成员读写；空间主体可由有素材管理权限的成员共同编辑；同一成员在不同空间的目录独立", "主体组及文字、图片、音频、视频素材的增删改查、封面选择和资源计数；文字正文保留原有换行和缩进", "查询单个主体只解析该组素材；所有成功响应禁止缓存。写操作使用目录 revision 和事务内权限检查，首次创建及已有目录并发写入均只有一个成功，不覆盖另一个窗口", "媒体必须是当前空间已就绪的真实对象，类型需一致；拒绝外部地址、跨空间对象、未共享聊天附件、删除中的媒体和客户端伪造认证数据", "主体只保存素材库来源身份，读取时获取最新供应商认证状态；接口输出限制认证字段，目录不会保存密钥或过期认证副本", "主体引用阻止素材彻底删除；删除组或条目仅移除引用，保留素材文件。生成作品加入主体后从收件箱进入已保存状态", "个人数据包含各空间本人主体目录，包括已退出空间；导出 ZIP 新增 subject-libraries.json，并检测导出期间的目录修改、删除和新增。空间素材原文件不作为个人私有附件导出", "账号注销仅清理本人主体目录，保留空间主体、其他成员目录和空间素材；账本写入失败回滚，已接受的中断注销可重放，旧备份恢复的目录不能读取或重新保存且后台会清理", "单目录最多 200 组、每组最多 100 项、目录元数据最多 2 MiB；超限或维护只读均拒绝写入并保持原 revision；撤销素材管理权限立即阻止修改"],
+      "verification": {
+        "subjectDatabaseCases": 13,
+        "relatedDatabaseCases": 82,
+        "relatedDatabaseSkipped": 1,
+        "accountBrowserCases": 2,
+        "logs": [".local/pixmax-subject-library-module-final.log", ".local/pixmax-subject-library-module-regression.log", ".local/pixmax-subject-account-browser.log"],
+        "scope": "13 项新增真实数据库主体测试包含在 82 项相关回归内，计数不相加；后续仅调整文字正文保留空白的校验后重跑 13 项。账号浏览器回归使用 API 夹具。未调用付费供应商。"
+      },
+      "remaining": ["原生 cX 主体卡片、个人/空间目录管理与 M1 subject-reference 标签的 UI 接入", "主体组展开为隐藏输入节点、实际供应商提示词与混合媒体请求接线；原生浏览器与真实数据库联合验收", "目录修改/删除/权限撤销期间的生成签名检查、保存重开、复制、跨空间重新选择、工作流 ZIP 的最终对照", "主体目录视觉、移动端与大规模交互的最终验证"]
+    },
     "segmentReshootEvidence": {
       "source": ["static/js/pixmax-segment-reshoot.js", "static/js/pixmax-canvas-player.js", "static/js/pixmax-workflow.js", "static/vendor/pixmax/editors.js", "static/js/canvas/smart/smart-workspace.js", "static/js/canvas/smart/smart-execution.js", "static/js/canvas/smart/smart-document.js", "static/js/pixmax-batch-execution.js", "tests/helpers/pixmax-segment-reshoot-http.cjs", "tests/helpers/pixmax-reshoot-native.cjs"],
       "status": "implemented_requires_final_verification",

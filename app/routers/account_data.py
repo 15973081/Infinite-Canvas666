@@ -22,7 +22,7 @@ def personal_export(request:Request,member_id:str=Form('',max_length=80)):
     principal=actor(request)
     if member_id and member_id!=principal.member_id: raise HTTPException(409,'登录账号已变化，请重新打开个人数据。')
     path=account_data.export(principal)
-    return FileResponse(path,media_type='application/zip',filename='我的对话与附件.zip',headers={'Cache-Control':'private, no-store'})
+    return FileResponse(path,media_type='application/zip',filename='我的个人数据.zip',headers={'Cache-Control':'private, no-store'})
 
 
 class ClosureRequest(BaseModel):

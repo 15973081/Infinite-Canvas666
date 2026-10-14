@@ -27,15 +27,15 @@
           if(boundMember&&data.member.id!==boundMember)throw Error('登录账号已变化，请重新打开个人数据。');
           const size=data.bytes>=1024**2?(data.bytes/1024**2).toFixed(1)+' MB':Math.ceil(data.bytes/1024)+' KB';
           body.replaceChildren(node('p',data.member.display_name+' · '+data.member.username),
-            node('p','本人对话 '+data.conversations+' 个，附件及预览 '+data.objects+' 个，约 '+size+'。'),
-            node('p','对话保存在服务器数据库，附件保存在服务器私有对象存储。统计与导出包含各空间本人数据，包括已归档或已退出空间中的本人记录。'));
+            node('p','本人对话 '+data.conversations+' 个，个人主体目录 '+(data.subject_catalogs||0)+' 个；附件及预览 '+data.objects+' 个，约 '+size+'。'),
+            node('p','对话与个人主体目录保存在服务器数据库，附件保存在服务器私有对象存储。统计与导出包含各空间本人数据，包括已归档或已退出空间中的本人记录。'));
           for(const item of data.retained)body.append(node('p',item));
           const form=node('form'), frame=node('iframe'), member=node('input'), submit=node('button','导出本人数据（ZIP）');
           frame.name='personal-export-'+(++frameCounter);frame.hidden=true;frame.title='个人数据导出结果';
           form.action='/api/account/data/export';form.method='POST';form.target=frame.name;
           member.type='hidden';member.name='member_id';member.value=data.member.id;submit.type='submit';
           form.append(member,submit);body.append(form,frame);
-          form.onsubmit=()=>{submit.disabled=true;status.textContent='导出请求已提交，完成后浏览器会下载 ZIP；请保持页面打开。对话或附件变化时需重新导出。';};
+          form.onsubmit=()=>{submit.disabled=true;status.textContent='导出请求已提交，完成后浏览器会下载 ZIP；请保持页面打开。对话、主体或附件变化时需重新导出。';};
           frame.onload=()=>{
             try{const text=frame.contentDocument?.body?.innerText;if(!text)return;
               const error=JSON.parse(text);status.textContent=typeof error.detail==='string'?error.detail:'导出失败，请检查登录状态后重试。';submit.disabled=false;
@@ -46,7 +46,7 @@
           password.type='password';password.autocomplete='current-password';password.required=true;password.minLength=12;password.maxLength=256;
           confirmation.type='text';confirmation.required=true;confirmation.maxLength=40;
           passwordLabel.append(password);confirmLabel.append(confirmation);closeAccount.type='submit';
-          closure.append(node('h3','注销账号'),node('p','注销后无法登录，清理本人对话、Skill 快照及未被他人引用的附件。共享画布、已发布 Skill、费用和必要审计保留；最后管理员、进行中的任务或他人引用会阻止注销。请先导出需要保留的数据。'),passwordLabel,confirmLabel,closeAccount);
+          closure.append(node('h3','注销账号'),node('p','注销后无法登录，清理本人对话、个人主体目录、Skill 快照及未被他人引用的附件。共享画布、空间主体与素材、已发布 Skill、费用和必要审计保留；最后管理员、进行中的任务或他人引用会阻止注销。请先导出需要保留的数据。'),passwordLabel,confirmLabel,closeAccount);
           closure.onsubmit=async event=>{
             event.preventDefault();
             if(confirmation.value!=='注销并删除本人数据'){status.textContent='请完整输入确认文字。';return;}
@@ -63,7 +63,7 @@
             }catch(error){password.value='';status.textContent=error.message;closeAccount.disabled=false;}
           };
           body.append(closure);
-          status.textContent='ZIP 包含本人对话、其中的 Skill 快照、附件原文件及预览、个人启用偏好；不会导出他人的原文件。';refresh.hidden=true;
+          status.textContent='ZIP 包含本人对话、个人主体目录元数据、对话中的 Skill 快照、附件原文件及预览、个人启用偏好。主体引用的素材文件继续由空间管理。';refresh.hidden=true;
         }catch(error){status.textContent=error.message;refresh.hidden=false;}
         finally{refresh.disabled=false;}
       }

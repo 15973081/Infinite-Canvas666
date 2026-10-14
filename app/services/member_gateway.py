@@ -61,6 +61,16 @@ def selected_workspace(scope):
 
 
 def permissions(path, method):
+    if path == '/api/subject-library' and method == 'GET':
+        return ('asset.read',)
+    if re.fullmatch(r'/api/subject-library/(?:PERSONAL|TEAM)/groups', path) and method == 'POST':
+        return ('asset.read', 'asset.manage')
+    if re.fullmatch(r'/api/subject-library/(?:PERSONAL|TEAM)/groups/sub_[a-f0-9]{32}', path):
+        return ('asset.read',) if method == 'GET' else ('asset.read', 'asset.manage') if method in {'PATCH', 'DELETE'} else None
+    if re.fullmatch(r'/api/subject-library/(?:PERSONAL|TEAM)/groups/sub_[a-f0-9]{32}/items', path) and method == 'POST':
+        return ('asset.read', 'asset.manage')
+    if re.fullmatch(r'/api/subject-library/(?:PERSONAL|TEAM)/groups/sub_[a-f0-9]{32}/items/sbi_[a-f0-9]{32}', path) and method in {'PATCH', 'DELETE'}:
+        return ('asset.read', 'asset.manage')
     if page_address(path) and method in {'GET', 'HEAD'}:
         return ('canvas.read',)
     if path=='/api/chat/attachments/preview' and method=='POST':

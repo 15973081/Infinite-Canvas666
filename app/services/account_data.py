@@ -13,7 +13,7 @@ from app.storage.workspace import workspace_scope
 
 
 RETAINED = [
-    '共享画布、空间素材、已发布 Skill 和他人对话由各空间继续管理。',
+    '共享画布、空间主体、空间素材、已发布 Skill 和他人对话由各空间继续管理；个人主体导出目录元数据，素材文件仍由空间管理。',
     '费用账本、任务归属和必要审计记录独立保留，不因删除个人对话而消失。',
     '已下载或导出的副本、旧备份字节和模型供应商收到的内容需分别处理。',
 ]
@@ -28,12 +28,14 @@ def summary(actor):
     with az.policy_transaction() as conn:
         profile=_member(conn,actor); owner=actor.member_id
         docs=conn.execute("SELECT count(*) AS n FROM workspace_documents WHERE kind='conversation' AND starts_with(id,%s)",(owner+'/',)).fetchone()['n']
+        subjects=conn.execute("SELECT count(*) AS n FROM workspace_documents WHERE kind='subject_library' AND id=%s",('personal:'+owner,)).fetchone()['n']
         files=conn.execute("SELECT count(*) AS n,coalesce(sum(size_bytes),0) AS bytes FROM assets WHERE metadata->>'chat_owner'=%s AND status<>'deleted'",(owner,)).fetchone()
         spaces=conn.execute('''SELECT w.id,w.name,w.status FROM workspaces w WHERE w.id IN (
             SELECT workspace_id FROM workspace_documents WHERE kind='conversation' AND starts_with(id,%s)
-            UNION SELECT workspace_id FROM assets WHERE metadata->>'chat_owner'=%s AND status<>'deleted') ORDER BY w.id''',(owner+'/',owner)).fetchall()
+            UNION SELECT workspace_id FROM workspace_documents WHERE kind='subject_library' AND id=%s
+            UNION SELECT workspace_id FROM assets WHERE metadata->>'chat_owner'=%s AND status<>'deleted') ORDER BY w.id''',(owner+'/','personal:'+owner,owner)).fetchall()
     return {'member':{key:profile[key] for key in ('id','username','display_name','avatar')},
-            'conversations':docs,'objects':files['n'],'bytes':int(files['bytes']),'workspaces':spaces,'retained':RETAINED}
+            'conversations':docs,'subject_catalogs':subjects,'objects':files['n'],'bytes':int(files['bytes']),'workspaces':spaces,'retained':RETAINED}
 
 
 def _json(value):
@@ -46,6 +48,7 @@ def export(actor):
         profile=_member(conn,actor)
         owner=actor.member_id
         docs=conn.execute("SELECT workspace_id,id,value,revision FROM workspace_documents WHERE kind='conversation' AND starts_with(id,%s) ORDER BY workspace_id,id",(owner+'/',)).fetchall()
+        subjects=conn.execute("SELECT workspace_id,id,value,revision FROM workspace_documents WHERE kind='subject_library' AND id=%s ORDER BY workspace_id",('personal:'+owner,)).fetchall()
         assets=conn.execute("SELECT * FROM assets WHERE metadata->>'chat_owner'=%s AND status<>'deleted' ORDER BY workspace_id,id",(owner,)).fetchall()
         preferences=conn.execute('SELECT workspace_id,skill_id,enabled FROM member_skill_preferences WHERE member_id=%s ORDER BY workspace_id,skill_id',(owner,)).fetchall()
         voice_favorites=conn.execute('SELECT workspace_id,provider_id,voice_id FROM audio_voice_favorites WHERE member_id=%s ORDER BY workspace_id,provider_id,voice_id',(owner,)).fetchall()
@@ -56,16 +59,18 @@ def export(actor):
     if any(a['status']!='ready' or a['deleted_at'] for a in assets):
         raise HTTPException(409,'附件仍在上传或清理，请完成处理后重新导出。')
     manifest={'version':1,'member':{key:profile[key] for key in ('id','username','display_name','avatar')},
-              'conversations':len(docs),'attachments':[],'preferences':preferences,'audio_voice_favorites':voice_favorites,'audio_voice_registrations':voice_registrations,'retained':RETAINED}
+              'conversations':len(docs),'subject_catalogs':len(subjects),'attachments':[],'preferences':preferences,'audio_voice_favorites':voice_favorites,'audio_voice_registrations':voice_registrations,'retained':RETAINED}
     document_bytes=_json(docs)
+    subject_bytes=_json(subjects)
     limit=max(1,int(os.getenv('ACCOUNT_EXPORT_MAX_BYTES',str(5*1024**3))))
-    total=len(document_bytes)+sum(a['size_bytes'] for a in assets)
+    total=len(document_bytes)+len(subject_bytes)+sum(a['size_bytes'] for a in assets)
     if total>limit:
         raise HTTPException(413,'个人导出超过服务器单次导出容量，请联系管理员进行完整导出。')
     media.check_budget(total*2+1024*1024)
     root=media.operation()['root']; output=root/'personal-data.zip'
     with zipfile.ZipFile(output,'x',compression=zipfile.ZIP_DEFLATED,allowZip64=True) as archive:
         archive.writestr('conversations.json',document_bytes)
+        archive.writestr('subject-libraries.json',subject_bytes)
         for snapshot in assets:
             with workspace_scope(snapshot['workspace_id']),access_scope(actor,snapshot['workspace_id'],()):
                 with az.policy_transaction() as conn:
@@ -93,6 +98,9 @@ def export(actor):
     # Revalidate source identities and deletions before publishing the ZIP response.
     with az.policy_transaction() as conn:
         _member(conn,actor)
+        current_subjects=conn.execute("SELECT workspace_id,revision FROM workspace_documents WHERE kind='subject_library' AND id=%s ORDER BY workspace_id",('personal:'+owner,)).fetchall()
+        if [(row['workspace_id'],row['revision']) for row in current_subjects] != [(row['workspace_id'],row['revision']) for row in subjects]:
+            raise HTTPException(409,'个人主体已变化，请重新导出。')
         for doc in docs:
             row=conn.execute("SELECT revision FROM workspace_documents WHERE workspace_id=%s AND kind='conversation' AND id=%s",(doc['workspace_id'],doc['id'])).fetchone()
             if not row or row['revision']!=doc['revision']:
@@ -103,5 +111,5 @@ def export(actor):
             if (not row or row['status']!='ready' or row['deleted_at'] or row['metadata'].get('chat_owner')!=owner
                 or row['object_version_id']!=snapshot['object_version_id'] or blocked(row)):
                 raise HTTPException(409,'附件已变化或删除，请重新导出。')
-        az.audit(conn,actor,'account.data.export_prepared',owner,details={'conversations':len(docs),'objects':len(assets),'bytes':total})
+        az.audit(conn,actor,'account.data.export_prepared',owner,details={'conversations':len(docs),'subject_catalogs':len(subjects),'objects':len(assets),'bytes':total})
     return output

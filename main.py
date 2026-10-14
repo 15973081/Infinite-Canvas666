@@ -121,6 +121,8 @@ app.include_router(auth_router)
 
 # --- Register all routers ---
 app.include_router(assets.router)
+from app.routers.subject_library import router as subject_library_router
+app.include_router(subject_library_router)
 app.include_router(canvas.router)
 from app.routers.canvas_pages import router as canvas_pages_router
 app.include_router(canvas_pages_router)

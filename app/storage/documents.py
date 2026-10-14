@@ -7,6 +7,9 @@ read_versions = ContextVar("document_read_versions", default=None)
 
 
 def get(kind, key="default", default=None):
+    if kind == 'subject_library' and key.startswith('personal:'):
+        from app.storage.deletion_ledger import member_blocked
+        if member_blocked(key[len('personal:'):]): return default
     if kind=='conversation':
         from app.storage.deletion_ledger import document_blocked
         if document_blocked(current_workspace(),key): return default
@@ -20,6 +23,9 @@ def get(kind, key="default", default=None):
 
 def put(kind, key, value, expected_revision=None):
     from fastapi import HTTPException
+    if kind == 'subject_library' and key.startswith('personal:'):
+        from app.storage.deletion_ledger import member_blocked
+        if member_blocked(key[len('personal:'):]): raise HTTPException(409, '账号已注销，不能重新保存个人主体。')
     if kind=='conversation':
         from app.storage.deletion_ledger import document_blocked
         if document_blocked(current_workspace(),key): raise HTTPException(409,'对话已删除或账号已注销，不能重新保存。')
@@ -46,7 +52,7 @@ def put(kind, key, value, expected_revision=None):
         if kind == 'history':
             from app.services.online_inbox import register
             register(conn, key, value)
-        elif kind == 'asset_library':
+        elif kind in {'asset_library', 'subject_library'}:
             from app.services.online_inbox import mark_library_saved
             mark_library_saved(conn,value)
         if versions is not None:

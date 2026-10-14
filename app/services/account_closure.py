@@ -14,6 +14,8 @@ CONFIRMATION='注销并删除本人数据'
 def apply_record(conn,record):
     """The authoritative accepted intent also repairs an interrupted DB commit."""
     owner=record['owner_id']
+    # Replay also removes catalogs restored from an older backup after closure.
+    conn.execute("DELETE FROM workspace_documents WHERE kind='subject_library' AND id=%s", ('personal:'+owner,))
     if conn.execute('SELECT 1 FROM account_closures WHERE member_id=%s',(owner,)).fetchone(): return
     if not conn.execute('SELECT 1 FROM members WHERE id=%s FOR UPDATE',(owner,)).fetchone(): return
     for attachment in record['attachments']:
@@ -82,8 +84,9 @@ def close(actor,password,confirmation):
             or conn.execute("SELECT 1 FROM backup_jobs WHERE member_id=%s AND status IN ('queued','running') LIMIT 1",(owner,)).fetchone()):
             raise HTTPException(409,'仍有进行中的生成、对话或备份任务，请完成或核对后再注销。')
         conn.execute('LOCK TABLE assets IN SHARE ROW EXCLUSIVE MODE')
-        # Remove only the owner's conversations inside this transaction; blockers roll this back.
+        # Remove the owner's private documents; blockers roll this transaction back.
         conn.execute("DELETE FROM workspace_documents WHERE kind='conversation' AND starts_with(id,%s)",(owner+'/',))
+        conn.execute("DELETE FROM workspace_documents WHERE kind='subject_library' AND id=%s", ('personal:'+owner,))
         roots=conn.execute("SELECT * FROM assets WHERE role='chat-attachment' AND metadata->>'chat_owner'=%s AND status<>'deleted' ORDER BY workspace_id,id",(owner,)).fetchall()
         attachments=[]
         from app.services.canvas_asset_purge import check_references
@@ -106,7 +109,7 @@ def close(actor,password,confirmation):
         ledger.write_record(record)
         apply_record(conn,record)
     return {'closed':True,'pending_attachments':len(attachments),
-            'message':'账号已注销，私有对话已清理；附件后台继续清理。费用、审计和空间共享资源独立保留。'}
+            'message':'账号已注销，私有对话和个人主体目录已清理；附件后台继续清理。费用、审计和空间共享资源独立保留。'}
 
 
 def reconcile(limit=5):
@@ -119,10 +122,15 @@ def reconcile(limit=5):
         if record['kind']=='attachment': continue
         with az.policy_transaction(change=True) as conn:
             if record['kind']=='account':
-                if (conn.execute('SELECT 1 FROM account_closures WHERE member_id=%s',(record['owner_id'],)).fetchone()
-                    or not conn.execute('SELECT 1 FROM members WHERE id=%s',(record['owner_id'],)).fetchone()): continue
-                conn.execute('LOCK TABLE assets IN SHARE ROW EXCLUSIVE MODE')
-                apply_record(conn,record)
+                if conn.execute('SELECT 1 FROM account_closures WHERE member_id=%s',(record['owner_id'],)).fetchone():
+                    removed=conn.execute("DELETE FROM workspace_documents WHERE kind='subject_library' AND id=%s",
+                                         ('personal:'+record['owner_id'],)).rowcount
+                    if not removed: continue
+                    az.audit(conn,None,'subject_library.closed_catalog_replayed',record['owner_id'],details={'catalogs':removed})
+                else:
+                    if not conn.execute('SELECT 1 FROM members WHERE id=%s',(record['owner_id'],)).fetchone(): continue
+                    conn.execute('LOCK TABLE assets IN SHARE ROW EXCLUSIVE MODE')
+                    apply_record(conn,record)
             elif record['kind']=='conversation':
                 deleted=conn.execute("DELETE FROM workspace_documents WHERE workspace_id=%s AND kind='conversation' AND id=%s",
                                      (record['workspace_id'],record['document_id'])).rowcount
