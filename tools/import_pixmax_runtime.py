@@ -23,7 +23,7 @@ runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e(".
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
 runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index.js")', 'e("../node_modules/is-buffer/index.js")')
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
-for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(']:
+for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
 marker_hook = 'let n=N,r=jNt(),i=G(_);'
 assert runtime.count(marker_hook) == 1, 'Video annotation controller changed; inspect before importing'
@@ -32,6 +32,13 @@ root_hook = 'var t=UNt(),r=H(t),i=V(r),'
 assert runtime.count(root_hook) == 1, 'Video annotation portal changed; inspect before importing'
 runtime = runtime.replace('function WNt(e,t){eu(t,!0);', 'function WNt(e,t){eu(t,!0);const markerProps=t;')
 runtime = runtime.replace(root_hook, 'var t=UNt(),r=H(t),i=(markerProps.onRootReady?.(r),V(r)),')
+timeline_start = runtime.index('function gMt(e,t){')
+timeline_end = runtime.index('hf([`pointerdown`,`pointermove`,`pointerup`]);var _Mt=', timeline_start)
+timeline = runtime[timeline_start:timeline_end]
+limit_hook = 'var t=mMt();let r;var i=V(t,!0);L(t),Zf(t,uv)'
+assert timeline.count(limit_hook) == 1, 'Reshoot range tooltip changed; inspect before importing'
+timeline = timeline.replace(limit_hook, 'var t=mMt();let r;var i=V(t,!0);L(t),Q(t,`data-pixmax-reshoot-range-limit`,``),Zf(t,uv)')
+runtime = runtime[:timeline_start] + timeline + runtime[timeline_end:]
 runtime += '''
 // Local integration exports. The original account/router bootstrap is excluded.
 export async function mountEditor(target, kind, props, notify) {
@@ -61,7 +68,20 @@ export const unmountCanvasPlayer = instance => Of(instance);
 // Reuse the original media processor; canvas persistence stays in the host app.
 export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
-export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt};
+export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
+  async mountTimeline(target, props) {
+    const container = new f, i18n = await KLe();
+    await du(i18n).changeLanguage('zh');
+    container.registerInstance(M_, i18n);
+    const range = z({startSec:props.startSec,endSec:props.endSec}), disabled = z(!!props.disabled);
+    const instance = Tf(gMt, {target, context:new Map([[tCe,container]]), props:{...props,
+      get startSec(){return G(range).startSec;}, get endSec(){return G(range).endSec;},
+      get disabled(){return G(disabled);}
+    }});
+    return {instance, setRange(value){B(range,value,true);}, setDisabled(value){B(disabled,!!value);},
+      setPlayheadTime(value){instance.setPlayheadTime(value);}, destroy(){return Of(instance);}};
+  }
+};
 // Preserve the native drawing tools, timeline and timestamped PNG export.
 export async function mountCanvasVideoAnnotation(target, props, adapter, notify) {
   const container = new f;
@@ -84,8 +104,8 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt'], 'model_graphics': ['J1e','Dc','Lc']},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

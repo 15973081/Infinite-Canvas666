@@ -6,15 +6,16 @@
     "editor": "ujt",
     "media_processor": "II",
     "video_annotation": "WNt",
+    "segment_reshoot": [
+      "wnt",
+      "Snt",
+      "Ktt",
+      "gMt"
+    ],
     "model_graphics": [
       "J1e",
       "Dc",
       "Lc"
-    ],
-    "segment_reshoot": [
-      "wnt",
-      "Snt",
-      "Ktt"
     ]
   },
   "changes": [
@@ -22,7 +23,9 @@
     "Export editor mounts and scoped service context",
     "Export native local audio/video separation",
     "Expose native video annotation with host graph adapter and marker lifetime hook",
-    "Export native segment reshoot crop, frame capture, range limits and upload cache"
+    "Export native segment reshoot crop, frame capture, range limits and upload cache",
+    "Expose native reshoot thumbnail timeline with reactive range and lifecycle controls",
+    "Scope native reshoot range tooltip above the host modal"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }

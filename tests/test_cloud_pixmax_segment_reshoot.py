@@ -84,7 +84,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
             except ValueError:
                 binary_file = 'binary-' + str(message['id']) + '.bin'
                 (tmp_path / binary_file).write_bytes(response.content)
-                answer.update(binaryFile=binary_file, contentType=response.headers.get('content-type', 'application/octet-stream'))
+                answer.update(binaryFile=binary_file, contentType=response.headers.get('content-type', 'application/octet-stream'), headers={key: response.headers[key] for key in ('content-range', 'accept-ranges', 'content-length') if key in response.headers})
             response_file = 'response-' + str(message['id']) + '.json'
             (tmp_path / response_file).write_text(json.dumps(answer), encoding='utf-8')
             process.stdin.write(json.dumps({'file': response_file}) + '\n'); process.stdin.flush()
