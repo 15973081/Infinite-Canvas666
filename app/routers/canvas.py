@@ -933,7 +933,8 @@ async def execute_canvas_llm(payload: CanvasLLMRequest, *, durable=False):
             upstream_messages.append({"role": role, "content": content})
     # 构造用户消息：有图片/视频时用 OpenAI/Gemini 多模态格式
     image_inputs = [img for img in (payload.images or []) if is_image_reference_value(img)]
-    video_inputs = [video for video in (payload.videos or []) if is_video_reference_value(video)]
+    video_inputs = ([video for video in (payload.videos or []) if isinstance(video,str) and video]
+                    if payload.video_sampling == 'uniform' else [video for video in (payload.videos or []) if is_video_reference_value(video)])
     if image_inputs or video_inputs:
         content_parts = [{"type": "text", "text": payload.message}]
         ok_imgs = 0
@@ -948,6 +949,15 @@ async def execute_canvas_llm(payload: CanvasLLMRequest, *, durable=False):
         ok_videos = 0
         for video in video_inputs[:3]:
             if not video or not isinstance(video, str):
+                continue
+            if payload.video_sampling == 'uniform':
+                from app.services.video_analysis import sample_managed_video
+                samples = await sample_managed_video(video, payload.video_frames)
+                ok_videos += 1
+                content_parts.append({'type':'text','text':f"视频 {ok_videos} 总时长 {samples['duration']} 秒。以下是覆盖全片的按时间排序采样画面，不包含音频；不要猜测未提供的对白或声音。"})
+                for sample in samples['frames']:
+                    content_parts.append({'type':'text','text':f"视频 {ok_videos} 时间 {sample['time']} 秒"})
+                    content_parts.append({'type':'image_url','image_url':{'url':sample['url']}})
                 continue
             frame_urls = await video_reference_to_frame_data_urls(video, max_frames=6, max_size=768)
             if frame_urls:

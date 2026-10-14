@@ -580,6 +580,10 @@ def trim_local_video(url: str, start_seconds: float, end_seconds: float, name: s
 def is_image_reference_value(value):
     if not isinstance(value, str) or not value:
         return False
+    if postgres_enabled() and value.startswith('/api/media/'):
+        from app.storage.media import get_asset
+        asset=get_asset(value)
+        return bool(asset and asset['content_type'].startswith('image/'))
     if value.startswith("data:image/"):
         return True
     if value.startswith("data:"):
@@ -595,6 +599,10 @@ def is_image_reference_value(value):
 def is_video_reference_value(value):
     if not isinstance(value, str) or not value:
         return False
+    if postgres_enabled() and value.startswith('/api/media/'):
+        from app.storage.media import get_asset
+        asset=get_asset(value)
+        return bool(asset and asset['content_type'].startswith('video/'))
     if value.startswith("data:video/"):
         return True
     if value.startswith("data:"):

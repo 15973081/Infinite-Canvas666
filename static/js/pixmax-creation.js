@@ -43,6 +43,8 @@ async function runPixmaxTextTask(node,request,apply,valid=()=>true,decode=text=>
         const binding=smartTaskInputBinding(node,node,guard);
         const payload={message:request.message,system_prompt:request.systemPrompt||'',model:request.model,provider_id:request.providerId,
             messages:(request.messages||[]).slice(-100).map(({role,content})=>({role,content})),images:request.images||[],videos:request.videos||[]};
+        if(request.videoSampling)payload.video_sampling=request.videoSampling;
+        if(request.videoFrames)payload.video_frames=request.videoFrames;
         let task;
         if(binding){
             if(!window.CanvasLLMTasks?.run)throw new Error('文本任务组件尚未加载，请保存后刷新');

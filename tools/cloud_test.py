@@ -75,6 +75,7 @@ def main(argv=None):
             suites.append("test_cloud_audio_voices.py")
             suites.append("test_cloud_model_tasks.py")
             suites.append("test_cloud_pixmax_task_undo.py")
+            suites.append("test_cloud_video_analysis.py")
             return pytest.main([*(str(ROOT / "tests" / name) for name in suites), "-q", *(argv or [])])
         finally:
             try:

@@ -12,6 +12,7 @@ load_storage_env()
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -178,7 +179,7 @@ def friendly_validation_error(errors):
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=422,
-        content={"detail": friendly_validation_error(exc.errors()), "errors": exc.errors()},
+        content={"detail": friendly_validation_error(exc.errors()), "errors": jsonable_encoder(exc.errors(), custom_encoder={Exception: str})},
     )
 
 

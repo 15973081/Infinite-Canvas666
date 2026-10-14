@@ -70,6 +70,19 @@ test('text generation captures current upstream references at submission rather 
     assert.match(service.calls[0].message,/提交时的引用/);assert.doesNotMatch(service.calls[0].message,/打开时的引用/);assert.deepEqual(errors,[]);
 });
 
+test('shared creation transport preserves explicit full-video sampling options and saved source binding',async t=>{
+    const {page,errors}=await setup(t),service=await textService(page,[JSON.stringify({shots:[{duration:2,description:'片尾的蓝色画面'}]})]);
+    await page.route('**/assets/coverage.mp4',route=>route.fulfill({path:path.resolve('tests/fixtures/pixmax-audio-source.mp4'),contentType:'video/mp4'}));
+    await page.evaluate(async()=>{
+        const source=createNode(100,100,[{url:'/assets/coverage.mp4',kind:'video'}],{select:false}),target=createSmartStudioNode('storyboard',{x:500,y:300});
+        canvas.connections.push({from:source.id,to:target.id,kind:'input'});
+        await runPixmaxTextTask(target,{providerId:'writer',model:'writer-model',message:'解析全片镜头',videos:[source.images[0].url],videoSampling:'uniform',videoFrames:24},
+            shots=>target.shots=shots,()=>true,pixmaxStructuredShots);
+    });
+    assert.equal(service.calls.length,1);assert.equal(service.calls[0].video_sampling,'uniform');assert.equal(service.calls[0].video_frames,24);
+    assert.deepEqual(service.calls[0].videos,['/assets/coverage.mp4']);assert.equal(await page.evaluate(()=>nodes[1].shots[0].description),'片尾的蓝色画面');assert.deepEqual(errors,[]);
+});
+
 test('storyboard generates shots, prepares assets and generates prompts through three durable tasks',async t=>{
     const {page,errors}=await setup(t);
     const shots=[{duration:4,description:'雨夜街道',size:'全景',movement:'推进'},{duration:6,description:'人物回头',size:'近景',movement:'固定'}];

@@ -201,6 +201,14 @@ class CanvasLLMRequest(BaseModel):
     provider: str = "comfly"
     images: List[str] = []   # 可以是 /output/*.png、/assets/*.png 本地路径 或 http(s) URL 或 data URL
     videos: List[str] = []   # 可以是 /output/*.mp4、/assets/*.mp4 本地路径 或 http(s) URL 或 data URL
+    video_sampling: Literal['head', 'uniform'] = 'head'
+    video_frames: Literal[6, 12, 24] = 6
+
+    @model_validator(mode='after')
+    def sampling_requires_video(self):
+        if self.video_sampling == 'uniform' and (not self.videos or any(not value.strip() for value in self.videos)):
+            raise ValueError('全片取帧需要视频输入')
+        return self
 
 
 class CanvasLLMTaskMessage(BaseModel):
@@ -221,6 +229,14 @@ class CanvasLLMTaskRequest(BaseModel):
     messages: List[CanvasLLMTaskMessage] = Field(default_factory=list, max_length=100)
     images: List[str] = Field(default_factory=list, max_length=8)
     videos: List[str] = Field(default_factory=list, max_length=3)
+    video_sampling: Literal['head', 'uniform'] = 'head'
+    video_frames: Literal[6, 12, 24] = 6
+
+    @model_validator(mode='after')
+    def sampling_requires_video(self):
+        if self.video_sampling == 'uniform' and (not self.videos or any(not value.strip() for value in self.videos)):
+            raise ValueError('全片取帧需要视频输入')
+        return self
 
 
 class CanvasModelTaskRequest(BaseModel):
