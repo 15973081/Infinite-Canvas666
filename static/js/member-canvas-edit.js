@@ -558,6 +558,26 @@
             })().finally(() => {entry.reloadRequest=null;});
             return entry.reloadRequest;
         },
+        async withFolderDeletion(ids,perform) {
+            const entry=active;
+            if(!entry||!ids.includes(entry.id))return perform(null);
+            if(!validEntry(entry)||!entry.lease.canEdit||entry.lease.finishing)throw new Error('请先开始编辑当前画布');
+            const epoch=entry.lease.epoch;entry.lease.finishing=true;entry.lease.emit();
+            try {
+                if(!await entry.options.flush())throw new Error('当前更改尚未保存，未删除文件夹');
+                if(!validEntry(entry)||entry.lease.epoch!==epoch||!entry.lease.canSave)throw new Error('当前编辑资格已变化，未删除文件夹');
+                const proof={id:entry.id,token:entry.lease.token,generation:entry.lease.generation,revision:entry.lease.revision};
+                const result=await perform(proof);
+                if(validEntry(entry)&&entry.lease.epoch===epoch)entry.lease.pause('文件夹和当前画布已永久删除');
+                return result;
+            } catch(error) {
+                if(error.uncertain&&validEntry(entry)&&entry.lease.epoch===epoch)entry.lease.pause('文件夹删除结果尚未确认，请查询原操作');
+                throw error;
+            } finally {entry.lease.finishing=false;if(entry===active)entry.lease.emit();}
+        },
+        acceptFolderDeletion(ids) {
+            if(active&&validEntry(active)&&ids.includes(active.id))active.lease.pause('文件夹和当前画布已永久删除');
+        },
         async leave() {
             const entry=active;
             if(!entry) return true;

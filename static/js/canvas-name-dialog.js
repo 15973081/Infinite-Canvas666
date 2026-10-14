@@ -15,6 +15,7 @@
             find('h2').textContent = options.title;
             find('label').textContent = options.label || '名称';
             find('.name-dialog-description').textContent = options.description || '为你的创作取一个容易辨认的名字。';
+            if(options.details){const detail=document.createElement('details'),summary=document.createElement('summary'),content=document.createElement('div');summary.textContent='查看将删除的内容';content.className='name-dialog-targets';for(const text of options.details){const item=document.createElement('p');item.textContent=text;content.appendChild(item);}detail.append(summary,content);find('.name-dialog-description').after(detail);}
             find('.name-dialog-hint').textContent = options.allowEmpty ? '最多 80 个字符，留空将自动命名。' : '最多 80 个字符。';
             input.value = options.value || '';
             input.placeholder = options.placeholder || '输入名称';
@@ -52,7 +53,7 @@
                 catch (e) {
                     busy = false; dialog.removeAttribute('aria-busy');
                     dialog.querySelectorAll('button, input').forEach(el => { el.disabled = false; });
-                    confirm.textContent = options.confirm || '保存';
+                    confirm.textContent = options.errorConfirm?.(e) || options.confirm || '保存';
                     confirm.disabled=!matches();
                     error.textContent = e?.message || '保存失败，请重试'; error.hidden = false; input.focus();
                 }

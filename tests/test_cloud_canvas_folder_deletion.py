@@ -130,3 +130,31 @@ def test_folder_delete_tree_accepts_an_empty_tree_without_fabricated_canvas_proo
     root=response.json()['folder']['id'];plan=prepare(world,root);body=request(world,plan)
     assert body['canvases']==[]
     result=delete(world,root,body);assert result.status_code==200 and result.json()['canvas_ids']==[],result.text
+
+
+def test_folder_delete_tree_actual_browser_saves_collects_private_leases_and_atomically_closes_all_targets(world):
+    import json
+    import subprocess
+    from pathlib import Path
+    from app.storage import database
+    from app.storage.workspace import workspace_scope
+    root,_,_,outside,canvases=setup(world);item=canvases[0];path='/api/canvases/'+item['id'];lease=acquire(world,path)
+    saved=world['editor'].put(path,headers=proof(world,lease,item['revision']),json={'nodes':[{'id':'text','type':'smart-prompt','text':'初始文本','images':[]}],'connections':[],'base_revision':item['revision']});assert saved.status_code==200,saved.text
+    item=saved.json()['canvas'];assert world['editor'].post(path+'/edit-lease/release',headers=proof(world,lease,item['revision'])).status_code==200
+    directory=Path(__file__).resolve().parents[1];process=subprocess.Popen(['node',str(directory/'tests/helpers/pixmax-folder-delete-http.cjs')],cwd=directory,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0));done=False;posts=[]
+    try:
+        process.stdin.write(json.dumps({'initial':{'canvas':item,'member':world['people'][0]['id'],'workspace':world['a']['id'],'folder':root,'name':'电影项目'}})+'\n');process.stdin.flush()
+        for line in process.stdout:
+            message=json.loads(line)
+            if message.get('done'):done=True;break
+            response=world['editor'].request(message['method'],message['path'],headers={**message['headers'],**headers(world['a'])},content=message.get('body'))
+            if message['path'].endswith('/delete-tree') and message['method']=='POST':assert response.status_code==200,response.text;posts.append(response.json())
+            process.stdin.write(json.dumps({'id':message['id'],'status':response.status_code,'body':response.json()})+'\n');process.stdin.flush()
+        process.wait(timeout=5);assert process.returncode==0,process.stderr.read();assert done and len(posts)==1
+        with workspace_scope(world['a']['id']),database.connection() as conn:
+            value=conn.execute('SELECT document FROM canvases WHERE id=%s',(item['id'],)).fetchone()['document'];assert value['nodes'][0]['text']=='真实浏览器最终保存' and value['purged_at']
+            assert conn.execute('SELECT count(*) AS n FROM canvas_edit_leases WHERE canvas_id=ANY(%s) AND released_at IS NULL',(posts[0]['canvas_ids'],)).fetchone()['n']==0
+        assert [item['id'] for item in world['editor'].get('/api/canvas-folders',headers=headers(world['a'])).json()['folders']]==[outside]
+    finally:
+        if process.poll() is None:process.kill();process.wait(timeout=5)
+        for handle in (process.stdin,process.stdout,process.stderr):handle.close()

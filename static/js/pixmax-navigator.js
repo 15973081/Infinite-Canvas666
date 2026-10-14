@@ -86,6 +86,7 @@
         panel.querySelector('[data-directory-trash]').hidden=tab!=='canvas';
         panel.querySelector('[data-directory-trash]').textContent=trashMode?'返回画布列表':'回收站';
         panel.querySelector('[data-directory-trash]').setAttribute('aria-pressed',String(trashMode));
+        const receipt=window.CanvasFolderDeletion?.pending();panel.querySelector('[data-directory-delete-status]').hidden=!receipt||tab!=='canvas';panel.querySelector('[data-directory-delete-retry]').hidden=!receipt||tab!=='canvas';panel.querySelector('[data-directory-delete-retry]').disabled=!can('canvas.delete')||!can('canvas.edit');
         panel.querySelector('[data-directory-type]').hidden=tab!=='nodes';
         panel.querySelector('[data-directory-search]').placeholder=tab==='nodes'?'搜索节点名称或内容':trashMode?'搜索已删除画布':'搜索画布或文件夹';
         for(const button of panel.querySelectorAll('[data-directory-tab]')){button.setAttribute('aria-selected',String(button.dataset.directoryTab===tab));button.tabIndex=button.dataset.directoryTab===tab?0:-1;}
@@ -252,6 +253,36 @@
         catch(error){if(expected===currentScope())status(error.message||'恢复失败，请重试');}
         finally{if(expected===currentScope()){pendingIds.delete(item.id);documentChanged();}}
     }
+    async function folderDeleted(result,expected,origin=canvas){
+        ensureScope(expected);MemberCanvasEdit.acceptFolderDeletion?.(result.canvas_ids);for(const id of result.canvas_ids)removedIds.add(id);
+        if(result.folder_ids.includes(folder)){folder='';savePreferences();}
+        if(canvas===origin&&result.canvas_ids.includes(canvas.id)&&documentInScope()){
+            clearTimeout(saveTimer);saveTimer=null;canvas.deleted_at=result.deleted_at||Date.now();
+            if(!await CanvasNavigation.afterDeletion(canvas.id))status('文件夹和当前画布已删除，请返回画布管理');
+        }else{await refresh();status('文件夹及其内容已永久删除');}
+    }
+    async function queryFolderDeletion(){
+        const expected=currentScope(),origin=canvas;status('正在查询原文件夹删除结果…');
+        try{const result=await CanvasFolderDeletion.query(()=>expected===currentScope());if(result.state==='unconfirmed'){status('原删除结果尚未确认。可继续查询；再次删除需重新确认原操作');return;}await folderDeleted(result,expected,origin);}catch(error){if(expected===currentScope())status(error.message);}
+    }
+    async function removeFolder(item,retry=null){
+        if(!window.CanvasSession?.enabled||!can('canvas.delete')||!can('canvas.edit')||CanvasFolderDeletion.busy)return;
+        const expected=currentScope(),origin=canvas,epoch=window.MemberCanvasEdit?.active?.lease?.epoch;
+        const contextValid=()=>expected===currentScope()&&canvas===origin&&documentInScope()&&can('canvas.delete')&&can('canvas.edit');
+        try {
+            if(CanvasFolderDeletion.pending()&&!retry){await queryFolderDeletion();return;}
+            status('正在读取将删除的目录内容…');const plan=await CanvasFolderDeletion.prepare(item.id,contextValid),affects=plan.canvases.some(row=>row.id===canvas.id);status('');
+            if(affects&&isSmartCanvasLocked())throw new Error('文件夹包含当前画布，请先开始编辑当前画布');
+            let running=false;
+            const ready=()=>contextValid()&&(!affects||window.MemberCanvasEdit?.active?.lease?.epoch===epoch);
+            CanvasNameDialog.open({title:'永久删除文件夹',label:'输入文件夹名称以确认',requiredName:plan.name,placeholder:plan.name,confirm:retry?'重新确认原删除':'永久删除',busyText:'正在删除目录…',errorConfirm:()=>CanvasFolderDeletion.pending()?'查询删除结果':null,scopeValid:()=>contextValid()&&(running||CanvasFolderDeletion.pending()||ready()),description:`将永久删除 ${plan.folders.length} 个文件夹及 ${plan.canvases.length} 个画布，包括回收站中的画布。已生成素材及账单记录仍保留。`,details:[...plan.folders.map(row=>'文件夹：'+row.name),...plan.canvases.map(row=>'画布：'+row.title+(row.deleted_at?'（回收站）':''))],onSubmit:async()=>{
+                if(CanvasFolderDeletion.pending()&&!retry){const result=await CanvasFolderDeletion.query(contextValid);if(result.state==='unconfirmed')throw new Error('原删除结果尚未确认，请继续查询或重新确认原操作');await folderDeleted(result,expected,origin);return;}
+                if(!ready())throw new Error('当前编辑资格已变化，请重新打开确认');if(affects&&!CanvasNavigation.confirmLocalWork())throw new Error('已取消删除，请先保存本地处理结果');
+                running=true;
+                try{const result=await CanvasFolderDeletion.run(plan,ready,retry,()=>expected===currentScope()&&canvas===origin&&documentInScope());await folderDeleted(result,expected,origin);}finally{running=false;documentChanged();}
+            }});
+        }catch(error){if(expected===currentScope())status(error.message||'目录删除尚未确认');}
+    }
     function bind(){
         if(panel||disposed)return;
         readPreferences();scope=currentScope();
@@ -260,6 +291,7 @@
         toggleButton=document.createElement('button');toggleButton.type='button';toggleButton.className='pixmax-navigator-toggle';toggleButton.setAttribute('aria-label','画布目录');toggleButton.setAttribute('aria-controls',panel.id);toggleButton.innerHTML='<i data-tabler="layout-sidebar-left-collapse"></i>';
         list=panel.querySelector('.pixmax-directory-list');document.body.append(panel,toggleButton);
         const trash=document.createElement('button');trash.type='button';trash.dataset.directoryTrash='';trash.className='pixmax-directory-trash';trash.textContent='回收站';list.after(trash);trash.onclick=()=>{trashMode=!trashMode;query='';panel.querySelector('[data-directory-search]').value='';closeMenu();signature='';records=[];void refresh();};
+        const deletion=document.createElement('button'),retry=document.createElement('button');deletion.type=retry.type='button';deletion.dataset.directoryDeleteStatus='';retry.dataset.directoryDeleteRetry='';deletion.className=retry.className='pixmax-directory-trash';deletion.textContent='查询文件夹删除结果';retry.textContent='重新确认原删除';deletion.hidden=retry.hidden=true;trash.after(deletion,retry);deletion.onclick=()=>void queryFolderDeletion();retry.onclick=()=>{const receipt=CanvasFolderDeletion.pending();if(receipt)void removeFolder({id:receipt.folder_id},receipt);};
         window.lucide?.createIcons({root:panel});window.lucide?.createIcons({root:toggleButton});
         toggleButton.onclick=()=>setOpened(!opened);panel.querySelector('[data-directory-close]').onclick=()=>setOpened(false);
         panel.querySelector('[data-directory-home]').onclick=event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();void window.CanvasNavigation.go(window.CanvasNavigation.homeUrl());};
@@ -277,7 +309,7 @@
             if(target.dataset.nodeFocus){const node=nodes.find(item=>item.id===target.dataset.nodeFocus);if(node)focusNode(node);}
             if(target.dataset.nodeMenu){const node=nodes.find(item=>item.id===target.dataset.nodeMenu);if(node)openMenu(target,[{label:'定位节点',run:()=>focusNode(node)},{label:'重命名',disabled:isSmartCanvasLocked(),run:()=>renameNode(node)},{label:'标签',run:()=>window.PixmaxTags.openPicker([node.id],target)},{label:(window.PixmaxTags?.ids(node).length??node.pinned)?'取消 pin':'pin 到汇总',disabled:isSmartCanvasLocked(),run:()=>{if(isSmartCanvasLocked()||!nodes.includes(node)||!documentInScope()||!can('canvas.edit'))return;window.PixmaxTags.togglePin(node);documentChanged();}}]);}
             if(target.dataset.canvasMenu){const item=records.find(item=>item.id===target.dataset.canvasMenu);if(item)openMenu(target,[{label:'打开画布',run:()=>item.id!==canvas.id&&window.CanvasNavigation.go(window.CanvasNavigation.canvasUrl(item.id))},{label:'重命名',disabled:!can('canvas.edit')||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>renameCanvas(item)},{label:'移动到文件夹',disabled:!can('canvas.edit')||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>moveCanvas(item)},{label:'移入回收站',disabled:!can('canvas.delete')||pendingIds.has(item.id)||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>removeCanvas(item)},{label:'永久删除',disabled:!can('canvas.delete')||pendingIds.has(item.id)||(item.id===canvas.id&&isSmartCanvasLocked()),run:()=>removeCanvas(item,true)}]);}
-            if(target.dataset.folderMenu){const item=folders.find(item=>item.id===target.dataset.folderMenu);if(item)openMenu(target,[{label:'新建子文件夹',disabled:!can('canvas.edit'),run:()=>nameFolder(null,item.id)},{label:'重命名',disabled:!can('canvas.edit'),run:()=>nameFolder(item)}]);}
+            if(target.dataset.folderMenu){const item=folders.find(item=>item.id===target.dataset.folderMenu);if(item)openMenu(target,[{label:'新建子文件夹',disabled:!can('canvas.edit'),run:()=>nameFolder(null,item.id)},{label:'重命名',disabled:!can('canvas.edit'),run:()=>nameFolder(item)},{label:'永久删除文件夹',disabled:!window.CanvasSession?.enabled||!can('canvas.delete')||!can('canvas.edit')||CanvasFolderDeletion.busy,run:()=>removeFolder(item)}]);}
         };
         panel.addEventListener('keydown',event=>{
             event.stopPropagation();if(event.key==='Escape')setOpened(false);
@@ -301,6 +333,7 @@
     }
     document.addEventListener('pointerdown',event=>{if(menu&&!menu.contains(event.target)&&!event.target.closest('[data-canvas-menu],[data-node-menu],[data-folder-menu]'))closeMenu();});
     window.addEventListener('resize',closeMenu);
+    window.addEventListener('canvas-folder-deletion-change',documentChanged);
     window.addEventListener('pagehide',event=>{requestVersion++;if(frame!==null)cancelAnimationFrame(frame);frame=null;closeMenu();if(!event.persisted)disposed=true;});
     window.addEventListener('pageshow',event=>{if(event.persisted){documentChanged();void refresh();}});
     window.PixmaxNavigator=Object.freeze({bind,refresh,documentChanged,viewportBounds,toggle:()=>panel&&setOpened(!opened)});

@@ -26,7 +26,7 @@
       "source": "static/js/pixmax-navigator.js",
       "browserCases": 22,
       "verified": ["参考侧栏尺寸及默认展开", "跨层文件夹搜索", "节点内容搜索、类型筛选和定位", "重命名、pin、撤销和删除后的列表同步", "目录操作复用当前会员写入入口", "创建画布后当前保存失败时保留新画布", "切换画布前保存及失败阻止导航", "旧目录响应失效", "工作空间切换隔离", "只读用户及失效编辑资格", "可见区域缩放和移动端定位", "键盘切换页签和菜单"],
-      "remaining": ["参考文件夹与子画布的级联删除、文件夹移动及其他目录菜单逐项核对", "更多视觉细节和大目录性能验证"]
+      "remaining": ["文件夹移动、其他目录菜单与级联删除的最终对照；级联删除实现见 folderTreeDeletionBackendEvidence", "更多视觉细节和大目录性能验证"]
     },
     "navigatorDeletionEvidence": {
       "source": ["static/js/pixmax-navigator.js", "static/js/canvas-name-dialog.js", "static/js/member-canvas-edit.js", "static/js/canvas-edit-lease.js", "static/js/canvas-navigation.js", "app/routers/canvas.py"],
@@ -42,15 +42,18 @@
       "remaining": ["文件夹级联删除底层见 folderTreeDeletionBackendEvidence；侧栏名称确认、批量编辑资格收集与回执恢复仍需接入", "参考全部目录菜单、移动端及大目录性能最终对照"]
     },
     "folderTreeDeletionBackendEvidence": {
-      "source": ["app/services/canvas_folder_deletion.py", "app/storage/canvas_directory.py", "app/services/member_context.py", "app/storage/canvases.py", "static/js/canvas-directory-api.js"],
-      "status": "backend_verified_frontend_pending",
+      "source": ["app/services/canvas_folder_deletion.py", "app/storage/canvas_directory.py", "app/services/member_context.py", "app/storage/canvases.py", "static/js/canvas-directory-api.js", "static/js/canvas-folder-deletion.js", "static/js/pixmax-navigator.js", "static/js/member-canvas-edit.js", "static/js/canvas-name-dialog.js", "static/canvas-home.html", "tests/helpers/pixmax-folder-delete-http.cjs"],
+      "status": "implemented_requires_final_verification",
       "nativeContract": "参考文件夹删除确认以名称校验，并同时永久删除子文件夹和后代画布；不把现有移至父目录的文件夹移除接口作为级联删除。",
       "api": ["GET /api/canvas-folders/{folder_id}/delete-tree", "POST /api/canvas-folders/{folder_id}/delete-tree", "GET /api/canvas-folders/{folder_id}/delete-tree-status/{operation_id}"],
       "mechanism": ["准备阶段返回后代文件夹、活动与回收站画布的元数据及摘要", "确认请求包含名称、摘要、操作 UUID 和每个画布的独立编辑令牌/代数/版本；先校验全部凭证，再在一个事务内删除", "工作空间目录写入使用共享锁，级联删除使用排他锁；删除期间重新校验目录成员，阻止迟到创建、移动或旧目录写入产生悬空引用", "同事务移除目录、永久删除全部目标画布并结束全部已验证编辑资格；保留素材、费用和既有服务端文档审计数据", "原操作回执按空间及成员保存，重复操作 ID 返回同一结果；删除后仍可查询；回执不保存任何编辑令牌", "普通保存、元数据修改和任务结果交付参与相同目录锁顺序；目录成员未变化时普通写入仍使用共享锁"],
-      "databaseCases": 7,
-      "verified": ["多层文件夹和后代画布一起删除，包括回收站画布；无关项目保留，全部目标编辑资格结束", "任一错误令牌、缺失/重复凭证、错误名称或目录新增成员拒绝整批操作，原文档和目录保留", "相同操作回放幂等；其他成员不能读取本人回执；无权限用户不能提交", "真实并发创建与删除协调，不产生已删除文件夹的悬空成员", "迟到文件夹改名不能恢复已删除的目录；空目录无需伪造画布凭证"],
-      "relatedRegression": "146 项隔离数据库及 96 项现有目录、编辑资格和侧栏前端检查通过；前端回归只验证已有流程未回退，不代表新级联删除界面已经完成。",
-      "remaining": ["侧栏删除菜单、准确名称确认和目标清单显示", "当前画布冻结/最终保存、其他目标编辑资格获取、拒绝时释放临时资格及成功后离开", "按成员/空间保存不含私有令牌的待确认回执，并通过原操作查询恢复；未找到已提交回执不能视为确定失败", "原生界面、浏览器完整流程和更大目录最终验收"]
+      "databaseCases": 8,
+      "verified": ["多层文件夹和后代画布一起删除，包括回收站画布；无关项目保留，全部目标编辑资格结束", "任一错误令牌、缺失/重复凭证、错误名称或目录新增成员拒绝整批操作，原文档和目录保留", "相同操作回放幂等；其他成员不能读取本人回执；无权限用户不能提交", "真实并发创建与删除协调，不产生已删除文件夹的悬空成员", "迟到文件夹改名不能恢复已删除的目录；空目录无需伪造画布凭证", "侧栏菜单按名称确认，展示子目录、活动与回收站画布清单；重复点击只提交一次原子请求", "当前画布冻结交互并最终保存；最多六个并发工作者获取其他目标资格，任一拒绝阻止提交并释放临时资格", "目录内容变化、编辑资格失效和浏览器存储失败阻止提交；已知拒绝保留编辑状态", "不确定响应暂停当前写入，按成员/空间保存无令牌回执；未找到回执保持未确认，显式再次确认使用原操作 UUID", "页面刷新、源文件夹已消失和当前画布加载失败时可查询；首页不挂载编辑器或获取新资格即可确认回执", "查询或删除期间切换空间，旧响应不能显示新空间成功、清除原空间回执或导航新空间", "真实浏览器通过认证 ASGI 与隔离 PostgreSQL 完成最终文本保存、独立资格收集、一次原子删除及离开；数据库确认文档保留最后修改且全部目标资格结束"],
+      "relatedRegression": "最终 146 项目录、侧栏、导航、保存和编辑资格前端检查通过；147 项隔离数据库检查通过；恢复界面修正后重新运行 8 项级联删除数据库检查（包含真实浏览器桥接）全部通过。",
+      "remaining": ["大目录、长层级、空目录和移动屏幕原生流程最终对照及性能验证", "不确定结果期间目录成员或名称变化后的完整恢复交互；现有重试拒绝变更后的目标集合并保留原回执", "真实部署网络与参考全部目录菜单/视觉细节最终验收"],
+      "browserCases": 13,
+      "preview": [".local/pixmax-folder-deletion-confirm.png", ".local/pixmax-folder-deletion-recovery.png"],
+      "verificationScope": "浏览器回归使用原页面与生产编辑资格控制器；13 项专项覆盖确定、拒绝和不确定结果。真实浏览器数据库桥接使用隔离测试数据，无用户画布写入或收费供应商调用。"
     },
     "nativeMediaEvidence": {
       "bugFixed": "参考接口的 /static/img 等媒体地址属于资产 ossDomain，不能直接请求接收应用的静态目录",

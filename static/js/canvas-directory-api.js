@@ -17,7 +17,8 @@
             }else response=await fetch(path,init);
             if(!response.ok){
                 const data=await response.clone().json().catch(()=>({}));
-                throw new Error(typeof data.detail==='string'?data.detail:data.detail?.message||({permission_denied:'当前账号没有此操作权限。',canvas_revision_conflict:'画布已更新，请刷新后重试。'}[data.detail?.code])||'请求失败，请重试。');
+                const error=new Error(typeof data.detail==='string'?data.detail:data.detail?.message||({permission_denied:'当前账号没有此操作权限。',canvas_revision_conflict:'画布已更新，请刷新后重试。',folder_deletion_plan_changed:'目录内容已变化，请重新打开确认。',folder_deletion_operation_conflict:'原删除操作已变化，请查询原回执。',canvas_lease_lost:'目标画布的编辑资格已变化，整批删除未确认。'}[data.detail?.code])||'请求失败，请重试。');
+                error.status=response.status;error.data=data.detail;throw error;
             }
             return raw?response:response.json();
         })();
@@ -52,8 +53,8 @@
         createCanvasFolder:value=>request('/api/canvas-folders',body('POST',value)),
         updateCanvasFolder:(key,value)=>request('/api/canvas-folders/'+id(key),body('PATCH',value)),
         deleteCanvasFolder:key=>request('/api/canvas-folders/'+id(key),{method:'DELETE'}),
-        prepareFolderTreeDelete:key=>request('/api/canvas-folders/'+id(key)+'/delete-tree'),
-        deleteFolderTree:(key,value)=>request('/api/canvas-folders/'+id(key)+'/delete-tree',body('POST',value)),
-        folderTreeDeleteStatus:(key,operation)=>request('/api/canvas-folders/'+id(key)+'/delete-tree-status/'+id(operation))
+        prepareFolderTreeDelete:(key,init={})=>request('/api/canvas-folders/'+id(key)+'/delete-tree',init),
+        deleteFolderTree:(key,value,init={})=>request('/api/canvas-folders/'+id(key)+'/delete-tree',{...body('POST',value),...init,headers:{'Content-Type':'application/json',...init.headers}}),
+        folderTreeDeleteStatus:(key,operation,init={})=>request('/api/canvas-folders/'+id(key)+'/delete-tree-status/'+id(operation),init)
     });
 })();
