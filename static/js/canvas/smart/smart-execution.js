@@ -2257,6 +2257,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             trusted_asset: usesTrustedVolcengineAssets,
             task_mode: runSettings.videoTaskMode || 'auto'
         };
+        if(runSettings.videoOutputFormat)payload.output_format=runSettings.videoOutputFormat;
         if(options.preview)return payload;
         if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
         const taskId = options.taskId || uid('canvas_vid');

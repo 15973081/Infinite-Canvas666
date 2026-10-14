@@ -10,6 +10,7 @@ from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mirror', default=r'C:\project\skill-clone\output\pixmax\mirror')
+parser.add_argument('--schema-mirror', default=r'C:\project\skill-clone\output\pixmax-canvas-1f1b1a95\browser')
 args = parser.parse_args()
 source = Path(args.mirror) / 'app.pixmax.cn/assets'
 destination = Path(__file__).resolve().parents[1] / 'static/vendor/pixmax'
@@ -23,7 +24,7 @@ runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e(".
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
 runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index.js")', 'e("../node_modules/is-buffer/index.js")')
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
-for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(']:
+for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(', 'function g$(']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
 marker_hook = 'let n=N,r=jNt(),i=G(_);'
 assert runtime.count(marker_hook) == 1, 'Video annotation controller changed; inspect before importing'
@@ -79,6 +80,14 @@ export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountParameters(target, props) {
+    const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
+    const data=z({value:props.value,fields:props.fields}),disabled=z(!!props.disabled);
+    const instance=Tf(g$,{target,context:new Map([[tCe,container]]),props:{...props,separator:'·',disabledFieldNames:['duration','aspectRatio'],
+      get value(){return G(data).value;},get fields(){return G(data).fields;},get disabled(){return G(disabled);}}});
+    await tf();target.querySelector('button')?.setAttribute('aria-label','重拍生成参数');
+    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){return Of(instance);}};
+  },
   async mountPrompt(target, props) {
     const container = new f, i18n = await KLe();
     await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
@@ -128,8 +137,34 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$'], 'model_graphics': ['J1e','Dc','Lc']},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')
+
+# Freeze only public model fields, excluding account, pricing and identity data.
+schema_root=Path(args.schema_mirror).resolve()
+manifest=json.loads((schema_root/'manifest.json').read_text(encoding='utf-8'))
+record=next(item for item in manifest if item.get('url','').endswith('/canvas/modelConfig'))
+response_file=(schema_root/record['file']).resolve()
+assert response_file.is_relative_to(schema_root), 'Model schema file escapes the supplied snapshot'
+response=response_file.read_bytes()
+def find_model(value):
+    if isinstance(value,dict):
+        if value.get('modelCode')=='PIXDANCE_2_5':return value
+        for item in value.values():
+            found=find_model(item)
+            if found:return found
+    elif isinstance(value,list):
+        for item in value:
+            found=find_model(item)
+            if found:return found
+model=find_model(json.loads(response))
+assert model, 'Reference Seedance 2.5 schema is missing'
+fields=[field for field in model['modelConfig']['params'] if field['name'] in ['resolution','aspectRatio','duration','includeAudio','outputFormat']]
+assert len(fields)==5, 'Native reshoot parameter fields changed'
+for field in fields:
+    for key in ['min','max','step']:
+        if key in field:field[key]=float(field[key])
+(destination/'reshoot-schema.json').write_text(json.dumps({'source':'User-supplied Pixmax modelConfig snapshot','source_response_sha256':hashlib.sha256(response).hexdigest(),'modelCode':model['modelCode'],'fields':fields},ensure_ascii=False,indent=2),encoding='utf-8')

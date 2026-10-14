@@ -115,7 +115,7 @@
                 node.generationKind=kind;node.promptDraftText=String(params.prompt||'');
                 node.promptDraftHtml=node.promptDraftText.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
                 const ratio=String(params.aspectRatio||'1:1');
-                node.runSettings={engine:'api',apiKind:kind,...(kind==='video'?{videoModel:String(params.model||''),videoDuration:number(params.duration,5),videoAspect:ratio,videoResolution:String(params.resolution||'')}:{model:String(params.model||'')}),
+                node.runSettings={engine:'api',apiKind:kind,...(kind==='video'?{videoModel:String(params.model||''),videoDuration:number(params.duration,5),videoAspect:ratio,videoResolution:String(params.resolution||'').toLowerCase(),...(params.includeAudio!==undefined?{videoGenerateAudio:params.includeAudio===true||params.includeAudio==='true'}:{}),...(params.model==='PIXDANCE_2_5'&&params.outputFormat?{videoOutputFormat:String(params.outputFormat).toLowerCase()}:{})}:{model:String(params.model||'')}),
                     resolution:String(params.resolution||'1k').toLowerCase(),ratio:ratios[ratio]||'custom',
                     ...(!ratios[ratio]?{customRatio:ratio,customRatioWidth:ratio.split(':')[0]||'',customRatioHeight:ratio.split(':')[1]||''}:{})};
             }

@@ -4659,6 +4659,14 @@ export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountParameters(target, props) {
+    const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
+    const data=z({value:props.value,fields:props.fields}),disabled=z(!!props.disabled);
+    const instance=Tf(g$,{target,context:new Map([[tCe,container]]),props:{...props,separator:'·',disabledFieldNames:['duration','aspectRatio'],
+      get value(){return G(data).value;},get fields(){return G(data).fields;},get disabled(){return G(disabled);}}});
+    await tf();target.querySelector('button')?.setAttribute('aria-label','重拍生成参数');
+    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){return Of(instance);}};
+  },
   async mountPrompt(target, props) {
     const container = new f, i18n = await KLe();
     await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);

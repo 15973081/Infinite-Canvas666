@@ -50,6 +50,8 @@ def canvas_generation_history_detail(asset_id: str, canvas_id: str = '', node_id
 
 def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
     data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
+    if data.get('output_format') is None:
+        data.pop('output_format', None)
     if not data.get('image_tool'):
         data.pop('image_tool', None)
         data.pop('image_tool_revision', None)
@@ -160,6 +162,8 @@ async def create_canvas_video_task(payload: CanvasVideoRequest):
 def _prepare_canvas_video_task(payload: CanvasVideoRequest):
     if postgres_enabled():
         payload.provider_id = get_api_provider(payload.provider_id)["id"]
+    if payload.output_format is not None:
+        _validate_video_output_format(payload, get_api_provider(payload.provider_id))
     if payload.canvas_id:
         load_canvas(payload.canvas_id)
     requested_task_id = str(payload.client_task_id or "").strip()
@@ -273,8 +277,14 @@ async def canvas_video(payload: CanvasVideoRequest):
     _canvas_task_gate_error()
     return await canvas_video_impl(payload)
 
+def _validate_video_output_format(payload: CanvasVideoRequest, provider: dict):
+    if payload.output_format is not None and not (is_volcengine_provider(provider) and is_volcengine_seedance25_model(payload.model)):
+        raise HTTPException(400, '输出格式选项仅支持火山 Seedance 2.5 模型')
+
+
 async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     provider = get_api_provider(payload.provider_id)
+    _validate_video_output_format(payload, provider)
     base_url = video_api_root(provider)
     if not base_url:
         raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider['id']} 未配置 Base URL")
@@ -608,6 +618,10 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                         body["return_last_frame"] = True
                     if payload.generate_audio:
                         body["generate_audio"] = True
+            if is_volcengine and is_volcengine_seedance25_model(requested_model):
+                body['generate_audio'] = payload.generate_audio
+                if payload.output_format is not None:
+                    body['output_format'] = payload.output_format
             # --- 发起视频生成请求 ---
             raw = None
             html_response = None

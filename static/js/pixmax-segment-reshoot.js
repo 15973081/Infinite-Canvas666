@@ -9,7 +9,7 @@
         if(!session||session.closed)return;session.closed=true;
         session.observer?.disconnect();clearTimeout(session.seekTimer);session.root.remove();
         session.cleanupVideo?.();session.unmountPlayer?.();
-        session.promptHandle?.destroy();for(const picker of session.pickers||[])picker.remove();
+        session.promptHandle?.destroy();session.parametersHandle?.destroy();for(const picker of session.pickers||[])picker.remove();
         if(session.video){session.video.pause();session.video.removeAttribute('src');session.video.load();}
         if(session.timeline)void session.timeline.destroy();
         if(activeSession===session)activeSession=null;
@@ -82,7 +82,7 @@
             const status=api.durationStatus(seconds);if(status)throw new Error(status==='too-short'?'视频时长需大于 4 秒':'视频时长不能超过 10 分钟');
             pushUndo();const node=createNode((source.x||0)+nodeRect(source).width+80,source.y||0,[],{generationKind:'video',skipUndo:true,deferRender:true});
             node.label=pixmaxUniqueNodeLabel((source.label||media.name||'视频')+'-片段重拍');
-            node.runSettings={...node.runSettings,engine:selected.provider.id==='volcengine'?'volcengine':'api',apiKind:'video',videoProvider:selected.provider.id,videoModel:selected.model,videoTaskMode:'edit',videoDuration:4,videoAspect:'adaptive',count:1};
+            node.runSettings={...node.runSettings,engine:selected.provider.id==='volcengine'?'volcengine':'api',apiKind:'video',videoProvider:selected.provider.id,videoModel:selected.model,videoTaskMode:'edit',videoDuration:4,videoAspect:'adaptive',videoGenerateAudio:true,videoOutputFormat:'mp4',count:1};
             const resolutions=smartVideoResolutions(node.runSettings);node.runSettings.videoResolution=resolutions.includes('720p')?'720p':resolutions[0]||'';
             node.segmentReshoot={schemaVersion:1,source:{nodeId:id,url:media.url,media:{...media},identity:key,duration:seconds},startSec:0,endSec:4,prompt:''};
             canvas.connections.push({from:id,to:node.id,kind:'input'});render();scheduleSave();await open(node);
@@ -121,6 +121,7 @@
             if(valid()){state.completedTaskId=state.taskId;scheduleSave();status.textContent='重拍结果已加入画布';}return;
         }
         PixmaxReshootReferences.validate(node);
+        PixmaxReshootParameters.validate(node);
         const references=PixmaxReshootReferences.signature(node);
         const cache=await prepare(node,valid,status);if(!valid())throw new Error('编辑资格已变化');
         if(PixmaxReshootReferences.signature(node)!==references)throw new Error('提示词、模型或参考素材已变化，请再次生成');
@@ -155,10 +156,12 @@
         let edited=false,busy=false;
         const target=body.querySelector('[data-reshoot-timeline]'),session={root,video:null,canvasId:canvas.id,scope:scope(),node,valid,closed:false,timeline:null,scrubbing:false,seekTimer:null,lastSeek:0,pendingSeek:null};activeSession=session;
         const oldPrompt=body.querySelector('[data-reshoot-prompt]'),promptTarget=document.createElement('div');promptTarget.dataset.reshootPrompt='';promptTarget.className='pixmax-reshoot-rich-prompt';oldPrompt.replaceWith(promptTarget);
+        const parameterTarget=document.createElement('div');parameterTarget.dataset.reshootParameters='';body.querySelector('[data-reshoot-model]').closest('label').after(parameterTarget);
+        session.refreshParameters=()=>{if(session.parameterDefinition&&!session.closed)session.parametersHandle?.setData(PixmaxReshootParameters.data(node,session.parameterDefinition));};
         const referenceArea=document.createElement('section');referenceArea.className='pixmax-reshoot-references';referenceArea.innerHTML='<header><span>参考素材</span><button type="button" data-reshoot-add-canvas>添加画布参考</button><button type="button" data-reshoot-add-asset>添加资产参考</button></header><div data-reshoot-references></div>';promptTarget.closest('label').before(referenceArea);
         let video;try{video=mountPlayer(api,session,source.media);}catch(error){dispose(session);return toast(error.message);}
-        const draw=()=>{body.querySelector('[data-reshoot-start]').value=state.startSec;body.querySelector('[data-reshoot-end]').value=state.endSec;body.querySelector('[data-reshoot-summary]').textContent=`${state.startSec.toFixed(1)} – ${state.endSec.toFixed(1)} · ${(state.endSec-state.startSec).toFixed(1)}s`;session.timeline?.setRange({startSec:state.startSec,endSec:state.endSec});};draw();
-        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);session.promptHandle?.setReadonly(disabled);};session.sync=sync;
+        const draw=()=>{body.querySelector('[data-reshoot-start]').value=state.startSec;body.querySelector('[data-reshoot-end]').value=state.endSec;body.querySelector('[data-reshoot-summary]').textContent=`${state.startSec.toFixed(1)} – ${state.endSec.toFixed(1)} · ${(state.endSec-state.startSec).toFixed(1)}s`;session.timeline?.setRange({startSec:state.startSec,endSec:state.endSec});session.refreshParameters();};draw();
+        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player],[data-reshoot-parameters]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);session.promptHandle?.setReadonly(disabled);session.parametersHandle?.setDisabled(disabled);};session.sync=sync;
         let referenceStamp='';
         function refreshReferences(){
             if(session.closed)return;const current=PixmaxReshootReferences.plan(node),stamp=JSON.stringify([current.mentions,current.incomingNodes]);if(stamp===referenceStamp)return;referenceStamp=stamp;
@@ -190,7 +193,7 @@
         }
         referenceArea.querySelector('[data-reshoot-add-canvas]').onclick=()=>void pick(false);referenceArea.querySelector('[data-reshoot-add-asset]').onclick=()=>void pick(true);
         session.observer=new MutationObserver(()=>{if(!root.isConnected)dispose(session);});session.observer.observe(document.body,{childList:true});
-        function changeRange(range){if(!valid()||busy||Math.abs(range.startSec-state.startSec)<.001&&Math.abs(range.endSec-state.endSec)<.001)return;if(!edited){pushUndo();edited=true;}Object.assign(state,range);delete state.cache;delete state.preparedMedia;node.runSettings.videoTempShLinks=[];draw();scheduleSave();}
+        function changeRange(range){if(!valid()||busy||Math.abs(range.startSec-state.startSec)<.001&&Math.abs(range.endSec-state.endSec)<.001)return;if(!edited){pushUndo();edited=true;}Object.assign(state,range);Object.assign(node.runSettings,PixmaxReshootParameters.settings(node));delete state.cache;delete state.preparedMedia;node.runSettings.videoTempShLinks=[];draw();scheduleSave();}
         function seek(seconds,final=false){
             if(!valid()||busy||session.closed)return;const time=Math.min(state.source.duration,Math.max(0,seconds));session.timeline?.setPlayheadTime(time);
             session.pendingSeek=time;const apply=()=>{session.seekTimer=null;if(!valid()||busy||session.closed)return;const value=session.pendingSeek;session.pendingSeek=null;session.lastSeek=performance.now();if(value!==null&&Math.abs(video.currentTime-value)>=.05){if(session.controller)session.controller.seek(value);else video.currentTime=value;}};
@@ -201,7 +204,7 @@
         session.cleanupVideo=()=>{for(const event of ['timeupdate','seeked','play','pause'])video.removeEventListener(event,playback);};
         function draft(event){if(!event.target.matches('[data-reshoot-start],[data-reshoot-end],[data-reshoot-prompt],[data-reshoot-model]')||!valid()||busy)return;if(!edited){pushUndo();edited=true;}
             if(event.target.matches('[data-reshoot-start],[data-reshoot-end]')){changeRange(api.normalizeRange(Number(body.querySelector('[data-reshoot-start]').value),Number(body.querySelector('[data-reshoot-end]').value),state.source.duration));seek(state.startSec,true);}
-            const choice=body.querySelector('[data-reshoot-model]').value;if(choice){const [provider,model]=JSON.parse(choice);Object.assign(node.runSettings,{videoProvider:provider,videoModel:model,engine:provider==='volcengine'?'volcengine':'api'});}scheduleSave();
+            const choice=body.querySelector('[data-reshoot-model]').value;if(choice){const [provider,model]=JSON.parse(choice);Object.assign(node.runSettings,{videoProvider:provider,videoModel:model,engine:provider==='volcengine'?'volcengine':'api'});if(event.target.matches('[data-reshoot-model]'))PixmaxReshootParameters.modelChanged(node);}session.refreshParameters();scheduleSave();
         }
         body.addEventListener('input',draft);body.addEventListener('change',draft);
         async function perform(run){if(busy)return;busy=true;sync();
@@ -211,6 +214,9 @@
         }
         body.querySelector('[data-reshoot-prepare]').onclick=()=>void perform(false);body.querySelector('[data-reshoot-run]').onclick=()=>void perform(true);
         try{
+            session.parameterDefinition=await PixmaxReshootParameters.schema();if(session.closed||activeSession!==session||!root.isConnected)return;
+            const parametersHandle=await api.mountParameters(parameterTarget,{...PixmaxReshootParameters.data(node,session.parameterDefinition),disabled:busy||!valid(),onChange:value=>{if(!valid()||busy)return;try{if(!edited){pushUndo();edited=true;}PixmaxReshootParameters.apply(node,value);session.refreshParameters();render();scheduleSave();}catch(error){status.textContent=error.message;session.refreshParameters();}}});
+            if(session.closed||activeSession!==session||!root.isConnected){void parametersHandle.destroy();return;}session.parametersHandle=parametersHandle;sync();
             const timeline=await api.mountTimeline(target,{videoUrl:displayMediaUrl(source.media),knownDuration:state.source.duration,startSec:state.startSec,endSec:state.endSec,
                 onChange:changeRange,onSeek:seconds=>seek(seconds,true),onScrub:seconds=>{session.scrubbing=true;seek(seconds);},onScrubEnd:seconds=>{session.scrubbing=false;seek(seconds,true);}});
             if(session.closed||activeSession!==session||!root.isConnected){void timeline.destroy();return;}
@@ -223,7 +229,7 @@
         }catch(error){if(!session.closed)status.textContent=error.message||'选段时间轴加载失败';}
     }
     function documentChanged(){
-        if(activeSession){if(activeSession.canvasId!==canvas?.id||activeSession.scope!==scope()||!nodes.includes(activeSession.node))dispose(activeSession);else{activeSession.refreshReferences?.();activeSession.sync();}}
+        if(activeSession){if(activeSession.canvasId!==canvas?.id||activeSession.scope!==scope()||!nodes.includes(activeSession.node))dispose(activeSession);else{activeSession.refreshReferences?.();activeSession.refreshParameters?.();activeSession.sync();}}
         window.dispatchEvent(new Event('pixmax-reshoot-preview-changed'));
         for(const node of nodes.filter(node=>node.segmentReshoot?.schemaVersion===1)){
             const element=world.querySelector(`.image-node[data-id="${CSS.escape(node.id)}"] .node-body`);if(!element)continue;const existing=element.querySelector('[data-reshoot-open]');if(existing){existing.disabled=isSmartCanvasLocked();continue;}
@@ -235,7 +241,7 @@
         if(!models().some(item=>item.provider.id===config.videoProvider&&item.model===config.videoModel))throw new Error('片段重拍需要可用的 Seedance 2.5 视频编辑模型');
         sourceFor(node);
         if(!cache||cache.reshootSourceAssetUuid!==state.source.identity||Number(cache.reshootStartSec)!==state.startSec||Number(cache.reshootEndSec)!==state.endSec)throw new Error('请先准备片段重拍的裁剪视频及首尾帧');
-        return {...config,videoTaskMode:'edit',videoTempShLinks:[{manual:true,url:cache.clipAssetUuid}]};
+        return {...PixmaxReshootParameters.validate(node,config),videoTempShLinks:[{manual:true,url:cache.clipAssetUuid}]};
     }
     function remapReferences(node,idMap,{connected=true,referenceNodes=[],preservePrepared=false}={}){
         const state=node.segmentReshoot;if(state?.schemaVersion!==1)return;

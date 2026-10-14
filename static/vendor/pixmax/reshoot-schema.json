@@ -1,0 +1,211 @@
+{
+  "source": "User-supplied Pixmax modelConfig snapshot",
+  "source_response_sha256": "d5457a74685bf52023bdce72bf27ddfb54a3e080d62d059243b25ef399bf4b4b",
+  "modelCode": "PIXDANCE_2_5",
+  "fields": [
+    {
+      "advanced": null,
+      "name": "resolution",
+      "length": null,
+      "type": "select",
+      "options": [
+        {
+          "name": "480P",
+          "value": "480P",
+          "dependOn": []
+        },
+        {
+          "name": "720P",
+          "value": "720P",
+          "dependOn": []
+        },
+        {
+          "name": "1080P",
+          "value": "1080P",
+          "dependOn": []
+        }
+      ],
+      "default": "720P"
+    },
+    {
+      "advanced": null,
+      "name": "aspectRatio",
+      "length": null,
+      "type": "select",
+      "options": [
+        {
+          "name": "Auto",
+          "value": "adaptive",
+          "dependOn": [
+            {
+              "type": "field",
+              "field": "referModel",
+              "inValues": [
+                "textToVideo",
+                "referToVideo",
+                "imageToVideo",
+                "firstAndLastFrame",
+                "videoEdit",
+                "videoExtend"
+              ],
+              "eqValue": null,
+              "betweenValue": null,
+              "length": null
+            }
+          ]
+        },
+        {
+          "name": "21:9",
+          "value": "21:9",
+          "dependOn": [
+            {
+              "type": "field",
+              "field": "referModel",
+              "inValues": [
+                "textToVideo",
+                "referToVideo"
+              ],
+              "eqValue": null,
+              "betweenValue": null,
+              "length": null
+            }
+          ]
+        },
+        {
+          "name": "16:9",
+          "value": "16:9",
+          "dependOn": [
+            {
+              "type": "field",
+              "field": "referModel",
+              "inValues": [
+                "textToVideo",
+                "referToVideo"
+              ],
+              "eqValue": null,
+              "betweenValue": null,
+              "length": null
+            }
+          ]
+        },
+        {
+          "name": "4:3",
+          "value": "4:3",
+          "dependOn": [
+            {
+              "type": "field",
+              "field": "referModel",
+              "inValues": [
+                "textToVideo",
+                "referToVideo"
+              ],
+              "eqValue": null,
+              "betweenValue": null,
+              "length": null
+            }
+          ]
+        },
+        {
+          "name": "1:1",
+          "value": "1:1",
+          "dependOn": [
+            {
+              "type": "field",
+              "field": "referModel",
+              "inValues": [
+                "textToVideo",
+                "referToVideo"
+              ],
+              "eqValue": null,
+              "betweenValue": null,
+              "length": null
+            }
+          ]
+        },
+        {
+          "name": "3:4",
+          "value": "3:4",
+          "dependOn": [
+            {
+              "type": "field",
+              "field": "referModel",
+              "inValues": [
+                "textToVideo",
+                "referToVideo"
+              ],
+              "eqValue": null,
+              "betweenValue": null,
+              "length": null
+            }
+          ]
+        },
+        {
+          "name": "9:16",
+          "value": "9:16",
+          "dependOn": [
+            {
+              "type": "field",
+              "field": "referModel",
+              "inValues": [
+                "textToVideo",
+                "referToVideo"
+              ],
+              "eqValue": null,
+              "betweenValue": null,
+              "length": null
+            }
+          ]
+        }
+      ],
+      "default": "adaptive"
+    },
+    {
+      "advanced": null,
+      "name": "duration",
+      "length": null,
+      "type": "range",
+      "min": 4.0,
+      "max": 30.0,
+      "step": 1.0,
+      "default": "5"
+    },
+    {
+      "advanced": null,
+      "name": "includeAudio",
+      "length": null,
+      "type": "select",
+      "options": [
+        {
+          "name": "Audio On",
+          "value": "true",
+          "dependOn": []
+        },
+        {
+          "name": "Audio Off",
+          "value": "false",
+          "dependOn": []
+        }
+      ],
+      "default": "true"
+    },
+    {
+      "advanced": null,
+      "name": "outputFormat",
+      "length": null,
+      "type": "select",
+      "options": [
+        {
+          "name": "MP4",
+          "value": "mp4",
+          "dependOn": []
+        },
+        {
+          "name": "MOV",
+          "value": "mov",
+          "dependOn": []
+        }
+      ],
+      "default": "mp4"
+    }
+  ]
+}

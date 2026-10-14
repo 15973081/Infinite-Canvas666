@@ -5,6 +5,10 @@ const convert=value=>JSON.parse(JSON.stringify(context.window.PixmaxWorkflow.con
 const nativeStoryboard=require('./helpers/pixmax-storyboard-native.cjs');
 const nativeReshoot=require('./helpers/pixmax-reshoot-native.cjs');
 
+test('native reshoot preserves sound and output format while normalizing video resolution',()=>{
+    const source=nativeReshoot();Object.assign(source.nodes[1].params,{resolution:'1080P',includeAudio:'false',outputFormat:'mov'});const target=convert(source).nodes[1];assert.equal(target.runSettings.videoResolution,'1080p');assert.equal(target.runSettings.videoGenerateAudio,false);assert.equal(target.runSettings.videoOutputFormat,'mov');assert.equal(target.pixmaxParams.outputFormat,'mov');
+});
+
 test('native reshoot imports source ownership, range and prompt without displaying the source as generated output',()=>{
     const source=nativeReshoot(),result=convert(source),target=result.nodes[1];
     assert.equal(target.segmentReshoot.schemaVersion,1);assert.equal(target.segmentReshoot.source.nodeId,'native-video');assert.equal(target.segmentReshoot.source.url,'/assets/reshoot-source.mp4');assert.equal(target.segmentReshoot.source.duration,8);

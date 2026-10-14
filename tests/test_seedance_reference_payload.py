@@ -64,7 +64,25 @@ class SeedanceReferencePayloadTests(unittest.TestCase):
 
     def test_seedance25_keeps_direct_video_support(self):
         body = self.capture(model='doubao-seedance-2-5-260628', videos=['https://example.invalid/a.mp4'])
+        self.assertIs(body['generate_audio'], False)
         self.assertEqual(body['content'][1]['type'], 'video_url')
+
+    def test_seedance25_forwards_sound_and_output_format(self):
+        for sound in (True, False):
+            with self.subTest(sound=sound):
+                body=self.capture(model='doubao-seedance-2-5-260628', generate_audio=sound, output_format='mov')
+                self.assertIs(body['generate_audio'], sound)
+                self.assertEqual(body['output_format'], 'mov')
+
+    def test_output_format_does_not_change_legacy_request_fingerprints(self):
+        payload=CanvasVideoRequest(prompt='保留旧请求')
+        self.assertNotIn('output_format', canvas._canvas_video_payload_dict(payload))
+        self.assertEqual(canvas._canvas_video_payload_dict(CanvasVideoRequest(prompt='MOV', output_format='mov'))['output_format'],'mov')
+
+    def test_non_seedance25_cannot_silently_ignore_output_format(self):
+        with self.assertRaises(HTTPException) as error:
+            self.capture(output_format='mov')
+        self.assertEqual(error.exception.status_code,400)
 
     def test_local_video_is_not_silently_replaced_by_frames(self):
         with self.assertRaises(HTTPException) as error:

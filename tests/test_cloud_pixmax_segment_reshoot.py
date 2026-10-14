@@ -15,7 +15,7 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references'])
+@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters'])
 def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path, import_mode):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
@@ -31,6 +31,15 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     uploaded = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (video.name, video.read_bytes(), 'video/mp4')})
     assert uploaded.status_code == 200, uploaded.text
     source = uploaded.json()['files'][0]
+    output = None
+    if import_mode == 'parameters':
+        output_file = tmp_path / 'supplier-result.mov'
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=160x90:rate=24', '-t', '4', '-c:v', 'libx264', '-pix_fmt', 'yuv444p', '-y', str(output_file)], check=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        output_info=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_streams','-of','json',str(output_file)],text=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0)))
+        assert len(output_info['streams'])==1 and output_info['streams'][0]['pix_fmt']=='yuv444p'
+        response = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (output_file.name, output_file.read_bytes(), 'video/quicktime')})
+        assert response.status_code == 200, response.text
+        output = response.json()['files'][0]
     references = []
     if import_mode == 'references':
         for kind, extension, mime, arguments in [
@@ -67,7 +76,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     process = subprocess.Popen(['node', str(root / 'tests/helpers/pixmax-segment-reshoot-http.cjs')], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done, task_ids, finalized = False, [], set()
     try:
-        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'references': references, 'nativeDocument': native_document, 'provider': provider, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
+        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'parameters': bool(output), 'references': references, 'nativeDocument': native_document, 'provider': provider, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
         for line in process.stdout:
             pointer = json.loads(line)
             if pointer.get('done'): done = True; break
@@ -82,7 +91,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
                         token = tasks.lease_context.set((task_id, claimed['lease_token']))
                         try:
                             value = tasks.get(task_id); request = tasks.request(task_id)
-                            value.update(status='succeeded', result={'videos': request['videos'][:1]})
+                            value.update(status='succeeded', result={'videos': [output['url']] if output else request['videos'][:1]})
                             tasks.save(value); finalized.add(task_id)
                         finally: tasks.lease_context.reset(token); tasks.release(task_id, claimed['lease_token'])
             if message['bodyFile']: assert re.fullmatch(r'body-\d+\.bin', message['bodyFile'])
@@ -91,6 +100,12 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
             if message['method'] == 'POST' and message['path'] == '/api/canvas-video-tasks':
                 assert response.status_code == 200, response.text
                 task_ids.append(response.json()['task_id'])
+                if output:
+                    repeated=world['editor'].request(message['method'],message['path'],headers={**message['headers'],**headers(world['a'])},content=content)
+                    assert repeated.status_code==200 and repeated.json()['task_id']==task_ids[-1]
+                    changed=json.loads(content);changed['output_format']='mp4'
+                    conflict=world['editor'].post(message['path'],headers={**message['headers'],**headers(world['a'])},json=changed)
+                    assert conflict.status_code==409,conflict.text
             answer = {'id': message['id'], 'status': response.status_code}
             try: answer['body'] = response.json()
             except ValueError:
@@ -124,6 +139,12 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         with workspace_scope(world['a']['id']):
             request = tasks.request(task_ids[0])
             assert request['task_mode'] == 'edit' and request['provider_id'] == provider_id
+            if output:
+                assert request['output_format'] == 'mov' and request['generate_audio'] is False
+                assert request['resolution'] == '1080p' and request['aspect_ratio'] == 'adaptive'
+                assert node['runSettings']['videoOutputFormat'] == 'mov' and node['runSettings']['videoGenerateAudio'] is False
+                assert media.id_from_ref(node['images'][0]['url']) == media.id_from_ref(output['url'])
+                output_id=media.id_from_ref(output['url'])
             clip_id = media.id_from_ref(request['videos'][0]); assert clip_id != media.id_from_ref(source['url'])
             expected_ids = {clip_id, *(media.id_from_ref(item['url']) for item in references)}
             if references:
@@ -137,14 +158,19 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
             with database.connection() as conn:
                 owned_ids = conn.execute('SELECT input_asset_ids FROM tasks WHERE id=%s', (task_ids[0],)).fetchone()['input_asset_ids']
                 assert len(owned_ids) == len(expected_ids) and set(owned_ids) == expected_ids
-        for item in [*node['segmentReshoot']['preparedMedia'], *references]:
+        for item in [*node['segmentReshoot']['preparedMedia'], *references, *([output] if output else [])]:
             assert world['viewer'].get(item['url'], headers=headers(world['a'])).status_code == 200
             assert world['outsider'].get(item['url'], headers=headers(world['b'])).status_code in (403, 404)
+        if output:
+            history=world['viewer'].get('/api/canvas-generation-history/'+output_id,params={'canvas_id':saved['id'],'node_id':node['id']},headers=headers(world['a']))
+            assert history.status_code==200,history.text
+            assert history.json()['parameters']['output_format']=='mov' and history.json()['parameters']['generate_audio'] is False
+            assert 'quicktime' in world['viewer'].get(output['url'],headers=headers(world['a'])).headers['content-type']
         exported = world['editor'].post('/api/canvas-workflows/export', headers=headers(world['a']), json={'nodes': saved['nodes'], 'connections': saved['connections'], 'include_resources': True})
         assert exported.status_code == 200, exported.text
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
             workflow = json.loads(archive.read('workflow.json'))
-            assert len(workflow['resources']) == 4 + len(references)
+            assert len(workflow['resources']) == 4 + len(references) + bool(output)
         imported = world['editor'].post('/api/canvas-workflows/import', headers=headers(world['a']), files={'file': ('reshoot.zip', exported.content, 'application/zip')})
         assert imported.status_code == 200, imported.text
         copy = next(item for item in imported.json()['nodes'] if item.get('segmentReshoot'))

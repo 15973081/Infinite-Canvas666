@@ -117,6 +117,7 @@ class CanvasVideoRequest(BaseModel):
     camerafixed: bool = False
     return_last_frame: bool = False
     generate_audio: bool = False
+    output_format: Optional[Literal['mp4', 'mov']] = None
     multimodal: bool = False
     trusted_asset: bool = False
     task_mode: str = "auto"

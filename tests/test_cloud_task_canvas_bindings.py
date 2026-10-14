@@ -95,10 +95,16 @@ def test_bound_request_persists_input_and_target_under_current_lease(world, tmp_
             expected_request.pop('image_tool')
             expected_request.pop('image_tool_revision')
             assert 'image_tool' not in row['request'] and 'image_tool_revision' not in row['request']
+        else:
+            # Omit the new optional format field to retain legacy request hashes.
+            assert expected_request.pop('output_format') is None
+            assert 'output_format' not in row['request']
         assert binding['request_sha256'] == row['request_sha256'] == tasks.fingerprint(expected_request)
         assert row['canvas_revision'] == canvas['revision'] and row['canvas_edit_generation'] == lease['generation']
         assert row['requested_by'] == world['people'][0]['id']
         assert conn.execute('SELECT count(*) AS n FROM task_submissions WHERE task_id=%s', (tid,)).fetchone()['n'] == 0
+    repeated = submit(world, body, lease, media_kind)
+    assert repeated.status_code == 200 and repeated.json()['task_id'] == tid
     finish(world, tid, tmp_path, media_kind)
     fetched = world['editor'].get('/api/canvas-' + media_kind + '-tasks/' + tid, headers=headers(world['a']))
     assert fetched.status_code == 200 and fetched.json()['canvas_binding'] == binding

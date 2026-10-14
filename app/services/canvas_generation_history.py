@@ -16,7 +16,7 @@ KIND = "CASE WHEN t.kind='model' THEN 'model' WHEN a.kind IN ('image','video','a
 PARAMETERS = ('prompt', 'model', 'size', 'quality', 'duration', 'resolution', 'aspect_ratio', 'mode',
               'generate_type', 'music_mode', 'lyrics', 'timbre_id', 'speed', 'vol', 'pitch',
               'voice_modify_pitch', 'voice_modify_intensity', 'voice_modify_timbre', 'voice_modify_sound_effects',
-              'enable_pbr', 'face_count', 'polygon_type', 'seed', 'n', 'generate_audio')
+              'enable_pbr', 'face_count', 'polygon_type', 'seed', 'n', 'generate_audio', 'output_format')
 
 
 def access(conn, canvas_id, node_id=''):
