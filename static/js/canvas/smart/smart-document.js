@@ -247,7 +247,7 @@ function insertSmartWorkflowIntoCanvas(imported){
         .filter(conn => conn.from && conn.to);
     newNodes.forEach(node=>{if(node.inputNodeIds)node.inputNodeIds=node.inputNodeIds.map(id=>idMap.get(id)).filter(Boolean);});
     newNodes.forEach(node=>window.PixmaxVideoAnnotation?.remapReferences(node,idMap,{referenceNodes:newNodes}));
-    newNodes.forEach(node=>window.PixmaxSegmentReshoot?.remapReferences(node,idMap,{referenceNodes:newNodes}));
+    newNodes.forEach(node=>window.PixmaxSegmentReshoot?.remapReferences(node,idMap,{referenceNodes:newNodes,preservePrepared:true}));
     newNodes.forEach(node=>window.PixmaxStoryboardAssets?.remapReferences(node,idMap));
     newNodes.forEach(node=>window.PixmaxStoryboardMedia?.remapReferences(node,idMap,{referenceNodes:newNodes}));
     newNodes.forEach(node=>window.PixmaxCanvasFrames?.remapReferences(node,idMap));

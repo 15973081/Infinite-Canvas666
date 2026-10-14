@@ -3,6 +3,35 @@ const context=vm.createContext({window:{},URL});
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js/pixmax-workflow.js'),'utf8'),context);
 const convert=value=>JSON.parse(JSON.stringify(context.window.PixmaxWorkflow.convert(value)));
 const nativeStoryboard=require('./helpers/pixmax-storyboard-native.cjs');
+const nativeReshoot=require('./helpers/pixmax-reshoot-native.cjs');
+
+test('native reshoot imports source ownership, range and prompt without displaying the source as generated output',()=>{
+    const source=nativeReshoot(),result=convert(source),target=result.nodes[1];
+    assert.equal(target.segmentReshoot.schemaVersion,1);assert.equal(target.segmentReshoot.source.nodeId,'native-video');assert.equal(target.segmentReshoot.source.url,'/assets/reshoot-source.mp4');assert.equal(target.segmentReshoot.source.duration,8);
+    assert.equal(target.segmentReshoot.startSec,1);assert.equal(target.segmentReshoot.endSec,6);assert.equal(target.segmentReshoot.prompt,'把头发改成红色');assert.deepEqual(target.images,[]);
+    assert.equal(target.runSettings.videoTaskMode,'edit');assert.equal(target.runSettings.videoModel,'PIXDANCE_2_5');assert.equal(target.runSettings.videoProvider,undefined);assert.equal(target.segmentReshoot.taskId,undefined);assert.equal(JSON.stringify(result).includes('foreign-task'),false);assert.deepEqual(result.warnings,[]);
+    assert.equal(source.nodes[1].defaultAsset.assetsUuid,'native-source');
+    Object.assign(source.nodes[1].params,{reshootStartSec:'0.1',reshootEndSec:'4.1'});assert.equal(convert(source).nodes[1].segmentReshoot.importError,undefined);
+});
+
+test('reshoot resolves complete native cache IDs to typed media URLs and rejects stale or incomplete cache',()=>{
+    const source=nativeReshoot({cache:true}),target=convert(source).nodes[1];
+    assert.equal(target.segmentReshoot.cache.reshootSourceAssetUuid,'/assets/reshoot-source.mp4');assert.equal(target.segmentReshoot.cache.clipAssetUuid,'/assets/native-clip.mp4');assert.deepEqual(target.segmentReshoot.preparedMedia.map(item=>item.kind),['video','image','image']);assert.deepEqual(target.runSettings.videoTempShLinks,[{manual:true,url:'/assets/native-clip.mp4'}]);
+    source.nodes.pop();const result=convert(source);assert.equal(result.nodes[1].segmentReshoot.cache,undefined);assert.match(result.warnings[0],/缓存不完整/);
+    const changed=nativeReshoot({cache:true});changed.nodes[1].params.reshootEndSec='7.0';assert.equal(convert(changed).nodes[1].segmentReshoot.cache,undefined);
+});
+
+test('completed reshoot output remains distinct from its source; standalone imports keep the resolved source',()=>{
+    const source=nativeReshoot();source.nodes[1].defaultAsset={assetsUuid:'native-result',type:'VIDEO',webUrl:'/assets/result.mp4'};
+    const target=convert(source).nodes[1];assert.equal(target.images[0].url,'/assets/result.mp4');assert.equal(target.segmentReshoot.source.url,'/assets/reshoot-source.mp4');
+    const standalone=nativeReshoot();standalone.nodes.shift();const detached=convert(standalone).nodes[0];assert.equal(detached.segmentReshoot.source.nodeId,'');assert.equal(detached.segmentReshoot.source.media.kind,'video');assert.deepEqual(detached.images,[]);
+});
+
+test('missing reshoot sources and malformed native ranges remain explicit blocked imports',()=>{
+    const missing=nativeReshoot();missing.nodes[1].params.reshootSourceAssetUuid='missing';const result=convert(missing);assert.match(result.nodes[1].segmentReshoot.importError,/源视频/);assert.match(result.warnings[0],/源视频/);assert.equal(result.nodes[1].segmentReshoot.source.url,'');
+    for(const [start,end] of [['','6'],['NaN','6'],['-1','6'],['2','5'],['0','31'],['1','9']]){const document=nativeReshoot();Object.assign(document.nodes[1].params,{reshootStartSec:start,reshootEndSec:end});assert.match(convert(document).nodes[1].segmentReshoot.importError,/范围无效/);}
+    const tooLong=nativeReshoot({duration:601});assert.match(convert(tooLong).nodes[1].segmentReshoot.importError,/10 分钟/);
+});
 test('native storage paths use the asset origin while absolute and receiving-app paths keep their identity',()=>{
     const result=convert({nodes:[{uuid:'image',type:'BASE_IMAGE',defaultAsset:{type:'IMAGE',webUrl:'/static/img/original.png',thumbnailWebUrl:'/static/img/thumbnail.webp',ossDomain:'https://media.example.test/'},nodeAssets:[{type:'IMAGE',webUrl:'https://original.example.test/photo.png',thumbnailWebUrl:'javascript:alert(1)'},{type:'IMAGE',webUrl:'/test-image.svg'}]},
         {uuid:'video',type:'BASE_VIDEO',prevNodeUuids:['image'],defaultAsset:{type:'VIDEO',webUrl:'/static/video/movie.mp4',thumbnailVideoWebUrl:'/static/img/movie.jpg',ossDomain:'javascript:alert(1)'}}]});

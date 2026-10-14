@@ -117,7 +117,7 @@ test('restored nodes use complete event bindings and selection avoids full rende
 test('partial links compute only endpoints, match full geometry, preserve history/cascade states',()=>{
     let layouts=0;
     const nodes=Array.from({length:1001},(_,i)=>({id:String(i),x:i*30,y:10,images:[]}));
-    const ctx=vm.createContext({nodes,canvas:{connections:nodes.slice(1).map((n,i)=>({from:String(i),to:n.id,kind:i===0?'history':'input'}))},
+    const ctx=vm.createContext({window:{},nodes,canvas:{connections:nodes.slice(1).map((n,i)=>({from:String(i),to:n.id,kind:i===0?'history':'input'}))},
         loopInsertPreview:null,cascadeConnectionKeys:()=>new Set(),smartCascadeEdgeState:()=>'',
         imageLayout:()=>{layouts++;return {width:200,height:100};},nodeScale:()=>1,escapeHtml:s=>s});
     load(ctx,['withSmartComputation','nodeRect','renderConnections','renderSmartConnectionPaths','smartConnectionTopology']);

@@ -15,7 +15,8 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path):
+@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache'])
+def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path, import_mode):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
     model = 'doubao-seedance-2-5-pro'
@@ -30,12 +31,31 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     uploaded = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (video.name, video.read_bytes(), 'video/mp4')})
     assert uploaded.status_code == 200, uploaded.text
     source = uploaded.json()['files'][0]
+    native_document = None
+    if import_mode != 'create':
+        native_asset = {'assetsUuid': 'native-source', 'type': 'VIDEO', 'webUrl': source['url'], 'metaData': {'duration': 8}, 'width': 160, 'height': 90}
+        native_data = {'segmentReshoot': True, 'label': '原生重拍'}
+        native_params = {'model': 'PIXDANCE_2_5', 'referModel': 'videoEdit', 'duration': '4', 'aspectRatio': 'adaptive', 'reshootSourceAssetUuid': 'native-source', 'reshootStartSec': '1.0', 'reshootEndSec': '6.0', 'prompt': ''}
+        native_document = {'nodes': [{'uuid': 'native-source-node', 'type': 'BASE_VIDEO', 'defaultAsset': native_asset}, {'uuid': 'native-target-node', 'type': 'GENERATE_VIDEO', 'defaultAsset': native_asset, 'prevNodeUuids': ['native-source-node'], 'metaData': {'position': {'x': 500, 'y': 100}, 'data': native_data}, 'params': native_params, 'generationTask': {'taskUuid': 'foreign-never-resume', 'status': 'RUNNING'}}]}
+        if import_mode == 'native-cache':
+            for asset_id, kind, arguments in [
+                ('native-clip', 'VIDEO', ['-ss', '1', '-i', str(video), '-t', '5', '-c:v', 'libx264', '-pix_fmt', 'yuv420p']),
+                ('native-head', 'IMAGE', ['-ss', '1', '-i', str(video), '-frames:v', '1']),
+                ('native-tail', 'IMAGE', ['-ss', '5.95', '-i', str(video), '-frames:v', '1']),
+            ]:
+                asset_file = tmp_path / (asset_id + ('.mp4' if kind == 'VIDEO' else '.jpg'))
+                subprocess.run(['ffmpeg', '-v', 'error', *arguments, '-y', str(asset_file)], check=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                prepared = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (asset_file.name, asset_file.read_bytes(), 'video/mp4' if kind == 'VIDEO' else 'image/jpeg')})
+                assert prepared.status_code == 200, prepared.text
+                native_document['nodes'].append({'uuid': asset_id + '-node', 'type': 'BASE_VIDEO' if kind == 'VIDEO' else 'BASE_IMAGE', 'defaultAsset': {'assetsUuid': asset_id, 'type': kind, 'webUrl': prepared.json()['files'][0]['url'], 'metaData': {'duration': 5} if kind == 'VIDEO' else {}}})
+            native_data['reshootClipCache'] = {'reshootSourceAssetUuid': 'native-source', 'reshootStartSec': '1.0', 'reshootEndSec': '6.0', 'clipAssetUuid': 'native-clip', 'headFrameAssetUuid': 'native-head', 'tailFrameAssetUuid': 'native-tail'}
+            native_params.update(reshootClipAssetUuid='native-clip', reshootHeadFrameAssetUuid='native-head', reshootTailFrameAssetUuid='native-tail')
     path, canvas = setup_canvas(world, 'smart')
     root = Path(__file__).resolve().parents[1]
     process = subprocess.Popen(['node', str(root / 'tests/helpers/pixmax-segment-reshoot-http.cjs')], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done, task_ids, finalized = False, [], set()
     try:
-        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'provider': provider, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
+        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'nativeDocument': native_document, 'provider': provider, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
         for line in process.stdout:
             pointer = json.loads(line)
             if pointer.get('done'): done = True; break
@@ -75,6 +95,14 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         node = next(item for item in saved['nodes'] if item.get('segmentReshoot'))
         assert node['segmentReshoot']['prompt'] == '将衣服改为红色' and len(node['images']) == 1
         assert len(node['segmentReshoot']['preparedMedia']) == 3
+        assert node['segmentReshoot']['startSec'] == (0 if import_mode == 'create' else 1)
+        assert node['segmentReshoot']['endSec'] == (4 if import_mode == 'create' else 6)
+        assert 'foreign-never-resume' not in json.dumps(saved)
+        actual_clip = world['editor'].get(node['segmentReshoot']['cache']['clipAssetUuid'], headers=headers(world['a']))
+        assert actual_clip.status_code == 200
+        clip_file = tmp_path / 'verified-clip.mp4'; clip_file.write_bytes(actual_clip.content)
+        clip_info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', str(clip_file)], text=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)))
+        assert abs(float(clip_info['format']['duration']) - (4 if import_mode == 'create' else 5)) < .15
         with workspace_scope(world['a']['id']):
             request = tasks.request(task_ids[0])
             assert request['task_mode'] == 'edit' and request['provider_id'] == provider_id

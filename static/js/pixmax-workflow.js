@@ -26,8 +26,47 @@
         const poster=kind.includes('video')?(thumbnail||(!videoPreview?videoThumbnail:'')||assetUrl(asset.previewWebUrl,asset.ossDomain)):videoThumbnail;
         return {url,kind:kind.includes('video')?'video':kind.includes('audio')?'audio':kind.includes('3d')||kind.includes('model')?'model':'image',
             name:info.name||info.fileName||'',natural_w:number(asset.width),natural_h:number(asset.height),
+            ...(Number(info.duration)>0?{duration:Number(info.duration)}:{}),
             ...(thumbnail?{thumbnailUrl:thumbnail}:{}),...(poster?{poster}:{}),...(videoPreview?{previewVideoUrl:videoPreview}:{}),
             ...(asset.panorama?{panorama:true}:{})};
+    }
+    const mediaIdentity=item=>String(item?.url||'').match(/(?:assets\/cloud|api\/media)\/(ast_[a-f0-9]{32})(?:\/|$)/)?.[1]||item?.url||'';
+    function importReshoots(document,nodes,connections,warnings){
+        const byId=new Map(nodes.map(node=>[node.id,node])),assets=new Map(),assetOwners=new Map();
+        for(const source of document.nodes){
+            for(const asset of [source.defaultAsset,...(Array.isArray(source.nodeAssets)?source.nodeAssets:[])]){
+                const item=media(asset),id=asset?.assetsUuid;if(!item||typeof id!=='string'||!id)continue;
+                if(!assets.has(id))assets.set(id,item);
+                if(!assetOwners.has(id))assetOwners.set(id,[]);
+                assetOwners.get(id).push(source.uuid);
+            }
+        }
+        for(const source of document.nodes){
+            const node=byId.get(source.uuid),info=metadata(source.metaData),params=source.params||{};
+            if(source.type!=='GENERATE_VIDEO'||!node||info.data?.segmentReshoot!==true)continue;
+            const sourceId=String(params.reshootSourceAssetUuid||'').trim(),item=assets.get(sourceId);
+            const incoming=connections.filter(edge=>edge.to===node.id).map(edge=>edge.from);
+            const original=(assetOwners.get(sourceId)||[]).find(id=>id!==node.id&&incoming.includes(id)&&byId.get(id)?.images.some(image=>image.kind==='video'&&image.url===item?.url));
+            const parse=value=>typeof value==='number'||typeof value==='string'&&value.trim()!==''?Number(value):NaN;
+            const start=parse(params.reshootStartSec),end=parse(params.reshootEndSec),seconds=Number(item?.duration)||0;
+            const validRange=Number.isFinite(start)&&Number.isFinite(end)&&start>=0&&end-start>=4-1e-6&&end-start<=30+1e-6&&(!seconds||end<=seconds+1e-6);
+            const error=!item||item.kind!=='video'?'无法解析原生重拍的源视频素材':!validRange?'原生重拍片段范围无效，请从源视频重新选择':seconds&&(seconds<=4||seconds>600)?'原生重拍源视频时长需大于 4 秒且不超过 10 分钟':'';
+            node.segmentReshoot={schemaVersion:1,source:{nodeId:original||'',url:item?.url||'',media:item?{...item}:null,identity:mediaIdentity(item),duration:seconds},startSec:Number.isFinite(start)?start:0,endSec:Number.isFinite(end)?end:4,prompt:String(params.prompt||''),...(error?{importError:error}:{})};
+            Object.assign(node.runSettings,{videoTaskMode:'edit',count:1});
+            // Native idle targets copy the source preview into defaultAsset. It is
+            // not a generated output; completed outputs have their own asset id.
+            if(source.defaultAsset?.assetsUuid===sourceId)node.images=node.images.filter(image=>image.url!==item?.url);
+            if(error){warnings.push(error+'：'+node.id);continue;}
+            const cached=info.data?.reshootClipCache;
+            if(!cached)continue;
+            const clip=assets.get(cached.clipAssetUuid),head=assets.get(cached.headFrameAssetUuid),tail=assets.get(cached.tailFrameAssetUuid);
+            if(cached.reshootSourceAssetUuid!==sourceId||parse(cached.reshootStartSec)!==start||parse(cached.reshootEndSec)!==end||clip?.kind!=='video'||head?.kind!=='image'||tail?.kind!=='image'){
+                warnings.push('原生重拍缓存不完整或与片段不符，需重新准备：'+node.id);continue;
+            }
+            node.segmentReshoot.cache={reshootSourceAssetUuid:mediaIdentity(item),reshootStartSec:start.toFixed(1),reshootEndSec:end.toFixed(1),clipAssetUuid:clip.url,headFrameAssetUuid:head.url,tailFrameAssetUuid:tail.url};
+            node.segmentReshoot.preparedMedia=[{...clip},{...head},{...tail}];
+            node.runSettings.videoTempShLinks=[{manual:true,url:clip.url}];
+        }
     }
     function storyboard(source,info,warnings){
         let document;
@@ -109,6 +148,7 @@
             }
         }
         nodes.forEach(node=>node.inputNodeIds=connections.filter(edge=>edge.to===node.id).map(edge=>edge.from));
+        importReshoots(document,nodes,connections,warnings);
         const byId=new Map(nodes.map(node=>[node.id,node]));
         nodes.forEach(node=>{
             for(const asset of node.storyboardAssets||[]){const image=byId.get(asset.imageNodeId);if(!image||image.generationKind==='video'||image.type!=='smart-image')delete asset.imageNodeId;}

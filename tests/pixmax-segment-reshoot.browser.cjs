@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {execFileSync}=require('node:child_process');
 const {fixture}=require('./helpers/canvas-browser.cjs');
+const nativeReshoot=require('./helpers/pixmax-reshoot-native.cjs');
 async function setup(t){
     const directory=fs.mkdtempSync(path.join(os.tmpdir(),'pixmax-reshoot-ui-'));t.after(()=>{assert.ok(path.resolve(directory).startsWith(path.resolve(os.tmpdir())+path.sep)&&path.basename(directory).startsWith('pixmax-reshoot-ui-'));fs.rmSync(directory,{recursive:true,force:true});});
     const filename=path.join(directory,'source.mp4');execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','testsrc=size=160x90:rate=24','-t','8','-c:v','libx264','-pix_fmt','yuv420p','-y',filename]);
@@ -60,4 +61,46 @@ test('a standalone copied reshoot retains its media source and can prepare a fre
 
 test('batch preview refuses an unprepared reshoot and uses only its prepared crop once ready',async t=>{
     const {page,errors}=await setup(t);await uploads(page);await open(page);assert.match(await page.evaluate(()=>{try{PixmaxSegmentReshoot.executionSettings(nodes[1],nodes[1].runSettings);}catch(error){return error.message;}}),/先准备/);await page.getByRole('button',{name:'准备片段',exact:true}).click();await prepared(page);const payload=await page.evaluate(async()=>{const config=PixmaxSegmentReshoot.executionSettings(nodes[1],nodes[1].runSettings);return runApiVideoGeneration('重拍',[],config,null,{preview:true});});assert.equal(payload.task_mode,'edit');assert.deepEqual(payload.videos,[await page.evaluate(()=>nodes[1].segmentReshoot.cache.clipAssetUuid)]);assert.deepEqual(errors,[]);
+});
+
+async function importNative(page,document){
+    await page.evaluate(document=>insertSmartWorkflowIntoCanvas(document),document);
+    return page.evaluate(()=>nodes.findLast(node=>node.segmentReshoot)?.id);
+}
+async function chooseModel(page){await page.getByRole('combobox',{name:'重拍模型'}).selectOption(JSON.stringify(['volcengine','doubao-seedance-2-5-pro']));}
+
+test('raw native reshoot import requires a local model choice then crops its original range and submits once',async t=>{
+    const {page,errors,record}=await setup(t),media=await uploads(page),api=await tasks(page),id=await importNative(page,nativeReshoot());
+    const state=await page.evaluate(id=>{const node=nodes.find(node=>node.id===id);return {state:node.segmentReshoot,images:node.images,source:nodes.find(item=>item.id===node.segmentReshoot.source.nodeId)?.id};},id);
+    assert.equal(state.state.source.nodeId,state.source);assert.notEqual(state.source,'native-video');assert.deepEqual(state.images,[]);assert.equal(state.state.startSec,1);assert.equal(state.state.endSec,6);
+    await page.evaluate(id=>PixmaxSegmentReshoot.open(nodes.find(node=>node.id===id)),id);assert.equal(await page.getByRole('combobox',{name:'重拍模型'}).inputValue(),'');
+    await page.getByRole('textbox',{name:'重拍要求'}).fill('把头发改成蓝色');assert.equal(await page.evaluate(id=>nodes.find(node=>node.id===id).runSettings.videoProvider,id),undefined);
+    await chooseModel(page);await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.waitForFunction(id=>nodes.find(node=>node.id===id).images.length===1,id);
+    assert.equal(api.calls.length,1);assert.equal(media.calls.length,3);assert.equal(api.calls[0].task_mode,'edit');assert.match(api.calls[0].prompt,/蓝色/);await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes.find(node=>node.id===id).segmentReshoot.cache.reshootStartSec,'1.0');assert.deepEqual(errors,[]);
+});
+
+test('complete native cache survives import and save, with no redundant crop or uploads before generation',async t=>{
+    const {page,errors,record,directory}=await setup(t),media=await uploads(page),api=await tasks(page);
+    const clipFile=path.join(directory,'native-clip.mp4');execFileSync('ffmpeg',['-v','error','-i',path.join(directory,'source.mp4'),'-t','5','-c','copy','-y',clipFile]);const clipBytes=fs.readFileSync(clipFile);await page.route('**/assets/native-clip.mp4',route=>route.fulfill({body:clipBytes,contentType:'video/mp4'}));
+    const id=await importNative(page,nativeReshoot({cache:true}));assert.equal(await page.evaluate(id=>nodes.find(node=>node.id===id).segmentReshoot.cache.clipAssetUuid,id),'/assets/native-clip.mp4');
+    await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes.find(node=>node.id===id).segmentReshoot.preparedMedia.length,3);
+    await page.evaluate(id=>PixmaxSegmentReshoot.open(nodes.find(node=>node.id===id)),id);await chooseModel(page);await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.waitForFunction(id=>nodes.find(node=>node.id===id).images.length===1,id);
+    assert.equal(media.calls.length,0);assert.equal(api.calls.length,1);assert.deepEqual(api.calls[0].videos,['/assets/native-clip.mp4']);assert.deepEqual(errors,[]);
+});
+
+test('standalone native import probes missing video duration and remains able to prepare',async t=>{
+    const {page,errors}=await setup(t),media=await uploads(page),document=nativeReshoot({duration:null});document.nodes.shift();Object.assign(document.nodes[0].params,{reshootStartSec:'0.1',reshootEndSec:'4.1'});const id=await importNative(page,document);
+    assert.equal(await page.evaluate(id=>nodes.find(node=>node.id===id).segmentReshoot.source.nodeId,id),'');await page.evaluate(id=>PixmaxSegmentReshoot.open(nodes.find(node=>node.id===id)),id);
+    assert.ok(Math.abs(await page.evaluate(id=>nodes.find(node=>node.id===id).segmentReshoot.source.duration,id)-8)<.1);await page.getByRole('button',{name:'准备片段',exact:true}).click();await prepared(page);assert.equal(media.calls.length,3);assert.deepEqual(errors,[]);
+});
+
+test('unresolved native source cannot open or submit as a generic generation node',async t=>{
+    const {page,errors}=await setup(t),api=await tasks(page),document=nativeReshoot();document.nodes[1].params.reshootSourceAssetUuid='unknown-asset';const id=await importNative(page,document);
+    await page.evaluate(id=>PixmaxSegmentReshoot.open(nodes.find(node=>node.id===id)),id);await page.locator('#toast').filter({hasText:'无法解析'}).waitFor();assert.equal(await page.getByRole('dialog',{name:'片段重拍',exact:true}).count(),0);assert.equal(api.calls.length,0);assert.deepEqual(errors,[]);
+});
+
+test('source media reorder preserves the chosen video during workflow remapping; relocated cache is invalidated',async t=>{
+    const {page,errors}=await setup(t);const id=await importNative(page,nativeReshoot({cache:true}));
+    const result=await page.evaluate(id=>{const target=nodes.find(node=>node.id===id),source=nodes.find(node=>node.id===target.segmentReshoot.source.nodeId);source.images.unshift({kind:'video',url:'/assets/unrelated.mp4'});PixmaxSegmentReshoot.remapReferences(target,new Map([[source.id,source.id]]),{referenceNodes:[source],preservePrepared:true});const original=target.segmentReshoot.source.url;source.images[1].url='/assets/relocated.mp4';target.segmentReshoot.source.media.url=source.images[1].url;PixmaxSegmentReshoot.remapReferences(target,new Map([[source.id,source.id]]),{referenceNodes:[source],preservePrepared:true});return {original,url:target.segmentReshoot.source.url,cache:target.segmentReshoot.cache};},id);
+    assert.equal(result.original,'/assets/reshoot-source.mp4');assert.equal(result.url,'/assets/relocated.mp4');assert.equal(result.cache,undefined);assert.deepEqual(errors,[]);
 });
