@@ -49,7 +49,7 @@ function pixmaxConnectionMenuTypes(node,port){
 }
 function pixmaxCanConnect(from,to){return !!window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(from)]?.source.includes(pixmaxNativeNodeType(to));}
 
-const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','continuation','reshoot','erase','upscale','video-history']);
+const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','continuation','reshoot','erase','upscale']);
 function pixmaxVideoToolbarActions(node){
     const item=node?.images?.[smartNodeToolbarImageIndex(node)]||{};
     const editing=!isSmartCanvasLocked();
@@ -62,7 +62,7 @@ function pixmaxVideoToolbarActions(node){
         {key:'parse',label:'解析',icon:'layout-grid',enabled:editing&&!!window.CanvasSession?.enabled&&pixmaxChatProviders().length>0,hint:editing&&window.CanvasSession?.enabled?'将视频解析为分镜脚本':'请在成员画布中开始编辑并配置可用文本模型'},later('erase','字幕擦除','captions'),later('upscale','超分','scan'),
         {key:'depth-video',label:'深度视频',icon:'layers',enabled:editing,hint:editing?'深度视频 · 本地提取':'请先开始编辑画布'},
         {key:'audio-separate',label:'音频分离',icon:'audio-lines',enabled:editing,hint:editing?'音频分离 · 提取静音视频和音轨':'请先开始编辑画布'},
-        {key:'tags',label:'标签',icon:'tag',enabled:true,compact:true}, {...later('video-history','生成历史','history'),compact:true},
+        {key:'tags',label:'标签',icon:'tag',enabled:true,compact:true}, {key:'video-history',label:'生成历史',icon:'history',enabled:!!window.CanvasSession?.enabled,compact:true,hint:window.CanvasSession?.enabled?'查看生成素材历史':'请在成员画布中查看生成历史'},
         {key:'download',label:'下载',icon:'download',enabled:true,compact:true},
         {key:'preview',label:'放大预览',icon:'maximize-2',enabled:true,compact:true},
         {key:'asset',label:'保存到资产库',icon:'library-big',enabled:editing,compact:true},

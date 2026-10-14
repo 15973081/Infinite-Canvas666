@@ -12,6 +12,80 @@ from test_cloud_maintenance_control import reset_maintenance
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
+def test_generation_history_scopes_filters_deduplicates_and_preserves_task_and_fee_rows(world,tmp_path):
+    from app.storage import database,tasks
+    from app.storage.workspace import workspace_scope
+    path,canvas=setup_canvas(world,'smart');other_path,other=setup_canvas(world,'smart')
+    image_id,image=result_task(world,canvas,tmp_path);video_id,video=result_task(world,canvas,tmp_path,'video');other_id,other_image=result_task(world,other,tmp_path)
+    endpoint='/api/canvas-generation-history'
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        before_tasks=conn.execute('SELECT * FROM tasks ORDER BY id').fetchall();before_fees=conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()
+    current=world['viewer'].get(endpoint,params={'canvas_id':canvas['id']},headers=headers(world['a']));assert current.status_code==200,current.text
+    assert {item['id'] for item in current.json()['items']}=={image['id'],video['id']}
+    assert {item['kind'] for item in current.json()['items']}=={'image','video'}
+    all_items=world['viewer'].get(endpoint,headers=headers(world['a'])).json()['items'];assert len(all_items)==3
+    filtered=world['viewer'].get(endpoint,params={'kind':'video'},headers=headers(world['a'])).json()['items'];assert [item['id'] for item in filtered]==[video['id']]
+    detail=world['viewer'].get(endpoint+'/'+image['id'],headers=headers(world['a']));assert detail.status_code==200,detail.text
+    assert detail.json()['parameters']['prompt']=='private-prompt' and 'upstream-secret' not in detail.text and '_canvas_binding' not in detail.text
+    assert world['viewer'].get(endpoint+'/'+other_image['id'],params={'canvas_id':canvas['id']},headers=headers(world['a'])).status_code==404
+    assert world['outsider'].get(endpoint,params={'canvas_id':canvas['id']},headers=headers(world['b'])).status_code==404
+    assert world['outsider'].get(endpoint,headers=headers(world['b'])).json()['items']==[]
+    assert world['outsider'].get(endpoint+'/'+image['id'],headers=headers(world['b'])).status_code==404
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        assert conn.execute('SELECT * FROM tasks ORDER BY id').fetchall()==before_tasks
+        assert conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()==before_fees
+
+
+def test_generation_history_keyset_cursor_is_scoped_and_deleted_assets_disappear(world,tmp_path):
+    from app.storage import database,media
+    from app.storage.workspace import workspace_scope
+    path,canvas=setup_canvas(world,'smart')
+    created=[result_task(world,canvas,tmp_path) for _ in range(3)];endpoint='/api/canvas-generation-history'
+    first=world['viewer'].get(endpoint,params={'canvas_id':canvas['id'],'limit':1},headers=headers(world['a']));assert first.status_code==200,first.text
+    cursor=first.json()['next_cursor'];assert cursor
+    second=world['viewer'].get(endpoint,params={'canvas_id':canvas['id'],'limit':1,'cursor':cursor},headers=headers(world['a']));assert second.status_code==200,second.text
+    assert first.json()['items'][0]['id']!=second.json()['items'][0]['id']
+    assert world['viewer'].get(endpoint,params={'limit':1,'cursor':cursor},headers=headers(world['a'])).status_code==400
+    assert world['viewer'].get(endpoint,params={'canvas_id':canvas['id'],'kind':'video','cursor':cursor},headers=headers(world['a'])).status_code==400
+    assert world['outsider'].get(endpoint,params={'cursor':cursor},headers=headers(world['b'])).status_code==400
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        conn.execute("UPDATE assets SET deleted_at=now() WHERE id=%s",(created[0][1]['id'],))
+    listing=world['viewer'].get(endpoint,params={'canvas_id':canvas['id']},headers=headers(world['a']));assert len(listing.json()['items'])==2
+    assert world['viewer'].get(endpoint+'/'+created[0][1]['id'],headers=headers(world['a'])).status_code==404
+
+
+def test_generation_history_readonly_zip_preserves_original_media_bytes(world,tmp_path):
+    import io,zipfile
+    from app.storage import database
+    from app.storage.workspace import workspace_scope
+    path,canvas=setup_canvas(world,'smart');result_task(world,canvas,tmp_path);result_task(world,canvas,tmp_path,'video')
+    items=world['viewer'].get('/api/canvas-generation-history',params={'canvas_id':canvas['id']},headers=headers(world['a'])).json()['items']
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        before=conn.execute('SELECT id,status,request,result FROM tasks ORDER BY id').fetchall();fees=conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()
+    response=world['viewer'].post('/api/canvas-assets/download',json={'items':items,'filename':'pixmax-assets.zip'},headers=headers(world['a']));assert response.status_code==200,response.text
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert len(archive.namelist())==2
+        assert all(archive.read(name)==b'local result bytes only' for name in archive.namelist())
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        assert conn.execute('SELECT id,status,request,result FROM tasks ORDER BY id').fetchall()==before
+        assert conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()==fees
+
+
+def test_generation_history_deduplicates_reused_assets_and_keeps_glb_model_type(world,tmp_path):
+    from pathlib import Path
+    from app.storage import media,tasks
+    from app.storage.workspace import workspace_scope
+    path,canvas=setup_canvas(world,'smart');tid,image=result_task(world,canvas,tmp_path)
+    with workspace_scope(world['a']['id']):
+        tasks.save({'id':'duplicate-'+uuid.uuid4().hex,'type':'online-image','status':'succeeded','canvas_id':canvas['id'],'result':{'images':[media.stable_url(image)]}}, {'prompt':'same asset'},historical=True)
+        model=media.publish(Path(__file__).parent/'fixtures/pixmax-generated-model.glb')
+        tasks.save({'id':'model-'+uuid.uuid4().hex,'type':'model','status':'succeeded','canvas_id':canvas['id'],'result':{'models':[media.stable_url(model)]}}, {'prompt':'cube'},historical=True)
+    response=world['viewer'].get('/api/canvas-generation-history',params={'canvas_id':canvas['id']},headers=headers(world['a']));assert response.status_code==200,response.text
+    assert len(response.json()['items'])==2
+    assert next(item for item in response.json()['items'] if item['id']==model['id'])['kind']=='model'
+    assert next(item for item in response.json()['items'] if item['id']==image['id'])['kind']=='image'
+
+
 def result_task(world, canvas, tmp_path, kind='online-image'):
     from app.storage import media, tasks, database
     from app.storage.workspace import workspace_scope

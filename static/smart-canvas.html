@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="/static/css/pixmax-model-creation.css">
     <link rel="stylesheet" href="/static/css/pixmax-video-parse.css">
     <link rel="stylesheet" href="/static/css/pixmax-canvas-frames.css">
+    <link rel="stylesheet" href="/static/css/pixmax-generation-history.css">
     <link rel="stylesheet" href="/static/css/pixmax-navigator.css">
     <link rel="stylesheet" href="/static/css/pixmax-media-tools.css">
     <link rel="stylesheet" href="/static/css/pixmax-tags.css">
@@ -118,7 +119,7 @@
             <button class="primary" type="button" onclick="openPixmaxNodeMenu(event)" aria-label="添加节点" title="添加节点"><i data-lucide="plus"></i></button>
             <button type="button" onclick="document.getElementById('fileInput').click()" aria-label="上传素材" title="上传素材"><i data-lucide="upload"></i></button>
             <button id="assetToggle" type="button" aria-label="资产库" title="资产库"><i data-lucide="layers"></i></button>
-            <button type="button" onclick="showSmartCanvasBackups()" aria-label="画布历史" title="画布历史"><i data-lucide="history"></i></button>
+            <button type="button" onclick="PixmaxGenerationHistory.open()" aria-label="生成历史" title="生成历史"><i data-lucide="history"></i></button>
             <hr>
             <button type="button" onclick="document.getElementById('pixmaxSettingsMenu').classList.toggle('open')" aria-label="更多工具" title="更多工具"><i data-lucide="command"></i></button>
         </div>
@@ -467,6 +468,7 @@
     <script src="/static/js/pixmax-storyboard-media.js"></script>
     <script src="/static/js/pixmax-canvas-frames.js"></script>
     <script src="/static/js/pixmax-batch-execution.js"></script>
+    <script src="/static/js/pixmax-generation-history.js"></script>
     <script data-canvas-module="document" src="/static/js/canvas/smart/smart-document.js"></script>
     <script data-canvas-module="session" src="/static/js/canvas/smart/smart-session.js"></script>
     <script data-canvas-module="workspace" src="/static/js/canvas/smart/smart-workspace.js"></script>

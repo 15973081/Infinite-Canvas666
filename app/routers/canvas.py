@@ -36,6 +36,18 @@ _canvas_video_recovery_started = False
 _canvas_video_recovery_tasks = set()
 
 
+@router.get('/api/canvas-generation-history')
+def canvas_generation_history(canvas_id: str = '', kind: str = 'all', cursor: str = '', limit: int = 100):
+    from app.services.canvas_generation_history import page
+    return page(canvas_id, kind, cursor, limit)
+
+
+@router.get('/api/canvas-generation-history/{asset_id}')
+def canvas_generation_history_detail(asset_id: str, canvas_id: str = ''):
+    from app.services.canvas_generation_history import detail
+    return detail(asset_id, canvas_id)
+
+
 def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
     data = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else payload.dict()
     if not data.get('image_tool'):

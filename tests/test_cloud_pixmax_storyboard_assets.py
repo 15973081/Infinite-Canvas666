@@ -12,6 +12,40 @@ from test_cloud_audio_tasks import execute
 
 pytestmark=pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST')!='1',reason='Use tools/cloud_test.py')
 
+def test_generation_history_real_browser_inserts_old_owned_assets_with_undo_and_reload_without_new_tasks(world,tmp_path):
+    from app.storage import media,tasks,database
+    from app.storage.workspace import workspace_scope
+    import uuid
+    source_path,source=setup_canvas(world,'smart');path,canvas=setup_canvas(world,'smart');lease=acquire(world,path);root=Path(__file__).resolve().parents[1]
+    with workspace_scope(world['a']['id']):
+        for index,color in enumerate(['blue','red']):
+            file=tmp_path/('history-'+str(index)+'.png');Image.new('RGB',(16,16),color).save(file,format='PNG');asset=media.publish(file)
+            tasks.save({'id':'history-'+uuid.uuid4().hex,'type':'online-image','status':'succeeded','canvas_id':source['id'],'result':{'images':[media.stable_url(asset)]}}, {'prompt':'past paid result'},historical=True)
+        with database.connection() as conn:
+            before=conn.execute('SELECT * FROM tasks ORDER BY id').fetchall();fees=conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()
+    process=subprocess.Popen(['node',str(root/'tests/helpers/pixmax-task-undo-http.cjs')],cwd=root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0));done=None
+    try:
+        process.stdin.write(json.dumps({'initial':{'canvas':canvas,'kind':'history','providerId':'history-fixture','proof':{key:value for key,value in proof(world,lease).items() if key.startswith('X-Canvas-')}}})+'\n');process.stdin.flush()
+        for line in process.stdout:
+            message=json.loads(line)
+            if message.get('done'):done=message;break
+            response=world['editor'].request(message['method'],message['path'],headers={**headers(world['a']),**message['headers']},content=message.get('body'))
+            assert response.status_code==200,(message['method'],response.status_code,response.json().get('detail'))
+            process.stdin.write(json.dumps({'id':message['id'],'status':response.status_code,'body':response.json()})+'\n');process.stdin.flush()
+        process.wait(timeout=5);assert process.returncode==0,process.stderr.read();assert done and done['posts']==0
+        document=world['viewer'].get(path,headers=headers(world['a'])).json()['canvas'];assert len(document['nodes'])==2
+        assert all(node['pixmaxSourceType']=='BASE_IMAGE' and not node.get('generationKind') for node in document['nodes'])
+        for node in document['nodes']:
+            response=world['viewer'].get(node['images'][0]['url'],headers=headers(world['a']));assert response.status_code==200
+            with Image.open(io.BytesIO(response.content)) as image:assert image.size==(16,16)
+        with workspace_scope(world['a']['id']),database.connection() as conn:
+            assert conn.execute('SELECT * FROM tasks ORDER BY id').fetchall()==before
+            assert conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()==fees
+    finally:
+        if process.poll() is None:process.kill();process.wait(timeout=5)
+        for pipe in (process.stdin,process.stdout,process.stderr):pipe.close()
+
+
 def test_batch_preview_uses_server_prices_and_creates_no_tasks_or_ledger_entries(world,image_space):
     from app.storage.database import connection
     from app.storage.task_canvas_bindings import graph_fingerprint

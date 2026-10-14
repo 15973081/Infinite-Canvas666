@@ -14,13 +14,13 @@
         document.removeEventListener('keydown',current.escape,true);document.removeEventListener('visibilitychange',current.visibility);window.removeEventListener('pagehide',close);
     }
     function documentChanged(){if(active&&!active.valid())close();}
-    async function open(node,index=(node.images?.length||1)-1){
-        const item=node.images?.[index];if(!item?.url||!nodes.includes(node))return;
+    async function open(node,index=(node.images?.length||1)-1,historyValid=null){
+        const item=node.images?.[index];if(!item?.url||!historyValid&&!nodes.includes(node))return;
         close();const origin=canvas,originalScope=scope(),source=identity(item.url);
         const root=document.createElement('div');root.className='pixmax-model-preview';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','3D 模型预览');
         root.innerHTML=`<section><header><strong>${escapeHtml(item.name||'3D 模型')}</strong><button type="button" aria-label="关闭 3D 模型预览">×</button></header><div data-model-stage><canvas aria-label="3D 模型视图"></canvas><p role="status">正在加载模型…</p></div><footer><span>拖动旋转 · 滚轮缩放 · 右键平移</span><button type="button" data-model-reset>复位</button><button type="button" data-model-download>下载模型</button></footer></section>`;
         document.body.appendChild(root);
-        const current={root,node,closed:false,abort:new AbortController(),frame:0,valid:()=>!current.closed&&canvas===origin&&scope()===originalScope&&!window.CanvasSession?.paused&&nodes.includes(node)&&node.images?.some(value=>identity(value.url)===source),escape:event=>{if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();close();}},visibility:null};active=current;
+        const current={root,node,closed:false,abort:new AbortController(),frame:0,valid:()=>!current.closed&&canvas===origin&&scope()===originalScope&&!window.CanvasSession?.paused&&(historyValid?historyValid():nodes.includes(node)&&node.images?.some(value=>identity(value.url)===source)),escape:event=>{if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();close();}},visibility:null};active=current;
         current.observer=new MutationObserver(()=>{if(active===current&&(!root.isConnected||!current.valid()))close();});current.observer.observe(document.body,{childList:true,subtree:true});
         root.querySelector('header button').onclick=close;root.addEventListener('mousedown',event=>event.stopPropagation());root.addEventListener('contextmenu',event=>event.preventDefault());document.addEventListener('keydown',current.escape,true);window.addEventListener('pagehide',close);
         root.querySelector('[data-model-download]').onclick=()=>{if(current.valid())downloadPreviewFile(item);};
@@ -46,5 +46,5 @@
             current.visibility=()=>{if(document.hidden){cancelAnimationFrame(current.frame);current.frame=0;}else schedule();};document.addEventListener('visibilitychange',current.visibility);schedule();status.textContent='模型已载入';
         }catch(error){if(current.valid()&&root.isConnected)status.textContent=error.message||'模型预览失败，请下载后核对';}
     }
-    window.PixmaxModelPreview=Object.freeze({open,close,documentChanged,get state(){return active?{opened:true,triangles:Number(active.root.dataset.renderedTriangles||0),camera:active.camera?.position.toArray(),frame:active.frame}: {opened:false};}});
+    window.PixmaxModelPreview=Object.freeze({open,openAsset:(item,valid)=>open({images:[item]},0,valid),close,documentChanged,get state(){return active?{opened:true,triangles:Number(active.root.dataset.renderedTriangles||0),camera:active.camera?.position.toArray(),frame:active.frame}: {opened:false};}});
 })();

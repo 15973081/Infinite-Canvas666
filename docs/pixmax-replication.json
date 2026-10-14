@@ -41,7 +41,7 @@
       "verified": ["真实 H.264/AAC 输入，经浏览器原生处理后由 ffprobe 确认输出轨道", "分离音轨可在现有音频播放器加载", "两个结果一并保存且可一步撤销", "来源、编辑资格、工作空间变化和关闭窗口拒绝迟到结果", "保存复制媒体元数据不会误判来源变化", "保存失败保留文件，重试不重复上传或插入", "普通画布保存亦可确认结果并释放本地文件", "只读访问和未保存本地结果的离开保护"],
       "browserCases": 11,
       "relatedRegression": "32 项音频分离、视频工具、导航和原生工作台测试通过；新增普通保存确认用例亦通过",
-      "remainingVideoTools": [ "合规检测", "智能续写", "片段重拍", "解析", "字幕擦除", "超分", "生成历史"],
+      "remainingVideoTools": [ "合规检测", "智能续写", "片段重拍", "解析的完整原生模式", "字幕擦除", "超分"],
       "generationScope": "本功能为视频处理，不代表音频生成或 3D 生成功能已完成；未调用收费模型服务"
     },
     "pinTagEvidence": {"source": "static/js/pixmax-tags.js", "nativeContract": "节点 data.tags 成员列表与画布 nodeTags schemaVersion 1；接收应用保存为 node_tags", "browserCases": 10, "verified": ["多重归属、批量添加和清空后替换", "按颜色分组、搜索、改名、去除单组且保留节点和其他组", "只读浏览和 ZIP 下载；失效编辑资格拒绝写入", "工作空间变更关闭旧面板并丢弃未提交批量选择", "导入及剪贴板的定义冲突映射、撤销恢复", "草稿恢复名称颜色；无效定义在修改画布前拒绝", "仅有 tags 的已存节点正确显示 pin 状态", "创作助手从彩色标签读取上下文"], "databaseCases": 3, "databaseVerification": ["节点与定义一同保存；旧客户端遗漏字段保留定义", "重复 ID 与无效颜色拒绝；工作流 ZIP 往返保留定义和成员", "只读成员可下载包含 UTF-8 文本的 pin ZIP"], "preview": ".local/pixmax-pin-groups.png", "remaining": ["与参考全部 pin 菜单及大规模素材逐项对照", "批量混合媒体 ZIP 的完整验收"]},
@@ -163,6 +163,16 @@
       "performance": {"report": ".local/canvas-performance-frames-20261014.json", "medianMs": {"181": 0.2, "1000": 0.6, "3000": 1.8}, "p95Ms": {"181": 0.3, "1000": 0.8, "3000": 2.0}, "scope": "纯文本链式连线的同步局部刷新；不含分组拖动帧绘制、媒体解码或 Pixmax 双方对照"},
       "preview": ".local/pixmax-canvas-frames.png",
       "remaining": ["全部原生分组菜单、工具条样式和视觉细节最终核对", "更多混合素材和大画布的完整性能验证；原生不支持拖动自动嵌套分组"]
+    },
+    "generationHistoryEvidence": {
+      "source": ["static/js/pixmax-generation-history.js", "static/css/pixmax-generation-history.css", "app/services/canvas_generation_history.py"],
+      "nativeContract": "ymt / r3 的历史弹窗为 917px、80vh，按 UTC 日期分组、88px 卡片，当前项目/全部历史及图片/视频/音频/3D/文件筛选；每页 100 个资源、80px 滚动阈值、最多选择 100 个资源；e3 / t3 按资产 ID 去重；insertHistoryAssets 按 x=119、y=20 级联插入独立基础素材节点，文件只下载不插入。",
+      "implemented": ["左侧历史入口与视频工具条的生成历史入口；画布备份保留在设置菜单，生成记录与备份分开", "当前画布或当前空间所有画布的已完成素材查询；媒体筛选、按日期选择分组、分页、预览前后切换与参数查看", "复用不可变的原素材，历史不重新生成；批量插入基础节点、一步撤销、保存和刷新", "单个原文件下载、只读批量 ZIP 下载、跨筛选和分页的 100 项选择上限", "图片/视频的 128px 延迟缩略图；列表不创建视频或音频播放器，预览时才读取原文件；历史 3D 预览复用冻结的原生运行时而不插入临时节点", "拖动以当前面板会话及已读取的素材 ID 校验，在实际画布坐标插入新基础节点；拒绝伪造拖动数据", "服务端按资产建立稳定时间/ID 分页游标、原素材去重、排除已删除/未就绪/任务源私有文件；详情仅返回生成参数白名单，不返回原请求、凭据或原始供应商响应", "只读可查看、试听/预览和下载，插入与拖动受编辑资格限制；迟到响应不会覆盖新筛选或新文档，切换空间/文档/会话及关闭释放面板和播放器"],
+      "browserCases": 15,
+      "databaseCases": 5,
+      "verification": ["60 项历史、视频工具、GLB 模型、原生画布、目录与图像工具回归通过；新增会话失效用例后 15 项历史专项复验通过", "数据库验证当前/全部历史、媒体筛选、跨空间隔离、游标范围、删除后不可见、重复素材去重与 GLB 类型", "只读 ZIP 内两份文件的字节与原素材一致；历史读取和下载没有改变任务或费用记录", "真实浏览器经鉴权 API 从另一画布历史插入两份已入库 PNG，按 119/20 排布，撤销、重做、保存和刷新保持基础节点且无生成进度；两份 PNG 仍可由只读成员读取，任务和账单完全不变", "浏览器播放实际 WebM 和渲染实际 GLB 的 12 个三角面；只读预览没有创建临时画布节点"],
+      "preview": ".local/pixmax-generation-history.png",
+      "remaining": ["原生按 30 条加载的侧边小弹层及全部详情字段/预览视觉最终对齐", "旧历史迁移和未入库外部素材的兼容范围核对", "大规模历史查询、缩略图资源和混合媒体的最终性能验证"]
     },
     "batchExecutionEvidence": {
       "source": ["static/js/pixmax-batch-execution.js", "app/services/canvas_batch.py", "static/js/pixmax-canvas-frames.js"],

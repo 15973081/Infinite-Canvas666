@@ -7,7 +7,7 @@ lines.on('line',line=>{const message=JSON.parse(line);if(message.initial){initia
 const watchdog=setTimeout(()=>{console.error('Browser/database bridge timed out');process.exit(2);},45000);watchdog.unref();
 async function transport(request,canvasId){
     const url=new URL(request.url());
-    if(url.pathname!=='/api/canvases/'+canvasId&&url.pathname!=='/api/canvases/'+canvasId+'/batch-preview'&&!url.pathname.startsWith('/api/canvases/'+canvasId+'/task-results')&&!/^\/api\/canvas-(audio|model|llm|image)-tasks(?:\/|$)/.test(url.pathname))return;
+    if(!url.pathname.startsWith('/api/canvas-generation-history')&&url.pathname!=='/api/canvases/'+canvasId&&url.pathname!=='/api/canvases/'+canvasId+'/batch-preview'&&!url.pathname.startsWith('/api/canvases/'+canvasId+'/task-results')&&!/^\/api\/canvas-(audio|model|llm|image)-tasks(?:\/|$)/.test(url.pathname))return;
     const id=++sequence,answer=new Promise(resolve=>requests.set(id,resolve));
     process.stdout.write(JSON.stringify({id,path:url.pathname+url.search,method:request.method(),headers:request.headers(),body:request.postData()})+'\n');
     return answer;
@@ -15,7 +15,7 @@ async function transport(request,canvasId){
 (async()=>{
     const config=await ready,cleanup=[];let posts=0;
     try{
-        const taskKind=config.kind==='parse'?'llm':['assets','shots','frame-drag','batch'].includes(config.kind)?'image':config.kind;
+        const taskKind=config.kind==='parse'?'llm':['assets','shots','frame-drag','batch','history'].includes(config.kind)?'image':config.kind;
         const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,
             apiHandler:request=>{if(request.method()==='POST'&&request.url().includes('/api/canvas-'+taskKind+'-tasks'))posts++;return transport(request,config.canvas.id);}});
         await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
@@ -38,8 +38,20 @@ async function transport(request,canvasId){
                 }
                 return fetcher(url,init);
             };
-            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else if(config.kind==='shots')PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'image');else if(!['frame-drag','batch'].includes(config.kind))openSmartStudio(nodes[0].id);
+            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else if(config.kind==='shots')PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'image');else if(!['frame-drag','batch','history'].includes(config.kind))openSmartStudio(nodes[0].id);
         },config);
+        if(config.kind==='history'){
+            await page.evaluate(()=>PixmaxGenerationHistory.open());await page.waitForFunction(()=>document.querySelector('.history-empty'));
+            await page.locator('[data-history-scope="all"]').click();await page.waitForFunction(()=>document.querySelectorAll('.history-asset').length===2);
+            await page.locator('[data-history-select]').click();await page.locator('[data-history-group]').click();await page.locator('[data-history-batch-insert]').click();
+            assert.equal(await page.evaluate(()=>nodes.length),2);assert.deepEqual(await page.evaluate(()=>[nodes[1].x-nodes[0].x,nodes[1].y-nodes[0].y]),[119,20]);
+            assert.equal(await page.evaluate(()=>nodes.every(node=>node.pixmaxSourceType==='BASE_IMAGE'&&!node.generationKind)),true);
+            assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes.length),0);
+            assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);await page.evaluate(()=>redoSmartCanvas());assert.equal(await page.evaluate(()=>nodes.length),2);
+            assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);await page.reload();await page.waitForFunction(()=>nodes.length===2);
+            assert.equal(await page.evaluate(()=>nodes.every(node=>node.pixmaxSourceType==='BASE_IMAGE'&&!node.generationKind&&!smartPendingTasks(node).length)),true);
+            assert.equal(posts,0);assert.deepEqual(errors,[]);process.stdout.write(JSON.stringify({done:true,posts,revision:await page.evaluate(()=>canvas.revision)})+'\n');return;
+        }
         if(config.kind==='batch'){
             await page.evaluate(provider=>{
                 apiProviders=[{id:provider,has_key:true,image_models:['test']}];
