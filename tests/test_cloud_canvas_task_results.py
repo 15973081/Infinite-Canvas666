@@ -110,7 +110,7 @@ def test_generation_history_node_scope_uses_real_task_bindings_and_scopes_its_cu
     assert world['viewer'].get(endpoint+'/'+asset['id'],params={'canvas_id':canvas['id'],'node_id':'source'},headers=headers(world['a'])).status_code==404
 
 
-def result_task(world, canvas, tmp_path, kind='online-image'):
+def result_task(world, canvas, tmp_path, kind='online-image', request_payload=None):
     from app.storage import media, tasks, database
     from app.storage.workspace import workspace_scope
     source = tmp_path / ('result.mp4' if kind == 'video' else 'result.png')
@@ -121,10 +121,63 @@ def result_task(world, canvas, tmp_path, kind='online-image'):
         tasks.save({'id': tid, 'type': kind, 'status': 'succeeded', 'canvas_id': canvas['id'],
                     'result': {'videos' if kind == 'video' else 'images': [{'url': media.stable_url(asset)}],
                                'raw': {'private': 'upstream-secret'}, 'cost': {'amount': 7}}},
-                   {'prompt': 'private-prompt', 'model': 'test'}, historical=True)
+                   request_payload if request_payload is not None else {'prompt': 'private-prompt', 'model': 'test'}, historical=True)
         with database.connection() as conn:
             conn.execute('UPDATE tasks SET canvas_revision=%s,canvas_edit_generation=1 WHERE id=%s', (canvas['revision'], tid))
     return tid, asset
+
+
+def test_generation_history_detail_uses_immutable_owned_inputs_and_safe_metadata(world, tmp_path):
+    from app.storage import database, media
+    from app.storage.workspace import workspace_scope
+    _, canvas = setup_canvas(world, 'smart')
+    with workspace_scope(world['a']['id']):
+        owned = []
+        for extension, metadata in [('png', {'width': 17, 'height': 19}), ('mp4', {'duration': 5}), ('mp3', {'duration': 7})]:
+            source = tmp_path / ('input.' + extension); source.write_bytes(b'original input bytes')
+            owned.append(media.publish(source, metadata=metadata))
+        source = tmp_path / 'hidden.png'; source.write_bytes(b'hidden input bytes')
+        private = media.publish(source, display_name='private-input.png', metadata={'chat_owner': 'private-owner'})
+        staged = media.publish(source, display_name='staged-input.png', role='task-result-source')
+        deleted = media.publish(source, display_name='deleted-input.png')
+    with workspace_scope(world['b']['id']):
+        foreign = media.publish(source, display_name='foreign-input.png')
+    inputs = owned + [private, staged, deleted, foreign]
+    tid, output = result_task(world, canvas, tmp_path, request_payload={
+        'prompt': 'immutable input prompt', 'model': 'test', 'reference_images': [media.stable_url(row) for row in owned],
+        'quality': {'credential': 'nested-upstream-secret'}, 'enable_pbr': True, 'face_count': 300000,
+        'view_types': ['front', 'left'], 'speed': 1.2, 'timbre_id': 'voice-test',
+        'untrusted_response': {'secret': 'raw-upstream-secret'},
+    })
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        # Historical rows may retain revoked or unavailable input IDs. They must
+        # not expand the current reader's media scope or leak private filenames.
+        conn.execute('UPDATE tasks SET input_asset_ids=%s WHERE id=%s', (Jsonb([row['id'] for row in inputs]), tid))
+        conn.execute('UPDATE assets SET deleted_at=now() WHERE id=%s', (deleted['id'],))
+        conn.execute("UPDATE tasks SET created_at=to_timestamp(1789000000),completed_at=to_timestamp(1789000129),updated_at=to_timestamp(1789003600) WHERE id=%s", (tid,))
+        before_tasks = conn.execute('SELECT * FROM tasks ORDER BY id').fetchall()
+        before_fees = conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall()
+    endpoint = '/api/canvas-generation-history/' + output['id']
+    response = world['viewer'].get(endpoint, params={'canvas_id': canvas['id']}, headers=headers(world['a']))
+    assert response.status_code == 200, response.text
+    detail = response.json()
+    assert {row['id'] for row in detail['references']} == {row['id'] for row in owned}
+    assert {row['kind'] for row in detail['references']} == {'image', 'video', 'audio'}
+    assert all(row['url'].startswith('/api/media/') or row['url'].startswith('/assets/cloud/') for row in detail['references'])
+    assert next(row for row in detail['references'] if row['kind'] == 'image')['natural_w'] == 17
+    assert detail['metadata']['size_bytes'] == len(b'local result bytes only')
+    assert detail['metadata']['file_type'] == 'PNG'
+    from datetime import datetime
+    assert datetime.fromisoformat(detail['metadata']['completed_at']).timestamp() == 1789000129
+    assert detail['parameters']['prompt'] == 'immutable input prompt'
+    assert detail['parameters']['view_types'] == ['front', 'left']
+    assert detail['parameters']['speed'] == 1.2 and detail['parameters']['face_count'] == 300000
+    assert 'quality' not in detail['parameters']
+    assert not any(secret in response.text for secret in ('nested-upstream-secret', 'raw-upstream-secret', private['id'], staged['id'], deleted['id'], foreign['id']))
+    assert world['outsider'].get(endpoint, headers=headers(world['b'])).status_code == 404
+    with workspace_scope(world['a']['id']), database.connection() as conn:
+        assert conn.execute('SELECT * FROM tasks ORDER BY id').fetchall() == before_tasks
+        assert conn.execute('SELECT * FROM ledger_entries ORDER BY id').fetchall() == before_fees
 
 
 @pytest.mark.parametrize('kind', ['online-image', 'video'])

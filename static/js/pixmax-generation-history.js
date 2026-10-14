@@ -7,9 +7,33 @@
     const day=item=>{const date=new Date(item.created_at);return Number.isNaN(date.getTime())?'':date.toISOString().slice(0,10);};
     const scope=()=>JSON.stringify([CanvasSession.context?.member?.id,CanvasSession.context?.workspace?.id]);
     function release(root){root?.querySelectorAll('video,audio').forEach(player=>{player.pause();player.removeAttribute('src');player.load();});root?.remove();}
-    function close(){const state=active;if(!state)return;active=null;state.abort.abort();state.observer?.disconnect();state.root.remove();release(state.detail);window.removeEventListener('pagehide',close);window.removeEventListener('resize',state.position);document.removeEventListener('pointerdown',state.outside,true);document.removeEventListener('keydown',state.escape,true);document.removeEventListener('drop',state.drop,true);}
+    function close(){const state=active;if(!state)return;active=null;state.abort.abort();state.observer?.disconnect();state.root.remove();release(state.reference);release(state.detail);window.removeEventListener('pagehide',close);window.removeEventListener('resize',state.position);document.removeEventListener('pointerdown',state.outside,true);document.removeEventListener('keydown',state.escape,true);document.removeEventListener('drop',state.drop,true);}
     function alive(state){return active===state&&state.root.isConnected&&window.CanvasSession?.enabled&&canvas===state.origin&&(!state.node||nodes.includes(state.node))&&scope()===state.scope&&!CanvasSession.paused;}
     function status(state,text){if(alive(state))state.root.querySelector('[role=status]').textContent=text;}
+    function watchPreview(root,valid,onClose){const observer=new MutationObserver(()=>{if(!root.isConnected||!valid()){release(root);observer.disconnect();onClose?.();}});observer.observe(document.body,{childList:true,subtree:true});}
+    function mediaPreviewHtml(asset){
+        const url=escapeAttr(displayUrl(asset.url));
+        return asset.kind==='image'?`<img src="${url}" alt="${escapeAttr(asset.name)}">`:asset.kind==='video'?`<video src="${url}" controls playsinline preload="metadata"></video>`:asset.kind==='audio'?`<audio src="${url}" controls preload="metadata"></audio>`:asset.kind==='model'?'<button type="button" data-history-model>预览 3D 模型</button>':'<span>文件</span>';
+    }
+    function fileBytes(value){if(!Number.isFinite(value)||value<0)return '—';const units=['B','KB','MB','GB'],power=Math.max(0,Math.min(3,value?Math.floor(Math.log(value)/Math.log(1024)):0));return (value/1024**power).toLocaleString('zh-CN',{maximumFractionDigits:power?2:0})+' '+units[power];}
+    function time(value){if(!value)return '—';const date=new Date(value);return Number.isNaN(date.getTime())?'—':date.toLocaleString('zh-CN',{hour12:false});}
+    function metadataHtml(asset,metadata={}){
+        const fields=[['文件类型',metadata.file_type||labels[asset.kind]],['文件大小',fileBytes(metadata.size_bytes)],...(asset.kind==='image'||asset.kind==='video'?[['尺寸',asset.natural_w&&asset.natural_h?`${asset.natural_w} × ${asset.natural_h}`:'—']]:[]),['任务 ID',asset.task_id||'—'],['任务创建时间',time(metadata.task_created_at)],['生成完成时间',time(metadata.completed_at)]];
+        return `<dl class="history-file-metadata">${fields.map(([label,value])=>`<dt>${label}</dt><dd ${label==='尺寸'?'data-history-dimensions':''}>${escapeHtml(value)}</dd>`).join('')}</dl>`;
+    }
+    function referenceHtml(items){
+        if(!items.length)return '';
+        const order={audio:0,image:1,video:2,model:3,file:4};
+        return `<section class="history-references" aria-label="输入素材"><h3>输入素材</h3><div>${items.slice().sort((a,b)=>(order[a.kind]??4)-(order[b.kind]??4)).map(item=>`<button type="button" data-history-reference="${escapeAttr(item.id)}" aria-label="预览参考素材 ${escapeAttr(item.name)}">${item.kind==='image'||item.kind==='video'?`<img src="${escapeAttr(smartMediaPreviewUrl(item,128))}" alt="" loading="lazy">`:`<span>${escapeHtml(labels[item.kind]||'文件')}</span>`}<small>${escapeHtml(item.name)}</small></button>`).join('')}</div></section>`;
+    }
+    function viewReference(state,item,parent){
+        if(!alive(state)||!parent.isConnected||state.detail!==parent)return;release(state.reference);
+        const root=pixmaxCreationModal('参考素材预览');root.classList.add('pixmax-history-detail','pixmax-history-reference');root.tabIndex=-1;root.focus({preventScroll:true});state.reference=root;
+        root.querySelector('.pixmax-creation-content').innerHTML=`<div class="history-detail-preview">${mediaPreviewHtml(item)}</div><p>${escapeHtml(item.name)}</p><button type="button" data-history-reference-download>下载原素材</button>`;
+        const valid=()=>alive(state)&&state.detail===parent&&parent.isConnected;
+        bindImageView(state,root);root.querySelector('[data-history-reference-download]').onclick=()=>{if(valid())download(state,[item]);};
+        root.querySelector('[data-history-model]')?.addEventListener('click',()=>PixmaxModelPreview.openAsset(item,()=>valid()&&root.isConnected));watchPreview(root,valid,()=>{if(valid()&&state.reference===root)parent.focus({preventScroll:true});});
+    }
     function bindImageView(state,root){
         const pane=root.querySelector('.history-detail-preview'),image=pane?.querySelector('img');if(!image)return;
         pane.classList.add('history-image-view');image.draggable=false;let scale=1,x=0,y=0,drag=null;
@@ -60,14 +84,19 @@
         }catch(error){status(state,error.message||'素材下载失败');}finally{state.downloading=false;if(alive(state))selection(state);}
     }
     async function view(state,item){
-        if(!alive(state))return;const version=++state.viewVersion;release(state.detail);
+        if(!alive(state))return;const version=++state.viewVersion;release(state.reference);release(state.detail);
         if(state.node){state.lastViewed=item.id;for(const card of state.root.querySelectorAll('[data-history-asset]')){card.querySelector('[data-history-last-viewed]')?.remove();if(card.dataset.historyAsset===item.id){const label=document.createElement('span');label.dataset.historyLastViewed='';label.className='history-last-viewed';label.textContent='上次查看';card.appendChild(label);}}}
         const root=pixmaxCreationModal('生成素材预览');root.classList.add('pixmax-history-detail');root.tabIndex=-1;root.focus({preventScroll:true});state.detail=root;const body=root.querySelector('.pixmax-creation-content');root.querySelector('[role=status]').textContent='正在读取素材…';
         try{
             const params=new URLSearchParams({...state.current?{canvas_id:state.origin.id}:{},...state.node?{node_id:state.node.id}:{}}),response=await MemberCanvasEdit.send('/api/canvas-generation-history/'+encodeURIComponent(item.id)+'?'+params);
             if(!response.ok)throw Error(await responseErrorMessage(response,'素材详情读取失败'));const data=await response.json();if(!alive(state)||version!==state.viewVersion||!root.isConnected)return;
-            const asset=data.item,url=escapeAttr(displayUrl(asset.url));
-            body.innerHTML=`<div class="history-detail-preview">${asset.kind==='image'?`<img src="${url}" alt="${escapeAttr(asset.name)}">`:asset.kind==='video'?`<video src="${url}" controls playsinline preload="metadata"></video>`:asset.kind==='audio'?`<audio src="${url}" controls preload="metadata"></audio>`:asset.kind==='model'?'<button type="button" data-history-model>预览 3D 模型</button>':'<span>文件</span>'}</div><p>${escapeHtml(asset.name)}</p><dl>${Object.entries(data.parameters||{}).map(([key,value])=>`<dt>${escapeHtml(({prompt:'提示词',model:'模型',size:'尺寸',quality:'质量',duration:'时长',resolution:'分辨率',aspect_ratio:'比例',mode:'模式',generate_type:'生成类型',music_mode:'音乐模式'})[key]||key)}</dt><dd>${escapeHtml(String(value))}</dd>`).join('')}</dl><div class="history-detail-actions"><button type="button" data-history-prev>上一项</button><button type="button" data-history-next>下一项</button><button type="button" data-history-detail-download>下载</button>${asset.kind!=='file'?'<button type="button" data-history-detail-insert>插入画布</button>':''}</div>`;
+            const asset=data.item,references=data.references||[];
+            body.innerHTML=`<div class="history-detail-preview">${mediaPreviewHtml(asset)}</div><p>${escapeHtml(asset.name)}</p>${metadataHtml(asset,data.metadata)}<dl>${Object.entries(data.parameters||{}).map(([key,value])=>`<dt>${escapeHtml(({prompt:'提示词',model:'模型',size:'尺寸',quality:'质量',duration:'时长',resolution:'分辨率',aspect_ratio:'比例',mode:'模式',generate_type:'生成类型',music_mode:'音乐模式',lyrics:'歌词',timbre_id:'音色',speed:'语速',vol:'音量',pitch:'音调',voice_modify_pitch:'音高变化',voice_modify_intensity:'力度变化',voice_modify_timbre:'音色变化',voice_modify_sound_effects:'音效',enable_pbr:'PBR 材质',face_count:'模型面数',polygon_type:'网格类型',view_types:'参考视角',seed:'随机种子',n:'生成数量',generate_audio:'生成音频'})[key]||key)}</dt><dd>${escapeHtml(String(value))}</dd>`).join('')}</dl>${referenceHtml(references)}<div class="history-detail-actions"><button type="button" data-history-prev>上一项</button><button type="button" data-history-next>下一项</button><button type="button" data-history-detail-download>下载</button>${asset.kind!=='file'?'<button type="button" data-history-detail-insert>插入画布</button>':''}</div>`;
+            for(const button of body.querySelectorAll('[data-history-reference]'))button.onclick=()=>viewReference(state,references.find(item=>item.id===button.dataset.historyReference),root);
+            for(const image of body.querySelectorAll('.history-references img'))image.onerror=()=>{if(!root.isConnected)return;const kind=references.find(item=>item.id===image.closest('button').dataset.historyReference)?.kind,label=document.createElement('span');label.textContent=labels[kind]||'素材';image.replaceWith(label);};
+            const media=body.querySelector('.history-detail-preview img,.history-detail-preview video');
+            const dimensions=()=>{if(alive(state)&&root.isConnected){const width=media.naturalWidth||media.videoWidth,height=media.naturalHeight||media.videoHeight;if(width&&height)body.querySelector('[data-history-dimensions]').textContent=`${width} × ${height}`;}};
+            if(media){media.addEventListener(media.tagName==='IMG'?'load':'loadedmetadata',dimensions);if(media.complete)dimensions();}
             const position=state.items.findIndex(value=>value.id===item.id),previous=body.querySelector('[data-history-prev]'),next=body.querySelector('[data-history-next]');previous.disabled=position<=0;next.disabled=position<0||position>=state.items.length-1;
             previous.hidden=next.hidden=!state.node||state.items.length<2;previous.onclick=()=>view(state,state.items[position-1]);next.onclick=()=>view(state,state.items[position+1]);
             root.addEventListener('keydown',event=>{if(event.target.closest('input,textarea')||!state.node)return;if(event.key==='ArrowLeft'&&!previous.disabled){event.preventDefault();previous.click();}else if(event.key==='ArrowRight'&&!next.disabled){event.preventDefault();next.click();}});
@@ -77,7 +106,7 @@
             body.querySelector('[data-history-model]')?.addEventListener('click',()=>PixmaxModelPreview.openAsset({url:asset.url,name:asset.name,kind:'model'},()=>alive(state)&&root.isConnected));
             root.querySelector('[role=status]').textContent='';
         }catch(error){if(alive(state)&&root.isConnected)root.querySelector('[role=status]').textContent=error.message;}
-        const observer=new MutationObserver(()=>{if(!root.isConnected){root.querySelectorAll('video,audio').forEach(player=>{player.pause();player.removeAttribute('src');player.load();});observer.disconnect();}});observer.observe(document.body,{childList:true,subtree:true});
+        watchPreview(root,()=>alive(state)&&version===state.viewVersion);
     }
     function paint(state){
         const groups=new Map();for(const item of state.items){const date=state.node?'':day(item);if(!groups.has(date))groups.set(date,[]);groups.get(date).push(item);}

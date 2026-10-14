@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),path=requir
 const {fixture}=require('./helpers/canvas-browser.cjs');
 const asset=(index,kind='image')=>({id:'ast_'+index.toString(16).padStart(32,'0'),url:kind==='image'?'/test-image.svg':'/assets/history-'+kind+'.'+({video:'webm',audio:'mp3',model:'glb',file:'txt'}[kind]||'png'),name:kind+'-'+index,kind,created_at:index%2?'2026-10-14T12:00:00+08:00':'2026-10-13T23:00:00Z',task_id:'task-'+index,canvas_id:'canvas-test',model:'test'});
 const card=(page,index)=>page.locator('[data-history-asset="'+asset(index).id+'"]');
-async function setup(t,{items=[asset(1),asset(2,'video'),asset(3,'audio'),asset(4,'model'),asset(5,'file')],pageSize=100,holdFirst=false}={}){
+async function setup(t,{items=[asset(1),asset(2,'video'),asset(3,'audio'),asset(4,'model'),asset(5,'file')],pageSize=100,holdFirst=false,details={}}={}){
     const queries=[];let release;const held=new Promise(resolve=>release=resolve);let first=true;
     const f=await fixture(t,'smart',true,{secureOrigin:true,apiHandler:async request=>{
         const url=new URL(request.url());if(url.pathname==='/api/canvas-generation-history'){
@@ -10,7 +10,7 @@ async function setup(t,{items=[asset(1),asset(2,'video'),asset(3,'audio'),asset(
             const filtered=items.filter(item=>(url.searchParams.get('kind')==='all'||item.kind===url.searchParams.get('kind'))&&(!url.searchParams.get('node_id')||!item.node_id||item.node_id===url.searchParams.get('node_id'))),offset=Number(url.searchParams.get('cursor')||0),size=Math.min(pageSize,Number(url.searchParams.get('limit')||100));
             return {status:200,body:{items:filtered.slice(offset,offset+size),next_cursor:offset+size<filtered.length?String(offset+size):null}};
         }
-        if(url.pathname.startsWith('/api/canvas-generation-history/'))return {status:200,body:{item:items.find(item=>item.id===url.pathname.split('/').pop()),parameters:{prompt:'雨夜故事',model:'test'}}};
+        if(url.pathname.startsWith('/api/canvas-generation-history/'))return {status:200,body:{item:items.find(item=>item.id===url.pathname.split('/').pop()),parameters:{prompt:'雨夜故事',model:'test'},...details}};
     }});
     await f.page.evaluate(()=>{Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});});
     for(const [kind,filename,type] of [['video','smart-video-trim.webm','video/webm'],['audio','pixmax-generated-audio.mp3','audio/mpeg'],['model','pixmax-generated-model.glb','model/gltf-binary']])await f.page.route('**/assets/history-'+kind+'.*',route=>route.fulfill({path:path.resolve('tests/fixtures/'+filename),contentType:type}));
@@ -151,4 +151,32 @@ for(const readonly of [false,true])test(`model generation launcher opens scoped 
 test('base models and model generation nodes without a result have no native history launcher',async t=>{
     const {page,errors}=await setup(t);await page.evaluate(()=>{nodes=[{id:'base-model',type:'smart-model',pixmaxSourceType:'BASE_3D',x:200,y:180,images:[{url:'/assets/history-model.glb',kind:'model'}]},{id:'empty-model',type:'smart-model',x:650,y:180,images:[]}];render();});
     assert.equal(await page.locator('[data-studio-history]').count(),0);assert.deepEqual(errors,[]);
+});
+
+test('history detail presents owned file metadata, decoded dimensions and generation parameters without graph changes',async t=>{
+    const {page,errors}=await setup(t,{items:[asset(1)],details:{metadata:{file_type:'SVG',size_bytes:2048,task_created_at:'2026-10-14T08:00:00Z',completed_at:'2026-10-14T08:02:00Z'},parameters:{prompt:'参考 <img src=x onerror=alert(1)>',timbre_id:'voice-test',speed:1.2,enable_pbr:true,face_count:300000,view_types:['front','left']}}});
+    await page.evaluate(()=>MemberCanvasEdit.setEditable(false));const before=await page.evaluate(()=>JSON.stringify([nodes,viewport]));await open(page);await card(page,1).hover();await card(page,1).locator('[data-history-view]').click();
+    const info=page.locator('.history-file-metadata');await info.waitFor();assert.match(await info.textContent(),/SVG/);assert.match(await info.textContent(),/2 KB/);assert.match(await info.textContent(),/task-1/);assert.match(await info.textContent(),/2026/);await page.waitForFunction(()=>document.querySelector('[data-history-dimensions]')?.textContent==='320 × 240');
+    assert.match(await page.locator('.pixmax-history-detail').textContent(),/音色voice-test/);assert.match(await page.locator('.pixmax-history-detail').textContent(),/模型面数300000/);assert.equal(await page.locator('.pixmax-history-detail img').count(),1);assert.equal(await page.evaluate(()=>JSON.stringify([nodes,viewport])),before);assert.deepEqual(errors,[]);
+});
+
+test('historical input media previews are readonly and release real video/audio on close while retaining history',async t=>{
+    const references=[asset(501),asset(502,'video'),asset(503,'audio')],{page,errors,writes}=await setup(t,{items:[asset(1)],details:{references}});await page.evaluate(()=>MemberCanvasEdit.setEditable(false));const before=await page.evaluate(()=>JSON.stringify([nodes,viewport]));
+    await page.locator('.pixmax-rail').getByRole('button',{name:'生成历史',exact:true}).click();await card(page,1).hover();await card(page,1).locator('[data-history-view]').click();await page.locator('.history-references').waitFor();
+    assert.equal(await page.locator('.history-references video,.history-references audio').count(),0);assert.deepEqual(await page.locator('[data-history-reference]').evaluateAll(buttons=>buttons.map(button=>button.dataset.historyReference)),[references[2].id,references[0].id,references[1].id]);
+    const poster=page.locator('[data-history-reference="'+references[1].id+'"] img');if(await poster.count())await poster.evaluate(image=>image.src='/missing-history-input-preview');await page.waitForFunction(id=>document.querySelector(`[data-history-reference="${id}"]>span`)?.textContent==='视频',references[1].id);
+    for(const ref of references){
+        await page.locator('[data-history-reference="'+ref.id+'"]').click();const preview=page.locator('.pixmax-history-reference');await preview.waitFor();assert.equal(await preview.locator('[data-history-detail-insert]').count(),0);
+        if(ref.kind==='image')await preview.locator('.history-image-view img').waitFor();else{await page.waitForFunction(kind=>document.querySelector('.pixmax-history-reference '+kind)?.readyState>=2,ref.kind);await page.evaluate(async kind=>{const player=document.querySelector('.pixmax-history-reference '+kind);window.__historyInputPlayer=player;await player.play();},ref.kind);}
+        await page.keyboard.press('Escape');await preview.waitFor({state:'detached'});if(ref.kind!=='image')await page.waitForFunction(()=>window.__historyInputPlayer.paused&&!window.__historyInputPlayer.hasAttribute('src'));
+        assert.equal(await page.evaluate(()=>PixmaxGenerationHistory.opened),true);assert.equal(await page.locator('.pixmax-history-detail').count(),1);await page.waitForFunction(()=>document.activeElement===document.querySelector('.pixmax-history-detail'));
+    }
+    assert.equal(await page.evaluate(()=>JSON.stringify([nodes,viewport])),before);assert.equal(writes.filter(item=>/canvas-.*-tasks$/.test(item.path)).length,0);assert.deepEqual(errors,[]);
+});
+
+test('replacing the history detail or changing workspace closes its input preview and media resources',async t=>{
+    const {page,errors}=await setup(t,{items:[asset(1),asset(2)],details:{references:[asset(502,'video')]}});await page.evaluate(()=>{nodes=[{id:'current',type:'smart-image',generationKind:'image',x:250,y:200,images:[{url:'/test-image.svg',kind:'image'}]}];render();PixmaxGenerationHistory.openNode(nodes[0],document.querySelector('.pixmax-rail'));});
+    await card(page,1).hover();await card(page,1).locator('[data-history-view]').click();await page.locator('[data-history-reference]').click();await page.locator('.pixmax-history-reference video').waitFor();
+    await page.evaluate(()=>{window.__historyInputPlayer=document.querySelector('.pixmax-history-reference video');document.querySelector('[data-history-next]').click();});await page.locator('.pixmax-history-reference').waitFor({state:'detached'});assert.equal(await page.evaluate(()=>window.__historyInputPlayer.hasAttribute('src')),false);
+    await page.locator('[data-history-reference]').click();await page.locator('.pixmax-history-reference').waitFor();await page.evaluate(()=>{CanvasSession.context.workspace.id='another-workspace';document.body.appendChild(document.createElement('span'));});await page.waitForFunction(()=>!PixmaxGenerationHistory.opened);assert.equal(await page.locator('.pixmax-history-detail,.pixmax-history-reference').count(),0);assert.deepEqual(errors,[]);
 });
