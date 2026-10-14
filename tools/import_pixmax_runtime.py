@@ -63,12 +63,22 @@ export const unmountEditor = handle => Of(handle.instance);
 export const mountCanvasMediaPicker = (target, props, handle) => Tf(Cjt, {target,props,context:handle.context});
 export const unmountCanvasMediaPicker = instance => Of(instance);
 // The canvas player is the original component, including seek and frame capture.
-export const mountCanvasPlayer = (target, props) => Tf(aV, {target, props});
-export const unmountCanvasPlayer = instance => Of(instance);
+const canvasPlayerCaptureStates = new WeakMap;
+export const mountCanvasPlayer = (target, props) => {
+  const capture = z(props.showCaptureButton !== false);
+  const instance = Tf(aV, {target, props:{...props,get showCaptureButton(){return G(capture);}}});
+  canvasPlayerCaptureStates.set(instance,capture);
+  return instance;
+};
+export const setCanvasPlayerCaptureEnabled = (instance, value) => {
+  const capture=canvasPlayerCaptureStates.get(instance);if(capture)B(capture,!!value);
+};
+export const unmountCanvasPlayer = instance => {canvasPlayerCaptureStates.delete(instance);return Of(instance);};
 // Reuse the original media processor; canvas persistence stays in the host app.
 export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
+  mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
   async mountTimeline(target, props) {
     const container = new f, i18n = await KLe();
     await du(i18n).changeLanguage('zh');
@@ -105,7 +115,7 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
     'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal'],
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

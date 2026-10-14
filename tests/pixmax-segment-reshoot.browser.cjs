@@ -169,3 +169,54 @@ test('native timeline fits a narrow screen and remains draggable without horizon
     const {page,errors}=await setup(t);await page.setViewportSize({width:390,height:760});await open(page);const timeline=await nativeTimeline(page);await timeline.scrollIntoViewIfNeeded();const strip=await timeline.getByRole('slider').first().boundingBox();await dragTimeline(page,timeline.locator('button').nth(2),strip.width/4);await page.waitForFunction(()=>nodes[1].segmentReshoot.endSec===6);
     const bounds=await page.getByRole('dialog',{name:'片段重拍',exact:true}).locator('section').boundingBox();assert.ok(bounds.width<=358&&bounds.x>=0&&bounds.x+bounds.width<=390);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=390),true);await page.screenshot({path:'.local/pixmax-reshoot-timeline-mobile.png'});assert.deepEqual(errors,[]);
 });
+
+async function sourceCard(page){
+    await open(page);await page.getByRole('button',{name:'关闭片段重拍',exact:true}).click();
+    const id=await page.evaluate(()=>{nodes[1].x=180;nodes[1].y=240;smartSelection.clear();render();return nodes[1].id;});
+    const card=page.locator('.image-node[data-id="'+id+'"]');await card.locator('[data-reshoot-source-player] video').waitFor();
+    await page.waitForFunction(id=>document.querySelector('.image-node[data-id="'+id+'"] video')?.readyState>=2,id);
+    return card;
+}
+test('source card previews the original without adding a result and preserves its native player through redraws',async t=>{
+    const {page,errors,record}=await setup(t),card=await sourceCard(page),player=card.locator('[data-reshoot-source-player]');
+    assert.deepEqual(await page.evaluate(()=>nodes[1].images),[]);assert.equal(await player.getAttribute('data-url'),'/assets/reshoot-source.mp4');assert.equal(await card.locator('.node-resize-handle').count(),1);
+    await player.getByRole('slider').press('ArrowRight');await page.waitForFunction(()=>Math.abs(document.querySelector('[data-reshoot-source-player] video').currentTime-5)<.1);
+    const picture=await player.locator('video').evaluate(video=>{const image=document.createElement('canvas');image.width=video.videoWidth;image.height=video.videoHeight;const ctx=image.getContext('2d');ctx.drawImage(video,0,0);const data=ctx.getImageData(0,0,image.width,image.height).data;return {w:image.width,h:image.height,color:[...data].some((value,index)=>index%4!==3&&value>100)};});assert.deepEqual(picture,{w:160,h:90,color:true});
+    await page.evaluate(()=>{window.__sourcePlayerVideo=document.querySelector('[data-reshoot-source-player] video');render();refreshSmartNodes([nodes[1].id]);});assert.equal(await player.locator('video').evaluate(video=>video===__sourcePlayerVideo),true);assert.ok(Math.abs(await player.locator('video').evaluate(video=>video.currentTime)-5)<.1);
+    const geometry=await page.evaluate(()=>({rect:nodeRect(nodes[1]),layout:imageLayout(nodes[1].images,nodeScale(nodes[1]),nodes[1])}));assert.equal(geometry.rect.width,geometry.layout.width);assert.equal(geometry.rect.height,geometry.layout.height);
+    await page.evaluate(()=>saveCanvas({force:true}));assert.deepEqual(record.nodes[1].images,[]);await page.screenshot({path:'.local/pixmax-reshoot-source-card.png'});assert.deepEqual(errors,[]);
+});
+
+test('native dialog playback, mute and seek do not create canvas edits or undo entries',async t=>{
+    const {page,errors}=await setup(t);await open(page);await nativeTimeline(page);const player=page.locator('.pixmax-segment-reshoot-modal [data-reshoot-player]');
+    const before=await page.evaluate(()=>({undo:undoStack.length,state:JSON.stringify(nodes[1].segmentReshoot),config:JSON.stringify(nodes[1].runSettings)}));await player.locator('.play-toggle').click();await page.waitForFunction(()=>!document.querySelector('.pixmax-segment-reshoot-modal video').paused);await player.locator('.play-toggle').click();await player.locator('button').nth(1).click();assert.equal(await player.locator('video').evaluate(video=>video.muted),true);await player.getByRole('slider').press('ArrowRight');
+    assert.deepEqual(await page.evaluate(()=>({undo:undoStack.length,state:JSON.stringify(nodes[1].segmentReshoot),config:JSON.stringify(nodes[1].runSettings)})),before);assert.deepEqual(errors,[]);
+});
+
+test('readonly source card opens a native preview while screenshot and generation remain unavailable',async t=>{
+    const {page,errors}=await setup(t),media=await uploads(page),api=await tasks(page),card=await sourceCard(page);await page.evaluate(()=>MemberCanvasEdit.setEditable(false));await card.locator('[data-reshoot-source-player] .capture-trigger').waitFor({state:'detached'});
+    await card.locator('video').dblclick();const dialog=page.getByRole('dialog',{name:'源视频预览',exact:true});await dialog.waitFor();await page.waitForFunction(()=>document.querySelector('.pixmax-reshoot-preview-modal video')?.readyState>=2);await dialog.locator('.play-toggle').click();await page.waitForFunction(()=>!document.querySelector('.pixmax-reshoot-preview-modal video').paused);
+    assert.equal(await dialog.locator('[data-reshoot-run],[data-reshoot-prepare],.capture-trigger').count(),0);assert.equal(media.calls.length,0);assert.equal(api.calls.length,0);assert.deepEqual(await page.evaluate(()=>nodes[1].images),[]);
+    await page.evaluate(()=>{CanvasSession.context.workspace.id='another';PixmaxSegmentReshoot.documentChanged();});assert.equal(await dialog.count(),0);assert.deepEqual(errors,[]);
+});
+
+test('native source screenshot creates one real PNG connected to the source and keeps the reshoot result empty',async t=>{
+    const {page,errors,directory,record}=await setup(t),api=await uploads(page),card=await sourceCard(page);await card.locator('.capture-trigger').hover();await page.getByText('截取当前帧',{exact:true}).click();await page.waitForFunction(()=>nodes.length===3);
+    assert.equal(api.calls.length,1);assert.deepEqual(await page.evaluate(()=>nodes[1].images),[]);assert.equal(await page.evaluate(()=>canvas.connections.some(edge=>edge.from===nodes[0].id&&edge.to===nodes[2].id)),true);const file=[...api.files.values()][0];assert.equal(file.type,'image/png');const filename=path.join(directory,'source-frame.png');fs.writeFileSync(filename,file.bytes);const probe=JSON.parse(execFileSync('ffprobe',['-v','error','-show_entries','stream=width,height','-of','json',filename],{encoding:'utf8'}));assert.deepEqual([probe.streams[0].width,probe.streams[0].height],[160,90]);const pixels=execFileSync('ffmpeg',['-v','error','-i',filename,'-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1']);assert.ok(pixels.some(value=>value>100));await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes[2].images[0].kind,'image');assert.deepEqual(errors,[]);
+});
+
+for(const change of ['source','lease'])test('late source screenshot cannot insert after '+change+' changes',async t=>{
+    const {page,errors}=await setup(t),api=await uploads(page,{hold:true}),card=await sourceCard(page);await card.locator('.capture-trigger').hover();await page.getByText('截取当前帧',{exact:true}).click();await api.requested;if(change==='source')await page.evaluate(()=>nodes[0].images[0].url='/assets/changed.mp4');else await page.evaluate(()=>MemberCanvasEdit.setEditable(false));api.release();
+    await page.waitForFunction(()=>!document.querySelector('[data-reshoot-source-player] .capture-trigger')?.disabled);assert.equal(await page.evaluate(()=>nodes.length),2);assert.deepEqual(await page.evaluate(()=>nodes[1].images),[]);assert.deepEqual(errors,[]);
+});
+
+test('generation replaces the source preview with a result player and does not retain source gestures',async t=>{
+    const {page,errors}=await setup(t),media=await uploads(page),api=await tasks(page),card=await sourceCard(page);await page.evaluate(()=>window.__oldSourceVideo=document.querySelector('[data-reshoot-source-player] video'));await card.locator('[data-reshoot-open]').click();await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.waitForFunction(()=>nodes[1].images.length===1);await page.getByRole('button',{name:'关闭片段重拍',exact:true}).click();
+    assert.equal(await card.locator('.pixmax-reshoot-source,[data-reshoot-source-player]').count(),0);assert.equal(await card.locator('.image-wrap .pixmax-player-mount').count(),1);await page.waitForFunction(()=>__oldSourceVideo.getAttribute('src')===null);assert.equal(media.calls.length,3);assert.equal(api.calls.length,1);assert.deepEqual(errors,[]);
+});
+
+test('paused offscreen source preview releases its player and restores the saved playback position',async t=>{
+    const {page,errors}=await setup(t),card=await sourceCard(page);await card.getByRole('slider').press('ArrowRight');await page.waitForFunction(()=>Math.abs(document.querySelector('[data-reshoot-source-player] video').currentTime-5)<.1);
+    await page.evaluate(()=>{window.__recycledSourceVideo=document.querySelector('[data-reshoot-source-player] video');document.activeElement?.blur();smartSelection.clear();viewport.x=-5000;renderSmartOffscreenPlaceholders();});await card.locator('[data-reshoot-source-player]').waitFor({state:'detached'});await page.waitForFunction(()=>__recycledSourceVideo.getAttribute('src')===null);
+    await page.evaluate(()=>{viewport.x=0;renderSmartOffscreenPlaceholders();});await card.locator('[data-reshoot-source-player] video').waitFor();await page.waitForFunction(()=>Math.abs(document.querySelector('[data-reshoot-source-player] video').currentTime-5)<.1);assert.deepEqual(await page.evaluate(()=>nodes[1].images),[]);assert.deepEqual(errors,[]);
+});

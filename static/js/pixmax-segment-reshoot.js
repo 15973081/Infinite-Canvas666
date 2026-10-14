@@ -8,18 +8,57 @@
     function dispose(session){
         if(!session||session.closed)return;session.closed=true;
         session.observer?.disconnect();clearTimeout(session.seekTimer);session.root.remove();
-        session.video.pause();session.video.removeAttribute('src');session.video.load();
+        session.cleanupVideo?.();session.unmountPlayer?.();
+        if(session.video){session.video.pause();session.video.removeAttribute('src');session.video.load();}
         if(session.timeline)void session.timeline.destroy();
         if(activeSession===session)activeSession=null;
     }
+    function mountPlayer(api,session,media,height='220px'){
+        const target=session.root.querySelector('[data-reshoot-player]');
+        const instance=api.mountPlayer(target,{src:displayMediaUrl(media),poster:pixmaxMediaPoster(media),durationHint:session.node.segmentReshoot.source.duration,
+            preload:'metadata',eagerMetadataProbe:true,fit:'fill',showCaptureButton:false,showFullscreenButton:true,style:'width:100%;height:'+height,
+            onControllerReady:controller=>{session.controller=controller;}});
+        session.unmountPlayer=()=>{void api.unmountPlayer(instance);};session.video=target.querySelector('video');
+        if(!session.video)throw new Error('源视频播放器未初始化');
+        return session.video;
+    }
+    async function preview(id){
+        const node=nodes.find(item=>item.id===id),media=previewMedia(node);if(!media)return;
+        const origin=canvas,owner=scope(),key=identity(media),attempt=++openAttempt;
+        const readable=()=>{try{return canvas===origin&&scope()===owner&&nodes.includes(node)&&identity(sourceFor(node).media)===key;}catch{return false;}};
+        let previewSession;try{
+            const api=await runtime();if(!readable()||attempt!==openAttempt)return;dispose(activeSession);
+            const root=pixmaxCreationModal('源视频预览');root.classList.add('pixmax-reshoot-preview-modal');root.querySelector('.pixmax-creation-content').innerHTML='<div class="pixmax-reshoot-preview-player" data-reshoot-player></div>';
+            const session={root,node,canvasId:canvas.id,scope:owner,closed:false,video:null,sync(){if(!readable())dispose(session);}};activeSession=previewSession=session;
+            mountPlayer(api,session,media,'min(65vh,420px)');
+            session.observer=new MutationObserver(()=>{if(!root.isConnected)dispose(session);});session.observer.observe(document.body,{childList:true});
+        }catch(error){dispose(previewSession);toast(error.message||'源视频预览失败');}
+    }
     function models(){return (apiProviders||[]).filter(provider=>provider.enabled!==false&&provider.has_key&&videoProviderPlatform(provider.id)==='volcengine').flatMap(provider=>(provider.video_models||[]).filter(isSeedance25VideoModel).map(model=>({provider,model})));}
     function sourceFor(node){
-        const state=node.segmentReshoot,source=nodes.find(item=>item.id===state?.source?.nodeId),media=source?.images?.find(item=>mediaKindForItem(item)==='video'&&identity(item)===state.source.identity);
+        const state=node.segmentReshoot,source=typeof smartNodeForComputation==='function'?smartNodeForComputation(state?.source?.nodeId):nodes.find(item=>item.id===state?.source?.nodeId),media=source?.images?.find(item=>mediaKindForItem(item)==='video'&&identity(item)===state.source.identity);
         if(state?.importError)throw new Error(state.importError);
         if(!state?.source?.url)throw new Error('片段重拍的源视频不可用');
         if(state?.schemaVersion===1&&!state.source.nodeId)return {source:null,media:state.source.media||{url:state.source.url,kind:'video',duration:state.source.duration}};
-        if(!media||!(canvas.connections||[]).some(edge=>edge.from===source.id&&edge.to===node.id))throw new Error('原视频或连接已变化，请重新创建片段重拍');
+        const incoming=typeof smartConnectionsForComputation==='function'?smartConnectionsForComputation(node.id):canvas.connections||[];
+        if(!media||!incoming.some(edge=>edge.from===source.id&&edge.to===node.id))throw new Error('原视频或连接已变化，请重新创建片段重拍');
         return {source,media};
+    }
+    function previewMedia(node){
+        if(node?.segmentReshoot?.schemaVersion!==1||(node.images||[]).length)return null;
+        try{return sourceFor(node).media;}catch{return null;}
+    }
+    function previewBody(node,layout){
+        const media=previewMedia(node);if(!media)return '';
+        return `<div class="pixmax-reshoot-source" data-reshoot-source data-media-signature="${escapeAttr('reshoot-source:'+identity(media))}">${singleMediaHtml(media,layout.width,layout.height).replace('class="pixmax-player-mount"','class="pixmax-player-mount" data-reshoot-source-player')}</div>`;
+    }
+    async function captureSource(id,frames){
+        const node=nodes.find(item=>item.id===id);if(!previewMedia(node)||isSmartCanvasLocked())return toast('当前无法保存源视频截图');
+        const source=sourceFor(node),owner=source.source||node,valid=owned(node),files=frames.map(frame=>new File([frame.blob],frame.fileName,{type:frame.blob.type}));
+        const uploaded=await uploadFiles(files);if(!valid())return;
+        if(uploaded.length!==files.length)throw new Error('截图上传失败');
+        pushUndo();uploaded.forEach((item,index)=>{const result=createNode(node.x+nodeRect(node).width+80,node.y+index*240,[item],{skipUndo:true,select:false});result.label=(owner.label||'片段重拍')+'-截帧';connectInputNode(owner.id,result.id);});
+        render();scheduleSave();toast('截图已插入画布');
     }
     function owned(node,root){
         const origin=canvas,owner=scope(),base=canvasTaskWriteGuard(node),source=sourceFor(node),key=identity(source.media);
@@ -108,21 +147,23 @@
         dispose(activeSession);
         const root=pixmaxCreationModal('片段重拍'),body=root.querySelector('.pixmax-creation-content'),status=root.querySelector('[role=status]'),state=node.segmentReshoot,valid=owned(node,root);
         root.classList.add('pixmax-segment-reshoot-modal');
-        const choices=models(),hasModel=choices.some(item=>item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel);body.innerHTML=`<video controls preload="metadata" src="${escapeAttr(displayMediaUrl(source.media))}"></video><p class="pixmax-creation-hint">选择 4–30 秒片段，描述需要修改的内容。</p><div class="pixmax-reshoot-range"><div class="pixmax-reshoot-native-timeline" data-reshoot-timeline aria-label="重拍视频选段"></div><div class="pixmax-reshoot-time-fields"><label>开始时间<input type="number" data-reshoot-start min="0" max="${state.source.duration}" step="0.1" aria-label="重拍开始时间"></label><label>结束时间<input type="number" data-reshoot-end min="0" max="${state.source.duration}" step="0.1" aria-label="重拍结束时间"></label></div><output data-reshoot-summary></output></div><label>重拍要求<textarea data-reshoot-prompt maxlength="10000" aria-label="重拍要求" placeholder="也可以写要改什么，例如：把头发换成红色">${escapeHtml(state.prompt)}</textarea></label><label>生成模型<select data-reshoot-model aria-label="重拍模型">${hasModel?'':'<option value="" selected>请选择已配置的 Seedance 2.5 模型</option>'}${choices.map(item=>`<option value="${escapeAttr(JSON.stringify([item.provider.id,item.model]))}" ${item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel?'selected':''}>${escapeHtml(item.provider.name+' · '+item.model)}</option>`).join('')}</select></label><button type="button" data-reshoot-prepare>准备片段</button><button type="button" data-reshoot-run class="pixmax-creation-primary">${state.taskId&&state.completedTaskId!==state.taskId?'查询原重拍任务':'生成重拍视频'}</button>`;
+        const choices=models(),hasModel=choices.some(item=>item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel);body.innerHTML=`<div class="pixmax-reshoot-preview-player" data-reshoot-player></div><p class="pixmax-creation-hint">选择 4–30 秒片段，描述需要修改的内容。</p><div class="pixmax-reshoot-range"><div class="pixmax-reshoot-native-timeline" data-reshoot-timeline aria-label="重拍视频选段"></div><div class="pixmax-reshoot-time-fields"><label>开始时间<input type="number" data-reshoot-start min="0" max="${state.source.duration}" step="0.1" aria-label="重拍开始时间"></label><label>结束时间<input type="number" data-reshoot-end min="0" max="${state.source.duration}" step="0.1" aria-label="重拍结束时间"></label></div><output data-reshoot-summary></output></div><label>重拍要求<textarea data-reshoot-prompt maxlength="10000" aria-label="重拍要求" placeholder="也可以写要改什么，例如：把头发换成红色">${escapeHtml(state.prompt)}</textarea></label><label>生成模型<select data-reshoot-model aria-label="重拍模型">${hasModel?'':'<option value="" selected>请选择已配置的 Seedance 2.5 模型</option>'}${choices.map(item=>`<option value="${escapeAttr(JSON.stringify([item.provider.id,item.model]))}" ${item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel?'selected':''}>${escapeHtml(item.provider.name+' · '+item.model)}</option>`).join('')}</select></label><button type="button" data-reshoot-prepare>准备片段</button><button type="button" data-reshoot-run class="pixmax-creation-primary">${state.taskId&&state.completedTaskId!==state.taskId?'查询原重拍任务':'生成重拍视频'}</button>`;
         let edited=false,busy=false;
-        const video=body.querySelector('video'),target=body.querySelector('[data-reshoot-timeline]'),session={root,video,canvasId:canvas.id,scope:scope(),node,valid,closed:false,timeline:null,scrubbing:false,seekTimer:null,lastSeek:0,pendingSeek:null};activeSession=session;
+        const target=body.querySelector('[data-reshoot-timeline]'),session={root,video:null,canvasId:canvas.id,scope:scope(),node,valid,closed:false,timeline:null,scrubbing:false,seekTimer:null,lastSeek:0,pendingSeek:null};activeSession=session;
+        let video;try{video=mountPlayer(api,session,source.media);}catch(error){dispose(session);return toast(error.message);}
         const draw=()=>{body.querySelector('[data-reshoot-start]').value=state.startSec;body.querySelector('[data-reshoot-end]').value=state.endSec;body.querySelector('[data-reshoot-summary]').textContent=`${state.startSec.toFixed(1)} – ${state.endSec.toFixed(1)} · ${(state.endSec-state.startSec).toFixed(1)}s`;session.timeline?.setRange({startSec:state.startSec,endSec:state.endSec});};draw();
-        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>control.disabled=disabled);target.inert=disabled;session.timeline?.setDisabled(disabled);};session.sync=sync;
+        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);};session.sync=sync;
         session.observer=new MutationObserver(()=>{if(!root.isConnected)dispose(session);});session.observer.observe(document.body,{childList:true});
         function changeRange(range){if(!valid()||busy||Math.abs(range.startSec-state.startSec)<.001&&Math.abs(range.endSec-state.endSec)<.001)return;if(!edited){pushUndo();edited=true;}Object.assign(state,range);delete state.cache;delete state.preparedMedia;node.runSettings.videoTempShLinks=[];draw();scheduleSave();}
         function seek(seconds,final=false){
             if(!valid()||busy||session.closed)return;const time=Math.min(state.source.duration,Math.max(0,seconds));session.timeline?.setPlayheadTime(time);
-            session.pendingSeek=time;const apply=()=>{session.seekTimer=null;if(!valid()||busy||session.closed)return;const value=session.pendingSeek;session.pendingSeek=null;session.lastSeek=performance.now();if(value!==null&&Math.abs(video.currentTime-value)>=.05)video.currentTime=value;};
+            session.pendingSeek=time;const apply=()=>{session.seekTimer=null;if(!valid()||busy||session.closed)return;const value=session.pendingSeek;session.pendingSeek=null;session.lastSeek=performance.now();if(value!==null&&Math.abs(video.currentTime-value)>=.05){if(session.controller)session.controller.seek(value);else video.currentTime=value;}};
             if(final||performance.now()-session.lastSeek>=60){clearTimeout(session.seekTimer);apply();}else if(session.seekTimer===null)session.seekTimer=setTimeout(apply,60-(performance.now()-session.lastSeek));
         }
         const playback=event=>{if(event.type==='play')session.startingPlayback=true;if(event.type==='pause')session.startingPlayback=false;if(session.closed||video.seeking)return;session.timeline?.setPlayheadTime(video.currentTime);if(session.scrubbing||video.paused)return;if(session.startingPlayback){session.startingPlayback=false;if(video.currentTime<state.startSec-.05||video.currentTime>=state.endSec-.05){video.currentTime=state.startSec;session.timeline?.setPlayheadTime(state.startSec);return;}}if(video.currentTime<state.startSec-.05)video.currentTime=state.startSec;else if(video.currentTime>=state.endSec-.05){video.pause();video.currentTime=state.endSec;}};
         for(const event of ['timeupdate','seeked','play','pause'])video.addEventListener(event,playback);
-        function draft(event){if(!valid()||busy)return;if(!edited){pushUndo();edited=true;}
+        session.cleanupVideo=()=>{for(const event of ['timeupdate','seeked','play','pause'])video.removeEventListener(event,playback);};
+        function draft(event){if(!event.target.matches('[data-reshoot-start],[data-reshoot-end],[data-reshoot-prompt],[data-reshoot-model]')||!valid()||busy)return;if(!edited){pushUndo();edited=true;}
             if(event.target.matches('[data-reshoot-start],[data-reshoot-end]')){changeRange(api.normalizeRange(Number(body.querySelector('[data-reshoot-start]').value),Number(body.querySelector('[data-reshoot-end]').value),state.source.duration));seek(state.startSec,true);}
             state.prompt=body.querySelector('[data-reshoot-prompt]').value;const choice=body.querySelector('[data-reshoot-model]').value;if(choice){const [provider,model]=JSON.parse(choice);Object.assign(node.runSettings,{videoProvider:provider,videoModel:model,engine:provider==='volcengine'?'volcengine':'api'});}scheduleSave();
         }
@@ -142,6 +183,7 @@
     }
     function documentChanged(){
         if(activeSession){if(activeSession.canvasId!==canvas?.id||activeSession.scope!==scope()||!nodes.includes(activeSession.node))dispose(activeSession);else activeSession.sync();}
+        window.dispatchEvent(new Event('pixmax-reshoot-preview-changed'));
         for(const node of nodes.filter(node=>node.segmentReshoot?.schemaVersion===1)){
             const element=world.querySelector(`.image-node[data-id="${CSS.escape(node.id)}"] .node-body`);if(!element)continue;const existing=element.querySelector('[data-reshoot-open]');if(existing){existing.disabled=isSmartCanvasLocked();continue;}
             const button=document.createElement('button');button.type='button';button.dataset.reshootOpen='';button.className='pixmax-reshoot-open';button.textContent='片段重拍 · 选择片段';button.disabled=isSmartCanvasLocked();button.onclick=event=>{event.stopPropagation();void open(node);};element.appendChild(button);
@@ -166,6 +208,6 @@
         const keep=preservePrepared&&originalIdentity===state.source.identity&&cache?.reshootSourceAssetUuid===state.source.identity&&Number(cache.reshootStartSec)===state.startSec&&Number(cache.reshootEndSec)===state.endSec&&Array.isArray(prepared)&&prepared.length===3&&[cache.clipAssetUuid,cache.headFrameAssetUuid,cache.tailFrameAssetUuid].every((url,index)=>typeof url==='string'&&/^(https?:\/\/|\/[^/])/.test(url)&&prepared[index]?.url===url&&mediaKindForItem(prepared[index])===(index?'image':'video'));
         if(!keep){delete state.cache;delete state.preparedMedia;if(node.runSettings)node.runSettings.videoTempShLinks=[];}
     }
-    window.PixmaxSegmentReshoot=Object.freeze({create,open,documentChanged,executionSettings,remapReferences,available:()=>Boolean(window.CanvasSession?.enabled&&models().length)});
+    window.PixmaxSegmentReshoot=Object.freeze({create,open,preview,previewMedia,previewBody,captureSource,documentChanged,executionSettings,remapReferences,available:()=>Boolean(window.CanvasSession?.enabled&&models().length)});
     window.addEventListener('pagehide',event=>{if(!event.persisted)dispose(activeSession);else activeSession?.video.pause();});
 })();

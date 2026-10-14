@@ -486,6 +486,8 @@ function imageLayout(images, scale=1, node=null){
     if(node?.type === 'smart-prompt') return {cols:1, rows:1, ...promptNodeLayoutSize(node), thumb:96, single:true};
     const count = (images || []).length;
     const s = node?.type === 'smart-image' || !node?.type ? mediaNodeDefaultScale(node) : (Number.isFinite(scale) && scale > 0 ? scale : 1);
+    const reshootPreview=count===0?window.PixmaxSegmentReshoot?.previewMedia(node):null;
+    if(reshootPreview)return singleImageLayout(reshootPreview,node,s);
     if(count === 0){
         const explicitW = Number(node?.w);
         const explicitH = Number(node?.h);
@@ -572,10 +574,12 @@ function isSmartNodeInViewport(node, margin=400){
 function scheduleSmartViewportRefresh(...args){return smartWorkspaceView.scheduleViewport(...args);}
 
 function canRecycleSmartMediaNode(node, el){
-    if(!node || (node.type && node.type !== 'smart-image') || !(node.images || []).length) return false;
+    const reshootPreview=window.PixmaxSegmentReshoot?.previewMedia(node);
+    if(!node || (node.type && node.type !== 'smart-image') || !(node.images || []).length&&!reshootPreview) return false;
     if(node.running || node.queued || smartNodePendingCount(node) || isNodeSelected(node.id)) return false;
     if(dragState || resizeState || thumbDragState || portDragState || selectionState || smartCascadeAnyRunning()) return false;
-    if(el?.contains(document.activeElement) || el?.querySelector('video,audio')) return false;
+    if(el?.contains(document.activeElement)) return false;
+    if(reshootPreview ? [...(el?.querySelectorAll('video,audio')||[])].some(media=>!media.paused) : el?.querySelector('video,audio'))return false;
     if(smartImageEditor.isEditingNode(node.id)) return false;
     if(smartAudioPreview.isPreviewingNode(node.id)) return false;
     return true;
@@ -589,6 +593,7 @@ function renderSmartNodeHtml(node){
     if(window.PixmaxCanvasFrames?.isFrame(node))return window.PixmaxCanvasFrames.render(node);
     if(isSmartStudioNode(node)) return renderSmartStudioNode(node);
     const imgs = node.images || [];
+    const reshootPreview=window.PixmaxSegmentReshoot?.previewMedia(node);
     const scale = nodeScale(node);
     const layout = imageLayout(imgs, scale, node);
     const isPrompt = node.type === 'smart-prompt';
@@ -598,7 +603,7 @@ function renderSmartNodeHtml(node){
     const pendingCount = smartNodePendingCount(node);
     const recoveryOnly = Boolean(isImageNode && imgs.length === 0 && window.CanvasSession?.enabled && smartPendingTasks(node).length);
     const isQueued = Boolean(node.queued && imgs.length === 0 && !pendingCount);
-    const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued && !recoveryOnly && !node.localDepth;
+    const isEmpty = isImageNode && imgs.length === 0 && !pendingCount && !isQueued && !recoveryOnly && !node.localDepth && !reshootPreview;
     const isHistory = isHistoryGroupNode(node);
     const isGroup = isImageNode && imgs.length > 1;
     const faceVerified = isImageNode && imgs.length > 0 && imgs.every(img => smartFaceAuthState(img).ready);
@@ -611,7 +616,7 @@ function renderSmartNodeHtml(node){
         ${isPrompt ? pixmaxNodeCaption(node,'text','文本生成节点') : ''}
         ${smartNodeToolbarHtml(node)}
         <div class="node-body">${body}</div>
-        ${imgs.length || pendingCount || isQueued || recoveryOnly || isPrompt ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
+        ${imgs.length || reshootPreview || pendingCount || isQueued || recoveryOnly || isPrompt ? '<div class="node-resize-handle" data-resize="1"></div>' : ''}
         ${pixmaxNodePorts()}
     </div>`;
 }
@@ -1956,8 +1961,8 @@ function restoreMediaPlaybackState(media, state){
 }
 
 function transplantSmartMediaElements(oldNodeEl, newNodeEl){
-    const oldItems = [...(oldNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap') || [])];
-    const newItems = [...(newNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap') || [])];
+    const oldItems = [...(oldNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.pixmax-reshoot-source') || [])];
+    const newItems = [...(newNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.pixmax-reshoot-source') || [])];
     oldItems.forEach((oldItem, index) => {
         const player=oldItem.querySelector('.pixmax-player-mount');
         const nextPlayer=newItems.find(item=>item.dataset.mediaSignature===oldItem.dataset.mediaSignature)?.querySelector('.pixmax-player-mount');
@@ -1973,6 +1978,7 @@ function transplantSmartMediaElements(oldNodeEl, newNodeEl){
             || newItems.find(item => item.querySelector?.(selector)?.getAttribute?.('src') === oldMedia.getAttribute('src'))
             || newItems[index];
         const newMedia = newItem?.querySelector?.(selector);
+        if(Boolean(oldItem.matches('.pixmax-reshoot-source'))!==Boolean(newItem?.matches('.pixmax-reshoot-source')))return;
         const newUrl = newMedia?.dataset?.url || newMedia?.dataset?.originalSrc || newMedia?.getAttribute?.('src') || '';
         if(!newMedia || oldUrl !== newUrl) return;
         if(selector === 'img'){
@@ -2027,7 +2033,7 @@ function promptNodeBodyHtml(node){
 function nodeBodyHtml(node, layout){
     if(node.localDepth && !(node.images || []).length)return smartLocalDepthBodyHtml(node);
     const tasks=window.CanvasSession?.enabled ? smartPendingTasks(node) : [];
-    const body=smartNodeMediaBodyHtml(node,layout);
+    const body=window.PixmaxSegmentReshoot?.previewBody(node,layout)||smartNodeMediaBodyHtml(node,layout);
     if(!tasks.length)return body;
     const recoveryOnly=!((node.images || []).length);
     return body+tasks.map(task=>{

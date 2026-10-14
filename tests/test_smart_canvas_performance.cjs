@@ -154,7 +154,7 @@ test('warm connection computations reuse adjacency slots and read current object
 });
 test('offscreen reclamation protects interaction, running tasks, editors and lightboxes',()=>{
     const node={id:'a',type:'smart-image',images:[{url:'a.png'}]},el={contains:()=>false,querySelector:()=>null};
-    const ctx=vm.createContext({document:{activeElement:{}},smartNodePendingCount:n=>n.pending||0,isNodeSelected:()=>false,
+    const ctx=vm.createContext({window:{},document:{activeElement:{}},smartNodePendingCount:n=>n.pending||0,isNodeSelected:()=>false,
         dragState:null,resizeState:null,thumbDragState:null,portDragState:null,selectionState:null,smartCascadeAnyRunning:()=>false,
         smartImageEditor:{state:{open:false,nodeId:'a'},isEditingNode(id){return this.state.open&&this.state.nodeId===id;}},smartAudioPreview:{isPreviewingNode:()=>false}});
     load(ctx,['canRecycleSmartMediaNode']);assert.equal(ctx.canRecycleSmartMediaNode(node,el),true);

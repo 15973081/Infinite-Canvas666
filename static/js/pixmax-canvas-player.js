@@ -2,6 +2,11 @@
 // Keep whole mounts across canvas redraws so playback does not restart.
 const players=new Map();
 const gestureTargets=new WeakSet();
+const sourcePlayback=new Map(),sourceKeys=new WeakMap(),sourceRestorers=new WeakMap();
+function sourceKey(target){
+    if(!target.hasAttribute('data-reshoot-source-player'))return null;
+    return JSON.stringify([window.CanvasSession?.context?.member?.id,window.CanvasSession?.context?.workspace?.id,canvas?.id,target.closest('.image-node')?.dataset.id,target.closest('.pixmax-reshoot-source')?.dataset.mediaSignature]);
+}
 let queued=false, runtime, runtimePromise, disposed=false;
 function bindPlayerGestures(target){
     if(gestureTargets.has(target))return;
@@ -19,6 +24,7 @@ function bindPlayerGestures(target){
         if(controlEvent(event))return;
         event.preventDefault();event.stopPropagation();
         const item=target.closest('[data-image-index]'),owner=target.closest('.image-node');
+        if(target.hasAttribute('data-reshoot-source-player')){void window.PixmaxSegmentReshoot?.preview(owner.dataset.id);return;}
         window.openSmartVideoLightbox(owner.dataset.id,Number(item?.dataset.imageIndex||0));
     },true);
     target.addEventListener('wheel',event=>event.stopPropagation());
@@ -26,7 +32,11 @@ function bindPlayerGestures(target){
 async function reconcile(){
     queued=false;
     for(const [target,instance] of players){
-        if(!target.isConnected){runtime.unmountCanvasPlayer(instance);players.delete(target);}
+        if(!target.isConnected){
+            const key=sourceKeys.get(target),video=target.querySelector('video');
+            if(key&&video)sourcePlayback.set(key,{currentTime:video.currentTime,muted:video.muted,volume:video.volume,playbackRate:video.playbackRate});
+            sourceRestorers.get(target)?.();runtime.unmountCanvasPlayer(instance);players.delete(target);
+        }else if(target.hasAttribute('data-reshoot-source-player'))runtime.setCanvasPlayerCaptureEnabled(instance,!window.isSmartCanvasLocked());
     }
     if(disposed || !document.querySelector('.pixmax-player-mount'))return;
     document.querySelectorAll('.pixmax-player-mount').forEach(bindPlayerGestures);
@@ -40,11 +50,22 @@ async function reconcile(){
     if(disposed)return;
     document.querySelectorAll('.pixmax-player-mount').forEach(target=>{
         if(players.has(target))return;
+        const key=sourceKey(target);if(key)sourceKeys.set(target,key);
         const props={src:target.dataset.src,poster:target.dataset.poster||'',durationHint:Number(target.dataset.duration)||0,
-            preload:'metadata',eagerMetadataProbe:true,fit:'fill',showCaptureButton:true,
+            preload:'metadata',eagerMetadataProbe:true,fit:'fill',showCaptureButton:key?!window.isSmartCanvasLocked():true,
             captureText:{title:'截图菜单',current:'截取当前帧',firstAndLast:'截取首尾帧'},
-            onCapture:frames=>window.captureSmartPixmaxFrames(target.closest('.image-node')?.dataset.id,frames),
+            onCapture:frames=>target.hasAttribute('data-reshoot-source-player')?window.PixmaxSegmentReshoot?.captureSource(target.closest('.image-node')?.dataset.id,frames):window.captureSmartPixmaxFrames(target.closest('.image-node')?.dataset.id,frames),
             onCaptureError:error=>window.toast(error.message||'截图失败')};
+        if(key)props.onControllerReady=controller=>{
+            sourceRestorers.get(target)?.();if(!controller)return;
+            const saved=sourcePlayback.get(key);if(!saved)return;
+            let done=false,unsubscribe;
+            unsubscribe=controller.subscribe(state=>{
+                if(done||state.readyState<1)return;done=true;unsubscribe?.();
+                const video=target.querySelector('video');if(!target.isConnected||sourceKey(target)!==key||!video)return;
+                video.muted=saved.muted;video.volume=saved.volume;video.playbackRate=saved.playbackRate;controller.seek(Math.min(saved.currentTime,state.duration));
+            });sourceRestorers.set(target,unsubscribe);
+        };
         players.set(target,runtime.mountCanvasPlayer(target,props));
         // Native Svelte dispatch must run before stopping control events from
         // reaching the node. Register these after mount, not during lazy load.
@@ -61,5 +82,6 @@ async function reconcile(){
 function schedule(){if(!queued){queued=true;queueMicrotask(reconcile);}}
 const observer=new MutationObserver(schedule);
 observer.observe(document.getElementById('world'),{subtree:true,childList:true});
+window.addEventListener('pixmax-reshoot-preview-changed',schedule);
 schedule();
-window.addEventListener('pagehide',event=>{if(!event.persisted){disposed=true;observer.disconnect();for(const instance of players.values())runtime.unmountCanvasPlayer(instance);players.clear();}});
+window.addEventListener('pagehide',event=>{if(!event.persisted){disposed=true;observer.disconnect();for(const [target,instance] of players){sourceRestorers.get(target)?.();runtime.unmountCanvasPlayer(instance);}players.clear();sourcePlayback.clear();}});
