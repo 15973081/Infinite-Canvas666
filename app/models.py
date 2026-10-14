@@ -388,6 +388,22 @@ class CanvasFolderUpdateRequest(BaseModel):
     order: Optional[int] = None
 
 
+class CanvasFolderTreeProof(BaseModel):
+    model_config = {'extra': 'forbid'}
+    id: str = Field(min_length=1,max_length=96)
+    token: str = Field(min_length=1,max_length=128)
+    generation: int = Field(ge=1,strict=True)
+    revision: int = Field(ge=0,strict=True)
+
+
+class CanvasFolderTreeDelete(BaseModel):
+    model_config = {'extra': 'forbid'}
+    operation_id: str = Field(pattern=r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
+    name: str = Field(min_length=1,max_length=80)
+    plan_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+    canvases: List[CanvasFolderTreeProof] = Field(default_factory=list,max_length=10000)
+
+
 class CanvasMoveRequest(BaseModel):
     folder_id: str = ""
 
@@ -619,7 +635,7 @@ __all__ = [
     "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasAudioVoiceRegistration", "CanvasAudioVoiceDelete", "CanvasModelTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
-    "CanvasFolderUpdateRequest", "CanvasMoveRequest",
+    "CanvasFolderUpdateRequest", "CanvasFolderTreeProof", "CanvasFolderTreeDelete", "CanvasMoveRequest",
     "CanvasMetaUpdate", "CanvasSaveRequest",
     "CanvasAssetCheckRequest", "CanvasAssetDownloadRequest",
     "CanvasWorkflowExportRequest",

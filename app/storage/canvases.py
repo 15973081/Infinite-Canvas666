@@ -75,7 +75,13 @@ def save_metadata(canvas):
     patch = {key: canvas[key] for key in fields if canvas.get(key) is not None}
     workspace = current_workspace()
     with connection() as conn:
+        from app.storage.canvas_directory import lock
+        lock(conn)
         access = current_access.get()
+        if patch.get('folder_id'):
+            from app.storage.canvas_directory import validate_folder
+            existing=conn.execute("SELECT document->>'folder_id' AS folder_id FROM canvases WHERE workspace_id=%s AND id=%s",(workspace,canvas['id'])).fetchone()
+            if not existing or existing['folder_id']!=patch['folder_id']:validate_folder(conn,patch['folder_id'])
         if access:
             from app.services.canvas_leases import request_write
             request_write(conn, canvas['id'])
@@ -107,6 +113,8 @@ def save(canvas, touch=True):
     created = int(value.get("created_at") or now)
     deleted = value.get("deleted_at")
     with connection() as conn:
+        from app.storage.canvas_directory import lock
+        lock(conn)
         from app.services.member_context import current_access
         from app.services import authorization as az
         access = current_access.get()
@@ -116,6 +124,10 @@ def save(canvas, touch=True):
             else:
                 from app.services.canvas_leases import request_write
                 request_write(conn, value['id'])
+        if value.get('folder_id'):
+            from app.storage.canvas_directory import validate_folder
+            existing=conn.execute("SELECT document->>'folder_id' AS folder_id FROM canvases WHERE workspace_id=%s AND id=%s",(current_workspace(),value['id'])).fetchone()
+            if not existing or existing['folder_id']!=value['folder_id']:validate_folder(conn,value['folder_id'])
         if revision is not None:
             stored = conn.execute('SELECT document FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE', (current_workspace(), value['id'])).fetchone()
             if stored:

@@ -132,6 +132,8 @@ def permissions(path, method):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:
         return ('canvas.read',) if method == 'GET' else ('canvas.create',) if method == 'POST' and path == '/api/canvases' else None
+    if re.fullmatch(r'/api/canvas-folders/[^/]+/delete-tree',path) and method=='POST':
+        return ('canvas.read','canvas.edit','canvas.delete')
     if path.startswith('/api/canvas-folders'):
         return ('canvas.read',) if method == 'GET' else ('canvas.edit',) if method in {'POST', 'PATCH', 'DELETE'} else None
     if re.fullmatch(r'/api/canvases/[^/]+/task-results(?:/[^/]+/join)?', path):

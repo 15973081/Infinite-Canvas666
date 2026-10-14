@@ -1,4 +1,7 @@
-"""Member canvas leases. Lock order: policy -> canvas -> lease -> dependent data.
+"""Member canvas leases. Writers lock policy -> directory -> canvas -> lease.
+
+Directory membership writers use a shared directory lock; recursive deletion
+uses its exclusive counterpart. Lease observation does not change membership.
 
 Every mutation uses a short transaction; no WebSocket disconnect releases a
 lease. Tokens are bound to a login and a page, and only their hashes are stored.

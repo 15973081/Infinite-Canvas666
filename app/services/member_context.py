@@ -39,6 +39,10 @@ def check_storage_access(conn):
         az.require(conn, access.principal, action, access.workspace)
     from app.services.maintenance_control import ensure
     ensure(conn, access.workspace, access.operation, access.resource_id)
+    if access.operation in {'canvas.write','canvas.finish'} or 'canvas.create' in access.actions or (
+            access.operation=='write' and access.actions==('canvas.edit',)):
+        from app.storage.canvas_directory import lock
+        lock(conn)
     if access.resource_id and access.operation in {'canvas.write', 'canvas.finish'}:
         from app.services.canvas_leases import request_write
         request_write(conn, access.resource_id)

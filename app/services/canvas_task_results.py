@@ -74,6 +74,8 @@ def deliver_completed(conn, task_id, *, only_pending=False):
         return False
     if task['kind'] == 'audio' and (task.get('request') or {}).get('mode') in {'design','clone'}:
         return False  # A voice audition belongs to registration, not the node's media output.
+    from app.storage.canvas_directory import lock
+    lock(conn)
     canvas = conn.execute('SELECT * FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE', (workspace, task['canvas_id'])).fetchone()
     if not canvas:
         return False

@@ -1128,6 +1128,24 @@ def delete_canvas_folder(folder_id: str):
         return {"ok": True, "folders": canvas_folder_records()}
 
 
+@router.get('/api/canvas-folders/{folder_id}/delete-tree')
+def canvas_folder_delete_plan(folder_id: str):
+    from app.services.canvas_folder_deletion import prepare
+    return prepare(folder_id)
+
+
+@router.post('/api/canvas-folders/{folder_id}/delete-tree')
+def canvas_folder_delete_tree(folder_id: str,payload: CanvasFolderTreeDelete):
+    from app.services.canvas_folder_deletion import delete
+    return delete(folder_id,payload)
+
+
+@router.get('/api/canvas-folders/{folder_id}/delete-tree-status/{operation_id}')
+def canvas_folder_delete_status(folder_id: str,operation_id: str):
+    from app.services.canvas_folder_deletion import status
+    return status(folder_id,operation_id)
+
+
 @router.post("/api/canvases")
 def create_canvas(payload: CanvasCreateRequest):
     return {"canvas": new_canvas(payload.title, payload.icon, payload.kind, payload.folder_id)}

@@ -51,6 +51,9 @@
         listCanvasFolders:()=>request('/api/canvas-folders'),
         createCanvasFolder:value=>request('/api/canvas-folders',body('POST',value)),
         updateCanvasFolder:(key,value)=>request('/api/canvas-folders/'+id(key),body('PATCH',value)),
-        deleteCanvasFolder:key=>request('/api/canvas-folders/'+id(key),{method:'DELETE'})
+        deleteCanvasFolder:key=>request('/api/canvas-folders/'+id(key),{method:'DELETE'}),
+        prepareFolderTreeDelete:key=>request('/api/canvas-folders/'+id(key)+'/delete-tree'),
+        deleteFolderTree:(key,value)=>request('/api/canvas-folders/'+id(key)+'/delete-tree',body('POST',value)),
+        folderTreeDeleteStatus:(key,operation)=>request('/api/canvas-folders/'+id(key)+'/delete-tree-status/'+id(operation))
     });
 })();

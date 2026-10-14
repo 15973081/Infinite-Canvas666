@@ -27,6 +27,9 @@ def put(kind, key, value, expected_revision=None):
     if expected_revision is None and versions is not None:
         expected_revision = versions.get((current_workspace(), kind, key))
     with connection() as conn:
+        if kind=='canvas_folders':
+            from app.storage.canvas_directory import lock
+            lock(conn)
         from app.storage.media import lock_retained_references
         lock_retained_references(conn, value, allow_private=kind == 'conversation')
         if expected_revision == 0:

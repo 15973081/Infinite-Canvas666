@@ -39,7 +39,18 @@
       "verified": ["准确名称、取消和单次删除；搜索、恢复、永久删除与直接永久删除当前画布", "真实浏览器加载生产会员编辑器，保存最后文本、冻结编辑、按删除后版本释放资格，离开时不再次保存已删除画布", "最终保存失败保留草稿；工作空间变化关闭旧确认；拒绝恢复保留记录与重试入口；永久删除拒绝说明部分结果", "真实 PostgreSQL 删除响应包含 ID、版本和删除时间，释放后可立即重新取得编辑资格并恢复", "真实 PostgreSQL 永久删除隐藏画布且拒绝恢复；已上传 PNG 仍可读取，保留既有服务端审计文档"],
       "relatedRegression": "133 项前端、目录、导航、草稿与编辑资格检查及 93 项隔离数据库回归通过。旧首页恢复测试使用实际会员写入入口，不再通过夹具的直发请求绕过临时编辑资格。",
       "preview": ".local/pixmax-directory-permanent-delete.png",
-      "remaining": ["文件夹与全部后代画布的原生级联删除，需要协调多画布的编辑资格和原子写入", "参考全部目录菜单、移动端及大目录性能最终对照"]
+      "remaining": ["文件夹级联删除底层见 folderTreeDeletionBackendEvidence；侧栏名称确认、批量编辑资格收集与回执恢复仍需接入", "参考全部目录菜单、移动端及大目录性能最终对照"]
+    },
+    "folderTreeDeletionBackendEvidence": {
+      "source": ["app/services/canvas_folder_deletion.py", "app/storage/canvas_directory.py", "app/services/member_context.py", "app/storage/canvases.py", "static/js/canvas-directory-api.js"],
+      "status": "backend_verified_frontend_pending",
+      "nativeContract": "参考文件夹删除确认以名称校验，并同时永久删除子文件夹和后代画布；不把现有移至父目录的文件夹移除接口作为级联删除。",
+      "api": ["GET /api/canvas-folders/{folder_id}/delete-tree", "POST /api/canvas-folders/{folder_id}/delete-tree", "GET /api/canvas-folders/{folder_id}/delete-tree-status/{operation_id}"],
+      "mechanism": ["准备阶段返回后代文件夹、活动与回收站画布的元数据及摘要", "确认请求包含名称、摘要、操作 UUID 和每个画布的独立编辑令牌/代数/版本；先校验全部凭证，再在一个事务内删除", "工作空间目录写入使用共享锁，级联删除使用排他锁；删除期间重新校验目录成员，阻止迟到创建、移动或旧目录写入产生悬空引用", "同事务移除目录、永久删除全部目标画布并结束全部已验证编辑资格；保留素材、费用和既有服务端文档审计数据", "原操作回执按空间及成员保存，重复操作 ID 返回同一结果；删除后仍可查询；回执不保存任何编辑令牌", "普通保存、元数据修改和任务结果交付参与相同目录锁顺序；目录成员未变化时普通写入仍使用共享锁"],
+      "databaseCases": 7,
+      "verified": ["多层文件夹和后代画布一起删除，包括回收站画布；无关项目保留，全部目标编辑资格结束", "任一错误令牌、缺失/重复凭证、错误名称或目录新增成员拒绝整批操作，原文档和目录保留", "相同操作回放幂等；其他成员不能读取本人回执；无权限用户不能提交", "真实并发创建与删除协调，不产生已删除文件夹的悬空成员", "迟到文件夹改名不能恢复已删除的目录；空目录无需伪造画布凭证"],
+      "relatedRegression": "146 项隔离数据库及 96 项现有目录、编辑资格和侧栏前端检查通过；前端回归只验证已有流程未回退，不代表新级联删除界面已经完成。",
+      "remaining": ["侧栏删除菜单、准确名称确认和目标清单显示", "当前画布冻结/最终保存、其他目标编辑资格获取、拒绝时释放临时资格及成功后离开", "按成员/空间保存不含私有令牌的待确认回执，并通过原操作查询恢复；未找到已提交回执不能视为确定失败", "原生界面、浏览器完整流程和更大目录最终验收"]
     },
     "nativeMediaEvidence": {
       "bugFixed": "参考接口的 /static/img 等媒体地址属于资产 ossDomain，不能直接请求接收应用的静态目录",
