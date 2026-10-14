@@ -24,16 +24,18 @@ async function service(page,{held=false,status=200,queued=false}={}){
 async function open(page,id){await page.evaluate(id=>PixmaxStoryboardAssets.open(nodes[0],id),id);await page.getByRole('dialog',{name:'分镜资产图像',exact:true}).waitFor();}
 async function idle(page){await page.waitForFunction(()=>!PixmaxStoryboardAssets.busy());}
 test('batch image tasks preserve sibling bindings, save asset associations and link only each shot’s assets',async t=>{
-    const {page,errors,record}=await setup(t),api=await service(page);
+    const {page,errors,record}=await setup(t),api=await service(page,{held:true});
     await page.evaluate(()=>openSmartStoryboard(nodes[0]));await page.locator('[data-story-step="1"]').click();await page.locator('[data-story-asset-images=""]').click();
-    await page.getByRole('combobox',{name:'资产图像画幅'}).selectOption('portrait');await page.locator('[data-story-image-all]').click();await idle(page);
+    await page.getByRole('combobox',{name:'资产图像画幅'}).selectOption('portrait');await page.locator('[data-story-image-all]').click();await api.polling;
+    assert.equal(await page.evaluate(()=>{const frame=nodes.find(PixmaxCanvasFrames.isFrame);return !!frame&&nodeRect(frame).x+nodeRect(frame).width<nodes[0].x;}),true);api.release();await idle(page);
     assert.equal(api.calls.length,2,await page.locator('[role=status]').last().textContent()+'; '+JSON.stringify(await page.evaluate(()=>({assets:nodes[0].storyboardAssets,nodes:nodes.map(node=>({id:node.id,type:node.type,images:node.images,pending:node.pendingTasks})),config:nodes[0].storyboardImageConfig,fields:[...document.querySelectorAll('[data-story-image-provider],[data-story-image-model],[data-story-image-resolution],[data-story-image-ratio]')].map(el=>el.value)}))));assert.match(api.calls[0].client_task_id,/^canvas_img_/);
-    assert.equal(await page.evaluate(()=>nodes.slice(1).every(node=>node.images.length===1&&!smartPendingTasks(node).length)),true);
+    assert.equal(await page.evaluate(()=>nodes.filter(node=>node.storyboardAssetBinding).length===2&&nodes.filter(node=>node.storyboardAssetBinding).every(node=>node.images.length===1&&!smartPendingTasks(node).length)),true);
+    assert.equal(await page.evaluate(()=>{const frame=nodes.find(PixmaxCanvasFrames.isFrame);return !!frame&&nodes.filter(node=>node.storyboardAssetBinding).every(node=>node.frameId===frame.id);}),true);
     assert.equal(await page.evaluate(()=>nodes[0].images.length),0);assert.equal(api.calls[0].reference_images.length,0);assert.notEqual(api.calls[0].size,'1024x1024');
     await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes[0].storyboardAssets[0].imageNodeId,record.nodes[1].id);
     await page.screenshot({path:'.local/pixmax-storyboard-assets.png'});
     await page.evaluate(()=>{document.querySelector('.pixmax-creation-modal').remove();openSmartStoryboard(nodes[0]);});await page.locator('[data-story-export]').click();
-    const contexts=await page.evaluate(()=>nodes.slice(3).map(node=>({images:pixmaxTextContext(node).images,inputs:node.inputNodeIds})));
+    const contexts=await page.evaluate(()=>nodes.filter(node=>node.type==='smart-prompt').map(node=>({images:pixmaxTextContext(node).images,inputs:node.inputNodeIds})));
     assert.equal(contexts[0].images.length,2);assert.equal(contexts[1].images.length,1);assert.equal(contexts[0].inputs.length,3);assert.equal(contexts[1].inputs.length,2);assert.deepEqual(errors,[]);
 });
 for(const mutation of ['prompt','owner','lease','workspace','close'])test('asset image late result is refused after '+mutation,async t=>{

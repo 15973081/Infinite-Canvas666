@@ -55,15 +55,16 @@ async function transport(request,canvasId){
         }
         if(config.kind==='assets'){
             await page.locator('[data-story-image-all]').click();await page.waitForFunction(()=>!PixmaxStoryboardAssets.busy());
-            assert.deepEqual(await page.evaluate(()=>nodes.slice(1).map(node=>node.images.length)),[1,1],await page.locator('.pixmax-creation-status').textContent());
+            assert.deepEqual(await page.evaluate(()=>nodes.filter(node=>node.storyboardAssetBinding).map(node=>node.images.length)),[1,1],await page.locator('.pixmax-creation-status').textContent());
             assert.equal(await page.evaluate(()=>canvas.task_result_version),2);
-            await page.evaluate(()=>performUndo());assert.deepEqual(await page.evaluate(()=>nodes.slice(1).map(node=>node.images.length)),[1,0]);
+            await page.evaluate(()=>performUndo());assert.deepEqual(await page.evaluate(()=>nodes.filter(node=>node.storyboardAssetBinding).map(node=>node.images.length)),[1,0]);
             assert.equal(await page.evaluate(()=>nodes.every(node=>smartPendingTasks(node).length===0)),true);
             assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
-            await page.evaluate(()=>redoSmartCanvas());assert.deepEqual(await page.evaluate(()=>nodes.slice(1).map(node=>node.images.length)),[1,1]);
+            await page.evaluate(()=>redoSmartCanvas());assert.deepEqual(await page.evaluate(()=>nodes.filter(node=>node.storyboardAssetBinding).map(node=>node.images.length)),[1,1]);
             await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
             await page.reload();await page.waitForFunction(id=>canvas?.id===id,config.canvas.id);
-            assert.deepEqual(await page.evaluate(()=>nodes.slice(1).map(node=>node.images.length)),[1,0]);
+            assert.deepEqual(await page.evaluate(()=>nodes.filter(node=>node.storyboardAssetBinding).map(node=>node.images.length)),[1,0]);
+            assert.equal(await page.evaluate(()=>{const frame=nodes.find(PixmaxCanvasFrames.isFrame);return !!frame&&nodes.filter(node=>node.storyboardAssetBinding).every(node=>node.frameId===frame.id);}),true);
             assert.equal(await page.evaluate(()=>nodes[0].storyboardAssets.every(asset=>nodes.some(node=>node.id===asset.imageNodeId&&node.storyboardAssetBinding.ownerId===nodes[0].id))),true);
             assert.deepEqual(errors,[]);assert.equal(posts,2);
             process.stdout.write(JSON.stringify({done:true,posts,revision:await page.evaluate(()=>canvas.revision)})+'\n');return;

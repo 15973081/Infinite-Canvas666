@@ -102,7 +102,9 @@
                         node.storyboardShotBinding={ownerId:owner.id,shotNo:String(item.shot.shotNo||item.index+1),mediaType:kind,assetIds:tokens(item.prompt).length?tokens(item.prompt).map(token=>token.id):item.shot.assetIds||[],imageNodeIds:item.refs.filter(ref=>ref.assetId).map(ref=>ref.nodeId),audioNodeIds:item.refs.filter(ref=>ref.audioAssetId).map(ref=>ref.nodeId)};
                         for(const id of item.inputs)connectInputNode(id,node.id);created.push(node.id);
                     }
-                    if(kind==='video'){const editor=createSmartStudioNode('editor',{x:owner.x+600+columns*400,y:owner.y+120},{skipUndo:true,select:false,deferRender:true});for(const id of created)connectInputNode(id,editor.id);created.push(editor.id);}
+                    const frame=window.PixmaxCanvasFrames?.layoutAndGroup(created,{label:kind==='image'?'分镜图像':'分镜视频',anchor:{x:owner.x+340,y:owner.y},columns,colGap:kind==='image'?120:60,rowGap:kind==='image'?20:60});
+                    if(kind==='video'){const right=Math.max(...created.map(id=>{const box=nodeRect(nodes.find(node=>node.id===id));return box.x+box.width;})),top=Math.min(...created.map(id=>nodeRect(nodes.find(node=>node.id===id)).y)),editor=createSmartStudioNode('editor',{x:right+240,y:top+120},{skipUndo:true,select:false,deferRender:true});for(const id of created)connectInputNode(id,editor.id);created.push(editor.id);}
+                    if(frame)created.push(frame.id);
                     staged=created;smartSelection.insertedNodes(created);render();scheduleSave();body.querySelectorAll('input,select,[data-shot-check-all],[data-shot-check-none]').forEach(control=>control.disabled=true);
                 }
                 if(!staged.every(id=>nodes.some(node=>node.id===id)))throw new Error('创建的节点已移除，请关闭窗口后重新选择');

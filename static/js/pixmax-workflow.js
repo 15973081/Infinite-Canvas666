@@ -66,6 +66,7 @@
                 tags:Array.isArray(info.data?.tags)?[...new Set(info.data.tags.filter(id=>typeof id==='string'))]:[],
                 label:String(info.data?.label||''),created_at:number(source.createTime,Date.now()),pixmaxSourceType:source.type,
                 ...(info.width?{w:number(info.width)}:{}),...(info.height?{h:number(info.height)}:{})};
+            if(typeof info.parentId==='string'&&info.parentId)node.frameId=info.parentId;
             if(node.type==='smart-prompt'){
                 node.text=String(source.nodeText||params.prompt||'');
                 node.textGeneration={input:String(params.prompt||''),model:String(params.model||''),providerId:''};
@@ -95,6 +96,9 @@
             node.pixmaxParams=JSON.parse(JSON.stringify(params));
             nodes.push(node);
         }
+        const frames=new Map();
+        for(const source of document.nodes){const node=nodes.find(node=>node.id===source.uuid);if(!node?.frameId)continue;if(ids.has(node.frameId)){warnings.push('分组标识与节点冲突：'+node.frameId);delete node.frameId;continue;}const info=metadata(source.metaData);if(!frames.has(node.frameId))frames.set(node.frameId,{id:node.frameId,type:'smart-frame',label:String(info.groupTitle||'分组'),images:[],tags:[],x:node.x-20,y:node.y-44,w:240,h:160});}
+        nodes.push(...frames.values());
         const connections=[],seen=new Set();
         for(const source of document.nodes){
             if(!ids.has(source.uuid))continue;

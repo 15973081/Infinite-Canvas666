@@ -42,9 +42,11 @@ def test_storyboard_asset_batch_keeps_paid_receipts_associations_and_one_result_
         process.wait(timeout=5);assert process.returncode==0,process.stderr.read();assert done and done['posts']==2
         assert len(submitted)==2 and len(calls)==2
         document=world['viewer'].get(path,headers=headers(world['a'])).json()['canvas']
-        assert document['task_result_version']==2 and [len(node['images']) for node in document['nodes']]==[0,1,0]
+        assert document['task_result_version']==2 and [len(node['images']) for node in document['nodes'] if node.get('storyboardAssetBinding')]==[1,0]
         assert all(not node.get('pendingTasks') for node in document['nodes'])
-        assert [asset['imageNodeId'] for asset in document['nodes'][0]['storyboardAssets']]==[node['id'] for node in document['nodes'][1:]]
+        asset_nodes=[node for node in document['nodes'] if node.get('storyboardAssetBinding')];frame=next(node for node in document['nodes'] if node['type']=='smart-frame')
+        assert [asset['imageNodeId'] for asset in document['nodes'][0]['storyboardAssets']]==[node['id'] for node in asset_nodes]
+        assert all(node['frameId']==frame['id'] for node in asset_nodes)
         with connection() as conn:
             for tid in submitted:
                 task=conn.execute('SELECT status,result FROM tasks WHERE id=%s',(tid,)).fetchone();assert task['status']=='succeeded'

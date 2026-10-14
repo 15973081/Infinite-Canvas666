@@ -14,7 +14,7 @@ NODE_DISPLAY = frozenset({
     'x', 'y', 'w', 'h', 'width', 'height', 'scale', 'selected', 'expanded', 'collapsed',
     'running', 'queued', 'pending', 'pendingTasks', '_pending', 'runStatus', 'runError',
     '_cascadeIdx', '_cascadeFailed', 'runStartedAt', 'runFinishedAt', 'runElapsedMs',
-    'runTimerHidden', 'updated_at',
+    'runTimerHidden', 'updated_at', 'frameId',
 })
 MEDIA_DISPLAY = frozenset({'w', 'h', 'width', 'height', 'preview_url', 'thumbnail', 'thumbnail_url'})
 EDGE_DISPLAY = frozenset({'id', 'selected', 'hovered', 'color'})

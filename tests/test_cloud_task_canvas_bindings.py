@@ -23,6 +23,19 @@ def setup_bound_canvas(world, kind='classic'):
     assert response.status_code == 200, response.text
     return path, response.json()['canvas'], lease
 
+def test_visual_frame_changes_preserve_a_real_submitted_task_binding(world,tmp_path):
+    from app.storage.task_canvas_bindings import graph_fingerprint
+    path,canvas,lease=setup_bound_canvas(world,'smart');body=payload(canvas);body['canvas_target']['input_sha256']=graph_fingerprint(canvas,'source','target')
+    receipt=submit(world,body,lease);assert receipt.status_code==200,receipt.text
+    for node in canvas['nodes']:node['frameId']='frame'
+    canvas['nodes'].append({'id':'frame','type':'smart-frame','label':'原分组','x':-20,'y':-44,'w':800,'h':400,'images':[]})
+    saved=world['editor'].put(path,headers=proof(world,lease,canvas['revision']),json={**canvas,'base_revision':canvas['revision']});assert saved.status_code==200,saved.text;canvas=saved.json()['canvas']
+    canvas['nodes'][-1]['label']='新分组';canvas['nodes'][-1]['x']+=70
+    for node in canvas['nodes'][:-1]:node['x']=70;node['y']=45
+    saved=world['editor'].put(path,headers=proof(world,lease,canvas['revision']),json={**canvas,'base_revision':canvas['revision']});assert saved.status_code==200,saved.text
+    finish(world,body['client_task_id'],tmp_path)
+    results=world['viewer'].get(path+'/task-results',headers=headers(world['a'])).json()['results'];assert results[0]['binding']['state']=='unchanged'
+
 
 def payload(canvas, kind='image'):
     tid = ('canvas_img_' if kind == 'image' else 'canvas_vid_') + uuid.uuid4().hex

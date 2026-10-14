@@ -453,6 +453,7 @@ function openSmartCanvasContext(event,node){
     const menu=document.createElement('div');menu.className='pixmax-context-menu create-menu-context';menu.setAttribute('role','menu');
     const media=node?.images?.[0]||node?.studioPreview;
     menu.innerHTML=node?`${media?.url?'<button data-context-action="asset">保存到资产库</button>':''}<button data-context-action="pin">${(window.PixmaxTags?.ids(node).length??node.pinned)?'取消 pin':'pin 到汇总'}</button><button data-context-action="copy">复制 <kbd>Ctrl C</kbd></button>${media?.url?'<button data-context-action="cover">设为项目封面</button>':''}<button data-context-action="delete">删除 <kbd>Delete</kbd></button>`:'<button data-context-action="upload">上传</button><button data-context-action="add">添加节点</button><hr><button data-context-action="undo">撤销 <kbd>Ctrl Z</kbd></button><button data-context-action="redo">重做 <kbd>Ctrl Shift Z</kbd></button><hr><button data-context-action="paste">粘贴 <kbd>Ctrl V</kbd></button><button data-context-action="paste-links">粘贴（保留连线） <kbd>Ctrl Shift V</kbd></button>';
+    if(node){const ids=isNodeSelected(node.id)?selectedNodeIds():[node.id];if(window.PixmaxCanvasFrames?.isFrame(node))menu.querySelector('[data-context-action="pin"]')?.remove();if(window.PixmaxCanvasFrames?.expand(ids).filter(id=>!window.PixmaxCanvasFrames.isFrame(nodes.find(node=>node.id===id))).length>1)menu.insertAdjacentHTML('beforeend','<button data-context-action="group">分组 <kbd>Ctrl G</kbd></button>');if(window.PixmaxCanvasFrames?.isFrame(node)||node.frameId)menu.insertAdjacentHTML('beforeend','<button data-context-action="ungroup">取消分组 <kbd>Ctrl Shift G</kbd></button>');}
     shell.appendChild(menu);
     menu.style.left=Math.max(8,Math.min(event.clientX,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))+'px';
     menu.addEventListener('mousedown',event=>event.stopPropagation());
@@ -467,6 +468,8 @@ function openSmartCanvasContext(event,node){
         if(kind==='copy'){if(!isNodeSelected(node.id))smartSelection.createdNode(node.id);copySelectedNodes();}
         if(kind==='pin')window.PixmaxTags.togglePin(node);
         if(kind==='delete')deleteSmartNodes(isNodeSelected(node.id)?selectedNodeIds():[node.id]);
+        if(kind==='group')window.PixmaxCanvasFrames?.create(isNodeSelected(node.id)?selectedNodeIds():[node.id]);
+        if(kind==='ungroup')window.PixmaxCanvasFrames?.ungroup(isNodeSelected(node.id)?selectedNodeIds():[node.id]);
         if(kind==='asset'){if(node.images?.[0])saveSmartImageToAssetLibrary(node.id,0);else addUrlToAssetLibrary(media.url,media.name||node.label||smartStudioTitle(node));}
         if(kind==='cover'){pushUndo();canvas.cover={...(canvas.cover||{}),node_id:node.id,index:0};scheduleSave();toast('已设为项目封面');}
         if(kind==='undo')performUndo();

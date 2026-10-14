@@ -3,8 +3,8 @@
     'use strict';
     let panel,toggleButton,list,menu,frame=null,requestVersion=0,scope='',tab='canvas',query='',type='',folder='',opened=true;
     let records=[],folders=[],collapsed=new Set(),signature='',loading=false,disposed=false;
-    const labels={text:'文本生成节点',image:'图像节点',video:'视频节点',audio:'音频生成节点',model:'3D模型生成节点',storyboard:'分镜脚本',director:'导演台',editor:'剪辑台'};
-    const icons={text:'text-cursor-input',image:'image',video:'clapperboard',audio:'music',model:'box',storyboard:'layout-grid',director:'clapperboard',editor:'monitor-play'};
+    const labels={text:'文本生成节点',image:'图像节点',video:'视频节点',audio:'音频生成节点',model:'3D模型生成节点',storyboard:'分镜脚本',director:'导演台',editor:'剪辑台',frame:'分组'};
+    const icons={text:'text-cursor-input',image:'image',video:'clapperboard',audio:'music',model:'box',storyboard:'layout-grid',director:'clapperboard',editor:'monitor-play',frame:'group'};
     const normalized=value=>String(value||'').normalize('NFKC').toLocaleLowerCase('zh-CN');
     const currentScope=()=>window.CanvasSession?.enabled ? window.CanvasSession.context?.member?.id+':'+window.CanvasSession.context?.workspace?.id : 'local';
     const documentInScope=()=>!window.CanvasSession?.enabled||window.MemberCanvasEdit?.active?.workspaceId===window.CanvasSession.context?.workspace?.id;
@@ -27,6 +27,7 @@
         if(!opened)closeMenu();else documentChanged();savePreferences();
     }
     function nodeKind(node){
+        if(node.type==='smart-frame')return 'frame';
         if(node.type==='smart-prompt')return 'text';
         if(isSmartStudioNode(node))return node.type.slice(6);
         return node.generationKind||mediaKindForItem(node.images?.[0]||{})||'image';

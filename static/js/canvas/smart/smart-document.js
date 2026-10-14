@@ -129,7 +129,7 @@ function serializableSmartNode(node){
 }
 
 function selectedSmartWorkflowPayload(){
-    const ids = selectedNodeIds();
+    const ids = window.PixmaxCanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
     const idSet = new Set(ids);
     const selectedNodes = nodes.filter(node => idSet.has(node.id)).map(serializableSmartNode).filter(Boolean);
     selectedNodes.forEach(node=>{if(node.videoAnalysis)delete node.videoAnalysis.taskId;});
@@ -249,6 +249,7 @@ function insertSmartWorkflowIntoCanvas(imported){
     newNodes.forEach(node=>window.PixmaxVideoAnnotation?.remapReferences(node,idMap,{referenceNodes:newNodes}));
     newNodes.forEach(node=>window.PixmaxStoryboardAssets?.remapReferences(node,idMap));
     newNodes.forEach(node=>window.PixmaxStoryboardMedia?.remapReferences(node,idMap,{referenceNodes:newNodes}));
+    newNodes.forEach(node=>window.PixmaxCanvasFrames?.remapReferences(node,idMap));
     window.PixmaxTags?.mergeImported(imported,newNodes);
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
@@ -711,7 +712,7 @@ function cloneSmartNode(node, dx=0, dy=0){
 
 function copySelectedNodes(){
     if(!canvas || isEditableTarget(document.activeElement)) return;
-    const ids = selectedNodeIds();
+    const ids = window.PixmaxCanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
     const copiedNodes = ids.map(id => nodes.find(n => n.id === id)).filter(Boolean);
     if(!copiedNodes.length) return;
     const idSet = new Set(copiedNodes.map(n => n.id));
@@ -750,6 +751,7 @@ function pasteNodes({includeConnections=true}={}){
         window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
         window.PixmaxStoryboardAssets?.remapReferences(copy,idMap,{connected:includeConnections});
         window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
+        window.PixmaxCanvasFrames?.remapReferences(copy,idMap);
     });
     const newConnections = (includeConnections ? nodeClipboard.connections || [] : []).map(conn => ({
         ...conn,
@@ -765,7 +767,8 @@ function pasteNodes({includeConnections=true}={}){
 }
 
 function duplicateForAltDrag(node){
-    const ids = (isNodeSelected(node.id) ? selectedNodeIds() : [node.id]);
+    const selectedIds = (isNodeSelected(node.id) ? selectedNodeIds() : [node.id]);
+    const ids = window.PixmaxCanvasFrames?.expand(selectedIds)||selectedIds;
     const sourceNodes = ids.map(id => nodes.find(n => n.id === id)).filter(Boolean);
     if(!sourceNodes.length) return node;
     pushUndo();
@@ -781,6 +784,7 @@ function duplicateForAltDrag(node){
         window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{referenceNodes:copies});
         window.PixmaxStoryboardAssets?.remapReferences(copy,idMap);
         window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{referenceNodes:copies});
+        window.PixmaxCanvasFrames?.remapReferences(copy,idMap);
     });
     const idSet = new Set(sourceNodes.map(n => n.id));
     const copiedConnections = (canvas.connections || []).filter(c => idSet.has(c.from) && idSet.has(c.to));
@@ -814,15 +818,17 @@ function deleteNode(id){
 }
 
 function deleteSmartNodes(ids){
-    const requested = new Set(ids.filter(Boolean));
+    const requested = new Set((window.PixmaxCanvasFrames?.deletionIds(ids)||ids).filter(Boolean));
     const deleteIds = new Set(nodes.filter(node => requested.has(node.id)).map(node => node.id));
     if(!deleteIds.size) return;
     pushUndo();
     nodes.forEach(node => {
+        if(deleteIds.has(node.frameId))delete node.frameId;
         if(isHistoryGroupNode(node) && requested.has(node.historyFor)) deleteIds.add(node.id);
     });
     // Capture dependants BEFORE removing the edges that identify them.
     const affected = smartAffectedNodeIds([...deleteIds]);
+    window.PixmaxCanvasFrames?.ancestors([...deleteIds]).forEach(id=>affected.add(id));
     nodes = nodes.filter(node => !deleteIds.has(node.id));
     if(canvas) canvas.connections = (canvas.connections || []).filter(c => !deleteIds.has(c.from) && !deleteIds.has(c.to));
     nodes.forEach(node => {
@@ -953,7 +959,7 @@ function addConnection(fromId, toId, kind='flow'){
 function connectInputNode(fromId, toId){
     const from = nodes.find(n => n.id === fromId);
     const to = nodes.find(n => n.id === toId);
-    if(!from || !to || from.id === to.id) return false;
+    if(!from || !to || from.id === to.id || window.PixmaxCanvasFrames?.isFrame(from) || window.PixmaxCanvasFrames?.isFrame(to)) return false;
     to.inputNodeIds = Array.from(new Set([...(to.inputNodeIds || []), from.id]));
     addConnection(from.id, to.id, 'input');
     return true;

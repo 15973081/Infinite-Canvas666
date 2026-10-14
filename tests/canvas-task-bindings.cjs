@@ -45,6 +45,10 @@ test('layout, progress, unrelated nodes and node order do not change the graph',
     doc.nodes.push({id:'other',text:'unrelated'});doc.nodes.reverse();doc.connections[0].id='new';
     assert.equal(api.graphCanonical(doc,'s','o'),before);
 });
+test('visual frame membership and frame title changes do not alter generation inputs',()=>{
+    const doc=clone(golden.graphs[0].document),before=api.graphCanonical(doc,'s','o');doc.nodes[0].frameId='frame';doc.nodes[1].frameId='frame';doc.nodes.push({id:'frame',type:'smart-frame',label:'分组',x:10,y:20});
+    assert.equal(api.graphCanonical(doc,'s','o'),before);doc.nodes.at(-1).label='新名称';delete doc.nodes[0].frameId;assert.equal(api.graphCanonical(doc,'s','o'),before);
+});
 test('inputs, reference order, defaults and group members are bound',()=>{
     const original=golden.graphs[1].document,before=api.graphCanonical(original,'s','o');
     for(const edit of [d=>d.nodes[0].text='changed',d=>d.nodes[1].url='/new',d=>d.nodes[3].model='new',

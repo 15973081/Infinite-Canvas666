@@ -59,6 +59,7 @@
                     if(!node||node.storyboardAssetBinding?.ownerId!==owner.id||node.storyboardAssetBinding.assetId!==asset.id){node=createGenerationNodeAt({x:owner.x+480,y:owner.y+selected.indexOf(asset)*320},'image',{skipUndo:true,select:false,deferRender:true});asset.imageNodeId=node.id;node.storyboardAssetBinding={ownerId:owner.id,assetId:asset.id};canvas.connections.push({from:owner.id,to:node.id,kind:'input'});}
                     if(!smartPendingTasks(node).length){node.promptDraftText=prompt;node.promptDraftHtml=escapeHtml(prompt);node.runSettings={...configValue};node.label=asset.name||asset.id;}
                 }
+                if(!querying)window.PixmaxCanvasFrames?.layoutAndGroup(selected.map(asset=>assetNode(owner,asset).id),{label:'分镜资产',side:'left',owner});
                 signature=JSON.stringify(configValue);if(!querying){render();scheduleSave();}
                 for(const asset of selected){
                     const node=assetNode(owner,asset),baseNode=canvasTaskWriteGuard(owner,node),prompt=asset.prompt;

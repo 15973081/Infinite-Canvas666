@@ -38,3 +38,7 @@ test('native queued prompt imports as interrupted; missing bound nodes are clear
     const source=nativeStoryboard(),info=JSON.parse(source.nodes[3].metaData);info.data.shotScriptClientState.shotClientByNo['1'].promptStatus='queue';source.nodes[3].metaData=JSON.stringify(info);source.nodes.splice(0,1);
     const board=convert(source).nodes[2];assert.equal(board.shots[0].promptStatus,'interrupted');assert.equal(board.storyboardAssets[0].imageNodeId,undefined);
 });
+test('native parentId and groupTitle reconstruct visual frames without offsetting absolute node coordinates',()=>{
+    const result=convert({nodes:[{uuid:'a',type:'GENERATE_IMAGE',metaData:JSON.stringify({position:{x:200,y:100},parentId:'native-frame',groupTitle:'分镜图像'})},{uuid:'b',type:'GENERATE_VIDEO',metaData:JSON.stringify({position:{x:600,y:100},parentId:'native-frame',groupTitle:'分镜图像'})}]});
+    assert.equal(result.nodes.length,3);assert.deepEqual(result.nodes.slice(0,2).map(node=>[node.x,node.y,node.frameId]),[[200,100,'native-frame'],[600,100,'native-frame']]);assert.equal(result.nodes[2].type,'smart-frame');assert.equal(result.nodes[2].label,'分镜图像');assert.deepEqual(result.connections,[]);
+});

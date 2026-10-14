@@ -98,6 +98,11 @@ def test_legacy_non_object_request_fingerprints_remain_distinct():
     values = [None, [], {}, 'legacy request']
     assert len({fingerprint(value) for value in values}) == len(values)
 
+def test_visual_frame_membership_and_title_are_not_generation_inputs():
+    original=document();before=graph_fingerprint(original,'src','out');original['nodes'][0]['frameId']='frame';original['nodes'].append({'id':'frame','type':'smart-frame','label':'分组','x':10,'y':20})
+    assert graph_fingerprint(original,'src','out')==before
+    original['nodes'][-1]['label']='新名称';del original['nodes'][0]['frameId'];assert graph_fingerprint(original,'src','out')==before
+
 
 def test_v1_persisted_bindings_remain_readable_after_v2_upgrade():
     row = {'id': 'c', 'kind': 'classic', 'revision': 2, 'document': document()}

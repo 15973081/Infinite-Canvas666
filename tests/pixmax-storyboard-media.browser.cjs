@@ -31,8 +31,8 @@ test('unsupported duration is rejected before any nodes are inserted',async t=>{
 });
 test('multi-shot selection creates one undoable batch and clearing selection submits nothing',async t=>{
     const {page,errors}=await setup(t);await page.evaluate(()=>board.shots[1].prompt='旅人回头');await open(page,'image');await page.getByRole('button',{name:'清空选择'}).click();await page.getByRole('button',{name:'创建生成节点'}).click();
-    assert.equal(await page.evaluate(()=>nodes.length),4);assert.match(await page.locator('.pixmax-creation-status').textContent(),/请选择/);await page.getByRole('button',{name:'选择全部'}).click();await page.getByRole('button',{name:'创建生成节点'}).click();await page.waitForFunction(()=>nodes.length===6);
-    assert.deepEqual(await page.evaluate(()=>nodes.slice(4).map(node=>node.storyboardShotBinding.shotNo)),['1','2']);await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes.length),4);assert.deepEqual(errors,[]);
+    assert.equal(await page.evaluate(()=>nodes.length),4);assert.match(await page.locator('.pixmax-creation-status').textContent(),/请选择/);await page.getByRole('button',{name:'选择全部'}).click();await page.getByRole('button',{name:'创建生成节点'}).click();await page.waitForFunction(()=>nodes.length===7);
+    assert.deepEqual(await page.evaluate(()=>nodes.filter(node=>node.storyboardShotBinding).map(node=>node.storyboardShotBinding.shotNo)),['1','2']);assert.equal(await page.evaluate(()=>{const frame=nodes.find(PixmaxCanvasFrames.isFrame);return !!frame&&nodes.filter(node=>node.storyboardShotBinding).every(node=>node.frameId===frame.id);}),true);await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes.length),4);assert.deepEqual(errors,[]);
 });
 test('imported canvas image remains available and regeneration creates a separate asset node',async t=>{
     const {page,errors}=await setup(t);await page.evaluate(()=>PixmaxStoryboardAssets.open(board,'person'));await page.getByRole('textbox',{name:'旅人 图像提示词'}).fill('灰衣旅人');

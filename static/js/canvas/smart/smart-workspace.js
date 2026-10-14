@@ -477,6 +477,7 @@ function promptNodeLayoutSize(node){
 }
 
 function imageLayout(images, scale=1, node=null){
+    if(window.PixmaxCanvasFrames?.isFrame(node)){const box=window.PixmaxCanvasFrames.rect(node);return {cols:1,rows:1,width:box.width,height:box.height,thumb:0,single:true};}
     if(isSmartStudioNode(node)){
         const [w,h]=window.PixmaxCanvasAssets.sizes[node.type.slice(6)];
         const oldDefault=node.w===320&&node.h===320;
@@ -585,6 +586,7 @@ function restoreSmartNodeScroll(...args){return smartWorkspaceView.restoreScroll
 function renderSmartOffscreenPlaceholders(...args){return smartWorkspaceView.recycle(...args);}
 
 function renderSmartNodeHtml(node){
+    if(window.PixmaxCanvasFrames?.isFrame(node))return window.PixmaxCanvasFrames.render(node);
     if(isSmartStudioNode(node)) return renderSmartStudioNode(node);
     const imgs = node.images || [];
     const scale = nodeScale(node);
@@ -1721,6 +1723,7 @@ function moveNodeElementsDuringDrag(){
             el.style.top = `${n.y || 0}px`;
         }
     });
+    window.PixmaxCanvasFrames?.updateElements(groupItems.map(item=>item.id));
     const active = selectedNode();
     if(active && (dragState.group || [{id:dragState.id}]).some(item => item.id === active.id)){
         positionComposerForNode(active);
@@ -2453,6 +2456,7 @@ function bindNodeEvents(elements=null){
     (elements || world.querySelectorAll('.image-node')).forEach(el => {
         const id = el.dataset.id;
         const nodeForControls = nodes.find(n => n.id === id);
+        if(window.PixmaxCanvasFrames?.isFrame(nodeForControls)){window.PixmaxCanvasFrames.bind(el,nodeForControls);return;}
         if(!isSmartStudioNode(nodeForControls))bindPixmaxNodeName(el,nodeForControls);
         if(isSmartStudioNode(nodeForControls)) bindSmartStudioNode(el,nodeForControls);
         if(nodeForControls?.type === 'smart-prompt') bindPromptNodeControls(el, nodeForControls);
@@ -2675,7 +2679,8 @@ function bindNodeEvents(elements=null){
             let node = nodes.find(n => n.id === id);
             if(!node) return;
             if(e.altKey) node = duplicateForAltDrag(node);
-            const dragIds = smartSelection.ids.includes(node.id) ? smartSelection.ids.slice() : [node.id];
+            const selectedDragIds = smartSelection.ids.includes(node.id) ? smartSelection.ids.slice() : [node.id];
+            const dragIds = window.PixmaxCanvasFrames?.expand(selectedDragIds)||selectedDragIds;
             const group = dragIds.map(dragId => {
                 const n = nodes.find(x => x.id === dragId);
                 return n ? {id:n.id, ox:Number(n.x) || 0, oy:Number(n.y) || 0} : null;
@@ -3909,12 +3914,13 @@ function bindSmartWorkspaceGestures(){
         if((e.ctrlKey || e.metaKey) && e.shiftKey && key === 'g' && !isEditableTarget(e.target)){
             e.preventDefault();
             const ids = smartSelection.ids.length ? smartSelection.ids.slice() : (smartSelection.nodeId ? [smartSelection.nodeId] : []);
+            if(window.PixmaxCanvasFrames?.ungroup(ids))return;
             const ok = ids.map(id => ungroupNode(id)).some(Boolean);
             if(ok) return;
         }
         if((e.ctrlKey || e.metaKey) && key === 'g' && !e.shiftKey && !isEditableTarget(e.target)){
             e.preventDefault();
-            groupSelectedNodes();
+            window.PixmaxCanvasFrames?.create(selectedNodeIds());
         }
     });
     window.addEventListener('keyup', e => {
@@ -4039,6 +4045,7 @@ function bindSmartComposerInputEvents(){
 }
 
 function renderSmartNodePlaceholderHtml(node){
+    if(window.PixmaxCanvasFrames?.isFrame(node))return window.PixmaxCanvasFrames.render(node);
     const layout = imageLayout(node.images || [], nodeScale(node), node);
     return `<div class="image-node image-node-placeholder ${isNodeSelected(node.id) ? 'selected' : ''}" data-id="${escapeHtml(node.id)}" style="left:${node.x || 0}px;top:${node.y || 0}px;width:${layout.width}px;height:${layout.height}px">
         <div class="node-port port-in" data-port="in" title="input"></div>
@@ -4483,6 +4490,7 @@ function createSmartWorkspaceView(){
     function nodeRectImpl(node){
         const cached = smartComputationContext?.rects.get(node);
         if(cached) return cached;
+        if(window.PixmaxCanvasFrames?.isFrame(node)){const rect=window.PixmaxCanvasFrames.rect(node);smartComputationContext?.rects.set(node,rect);return rect;}
         const layout = imageLayout(node.images || [], nodeScale(node), node);
         const rect = {x:node.x || 0, y:node.y || 0, width:layout.width, height:layout.height};
         smartComputationContext?.rects.set(node, rect);
@@ -4708,6 +4716,7 @@ function createSmartWorkspaceView(){
         window.PixmaxNavigator?.documentChanged();
         smartAudioPreview.dataChanged();
         const affected = smartAffectedNodeIds(ids);
+        window.PixmaxCanvasFrames?.ancestors([...affected]).forEach(id=>affected.add(id));
         const byId = new Map(nodes.map(node => [node.id, node]));
         affected.forEach(id => {
             const node = byId.get(id);
