@@ -5,9 +5,9 @@
     const identity=media=>String(media?.url||'').match(/(?:assets\/cloud|api\/media)\/(ast_[a-f0-9]{32})(?:\/|$)/)?.[1]||media?.url;
     const label={image:'图片',audio:'音频',video:'视频',text:'文本'};
     const data=node=>node.segmentReshoot?.schemaVersion===1?node.segmentReshoot:node.nativePrompt||{prompt:node.promptDraftText||node.runPrompt||'',subjects:[]};
-    function generalPlan(node,{base,ctx}={}){
-        const config=smartSettingsForNode(node),extra=upstreamNodesForKinds(node,['input','flow']).filter(source=>source.subjectReference).flatMap(source=>imagesForNode(source));
-        const legacy=smartMediaReferencePlan(node,[...(base||defaultReferenceImagesFor(node,false,ctx)),...extra],[],config);
+    function generalPlan(node,{base,ctx,configuration}={}){
+        const config=configuration||smartSettingsForNode(node),extra=upstreamNodesForKinds(node,['input','flow']).filter(source=>source.subjectReference).flatMap(source=>imagesForNode(source).map((media,imageIndex)=>({...media,nodeId:source.id,imageIndex})));
+        const legacy=smartMediaReferencePlan(node,[...(base||defaultReferenceImagesFor(node,false,ctx,config)),...extra],[],config);
         const entries=[];
         for(const source of promptInputNodesFor(node)){
             const text=textForNode(source,ctx);if(text?.trim())entries.push({id:source.id,nodeId:source.id,kind:'text',name:source.label||'文本',text,alias:'文本'+(entries.length+1)});

@@ -95,8 +95,9 @@ def preview(canvas_id, payload):
             values = request.model_dump(mode='json')
             enforce(provider, 'chat' if item.kind == 'llm' else item.kind, values)
             if item.kind == 'video':
-                from app.routers.canvas import _validate_video_output_format
+                from app.routers.canvas import _validate_video_output_format, _validate_video_input_roles
                 _validate_video_output_format(request, provider)
+                _validate_video_input_roles(request, provider)
             if item.kind == 'audio':
                 from app.services.canvas_audio_tasks import validate_provider
                 validate_provider(provider, request)

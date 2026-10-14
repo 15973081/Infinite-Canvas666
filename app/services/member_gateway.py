@@ -246,13 +246,19 @@ def preflight(actor, workspace, actions, operation='read', resource_id=None):
 
 
 def public_provider_config():
-    from app.providers.registry import load_api_providers
+    from app.providers.registry import load_api_providers, is_volcengine_provider
+    from app.services.media import video_api_root
+    from urllib.parse import urlparse
     # The canvas must compare the registration's ProjectName with this provider's
     # project. This is scope metadata, not a credential.
     keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'audio_models', 'model_models', 'model_prices', 'model_policies', 'avatar_registration', 'volcengine_project_name'}
     from app.services.model_commercial import public_models
-    providers = [{k: v for k, v in public_models(p).items() if k in keys} for p in load_api_providers()]
-    for provider in providers: provider['billing_authority'] = 'server'
+    providers = []
+    for source in load_api_providers():
+        provider = {k: v for k, v in public_models(source).items() if k in keys}
+        provider['billing_authority'] = 'server'
+        provider['video_capabilities'] = {'native_roles': is_volcengine_provider(source) and not bool(urlparse(video_api_root(source)).path.rstrip('/'))}
+        providers.append(provider)
     return {'api_providers': providers, 'providers': providers,
             'chat_models': list(dict.fromkeys(m for p in providers for m in p.get('chat_models', []))),
             'image_models': list(dict.fromkeys(m for p in providers for m in p.get('image_models', []))),

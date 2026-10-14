@@ -109,6 +109,35 @@
       },
       "remaining": ["片段重拍原生主体入口已接入，见 subjectLibraryUiEvidence；普通图像/视频编辑器和独立主体管理入口仍需对齐", "跨成员/空间复制、更多未知任务与并发目录生命周期的完整最终对照", "主体目录全部视觉、移动端与大规模交互的最终验证"]
     },
+    "nativeVideoModeEvidence": {
+      "status": "implemented_local_requires_final_verification",
+      "source": ["static/js/pixmax-video-modes.js", "static/js/pixmax-generation-parameters.js", "static/js/pixmax-reshoot-references.js", "static/js/canvas/smart/smart-execution.js", "app/routers/canvas.py", "app/services/canvas_batch.py", "app/services/member_gateway.py"],
+      "nativeContract": "捕获的 PIXDANCE_2_5 / PIXDANCE_2 referModel 菜单分别映射到当前配置的火山原生 Seedance 2.5 / 2.0 模型。自动判断保留旧任务入口，显式支持文生视频、图生视频、首尾帧、多模态参考；2.5 提供原生视频编辑及本项目已有的向前/向后延长。延长不套用原生编辑的单视频限制，额外参考仍受实际模型数量上限约束。",
+      "storage": "生成节点 runSettings.videoReferenceMode 持久化模式，图像角色进入已有 images[].role，编辑/延长进入已有 task_mode。请求模型不增加字段，保留既有任务请求指纹。",
+      "verified": [
+        "首帧/尾帧角色在实际供应商请求体中保留，不再统一改写为 reference_image；同一图片的两个独立输入槽位可分别充当首帧和尾帧",
+        "连接类型或数量决定菜单可用性，断开尾帧和审阅后重排会阻止提交；原始输入在结果产生后的再次运行中继续使用",
+        "Seedance 2.5 首帧、首尾帧、编辑及延长保持 adaptive 比例；原生编辑时长显示 Auto 且禁改，实际编辑任务使用 -1；2.0 首尾帧保留指定比例",
+        "会员配置只公开 video_capabilities.native_roles 能力标记，继续隐藏协议和供应商地址；注册火山素材的其他协议及不支持角色的代理路径不会冒充原生接口；后端在入队和提交前拒绝代理首尾帧",
+        "单任务和批次预览共用图片角色及数量校验；隔离数据库拒绝尾帧单独使用、角色混用、视频冒充图片、音视频与首尾帧混用及不符比例，拒绝后不创建任务",
+        "保存重开、画布复制、工作流资源导出导入保留模式、图像角色和重新映射后的素材；编辑模式切换到不支持该菜单的模型自动恢复自动判断"
+      ],
+      "verification": {
+        "browserModeCases": 19,
+        "frontendRegressionCases": 103,
+        "pythonCases": 74,
+        "pythonSubtests": 16,
+        "databaseCases": 13,
+        "relatedDatabaseCases": 39,
+        "databaseVerification": "passed",
+        "logs": [".local/pixmax-video-modes-front-review.log", ".local/pixmax-video-modes-controls-final.log", ".local/pixmax-video-modes-legacy-visual.log", ".local/pixmax-video-modes-capabilities.log", ".local/pixmax-video-modes-unit-final.log", ".local/pixmax-video-modes-db-final.log", ".local/pixmax-video-modes-db-regression-final.log"],
+        "scope": "浏览器模式用例使用本项目真实界面及模拟任务传输；数据库用例使用真实浏览器、会员租约、认证 ASGI、隔离 PostgreSQL、素材归属和工作流 ZIP。供应商提交与媒体公网 URL 转换使用测试替身，不发送收费生成请求。"
+      },
+      "providerContract": "https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh",
+      "menuPerformance": "同一次模式菜单计算至多构建两份引用计划：常规去重及首尾帧独立槽位。重用只发生在单次计算内，素材或连线变化后重新计算。",
+      "visualEvidence": {"image": ".local/pixmax-video-mode-frames.png", "scope": "本项目合成图像夹具下的首尾帧模式。已检查菜单状态、两个输入和参数显示；输入区仍是现有素材卡片，完整 N1 视觉不在此证据覆盖范围。"},
+      "remaining": ["其余图像/视频模型的模式、尺寸、时长和原生输入卡片约束完整映射", "完整 N1 布局、全屏、费用提示与首尾帧输入卡片视觉最终对齐", "视频素材的真实供应商尺寸、格式、时长及质量验收", "真实混合媒体大画布和 Pixmax 双方同场景帧率、内存验证"]
+    },
     "ordinaryGenerationPromptEvidence": {
       "status": "implemented_local_requires_final_verification",
       "component": "参考普通生成面板 N1 使用的 M1；相机入口仅图像，主体入口随视频参考能力显示",

@@ -18,15 +18,17 @@ async function transport(request){const pathname=new URL(request.url()).pathname
             await MemberCanvasEdit.mount(__nativeOptions);await MemberCanvasEdit.active.lease.start(MemberCanvasEdit.active.options.reload);
             window.__nativeTarget=createGenerationNodeAt({x:400,y:100},config.kind);
             Object.assign(__nativeTarget.runSettings,{engine:'api',apiKind:config.kind,provider_id:config.provider.id,model:config.provider.image_models[0],videoProvider:config.provider.id,videoModel:config.provider.video_models[0],videoTaskMode:'auto',videoAspect:'16:9',videoDuration:5,videoResolution:'720p'});render();
+            for(const item of config.references||[]){const source=createNode(80,100,[item],{select:false,deferRender:true});source.pixmaxSourceType=item.kind==='image'?'BASE_IMAGE':item.kind==='video'?'BASE_VIDEO':'BASE_AUDIO';canvas.connections.push({from:source.id,to:__nativeTarget.id,kind:'input'});}render();
         },config);
         if(await page.locator('.pixmax-navigator-toggle[aria-expanded=true]').count())await page.locator('.pixmax-navigator-toggle').click();
         await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('黄昏的摄影师缓慢回头');
         if(config.subject){
             await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.getByText(config.subject.name,{exact:true}).waitFor();await library.locator('[data-subject-cards] .group').filter({hasText:config.subject.name}).hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});
             assert.equal(await page.locator('.pixmax-native-prompt [data-editor-node-type=subject-reference]').count(),1);
-        }else{
+        }else if(config.kind==='image'){
             await page.getByRole('button',{name:'添加镜头参数',exact:true}).click();const panel=page.locator('[data-native-camera] [role=dialog]');await panel.waitFor();await panel.locator('header button').click();assert.equal(await page.locator('.pixmax-native-prompt [data-hash-type=camera]').count(),1);
         }
+        if(config.mode){await page.getByRole('button',{name:'视频生成模式',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:config.mode,exact:true}).click();}
         if(config.parameters){
             await page.getByRole('button',{name:'生成参数',exact:true}).click();const panel=page.locator('[data-combo-selector-panel]');
             if(config.kind==='image'){await panel.getByRole('button',{name:'2K',exact:true}).click();await panel.getByRole('button',{name:'高',exact:true}).click();}
@@ -38,7 +40,8 @@ async function transport(request){const pathname=new URL(request.url()).pathname
         // Reload through the actual lease controller, then reopen the saved editor.
         await page.evaluate(async()=>{const id=__nativeTarget.id;await MemberCanvasEdit.active.options.reload();window.__nativeTarget=nodes.find(node=>node.id===id);smartSelection.createdNode(id);render();});
         await page.getByRole('textbox',{name:'生成提示词',exact:true}).waitFor();
-        assert.equal(await page.locator('.pixmax-native-prompt '+(config.subject?'[data-editor-node-type=subject-reference]':'[data-hash-type=camera]')).count(),1);
+        if(config.subject||config.kind==='image')assert.equal(await page.locator('.pixmax-native-prompt '+(config.subject?'[data-editor-node-type=subject-reference]':'[data-hash-type=camera]')).count(),1);
+        if(config.mode)assert.equal(await page.evaluate(()=>__nativeTarget.runSettings.videoReferenceMode),{文生视频:'textToVideo',图生视频:'imageToVideo',首尾帧:'firstAndLastFrame',多模态参考:'referToVideo',视频编辑:'videoEdit',向后延长:'extend_backward',向前延长:'extend_forward'}[config.mode]);
         assert.match(await page.getByRole('textbox',{name:'生成提示词',exact:true}).innerText(),/黄昏的摄影师/);assert.deepEqual(errors,[]);process.stdout.write(JSON.stringify({done:true,targetId:await page.evaluate(()=>__nativeTarget.id)})+'\n');
     }finally{for(const close of cleanup.reverse())await close();clearTimeout(watchdog);lines.close();}
 })().then(()=>process.exit(0)).catch(error=>{console.error(error.stack);process.exit(1);});

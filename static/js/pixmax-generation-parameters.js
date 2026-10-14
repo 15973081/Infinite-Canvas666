@@ -37,7 +37,9 @@
             fields.push({name:'duration',type:'stops',min:range.min,max:range.max,step:1,options:values.map(value=>({value:String(value),name:value===-1?'Auto':String(value)}))});
             add('includeAudio',[['true','Audio On'],['false','Audio Off']]);
             if(isSeedance25VideoModel(config.videoModel))add('outputFormat',[['mp4','MP4'],['mov','MOV']]);
-            return {fields,disabledFieldNames,value:{resolution:config.videoResolution||'',aspectRatio:config.videoAspect||'16:9',duration:String(config.videoDuration??5),includeAudio:String(!!config.videoGenerateAudio),outputFormat:config.videoOutputFormat||'mp4'}};
+            if(window.PixmaxVideoModes?.lockedAspect(config))disabledFieldNames.push('aspectRatio');
+            if(window.PixmaxVideoModes?.supported(config)&&window.PixmaxVideoModes.selected(config)==='videoEdit')disabledFieldNames.push('duration');
+            return {fields,disabledFieldNames,value:{resolution:config.videoResolution||'',aspectRatio:disabledFieldNames.includes('aspectRatio')?'adaptive':config.videoAspect||'16:9',duration:disabledFieldNames.includes('duration')?'-1':String(config.videoDuration??5),includeAudio:String(!!config.videoGenerateAudio),outputFormat:config.videoOutputFormat||'mp4'}};
         }
         add('aspectRatio',Object.keys(SIZE_MAP).map(value=>[value,({square:'1:1',landscape:'3:2',portrait:'2:3',landscape43:'4:3',portrait43:'3:4',wide:'16:9',story:'9:16',ultrawide:'21:9',ultratall:'9:21'})[value]]).concat([['source','原图比例'],['custom','自定义比例']]));
         add('quality',[['auto','自动'],['low','低'],['medium','中'],['high','高']]);
@@ -66,6 +68,7 @@
             const range=smartVideoDurationRange(config);if(VideoDurationPolicy.clamp(config.videoDuration,range)!==Number(config.videoDuration))throw Error('生成时长超出当前模型范围');
             if(config.videoOutputFormat&&!['mp4','mov'].includes(config.videoOutputFormat))throw Error('视频输出格式无效');
             if(typeof config.videoGenerateAudio!=='boolean')throw Error('视频声音设置无效');
+            if(window.PixmaxVideoModes?.supported(config)||config.videoReferenceMode)window.PixmaxVideoModes.validate(config,window.PixmaxVideoModes.references(node,config));
         }else if(config.resolution==='custom'&&(!Number.isSafeInteger(config.customWidth)||!Number.isSafeInteger(config.customHeight)||config.customWidth<1||config.customHeight<1||config.customWidth>8192||config.customHeight>8192))throw Error('自定义图像尺寸无效');
         return config;
     }
@@ -90,11 +93,11 @@
             const [provider,selected]=JSON.parse(value),old=configuration(node);let config=old.apiKind==='video'?{...old,engine:'api',videoProvider:provider,videoModel:selected}:{...old,engine:'api',provider_id:provider,model:selected};
             const specs=resolutions(config),key=old.apiKind==='video'?'videoResolution':'resolution';if(!config.outpaintResolutionLocked&&!specs.includes(config[key]||''))config[key]=specs.includes(old.apiKind==='video'?'720p':'1k')?(old.apiKind==='video'?'720p':'1k'):specs[0];
             if(old.apiKind==='image'&&config.resolution==='custom'){config.customWidth=Number(config.customWidth)||1024;config.customHeight=Number(config.customHeight)||1024;config.customSize=config.customWidth+'x'+config.customHeight;}
-            if(old.apiKind==='video'){config.videoDuration=VideoDurationPolicy.clamp(config.videoDuration,smartVideoDurationRange(config));if(!isSeedance25VideoModel(selected))delete config.videoOutputFormat;}commit(config);
+            if(old.apiKind==='video'){config.videoDuration=VideoDurationPolicy.clamp(config.videoDuration,smartVideoDurationRange(config));if(!isSeedance25VideoModel(selected))delete config.videoOutputFormat;if(!window.PixmaxVideoModes.supported(config)||!window.PixmaxVideoModes.options(node,config,definitionsValue).some(option=>option.value===window.PixmaxVideoModes.selected(config))){config.videoReferenceMode='auto';config.videoTaskMode='auto';}}commit(config);
         })});handles.push(model);
         const parameters=await api.mountParameters(root.querySelector('[data-generation-parameters]'),{...data(node,definitionsValue),ariaLabel:'生成参数',fieldLabelOverrides:{quality:'画质',duration:'时长',customWidth:'宽度',customHeight:'高度',customRatioWidth:'比例宽',customRatioHeight:'比例高'},onChange:change(value=>commit(apply(configuration(node),value)))});handles.push(parameters);
         const count=await api.mountModelSelector(root.querySelector('[data-generation-count]'),{...countData(),ariaLabel:'生成数量',onChange:change(value=>commit({...configuration(node),count:Number(value)}))});handles.push(count);
-        const mode=await api.mountModelSelector(root.querySelector('[data-generation-mode]'),{...modeData(),ariaLabel:'视频任务类型',onChange:change(value=>commit({...configuration(node),videoTaskMode:value}))});handles.push(mode);
+        const mode=await api.mountModelSelector(root.querySelector('[data-generation-mode]'),{...modeData(),ariaLabel:'视频生成模式',onChange:change(value=>commit(window.PixmaxVideoModes.choose(node,configuration(node),value)))});handles.push(mode);
         const advanced=await api.mountParameters(root.querySelector('[data-generation-advanced]'),{...advancedData(),ariaLabel:'更多生成设置',disabledFieldNames:[],displayTextOverride:'更多设置',fieldLabelOverrides:{videoEnhancePrompt:'提示词增强',videoEnableUpsample:'高清',videoWatermark:'水印',videoCameraFixed:'镜头固定',videoMultimodal:'智能多参',videoUseFrameRoles:'首尾帧'},onChange:change(value=>{
             const config=configuration(node),framesSelected=value.videoUseFrameRoles==='true'&&!config.videoUseFrameRoles;for(const key of Object.keys(value))config[key]=value[key]==='true';if(framesSelected)config.videoMultimodal=false;else if(config.videoMultimodal)config.videoUseFrameRoles=false;commit(config);
         })});handles.push(advanced);
@@ -102,13 +105,13 @@
         legacyOwner=owner;dynamicParams.hidden=true;engineSelect.hidden=true;refresh();
         function modelData(){const options=catalog(node),value=JSON.stringify(identity(configuration(node)));return {options,value:options.some(option=>option.value===value)?value:''};}
         function countData(){return {value:String(configuration(node).count||1),options:[1,2,3,4,5,6,7,8].map(value=>({label:value+'张',value:String(value)}))};}
-        function modeData(){return {value:configuration(node).videoTaskMode||'auto',options:[['auto','自动判断'],['edit','视频编辑'],['extend_backward','向后延长'],['extend_forward','向前延长']].map(([value,label])=>({value,label}))};}
+        function modeData(){const config=configuration(node);return {value:window.PixmaxVideoModes.selected(config),options:window.PixmaxVideoModes.supported(config)?window.PixmaxVideoModes.options(node,config,definitionsValue):[]};}
         function advancedData(){const config=configuration(node),keys=['videoEnhancePrompt','videoEnableUpsample','videoWatermark','videoCameraFixed','videoMultimodal',...(videoProviderPlatform(config.videoProvider)!=='volcengine'?['videoUseFrameRoles']:[])];return {fields:keys.map(name=>select(name,[['true','开启'],['false','关闭']])),value:Object.fromEntries(keys.map(key=>[key,String(!!config[key])]))};}
         refresh=()=>{
-            if(!current())return;const config=configuration(node),next=JSON.stringify([config,catalog(node)]),disabled=!editable();
+            if(!current())return;const config=configuration(node),next=JSON.stringify([config,catalog(node),modeData()]),disabled=!editable();
             if(signature!==next){signature=next;model.setData(modelData());parameters.setData(data(node,definitionsValue));count.setData(countData());mode.setData(modeData());advanced.setData(advancedData());}
             handles.forEach(handle=>handle.setDisabled(disabled));
-            root.querySelector('[data-generation-count]').hidden=config.apiKind==='video';root.querySelector('[data-generation-mode]').hidden=config.apiKind!=='video'||!isSeedance25VideoModel(config.videoModel);root.querySelector('[data-generation-advanced]').hidden=config.apiKind!=='video';
+            root.querySelector('[data-generation-count]').hidden=config.apiKind==='video';root.querySelector('[data-generation-mode]').hidden=!window.PixmaxVideoModes.supported(config);root.querySelector('[data-generation-advanced]').hidden=config.apiKind!=='video';
         }
         return {refresh,destroy};
         }catch(error){destroy();throw error;}

@@ -622,7 +622,7 @@ function smartMediaReferencePlan(node, base, parts=[], source=settings){
             invalid.push(ref);
             return;
         }
-        const key = smartMediaRefKey(ref);
+        const key = source.videoReferenceMode==='firstAndLastFrame'&&mediaKindForItem(ref)==='image'&&ref.nodeId?`${ref.nodeId}|${ref.imageIndex||0}|${ref.url}`:smartMediaRefKey(ref);
         if(seen.has(key)){
             const index = seen.get(key);
             const provider = (apiProviders || []).find(p => p.id === (source.videoProvider || 'volcengine'));
@@ -937,15 +937,18 @@ function toggleInputRefBlocked(node, img){
     scheduleSave();
 }
 
-function defaultReferenceImagesFor(node, consume=false, ctx=null){
+function defaultReferenceImagesFor(node, consume=false, ctx=null,configuration=node?.runSettings){
     if(!node) return [];
+    const slots=configuration?.videoReferenceMode==='firstAndLastFrame';
     const storyboard=window.PixmaxStoryboardMedia?.referencesFor(node);
-    if(storyboard)return uniqueReferenceImages(storyboard);
+    if(storyboard)return uniqueReferenceImages(storyboard,slots);
     const self = selfReferenceImagesForNode(node, consume, ctx).filter(img => img?.url);
-    const upstream = defaultInputImagesFor(node, consume, ctx);
-    if(smartImageUsesWorkflowInput(node, ctx)) return uniqueReferenceImages(upstream);
-    if(self.length) return uniqueReferenceImages(self);
-    return uniqueReferenceImages(upstream);
+    const explicitVideo=smartGenerationKind(node)==='video'&&configuration?.videoReferenceMode&&configuration.videoReferenceMode!=='auto';
+    const upstream = explicitVideo?(smartImageUsesWorkflowInput(node,ctx)?workflowInputImagesFor(node,consume,ctx):inputImagesFor(node,consume,ctx)):defaultInputImagesFor(node, consume, ctx);
+    if(explicitVideo)return uniqueReferenceImages(upstream,slots);
+    if(smartImageUsesWorkflowInput(node, ctx)) return uniqueReferenceImages(upstream,slots);
+    if(self.length) return uniqueReferenceImages(self,slots);
+    return uniqueReferenceImages(upstream,slots);
 }
 
 function lineImagesFor(node){
@@ -964,12 +967,13 @@ function collectMentionedImagesFromPrompt(){
     return images;
 }
 
-function uniqueReferenceImages(images){
+function uniqueReferenceImages(images,preserveSourceSlots=false){
     const refs = [];
     const seen = new Set();
     (images || []).forEach((img, index) => {
-        if(!img?.url || seen.has(img.url)) return;
-        seen.add(img.url);
+        const key=preserveSourceSlots&&mediaKindForItem(img)==='image'&&img.nodeId?`${img.nodeId}|${img.imageIndex||0}|${img.url}`:img?.url;
+        if(!img?.url || seen.has(key)) return;
+        seen.add(key);
         refs.push({
             ...img,
             name:img.name || `图${refs.length + 1}`,
@@ -2235,9 +2239,11 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
         const unreadyVolcengineAsset = targetPlatform === 'volcengine' && uploadedRefs
             .map(ref => smartFaceAuthState(ref,targetProvider)).find(state => state.blocked);
         if(unreadyVolcengineAsset) throw new Error(window.CanvasAssetAuth.error(unreadyVolcengineAsset.status));
+        const nativeRoles=window.PixmaxVideoModes&&runSettings.videoReferenceMode&&runSettings.videoReferenceMode!=='auto'?window.PixmaxVideoModes.roles(runSettings,uploadedRefs):null;
         const useFrameRoles = targetPlatform !== 'volcengine' && runSettings.videoUseFrameRoles;
         const refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
             const item = {url:effUrl(ref), name:ref.name || `图${i + 1}`};
+            if(nativeRoles)item.role=nativeRoles[i];
             if(useFrameRoles){
                 if(i === 0) item.role = 'first_frame';
                 else if(i === 1) item.role = 'last_frame';

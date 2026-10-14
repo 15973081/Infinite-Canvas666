@@ -6,6 +6,8 @@ import re
 import subprocess
 import uuid
 import zipfile
+import asyncio
+from unittest.mock import patch
 from pathlib import Path
 
 import pytest
@@ -17,12 +19,13 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('kind', ['image', 'video', 'image-parameters', 'video-parameters'])
+@pytest.mark.parametrize('kind', ['image', 'video', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])
 def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exports_owned_media(world, platform, tmp_path, kind):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
     root=Path(__file__).resolve().parents[1]
-    parameters=kind.endswith('-parameters');kind=kind.split('-')[0]
+    mode={'video-text':'文生视频','video-first-frame':'图生视频','video-first-last':'首尾帧','video-first-last-same':'首尾帧','video-reference':'多模态参考','video-edit':'视频编辑','video-extend-backward':'向后延长','video-extend-forward':'向前延长'}.get(kind)
+    same=kind=='video-first-last-same';parameters=kind.endswith('-parameters');kind=kind.split('-')[0]
     provider_id='native-prompt-'+uuid.uuid4().hex[:16]
     configured=platform['client'].put('/api/providers/'+provider_id,json={
         'config':{'name':'原生提示词隔离验收','base_url':'https://supplier.test/api/v3','protocol':'volcengine' if kind=='video' else 'openai','enabled':True,'image_models':['gpt-image-2'] if kind=='image' else [],'video_models':['doubao-seedance-2-5-pro'] if kind=='video' else []},
@@ -31,6 +34,8 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
     assigned=platform['client'].put('/api/provider-assignments',params={'workspace':world['a']['id']},json={'expected_version':1,'provider_ids':[provider_id],'primary_provider_id':provider_id,'reason':'隔离验收'})
     assert assigned.status_code==200,assigned.text
     provider=next(item for item in world['editor'].get('/api/config',headers=headers(world['a'])).json()['api_providers'] if item['id']==provider_id)
+    assert provider['video_capabilities']['native_roles'] is (kind=='video')
+    assert not {'base_url','protocol','proxy_url','key_preview'} & provider.keys()
     content=io.BytesIO();Image.new('RGB',(160,90),'orange').save(content,format='PNG')
     files=[('image','native.png',content.getvalue(),'image/png')]
     if kind=='video':
@@ -41,6 +46,18 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         assert response.status_code==200,response.text
         assets.append({**response.json()['files'][0],'kind':media_kind})
     output=assets[-1]
+    references=[]
+    if mode=='图生视频':references=assets[:1]
+    elif mode=='首尾帧':
+        references=assets[:1]
+        if same:references=references*2
+        else:
+            tail=io.BytesIO();Image.new('RGB',(160,90),'blue').save(tail,format='PNG')
+            response=world['editor'].post('/api/ai/upload',headers=headers(world['a']),files={'files':('tail.png',tail.getvalue(),'image/png')})
+            assert response.status_code==200,response.text
+            references.append({**response.json()['files'][0],'kind':'image'})
+    elif mode=='多模态参考':references=assets
+    elif mode in {'视频编辑','向后延长','向前延长'}:references=[assets[0],assets[-1]]
     if parameters and kind=='video':
         filename=tmp_path/'native-output.mov'
         subprocess.run(['ffmpeg','-v','error','-i',str(root/'tests/fixtures/pixmax-audio-source.mp4'),'-c','copy','-y',str(filename)],check=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
@@ -48,7 +65,7 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         assert response.status_code==200,response.text
         output={**response.json()['files'][0],'kind':'video'}
     subject=None
-    if kind=='video':
+    if kind=='video' and not mode:
         response=world['editor'].post('/api/subject-library/PERSONAL/groups',headers=headers(world['a']),json={'expected_revision':0,'name':'摄影师主体','description':'黄昏的摄影师'})
         assert response.status_code==200,response.text
         subject={'id':response.json()['target_id'],'name':'摄影师主体'}
@@ -62,7 +79,7 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
     done,task_ids,finalized=False,[],set()
     endpoint='/api/canvas-'+kind+'-tasks'
     try:
-        process.stdin.write(json.dumps({'initial':{'directory':str(tmp_path),'canvas':canvas,'kind':kind,'parameters':parameters,'provider':provider,'member':world['people'][0]['id'],'workspace':world['a']['id'],'subject':subject}})+'\n');process.stdin.flush()
+        process.stdin.write(json.dumps({'initial':{'directory':str(tmp_path),'canvas':canvas,'kind':kind,'parameters':parameters,'provider':provider,'member':world['people'][0]['id'],'workspace':world['a']['id'],'subject':subject,'mode':mode,'references':references}})+'\n');process.stdin.flush()
         for line in process.stdout:
             pointer=json.loads(line)
             if pointer.get('done'):done=pointer;break
@@ -75,6 +92,24 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
                         claimed=tasks.claim('native-prompt-test-worker');assert claimed['id']==task_id
                         token=tasks.lease_context.set((task_id,claimed['lease_token']))
                         try:
+                            if mode:
+                                from app.routers import canvas as canvas_router
+                                from app.models import CanvasVideoRequest
+                                captured=[]
+                                class CapturedSupplier(Exception):pass
+                                async def capture(client,url,**kwargs):captured.append(kwargs['json']);raise CapturedSupplier()
+                                async def reference_url(value,*args,**kwargs):return 'http://testserver'+value if value.startswith('/') else value
+                                with patch.object(canvas_router,'paid_post',capture),patch.object(canvas_router,'volcengine_video_media_reference_url',reference_url),patch.object(canvas_router,'load_asset_library',lambda:{'categories':[],'libraries':[]}):
+                                    with pytest.raises(CapturedSupplier):asyncio.run(canvas_router.canvas_video_impl(CanvasVideoRequest(**tasks.request(task_id))))
+                                assert len(captured)==1
+                                roles=[item['role'] for item in captured[0]['content'] if item['type']=='image_url']
+                                assert roles==([] if mode=='文生视频' else ['first_frame'] if mode=='图生视频' else ['first_frame','last_frame'] if mode=='首尾帧' else ['reference_image'])
+                                if mode in {'图生视频','首尾帧'}:assert captured[0]['ratio']=='adaptive'
+                                if mode in {'视频编辑','向后延长','向前延长'}:
+                                    assert captured[0]['ratio']=='adaptive'
+                                    assert captured[0]['duration']==(-1 if mode=='视频编辑' else 5)
+                                    assert captured[0]['content'][0]['text'].startswith({'视频编辑':'编辑视频@video1：','向后延长':'向后延长@video1：','向前延长':'向前延长@video1：'}[mode])
+                                    assert len([item for item in captured[0]['content'] if item['type']=='video_url'])==1
                             value=tasks.get(task_id);value.update(status='succeeded',result={('images' if kind=='image' else 'videos'):[output['url']]});tasks.save(value);finalized.add(task_id)
                         finally:tasks.lease_context.reset(token);tasks.release(task_id,claimed['lease_token'])
             if message['bodyFile']:assert re.fullmatch(r'body-\d+\.bin',message['bodyFile'])
@@ -116,14 +151,20 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
                 with database.connection() as conn:
                     actual=conn.execute('SELECT input_asset_ids FROM tasks WHERE id=%s',(task_ids[0],)).fetchone()['input_asset_ids']
                 assert len(actual)==len(expected) and set(actual)==expected
-            else:
+            elif kind=='image':
                 assert 'Canon EOS R5 Mark II' in request['prompt'] and '%%#[camera]' in node['nativePrompt']['prompt']
+            if mode:
+                assert node['runSettings']['videoReferenceMode']=={'文生视频':'textToVideo','图生视频':'imageToVideo','首尾帧':'firstAndLastFrame','多模态参考':'referToVideo','视频编辑':'videoEdit','向后延长':'extend_backward','向前延长':'extend_forward'}[mode]
+                expected_roles=[] if mode=='文生视频' else ['first_frame'] if mode=='图生视频' else ['first_frame','last_frame'] if mode=='首尾帧' else ['reference_image']
+                assert [item['role'] for item in request['images']]==expected_roles
+                with database.connection() as conn:actual=conn.execute('SELECT input_asset_ids FROM tasks WHERE id=%s',(task_ids[0],)).fetchone()['input_asset_ids']
+                assert set(actual)=={media.id_from_ref(item['url']) for item in references}
         assert world['viewer'].get(output['url'],headers=headers(world['a'])).status_code==200
         assert world['outsider'].get(output['url'],headers=headers(world['b'])).status_code in (403,404)
         exported=world['editor'].post('/api/canvas-workflows/export',headers=headers(world['a']),json={'nodes':saved['nodes'],'connections':saved['connections'],'include_resources':True})
         assert exported.status_code==200,exported.text
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
-            workflow=json.loads(archive.read('workflow.json'));assert len(workflow['resources'])==len({item['url'] for item in [*assets,output]})
+            workflow=json.loads(archive.read('workflow.json'));assert len(workflow['resources'])==len({item['url'] for item in [*(references if mode else assets),output]})
         imported=world['editor'].post('/api/canvas-workflows/import',headers=headers(world['a']),files={'file':('native-prompt.zip',exported.content,'application/zip')})
         assert imported.status_code==200,imported.text
         copy=next(item for item in imported.json()['nodes'] if item.get('nativePrompt'))
@@ -138,3 +179,61 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         for handle in (process.stdin,process.stdout,process.stderr):
             try:handle.close()
             except OSError:pass
+
+
+def test_native_video_frame_admission_rejects_mixed_roles_and_wrong_owned_media_without_queueing(world,platform,tmp_path):
+    from app.storage import database
+    from app.storage.workspace import workspace_scope
+    from test_cloud_task_canvas_bindings import setup_bound_canvas,payload,submit
+    provider_id='frame-rejection-'+uuid.uuid4().hex[:16]
+    response=platform['client'].put('/api/providers/'+provider_id,json={'config':{'name':'首尾帧拒绝验收','base_url':'https://supplier.test/api/v3','protocol':'volcengine','enabled':True,'video_models':['doubao-seedance-2-5-pro']},'expected_version':0,'secrets':{'api_key':'test-only-frame-rejection'},'reason':'隔离验收'})
+    assert response.status_code==200,response.text
+    response=platform['client'].put('/api/provider-assignments',params={'workspace':world['a']['id']},json={'expected_version':1,'provider_ids':[provider_id],'primary_provider_id':provider_id,'reason':'隔离验收'})
+    assert response.status_code==200,response.text
+    content=io.BytesIO();Image.new('RGB',(160,90),'blue').save(content,format='PNG')
+    uploaded=world['editor'].post('/api/ai/upload',headers=headers(world['a']),files={'files':('head.png',content.getvalue(),'image/png')});assert uploaded.status_code==200,uploaded.text
+    image=uploaded.json()['files'][0]['url']
+    root=Path(__file__).resolve().parents[1]
+    uploaded=world['editor'].post('/api/ai/upload',headers=headers(world['a']),files={'files':('wrong.mp4',(root/'tests/fixtures/pixmax-audio-source.mp4').read_bytes(),'video/mp4')});assert uploaded.status_code==200,uploaded.text
+    video=uploaded.json()['files'][0]['url']
+    path,canvas,lease=setup_bound_canvas(world,'smart')
+    base={**payload(canvas,'video'),'provider_id':provider_id,'model':'doubao-seedance-2-5-pro','aspect_ratio':'adaptive','duration':5}
+    for change in [
+        {'images':[{'url':image,'role':'last_frame'}]},
+        {'images':[{'url':image,'role':'first_frame'},{'url':image,'role':'reference_image'}]},
+        {'images':[{'url':image,'role':'first_frame'}],'videos':[video]},
+        {'images':[{'url':image,'role':'first_frame'}],'aspect_ratio':'16:9'},
+        {'images':[{'url':video,'role':'first_frame'}]},
+        {'images':[{'url':image,'role':'first_frame'}],'task_mode':'edit'},
+    ]:
+        response=submit(world,{**base,**change,'client_task_id':'canvas_vid_'+uuid.uuid4().hex},lease,'video')
+        assert response.status_code==400,response.text
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        assert conn.execute('SELECT count(*) AS n FROM tasks WHERE canvas_id=%s',(canvas['id'],)).fetchone()['n']==0
+    changed=platform['client'].put('/api/providers/'+provider_id,json={'config':{'name':'代理首尾帧拒绝验收','base_url':'https://supplier.test/proxy/generate','protocol':'volcengine','enabled':True,'video_models':['doubao-seedance-2-5-pro']},'expected_version':1,'reason':'隔离验收'})
+    assert changed.status_code==200,changed.text
+    provider=next(item for item in world['editor'].get('/api/config',headers=headers(world['a'])).json()['api_providers'] if item['id']==provider_id)
+    assert provider['video_capabilities']['native_roles'] is False
+    assert not {'base_url','protocol','proxy_url','key_preview'} & provider.keys()
+    response=submit(world,{**base,'images':[{'url':image,'role':'first_frame'}],'client_task_id':'canvas_vid_'+uuid.uuid4().hex},lease,'video')
+    assert response.status_code==400 and '代理' in response.text,response.text
+    changed=platform['client'].put('/api/providers/'+provider_id,json={'config':{'name':'恢复原生接口验收','base_url':'https://supplier.test/api/v3','protocol':'volcengine','enabled':True,'video_models':['doubao-seedance-2-5-pro']},'expected_version':2,'reason':'隔离验收'})
+    assert changed.status_code==200,changed.text
+    # Batch review uses the same role validator before it can offer a paid submit.
+    from test_cloud_canvas_leases import proof
+    from app.storage.task_canvas_bindings import graph_fingerprint
+    saved_nodes=[*canvas['nodes'],{'id':'frame','type':'smart-frame','images':[]}]
+    source=next(node for node in saved_nodes if node['id']=='source');source.update(frameId='frame',generationKind='video')
+    response=world['editor'].put(path,headers=proof(world,lease,canvas['revision']),json={'nodes':saved_nodes,'connections':canvas['connections'],'base_revision':canvas['revision']})
+    assert response.status_code==200,response.text
+    canvas=response.json()['canvas']
+    item={'node_id':'source','kind':'video','input_sha256':graph_fingerprint(canvas,'source','source'),'request':{**base,'images':[{'url':image,'role':'first_frame'},{'url':image,'role':'last_frame'}]}}
+    batch={'frame_id':'frame','base_revision':canvas['revision'],'items':[item]}
+    response=world['editor'].post(path+'/batch-preview',headers=proof(world,lease,canvas['revision']),json=batch)
+    assert response.status_code==200 and len(response.json()['prepared'])==1,response.text
+    item['request']['images']=[{'url':image,'role':'last_frame'}]
+    response=world['editor'].post(path+'/batch-preview',headers=proof(world,lease,canvas['revision']),json=batch)
+    assert response.status_code==200,response.text
+    assert response.json()['prepared']==[] and response.json()['skipped'][0]['reason']=='invalid'
+    with workspace_scope(world['a']['id']),database.connection() as conn:
+        assert conn.execute('SELECT count(*) AS n FROM tasks WHERE canvas_id=%s',(canvas['id'],)).fetchone()['n']==0

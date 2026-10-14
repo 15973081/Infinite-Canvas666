@@ -164,6 +164,7 @@ def _prepare_canvas_video_task(payload: CanvasVideoRequest):
         payload.provider_id = get_api_provider(payload.provider_id)["id"]
     if payload.output_format is not None:
         _validate_video_output_format(payload, get_api_provider(payload.provider_id))
+    _validate_video_input_roles(payload, get_api_provider(payload.provider_id))
     if payload.canvas_id:
         load_canvas(payload.canvas_id)
     requested_task_id = str(payload.client_task_id or "").strip()
@@ -282,9 +283,40 @@ def _validate_video_output_format(payload: CanvasVideoRequest, provider: dict):
         raise HTTPException(400, '输出格式选项仅支持火山 Seedance 2.5 模型')
 
 
+def _validate_video_input_roles(payload: CanvasVideoRequest, provider: dict):
+    if not is_volcengine_provider(provider):
+        return
+    roles=[str(ref.role or '').strip().lower() for ref in payload.images]
+    if any(role not in {'','reference_image','first_frame','last_frame'} for role in roles):
+        raise HTTPException(400,'视频图片角色无效，请重新选择首帧、尾帧或参考图')
+    frames=any(role in {'first_frame','last_frame'} for role in roles)
+    if frames:
+        if urllib.parse.urlparse(video_api_root(provider)).path.rstrip('/'):
+            raise HTTPException(400,'当前视频代理接口不支持首尾帧角色，请选择火山原生视频接口')
+        if sorted(roles) not in [['first_frame'],['first_frame','last_frame']] or any(not ref.url.strip() for ref in payload.images):
+            raise HTTPException(400,'首帧模式需要一张首帧图片，首尾帧模式需要各一张首帧和尾帧图片')
+        if payload.videos or payload.audios or payload.task_mode not in {'','auto'}:
+            raise HTTPException(400,'首帧或首尾帧不能混用参考视频、音频或视频编辑任务')
+        if is_volcengine_seedance25_model(payload.model) and payload.aspect_ratio!='adaptive':
+            raise HTTPException(400,'Seedance 2.5 首帧或首尾帧模式必须使用自适应比例')
+        if postgres_enabled():
+            from app.storage import media
+            ids=[media.id_from_ref(ref.url) for ref in payload.images]
+            assets=media.get_assets([asset_id for asset_id in ids if asset_id],ready=False)
+            if any(asset_id and (asset_id not in assets or not str(assets[asset_id].get('content_type','')).startswith('image/')) for asset_id in ids):
+                raise HTTPException(400,'首尾帧只能使用当前空间中的图像素材')
+    if is_volcengine_seedance25_model(payload.model) or is_volcengine_seedance2_model(payload.model):
+        limit=(30,10,10) if is_volcengine_seedance25_model(payload.model) else (9,3,3)
+        if len(payload.images)>limit[0] or len(payload.videos)>limit[1] or len(payload.audios)>limit[2]:
+            raise HTTPException(400,'参考素材数量超出当前 Seedance 模型限制')
+        if is_volcengine_seedance2_model(payload.model) and payload.audios and not payload.images and not payload.videos:
+            raise HTTPException(400,'Seedance 2.0 不能只使用音频参考')
+
+
 async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
     provider = get_api_provider(payload.provider_id)
     _validate_video_output_format(payload, provider)
+    _validate_video_input_roles(payload, provider)
     base_url = video_api_root(provider)
     if not base_url:
         raise HTTPException(status_code=400, detail=f"{provider.get('name') or provider['id']} 未配置 Base URL")
@@ -507,11 +539,13 @@ async def canvas_video_impl(payload: CanvasVideoRequest, on_submitted=None):
                     for ref in payload.images[:image_limit]:
                         url = await volcengine_video_media_reference_url(ref.url, project_name, max_image_size=1536, provider=provider, kind="image", library=asset_library)
                         if not url:
+                            if str(ref.role or '').strip().lower() in {'first_frame','last_frame'}:
+                                raise HTTPException(400,'首尾帧素材解析失败，请检查素材后重试')
                             continue
                         body["content"].append({
                             "type": "image_url",
                             "image_url": {"url": url},
-                            "role": "reference_image",
+                            "role": str(ref.role or 'reference_image').strip().lower() or 'reference_image',
                         })
                         image_like_urls.add(url)
                     for url in (payload.videos or [])[:video_limit]:
