@@ -20,7 +20,8 @@ test('video toolbar is selected-only, uses native actions, remains readable on z
  assert.equal(await toolbar.getByRole('button',{name:'裁剪',exact:true}).count(),0);
  assert.equal(await toolbar.getByRole('button',{name:'音频分离',exact:true}).isEnabled(),true);
  assert.equal(await toolbar.getByRole('button',{name:'标签',exact:true}).isEnabled(),true);
- for(const name of ['合规检测','标记','智能续写','片段重拍','解析','字幕擦除','超分','生成历史']){
+ assert.equal(await toolbar.getByRole('button',{name:'标记',exact:true}).isEnabled(),true);
+ for(const name of ['合规检测','智能续写','片段重拍','解析','字幕擦除','超分','生成历史']){
   const button=toolbar.getByRole('button',{name,exact:true});assert.equal(await button.isDisabled(),true);assert.match(await button.getAttribute('title'),/后续接入/);
  }
  const first=await toolbar.boundingBox();assert.ok(first.x>=0&&first.x+first.width<=1280);
@@ -86,7 +87,7 @@ test('viewer can preview and download but cannot trim, authenticate, save assets
  await page.evaluate(()=>MemberCanvasEdit.setEditable(false));
  await page.locator('.image-node .node-body').click();
  const toolbar=page.getByRole('toolbar',{name:'视频节点工具'});
- for(const name of ['剪辑','深度视频','素材认证','保存到资产库'])assert.equal(await toolbar.getByRole('button',{name,exact:true}).isDisabled(),true);
+ for(const name of ['剪辑','深度视频','素材认证','保存到资产库','标记'])assert.equal(await toolbar.getByRole('button',{name,exact:true}).isDisabled(),true);
  await page.evaluate(()=>{window.downloaded=0;window.authenticated=0;downloadPreviewFile=()=>downloaded++;quickFaceAuthSmartImage=()=>authenticated++;});
  await toolbar.getByRole('button',{name:'下载',exact:true}).click();assert.equal(await page.evaluate(()=>downloaded),1);
  await toolbar.getByRole('button',{name:'放大预览',exact:true}).click();await page.locator('#imageEditModal').waitFor({state:'visible'});

@@ -1,0 +1,6 @@
+.pixmax-video-annotation-host{position:fixed;inset:0;z-index:10022;isolation:isolate;color:#f3f3f5;pointer-events:none}
+.pixmax-video-annotation-host>[data-native-video-annotation]{width:100%;height:100%}
+.pixmax-native-video-annotation{z-index:10021!important}
+.pixmax-annotation-feedback{position:fixed;left:20px;bottom:18px;max-width:min(480px,calc(100vw - 40px));z-index:10050;pointer-events:none;font:13px/1.5 system-ui}
+.pixmax-annotation-feedback p:not(:empty),.pixmax-annotation-feedback button{padding:8px 12px;border:1px solid #41414a;border-radius:8px;background:#17171bef;pointer-events:auto}
+.pixmax-annotation-feedback p:empty{display:none}.pixmax-annotation-feedback [data-annotation-downloads]{display:flex;gap:8px;flex-wrap:wrap}.pixmax-annotation-feedback button{color:inherit;cursor:pointer}

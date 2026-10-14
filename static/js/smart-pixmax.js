@@ -48,7 +48,7 @@ function pixmaxConnectionMenuTypes(node,port){
 }
 function pixmaxCanConnect(from,to){return !!window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(from)]?.source.includes(pixmaxNativeNodeType(to));}
 
-const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','annotation','continuation','reshoot','parse','erase','upscale','video-history']);
+const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','continuation','reshoot','parse','erase','upscale','video-history']);
 function pixmaxVideoToolbarActions(node){
     const item=node?.images?.[smartNodeToolbarImageIndex(node)]||{};
     const editing=!isSmartCanvasLocked();
@@ -56,7 +56,7 @@ function pixmaxVideoToolbarActions(node){
     const later=(key,label,icon)=>({key,label,icon,enabled:false,hint:label+' · 后续接入',deferred:true});
     return [
         {key:'trim',label:'剪辑',icon:'scissors',enabled:editing&&local,hint:!editing?'请先开始编辑画布':!local?'剪辑仅支持已入库的视频':'剪辑'},
-        later('compliance','合规检测','shield-check'),later('annotation','标记','pencil'),
+        later('compliance','合规检测','shield-check'),{key:'annotation',label:'标记',icon:'pencil',enabled:editing,hint:editing?'标记视频画面':'请先开始编辑画布'},
         later('continuation','智能续写','history'),later('reshoot','片段重拍','camera'),
         later('parse','解析','layout-grid'),later('erase','字幕擦除','captions'),later('upscale','超分','scan'),
         {key:'depth-video',label:'深度视频',icon:'layers',enabled:editing,hint:editing?'深度视频 · 本地提取':'请先开始编辑画布'},

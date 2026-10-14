@@ -231,6 +231,7 @@ function insertSmartWorkflowIntoCanvas(imported){
         .map(conn => ({...JSON.parse(JSON.stringify(conn)), from:idMap.get(conn.from), to:idMap.get(conn.to)}))
         .filter(conn => conn.from && conn.to);
     newNodes.forEach(node=>{if(node.inputNodeIds)node.inputNodeIds=node.inputNodeIds.map(id=>idMap.get(id)).filter(Boolean);});
+    newNodes.forEach(node=>window.PixmaxVideoAnnotation?.remapReferences(node,idMap,{referenceNodes:newNodes}));
     window.PixmaxTags?.mergeImported(imported,newNodes);
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
@@ -547,6 +548,7 @@ async function saveCanvas(options={}){
                 }
                 smartSaveErrorNotified = false;
                 window.PixmaxMediaTools?.confirmSaved(data.canvas);
+                window.PixmaxVideoAnnotation?.confirmSaved(data.canvas);
                 return true;
             }
             if(window.CanvasSession?.enabled){
@@ -621,7 +623,7 @@ function inheritNodeMetaFromImage(node){
 function createNode(x, y, images=[], options={}){
     if(!options.skipUndo) pushUndo();
     const nodeImages = (images || []).map(img => ({...img}));
-    const node = {id:uid('smart'), type:'smart-image', x, y, title:nodeImages.length > 1 ? 'Group' : nodeImages.length ? 'Image' : '上传节点', images:nodeImages, created_at:Date.now()};
+    const node = {id:options.id||uid('smart'), type:'smart-image', x, y, title:nodeImages.length > 1 ? 'Group' : nodeImages.length ? 'Image' : '上传节点', images:nodeImages, created_at:Date.now()};
     const generationKind = newSmartMediaKind(nodeImages, options);
     if(nodeImages.length===1&&nodeImages[0].name)node.label=nodeImages[0].name.replace(/\.[^.]+$/,'');
     else if(!nodeImages.length&&generationKind)node.label=pixmaxUniqueNodeLabel(generationKind==='video'?'视频生成节点':'图像生成节点');
@@ -639,8 +641,7 @@ function createNode(x, y, images=[], options={}){
     inheritNodeMetaFromImage(node);
     nodes.push(node);
     if(options.select !== false) smartSelection.createdNode(node.id);
-    render();
-    scheduleSave();
+    if(!options.deferRender){render();scheduleSave();}
     return node;
 }
 
@@ -727,6 +728,7 @@ function pasteNodes({includeConnections=true}={}){
             copy.inputNodeIds = includeConnections ? copy.inputNodeIds.map(id => idMap.get(id)).filter(Boolean) : [];
         }
         if(copy.sourceNodeId) copy.sourceNodeId = includeConnections ? idMap.get(copy.sourceNodeId) || '' : '';
+        window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
     });
     const newConnections = (includeConnections ? nodeClipboard.connections || [] : []).map(conn => ({
         ...conn,
@@ -755,6 +757,7 @@ function duplicateForAltDrag(node){
     copies.forEach(copy => {
         if(Array.isArray(copy.inputNodeIds)) copy.inputNodeIds = copy.inputNodeIds.map(id => idMap.get(id)).filter(Boolean);
         if(copy.sourceNodeId) copy.sourceNodeId = idMap.get(copy.sourceNodeId) || '';
+        window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{referenceNodes:copies});
     });
     const idSet = new Set(sourceNodes.map(n => n.id));
     const copiedConnections = (canvas.connections || []).filter(c => idSet.has(c.from) && idSet.has(c.to));

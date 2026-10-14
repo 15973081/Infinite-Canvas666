@@ -25,6 +25,13 @@ runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
 for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
+marker_hook = 'let n=N,r=jNt(),i=G(_);'
+assert runtime.count(marker_hook) == 1, 'Video annotation controller changed; inspect before importing'
+runtime = runtime.replace(marker_hook, marker_hook + 't.onMarkerReady?.(r);')
+root_hook = 'var t=UNt(),r=H(t),i=V(r),'
+assert runtime.count(root_hook) == 1, 'Video annotation portal changed; inspect before importing'
+runtime = runtime.replace('function WNt(e,t){eu(t,!0);', 'function WNt(e,t){eu(t,!0);const markerProps=t;')
+runtime = runtime.replace(root_hook, 'var t=UNt(),r=H(t),i=(markerProps.onRootReady?.(r),V(r)),')
 runtime += '''
 // Local integration exports. The original account/router bootstrap is excluded.
 export async function mountEditor(target, kind, props, notify) {
@@ -53,14 +60,26 @@ export const mountCanvasPlayer = (target, props) => Tf(aV, {target, props});
 export const unmountCanvasPlayer = instance => Of(instance);
 // Reuse the original media processor; canvas persistence stays in the host app.
 export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
+// Preserve the native drawing tools, timeline and timestamped PNG export.
+export async function mountCanvasVideoAnnotation(target, props, adapter, notify) {
+  const container = new f;
+  const i18n = await KLe();
+  await du(i18n).changeLanguage('zh');
+  container.registerInstance(M_, i18n);
+  container.registerInstance(j_, {debug(){},info(){},warn:console.warn,error:console.error});
+  container.registerInstance(N_, {success:notify,error:notify,warning:notify,info:notify,pending:notify,remove(){}});
+  return Tf(WNt, {target, props:{...props,open:true},
+    context:new Map([[tCe,container],[MY,adapter.controller],[EC,adapter.graph]])});
+}
+export const unmountCanvasVideoAnnotation = instance => Of(instance);
 '''
 (destination / 'editors.js').write_text(runtime, encoding='utf-8')
 (destination / 'editors.css').write_bytes((source / 'index-Dvu1CoBX.css').read_bytes())
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II'},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt'},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

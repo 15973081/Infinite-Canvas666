@@ -4,12 +4,14 @@
   "components": {
     "director": "$6e",
     "editor": "ujt",
-    "media_processor": "II"
+    "media_processor": "II",
+    "video_annotation": "WNt"
   },
   "changes": [
     "Remove account/router bootstrap",
     "Export editor mounts and scoped service context",
-    "Export native local audio/video separation"
+    "Export native local audio/video separation",
+    "Expose native video annotation with host graph adapter and marker lifetime hook"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }
