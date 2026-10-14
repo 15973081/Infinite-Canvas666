@@ -4,7 +4,23 @@
     const token=/%%@\[([^\]]*)\]\[(text|image|audio|video)\]\[(\d+)\]\(([^)]+)\)%%/g;
     const identity=media=>String(media?.url||'').match(/(?:assets\/cloud|api\/media)\/(ast_[a-f0-9]{32})(?:\/|$)/)?.[1]||media?.url;
     const label={image:'图片',audio:'音频',video:'视频',text:'文本'};
-    function plan(node){
+    const data=node=>node.segmentReshoot?.schemaVersion===1?node.segmentReshoot:node.nativePrompt||{prompt:node.promptDraftText||node.runPrompt||'',subjects:[]};
+    function generalPlan(node,{base,ctx}={}){
+        const config=smartSettingsForNode(node),extra=upstreamNodesForKinds(node,['input','flow']).filter(source=>source.subjectReference).flatMap(source=>imagesForNode(source));
+        const legacy=smartMediaReferencePlan(node,[...(base||defaultReferenceImagesFor(node,false,ctx)),...extra],[],config);
+        const entries=[];
+        for(const source of promptInputNodesFor(node)){
+            const text=textForNode(source,ctx);if(text?.trim())entries.push({id:source.id,nodeId:source.id,kind:'text',name:source.label||'文本',text,alias:'文本'+(entries.length+1)});
+        }
+        for(const media of legacy.refs){
+            if(config.apiKind!=='video'&&media.kind!=='image')continue;
+            const index=media.imageIndex||0,id=media.nodeId?(index?media.nodeId+'::'+index:media.nodeId):'native-'+media.kind+':'+encodeURIComponent(identity(media)).replace(/[()]/g,value=>'%'+value.charCodeAt(0).toString(16));
+            entries.push({id,nodeId:media.nodeId||'',imageIndex:index,kind:media.kind,name:media.name||label[media.kind],media,alias:media.referenceLabel});
+        }
+        return decorate(entries);
+    }
+    function plan(node,options){
+        if(node.segmentReshoot?.schemaVersion!==1)return generalPlan(node,options);
         const state=node.segmentReshoot,entries=[],seen=new Set(),blocked=blockedInputRefKeys(node),counts={image:0,audio:0,video:1,text:0};
         const crop={id:state.source.nodeId||node.id+'::source',nodeId:state.source.nodeId,kind:'video',alias:'视频1',name:'重拍片段',crop:true,media:state.source.media||{url:state.source.url,kind:'video'}};
         for(const source of upstreamNodesForKinds(node,['input','flow'])){
@@ -26,30 +42,34 @@
             let index=kind==='video'?1:0;for(const entry of group)entry.alias=label[kind]+(++index);
             const slots=entries.flatMap((entry,index)=>entry.kind===kind?[index]:[]);slots.forEach((slot,index)=>entries[slot]=group[index]);
         }
-        const resources=[crop,...entries],byId=new Map(resources.map(entry=>[entry.id,entry]));
+        return decorate(entries,crop);
+    }
+    function decorate(entries,crop){
+        const resources=[...(crop?[crop]:[]),...entries],byId=new Map(resources.map(entry=>[entry.id,entry]));
         const mentions=resources.map(entry=>({id:entry.id,type:entry.kind,index:Number(entry.alias.replace(/\D/g,''))-1,tokenTitle:entry.name.replace(/[\[\]\r\n]/g,' '),displayTitle:entry.alias+' ('+entry.name+')',thumbnailUrl:entry.kind==='image'?smartMediaPreviewUrl(entry.media,256):entry.kind==='video'?pixmaxMediaPoster(entry.media):undefined}));
         const incomingNodes=resources.map(entry=>({id:entry.id,type:entry.kind,data:{label:entry.name,text:entry.text,url:entry.media?.url,thumbnailUrl:entry.kind==='image'?smartMediaPreviewUrl(entry.media,256):undefined,poster:entry.kind==='video'?pixmaxMediaPoster(entry.media):undefined}}));
         return {entries,resources,byId,mentions,incomingNodes};
     }
     function validate(node,current=plan(node)){
         const invalid=[];
-        let prompt=PixmaxPromptTokens.compile(window.PixmaxSubjects?PixmaxSubjects.compile(node,current):String(node.segmentReshoot.prompt||'')).replace(token,(_value,_title,kind,_index,id)=>{
+        let prompt=PixmaxPromptTokens.compile(window.PixmaxSubjects?PixmaxSubjects.compile(node,current):String(data(node).prompt||'')).replace(token,(_value,_title,kind,_index,id)=>{
             const entry=current.byId.get(id);if(!entry||entry.kind!==kind){invalid.push(id);return '';}
             return entry.alias;
         });
         if(invalid.length||/%%@\[/.test(prompt))throw new Error('提示词中存在失效参考，请重新选择或移除引用');
-        return [...current.entries.filter(entry=>entry.kind==='text').map(entry=>entry.alias+'：'+entry.text),prompt.trim()||'保留原画面、人物、声音及镜头运动，不改变内容。'].join('\n\n');
+        return [...current.entries.filter(entry=>entry.kind==='text').map(entry=>entry.alias+'：'+entry.text),prompt.trim()||(node.segmentReshoot?'保留原画面、人物、声音及镜头运动，不改变内容。':'')].filter(Boolean).join('\n\n');
     }
     function request(node,config){
         const current=plan(node),prompt=validate(node,current);
         const refs=current.entries.filter(entry=>entry.media).map(entry=>({...entry.media,referenceLabel:entry.alias}));
+        if(node.segmentReshoot?.schemaVersion!==1)return {prompt,displayPrompt:PixmaxPromptTokens.text(data(node).prompt.replace(token,(_value,_title,_kind,_index,id)=>'@'+(current.byId.get(id)?.alias||'失效参考'))),refs,settings:config,mentioned:/%%@\[|%%subject-ref\(/.test(data(node).prompt)};
         const provider=(apiProviders||[]).find(item=>item.id===config.videoProvider);
         const extraVideos=refs.filter(ref=>ref.kind==='video').map(ref=>({manual:true,url:smartVolcengineAssetUrisForRef(smartCurrentFaceAuthRef(ref),provider).volcengine||ref.url}));
         return {prompt,refs,settings:{...config,videoTempShLinks:[{manual:true,url:node.segmentReshoot.cache.clipAssetUuid},...extraVideos]}};
     }
     function signature(node){
         const current=plan(node),config=settingsForStorage(node.runSettings);delete config.videoTempShLinks;
-        return JSON.stringify([node.segmentReshoot.prompt,config,current.resources.map(entry=>[entry.id,entry.kind,entry.text,identity(entry.media),entry.media?.asset_uris]),window.PixmaxSubjects?.signature(node)]);
+        return JSON.stringify([data(node).prompt,config,current.resources.map(entry=>[entry.id,entry.kind,entry.text,identity(entry.media),entry.media?.asset_uris]),window.PixmaxSubjects?.signature(node)]);
     }
     function setPrompt(node,value){
         const current=plan(node);let position=0,html='';
@@ -58,7 +78,7 @@
             const entry=current.byId.get(match[4]);
             html+=entry?.media?mentionTokenHtml({...entry.media,nodeId:entry.nodeId||'',imageIndex:entry.imageIndex||0,name:entry.name,referenceLabel:entry.alias}):entry?`<span class="pixmax-reshoot-text-token" contenteditable="false" data-reshoot-reference-id="${escapeAttr(entry.id)}">@${escapeHtml(entry.alias)}</span>`:escapeHtml(match[0]);
         }
-        node.segmentReshoot.prompt=value;window.PixmaxSubjects?.prune(node);node.promptDraftText=PixmaxPromptTokens.text(value.replace(token,(_match,_title,_kind,_index,id)=>'@'+(current.byId.get(id)?.alias||'失效参考')));
+        data(node).prompt=value;window.PixmaxSubjects?.prune(node);node.promptDraftText=PixmaxPromptTokens.text(value.replace(token,(_match,_title,_kind,_index,id)=>'@'+(current.byId.get(id)?.alias||'失效参考')));
         node.promptDraftHtml=html+PixmaxPromptTokens.html(value.slice(position));
         if(typeof activeComposerNode==='function'&&activeComposerNode()===node&&promptInput)promptInput.innerHTML=node.promptDraftHtml;
     }
@@ -73,7 +93,7 @@
             if(element.classList.contains('mention-image-token')){parts.push({type:'image',kind:element.dataset.kind,url:element.dataset.url,nodeId:element.dataset.nodeId,imageIndex:Number(element.dataset.imageIndex||0)});return;}
             if(element.tagName==='BR')parts.push({type:'text',text:'\n'});element.childNodes.forEach(walk);if(element!==promptInput&&['DIV','P'].includes(element.tagName))parts.push({type:'text',text:'\n'});
         };promptInput.childNodes.forEach(walk);
-        node.segmentReshoot.prompt=parts.map(part=>{
+        data(node).prompt=parts.map(part=>{
             if(part.type==='text')return part.text;
             if(part.type==='literal')return part.token;
             const entry=part.id?current.byId.get(part.id):current.resources.find(entry=>entry.media&&entry.kind===mediaKindForItem(part)&&((entry.nodeId===part.nodeId&&entry.imageIndex===part.imageIndex)||(entry.crop&&identity(entry.media)===identity(part))));
@@ -82,8 +102,8 @@
         }).join('');window.PixmaxSubjects?.prune(node);
     }
     function remap(node,idMap,previousSource){
-        const currentSource=node.segmentReshoot.source.nodeId||node.id+'::source';
-        setPrompt(node,String(node.segmentReshoot.prompt||'').replace(token,(value,title,kind,index,id)=>{
+        const currentSource=node.segmentReshoot?.source?.nodeId||node.id+'::source';
+        setPrompt(node,String(data(node).prompt||'').replace(token,(value,title,kind,index,id)=>{
             const split=id.lastIndexOf('::'),base=split<0?id:id.slice(0,split),suffix=split<0?'':id.slice(split);
             const next=kind==='video'&&id===previousSource?currentSource:idMap.has(base)?idMap.get(base)+suffix:id;
             return `%%@[${title}][${kind}][${index}](${next})%%`;
@@ -124,6 +144,6 @@
         while(stack.length){const target=stack.pop();for(const edge of canvas.connections||[])if(edge.to===target&&byId.get(edge.from)?.hidden&&!selected.has(edge.from)){selected.add(edge.from);stack.push(edge.from);}}
         return [...selected];
     }
-    function project(documentNodes){for(const node of documentNodes)if(node.segmentReshoot?.schemaVersion===1)setPrompt(node,node.segmentReshoot.prompt||'');}
-    window.PixmaxReshootReferences=Object.freeze({plan,validate,request,signature,setPrompt,captureComposer,remap,connect,addAsset,remove,expandHidden,project});
+    function project(documentNodes){for(const node of documentNodes)if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1)setPrompt(node,data(node).prompt||'');}
+    window.PixmaxReshootReferences=Object.freeze({data,plan,validate,request,signature,setPrompt,captureComposer,remap,connect,addAsset,remove,expandHidden,project});
 })();

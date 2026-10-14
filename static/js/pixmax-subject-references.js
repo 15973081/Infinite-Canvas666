@@ -2,7 +2,7 @@
 (() => {
     'use strict';
     const pattern=/%%subject-ref\(([^)]*)\)%%/g, clone=value=>JSON.parse(JSON.stringify(value));
-    const remoteInvalid=new WeakMap();
+    const remoteInvalid=new WeakMap(),promptState=node=>PixmaxReshootReferences.data(node);
     const scope=()=>({memberId:window.CanvasSession?.context?.member?.id,workspaceId:window.CanvasSession?.context?.workspace?.id});
     const mediaId=item=>item.media_asset_id||String(item.url||'').match(/(?:assets\/cloud|api\/media)\/(ast_[a-f0-9]{32})/)?.[1]||item.url;
     const safeName=value=>String(value||'主体').replace(/[|)\r\n]/g,' ');
@@ -26,9 +26,9 @@
     }
     function prune(node){
         if(!nodes.includes(node))return;
-        const refs=parse(node.segmentReshoot.prompt),subjects=node.segmentReshoot.subjects||[];
+        const refs=parse(promptState(node).prompt),subjects=promptState(node).subjects||[];
         const removed=subjects.filter(subject=>!refs.some(ref=>ref.groupId===subject.groupId&&(!ref.ownerType||ref.ownerType===subject.ownerType)));
-        removed.forEach(subject=>drop(node,subject));node.segmentReshoot.subjects=subjects.filter(subject=>!removed.includes(subject));
+        removed.forEach(subject=>drop(node,subject));promptState(node).subjects=subjects.filter(subject=>!removed.includes(subject));
     }
     function ensureGraph(node,subject){
         const linked=sources(node,subject);
@@ -41,7 +41,7 @@
     }
     function apply(node,group,ownerType){
         if(!group.items.length||group.items.some(item=>item.available===false))throw Error('主体没有可用素材或包含失效素材，请先编辑主体');
-        const subject={...clone(group),groupId:group.id,ownerType,...scope()},previous=(node.segmentReshoot.subjects||[]).find(item=>item.groupId===group.id&&item.ownerType===ownerType);
+        const subject={...clone(group),groupId:group.id,ownerType,...scope()},previous=(promptState(node).subjects||[]).find(item=>item.groupId===group.id&&item.ownerType===ownerType);
         remoteInvalid.get(node)?.delete(group.id);
         const linked=previous?sources(node,previous):[],byItem=new Map(linked.map(source=>[source.subjectReference.itemId,source]));
         const keep=new Set(group.items.map(item=>item.id));
@@ -60,24 +60,24 @@
         }
         const selectedIds=new Set(sources(node,subject).map(source=>source.id));
         node.blockedInputRefs=(node.blockedInputRefs||[]).filter(key=>!selectedIds.has(key.split('|')[0]));
-        node.segmentReshoot.subjects=[...(node.segmentReshoot.subjects||[]).filter(item=>item.groupId!==group.id||item.ownerType!==ownerType),subject];
+        promptState(node).subjects=[...(promptState(node).subjects||[]).filter(item=>item.groupId!==group.id||item.ownerType!==ownerType),subject];
         return subject;
     }
     function select(node,group,ownerType,{insertPrompt=true}={}){
         if(!group.items.length||group.items.some(item=>item.available===false))throw Error('主体没有可用素材或包含失效素材，请先编辑主体');
-        pushUndo();const previous=(node.segmentReshoot.subjects||[]).find(item=>item.groupId===group.id&&item.ownerType===ownerType);
+        pushUndo();const previous=(promptState(node).subjects||[]).find(item=>item.groupId===group.id&&item.ownerType===ownerType);
         if(previous&&!belongs(previous))drop(node,previous);
         const subject=apply(node,group,ownerType);
-        if(insertPrompt)PixmaxReshootReferences.setPrompt(node,node.segmentReshoot.prompt+token(subject));
+        if(insertPrompt)PixmaxReshootReferences.setPrompt(node,promptState(node).prompt+token(subject));
         return {groupUuid:subject.groupId,ownerType,name:safeName(subject.name),coverUrl:subject.cover_url||''};
     }
     function remove(node,groupId){
-        pushUndo();PixmaxReshootReferences.setPrompt(node,node.segmentReshoot.prompt.replace(pattern,(value,body)=>body.split('|')[0]===groupId?'':value));render();scheduleSave();
+        pushUndo();PixmaxReshootReferences.setPrompt(node,promptState(node).prompt.replace(pattern,(value,body)=>body.split('|')[0]===groupId?'':value));render();scheduleSave();
     }
     function compile(node,current){
-        const subjects=node.segmentReshoot.subjects||[];
+        const subjects=promptState(node).subjects||[];
         const byMedia=new Map(current.resources.filter(entry=>entry.media).map(entry=>[entry.kind+':'+mediaId(entry.media),entry]));
-        let value=String(node.segmentReshoot.prompt||'').replace(pattern,(raw,body)=>{
+        let value=String(promptState(node).prompt||'').replace(pattern,(raw,body)=>{
             const ref=parse(raw)[0],subject=subjects.find(item=>item.groupId===ref.groupId&&(!ref.ownerType||ref.ownerType===item.ownerType));
             if(!subject||!belongs(subject))throw Error('主体引用不属于当前成员或空间，请重新选择主体');
             if(remoteInvalid.get(node)?.has(ref.groupId))throw Error('主体已删除或失效，请重新选择主体');
@@ -96,9 +96,9 @@
     }
     function invalid(node){
         const current=PixmaxReshootReferences.plan(node);
-        return [...new Set(parse(node.segmentReshoot.prompt).filter(ref=>{
+        return [...new Set(parse(promptState(node).prompt).filter(ref=>{
             if(remoteInvalid.get(node)?.has(ref.groupId))return true;
-            try{compile({...node,segmentReshoot:{...node.segmentReshoot,prompt:ref.token}},current);return false;}catch{return true;}
+            try{compile({...node,[node.segmentReshoot?'segmentReshoot':'nativePrompt']:{...promptState(node),prompt:ref.token}},current);return false;}catch{return true;}
         }).map(ref=>ref.groupId))];
     }
     async function request(path,init={}){
@@ -112,7 +112,7 @@
     }
     const details=(ownerType,groupId)=>request('/api/subject-library/'+ownerType+'/groups/'+encodeURIComponent(groupId));
     async function refresh(node,valid,{checkOnly=false}={}){
-        const original=node.segmentReshoot.prompt,subjects=node.segmentReshoot.subjects||[],wanted=new Map();
+        const original=promptState(node).prompt,subjects=promptState(node).subjects||[],wanted=new Map();
         for(const ref of parse(original)){
             const subject=subjects.find(item=>item.groupId===ref.groupId&&(!ref.ownerType||item.ownerType===ref.ownerType));
             if(!subject||!belongs(subject))throw Error('主体引用不属于当前成员或空间，请重新选择主体');
@@ -121,9 +121,9 @@
         if(!wanted.size)return;
         const fetched=await Promise.all([...wanted.values()].map(async subject=>{
             try{return {subject,data:await details(subject.ownerType,subject.groupId)};}
-            catch(error){if(error.status===404&&valid()&&node.segmentReshoot.prompt===original){const invalid=remoteInvalid.get(node)||new Set();invalid.add(subject.groupId);remoteInvalid.set(node,invalid);}throw error;}
+            catch(error){if(error.status===404&&valid()&&promptState(node).prompt===original){const invalid=remoteInvalid.get(node)||new Set();invalid.add(subject.groupId);remoteInvalid.set(node,invalid);}throw error;}
         }));
-        if(!valid()||node.segmentReshoot.prompt!==original)throw Error('提示词或编辑资格已变化');
+        if(!valid()||promptState(node).prompt!==original)throw Error('提示词或编辑资格已变化');
         for(const {subject,data} of fetched){
             if(!data.group.items.length||data.group.items.some(item=>item.available===false)){const invalid=remoteInvalid.get(node)||new Set();invalid.add(subject.groupId);remoteInvalid.set(node,invalid);throw Error('主体没有可用素材或包含失效素材，请先编辑主体');}
             remoteInvalid.get(node)?.delete(subject.groupId);
@@ -133,7 +133,7 @@
         if(changed.length){
             pushUndo();for(const {subject,data} of changed)apply(node,data.group,subject.ownerType);
             PixmaxReshootReferences.setPrompt(node,original.replace(pattern,raw=>{
-                const ref=parse(raw)[0],subject=node.segmentReshoot.subjects.find(item=>item.groupId===ref.groupId&&(!ref.ownerType||item.ownerType===ref.ownerType));return token(subject);
+                const ref=parse(raw)[0],subject=promptState(node).subjects.find(item=>item.groupId===ref.groupId&&(!ref.ownerType||item.ownerType===ref.ownerType));return token(subject);
             }));render();scheduleSave();
         }
         compile(node,PixmaxReshootReferences.plan(node));
@@ -142,7 +142,7 @@
         const loaded=new Map();
         return {async assetLibraryGroupList({groupUuid,ownerType}){
             if(!valid())return {success:false,data:[]};
-            ownerType=ownerType||(node.segmentReshoot.subjects||[]).find(item=>item.groupId===groupUuid)?.ownerType;
+            ownerType=ownerType||(promptState(node).subjects||[]).find(item=>item.groupId===groupUuid)?.ownerType;
             if(!ownerType)return {success:false,data:[]};
             try{const data=await details(ownerType,groupUuid);if(!valid())return {success:false,data:[]};loaded.set(groupUuid,data.group);
                 const group=data.group;return {success:true,data:[{groupUuid,ownerType,name:group.name,description:group.description,assetCount:group.items.length,createTime:new Date(group.created_at).toISOString(),coverPreviewWebUrl:group.cover_url?displayMediaUrl({url:group.cover_url}):''}]};
@@ -152,5 +152,5 @@
             return {success:true,data:group.items.slice((pageIndex-1)*pageSize,pageIndex*pageSize).map(item=>({groupItemId:item.id,itemType:item.kind==='text'?'TEXT':'ASSET',textContent:item.text,name:item.name,assetsUuid:item.media_asset_id,fileType:{image:'IMG',audio:'AUDIO',video:'VIDEO'}[item.kind],webUrl:item.url?displayMediaUrl(item):'',createTime:new Date(item.created_at).toISOString()}))};
         }};
     }
-    window.PixmaxSubjects=Object.freeze({parse,token,fingerprint,compile,invalid,select,remove,prune,refresh,request,details,adapter,signature:node=>(node.segmentReshoot.subjects||[]).map(subject=>[subject.groupId,subject.ownerType,subject.memberId,subject.workspaceId,fingerprint(subject)])});
+    window.PixmaxSubjects=Object.freeze({parse,token,fingerprint,compile,invalid,select,remove,prune,refresh,request,details,adapter,signature:node=>(promptState(node).subjects||[]).map(subject=>[subject.groupId,subject.ownerType,subject.memberId,subject.workspaceId,fingerprint(subject)])});
 })();

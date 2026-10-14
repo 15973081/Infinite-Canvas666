@@ -596,6 +596,14 @@ button,input,textarea {
   gap: 8px;
 }
 
+/* The legacy top-tools skin must not stretch this bottom toolbar over the canvas. */
+.studio-smart-canvas .smart-top-tools.pixmax-bottom-controls {
+  top: auto;
+  max-width: calc(100% - 24px);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .pixmax-control-group {
   display: flex;
   align-items: center;

@@ -36,7 +36,7 @@ async function tasks(page,{unknown=false}={}){
 
 async function selectSubject(page,name='摄影师主体'){
     await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});
-    await library.getByText(name,{exact:true}).waitFor();await library.locator('[data-subject-cards] .group').filter({hasText:name}).hover();
+    await library.getByText(name,{exact:true}).waitFor().catch(async error=>{throw Error(error.message+'; '+await library.locator('[role=status]').textContent());});await library.locator('[data-subject-cards] .group').filter({hasText:name}).hover();
     await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'}).catch(async error=>{throw Error(error.message+'; status='+await library.locator('[role=status]').textContent()+'; '+JSON.stringify(await page.evaluate(()=>({prompt:nodes[1].segmentReshoot.prompt,chipCount:document.querySelectorAll('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]').length}))))});
     await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]').first().waitFor();
 }

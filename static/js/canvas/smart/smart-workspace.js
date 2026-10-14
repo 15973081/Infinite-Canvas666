@@ -2794,6 +2794,7 @@ function currentComposerSubject(){
 }
 
 function loadPromptDraft(subject){
+    if(subject?.nativePrompt?.schemaVersion===1){PixmaxReshootReferences.setPrompt(subject,subject.nativePrompt.prompt);promptInput.innerHTML=subject.promptDraftHtml;return;}
     if(subject?.promptDraftHtml){
         const hasToken = String(subject.promptDraftHtml || '').includes('mention-image-token');
         promptInput.innerHTML = hasToken
@@ -2812,8 +2813,11 @@ function positionComposerForNode(node){
     if(!node) return;
     const rect = nodeRect(node);
     const gap = 16;
-    const scale=safeScale(viewport.scale),minX=(16-viewport.x)/scale;
-    const available=Math.max(240,(shell.clientWidth-32)/scale);
+    const scale=safeScale(viewport.scale),bounds=smartViewportBounds();
+    const rail=shell.querySelector('.pixmax-rail'),shellRect=shell.getBoundingClientRect();
+    const left=Math.max(bounds.x||0,rail&&!rail.hidden?rail.getBoundingClientRect().right-shellRect.left+12:0);
+    const minX=(left+16-viewport.x)/scale;
+    const available=Math.max(240,(bounds.x+bounds.width-left-32)/scale);
     const cardW = Math.min(720,available);
     composer.style.width = `${cardW}px`;
     composer.style.left = `${Math.max(minX,Math.min(rect.x+rect.width/2-cardW/2,minX+available-cardW))}px`;
@@ -4150,7 +4154,7 @@ function createSmartComposer(){
             window.addEventListener(type,fn);listeners.push([type,fn]);
         }
     }
-    function documentReplaced(){if(destroyed)return;inputVersion++;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
+    function documentReplaced(){if(destroyed)return;window.PixmaxNativePrompt?.dispose();inputVersion++;activeComposerSubject=null;lastComposerNodeId='';targetCanvasId='';}
     function documentImported(){if(!destroyed){inputVersion++;activeComposerSubject=null;}}
     function outputSelected(){if(!destroyed && activeComposerSubject?.id && smartSelection.nodeId===activeComposerSubject.id)lastComposerNodeId=smartSelection.nodeId+':node';}
     function finishCascade(){if(destroyed)return;documentReplaced();composer.classList.remove('open');}
@@ -4161,7 +4165,7 @@ function createSmartComposer(){
         if(clearInput)setPromptText('');
     }
     function pause(){if(!destroyed){inputVersion++;paused=true;}}
-    function resume(){if(!destroyed && paused){paused=false;updateComposer();}}
+    function resume(){if(!destroyed && paused){paused=false;updateComposer();void window.PixmaxNativePrompt?.sync();}}
     function destroy(){if(destroyed)return;documentReplaced();smartComposerBaseline=null;clearListeners();if(typeof composer!=='undefined')composer?.classList.remove('open');destroyed=true;paused=false;}
     function activeSettingsSubject(){
         const active = canvas?.id===targetCanvasId && activeComposerSubject && nodes.includes(activeComposerSubject)
@@ -4182,6 +4186,7 @@ function createSmartComposer(){
         if(!subject) return;
         settings = enforceSmartGenerationKind(subject, settings);
         subject.runSettings = settingsForStorage(settings);
+        void globalThis.PixmaxNativePrompt?.sync();
         if(smartComposerBaseline?.nodeId === subject.id) smartComposerBaseline.settings = JSON.stringify(settingsForStorage(settings));
         rememberRecentSmartSettings(settings, subject);
     }
@@ -4213,6 +4218,7 @@ function createSmartComposer(){
         if(promptInput?.dataset?.promptLocked === '1') return;
         const subject = activeComposerNode();
         if(!subject) return;
+        window.PixmaxNativePrompt?.flush(subject);
         if(promptInput?.dataset?.preserveDraftOnce === '1' && subject.promptDraftHtml){
             delete promptInput.dataset.preserveDraftOnce;
             return;
@@ -4223,7 +4229,7 @@ function createSmartComposer(){
         if(changes.prompt){
             subject.promptDraftHtml = promptInput.innerHTML;
             subject.promptDraftText = promptPlainText();
-            if(subject.segmentReshoot?.schemaVersion===1)window.PixmaxReshootReferences?.captureComposer(subject);
+            if(subject.segmentReshoot?.schemaVersion===1||subject.nativePrompt?.schemaVersion===1)window.PixmaxReshootReferences?.captureComposer(subject);
             if(smartComposerBaseline?.nodeId === subject.id){
                 smartComposerBaseline.html = subject.promptDraftHtml;
                 smartComposerBaseline.text = subject.promptDraftText;
@@ -4384,7 +4390,7 @@ function createSmartComposer(){
         get state(){return Object.freeze({open:Boolean(!destroyed && typeof composer!=='undefined' && composer?.classList.contains('open')),nodeId:activeComposerNode()?.id||'',targetValid:Boolean(activeComposerNode()),canvasId:targetCanvasId,paused,destroyed});},
         activeNode:activeComposerNode,settingsSubject:activeSettingsSubject,changes:smartComposerChanges,applyOutpaint,setManualMediaUrls,
         bind,pause,resume,destroy,close,documentReplaced,documentImported,outputSelected,finishCascade,
-        refresh:(...args)=>{if(!paused && !destroyed)return updateComposer(...args);},
+        refresh:(...args)=>{if(!paused && !destroyed){const result=updateComposer(...args);void globalThis.PixmaxNativePrompt?.sync();return result;}},
         // Existing background saves must still flush the paused page's input.
         saveDraft:(...args)=>{if(!destroyed)return savePromptDraftForCurrent(...args);},
         persistSettings:(...args)=>{if(!paused && !destroyed)return persistActiveSmartSettings(...args);},

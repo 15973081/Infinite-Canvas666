@@ -31,7 +31,7 @@
         return {candidates,skipped,excludedDownstreamIds:[...excluded]};
     }
     async function prepare(node,type){
-        if(node.segmentReshoot?.schemaVersion===1){const guard=canvasTaskWriteGuard(node);await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
+        if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){const guard=canvasTaskWriteGuard(node);await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
         if(type==='audio')return window.PixmaxAudioCreation.prepare(node);
         if(type==='model')return window.PixmaxModelCreation.prepare(node);
         if(type==='llm'){
@@ -53,7 +53,7 @@
     async function preview(frame){
         if(isSmartCanvasLocked()||!window.CanvasSession?.enabled)throw new Error('请先开始编辑成员画布');
         const initialGuard=canvasTaskWriteGuard(frame);
-        for(const node of nodes.filter(node=>node.frameId===frame.id&&node.segmentReshoot?.schemaVersion===1)){
+        for(const node of nodes.filter(node=>node.frameId===frame.id&&(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1))){
             const guard=canvasTaskWriteGuard(node,frame);await PixmaxSubjects.refresh(node,()=>initialGuard.valid()&&guard.valid());guard.check();
         }
         initialGuard.check();
@@ -105,7 +105,7 @@
             try{
                 if(!snapshot.guard.valid()||canvas!==snapshot.origin||stamp(snapshot.frame)!==snapshot.selection)throw Error('分组或编辑资格已变化');
                 if(busy(node))throw Error('节点已在运行');
-                if(node.segmentReshoot?.schemaVersion===1){await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
+                if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
                 entry.binding.check();binding=smartTaskInputBinding(node,node,guard);const target=await binding.prepare();binding.beginSubmission();
                 id='canvas_'+({image:'img',video:'vid'}[entry.kind]||entry.kind)+'_'+crypto.randomUUID().replace(/-/g,'');active.set(node,id);
                 const request={...entry.request,canvas_id:canvas.id,client_task_id:id,canvas_target:target};dispatched=true;

@@ -1,0 +1,38 @@
+/* Real authenticated ASGI/PG transport; only supplier completion is simulated. */
+const assert=require('node:assert/strict'),readline=require('node:readline'),fs=require('node:fs'),path=require('node:path');
+const {fixture}=require('./canvas-browser.cjs');
+const lines=readline.createInterface({input:process.stdin}),requests=new Map();let sequence=0,resolveInitial,dataRoot;
+const initial=new Promise(resolve=>resolveInitial=resolve);
+lines.on('line',line=>{let message=JSON.parse(line);if(message.initial){dataRoot=path.resolve(message.initial.directory);return resolveInitial(message.initial);}assert.match(message.file,/^response-\d+\.json$/);message=JSON.parse(fs.readFileSync(path.join(dataRoot,message.file),'utf8'));const resolve=requests.get(message.id);requests.delete(message.id);resolve(message);});
+const watchdog=setTimeout(()=>{console.error('Native prompt browser bridge timed out');process.exit(2);},60000);watchdog.unref();
+async function rpc(request){const url=new URL(request.url()),id=++sequence,answer=new Promise(resolve=>requests.set(id,resolve)),body=request.postDataBuffer(),bodyFile=body?'body-'+id+'.bin':null;if(body)fs.writeFileSync(path.join(dataRoot,bodyFile),body);const file='request-'+id+'.json';fs.writeFileSync(path.join(dataRoot,file),JSON.stringify({id,path:url.pathname+url.search,method:request.method(),headers:request.headers(),bodyFile}));process.stdout.write(JSON.stringify({file})+'\n');return answer;}
+async function transport(request){const pathname=new URL(request.url()).pathname;if(/^\/api\/(canvases|canvas-folders|canvas-(image|video)-tasks|subject-library)(\/|$)/.test(pathname)||pathname==='/api/config')return rpc(request);}
+(async()=>{
+    const config=await initial,cleanup=[];
+    try{
+        const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,permissions:['canvas.read','canvas.edit','canvas.create','generation.submit','provider.use','asset.read','asset.manage'],apiHandler:transport});
+        for(const pattern of ['**/assets/cloud/**','**/api/media/**','**/api/media-preview**'])await page.route(pattern,async route=>{const response=await rpc(route.request());if(response.binaryFile)assert.match(response.binaryFile,/^binary-\d+\.bin$/);return route.fulfill(response.binaryFile?{status:response.status,body:fs.readFileSync(path.join(dataRoot,response.binaryFile)),contentType:response.contentType,headers:response.headers}:{status:response.status,json:response.body});});
+        await page.evaluate(config=>{window.__nativeOptions=MemberCanvasEdit.options;CanvasSession.context.member.id=config.member;CanvasSession.context.workspace.id=config.workspace;CanvasSession.storageKey=key=>config.member+':'+config.workspace+':'+key;apiProviders=[config.provider];},config);
+        for(const file of ['member-canvas-edit.js','canvas-task-bindings.js'])await page.addScriptTag({url:'/static/js/'+file});
+        await page.evaluate(async config=>{
+            await MemberCanvasEdit.mount(__nativeOptions);await MemberCanvasEdit.active.lease.start(MemberCanvasEdit.active.options.reload);
+            window.__nativeTarget=createGenerationNodeAt({x:400,y:100},config.kind);
+            Object.assign(__nativeTarget.runSettings,{engine:'api',apiKind:config.kind,provider_id:config.provider.id,model:config.provider.image_models[0],videoProvider:config.provider.id,videoModel:config.provider.video_models[0],videoTaskMode:'auto',videoAspect:'16:9',videoDuration:5,videoResolution:'720p'});render();
+        },config);
+        if(await page.locator('.pixmax-navigator-toggle[aria-expanded=true]').count())await page.locator('.pixmax-navigator-toggle').click();
+        await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('黄昏的摄影师缓慢回头');
+        if(config.subject){
+            await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.getByText(config.subject.name,{exact:true}).waitFor();await library.locator('[data-subject-cards] .group').filter({hasText:config.subject.name}).hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});
+            assert.equal(await page.locator('.pixmax-native-prompt [data-editor-node-type=subject-reference]').count(),1);
+        }else{
+            await page.getByRole('button',{name:'添加镜头参数',exact:true}).click();const panel=page.locator('[data-native-camera] [role=dialog]');await panel.waitFor();await panel.locator('header button').click();assert.equal(await page.locator('.pixmax-native-prompt [data-hash-type=camera]').count(),1);
+        }
+        await page.evaluate(()=>runGeneration());await page.waitForFunction(()=>__nativeTarget.images.length===1).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({notices:[...document.querySelectorAll('[role=status],.toast')].map(item=>item.textContent),pending:__nativeTarget.pendingTasks}))));});
+        assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
+        // Reload through the actual lease controller, then reopen the saved editor.
+        await page.evaluate(async()=>{const id=__nativeTarget.id;await MemberCanvasEdit.active.options.reload();window.__nativeTarget=nodes.find(node=>node.id===id);smartSelection.createdNode(id);render();});
+        await page.getByRole('textbox',{name:'生成提示词',exact:true}).waitFor();
+        assert.equal(await page.locator('.pixmax-native-prompt '+(config.subject?'[data-editor-node-type=subject-reference]':'[data-hash-type=camera]')).count(),1);
+        assert.match(await page.getByRole('textbox',{name:'生成提示词',exact:true}).innerText(),/黄昏的摄影师/);assert.deepEqual(errors,[]);process.stdout.write(JSON.stringify({done:true,targetId:await page.evaluate(()=>__nativeTarget.id)})+'\n');
+    }finally{for(const close of cleanup.reverse())await close();clearTimeout(watchdog);lines.close();}
+})().then(()=>process.exit(0)).catch(error=>{console.error(error.stack);process.exit(1);});

@@ -153,7 +153,7 @@ export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params
     }});
     await tf();const editor=instance.getRichEditorManager()?.editorEl;
     if(editor){editor.setAttribute('role','textbox');editor.setAttribute('aria-label',props.ariaLabel||'重拍要求');editor.setAttribute('aria-multiline','true');}
-    return {instance,setValue(next){B(value,next,true);},setReferences(next){B(references,next,true);},setReadonly(next){B(readonly,!!next);},setInvalidSubjects(next){B(invalidSubjects,next,true);},
+    return {instance,setValue(next){B(value,next,true);const manager=instance.getRichEditorManager();if(manager&&manager.serialize()!==next)manager.deserialize(next);return tf();},setReferences(next){B(references,next,true);},setReadonly(next){B(readonly,!!next);},setInvalidSubjects(next){B(invalidSubjects,next,true);},
       async insertSubject(item){const manager=instance.getRichEditorManager(),before=manager.serialize();instance.insertChipItem('subject-reference',item,'caret');await tf();const value=manager.serialize();if(value===before)throw Error('主体标签插入失败');return value;},
       insertMention(item){return instance.insertChipItem('at-mention',item,'caret');},insertCamera(item){return instance.insertCameraChip(item);},insertCamerawork(item){return instance.insertCameraworkChip(item);},destroy(){return Of(instance);}};
   },

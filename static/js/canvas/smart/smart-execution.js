@@ -1041,6 +1041,7 @@ function originalPromptTextFromParts(parts){
 }
 
 function buildPromptRequest(node, overrideDefaultImages=null, consumeDefault=false, ctx=null){
+    if(node.nativePrompt?.schemaVersion===1){const current=PixmaxReshootReferences.plan(node,{base:overrideDefaultImages||defaultReferenceImagesFor(node,consumeDefault,ctx),ctx});return {prompt:PixmaxReshootReferences.validate(node,current),displayPrompt:node.promptDraftText,refs:current.entries.filter(entry=>entry.media).map(entry=>({...entry.media,referenceLabel:entry.alias})),mentioned:/%%@\[|%%subject-ref\(/.test(node.nativePrompt.prompt)};}
     const parts = collectPromptParts();
     if(smartTypedVideoInputs()){
         const base = Array.isArray(overrideDefaultImages) ? overrideDefaultImages : defaultReferenceImagesFor(node, consumeDefault, ctx);
@@ -1598,6 +1599,7 @@ function syncCascadeRunButton(node=selectedNode()){
 }
 
 function loadNodePromptDraftToInput(node){
+    if(node?.nativePrompt?.schemaVersion===1){PixmaxReshootReferences.setPrompt(node,node.nativePrompt.prompt);promptInput.innerHTML=node.promptDraftHtml;return;}
     if(node?.promptDraftHtml) {
         const hasToken = String(node.promptDraftHtml || '').includes('mention-image-token');
         promptInput.innerHTML = hasToken
@@ -1626,7 +1628,7 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
     const writeGuard=canvasTaskWriteGuard(node);
     writeGuard.check(); inputBinding?.check();
     inputBinding ||= smartTaskInputBinding(node,node,writeGuard);
-    if(node.segmentReshoot?.schemaVersion===1){await PixmaxSubjects.refresh(node,writeGuard.valid,{checkOnly:true});writeGuard.check();inputBinding.check();}
+    if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){await PixmaxSubjects.refresh(node,writeGuard.valid,{checkOnly:true});writeGuard.check();inputBinding.check();}
     let activeSettings = window.PixmaxSegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
     if(node.segmentReshoot?.schemaVersion===1){const request=PixmaxReshootReferences.request(node,activeSettings);prompt=request.prompt;refs=request.refs;activeSettings=request.settings;}
     if(activeSettings.engine === 'comfy') return generateComfyUrlsWithSettings(activeSettings, prompt, refs);
@@ -1996,6 +1998,12 @@ async function runGeneration(){
     const node = selectedNode();
     if(!node) return;
     if(node.segmentReshoot?.schemaVersion===1)return window.PixmaxSegmentReshoot.open(node);
+    savePromptDraftForCurrent();
+    if(node.nativePrompt?.schemaVersion===1){
+        const guard=canvasTaskWriteGuard(node),configuration=JSON.stringify(settingsForStorage(smartSettingsForNode(node)));
+        const valid=()=>guard.valid()&&selectedNode()===node&&activeComposerNode()===node&&JSON.stringify(settingsForStorage(smartSettingsForNode(node)))===configuration;
+        try{await PixmaxSubjects.refresh(node,valid);guard.check();if(!valid())throw Error('生成节点或参数已变化，请确认当前内容后重新生成');}catch(error){return toast(error.message);}
+    }
     if(window.PixmaxBatchExecution?.busy(node.id))return toast('此节点正在批量生成，请等待当前任务完成');
     const previousSettings = cloneSmartSettings(settings);
     const runSettings = smartSettingsForNode(node);

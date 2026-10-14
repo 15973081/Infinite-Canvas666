@@ -354,6 +354,7 @@ async function loadCanvas(options={}){
                     document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
                     updateSmartNodeToolbarAccess();
                     window.PixmaxSegmentReshoot?.documentChanged();
+                    void window.PixmaxNativePrompt?.sync();
                     world.querySelectorAll('.prompt-node-text').forEach(input => { input.readOnly = !lease.canEdit; });
                     window.PixmaxNavigator?.documentChanged();
                     if(lease.canEdit) resumeSmartPendingTasks();
@@ -543,6 +544,7 @@ bindSmartSessionVisibility();
 
 function refreshSmartModelControls(){
     window.PixmaxSegmentReshoot?.configurationChanged?.();
+    void window.PixmaxNativePrompt?.sync();
     const active = document.activeElement;
     const editing = dynamicParams?.contains(active) ? dynamicParams : null;
     if(editing && active?.matches('input,textarea,select,[contenteditable="true"]')){
