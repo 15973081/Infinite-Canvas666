@@ -31,6 +31,9 @@
 .pixmax-directory-main .pixmax-directory-pin { margin-left:auto; width:12px; height:12px; }
 .pixmax-directory-more { width:28px; flex-shrink:0; height:28px; opacity:0; font-size:20px!important; }
 .pixmax-directory-row:hover .pixmax-directory-more,.pixmax-directory-row:focus-within .pixmax-directory-more { opacity:1; }
+.pixmax-directory-row[data-directory-placement=into],.pixmax-directory-list[data-directory-placement=into]{box-shadow:inset 0 0 0 1px #aeb6c5;border-radius:6px}
+.pixmax-directory-row[data-directory-placement=above]{box-shadow:inset 0 2px #aeb6c5}
+.pixmax-directory-row[data-directory-placement=below]{box-shadow:inset 0 -2px #aeb6c5}
 .pixmax-directory-empty { color:#9199a9; padding:12px 0; font-size:13px; }
 .pixmax-navigator .pixmax-directory-trash { border-top:1px solid #313136;padding:12px 16px;text-align:left;flex-shrink:0;font-size:13px; }
 .pixmax-directory-trash-row button { flex-shrink:0;padding:4px 8px;font-size:12px; }

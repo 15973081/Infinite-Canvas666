@@ -7,7 +7,7 @@
         if(url.origin!==location.origin)return null;
         const match=url.pathname.match(/^\/api\/canvases\/([^/]+)(.*)$/);
         if(!match)return null;
-        return ((match[2]==='/folder'&&method==='PATCH') ||
+        return ((['/folder','/placement'].includes(match[2])&&method==='PATCH') ||
             (['/meta','/restore'].includes(match[2])&&method==='POST') ||
             (['','/purge'].includes(match[2])&&method==='DELETE')) ? decodeURIComponent(match[1]) : null;
     }

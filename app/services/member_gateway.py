@@ -132,6 +132,8 @@ def permissions(path, method):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:
         return ('canvas.read',) if method == 'GET' else ('canvas.create',) if method == 'POST' and path == '/api/canvases' else None
+    if re.fullmatch(r'/api/(?:canvas-folders|canvases)/[^/]+/placement',path) and method=='PATCH':
+        return ('canvas.read','canvas.edit')
     if re.fullmatch(r'/api/canvas-folders/[^/]+/delete-tree',path) and method=='POST':
         return ('canvas.read','canvas.edit','canvas.delete')
     if path.startswith('/api/canvas-folders'):
@@ -203,6 +205,9 @@ def permissions(path, method):
 
 
 def operation(path, method):
+    if re.fullmatch(r'/api/(?:canvas-folders|canvases)/[^/]+/placement',path) and method=='PATCH':
+        # The placement service locks the directory before validating a canvas lease.
+        return 'write', None
     if re.fullmatch(r'/api/canvases/[^/]+/touch', path) and method == 'POST':
         return 'read', None  # This endpoint only returns the existing canvas record.
     if re.fullmatch(r'/api/canvases/[^/]+/page-state', path):

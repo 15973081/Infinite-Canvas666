@@ -388,6 +388,15 @@ class CanvasFolderUpdateRequest(BaseModel):
     order: Optional[int] = None
 
 
+class CanvasDirectoryPlacement(BaseModel):
+    model_config = {'extra': 'forbid'}
+    target_kind: Literal['folder', 'canvas', 'root']
+    target_id: str = Field(default='', max_length=96, pattern=r'^[A-Za-z0-9_-]*$')
+    placement: Literal['into', 'above', 'below']
+    source_parent_id: str = Field(max_length=96, pattern=r'^[A-Za-z0-9_-]*$')
+    target_parent_id: str = Field(max_length=96, pattern=r'^[A-Za-z0-9_-]*$')
+
+
 class CanvasFolderTreeProof(BaseModel):
     model_config = {'extra': 'forbid'}
     id: str = Field(min_length=1,max_length=96)
@@ -635,7 +644,7 @@ __all__ = [
     "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasAudioVoiceRegistration", "CanvasAudioVoiceDelete", "CanvasModelTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
-    "CanvasFolderUpdateRequest", "CanvasFolderTreeProof", "CanvasFolderTreeDelete", "CanvasMoveRequest",
+    "CanvasFolderUpdateRequest", "CanvasDirectoryPlacement", "CanvasFolderTreeProof", "CanvasFolderTreeDelete", "CanvasMoveRequest",
     "CanvasMetaUpdate", "CanvasSaveRequest",
     "CanvasAssetCheckRequest", "CanvasAssetDownloadRequest",
     "CanvasWorkflowExportRequest",

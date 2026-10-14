@@ -26,7 +26,7 @@
       "source": "static/js/pixmax-navigator.js",
       "browserCases": 22,
       "verified": ["参考侧栏尺寸及默认展开", "跨层文件夹搜索", "节点内容搜索、类型筛选和定位", "重命名、pin、撤销和删除后的列表同步", "目录操作复用当前会员写入入口", "创建画布后当前保存失败时保留新画布", "切换画布前保存及失败阻止导航", "旧目录响应失效", "工作空间切换隔离", "只读用户及失效编辑资格", "可见区域缩放和移动端定位", "键盘切换页签和菜单"],
-      "remaining": ["文件夹移动、其他目录菜单与级联删除的最终对照；级联删除实现见 folderTreeDeletionBackendEvidence", "更多视觉细节和大目录性能验证"]
+      "remaining": ["全部目录菜单、拖放与级联删除的最终对照；实现见 directoryPlacementEvidence 与 folderTreeDeletionBackendEvidence", "更多视觉细节和大目录性能验证"]
     },
     "navigatorDeletionEvidence": {
       "source": ["static/js/pixmax-navigator.js", "static/js/canvas-name-dialog.js", "static/js/member-canvas-edit.js", "static/js/canvas-edit-lease.js", "static/js/canvas-navigation.js", "app/routers/canvas.py"],
@@ -39,7 +39,7 @@
       "verified": ["准确名称、取消和单次删除；搜索、恢复、永久删除与直接永久删除当前画布", "真实浏览器加载生产会员编辑器，保存最后文本、冻结编辑、按删除后版本释放资格，离开时不再次保存已删除画布", "最终保存失败保留草稿；工作空间变化关闭旧确认；拒绝恢复保留记录与重试入口；永久删除拒绝说明部分结果", "真实 PostgreSQL 删除响应包含 ID、版本和删除时间，释放后可立即重新取得编辑资格并恢复", "真实 PostgreSQL 永久删除隐藏画布且拒绝恢复；已上传 PNG 仍可读取，保留既有服务端审计文档"],
       "relatedRegression": "133 项前端、目录、导航、草稿与编辑资格检查及 93 项隔离数据库回归通过。旧首页恢复测试使用实际会员写入入口，不再通过夹具的直发请求绕过临时编辑资格。",
       "preview": ".local/pixmax-directory-permanent-delete.png",
-      "remaining": ["文件夹级联删除底层见 folderTreeDeletionBackendEvidence；侧栏名称确认、批量编辑资格收集与回执恢复仍需接入", "参考全部目录菜单、移动端及大目录性能最终对照"]
+      "remaining": ["文件夹级联删除及回执恢复见 folderTreeDeletionBackendEvidence；混合排序和拖放见 directoryPlacementEvidence，仍需最终原生对照", "参考全部目录菜单、移动端及大目录性能最终对照"]
     },
     "folderTreeDeletionBackendEvidence": {
       "source": ["app/services/canvas_folder_deletion.py", "app/storage/canvas_directory.py", "app/services/member_context.py", "app/storage/canvases.py", "static/js/canvas-directory-api.js", "static/js/canvas-folder-deletion.js", "static/js/pixmax-navigator.js", "static/js/member-canvas-edit.js", "static/js/canvas-name-dialog.js", "static/canvas-home.html", "tests/helpers/pixmax-folder-delete-http.cjs"],
@@ -54,6 +54,19 @@
       "browserCases": 13,
       "preview": [".local/pixmax-folder-deletion-confirm.png", ".local/pixmax-folder-deletion-recovery.png"],
       "verificationScope": "浏览器回归使用原页面与生产编辑资格控制器；13 项专项覆盖确定、拒绝和不确定结果。真实浏览器数据库桥接使用隔离测试数据，无用户画布写入或收费供应商调用。"
+    },
+    "directoryPlacementEvidence": {
+      "source": ["app/services/canvas_directory_placement.py", "app/services/member_gateway.py", "app/routers/canvas.py", "static/js/pixmax-navigator.js", "static/js/canvas-directory-api.js", "static/js/canvas-directory-writes.js", "tests/helpers/pixmax-directory-placement-http.cjs"],
+      "status": "implemented_requires_final_verification",
+      "nativeContract": "参考 oet.moveNode / EX.resolveMoveTarget 的 into、above、below 三种位置；文件夹中间 30%–70% 为放入，上下边缘为排序；画布上半/下半为上方/下方。文件夹与画布共享兄弟顺序。",
+      "api": ["PATCH /api/canvas-folders/{id}/placement", "PATCH /api/canvases/{id}/placement", "GET /api/canvas-folders 返回 folders 与 ordering"],
+      "mechanism": ["目录排他锁先于目标画布行/编辑资格校验，避免锁升级并与创建、移动和级联删除协调", "目录顺序单独保存在 workspace_documents.canvas_directory_order；不为了排序重写兄弟画布文档或版本", "根据当前空间中的活动成员解析目标，核对拖放时的源/目标父目录；拒绝自身、后代、已删除和迟到目标", "文件夹移动只改变自身父目录，后代文档和编辑资格保留；画布移动必须通过该画布的私有编辑令牌及版本验证", "当前画布先完成保存，其他画布通过短期编辑资格写入并释放；按原操作空间接受结果，失败后刷新权威目录而不乐观移动"],
+      "browserCases": 9,
+      "databaseCases": 10,
+      "verified": ["真实鼠标拖放进入文件夹、跨层和文件夹/画布混合排序，目标展开，刷新后顺序保留", "当前画布最后文本保存后移动，当前编辑资格保留；其他画布获取和释放独立临时资格", "保存失败保留草稿且不发送移动；只读用户及循环嵌套不能发起移动", "服务端拒绝保留原层级并显示目标冲突；空间变化拒绝迟到回执和新空间文档更新", "隔离 PostgreSQL 中子目录与后代文档保留、兄弟文档版本不变、改名后排序保留和原相对位置重复请求幂等", "权限/跨空间拒绝、源/目标父目录变化与缺失画布资格拒绝，没有部分排序写入", "真实并发移动与级联删除串行化，旧删除计划拒绝执行且所有画布保留", "真实浏览器通过认证 ASGI 与 PostgreSQL 完成最终文本保存、三次混合目录拖放及刷新持久化顺序"],
+      "relatedRegression": "155 项前端目录、导航、删除、保存及编辑资格回归通过；错误提示修正后复验 44 项原生侧栏专项通过；174 项隔离数据库、网关、目录、编辑资格和任务回归通过。最后追加的空间清理保护由原生拖放与空间切换专项复验。",
+      "preview": ".local/pixmax-directory-placement.png",
+      "remaining": ["全部目录菜单和移动端原生交互最终对照", "大目录、长层级、混合素材的性能及完整生命周期验证；排序记录在下一次拖放时清理已不存在的成员", "历史目录排序迁移与实际部署网络的最终验收"]
     },
     "nativeMediaEvidence": {
       "bugFixed": "参考接口的 /static/img 等媒体地址属于资产 ossDomain，不能直接请求接收应用的静态目录",

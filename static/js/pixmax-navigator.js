@@ -2,7 +2,7 @@
 (() => {
     'use strict';
     let panel,toggleButton,list,menu,frame=null,requestVersion=0,scope='',tab='canvas',query='',type='',folder='',opened=true;
-    let records=[],folders=[],collapsed=new Set(),signature='',loading=false,disposed=false,trashMode=false;
+    let records=[],folders=[],ordering={},collapsed=new Set(),signature='',loading=false,disposed=false,trashMode=false,dragging=null;
     const removedIds=new Set(),pendingIds=new Set();
     const labels={text:'文本生成节点',image:'图像节点',video:'视频节点',audio:'音频生成节点',model:'3D模型生成节点',storyboard:'分镜脚本',director:'导演台',editor:'剪辑台',frame:'分组'};
     const icons={text:'text-cursor-input',image:'image',video:'clapperboard',audio:'music',model:'box',storyboard:'layout-grid',director:'clapperboard',editor:'monitor-play',frame:'group'};
@@ -53,17 +53,22 @@
         const grouped=new Map();
         for(const item of records){const key=item.folder_id||'';if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(item);}
         for(const group of grouped.values())group.sort((a,b)=>window.CanvasDirectoryModel.compareRecords(a,b,'updated'));
-        const row=(item,depth)=>`<div class="pixmax-directory-row ${item.id===canvas?.id?'active':''}" draggable="true" data-canvas-row="${escapeAttr(item.id)}" style="--directory-depth:${Math.min(depth,8)}"><a class="pixmax-directory-main" data-canvas-open="${escapeAttr(item.id)}" href="${escapeAttr(window.CanvasNavigation.canvasUrl(item.id))}" target="_top" ${item.id===canvas?.id?'aria-current="page"':''}><i data-lucide="${item.kind==='smart'?'scan':'layout-grid'}"></i><span>${escapeHtml(item.title||'未命名画布')}</span></a><button type="button" class="pixmax-directory-more" data-canvas-menu="${escapeAttr(item.id)}" aria-label="画布操作 ${escapeAttr(item.title||'未命名画布')}">⋯</button></div>`;
-        const items=(id,depth,all)=>(grouped.get(id)||[]).filter(item=>all||!search||normalized(item.title).includes(search)).map(item=>row(item,depth)).join('');
+        const row=(item,depth)=>`<div class="pixmax-directory-row ${item.id===canvas?.id?'active':''}" draggable="${can('canvas.edit')&&(item.id!==canvas?.id||!isSmartCanvasLocked())}" data-directory-kind="canvas" data-directory-id="${escapeAttr(item.id)}" data-canvas-row="${escapeAttr(item.id)}" style="--directory-depth:${Math.min(depth,8)}"><a class="pixmax-directory-main" data-canvas-open="${escapeAttr(item.id)}" href="${escapeAttr(window.CanvasNavigation.canvasUrl(item.id))}" target="_top" ${item.id===canvas?.id?'aria-current="page"':''}><i data-lucide="${item.kind==='smart'?'scan':'layout-grid'}"></i><span>${escapeHtml(item.title||'未命名画布')}</span></a><button type="button" class="pixmax-directory-more" data-canvas-menu="${escapeAttr(item.id)}" aria-label="画布操作 ${escapeAttr(item.title||'未命名画布')}">⋯</button></div>`;
+        function children(id,depth,all){
+            const rank=new Map((ordering[id]||[]).map((key,index)=>[key,index]));
+            const entries=[...(grouped.get(id)||[]).map(item=>({kind:'canvas',item})),...model.children(id).map(item=>({kind:'folder',item}))];
+            entries.sort((a,b)=>(rank.get(a.kind+':'+a.item.id)??Infinity)-(rank.get(b.kind+':'+b.item.id)??Infinity));
+            return entries.map(({kind,item})=>kind==='folder'?branch(item,depth,all):(all||!search||normalized(item.title).includes(search)?row(item,depth):'')).join('');
+        }
         function branch(item,depth,inherited=false){
             if(seen.has(item.id))return '';seen.add(item.id);
             const matches=inherited||Boolean(search&&normalized(item.name).includes(search));
-            const contents=items(item.id,depth+1,matches)+model.children(item.id).map(child=>branch(child,depth+1,matches)).join('');
+            const contents=children(item.id,depth+1,matches);
             if(search&&!matches&&!contents)return '';
             const expanded=Boolean(search)||!collapsed.has(item.id);
-            return `<section class="pixmax-directory-folder" data-folder-drop="${escapeAttr(item.id)}"><div class="pixmax-directory-row ${folder===item.id?'chosen':''}" style="--directory-depth:${Math.min(depth,8)}"><button type="button" class="pixmax-directory-main" data-folder-toggle="${escapeAttr(item.id)}" aria-label="文件夹 ${escapeAttr(item.name)}" aria-expanded="${expanded}"><i data-lucide="${expanded?'chevron-down':'chevron-right'}"></i><i data-lucide="folder"></i><span>${escapeHtml(item.name)}</span></button><button type="button" class="pixmax-directory-more" data-folder-menu="${escapeAttr(item.id)}" aria-label="文件夹操作 ${escapeAttr(item.name)}">⋯</button></div>${expanded?contents:''}</section>`;
+            return `<section class="pixmax-directory-folder" data-folder-drop="${escapeAttr(item.id)}"><div class="pixmax-directory-row ${folder===item.id?'chosen':''}" draggable="${can('canvas.edit')}" data-directory-kind="folder" data-directory-id="${escapeAttr(item.id)}" style="--directory-depth:${Math.min(depth,8)}"><button type="button" class="pixmax-directory-main" data-folder-toggle="${escapeAttr(item.id)}" aria-label="文件夹 ${escapeAttr(item.name)}" aria-expanded="${expanded}"><i data-lucide="${expanded?'chevron-down':'chevron-right'}"></i><i data-lucide="folder"></i><span>${escapeHtml(item.name)}</span></button><button type="button" class="pixmax-directory-more" data-folder-menu="${escapeAttr(item.id)}" aria-label="文件夹操作 ${escapeAttr(item.name)}">⋯</button></div>${expanded?contents:''}</section>`;
         }
-        let html=items('',0,false)+model.children('').map(item=>branch(item,0)).join('');
+        let html=children('',0,false);
         // Malformed/orphaned folder records must neither recurse forever nor hide content.
         folders.forEach(item=>{if(!seen.has(item.id))html+=branch(item,0);});
         const known=new Set(folders.map(item=>item.id));
@@ -77,7 +82,7 @@
     function draw(){
         if(!panel||disposed)return;
         if(scope!==currentScope()){
-            records=[];folders=[];signature='';list.replaceChildren();closeMenu();void refresh();return;
+            records=[];folders=[];ordering={};dragging=null;signature='';list.replaceChildren();closeMenu();void refresh();return;
         }
         panel.querySelector('[data-directory-title]').textContent=documentInScope()?canvas?.title||'智能画布':window.CanvasSession.context?.workspace?.name||'画布';
         panel.querySelector('[data-directory-create-canvas]').disabled=!can('canvas.create');
@@ -111,18 +116,18 @@
         try{
             if(window.CanvasSession)await window.CanvasSession.ready;
             const expected=currentScope();
-            if(scope!==expected){scope=expected;records=[];folders=[];signature='';list.replaceChildren();readPreferences();panel.querySelector('[data-directory-search]').value='';panel.querySelector('[data-directory-type]').value='';setOpened(opened);}
+            if(scope!==expected){scope=expected;records=[];folders=[];ordering={};signature='';list.replaceChildren();readPreferences();panel.querySelector('[data-directory-search]').value='';panel.querySelector('[data-directory-type]').value='';setOpened(opened);}
             for(;;){
                 if(window.CanvasDirectoryApi.busy)await window.CanvasDirectoryApi.flush();
                 const epoch=window.CanvasDirectoryApi.epoch;
                 const [catalog,directory]=await Promise.all([trashMode?window.CanvasDirectoryApi.listTrashCanvases():window.CanvasDirectoryApi.listCanvases(),window.CanvasDirectoryApi.listCanvasFolders()]);
                 ensureScope(expected);if(version!==requestVersion)return;
                 if(epoch!==window.CanvasDirectoryApi.epoch)continue;
-                records=Array.isArray(catalog.canvases)?catalog.canvases:[];folders=Array.isArray(directory.folders)?directory.folders:[];
+                records=Array.isArray(catalog.canvases)?catalog.canvases:[];folders=Array.isArray(directory.folders)?directory.folders:[];ordering=directory.ordering||{};
                 if(!trashMode&&canvas&&documentInScope()&&!removedIds.has(canvas.id)&&!canvas.deleted_at&&!records.some(item=>item.id===canvas.id))records.unshift({id:canvas.id,title:canvas.title,kind:'smart',folder_id:canvas.folder_id||''});
                 if(folder&&!folders.some(item=>item.id===folder))folder='';break;
             }
-        }catch(error){if(version===requestVersion){records=[];folders=[];status(error.message||'加载目录失败，请重试');}}
+        }catch(error){if(version===requestVersion){records=[];folders=[];ordering={};status(error.message||'加载目录失败，请重试');}}
         finally{if(version===requestVersion){loading=false;documentChanged();}}
     }
     function viewportBounds(){
@@ -283,6 +288,39 @@
             }});
         }catch(error){if(expected===currentScope())status(error.message||'目录删除尚未确认');}
     }
+    function clearDrop(){panel?.querySelectorAll('[data-directory-placement]').forEach(row=>row.removeAttribute('data-directory-placement'));}
+    function directoryItem(kind,id){return (kind==='folder'?folders:records).find(item=>item.id===id);}
+    function dropTarget(event){
+        if(!dragging||trashMode||tab!=='canvas'||!can('canvas.edit')||dragging.scope!==currentScope())return null;
+        const row=event.target.closest('[data-directory-kind]');
+        if(!row)return list.contains(event.target)?{kind:'root',id:'',parent:'',placement:'into',row:list}:null;
+        const kind=row.dataset.directoryKind,id=row.dataset.directoryId,item=directoryItem(kind,id);
+        if(!item||dragging.kind===kind&&dragging.id===id)return null;
+        const rect=row.getBoundingClientRect(),fraction=(event.clientY-rect.top)/rect.height;
+        const placement=kind==='folder'?(fraction<.3?'above':fraction>.7?'below':'into'):(fraction<.5?'above':'below');
+        const parent=kind==='folder'?item.parent_id||'':item.folder_id||'';
+        if(dragging.kind==='folder'){
+            let cursor=placement==='into'?id:parent;const seen=new Set();
+            while(cursor){if(cursor===dragging.id||seen.has(cursor))return null;seen.add(cursor);cursor=directoryItem('folder',cursor)?.parent_id||'';}
+        }
+        return {kind,id,parent,placement,row};
+    }
+    async function placeDirectoryItem(source,target){
+        const active=source.kind==='canvas'&&source.id===canvas?.id,origin=canvas,epoch=window.MemberCanvasEdit?.active?.lease?.epoch;
+        const valid=()=>source.scope===currentScope()&&can('canvas.edit')&&(!active||(canvas===origin&&documentInScope()&&!isSmartCanvasLocked()&&window.MemberCanvasEdit?.active?.lease?.epoch===epoch));
+        if(!valid()||pendingIds.has(source.id))return;
+        pendingIds.add(source.id);status('正在移动目录项目…');
+        try{
+            if(active&&!await saveCanvas({force:true}))throw new Error('当前更改尚未保存，请稍后重试');
+            if(!valid())throw new Error('工作空间或编辑资格已变化，请重新打开目录');
+            const result=await CanvasDirectoryApi.placeDirectoryItem(source.kind,source.id,{target_kind:target.kind,target_id:target.id,placement:target.placement,source_parent_id:source.parent,target_parent_id:target.parent});
+            ensureScope(source.scope);if(result.ok!==true)throw new Error('移动结果尚未确认，请刷新目录');
+            if(active&&canvas===origin&&documentInScope()){canvas.folder_id=result.folder_id;if(Number.isSafeInteger(result.canvas?.revision))canvas.revision=result.canvas.revision;}
+            if(target.placement==='into'&&target.kind==='folder')collapsed.delete(target.id);
+            savePreferences();await refresh();
+        }catch(error){if(source.scope===currentScope()){await refresh();if(source.scope===currentScope())status(error.message||'移动尚未确认，请刷新目录');}}
+        finally{pendingIds.delete(source.id);if(source.scope===currentScope()){clearDrop();documentChanged();}}
+    }
     function bind(){
         if(panel||disposed)return;
         readPreferences();scope=currentScope();
@@ -318,17 +356,15 @@
                 buttons[next].click();buttons[next].focus();
             }
         });
-        panel.addEventListener('dragstart',event=>{const row=event.target.closest('[data-canvas-row]');if(!row)return;event.dataTransfer.setData('application/x-canvas-id',row.dataset.canvasRow);event.dataTransfer.effectAllowed='move';});
-        panel.addEventListener('dragover',event=>{if(!trashMode&&can('canvas.edit')&&[...event.dataTransfer.types].includes('application/x-canvas-id')){event.preventDefault();event.dataTransfer.dropEffect='move';}});
-        panel.addEventListener('drop',async event=>{
-            const target=event.target.closest('[data-folder-drop]'),id=event.dataTransfer.getData('application/x-canvas-id');if(trashMode||!target||!id)return;event.preventDefault();
-            const expected=currentScope();try{
-                if(!can('canvas.edit')||(id===canvas.id&&isSmartCanvasLocked()))throw new Error('请先开始编辑画布');
-                if(id===canvas.id&&!await saveCanvas({force:true}))throw new Error('当前更改尚未保存，请稍后重试');
-                const result=await window.CanvasDirectoryApi.moveCanvasToFolder(id,target.dataset.folderDrop);ensureScope(expected);
-                if(id===canvas.id){canvas.folder_id=target.dataset.folderDrop;if(Number.isSafeInteger(result.canvas?.revision))canvas.revision=result.canvas.revision;}await refresh();
-            }catch(error){status(error.message);}
+        panel.addEventListener('dragstart',event=>{
+            const row=event.target.closest('[data-directory-kind]'),kind=row?.dataset.directoryKind,id=row?.dataset.directoryId,item=directoryItem(kind,id);
+            if(!row||!item||!can('canvas.edit')||trashMode||pendingIds.has(id)||kind==='canvas'&&id===canvas?.id&&isSmartCanvasLocked()){event.preventDefault();return;}
+            dragging={kind,id,parent:kind==='folder'?item.parent_id||'':item.folder_id||'',scope:currentScope()};event.dataTransfer.setData('application/x-canvas-directory',JSON.stringify({kind,id}));event.dataTransfer.effectAllowed='move';
         });
+        panel.addEventListener('dragover',event=>{clearDrop();const target=dropTarget(event);if(target){event.preventDefault();event.dataTransfer.dropEffect='move';target.row.dataset.directoryPlacement=target.placement;}});
+        panel.addEventListener('drop',event=>{const source=dragging,target=dropTarget(event);clearDrop();dragging=null;if(source&&target){event.preventDefault();void placeDirectoryItem(source,target);}});
+        panel.addEventListener('dragend',()=>{dragging=null;clearDrop();});
+        panel.addEventListener('dragleave',event=>{if(!panel.contains(event.relatedTarget))clearDrop();});
         setOpened(opened);draw();void refresh();
     }
     document.addEventListener('pointerdown',event=>{if(menu&&!menu.contains(event.target)&&!event.target.closest('[data-canvas-menu],[data-node-menu],[data-folder-menu]'))closeMenu();});

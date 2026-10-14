@@ -1064,7 +1064,22 @@ def trashed_canvases():
 
 @router.get("/api/canvas-folders")
 def list_canvas_folders():
+    if postgres_enabled():
+        from app.services.canvas_directory_placement import catalog
+        return catalog()
     return {"folders": canvas_folder_records()}
+
+
+@router.patch('/api/canvas-folders/{folder_id}/placement')
+def place_canvas_folder(folder_id: str, payload: CanvasDirectoryPlacement):
+    from app.services.canvas_directory_placement import move
+    return move('folder', folder_id, payload)
+
+
+@router.patch('/api/canvases/{canvas_id}/placement')
+def place_directory_canvas(canvas_id: str, payload: CanvasDirectoryPlacement):
+    from app.services.canvas_directory_placement import move
+    return move('canvas', canvas_id, payload)
 
 @router.post("/api/canvas-folders")
 def create_canvas_folder(payload: CanvasFolderCreateRequest):
