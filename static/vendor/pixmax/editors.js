@@ -4647,6 +4647,8 @@ export const mountCanvasPlayer = (target, props) => Tf(aV, {target, props});
 export const unmountCanvasPlayer = instance => Of(instance);
 // Reuse the original media processor; canvas persistence stays in the host app.
 export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
+// Preserve native segment range limits, crop/frame preparation and upload caching.
+export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt};
 // Preserve the native drawing tools, timeline and timestamped PNG export.
 export async function mountCanvasVideoAnnotation(target, props, adapter, notify) {
   const container = new f;

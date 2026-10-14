@@ -193,7 +193,7 @@ function apiProviderById(providerId){
 // 认证素材 asset:// 是平台绑定的：返回某 provider 所属的认证平台键（与后端一致）
 function videoProviderPlatform(providerId){
     const p = (apiProviders || []).find(x => x.id === providerId);
-    const proto = String(p?.protocol || '').toLowerCase();
+    const proto = String(p?.protocol || p?.avatar_registration?.platform || '').toLowerCase();
     if(proto === 'volcengine' || providerId === 'volcengine') return 'volcengine';
     return '';
 }
@@ -1626,7 +1626,7 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
     const writeGuard=canvasTaskWriteGuard(node);
     writeGuard.check(); inputBinding?.check();
     inputBinding ||= smartTaskInputBinding(node,node,writeGuard);
-    const activeSettings = runSettings || settings;
+    const activeSettings = window.PixmaxSegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
     if(activeSettings.engine === 'comfy') return generateComfyUrlsWithSettings(activeSettings, prompt, refs);
     if(isApiLikeEngine(activeSettings.engine) && activeSettings.apiKind === 'video'){
         const taskResult = await runApiVideoGeneration(prompt, refs, activeSettings, inputBinding);
@@ -1993,6 +1993,7 @@ async function runGeneration(){
     if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
     const node = selectedNode();
     if(!node) return;
+    if(node.segmentReshoot?.schemaVersion===1)return window.PixmaxSegmentReshoot.open(node);
     if(window.PixmaxBatchExecution?.busy(node.id))return toast('此节点正在批量生成，请等待当前任务完成');
     const previousSettings = cloneSmartSettings(settings);
     const runSettings = smartSettingsForNode(node);
@@ -2257,7 +2258,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
         };
         if(options.preview)return payload;
         if(inputBinding){payload.canvas_target=await inputBinding.prepare();inputBinding.beginSubmission();}
-        const taskId = uid('canvas_vid');
+        const taskId = options.taskId || uid('canvas_vid');
         const submission = (window.CanvasApi?.createCanvasVideoTaskRequest
             ? window.CanvasApi.createCanvasVideoTaskRequest({...payload,client_task_id:taskId,canvas_id:canvasId})
             : fetch('/api/canvas-video-tasks', {
@@ -2265,7 +2266,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({...payload, client_task_id:taskId, canvas_id:canvasId})
         })).then(async r => {
-            if(!r.ok) throw new Error(await smartResponseErrorMessage(r, '生成失败'));
+            if(!r.ok){const error=new Error(await smartResponseErrorMessage(r, '生成失败'));error.status=r.status;throw error;}
             const task = await r.json();
             if(task?.task_id !== taskId) throw new Error('生成失败');
             inputBinding?.remember(task);return task;

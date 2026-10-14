@@ -41,6 +41,8 @@
         }
         const old=settings;let request,config;
         try{settings={...settings,...cloneSmartSettings(smartSettingsForNode(node))};config=cloneSmartSettings(settings);request=buildPromptRequestForNode(node,null);}finally{settings=old;}
+        config=window.PixmaxSegmentReshoot?.executionSettings(node,config)||config;
+        if(node.segmentReshoot?.schemaVersion===1)request.prompt=node.segmentReshoot.prompt.trim()||'保留原画面、人物、声音及镜头运动，不改变内容。';
         if(!isApiLikeEngine(config.engine))throw new Error('请配置通用 API 模型');
         if(!request.prompt.trim()&&smartRunNeedsPrompt(config))throw new Error('请填写提示词或连接文本节点');
         return type==='video'?runApiVideoGeneration(request.prompt,request.refs,config,null,{preview:true}):runApiGeneration(request.prompt,request.refs,config,null,null,{preview:true});

@@ -353,6 +353,7 @@ async function loadCanvas(options={}){
                 changed:lease => {
                     document.body.classList.toggle('smart-canvas-readonly',!lease.canEdit);
                     updateSmartNodeToolbarAccess();
+                    window.PixmaxSegmentReshoot?.documentChanged();
                     world.querySelectorAll('.prompt-node-text').forEach(input => { input.readOnly = !lease.canEdit; });
                     window.PixmaxNavigator?.documentChanged();
                     if(lease.canEdit) resumeSmartPendingTasks();

@@ -78,6 +78,7 @@ def main(argv=None):
             suites.append("test_cloud_audio_voice_clone.py")
             suites.append("test_cloud_canvas_folder_deletion.py")
             suites.append("test_cloud_canvas_directory_placement.py")
+            suites.append("test_cloud_pixmax_segment_reshoot.py")
             suites.append("test_cloud_model_tasks.py")
             suites.append("test_cloud_pixmax_task_undo.py")
             suites.append("test_cloud_video_analysis.py")

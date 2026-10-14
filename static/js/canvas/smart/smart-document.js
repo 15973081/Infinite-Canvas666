@@ -247,6 +247,7 @@ function insertSmartWorkflowIntoCanvas(imported){
         .filter(conn => conn.from && conn.to);
     newNodes.forEach(node=>{if(node.inputNodeIds)node.inputNodeIds=node.inputNodeIds.map(id=>idMap.get(id)).filter(Boolean);});
     newNodes.forEach(node=>window.PixmaxVideoAnnotation?.remapReferences(node,idMap,{referenceNodes:newNodes}));
+    newNodes.forEach(node=>window.PixmaxSegmentReshoot?.remapReferences(node,idMap,{referenceNodes:newNodes}));
     newNodes.forEach(node=>window.PixmaxStoryboardAssets?.remapReferences(node,idMap));
     newNodes.forEach(node=>window.PixmaxStoryboardMedia?.remapReferences(node,idMap,{referenceNodes:newNodes}));
     newNodes.forEach(node=>window.PixmaxCanvasFrames?.remapReferences(node,idMap));
@@ -749,6 +750,7 @@ function pasteNodes({includeConnections=true}={}){
         }
         if(copy.sourceNodeId) copy.sourceNodeId = includeConnections ? idMap.get(copy.sourceNodeId) || '' : '';
         window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
+        window.PixmaxSegmentReshoot?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
         window.PixmaxStoryboardAssets?.remapReferences(copy,idMap,{connected:includeConnections});
         window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
         window.PixmaxCanvasFrames?.remapReferences(copy,idMap);
@@ -782,6 +784,7 @@ function duplicateForAltDrag(node){
         if(Array.isArray(copy.inputNodeIds)) copy.inputNodeIds = copy.inputNodeIds.map(id => idMap.get(id)).filter(Boolean);
         if(copy.sourceNodeId) copy.sourceNodeId = idMap.get(copy.sourceNodeId) || '';
         window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{referenceNodes:copies});
+        window.PixmaxSegmentReshoot?.remapReferences(copy,idMap,{referenceNodes:copies});
         window.PixmaxStoryboardAssets?.remapReferences(copy,idMap);
         window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{referenceNodes:copies});
         window.PixmaxCanvasFrames?.remapReferences(copy,idMap);

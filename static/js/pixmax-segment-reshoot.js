@@ -1,0 +1,129 @@
+/* Native reshoot range/crop/cache; the host retains task and canvas ownership. */
+(() => {
+    'use strict';
+    let runtimePromise;
+    const jobs=new Map(),creating=new Set(),scope=()=>window.CanvasSession?.context?.member?.id+':'+window.CanvasSession?.context?.workspace?.id;
+    const identity=item=>String(item?.url||'').match(/(?:assets\/cloud|api\/media)\/(ast_[a-f0-9]{32})(?:\/|$)/)?.[1]||item?.url;
+    const runtime=()=>runtimePromise ||= import('/static/vendor/pixmax/editors.js').then(value=>value.canvasSegmentReshoot).catch(error=>{runtimePromise=null;throw error;});
+    function models(){return (apiProviders||[]).filter(provider=>provider.enabled!==false&&provider.has_key&&videoProviderPlatform(provider.id)==='volcengine').flatMap(provider=>(provider.video_models||[]).filter(isSeedance25VideoModel).map(model=>({provider,model})));}
+    function sourceFor(node){
+        const state=node.segmentReshoot,source=nodes.find(item=>item.id===state?.source?.nodeId),media=source?.images?.find(item=>mediaKindForItem(item)==='video'&&identity(item)===state.source.identity);
+        if(state?.schemaVersion===1&&!state.source.nodeId)return {source:null,media:state.source.media||{url:state.source.url,kind:'video',duration:state.source.duration}};
+        if(!media||!(canvas.connections||[]).some(edge=>edge.from===source.id&&edge.to===node.id))throw new Error('原视频或连接已变化，请重新创建片段重拍');
+        return {source,media};
+    }
+    function owned(node,root){
+        const origin=canvas,owner=scope(),base=canvasTaskWriteGuard(node),source=sourceFor(node),key=identity(source.media);
+        return ()=>{try{return (!root||root.isConnected)&&canvas===origin&&scope()===owner&&base.valid()&&!isSmartCanvasLocked()&&identity(sourceFor(node).media)===key;}catch{return false;}};
+    }
+    async function duration(media){
+        if(Number.isFinite(media.duration)&&media.duration>0)return media.duration;
+        const video=document.createElement('video');video.preload='metadata';video.src=displayMediaUrl(media);
+        try{return await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('视频时长读取超时')),8000);video.onloadedmetadata=()=>{clearTimeout(timer);Number.isFinite(video.duration)&&video.duration>0?resolve(video.duration):reject(new Error('源视频时长不可用'));};video.onerror=()=>{clearTimeout(timer);reject(new Error('源视频不可用'));};});}
+        finally{video.removeAttribute('src');video.load();}
+    }
+    async function create(id,index){
+        const source=nodes.find(node=>node.id===id),media=source?.images?.[index];if(!window.CanvasSession?.enabled||isSmartCanvasLocked()||mediaKindForItem(media)!=='video')return;
+        const selected=models()[0];if(!selected)return toast('请配置支持视频编辑的 Seedance 2.5 模型');
+        const origin=canvas,base=canvasTaskWriteGuard(source),key=identity(media);
+        const creationKey=JSON.stringify([scope(),canvas.id,id,key]);if(creating.has(creationKey))return;creating.add(creationKey);
+        try{
+            const [api,seconds]=await Promise.all([runtime(),duration(media)]);
+            if(canvas!==origin||!base.valid()||identity(source.images?.[index])!==key)return;
+            const status=api.durationStatus(seconds);if(status)throw new Error(status==='too-short'?'视频时长需大于 4 秒':'视频时长不能超过 10 分钟');
+            pushUndo();const node=createNode((source.x||0)+nodeRect(source).width+80,source.y||0,[],{generationKind:'video',skipUndo:true,deferRender:true});
+            node.label=pixmaxUniqueNodeLabel((source.label||media.name||'视频')+'-片段重拍');
+            node.runSettings={...node.runSettings,engine:selected.provider.id==='volcengine'?'volcengine':'api',apiKind:'video',videoProvider:selected.provider.id,videoModel:selected.model,videoTaskMode:'edit',videoDuration:4,videoAspect:'adaptive',count:1};
+            const resolutions=smartVideoResolutions(node.runSettings);node.runSettings.videoResolution=resolutions.includes('720p')?'720p':resolutions[0]||'';
+            node.segmentReshoot={schemaVersion:1,source:{nodeId:id,url:media.url,media:{...media},identity:key,duration:seconds},startSec:0,endSec:4,prompt:''};
+            canvas.connections.push({from:id,to:node.id,kind:'input'});render();scheduleSave();await open(node);
+        }catch(error){toast(error.message||'创建片段重拍节点失败');}finally{creating.delete(creationKey);}
+    }
+    function signature(node){const state=node.segmentReshoot;return JSON.stringify([scope(),canvas.id,node.id,state.source.identity,state.startSec,state.endSec]);}
+    async function prepare(node,valid,status){
+        const api=await runtime();if(!valid())throw new Error('来源或编辑资格已变化');
+        const state=node.segmentReshoot,original=signature(node),source=sourceFor(node),params=api.params({}, {sourceAssetUuid:state.source.identity,startSec:state.startSec,endSec:state.endSec});
+        const current=()=>valid()&&signature(node)===original;
+        let job=jobs.get(original);if(!job){job={files:null,uploaded:new Map(),running:null};jobs.set(original,job);}
+        if(job.running)return job.running;
+        const work=(async()=>{
+            const result=await api.prepare({params,cache:state.cache,sourceUrl:displayMediaUrl(source.media),onPrepare:()=>{status.textContent='正在准备裁剪片段和首尾帧…';},loadSource:async url=>{const response=await fetch(url);if(!response.ok)throw new Error('视频读取失败');return response.blob();},buildFiles:async options=>{if(!current())throw new Error('片段已变化');if(!job.files){const files=await api.buildFiles(options);if(files.ok)job.files=files;}return job.files;},upload:async file=>{
+                if(!current())return {ok:false};if(job.uploaded.has(file.name))return {ok:true,assetUuid:job.uploaded.get(file.name).url};
+                try{const [value]=await uploadFiles([file]);if(!current()||!value?.url)return {ok:false};job.uploaded.set(file.name,value);return {ok:true,assetUuid:value.url};}catch{return {ok:false};}
+            }});
+            if(!current())throw new Error('片段、来源或编辑资格已变化，未写入处理结果');
+            if(!result.ok)throw new Error('片段裁剪或上传失败，本地处理结果已保留，可重试');
+            state.cache=result.cache;state.preparedMedia=[{url:result.cache.clipAssetUuid,kind:'video'},{url:result.cache.headFrameAssetUuid,kind:'image'},{url:result.cache.tailFrameAssetUuid,kind:'image'}];node.runSettings.videoTempShLinks=[{manual:true,url:result.cache.clipAssetUuid}];scheduleSave();
+            if(!await saveCanvas({force:true}))throw new Error('重拍片段已准备，但画布尚未保存，请重试保存');
+            if(!current())throw new Error('编辑资格已变化');
+            job.files=null;job.uploaded.clear();jobs.delete(original);return result.cache;
+        })();job.running=work;try{return await work;}finally{job.running=null;}
+    }
+    async function submit(node,root,status){
+        const valid=owned(node,root),state=node.segmentReshoot;
+        if(!valid())throw new Error('视频来源或编辑资格已变化');
+        if(state.taskId&&state.completedTaskId!==state.taskId){
+            status.textContent='正在查询原重拍任务…';const response=await CanvasApi.getCanvasVideoTaskRequest(state.taskId);
+            if(!response.ok)throw new Error('原重拍任务尚未确认，请稍后继续查询');const record=await response.json();if(!valid())throw new Error('编辑资格已变化');
+            if(record.status==='failed'){delete state.taskId;scheduleSave();throw new Error(record.error?.message||record.error||'原重拍任务失败，请核对参数后重新提交');}
+            if(record.status!=='succeeded'){status.textContent='原重拍任务仍在处理中，请稍后继续查询';return;}
+            const binding=await CanvasTaskBindings.recover({task:record,taskId:state.taskId,canvasId:canvas.id,kind:'smart',sourceId:node.id,targetId:node.id,read:smartTaskInputDocument,valid});
+            await commitSmartStudioTaskResult(node,record,'video',binding,{valid,recovered:true,prepareResult:()=>{if(!smartPendingTasks(node).some(task=>task.taskId===state.taskId)){node.pendingTasks=[...smartPendingTasks(node),{taskId:state.taskId,kind:'video',providerId:node.runSettings.videoProvider,model:node.runSettings.videoModel}];node.pending=Math.max(1,node.pending||0);}}});
+            if(valid()){state.completedTaskId=state.taskId;scheduleSave();status.textContent='重拍结果已加入画布';}return;
+        }
+        const cache=await prepare(node,valid,status);if(!valid())throw new Error('编辑资格已变化');
+        const choice=models().find(item=>item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel);if(!choice)throw new Error('模型配置已变化，请重新选择');
+        pushUndo();state.taskId=uid('canvas_vid');delete state.completedTaskId;
+        const guard=canvasTaskWriteGuard(node),binding=smartTaskInputBinding(node,node,{valid,check(){if(!valid())throw new Error('来源或编辑资格已变化');}});
+        const params=executionSettings(node,node.runSettings);
+        const prompt=state.prompt.trim()||'保留原画面、人物、声音及镜头运动，不改变内容。';status.textContent='正在提交片段重拍…';
+        try{
+            const result=await runApiVideoGeneration(prompt,[],params,binding,{taskId:state.taskId});
+            guard.check();await queueAndResumeSmartApiTasks(node,result,{kind:'video',archiveExisting:false});
+            if(valid()){state.completedTaskId=state.taskId;scheduleSave();status.textContent='重拍结果已加入画布';}
+        }catch(error){if(valid()&&error.status>=400&&error.status<500){delete state.taskId;scheduleSave();}throw error;}
+    }
+    async function open(node){
+        if(!nodes.includes(node)||!node.segmentReshoot||isSmartCanvasLocked())return;
+        const api=await runtime();if(!nodes.includes(node)||isSmartCanvasLocked())return;
+        let source;try{source=sourceFor(node);}catch(error){return toast(error.message);}
+        const root=pixmaxCreationModal('片段重拍'),body=root.querySelector('.pixmax-creation-content'),status=root.querySelector('[role=status]'),state=node.segmentReshoot,valid=owned(node,root);
+        root.classList.add('pixmax-segment-reshoot-modal');
+        const choices=models();body.innerHTML=`<video controls preload="metadata" src="${escapeAttr(displayMediaUrl(source.media))}"></video><p class="pixmax-creation-hint">选择 4–30 秒片段，描述需要修改的内容。</p><div class="pixmax-reshoot-range"><label>开始时间<input type="range" data-reshoot-start min="0" max="${state.source.duration}" step="0.1" aria-label="重拍开始时间"></label><label>结束时间<input type="range" data-reshoot-end min="0" max="${state.source.duration}" step="0.1" aria-label="重拍结束时间"></label><output data-reshoot-summary></output></div><label>重拍要求<textarea data-reshoot-prompt maxlength="10000" aria-label="重拍要求" placeholder="也可以写要改什么，例如：把头发换成红色">${escapeHtml(state.prompt)}</textarea></label><label>生成模型<select data-reshoot-model aria-label="重拍模型">${choices.map(item=>`<option value="${escapeAttr(JSON.stringify([item.provider.id,item.model]))}" ${item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel?'selected':''}>${escapeHtml(item.provider.name+' · '+item.model)}</option>`).join('')}</select></label><button type="button" data-reshoot-prepare>准备片段</button><button type="button" data-reshoot-run class="pixmax-creation-primary">${state.taskId&&state.completedTaskId!==state.taskId?'查询原重拍任务':'生成重拍视频'}</button>`;
+        let edited=false,busy=false;
+        const draw=()=>{body.querySelector('[data-reshoot-start]').value=state.startSec;body.querySelector('[data-reshoot-end]').value=state.endSec;body.querySelector('[data-reshoot-summary]').textContent=`${state.startSec.toFixed(1)} – ${state.endSec.toFixed(1)} · ${(state.endSec-state.startSec).toFixed(1)}s`;};draw();
+        function draft(event){if(!valid()||busy)return;if(!edited){pushUndo();edited=true;}
+            if(event.target.matches('[data-reshoot-start],[data-reshoot-end]')){const range=api.normalizeRange(Number(body.querySelector('[data-reshoot-start]').value),Number(body.querySelector('[data-reshoot-end]').value),state.source.duration);Object.assign(state,range);delete state.cache;delete state.preparedMedia;node.runSettings.videoTempShLinks=[];draw();body.querySelector('video').currentTime=state.startSec;}
+            state.prompt=body.querySelector('[data-reshoot-prompt]').value;const [provider,model]=JSON.parse(body.querySelector('[data-reshoot-model]').value);Object.assign(node.runSettings,{videoProvider:provider,videoModel:model,engine:provider==='volcengine'?'volcengine':'api'});scheduleSave();
+        }
+        body.addEventListener('input',draft);body.addEventListener('change',draft);
+        async function perform(run){if(busy)return;busy=true;body.querySelectorAll('input,textarea,select,button').forEach(control=>control.disabled=true);
+            try{if(run)await submit(node,root,status);else{await prepare(node,valid,status);status.textContent='裁剪片段及首尾帧已准备并保存';}}
+            catch(error){if(root.isConnected)status.textContent=error.message||'片段重拍暂未完成';}
+            finally{busy=false;body.querySelectorAll('input,textarea,select,button').forEach(control=>control.disabled=!valid());body.querySelector('[data-reshoot-run]').textContent=state.taskId&&state.completedTaskId!==state.taskId?'查询原重拍任务':'生成重拍视频';}
+        }
+        body.querySelector('[data-reshoot-prepare]').onclick=()=>void perform(false);body.querySelector('[data-reshoot-run]').onclick=()=>void perform(true);
+    }
+    function documentChanged(){
+        for(const node of nodes.filter(node=>node.segmentReshoot?.schemaVersion===1)){
+            const element=world.querySelector(`.image-node[data-id="${CSS.escape(node.id)}"] .node-body`);if(!element)continue;const existing=element.querySelector('[data-reshoot-open]');if(existing){existing.disabled=isSmartCanvasLocked();continue;}
+            const button=document.createElement('button');button.type='button';button.dataset.reshootOpen='';button.className='pixmax-reshoot-open';button.textContent='片段重拍 · 选择片段';button.disabled=isSmartCanvasLocked();button.onclick=event=>{event.stopPropagation();void open(node);};element.appendChild(button);
+        }
+    }
+    function executionSettings(node,config){
+        const state=node.segmentReshoot,cache=state?.cache;if(state?.schemaVersion!==1)return config;
+        if(!models().some(item=>item.provider.id===config.videoProvider&&item.model===config.videoModel))throw new Error('片段重拍需要可用的 Seedance 2.5 视频编辑模型');
+        sourceFor(node);
+        if(!cache||cache.reshootSourceAssetUuid!==state.source.identity||Number(cache.reshootStartSec)!==state.startSec||Number(cache.reshootEndSec)!==state.endSec)throw new Error('请先准备片段重拍的裁剪视频及首尾帧');
+        return {...config,videoTaskMode:'edit',videoTempShLinks:[{manual:true,url:cache.clipAssetUuid}]};
+    }
+    function remapReferences(node,idMap,{connected=true,referenceNodes=[]}={}){
+        const state=node.segmentReshoot;if(state?.schemaVersion!==1)return;
+        state.source.nodeId=connected?idMap.get(state.source.nodeId)||'':'';
+        const source=referenceNodes.find(item=>item.id===state.source.nodeId),media=source?.images?.find(item=>mediaKindForItem(item)==='video');
+        if(media){state.source.url=media.url;state.source.media={...media};state.source.identity=identity(media);}
+        else if(state.source.media){state.source.url=state.source.media.url;state.source.identity=identity(state.source.media);}
+        delete state.taskId;delete state.completedTaskId;delete state.cache;delete state.preparedMedia;if(node.runSettings)node.runSettings.videoTempShLinks=[];
+    }
+    window.PixmaxSegmentReshoot=Object.freeze({create,open,documentChanged,executionSettings,remapReferences,available:()=>Boolean(window.CanvasSession?.enabled&&models().length)});
+})();
