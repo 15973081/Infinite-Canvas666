@@ -21,7 +21,7 @@
     }
     function dispose(){
         const session=active;if(!session)return;session.closed=true;active=null;sequence++;
-        session.observer?.disconnect();session.resize?.disconnect();session.controls?.destroy();session.handle?.destroy();session.camera?.destroy();for(const picker of session.pickers)picker.remove();
+        session.observer?.disconnect();session.resize?.disconnect();session.controls?.destroy();session.inputs?.destroy();session.handle?.destroy();session.camera?.destroy();for(const picker of session.pickers)picker.remove();
         session.root.remove();promptInput.style.display='';promptInput.removeAttribute('aria-hidden');
     }
     function replaceValue(session,value){
@@ -46,6 +46,7 @@
         if(session.stamp!==stamp){session.stamp=stamp;session.handle?.setReferences({mentionItems:plan.mentions,incomingNodes:plan.incomingNodes});session.handle?.setInvalidSubjects(invalid);}
         if(session.node.nativePrompt&&session.value!==session.node.nativePrompt.prompt){session.value=session.node.nativePrompt.prompt;replaceValue(session,session.value);}
         session.controls?.refresh();
+        session.inputs?.refresh(plan);
     }
     async function sync(){
         const node=activeComposerNode();if(!supported(node)||!composer.classList.contains('open')){dispose();return;}
@@ -88,6 +89,7 @@
                 if(editable(session))session.camera.setOpen(true);
             };
             const controls=await PixmaxGenerationParameters.mount({node,api,valid:()=>readable(session),editable:()=>editable(session),onRoot:(root,added)=>added?session.pickers.add(root):session.pickers.delete(root)});if(!readable(session)){controls?.destroy();return;}session.controls=controls;
+            const inputs=await PixmaxGenerationReferences.mount({node,api,valid:()=>readable(session),editable:()=>editable(session),onInsert:mention=>handle.insertMention(mention),onRoot:(root,added)=>added?session.pickers.add(root):session.pickers.delete(root)});if(!readable(session)){inputs?.destroy();return;}session.inputs=inputs;
             refresh(session);positionComposerForNode(node);
         }catch(error){if(readable(session)){dispose();toast(error.message||'原生提示词加载失败');}}
     }
@@ -98,6 +100,7 @@
         if(typeof value==='string'&&(value!==active.value||/%%@\[|%%#\[|%%subject-ref\(/.test(value)&&!node.nativePrompt))project(active,value);
     }
     function remap(node,idMap){if(node.nativePrompt?.schemaVersion===1)PixmaxReshootReferences.remap(node,idMap);}
-    window.PixmaxNativePrompt=Object.freeze({sync,dispose,flush,remap});
+    const updateViewport=()=>active?.inputs?.updateViewport();
+    window.PixmaxNativePrompt=Object.freeze({sync,dispose,flush,remap,updateViewport});
     window.addEventListener('pagehide',dispose);
 })();

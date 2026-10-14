@@ -56,6 +56,29 @@ parameters_position='i=e.top-t-4;P({left:Math.round(r),top:Math.round(i)})'
 assert parameters_segment.count(parameters_position)==1, 'Native parameter positioning changed'
 parameters_segment=parameters_segment.replace(parameters_position,'i=Math.max(8,Math.min(e.top-t-4,window.innerHeight-t-8));P({left:Math.round(r),top:Math.round(i)})')
 runtime=runtime[:parameters_start]+parameters_segment+runtime[parameters_end:]
+references_start=runtime.index('function o$(')
+references_end=runtime.index('hf([`click`,`mousedown`,`pointerdown`]);',references_start)
+references_segment=runtime[references_start:references_end]
+reference_hooks={
+    'l=V_(),u=DC(),d=hC(),f=XQ()':'l=V_(),u=t.hostGraph??DC(),d=t.previewViewport??hC(),f=XQ()',
+    'function C(e,t){B(v,e,!0)':'function C(e,n){if(t.disabled)return;B(v,e,!0)',
+    '_[e]=t}function w(e,n){_[e]=n;':'_[e]=n}function w(e,n){if(t.disabled)return;_[e]=n;',
+    'function T(e){u.removeIncomingEdge':'function T(e){if(t.disabled)return;u.removeIncomingEdge',
+    'function D(e){y||t.onInsertMention?.(e)}':'function D(e){t.disabled||y||t.onInsertMention?.(e)}',
+    'c=R(()=>r$.getSourceNodePreviewPayload(G(i),G(r)))':'c=R(()=>t.canPreview?.(G(i))===false?null:r$.getSourceNodePreviewPayload(G(i),G(r)))',
+    'W(e=>{Z(l,1,`bg-s-button-secondary-nor':'W(e=>{l.disabled=!!t.disabled;w.disabled=!!t.disabled;Q(l,`aria-label`,t.referenceNames?.[G(i).id]??G(i).data.label);Z(l,1,`bg-s-button-secondary-nor',
+    'get previewScale(){return d.current.zoom},estimateSize':'get previewScale(){return d.current.zoom},get viewportVersion(){return t.viewportVersion},zIndex:t.previewZIndex??110,estimateSize',
+    'items:_[G(r)],type:G(r),dropTargetStyle:{}':'items:_[G(r)],type:G(r),dragDisabled:!!t.disabled,dropTargetStyle:{}',
+}
+for before,after in reference_hooks.items():
+    assert references_segment.count(before)==1, 'Native input reference boundary changed: '+before
+    references_segment=references_segment.replace(before,after)
+runtime=runtime[:references_start]+references_segment+runtime[references_end:]
+preview_start=runtime.index('function wY(')
+preview_hook='pd(()=>{if(G(p),!G(C))return;'
+preview_end=runtime.index(preview_hook,preview_start)
+assert preview_end-preview_start<6000, 'Native floating preview lifecycle changed'
+runtime=runtime[:preview_end]+runtime[preview_end:].replace(preview_hook,'pd(()=>{if(t.viewportVersion,G(p),!G(C))return;',1)
 camera_end=bundle.index('AX={camera:EX,lens:DX,focalLength:OX,aperture:kX}')
 camera_names=re.findall(r'/assets/([A-Za-z0-9_-]+\.png)',bundle[bundle.rfind('mot=',0,camera_end):camera_end])
 assert len(camera_names)==27
@@ -122,6 +145,14 @@ export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 let canvasModelSelectorSequence=0;
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountReferences(target,props) {
+    const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
+    const data=z({nodes:props.nodes||[],referenceNames:props.referenceNames||{}}),disabled=z(!!props.disabled),view=z({...props.viewport});
+    const instance=Tf(o$,{target,context:new Map([[tCe,container]]),props:{...props,previewZIndex:props.previewZIndex||100150,previewViewport:{get current(){return {zoom:G(view).scale||1};}},
+      get nodes(){return G(data).nodes;},get referenceNames(){return G(data).referenceNames;},get disabled(){return G(disabled);},get viewportVersion(){return G(view);}}});
+    await tf();
+    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},setViewport(next){const old=G(view);if(old.x!==next.x||old.y!==next.y||old.scale!==next.scale)B(view,{x:next.x,y:next.y,scale:next.scale},true);},destroy(){return Of(instance);}};
+  },
   async mountCamera(target,props) {
     const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
     const open=z(false),disabled=z(!!props.disabled);
@@ -216,8 +247,8 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'generation_references': 'o$', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits', 'Expose native N1 reference cards with host graph, readonly and viewport adapters'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

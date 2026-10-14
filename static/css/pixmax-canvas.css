@@ -605,6 +605,8 @@ button,input,textarea {
 }
 
 .pixmax-generation-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+.pixmax-native-references-active #inputThumbsRow,.pixmax-native-references-active #inputPromptPreview{display:none!important}
+.pixmax-native-generation-references{grid-area:thumbs;min-width:0;width:100%;max-height:min(240px,30vh);overflow-x:hidden;overflow-y:auto;margin-bottom:4px}
 .pixmax-generation-controls [data-generation-model]{width:min(340px,100%);max-width:100%;min-width:0}
 .pixmax-generation-controls [data-generation-model]>div{width:100%;min-width:0}
 .pixmax-generation-controls>div>div>button{min-height:32px;max-width:100%;color:#b9c1cd;font-size:13px}

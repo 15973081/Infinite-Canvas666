@@ -313,6 +313,7 @@ function syncSelectionUi(){
         });
     });
     positionPixmaxVideoToolbars();
+    window.PixmaxNativePrompt?.updateViewport();
 }
 
 function isNodeSelected(id){
@@ -2820,8 +2821,22 @@ function positionComposerForNode(node){
     const available=Math.max(240,(bounds.x+bounds.width-left-32)/scale);
     const cardW = Math.min(720,available);
     composer.style.width = `${cardW}px`;
-    composer.style.left = `${Math.max(minX,Math.min(rect.x+rect.width/2-cardW/2,minX+available-cardW))}px`;
-    const minY=(16-viewport.y)/scale,maxY=(shell.clientHeight-16-viewport.y)/scale-composer.offsetHeight;
+    const x=Math.max(minX,Math.min(rect.x+rect.width/2-cardW/2,minX+available-cardW));
+    composer.style.left = `${x}px`;
+    let top=16,bottom=shell.clientHeight-16;
+    const card=composer.querySelector('.composer-card');
+    if(card){card.style.maxHeight='';card.style.overflowY='';}
+    if(composer.classList.contains('pixmax-native-references-active')){
+        const screenLeft=shellRect.left+viewport.x+x*scale,screenRight=screenLeft+cardW*scale;
+        for(const overlay of shell.querySelectorAll('.pixmax-topbar,.pixmax-bottom-controls,.smart-minimap')){
+            if(overlay.hidden)continue;const box=overlay.getBoundingClientRect();
+            if(!box.width||!box.height||box.right<=screenLeft||box.left>=screenRight)continue;
+            if(overlay.classList.contains('pixmax-topbar'))top=Math.max(top,box.bottom-shellRect.top+12);
+            else bottom=Math.min(bottom,box.top-shellRect.top-12);
+        }
+        if(card){card.style.maxHeight=Math.max(160,(bottom-top)/scale)+'px';card.style.overflowY='auto';}
+    }
+    const minY=(top-viewport.y)/scale,maxY=(bottom-viewport.y)/scale-composer.offsetHeight;
     composer.style.top = `${Math.max(minY,Math.min(rect.y+rect.height+gap,Math.max(minY,maxY)))}px`;
 }
 

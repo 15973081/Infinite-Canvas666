@@ -41,6 +41,7 @@ test('one click on video scissors opens the existing trim pipeline for the selec
  await page.waitForFunction(()=>smartVideoTrimPanel.state.active);
  assert.equal(await page.evaluate(()=>smartImageEditor.state.nodeId),await page.evaluate(()=>toolbarSourceId));
  assert.equal(await page.evaluate(()=>smartVideoTrimPanel.state.duration),2);
+ await page.waitForFunction(()=>document.getElementById('previewCurrentVideo')?.readyState>=1);
  await page.locator('#videoTrimStartInput').fill('0.4');await page.locator('#videoTrimStartInput').press('Tab');
  await page.locator('#videoTrimEndInput').fill('1.4');await page.locator('#videoTrimEndInput').press('Tab');
  await page.route('**/api/smart-canvas/video-trim',route=>{

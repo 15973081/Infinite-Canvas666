@@ -135,8 +135,37 @@
       },
       "providerContract": "https://docs.volcengine.com/docs/ark/create-video-generation-task-api?lang=zh",
       "menuPerformance": "同一次模式菜单计算至多构建两份引用计划：常规去重及首尾帧独立槽位。重用只发生在单次计算内，素材或连线变化后重新计算。",
-      "visualEvidence": {"image": ".local/pixmax-video-mode-frames.png", "scope": "本项目合成图像夹具下的首尾帧模式。已检查菜单状态、两个输入和参数显示；输入区仍是现有素材卡片，完整 N1 视觉不在此证据覆盖范围。"},
+      "visualEvidence": {"image": ".local/pixmax-video-mode-frames.png", "scope": "本项目合成图像夹具下的首尾帧模式。输入区已接入原生 o$ 卡片，见 nativeGenerationReferenceEvidence；完整 N1 表单视觉仍待最终核对。"},
       "remaining": ["其余图像/视频模型的模式、尺寸、时长和原生输入卡片约束完整映射", "完整 N1 布局、全屏、费用提示与首尾帧输入卡片视觉最终对齐", "视频素材的真实供应商尺寸、格式、时长及质量验收", "真实混合媒体大画布和 Pixmax 双方同场景帧率、内存验证"]
+    },
+    "nativeGenerationReferenceEvidence": {
+      "status": "implemented_local_requires_final_verification",
+      "component": "捕获的 N1 生成表单所用 o$ 原生输入卡片与 wY 浮动预览",
+      "source": ["tools/import_pixmax_runtime.py", "static/vendor/pixmax/manifest.json", "static/js/pixmax-generation-references.js", "static/js/pixmax-native-prompt.js", "static/js/canvas/smart/smart-workspace.js", "static/css/pixmax-canvas.css"],
+      "nativeContract": "按原生文本、音频、图片、视频分组及编号显示卡片，复用原生缩略图、悬停预览、鼠标和键盘拖动排序、悬停断开按钮与点击插入引用。原生 WorkflowProvider 边界映射到本项目引用计划，不复制 Pixmax 的身份、计费或画布服务。",
+      "verified": [
+        "实际原生卡片点击插入 M1 类型化引用并通过本项目请求构建；排序改变请求素材顺序但引用始终保留原来源 ID",
+        "图片排序进入真实首帧/尾帧角色；相同图片的两个独立槽位保持原生图片卡片及编号，访问名称区分首帧和尾帧",
+        "文本排序同步上游输入连接顺序，不移动其他图连接；移除文本使已有引用失效并阻止生成",
+        "普通媒体断开仅屏蔽引用，不删除画布节点或原始素材；主体卡片断开移除该主体及其隐藏输入节点",
+        "只读和编辑资格失效时禁用点击、断开及拖动；选择改变后的延迟挂载及断开后的迟到拖动事件不会覆盖当前数据",
+        "悬停视频使用原生播放器，关闭生成面板释放浮动播放器；不能直接播放的 asset:// 不打开媒体预览",
+        "缩放及平移更新浮动预览定位并复用卡片，不重新遍历整张图构建引用计划",
+        "30 张素材在 390px 窄屏中滚动；面板避让顶部状态条、底部工具条和小地图，生成按钮通过实际点击命中验证"
+      ],
+      "verification": {
+        "referenceBrowserCases": 16,
+        "coreFrontendCases": 108,
+        "relatedBrowserCases": 27,
+        "pythonCases": 34,
+        "pythonSubtests": 16,
+        "databaseCases": 21,
+        "verificationState": "passed",
+        "logs": [".local/pixmax-native-references-core-verified.log", ".local/pixmax-native-references-adapters-verified.log", ".local/pixmax-native-references-python.log", ".local/pixmax-native-references-db-final.log", ".local/pixmax-native-references-db-viewport.log"],
+        "scope": "真实浏览器组件和操作，13 个普通生成/拒绝及 8 个片段重拍隔离数据库用例；供应商和任务结果使用测试替身，媒体归属、会员租约、保存、ZIP 往返为真实流程。原生剪辑回归先等待真实播放器元数据，再操作时间范围；未发送付费生成请求。"
+      },
+      "visualEvidence": [".local/pixmax-native-reference-cards.png", ".local/pixmax-native-reference-mobile.png"],
+      "remaining": ["完整 N1 表单布局、全屏、生成费用和高级字段视觉对齐", "原生属性规则的卡片错误标记、摘要及所有模型的输入约束映射", "原生上传/替换输入交互与素材库入口完整对齐", "真实混合媒体大画布与 Pixmax 双方同场景性能及供应商质量验收"]
     },
     "ordinaryGenerationPromptEvidence": {
       "status": "implemented_local_requires_final_verification",

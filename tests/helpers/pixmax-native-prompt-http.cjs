@@ -28,7 +28,12 @@ async function transport(request){const pathname=new URL(request.url()).pathname
         }else if(config.kind==='image'){
             await page.getByRole('button',{name:'添加镜头参数',exact:true}).click();const panel=page.locator('[data-native-camera] [role=dialog]');await panel.waitFor();await panel.locator('header button').click();assert.equal(await page.locator('.pixmax-native-prompt [data-hash-type=camera]').count(),1);
         }
-        if(config.mode){await page.getByRole('button',{name:'视频生成模式',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:config.mode,exact:true}).click();}
+        if(config.mode){
+            await page.getByRole('button',{name:'视频生成模式',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:config.mode,exact:true}).click();
+            await page.locator('#composer.pixmax-native-references-active').waitFor();
+            assert.equal(await page.locator('.pixmax-native-generation-references [data-source-node-order-item]').count(),config.references.length);
+            if(config.references.length){const label=['图生视频','首尾帧'].includes(config.mode)?'首帧':'图片1';await page.locator('.pixmax-native-generation-references').getByRole('button',{name:new RegExp('引用 '+label)}).click();await page.waitForFunction(()=>__nativeTarget.nativePrompt.prompt.includes('[image]'));}
+        }
         if(config.parameters){
             await page.getByRole('button',{name:'生成参数',exact:true}).click();const panel=page.locator('[data-combo-selector-panel]');
             if(config.kind==='image'){await panel.getByRole('button',{name:'2K',exact:true}).click();await panel.getByRole('button',{name:'高',exact:true}).click();}
@@ -40,6 +45,7 @@ async function transport(request){const pathname=new URL(request.url()).pathname
         // Reload through the actual lease controller, then reopen the saved editor.
         await page.evaluate(async()=>{const id=__nativeTarget.id;await MemberCanvasEdit.active.options.reload();window.__nativeTarget=nodes.find(node=>node.id===id);smartSelection.createdNode(id);render();});
         await page.getByRole('textbox',{name:'生成提示词',exact:true}).waitFor();
+        await page.locator('#composer.pixmax-native-references-active').waitFor();
         if(config.subject||config.kind==='image')assert.equal(await page.locator('.pixmax-native-prompt '+(config.subject?'[data-editor-node-type=subject-reference]':'[data-hash-type=camera]')).count(),1);
         if(config.mode)assert.equal(await page.evaluate(()=>__nativeTarget.runSettings.videoReferenceMode),{文生视频:'textToVideo',图生视频:'imageToVideo',首尾帧:'firstAndLastFrame',多模态参考:'referToVideo',视频编辑:'videoEdit',向后延长:'extend_backward',向前延长:'extend_forward'}[config.mode]);
         assert.match(await page.getByRole('textbox',{name:'生成提示词',exact:true}).innerText(),/黄昏的摄影师/);assert.deepEqual(errors,[]);process.stdout.write(JSON.stringify({done:true,targetId:await page.evaluate(()=>__nativeTarget.id)})+'\n');
