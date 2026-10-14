@@ -2,7 +2,7 @@
 (() => {
     'use strict';
     const jobs=new Set();
-    function assetNode(owner,asset){const node=nodes.find(node=>node.id===asset.imageNodeId);return node?.storyboardAssetBinding?.ownerId===owner.id&&node.storyboardAssetBinding.assetId===asset.id?node:null;}
+    function assetNode(owner,asset){const node=nodes.find(node=>node.id===asset.imageNodeId);return node?.type==='smart-image'&&node.generationKind!=='video'?node:null;}
     function references(owner,asset){return (assetNode(owner,asset)?.images||[]).filter(item=>mediaKindForItem(item)==='image');}
     function linkShot(owner,shot,target){
         const ids=new Set(Array.isArray(shot.assetIds)?shot.assetIds:[]);
@@ -10,6 +10,7 @@
     }
     function remapReferences(node,map,{connected=true}={}){
         for(const asset of node.storyboardAssets||[]){if(asset.imageNodeId){const id=connected?map.get(asset.imageNodeId):null;if(id)asset.imageNodeId=id;else delete asset.imageNodeId;}}
+        for(const asset of node.storyboardAudioAssets||[]){if(asset.nodeId){const id=connected?map.get(asset.nodeId):null;if(id)asset.nodeId=id;else delete asset.nodeId;}}
         if(node.storyboardAssetBinding){const id=connected?map.get(node.storyboardAssetBinding.ownerId):null;if(id)node.storyboardAssetBinding.ownerId=id;else delete node.storyboardAssetBinding;}
     }
     function open(owner,selectedId){
@@ -55,7 +56,7 @@
                     const prompt=body.querySelector(`[data-story-image-prompt="${CSS.escape(asset.id)}"]`).value.trim();if(!prompt)throw new Error('请填写 '+asset.name+' 的图像提示词');
                     asset.prompt=prompt;
                     let node=assetNode(owner,asset);
-                    if(!node){node=createGenerationNodeAt({x:owner.x+480,y:owner.y+selected.indexOf(asset)*320},'image',{skipUndo:true,select:false,deferRender:true});asset.imageNodeId=node.id;node.storyboardAssetBinding={ownerId:owner.id,assetId:asset.id};canvas.connections.push({from:owner.id,to:node.id,kind:'input'});}
+                    if(!node||node.storyboardAssetBinding?.ownerId!==owner.id||node.storyboardAssetBinding.assetId!==asset.id){node=createGenerationNodeAt({x:owner.x+480,y:owner.y+selected.indexOf(asset)*320},'image',{skipUndo:true,select:false,deferRender:true});asset.imageNodeId=node.id;node.storyboardAssetBinding={ownerId:owner.id,assetId:asset.id};canvas.connections.push({from:owner.id,to:node.id,kind:'input'});}
                     if(!smartPendingTasks(node).length){node.promptDraftText=prompt;node.promptDraftHtml=escapeHtml(prompt);node.runSettings={...configValue};node.label=asset.name||asset.id;}
                 }
                 signature=JSON.stringify(configValue);if(!querying){render();scheduleSave();}

@@ -150,7 +150,7 @@ function createSmartStudioNode(kind, point, options={}){
     if(kind === 'storyboard') node.shots = [];
     nodes.push(node);
     if(options.select!==false)smartSelection.createdNode(node.id);
-    render(); scheduleSave();
+    if(!options.deferRender){render(); scheduleSave();}
     return node;
 }
 
@@ -387,16 +387,17 @@ function openSmartStoryboard(node){
     const shots=JSON.parse(JSON.stringify(node.shots || []));
     const assets=JSON.parse(JSON.stringify(node.storyboardAssets || []));
     if(!shots.length)shots.push({duration:5,description:'',size:'全景',lighting:'',dialogue:'',sound:'',movement:'固定',asset:'',prompt:''});
-    const fields=[['duration','时长(s)'],['description','画面描述'],['size','景别'],['lighting','光影氛围'],['dialogue','对白 / 旁白'],['sound','音效'],['movement','运镜']];
+    const fields=[['duration','时长(s)'],['description','画面描述'],['size','景别'],['cameraAngle','相机角度'],['lighting','光影氛围'],['dialogue','对白 / 旁白'],['sound','音效'],['movement','运镜']];
     let step=0;
     const valid=()=>modal.isConnected&&canvas===origin&&nodes.includes(node)&&!isSmartCanvasLocked()&&window.MemberCanvasEdit?.active?.lease?.epoch===epoch;
     const draw=()=>{
-        const columns=step===0?fields:step===1?[['description','画面描述'],['asset','素材 / 角色备注']]:[['prompt','生成提示词']];
+        const columns=step===0?fields:step===1?[['description','画面描述'],['asset','素材 / 角色备注']]:[['prompt','生成提示词'],['videoPrompt','视频运动提示词']];
         modal.querySelector('.pixmax-story-body').innerHTML=`<table><thead><tr><th>镜号</th>${columns.map(field=>`<th>${field[1]}</th>`).join('')}<th></th></tr></thead><tbody>${shots.map((shot,index)=>`<tr><td>${index+1}</td>${columns.map(([key,label])=>`<td><textarea aria-label="镜头 ${index+1} ${label}" data-shot="${index}" data-field="${key}">${escapeHtml(String(shot[key] || ''))}</textarea></td>`).join('')}<td><button type="button" data-story-delete="${index}" aria-label="删除镜头 ${index+1}">×</button></td></tr>`).join('')}</tbody></table>`;
         if(step===1&&assets.length)modal.querySelector('.pixmax-story-body').insertAdjacentHTML('beforeend',`<section aria-label="分镜资产清单"><h3>人物、场景、道具清单</h3><button type="button" data-story-asset-images>生成资产图像</button><table><thead><tr><th>类型</th><th>名称</th><th>外观与特征</th><th>资产提示词</th><th>生成图像</th></tr></thead><tbody>${assets.map((asset,index)=>{const media=window.PixmaxStoryboardAssets?.references(node,asset)||[];return `<tr><td>${{character:'人物',scene:'场景',prop:'道具'}[asset.type]||escapeHtml(asset.type)}</td>${[['name','名称'],['description','外观描述'],['prompt','提示词']].map(([key,label])=>`<td><textarea aria-label="资产 ${index+1} ${label}" data-asset-index="${index}" data-asset-field="${key}">${escapeHtml(asset[key]||'')}</textarea></td>`).join('')}<td>${media.length?`<img class="pixmax-story-asset-thumb" src="${escapeAttr(smartMediaPreviewUrl(media.at(-1),192))}" alt="${escapeAttr(asset.name)} 生成图像">`:''}<button type="button" data-story-asset-images="${escapeAttr(asset.id)}">${media.length?'重新生成':'生成图像'}</button></td></tr>`;}).join('')}</tbody></table></section>`);
+        if(step===2)modal.querySelector('.pixmax-story-body').insertAdjacentHTML('afterbegin',`<div class="pixmax-story-media-actions"><label>提示词类型<select data-story-prompt-kind aria-label="镜头提示词类型">${[['image','镜头图像'],['video','视频运动'],['both','图像与视频']].map(([value,label])=>`<option value="${value}" ${value===(node.storyboardConfig?.promptKind||'image')?'selected':''}>${label}</option>`).join('')}</select></label><button type="button" data-story-media="image">生成镜头图像</button><button type="button" data-story-media="video">生成镜头视频</button></div>`);
     };
     draw();
-    modal.addEventListener('input',event=>{const field=event.target.dataset.field;if(field)shots[Number(event.target.dataset.shot)][field]=field==='duration'?Math.max(.1,Number(event.target.value)||5):event.target.value;});
+    modal.addEventListener('input',event=>{const field=event.target.dataset.field;if(field){const shot=shots[Number(event.target.dataset.shot)];shot[field]=field==='duration'?Math.max(.1,Number(event.target.value)||5):event.target.value;if(['prompt','videoPrompt'].includes(field)){shot.promptStatus='completed';delete shot.promptError;}}});
     modal.addEventListener('input',event=>{const field=event.target.dataset.assetField;if(field)assets[Number(event.target.dataset.assetIndex)][field]=event.target.value;});
     const save=()=>{if(!valid())return false;pushUndo();node.shots=shots;if(node.storyboardAssets||assets.length)node.storyboardAssets=assets;render();scheduleSave();return true;};
     modal.addEventListener('click',async event=>{
@@ -405,22 +406,24 @@ function openSmartStoryboard(node){
         if(!valid()){modal.remove();return;}
         if(button.hasAttribute('data-story-video-parse')){if(save()){modal.remove();window.PixmaxVideoParse.open(node);}return;}
         if(button.hasAttribute('data-story-asset-images')){if(save()){modal.remove();window.PixmaxStoryboardAssets.open(node,button.dataset.storyAssetImages||undefined);}return;}
+        if(button.hasAttribute('data-story-media')){if(save()){modal.remove();window.PixmaxStoryboardMedia.open(node,button.dataset.storyMedia);}return;}
         if(button.hasAttribute('data-story-generate')){
             const status=modal.querySelector('[role=status]');
             try{
-                const config={...pixmaxTextModelValue(modal),script:modal.querySelector('[data-story-script]').value,style:modal.querySelector('[data-story-style]').value,count:Number(modal.querySelector('[data-story-count]').value)};
+                const config={...pixmaxTextModelValue(modal),script:modal.querySelector('[data-story-script]').value,style:modal.querySelector('[data-story-style]').value,count:Number(modal.querySelector('[data-story-count]').value),promptKind:modal.querySelector('[data-story-prompt-kind]')?.value||'image'};
                 if(!Number.isInteger(config.count)||config.count<1||config.count>100)throw new Error('镜头数量必须为 1 到 100');
                 if(step===0&&!config.script.trim())throw new Error('请先填写故事或剧本');
                 const stage=step,before=JSON.stringify(shots),assetsBefore=JSON.stringify(assets),input=config.script,style=config.style;
                 pushUndo();node.shots=JSON.parse(before);if(node.storyboardAssets||assets.length)node.storyboardAssets=JSON.parse(assetsBefore);node.storyboardConfig=config;scheduleSave();
-                const instruction=stage===0?`将剧本拆分为 ${config.count} 个镜头，每个镜头包含完整分镜字段。`:stage===1?'保持镜头数量和画面内容不变，为每个镜头规划人物、场景和道具，在 asset 字段写出资产准备说明。':'保持镜头数量和画面内容不变，为每个镜头编写可直接用于图像和视频生成的 prompt 字段，结合资产、景别、运镜和光影。';
-                const request={...config,message:[instruction,'视觉风格：'+style,stage===0?input:assets.length?JSON.stringify({shots,assets}):JSON.stringify(shots)].join('\n'),systemPrompt:'你是专业分镜导演。仅返回 JSON，格式为 {"shots":[{"duration":5,"description":"画面","size":"景别","lighting":"光影","dialogue":"对白或旁白","sound":"音效","movement":"运镜","asset":"人物场景道具说明","prompt":"生成提示词"}]}。duration 使用秒，镜头时长大于 0，不要返回 Markdown 或说明文字。'};
+                const promptFields=config.promptKind==='both'?['prompt','videoPrompt']:[config.promptKind==='video'?'videoPrompt':'prompt'];
+                const instruction=stage===0?`将剧本拆分为 ${config.count} 个镜头，每个镜头包含完整分镜字段。`:stage===1?'保持镜头数量和画面内容不变，为每个镜头规划人物、场景和道具，在 asset 字段写出资产准备说明。':`保持镜头数量和画面内容不变，为每个镜头编写 ${promptFields.join(' 和 ')} 字段。prompt 是静态图像构图；videoPrompt 是时序动作、运镜和声音。引用资产时使用 <资产名称@资产id>，保留提供的 id，不要编造资产。`;
+                const request={...config,message:[instruction,'视觉风格：'+style,stage===0?input:assets.length?JSON.stringify({shots,assets}):JSON.stringify(shots)].join('\n'),systemPrompt:'你是专业分镜导演。仅返回 JSON，格式为 {"shots":[{"duration":5,"description":"画面","size":"景别","lighting":"光影","dialogue":"对白或旁白","sound":"音效","movement":"运镜","asset":"人物场景道具说明","prompt":"图像提示词","videoPrompt":"视频运动提示词"}]}。duration 使用秒，镜头时长大于 0，不要返回 Markdown 或说明文字。'};
                 button.disabled=true;status.textContent='正在生成，请稍候…';
                 await runPixmaxTextTask(node,request,result=>{
-                    if(stage!==0)result=result.map((shot,index)=>({...shots[index],[stage===1?'asset':'prompt']:shot[stage===1?'asset':'prompt']}));
+                    if(stage!==0)result=result.map((shot,index)=>({...shots[index],...Object.fromEntries((stage===1?['asset']:promptFields).map(field=>[field,shot[field]])),...(stage===2?{promptStatus:'completed',promptError:undefined}:{})}));
                     node.shots=result;shots.splice(0,shots.length,...JSON.parse(JSON.stringify(result)));
-                },()=>valid()&&pixmaxTextModelUnchanged(modal,config)&&Number(modal.querySelector('[data-story-count]').value)===config.count&&step===stage&&JSON.stringify(shots)===before&&JSON.stringify(assets)===assetsBefore&&modal.querySelector('[data-story-script]').value===input&&modal.querySelector('[data-story-style]').value===style,
-                text=>{const result=pixmaxStructuredShots(text);if(result.length!==(stage===0?config.count:shots.length))throw new Error('模型返回的镜头数量不一致，原镜头已保留');if(stage!==0&&result.some(shot=>!shot[stage===1?'asset':'prompt'].trim()))throw new Error('模型回复缺少'+(stage===1?'资产说明':'提示词'));return result;});
+                },()=>valid()&&pixmaxTextModelUnchanged(modal,config)&&Number(modal.querySelector('[data-story-count]').value)===config.count&&step===stage&&JSON.stringify(shots)===before&&JSON.stringify(assets)===assetsBefore&&(stage!==2||modal.querySelector('[data-story-prompt-kind]').value===config.promptKind)&&modal.querySelector('[data-story-script]').value===input&&modal.querySelector('[data-story-style]').value===style,
+                text=>{const result=pixmaxStructuredShots(text);if(result.length!==(stage===0?config.count:shots.length))throw new Error('模型返回的镜头数量不一致，原镜头已保留');if(stage!==0&&result.some(shot=>(stage===1?['asset']:promptFields).some(field=>!shot[field].trim())))throw new Error('模型回复缺少'+(stage===1?'资产说明':'提示词'));return result;});
                 draw();status.textContent=stage===0?'镜头已生成，可继续准备资产':stage===1?'资产说明已生成':'提示词已生成，可以插入画布';
             }catch(error){status.textContent=error.message||'分镜生成失败';}
             finally{button.disabled=false;}
@@ -428,7 +431,7 @@ function openSmartStoryboard(node){
         }
         if(button.hasAttribute('data-story-step')){
             step=Number(button.dataset.storyStep);
-            if(step===2)shots.forEach(shot=>{if(!shot.prompt)shot.prompt=[shot.description,shot.size,shot.lighting,shot.movement,shot.asset].filter(Boolean).join('，');});
+            if(step===2&&!node.pixmaxStoryboardSource)shots.forEach(shot=>{if(!shot.prompt)shot.prompt=[shot.description,shot.size,shot.lighting,shot.movement,shot.asset].filter(Boolean).join('，');});
             modal.querySelectorAll('[data-story-step]').forEach(tab=>tab.classList.toggle('active',Number(tab.dataset.storyStep)===step));draw();
             modal.querySelector('[data-story-generate]').textContent=['自动拆分镜头','生成资产说明','生成镜头提示词'][step];
         }

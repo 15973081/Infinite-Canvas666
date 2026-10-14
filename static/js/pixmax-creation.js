@@ -76,12 +76,12 @@ function pixmaxStructuredShots(text){
     try{value=JSON.parse(clean);}catch{throw new Error('模型回复不是有效分镜 JSON，原结果已保留在任务记录中');}
     const shots=Array.isArray(value)?value:value.shots;
     if(!Array.isArray(shots)||!shots.length||shots.length>100)throw new Error('分镜必须包含 1 到 100 个镜头');
-    const fields=['description','size','lighting','dialogue','sound','movement','asset','prompt'];
+    const fields=['description','size','lighting','dialogue','sound','movement','asset','prompt','videoPrompt'];
     return shots.map(shot=>{
         if(!shot||typeof shot!=='object'||Array.isArray(shot))throw new Error('模型返回的镜头格式不正确');
         const duration=Number(shot.duration??5);
         if(!Number.isFinite(duration)||duration<=0||duration>600)throw new Error('镜头时长必须在 0 到 600 秒之间');
-        if(!String(shot.description||shot.prompt||'').trim())throw new Error('模型返回了空镜头，请核对任务回复');
+        if(!String(shot.description||shot.prompt||shot.videoPrompt||'').trim())throw new Error('模型返回了空镜头，请核对任务回复');
         return Object.fromEntries([['duration',duration],...fields.map(field=>[field,String(shot[field]||'')])]);
     });
 }

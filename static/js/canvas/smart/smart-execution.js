@@ -939,6 +939,8 @@ function toggleInputRefBlocked(node, img){
 
 function defaultReferenceImagesFor(node, consume=false, ctx=null){
     if(!node) return [];
+    const storyboard=window.PixmaxStoryboardMedia?.referencesFor(node);
+    if(storyboard)return uniqueReferenceImages(storyboard);
     const self = selfReferenceImagesForNode(node, consume, ctx).filter(img => img?.url);
     const upstream = defaultInputImagesFor(node, consume, ctx);
     if(smartImageUsesWorkflowInput(node, ctx)) return uniqueReferenceImages(upstream);
@@ -1606,6 +1608,7 @@ function loadNodePromptDraftToInput(node){
         if(rebuilt) promptInput.innerHTML = rebuilt;
         else setPromptText(node?.runPrompt || '');
     }
+    if(node)window.PixmaxStoryboardMedia?.refreshPromptReferences(node,promptInput);
 }
 
 function buildPromptRequestForNode(node, defaultImages, ctx=null){

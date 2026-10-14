@@ -1,0 +1,11 @@
+module.exports=()=>({nodes:[
+    {uuid:'person-image',type:'BASE_IMAGE',defaultAsset:{type:'IMAGE',webUrl:'/test-image.svg',width:320,height:240}},
+    {uuid:'street-image',type:'BASE_IMAGE',defaultAsset:{type:'IMAGE',webUrl:'/test-image.svg?scene',width:320,height:240}},
+    {uuid:'voice',type:'BASE_AUDIO',defaultAsset:{type:'AUDIO',webUrl:'/assets/voice.mp3'}},
+    {uuid:'board',type:'STORYBOARD_SCRIPT',nodeText:JSON.stringify({
+        assets:{characterAssets:[{assetId:'person',assetRef:'旅人',assetDescription:'穿灰衣',audioAssetId:'voice-person'}],sceneAssets:[{assetId:'street',assetRef:'街道',assetDescription:'雨夜'}],propsAssets:[],audioAssets:[{audioAssetId:'voice-person',audioRef:'旅人声音',audioPrompt:'温和的声音'}]},
+        shotNoList:[{shotNo:'1',duration:'3',visualDescription:'<旅人@person>走进<街道@street>',shotSize:'全景',cameraAngle:'平视',lightingMood:'雨夜灯光',dialogueVoiceOver:'<旅人@person@voice-person>：你好',soundEffects:'脚步声',cameraMovement:'推进'},{shotNo:'2',duration:'5',visualDescription:'旅人回头'}]}),
+        metaData:JSON.stringify({position:{x:200,y:200},data:{shotScriptClientState:{schemaVersion:2,
+            assetClientById:{person:{imageNodeId:'person-image',taskUuid:'foreign-asset-task'},street:{imageNodeId:'street-image'}},audioClientById:{'voice-person':{nodeId:'voice',taskUuid:'foreign-voice-task'}},
+            shotClientByNo:{'1':{promptStatus:'completed',shotPrompt:'<旅人@person>走进<街道@street>',videoPrompt:'<旅人@person@voice-person>缓步向前并说话',shotPromptTaskUuid:'foreign-prompt-task'}}}}})}
+]});

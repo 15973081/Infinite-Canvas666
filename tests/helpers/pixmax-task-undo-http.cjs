@@ -15,7 +15,7 @@ async function transport(request,canvasId){
 (async()=>{
     const config=await ready,cleanup=[];let posts=0;
     try{
-        const taskKind=config.kind==='parse'?'llm':config.kind==='assets'?'image':config.kind;
+        const taskKind=config.kind==='parse'?'llm':['assets','shots'].includes(config.kind)?'image':config.kind;
         const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,
             apiHandler:request=>{if(request.method()==='POST'&&request.url().includes('/api/canvas-'+taskKind+'-tasks'))posts++;return transport(request,config.canvas.id);}});
         await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
@@ -24,7 +24,7 @@ async function transport(request,canvasId){
             await page.route('**/assets/cloud/**',route=>route.fulfill({body:Buffer.from(config.videoBytes,'base64'),contentType:'video/mp4'}));
         }
         await page.evaluate(config=>{
-            apiProviders=[{id:config.providerId,has_key:true,image_models:config.kind==='assets'?['test']:[],chat_models:config.kind==='parse'?['test']:[],audio_models:config.kind==='audio'?['speech-2.8-hd']:[],model_models:config.kind==='model'?['3.0']:[]}];
+            apiProviders=[{id:config.providerId,has_key:true,image_models:['assets','shots'].includes(config.kind)?['test']:[],video_models:config.kind==='shots'?['test-video']:[],chat_models:config.kind==='parse'?['test']:[],audio_models:config.kind==='audio'?['speech-2.8-hd']:[],model_models:config.kind==='model'?['3.0']:[]}];
             Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});
             Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});
             // Use the editor's actual private proof for writes. The browser's
@@ -38,8 +38,21 @@ async function transport(request,canvasId){
                 }
                 return fetcher(url,init);
             };
-            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else openSmartStudio(nodes[0].id);
+            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else if(config.kind==='shots')PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'image');else openSmartStudio(nodes[0].id);
         },config);
+        if(config.kind==='shots'){
+            await page.getByRole('button',{name:'创建生成节点'}).click();await page.waitForFunction(()=>!document.querySelector('.pixmax-story-media-modal'));
+            await page.evaluate(()=>PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'video'));
+            await page.getByRole('button',{name:'创建生成节点'}).click();await page.waitForFunction(()=>!document.querySelector('.pixmax-story-media-modal'));
+            assert.equal(posts,0);assert.equal(await page.evaluate(()=>nodes.length),7);
+            await page.evaluate(async()=>{const node=nodes.find(node=>node.storyboardShotBinding?.mediaType==='image');smartSelection.createdNode(node.id);render();await runGeneration();});
+            assert.equal(await page.evaluate(()=>nodes.find(node=>node.storyboardShotBinding?.mediaType==='image').images.length),1,await page.locator('#toast').textContent());
+            assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);await page.reload();await page.waitForFunction(id=>canvas?.id===id,config.canvas.id);
+            assert.equal(await page.evaluate(()=>nodes.find(node=>node.storyboardShotBinding?.mediaType==='image').images.length),1);
+            assert.equal(await page.evaluate(()=>nodes.find(node=>node.type==='smart-editor').inputNodeIds.length),1);
+            assert.deepEqual(errors,[]);assert.equal(posts,1);
+            process.stdout.write(JSON.stringify({done:true,posts,revision:await page.evaluate(()=>canvas.revision)})+'\n');return;
+        }
         if(config.kind==='assets'){
             await page.locator('[data-story-image-all]').click();await page.waitForFunction(()=>!PixmaxStoryboardAssets.busy());
             assert.deepEqual(await page.evaluate(()=>nodes.slice(1).map(node=>node.images.length)),[1,1],await page.locator('.pixmax-creation-status').textContent());

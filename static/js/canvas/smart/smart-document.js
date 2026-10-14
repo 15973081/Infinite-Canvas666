@@ -248,6 +248,7 @@ function insertSmartWorkflowIntoCanvas(imported){
     newNodes.forEach(node=>{if(node.inputNodeIds)node.inputNodeIds=node.inputNodeIds.map(id=>idMap.get(id)).filter(Boolean);});
     newNodes.forEach(node=>window.PixmaxVideoAnnotation?.remapReferences(node,idMap,{referenceNodes:newNodes}));
     newNodes.forEach(node=>window.PixmaxStoryboardAssets?.remapReferences(node,idMap));
+    newNodes.forEach(node=>window.PixmaxStoryboardMedia?.remapReferences(node,idMap,{referenceNodes:newNodes}));
     window.PixmaxTags?.mergeImported(imported,newNodes);
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
@@ -748,6 +749,7 @@ function pasteNodes({includeConnections=true}={}){
         if(copy.sourceNodeId) copy.sourceNodeId = includeConnections ? idMap.get(copy.sourceNodeId) || '' : '';
         window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
         window.PixmaxStoryboardAssets?.remapReferences(copy,idMap,{connected:includeConnections});
+        window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{connected:includeConnections,referenceNodes:copies});
     });
     const newConnections = (includeConnections ? nodeClipboard.connections || [] : []).map(conn => ({
         ...conn,
@@ -778,6 +780,7 @@ function duplicateForAltDrag(node){
         if(copy.sourceNodeId) copy.sourceNodeId = idMap.get(copy.sourceNodeId) || '';
         window.PixmaxVideoAnnotation?.remapReferences(copy,idMap,{referenceNodes:copies});
         window.PixmaxStoryboardAssets?.remapReferences(copy,idMap);
+        window.PixmaxStoryboardMedia?.remapReferences(copy,idMap,{referenceNodes:copies});
     });
     const idSet = new Set(sourceNodes.map(n => n.id));
     const copiedConnections = (canvas.connections || []).filter(c => idSet.has(c.from) && idSet.has(c.to));

@@ -2,6 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const context=vm.createContext({window:{},URL});
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js/pixmax-workflow.js'),'utf8'),context);
 const convert=value=>JSON.parse(JSON.stringify(context.window.PixmaxWorkflow.convert(value)));
+const nativeStoryboard=require('./helpers/pixmax-storyboard-native.cjs');
 test('native storage paths use the asset origin while absolute and receiving-app paths keep their identity',()=>{
     const result=convert({nodes:[{uuid:'image',type:'BASE_IMAGE',defaultAsset:{type:'IMAGE',webUrl:'/static/img/original.png',thumbnailWebUrl:'/static/img/thumbnail.webp',ossDomain:'https://media.example.test/'},nodeAssets:[{type:'IMAGE',webUrl:'https://original.example.test/photo.png',thumbnailWebUrl:'javascript:alert(1)'},{type:'IMAGE',webUrl:'/test-image.svg'}]},
         {uuid:'video',type:'BASE_VIDEO',prevNodeUuids:['image'],defaultAsset:{type:'VIDEO',webUrl:'/static/video/movie.mp4',thumbnailVideoWebUrl:'/static/img/movie.jpg',ossDomain:'javascript:alert(1)'}}]});
@@ -27,4 +28,13 @@ test('conversion preserves geometry and available media while ignoring foreign t
 test('video thumbnails retain a playable preview stream and an image poster as separate resources',()=>{
     const result=convert({nodes:[{uuid:'clip',type:'BASE_VIDEO',defaultAsset:{fileType:'VIDEO',webUrl:'/static/video/original.mp4',previewWebUrl:'/static/video/preview.jpg',thumbnailWebUrl:'/static/video/poster.jpg',thumbnailVideoWebUrl:'/static/video/small.mp4'}}]});
     const media=result.nodes[0].images[0];assert.match(media.url,/original.mp4$/);assert.match(media.poster,/poster.jpg$/);assert.match(media.previewVideoUrl,/small.mp4$/);assert.equal(media.kind,'video');
+});
+test('native storyboard source, both prompt fields and available visual/audio bindings survive conversion without foreign task IDs',()=>{
+    const result=convert(nativeStoryboard()),board=result.nodes[3];assert.equal(board.shots.length,2);assert.equal(board.shots[0].cameraAngle,'平视');assert.equal(board.shots[0].sound,'脚步声');
+    assert.deepEqual(board.shots[0].assetIds,['person','street']);assert.match(board.shots[0].prompt,/@person/);assert.match(board.shots[0].videoPrompt,/@voice-person/);
+    assert.deepEqual(board.storyboardAssets.map(asset=>asset.imageNodeId),['person-image','street-image']);assert.equal(board.storyboardAudioAssets[0].nodeId,'voice');assert.equal(JSON.stringify(result).includes('foreign-'),false);
+});
+test('native queued prompt imports as interrupted; missing bound nodes are cleared',()=>{
+    const source=nativeStoryboard(),info=JSON.parse(source.nodes[3].metaData);info.data.shotScriptClientState.shotClientByNo['1'].promptStatus='queue';source.nodes[3].metaData=JSON.stringify(info);source.nodes.splice(0,1);
+    const board=convert(source).nodes[2];assert.equal(board.shots[0].promptStatus,'interrupted');assert.equal(board.storyboardAssets[0].imageNodeId,undefined);
 });
