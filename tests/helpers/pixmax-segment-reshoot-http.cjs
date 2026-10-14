@@ -34,6 +34,9 @@ async function transport(request){const path=new URL(request.url()).pathname;if(
         if(config.parameters){
             await page.getByRole('button',{name:'重拍生成参数',exact:true}).click();const panel=page.locator('[data-combo-selector-panel]');await panel.getByRole('button',{name:'1080P',exact:true}).click();await panel.getByRole('button',{name:'MOV',exact:true}).click();await panel.getByRole('button',{name:'Audio Off',exact:true}).click();
         }
+        if(config.camera){
+            await page.getByRole('button',{name:'添加镜头参数',exact:true}).click();const panel=page.locator('[data-reshoot-camera] [role=dialog]');await panel.locator('[role=group]').first().getByRole('button').last().click();await panel.locator('header button').click();assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-hash-type="camera"]').count(),1);
+        }
         await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.waitForFunction(()=>nodes.some(node=>node.segmentReshoot&&node.images.length));
         await page.getByRole('button',{name:'关闭片段重拍',exact:true}).click();assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);assert.deepEqual(errors,[]);process.stdout.write(JSON.stringify({done:true})+'\n');
     }finally{for(const close of cleanup.reverse())await close();clearTimeout(watchdog);lines.close();}

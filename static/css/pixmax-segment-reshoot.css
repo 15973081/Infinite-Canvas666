@@ -8,3 +8,5 @@
 body:has(.pixmax-segment-reshoot-modal) [data-combo-selector-panel]{z-index:100150!important}.pixmax-segment-reshoot-modal [data-reshoot-parameters]>div>button{width:100%;justify-content:space-between;padding:8px 10px;border:1px solid #313136;border-radius:6px;background:#070707;color:#fafafa;font-size:12px}
 
 .pixmax-reshoot-model{display:grid;gap:4px;font-size:12px;color:#9199a9}.pixmax-reshoot-model [data-reshoot-model]>div>button{width:100%;background:transparent;color:#fafafa;padding:8px 10px;font-size:12px}.pixmax-reshoot-model-options{z-index:100150!important;max-width:min(366px,calc(100vw - 16px))}
+
+.pixmax-reshoot-camera{position:relative;min-width:0}.pixmax-reshoot-camera>button{padding:5px 8px;font-size:12px}.pixmax-reshoot-camera [role="dialog"]{max-width:100%;z-index:100160}.pixmax-reshoot-camera [role="dialog"] button{padding:0;background:transparent}.pixmax-prompt-hash-token{display:inline-block;padding:2px 5px;border-radius:4px;background:#292435;color:#c9b2ff}

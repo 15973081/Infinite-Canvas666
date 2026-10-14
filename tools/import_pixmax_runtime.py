@@ -6,6 +6,7 @@ Re-run with --mirror after changing the supplied reference snapshot.
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
@@ -24,8 +25,31 @@ runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e(".
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
 runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index.js")', 'e("../node_modules/is-buffer/index.js")')
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
-for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(', 'function g$(', 'function Kz(']:
+for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(', 'function g$(', 'function Kz(', 'function sst(']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
+camera_read='let e=RL.resolveCameraParamsPanel(c.user?.unionId??null);'
+camera_write='RL.persistCameraParamsPanel(o.indices,c.user?.unionId??null)'
+assert runtime.count(camera_read)==runtime.count(camera_write)==1, 'Camera preference boundary changed'
+runtime=runtime.replace(camera_read,'let e=t.readPreferences?t.readPreferences():RL.resolveCameraParamsPanel(c.user?.unionId??null);')
+runtime=runtime.replace(camera_write,'(t.writePreferences?t.writePreferences(o.indices):RL.persistCameraParamsPanel(o.indices,c.user?.unionId??null))')
+camera_start=runtime.index('function sst(')
+camera_end_component=runtime.index('var LX=',camera_start)
+camera_segment=runtime[camera_start:camera_end_component]
+camera_escape='e.key===`Escape`&&(e.preventDefault(),a(!1))'
+assert camera_segment.count(camera_escape)==1
+camera_segment=camera_segment.replace(camera_escape,'e.key===`Escape`&&(t.stopEscapePropagation&&e.stopPropagation(),e.preventDefault(),a(!1))')
+runtime=runtime[:camera_start]+camera_segment+runtime[camera_end_component:]
+camera_end=bundle.index('AX={camera:EX,lens:DX,focalLength:OX,aperture:kX}')
+camera_names=re.findall(r'/assets/([A-Za-z0-9_-]+\.png)',bundle[bundle.rfind('mot=',0,camera_end):camera_end])
+assert len(camera_names)==27
+for name in camera_names:runtime=runtime.replace('/assets/'+name,'/static/vendor/pixmax/camera/'+name)
+catalog={}
+for name,symbol in [('camera','EX'),('lens','DX'),('focalLength','OX'),('aperture','kX')]:
+    match=re.search(r'\b'+symbol+r'=\[(.*?)\]',bundle[:camera_end])
+    assert match, 'Camera catalogue changed'
+    catalog[name]=re.findall(r'label:`([^`]+)`',match[1])
+assert [len(items) for items in catalog.values()]==[10,10,7,7]
+(destination/'prompt-catalog.js').write_text('window.PixmaxPromptCatalog=Object.freeze('+json.dumps(catalog,ensure_ascii=False)+');\n',encoding='utf-8')
 marker_hook = 'let n=N,r=jNt(),i=G(_);'
 assert runtime.count(marker_hook) == 1, 'Video annotation controller changed; inspect before importing'
 runtime = runtime.replace(marker_hook, marker_hook + 't.onMarkerReady?.(r);')
@@ -81,6 +105,13 @@ export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 let canvasModelSelectorSequence=0;
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountCamera(target,props) {
+    const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
+    const open=z(false),disabled=z(!!props.disabled);
+    const instance=Tf(sst,{target,context:new Map([[tCe,container],[Bz,{user:null}]]),props:{...props,stopEscapePropagation:true,readPreferences:props.readPreferences||(()=>null),writePreferences:props.writePreferences||(()=>{}),
+      get open(){return G(open);},set open(next){B(open,!!next);},get disabled(){return G(disabled);}}});
+    return {instance,setOpen(next){B(open,!!next);},setDisabled(next){B(disabled,!!next);if(next)B(open,false);},destroy(){return Of(instance);}};
+  },
   async mountModelSelector(target,props) {
     const data=z({value:props.value,options:props.options}),disabled=z(!!props.disabled),portalClass='pixmax-reshoot-model-portal-'+(++canvasModelSelectorSequence);let disposed=false;
     const preparePortal=()=>{const portal=document.querySelector('.'+portalClass);if(!portal||portal.dataset.modelKeysBound)return;portal.dataset.modelKeysBound='true';
@@ -111,13 +142,13 @@ export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params
     const notify=message=>props.onNotice?.(message);
     container.registerInstance(N_,{success:notify,error:notify,warning:notify,info:notify,pending:notify,remove(){}});
     const value=z(props.value||''), references=z(props.references||{mentionItems:[],incomingNodes:[]}), readonly=z(!!props.readonly);
-    const instance=Tf(M1,{target,context:new Map([[tCe,container]]),props:{...props,enabledProtocols:['at-mention'],
+    const instance=Tf(M1,{target,context:new Map([[tCe,container]]),props:{...props,enabledProtocols:['at-mention','hash-rich'],
       get value(){return G(value);},get mentionItems(){return G(references).mentionItems;},get incomingNodes(){return G(references).incomingNodes;},get readonly(){return G(readonly);}
     }});
     await tf();const editor=instance.getRichEditorManager()?.editorEl;
     if(editor){editor.setAttribute('role','textbox');editor.setAttribute('aria-label',props.ariaLabel||'重拍要求');editor.setAttribute('aria-multiline','true');}
     return {instance,setValue(next){B(value,next,true);},setReferences(next){B(references,next,true);},setReadonly(next){B(readonly,!!next);},
-      insertMention(item){return instance.insertChipItem('at-mention',item,'caret');},destroy(){return Of(instance);}};
+      insertMention(item){return instance.insertChipItem('at-mention',item,'caret');},insertCamera(item){return instance.insertCameraChip(item);},insertCamerawork(item){return instance.insertCameraworkChip(item);},destroy(){return Of(instance);}};
   },
   async mountTimeline(target, props) {
     const container = new f, i18n = await KLe();
@@ -154,8 +185,8 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst'], 'model_graphics': ['J1e','Dc','Lc']},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

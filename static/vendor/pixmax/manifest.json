@@ -13,7 +13,8 @@
       "gMt",
       "M1",
       "g$",
-      "Kz"
+      "Kz",
+      "sst"
     ],
     "model_graphics": [
       "J1e",
@@ -32,7 +33,8 @@
     "Expose reactive capture permission for native source preview players",
     "Expose native rich prompt editor with scoped reference adapters",
     "Expose native reshoot parameter controls and freeze public model fields",
-    "Expose native model selector with host provider and policy adapters"
+    "Expose native model selector with host provider and policy adapters",
+    "Expose native camera panel with member-scoped preferences and local public artwork"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }

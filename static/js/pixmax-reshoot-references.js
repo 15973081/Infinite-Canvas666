@@ -33,7 +33,7 @@
     }
     function validate(node,current=plan(node)){
         const invalid=[];
-        let prompt=String(node.segmentReshoot.prompt||'').replace(token,(_value,_title,kind,_index,id)=>{
+        let prompt=PixmaxPromptTokens.compile(String(node.segmentReshoot.prompt||'')).replace(token,(_value,_title,kind,_index,id)=>{
             const entry=current.byId.get(id);if(!entry||entry.kind!==kind){invalid.push(id);return '';}
             return entry.alias;
         });
@@ -54,12 +54,12 @@
     function setPrompt(node,value){
         const current=plan(node);let position=0,html='';
         for(const match of value.matchAll(token)){
-            html+=escapeHtml(value.slice(position,match.index)).replaceAll('\n','<br>');position=match.index+match[0].length;
+            html+=PixmaxPromptTokens.html(value.slice(position,match.index));position=match.index+match[0].length;
             const entry=current.byId.get(match[4]);
             html+=entry?.media?mentionTokenHtml({...entry.media,nodeId:entry.nodeId||'',imageIndex:entry.imageIndex||0,name:entry.name,referenceLabel:entry.alias}):entry?`<span class="pixmax-reshoot-text-token" contenteditable="false" data-reshoot-reference-id="${escapeAttr(entry.id)}">@${escapeHtml(entry.alias)}</span>`:escapeHtml(match[0]);
         }
-        node.segmentReshoot.prompt=value;node.promptDraftText=value.replace(token,(_match,_title,_kind,_index,id)=>'@'+(current.byId.get(id)?.alias||'失效参考'));
-        node.promptDraftHtml=html+escapeHtml(value.slice(position)).replaceAll('\n','<br>');
+        node.segmentReshoot.prompt=value;node.promptDraftText=PixmaxPromptTokens.text(value.replace(token,(_match,_title,_kind,_index,id)=>'@'+(current.byId.get(id)?.alias||'失效参考')));
+        node.promptDraftHtml=html+PixmaxPromptTokens.html(value.slice(position));
         if(typeof activeComposerNode==='function'&&activeComposerNode()===node&&promptInput)promptInput.innerHTML=node.promptDraftHtml;
     }
     function captureComposer(node){
@@ -68,12 +68,14 @@
         const walk=element=>{
             if(element.nodeType===Node.TEXT_NODE){parts.push({type:'text',text:element.textContent||''});return;}
             if(element.nodeType!==Node.ELEMENT_NODE)return;
+            if(element.dataset.pixmaxPromptToken){parts.push({type:'literal',token:element.dataset.pixmaxPromptToken});return;}
             if(element.dataset.reshootReferenceId){parts.push({type:'reference',id:element.dataset.reshootReferenceId});return;}
             if(element.classList.contains('mention-image-token')){parts.push({type:'image',kind:element.dataset.kind,url:element.dataset.url,nodeId:element.dataset.nodeId,imageIndex:Number(element.dataset.imageIndex||0)});return;}
             if(element.tagName==='BR')parts.push({type:'text',text:'\n'});element.childNodes.forEach(walk);if(element!==promptInput&&['DIV','P'].includes(element.tagName))parts.push({type:'text',text:'\n'});
         };promptInput.childNodes.forEach(walk);
         node.segmentReshoot.prompt=parts.map(part=>{
             if(part.type==='text')return part.text;
+            if(part.type==='literal')return part.token;
             const entry=part.id?current.byId.get(part.id):current.resources.find(entry=>entry.media&&entry.kind===mediaKindForItem(part)&&((entry.nodeId===part.nodeId&&entry.imageIndex===part.imageIndex)||(entry.crop&&identity(entry.media)===identity(part))));
             const mention=current.mentions.find(item=>item.id===entry?.id);
             return mention?`%%@[${mention.tokenTitle}][${mention.type}][${mention.index}](${mention.id})%%`:`%%@[失效参考][${part.id?'text':mediaKindForItem(part)}][0](${part.id||part.nodeId||'missing'})%%`;
