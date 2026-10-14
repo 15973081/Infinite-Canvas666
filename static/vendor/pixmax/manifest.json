@@ -10,7 +10,8 @@
       "wnt",
       "Snt",
       "Ktt",
-      "gMt"
+      "gMt",
+      "M1"
     ],
     "model_graphics": [
       "J1e",
@@ -26,7 +27,8 @@
     "Export native segment reshoot crop, frame capture, range limits and upload cache",
     "Expose native reshoot thumbnail timeline with reactive range and lifecycle controls",
     "Scope native reshoot range tooltip above the host modal",
-    "Expose reactive capture permission for native source preview players"
+    "Expose reactive capture permission for native source preview players",
+    "Expose native rich prompt editor with scoped reference adapters"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }

@@ -9,6 +9,7 @@
         if(!session||session.closed)return;session.closed=true;
         session.observer?.disconnect();clearTimeout(session.seekTimer);session.root.remove();
         session.cleanupVideo?.();session.unmountPlayer?.();
+        session.promptHandle?.destroy();for(const picker of session.pickers||[])picker.remove();
         if(session.video){session.video.pause();session.video.removeAttribute('src');session.video.load();}
         if(session.timeline)void session.timeline.destroy();
         if(activeSession===session)activeSession=null;
@@ -119,14 +120,17 @@
             await commitSmartStudioTaskResult(node,record,'video',binding,{valid,recovered:true,prepareResult:()=>{if(!smartPendingTasks(node).some(task=>task.taskId===state.taskId)){node.pendingTasks=[...smartPendingTasks(node),{taskId:state.taskId,kind:'video',providerId:node.runSettings.videoProvider,model:node.runSettings.videoModel}];node.pending=Math.max(1,node.pending||0);}}});
             if(valid()){state.completedTaskId=state.taskId;scheduleSave();status.textContent='重拍结果已加入画布';}return;
         }
+        PixmaxReshootReferences.validate(node);
+        const references=PixmaxReshootReferences.signature(node);
         const cache=await prepare(node,valid,status);if(!valid())throw new Error('编辑资格已变化');
+        if(PixmaxReshootReferences.signature(node)!==references)throw new Error('提示词、模型或参考素材已变化，请再次生成');
         const choice=models().find(item=>item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel);if(!choice)throw new Error('模型配置已变化，请重新选择');
+        const request=PixmaxReshootReferences.request(node,executionSettings(node,node.runSettings));
         pushUndo();state.taskId=uid('canvas_vid');delete state.completedTaskId;
         const guard=canvasTaskWriteGuard(node),binding=smartTaskInputBinding(node,node,{valid,check(){if(!valid())throw new Error('来源或编辑资格已变化');}});
-        const params=executionSettings(node,node.runSettings);
-        const prompt=state.prompt.trim()||'保留原画面、人物、声音及镜头运动，不改变内容。';status.textContent='正在提交片段重拍…';
+        const params=request.settings,prompt=request.prompt;status.textContent='正在提交片段重拍…';
         try{
-            const result=await runApiVideoGeneration(prompt,[],params,binding,{taskId:state.taskId});
+            const result=await runApiVideoGeneration(prompt,request.refs,params,binding,{taskId:state.taskId});
             guard.check();await queueAndResumeSmartApiTasks(node,result,{kind:'video',archiveExisting:false});
             if(valid()){state.completedTaskId=state.taskId;scheduleSave();status.textContent='重拍结果已加入画布';}
         }catch(error){if(valid()&&error.status>=400&&error.status<500){delete state.taskId;scheduleSave();}throw error;}
@@ -150,9 +154,41 @@
         const choices=models(),hasModel=choices.some(item=>item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel);body.innerHTML=`<div class="pixmax-reshoot-preview-player" data-reshoot-player></div><p class="pixmax-creation-hint">选择 4–30 秒片段，描述需要修改的内容。</p><div class="pixmax-reshoot-range"><div class="pixmax-reshoot-native-timeline" data-reshoot-timeline aria-label="重拍视频选段"></div><div class="pixmax-reshoot-time-fields"><label>开始时间<input type="number" data-reshoot-start min="0" max="${state.source.duration}" step="0.1" aria-label="重拍开始时间"></label><label>结束时间<input type="number" data-reshoot-end min="0" max="${state.source.duration}" step="0.1" aria-label="重拍结束时间"></label></div><output data-reshoot-summary></output></div><label>重拍要求<textarea data-reshoot-prompt maxlength="10000" aria-label="重拍要求" placeholder="也可以写要改什么，例如：把头发换成红色">${escapeHtml(state.prompt)}</textarea></label><label>生成模型<select data-reshoot-model aria-label="重拍模型">${hasModel?'':'<option value="" selected>请选择已配置的 Seedance 2.5 模型</option>'}${choices.map(item=>`<option value="${escapeAttr(JSON.stringify([item.provider.id,item.model]))}" ${item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel?'selected':''}>${escapeHtml(item.provider.name+' · '+item.model)}</option>`).join('')}</select></label><button type="button" data-reshoot-prepare>准备片段</button><button type="button" data-reshoot-run class="pixmax-creation-primary">${state.taskId&&state.completedTaskId!==state.taskId?'查询原重拍任务':'生成重拍视频'}</button>`;
         let edited=false,busy=false;
         const target=body.querySelector('[data-reshoot-timeline]'),session={root,video:null,canvasId:canvas.id,scope:scope(),node,valid,closed:false,timeline:null,scrubbing:false,seekTimer:null,lastSeek:0,pendingSeek:null};activeSession=session;
+        const oldPrompt=body.querySelector('[data-reshoot-prompt]'),promptTarget=document.createElement('div');promptTarget.dataset.reshootPrompt='';promptTarget.className='pixmax-reshoot-rich-prompt';oldPrompt.replaceWith(promptTarget);
+        const referenceArea=document.createElement('section');referenceArea.className='pixmax-reshoot-references';referenceArea.innerHTML='<header><span>参考素材</span><button type="button" data-reshoot-add-canvas>添加画布参考</button><button type="button" data-reshoot-add-asset>添加资产参考</button></header><div data-reshoot-references></div>';promptTarget.closest('label').before(referenceArea);
         let video;try{video=mountPlayer(api,session,source.media);}catch(error){dispose(session);return toast(error.message);}
         const draw=()=>{body.querySelector('[data-reshoot-start]').value=state.startSec;body.querySelector('[data-reshoot-end]').value=state.endSec;body.querySelector('[data-reshoot-summary]').textContent=`${state.startSec.toFixed(1)} – ${state.endSec.toFixed(1)} · ${(state.endSec-state.startSec).toFixed(1)}s`;session.timeline?.setRange({startSec:state.startSec,endSec:state.endSec});};draw();
-        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);};session.sync=sync;
+        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);session.promptHandle?.setReadonly(disabled);};session.sync=sync;
+        let referenceStamp='';
+        function refreshReferences(){
+            if(session.closed)return;const current=PixmaxReshootReferences.plan(node),stamp=JSON.stringify([current.mentions,current.incomingNodes]);if(stamp===referenceStamp)return;referenceStamp=stamp;
+            const list=referenceArea.querySelector('[data-reshoot-references]');list.replaceChildren();
+            for(const entry of current.resources){
+                const row=document.createElement('span');row.className='pixmax-reshoot-reference';const insert=document.createElement('button');insert.type='button';insert.textContent=entry.alias+' · '+entry.name;insert.dataset.reshootMention=entry.id;
+                insert.onclick=()=>{if(!valid()||busy)return;const item=PixmaxReshootReferences.plan(node).mentions.find(item=>item.id===entry.id);if(item)session.promptHandle?.insertMention(item);};row.appendChild(insert);
+                if(!entry.crop){const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','移除参考 '+entry.name);remove.onclick=()=>{if(valid()&&!busy)PixmaxReshootReferences.remove(node,entry);};row.appendChild(remove);}list.appendChild(row);
+            }
+            session.promptHandle?.setReferences({mentionItems:current.mentions,incomingNodes:current.incomingNodes});sync();
+        }
+        session.refreshReferences=refreshReferences;refreshReferences();
+        function pickerModel(){
+            if(!valid())return {cited:[],allowedCategories:[],canvasItems:[]};const current=PixmaxReshootReferences.plan(node),included=new Set(current.resources.map(entry=>entry.nodeId));
+            return {cited:current.mentions,allowedCategories:['text','image','audio'],canvasItems:nodes.filter(source=>source!==node&&!source.hidden&&(!included.has(source.id)||(node.blockedInputRefs||[]).some(key=>key.startsWith(source.id+'|')))).map(source=>{
+                const category=source.type==='smart-prompt'?'text':mediaKindForItem(source.images?.[0]);return {id:source.id,category,label:source.label||source.text?.slice(0,40)||source.images?.[0]?.name||'节点',thumbnailUrl:category==='image'?smartMediaPreviewUrl(source.images?.[0],256):undefined,disabled:!['text','image','audio'].includes(category)};
+            }).filter(item=>!item.disabled)};
+        }
+        async function pick(fromAssets){
+            if(!valid()||busy)return;const picker=pixmaxCreationModal(fromAssets?'添加资产参考':'添加画布参考'),content=picker.querySelector('.pixmax-creation-content');(session.pickers||=new Set()).add(picker);picker.classList.add('pixmax-reshoot-reference-picker');
+            const search=document.createElement('input');search.type='search';search.placeholder='搜索参考素材';search.setAttribute('aria-label','搜索参考素材');const list=document.createElement('div');list.className='pixmax-reshoot-reference-candidates';content.append(search,list);
+            let items=[];
+            const draw=()=>{list.replaceChildren();for(const entry of items.filter(entry=>entry.name.toLocaleLowerCase().includes(search.value.toLocaleLowerCase()))){const button=document.createElement('button');button.type='button';button.textContent=entry.name;button.dataset.reshootCandidate=entry.id;button.onclick=()=>{
+                if(!picker.isConnected||!valid()||busy)return;const id=fromAssets?PixmaxReshootReferences.addAsset(node,entry.item):PixmaxReshootReferences.connect(node,entry.id)?entry.id:null;
+                if(!id){picker.querySelector('[role=status]').textContent='无法连接该参考，请检查素材或循环连接';return;}picker.remove();session.pickers.delete(picker);refreshReferences();
+            };list.appendChild(button);}};search.oninput=draw;
+            if(fromAssets){try{const response=await CanvasApi.getAssetLibrary();if(!picker.isConnected||!valid())return;const library=response.library||response;const categories=(library.libraries||[{categories:library.categories||[]}]).flatMap(lib=>lib.categories||[]);items=categories.flatMap(category=>category.items||[]).filter(item=>item.url&&['image','video','audio'].includes(assetMediaKind(item))).map(item=>({id:item.id||item.url,name:item.name||'素材',item}));}catch(error){if(picker.isConnected&&valid())picker.querySelector('[role=status]').textContent=error.message||'素材加载失败';}}
+            else items=pickerModel().canvasItems.map(item=>({id:item.id,name:item.label}));draw();
+        }
+        referenceArea.querySelector('[data-reshoot-add-canvas]').onclick=()=>void pick(false);referenceArea.querySelector('[data-reshoot-add-asset]').onclick=()=>void pick(true);
         session.observer=new MutationObserver(()=>{if(!root.isConnected)dispose(session);});session.observer.observe(document.body,{childList:true});
         function changeRange(range){if(!valid()||busy||Math.abs(range.startSec-state.startSec)<.001&&Math.abs(range.endSec-state.endSec)<.001)return;if(!edited){pushUndo();edited=true;}Object.assign(state,range);delete state.cache;delete state.preparedMedia;node.runSettings.videoTempShLinks=[];draw();scheduleSave();}
         function seek(seconds,final=false){
@@ -165,7 +201,7 @@
         session.cleanupVideo=()=>{for(const event of ['timeupdate','seeked','play','pause'])video.removeEventListener(event,playback);};
         function draft(event){if(!event.target.matches('[data-reshoot-start],[data-reshoot-end],[data-reshoot-prompt],[data-reshoot-model]')||!valid()||busy)return;if(!edited){pushUndo();edited=true;}
             if(event.target.matches('[data-reshoot-start],[data-reshoot-end]')){changeRange(api.normalizeRange(Number(body.querySelector('[data-reshoot-start]').value),Number(body.querySelector('[data-reshoot-end]').value),state.source.duration));seek(state.startSec,true);}
-            state.prompt=body.querySelector('[data-reshoot-prompt]').value;const choice=body.querySelector('[data-reshoot-model]').value;if(choice){const [provider,model]=JSON.parse(choice);Object.assign(node.runSettings,{videoProvider:provider,videoModel:model,engine:provider==='volcengine'?'volcengine':'api'});}scheduleSave();
+            const choice=body.querySelector('[data-reshoot-model]').value;if(choice){const [provider,model]=JSON.parse(choice);Object.assign(node.runSettings,{videoProvider:provider,videoModel:model,engine:provider==='volcengine'?'volcengine':'api'});}scheduleSave();
         }
         body.addEventListener('input',draft);body.addEventListener('change',draft);
         async function perform(run){if(busy)return;busy=true;sync();
@@ -179,10 +215,15 @@
                 onChange:changeRange,onSeek:seconds=>seek(seconds,true),onScrub:seconds=>{session.scrubbing=true;seek(seconds);},onScrubEnd:seconds=>{session.scrubbing=false;seek(seconds,true);}});
             if(session.closed||activeSession!==session||!root.isConnected){void timeline.destroy();return;}
             session.timeline=timeline;draw();sync();
+            const current=PixmaxReshootReferences.plan(node);
+            const promptHandle=await api.mountPrompt(promptTarget,{value:state.prompt,maxLength:10000,ariaLabel:'重拍要求',placeholder:'也可以写要改什么，例如：把头发换成红色',previewZIndex:100150,onNotice:message=>{if(valid())toast(message);},readonly:busy||!valid(),references:{mentionItems:current.mentions,incomingNodes:current.incomingNodes},
+                atMentionPicker:{getModel:pickerModel,connect:id=>valid()&&!busy&&PixmaxReshootReferences.connect(node,id)},
+                onChange:value=>{if(!valid()||busy||value===state.prompt)return;if(!edited){pushUndo();edited=true;}PixmaxReshootReferences.setPrompt(node,value);session.promptHandle?.setValue(value);scheduleSave();}});
+            if(session.closed||activeSession!==session||!root.isConnected){void promptHandle.destroy();return;}session.promptHandle=promptHandle;promptHandle.setValue(state.prompt);sync();
         }catch(error){if(!session.closed)status.textContent=error.message||'选段时间轴加载失败';}
     }
     function documentChanged(){
-        if(activeSession){if(activeSession.canvasId!==canvas?.id||activeSession.scope!==scope()||!nodes.includes(activeSession.node))dispose(activeSession);else activeSession.sync();}
+        if(activeSession){if(activeSession.canvasId!==canvas?.id||activeSession.scope!==scope()||!nodes.includes(activeSession.node))dispose(activeSession);else{activeSession.refreshReferences?.();activeSession.sync();}}
         window.dispatchEvent(new Event('pixmax-reshoot-preview-changed'));
         for(const node of nodes.filter(node=>node.segmentReshoot?.schemaVersion===1)){
             const element=world.querySelector(`.image-node[data-id="${CSS.escape(node.id)}"] .node-body`);if(!element)continue;const existing=element.querySelector('[data-reshoot-open]');if(existing){existing.disabled=isSmartCanvasLocked();continue;}
@@ -198,11 +239,12 @@
     }
     function remapReferences(node,idMap,{connected=true,referenceNodes=[],preservePrepared=false}={}){
         const state=node.segmentReshoot;if(state?.schemaVersion!==1)return;
-        const originalIdentity=state.source.identity;
+        const originalIdentity=state.source.identity,previousSource=state.source.nodeId;
         state.source.nodeId=connected?idMap.get(state.source.nodeId)||'':'';
         const source=referenceNodes.find(item=>item.id===state.source.nodeId),videos=source?.images?.filter(item=>mediaKindForItem(item)==='video')||[],media=videos.find(item=>identity(item)===identity(state.source.media)||identity(item)===originalIdentity)||(videos.length===1?videos[0]:null);
         if(media){state.source.url=media.url;state.source.media={...media};state.source.identity=identity(media);}
         else if(state.source.media){state.source.url=state.source.media.url;state.source.identity=identity(state.source.media);}
+        window.PixmaxReshootReferences?.remap(node,idMap,previousSource);
         delete state.taskId;delete state.completedTaskId;
         const cache=state.cache,prepared=state.preparedMedia;
         const keep=preservePrepared&&originalIdentity===state.source.identity&&cache?.reshootSourceAssetUuid===state.source.identity&&Number(cache.reshootStartSec)===state.startSec&&Number(cache.reshootEndSec)===state.endSec&&Array.isArray(prepared)&&prepared.length===3&&[cache.clipAssetUuid,cache.headFrameAssetUuid,cache.tailFrameAssetUuid].every((url,index)=>typeof url==='string'&&/^(https?:\/\/|\/[^/])/.test(url)&&prepared[index]?.url===url&&mediaKindForItem(prepared[index])===(index?'image':'video'));

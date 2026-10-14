@@ -254,7 +254,8 @@ function insertSmartWorkflowIntoCanvas(imported){
     window.PixmaxTags?.mergeImported(imported,newNodes);
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
-    smartSelection.insertedNodes(newNodes.map(node => node.id));
+    window.PixmaxReshootReferences?.project(newNodes);
+    smartSelection.insertedNodes(newNodes.filter(node=>!node.hidden).map(node => node.id));
     smartComposer.documentImported();
     render();
     scheduleSave();
@@ -713,7 +714,8 @@ function cloneSmartNode(node, dx=0, dy=0){
 
 function copySelectedNodes(){
     if(!canvas || isEditableTarget(document.activeElement)) return;
-    const ids = window.PixmaxCanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
+    const selected = window.PixmaxCanvasFrames?.expand(selectedNodeIds())||selectedNodeIds();
+    const ids = window.PixmaxReshootReferences?.expandHidden(selected)||selected;
     const copiedNodes = ids.map(id => nodes.find(n => n.id === id)).filter(Boolean);
     if(!copiedNodes.length) return;
     const idSet = new Set(copiedNodes.map(n => n.id));
@@ -763,14 +765,16 @@ function pasteNodes({includeConnections=true}={}){
     window.PixmaxTags?.mergeImported(nodeClipboard,copies);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     nodes.push(...copies);
-    smartSelection.insertedNodes(copies.map(n => n.id));
+    window.PixmaxReshootReferences?.project(copies);
+    smartSelection.insertedNodes(copies.filter(node=>!node.hidden).map(n => n.id));
     render();
     scheduleSave();
 }
 
 function duplicateForAltDrag(node){
     const selectedIds = (isNodeSelected(node.id) ? selectedNodeIds() : [node.id]);
-    const ids = window.PixmaxCanvasFrames?.expand(selectedIds)||selectedIds;
+    const expanded = window.PixmaxCanvasFrames?.expand(selectedIds)||selectedIds;
+    const ids = window.PixmaxReshootReferences?.expandHidden(expanded)||expanded;
     const sourceNodes = ids.map(id => nodes.find(n => n.id === id)).filter(Boolean);
     if(!sourceNodes.length) return node;
     pushUndo();
@@ -794,6 +798,7 @@ function duplicateForAltDrag(node){
     const newConnections = copiedConnections.map(conn => ({...conn, from:idMap.get(conn.from), to:idMap.get(conn.to)})).filter(conn => conn.from && conn.to && conn.from !== conn.to);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     nodes.push(...copies);
+    window.PixmaxReshootReferences?.project(copies);
     smartSelection.duplicating();
     const dragCopy = copies.find(c => c.id === idMap.get(node.id)) || copies[0];
     render();

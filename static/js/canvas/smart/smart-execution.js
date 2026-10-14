@@ -1626,7 +1626,8 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
     const writeGuard=canvasTaskWriteGuard(node);
     writeGuard.check(); inputBinding?.check();
     inputBinding ||= smartTaskInputBinding(node,node,writeGuard);
-    const activeSettings = window.PixmaxSegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
+    let activeSettings = window.PixmaxSegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
+    if(node.segmentReshoot?.schemaVersion===1){const request=PixmaxReshootReferences.request(node,activeSettings);prompt=request.prompt;refs=request.refs;activeSettings=request.settings;}
     if(activeSettings.engine === 'comfy') return generateComfyUrlsWithSettings(activeSettings, prompt, refs);
     if(isApiLikeEngine(activeSettings.engine) && activeSettings.apiKind === 'video'){
         const taskResult = await runApiVideoGeneration(prompt, refs, activeSettings, inputBinding);

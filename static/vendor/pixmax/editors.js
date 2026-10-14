@@ -4659,6 +4659,20 @@ export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountPrompt(target, props) {
+    const container = new f, i18n = await KLe();
+    await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
+    const notify=message=>props.onNotice?.(message);
+    container.registerInstance(N_,{success:notify,error:notify,warning:notify,info:notify,pending:notify,remove(){}});
+    const value=z(props.value||''), references=z(props.references||{mentionItems:[],incomingNodes:[]}), readonly=z(!!props.readonly);
+    const instance=Tf(M1,{target,context:new Map([[tCe,container]]),props:{...props,enabledProtocols:['at-mention'],
+      get value(){return G(value);},get mentionItems(){return G(references).mentionItems;},get incomingNodes(){return G(references).incomingNodes;},get readonly(){return G(readonly);}
+    }});
+    await tf();const editor=instance.getRichEditorManager()?.editorEl;
+    if(editor){editor.setAttribute('role','textbox');editor.setAttribute('aria-label',props.ariaLabel||'重拍要求');editor.setAttribute('aria-multiline','true');}
+    return {instance,setValue(next){B(value,next,true);},setReferences(next){B(references,next,true);},setReadonly(next){B(readonly,!!next);},
+      insertMention(item){return instance.insertChipItem('at-mention',item,'caret');},destroy(){return Of(instance);}};
+  },
   async mountTimeline(target, props) {
     const container = new f, i18n = await KLe();
     await du(i18n).changeLanguage('zh');

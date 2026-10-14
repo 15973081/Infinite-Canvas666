@@ -38,7 +38,7 @@
     }
     function nodeRows(){
         if(!documentInScope())return '<p class="pixmax-directory-empty">请从目录打开画布</p>';
-        const search=normalized(query),rows=nodes.filter(node=>(!type||nodeKind(node)===type)&&(!search||normalized(nodeLabel(node)+' '+(node.text||node.promptDraftText||'')).includes(search)));
+        const search=normalized(query),rows=nodes.filter(node=>!node.hidden&&(!type||nodeKind(node)===type)&&(!search||normalized(nodeLabel(node)+' '+(node.text||node.promptDraftText||'')).includes(search)));
         const selected=new Set([smartSelection.nodeId,...smartSelection.ids]);
         return rows.map(node=>{
             const kind=nodeKind(node),media=node.images?.[0]||node.studioPreview;

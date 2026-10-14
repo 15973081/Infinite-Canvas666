@@ -106,6 +106,7 @@
                 label:String(info.data?.label||''),created_at:number(source.createTime,Date.now()),pixmaxSourceType:source.type,
                 ...(info.width?{w:number(info.width)}:{}),...(info.height?{h:number(info.height)}:{})};
             if(typeof info.parentId==='string'&&info.parentId)node.frameId=info.parentId;
+            if(info.hidden===true)node.hidden=true;
             if(node.type==='smart-prompt'){
                 node.text=String(source.nodeText||params.prompt||'');
                 node.textGeneration={input:String(params.prompt||''),model:String(params.model||''),providerId:''};

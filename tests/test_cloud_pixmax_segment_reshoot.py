@@ -15,7 +15,7 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache'])
+@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references'])
 def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path, import_mode):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
@@ -31,8 +31,20 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     uploaded = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (video.name, video.read_bytes(), 'video/mp4')})
     assert uploaded.status_code == 200, uploaded.text
     source = uploaded.json()['files'][0]
+    references = []
+    if import_mode == 'references':
+        for kind, extension, mime, arguments in [
+            ('image', '.png', 'image/png', ['-i', str(video), '-frames:v', '1']),
+            ('audio', '.wav', 'audio/wav', ['-f', 'lavfi', '-i', 'sine=frequency=440:duration=2']),
+            ('video', '.mp4', 'video/mp4', ['-ss', '2', '-i', str(video), '-t', '2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p']),
+        ]:
+            reference_file = tmp_path / ('reference-' + kind + extension)
+            subprocess.run(['ffmpeg', '-v', 'error', *arguments, '-y', str(reference_file)], check=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            response = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (reference_file.name, reference_file.read_bytes(), mime)})
+            assert response.status_code == 200, response.text
+            references.append({**response.json()['files'][0], 'kind': kind, 'name': '参考' + kind})
     native_document = None
-    if import_mode != 'create':
+    if import_mode in ('native', 'native-cache'):
         native_asset = {'assetsUuid': 'native-source', 'type': 'VIDEO', 'webUrl': source['url'], 'metaData': {'duration': 8}, 'width': 160, 'height': 90}
         native_data = {'segmentReshoot': True, 'label': '原生重拍'}
         native_params = {'model': 'PIXDANCE_2_5', 'referModel': 'videoEdit', 'duration': '4', 'aspectRatio': 'adaptive', 'reshootSourceAssetUuid': 'native-source', 'reshootStartSec': '1.0', 'reshootEndSec': '6.0', 'prompt': ''}
@@ -55,7 +67,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     process = subprocess.Popen(['node', str(root / 'tests/helpers/pixmax-segment-reshoot-http.cjs')], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done, task_ids, finalized = False, [], set()
     try:
-        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'nativeDocument': native_document, 'provider': provider, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
+        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'references': references, 'nativeDocument': native_document, 'provider': provider, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
         for line in process.stdout:
             pointer = json.loads(line)
             if pointer.get('done'): done = True; break
@@ -70,7 +82,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
                         token = tasks.lease_context.set((task_id, claimed['lease_token']))
                         try:
                             value = tasks.get(task_id); request = tasks.request(task_id)
-                            value.update(status='succeeded', result={'videos': request['videos']})
+                            value.update(status='succeeded', result={'videos': request['videos'][:1]})
                             tasks.save(value); finalized.add(task_id)
                         finally: tasks.lease_context.reset(token); tasks.release(task_id, claimed['lease_token'])
             if message['bodyFile']: assert re.fullmatch(r'body-\d+\.bin', message['bodyFile'])
@@ -93,35 +105,55 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         assert done and len(task_ids) == 1 and finalized == set(task_ids)
         saved = world['editor'].get(path, headers=headers(world['a'])).json()['canvas']
         node = next(item for item in saved['nodes'] if item.get('segmentReshoot'))
-        assert node['segmentReshoot']['prompt'] == '将衣服改为红色' and len(node['images']) == 1
+        assert len(node['images']) == 1
+        if references:
+            assert '将衣服改为红色' in node['segmentReshoot']['prompt']
+            assert node['segmentReshoot']['prompt'].count('%%@[') == 4
+            assert len([item for item in saved['nodes'] if item.get('hidden')]) == 3
+        else:
+            assert node['segmentReshoot']['prompt'] == '将衣服改为红色'
         assert len(node['segmentReshoot']['preparedMedia']) == 3
-        assert node['segmentReshoot']['startSec'] == (0 if import_mode == 'create' else 1)
-        assert node['segmentReshoot']['endSec'] == (4 if import_mode == 'create' else 6)
+        assert node['segmentReshoot']['startSec'] == (1 if native_document else 0)
+        assert node['segmentReshoot']['endSec'] == (6 if native_document else 4)
         assert 'foreign-never-resume' not in json.dumps(saved)
         actual_clip = world['editor'].get(node['segmentReshoot']['cache']['clipAssetUuid'], headers=headers(world['a']))
         assert actual_clip.status_code == 200
         clip_file = tmp_path / 'verified-clip.mp4'; clip_file.write_bytes(actual_clip.content)
         clip_info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'json', str(clip_file)], text=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)))
-        assert abs(float(clip_info['format']['duration']) - (4 if import_mode == 'create' else 5)) < .15
+        assert abs(float(clip_info['format']['duration']) - (5 if native_document else 4)) < .15
         with workspace_scope(world['a']['id']):
             request = tasks.request(task_ids[0])
             assert request['task_mode'] == 'edit' and request['provider_id'] == provider_id
             clip_id = media.id_from_ref(request['videos'][0]); assert clip_id != media.id_from_ref(source['url'])
+            expected_ids = {clip_id, *(media.id_from_ref(item['url']) for item in references)}
+            if references:
+                assert [media.id_from_ref(item['url']) for item in request['images']] == [media.id_from_ref(references[0]['url'])]
+                assert [media.id_from_ref(item) for item in request['audios']] == [media.id_from_ref(references[1]['url'])]
+                assert [media.id_from_ref(item) for item in request['videos'][1:]] == [media.id_from_ref(references[2]['url'])]
+                assert '黄昏的街头' in request['prompt']
+                assert all(alias in request['prompt'] for alias in ('图片1', '音频1', '视频2', '文本1'))
+                assert '%%@[' not in request['prompt']
+                assert source['url'] not in request['videos']
             with database.connection() as conn:
-                assert conn.execute('SELECT input_asset_ids FROM tasks WHERE id=%s', (task_ids[0],)).fetchone()['input_asset_ids'] == [clip_id]
-        for item in node['segmentReshoot']['preparedMedia']:
+                owned_ids = conn.execute('SELECT input_asset_ids FROM tasks WHERE id=%s', (task_ids[0],)).fetchone()['input_asset_ids']
+                assert len(owned_ids) == len(expected_ids) and set(owned_ids) == expected_ids
+        for item in [*node['segmentReshoot']['preparedMedia'], *references]:
             assert world['viewer'].get(item['url'], headers=headers(world['a'])).status_code == 200
             assert world['outsider'].get(item['url'], headers=headers(world['b'])).status_code in (403, 404)
         exported = world['editor'].post('/api/canvas-workflows/export', headers=headers(world['a']), json={'nodes': saved['nodes'], 'connections': saved['connections'], 'include_resources': True})
         assert exported.status_code == 200, exported.text
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
             workflow = json.loads(archive.read('workflow.json'))
-            assert len(workflow['resources']) == 4
+            assert len(workflow['resources']) == 4 + len(references)
         imported = world['editor'].post('/api/canvas-workflows/import', headers=headers(world['a']), files={'file': ('reshoot.zip', exported.content, 'application/zip')})
         assert imported.status_code == 200, imported.text
         copy = next(item for item in imported.json()['nodes'] if item.get('segmentReshoot'))
         assert len(copy['segmentReshoot']['preparedMedia']) == 3
         assert copy['segmentReshoot']['source']['media']['url'] != node['segmentReshoot']['source']['media']['url']
+        if references:
+            imported_refs = [item for item in imported.json()['nodes'] if item.get('hidden')]
+            assert len(imported_refs) == 3
+            assert all(item['images'][0]['url'] not in {ref['url'] for ref in references} for item in imported_refs)
     finally:
         if process.poll() is None: process.kill(); process.wait(timeout=5)
         for handle in (process.stdin, process.stdout, process.stderr):

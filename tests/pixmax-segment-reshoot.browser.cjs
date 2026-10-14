@@ -167,7 +167,7 @@ test('closing during native thumbnail loading cannot recreate the dialog or writ
 
 test('native timeline fits a narrow screen and remains draggable without horizontal document overflow',async t=>{
     const {page,errors}=await setup(t);await page.setViewportSize({width:390,height:760});await open(page);const timeline=await nativeTimeline(page);await timeline.scrollIntoViewIfNeeded();const strip=await timeline.getByRole('slider').first().boundingBox();await dragTimeline(page,timeline.locator('button').nth(2),strip.width/4);await page.waitForFunction(()=>nodes[1].segmentReshoot.endSec===6);
-    const bounds=await page.getByRole('dialog',{name:'片段重拍',exact:true}).locator('section').boundingBox();assert.ok(bounds.width<=358&&bounds.x>=0&&bounds.x+bounds.width<=390);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=390),true);await page.screenshot({path:'.local/pixmax-reshoot-timeline-mobile.png'});assert.deepEqual(errors,[]);
+    const bounds=await page.getByRole('dialog',{name:'片段重拍',exact:true}).locator(':scope > section').boundingBox();assert.ok(bounds.width<=358&&bounds.x>=0&&bounds.x+bounds.width<=390);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=390),true);await page.screenshot({path:'.local/pixmax-reshoot-timeline-mobile.png'});assert.deepEqual(errors,[]);
 });
 
 async function sourceCard(page){
@@ -219,4 +219,70 @@ test('paused offscreen source preview releases its player and restores the saved
     const {page,errors}=await setup(t),card=await sourceCard(page);await card.getByRole('slider').press('ArrowRight');await page.waitForFunction(()=>Math.abs(document.querySelector('[data-reshoot-source-player] video').currentTime-5)<.1);
     await page.evaluate(()=>{window.__recycledSourceVideo=document.querySelector('[data-reshoot-source-player] video');document.activeElement?.blur();smartSelection.clear();viewport.x=-5000;renderSmartOffscreenPlaceholders();});await card.locator('[data-reshoot-source-player]').waitFor({state:'detached'});await page.waitForFunction(()=>__recycledSourceVideo.getAttribute('src')===null);
     await page.evaluate(()=>{viewport.x=0;renderSmartOffscreenPlaceholders();});await card.locator('[data-reshoot-source-player] video').waitFor();await page.waitForFunction(()=>Math.abs(document.querySelector('[data-reshoot-source-player] video').currentTime-5)<.1);assert.deepEqual(await page.evaluate(()=>nodes[1].images),[]);assert.deepEqual(errors,[]);
+});
+
+async function connectedReferences(page,{group=false}={}){
+    await page.evaluate(group=>{
+        const image=createNode(0,0,[{url:'/test-image.svg',kind:'image',name:'人物.png'},...(group?[{url:'/test-image.svg?second',kind:'image',name:'服装.png'}]:[])],{select:false});image.label='人物参考';
+        const audio=createNode(0,200,[{url:'/assets/reference.wav',kind:'audio',name:'参考声音.wav'}],{select:false});audio.label='声音参考';
+        const text={id:uid('text_ref'),type:'smart-prompt',label:'剧情参考',text:'黄昏的街头，人物缓慢回头',x:0,y:400,images:[]};nodes.push(text);
+        const target=nodes.findLast(node=>node.segmentReshoot);for(const source of [image,audio,text])canvas.connections.push({from:source.id,to:target.id,kind:'input'});render();scheduleSave();
+    },group);
+}
+test('connected image audio and text references reach direct and batch payloads with the crop as video one',async t=>{
+    const {page,errors,record}=await setup(t),media=await uploads(page),api=await tasks(page);await open(page);await connectedReferences(page);
+    await page.getByRole('textbox',{name:'重拍要求'}).fill('参考素材改成电影画面');await page.locator('[data-reshoot-mention]').filter({hasText:'图片1'}).click();await page.locator('[data-reshoot-mention]').filter({hasText:'音频1'}).click();await page.locator('[data-reshoot-mention]').filter({hasText:'文本1'}).click();
+    await page.evaluate(()=>saveCanvas({force:true}));assert.match(record.nodes[1].segmentReshoot.prompt,/%%@\[/);assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="at-mention"]').count(),3);assert.ok((await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="at-mention"]').first().boundingBox()).height<35);
+    await page.route('**/api/canvases/*/batch-preview',route=>route.fulfill({json:{prepared:route.request().postDataJSON().items.map(item=>({nodeId:item.node_id})),skipped:[],costs:{},unknownCount:0}}));
+    await page.getByRole('button',{name:'准备片段',exact:true}).click();await prepared(page);const preview=await page.evaluate(async()=>{const target=nodes[1],text=nodes.find(node=>node.label==='剧情参考');text.pixmaxSourceType='BASE_TEXT';const frame=PixmaxCanvasFrames.create([target.id,text.id]);return (await PixmaxBatchExecution.preview(frame)).entries.find(entry=>entry.nodeId===target.id).request;});assert.equal(preview.images.length,1);assert.deepEqual(preview.audios,['/assets/reference.wav']);assert.equal(preview.videos.length,1);assert.match(preview.prompt,/黄昏的街头/);assert.match(preview.prompt,/图片1/);assert.equal(preview.prompt.includes('%%@['),false);
+    await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.waitForFunction(()=>nodes[1].images.length===1);assert.equal(api.calls.length,1);assert.deepEqual(api.calls[0].images,preview.images);assert.deepEqual(api.calls[0].audios,preview.audios);assert.deepEqual(api.calls[0].videos,preview.videos);assert.equal(api.calls[0].prompt,preview.prompt);assert.equal(media.calls.length,3);await page.screenshot({path:'.local/pixmax-reshoot-references.png'});assert.deepEqual(errors,[]);
+});
+
+test('canvas picker connects a reference and native rich mentions remain invalid after removal',async t=>{
+    const {page,errors}=await setup(t),media=await uploads(page),api=await tasks(page);await open(page);await page.evaluate(()=>{const ref=createNode(0,0,[{url:'/test-image.svg',kind:'image'}],{select:false});ref.label='候选人物';});
+    await page.getByRole('button',{name:'添加画布参考',exact:true}).click();await page.getByRole('dialog',{name:'添加画布参考',exact:true}).getByRole('button',{name:'候选人物',exact:true}).click();await page.locator('[data-reshoot-mention]').filter({hasText:'候选人物'}).click();await page.getByRole('button',{name:'移除参考 候选人物',exact:true}).click();await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await page.locator('.pixmax-segment-reshoot-modal [role=status]').filter({hasText:'失效参考'}).waitFor();assert.equal(api.calls.length,0);assert.equal(media.calls.length,0);assert.equal(await page.evaluate(()=>nodes[1].segmentReshoot.taskId),undefined);assert.deepEqual(errors,[]);
+});
+
+test('asset picker creates a hidden input that is saved, referenced and carried through standalone copies',async t=>{
+    const {page,errors,record}=await setup(t);await uploads(page);await page.route('**/api/asset-library',route=>route.fulfill({json:{library:{libraries:[{id:'lib',categories:[{id:'photos',type:'image',items:[{id:'person-asset',name:'库中人物',kind:'image',url:'/test-image.svg'}]}]}]}}}));await open(page);
+    await page.getByRole('button',{name:'添加资产参考',exact:true}).click();await page.getByRole('dialog',{name:'添加资产参考',exact:true}).getByRole('button',{name:'库中人物',exact:true}).click();await page.locator('[data-reshoot-mention]').filter({hasText:'库中人物'}).click();
+    const source=await page.evaluate(()=>nodes.find(node=>node.hidden).id);assert.equal(await page.locator('.image-node[data-id="'+source+'"]').count(),0);assert.equal(await page.locator('.smart-connection').count(),1);await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes.find(node=>node.id===source).hidden,true);
+    await page.getByRole('button',{name:'关闭片段重拍',exact:true}).click();await page.evaluate(()=>{document.activeElement?.blur();smartSelection.insertedNodes([nodes[1].id]);copySelectedNodes();pasteNodes();});const copy=await page.evaluate(()=>{const copy=nodes.filter(node=>node.segmentReshoot).at(-1),ref=nodes.find(node=>node.hidden&&canvas.connections.some(edge=>edge.from===node.id&&edge.to===copy.id));return {id:copy.id,source:ref?.id,prompt:copy.segmentReshoot.prompt,primary:copy.segmentReshoot.source.nodeId};});assert.notEqual(copy.source,source);assert.equal(copy.primary,'');assert.ok(copy.prompt.includes('('+copy.source+')'));assert.equal(copy.prompt.includes('('+source+')'),false);assert.deepEqual(errors,[]);
+});
+
+test('group references serialize individual native mention resources without leaking resource IDs into the request',async t=>{
+    const {page,errors}=await setup(t);await uploads(page);await open(page);await connectedReferences(page,{group:true});await page.locator('[data-reshoot-mention]').filter({hasText:'图片2'}).click();await page.getByRole('button',{name:'准备片段',exact:true}).click();await prepared(page);const result=await page.evaluate(()=>{const node=nodes[1],config=PixmaxSegmentReshoot.executionSettings(node,node.runSettings),request=PixmaxReshootReferences.request(node,config);return {stored:node.segmentReshoot.prompt,prompt:request.prompt,images:request.refs.filter(ref=>ref.kind==='image').length};});assert.match(result.stored,/::1\)%%/);assert.match(result.prompt,/图片2/);assert.equal(result.prompt.includes('::1'),false);assert.equal(result.images,2);assert.deepEqual(errors,[]);
+});
+
+test('reference changes during crop preparation refuse task admission and keep the reusable prepared clip',async t=>{
+    const {page,errors}=await setup(t),media=await uploads(page,{hold:true}),api=await tasks(page);await open(page);await connectedReferences(page);await page.getByRole('button',{name:'生成重拍视频',exact:true}).click();await media.requested;await page.evaluate(()=>nodes.find(node=>node.label==='剧情参考').text='引用内容已经改变');media.release();await page.locator('.pixmax-segment-reshoot-modal [role=status]').filter({hasText:'参考素材已变化'}).waitFor();assert.equal(api.calls.length,0);assert.ok(await page.evaluate(()=>nodes[1].segmentReshoot.cache));assert.equal(await page.evaluate(()=>nodes[1].segmentReshoot.taskId),undefined);assert.deepEqual(errors,[]);
+});
+
+test('a late asset catalog cannot create hidden nodes or a picker after changing workspace',async t=>{
+    const {page,errors}=await setup(t);await open(page);let release,seen;const gate=new Promise(resolve=>release=resolve),requested=new Promise(resolve=>seen=resolve);await page.route('**/api/asset-library',async route=>{seen();await gate;return route.fulfill({json:{library:{categories:[{items:[{id:'late',name:'迟到素材',url:'/test-image.svg',kind:'image'}]}]}}});});await page.getByRole('button',{name:'添加资产参考',exact:true}).click();await requested;await page.evaluate(()=>{CanvasSession.context.workspace.id='elsewhere';PixmaxSegmentReshoot.documentChanged();});release();await page.waitForTimeout(100);assert.equal(await page.getByRole('dialog',{name:'添加资产参考',exact:true}).count(),0);assert.equal(await page.evaluate(()=>nodes.length),2);assert.deepEqual(errors,[]);
+});
+
+test('reference ordering follows the composer order while the primary crop remains video one',async t=>{
+    const {page,errors}=await setup(t);await open(page);await connectedReferences(page,{group:true});
+    const result=await page.evaluate(()=>{const target=nodes[1],source=nodes.find(node=>node.label==='人物参考');target.mediaReferenceOrder=[smartMediaRefKey(source.images[1]),smartMediaRefKey(source.images[0])];render();const current=PixmaxReshootReferences.plan(target);return current.resources.map(entry=>({id:entry.id,alias:entry.alias,url:entry.media?.url}));});
+    assert.equal(result[0].alias,'视频1');const images=result.filter(entry=>entry.alias.startsWith('图片'));assert.deepEqual(images.map(entry=>entry.alias),['图片1','图片2']);assert.equal(images[0].url,'/test-image.svg?second');await page.locator('[data-reshoot-mention]').filter({hasText:'图片1'}).click();assert.match(await page.evaluate(()=>nodes[1].segmentReshoot.prompt),/\[image\]\[0\].*::1\)%%/);assert.deepEqual(errors,[]);
+});
+
+test('canvas picker restores one removed group reference without adding a duplicate connection',async t=>{
+    const {page,errors}=await setup(t);await open(page);await connectedReferences(page,{group:true});await page.getByRole('button',{name:'移除参考 人物参考',exact:true}).nth(1).click();assert.equal(await page.locator('[data-reshoot-mention]').filter({hasText:'图片2'}).count(),0);
+    await page.getByRole('button',{name:'添加画布参考',exact:true}).click();await page.getByRole('dialog',{name:'添加画布参考',exact:true}).getByRole('button',{name:'人物参考',exact:true}).click();assert.equal(await page.locator('[data-reshoot-mention]').filter({hasText:'图片2'}).count(),1);assert.equal(await page.evaluate(()=>canvas.connections.filter(edge=>edge.from===nodes.find(node=>node.label==='人物参考').id&&edge.to===nodes[1].id).length),1);assert.deepEqual(errors,[]);
+});
+
+test('adding a removed asset reference restores its existing hidden node',async t=>{
+    const {page,errors}=await setup(t);await open(page);const result=await page.evaluate(()=>{const target=nodes[1],asset={id:'restore-asset',name:'恢复人物',kind:'image',url:'/test-image.svg'},first=PixmaxReshootReferences.addAsset(target,asset);PixmaxReshootReferences.remove(target,PixmaxReshootReferences.plan(target).byId.get(first));const second=PixmaxReshootReferences.addAsset(target,asset);return {first,second,hidden:nodes.filter(node=>node.hidden).length,blocked:target.blockedInputRefs.length};});assert.equal(result.first,result.second);assert.equal(result.hidden,1);assert.equal(result.blocked,0);assert.deepEqual(errors,[]);
+});
+
+test('composer text edits preserve native image and text mentions after reopening the reshoot dialog',async t=>{
+    const {page,errors}=await setup(t);await open(page);await connectedReferences(page);for(const alias of ['图片1','文本1'])await page.locator('[data-reshoot-mention]').filter({hasText:alias}).click();await page.getByRole('button',{name:'关闭片段重拍',exact:true}).click();
+    await page.evaluate(()=>{smartSelection.insertedNodes([nodes[1].id]);updateComposer();promptInput.appendChild(document.createTextNode(' 补充逆光'));savePromptDraftForCurrent();});await page.evaluate(()=>PixmaxSegmentReshoot.open(nodes[1]));await page.getByRole('textbox',{name:'重拍要求'}).waitFor();assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="at-mention"]').count(),2);const prompt=await page.evaluate(()=>nodes[1].segmentReshoot.prompt);assert.match(prompt,/补充逆光/);assert.match(prompt,/\[text\]/);assert.match(prompt,/\[image\]/);assert.deepEqual(errors,[]);
+});
+
+test('typing at opens the native picker and connects a searched canvas reference',async t=>{
+    const {page,errors}=await setup(t);await open(page);await page.evaluate(()=>{const ref=createNode(0,0,[{url:'/test-image.svg',kind:'image'}],{select:false});ref.label='键盘候选人物';});
+    const editor=page.getByRole('textbox',{name:'重拍要求'});await editor.click();await editor.pressSequentially('@');const picker=page.locator('[data-rich-editor-insertion-panel]');try{await picker.waitFor({timeout:2000});}catch(error){throw new Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({focus:document.activeElement?.outerHTML?.slice(0,500),editor:document.querySelector('.pixmax-reshoot-rich-prompt')?.innerHTML?.slice(0,1800),panels:document.querySelectorAll('[data-rich-editor-insertion-panel]').length,selection:window.getSelection()?.anchorNode?.textContent,prompt:nodes[1].segmentReshoot.prompt})))+'; errors '+JSON.stringify(errors));}await picker.locator('input').fill('键盘候选人物');await picker.getByRole('button',{name:/键盘候选人物/}).click();await page.waitForFunction(()=>nodes[1].segmentReshoot.prompt.includes('[image]'));assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="at-mention"]').count(),1);assert.equal(await page.evaluate(()=>canvas.connections.some(edge=>edge.from===nodes.find(node=>node.label==='键盘候选人物').id&&edge.to===nodes[1].id)),true);assert.deepEqual(errors,[]);
 });

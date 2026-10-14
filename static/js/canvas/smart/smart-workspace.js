@@ -680,7 +680,7 @@ function createSmartMinimap(){
         if(!available()) return;
         const reuseLayout = viewportOnly && viewportOnlyPending && minimapState
             && minimapState.sourceNodes === nodes && minimapState.canvas === canvas
-            && minimapState.rects.length === nodes.length;
+            && minimapState.sourceCount === nodes.length;
         cancelFrame();
         viewportOnlyPending = true;
         if(!minimapContent || !minimapViewport) return;
@@ -690,7 +690,7 @@ function createSmartMinimap(){
         const viewH = shell.clientHeight / viewport.scale;
         const viewX = -viewport.x / viewport.scale;
         const viewY = -viewport.y / viewport.scale;
-        const nodeRects = reuseLayout ? minimapState.rects : withSmartComputation(() => nodes.map(node => ({id:node.id, ...nodeRect(node)})));
+        const nodeRects = reuseLayout ? minimapState.rects : withSmartComputation(() => nodes.filter(node=>!node.hidden).map(node => ({id:node.id, ...nodeRect(node)})));
         const rects = [...nodeRects, {x:viewX, y:viewY, width:viewW, height:viewH}];
         const minX = Math.min(...rects.map(r => r.x), -200);
         const minY = Math.min(...rects.map(r => r.y), -200);
@@ -700,7 +700,7 @@ function createSmartMinimap(){
         const offsetX = (width - (maxX - minX) * scale) / 2;
         const offsetY = (height - (maxY - minY) * scale) / 2;
         const previous = minimapState;
-        minimapState = {minX, minY, scale, offsetX, offsetY, width, height, rects:nodeRects, sourceNodes:nodes, canvas};
+        minimapState = {minX, minY, scale, offsetX, offsetY, width, height, rects:nodeRects, sourceNodes:nodes, sourceCount:nodes.length, canvas};
         const project = r => ({
             left:offsetX + (r.x - minX) * scale,
             top:offsetY + (r.y - minY) * scale,
@@ -833,7 +833,8 @@ function centerViewportOnWorldPoint(point){
 
 function fitAllNodesViewport(){
     const bounds=smartViewportBounds();
-    if(!nodes.length){
+    const visible=nodes.filter(node=>!node.hidden);
+    if(!visible.length){
         viewport.scale = 0.45;
         viewport.x = bounds.x+bounds.width / 2;
         viewport.y = bounds.y+bounds.height / 2;
@@ -841,7 +842,7 @@ function fitAllNodesViewport(){
         scheduleSave();
         return;
     }
-    const rects = nodes.map(nodeRect);
+    const rects = visible.map(nodeRect);
     const minX = Math.min(...rects.map(r => r.x));
     const minY = Math.min(...rects.map(r => r.y));
     const maxX = Math.max(...rects.map(r => r.x + r.width));
@@ -4222,6 +4223,7 @@ function createSmartComposer(){
         if(changes.prompt){
             subject.promptDraftHtml = promptInput.innerHTML;
             subject.promptDraftText = promptPlainText();
+            if(subject.segmentReshoot?.schemaVersion===1)window.PixmaxReshootReferences?.captureComposer(subject);
             if(smartComposerBaseline?.nodeId === subject.id){
                 smartComposerBaseline.html = subject.promptDraftHtml;
                 smartComposerBaseline.text = subject.promptDraftText;
@@ -4572,7 +4574,7 @@ function createSmartWorkspaceView(){
         const slots=scope?[...new Set([...scope].flatMap(id=>smartComputationContext.incident.get(id)||[]))].sort((a,b)=>a-b):edges.keys();
         for(const index of slots){
             const conn=edges[index];
-            if(byId.has(conn.from)&&byId.has(conn.to))conns.push({...conn,index});
+            if(byId.has(conn.from)&&byId.has(conn.to)&&!byId.get(conn.from).hidden&&!byId.get(conn.to).hidden)conns.push({...conn,index});
         }
         const cascadeKeys = cascadeConnectionKeys();
         const paths = conns.map(conn => {
@@ -4685,6 +4687,7 @@ function createSmartWorkspaceView(){
         const existing = new Map([...world.querySelectorAll('.image-node')].map(el => [el.dataset.id, el]));
         const changed = smartChangedConnectionNodes();
         withSmartComputation(() => nodes.forEach(node => {
+            if(node.hidden)return;
             const html = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
             const current = existing.get(node.id);
             existing.delete(node.id);
@@ -4735,6 +4738,7 @@ function createSmartWorkspaceView(){
         affected.forEach(id => {
             const node = byId.get(id);
             const current = world.querySelector(`.image-node[data-id="${CSS.escape(id)}"]`);
+            if(node?.hidden){current?.remove();return;}
             if(!node) return;
             if(!current){
                 const tpl=document.createElement('template');
