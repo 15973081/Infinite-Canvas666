@@ -9,7 +9,7 @@
         if(!session||session.closed)return;session.closed=true;
         session.observer?.disconnect();clearTimeout(session.seekTimer);session.root.remove();
         session.cleanupVideo?.();session.unmountPlayer?.();
-        session.promptHandle?.destroy();session.parametersHandle?.destroy();session.modelHandle?.destroy();session.cameraHandle?.destroy();for(const picker of session.pickers||[])picker.remove();
+        session.promptHandle?.destroy();session.parametersHandle?.destroy();session.modelHandle?.destroy();session.cameraHandle?.destroy();for(const handle of session.subjectLibraries||[])handle.destroy();for(const picker of session.pickers||[])picker.remove();
         if(session.video){session.video.pause();session.video.removeAttribute('src');session.video.load();}
         if(session.timeline)void session.timeline.destroy();
         if(activeSession===session)activeSession=null;
@@ -120,11 +120,13 @@
             await commitSmartStudioTaskResult(node,record,'video',binding,{valid,recovered:true,prepareResult:()=>{if(!smartPendingTasks(node).some(task=>task.taskId===state.taskId)){node.pendingTasks=[...smartPendingTasks(node),{taskId:state.taskId,kind:'video',providerId:node.runSettings.videoProvider,model:node.runSettings.videoModel}];node.pending=Math.max(1,node.pending||0);}}});
             if(valid()){state.completedTaskId=state.taskId;scheduleSave();status.textContent='重拍结果已加入画布';}return;
         }
+        await PixmaxSubjects.refresh(node,valid);if(!valid())throw new Error('编辑资格已变化');
         PixmaxReshootReferences.validate(node);
         if(!models().some(item=>item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel))throw new Error('模型配置已变化，请重新选择');
         PixmaxReshootParameters.validate(node);
         const references=PixmaxReshootReferences.signature(node);
         const cache=await prepare(node,valid,status);if(!valid())throw new Error('编辑资格已变化');
+        await PixmaxSubjects.refresh(node,valid,{checkOnly:true});if(!valid())throw new Error('编辑资格已变化');
         if(PixmaxReshootReferences.signature(node)!==references)throw new Error('提示词、模型或参考素材已变化，请再次生成');
         const choice=models().find(item=>item.provider.id===node.runSettings.videoProvider&&item.model===node.runSettings.videoModel);if(!choice)throw new Error('模型配置已变化，请重新选择');
         const request=PixmaxReshootReferences.request(node,executionSettings(node,node.runSettings));
@@ -164,20 +166,21 @@
         cameraArea.querySelector('[data-reshoot-camera-open]').onclick=()=>{if(valid()&&!busy)session.cameraHandle?.setOpen(true);};
         let modelStamp='';session.refreshModel=()=>{const data=PixmaxReshootParameters.modelData(node),stamp=JSON.stringify(data);session.modelHasOptions=data.options.length>0;if(modelStamp!==stamp){modelStamp=stamp;session.modelHandle?.setData(data);}};
         session.refreshParameters=()=>{if(session.parameterDefinition&&!session.closed)session.parametersHandle?.setData(PixmaxReshootParameters.data(node,session.parameterDefinition));};
-        const referenceArea=document.createElement('section');referenceArea.className='pixmax-reshoot-references';referenceArea.innerHTML='<header><span>参考素材</span><button type="button" data-reshoot-add-canvas>添加画布参考</button><button type="button" data-reshoot-add-asset>添加资产参考</button></header><div data-reshoot-references></div>';promptTarget.closest('label').before(referenceArea);
+        const referenceArea=document.createElement('section');referenceArea.className='pixmax-reshoot-references';referenceArea.innerHTML='<header><span>参考素材</span><button type="button" data-reshoot-add-canvas>添加画布参考</button><button type="button" data-reshoot-add-asset>添加资产参考</button><button type="button" data-reshoot-add-subject>添加主体</button></header><div data-reshoot-references></div>';promptTarget.closest('label').before(referenceArea);
         let video;try{video=mountPlayer(api,session,source.media);}catch(error){dispose(session);return toast(error.message);}
         const draw=()=>{body.querySelector('[data-reshoot-start]').value=state.startSec;body.querySelector('[data-reshoot-end]').value=state.endSec;body.querySelector('[data-reshoot-summary]').textContent=`${state.startSec.toFixed(1)} – ${state.endSec.toFixed(1)} · ${(state.endSec-state.startSec).toFixed(1)}s`;session.timeline?.setRange({startSec:state.startSec,endSec:state.endSec});session.refreshParameters();};draw();
-        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player],[data-reshoot-parameters],[data-reshoot-model],[data-reshoot-camera]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);session.promptHandle?.setReadonly(disabled);session.parametersHandle?.setDisabled(disabled);session.modelHandle?.setDisabled(disabled||!session.modelHasOptions);session.cameraHandle?.setDisabled(disabled);};session.sync=sync;
+        const sync=()=>{const disabled=busy||!valid();body.querySelectorAll('input,textarea,select,button').forEach(control=>{if(!control.closest('[data-reshoot-player],[data-reshoot-parameters],[data-reshoot-model],[data-reshoot-camera]'))control.disabled=disabled;});target.inert=disabled;session.timeline?.setDisabled(disabled);session.promptHandle?.setReadonly(disabled);session.parametersHandle?.setDisabled(disabled);session.modelHandle?.setDisabled(disabled||!session.modelHasOptions);session.cameraHandle?.setDisabled(disabled);if(disabled)for(const picker of session.pickers||[])picker.remove();for(const handle of session.subjectLibraries||[])handle.sync();};session.sync=sync;
         let referenceStamp='';
         function refreshReferences(){
-            if(session.closed)return;const current=PixmaxReshootReferences.plan(node),stamp=JSON.stringify([current.mentions,current.incomingNodes]);if(stamp===referenceStamp)return;referenceStamp=stamp;
+            if(session.closed)return;const current=PixmaxReshootReferences.plan(node),invalidSubjects=PixmaxSubjects.invalid(node),stamp=JSON.stringify([current.mentions,current.incomingNodes,invalidSubjects]);if(stamp===referenceStamp)return;referenceStamp=stamp;
             const list=referenceArea.querySelector('[data-reshoot-references]');list.replaceChildren();
             for(const entry of current.resources){
                 const row=document.createElement('span');row.className='pixmax-reshoot-reference';const insert=document.createElement('button');insert.type='button';insert.textContent=entry.alias+' · '+entry.name;insert.dataset.reshootMention=entry.id;
                 insert.onclick=()=>{if(!valid()||busy)return;const item=PixmaxReshootReferences.plan(node).mentions.find(item=>item.id===entry.id);if(item)session.promptHandle?.insertMention(item);};row.appendChild(insert);
-                if(!entry.crop){const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','移除参考 '+entry.name);remove.onclick=()=>{if(valid()&&!busy)PixmaxReshootReferences.remove(node,entry);};row.appendChild(remove);}list.appendChild(row);
+                if(!entry.crop){const remove=document.createElement('button');remove.type='button';remove.textContent='×';const groupId=nodes.find(source=>source.id===entry.nodeId)?.subjectReference?.groupId,subject=(state.subjects||[]).find(subject=>subject.groupId===groupId);const action=subject?'移除主体 '+subject.name+'及其全部素材（'+entry.name+'）':'移除参考 '+entry.name;remove.setAttribute('aria-label',action);remove.title=action;remove.onclick=()=>{if(valid()&&!busy)PixmaxReshootReferences.remove(node,entry);};row.appendChild(remove);}list.appendChild(row);
             }
-            session.promptHandle?.setReferences({mentionItems:current.mentions,incomingNodes:current.incomingNodes});sync();
+            session.promptHandle?.setReferences({mentionItems:current.mentions,incomingNodes:current.incomingNodes});session.promptHandle?.setValue(state.prompt);sync();
+            session.promptHandle?.setInvalidSubjects(invalidSubjects);
         }
         session.refreshReferences=refreshReferences;refreshReferences();
         function pickerModel(){
@@ -198,6 +201,15 @@
             else items=pickerModel().canvasItems.map(item=>({id:item.id,name:item.label}));draw();
         }
         referenceArea.querySelector('[data-reshoot-add-canvas]').onclick=()=>void pick(false);referenceArea.querySelector('[data-reshoot-add-asset]').onclick=()=>void pick(true);
+        referenceArea.querySelector('[data-reshoot-add-subject]').onclick=async()=>{
+            if(!valid()||busy||!session.promptHandle)return;
+            const handle=await PixmaxSubjectLibrary.open({api,node,valid:()=>valid()&&!busy,onRoot:(root,added)=>{const tracked=session.pickers||=new Set();if(added)tracked.add(root);else tracked.delete(root);},onClose:handle=>session.subjectLibraries?.delete(handle),onChoose:async(group,type)=>{
+                if(!valid()||busy)return;const chip=PixmaxSubjects.select(node,group,type);edited=true;
+                let value;try{value=await session.promptHandle.insertSubject(chip);}catch(error){if(!valid()||busy)return;value=state.prompt;toast('主体已添加到提示词末尾');}
+                if(!valid()||busy)return;
+                PixmaxReshootReferences.setPrompt(node,value);session.promptHandle.setValue(value);render();scheduleSave();refreshReferences();
+            }});if(session.closed||!handle.root.isConnected)handle.destroy();else(session.subjectLibraries||=new Set()).add(handle);
+        };
         session.observer=new MutationObserver(()=>{if(!root.isConnected)dispose(session);});session.observer.observe(document.body,{childList:true});
         function changeRange(range){if(!valid()||busy||Math.abs(range.startSec-state.startSec)<.001&&Math.abs(range.endSec-state.endSec)<.001)return;if(!edited){pushUndo();edited=true;}Object.assign(state,range);Object.assign(node.runSettings,PixmaxReshootParameters.settings(node));delete state.cache;delete state.preparedMedia;node.runSettings.videoTempShLinks=[];draw();scheduleSave();}
         function seek(seconds,final=false){
@@ -216,7 +228,7 @@
         async function perform(run){if(busy)return;busy=true;sync();
             try{if(run)await submit(node,root,status);else{await prepare(node,valid,status);status.textContent='裁剪片段及首尾帧已准备并保存';}}
             catch(error){if(root.isConnected)status.textContent=error.message||'片段重拍暂未完成';}
-            finally{busy=false;if(!session.closed){sync();body.querySelector('[data-reshoot-run]').textContent=state.taskId&&state.completedTaskId!==state.taskId?'查询原重拍任务':'生成重拍视频';}}
+            finally{busy=false;if(!session.closed){refreshReferences();sync();body.querySelector('[data-reshoot-run]').textContent=state.taskId&&state.completedTaskId!==state.taskId?'查询原重拍任务':'生成重拍视频';}}
         }
         body.querySelector('[data-reshoot-prepare]').onclick=()=>void perform(false);body.querySelector('[data-reshoot-run]').onclick=()=>void perform(true);
         try{
@@ -234,9 +246,9 @@
             if(session.closed||activeSession!==session||!root.isConnected){void timeline.destroy();return;}
             session.timeline=timeline;draw();sync();
             const current=PixmaxReshootReferences.plan(node);
-            const promptHandle=await api.mountPrompt(promptTarget,{value:state.prompt,maxLength:10000,ariaLabel:'重拍要求',placeholder:'也可以写要改什么，例如：把头发换成红色',previewZIndex:100150,onNotice:message=>{if(valid())toast(message);},readonly:busy||!valid(),references:{mentionItems:current.mentions,incomingNodes:current.incomingNodes},
+            const promptHandle=await api.mountPrompt(promptTarget,{value:state.prompt,maxLength:10000,ariaLabel:'重拍要求',placeholder:'也可以写要改什么，例如：把头发换成红色',previewZIndex:100150,onNotice:message=>{if(valid())toast(message);},readonly:busy||!valid(),references:{mentionItems:current.mentions,incomingNodes:current.incomingNodes},subjectApi:PixmaxSubjects.adapter(node,valid),subjectMediaUrl:url=>displayMediaUrl({url}),invalidSubjectGroupIds:PixmaxSubjects.invalid(node),
                 atMentionPicker:{getModel:pickerModel,connect:id=>valid()&&!busy&&PixmaxReshootReferences.connect(node,id)},
-                onChange:value=>{if(!valid()||busy||value===state.prompt)return;if(!edited){pushUndo();edited=true;}PixmaxReshootReferences.setPrompt(node,value);session.promptHandle?.setValue(value);scheduleSave();}});
+                onChange:value=>{if(!valid()||busy||value===state.prompt)return;if(!edited){pushUndo();edited=true;}PixmaxReshootReferences.setPrompt(node,value);session.promptHandle?.setValue(value);refreshReferences();scheduleSave();}});
             if(session.closed||activeSession!==session||!root.isConnected){void promptHandle.destroy();return;}session.promptHandle=promptHandle;promptHandle.setValue(state.prompt);sync();
             const cameraHandle=await api.mountCamera(cameraArea.querySelector('[data-reshoot-camera]'),{disabled:busy||!valid(),
                 readPreferences:()=>{if(!valid())return null;try{const value=JSON.parse(localStorage.getItem(preferenceKey)||'null');return value?.indices&&Object.keys(PixmaxPromptCatalog).every(key=>Number.isInteger(value.indices[key])&&value.indices[key]>=0&&value.indices[key]<PixmaxPromptCatalog[key].length)?value:null;}catch{return null;}},

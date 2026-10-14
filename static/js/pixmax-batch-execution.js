@@ -31,6 +31,7 @@
         return {candidates,skipped,excludedDownstreamIds:[...excluded]};
     }
     async function prepare(node,type){
+        if(node.segmentReshoot?.schemaVersion===1){const guard=canvasTaskWriteGuard(node);await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
         if(type==='audio')return window.PixmaxAudioCreation.prepare(node);
         if(type==='model')return window.PixmaxModelCreation.prepare(node);
         if(type==='llm'){
@@ -51,6 +52,11 @@
     function stamp(frame){const ids=members(frame),selected=new Set(ids);return JSON.stringify([ids,(canvas.connections||[]).filter(edge=>selected.has(edge.from)&&selected.has(edge.to))]);}
     async function preview(frame){
         if(isSmartCanvasLocked()||!window.CanvasSession?.enabled)throw new Error('请先开始编辑成员画布');
+        const initialGuard=canvasTaskWriteGuard(frame);
+        for(const node of nodes.filter(node=>node.frameId===frame.id&&node.segmentReshoot?.schemaVersion===1)){
+            const guard=canvasTaskWriteGuard(node,frame);await PixmaxSubjects.refresh(node,()=>initialGuard.valid()&&guard.valid());guard.check();
+        }
+        initialGuard.check();
         savePromptDraftForCurrent();if(!await saveCanvas({force:true}))throw new Error('画布尚未保存，请稍后重试');
         const guard=canvasTaskWriteGuard(frame),origin=canvas,selection=stamp(frame),result=plan(members(frame)),entries=[];
         for(const item of result.candidates){
@@ -99,6 +105,7 @@
             try{
                 if(!snapshot.guard.valid()||canvas!==snapshot.origin||stamp(snapshot.frame)!==snapshot.selection)throw Error('分组或编辑资格已变化');
                 if(busy(node))throw Error('节点已在运行');
+                if(node.segmentReshoot?.schemaVersion===1){await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
                 entry.binding.check();binding=smartTaskInputBinding(node,node,guard);const target=await binding.prepare();binding.beginSubmission();
                 id='canvas_'+({image:'img',video:'vid'}[entry.kind]||entry.kind)+'_'+crypto.randomUUID().replace(/-/g,'');active.set(node,id);
                 const request={...entry.request,canvas_id:canvas.id,client_task_id:id,canvas_target:target};dispatched=true;

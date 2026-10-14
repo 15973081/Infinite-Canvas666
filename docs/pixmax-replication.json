@@ -107,16 +107,35 @@
         "logs": [".local/pixmax-subject-library-module-final.log", ".local/pixmax-subject-library-module-regression.log", ".local/pixmax-subject-account-browser.log"],
         "scope": "13 项新增真实数据库主体测试包含在 82 项相关回归内，计数不相加；后续仅调整文字正文保留空白的校验后重跑 13 项。账号浏览器回归使用 API 夹具。未调用付费供应商。"
       },
-      "remaining": ["原生 cX 主体卡片、个人/空间目录管理与 M1 subject-reference 标签的 UI 接入", "主体组展开为隐藏输入节点、实际供应商提示词与混合媒体请求接线；原生浏览器与真实数据库联合验收", "目录修改/删除/权限撤销期间的生成签名检查、保存重开、复制、跨空间重新选择、工作流 ZIP 的最终对照", "主体目录视觉、移动端与大规模交互的最终验证"]
+      "remaining": ["片段重拍原生主体入口已接入，见 subjectLibraryUiEvidence；普通图像/视频编辑器和独立主体管理入口仍需对齐", "跨成员/空间复制、更多未知任务与并发目录生命周期的完整最终对照", "主体目录全部视觉、移动端与大规模交互的最终验证"]
+    },
+    "subjectLibraryUiEvidence": {
+      "status": "implemented_requires_final_verification",
+      "scope": "片段重拍的主体选择、管理、原生提示词、隐藏素材与生成/批次请求接线。全局主体管理和其他图像/视频生成入口仍需继续对齐。",
+      "source": ["static/js/pixmax-subject-library.js", "static/js/pixmax-subject-references.js", "static/js/pixmax-segment-reshoot.js", "static/js/pixmax-reshoot-references.js", "static/js/pixmax-prompt-tokens.js", "static/js/pixmax-batch-execution.js", "static/js/canvas/smart/smart-execution.js", "tools/import_pixmax_runtime.py", "tests/helpers/pixmax-subject-library.cjs", "tests/pixmax-segment-reshoot.browser.cjs", "tests/test_cloud_pixmax_segment_reshoot.py"],
+      "nativeComponents": ["cX 主体卡片与查看/应用交互", "M1、Art 的 subject-reference 标记与 Ert 悬停预览；本地 JSe 接口适配", "原生标记保留规范地址，显示图片使用本项目成员与空间媒体地址"],
+      "verified": ["我的主体/空间主体切换、搜索、查看、创建、名称/描述编辑、文字增删改、已有画布/资产素材选择、文件上传、封面及组删除；只读目录可查看和应用，管理操作受接口权限约束", "并发名称或文字修改保留草稿，读取最新版本显示最新内容，不自动重试覆盖；文字换行和缩进保持原样", "一次选择主体新增一个撤销快照，按条目产生隐藏文字/图片/音频/视频输入；重复主体标签复用同组素材，普通编辑器捕获、保存重开和独立复制保留标记及输入连接", "主体名称与各类型编号进入实际提示词，文本正文作为文本输入；编码标记、组 UUID 和条目 ID 不进入供应商提示词。裁剪视频始终是视频1，主体中的原视频也作为独立视频2引用", "移除主体标记清理其输入边及无其他引用的隐藏节点；保留手工参考。源连接缺失、屏蔽主体输入或追加隐含媒体均阻止裁剪/提交，显式重新选择可修复", "个人快照要求同成员与空间；空间主体允许其他成员的同空间快照；无法解析或已删除的主体阻止新任务并显示失效标记，不以名称绑定其他目录", "新任务在准备片段前刷新主体，准备后再次核对；目录在裁剪/上传期间变化会拒绝任务 POST，并保留三个已准备资源以供重试。原未知任务查询分支保持原任务号恢复", "批次预览在保存与绑定前刷新主体，预览后的变化以及每个节点提交前的变化再次核对；通用执行入口也核对主体，不绕过校验", "原生悬停预览查询本地已授权组详情并展示说明和素材计数，不使用 Pixmax 账号/接口；失去画布编辑资格或关闭窗口后不写入迟到结果，释放卡片、弹窗、观察器和媒体", "390px 目录和原生卡片可用且窗口在视口内；截图已核对。主体入站连线用短生命周期集合索引，素材通过当前引用映射查找，减少重复全图扫描；未据此声称 FPS 提升", "第八种真实数据库浏览器流程选中个人混合主体，保存编码标记并提交一个实际持久化任务；请求和归属包含裁剪视频及三种媒体，七份工作流资源 ZIP 往返保留主体标记、文字与隐藏素材。供应商完成使用替身"],
+      "verification": {
+        "newSubjectBrowserCases": 16,
+        "relatedFrontendChecks": 152,
+        "focusedFinalChecks": 17,
+        "finalReshootAndCodecChecks": 80,
+        "databaseChecks": 21,
+        "actualSubjectBrowserDatabaseCases": 1,
+        "logs": [".local/pixmax-subject-frontend-final.log", ".local/pixmax-subject-integrity-final.log", ".local/pixmax-subject-reshoot-final.log", ".local/pixmax-subject-db-final.log", ".local/pixmax-subject-real-browser-db-final.log"],
+        "scope": "152 项回归包括原先 14 项主体浏览器流程；补充两项输入完整性保护及优化后重跑 17 项主体相关检查，16 项为新增主体流程。最终重跑全部 76 项重拍浏览器及 4 项编码测试，共 80 项。21 项数据库包含 8 种重拍浏览器流程和 13 项主体目录测试，最后重跑真实主体浏览器数据库流程。计数存在重叠，不相加。"
+      },
+      "preview": [".local/pixmax-subject-native-reference.png", ".local/pixmax-subject-library-mobile.png"],
+      "remaining": ["普通图像/视频生成节点与独立主体管理页的原生主体入口及全目录交互对齐", "更完整的目录/素材选择视觉、无障碍、跨成员/空间分享复制、未知任务和后台目录变更的生命周期最终对照", "大目录、大画布及更多媒体/模型能力的性能和生产质量最终验证"]
     },
     "segmentReshootEvidence": {
       "source": ["static/js/pixmax-segment-reshoot.js", "static/js/pixmax-canvas-player.js", "static/js/pixmax-workflow.js", "static/vendor/pixmax/editors.js", "static/js/canvas/smart/smart-workspace.js", "static/js/canvas/smart/smart-execution.js", "static/js/canvas/smart/smart-document.js", "static/js/pixmax-batch-execution.js", "tests/helpers/pixmax-segment-reshoot-http.cjs", "tests/helpers/pixmax-reshoot-native.cjs"],
       "status": "implemented_requires_final_verification",
       "nativeContract": "参考 createSegmentReshootNode、nX/J9e、Det/Tet：源视频大于 4 秒且不超过 600 秒；默认 0–4 秒，片段范围 4–30 秒、0.1 秒步进；裁剪片段与首尾 JPEG 一起准备、上传并缓存；PIXDANCE_2_5 对应接收项目已配置的 Seedance 2.5 视频编辑模型。",
       "nativeEngine": "冻结运行时导出 wnt、Snt、Ktt、tJ、原生 gMt 时间轴、M1 富文本提示词、g$ 生成参数、Kz 模型选择器和 sst 相机面板；保留裁剪、首尾帧捕获、范围约束、缓存、缩略帧/拖动、原生 @ 搜索、hash 标签、模型下拉层和参数弹层。范围、参考素材、模型规格与禁用状态通过 Svelte 响应式属性更新；偏好、通知、上传、任务与文档由接收项目负责。",
-      "browserCases": 60,
+      "browserCases": 76,
       "nativeMediaCases": 1,
-      "databaseCases": 7,
+      "databaseCases": 8,
       "verified": ["视频工具条可创建一个连接原视频的重拍节点；重复点击只创建一次；参数与范围随画布保存", "真实 H.264 输入裁剪成 4 秒视频，原生首尾 JPEG 分辨率与源片一致；独立原生检查亦验证音轨保留", "相同片段复用三份文件缓存；范围变化失效；失败重试复用本地文件且不重复成功上传的兄弟文件", "使用裁剪视频提交一次 edit 任务；未知响应保留原任务 ID，通过查询恢复而不重复提交", "来源、编辑资格、窗口关闭或空间变化阻止迟到准备结果写入", "复制与工作流导入重映射来源、清除外来任务编号；复制清除缓存，导入仅在来源身份、范围及三份类型化素材全部匹配时保留缓存；素材地址或身份变化失效", "批次预览拒绝未准备的重拍节点，已准备时使用相同裁剪素材与 edit 模式", "真实浏览器通过认证 ASGI 与隔离 PostgreSQL 完成原生裁剪、真实分片上传、保存、一次任务接收、供应商完成替身、结果交付及最终保存", "真实数据库证明裁剪视频替代完整原视频成为生成输入；三份准备素材由画布保留，空间查看成员可读取、其他空间拒绝", "原视频、裁剪视频与首尾帧共四份资源随工作流 ZIP 导出/导入，资源地址重新登记", "原生元数据 segmentReshoot 标记、源 assetsUuid、片段范围和提示词转换为可执行状态；完整 reshootClipCache 解析为实际素材地址，缓存缺失或不匹配时要求重新准备", "原生待生成卡片复制的源视频不计作生成结果；已经生成的独立结果保留；单独导入保留直接视频来源，缺少时长时探测实际媒体", "原生模型需要显式选择已配置的 Seedance 2.5 模型；缺失源素材及无效范围明确阻止提交；多视频来源重排不改换选中素材", "三种真实数据库浏览器流程分别验证新建 4 秒片段、原生导入裁剪 1–6 秒和原生缓存复用 5 秒片段；每个流程只接收一个任务并完成四份资源 ZIP 往返"],
       "timelineEvidence": {"component": "gMt", "browserCases": 8, "verified": ["从真实 H.264 视频提取 72×56 缩略帧；左右边界与整段拖动后范围、数值输入及保存同步", "4 秒最短和 30 秒最长约束；真实 45 秒视频超限时原生提示显示在弹窗上方", "时间轴点击定位与播放指针同步；从片段外播放返回起点，并在选定终点暂停；避免异步跳转期间错误暂停", "准备期间及失去编辑资格后禁止时间轴和参数修改；范围变化释放原缓存引用", "关闭或替换弹窗销毁原生组件、停止播放并清空媒体源；缩略帧加载期间关闭不会重建弹窗或写入准备状态", "390px 窄屏保持时间轴拖动且无横向文档溢出", "三种隔离数据库浏览器流程均通过真实媒体接口完成时间轴定位；桥接保留 Content-Range、Accept-Ranges 和 Content-Length，验证 HTTP 范围读取"], "preview": [".local/pixmax-segment-reshoot.png", ".local/pixmax-reshoot-range-limit.png", ".local/pixmax-reshoot-timeline-mobile.png"], "scope": "复用原生时间轴与 aV 播放器；完整原生生成面板仍待最终对齐，不将这一步视为全部视频工具或全面复刻验收。"},
       "sourcePreviewEvidence": {"component": "aV", "browserCases": 8, "verified": ["生成前的源视频预览独立于 images 结果列表；保留原生播放控件、尺寸和缩放手柄，预览几何与连线计算一致", "完整渲染和局部刷新复用播放器和播放位置；暂停的视野外预览释放播放器，返回后恢复位置", "弹窗接入原生播放、静音、定位与全屏入口；播放操作不会新增撤销快照或改变生成参数", "只读成员可双击源卡片进入原生预览；动态隐藏截图入口，生成和准备不可用；切换空间关闭预览", "原生截图创建含源画面像素的 160×90 PNG，连接真实来源节点，不将源视频加入重拍结果；来源或编辑资格变化阻止迟到插入", "生成结果出现后移除源预览，释放原播放器并采用结果的普通视频手势；不会沿用源预览的双击入口", "本轮三种真实数据库浏览器流程继续证明生成输入仅为裁剪视频，预览不会污染任务输入或结果"], "preview": ".local/pixmax-reshoot-source-card.png", "scope": "八项专项使用真实 H.264 视频、原生播放器与截图；数据库验证覆盖保存、裁剪、生成任务和 ZIP，供应商完成使用替身。更完整的侧栏、标签与生成面板语义仍需最终对照。"},
@@ -162,7 +181,7 @@
       "relatedRegression": "镜头提示词阶段最终 278 项前端检查通过，包含 60 项重拍浏览器流程、4 项编码转换检查、模型策略、目录、历史、任务绑定、保存、原生编辑器和性能机制回归；七种隔离数据库浏览器流程通过。最终日志为 .local/pixmax-reshoot-camera-front-final.log 与 .local/pixmax-reshoot-camera-db-final.log；语法、JSON、全部 27 份 PNG 来源/哈希、diff 和截图检查通过。前一阶段的 Python/数据库扩展回归保留在 params 日志，未作为本阶段重跑；性能机制测试不能据此推断整体 FPS 或相对 Pixmax 的性能。",
       "preview": ".local/pixmax-segment-reshoot.png",
       "generationScope": "真实浏览器、媒体处理、上传、编辑资格与数据库链路均实际执行；供应商生成由受控完成替身代替，未调用收费模型。结果质量与生产供应商仍需最终验收。",
-      "remaining": ["主体库引用、完整运镜资源库与其他 hash 提示词协议；原生 @ 和混合素材见 promptReferenceEvidence，五项参数见 parameterEvidence，模型选择器见 modelSelectorEvidence，相机/hash 编码见 cameraPromptEvidence", "更多历史文档及 ZIP 素材重新登记后缓存重建的完整最终对照", "源预览的目录、标签、生成历史及展开/收起视觉语义最终对照", "未知任务期间修改输入、多个窗口、批次执行与生成历史/撤销的完整最终对照", "更长视频、更高分辨率、不同编码及生产供应商的最终验收"]
+      "remaining": ["片段重拍主体库引用见 subjectLibraryUiEvidence，仍需普通图像/视频主体入口、完整运镜资源库与其他 hash 提示词协议；原生 @ 和混合素材见 promptReferenceEvidence，五项参数见 parameterEvidence，模型选择器见 modelSelectorEvidence，相机/hash 编码见 cameraPromptEvidence", "更多历史文档及 ZIP 素材重新登记后缓存重建的完整最终对照", "源预览的目录、标签、生成历史及展开/收起视觉语义最终对照", "未知任务期间修改输入、多个窗口、批次执行与生成历史/撤销的完整最终对照", "更长视频、更高分辨率、不同编码及生产供应商的最终验收"]
     },
     "videoAnnotationEvidence": {"source": "static/js/pixmax-video-annotation.js", "nativeEngine": "WNt 标注界面、ANt 控制器与 aqe 的时间戳 PNG 导出流程；复用本地冻结的参考运行时", "result": ["每个标记对应原分辨率 PNG", "一个同时连接原视频及标记图片的视频编辑草稿", "可执行素材引用芯片，并保留原生引用提示词"], "browserCases": 13, "databaseCases": 2, "verified": ["真实 H.264 视频的颜色选择和画笔绘制，PNG 像素包含标记且保留源画面", "多个时间点分别导出图片并共同连接一个视频草稿；一步撤销", "保存重试及普通保存确认不会重复上传或插入，后续画笔修改重新视为未保存", "上传失败可下载本地 PNG 并重试", "编辑资格、来源、工作空间及关闭窗口变化拒绝迟到上传", "只读访问拒绝绘制入口；导航取消保留未保存标记", "上传期间移动及保存来源不会误判素材身份", "工作流导入、剪贴板和 Alt 复制重映射引用；导入素材地址变化更新引用芯片", "真实数据库中上传、图谱保存、只读素材访问和包含素材的 ZIP 往返"], "relatedRegression": "78 项标记、视频工具、音频分离、原生画布、标签及性能/生命周期回归通过；新增来源身份用例亦通过", "preview": ".local/pixmax-video-annotation.png", "generationScope": "保存后创建视频编辑草稿；未调用收费视频模型，供应商编辑能力与最终生成须另行验收", "remaining": ["更多长视频和高分辨率素材的最终验收", "参考全部绘制工具及移动屏幕的最终交互对照"]},
     "connectionIndexEvidence": {"source": "static/js/canvas/smart/smart-workspace.js", "implementation": ["结构摘要变化时重建节点位置、入边和相邻边索引", "局部 SVG 更新仅枚举目标节点相邻边", "缓存保存数组位置而非节点对象，读取最新对象", "保留结构摘要检查以检测同长度的原地改线、顺序和类型变化"], "verifiedCases": 47, "verified": ["局部连线与全图几何一致且不替换无关 DOM", "新增、删除、重排、原地改线、节点重排、撤销及文档替换", "对象替换后读取当前节点及连线内容", "编辑权限、命中/悬停、队列取消和页面生命周期回归"], "measurementDate": "2026-10-14T03:26:06.255Z", "beforeMedianMs": {"181": 0.2, "1000": 0.7, "3000": 2.1}, "afterMedianMs": {"181": 0.2, "1000": 0.6, "3000": 1.8}, "beforeP95Ms": {"181": 0.3, "1000": 0.9, "3000": 2.5}, "afterP95Ms": {"181": 0.3, "1000": 0.9, "3000": 2.1}, "metric": "Synchronous scoped connection refresh; 10 warmups and 100 samples; synthetic text nodes, chain edges; excludes frame paint and remote generation", "remaining": ["结构摘要校验仍遍历节点和连线", "真实混合素材画布的帧绘制、内存和双方同场景性能验证"]},

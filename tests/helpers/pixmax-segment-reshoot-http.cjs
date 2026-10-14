@@ -7,7 +7,7 @@ const initial=new Promise(resolve=>resolveInitial=resolve);
 lines.on('line',line=>{let message=JSON.parse(line);if(message.initial){dataRoot=path.resolve(message.initial.directory);return resolveInitial(message.initial);}assert.match(message.file,/^response-\d+\.json$/);message=JSON.parse(fs.readFileSync(path.join(dataRoot,message.file),'utf8'));const resolve=requests.get(message.id);requests.delete(message.id);resolve(message);});
 const watchdog=setTimeout(()=>{console.error('Reshoot browser bridge timed out');process.exit(2);},60000);watchdog.unref();
 async function rpc(request){const url=new URL(request.url()),id=++sequence,answer=new Promise(resolve=>requests.set(id,resolve)),body=request.postDataBuffer(),bodyFile=body?'body-'+id+'.bin':null;if(body)fs.writeFileSync(path.join(dataRoot,bodyFile),body);const file='request-'+id+'.json';fs.writeFileSync(path.join(dataRoot,file),JSON.stringify({id,path:url.pathname+url.search,method:request.method(),headers:request.headers(),bodyFile}));process.stdout.write(JSON.stringify({file})+'\n');return answer;}
-async function transport(request){const path=new URL(request.url()).pathname;if(path.startsWith('/api/canvases')||path.startsWith('/api/canvas-folders')||path.startsWith('/api/canvas-video-tasks')||path==='/api/config')return rpc(request);}
+async function transport(request){const path=new URL(request.url()).pathname;if(path.startsWith('/api/canvases')||path.startsWith('/api/canvas-folders')||path.startsWith('/api/canvas-video-tasks')||path.startsWith('/api/subject-library')||path==='/api/config')return rpc(request);}
 (async()=>{
     const config=await initial,cleanup=[];
     try{
@@ -26,7 +26,10 @@ async function transport(request){const path=new URL(request.url()).pathname;if(
         await page.locator('[data-reshoot-timeline] img').first().waitFor();await page.waitForFunction(()=>document.querySelector('.pixmax-segment-reshoot-modal video').readyState>=2);
         const strip=await page.locator('[data-reshoot-timeline] [role=slider]').first().boundingBox();assert.ok(strip&&strip.width>0);await page.mouse.click(strip.x+strip.width*.8,strip.y+strip.height-3);await page.waitForFunction(()=>Math.abs(document.querySelector('.pixmax-segment-reshoot-modal video').currentTime-6.4)<.15);
         try{await page.getByRole('textbox',{name:'重拍要求'}).fill('将衣服改为红色');}catch(error){throw new Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({available:PixmaxSegmentReshoot.available(),providers:apiProviders.map(({id,protocol,platform,has_key,video_models})=>({id,protocol,platform,has_key,video_models})),notices:[...document.querySelectorAll('[role=status],.toast')].map(item=>item.textContent)}))));}
-        if(config.references?.length){
+        if(config.subject){
+            await page.getByRole('button',{name:'添加主体',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.getByText(config.subject.name,{exact:true}).waitFor();await library.locator('[data-subject-cards] .group').filter({hasText:config.subject.name}).hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="subject-reference"]').count(),1);
+        }
+        if(config.references?.length&&!config.subject){
             await page.evaluate(references=>{const target=nodes.find(node=>node.segmentReshoot);for(const item of references)PixmaxReshootReferences.addAsset(target,item);const text={id:uid('reference_text'),type:'smart-prompt',text:'黄昏的街头，人物缓慢回头',label:'剧情参考',x:0,y:0,images:[]};nodes.push(text);PixmaxReshootReferences.connect(target,text.id);},config.references);
             for(const alias of ['图片1','音频1','视频2','文本1'])await page.locator('[data-reshoot-mention]').filter({hasText:alias}).click();
             assert.equal(await page.locator('.pixmax-reshoot-rich-prompt [data-editor-node-type="at-mention"]').count(),4);

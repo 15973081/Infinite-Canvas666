@@ -1626,6 +1626,7 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
     const writeGuard=canvasTaskWriteGuard(node);
     writeGuard.check(); inputBinding?.check();
     inputBinding ||= smartTaskInputBinding(node,node,writeGuard);
+    if(node.segmentReshoot?.schemaVersion===1){await PixmaxSubjects.refresh(node,writeGuard.valid,{checkOnly:true});writeGuard.check();inputBinding.check();}
     let activeSettings = window.PixmaxSegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
     if(node.segmentReshoot?.schemaVersion===1){const request=PixmaxReshootReferences.request(node,activeSettings);prompt=request.prompt;refs=request.refs;activeSettings=request.settings;}
     if(activeSettings.engine === 'comfy') return generateComfyUrlsWithSettings(activeSettings, prompt, refs);

@@ -2,6 +2,8 @@
 (() => {
     'use strict';
     const pattern=/%%#\[([a-zA-Z0-9_-]+)\]\[([A-Za-z0-9+/=]*)\]\(([A-Za-z0-9+/=]*)\)%%/g;
+    const subjects=/%%subject-ref\(([^)]*)\)%%/g;
+    const subjectName=body=>{const [id,second,third]=body.split('|');return (second==='PERSONAL'||second==='TEAM'?third:second)||id||'主体';};
     function decode(value){return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(value),character=>character.charCodeAt(0)));}
     function read(match){
         try{
@@ -25,13 +27,13 @@
     }
     function html(value){
         let output='',position=0;
-        for(const match of String(value).matchAll(pattern)){
+        for(const match of [...String(value).matchAll(pattern),...String(value).matchAll(subjects)].sort((a,b)=>a.index-b.index)){
             output+=escapeHtml(value.slice(position,match.index)).replaceAll('\n','<br>');position=match.index+match[0].length;
-            let label;try{label=read(match).label;}catch{label='失效镜头标记';}
+            let label;try{label=match[0].startsWith('%%subject-ref(')?subjectName(match[1]):read(match).label;}catch{label='失效镜头标记';}
             output+=`<span class="pixmax-prompt-hash-token" contenteditable="false" data-pixmax-prompt-token="${escapeAttr(match[0])}">${escapeHtml(label)}</span>`;
         }
         return output+escapeHtml(value.slice(position)).replaceAll('\n','<br>');
     }
-    function text(value){return value.replace(pattern,(...parts)=>{try{return read(parts).label;}catch{return '失效镜头标记';}});}
+    function text(value){return value.replace(pattern,(...parts)=>{try{return read(parts).label;}catch{return '失效镜头标记';}}).replace(subjects,(_raw,body)=>subjectName(body));}
     window.PixmaxPromptTokens=Object.freeze({compile,html,text,read});
 })();

@@ -14,7 +14,7 @@
             }
             for(const [index,media] of (source.images||[]).entries()){
                 const kind=mediaKindForItem(media);if(!media.url||!['image','audio','video'].includes(kind))continue;
-                if(kind==='video'&&identity(media)===state.source.identity)continue;
+                if(kind==='video'&&identity(media)===state.source.identity&&!source.subjectReference)continue;
                 const ref={...media,kind,nodeId:source.id,imageIndex:index},key=kind+':'+identity(media);
                 if(blocked.has(inputRefKey(ref))||seen.has(key))continue;seen.add(key);
                 entries.push({id:index?source.id+'::'+index:source.id,nodeId:source.id,imageIndex:index,kind,name:source.label||media.name||label[kind],media:ref,alias:label[kind]+(++counts[kind])});
@@ -33,7 +33,7 @@
     }
     function validate(node,current=plan(node)){
         const invalid=[];
-        let prompt=PixmaxPromptTokens.compile(String(node.segmentReshoot.prompt||'')).replace(token,(_value,_title,kind,_index,id)=>{
+        let prompt=PixmaxPromptTokens.compile(window.PixmaxSubjects?PixmaxSubjects.compile(node,current):String(node.segmentReshoot.prompt||'')).replace(token,(_value,_title,kind,_index,id)=>{
             const entry=current.byId.get(id);if(!entry||entry.kind!==kind){invalid.push(id);return '';}
             return entry.alias;
         });
@@ -49,7 +49,7 @@
     }
     function signature(node){
         const current=plan(node),config=settingsForStorage(node.runSettings);delete config.videoTempShLinks;
-        return JSON.stringify([node.segmentReshoot.prompt,config,current.resources.map(entry=>[entry.id,entry.kind,entry.text,identity(entry.media),entry.media?.asset_uris])]);
+        return JSON.stringify([node.segmentReshoot.prompt,config,current.resources.map(entry=>[entry.id,entry.kind,entry.text,identity(entry.media),entry.media?.asset_uris]),window.PixmaxSubjects?.signature(node)]);
     }
     function setPrompt(node,value){
         const current=plan(node);let position=0,html='';
@@ -58,7 +58,7 @@
             const entry=current.byId.get(match[4]);
             html+=entry?.media?mentionTokenHtml({...entry.media,nodeId:entry.nodeId||'',imageIndex:entry.imageIndex||0,name:entry.name,referenceLabel:entry.alias}):entry?`<span class="pixmax-reshoot-text-token" contenteditable="false" data-reshoot-reference-id="${escapeAttr(entry.id)}">@${escapeHtml(entry.alias)}</span>`:escapeHtml(match[0]);
         }
-        node.segmentReshoot.prompt=value;node.promptDraftText=PixmaxPromptTokens.text(value.replace(token,(_match,_title,_kind,_index,id)=>'@'+(current.byId.get(id)?.alias||'失效参考')));
+        node.segmentReshoot.prompt=value;window.PixmaxSubjects?.prune(node);node.promptDraftText=PixmaxPromptTokens.text(value.replace(token,(_match,_title,_kind,_index,id)=>'@'+(current.byId.get(id)?.alias||'失效参考')));
         node.promptDraftHtml=html+PixmaxPromptTokens.html(value.slice(position));
         if(typeof activeComposerNode==='function'&&activeComposerNode()===node&&promptInput)promptInput.innerHTML=node.promptDraftHtml;
     }
@@ -79,7 +79,7 @@
             const entry=part.id?current.byId.get(part.id):current.resources.find(entry=>entry.media&&entry.kind===mediaKindForItem(part)&&((entry.nodeId===part.nodeId&&entry.imageIndex===part.imageIndex)||(entry.crop&&identity(entry.media)===identity(part))));
             const mention=current.mentions.find(item=>item.id===entry?.id);
             return mention?`%%@[${mention.tokenTitle}][${mention.type}][${mention.index}](${mention.id})%%`:`%%@[失效参考][${part.id?'text':mediaKindForItem(part)}][0](${part.id||part.nodeId||'missing'})%%`;
-        }).join('');
+        }).join('');window.PixmaxSubjects?.prune(node);
     }
     function remap(node,idMap,previousSource){
         const currentSource=node.segmentReshoot.source.nodeId||node.id+'::source';
@@ -113,6 +113,7 @@
     }
     function remove(node,entry){
         if(entry.crop)return;
+        const source=nodes.find(source=>source.id===entry.nodeId);if(source?.subjectReference){PixmaxSubjects.remove(node,source.subjectReference.groupId);return;}
         pushUndo();
         if(entry.media)node.blockedInputRefs=[...new Set([...(node.blockedInputRefs||[]),inputRefKey(entry.media)])];
         else canvas.connections=canvas.connections.filter(edge=>!(edge.from===entry.nodeId&&edge.to===node.id));

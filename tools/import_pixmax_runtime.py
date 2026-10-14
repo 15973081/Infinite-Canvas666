@@ -25,8 +25,13 @@ runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e(".
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
 runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index.js")', 'e("../node_modules/is-buffer/index.js")')
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
-for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(', 'function g$(', 'function Kz(', 'function sst(']:
+for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(', 'function g$(', 'function Kz(', 'function sst(', 'function cX(', 'var Art=']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
+subject_context='invalidSubjectGroupIds:u(),previewZIndex:t.previewZIndex'
+subject_dom='let n=crt(e.groupUuid,e.ownerType,e.name??e.groupUuid,e.coverUrl??``);'
+assert runtime.count(subject_context)==runtime.count(subject_dom)==1, 'Subject chip integration changed'
+runtime=runtime.replace(subject_context,'invalidSubjectGroupIds:u(),subjectMediaUrl:t.subjectMediaUrl,previewZIndex:t.previewZIndex')
+runtime=runtime.replace(subject_dom,'let n=crt(e.groupUuid,e.ownerType,e.name??e.groupUuid,t.subjectMediaUrl&&e.coverUrl?t.subjectMediaUrl(e.coverUrl):e.coverUrl??``);n.dataset.subjectCoverUrl=e.coverUrl??``;')
 camera_read='let e=RL.resolveCameraParamsPanel(c.user?.unionId??null);'
 camera_write='RL.persistCameraParamsPanel(o.indices,c.user?.unionId??null)'
 assert runtime.count(camera_read)==runtime.count(camera_write)==1, 'Camera preference boundary changed'
@@ -141,14 +146,23 @@ export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params
     await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
     const notify=message=>props.onNotice?.(message);
     container.registerInstance(N_,{success:notify,error:notify,warning:notify,info:notify,pending:notify,remove(){}});
-    const value=z(props.value||''), references=z(props.references||{mentionItems:[],incomingNodes:[]}), readonly=z(!!props.readonly);
-    const instance=Tf(M1,{target,context:new Map([[tCe,container]]),props:{...props,enabledProtocols:['at-mention','hash-rich'],
-      get value(){return G(value);},get mentionItems(){return G(references).mentionItems;},get incomingNodes(){return G(references).incomingNodes;},get readonly(){return G(readonly);}
+    container.registerInstance(JSe,props.subjectApi||{async assetLibraryGroupList(){return {success:false,data:[]};},async assetLibraryGroupAssetsList(){return {success:false,data:[]};}});
+    const value=z(props.value||''), references=z(props.references||{mentionItems:[],incomingNodes:[]}), readonly=z(!!props.readonly),invalidSubjects=z(props.invalidSubjectGroupIds||[]);
+    const instance=Tf(M1,{target,context:new Map([[tCe,container]]),props:{...props,enabledProtocols:['at-mention','hash-rich','subject-reference'],
+      get value(){return G(value);},get mentionItems(){return G(references).mentionItems;},get incomingNodes(){return G(references).incomingNodes;},get readonly(){return G(readonly);},get invalidSubjectGroupIds(){return G(invalidSubjects);}
     }});
     await tf();const editor=instance.getRichEditorManager()?.editorEl;
     if(editor){editor.setAttribute('role','textbox');editor.setAttribute('aria-label',props.ariaLabel||'重拍要求');editor.setAttribute('aria-multiline','true');}
-    return {instance,setValue(next){B(value,next,true);},setReferences(next){B(references,next,true);},setReadonly(next){B(readonly,!!next);},
+    return {instance,setValue(next){B(value,next,true);},setReferences(next){B(references,next,true);},setReadonly(next){B(readonly,!!next);},setInvalidSubjects(next){B(invalidSubjects,next,true);},
+      async insertSubject(item){const manager=instance.getRichEditorManager(),before=manager.serialize();instance.insertChipItem('subject-reference',item,'caret');await tf();const value=manager.serialize();if(value===before)throw Error('主体标签插入失败');return value;},
       insertMention(item){return instance.insertChipItem('at-mention',item,'caret');},insertCamera(item){return instance.insertCameraChip(item);},insertCamerawork(item){return instance.insertCameraworkChip(item);},destroy(){return Of(instance);}};
+  },
+  async mountSubjects(target, props) {
+    const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
+    const groups=z(props.groups||[]),disabled=z(!!props.disabled);
+    const instance=Tf(cX,{target,context:new Map([[tCe,container]]),props:{...props,panel:true,subject:true,
+      get groups(){return G(groups);},get disabled(){return G(disabled);}}});await tf();
+    return {setGroups(next){B(groups,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){return Of(instance);}};
   },
   async mountTimeline(target, props) {
     const container = new f, i18n = await KLe();
@@ -185,7 +199,7 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst'], 'model_graphics': ['J1e','Dc','Lc']},
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
     'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')

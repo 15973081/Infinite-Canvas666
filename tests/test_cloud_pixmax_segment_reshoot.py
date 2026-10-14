@@ -15,7 +15,7 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters', 'model-switch', 'camera'])
+@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters', 'model-switch', 'camera', 'subjects'])
 def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path, import_mode):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
@@ -46,7 +46,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         assert response.status_code == 200, response.text
         output = response.json()['files'][0]
     references = []
-    if import_mode == 'references':
+    if import_mode in ('references', 'subjects'):
         for kind, extension, mime, arguments in [
             ('image', '.png', 'image/png', ['-i', str(video), '-frames:v', '1']),
             ('audio', '.wav', 'audio/wav', ['-f', 'lavfi', '-i', 'sine=frequency=440:duration=2']),
@@ -57,6 +57,19 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
             response = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (reference_file.name, reference_file.read_bytes(), mime)})
             assert response.status_code == 200, response.text
             references.append({**response.json()['files'][0], 'kind': kind, 'name': '参考' + kind})
+    subject = None
+    if import_mode == 'subjects':
+        response = world['editor'].post('/api/subject-library/PERSONAL/groups', headers=headers(world['a']),
+            json={'expected_revision': 0, 'name': '摄影师主体', 'description': '黄昏的摄影师'})
+        assert response.status_code == 200, response.text
+        subject = {'id': response.json()['target_id'], 'name': '摄影师主体'}
+        response = world['editor'].post('/api/subject-library/PERSONAL/groups/'+subject['id']+'/items', headers=headers(world['a']),
+            json={'expected_revision': 1, 'kind': 'text', 'name': '剧情设定', 'text': '黄昏的街头，人物缓慢回头'})
+        assert response.status_code == 200, response.text
+        for index, item in enumerate(references):
+            response = world['editor'].post('/api/subject-library/PERSONAL/groups/'+subject['id']+'/items', headers=headers(world['a']),
+                json={'expected_revision': index+2, 'kind': item['kind'], 'name': item['name'], 'url': item['url']})
+            assert response.status_code == 200, response.text
     native_document = None
     if import_mode in ('native', 'native-cache'):
         native_asset = {'assetsUuid': 'native-source', 'type': 'VIDEO', 'webUrl': source['url'], 'metaData': {'duration': 8}, 'width': 160, 'height': 90}
@@ -81,7 +94,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     process = subprocess.Popen(['node', str(root / 'tests/helpers/pixmax-segment-reshoot-http.cjs')], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done, task_ids, finalized = False, [], set()
     try:
-        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'camera':import_mode=='camera', 'parameters': bool(output), 'references': references, 'nativeDocument': native_document, 'provider': provider, 'secondary':secondary, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
+        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'subject':subject, 'camera':import_mode=='camera', 'parameters': bool(output), 'references': references, 'nativeDocument': native_document, 'provider': provider, 'secondary':secondary, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
         for line in process.stdout:
             pointer = json.loads(line)
             if pointer.get('done'): done = True; break
@@ -128,8 +141,11 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         assert len(node['images']) == 1
         if references:
             assert '将衣服改为红色' in node['segmentReshoot']['prompt']
-            assert node['segmentReshoot']['prompt'].count('%%@[') == 4
-            assert len([item for item in saved['nodes'] if item.get('hidden')]) == 3
+            assert node['segmentReshoot']['prompt'].count('%%subject-ref(' if subject else '%%@[') == (1 if subject else 4)
+            assert len([item for item in saved['nodes'] if item.get('hidden')]) == (4 if subject else 3)
+            if subject:
+                assert node['segmentReshoot']['subjects'][0]['groupId'] == subject['id']
+                assert node['segmentReshoot']['subjects'][0]['memberId'] == world['people'][0]['id']
         elif import_mode=='camera':
             assert '将衣服改为红色' in node['segmentReshoot']['prompt']
             assert node['segmentReshoot']['prompt'].count('%%#[camera]')==1
@@ -168,6 +184,9 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
                 assert '黄昏的街头' in request['prompt']
                 assert all(alias in request['prompt'] for alias in ('图片1', '音频1', '视频2', '文本1'))
                 assert '%%@[' not in request['prompt']
+                if subject:
+                    assert '摄影师主体' in request['prompt'] and '%%subject-ref(' not in request['prompt']
+                    assert subject['id'] not in request['prompt']
                 assert source['url'] not in request['videos']
             with database.connection() as conn:
                 owned_ids = conn.execute('SELECT input_asset_ids FROM tasks WHERE id=%s', (task_ids[0],)).fetchone()['input_asset_ids']
@@ -194,8 +213,12 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
             assert copy['segmentReshoot']['prompt']==node['segmentReshoot']['prompt']
         if references:
             imported_refs = [item for item in imported.json()['nodes'] if item.get('hidden')]
-            assert len(imported_refs) == 3
-            assert all(item['images'][0]['url'] not in {ref['url'] for ref in references} for item in imported_refs)
+            assert len(imported_refs) == (4 if subject else 3)
+            assert all(item['images'][0]['url'] not in {ref['url'] for ref in references} for item in imported_refs if item.get('images'))
+            if subject:
+                assert copy['segmentReshoot']['subjects'][0]['groupId'] == subject['id']
+                assert copy['segmentReshoot']['prompt'].count('%%subject-ref(') == 1
+                assert next(item['text'] for item in imported_refs if item.get('text')) == '黄昏的街头，人物缓慢回头'
     finally:
         if process.poll() is None: process.kill(); process.wait(timeout=5)
         for handle in (process.stdin, process.stdout, process.stderr):
