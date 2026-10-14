@@ -15,13 +15,13 @@ class Element {
         return this.children.flatMap(child=>[...(tags.includes(child.tag)?[child]:[]),...child.querySelectorAll(selector)]);
     }
 }
-async function fixture() {
+async function fixture(extra={}) {
     let confirms=0;
     const context={document:{createElement:tag=>new Element(tag),createTextNode:text=>new Element('text',text)},
         Option:function(text,value){const e=new Element('option',text);e.value=value;return e;},
         window:{confirm:()=>{confirms++;return true;}},structuredClone,Date};
     vm.runInNewContext(fs.readFileSync('management/frontend/model-billing.js','utf8'),context);
-    const row={id:'p',version:1,config:{name:'Provider',image_models:['A','B'],model_policies:{
+    const row={id:'p',version:1,config:{name:'Provider',image_models:['A','B'],...extra,model_policies:{
         'image:A':{visible:true,enabled:true},'image:B':{visible:true,enabled:true}}}};
     const writes=[];
     const root=await context.window.ManagementModelBilling.create({catalog:{providers:[row]},save:(row,body)=>
@@ -76,4 +76,20 @@ test('validation errors release the lock and repeated saves use their matching v
     assert.equal(f.writes[1].body.expected_version,2);
     assert.equal(f.writes[1].body.config.model_prices.find(p=>!p.resolution).unit_price,'2');
     f.finish(1);await second;
+});
+
+test('audio billing configures character and call prices with independent model access',async()=>{
+    const f=await fixture({audio_models:['speech-2.8-hd','music-2.6']});
+    f.kind.value='audio';f.kind.onchange();
+    assert.equal(f.model.value,'speech-2.8-hd');assert.equal(f.form().billingSelect.value,'per_10k_characters');
+    assert.equal(f.field('限制开放规格'),undefined);
+    f.change('通用','6');f.change('修改原因','Audio price');
+    const speech=f.submit();
+    assert.equal(f.writes[0].body.config.model_prices[0].kind,'audio');
+    assert.equal(f.writes[0].body.config.model_prices[0].billing_type,'per_10k_characters');
+    assert.equal(f.writes[0].body.config.model_prices[0].resolution,undefined);f.finish(0);await speech;
+    f.model.value='music-2.6';f.model.onchange();assert.equal(f.form().billingSelect.value,'per_call');
+    f.change('通用','0.7');f.change('允许新任务',false);const music=f.submit();
+    assert.equal(f.writes[1].body.config.model_prices.length,2);
+    assert.equal(f.writes[1].body.config.model_policies['audio:music-2.6'].enabled,false);f.finish(1);await music;
 });

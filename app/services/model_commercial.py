@@ -29,7 +29,7 @@ def policies(value):
     if not isinstance(value, dict) or len(value)>1500: raise ValueError('invalid model policies')
     out = {}
     for key, rule in value.items():
-        if not isinstance(key,str) or not re.fullmatch(r'(image|video|chat):.{1,180}',key) or not isinstance(rule,dict): raise ValueError('invalid model policy')
+        if not isinstance(key,str) or not re.fullmatch(r'(image|video|chat|audio):.{1,180}',key) or not isinstance(rule,dict): raise ValueError('invalid model policy')
         if set(rule)-{'visible','enabled','resolutions','duration_min','duration_max'}: raise ValueError('invalid model policy field')
         duration = {}
         if 'duration_min' in rule or 'duration_max' in rule:
@@ -40,7 +40,7 @@ def policies(value):
         if any(k in rule and not isinstance(rule[k],bool) for k in ('visible','enabled')): raise ValueError('invalid model switch')
         sizes=rule.get('resolutions')
         allowed={'1k','2k','4k'} if key.startswith('image:') else RESOLUTIONS
-        if sizes is not None and (not isinstance(sizes,list) or not sizes or any(s not in allowed for s in sizes) or key.startswith('chat:')): raise ValueError('invalid resolutions')
+        if sizes is not None and (not isinstance(sizes,list) or not sizes or any(s not in allowed for s in sizes) or key.startswith(('chat:','audio:'))): raise ValueError('invalid resolutions')
         out[key]={'visible':rule.get('visible',True),'enabled':rule.get('enabled',True),**duration,**({'resolutions':sorted(set(sizes))} if sizes is not None else {})}
     return out
 
@@ -61,7 +61,7 @@ def discounts(value):
     for row in value:
         if not isinstance(row,dict) or set(row)-{'kind','model','rate','effective_from','effective_to','label','resolution','has_video_input'}: raise ValueError('invalid discount')
         kind,model=row.get('kind'),row.get('model')
-        if kind not in {'image','video'} or not isinstance(model,str) or not model.strip() or len(model)>180: raise ValueError('invalid discount model')
+        if kind not in {'image','video','audio'} or not isinstance(model,str) or not model.strip() or len(model)>180: raise ValueError('invalid discount model')
         try:
             rate=Decimal(str(row.get('rate')))
             start,end=int(row.get('effective_from') or 0),int(row.get('effective_to') or 0)
@@ -71,7 +71,7 @@ def discounts(value):
         resolution = row.get('resolution')
         allowed = {'1k', '2k', '4k'} if kind == 'image' else {'480p', '720p', '1080p', '4k'}
         if resolution not in (None, ''):
-            if not isinstance(resolution, str) or resolution.lower() not in allowed:
+            if kind == 'audio' or not isinstance(resolution, str) or resolution.lower() not in allowed:
                 raise ValueError('invalid discount resolution')
             item['resolution'] = resolution.lower()
         if row.get('has_video_input') is not None:
@@ -133,6 +133,6 @@ def enforce(provider, kind, request):
 
 def public_models(provider):
     value=deepcopy(provider)
-    for kind in ('image','video','chat'):
+    for kind in ('image','video','chat','audio'):
         value[kind+'_models']=[m for m in value.get(kind+'_models',[]) if all(value.get('model_policies',{}).get(kind+':'+m,{}).get(k,True) for k in ('visible','enabled'))]
     return value

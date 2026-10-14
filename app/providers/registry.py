@@ -28,7 +28,7 @@ from app.utils import model_list_from_values, mask_secret, strip_auth_scheme, be
 from app.models import ApiProviderPayload
 
 REMOVED_PROVIDER_IDS = {"runninghub", "modelscope", "comfyui", "comfy"}
-MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call", "per_million_tokens", "disabled"}
+MODEL_PRICE_BILLING_TYPES = {"per_image", "per_second", "per_call", "per_million_tokens", "per_10k_characters", "disabled"}
 
 
 def normalize_model_prices(rows):
@@ -39,7 +39,13 @@ def normalize_model_prices(rows):
         kind = str(raw.get("kind") or "").strip().lower()
         model = str(raw.get("model") or "").strip()[:180]
         billing_type = str(raw.get("billing_type") or "").strip().lower()
-        if kind not in {"image", "video", "chat"} or not model or billing_type not in MODEL_PRICE_BILLING_TYPES:
+        if kind not in {"image", "video", "chat", "audio"} or not model or billing_type not in MODEL_PRICE_BILLING_TYPES:
+            continue
+        if kind == 'audio' and billing_type not in {'per_call', 'per_second', 'per_10k_characters'}:
+            continue
+        if kind == 'audio' and raw.get('resolution'):
+            continue
+        if kind != 'audio' and billing_type == 'per_10k_characters':
             continue
         if kind == 'chat':
             from app.services.chat_billing import normalize_price
@@ -402,6 +408,7 @@ def normalize_provider(item):
         "chat_models": model_list_from_values(item.get("chat_models") or []),
         "chat_context_limits": normalize_limits(item.get('chat_context_limits') or {}),
         "video_models": model_list_from_values(item.get("video_models") or []),
+        "audio_models": model_list_from_values(item.get("audio_models") or []),
         "model_prices": normalize_model_prices(item.get("model_prices") or []),
         "model_policies": policies(item.get("model_policies") or {}),
         "model_discounts": discounts(item.get("model_discounts") or []),

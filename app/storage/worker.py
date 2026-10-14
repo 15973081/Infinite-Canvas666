@@ -75,6 +75,9 @@ async def _execute_scoped(row):
             elif row["kind"] == "llm":
                 from app.services.canvas_llm_tasks import run_task
                 await run_task(task_id, request)
+            elif row["kind"] == "audio":
+                from app.services.canvas_audio_tasks import run_task
+                await run_task(task_id, request)
             else:
                 if image_recovery:
                     await run_canvas_image_task(task_id, OnlineImageRequest(**request), resume=True)
@@ -98,7 +101,7 @@ async def _execute_scoped(row):
         current = tasks.get(task_id)
         if current.get("status") in tasks.ACTIVE:
             current.update(status="needs_review", error=str(exc))
-            if current.get('type') == 'llm':
+            if current.get('type') in {'llm', 'audio'}:
                 from app.services.canvas_tasks import save_canvas_task
                 await asyncio.to_thread(save_canvas_task, current)
             else:

@@ -169,7 +169,7 @@
                 if(reset)list.replaceChildren();
                 after=data.next_after || '';
                 for(const row of data.results) {
-                    const card=element('section'),line=element('p',(row.model || (row.kind==='llm'?'对话':row.kind==='video'?'视频':'图片'))+' · '+row.id);
+                    const card=element('section'),line=element('p',(row.model || (row.kind==='llm'?'对话':row.kind==='video'?'视频':row.kind==='audio'?'音频':'图片'))+' · '+row.id);
                     const state=element('p',row.state==='in_canvas'?'已在画布中':row.state==='ready'?'结果已保存 · '+row.outputs.length+(row.kind==='llm'?' 条回复':' 个素材'):'结果素材待核对');
                     const add=button('加入为新结果节点',async () => {
                         try {
@@ -578,7 +578,7 @@
         },
         send(path,init={},transport=window.fetch.bind(window)) {
             const url=new URL(path,location.href), match=url.pathname.match(/^\/api\/canvases\/([^/]+)(.*)$/);
-            if(url.origin===location.origin && /^\/api\/canvas-(image|video|llm)-tasks$/.test(url.pathname) && init.method?.toUpperCase()==='POST') {
+            if(url.origin===location.origin && /^\/api\/canvas-(image|video|llm|audio)-tasks$/.test(url.pathname) && init.method?.toUpperCase()==='POST') {
                 const id=JSON.parse(init.body || '{}').canvas_id;
                 if(id) {
                     if(!active || id!==active.id) return Promise.reject(new Error('生成任务与当前编辑画布不一致。'));

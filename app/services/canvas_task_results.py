@@ -22,7 +22,7 @@ def apply_delivery(document, delivery):
     items = result_node.get('images') or [{'kind': 'text', 'text': result_node.get('text', '')}]
     if not delivery_present(document, delivery):
         target = next((n for n in nodes if n.get('id') == delivery.get('target_id') and
-                       n.get('type') in {'output', 'smart-image'}), None)
+                       n.get('type') in {'output', 'smart-image', 'smart-audio'}), None)
         if target is not None and result_node.get('images'):
             existing = {media.id_from_ref(item) for node in nodes for item in (node.get('images') or [])}
             target['images'] = [*(target.get('images') or []),
@@ -70,7 +70,7 @@ def deliver_completed(conn, task_id, *, only_pending=False):
     """
     workspace = current_workspace()
     task = conn.execute('SELECT * FROM tasks WHERE workspace_id=%s AND id=%s', (workspace, task_id)).fetchone()
-    if not task or task['status'] != 'succeeded' or not task['canvas_id'] or task['kind'] not in {'online-image', 'video', 'llm'}:
+    if not task or task['status'] != 'succeeded' or not task['canvas_id'] or task['kind'] not in {'online-image', 'video', 'llm', 'audio'}:
         return False
     canvas = conn.execute('SELECT * FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE', (workspace, task['canvas_id'])).fetchone()
     if not canvas:
@@ -102,7 +102,7 @@ def deliver_completed(conn, task_id, *, only_pending=False):
     node = {'id': 'task_result_' + hashlib.sha256(task_id.encode()).hexdigest()[:32],
             'type': 'smart-image' if canvas['kind'] == 'smart' else 'output',
             'x': min(100000, right + 360), 'y': 120, 'images': items,
-            'title': '生成结果', 'result_task_id': task_id, 'outputKind': 'video' if task['kind'] == 'video' else 'image'}
+            'title': '生成结果', 'result_task_id': task_id, 'outputKind': 'audio' if task['kind'] == 'audio' else 'video' if task['kind'] == 'video' else 'image'}
     if task['kind'] == 'llm':
         node.update(type='smart-prompt' if canvas['kind'] == 'smart' else 'prompt', text=items[0]['text'])
         node.pop('images')
@@ -196,7 +196,7 @@ def outputs(conn, task):
     if task['kind'] == 'llm':
         text = result.get('text')
         return [{'kind': 'text', 'text': text}] if isinstance(text, str) and text else []
-    values = result.get('videos' if task['kind'] == 'video' else 'images') or []
+    values = result.get('videos' if task['kind'] == 'video' else 'audios' if task['kind'] == 'audio' else 'images') or []
     if not isinstance(values, list) or not values or len(values) > 100:
         return []
     ids = [media.id_from_ref(item) for item in values]
@@ -243,7 +243,7 @@ def catalog(canvas_id, after=''):
         az.fail('task_result_cursor_invalid', 400)
     with az.policy_transaction() as conn:
         canvas = require(conn, canvas_id)
-        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at,request FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image','llm') AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
+        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at,request FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image','llm','audio') AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
         from app.storage.task_canvas_bindings import stored, state
         result = []
         for task in rows[:30]:
@@ -265,7 +265,7 @@ def join(canvas_id, task_id):
         task = conn.execute("SELECT * FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND id=%s FOR SHARE", (current_workspace(), canvas_id, task_id)).fetchone()
         if not task:
             az.fail('task_result_not_found', 404)
-        if task['status'] != 'succeeded' or task['kind'] not in {'video', 'online-image', 'llm'}:
+        if task['status'] != 'succeeded' or task['kind'] not in {'video', 'online-image', 'llm', 'audio'}:
             az.fail('task_result_not_ready', 409)
         items = outputs(conn, task)
         if not items:
@@ -285,7 +285,7 @@ def join(canvas_id, task_id):
         x = min(100000, max((right(node) for node in nodes), default=0) + 360)
         node = {'id': node_id, 'type': 'smart-image' if canvas['kind'] == 'smart' else 'output',
                 'x': x, 'y': 120, 'images': items, 'result_task_id': task_id,
-                'title': '生成结果', 'outputKind': 'video' if task['kind'] == 'video' else 'image'}
+                'title': '生成结果', 'outputKind': 'audio' if task['kind'] == 'audio' else 'video' if task['kind'] == 'video' else 'image'}
         if task['kind'] == 'llm':
             node = {'id': node_id, 'type': 'smart-prompt' if canvas['kind'] == 'smart' else 'prompt',
                     'x': x, 'y': 120, 'text': items[0]['text'], 'result_task_id': task_id, 'title': '对话生成结果'}

@@ -4,6 +4,7 @@ Admission is the transaction boundary: changes after admission do not cancel
 that in-flight call. They prevent further admissions, including batch siblings
 and protocol fallbacks. Network ambiguity is recorded without automatic retry.
 """
+from app.services.generation_kind import billing_kind
 import asyncio
 import uuid
 import logging
@@ -43,7 +44,7 @@ def admit():
         if row["provider_id"]:
             from app.providers.registry import get_api_provider_exact
             from app.services.model_commercial import enforce
-            kind = "image" if row["kind"] == "online-image" else "chat" if row["kind"] == "llm" else "video"
+            kind = billing_kind(row["kind"])
             enforce(get_api_provider_exact(row["provider_id"]), kind, row["request"])
         identity = uuid.uuid4()
         conn.execute('INSERT INTO task_submissions(id,task_id,workspace_id) VALUES(%s,%s,%s)', (identity, row['id'], workspace))

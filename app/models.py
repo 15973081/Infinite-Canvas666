@@ -3,7 +3,7 @@
 Extracted from main.py — Phase 1 physical split, no behavior changes.
 """
 from typing import Literal, List, Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 from fastapi import UploadFile
 
@@ -155,6 +155,7 @@ class ApiProviderPayload(BaseModel):
     chat_models: List[str] = []
     chat_context_limits: Dict[str, int] = {}
     video_models: List[str] = []
+    audio_models: List[str] = []
     model_prices: Optional[List[Dict[str, Any]]] = None
     model_protocols: Dict[str, str] = {}
     ms_loras: List[Dict[str, Any]] = []
@@ -219,6 +220,40 @@ class CanvasLLMTaskRequest(BaseModel):
     messages: List[CanvasLLMTaskMessage] = Field(default_factory=list, max_length=100)
     images: List[str] = Field(default_factory=list, max_length=8)
     videos: List[str] = Field(default_factory=list, max_length=3)
+
+
+class CanvasAudioTaskRequest(BaseModel):
+    model_config = {'extra': 'forbid'}
+    canvas_id: str = Field(min_length=1, max_length=96)
+    client_task_id: str = Field(pattern=r'^canvas_audio_[A-Za-z0-9_-]{8,80}$')
+    canvas_target: CanvasTaskTarget
+    provider_id: str = Field(min_length=1, max_length=96)
+    model: str = Field(min_length=1, max_length=180)
+    mode: Literal['speech', 'music'] = 'speech'
+    prompt: str = Field(default='', max_length=10000)
+    timbre_id: str = Field(default='male-qn-qingse', min_length=1, max_length=180)
+    speed: float = Field(default=1, ge=.5, le=2, allow_inf_nan=False)
+    vol: float = Field(default=1, ge=0, le=10, allow_inf_nan=False)
+    pitch: int = Field(default=0, ge=-12, le=12, strict=True)
+    voice_modify_pitch: int = Field(default=0, ge=-100, le=100, strict=True)
+    voice_modify_intensity: int = Field(default=0, ge=-100, le=100, strict=True)
+    voice_modify_timbre: int = Field(default=0, ge=-100, le=100, strict=True)
+    voice_modify_sound_effects: Literal['', 'spacious_echo', 'auditorium_echo', 'lofi_telephone', 'robotic'] = ''
+    music_mode: Literal['CUSTOM', 'ADAPTIVE', 'INSTRUMENTAL'] = 'CUSTOM'
+    lyrics: str = Field(default='', max_length=3500)
+
+    @model_validator(mode='after')
+    def content_for_mode(self):
+        if self.mode == 'speech' and (not self.prompt.strip() or len(self.prompt) >= 10000):
+            raise PydanticCustomError('audio_text_required', '语音文本需要 1–9999 个字符')
+        if self.mode == 'music':
+            if len(self.prompt) > 2000:
+                raise PydanticCustomError('music_prompt_length', '音乐描述最多 2000 个字符')
+            if self.music_mode == 'CUSTOM' and not self.lyrics.strip():
+                raise PydanticCustomError('music_lyrics_required', '自定义歌曲需要歌词')
+            if self.music_mode != 'CUSTOM' and not self.prompt.strip():
+                raise PydanticCustomError('music_prompt_required', '请填写音乐描述')
+        return self
 
 
 # ── Conversation ──
@@ -475,7 +510,7 @@ __all__ = [
     "OnlineImageRequest", "ImageTaskQueryRequest",
     "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
-    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest",
+    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
     "CanvasFolderUpdateRequest", "CanvasMoveRequest",

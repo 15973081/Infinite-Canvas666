@@ -7,7 +7,7 @@
     {"id": "document", "name": "原生 Pixmax 数据转换、导入、保存、恢复与撤销", "status": "in_progress"},
     {"id": "text", "name": "文本生成节点与引用输入", "status": "in_progress"},
     {"id": "image-video", "name": "图像和视频生成模式、动态模型参数、参考素材和任务恢复", "status": "in_progress"},
-    {"id": "audio", "name": "音频生成参数、提交、任务状态与结果回填", "status": "planned"},
+    {"id": "audio", "name": "音频生成参数、提交、任务状态与结果回填", "status": "in_progress"},
     {"id": "model", "name": "3D 生成参数、提交、任务状态与模型预览", "status": "planned"},
     {"id": "director-editor", "name": "导演台、剪辑台、资源导入、保存恢复与导出", "status": "implemented_requires_final_verification"},
     {"id": "storyboard", "name": "脚本拆分、资产准备、提示词生成和插入画布", "status": "in_progress"},
@@ -55,7 +55,19 @@
     },
     "videoAnnotationEvidence": {"source": "static/js/pixmax-video-annotation.js", "nativeEngine": "WNt 标注界面、ANt 控制器与 aqe 的时间戳 PNG 导出流程；复用本地冻结的参考运行时", "result": ["每个标记对应原分辨率 PNG", "一个同时连接原视频及标记图片的视频编辑草稿", "可执行素材引用芯片，并保留原生引用提示词"], "browserCases": 13, "databaseCases": 2, "verified": ["真实 H.264 视频的颜色选择和画笔绘制，PNG 像素包含标记且保留源画面", "多个时间点分别导出图片并共同连接一个视频草稿；一步撤销", "保存重试及普通保存确认不会重复上传或插入，后续画笔修改重新视为未保存", "上传失败可下载本地 PNG 并重试", "编辑资格、来源、工作空间及关闭窗口变化拒绝迟到上传", "只读访问拒绝绘制入口；导航取消保留未保存标记", "上传期间移动及保存来源不会误判素材身份", "工作流导入、剪贴板和 Alt 复制重映射引用；导入素材地址变化更新引用芯片", "真实数据库中上传、图谱保存、只读素材访问和包含素材的 ZIP 往返"], "relatedRegression": "78 项标记、视频工具、音频分离、原生画布、标签及性能/生命周期回归通过；新增来源身份用例亦通过", "preview": ".local/pixmax-video-annotation.png", "generationScope": "保存后创建视频编辑草稿；未调用收费视频模型，供应商编辑能力与最终生成须另行验收", "remaining": ["更多长视频和高分辨率素材的最终验收", "参考全部绘制工具及移动屏幕的最终交互对照"]},
     "connectionIndexEvidence": {"source": "static/js/canvas/smart/smart-workspace.js", "implementation": ["结构摘要变化时重建节点位置、入边和相邻边索引", "局部 SVG 更新仅枚举目标节点相邻边", "缓存保存数组位置而非节点对象，读取最新对象", "保留结构摘要检查以检测同长度的原地改线、顺序和类型变化"], "verifiedCases": 47, "verified": ["局部连线与全图几何一致且不替换无关 DOM", "新增、删除、重排、原地改线、节点重排、撤销及文档替换", "对象替换后读取当前节点及连线内容", "编辑权限、命中/悬停、队列取消和页面生命周期回归"], "measurementDate": "2026-10-14T03:26:06.255Z", "beforeMedianMs": {"181": 0.2, "1000": 0.7, "3000": 2.1}, "afterMedianMs": {"181": 0.2, "1000": 0.6, "3000": 1.8}, "beforeP95Ms": {"181": 0.3, "1000": 0.9, "3000": 2.5}, "afterP95Ms": {"181": 0.3, "1000": 0.9, "3000": 2.1}, "metric": "Synchronous scoped connection refresh; 10 warmups and 100 samples; synthetic text nodes, chain edges; excludes frame paint and remote generation", "remaining": ["结构摘要校验仍遍历节点和连线", "真实混合素材画布的帧绘制、内存和双方同场景性能验证"]},
-    "remaining": ["原生画布和节点目录与视觉细节", "文本生成的级联执行与交互对齐", "图像视频模式和参数完整映射", "音频与 3D 生成任务", "分镜资产实际生成与参考模板", "视频工具完整实现", "分享与通知", "创作助手交互与历史完整对齐", "连线索引、更新与撤销优化及同场景性能测量", "完整需求最终验收"]
+    "audioGenerationEvidence": {
+      "source": ["static/js/pixmax-audio-creation.js", "app/services/canvas_audio_tasks.py"],
+      "nativeContract": "MiniMax Speech 2.8 HD/Turbo 与 Music 2.6；语速、音量、音调、音色和声音修饰；CUSTOM、ADAPTIVE、INSTRUMENTAL 音乐模式",
+      "upstreamContract": ["https://platform.minimax.io/docs/api-reference/speech-t2a-http", "https://platform.minimax.io/docs/api-reference/music-generation"],
+      "verified": ["连接文本按提交时内容参与生成；参数随节点保存并可导入原生配置", "保存输入指纹、任务回执与当前编辑资格验证；输入和参考文本变化、关闭窗口及失去编辑资格拒绝迟到回填", "保存并播放真实 MP3；一步撤销结果，已保存的任务重新打开后恢复", "不确定的提交通过原任务 ID 查询，不重复付费提交；明确拒绝不创建待恢复任务", "真实数据库中的供应商分配、模型权限、成员归属、音频入库及账单价格快照", "音频发布失败保留来源，即使供应商凭证变化也能恢复且不重新请求生成", "零音量生成解码后的 PCM 为静音；无效媒体不发布", "音乐响应超时保留未知费用，撤销分配阻止生成请求", "删除结果后可从任务结果列表重新加入，重复加入不修改账单"],
+      "browserCases": 12,
+      "databaseCases": 11,
+      "preview": ".local/pixmax-audio-generation.png",
+      "relatedRegression": "78 项前端及租约、管理配置回归通过；新增输入验证与音频租约用例通过；64 项现有云任务和结果恢复回归、76 项模型策略及计费单元测试通过",
+      "generationScope": "供应商响应使用测试替身，媒体为真实合成 MP3；未调用收费供应商，不代表线上账号已开通或生产环境已部署",
+      "remaining": ["参考音色目录、分类、搜索及音色试听", "原生参数面板视觉与更多交互对齐", "已配置生产账号的真实语音和音乐生成最终验收"]
+    },
+    "remaining": ["原生画布和节点目录与视觉细节", "文本生成的级联执行与交互对齐", "图像视频模式和参数完整映射", "音频音色目录和参数面板最终对齐、3D 生成任务", "分镜资产实际生成与参考模板", "视频工具完整实现", "分享与通知", "创作助手交互与历史完整对齐", "连线索引、更新与撤销优化及同场景性能测量", "完整需求最终验收"]
   },
   "completion": "所有需求均须由当前源码和实际验证证明；已有测试通过不代表全面复刻完成"
 }

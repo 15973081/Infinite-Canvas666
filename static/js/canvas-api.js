@@ -469,6 +469,10 @@
         return request(`/api/canvas-video-tasks/${encodeURIComponent(taskId)}`, {signal:AbortSignal.timeout(10000)}, options);
     }
 
+    function getCanvasAudioTaskRequest(taskId, options={}){
+        return request(`/api/canvas-audio-tasks/${encodeURIComponent(taskId)}`, {signal:AbortSignal.timeout(10000)}, options);
+    }
+
     function queryImageTask(payload, options={}){
         return json('/api/image-task-query', jsonBodyInit('POST', payload), {checkOk:true, ...options});
     }
@@ -541,6 +545,7 @@
         createCanvasVideo,
         createCanvasVideoTaskRequest,
         getCanvasVideoTaskRequest,
+        getCanvasAudioTaskRequest,
         queryImageTask
     };
 })();

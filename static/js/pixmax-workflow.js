@@ -58,6 +58,14 @@
                     ...(!ratios[ratio]?{customRatio:ratio,customRatioWidth:ratio.split(':')[0]||'',customRatioHeight:ratio.split(':')[1]||''}:{})};
             }
             if(node.type==='smart-storyboard')node.shots=Array.isArray(info.data?.shots)?info.data.shots:[];
+            if(source.type==='GENERATE_AUDIO'){
+                const audioModels={MINIMAX_SPEECH_28_HD:'speech-2.8-hd',MINIMAX_SPEECH_28_TURBO:'speech-2.8-turbo',MINIMAX_MUSIC_26:'music-2.6'};
+                const model=audioModels[params.model]||String(params.model||'');
+                node.audioGeneration={provider_id:'',model,mode:model.startsWith('music-')?'music':'speech',prompt:String(params.prompt||''),
+                    timbre_id:String(params.timbreId||'male-qn-qingse'),speed:number(params.speed,1),vol:number(params.vol,1),pitch:number(params.pitch),
+                    voice_modify_pitch:number(params.voiceModifyPitch),voice_modify_intensity:number(params.voiceModifyIntensity),voice_modify_timbre:number(params.voiceModifyTimbre),
+                    voice_modify_sound_effects:String(params.voiceModifySoundEffects||''),music_mode:String(params.musicMode||'CUSTOM'),lyrics:String(params.lyrics||'')};
+            }
             // Preserve native parameters for later capability mapping, never resume foreign tasks.
             node.pixmaxParams=JSON.parse(JSON.stringify(params));
             nodes.push(node);

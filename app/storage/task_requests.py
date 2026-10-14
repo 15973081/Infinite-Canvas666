@@ -3,6 +3,7 @@ import hashlib
 import os
 from urllib.parse import parse_qs, unquote, urlsplit
 
+from app.services.generation_kind import billing_kind
 from fastapi import HTTPException
 from app.storage import media
 from app.storage.database import connection
@@ -176,7 +177,7 @@ def validate_execution(row):
         provider = get_api_provider_exact(row["provider_id"])
         if not recovery:
             from app.services.model_commercial import enforce
-            kind = "image" if row["kind"] == "online-image" else "chat" if row["kind"] == "llm" else "video"
+            kind = billing_kind(row["kind"])
             enforce(provider, kind, row["request"])
     payload = normalize(row["request"], strict=True)
     with connection() as conn:

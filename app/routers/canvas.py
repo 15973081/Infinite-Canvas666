@@ -872,6 +872,18 @@ def create_canvas_llm_task(payload: CanvasLLMTaskRequest):
     return create(payload)
 
 
+@router.post('/api/canvas-audio-tasks')
+def create_canvas_audio_task(payload: CanvasAudioTaskRequest):
+    from app.services.canvas_audio_tasks import create
+    return create(payload)
+
+
+@router.get('/api/canvas-audio-tasks/{task_id}')
+def get_canvas_audio_task(task_id: str):
+    from app.services.canvas_audio_tasks import get
+    return get(task_id)
+
+
 @router.get("/api/canvas-llm-tasks/{task_id}")
 def get_canvas_llm_task(task_id: str):
     from app.services.canvas_llm_tasks import get

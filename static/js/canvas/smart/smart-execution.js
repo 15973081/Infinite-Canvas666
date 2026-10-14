@@ -2422,7 +2422,7 @@ function smartTaskPollRetryWindow(status=0, err=null){
 async function pollSmartCanvasTask(taskId, kind='image',options={}){
     const validResult=window.CanvasTaskResults?.capture() || (()=>!window.CanvasSession?.enabled);
     if(!taskId) throw new Error('生成失败');
-    const taskKind = kind === 'video' ? 'video' : 'image';
+    const taskKind = ['video','audio'].includes(kind) ? kind : 'image';
     const pollKey = `${taskKind}:${taskId}`;
     const accept=task=>{options.inputBinding?.verify(task,taskId);return options.returnRecord ? task : task.result||{};};
     if(activeSmartTaskPolls.has(pollKey)) return accept(await activeSmartTaskPolls.get(pollKey));
@@ -2436,7 +2436,7 @@ async function pollSmartCanvasTask(taskId, kind='image',options={}){
             options.inputBinding?.check();
             let response;
             try {
-                const getTask=taskKind==='video' ? window.CanvasApi?.getCanvasVideoTaskRequest : window.CanvasApi?.getCanvasImageTaskRequest;
+                const getTask=taskKind==='video' ? window.CanvasApi?.getCanvasVideoTaskRequest : taskKind==='audio' ? window.CanvasApi?.getCanvasAudioTaskRequest : window.CanvasApi?.getCanvasImageTaskRequest;
                 response = await (getTask ? getTask(taskId) : fetch(`/api/canvas-${taskKind}-tasks/${encodeURIComponent(taskId)}`));
             } catch(error) {
                 options.inputBinding?.check();
@@ -2503,7 +2503,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={},
     }).filter(item => item.url);
     node.images = [...(node.images || []).map(img => stripImageGenerationMeta(img)), ...additions];
     const pendingRun = smartPendingTaskRun(node, task, kind);
-    if(additions.length && pendingRun){
+    if(additions.length && pendingRun && !(kind==='audio' && window.CanvasSession?.enabled)){
         const runSettings = cloneSmartSettings(pendingRun.settings || {});
         if(task?.providerId) runSettings.provider_id = task.providerId;
         if(task?.model) runSettings.model = task.model;
@@ -2521,10 +2521,12 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={},
         node.runElapsedMs = runMs;
         node.runTimerHidden = false;
         node.running = false;
-        node.title = node.images.length > 1 ? (kind === 'video' ? 'Videos' : kind === 'audio' ? 'Audios' : kind === 'text' ? 'Texts' : 'Group') : (kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : kind === 'text' ? 'Text' : 'Image');
-        node.scale = mediaNodeDefaultScale(node);
-        delete node.w;
-        delete node.h;
+        if(node.type!=='smart-audio'){
+            node.title = node.images.length > 1 ? (kind === 'video' ? 'Videos' : kind === 'audio' ? 'Audios' : kind === 'text' ? 'Texts' : 'Group') : (kind === 'video' ? 'Video' : kind === 'audio' ? 'Audio' : kind === 'text' ? 'Text' : 'Image');
+            node.scale = mediaNodeDefaultScale(node);
+            delete node.w;
+            delete node.h;
+        }
     }
 }
 
@@ -2558,7 +2560,7 @@ async function resumeSmartPendingNode(node){
                 const record = await pollSmartCanvasTask(task.taskId,kind,{inputBinding,returnRecord:Boolean(inputBinding)});
                 const result=inputBinding ? record.result||{} : record;
                 if(!targetStillCurrent() || canvas!==originCanvas || !validResult() || !nodes.includes(node) || !smartPendingTasks(node).includes(task)){deferred=true;return;}
-                const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(result?.images || result);
+                const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(kind==='audio' ? result?.audios : result?.images || result);
                 const apply=()=>{finalizeSmartPendingTask(node,task.taskId,outputs,kind,result,inputBinding?record:null);refreshSmartNodes([node.id]);scheduleSave();};
                 if(inputBinding)inputBinding.apply(record,apply,task.taskId);else apply();
             } catch(e) {
@@ -2622,23 +2624,23 @@ async function resumeSmartPendingNode(node){
 function smartTaskRecovery(){
     return {
         deliveryVersion:()=>canvas.task_result_version || 0,
-        deliveryBusy:()=>activeSmartTaskPolls.size>0 || canvasSyncInFlight,
+        deliveryBusy:()=>activeSmartTaskPolls.size>0 || window.PixmaxAudioCreation?.busy() || canvasSyncInFlight,
         mergeDeliveries:response=>{
             const document={id:canvas.id,nodes,task_result_version:canvas.task_result_version || 0};
             const affected=window.CanvasTaskResults.mergeDeliveries(document,response);
             canvas.task_result_version=document.task_result_version;
             refreshSmartNodes(affected);
         },
-        list:()=>nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video'].includes(task.kind || 'image'))
+        list:()=>nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video','audio'].includes(task.kind || 'image'))
             .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),
         changed:item=>refreshSmartNodes(item ? [item.node.id] : nodes.filter(node=>smartPendingTasks(node).length).map(node=>node.id)),
         apply:async(item,record,current)=>{
             const source=nodes.find(node=>node.id===item.task.run?.nodeId),writeGuard=canvasTaskWriteGuard(source,item.node);
             const valid=()=>current() && Boolean(source) && writeGuard.valid() && smartPendingTasks(item.node).includes(item.task);
-            if(!valid() || activeSmartTaskPolls.has(item.kind+':'+item.id))return;
+            if(!valid() || activeSmartTaskPolls.has(item.kind+':'+item.id) || item.kind==='audio' && window.PixmaxAudioCreation?.busy())return;
             const binding=await window.CanvasTaskBindings.recover({task:record,taskId:item.id,canvasId:canvas.id,kind:'smart',
                 sourceId:source.id,targetId:item.node.id,read:smartTaskInputDocument,valid});
-            const result=record.result || {},outputs=item.kind==='video' ? resultMediaUrls(result) : resultMediaUrls(result.images || result);
+            const result=record.result || {},outputs=item.kind==='video' ? resultMediaUrls(result) : resultMediaUrls(item.kind==='audio' ? result.audios : result.images || result);
             if(!outputs.length)return;
             binding.apply(()=>{finalizeSmartPendingTask(item.node,item.id,outputs,item.kind,result,record);refreshSmartNodes([item.node.id]);scheduleSave();});
         }

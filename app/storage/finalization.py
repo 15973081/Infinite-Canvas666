@@ -33,7 +33,7 @@ def checkpoint(result, sources, field, provider_id):
     if not lease:
         raise RuntimeError("Result checkpoint requires a task lease")
     task_id = lease[0]
-    if field not in {"images", "videos", "text"} or not sources:
+    if field not in {"images", "videos", "audios", "text"} or not sources:
         raise ValueError("A result must contain media or text sources")
     if field == "text" and (not isinstance(result.get("text"), str) or not result["text"] or sources != [result["text"]]):
         raise ValueError("Invalid text result")
@@ -61,7 +61,7 @@ async def resume(task_id):
     if not path:
         raise HTTPException(404, "结果来源尚未持久化，需人工核对")
     packet = json.loads(Path(path).read_text(encoding="utf-8"))
-    if packet["task_id"] != task_id or packet["field"] not in {"images", "videos", "text"}:
+    if packet["task_id"] != task_id or packet["field"] not in {"images", "videos", "audios", "text"}:
         raise ValueError("Invalid task result checkpoint")
     if packet["outputs"] != [output_id(task_id, i) for i in range(len(packet["sources"]))]:
         raise ValueError("Invalid task output slots")
@@ -80,11 +80,14 @@ async def resume(task_id):
             # Never re-fetch a supplier URL after this slot has become ready.
             urls.append(media.stable_url(asset))
             continue
-        provider = get_api_provider(packet["provider_id"])
+        provider = get_api_provider(packet["provider_id"]) if packet['field'] != 'audios' else None
         token = media.result_slot.set(slot)
         try:
             if packet["field"] == "images":
                 url = await save_ai_image_to_output(source, provider=provider)
+            elif packet["field"] == "audios":
+                from app.services.canvas_audio_tasks import save_audio_source
+                url = await asyncio.to_thread(save_audio_source, source, slot, bool((result.get('audio_info') or {}).get('muted')))
             else:
                 url = await save_remote_video_to_output(source, provider=provider)
             # References already in our store can be reused without a new slot.

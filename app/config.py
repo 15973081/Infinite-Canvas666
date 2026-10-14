@@ -52,7 +52,7 @@ LOCAL_IMAGE_IMPORT_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 # ── Protocol constants ──
 PROVIDER_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{2,40}$")
-SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine"}
+SUPPORTED_PROVIDER_PROTOCOLS = {"openai", "apimart", "gemini", "volcengine", "minimax"}
 PROXY_DISABLED_PROVIDER_IDS = {"volcengine"}
 SUPPORTED_PROXY_SCHEMES = {"http", "https"}
 SUPPORTED_IMAGE_REQUEST_MODES = {"openai", "openai-json"}

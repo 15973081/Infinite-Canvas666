@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const modelKeys=['image_models','video_models','chat_models'];
+  const modelKeys=['image_models','video_models','chat_models','audio_models'];
   const secretKeys=['api_key','volcengine_access_key_id','volcengine_secret_access_key'];
   const explicit=['media_input_modes','id','name','base_url','protocol','enabled',...modelKeys,'proxy_url','image_request_mode','image_generation_endpoint','image_edit_endpoint','volcengine_project_name','volcengine_region'];
   function payload(row,values) {
@@ -42,7 +42,7 @@
     if(row.builtin && !row.version)form.append(node('div','内置平台 · 已准备默认配置，填写 Key 后保存即可。','provider-guide'));
     const basic=section('基本信息','平台名称与连接配置'),grid=node('div',undefined,'provider-fields');basic.append(grid);
     field(grid,'name','平台名称',config.name||'',{required:true,placeholder:'例如：团队 API'});
-    const protocol=select(grid,'protocol','接口协议',[['openai','OpenAI 兼容'],['apimart','APIMART 异步协议'],['gemini','Gemini 原生协议'],['volcengine','火山引擎 · 方舟']],config.protocol||'openai');
+    const protocol=select(grid,'protocol','接口协议',[['openai','OpenAI 兼容'],['apimart','APIMART 异步协议'],['gemini','Gemini 原生协议'],['volcengine','火山引擎 · 方舟'],['minimax','MiniMax · 语音 / 音乐']],config.protocol||'openai');
     if(row.builtin) {protocol.disabled=true;const hidden=node('input');hidden.type='hidden';hidden.name='protocol';hidden.value=config.protocol;grid.append(hidden);}
     const base=field(basic,'base_url','请求地址',config.base_url||'',{type:'url',required:true,placeholder:'https://api.example.com/v1'});
     if(row.id)basic.append(node('small','平台 ID：'+row.id+' · 创建后保持不变','muted'));else field(basic,'id','平台 ID','api-'+crypto.randomUUID().slice(0,8),{required:true,hint:'已自动生成，也可自定义；之后改名不会改变 ID。'}).maxLength=40;
@@ -68,7 +68,7 @@
     if((row.id==='volcengine'||config.protocol==='volcengine')&&config.video_models?.length&&row.version)modelActions.append(action('视频规格价格',()=>{if(form.dataset.dirty==='true'){status.textContent='请先保存当前配置，再编辑价格。';return;}prices();}));
     models.append(modelActions);if(!row.version)models.append(node('p','首次配置请先保存地址与 Key，再拉取模型。','muted'));
     const modelTabs=node('div',undefined,'provider-model-tabs'),panels=[];models.append(modelTabs);
-    const labels=['生图模型','视频模型','对话模型'],hints=['供在线生图和画布图片节点选择。','供画布视频生成节点选择。','供 GPT 对话和画布 LLM 节点选择。'];
+    const labels=['生图模型','视频模型','对话模型','音频模型'],hints=['供在线生图和画布图片节点选择。','供画布视频生成节点选择。','供 GPT 对话和画布 LLM 节点选择。','MiniMax 协议支持 speech-2.8-hd、speech-2.8-turbo、music-2.6 等已开通的语音和音乐模型。'];
     modelKeys.forEach((key,index)=>{const panel=node('div'),tab=action(labels[index]+' · '+(config[key]||[]).length,()=>{panels.forEach((p,i)=>p.hidden=i!==index);for(const b of modelTabs.children)b.classList.toggle('active',b===tab);});
       panel.hidden=index!==0;tab.classList.toggle('active',index===0);field(panel,key,labels[index],(config[key]||[]).join('\n'),{type:'textarea',hint:hints[index]+' 每行一个模型 ID。',placeholder:'从上游拉取，或粘贴模型 ID'}).maxLength=100000;
       modelTabs.append(tab);models.append(panel);panels.push(panel);});

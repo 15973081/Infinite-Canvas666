@@ -240,7 +240,7 @@
                     const data = await response.clone().json().catch(() => ({}));
                     if (epoch !== this.epoch) throw new Error('页面编辑资格已改变，请保留当前草稿。');
                     if (!response.ok) {
-                        const taskSubmission = /^\/api\/canvas-(image|video|llm)-tasks$/.test(new URL(path, 'http://canvas.local').pathname);
+                        const taskSubmission = /^\/api\/canvas-(image|video|llm|audio)-tasks$/.test(new URL(path, 'http://canvas.local').pathname);
                         const rejectedModel = taskSubmission && response.status === 403 && ['model_not_available','model_resolution_not_allowed'].includes(data.detail?.code);
                         if (!rejectedModel && ([401,403,409,423,428,503].includes(response.status) || response.status >= 500)) {
                             const reason = typeof data.detail === 'string' ? data.detail : data.detail?.message;

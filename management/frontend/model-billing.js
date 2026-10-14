@@ -11,7 +11,7 @@
     if(!catalog.providers.length){body.append(node('p','请先保存一个供应商。'));return root;}
     let rows=catalog.providers,dirty=false,saving=false;
     const [pl,provider]=select('供应商',rows.map(r=>[r.id,r.config.name||r.id]),rows[0].id);
-    const [kl,kind]=select('类型',[['image','图片'],['video','视频'],['chat','对话']],'image');
+    const [kl,kind]=select('类型',[['image','图片'],['video','视频'],['chat','对话'],['audio','音频']],'image');
     const [ml,model]=select('模型',[],'');pick.append(pl,kl,ml);
     const guard=()=>!saving&&(!dirty||window.confirm('当前模型配置未保存，是否放弃修改？'));
     let previousProvider=provider.value,previousKind=kind.value,previousModel='';
@@ -26,7 +26,7 @@
       access.append(node('h3','模型使用范围'),node('p','隐藏或停用后不能发起新任务，模型配置与历史账单保留。已提交到上游的任务仍可取回结果。','muted'));
       const [vl,visible]=check('向成员显示',policy.visible!==false),[el,enabled]=check('允许新任务',policy.enabled!==false),flags=node('div',undefined,'model-billing-access-flags');flags.append(vl,el);access.append(flags);
       const [rl,restricted]=check('限制开放规格',Array.isArray(policy.resolutions));const sizeChecks=[];
-      if(k!=='chat'){access.append(rl);const sizes=node('div',undefined,'toolbar model-billing-sizes');for(const s of k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']){const [l,c]=check(s.toUpperCase(),policy.resolutions?policy.resolutions.includes(s):true);sizes.append(l);sizeChecks.push([s,c]);}access.append(sizes);}
+      if(k!=='chat'&&k!=='audio'){access.append(rl);const sizes=node('div',undefined,'toolbar model-billing-sizes');for(const s of k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']){const [l,c]=check(s.toUpperCase(),policy.resolutions?policy.resolutions.includes(s):true);sizes.append(l);sizeChecks.push([s,c]);}access.append(sizes);}
       let durationMin, durationMax;
       if(k==='video'){
         const block=node('section',undefined,'provider-block model-billing-duration'),grid=node('div',undefined,'provider-fields');
@@ -68,9 +68,9 @@
         const priceBlock=node('section',undefined,'provider-block model-billing-prices');priceBlock.append(node('h3','基础价格 · CNY'),node('p','先按规格单价 × 数量计算基础金额，再应用下面的折扣。空白表示未配置；0 表示免费。分档价优先于通用价。保存后只影响新任务，历史金额不重算。','muted'));
         const existing=config.model_prices||[],tokenMode=k==='video'&&(row.id==='volcengine'||config.protocol==='volcengine');
         const current=existing.find(p=>p.kind===k&&p.model===m&&!p.effective_to);
-        const [bl,billing]=select('计费单位',k==='image'?[['per_image','元 / 张'],['per_call','元 / 次']]:tokenMode?[['per_million_tokens','元 / 百万输出 tokens']]:[['per_second','元 / 秒'],['per_call','元 / 次']],current?.billing_type||(k==='image'?'per_image':tokenMode?'per_million_tokens':'per_second'));priceBlock.append(bl);
+        const [bl,billing]=select('计费单位',k==='audio'?[['per_10k_characters','元 / 万字符'],['per_call','元 / 次'],['per_second','元 / 秒']]:k==='image'?[['per_image','元 / 张'],['per_call','元 / 次']]:tokenMode?[['per_million_tokens','元 / 百万输出 tokens']]:[['per_second','元 / 秒'],['per_call','元 / 次']],current?.billing_type||(k==='audio'?(m.startsWith('speech-')?'per_10k_characters':'per_call'):k==='image'?'per_image':tokenMode?'per_million_tokens':'per_second'));priceBlock.append(bl);
         const grid=node('div',undefined,'provider-fields');priceBlock.append(grid);
-        for(const resolution of tokenMode?['480p','720p','1080p','4k']:k==='image'?['','1k','2k','4k']:['','480p','720p','1080p','4k']){
+        for(const resolution of k==='audio'?['']:tokenMode?['480p','720p','1080p','4k']:k==='image'?['','1k','2k','4k']:['','480p','720p','1080p','4k']){
           for(const hasVideo of tokenMode?[false,true]:[null]){
             const match=p=>p.kind===k&&p.model===m&&(p.resolution||'')===resolution&&(hasVideo===null||p.has_video_input===hasVideo)&&(p.service_tier||'default')==='default';
             const old=existing.find(p=>match(p)&&!p.effective_to);
@@ -81,8 +81,8 @@
       }
       const discountInputs=[];
       if(k!=='chat'){
-        const block=node('section',undefined,'provider-block model-billing-discounts'),list=node('div',undefined,'model-billing-discount-list');block.append(node('h3','当前模型的限时折扣'),node('p',`仅适用于 ${row.config.name||row.id} / ${m}（${k==='image'?'图片':'视频'}）。其他模型的优惠时段与支付比例分别配置；未配置或不在优惠时段时按基础价格计费。`,'muted'),node('p','按任务提交时刻匹配，开始时间包含、结束时间不含。支付比例 80% = 八折；100% = 不打折。具体规格优先于通用折扣，只应用一条；同规格时段重叠或交叉范围不明确时不能保存。不与账号折扣叠加。时间使用当前浏览器时区。','muted'),list);
-        function add(row={}){const line=node('div',undefined,'provider-fields model-billing-discount-rule');const [sl,start]=input('开始时间',localTime(row.effective_from),'datetime-local'),[tl,end]=input('结束时间（不含）',localTime(row.effective_to),'datetime-local'),[pl,rate]=input('支付比例（%）',row.rate!=null?String(Number(row.rate)*100):'100','number'),[nl,label]=input('折扣说明',row.label||'');rate.min='0';rate.max='100';rate.step='0.0001';start.required=true;label.maxLength=120;const remove=node('button','删除此时段','danger');remove.type='button';const [resLabel,resolution]=select('适用分辨率',[['','全部'],...(k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']).map(s=>[s,s.toUpperCase()])],row.resolution||'');
+        const block=node('section',undefined,'provider-block model-billing-discounts'),list=node('div',undefined,'model-billing-discount-list');block.append(node('h3','当前模型的限时折扣'),node('p',`仅适用于 ${row.config.name||row.id} / ${m}（${k==='image'?'图片':k==='audio'?'音频':'视频'}）。其他模型的优惠时段与支付比例分别配置；未配置或不在优惠时段时按基础价格计费。`,'muted'),node('p','按任务提交时刻匹配，开始时间包含、结束时间不含。支付比例 80% = 八折；100% = 不打折。具体规格优先于通用折扣，只应用一条；同规格时段重叠或交叉范围不明确时不能保存。不与账号折扣叠加。时间使用当前浏览器时区。','muted'),list);
+        function add(row={}){const line=node('div',undefined,'provider-fields model-billing-discount-rule');const [sl,start]=input('开始时间',localTime(row.effective_from),'datetime-local'),[tl,end]=input('结束时间（不含）',localTime(row.effective_to),'datetime-local'),[pl,rate]=input('支付比例（%）',row.rate!=null?String(Number(row.rate)*100):'100','number'),[nl,label]=input('折扣说明',row.label||'');rate.min='0';rate.max='100';rate.step='0.0001';start.required=true;label.maxLength=120;const remove=node('button','删除此时段','danger');remove.type='button';const [resLabel,resolution]=select('适用分辨率',[['','全部'],...(k==='audio'?[]:k==='image'?['1k','2k','4k']:['480p','720p','1080p','4k']).map(s=>[s,s.toUpperCase()])],row.resolution||'');
           const [videoLabel,video]=select('视频输入',[['','全部'],['false','无视频输入'],['true','有视频输入']],typeof row.has_video_input==='boolean'?String(row.has_video_input):'');
           const preview=node('p','','muted model-billing-discount-preview');
           function refreshPreview(){
@@ -102,7 +102,7 @@
         const controls=[...root.querySelectorAll('input,select,button')].map(control=>[control,control.disabled]);
         controls.forEach(([control])=>{control.disabled=true;});status.textContent='正在保存，请稍候再编辑或切换模型…';try{
         const next=structuredClone(config);delete next.id;delete next.primary;
-        next.model_policies={...next.model_policies,[key]:{visible:visible.checked,enabled:enabled.checked,...(k!=='chat'&&restricted.checked?{resolutions:sizeChecks.filter(([,c])=>c.checked).map(([s])=>s)}:{})}};
+        next.model_policies={...next.model_policies,[key]:{visible:visible.checked,enabled:enabled.checked,...(k!=='chat'&&k!=='audio'&&restricted.checked?{resolutions:sizeChecks.filter(([,c])=>c.checked).map(([s])=>s)}:{})}};
         if(k==='video' && (durationMin.value!=='' || durationMax.value!=='')){
           const min=Number(durationMin.value),max=Number(durationMax.value);
           if(!Number.isSafeInteger(min)||!Number.isSafeInteger(max)||min<1||max<min)throw Error('请填写完整的整数秒数范围，最短秒数不得大于最长秒数。');

@@ -5,6 +5,7 @@ import json
 import time
 import re
 from contextvars import ContextVar
+from app.services.generation_kind import billing_kind
 from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 from app.storage.database import connection
@@ -130,7 +131,7 @@ def save(task, request_payload=None, *, historical=False):
         else:
             if not historical:
                 from app.storage.settings import member_auth_enabled
-                if member_auth_enabled() and value.get('type') in {'online-image', 'video'} and not requester:
+                if member_auth_enabled() and value.get('type') in {'online-image', 'video', 'audio'} and not requester:
                     raise HTTPException(401, {'code': 'task_requester_required'})
                 from app.services.maintenance_control import ensure
                 ensure(conn, workspace, 'write')
@@ -156,7 +157,7 @@ def save(task, request_payload=None, *, historical=False):
                     from app.services.canvas_ledger import historical_price
                     from app.services.volcengine_billing import pricing_context
                     provider = get_api_provider_exact(provider_id)
-                    kind = "image" if value.get("type") == "online-image" else "chat" if value.get("type") == "llm" else "video"
+                    kind = billing_kind(value.get("type"))
                     enforce(provider, kind, payload)
                     at = int(time.time() * 1000)
                     now = at / 1000
@@ -208,7 +209,7 @@ def claim(owner, seconds=90, *, all_workspaces=False):
     with connection() as conn:
         scope = "" if all_workspaces else "q.workspace_id=%s AND "
         args = () if all_workspaces else (current_workspace(),)
-        return conn.execute("WITH candidate AS (SELECT q.id FROM tasks q JOIN workspaces w ON w.id=q.workspace_id WHERE " + scope + "(q.status IN ('polling','finalizing') OR (w.status='active' AND NOT EXISTS (SELECT 1 FROM maintenance_controls m WHERE (m.workspace_id IS NULL OR m.workspace_id=q.workspace_id) AND (m.mode IN ('draining','read_only','offline','recovering') OR (m.mode='scheduled' AND m.planned_at<=clock_timestamp())))" + legacy + ")) AND q.kind IN ('video','online-image','llm') AND q.status IN ('queued','polling','finalizing') AND q.available_at<=now() AND (q.lease_until IS NULL OR q.lease_until<now()) ORDER BY q.available_at,q.created_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (*args, owner, seconds)).fetchone()
+        return conn.execute("WITH candidate AS (SELECT q.id FROM tasks q JOIN workspaces w ON w.id=q.workspace_id WHERE " + scope + "(q.status IN ('polling','finalizing') OR (w.status='active' AND NOT EXISTS (SELECT 1 FROM maintenance_controls m WHERE (m.workspace_id IS NULL OR m.workspace_id=q.workspace_id) AND (m.mode IN ('draining','read_only','offline','recovering') OR (m.mode='scheduled' AND m.planned_at<=clock_timestamp())))" + legacy + ")) AND q.kind IN ('video','online-image','llm','audio') AND q.status IN ('queued','polling','finalizing') AND q.available_at<=now() AND (q.lease_until IS NULL OR q.lease_until<now()) ORDER BY q.available_at,q.created_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (*args, owner, seconds)).fetchone()
 
 
 def heartbeat(task_id, token, seconds=90):

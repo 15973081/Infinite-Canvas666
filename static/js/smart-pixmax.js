@@ -156,21 +156,25 @@ function createSmartStudioNode(kind, point, options={}){
 function renderSmartStudioNode(node){
     const rect = imageLayout([],1,node);
     const kind = node.type.slice(6);
-    const label = {director:'编辑场景',editor:'编辑剪辑',storyboard:'打开分镜节点 →',audio:'上传音频',model:'上传 3D 模型'}[kind];
-    const media = node.studioPreview || node.images?.[0];
+    const label = {director:'编辑场景',editor:'编辑剪辑',storyboard:'打开分镜节点 →',audio:'生成音频',model:'上传 3D 模型'}[kind];
+    const media = node.studioPreview || (kind==='audio'?node.images?.at(-1):node.images?.[0]);
     const previewUrl=media&&(kind==='editor'?pixmaxMediaPoster(media):mediaKindForItem(media)==='image'?displayMediaUrl(media):'');
     const hasPreview=Boolean(previewUrl);
-    const body = hasPreview ? `<img class="pixmax-studio-preview" src="${escapeAttr(previewUrl)}" alt="${escapeAttr(smartStudioTitle(node))}">` : kind==='storyboard'?`<div class="pixmax-storyboard-card">${pixmaxSvg('storyboard')}<div class="pixmax-steps"><span class="active"><em>✓</em><small>确认镜头</small></span><b></b><span><em>2</em><small>准备资产</small></span><b></b><span><em>3</em><small>生成提示词</small></span></div><button type="button" data-studio-open>打开分镜节点 →</button></div>`:`<div class="pixmax-studio-placeholder">${pixmaxSvg(kind==='audio'?'audio-fill':kind==='editor'?'editor-fill':kind==='director'?'director-fill':'model')}</div>`;
+    const body = kind==='audio'&&media?`<div class="pixmax-audio-result">${pixmaxSvg('audio-fill')}<button type="button" data-studio-audio-play="${node.images.length-1}">播放音频</button><small>${escapeHtml(media.name||'生成音频')}</small></div>`:hasPreview ? `<img class="pixmax-studio-preview" src="${escapeAttr(previewUrl)}" alt="${escapeAttr(smartStudioTitle(node))}">` : kind==='storyboard'?`<div class="pixmax-storyboard-card">${pixmaxSvg('storyboard')}<div class="pixmax-steps"><span class="active"><em>✓</em><small>确认镜头</small></span><b></b><span><em>2</em><small>准备资产</small></span><b></b><span><em>3</em><small>生成提示词</small></span></div><button type="button" data-studio-open>打开分镜节点 →</button></div>`:`<div class="pixmax-studio-placeholder">${pixmaxSvg(kind==='audio'?'audio-fill':kind==='editor'?'editor-fill':kind==='director'?'director-fill':'model')}</div>`;
     return `<div class="image-node pixmax-studio-node ${isNodeSelected(node.id)?'selected':''}" data-id="${escapeAttr(node.id)}" style="left:${node.x}px;top:${node.y}px;width:${rect.width}px;height:${rect.height}px">
         ${pixmaxNodeCaption(node,kind,smartStudioTitle(node))}
         <div class="node-body">${body}</div><div class="node-resize-handle" data-resize="1"></div>
         ${['director','editor','storyboard'].includes(kind)?pixmaxNodePorts().replace(/<div class="node-port port-out"[\s\S]*$/,''):pixmaxNodePorts()}
-        ${kind==='storyboard'?'':`<div class="pixmax-studio-launcher">${kind==='model'&&media?`<small>${escapeHtml(media.name || '3D 模型')}</small>`:''}<button type="button" data-studio-open>${label}</button><button type="button" class="pixmax-studio-more" data-studio-menu aria-label="节点操作">···</button></div>`}
+        ${kind==='storyboard'?'':`<div class="pixmax-studio-launcher">${kind==='model'&&media?`<small>${escapeHtml(media.name || '3D 模型')}</small>`:''}<button type="button" data-studio-open ${isSmartCanvasLocked()?'disabled':''}>${kind==='audio'&&smartPendingTasks(node).some(task=>task.kind==='audio')?'查询音频任务':label}</button>${kind==='audio'?`<button type="button" data-studio-upload ${isSmartCanvasLocked()?'disabled':''}>上传音频</button>`:''}<button type="button" class="pixmax-studio-more" data-studio-menu aria-label="节点操作">···</button></div>`}
     </div>`;
 }
 
 function bindSmartStudioNode(el,node){
     bindPixmaxNodeName(el,node);
+    for(const button of el.querySelectorAll('[data-studio-audio-play],[data-studio-upload]')){
+        button.addEventListener('mousedown',event=>event.stopPropagation());
+        button.addEventListener('click',event=>{event.stopPropagation();if(button.hasAttribute('data-studio-audio-play'))openSmartAudioLightbox(node.id,Number(button.dataset.studioAudioPlay));else if(!isSmartCanvasLocked())uploadSmartStudioMedia(node);});
+    }
     el.querySelector('[data-studio-menu]')?.addEventListener('click',event=>{event.stopPropagation();openSmartCanvasContext(event,node);});
     el.querySelectorAll('[data-studio-open]').forEach(button => {
         button.addEventListener('mousedown', event=>event.stopPropagation());
@@ -278,7 +282,8 @@ async function copyPixmaxCanvasLink(){
 async function openSmartStudio(id){
     const node=nodes.find(node=>node.id===id);
     if(!node || isSmartCanvasLocked()) return;
-    if(node.type==='smart-audio' || node.type==='smart-model'&&!node.images?.length)return uploadSmartStudioMedia(node);
+    if(node.type==='smart-audio')return window.PixmaxAudioCreation.open(node);
+    if(node.type==='smart-model'&&!node.images?.length)return uploadSmartStudioMedia(node);
     if(node.type==='smart-storyboard')return openSmartStoryboard(node);
     if(smartStudioSession)await closeSmartStudio();
     const overlay=document.createElement('div');overlay.className='pixmax-editor-overlay';

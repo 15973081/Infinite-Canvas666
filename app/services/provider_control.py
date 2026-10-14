@@ -10,7 +10,7 @@ from app.storage.workspace import current_workspace
 
 SECRET_FIELDS = {'api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key'}
 CONFIG_FIELDS = {'media_input_modes', 'name', 'base_url', 'protocol', 'image_request_mode', 'image_generation_endpoint',
-                 'image_edit_endpoint', 'proxy_url', 'enabled', 'image_models', 'chat_models', 'video_models',
+                 'image_edit_endpoint', 'proxy_url', 'enabled', 'image_models', 'chat_models', 'video_models', 'audio_models',
                  'model_prices', 'model_policies', 'model_discounts', 'model_protocols', 'chat_context_limits', 'ms_loras', 'ms_defaults_version',
                  'volcengine_project_name', 'volcengine_region'}
 
@@ -48,7 +48,7 @@ def normalized(provider_id, value, previous=None):
         az.fail('invalid_provider_config', 400)
     if 'enabled' in value and not isinstance(value['enabled'], bool):
         az.fail('invalid_provider_config', 400)
-    for field in ('image_models', 'chat_models', 'video_models'):
+    for field in ('image_models', 'chat_models', 'video_models', 'audio_models'):
         models = value.get(field, [])
         if not isinstance(models, list) or len(models) > 500 or any(not isinstance(m, str) or len(m) > 180 for m in models):
             az.fail('invalid_provider_models', 400)

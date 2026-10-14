@@ -6,10 +6,10 @@ const publicLease = (extra={}) => ({canvas_id:'a', generation:1, revision:3,hold
     server_time:'2026-09-14T00:00:00Z',expires_at:'2026-09-14T00:01:00Z',heartbeat_seconds:10,...extra});
 
 test('model validation rejection preserves editing; permission and lease failures still pause', async () => {
-    for(const code of ['model_not_available','model_resolution_not_allowed','permission_denied','workspace_forbidden','canvas_lease_lost']){
+    for(const kind of ['image','video','llm','audio'])for(const code of ['model_not_available','model_resolution_not_allowed','permission_denied','workspace_forbidden','canvas_lease_lost']){
         const f=fixture(path=>path.endsWith('/acquire') ? json(publicLease({edit_token:'private'})) : json({detail:{code,message:'模型规格不允许'}},403));
         await f.start();
-        const response=await f.lease.write('/api/canvas-image-tasks',{method:'POST',body:'{}'});
+        const response=await f.lease.write('/api/canvas-'+kind+'-tasks',{method:'POST',body:'{}'});
         assert.equal(response.status,403);
         assert.equal(f.lease.canEdit,code.startsWith('model_'));
         assert.equal(f.lease.revision,3);
