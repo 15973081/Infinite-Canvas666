@@ -92,18 +92,18 @@ async def catalog(provider_id, model):
               AND coalesce(t.result#>>'{audio_info,muted}','false')<>'true'
             ORDER BY t.request->>'timbre_id',t.completed_at DESC LIMIT 1000''', (current_workspace(), provider_id, account)).fetchall()
         preview = {row['voice_id']: stable_url(row) for row in samples}
-        registered = conn.execute('''SELECT r.*,a.* FROM audio_voice_registrations r
+        registered = conn.execute('''SELECT r.*,a.*,t.request->>'mode' AS voice_source FROM audio_voice_registrations r
             JOIN tasks t ON t.id=r.task_id AND t.workspace_id=r.workspace_id
             LEFT JOIN generation_outputs g ON g.task_id=t.id AND g.workspace_id=t.workspace_id AND g.output_index=0
             LEFT JOIN assets a ON a.id=g.asset_id AND a.workspace_id=g.workspace_id
             WHERE r.workspace_id=%s AND r.member_id=%s AND r.provider_id=%s AND r.account_ref=%s''',
             (current_workspace(), member, provider_id, account)).fetchall()
-        resumable = conn.execute('''SELECT 1 FROM tasks t WHERE t.workspace_id=%s AND t.requested_by=%s
-            AND t.provider_id=%s AND t.provider_account_ref=%s AND t.kind='audio' AND t.request->>'mode'='design'
+        resumable = conn.execute('''SELECT DISTINCT t.request->>'mode' AS voice_mode FROM tasks t WHERE t.workspace_id=%s AND t.requested_by=%s
+            AND t.provider_id=%s AND t.provider_account_ref=%s AND t.kind='audio' AND t.request->>'mode' IN ('design','clone')
             AND t.status IN ('queued','running','submitting','polling','finalizing','needs_review','succeeded')
             AND NOT EXISTS(SELECT 1 FROM audio_voice_registrations r WHERE r.workspace_id=t.workspace_id AND r.member_id=t.requested_by AND r.task_id=t.id)
             AND NOT EXISTS(SELECT 1 FROM audio_voice_deletions d WHERE d.workspace_id=t.workspace_id AND d.task_id=t.id AND d.state IN ('pending','unknown','deleted'))
-            LIMIT 1''', (current_workspace(), member, provider_id, account)).fetchone()
+            LIMIT 2''', (current_workspace(), member, provider_id, account)).fetchall()
     registered_by_id = {row['voice_id']: row for row in registered}
     # App-created voices appear only after registration in the current person's
     # library; the shared supplier directory is not a workspace ownership proof.
@@ -118,7 +118,7 @@ async def catalog(provider_id, model):
             voice.update({key: row[key] for key in ('name', 'language', 'accent', 'gender', 'age', 'description', 'task_id')})
             voice['preview_url'] = stable_url(row) if row.get('status') == 'ready' and not row.get('deleted_at') and not (row.get('metadata') or {}).get('chat_owner') else preview.get(voice['id'], '')
             voice['category'] = 'clone'
-            voice['source'] = 'design'
+            voice['source'] = row['voice_source']
             voice['delete_state'] = deletion_states.get(voice['id'],'active')
     can_design = 'voice-design' in (provider.get('audio_models') or [])
     if can_design:
@@ -126,10 +126,17 @@ async def catalog(provider_id, model):
             enforce(provider, 'audio', {'model': 'voice-design'})
         except HTTPException:
             can_design = False
-    return {'provider_id': provider_id, 'catalog_id': identity(account), 'voices': voices, 'can_design': can_design, 'has_design_tasks': bool(resumable)}
+    can_clone = 'voice-clone' in (provider.get('audio_models') or [])
+    if can_clone:
+        try:
+            enforce(provider, 'audio', {'model': 'voice-clone'})
+        except HTTPException:
+            can_clone = False
+    return {'provider_id': provider_id, 'catalog_id': identity(account), 'voices': voices, 'can_design': can_design, 'can_clone': can_clone,
+            'has_design_tasks': any(row['voice_mode']=='design' for row in resumable), 'has_clone_tasks': any(row['voice_mode']=='clone' for row in resumable)}
 
 
-def design_tasks(provider_id, model, canvas_id, node_id):
+def design_tasks(provider_id, model, canvas_id, node_id, mode='design'):
     from app.services.canvas_leases import canvas_row
     with az.policy_transaction() as conn:
         _, _, account, member = context(conn, provider_id, model)
@@ -142,8 +149,8 @@ def design_tasks(provider_id, model, canvas_id, node_id):
              OR EXISTS(SELECT 1 FROM audio_voice_deletions d WHERE d.workspace_id=tasks.workspace_id AND d.task_id=tasks.id AND d.state IN ('pending','unknown','deleted'))) AS registered
             FROM tasks WHERE workspace_id=%s AND canvas_id=%s
             AND requested_by=%s AND provider_id=%s AND provider_account_ref=%s AND kind='audio'
-            AND request->>'mode'='design' AND request->'_canvas_binding'->>'source_node_id'=%s
-            ORDER BY created_at DESC,id DESC LIMIT 10''', (current_workspace(), canvas_id, member, provider_id, account, node_id)).fetchall()
+            AND request->>'mode'=%s AND request->'_canvas_binding'->>'source_node_id'=%s
+            ORDER BY created_at DESC,id DESC LIMIT 10''', (current_workspace(), canvas_id, member, provider_id, account, mode, node_id)).fetchall()
     return {'tasks': [{'task_id': row['id'], 'status': row['status'], 'registered': row['registered'],
                        'prompt': row['request'].get('prompt', ''), 'preview_text': row['request'].get('preview_text', '')}
                       for row in rows]}
@@ -160,7 +167,7 @@ def register(payload):
         row = conn.execute('''SELECT t.* FROM tasks t JOIN generation_outputs g ON g.task_id=t.id AND g.workspace_id=t.workspace_id
             JOIN assets a ON a.id=g.asset_id AND a.workspace_id=g.workspace_id
             WHERE t.workspace_id=%s AND t.id=%s AND t.requested_by=%s AND t.provider_id=%s
-              AND t.provider_account_ref=%s AND t.kind='audio' AND t.status='succeeded' AND t.request->>'mode'='design'
+              AND t.provider_account_ref=%s AND t.kind='audio' AND t.status='succeeded' AND t.request->>'mode' IN ('design','clone')
               AND g.output_index=0 AND a.status='ready' AND a.deleted_at IS NULL AND NOT(a.metadata ? 'chat_owner') FOR SHARE OF t,a''',
             (current_workspace(), payload.task_id, member, payload.provider_id, account)).fetchone()
         if not row:

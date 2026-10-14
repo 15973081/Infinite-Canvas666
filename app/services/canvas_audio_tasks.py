@@ -22,8 +22,11 @@ def validate_provider(provider, payload):
         raise HTTPException(400, {'code': 'audio_protocol_not_supported'})
     from app.services.model_commercial import enforce
     enforce(provider, 'audio', payload.model_dump(mode='json'))
-    if payload.mode == 'design' and payload.model != 'voice-design' or payload.mode != 'design' and not payload.model.lower().startswith('speech-' if payload.mode == 'speech' else 'music-'):
+    voice_model = {'design': 'voice-design', 'clone': 'voice-clone'}.get(payload.mode)
+    if voice_model and payload.model != voice_model or not voice_model and not payload.model.lower().startswith('speech-' if payload.mode == 'speech' else 'music-'):
         raise HTTPException(400, {'code': 'audio_model_mode_mismatch'})
+    if payload.mode == 'clone':
+        enforce(provider, 'audio', {'model': payload.clone_preview_model})
     if not provider_env_key_value(provider['id']) or not provider.get('base_url'):
         raise HTTPException(400, {'code': 'audio_provider_not_configured'})
     if payload.mode == 'speech' and payload.timbre_id.startswith('canvas-voice-'):
@@ -53,10 +56,17 @@ def create(payload):
             'created_at': time.time(), 'updated_at': time.time(), 'result': None,
             **task_billing_fields(payload, 'audio')}
     request = payload.model_dump(mode='json')
-    if payload.mode != 'design':
+    if payload.mode != 'clone':
+        for field in ('sample_audio', 'clone_preview_model', 'clone_terms_accepted'):
+            request.pop(field)
+    if payload.mode not in {'design', 'clone'}:
         request.pop('preview_text')
         request.pop('voice_catalog_id')
-    if payload.mode == 'design':
+    if payload.mode == 'clone':
+        from app.services.canvas_voice_clone import sample_path
+        with media.operation_scope():
+            sample_path(payload.sample_audio)
+    if payload.mode in {'design', 'clone'}:
         from app.services import authorization as az
         from app.services.canvas_audio_voices import identity
         from app.services.canvas_leases import request_write
@@ -68,7 +78,7 @@ def create(payload):
             if identity(account_ref(payload.provider_id)) != payload.voice_catalog_id:
                 az.fail('audio_voice_account_changed', 409)
             busy = conn.execute('''SELECT id FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND requested_by=%s
-                AND kind='audio' AND request->>'mode'='design' AND request->'_canvas_binding'->>'source_node_id'=%s
+                AND kind='audio' AND request->>'mode' IN ('design','clone') AND request->'_canvas_binding'->>'source_node_id'=%s
                 AND status IN ('queued','running','submitting','polling','finalizing','needs_review') AND id<>%s LIMIT 1''',
                 (current_workspace(), payload.canvas_id, current_access.get().principal.member_id, payload.canvas_target.source_node_id, payload.client_task_id)).fetchone()
             if busy:
@@ -186,6 +196,9 @@ async def run_task(task_id, request):
     payload = CanvasAudioTaskRequest(**{key: value for key, value in request.items() if key != '_canvas_binding'})
     provider = get_api_provider_exact(payload.provider_id)
     validate_provider(provider, payload)
+    if payload.mode == 'clone':
+        from app.services.canvas_voice_clone import run_clone
+        return await run_clone(task_id, payload, provider)
     endpoint, body = upstream_request(payload)
     base = provider['base_url'].rstrip('/')
     url = base + ('/' if base.endswith('/v1') else '/v1/') + endpoint

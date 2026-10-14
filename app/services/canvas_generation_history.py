@@ -39,7 +39,7 @@ def access(conn, canvas_id, node_id=''):
 
 def clauses(canvas_id, kind, node_id=''):
     values = ["t.workspace_id=%s", "t.canvas_id IS NOT NULL", "t.status='succeeded'", "t.kind IN ('online-image','video','audio','model')",
-              "(t.kind<>'audio' OR coalesce(t.request->>'mode','')<>'design')",
+              "(t.kind<>'audio' OR coalesce(t.request->>'mode','') NOT IN ('design','clone'))",
               "a.status='ready'", "a.deleted_at IS NULL", "a.role<>'task-result-source'", "NOT (a.metadata ? 'chat_owner')"]
     args = [current_workspace()]
     if canvas_id:

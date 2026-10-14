@@ -15,7 +15,8 @@
         const status=root.querySelector('[role=status]'),list=root.querySelector('[data-voice-list]'),search=root.querySelector('input'),language=root.querySelector('[aria-label="音色语言"]'),gender=root.querySelector('[aria-label="音色性别"]'),accent=root.querySelector('[aria-label="音色口音"]'),ages=root.querySelector('[data-voice-ages]'),more=root.querySelector('[data-voice-more]');
         const usable=()=>active===state&&root.isConnected&&parent.isConnected&&valid();
         const design=document.createElement('button');design.type='button';design.dataset.voiceDesign='';design.disabled=true;design.textContent='文本生成音色';design.title='请为当前供应商配置 voice-design 音色设计模型';root.querySelector('.pixmax-voice-controls').appendChild(design);
-        const create=voice=>{stop(state);window.PixmaxVoiceDesign.open({parent:root,node,provider,model,catalog:state.catalog,voice,canGenerate:state.canDesign,valid:usable,onRegistered:async()=>{state.category='clone';search.value='';for(const tab of tabs)tab.setAttribute('aria-selected',tab.dataset.voiceTab==='clone');await load();}});};design.onclick=()=>create();
+        const create=(voice,mode=voice?.source||'design')=>{stop(state);window.PixmaxVoiceDesign.open({parent:root,node,provider,model,catalog:state.catalog,voice,mode,canGenerate:mode==='clone'?state.canClone:state.canDesign,valid:usable,onRegistered:async()=>{state.category='clone';search.value='';for(const tab of tabs)tab.setAttribute('aria-selected',tab.dataset.voiceTab==='clone');await load();}});};design.onclick=()=>create();
+        const record=document.createElement('button');record.type='button';record.dataset.voiceClone='';record.disabled=true;record.textContent='录音生成音色';record.title='请为当前供应商配置 voice-clone 音色克隆模型';root.querySelector('.pixmax-voice-controls').appendChild(record);record.onclick=()=>create(null,'clone');
         state.observer=new MutationObserver(()=>{if(!parent.isConnected||!valid())close();});state.observer.observe(document.body,{childList:true,subtree:true,attributes:true});
         document.addEventListener('keydown',state.escape,true);window.addEventListener('pagehide',close);root.querySelector('[data-voice-close]').onclick=close;
         root.addEventListener('mousedown',event=>event.stopPropagation());root.addEventListener('keydown',event=>event.stopPropagation());
@@ -85,13 +86,13 @@
             }
         };
         async function load(){
-            const serial=++state.request;stop(state);design.disabled=true;status.textContent='正在加载音色…';state.voices=[];render();
+            const serial=++state.request;stop(state);design.disabled=true;record.disabled=true;status.textContent='正在加载音色…';state.voices=[];render();
             try{
                 const response=await window.CanvasApi.getCanvasAudioVoices(provider,model,{signal:state.abort.signal});
                 if(!usable()||serial!==state.request)return;if(!response.ok)throw new Error(await responseErrorMessage(response,'音色加载失败，请重试'));
                 const result=await response.json();if(!usable()||serial!==state.request)return;
                 if(result.provider_id!==provider||!/^[a-f0-9]{64}$/.test(result.catalog_id)||!Array.isArray(result.voices))throw new Error('音色目录格式无效');
-                state.catalog=result.catalog_id;state.voices=result.voices;state.canDesign=Boolean(result.can_design);design.disabled=(!result.can_design&&!result.has_design_tasks)||!node;design.title=result.can_design?'使用文字描述设计音色，生成试听后登记':result.has_design_tasks?'查询原音色设计任务':'请为当前供应商配置 voice-design 音色设计模型';filters();render();status.textContent='';
+                state.catalog=result.catalog_id;state.voices=result.voices;state.canDesign=Boolean(result.can_design);state.canClone=Boolean(result.can_clone);record.disabled=(!result.can_clone&&!result.has_clone_tasks)||!node;design.disabled=(!result.can_design&&!result.has_design_tasks)||!node;design.title=result.can_design?'使用文字描述设计音色，生成试听后登记':result.has_design_tasks?'查询原音色设计任务':'请为当前供应商配置 voice-design 音色设计模型';filters();render();status.textContent='';
             }catch(error){if(usable()&&serial===state.request)status.textContent=error.message||'音色加载失败，请重试';}
         }
         root.querySelector('[data-voice-refresh]').onclick=load;load();search.focus();return {close};

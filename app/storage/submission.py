@@ -13,7 +13,7 @@ from app.storage.settings import postgres_enabled, member_auth_enabled
 from app.storage.workspace import current_workspace
 
 
-def admit():
+def admit(record=True):
     from app.services import authorization as az
     from app.services.maintenance_control import ensure
     from app.storage import tasks
@@ -46,6 +46,8 @@ def admit():
             from app.services.model_commercial import enforce
             kind = billing_kind(row["kind"])
             enforce(get_api_provider_exact(row["provider_id"]), kind, row["request"])
+            if row['kind'] == 'audio' and row['request'].get('mode') == 'clone':
+                enforce(get_api_provider_exact(row['provider_id']), 'audio', {'model': row['request']['clone_preview_model']})
         voice_id = row['request'].get('timbre_id')
         if row['kind'] == 'audio' and row['request'].get('mode') == 'speech' and isinstance(voice_id, str) and voice_id.startswith('canvas-voice-'):
             if not conn.execute('''SELECT 1 FROM audio_voice_registrations WHERE workspace_id=%s
@@ -55,6 +57,8 @@ def admit():
                 AND d.voice_id=audio_voice_registrations.voice_id AND d.state IN ('pending','unknown','deleted')) FOR SHARE''',
                 (workspace, row['provider_id'], row['provider_account_ref'], voice_id)).fetchone():
                 az.fail('audio_voice_not_registered', 403)
+        if not record:
+            return None
         identity = uuid.uuid4()
         conn.execute('INSERT INTO task_submissions(id,task_id,workspace_id) VALUES(%s,%s,%s)', (identity, row['id'], workspace))
         return identity

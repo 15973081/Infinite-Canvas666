@@ -916,9 +916,9 @@ def canvas_audio_voice_favorite(payload: CanvasAudioVoiceFavorite):
 
 
 @router.get('/api/canvas-audio-voices/design-tasks')
-def canvas_audio_voice_design_tasks(provider_id: str = Query(min_length=1,max_length=96), model: str = Query(min_length=1,max_length=180), canvas_id: str = Query(min_length=1,max_length=96), node_id: str = Query(min_length=1,max_length=96)):
+def canvas_audio_voice_design_tasks(provider_id: str = Query(min_length=1,max_length=96), model: str = Query(min_length=1,max_length=180), canvas_id: str = Query(min_length=1,max_length=96), node_id: str = Query(min_length=1,max_length=96), mode: str = Query(default='design',pattern='^(design|clone)$')):
     from app.services.canvas_audio_voices import design_tasks
-    return design_tasks(provider_id, model, canvas_id, node_id)
+    return design_tasks(provider_id, model, canvas_id, node_id, mode)
 
 
 @router.put('/api/canvas-audio-voices/registration')

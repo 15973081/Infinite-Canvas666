@@ -497,8 +497,8 @@
         return request('/api/canvas-audio-voices/registration', {...jsonBodyInit('PUT',payload),signal:AbortSignal.timeout(15000),...init});
     }
 
-    function getCanvasAudioVoiceDesignTasks(provider,model,canvasId,nodeId,init={}){
-        return request('/api/canvas-audio-voices/design-tasks?'+new URLSearchParams({provider_id:provider,model,canvas_id:canvasId,node_id:nodeId}), {signal:AbortSignal.timeout(15000),...init});
+    function getCanvasAudioVoiceDesignTasks(provider,model,canvasId,nodeId,init={},mode='design'){
+        return request('/api/canvas-audio-voices/design-tasks?'+new URLSearchParams({provider_id:provider,model,canvas_id:canvasId,node_id:nodeId,mode}), {signal:AbortSignal.timeout(15000),...init});
     }
 
     function deleteCanvasAudioVoice(payload,init={}){

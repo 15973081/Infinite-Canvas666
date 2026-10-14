@@ -72,7 +72,7 @@ def deliver_completed(conn, task_id, *, only_pending=False):
     task = conn.execute('SELECT * FROM tasks WHERE workspace_id=%s AND id=%s', (workspace, task_id)).fetchone()
     if not task or task['status'] != 'succeeded' or not task['canvas_id'] or task['kind'] not in {'online-image', 'video', 'llm', 'audio', 'model'}:
         return False
-    if task['kind'] == 'audio' and (task.get('request') or {}).get('mode') == 'design':
+    if task['kind'] == 'audio' and (task.get('request') or {}).get('mode') in {'design','clone'}:
         return False  # A voice audition belongs to registration, not the node's media output.
     canvas = conn.execute('SELECT * FROM canvases WHERE workspace_id=%s AND id=%s FOR UPDATE', (workspace, task['canvas_id'])).fetchone()
     if not canvas:
@@ -247,7 +247,7 @@ def catalog(canvas_id, after=''):
         az.fail('task_result_cursor_invalid', 400)
     with az.policy_transaction() as conn:
         canvas = require(conn, canvas_id)
-        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at,request FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image','llm','audio','model') AND (kind<>'audio' OR coalesce(request->>'mode','')<>'design') AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
+        rows = conn.execute("SELECT id,kind,model,provider_id,result,canvas_revision,canvas_edit_generation,completed_at,request FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND status='succeeded' AND kind IN ('video','online-image','llm','audio','model') AND (kind<>'audio' OR coalesce(request->>'mode','') NOT IN ('design','clone')) AND (%s='' OR id<%s) ORDER BY id DESC LIMIT 31", (current_workspace(), canvas_id, after, after)).fetchall()
         from app.storage.task_canvas_bindings import stored, state
         result = []
         for task in rows[:30]:
@@ -271,7 +271,7 @@ def join(canvas_id, task_id):
             az.fail('task_result_not_found', 404)
         if task['status'] != 'succeeded' or task['kind'] not in {'video', 'online-image', 'llm', 'audio', 'model'}:
             az.fail('task_result_not_ready', 409)
-        if task['kind'] == 'audio' and (task.get('request') or {}).get('mode') == 'design':
+        if task['kind'] == 'audio' and (task.get('request') or {}).get('mode') in {'design','clone'}:
             az.fail('voice_design_preview_only', 409)
         items = outputs(conn, task)
         if not items:

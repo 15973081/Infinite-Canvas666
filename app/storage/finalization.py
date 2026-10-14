@@ -86,8 +86,12 @@ async def resume(task_id):
             if packet["field"] == "images":
                 url = await save_ai_image_to_output(source, provider=provider)
             elif packet["field"] == "audios":
-                from app.services.canvas_audio_tasks import save_audio_source
-                url = await asyncio.to_thread(save_audio_source, source, slot, bool((result.get('audio_info') or {}).get('muted')))
+                if isinstance(source, dict) and (result.get('audio_info') or {}).get('mode') == 'clone':
+                    from app.services.canvas_voice_clone import save_preview
+                    url = await save_preview(source, slot)
+                else:
+                    from app.services.canvas_audio_tasks import save_audio_source
+                    url = await asyncio.to_thread(save_audio_source, source, slot, bool((result.get('audio_info') or {}).get('muted')))
             elif packet['field'] == 'models':
                 from app.services.hunyuan3d import validate_glb
                 url = await media.download_remote(source['url'], 'model_', provider={'proxy_url': source.get('proxy_url') or ''}, default_extension='.glb', validate_file=validate_glb)

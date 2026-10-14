@@ -10,7 +10,7 @@ from app.storage.database import connection
 from app.storage.workspace import current_workspace
 
 MEDIA_FIELDS = {"images", "videos", "audios", "models", "reference_images", "references", "frames",
-                "image", "video", "audio", "image_url", "video_url", "audio_url", "outputs"}
+                "image", "video", "audio", "image_url", "video_url", "audio_url", "outputs", "sample_audio"}
 OPAQUE_FIELDS = {"prompt", "text", "name", "registrations", "asset_uri", "asset_uris", "raw", "cost"}
 
 

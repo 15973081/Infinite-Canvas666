@@ -324,10 +324,13 @@ class CanvasAudioTaskRequest(BaseModel):
     canvas_target: CanvasTaskTarget
     provider_id: str = Field(min_length=1, max_length=96)
     model: str = Field(min_length=1, max_length=180)
-    mode: Literal['speech', 'music', 'design'] = 'speech'
+    mode: Literal['speech', 'music', 'design', 'clone'] = 'speech'
     prompt: str = Field(default='', max_length=10000)
     preview_text: str = Field(default='', max_length=500)
     voice_catalog_id: str = Field(default='', max_length=64)
+    sample_audio: str = Field(default='', max_length=2048)
+    clone_preview_model: str = Field(default='', max_length=180)
+    clone_terms_accepted: bool = Field(default=False, strict=True)
     timbre_id: str = Field(default='male-qn-qingse', min_length=1, max_length=180)
     speed: float = Field(default=1, ge=.5, le=2, allow_inf_nan=False)
     vol: float = Field(default=1, ge=0, le=10, allow_inf_nan=False)
@@ -343,8 +346,10 @@ class CanvasAudioTaskRequest(BaseModel):
     def content_for_mode(self):
         if self.mode == 'design' and (not self.prompt.strip() or not self.preview_text.strip()):
             raise PydanticCustomError('voice_design_text_required', '请填写音色描述和 1–500 个字符的试听文本')
-        if self.mode == 'design' and (len(self.voice_catalog_id) != 64 or any(char not in '0123456789abcdef' for char in self.voice_catalog_id)):
+        if self.mode in {'design', 'clone'} and (len(self.voice_catalog_id) != 64 or any(char not in '0123456789abcdef' for char in self.voice_catalog_id)):
             raise PydanticCustomError('voice_design_catalog_required', '请先读取当前供应商的音色目录')
+        if self.mode == 'clone' and (not self.sample_audio or not self.clone_terms_accepted or not self.clone_preview_model.startswith('speech-') or not self.preview_text.strip()):
+            raise PydanticCustomError('voice_clone_sample_required', '请确认声音克隆规则，录制样本并选择试听模型')
         if self.mode == 'speech' and (not self.prompt.strip() or len(self.prompt) >= 10000):
             raise PydanticCustomError('audio_text_required', '语音文本需要 1–9999 个字符')
         if self.mode == 'music':
