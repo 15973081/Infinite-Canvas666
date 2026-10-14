@@ -294,6 +294,20 @@ class CanvasAudioVoiceFavorite(BaseModel):
     favorite: bool = Field(strict=True)
 
 
+class CanvasAudioVoiceRegistration(BaseModel):
+    model_config = {'extra': 'forbid'}
+    provider_id: str = Field(min_length=1, max_length=96)
+    model: str = Field(min_length=1, max_length=180)
+    catalog_id: str = Field(pattern=r'^[a-f0-9]{64}$')
+    task_id: str = Field(pattern=r'^canvas_audio_[A-Za-z0-9_-]{8,80}$')
+    name: str = Field(min_length=1, max_length=180)
+    language: str = Field(min_length=1, max_length=64)
+    accent: str = Field(default='', max_length=64)
+    gender: Literal['MALE', 'FEMALE']
+    age: Literal['CHILD', 'YOUTH', 'ADULT', 'ELDER']
+    description: str = Field(default='', max_length=1000)
+
+
 class CanvasAudioTaskRequest(BaseModel):
     model_config = {'extra': 'forbid'}
     canvas_id: str = Field(min_length=1, max_length=96)
@@ -301,8 +315,10 @@ class CanvasAudioTaskRequest(BaseModel):
     canvas_target: CanvasTaskTarget
     provider_id: str = Field(min_length=1, max_length=96)
     model: str = Field(min_length=1, max_length=180)
-    mode: Literal['speech', 'music'] = 'speech'
+    mode: Literal['speech', 'music', 'design'] = 'speech'
     prompt: str = Field(default='', max_length=10000)
+    preview_text: str = Field(default='', max_length=500)
+    voice_catalog_id: str = Field(default='', max_length=64)
     timbre_id: str = Field(default='male-qn-qingse', min_length=1, max_length=180)
     speed: float = Field(default=1, ge=.5, le=2, allow_inf_nan=False)
     vol: float = Field(default=1, ge=0, le=10, allow_inf_nan=False)
@@ -316,6 +332,10 @@ class CanvasAudioTaskRequest(BaseModel):
 
     @model_validator(mode='after')
     def content_for_mode(self):
+        if self.mode == 'design' and (not self.prompt.strip() or not self.preview_text.strip()):
+            raise PydanticCustomError('voice_design_text_required', '请填写音色描述和 1–500 个字符的试听文本')
+        if self.mode == 'design' and (len(self.voice_catalog_id) != 64 or any(char not in '0123456789abcdef' for char in self.voice_catalog_id)):
+            raise PydanticCustomError('voice_design_catalog_required', '请先读取当前供应商的音色目录')
         if self.mode == 'speech' and (not self.prompt.strip() or len(self.prompt) >= 10000):
             raise PydanticCustomError('audio_text_required', '语音文本需要 1–9999 个字符')
         if self.mode == 'music':
@@ -582,7 +602,7 @@ __all__ = [
     "OnlineImageRequest", "ImageTaskQueryRequest",
     "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
-    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasModelTaskRequest",
+    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasAudioVoiceRegistration", "CanvasModelTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
     "CanvasFolderUpdateRequest", "CanvasMoveRequest",

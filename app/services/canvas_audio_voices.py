@@ -85,13 +85,92 @@ async def catalog(provider_id, model):
             JOIN assets a ON a.id=g.asset_id AND a.workspace_id=g.workspace_id
             WHERE t.workspace_id=%s AND t.provider_id=%s AND t.provider_account_ref=%s AND t.kind='audio'
               AND t.status='succeeded' AND t.request->>'mode'='speech' AND a.status='ready' AND a.deleted_at IS NULL
+              AND NOT(a.metadata ? 'chat_owner')
               AND coalesce(t.result#>>'{audio_info,muted}','false')<>'true'
             ORDER BY t.request->>'timbre_id',t.completed_at DESC LIMIT 1000''', (current_workspace(), provider_id, account)).fetchall()
         preview = {row['voice_id']: stable_url(row) for row in samples}
+        registered = conn.execute('''SELECT r.*,a.* FROM audio_voice_registrations r
+            JOIN tasks t ON t.id=r.task_id AND t.workspace_id=r.workspace_id
+            LEFT JOIN generation_outputs g ON g.task_id=t.id AND g.workspace_id=t.workspace_id AND g.output_index=0
+            LEFT JOIN assets a ON a.id=g.asset_id AND a.workspace_id=g.workspace_id
+            WHERE r.workspace_id=%s AND r.member_id=%s AND r.provider_id=%s AND r.account_ref=%s''',
+            (current_workspace(), member, provider_id, account)).fetchall()
+        resumable = conn.execute('''SELECT 1 FROM tasks t WHERE t.workspace_id=%s AND t.requested_by=%s
+            AND t.provider_id=%s AND t.provider_account_ref=%s AND t.kind='audio' AND t.request->>'mode'='design'
+            AND t.status IN ('queued','running','submitting','polling','finalizing','needs_review','succeeded')
+            AND NOT EXISTS(SELECT 1 FROM audio_voice_registrations r WHERE r.workspace_id=t.workspace_id AND r.member_id=t.requested_by AND r.task_id=t.id)
+            LIMIT 1''', (current_workspace(), member, provider_id, account)).fetchone()
+    registered_by_id = {row['voice_id']: row for row in registered}
+    # App-created voices appear only after registration in the current person's
+    # library; the shared supplier directory is not a workspace ownership proof.
+    voices = [voice for voice in voices if not voice['id'].startswith('canvas-voice-') or voice['id'] in registered_by_id]
+    existing = {voice['id'] for voice in voices}
+    voices.extend({'id': row['voice_id'], 'category': 'clone'} for row in registered if row['voice_id'] not in existing)
     for voice in voices:
         voice['favorite'] = voice['id'] in favorite
         voice['preview_url'] = preview.get(voice['id'], '')
-    return {'provider_id': provider_id, 'catalog_id': identity(account), 'voices': voices}
+        if voice['id'] in registered_by_id:
+            row = registered_by_id[voice['id']]
+            voice.update({key: row[key] for key in ('name', 'language', 'accent', 'gender', 'age', 'description', 'task_id')})
+            voice['preview_url'] = stable_url(row) if row.get('status') == 'ready' and not row.get('deleted_at') and not (row.get('metadata') or {}).get('chat_owner') else preview.get(voice['id'], '')
+            voice['category'] = 'clone'
+            voice['source'] = 'design'
+    can_design = 'voice-design' in (provider.get('audio_models') or [])
+    if can_design:
+        try:
+            enforce(provider, 'audio', {'model': 'voice-design'})
+        except HTTPException:
+            can_design = False
+    return {'provider_id': provider_id, 'catalog_id': identity(account), 'voices': voices, 'can_design': can_design, 'has_design_tasks': bool(resumable)}
+
+
+def design_tasks(provider_id, model, canvas_id, node_id):
+    from app.services.canvas_leases import canvas_row
+    with az.policy_transaction() as conn:
+        _, _, account, member = context(conn, provider_id, model)
+        az.require(conn, current_access.get().principal, 'canvas.read', current_workspace())
+        canvas = canvas_row(conn, current_workspace(), canvas_id)
+        if canvas['deleted_at'] or not any(node.get('id') == node_id for node in canvas['document'].get('nodes', [])):
+            az.fail('voice_design_node_not_found', 404)
+        rows = conn.execute('''SELECT id,status,request,result,
+            EXISTS(SELECT 1 FROM audio_voice_registrations r WHERE r.workspace_id=tasks.workspace_id AND r.member_id=tasks.requested_by AND r.task_id=tasks.id) AS registered
+            FROM tasks WHERE workspace_id=%s AND canvas_id=%s
+            AND requested_by=%s AND provider_id=%s AND provider_account_ref=%s AND kind='audio'
+            AND request->>'mode'='design' AND request->'_canvas_binding'->>'source_node_id'=%s
+            ORDER BY created_at DESC,id DESC LIMIT 10''', (current_workspace(), canvas_id, member, provider_id, account, node_id)).fetchall()
+    return {'tasks': [{'task_id': row['id'], 'status': row['status'], 'registered': row['registered'],
+                       'prompt': row['request'].get('prompt', ''), 'preview_text': row['request'].get('preview_text', '')}
+                      for row in rows]}
+
+
+def register(payload):
+    from app.services.maintenance_control import ensure
+    with az.policy_transaction() as conn:
+        _, _, account, member = context(conn, payload.provider_id, payload.model)
+        az.require(conn, current_access.get().principal, 'generation.submit', current_workspace())
+        ensure(conn, current_workspace(), 'write')
+        if payload.catalog_id != identity(account):
+            az.fail('audio_voice_account_changed', 409)
+        row = conn.execute('''SELECT t.* FROM tasks t JOIN generation_outputs g ON g.task_id=t.id AND g.workspace_id=t.workspace_id
+            JOIN assets a ON a.id=g.asset_id AND a.workspace_id=g.workspace_id
+            WHERE t.workspace_id=%s AND t.id=%s AND t.requested_by=%s AND t.provider_id=%s
+              AND t.provider_account_ref=%s AND t.kind='audio' AND t.status='succeeded' AND t.request->>'mode'='design'
+              AND g.output_index=0 AND a.status='ready' AND a.deleted_at IS NULL AND NOT(a.metadata ? 'chat_owner') FOR SHARE OF t,a''',
+            (current_workspace(), payload.task_id, member, payload.provider_id, account)).fetchone()
+        if not row:
+            az.fail('voice_design_result_not_found', 404)
+        voice_id = (row.get('result') or {}).get('audio_info', {}).get('voice_id')
+        if not isinstance(voice_id, str) or not 1 <= len(voice_id) <= 180:
+            az.fail('voice_design_result_invalid', 409)
+        if not payload.name.strip() or not payload.language.strip():
+            az.fail('voice_registration_name_required', 400)
+        conn.execute('''INSERT INTO audio_voice_registrations(workspace_id,member_id,provider_id,account_ref,voice_id,task_id,name,language,accent,gender,age,description)
+            VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT(workspace_id,member_id,provider_id,account_ref,voice_id) DO UPDATE
+            SET name=excluded.name,language=excluded.language,accent=excluded.accent,gender=excluded.gender,age=excluded.age,
+                description=excluded.description,updated_at=now()''', (current_workspace(), member, payload.provider_id, account, voice_id,
+            payload.task_id, payload.name.strip(), payload.language.strip(), payload.accent, payload.gender, payload.age, payload.description.strip()))
+    return {'voice_id': voice_id, 'name': payload.name.strip()}
 
 
 def favorite(payload):

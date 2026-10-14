@@ -22,10 +22,19 @@ def validate_provider(provider, payload):
         raise HTTPException(400, {'code': 'audio_protocol_not_supported'})
     from app.services.model_commercial import enforce
     enforce(provider, 'audio', payload.model_dump(mode='json'))
-    if not payload.model.lower().startswith('speech-' if payload.mode == 'speech' else 'music-'):
+    if payload.mode == 'design' and payload.model != 'voice-design' or payload.mode != 'design' and not payload.model.lower().startswith('speech-' if payload.mode == 'speech' else 'music-'):
         raise HTTPException(400, {'code': 'audio_model_mode_mismatch'})
     if not provider_env_key_value(provider['id']) or not provider.get('base_url'):
         raise HTTPException(400, {'code': 'audio_provider_not_configured'})
+    if payload.mode == 'speech' and payload.timbre_id.startswith('canvas-voice-'):
+        from app.storage import database
+        from app.storage.task_requests import account_ref
+        from app.storage.workspace import current_workspace
+        with database.connection() as conn:
+            if not conn.execute('''SELECT 1 FROM audio_voice_registrations WHERE workspace_id=%s
+                AND provider_id=%s AND account_ref=%s AND voice_id=%s LIMIT 1''',
+                (current_workspace(), payload.provider_id, account_ref(payload.provider_id), payload.timbre_id)).fetchone():
+                raise HTTPException(403, {'code': 'audio_voice_not_registered'})
 
 
 def create(payload):
@@ -40,7 +49,30 @@ def create(payload):
             'provider_id': provider['id'], 'provider_name': provider.get('name') or provider['id'], 'model': payload.model,
             'created_at': time.time(), 'updated_at': time.time(), 'result': None,
             **task_billing_fields(payload, 'audio')}
-    stored = save_canvas_task(task, payload.model_dump(mode='json'))
+    request = payload.model_dump(mode='json')
+    if payload.mode != 'design':
+        request.pop('preview_text')
+        request.pop('voice_catalog_id')
+    if payload.mode == 'design':
+        from app.services import authorization as az
+        from app.services.canvas_audio_voices import identity
+        from app.services.canvas_leases import request_write
+        from app.services.member_context import current_access
+        from app.storage.task_requests import account_ref
+        from app.storage.workspace import current_workspace
+        with az.policy_transaction() as conn:
+            request_write(conn, payload.canvas_id, operation='write', include_document=True)
+            if identity(account_ref(payload.provider_id)) != payload.voice_catalog_id:
+                az.fail('audio_voice_account_changed', 409)
+            busy = conn.execute('''SELECT id FROM tasks WHERE workspace_id=%s AND canvas_id=%s AND requested_by=%s
+                AND kind='audio' AND request->>'mode'='design' AND request->'_canvas_binding'->>'source_node_id'=%s
+                AND status IN ('queued','running','submitting','polling','finalizing','needs_review') AND id<>%s LIMIT 1''',
+                (current_workspace(), payload.canvas_id, current_access.get().principal.member_id, payload.canvas_target.source_node_id, payload.client_task_id)).fetchone()
+            if busy:
+                az.fail('voice_design_task_pending', 409)
+            stored = save_canvas_task(task, request)
+    else:
+        stored = save_canvas_task(task, request)
     return {'task_id': stored['id'], 'status': stored['status'], 'canvas_binding': stored['canvas_binding']}
 
 
@@ -52,6 +84,10 @@ def get(task_id):
 
 
 def upstream_request(payload):
+    if payload.mode == 'design':
+        import hashlib
+        return 'voice_design', {'prompt': payload.prompt, 'preview_text': payload.preview_text,
+                                'voice_id': 'canvas-voice-' + hashlib.sha256(payload.client_task_id.encode()).hexdigest()[:32]}
     body = {'model': payload.model, 'output_format': 'hex'}
     if payload.mode == 'speech':
         body.update(text=payload.prompt, stream=False, language_boost='auto',
@@ -74,6 +110,12 @@ def upstream_request(payload):
 def response_result(value, payload):
     if not isinstance(value, dict) or not isinstance(value.get('base_resp'), dict) or value['base_resp'].get('status_code') != 0:
         raise HTTPException(502, '音频供应商未确认成功，请核对原任务')
+    if payload.mode == 'design':
+        voice_id = upstream_request(payload)[1]['voice_id']
+        if value.get('voice_id') != voice_id:
+            raise HTTPException(502, '音色供应商未返回本次音色标识，请核对原任务')
+        value = {**value, 'data': {'status': 2, 'audio': value.get('trial_audio')},
+                 'extra_info': value.get('extra_info') or {}}
     data, info = value.get('data'), value.get('extra_info') or {}
     if not isinstance(data, dict) or data.get('status') != 2:
         raise HTTPException(502, '音频供应商未返回完整结果，请核对原任务')
@@ -85,6 +127,8 @@ def response_result(value, payload):
         raise HTTPException(502, '音频结果信息无效')
     duration = info.get('audio_length' if payload.mode == 'speech' else 'music_duration')
     audio_info = {'mode': payload.mode, 'format': 'mp3'}
+    if payload.mode == 'design':
+        audio_info['voice_id'] = value['voice_id']
     if payload.mode == 'speech' and payload.vol == 0:
         audio_info['muted'] = True
     if type(duration) in {int, float} and math.isfinite(duration) and duration > 0:

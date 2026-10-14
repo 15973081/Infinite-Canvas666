@@ -46,6 +46,12 @@ def admit():
             from app.services.model_commercial import enforce
             kind = billing_kind(row["kind"])
             enforce(get_api_provider_exact(row["provider_id"]), kind, row["request"])
+        voice_id = row['request'].get('timbre_id')
+        if row['kind'] == 'audio' and row['request'].get('mode') == 'speech' and isinstance(voice_id, str) and voice_id.startswith('canvas-voice-'):
+            if not conn.execute('''SELECT 1 FROM audio_voice_registrations WHERE workspace_id=%s
+                AND provider_id=%s AND account_ref=%s AND voice_id=%s FOR SHARE''',
+                (workspace, row['provider_id'], row['provider_account_ref'], voice_id)).fetchone():
+                az.fail('audio_voice_not_registered', 403)
         identity = uuid.uuid4()
         conn.execute('INSERT INTO task_submissions(id,task_id,workspace_id) VALUES(%s,%s,%s)', (identity, row['id'], workspace))
         return identity

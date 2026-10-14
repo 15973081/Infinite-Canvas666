@@ -18,12 +18,15 @@ KEY = 'audio-test-only-secret'
 MP3 = Path(__file__).parent / 'fixtures' / 'pixmax-generated-audio.mp3'
 
 
-def prepared(world, platform, mode='speech', music_mode='CUSTOM'):
+def prepared(world, platform, mode='speech', music_mode='CUSTOM', voice_design=False):
     pid = 'audio-' + uuid.uuid4().hex[:16]
     config = {'name': '音频验收', 'base_url': 'https://supplier.test/v1', 'protocol': 'minimax', 'enabled': True,
               'audio_models': ['speech-2.8-hd', 'music-2.6'], 'model_prices': [
                   {'kind': 'audio', 'model': 'speech-2.8-hd', 'billing_type': 'per_10k_characters', 'unit_price': '6', 'currency': 'CNY'},
                   {'kind': 'audio', 'model': 'music-2.6', 'billing_type': 'per_call', 'unit_price': '.7', 'currency': 'CNY'}]}
+    if voice_design:
+        config['audio_models'].append('voice-design')
+        config['model_prices'].append({'kind': 'audio', 'model': 'voice-design', 'billing_type': 'per_10k_characters', 'unit_price': '.3', 'currency': 'CNY'})
     configured = platform['client'].put('/api/providers/' + pid, json={
         'config': config, 'expected_version': 0, 'secrets': {'api_key': KEY}, 'reason': '音频隔离验收'})
     assert configured.status_code == 200, configured.text

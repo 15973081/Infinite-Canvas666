@@ -115,6 +115,10 @@ def permissions(path, method):
         return PERMISSIONS
     if path == '/api/canvas-audio-voices' and method == 'GET' or path == '/api/canvas-audio-voices/favorite' and method == 'PUT':
         return ('provider.use', 'task.read', 'asset.read')
+    if path == '/api/canvas-audio-voices/design-tasks' and method == 'GET':
+        return ('canvas.read', 'provider.use', 'task.read', 'asset.read')
+    if path == '/api/canvas-audio-voices/registration' and method == 'PUT':
+        return ('generation.submit', 'provider.use', 'task.read', 'asset.read')
     if re.fullmatch(r'/api/canvas-generation-history(?:/ast_[a-f0-9]{32})?', path) and method == 'GET':
         from app.services.canvas_generation_history import PERMISSIONS
         return PERMISSIONS

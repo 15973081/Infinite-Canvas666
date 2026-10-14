@@ -31,6 +31,7 @@ def apply_record(conn,record):
     conn.execute("DELETE FROM workspace_documents WHERE kind='conversation' AND starts_with(id,%s)",(owner+'/',))
     conn.execute('DELETE FROM member_skill_preferences WHERE member_id=%s',(owner,))
     conn.execute('DELETE FROM audio_voice_favorites WHERE member_id=%s',(owner,))
+    conn.execute('DELETE FROM audio_voice_registrations WHERE member_id=%s',(owner,))
     conn.execute('DELETE FROM canvas_draft_copies WHERE member_id=%s',(owner,))
     conn.execute('DELETE FROM member_presence_sockets WHERE member_id=%s',(owner,))
     conn.execute('DELETE FROM canvas_page_reports WHERE member_id=%s',(owner,))
