@@ -32,6 +32,9 @@ test('connection cache survives insertion, removal, reorder, undo and document r
             return JSON.stringify(actual())===JSON.stringify(expected);
         };
         const results=[];pushUndo();
+        canvas.connections[0].from='n3';refreshConnectionLayer(['n2']);results.push(valid());
+        canvas.connections[0].to='n2';refreshConnectionLayer(['n0']);results.push(valid());
+        nodes.reverse();refreshConnectionLayer(['n2']);results.push(valid());nodes.reverse();
         canvas.connections.splice(1,1);refreshConnectionLayer(['n0']);results.push(valid());
         canvas.connections.unshift({from:'n3',to:'n0',kind:'input'});refreshConnectionLayer([]);results.push(valid());
         canvas.connections.reverse();refreshConnectionLayer(['n2']);results.push(valid());
@@ -42,5 +45,5 @@ test('connection cache survives insertion, removal, reorder, undo and document r
         world.querySelector('.connection-layer').remove();render();cancelSmartGeometryRefresh();nodes[3].y+=100;refreshConnectionLayer(['n3']);results.push(valid());
         return results;
     });
-    assert.deepEqual(checks,Array(8).fill(true));assert.deepEqual(errors,[]);
+    assert.deepEqual(checks,Array(11).fill(true));assert.deepEqual(errors,[]);
 });

@@ -1679,13 +1679,13 @@ function shellPoint(event){
 }
 
 function renderConnections(nodeIds=null,topology){
-    return withSmartComputation(() => renderSmartConnectionPaths(nodeIds,topology));
+    return withSmartComputation(() => renderSmartConnectionPaths(nodeIds,topology),topology);
 }
 
 function renderSmartConnectionPaths(...args){return smartWorkspaceView.connectionPaths(...args);}
 
 function smartConnectionTopology(){
-    return JSON.stringify([nodes.map(n => n.id), (canvas?.connections || []).map(c => [c.from,c.to,c.kind || 'flow'])]);
+    return smartWorkspaceView.topology();
 }
 
 function patchSmartConnectionGroup(current, fresh){
@@ -4373,6 +4373,7 @@ function createSmartComposer(){
 // Workspaces own derived render caches and their queues; document and task data stay shared.
 function createSmartWorkspaceView(){
     let smartComputationContext=null,pendingSmartViewportRefresh=null;
+    let graphIndex=null;
     let smartViewportScrolls=new WeakMap(),smartRenderedNodes=new WeakMap(),smartRenderedConnectionStates=new Map();
     let smartConnectionElements=new WeakMap();
     let smartGeometryFrame=null,smartGeometryPasses=0,smartGeometryAll=false;
@@ -4394,6 +4395,7 @@ function createSmartWorkspaceView(){
         clearFocusedRefreshes();
         smartRenderedNodes=new WeakMap();smartRenderedConnectionStates=new Map();smartViewportScrolls=new WeakMap();
         smartConnectionElements=new WeakMap();
+        graphIndex=null;
         const now=current();documentId=now.id;documentNodes=now.nodes;
     }
     function checkDocument(){
@@ -4449,14 +4451,30 @@ function createSmartWorkspaceView(){
         element.addEventListener('focusout',pending.leave,{once:true});
     }
 
-    function withSmartComputationImpl(work){
-        if(smartComputationContext) return work();
-        const incoming = new Map();
-        (canvas?.connections || []).forEach(conn => {
-            if(!incoming.has(conn.to)) incoming.set(conn.to, []);
-            incoming.get(conn.to).push(conn);
+    function graphTopology(){
+        return JSON.stringify([nodes.map(node=>node.id),(canvas?.connections||[]).map(edge=>[edge.from,edge.to,edge.kind||'flow'])]);
+    }
+
+    function graphIndexFor(topology){
+        if(graphIndex?.topology===topology)return graphIndex;
+        const nodeSlots=new Map(),incoming=new Map(),incident=new Map();
+        nodes.forEach((node,index)=>nodeSlots.set(node.id,index));
+        const append=(map,id,index)=>{if(!map.has(id))map.set(id,[]);map.get(id).push(index);};
+        (canvas?.connections||[]).forEach((edge,index)=>{
+            append(incoming,edge.to,index);append(incident,edge.from,index);
+            if(edge.to!==edge.from)append(incident,edge.to,index);
         });
-        smartComputationContext = {byId:new Map(nodes.map(node => [node.id, node])), incoming, rects:new Map()};
+        graphIndex={topology,nodeSlots,incoming,incident};return graphIndex;
+    }
+
+    function withSmartComputationImpl(work,topology){
+        if(smartComputationContext) return work();
+        // Structural keys detect in-place rewiring and ordering as well as array replacement.
+        // Cache slots rather than node/edge objects: autosave and undo may replace those objects.
+        const key=topology??graphTopology(),index=graphIndexFor(key),nodeArray=nodes,edges=canvas?.connections||[];
+        smartComputationContext={topology:key,incident:index.incident,edges,
+            byId:{has:id=>index.nodeSlots.has(id),get:id=>nodeArray[index.nodeSlots.get(id)]},
+            incoming:{get:id=>index.incoming.get(id)?.map(slot=>edges[slot])},rects:new Map()};
         try { return work(); } finally { smartComputationContext = null; }
     }
 
@@ -4523,13 +4541,16 @@ function createSmartWorkspaceView(){
         }
     }
 
-    function renderSmartConnectionPathsImpl(nodeIds=null,topology=smartConnectionTopology()){
+    function renderSmartConnectionPathsImpl(nodeIds=null,topology=smartComputationContext?.topology??graphTopology()){
         const byId = smartComputationContext.byId;
         const scope = nodeIds === null ? null : new Set(nodeIds);
         const conns=[];
-        (canvas?.connections || []).forEach((conn,index)=>{
-            if(byId.has(conn.from)&&byId.has(conn.to)&&(!scope||scope.has(conn.from)||scope.has(conn.to)))conns.push({...conn,index});
-        });
+        const edges=smartComputationContext.edges;
+        const slots=scope?[...new Set([...scope].flatMap(id=>smartComputationContext.incident.get(id)||[]))].sort((a,b)=>a-b):edges.keys();
+        for(const index of slots){
+            const conn=edges[index];
+            if(byId.has(conn.from)&&byId.has(conn.to))conns.push({...conn,index});
+        }
         const cascadeKeys = cascadeConnectionKeys();
         const paths = conns.map(conn => {
             const fromNode = byId.get(conn.from);
@@ -4722,7 +4743,7 @@ function createSmartWorkspaceView(){
     return Object.freeze({
         get state(){return Object.freeze({paused,destroyed,pendingGeometry:smartGeometryFrame!==null,pendingViewport:pendingSmartViewportRefresh!==null});},
         reset,bind,pause,resume,destroy,
-        withComputation:withSmartComputationImpl,nodeRect:nodeRectImpl,nodeForComputation,connectionsForComputation,
+        topology:graphTopology,withComputation:withSmartComputationImpl,nodeRect:nodeRectImpl,nodeForComputation,connectionsForComputation,
         scheduleViewport:(...args)=>view(scheduleSmartViewportRefreshImpl,args),scheduleGeometry:(...args)=>view(scheduleSmartGeometryRefreshImpl,args),
         cancelGeometry,restoreScroll:(...args)=>view(restoreSmartNodeScrollImpl,args),recycle:(...args)=>view(renderSmartOffscreenPlaceholdersImpl,args),
         connectionPaths:(...args)=>view(renderSmartConnectionPathsImpl,args),refreshConnections:(...args)=>view(refreshConnectionLayerImpl,args),

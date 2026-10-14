@@ -99,7 +99,7 @@ test('node refresh defers focused editor and never replaces unrelated DOM',()=>{
     const current={contains:()=>focused,addEventListener:(_name,fn)=>focusout=fn,removeEventListener(){},
         querySelector:()=>({scrollTop:93}),replaceWith:()=>replaced++};
     const fresh={querySelector:()=>scroller},scroller={scrollTop:0};
-    const ctx=vm.createContext({nodes:[a,b],smartAudioPreview:{dataChanged(){}},smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',
+    const ctx=vm.createContext({window:{},nodes:[a,b],smartAudioPreview:{dataChanged(){}},smartAffectedNodeIds:ids=>new Set(ids),selectedId:'b',
         world:{querySelector:()=>current},CSS:{escape:x=>x},document:{activeElement:{},createElement:()=>({content:{firstElementChild:fresh}})},
         setTimeout:fn=>fn(),isSmartNodeInViewport:()=>true,renderSmartNodeHtml:()=>'',transplantSmartMediaElements(){},bindNodeEvents(){},
         releaseSmartGroupPreviews(){},bindSmartPreviewImageFallbacks(){},measureSmartNodeImages(){},scheduleSmartGeometryRefresh(){scheduled++;},
@@ -135,6 +135,22 @@ test('computation indexes are fresh per call and released on failure',()=>{
     assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'})[0].id),'a');
     ctx.canvas.connections=[];assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'}).length),0);
     assert.throws(()=>ctx.withSmartComputation(()=>{throw Error('test');}));assert.equal(typeof ctx.smartComputationContext,'undefined');
+});
+
+test('warm connection computations reuse adjacency slots and read current objects after replacement or in-place rewiring',()=>{
+    const nodeArray=[{id:'a'},{id:'b'},{id:'c'}],edges=[{from:'a',to:'b',kind:'input'}];let builds=0;
+    edges.forEach=function(callback){builds++;return Array.prototype.forEach.call(this,callback);};
+    const ctx=vm.createContext({nodes:nodeArray,canvas:{connections:edges},canvasUsesConnections:true});
+    load(ctx,['withSmartComputation','upstreamNodesForKinds']);
+    assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'})[0].id),'a');assert.equal(builds,1);
+    nodeArray[0]={id:'a',text:'replacement'};edges[0]={from:'a',to:'b',kind:'input',order:7};
+    ctx.withSmartComputation(()=>{
+        assert.equal(ctx.smartNodeForComputation('a').text,'replacement');
+        assert.equal(ctx.smartConnectionsForComputation('b')[0].order,7);
+    });assert.equal(builds,1);
+    edges[0].from='c';assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'})[0].id),'c');assert.equal(builds,2);
+    edges[0].to='a';assert.equal(ctx.withSmartComputation(()=>ctx.upstreamNodesForKinds({id:'b'}).length),0);assert.equal(builds,3);
+    ctx.smartWorkspaceView.reset();ctx.withSmartComputation(()=>assert.equal(ctx.smartConnectionsForComputation('a')[0].from,'c'));assert.equal(builds,4);
 });
 test('offscreen reclamation protects interaction, running tasks, editors and lightboxes',()=>{
     const node={id:'a',type:'smart-image',images:[{url:'a.png'}]},el={contains:()=>false,querySelector:()=>null};
@@ -180,7 +196,7 @@ test('suspending an image cannot trigger proxy or preview fallback reloads',()=>
 test('completed run labels do not keep timer alive or rewrite unchanged text',()=>{
     let started=0,stopped=0,writes=0,text='';const node={id:'a',runFinishedAt:100};
     const el={dataset:{runTimer:'a'},classList:{toggle(){}},get textContent(){return text;},set textContent(v){writes++;text=v;}};
-    const ctx=vm.createContext({nodes:[node],runTimerInterval:null,document:{querySelectorAll:()=>[el]},
+    const ctx=vm.createContext({nodes:[node],runTimerInterval:null,document:{querySelector:()=>el,querySelectorAll:()=>[el]},
         smartNodePendingCount:n=>n.pending||0,formatRunDuration:ms=>String(ms),nodeRunElapsedMs:()=>100,
         setInterval:()=>{started++;return 1;},clearInterval:()=>stopped++});
     load(ctx,['refreshRunTimerPills']);ctx.refreshRunTimerPills();ctx.refreshRunTimerPills();
