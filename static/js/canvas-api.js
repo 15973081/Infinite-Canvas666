@@ -473,6 +473,14 @@
         return request(`/api/canvas-audio-tasks/${encodeURIComponent(taskId)}`, {signal:AbortSignal.timeout(10000)}, options);
     }
 
+    function getCanvasAudioVoices(provider, model, init={}){
+        return request('/api/canvas-audio-voices?'+new URLSearchParams({provider_id:provider,model}), {signal:AbortSignal.timeout(25000),...init});
+    }
+
+    function setCanvasAudioVoiceFavorite(payload, init={}){
+        return request('/api/canvas-audio-voices/favorite', {...jsonBodyInit('PUT',payload),signal:AbortSignal.timeout(10000),...init});
+    }
+
     function queryImageTask(payload, options={}){
         return json('/api/image-task-query', jsonBodyInit('POST', payload), {checkOk:true, ...options});
     }
@@ -546,6 +554,8 @@
         createCanvasVideoTaskRequest,
         getCanvasVideoTaskRequest,
         getCanvasAudioTaskRequest,
+        getCanvasAudioVoices,
+        setCanvasAudioVoiceFavorite,
         queryImageTask
     };
 })();

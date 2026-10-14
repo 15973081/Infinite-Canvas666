@@ -872,6 +872,18 @@ def create_canvas_llm_task(payload: CanvasLLMTaskRequest):
     return create(payload)
 
 
+@router.get('/api/canvas-audio-voices')
+async def canvas_audio_voices(provider_id: str = Query(min_length=1, max_length=96), model: str = Query(min_length=1, max_length=180)):
+    from app.services.canvas_audio_voices import catalog
+    return await catalog(provider_id, model)
+
+
+@router.put('/api/canvas-audio-voices/favorite')
+def canvas_audio_voice_favorite(payload: CanvasAudioVoiceFavorite):
+    from app.services.canvas_audio_voices import favorite
+    return favorite(payload)
+
+
 @router.post('/api/canvas-audio-tasks')
 def create_canvas_audio_task(payload: CanvasAudioTaskRequest):
     from app.services.canvas_audio_tasks import create

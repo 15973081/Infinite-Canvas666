@@ -113,6 +113,8 @@ def permissions(path, method):
     if path == '/api/canvas-draft-copies' and method == 'POST':
         from app.services.canvas_draft_copies import PERMISSIONS
         return PERMISSIONS
+    if path == '/api/canvas-audio-voices' and method == 'GET' or path == '/api/canvas-audio-voices/favorite' and method == 'PUT':
+        return ('provider.use', 'task.read', 'asset.read')
     if re.fullmatch(r'/api/canvas-(?:image|video|llm|audio)-tasks(?:/[^/]+)?', path):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:

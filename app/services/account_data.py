@@ -48,13 +48,14 @@ def export(actor):
         docs=conn.execute("SELECT workspace_id,id,value,revision FROM workspace_documents WHERE kind='conversation' AND starts_with(id,%s) ORDER BY workspace_id,id",(owner+'/',)).fetchall()
         assets=conn.execute("SELECT * FROM assets WHERE metadata->>'chat_owner'=%s AND status<>'deleted' ORDER BY workspace_id,id",(owner,)).fetchall()
         preferences=conn.execute('SELECT workspace_id,skill_id,enabled FROM member_skill_preferences WHERE member_id=%s ORDER BY workspace_id,skill_id',(owner,)).fetchall()
+        voice_favorites=conn.execute('SELECT workspace_id,provider_id,voice_id FROM audio_voice_favorites WHERE member_id=%s ORDER BY workspace_id,provider_id,voice_id',(owner,)).fetchall()
     from app.storage.deletion_ledger import document_blocked
     docs=[doc for doc in docs if not document_blocked(doc['workspace_id'],doc['id'])]
     # No omissions presented as a complete export: uploads and pending deletes require retry.
     if any(a['status']!='ready' or a['deleted_at'] for a in assets):
         raise HTTPException(409,'附件仍在上传或清理，请完成处理后重新导出。')
     manifest={'version':1,'member':{key:profile[key] for key in ('id','username','display_name','avatar')},
-              'conversations':len(docs),'attachments':[],'preferences':preferences,'retained':RETAINED}
+              'conversations':len(docs),'attachments':[],'preferences':preferences,'audio_voice_favorites':voice_favorites,'retained':RETAINED}
     document_bytes=_json(docs)
     limit=max(1,int(os.getenv('ACCOUNT_EXPORT_MAX_BYTES',str(5*1024**3))))
     total=len(document_bytes)+sum(a['size_bytes'] for a in assets)

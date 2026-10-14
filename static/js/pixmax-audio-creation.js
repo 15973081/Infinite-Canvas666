@@ -5,7 +5,7 @@
     const providers=()=>apiProviders.filter(provider=>provider.enabled!==false&&provider.has_key&&provider.audio_models?.length);
     const speechControls=[['timbre_id','音色 ID','text','male-qn-qingse'],['speed','语速','number',1,.5,2,.01],['vol','音量','number',1,0,10,.01],['pitch','音调','number',0,-12,12,1]];
     const advanced=[['voice_modify_pitch','音高修饰','number',0,-100,100,1],['voice_modify_intensity','声音力度','number',0,-100,100,1],['voice_modify_timbre','音色修饰','number',0,-100,100,1]];
-    function inputs(rows,settings){return rows.map(([key,label,type,value,min,max,step])=>`<label>${label}<input data-audio-field="${key}" aria-label="${label}" type="${type}" value="${escapeAttr(settings[key]??value)}" ${type==='number'?`min="${min}" max="${max}" step="${step}"`:''}></label>`).join('');}
+    function inputs(rows,settings){return rows.map(([key,label,type,value,min,max,step])=>key==='timbre_id'?`<label>音色<input data-audio-field="timbre_id" type="hidden" value="${escapeAttr(settings[key]??value)}"><button type="button" data-audio-voice aria-label="选择音色">${escapeHtml(settings[key]||value)} ▾</button></label>`:`<label>${label}<input data-audio-field="${key}" aria-label="${label}" type="${type}" value="${escapeAttr(settings[key]??value)}" ${type==='number'?`min="${min}" max="${max}" step="${step}"`:''}></label>`).join('');}
     function context(node){
         const ids=new Set((canvas.connections||[]).filter(edge=>edge.to===node.id).map(edge=>edge.from));
         const sources=nodes.filter(source=>ids.has(source.id));
@@ -29,6 +29,13 @@
         try{const text=context(node);body.querySelector('[data-audio-references]').textContent=text?'将引用已连接的文本节点。':'';}catch(error){status.textContent=error.message;}
         const origin=canvas,base=canvasTaskWriteGuard(node);
         const valid=()=>root.isConnected&&canvas===origin&&nodes.includes(node)&&!isSmartCanvasLocked()&&base.valid();
+        body.querySelector('[data-audio-voice]').onclick=()=>{
+            if(!valid()||model.value.startsWith('music-'))return;
+            const selectedProvider=providerInput.value,selectedModel=model.value,input=body.querySelector('[data-audio-field="timbre_id"]');
+            window.PixmaxAudioVoices.open({parent:root,provider:selectedProvider,model:selectedModel,value:input.value,
+                valid:()=>valid()&&providerInput.value===selectedProvider&&model.value===selectedModel,
+                onSelect:voice=>{input.value=voice.id;body.querySelector('[data-audio-voice]').textContent=voice.name+' ▾';}});
+        };
         function configuration(){
             const provider_id=providerInput.value,chosen=model.value;
             if(!providers().some(provider=>provider.id===provider_id&&provider.audio_models.includes(chosen)))throw new Error('请选择已配置的音频供应商和模型');
