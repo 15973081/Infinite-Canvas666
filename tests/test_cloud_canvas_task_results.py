@@ -86,6 +86,30 @@ def test_generation_history_deduplicates_reused_assets_and_keeps_glb_model_type(
     assert next(item for item in response.json()['items'] if item['id']==image['id'])['kind']=='image'
 
 
+def test_generation_history_node_scope_uses_real_task_bindings_and_scopes_its_cursor(world,tmp_path):
+    from test_cloud_task_canvas_bindings import setup_bound_canvas,payload,submit,finish
+    path,canvas,lease=setup_bound_canvas(world,'smart')
+    canvas['nodes'].append({'id':'other-node','type':'smart-image','images':[]})
+    saved=world['editor'].put(path,headers=proof(world,lease,canvas['revision']),json={**canvas,'base_revision':canvas['revision']});assert saved.status_code==200,saved.text
+    canvas=saved.json()['canvas'];bound=[]
+    for source,target in [('source','target'),('other-node','other-node'),('source','target')]:
+        body=payload(canvas);body['canvas_target'].update(source_node_id=source,target_node_id=target)
+        receipt=submit(world,body,lease);assert receipt.status_code==200,receipt.text
+        bound.append(body['client_task_id']);finish(world,body['client_task_id'],tmp_path)
+    unrelated,asset=result_task(world,canvas,tmp_path);endpoint='/api/canvas-generation-history'
+    params={'canvas_id':canvas['id'],'node_id':'source','kind':'image','limit':1}
+    first=world['viewer'].get(endpoint,params=params,headers=headers(world['a']));assert first.status_code==200,first.text
+    assert first.json()['items'][0]['task_id'] in {bound[0],bound[2]};cursor=first.json()['next_cursor'];assert cursor
+    second=world['viewer'].get(endpoint,params={**params,'cursor':cursor},headers=headers(world['a']));assert second.status_code==200,second.text
+    assert {first.json()['items'][0]['task_id'],second.json()['items'][0]['task_id']}=={bound[0],bound[2]}
+    assert world['viewer'].get(endpoint,params={**params,'cursor':cursor,'node_id':'target'},headers=headers(world['a'])).status_code==400
+    target=world['viewer'].get(endpoint,params={**params,'node_id':'target','limit':100},headers=headers(world['a']));assert {item['task_id'] for item in target.json()['items']}=={bound[0],bound[2]}
+    other=world['viewer'].get(endpoint,params={**params,'node_id':'other-node'},headers=headers(world['a']));assert [item['task_id'] for item in other.json()['items']]==[bound[1]]
+    assert world['viewer'].get(endpoint,params={**params,'node_id':'missing'},headers=headers(world['a'])).status_code==404
+    assert world['viewer'].get(endpoint,params={'node_id':'source'},headers=headers(world['a'])).status_code==400
+    assert world['viewer'].get(endpoint+'/'+asset['id'],params={'canvas_id':canvas['id'],'node_id':'source'},headers=headers(world['a'])).status_code==404
+
+
 def result_task(world, canvas, tmp_path, kind='online-image'):
     from app.storage import media, tasks, database
     from app.storage.workspace import workspace_scope

@@ -14,7 +14,7 @@ PERMISSIONS = ('canvas.read', 'task.read', 'asset.read')
 KIND = "CASE WHEN t.kind='model' THEN 'model' WHEN a.kind IN ('image','video','audio') THEN a.kind ELSE 'file' END"
 
 
-def access(conn, canvas_id):
+def access(conn, canvas_id, node_id=''):
     actor = current_access.get()
     if actor is None or actor.principal.audience != 'workbench':
         az.fail('workbench_session_required')
@@ -23,11 +23,16 @@ def access(conn, canvas_id):
     ensure(conn, current_workspace(), 'read')
     if canvas_id:
         from app.services.canvas_leases import canvas_row
-        if canvas_row(conn, current_workspace(), canvas_id)['deleted_at']:
+        canvas = canvas_row(conn, current_workspace(), canvas_id)
+        if canvas['deleted_at']:
             az.fail('canvas_not_found', 404)
+        if node_id and not any(node.get('id') == node_id for node in canvas['document'].get('nodes', [])):
+            az.fail('history_node_not_found', 404)
+    elif node_id:
+        raise HTTPException(400, '节点历史需要指定当前画布')
 
 
-def clauses(canvas_id, kind):
+def clauses(canvas_id, kind, node_id=''):
     values = ["t.workspace_id=%s", "t.canvas_id IS NOT NULL", "t.status='succeeded'", "t.kind IN ('online-image','video','audio','model')",
               "a.status='ready'", "a.deleted_at IS NULL", "a.role<>'task-result-source'", "NOT (a.metadata ? 'chat_owner')"]
     args = [current_workspace()]
@@ -35,6 +40,9 @@ def clauses(canvas_id, kind):
         values.append('t.canvas_id=%s'); args.append(canvas_id)
     if kind != 'all':
         values.append(KIND + '=%s'); args.append(kind)
+    if node_id:
+        values.append("(t.request->'_canvas_binding'->>'source_node_id'=%s OR t.request->'_canvas_binding'->>'target_node_id'=%s)")
+        args.extend([node_id, node_id])
     return values, args
 
 
@@ -57,34 +65,34 @@ def item(row):
     return value
 
 
-def page(canvas_id='', kind='all', cursor='', limit=100):
+def page(canvas_id='', kind='all', cursor='', limit=100, node_id=''):
     if kind not in {'all', 'image', 'video', 'audio', 'model', 'file'} or not 1 <= limit <= 100:
         raise HTTPException(400, '无效的历史筛选或分页大小')
-    values, args = clauses(canvas_id, kind)
+    values, args = clauses(canvas_id, kind, node_id)
     if cursor:
         try:
             if len(cursor) > 2048: raise ValueError()
-            workspace, scope, media_kind, stamp, asset_id = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+            workspace, scope, media_kind, node_scope, stamp, asset_id = json.loads(base64.urlsafe_b64decode(cursor.encode()))
             after = datetime.fromisoformat(stamp)
-            if workspace != current_workspace() or scope != canvas_id or media_kind != kind or after.tzinfo is None or not media.ASSET_ID.fullmatch(asset_id):
+            if workspace != current_workspace() or scope != canvas_id or media_kind != kind or node_scope != node_id or after.tzinfo is None or not media.ASSET_ID.fullmatch(asset_id):
                 raise ValueError()
         except (ValueError, TypeError, UnicodeError):
             raise HTTPException(400, '无效的历史分页游标') from None
         values.append('(a.created_at,a.id)<(%s,%s)');args.extend([after, asset_id])
     with az.policy_transaction() as conn:
-        access(conn, canvas_id)
+        access(conn, canvas_id, node_id)
         rows = conn.execute('SELECT * FROM (' + query(values) + ') generated ORDER BY created_at DESC,id DESC LIMIT %s', (*args, limit + 1)).fetchall()
     more = len(rows) > limit; rows = rows[:limit]; next_cursor = None
     if more:
         last = rows[-1]
-        next_cursor = base64.urlsafe_b64encode(json.dumps([current_workspace(), canvas_id, kind, last['created_at'].isoformat(), last['id']]).encode()).decode()
+        next_cursor = base64.urlsafe_b64encode(json.dumps([current_workspace(), canvas_id, kind, node_id, last['created_at'].isoformat(), last['id']]).encode()).decode()
     return {'items': [item(row) for row in rows], 'next_cursor': next_cursor}
 
 
-def detail(asset_id, canvas_id=''):
-    values, args = clauses(canvas_id, 'all'); values.append('a.id=%s');args.append(asset_id)
+def detail(asset_id, canvas_id='', node_id=''):
+    values, args = clauses(canvas_id, 'all', node_id); values.append('a.id=%s');args.append(asset_id)
     with az.policy_transaction() as conn:
-        access(conn, canvas_id)
+        access(conn, canvas_id, node_id)
         row = conn.execute(query(values), args).fetchone()
     if not row:
         raise HTTPException(404, '生成素材不存在或已删除')

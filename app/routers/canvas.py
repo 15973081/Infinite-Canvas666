@@ -37,15 +37,15 @@ _canvas_video_recovery_tasks = set()
 
 
 @router.get('/api/canvas-generation-history')
-def canvas_generation_history(canvas_id: str = '', kind: str = 'all', cursor: str = '', limit: int = 100):
+def canvas_generation_history(canvas_id: str = '', kind: str = 'all', cursor: str = '', limit: int = 100, node_id: str = ''):
     from app.services.canvas_generation_history import page
-    return page(canvas_id, kind, cursor, limit)
+    return page(canvas_id, kind, cursor, limit, node_id)
 
 
 @router.get('/api/canvas-generation-history/{asset_id}')
-def canvas_generation_history_detail(asset_id: str, canvas_id: str = ''):
+def canvas_generation_history_detail(asset_id: str, canvas_id: str = '', node_id: str = ''):
     from app.services.canvas_generation_history import detail
-    return detail(asset_id, canvas_id)
+    return detail(asset_id, canvas_id, node_id)
 
 
 def _canvas_video_payload_dict(payload: CanvasVideoRequest) -> dict:
