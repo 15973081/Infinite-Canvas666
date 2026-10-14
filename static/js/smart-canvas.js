@@ -557,7 +557,9 @@ function refreshSmartModelControls(){
         }
         return;
     }
-    renderDynamicParams();
+    const subject=activeComposerNode(),native=window.PixmaxGenerationParameters?.supported(subject),configuration=native?window.PixmaxGenerationParameters.configuration(subject):null;
+    renderDynamicParams(!native);
+    if(native){settings=cloneSmartSettings(configuration);void window.PixmaxNativePrompt?.sync();}
     refreshSmartNodes(nodes.filter(node=>node.type === 'smart-prompt').map(node=>node.id));
 }
 function applySmartModelConfig(cfg){

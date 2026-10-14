@@ -21,7 +21,7 @@
     }
     function dispose(){
         const session=active;if(!session)return;session.closed=true;active=null;sequence++;
-        session.observer?.disconnect();session.resize?.disconnect();session.handle?.destroy();session.camera?.destroy();for(const picker of session.pickers)picker.remove();
+        session.observer?.disconnect();session.resize?.disconnect();session.controls?.destroy();session.handle?.destroy();session.camera?.destroy();for(const picker of session.pickers)picker.remove();
         session.root.remove();promptInput.style.display='';promptInput.removeAttribute('aria-hidden');
     }
     function replaceValue(session,value){
@@ -45,6 +45,7 @@
         session.subjectButton.hidden=!subjects(session.node);session.root.querySelector('[data-native-camera-open]').hidden=!cameraSupported;session.root.style.setProperty('--prompt-h',promptInput.style.getPropertyValue('--prompt-h')||'124px');
         if(session.stamp!==stamp){session.stamp=stamp;session.handle?.setReferences({mentionItems:plan.mentions,incomingNodes:plan.incomingNodes});session.handle?.setInvalidSubjects(invalid);}
         if(session.node.nativePrompt&&session.value!==session.node.nativePrompt.prompt){session.value=session.node.nativePrompt.prompt;replaceValue(session,session.value);}
+        session.controls?.refresh();
     }
     async function sync(){
         const node=activeComposerNode();if(!supported(node)||!composer.classList.contains('open')){dispose();return;}
@@ -86,6 +87,7 @@
                 }
                 if(editable(session))session.camera.setOpen(true);
             };
+            const controls=await PixmaxGenerationParameters.mount({node,api,valid:()=>readable(session),editable:()=>editable(session),onRoot:(root,added)=>added?session.pickers.add(root):session.pickers.delete(root)});if(!readable(session)){controls?.destroy();return;}session.controls=controls;
             refresh(session);positionComposerForNode(node);
         }catch(error){if(readable(session)){dispose();toast(error.message||'原生提示词加载失败');}}
     }

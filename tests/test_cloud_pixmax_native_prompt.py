@@ -17,11 +17,12 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('kind', ['image', 'video'])
+@pytest.mark.parametrize('kind', ['image', 'video', 'image-parameters', 'video-parameters'])
 def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exports_owned_media(world, platform, tmp_path, kind):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
     root=Path(__file__).resolve().parents[1]
+    parameters=kind.endswith('-parameters');kind=kind.split('-')[0]
     provider_id='native-prompt-'+uuid.uuid4().hex[:16]
     configured=platform['client'].put('/api/providers/'+provider_id,json={
         'config':{'name':'原生提示词隔离验收','base_url':'https://supplier.test/api/v3','protocol':'volcengine' if kind=='video' else 'openai','enabled':True,'image_models':['gpt-image-2'] if kind=='image' else [],'video_models':['doubao-seedance-2-5-pro'] if kind=='video' else []},
@@ -40,6 +41,12 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         assert response.status_code==200,response.text
         assets.append({**response.json()['files'][0],'kind':media_kind})
     output=assets[-1]
+    if parameters and kind=='video':
+        filename=tmp_path/'native-output.mov'
+        subprocess.run(['ffmpeg','-v','error','-i',str(root/'tests/fixtures/pixmax-audio-source.mp4'),'-c','copy','-y',str(filename)],check=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        response=world['editor'].post('/api/ai/upload',headers=headers(world['a']),files={'files':(filename.name,filename.read_bytes(),'video/quicktime')})
+        assert response.status_code==200,response.text
+        output={**response.json()['files'][0],'kind':'video'}
     subject=None
     if kind=='video':
         response=world['editor'].post('/api/subject-library/PERSONAL/groups',headers=headers(world['a']),json={'expected_revision':0,'name':'摄影师主体','description':'黄昏的摄影师'})
@@ -55,7 +62,7 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
     done,task_ids,finalized=False,[],set()
     endpoint='/api/canvas-'+kind+'-tasks'
     try:
-        process.stdin.write(json.dumps({'initial':{'directory':str(tmp_path),'canvas':canvas,'kind':kind,'provider':provider,'member':world['people'][0]['id'],'workspace':world['a']['id'],'subject':subject}})+'\n');process.stdin.flush()
+        process.stdin.write(json.dumps({'initial':{'directory':str(tmp_path),'canvas':canvas,'kind':kind,'parameters':parameters,'provider':provider,'member':world['people'][0]['id'],'workspace':world['a']['id'],'subject':subject}})+'\n');process.stdin.flush()
         for line in process.stdout:
             pointer=json.loads(line)
             if pointer.get('done'):done=pointer;break
@@ -92,6 +99,14 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         with workspace_scope(world['a']['id']):
             request=tasks.request(task_ids[0]);assert request['provider_id']==provider_id
             assert '黄昏的摄影师' in request['prompt'] and '%%' not in request['prompt']
+            if parameters:
+                if kind=='image':
+                    assert request['size']=='2048x2048' and request['quality']=='high'
+                    assert node['runSettings']['resolution']=='2k' and node['runSettings']['quality']=='high'
+                else:
+                    assert request['resolution']=='1080p' and request['generate_audio'] is True and request['output_format']=='mov'
+                    assert node['runSettings']['videoOutputFormat']=='mov' and node['runSettings']['videoGenerateAudio'] is True
+                    assert 'quicktime' in world['viewer'].get(output['url'],headers=headers(world['a'])).headers['content-type']
             if subject:
                 assert '摄影师主体（文本1、图片1、音频1、视频1）' in request['prompt']
                 assert '年轻摄影师，穿着蓝色外套' in request['prompt'] and subject['id'] not in request['prompt']
@@ -108,7 +123,7 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         exported=world['editor'].post('/api/canvas-workflows/export',headers=headers(world['a']),json={'nodes':saved['nodes'],'connections':saved['connections'],'include_resources':True})
         assert exported.status_code==200,exported.text
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
-            workflow=json.loads(archive.read('workflow.json'));assert len(workflow['resources'])==len(assets)
+            workflow=json.loads(archive.read('workflow.json'));assert len(workflow['resources'])==len({item['url'] for item in [*assets,output]})
         imported=world['editor'].post('/api/canvas-workflows/import',headers=headers(world['a']),files={'file':('native-prompt.zip',exported.content,'application/zip')})
         assert imported.status_code==200,imported.text
         copy=next(item for item in imported.json()['nodes'] if item.get('nativePrompt'))

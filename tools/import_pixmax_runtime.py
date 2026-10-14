@@ -44,6 +44,18 @@ camera_escape='e.key===`Escape`&&(e.preventDefault(),a(!1))'
 assert camera_segment.count(camera_escape)==1
 camera_segment=camera_segment.replace(camera_escape,'e.key===`Escape`&&(t.stopEscapePropagation&&e.stopPropagation(),e.preventDefault(),a(!1))')
 runtime=runtime[:camera_start]+camera_segment+runtime[camera_end_component:]
+parameters_start=runtime.index('function g$(')
+parameters_end=runtime.index('hf([`click`,`input`]);var Xlt=',parameters_start)
+parameters_segment=runtime[parameters_start:parameters_end]
+parameters_open='pd(()=>{u()&&G(m)&&(N(),B(m,!1))})'
+parameters_panel='var n=Jlt(),r=V(n),i=V(r)'
+assert parameters_segment.count(parameters_open)==parameters_segment.count(parameters_panel)==1, 'Native parameter portal boundary changed'
+parameters_segment=parameters_segment.replace(parameters_open,'pd(()=>{t.onOpenChange?.(G(m));u()&&G(m)&&(N(),B(m,!1))})')
+parameters_segment=parameters_segment.replace(parameters_panel,'var n=Jlt(),r=(t.onPanelReady?.(n),V(n)),i=V(r)')
+parameters_position='i=e.top-t-4;P({left:Math.round(r),top:Math.round(i)})'
+assert parameters_segment.count(parameters_position)==1, 'Native parameter positioning changed'
+parameters_segment=parameters_segment.replace(parameters_position,'i=Math.max(8,Math.min(e.top-t-4,window.innerHeight-t-8));P({left:Math.round(r),top:Math.round(i)})')
+runtime=runtime[:parameters_start]+parameters_segment+runtime[parameters_end:]
 camera_end=bundle.index('AX={camera:EX,lens:DX,focalLength:OX,aperture:kX}')
 camera_names=re.findall(r'/assets/([A-Za-z0-9_-]+\.png)',bundle[bundle.rfind('mot=',0,camera_end):camera_end])
 assert len(camera_names)==27
@@ -126,20 +138,25 @@ export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params
         const buttons=[...portal.querySelectorAll('[data-select-option]:not(:disabled)')],index=buttons.indexOf(document.activeElement);
         if(buttons.length&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next].focus();}
       });};
+    const escape=event=>{if(event.key==='Escape'&&document.querySelector('.'+portalClass)){event.preventDefault();event.stopPropagation();const button=target.querySelector('button');button?.click();button?.focus();}};
     const instance=Tf(Kz,{target,props:{...props,placement:'top',portal:true,subtitleReveal:'hover-selected',
       triggerClass:'w-full',dropdownClass:'pixmax-reshoot-model-options '+portalClass+' w-[min(100vw-2rem,366px)]',
       get value(){return G(data).value;},get options(){return G(data).options;},get disabled(){return G(disabled);},
-      onOpenChange(open){const button=target.querySelector('button');button?.setAttribute('aria-expanded',String(open));if(open)void tf().then(()=>{if(!disposed&&target.isConnected)preparePortal();});props.onOpenChange?.(open);}}});
-    await tf();const button=target.querySelector('button');button?.setAttribute('aria-label','重拍模型');button?.setAttribute('aria-haspopup','true');
-    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){disposed=true;return Of(instance);}};
+      onOpenChange(open){const button=target.querySelector('button');button?.setAttribute('aria-expanded',String(open));document.removeEventListener('keydown',escape,true);if(open){document.addEventListener('keydown',escape,true);void tf().then(()=>{if(!disposed&&target.isConnected)preparePortal();});}props.onOpenChange?.(open);}}});
+    await tf();const button=target.querySelector('button');button?.setAttribute('aria-label',props.ariaLabel||'重拍模型');button?.setAttribute('aria-haspopup','true');
+    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){disposed=true;document.removeEventListener('keydown',escape,true);return Of(instance);}};
   },
   async mountParameters(target, props) {
     const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
-    const data=z({value:props.value,fields:props.fields}),disabled=z(!!props.disabled);
-    const instance=Tf(g$,{target,context:new Map([[tCe,container]]),props:{...props,separator:'·',disabledFieldNames:['duration','aspectRatio'],
+    const data=z({value:props.value,fields:props.fields,disabledFieldNames:props.disabledFieldNames}),disabled=z(!!props.disabled);let disposed=false,open=false,panel,button;
+    const escape=event=>{if(event.key==='Escape'&&open&&!disposed){event.preventDefault();event.stopPropagation();button?.click();button?.focus();}};
+    const instance=Tf(g$,{target,context:new Map([[tCe,container]]),props:{...props,separator:'·',
+      onOpenChange(next){open=next;document.removeEventListener('keydown',escape,true);if(next&&!disposed)document.addEventListener('keydown',escape,true);props.onOpenChange?.(next);},
+      onPanelReady(element){panel=element;panel.addEventListener('wheel',event=>event.stopPropagation(),{passive:true});panel.addEventListener('keydown',event=>event.stopPropagation());props.onPanelReady?.(element);},
+      get disabledFieldNames(){return G(data).disabledFieldNames??props.disabledFieldNames??['duration','aspectRatio'];},
       get value(){return G(data).value;},get fields(){return G(data).fields;},get disabled(){return G(disabled);}}});
-    await tf();target.querySelector('button')?.setAttribute('aria-label','重拍生成参数');
-    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){return Of(instance);}};
+    await tf();button=target.querySelector('button');button?.setAttribute('aria-label',props.ariaLabel||'重拍生成参数');
+    return {instance,setData(next){B(data,next,true);},setDisabled(next){if(next&&open)button?.click();B(disabled,!!next);},destroy(){disposed=true;document.removeEventListener('keydown',escape,true);panel=null;return Of(instance);}};
   },
   async mountPrompt(target, props) {
     const container = new f, i18n = await KLe();
@@ -200,7 +217,7 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
     'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork'],
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')
@@ -230,3 +247,19 @@ for field in fields:
     for key in ['min','max','step']:
         if key in field:field[key]=float(field[key])
 (destination/'reshoot-schema.json').write_text(json.dumps({'source':'User-supplied Pixmax modelConfig snapshot','source_response_sha256':hashlib.sha256(response).hexdigest(),'modelCode':model['modelCode'],'fields':fields},ensure_ascii=False,indent=2),encoding='utf-8')
+
+models=[]
+def collect_generation_models(value):
+    if isinstance(value,dict):
+        if value.get('nodeType') in ['GENERATE_IMAGE','GENERATE_VIDEO'] and isinstance(value.get('modelConfig'),dict):
+            public_fields=json.loads(json.dumps(value['modelConfig'].get('params',[])))
+            for field in public_fields:
+                for key in ['min','max','step']:
+                    if key in field:field[key]=float(field[key])
+            models.append({'nodeType':value['nodeType'],'modelCode':value['modelCode'],'modelName':value['modelName'],'fields':public_fields})
+        for item in value.values():collect_generation_models(item)
+    elif isinstance(value,list):
+        for item in value:collect_generation_models(item)
+collect_generation_models(json.loads(response))
+assert models and any(item['modelCode']=='PIXDANCE_2_5' for item in models)
+(destination/'generation-schema.json').write_text(json.dumps({'source':'User-supplied Pixmax modelConfig snapshot','source_response_sha256':hashlib.sha256(response).hexdigest(),'models':models},ensure_ascii=False,indent=2),encoding='utf-8')

@@ -1625,6 +1625,7 @@ function buildPromptRequestForNode(node, defaultImages, ctx=null){
 }
 
 async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=settings, inputBinding=null){
+    window.PixmaxGenerationParameters?.validate(node);
     const writeGuard=canvasTaskWriteGuard(node);
     writeGuard.check(); inputBinding?.check();
     inputBinding ||= smartTaskInputBinding(node,node,writeGuard);
@@ -1999,6 +2000,7 @@ async function runGeneration(){
     if(!node) return;
     if(node.segmentReshoot?.schemaVersion===1)return window.PixmaxSegmentReshoot.open(node);
     savePromptDraftForCurrent();
+    try{window.PixmaxGenerationParameters?.validate(node);}catch(error){return toast(error.message);}
     if(node.nativePrompt?.schemaVersion===1){
         const guard=canvasTaskWriteGuard(node),configuration=JSON.stringify(settingsForStorage(smartSettingsForNode(node)));
         const valid=()=>guard.valid()&&selectedNode()===node&&activeComposerNode()===node&&JSON.stringify(settingsForStorage(smartSettingsForNode(node)))===configuration;

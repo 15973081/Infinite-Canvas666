@@ -27,6 +27,12 @@ async function transport(request){const pathname=new URL(request.url()).pathname
         }else{
             await page.getByRole('button',{name:'添加镜头参数',exact:true}).click();const panel=page.locator('[data-native-camera] [role=dialog]');await panel.waitFor();await panel.locator('header button').click();assert.equal(await page.locator('.pixmax-native-prompt [data-hash-type=camera]').count(),1);
         }
+        if(config.parameters){
+            await page.getByRole('button',{name:'生成参数',exact:true}).click();const panel=page.locator('[data-combo-selector-panel]');
+            if(config.kind==='image'){await panel.getByRole('button',{name:'2K',exact:true}).click();await panel.getByRole('button',{name:'高',exact:true}).click();}
+            else{await panel.getByRole('button',{name:'1080P',exact:true}).click();await panel.getByRole('button',{name:'Audio On',exact:true}).click();await panel.getByRole('button',{name:'MOV',exact:true}).click();}
+            await page.keyboard.press('Escape');await panel.waitFor({state:'detached'});
+        }
         await page.evaluate(()=>runGeneration());await page.waitForFunction(()=>__nativeTarget.images.length===1).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({notices:[...document.querySelectorAll('[role=status],.toast')].map(item=>item.textContent),pending:__nativeTarget.pendingTasks}))));});
         assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
         // Reload through the actual lease controller, then reopen the saved editor.

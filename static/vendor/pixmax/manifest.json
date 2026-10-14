@@ -36,7 +36,8 @@
     "Expose native rich prompt editor with scoped reference adapters",
     "Expose native reshoot parameter controls and freeze public model fields",
     "Expose native model selector with host provider and policy adapters",
-    "Expose native camera panel with member-scoped preferences and local public artwork"
+    "Expose native camera panel with member-scoped preferences and local public artwork",
+    "Expose ordinary generation controls with native parameter portal lifecycle and viewport limits"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }

@@ -604,6 +604,12 @@ button,input,textarea {
   justify-content: flex-end;
 }
 
+.pixmax-generation-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+.pixmax-generation-controls [data-generation-model]{width:min(340px,100%);max-width:100%;min-width:0}
+.pixmax-generation-controls [data-generation-model]>div{width:100%;min-width:0}
+.pixmax-generation-controls>div>div>button{min-height:32px;max-width:100%;color:#b9c1cd;font-size:13px}
+body:has(.pixmax-generation-controls) [data-combo-selector-panel]{z-index:100150!important;max-height:min(650px,calc(100vh - 24px));overflow:auto}
+
 .pixmax-control-group {
   display: flex;
   align-items: center;

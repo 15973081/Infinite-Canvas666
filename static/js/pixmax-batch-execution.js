@@ -31,6 +31,7 @@
         return {candidates,skipped,excludedDownstreamIds:[...excluded]};
     }
     async function prepare(node,type){
+        window.PixmaxGenerationParameters?.validate(node);
         if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){const guard=canvasTaskWriteGuard(node);await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
         if(type==='audio')return window.PixmaxAudioCreation.prepare(node);
         if(type==='model')return window.PixmaxModelCreation.prepare(node);

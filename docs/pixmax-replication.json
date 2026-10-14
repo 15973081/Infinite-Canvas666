@@ -147,12 +147,56 @@
         ".local/pixmax-native-camera-mobile.png"
       ],
       "remaining": [
-        "普通生成的完整 N1 面板、模型和参数选择、全部图像/视频模式及素材输入卡视觉交互仍需对齐；当前原生化范围为提示词编辑器及其入口",
+        "原生模型和参数选择见 ordinaryGenerationParametersEvidence；完整 N1 面板、全部图像/视频模式及素材输入卡视觉交互仍需对齐",
         "主体入口当前适配已支持的 Seedance 2.5；其他参考视频模型能力、独立主体管理页和跨成员/空间分享复制仍需完整对照",
         "完整运镜库选择/创建/收藏、更多 hash 协议，以及未知任务恢复、多个窗口与历史独立撤销的最终组合验收",
         "真实部署网络、真实供应商输出质量和同场景大画布 FPS/内存对比仍未验收"
       ],
       "verificationScope": "实际媒体、编辑资格、HTTP 接收、保存与隔离数据库所有权均执行；供应商完成使用受控替身，无收费生成或用户画布写入。计数测试不作为相对 Pixmax 的 FPS 结论。"
+    },
+    "ordinaryGenerationParametersEvidence": {
+      "status": "implemented_local_requires_final_verification",
+      "component": "普通 N1 面板使用的 Kz 模型/数量选择器与 g$ 参数组合控件；完整 N1 服务、表单与生成模式尚未完成",
+      "source": [
+        "static/js/pixmax-generation-parameters.js",
+        "static/js/pixmax-native-prompt.js",
+        "static/js/smart-canvas.js",
+        "static/js/canvas/smart/smart-execution.js",
+        "static/js/pixmax-batch-execution.js",
+        "static/vendor/pixmax/generation-schema.json",
+        "tools/import_pixmax_runtime.py"
+      ],
+      "publicSchemaCount": 39,
+      "browserCases": 13,
+      "databaseCases": 4,
+      "verified": [
+        "普通生成面板使用真实 Kz/g$ DOM；接收项目的供应商、模型身份和规格政策生成选项，原模型 ID 以供应商+模型组合区分；原控制器继续持有设置和生成任务",
+        "公开 modelConfig 快照冻结 39 份图像/视频模型字段，记录原响应 SHA256，只导出 nodeType、modelCode、modelName、fields，不导出账号、订阅、折扣或价格；缓存一次加载，不把未配置的参考模型列为可调用选项",
+        "图像分辨率、比例、质量、1–8 张数量和自定义尺寸由原生控件编辑；4 张图片保持原执行器的四份独立单图任务及回执；支持仅有自定义尺寸的模型初始化",
+        "视频分辨率、比例、自定义时长、声音、Seedance 2.5 MP4/MOV、原有任务类型及高级设置接入原生控件；新选择的供应商时长/分辨率限制应用于设置，原扩图尺寸不会因模型切换被重标",
+        "配置刷新不覆盖已保存供应商/模型；当前选择失效必须明确重新选择。直接执行、批次准备及级联生成入口校验可用身份和规格；隐藏模型排除，密钥缺失或停用选项禁用",
+        "原生参数弹窗有独立开关/根节点生命周期，Escape 在触发按钮或弹窗中均只关闭自己的菜单；编辑资格丢失关闭菜单，旧模式/节点/空间不能接受迟到回调",
+        "原生浮层垂直位置限制在当前视口，长内容允许滚动；390px 窄屏及长模型标签、提示词保留、自定义尺寸/时长、水印请求与迟到 schema 加载专项通过",
+        "四项实际 Chrome/认证 ASGI/隔离 PostgreSQL 流程覆盖图像镜头、视频主体及两个原生参数变体；2K/high 和 1080p/Audio On/MOV 到达真实任务记录，实际 MOV 上传文件、素材权限、保存重开和 ZIP 往返通过"
+      ],
+      "relatedRegression": {
+        "frontend": ".local/pixmax-native-generation-front-final.log：122 项提示词、批次、普通生成、面板、导航、编码、工作流和性能机制检查通过；最后自定义规格模型补充及尺寸保护后 .local/pixmax-native-generation-controls-final.log 重跑全部 13 项原生参数专项",
+        "sharedControls": ".local/pixmax-native-generation-shared-controls.log：10 项重拍参数、模型、键盘、窄屏和生命周期检查通过",
+        "database": ".local/pixmax-native-generation-db-final.log：12 项普通生成与重拍真实浏览器/数据库流程通过；其中四项普通生成包含两个新原生参数变体",
+        "cache": "16 项前端资源版本/缓存检查，JS 语法及 diff 检查通过"
+      },
+      "preview": [
+        ".local/pixmax-native-generation-image.png",
+        ".local/pixmax-native-generation-video.png",
+        ".local/pixmax-native-generation-mobile.png"
+      ],
+      "remaining": [
+        "N1 完整表单、全屏、费用显示、素材输入卡与全部菜单视觉仍需最终对齐；当前复用其 Kz/g$ 控件，不把它当成整个 N1 已完整接入",
+        "参考全部图像模式和逐模型专有参数，以及 textToVideo/imageToVideo/firstAndLastFrame/referToVideo 等视频原生模式与实际供应商角色映射仍需逐项实现及验收",
+        "视频数量生成、完整运镜资源库、模型能力变更时全部参考组合、旧文档迁移和更多扩图配置仍需完整验收",
+        "真实生产网络、生成质量、费用和大画布性能最终验证"
+      ],
+      "verificationScope": "实际控件、媒体、编辑资格、HTTP 接收、保存和 PostgreSQL 所有权执行；供应商完成用受控替身。未调用收费供应商；性能机制检查不能证明整体 FPS 提升。"
     },
     "subjectLibraryUiEvidence": {
       "status": "implemented_requires_final_verification",
