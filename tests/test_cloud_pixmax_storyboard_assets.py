@@ -12,6 +12,45 @@ from test_cloud_audio_tasks import execute
 
 pytestmark=pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST')!='1',reason='Use tools/cloud_test.py')
 
+def test_browser_frame_membership_drag_preserves_submitted_task_binding(world,image_space,tmp_path):
+    from test_cloud_task_canvas_bindings import setup_bound_canvas,finish
+    from app.storage.database import connection
+    from app.storage.task_canvas_bindings import graph_fingerprint
+    path,canvas,lease=setup_bound_canvas(world,'smart')
+    positions={'prompt':(260,250,240,240),'source':(580,250,200,240),'target':(950,290,180,100)}
+    for node in canvas['nodes']:
+        x,y,w,h=positions[node['id']];node.update(x=x,y=y,w=w,h=h)
+        if node['id']=='prompt':node['type']='smart-prompt'
+    saved=world['editor'].put(path,headers=proof(world,lease,canvas['revision']),json={**canvas,'base_revision':canvas['revision']})
+    assert saved.status_code==200,saved.text
+    canvas=saved.json()['canvas'];root=Path(__file__).resolve().parents[1];submitted=[];done=None
+    process=subprocess.Popen(['node',str(root/'tests/helpers/pixmax-task-undo-http.cjs')],cwd=root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    try:
+        process.stdin.write(json.dumps({'initial':{'canvas':canvas,'kind':'frame-drag','providerId':image_space,'proof':{key:value for key,value in proof(world,lease).items() if key.startswith('X-Canvas-')}}})+'\n');process.stdin.flush()
+        for line in process.stdout:
+            message=json.loads(line)
+            if message.get('done'):done=message;break
+            if message['method']=='POST' and message['path']=='/api/canvas-image-tasks':submitted.append(json.loads(message['body'])['client_task_id'])
+            response=world['editor'].request(message['method'],message['path'],headers={**headers(world['a']),**message['headers']},content=message.get('body'))
+            assert response.status_code==200,(message['method'],response.status_code,response.json().get('detail'))
+            process.stdin.write(json.dumps({'id':message['id'],'status':response.status_code,'body':response.json()})+'\n');process.stdin.flush()
+        process.wait(timeout=5);assert process.returncode==0,process.stderr.read();assert done and done['posts']==1 and submitted==[done['taskId']]
+        document=world['viewer'].get(path,headers=headers(world['a'])).json()['canvas'];frame=next(node for node in document['nodes'] if node['type']=='smart-frame')
+        assert all(node.get('frameId')==frame['id'] for node in document['nodes'] if node['type']!='smart-frame')
+        assert next(node for node in document['nodes'] if node['id']=='target')['x']==510
+        assert len(document['connections'])==2
+        with connection() as conn:
+            task=conn.execute('SELECT status,request FROM tasks WHERE id=%s',(done['taskId'],)).fetchone();assert task['status']=='queued'
+            assert task['request']['_canvas_binding']['graph_sha256']==graph_fingerprint(document,'source','target')
+            assert conn.execute('SELECT count(*) AS n FROM task_submissions WHERE task_id=%s',(done['taskId'],)).fetchone()['n']==0
+        # Complete through the isolated storage fixture, without a supplier call.
+        finish(world,done['taskId'],tmp_path)
+        results=world['viewer'].get(path+'/task-results',headers=headers(world['a'])).json()['results'];assert results[0]['binding']['state']=='unchanged'
+    finally:
+        if process.poll() is None:process.kill();process.wait(timeout=5)
+        for pipe in (process.stdin,process.stdout,process.stderr):pipe.close()
+
+
 def test_storyboard_asset_batch_keeps_paid_receipts_associations_and_one_result_undo(world,image_space):
     from app.storage.database import connection
     path,canvas=setup_canvas(world,'smart');lease=acquire(world,path)

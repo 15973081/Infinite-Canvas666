@@ -15,7 +15,7 @@ async function transport(request,canvasId){
 (async()=>{
     const config=await ready,cleanup=[];let posts=0;
     try{
-        const taskKind=config.kind==='parse'?'llm':['assets','shots'].includes(config.kind)?'image':config.kind;
+        const taskKind=config.kind==='parse'?'llm':['assets','shots','frame-drag'].includes(config.kind)?'image':config.kind;
         const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,
             apiHandler:request=>{if(request.method()==='POST'&&request.url().includes('/api/canvas-'+taskKind+'-tasks'))posts++;return transport(request,config.canvas.id);}});
         await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
@@ -38,8 +38,29 @@ async function transport(request,canvasId){
                 }
                 return fetcher(url,init);
             };
-            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else if(config.kind==='shots')PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'image');else openSmartStudio(nodes[0].id);
+            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else if(config.kind==='assets')PixmaxStoryboardAssets.open(nodes[0]);else if(config.kind==='shots')PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'image');else if(config.kind!=='frame-drag')openSmartStudio(nodes[0].id);
         },config);
+        if(config.kind==='frame-drag'){
+            const taskId=await page.evaluate(async config=>{
+                const source=nodes.find(node=>node.id==='source'),target=nodes.find(node=>node.id==='target');
+                const binding=smartTaskInputBinding(source,target,canvasTaskWriteGuard(source,target));
+                const canvas_target=await binding.prepare();binding.beginSubmission();
+                const id='canvas_img_'+crypto.randomUUID().replace(/-/g,'');
+                const response=await CanvasApi.createCanvasImageTaskRequest({canvas_id:canvas.id,client_task_id:id,provider_id:config.providerId,model:'test',prompt:'private original input',n:1,canvas_target});
+                if(!response.ok)throw Error(await response.text());binding.remember(await response.json());
+                window.frameTaskBinding=binding;PixmaxCanvasFrames.create(['prompt','source']);return id;
+            },config);
+            const box=await page.locator('[data-id="target"] .node-body').boundingBox();
+            await page.mouse.move(box.x+10,box.y+35);await page.mouse.down();await page.mouse.move(box.x-430,box.y+35,{steps:5});await page.mouse.up();
+            assert.equal(await page.evaluate(()=>{const frame=nodes.find(PixmaxCanvasFrames.isFrame);return nodes.every(node=>PixmaxCanvasFrames.isFrame(node)||node.frameId===frame.id);}),true);
+            assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
+            await page.evaluate(async id=>{const response=await CanvasApi.getCanvasImageTaskRequest(id);if(!response.ok)throw Error(await response.text());frameTaskBinding.verify(await response.json(),id);},taskId);
+            await page.reload();await page.waitForFunction(id=>canvas?.id===id,config.canvas.id);
+            assert.equal(await page.evaluate(()=>{const frame=nodes.find(PixmaxCanvasFrames.isFrame);return nodes.every(node=>PixmaxCanvasFrames.isFrame(node)||node.frameId===frame.id);}),true);
+            assert.equal(await page.evaluate(()=>nodes.find(node=>node.id==='target').x),510);
+            assert.equal(await page.locator('.smart-connection').count(),2);assert.deepEqual(errors,[]);assert.equal(posts,1);
+            process.stdout.write(JSON.stringify({done:true,posts,taskId,revision:await page.evaluate(()=>canvas.revision)})+'\n');return;
+        }
         if(config.kind==='shots'){
             await page.getByRole('button',{name:'创建生成节点'}).click();await page.waitForFunction(()=>!document.querySelector('.pixmax-story-media-modal'));
             await page.evaluate(()=>PixmaxStoryboardMedia.open(nodes.find(node=>node.type==='smart-storyboard'),'video'));

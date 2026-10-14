@@ -1724,6 +1724,7 @@ function moveNodeElementsDuringDrag(){
         }
     });
     window.PixmaxCanvasFrames?.updateElements(groupItems.map(item=>item.id));
+    window.PixmaxCanvasFrames?.previewDrag(dragState);
     const active = selectedNode();
     if(active && (dragState.group || [{id:dragState.id}]).some(item => item.id === active.id)){
         positionComposerForNode(active);
@@ -2686,6 +2687,7 @@ function bindNodeEvents(elements=null){
                 return n ? {id:n.id, ox:Number(n.x) || 0, oy:Number(n.y) || 0} : null;
             }).filter(Boolean);
             dragState = {id:node.id, startX:e.clientX, startY:e.clientY, ox:node.x || 0, oy:node.y || 0, group, groupIds:group.map(item => item.id), ctrlGroup:Boolean(e.ctrlKey)};
+            window.PixmaxCanvasFrames?.prepareDrag(dragState);
             document.body.classList.add('smart-node-drag');
             capturePendingUndo();
         };
@@ -2731,6 +2733,7 @@ function rectOverlapNode(draggedId, x, y, w, h, excludeIds=[]){
     const excluded = new Set([draggedId, ...(excludeIds || [])]);
     for(const n of nodes){
         if(excluded.has(n.id)) continue;
+        if(window.PixmaxCanvasFrames?.isFrame(n))continue;
         const r = nodeRect(n);
         if(cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height) return n;
     }
@@ -3783,6 +3786,7 @@ function bindSmartWorkspaceGestures(){
                 return;
             }
             // Connections are made through handles; overlapping cards only moves them.
+            window.PixmaxCanvasFrames?.reconcileDrag(dragState);
             commitPendingUndo();
             clearDropHighlight();
             dragState = null;
@@ -4755,10 +4759,11 @@ function createSmartWorkspaceView(){
     }
     function nodeForComputation(id){return smartComputationContext?smartComputationContext.byId.get(id):nodes.find(node=>node.id===id);}
     function connectionsForComputation(id){return smartComputationContext?smartComputationContext.incoming.get(id)||[]:canvas?.connections||[];}
+    function frameIndexForComputation(build){return smartComputationContext?smartComputationContext.frameIndex||=build():build();}
     return Object.freeze({
         get state(){return Object.freeze({paused,destroyed,pendingGeometry:smartGeometryFrame!==null,pendingViewport:pendingSmartViewportRefresh!==null});},
         reset,bind,pause,resume,destroy,
-        topology:graphTopology,withComputation:withSmartComputationImpl,nodeRect:nodeRectImpl,nodeForComputation,connectionsForComputation,
+        topology:graphTopology,withComputation:withSmartComputationImpl,nodeRect:nodeRectImpl,nodeForComputation,connectionsForComputation,frameIndex:frameIndexForComputation,
         scheduleViewport:(...args)=>view(scheduleSmartViewportRefreshImpl,args),scheduleGeometry:(...args)=>view(scheduleSmartGeometryRefreshImpl,args),
         cancelGeometry,restoreScroll:(...args)=>view(restoreSmartNodeScrollImpl,args),recycle:(...args)=>view(renderSmartOffscreenPlaceholdersImpl,args),
         connectionPaths:(...args)=>view(renderSmartConnectionPathsImpl,args),refreshConnections:(...args)=>view(refreshConnectionLayerImpl,args),
