@@ -17,6 +17,7 @@
         try {
             if(!await leaveGuard())return false;
             window.LocalDepthVideo?.allowPageExit?.();
+            window.PixmaxMediaTools?.allowPageExit?.();
             window.top.location.assign(target.href);
             return true;
         } catch(error) {
@@ -48,11 +49,13 @@
         card.append(title,note,retry,back);document.body.append(card);
     }
     function confirmLocalWork(){
-        return !window.LocalDepthVideo?.hasUnfinishedWork?.() || window.confirm('本地深度处理仍在进行，或结果尚未保存到画布。离开将中断处理并丢失未保存的本地结果。确定离开？');
+        return !(window.LocalDepthVideo?.hasUnfinishedWork?.()||window.PixmaxMediaTools?.hasUnfinishedWork?.()) || window.confirm('本地媒体处理仍在进行，或结果尚未保存到画布。离开将中断处理并丢失未保存的本地结果。确定离开？');
     }
     async function prepareReload(guard){
         if(!confirmLocalWork())return false;
-        return await guard();
+        const ready=await guard();
+        if(ready){window.LocalDepthVideo?.allowPageExit?.();window.PixmaxMediaTools?.allowPageExit?.();}
+        return ready;
     }
     window.CanvasNavigation=Object.freeze({canvasId,workspace,homeUrl,canvasUrl,bindLink,go,adopt,failure,confirmLocalWork,prepareReload,
         setLeaveGuard:guard=>{leaveGuard=guard;}});

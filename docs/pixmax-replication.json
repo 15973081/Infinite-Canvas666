@@ -11,7 +11,7 @@
     {"id": "model", "name": "3D 生成参数、提交、任务状态与模型预览", "status": "planned"},
     {"id": "director-editor", "name": "导演台、剪辑台、资源导入、保存恢复与导出", "status": "implemented_requires_final_verification"},
     {"id": "storyboard", "name": "脚本拆分、资产准备、提示词生成和插入画布", "status": "in_progress"},
-    {"id": "video-tools", "name": "合规检测、标记、续写、重拍、解析、字幕擦除、超分、音频分离、标签、生成历史", "status": "planned"},
+    {"id": "video-tools", "name": "合规检测、标记、续写、重拍、解析、字幕擦除、超分、音频分离、标签、生成历史", "status": "in_progress"},
     {"id": "pin-assistant", "name": "pin 汇总、创作助手与素材上下文", "status": "in_progress"},
     {"id": "sharing-messages", "name": "分享权限、通知与访问控制", "status": "planned"},
     {"id": "performance", "name": "延迟加载、连线索引、细粒度更新与同场景性能验证", "status": "in_progress"},
@@ -33,6 +33,16 @@
       "verified": ["原生媒体域名解析及无效地址处理", "缩略图用于画布和节点列表", "视频预览流和图片封面分别映射", "高清预览、编辑、下载和生成输入保留原始素材地址", "66 项媒体、目录、导演/剪辑台和预览回归通过"],
       "preview": ".local/pixmax-native-sidebar-preview.png",
       "previewScope": "181 个参考节点与 164 条连线，媒体仅重放本地镜像已保存的响应；不验证线上生成或未保存素材"
+    },
+    "audioSeparationEvidence": {
+      "source": "static/js/pixmax-media-tools.js",
+      "engine": "参考运行时 II.separateAudioAndVideo，移除账号路由启动后的本地处理器",
+      "outputs": ["保留画面、移除音轨的 MP4", "各音轨的 MP3"],
+      "verified": ["真实 H.264/AAC 输入，经浏览器原生处理后由 ffprobe 确认输出轨道", "分离音轨可在现有音频播放器加载", "两个结果一并保存且可一步撤销", "来源、编辑资格、工作空间变化和关闭窗口拒绝迟到结果", "保存复制媒体元数据不会误判来源变化", "保存失败保留文件，重试不重复上传或插入", "普通画布保存亦可确认结果并释放本地文件", "只读访问和未保存本地结果的离开保护"],
+      "browserCases": 11,
+      "relatedRegression": "32 项音频分离、视频工具、导航和原生工作台测试通过；新增普通保存确认用例亦通过",
+      "remainingVideoTools": ["画面标注", "合规检测", "智能续写", "片段重拍", "解析", "字幕擦除", "超分", "命名彩色 pin 标签", "生成历史"],
+      "generationScope": "本功能为视频处理，不代表音频生成或 3D 生成功能已完成；未调用收费模型服务"
     },
     "performanceEvidence": {
       "command": "node tools/canvas-performance.cjs .local/canvas-performance.json",

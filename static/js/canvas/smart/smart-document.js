@@ -539,6 +539,7 @@ async function saveCanvas(options={}){
                     smartCanvasDirty = true;
                 }
                 smartSaveErrorNotified = false;
+                window.PixmaxMediaTools?.confirmSaved(data.canvas);
                 return true;
             }
             if(window.CanvasSession?.enabled){

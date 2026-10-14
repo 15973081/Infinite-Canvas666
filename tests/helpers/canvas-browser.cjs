@@ -54,7 +54,7 @@ async function fixture(t, kind, member, options={}) {
         if(url.origin !== origin) return route.abort();
         if(url.pathname.startsWith('/api/')) {
             const method=request.method();
-            if(!['GET','HEAD'].includes(method)) writes.push({path:url.pathname,method,body:request.postDataJSON()});
+            if(!['GET','HEAD'].includes(method)) writes.push({path:url.pathname,method,body:request.headers()['content-type']?.includes('application/json')?request.postDataJSON():null});
             let result={};
             if(url.pathname==='/api/config') result={api_providers:[],image_models:['gpt-image-2'],chat_models:['gpt-4o-mini'],video_models:[]};
             else if(url.pathname==='/api/canvases') result={canvases:[record,...(options.extraRecords||[])]};

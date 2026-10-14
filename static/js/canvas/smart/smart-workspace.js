@@ -2111,8 +2111,9 @@ function runSmartNodeToolbarAction(nodeId, action){
     if(!item?.url) return;
     const kind = mediaKindForItem(item);
     if(PIXMAX_VIDEO_DEFERRED.has(action))return;
-    if(['trim','auth','asset','depth-video'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
+    if(['trim','auth','asset','depth-video','audio-separate'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
     smartSelection.toolbarImage(nodeId, index);
+    if(action==='audio-separate'&&kind==='video')return window.PixmaxMediaTools.openAudioSeparate(nodeId,index);
     if(action==='trim'&&kind==='video'){
         openImageEditor(nodeId,index);
         return toggleVideoTrimPanel();

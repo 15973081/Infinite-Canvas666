@@ -4645,3 +4645,5 @@ export const unmountCanvasMediaPicker = instance => Of(instance);
 // The canvas player is the original component, including seek and frame capture.
 export const mountCanvasPlayer = (target, props) => Tf(aV, {target, props});
 export const unmountCanvasPlayer = instance => Of(instance);
+// Reuse the original media processor; canvas persistence stays in the host app.
+export const separateCanvasAudio = options => II.separateAudioAndVideo(options);

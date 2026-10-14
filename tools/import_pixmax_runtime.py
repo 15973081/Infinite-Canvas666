@@ -23,7 +23,7 @@ runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e(".
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
 runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index.js")', 'e("../node_modules/is-buffer/index.js")')
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
-for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(']:
+for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
 runtime += '''
 // Local integration exports. The original account/router bootstrap is excluded.
@@ -51,14 +51,16 @@ export const unmountCanvasMediaPicker = instance => Of(instance);
 // The canvas player is the original component, including seek and frame capture.
 export const mountCanvasPlayer = (target, props) => Tf(aV, {target, props});
 export const unmountCanvasPlayer = instance => Of(instance);
+// Reuse the original media processor; canvas persistence stays in the host app.
+export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 '''
 (destination / 'editors.js').write_text(runtime, encoding='utf-8')
 (destination / 'editors.css').write_bytes((source / 'index-Dvu1CoBX.css').read_bytes())
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt'},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II'},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

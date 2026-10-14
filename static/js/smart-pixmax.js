@@ -48,7 +48,7 @@ function pixmaxConnectionMenuTypes(node,port){
 }
 function pixmaxCanConnect(from,to){return !!window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(from)]?.source.includes(pixmaxNativeNodeType(to));}
 
-const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','annotation','continuation','reshoot','parse','erase','upscale','audio-separate','tags','video-history']);
+const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','annotation','continuation','reshoot','parse','erase','upscale','tags','video-history']);
 function pixmaxVideoToolbarActions(node){
     const item=node?.images?.[smartNodeToolbarImageIndex(node)]||{};
     const editing=!isSmartCanvasLocked();
@@ -60,7 +60,7 @@ function pixmaxVideoToolbarActions(node){
         later('continuation','智能续写','history'),later('reshoot','片段重拍','camera'),
         later('parse','解析','layout-grid'),later('erase','字幕擦除','captions'),later('upscale','超分','scan'),
         {key:'depth-video',label:'深度视频',icon:'layers',enabled:editing,hint:editing?'深度视频 · 本地提取':'请先开始编辑画布'},
-        later('audio-separate','音频分离','audio-lines'),
+        {key:'audio-separate',label:'音频分离',icon:'audio-lines',enabled:editing,hint:editing?'音频分离 · 提取静音视频和音轨':'请先开始编辑画布'},
         {...later('tags','标签','tag'),compact:true}, {...later('video-history','生成历史','history'),compact:true},
         {key:'download',label:'下载',icon:'download',enabled:true,compact:true},
         {key:'preview',label:'放大预览',icon:'maximize-2',enabled:true,compact:true},

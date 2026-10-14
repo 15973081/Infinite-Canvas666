@@ -3,11 +3,13 @@
   "original_bundle_sha256": "6f2e22f83484de4b109f140cc31454b31f8d73a38efb40725f252497a6d7603b",
   "components": {
     "director": "$6e",
-    "editor": "ujt"
+    "editor": "ujt",
+    "media_processor": "II"
   },
   "changes": [
     "Remove account/router bootstrap",
-    "Export editor mounts and scoped service context"
+    "Export editor mounts and scoped service context",
+    "Export native local audio/video separation"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }
