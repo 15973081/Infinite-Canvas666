@@ -872,6 +872,18 @@ def create_canvas_llm_task(payload: CanvasLLMTaskRequest):
     return create(payload)
 
 
+@router.post('/api/canvas-model-tasks')
+def create_canvas_model_task(payload: CanvasModelTaskRequest):
+    from app.services.canvas_model_tasks import create
+    return create(payload)
+
+
+@router.get('/api/canvas-model-tasks/{task_id}')
+def get_canvas_model_task(task_id: str):
+    from app.services.canvas_model_tasks import get
+    return get(task_id)
+
+
 @router.get('/api/canvas-audio-voices')
 async def canvas_audio_voices(provider_id: str = Query(min_length=1, max_length=96), model: str = Query(min_length=1, max_length=180)):
     from app.services.canvas_audio_voices import catalog

@@ -131,7 +131,7 @@ def save(task, request_payload=None, *, historical=False):
         else:
             if not historical:
                 from app.storage.settings import member_auth_enabled
-                if member_auth_enabled() and value.get('type') in {'online-image', 'video', 'audio'} and not requester:
+                if member_auth_enabled() and value.get('type') in {'online-image', 'video', 'audio', 'model'} and not requester:
                     raise HTTPException(401, {'code': 'task_requester_required'})
                 from app.services.maintenance_control import ensure
                 ensure(conn, workspace, 'write')
@@ -200,7 +200,7 @@ def recover_expired(*, all_workspaces=False):
                         conn.execute("UPDATE tasks SET status='polling',error_message=NULL,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now() WHERE id=%s", (row["id"],))
         # An upstream id is enough to resume polling. An uncertain paid submission
         # is never automatically sent again, including interrupted image calls.
-        conn.execute("UPDATE tasks SET status=CASE WHEN kind='video' AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))
+        conn.execute("UPDATE tasks SET status=CASE WHEN kind IN ('video','model') AND upstream_task_id IS NOT NULL THEN 'polling' WHEN status='running' AND attempt>0 THEN 'queued' ELSE 'needs_review' END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=now(),error_message=CASE WHEN upstream_task_id IS NULL AND (status<>'running' OR attempt=0) THEN '提交结果不明确，请核对供应商后处理' ELSE error_message END WHERE id=ANY(%s) AND status IN ('running','submitting') AND (lease_until IS NULL OR lease_until<now())", ([row['id'] for row in candidates],))
 
 
 def claim(owner, seconds=90, *, all_workspaces=False):
@@ -209,7 +209,7 @@ def claim(owner, seconds=90, *, all_workspaces=False):
     with connection() as conn:
         scope = "" if all_workspaces else "q.workspace_id=%s AND "
         args = () if all_workspaces else (current_workspace(),)
-        return conn.execute("WITH candidate AS (SELECT q.id FROM tasks q JOIN workspaces w ON w.id=q.workspace_id WHERE " + scope + "(q.status IN ('polling','finalizing') OR (w.status='active' AND NOT EXISTS (SELECT 1 FROM maintenance_controls m WHERE (m.workspace_id IS NULL OR m.workspace_id=q.workspace_id) AND (m.mode IN ('draining','read_only','offline','recovering') OR (m.mode='scheduled' AND m.planned_at<=clock_timestamp())))" + legacy + ")) AND q.kind IN ('video','online-image','llm','audio') AND q.status IN ('queued','polling','finalizing') AND q.available_at<=now() AND (q.lease_until IS NULL OR q.lease_until<now()) ORDER BY q.available_at,q.created_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (*args, owner, seconds)).fetchone()
+        return conn.execute("WITH candidate AS (SELECT q.id FROM tasks q JOIN workspaces w ON w.id=q.workspace_id WHERE " + scope + "(q.status IN ('polling','finalizing') OR (w.status='active' AND NOT EXISTS (SELECT 1 FROM maintenance_controls m WHERE (m.workspace_id IS NULL OR m.workspace_id=q.workspace_id) AND (m.mode IN ('draining','read_only','offline','recovering') OR (m.mode='scheduled' AND m.planned_at<=clock_timestamp())))" + legacy + ")) AND q.kind IN ('video','online-image','llm','audio','model') AND q.status IN ('queued','polling','finalizing') AND q.available_at<=now() AND (q.lease_until IS NULL OR q.lease_until<now()) ORDER BY q.available_at,q.created_at,q.id FOR UPDATE OF q SKIP LOCKED LIMIT 1) UPDATE tasks t SET status=CASE WHEN t.status='queued' THEN 'running' ELSE t.status END,lease_owner=%s,lease_token=gen_random_uuid(),lease_until=now()+make_interval(secs=>%s),attempt=attempt+1,updated_at=now() FROM candidate c WHERE t.id=c.id RETURNING t.*", (*args, owner, seconds)).fetchone()
 
 
 def heartbeat(task_id, token, seconds=90):

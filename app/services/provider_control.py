@@ -8,9 +8,9 @@ from psycopg.types.json import Jsonb
 from app.services import authorization as az
 from app.storage.workspace import current_workspace
 
-SECRET_FIELDS = {'api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key'}
+SECRET_FIELDS = {'api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key', 'hunyuan_secret_id', 'hunyuan_secret_key'}
 CONFIG_FIELDS = {'media_input_modes', 'name', 'base_url', 'protocol', 'image_request_mode', 'image_generation_endpoint',
-                 'image_edit_endpoint', 'proxy_url', 'enabled', 'image_models', 'chat_models', 'video_models', 'audio_models',
+                 'image_edit_endpoint', 'proxy_url', 'enabled', 'image_models', 'chat_models', 'video_models', 'audio_models', 'model_models', 'hunyuan_region',
                  'model_prices', 'model_policies', 'model_discounts', 'model_protocols', 'chat_context_limits', 'ms_loras', 'ms_defaults_version',
                  'volcengine_project_name', 'volcengine_region'}
 
@@ -48,7 +48,13 @@ def normalized(provider_id, value, previous=None):
         az.fail('invalid_provider_config', 400)
     if 'enabled' in value and not isinstance(value['enabled'], bool):
         az.fail('invalid_provider_config', 400)
-    for field in ('image_models', 'chat_models', 'video_models', 'audio_models'):
+    if value.get('protocol') == 'hunyuan3d':
+        import re
+        if not isinstance(value.get('hunyuan_region','ap-guangzhou'), str) or not re.fullmatch('[a-z0-9-]{1,64}', value.get('hunyuan_region') or 'ap-guangzhou'):
+            az.fail('invalid_provider_region', 400)
+        if urlsplit(value.get('base_url') or '').path not in {'','/'}:
+            az.fail('invalid_provider_endpoint', 400)
+    for field in ('image_models', 'chat_models', 'video_models', 'audio_models', 'model_models'):
         models = value.get(field, [])
         if not isinstance(models, list) or len(models) > 500 or any(not isinstance(m, str) or len(m) > 180 for m in models):
             az.fail('invalid_provider_models', 400)
@@ -215,7 +221,7 @@ def workspace_providers():
         platform = avatar_platform_for_provider(config)
         supported = provider_supports_avatar(config)
         required = {'volcengine_access_key_id', 'volcengine_secret_access_key'} if platform == 'volcengine' else {'api_key'}
-        return {**config, 'primary': primary, 'has_key': 'api_key' in fields,
+        return {**config, 'primary': primary, 'has_key': {'hunyuan_secret_id','hunyuan_secret_key'} <= fields if config.get('protocol')=='hunyuan3d' else 'api_key' in fields,
                 'avatar_registration': {'platform': platform, 'supported': supported,
                                         'credentials_configured': supported and required <= fields}}
 
@@ -234,6 +240,8 @@ def workspace_providers():
 def binding(row):
     # A label/price change does not change the upstream account identity.
     endpoints = {k: row['config'].get(k) for k in ('base_url', 'proxy_url', 'protocol', 'image_generation_endpoint', 'image_edit_endpoint', 'volcengine_project_name', 'volcengine_region')}
+    if row['config'].get('protocol') == 'hunyuan3d':
+        endpoints['hunyuan_region'] = row['config'].get('hunyuan_region')
     digest = hashlib.sha256(json.dumps({'endpoints': endpoints, 'secrets': decrypt(row)}, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return 'managed:' + row['id'] + ':' + digest
 

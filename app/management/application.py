@@ -181,8 +181,8 @@ class Retirement(Input):
 class ProviderSave(Input):
     expected_version: int = Field(strict=True, ge=0)
     config: dict = Field(max_length=30)
-    secrets: dict[str, str] = Field(default_factory=dict, max_length=3)
-    clear_secrets: list[Literal['api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key']] = Field(default_factory=list, max_length=3)
+    secrets: dict[str, str] = Field(default_factory=dict, max_length=5)
+    clear_secrets: list[Literal['api_key', 'volcengine_access_key_id', 'volcengine_secret_access_key', 'hunyuan_secret_id', 'hunyuan_secret_key']] = Field(default_factory=list, max_length=5)
     reason: str = Field(min_length=1, max_length=1000)
 
 

@@ -8,7 +8,7 @@
     {"id": "text", "name": "文本生成节点与引用输入", "status": "in_progress"},
     {"id": "image-video", "name": "图像和视频生成模式、动态模型参数、参考素材和任务恢复", "status": "in_progress"},
     {"id": "audio", "name": "音频生成参数、提交、任务状态与结果回填", "status": "in_progress"},
-    {"id": "model", "name": "3D 生成参数、提交、任务状态与模型预览", "status": "planned"},
+    {"id": "model", "name": "3D 生成参数、提交、任务状态与模型预览", "status": "in_progress"},
     {"id": "director-editor", "name": "导演台、剪辑台、资源导入、保存恢复与导出", "status": "implemented_requires_final_verification"},
     {"id": "storyboard", "name": "脚本拆分、资产准备、提示词生成和插入画布", "status": "in_progress"},
     {"id": "video-tools", "name": "合规检测、标记、续写、重拍、解析、字幕擦除、超分、音频分离、标签、生成历史", "status": "in_progress"},
@@ -80,7 +80,19 @@
       "previewScope": "UI 截图使用测试目录；浏览器及数据库播放真实合成 MP3；供应商目录和生成响应为测试替身，没有调用实际供应商",
       "remaining": ["当前试听为已有语音样例，未取得参考的固定音色试听库；尚无样例的音色禁用试听", "音色克隆、文生音色、登记、改名、删除及自定义元数据", "原生面板全部视觉细节与生产账号最终验收"]
     },
-    "remaining": ["原生画布和节点目录与视觉细节", "文本生成的级联执行与交互对齐", "图像视频模式和参数完整映射", "音色创建管理和参数面板最终对齐、3D 生成任务", "分镜资产实际生成与参考模板", "视频工具完整实现", "分享与通知", "创作助手交互与历史完整对齐", "连线索引、更新与撤销优化及同场景性能测量", "完整需求最终验收"]
+    "modelBackendEvidence": {
+      "source": ["app/services/canvas_model_tasks.py", "app/services/hunyuan3d.py"],
+      "status": "backend_implemented_frontend_pending",
+      "nativeContract": "Hunyuan 3D Pro 3.0/3.1，文字、单图、多图，Normal/Geometry/LowPoly/Sketch，PBR、面数及多边形类型；生成数量固定为 1",
+      "upstreamContract": ["https://raw.githubusercontent.com/TencentCloud/tencentcloud-sdk-python/master/tencentcloud/ai3d/v20250513/models.py", "https://cloud.tencent.com/document/product/865/35466"],
+      "databaseCases": 10,
+      "unitCases": 11,
+      "verified": ["TC3 签名与腾讯云公开签名样例完全一致；独立的加密 SecretId/SecretKey、接口根路径和地域配置", "按已开放模型和保存图谱提交任务；只读和无效参考输入在调用供应商前拒绝", "真实已入库图片转为 Base64，单图及按明确视角的 3.0/3.1 多图输入进入供应商请求", "一个付费提交，后续只查询原 JobId；查询超时保留原任务并重试", "GLB 头、JSON/BIN 区块、模型结构、缓冲区范围及内嵌资源检查后发布；保留失败的结果来源", "真实立方体 GLB 入库、只读下载、原 3D 节点回填和成员输出归属", "结果发布失败后仅恢复入库，不再次查询或提交生成", "提交不明确时保留待核对任务和未知费用；模型停用不阻断已提交任务，原账单使用提交时价格", "已有 JobId 的过期执行恢复查询；管理核对允许继续原任务查询"],
+      "conflicts": ["参考节点对 3.0/3.1 均显示最多 7 张图片，但供应商 3.0 仅支持正面、左右和背面；3.1 才支持其他视角", "3.1 仅开放参考中的 Normal/Geometry；LowPoly 仅 3.0 可用", "LowPoly 忽略面数，由服务端按接口契约省略 FaceCount；返回默认 GLB，暂不接额外转换格式"],
+      "generationScope": "供应商提交与查询响应为测试替身，参考图片为真实 PNG，结果为真实可解析立方体 GLB；未调用收费生成，也未部署生产环境",
+      "remaining": ["画布 3D 生成入口与参数面板", "原生 JSON 的 3D 参数映射与视角交互", "模型预览、任务恢复、撤销及复制导入的浏览器验收", "管理端连通性诊断与按生成参数的价格完整对齐", "真实账号生成及完整原生功能最终验收"]
+    },
+    "remaining": ["原生画布和节点目录与视觉细节", "文本生成的级联执行与交互对齐", "图像视频模式和参数完整映射", "音色创建管理和参数面板最终对齐、3D 画布入口与预览", "分镜资产实际生成与参考模板", "视频工具完整实现", "分享与通知", "创作助手交互与历史完整对齐", "连线索引、更新与撤销优化及同场景性能测量", "完整需求最终验收"]
   },
   "completion": "所有需求均须由当前源码和实际验证证明；已有测试通过不代表全面复刻完成"
 }

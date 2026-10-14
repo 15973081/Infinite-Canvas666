@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  const modelKeys=['image_models','video_models','chat_models','audio_models'];
-  const secretKeys=['api_key','volcengine_access_key_id','volcengine_secret_access_key'];
-  const explicit=['media_input_modes','id','name','base_url','protocol','enabled',...modelKeys,'proxy_url','image_request_mode','image_generation_endpoint','image_edit_endpoint','volcengine_project_name','volcengine_region'];
+  const modelKeys=['image_models','video_models','chat_models','audio_models','model_models'];
+  const secretKeys=['api_key','volcengine_access_key_id','volcengine_secret_access_key','hunyuan_secret_id','hunyuan_secret_key'];
+  const explicit=['media_input_modes','id','name','base_url','protocol','enabled',...modelKeys,'proxy_url','image_request_mode','image_generation_endpoint','image_edit_endpoint','volcengine_project_name','volcengine_region','hunyuan_region'];
   function payload(row,values) {
     let extra;try{extra=JSON.parse(values.get('advanced') || '{}');}catch{throw new Error('高级配置不是有效 JSON。');}
     if(!extra || Array.isArray(extra) || typeof extra!=='object' || Object.keys(extra).some(k=>explicit.includes(k)))throw new Error('高级配置只填写模型价格、逐模型协议等附加选项；基础字段请在表单中修改。');
@@ -12,6 +12,7 @@
     config.enabled=values.has('enabled');
     for(const key of modelKeys)config[key]=[...new Set(String(values.get(key)||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean))];
     for(const key of ['volcengine_project_name','volcengine_region'])config[key]=String(values.get(key)||row.config?.[key]||'').trim();
+    if(config.protocol==='hunyuan3d')config.hunyuan_region=String(values.get('hunyuan_region')||row.config?.hunyuan_region||'ap-guangzhou').trim();
     const secrets={},clear_secrets=[];
     for(const key of secretKeys){const value=String(values.get(key)||'').trim();if(value)secrets[key]=value;if(values.has('clear_'+key))clear_secrets.push(key);}
     if(clear_secrets.some(key=>secrets[key]))throw new Error('同一凭证不能同时替换和清除。');
@@ -42,7 +43,7 @@
     if(row.builtin && !row.version)form.append(node('div','内置平台 · 已准备默认配置，填写 Key 后保存即可。','provider-guide'));
     const basic=section('基本信息','平台名称与连接配置'),grid=node('div',undefined,'provider-fields');basic.append(grid);
     field(grid,'name','平台名称',config.name||'',{required:true,placeholder:'例如：团队 API'});
-    const protocol=select(grid,'protocol','接口协议',[['openai','OpenAI 兼容'],['apimart','APIMART 异步协议'],['gemini','Gemini 原生协议'],['volcengine','火山引擎 · 方舟'],['minimax','MiniMax · 语音 / 音乐']],config.protocol||'openai');
+    const protocol=select(grid,'protocol','接口协议',[['openai','OpenAI 兼容'],['apimart','APIMART 异步协议'],['gemini','Gemini 原生协议'],['volcengine','火山引擎 · 方舟'],['minimax','MiniMax · 语音 / 音乐'],['hunyuan3d','腾讯混元 · 3D']],config.protocol||'openai');
     if(row.builtin) {protocol.disabled=true;const hidden=node('input');hidden.type='hidden';hidden.name='protocol';hidden.value=config.protocol;grid.append(hidden);}
     const base=field(basic,'base_url','请求地址',config.base_url||'',{type:'url',required:true,placeholder:'https://api.example.com/v1'});
     if(row.id)basic.append(node('small','平台 ID：'+row.id+' · 创建后保持不变','muted'));else field(basic,'id','平台 ID','api-'+crypto.randomUUID().slice(0,8),{required:true,hint:'已自动生成，也可自定义；之后改名不会改变 ID。'}).maxLength=40;
@@ -54,12 +55,15 @@
       if(configured)check(parent,'clear_'+key,'清除已保存的 '+label);
     }
     secret(credentials,'api_key','API Key');
+    const hunyuan=section('混元 3D · 腾讯云','SecretId / SecretKey 用于腾讯云签名，凭证仅写入加密存储。');
+    secret(hunyuan,'hunyuan_secret_id','SecretId');secret(hunyuan,'hunyuan_secret_key','SecretKey');
+    field(hunyuan,'hunyuan_region','Region',config.hunyuan_region||'ap-guangzhou',{hint:'接口地址：https://ai3d.tencentcloudapi.com；模型 ID：3.0、3.1。'});
     const volc=section('火山引擎 · 素材库','方舟 API Key 用于模型生成；素材库 AK/SK 用于素材上传，两者不能互相替代。');
     const volcGrid=node('div',undefined,'provider-fields');volc.append(volcGrid);secret(volcGrid,'volcengine_access_key_id','Access Key ID');secret(volcGrid,'volcengine_secret_access_key','Secret Access Key');
     field(volcGrid,'volcengine_project_name','ProjectName',config.volcengine_project_name||'default',{hint:'与生成所用方舟 API Key 的项目保持一致。'});
     field(volcGrid,'volcengine_region','Region',config.volcengine_region||'cn-beijing',{hint:'旧版默认地域：cn-beijing。'});
     const volcHint=node('div','方舟默认地址：https://ark.cn-beijing.volces.com/api/v3。视频模型已按旧版预填；对话模型可填写控制台中的 ep-… 推理接入点。','provider-guide');basic.append(volcHint);
-    function visibility(){const enabled=protocol.value==='volcengine';volc.hidden=volcHint.hidden=!enabled;for(const i of volc.querySelectorAll('input'))i.disabled=!enabled;}
+    function visibility(){const enabled=protocol.value==='volcengine',model=protocol.value==='hunyuan3d';volc.hidden=volcHint.hidden=!enabled;for(const i of volc.querySelectorAll('input'))i.disabled=!enabled;hunyuan.hidden=!model;for(const i of hunyuan.querySelectorAll('input'))i.disabled=!model;credentials.hidden=model;for(const i of credentials.querySelectorAll('input'))i.disabled=model;}
     protocol.onchange=()=>{visibility();onDirty(true);};visibility();
     const models=section('模型列表','从上游拉取后选择应用，也可手动维护。已有模型、逐模型协议和历史价格会保留。');
     const modelActions=node('div',undefined,'toolbar');
@@ -68,7 +72,7 @@
     if((row.id==='volcengine'||config.protocol==='volcengine')&&config.video_models?.length&&row.version)modelActions.append(action('视频规格价格',()=>{if(form.dataset.dirty==='true'){status.textContent='请先保存当前配置，再编辑价格。';return;}prices();}));
     models.append(modelActions);if(!row.version)models.append(node('p','首次配置请先保存地址与 Key，再拉取模型。','muted'));
     const modelTabs=node('div',undefined,'provider-model-tabs'),panels=[];models.append(modelTabs);
-    const labels=['生图模型','视频模型','对话模型','音频模型'],hints=['供在线生图和画布图片节点选择。','供画布视频生成节点选择。','供 GPT 对话和画布 LLM 节点选择。','MiniMax 协议支持 speech-2.8-hd、speech-2.8-turbo、music-2.6 等已开通的语音和音乐模型。'];
+    const labels=['生图模型','视频模型','对话模型','音频模型','3D 模型'],hints=['供在线生图和画布图片节点选择。','供画布视频生成节点选择。','供 GPT 对话和画布 LLM 节点选择。','MiniMax 协议支持 speech-2.8-hd、speech-2.8-turbo、music-2.6 等已开通的语音和音乐模型。','混元 3D 支持模型 3.0 和 3.1。'];
     modelKeys.forEach((key,index)=>{const panel=node('div'),tab=action(labels[index]+' · '+(config[key]||[]).length,()=>{panels.forEach((p,i)=>p.hidden=i!==index);for(const b of modelTabs.children)b.classList.toggle('active',b===tab);});
       panel.hidden=index!==0;tab.classList.toggle('active',index===0);field(panel,key,labels[index],(config[key]||[]).join('\n'),{type:'textarea',hint:hints[index]+' 每行一个模型 ID。',placeholder:'从上游拉取，或粘贴模型 ID'}).maxLength=100000;
       modelTabs.append(tab);models.append(panel);panels.push(panel);});

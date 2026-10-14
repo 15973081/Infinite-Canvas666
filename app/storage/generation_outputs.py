@@ -8,13 +8,13 @@ from app.storage.media import id_from_ref
 
 
 def record(conn, task):
-    if task['status'] != 'succeeded' or task['kind'] not in {'online-image', 'video', 'audio'}:
+    if task['status'] != 'succeeded' or task['kind'] not in {'online-image', 'video', 'audio', 'model'}:
         return
     # Existing anonymous/shared-mode tasks have no provable member identity.
     # New member-mode submissions are rejected before insertion if anonymous.
     if not task['requested_by']:
         return
-    kind, field = ('image', 'images') if task['kind'] == 'online-image' else ('audio', 'audios') if task['kind'] == 'audio' else ('video', 'videos')
+    kind, field = ('image', 'images') if task['kind'] == 'online-image' else ('audio', 'audios') if task['kind'] == 'audio' else ('model', 'models') if task['kind'] == 'model' else ('video', 'videos')
     result = task['result']
     outputs = result.get(field) if isinstance(result, dict) else None
     if not isinstance(outputs, list) or not outputs:

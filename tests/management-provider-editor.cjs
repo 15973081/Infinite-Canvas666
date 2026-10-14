@@ -35,3 +35,12 @@ test('media transport defaults to URL and saves independent selections',()=>{
   for(const kind of ['image','video','audio'])values.delete('media_mode_'+kind);
   assert.deepEqual(editor.payload({id:'unit',config:{}},values).body.config.media_input_modes,{image:'url',video:'url',audio:'url'});
 });
+
+test('Hunyuan 3D has independent write-only credentials, model versions and region',()=>{
+ const row={id:'hunyuan',version:2,config:{}};
+ const result=editor.payload(row,form({protocol:'hunyuan3d',base_url:'https://ai3d.tencentcloudapi.com',model_models:'3.0\n3.1\n3.0',hunyuan_region:'ap-guangzhou',hunyuan_secret_id:'test-id',hunyuan_secret_key:'test-key'}));
+ assert.deepEqual(result.body.config.model_models,['3.0','3.1']);assert.equal(result.body.config.hunyuan_region,'ap-guangzhou');
+ assert.deepEqual(result.body.secrets,{hunyuan_secret_id:'test-id',hunyuan_secret_key:'test-key'});
+ assert.equal(result.body.config.hunyuan_secret_key,undefined);
+ const clear=editor.payload(row,form({protocol:'hunyuan3d',clear_hunyuan_secret_key:'on'}));assert.deepEqual(clear.body.clear_secrets,['hunyuan_secret_key']);
+});

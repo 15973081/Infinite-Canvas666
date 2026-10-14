@@ -59,7 +59,7 @@ async def _execute_scoped(row):
                 return
             from app.storage.image_receipts import recoverable
             image_recovery = row["kind"] == "online-image" and row["status"] in {"polling", "finalizing"} and recoverable(row)
-            if row["status"] in {"polling", "finalizing"} and not image_recovery and (row["kind"] != "video" or not row["upstream_task_id"]):
+            if row["status"] in {"polling", "finalizing"} and not image_recovery and (row["kind"] not in {"video","model"} or not row["upstream_task_id"]):
                 current = tasks.get(task_id)
                 current.update(status="needs_review", error="缺少可恢复的上游任务信息，请人工核对；未重新提交生成")
                 tasks.save(current)
@@ -77,6 +77,9 @@ async def _execute_scoped(row):
                 await run_task(task_id, request)
             elif row["kind"] == "audio":
                 from app.services.canvas_audio_tasks import run_task
+                await run_task(task_id, request)
+            elif row['kind'] == 'model':
+                from app.services.canvas_model_tasks import run_task
                 await run_task(task_id, request)
             else:
                 if image_recovery:
@@ -101,7 +104,7 @@ async def _execute_scoped(row):
         current = tasks.get(task_id)
         if current.get("status") in tasks.ACTIVE:
             current.update(status="needs_review", error=str(exc))
-            if current.get('type') in {'llm', 'audio'}:
+            if current.get('type') in {'llm', 'audio', 'model'}:
                 from app.services.canvas_tasks import save_canvas_task
                 await asyncio.to_thread(save_canvas_task, current)
             else:

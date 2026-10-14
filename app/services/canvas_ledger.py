@@ -137,7 +137,7 @@ def price_log(log, providers=(), frozen_price=None):
     info = identity(log, providers)
     saved = log.get("cost") or {}
     unknown = {**info, "status": "unknown", "reason": "missing_price", "source": "estimated"}
-    if info['kind'] == 'audio' and log.get('status') == 'uncertain':
+    if info['kind'] in {'audio','model'} and log.get('status') == 'uncertain':
         return {**unknown, "reason": "billing_outcome_uncertain"}
     if info['kind'] == 'chat' and saved.get('status') != 'priced':
         from app.services.chat_billing import calculate
@@ -433,19 +433,19 @@ def task_run_ms(task):
 
 def task_log(task):
     result = task.get("result") or {}
-    if task.get("status") not in ("succeeded", "failed") and task.get("upstream_status") != "succeeded" and not (task.get('type') in {'llm','audio'} and task.get('status') == 'needs_review'):
+    if task.get("status") not in ("succeeded", "failed") and task.get("upstream_status") != "succeeded" and not (task.get('type') in {'llm','audio','model'} and task.get('status') == 'needs_review'):
         return None
     request = task.get("billing_request") or {}
-    kind = "chat" if task.get("type") == "llm" else "audio" if task.get("type") == "audio" else "video" if task.get("type") == "video" else "image"
+    kind = "chat" if task.get("type") == "llm" else "audio" if task.get("type") == "audio" else "model" if task.get('type') == 'model' else "video" if task.get("type") == "video" else "image"
     log = {"id": "task-log:" + str(task["id"]), "canvas_task_id": task["id"],
            "createdAt": int(float(task.get("created_at") or 0) * 1000),
            "_task_updated_at": task.get("updated_at") or task.get("created_at") or 0,
            "status": "uncertain" if task.get('status') == 'needs_review' else "failed" if task.get("status") == "failed" else "success",
-           "nodeType": "llm" if kind == "chat" else "audio" if kind == "audio" else "video" if kind == "video" else "generator", "billingKind": kind,
+           "nodeType": "llm" if kind == "chat" else "audio" if kind == "audio" else "model" if kind == "model" else "video" if kind == "video" else "generator", "billingKind": kind,
            "providerId": task.get("provider_id", ""), "platform": task.get("provider_name") or task.get("provider_id", ""),
            "billingModel": task.get("model", ""), "model": task.get("model", ""),
            "request": {**request, "canvas_task_id": task["id"], "task_id": result.get("task_id") or task.get("upstream_task_id") or ""},
-           "prompt": request.get("prompt", ""), "outputs": result.get("videos") or result.get("images") or result.get('audios') or [],
+           "prompt": request.get("prompt", ""), "outputs": result.get("videos") or result.get("images") or result.get('audios') or result.get('models') or [],
            "error": task.get("error", ""), "durationSeconds": (result.get("video_info") or {}).get("duration") or request.get("duration") or 0}
     if kind == "chat":
         log["text"] = result.get("text", "")
@@ -457,7 +457,7 @@ def task_log(task):
         log["runMsSource"] = "task"
     if kind == 'audio':
         log['durationSeconds'] = (result.get('audio_info') or {}).get('duration') or 0
-    for key in ("cost", "usage", "video_info", "audio_info"):
+    for key in ("cost", "usage", "video_info", "audio_info", "model_info"):
         if key in result:
             log[key] = copy.deepcopy(result[key])
     if "cost" not in log:

@@ -115,7 +115,7 @@ def permissions(path, method):
         return PERMISSIONS
     if path == '/api/canvas-audio-voices' and method == 'GET' or path == '/api/canvas-audio-voices/favorite' and method == 'PUT':
         return ('provider.use', 'task.read', 'asset.read')
-    if re.fullmatch(r'/api/canvas-(?:image|video|llm|audio)-tasks(?:/[^/]+)?', path):
+    if re.fullmatch(r'/api/canvas-(?:image|video|llm|audio|model)-tasks(?:/[^/]+)?', path):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:
         return ('canvas.read',) if method == 'GET' else ('canvas.create',) if method == 'POST' and path == '/api/canvases' else None
@@ -219,7 +219,7 @@ def public_provider_config():
     from app.providers.registry import load_api_providers
     # The canvas must compare the registration's ProjectName with this provider's
     # project. This is scope metadata, not a credential.
-    keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'audio_models', 'model_prices', 'model_policies', 'avatar_registration', 'volcengine_project_name'}
+    keys = {'id', 'name', 'primary', 'enabled', 'has_key', 'chat_models', 'image_models', 'video_models', 'audio_models', 'model_models', 'model_prices', 'model_policies', 'avatar_registration', 'volcengine_project_name'}
     from app.services.model_commercial import public_models
     providers = [{k: v for k, v in public_models(p).items() if k in keys} for p in load_api_providers()]
     for provider in providers: provider['billing_authority'] = 'server'
@@ -227,7 +227,8 @@ def public_provider_config():
             'chat_models': list(dict.fromkeys(m for p in providers for m in p.get('chat_models', []))),
             'image_models': list(dict.fromkeys(m for p in providers for m in p.get('image_models', []))),
             'video_models': list(dict.fromkeys(m for p in providers for m in p.get('video_models', []))),
-            'audio_models': list(dict.fromkeys(m for p in providers for m in p.get('audio_models', [])))}
+            'audio_models': list(dict.fromkeys(m for p in providers for m in p.get('audio_models', []))),
+            'model_models': list(dict.fromkeys(m for p in providers for m in p.get('model_models', [])))}
 
 
 async def dispatch(app, scope, receive, send):

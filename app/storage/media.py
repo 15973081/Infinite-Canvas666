@@ -539,7 +539,7 @@ def referenced_ids(value):
 
 def normalize_document(value):
     # Only structured media fields; never rewrite prompts, costs or supplier URIs.
-    fields = {"url", "src", "path", "image", "video", "audio", "audios", "audio_url", "preview_url", "reference_images", "output", "output_url", "outputUrl", "image_url", "video_url", "videoUrl", "thumbnail", "thumbnail_url", "images", "videos", "outputs", "references", "frames"}
+    fields = {"url", "src", "path", "image", "video", "audio", "audios", "audio_url", "preview_url", "reference_images", "output", "output_url", "outputUrl", "image_url", "video_url", "videoUrl", "thumbnail", "thumbnail_url", "images", "videos", "models", "outputs", "references", "frames"}
 
     refs = set()
     def collect(item, field=""):
@@ -572,7 +572,7 @@ def normalize_document(value):
     return walk(value)
 
 
-async def download_remote(url, prefix="media_", category="output", provider=None, default_extension=".bin"):
+async def download_remote(url, prefix="media_", category="output", provider=None, default_extension=".bin", validate_file=None):
     """Persist supplier output with bounded memory and per-redirect URL checks."""
     import ipaddress
     import socket
@@ -600,7 +600,7 @@ async def download_remote(url, prefix="media_", category="output", provider=None
                     continue
                 response.raise_for_status()
                 mime = response.headers.get("content-type", "").split(";", 1)[0]
-                extension = mimetypes.guess_extension(mime) or Path(urlsplit(current).path).suffix[:12] or default_extension
+                extension = default_extension if validate_file else mimetypes.guess_extension(mime) or Path(urlsplit(current).path).suffix[:12] or default_extension
                 name = prefix + hashlib.sha256(urlsplit(url)._replace(query="", fragment="").geturl().encode()).hexdigest()[:24] + extension
                 path = Path(scratch_directory(category)) / name
                 total = 0
@@ -613,6 +613,10 @@ async def download_remote(url, prefix="media_", category="output", provider=None
                         target.write(chunk)
                 if total == 0:
                     raise HTTPException(502, "供应商返回了空素材")
+                if validate_file:
+                    await asyncio.to_thread(validate_file, path)
+                    asset = await asyncio.to_thread(publish, path, asset_id=result_slot.get(), role='generated')
+                    return stable_url(asset)
                 return await asyncio.to_thread(publish_output, name, category)
     raise HTTPException(502, "远程素材重定向次数过多")
 

@@ -549,7 +549,7 @@
         if(!result.ok || !result.model_count) return;
         discovered = result;
         resultBox.append(el('p', '分类按模型名称推测，可在编辑供应商时调整。确认后追加到现有列表，模型费用需另行配置。'));
-        for(const [key, label] of [['image_models','图片模型'], ['video_models','视频模型'], ['chat_models','对话模型'], ['audio_models','音频模型']]) {
+        for(const [key, label] of [['image_models','图片模型'], ['video_models','视频模型'], ['chat_models','对话模型'], ['audio_models','音频模型'], ['model_models','3D 模型']]) {
           if(result[key]?.length) resultBox.append(el('h3', label + ' · ' + result[key].length), choices(key, result[key].map(id => ({id, name: id + ((row.config[key] || []).includes(id) ? '（已配置）' : '')}))));
         }
         $('#confirm-dialog').hidden = false;

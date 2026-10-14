@@ -93,3 +93,11 @@ test('audio billing configures character and call prices with independent model 
     assert.equal(f.writes[1].body.config.model_prices.length,2);
     assert.equal(f.writes[1].body.config.model_policies['audio:music-2.6'].enabled,false);f.finish(1);await music;
 });
+
+test('3D models use per-call billing without image resolutions or video duration controls',async()=>{
+    const f=await fixture({model_models:['3.0','3.1']});f.kind.value='model';f.kind.onchange();
+    assert.equal(f.model.value,'3.0');assert.equal(f.form().billingSelect.value,'per_call');assert.equal(f.field('限制开放规格'),undefined);
+    assert.equal(f.field('最短秒数'),undefined);f.change('通用','12');f.change('修改原因','3D pricing');
+    const pending=f.submit();const price=f.writes[0].body.config.model_prices[0];
+    assert.equal(price.kind,'model');assert.equal(price.billing_type,'per_call');assert.equal(price.unit_price,'12');assert.equal(price.resolution,undefined);f.finish(0);await pending;
+});

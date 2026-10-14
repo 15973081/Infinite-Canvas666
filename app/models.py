@@ -156,6 +156,7 @@ class ApiProviderPayload(BaseModel):
     chat_context_limits: Dict[str, int] = {}
     video_models: List[str] = []
     audio_models: List[str] = []
+    model_models: List[str] = []
     model_prices: Optional[List[Dict[str, Any]]] = None
     model_protocols: Dict[str, str] = {}
     ms_loras: List[Dict[str, Any]] = []
@@ -220,6 +221,52 @@ class CanvasLLMTaskRequest(BaseModel):
     messages: List[CanvasLLMTaskMessage] = Field(default_factory=list, max_length=100)
     images: List[str] = Field(default_factory=list, max_length=8)
     videos: List[str] = Field(default_factory=list, max_length=3)
+
+
+class CanvasModelTaskRequest(BaseModel):
+    model_config = {'extra': 'forbid'}
+    canvas_id: str = Field(min_length=1, max_length=96)
+    client_task_id: str = Field(pattern=r'^canvas_model_[A-Za-z0-9_-]{8,80}$')
+    canvas_target: CanvasTaskTarget
+    provider_id: str = Field(min_length=1, max_length=96)
+    model: Literal['3.0', '3.1'] = '3.0'
+    mode: Literal['text', 'image', 'multi'] = 'text'
+    prompt: str = Field(default='', max_length=1024)
+    images: List[str] = Field(default_factory=list, max_length=7)
+    view_types: List[Literal['front','left','right','back','top','bottom','left_front','right_front']] = Field(default_factory=list, max_length=7)
+    generate_type: Literal['Normal','LowPoly','Geometry','Sketch'] = 'Normal'
+    enable_pbr: bool = Field(default=False, strict=True)
+    face_count: Literal[0,300000,500000] = 300000
+    polygon_type: Literal['triangle','quadrilateral'] = 'triangle'
+
+    @field_validator('face_count', mode='before')
+    @classmethod
+    def integer_faces(cls, value):
+        if type(value) is not int:
+            raise PydanticCustomError('model_faces_integer', '模型面数需要整数')
+        return value
+
+    @model_validator(mode='after')
+    def valid_inputs(self):
+        if self.model == '3.1' and self.generate_type not in {'Normal','Geometry'}:
+            raise PydanticCustomError('model_generation_type', '3.1 模型支持标准模型和白模')
+        if self.mode == 'text':
+            if self.images or self.view_types or not self.prompt.strip():
+                raise PydanticCustomError('model_text_input', '文字生成需要描述，不能同时提供图片')
+        else:
+            if not self.images or len(set(self.images)) != len(self.images) or self.mode == 'image' and len(self.images) != 1:
+                raise PydanticCustomError('model_image_input', '请提供模式所需数量的独立参考图片')
+            if self.prompt.strip() and self.generate_type != 'Sketch':
+                raise PydanticCustomError('model_prompt_image_conflict', '图片生成模式仅草图类型支持附加文字描述')
+            if self.mode == 'image' and self.view_types:
+                raise PydanticCustomError('model_views', '单图模式无需多视角配置')
+            if self.mode == 'multi' and (len(self.view_types) != len(self.images) or len(set(self.view_types)) != len(self.view_types) or self.view_types[0] != 'front'):
+                raise PydanticCustomError('model_views', '多图模式需要为每张图片指定独立视角，第一张为正面')
+            if self.model == '3.0' and any(view not in {'front','left','right','back'} for view in self.view_types):
+                raise PydanticCustomError('model_views_version', '3.0 多图模式支持正面、左侧、右侧和背面')
+        if self.generate_type != 'LowPoly' and self.face_count == 0:
+            raise PydanticCustomError('model_faces', '标准模型和白模请选择 30 万或 50 万面')
+        return self
 
 
 class CanvasAudioVoiceFavorite(BaseModel):
@@ -519,7 +566,7 @@ __all__ = [
     "OnlineImageRequest", "ImageTaskQueryRequest",
     "CanvasVideoRequest", "SmartCanvasVideoTrimRequest", "TempShUploadRequest", "CloudVideoUploadRequest",
     "ApiProviderPayload",
-    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite",
+    "ChatRequest",  "CanvasLLMRequest", "CanvasLLMTaskRequest", "CanvasAudioTaskRequest", "CanvasAudioVoiceFavorite", "CanvasModelTaskRequest",
     "ConversationCreateRequest",
     "CanvasCreateRequest", "CanvasFolderCreateRequest",
     "CanvasFolderUpdateRequest", "CanvasMoveRequest",

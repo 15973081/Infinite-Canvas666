@@ -48,7 +48,7 @@ def capabilities(row, checkpoint, submissions, account, images=None):
     actions = []
     if checkpoint and row['status'] in {'needs_review', 'failed', 'finalizing'}:
         actions.append('retry_finalization')
-    queryable = (row['kind'] == 'video' and row['upstream_task_id']) or bool(images and images['complete'])
+    queryable = (row['kind'] in {'video','model'} and row['upstream_task_id']) or bool(images and images['complete'])
     if (not checkpoint and row['status'] in {'needs_review', 'failed'} and queryable and account == 'matched'):
         actions.append('resume_polling')
     if (row['status'] in {'queued', 'needs_review'} and not checkpoint and not submissions
