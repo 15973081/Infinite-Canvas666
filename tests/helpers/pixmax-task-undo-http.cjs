@@ -7,7 +7,7 @@ lines.on('line',line=>{const message=JSON.parse(line);if(message.initial){initia
 const watchdog=setTimeout(()=>{console.error('Browser/database bridge timed out');process.exit(2);},45000);watchdog.unref();
 async function transport(request,canvasId){
     const url=new URL(request.url());
-    if(url.pathname!=='/api/canvases/'+canvasId&&!url.pathname.startsWith('/api/canvases/'+canvasId+'/task-results')&&!/^\/api\/canvas-(audio|model)-tasks(?:\/|$)/.test(url.pathname))return;
+    if(url.pathname!=='/api/canvases/'+canvasId&&!url.pathname.startsWith('/api/canvases/'+canvasId+'/task-results')&&!/^\/api\/canvas-(audio|model|llm)-tasks(?:\/|$)/.test(url.pathname))return;
     const id=++sequence,answer=new Promise(resolve=>requests.set(id,resolve));
     process.stdout.write(JSON.stringify({id,path:url.pathname+url.search,method:request.method(),headers:request.headers(),body:request.postData()})+'\n');
     return answer;
@@ -15,11 +15,16 @@ async function transport(request,canvasId){
 (async()=>{
     const config=await ready,cleanup=[];let posts=0;
     try{
+        const taskKind=config.kind==='parse'?'llm':config.kind;
         const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,
-            apiHandler:request=>{if(request.method()==='POST'&&request.url().includes('/api/canvas-'+config.kind+'-tasks'))posts++;return transport(request,config.canvas.id);}});
+            apiHandler:request=>{if(request.method()==='POST'&&request.url().includes('/api/canvas-'+taskKind+'-tasks'))posts++;return transport(request,config.canvas.id);}});
         await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});
+        if(config.kind==='parse'){
+            await page.addScriptTag({url:'/static/js/canvas-llm-tasks.js'});
+            await page.route('**/assets/cloud/**',route=>route.fulfill({body:Buffer.from(config.videoBytes,'base64'),contentType:'video/mp4'}));
+        }
         await page.evaluate(config=>{
-            apiProviders=[{id:config.providerId,has_key:true,audio_models:config.kind==='audio'?['speech-2.8-hd']:[],model_models:config.kind==='model'?['3.0']:[]}];
+            apiProviders=[{id:config.providerId,has_key:true,chat_models:config.kind==='parse'?['test']:[],audio_models:config.kind==='audio'?['speech-2.8-hd']:[],model_models:config.kind==='model'?['3.0']:[]}];
             Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});
             Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});
             // Use the editor's actual private proof for writes. The browser's
@@ -33,8 +38,21 @@ async function transport(request,canvasId){
                 }
                 return fetcher(url,init);
             };
-            openSmartStudio(nodes[0].id);
+            if(config.kind==='parse')PixmaxVideoParse.create(nodes[0].id,0);else openSmartStudio(nodes[0].id);
         },config);
+        if(config.kind==='parse'){
+            await page.getByRole('textbox',{name:'视频解析补充文本'}).fill('根据画面拆分镜头');await page.locator('[data-video-parse-run]').click();
+            await page.waitForFunction(()=>!PixmaxVideoParse.busy());
+            assert.equal(await page.evaluate(()=>nodes[1].shots.length),2,await page.locator('.pixmax-creation-status').textContent());
+            assert.equal(await page.evaluate(()=>nodes[1].storyboardAssets.length),1);
+            await page.screenshot({path:'.local/pixmax-video-parse.png'});
+            await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes[1].shots.length),0);assert.equal(await page.evaluate(()=>PixmaxVideoParse.pending().length),0);
+            assert.equal(await page.evaluate(()=>saveCanvas({force:true})),true);
+            await page.reload();await page.waitForFunction(id=>canvas?.id===id,config.canvas.id);
+            assert.equal(await page.evaluate(()=>nodes.length),2);assert.equal(await page.evaluate(()=>nodes[1].shots.length),0);assert.equal(await page.evaluate(()=>PixmaxVideoParse.pending().length),0);
+            assert.deepEqual(errors,[]);assert.equal(posts,1);
+            process.stdout.write(JSON.stringify({done:true,posts,revision:await page.evaluate(()=>canvas.revision)})+'\n');return;
+        }
         await page.getByRole('textbox',{name:config.kind==='audio'?'音频创作内容':'3D 模型描述'}).fill('雨夜陶瓷小猫');
         await page.locator('[data-'+config.kind+'-run]').click();
         await page.waitForFunction(kind=>!window[kind==='audio'?'PixmaxAudioCreation':'PixmaxModelCreation'].busy(),config.kind);

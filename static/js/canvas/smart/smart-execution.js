@@ -2631,10 +2631,10 @@ function smartTaskResultState(){
     return smartTaskResultState.current={canvas,busy:new Set()};
 }
 
-async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=false,valid=()=>true}={}){
+async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=false,valid=()=>true,prepareResult,applyResult}={}){
     const origin=canvas,state=smartTaskResultState(),guard=canvasTaskWriteGuard(node),taskId=record.id;
-    const outputs=resultMediaUrls(record.result?.[kind==='audio'?'audios':'models']||[]);
-    if(record.status!=='succeeded'||!['audio','model'].includes(kind)||!outputs.length)throw window.CanvasTaskResults.pending();
+    const outputs=kind==='llm'?(typeof record.result?.text==='string'&&record.result.text?[record.result.text]:[]):resultMediaUrls(record.result?.[kind==='audio'?'audios':'models']||[]);
+    if(record.status!=='succeeded'||!['audio','model','llm'].includes(kind)||!outputs.length||kind==='llm'&&!applyResult)throw window.CanvasTaskResults.pending();
     if(state.busy.has(taskId))throw window.CanvasTaskResults.pending();
     state.busy.add(taskId);
     try{
@@ -2650,9 +2650,10 @@ async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=f
             // entire observed prefix, including those other deliveries.
             const document={id:origin.id,nodes,task_result_version:origin.task_result_version||0};
             window.CanvasTaskResults.mergeDeliveries(document,{...data,deliveries:data.deliveries.filter(entry=>entry.task_id!==taskId)});
+            prepareResult?.();
             const completed=[taskId,...data.deliveries.map(entry=>entry.task_id)];
             pushSmartTaskResultUndo(completed);
-            finalizeSmartPendingTask(node,taskId,outputs,kind,record.result,record);
+            if(applyResult)applyResult();else finalizeSmartPendingTask(node,taskId,outputs,kind,record.result,record);
             origin.task_result_version=document.task_result_version;
         };
         if(recovered)binding.apply(write);else binding.apply(record,write,taskId);
@@ -2664,18 +2665,21 @@ async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=f
 function smartTaskRecovery(){
     return {
         deliveryVersion:()=>canvas.task_result_version || 0,
-        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || canvasSyncInFlight,
+        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || window.PixmaxVideoParse?.busy() || canvasSyncInFlight,
         mergeDeliveries:response=>{
+            window.CanvasTaskResults.validateDeliveries({id:canvas.id,task_result_version:canvas.task_result_version||0},response);
+            response=window.PixmaxVideoParse?.deliveryPrefix(response)||response;
             const document={id:canvas.id,nodes,task_result_version:canvas.task_result_version || 0};
             const affected=window.CanvasTaskResults.mergeDeliveries(document,response);
             canvas.task_result_version=document.task_result_version;
             forgetSmartCompletedTaskProgress(response.deliveries.map(entry=>entry.task_id));
             refreshSmartNodes(affected);
         },
-        list:()=>nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video','audio','model'].includes(task.kind || 'image'))
-            .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),
+        list:()=>[...nodes.flatMap(node=>smartPendingTasks(node).filter(task=>['image','video','audio','model'].includes(task.kind || 'image'))
+            .map(task=>({id:task.taskId,canvasId:canvas.id,kind:task.kind || 'image',task,node}))),...(window.PixmaxVideoParse?.pending()||[])],
         changed:item=>refreshSmartNodes(item ? [item.node.id] : nodes.filter(node=>smartPendingTasks(node).length).map(node=>node.id)),
         apply:async(item,record,current)=>{
+            if(item.kind==='llm'&&item.node.videoAnalysis)return window.PixmaxVideoParse.recover(item.node,record,{valid:current});
             const source=nodes.find(node=>node.id===item.task.run?.nodeId),writeGuard=canvasTaskWriteGuard(source,item.node);
             const valid=()=>current() && Boolean(source) && writeGuard.valid() && smartPendingTasks(item.node).includes(item.task);
             if(!valid() || activeSmartTaskPolls.has(item.kind+':'+item.id) || item.kind==='audio' && window.PixmaxAudioCreation?.busy() || item.kind==='model' && window.PixmaxModelCreation?.busy())return;

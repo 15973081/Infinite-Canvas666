@@ -37,15 +37,16 @@ function pushUndo(){
 }
 
 function forgetSmartCompletedTaskProgress(taskIds){
+    const finished=new Set(taskIds);
     for(const snapshot of [...undoStack,...smartRedoStack,pendingUndoSnapshot]){
         if(snapshot?.nodes)window.CanvasTaskResults.clearPending(snapshot.nodes,taskIds);
+        snapshot?.nodes?.forEach(node=>{if(finished.has(node.videoAnalysis?.taskId))delete node.videoAnalysis.taskId;});
     }
 }
 
 function pushSmartTaskResultUndo(taskIds){
-    forgetSmartCompletedTaskProgress(taskIds);
     pushUndo();
-    if(!undoSuppressed&&undoStack.length)window.CanvasTaskResults.clearPending(undoStack.at(-1).nodes,taskIds);
+    forgetSmartCompletedTaskProgress(taskIds);
 }
 
 function performUndo(){
@@ -131,6 +132,7 @@ function selectedSmartWorkflowPayload(){
     const ids = selectedNodeIds();
     const idSet = new Set(ids);
     const selectedNodes = nodes.filter(node => idSet.has(node.id)).map(serializableSmartNode).filter(Boolean);
+    selectedNodes.forEach(node=>{if(node.videoAnalysis)delete node.videoAnalysis.taskId;});
     const selectedSet = new Set(selectedNodes.map(node => node.id));
     const selectedConnections = (canvas?.connections || [])
         .filter(conn => selectedSet.has(conn.from) && selectedSet.has(conn.to))
@@ -231,6 +233,7 @@ function insertSmartWorkflowIntoCanvas(imported){
     const idMap = new Map();
     const newNodes = srcNodes.map(source => {
         const copy = serializableSmartNode(source);
+        if(copy?.videoAnalysis)delete copy.videoAnalysis.taskId;
         const oldId = copy.id || uid(copy.type || 'smart');
         copy.id = uid(copy.type || 'smart');
         copy.x = Number(copy.x || 0) + dx;
@@ -686,6 +689,8 @@ function createPromptNode(x, y, options={}){
 
 function cloneSmartNode(node, dx=0, dy=0){
     const copy = JSON.parse(JSON.stringify(node));
+    if(copy.videoAnalysis)delete copy.videoAnalysis.taskId;
+    delete copy.pendingTasks;
     copy.id = uid(
         node.type === 'smart-prompt'
             ? 'prompt'

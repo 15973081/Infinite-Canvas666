@@ -1,9 +1,10 @@
 /* Shared durable text task transport. Result application belongs to the input binding. */
 (function () {
     'use strict';
-    async function run(payload, {binding, canvasId, transport=window.fetch.bind(window), sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}) {
+    async function run(payload, {binding, canvasId, taskId:requestedId,onRemember,transport=window.fetch.bind(window), sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))}) {
         if(!binding || !window.CanvasSession?.enabled)throw new Error('对话任务校验尚未就绪，请保存并刷新页面。');
-        const taskId='canvas_llm_'+crypto.randomUUID().replace(/-/g,'');
+        const taskId=requestedId||'canvas_llm_'+crypto.randomUUID().replace(/-/g,'');
+        if(!/^canvas_llm_[A-Za-z0-9_-]{8,80}$/.test(taskId))throw new Error('任务编号无效');
         const target=await binding.prepare();
         binding.beginSubmission();
         let accepted=false;
@@ -11,11 +12,12 @@
             const response=await window.MemberCanvasEdit.send('/api/canvas-llm-tasks',{signal:AbortSignal.timeout(30000),method:'POST',headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({...payload,canvas_id:canvasId,client_task_id:taskId,canvas_target:target})},transport);
             binding.check();
-            if(!response.ok)throw new Error('对话任务未确认，请检查编辑资格、供应商配置或管理平台的任务记录。');
+            if(!response.ok){const error=new Error('对话任务未确认，请检查编辑资格、供应商配置或管理平台的任务记录。');error.rejected=[400,401,403,404,410,422,423,428].includes(response.status);throw error;}
             const receipt=await response.json();
             binding.check();
             if(receipt.task_id!==taskId)throw new Error('对话任务标识不一致，请到生成结果中核对。');
             binding.remember(receipt);accepted=true;
+            await onRemember?.(receipt);
             for(let attempt=0;attempt<1200;attempt++) {
                 binding.check();
                 const response=await transport('/api/canvas-llm-tasks/'+encodeURIComponent(taskId),{cache:'no-store',signal:AbortSignal.timeout(30000)});
@@ -32,7 +34,8 @@
             }
             throw new Error('已停止等待，任务仍保留在服务器，请稍后查看生成结果。');
         } catch(error) {
-            error.resultPending=true;
+            error.resultPending=!error.rejected;
+            error.accepted=accepted;
             error.taskId=taskId;
             if(!accepted && !error.inputChanged)error.message+=' 任务编号：'+taskId;
             throw error;
