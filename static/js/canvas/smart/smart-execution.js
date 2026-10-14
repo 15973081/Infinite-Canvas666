@@ -2504,7 +2504,7 @@ function finalizeSmartPendingTask(node, taskId, images, kind='image', result={},
     }).filter(item => item.url);
     node.images = [...(node.images || []).map(img => stripImageGenerationMeta(img)), ...additions];
     const pendingRun = smartPendingTaskRun(node, task, kind);
-    if(additions.length && pendingRun && !(['audio','model'].includes(kind) && window.CanvasSession?.enabled)){
+    if(additions.length && pendingRun && !((['audio','model'].includes(kind)||kind==='image'&&node.storyboardAssetBinding) && window.CanvasSession?.enabled)){
         const runSettings = cloneSmartSettings(pendingRun.settings || {});
         if(task?.providerId) runSettings.provider_id = task.providerId;
         if(task?.model) runSettings.model = task.model;
@@ -2562,7 +2562,7 @@ async function resumeSmartPendingNode(node){
                 const result=inputBinding ? record.result||{} : record;
                 if(!targetStillCurrent() || canvas!==originCanvas || !validResult() || !nodes.includes(node) || !smartPendingTasks(node).includes(task)){deferred=true;return;}
                 const outputs = kind === 'video' ? resultMediaUrls(result) : resultMediaUrls(kind==='audio' ? result?.audios : kind==='model' ? result?.models : result?.images || result);
-                if(inputBinding&&['audio','model'].includes(kind)){
+                if(inputBinding&&(['audio','model'].includes(kind)||kind==='image'&&node.storyboardAssetBinding)){
                     await commitSmartStudioTaskResult(node,record,kind,inputBinding,{valid:()=>targetStillCurrent()&&canvas===originCanvas&&validResult()&&smartPendingTasks(node).includes(task)});return;
                 }
                 const apply=()=>{finalizeSmartPendingTask(node,task.taskId,outputs,kind,result,inputBinding?record:null);refreshSmartNodes([node.id]);scheduleSave();};
@@ -2633,8 +2633,8 @@ function smartTaskResultState(){
 
 async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=false,valid=()=>true,prepareResult,applyResult}={}){
     const origin=canvas,state=smartTaskResultState(),guard=canvasTaskWriteGuard(node),taskId=record.id;
-    const outputs=kind==='llm'?(typeof record.result?.text==='string'&&record.result.text?[record.result.text]:[]):resultMediaUrls(record.result?.[kind==='audio'?'audios':'models']||[]);
-    if(record.status!=='succeeded'||!['audio','model','llm'].includes(kind)||!outputs.length||kind==='llm'&&!applyResult)throw window.CanvasTaskResults.pending();
+    const outputs=kind==='llm'?(typeof record.result?.text==='string'&&record.result.text?[record.result.text]:[]):resultMediaUrls(record.result?.[kind==='audio'?'audios':kind==='image'?'images':'models']||[]);
+    if(record.status!=='succeeded'||!['audio','model','llm','image'].includes(kind)||!outputs.length||kind==='llm'&&!applyResult)throw window.CanvasTaskResults.pending();
     if(state.busy.has(taskId))throw window.CanvasTaskResults.pending();
     state.busy.add(taskId);
     try{
@@ -2665,7 +2665,7 @@ async function commitSmartStudioTaskResult(node,record,kind,binding,{recovered=f
 function smartTaskRecovery(){
     return {
         deliveryVersion:()=>canvas.task_result_version || 0,
-        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || window.PixmaxVideoParse?.busy() || canvasSyncInFlight,
+        deliveryBusy:()=>activeSmartTaskPolls.size>0 || smartTaskResultState().busy.size>0 || window.PixmaxAudioCreation?.busy() || window.PixmaxModelCreation?.busy() || window.PixmaxVideoParse?.busy() || window.PixmaxStoryboardAssets?.busy() || canvasSyncInFlight,
         mergeDeliveries:response=>{
             window.CanvasTaskResults.validateDeliveries({id:canvas.id,task_result_version:canvas.task_result_version||0},response);
             response=window.PixmaxVideoParse?.deliveryPrefix(response)||response;
@@ -2687,6 +2687,7 @@ function smartTaskRecovery(){
                 sourceId:source.id,targetId:item.node.id,read:smartTaskInputDocument,valid});
             const result=record.result || {},outputs=item.kind==='video' ? resultMediaUrls(result) : resultMediaUrls(item.kind==='audio' ? result.audios : item.kind==='model' ? result.models : result.images || result);
             if(!outputs.length)return;
+            if(item.kind==='image'&&item.node.storyboardAssetBinding)return commitSmartStudioTaskResult(item.node,record,'image',binding,{recovered:true,valid});
             if(['audio','model'].includes(item.kind))return commitSmartStudioTaskResult(item.node,record,item.kind,binding,{recovered:true,valid});
             binding.apply(()=>{finalizeSmartPendingTask(item.node,item.id,outputs,item.kind,result,record);refreshSmartNodes([item.node.id]);scheduleSave();});
         }

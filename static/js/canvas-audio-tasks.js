@@ -2,9 +2,9 @@
 (() => {
     'use strict';
     async function run(kind,payload,{binding,canvasId,onRemember}){
-        const label=kind==='model'?'3D 模型':'音频';
+        const label=kind==='model'?'3D 模型':kind==='image'?'图像':'音频';
         if(!binding||!window.CanvasSession?.enabled)throw new Error('请在成员画布中生成'+label);
-        const taskId='canvas_'+kind+'_'+crypto.randomUUID().replace(/-/g,'');
+        const taskId='canvas_'+(kind==='image'?'img':kind)+'_'+crypto.randomUUID().replace(/-/g,'');
         const target=await binding.prepare();binding.beginSubmission();
         let accepted=false;
         try{
@@ -20,4 +20,5 @@
     }
     window.CanvasAudioTasks=Object.freeze({run:(payload,options)=>run('audio',payload,options)});
     window.CanvasModelTasks=Object.freeze({run:(payload,options)=>run('model',payload,options)});
+    window.CanvasImageTasks=Object.freeze({run:(payload,options)=>run('image',payload,options)});
 })();

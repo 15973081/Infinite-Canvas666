@@ -393,7 +393,7 @@ function openSmartStoryboard(node){
     const draw=()=>{
         const columns=step===0?fields:step===1?[['description','画面描述'],['asset','素材 / 角色备注']]:[['prompt','生成提示词']];
         modal.querySelector('.pixmax-story-body').innerHTML=`<table><thead><tr><th>镜号</th>${columns.map(field=>`<th>${field[1]}</th>`).join('')}<th></th></tr></thead><tbody>${shots.map((shot,index)=>`<tr><td>${index+1}</td>${columns.map(([key,label])=>`<td><textarea aria-label="镜头 ${index+1} ${label}" data-shot="${index}" data-field="${key}">${escapeHtml(String(shot[key] || ''))}</textarea></td>`).join('')}<td><button type="button" data-story-delete="${index}" aria-label="删除镜头 ${index+1}">×</button></td></tr>`).join('')}</tbody></table>`;
-        if(step===1&&assets.length)modal.querySelector('.pixmax-story-body').insertAdjacentHTML('beforeend',`<section aria-label="分镜资产清单"><h3>人物、场景、道具清单</h3><table><thead><tr><th>类型</th><th>名称</th><th>外观与特征</th><th>资产提示词</th></tr></thead><tbody>${assets.map((asset,index)=>`<tr><td>${{character:'人物',scene:'场景',prop:'道具'}[asset.type]||escapeHtml(asset.type)}</td>${[['name','名称'],['description','外观描述'],['prompt','提示词']].map(([key,label])=>`<td><textarea aria-label="资产 ${index+1} ${label}" data-asset-index="${index}" data-asset-field="${key}">${escapeHtml(asset[key]||'')}</textarea></td>`).join('')}</tr>`).join('')}</tbody></table></section>`);
+        if(step===1&&assets.length)modal.querySelector('.pixmax-story-body').insertAdjacentHTML('beforeend',`<section aria-label="分镜资产清单"><h3>人物、场景、道具清单</h3><button type="button" data-story-asset-images>生成资产图像</button><table><thead><tr><th>类型</th><th>名称</th><th>外观与特征</th><th>资产提示词</th><th>生成图像</th></tr></thead><tbody>${assets.map((asset,index)=>{const media=window.PixmaxStoryboardAssets?.references(node,asset)||[];return `<tr><td>${{character:'人物',scene:'场景',prop:'道具'}[asset.type]||escapeHtml(asset.type)}</td>${[['name','名称'],['description','外观描述'],['prompt','提示词']].map(([key,label])=>`<td><textarea aria-label="资产 ${index+1} ${label}" data-asset-index="${index}" data-asset-field="${key}">${escapeHtml(asset[key]||'')}</textarea></td>`).join('')}<td>${media.length?`<img class="pixmax-story-asset-thumb" src="${escapeAttr(smartMediaPreviewUrl(media.at(-1),192))}" alt="${escapeAttr(asset.name)} 生成图像">`:''}<button type="button" data-story-asset-images="${escapeAttr(asset.id)}">${media.length?'重新生成':'生成图像'}</button></td></tr>`;}).join('')}</tbody></table></section>`);
     };
     draw();
     modal.addEventListener('input',event=>{const field=event.target.dataset.field;if(field)shots[Number(event.target.dataset.shot)][field]=field==='duration'?Math.max(.1,Number(event.target.value)||5):event.target.value;});
@@ -404,6 +404,7 @@ function openSmartStoryboard(node){
         if(button.hasAttribute('data-story-close')){save();modal.remove();return;}
         if(!valid()){modal.remove();return;}
         if(button.hasAttribute('data-story-video-parse')){if(save()){modal.remove();window.PixmaxVideoParse.open(node);}return;}
+        if(button.hasAttribute('data-story-asset-images')){if(save()){modal.remove();window.PixmaxStoryboardAssets.open(node,button.dataset.storyAssetImages||undefined);}return;}
         if(button.hasAttribute('data-story-generate')){
             const status=modal.querySelector('[role=status]');
             try{
@@ -436,7 +437,7 @@ function openSmartStoryboard(node){
         if(button.hasAttribute('data-story-save')){save();modal.remove();}
         if(button.hasAttribute('data-story-export')){
             if(!save())return;
-            shots.forEach((shot,index)=>{const result=createPromptNode(node.x+400+index*360,node.y,{skipUndo:true,select:false});result.text=shot.prompt || [shot.description,shot.size,shot.lighting,shot.movement,shot.asset].filter(Boolean).join('，');connectInputNode(node.id,result.id);});
+            shots.forEach((shot,index)=>{const result=createPromptNode(node.x+400+index*360,node.y,{skipUndo:true,select:false});result.text=shot.prompt || [shot.description,shot.size,shot.lighting,shot.movement,shot.asset].filter(Boolean).join('，');connectInputNode(node.id,result.id);window.PixmaxStoryboardAssets?.linkShot(node,shot,result);});
             render();scheduleSave();modal.remove();
         }
     });
