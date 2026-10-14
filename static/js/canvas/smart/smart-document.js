@@ -21,6 +21,7 @@ function snapshotForUndo(){
     return {
         nodes: JSON.parse(JSON.stringify(nodes)),
         connections: JSON.parse(JSON.stringify(canvas?.connections || [])),
+        nodeTags: window.PixmaxTags?.definitions(),
         selectedId: smartSelection.nodeId,
         selectedIds: smartSelection.ids.slice(),
         selectedImage: {...smartSelection.image}
@@ -43,6 +44,7 @@ function performUndo(){
     undoSuppressed = true;
     nodes = snap.nodes;
     if(canvas) canvas.connections = snap.connections;
+    if(canvas&&snap.nodeTags)canvas.node_tags=snap.nodeTags;
     smartSelection.restoreDocument(snap);
     smartComposer.documentReplaced();
     render();
@@ -127,14 +129,15 @@ function selectedSmartWorkflowPayload(){
         canvas_type:'smart',
         exported_at:Date.now(),
         nodes:selectedNodes,
+        node_tags:window.PixmaxTags?.definitions(),
         connections:selectedConnections
     };
 }
 
 function normalizeImportedSmartWorkflow(data){
     if(Array.isArray(data)) return {nodes:data, connections:[]};
-    if(Array.isArray(data?.nodes)) return {nodes:data.nodes, connections:Array.isArray(data.connections) ? data.connections : []};
-    if(Array.isArray(data?.workflow?.nodes)) return {nodes:data.workflow.nodes, connections:Array.isArray(data.workflow.connections) ? data.workflow.connections : []};
+    if(Array.isArray(data?.nodes)) return {nodes:data.nodes, connections:Array.isArray(data.connections) ? data.connections : [],node_tags:data.node_tags||data.workflow?.node_tags};
+    if(Array.isArray(data?.workflow?.nodes)) return {nodes:data.workflow.nodes, connections:Array.isArray(data.workflow.connections) ? data.workflow.connections : [],node_tags:data.workflow.node_tags};
     return {nodes:[], connections:[]};
 }
 
@@ -228,6 +231,7 @@ function insertSmartWorkflowIntoCanvas(imported){
         .map(conn => ({...JSON.parse(JSON.stringify(conn)), from:idMap.get(conn.from), to:idMap.get(conn.to)}))
         .filter(conn => conn.from && conn.to);
     newNodes.forEach(node=>{if(node.inputNodeIds)node.inputNodeIds=node.inputNodeIds.map(id=>idMap.get(id)).filter(Boolean);});
+    window.PixmaxTags?.mergeImported(imported,newNodes);
     nodes.push(...newNodes);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     smartSelection.insertedNodes(newNodes.map(node => node.id));
@@ -357,6 +361,7 @@ function createImageNodeAt(point, images=[], options={}){
 function restoreSmartMemberDraft(draft){
     if(!canvas || draft.id!==canvas.id || draft.kind!=='smart' || !Array.isArray(draft.nodes) || !Array.isArray(draft.connections)) throw new Error('智能画布草稿格式不完整，请先导出保留。');
     const restoredDocument=JSON.parse(JSON.stringify(draft));
+    const restoredTags=Object.hasOwn(restoredDocument,'node_tags')?window.PixmaxTags.normalize(restoredDocument.node_tags):undefined;
     removeRetiredSmartLoopNodes(restoredDocument);
     const restoredNodes=restoredDocument.nodes.map(serializableSmartNode).filter(Boolean);
     clearTimeout(saveTimer); saveTimer=null;
@@ -365,6 +370,7 @@ function restoreSmartMemberDraft(draft){
     canvas.icon=draft.icon || canvas.icon;
     canvas.nodes=nodes=restoredNodes;
     canvas.connections=restoredDocument.connections;
+    if(restoredTags!==undefined)canvas.node_tags=restoredTags;
     canvasUsesConnections=true;
     if(draft.settings){
         canvasDefaultSmartSettings=settingsForStorage(draft.settings);
@@ -515,6 +521,7 @@ async function saveCanvas(options={}){
                 icon:storageCanvas.icon || 'sparkles',
                 cover:storageCanvas.cover || null,
                 nodes:storageCanvas.nodes || [],
+                node_tags:window.PixmaxTags?.definitions(),
                 connections:storageCanvas.connections || [],
                 viewport:storageCanvas.viewport || {x:0,y:0,scale:1},
                 logs:storageCanvas.logs || [],
@@ -691,6 +698,7 @@ function copySelectedNodes(){
     const copiedConnections = (canvas.connections || []).filter(c => idSet.has(c.from) && idSet.has(c.to));
     nodeClipboard = {
         nodes:JSON.parse(JSON.stringify(copiedNodes)),
+        node_tags:window.PixmaxTags?.definitions(),
         connections:JSON.parse(JSON.stringify(copiedConnections))
     };
     toast(`已复制 ${copiedNodes.length} 个节点`);
@@ -725,6 +733,7 @@ function pasteNodes({includeConnections=true}={}){
         from:idMap.get(conn.from),
         to:idMap.get(conn.to)
     })).filter(conn => conn.from && conn.to && conn.from !== conn.to);
+    window.PixmaxTags?.mergeImported(nodeClipboard,copies);
     canvas.connections = [...(canvas.connections || []), ...newConnections];
     nodes.push(...copies);
     smartSelection.insertedNodes(copies.map(n => n.id));

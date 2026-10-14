@@ -2110,6 +2110,7 @@ function runSmartNodeToolbarAction(nodeId, action){
     const item = imageForDisplay(node.images?.[index]);
     if(!item?.url) return;
     const kind = mediaKindForItem(item);
+    if(action==='tags')return window.PixmaxTags.openPicker([nodeId],world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="tags"]`));
     if(PIXMAX_VIDEO_DEFERRED.has(action))return;
     if(['trim','auth','asset','depth-video','audio-separate'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
     smartSelection.toolbarImage(nodeId, index);
@@ -4629,6 +4630,7 @@ function createSmartWorkspaceView(){
     }
 
     function renderImpl(){
+        window.PixmaxTags?.notifyChanged();
         window.PixmaxNavigator?.documentChanged();
         smartAudioPreview.dataChanged();
         cancelSmartGeometryRefresh();
@@ -4675,6 +4677,7 @@ function createSmartWorkspaceView(){
     }
 
     function refreshSmartNodesImpl(ids, {forceIds=[]}={}){
+        window.PixmaxTags?.notifyChanged();
         window.PixmaxNavigator?.documentChanged();
         smartAudioPreview.dataChanged();
         const affected = smartAffectedNodeIds(ids);

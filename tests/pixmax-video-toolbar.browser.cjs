@@ -19,7 +19,8 @@ test('video toolbar is selected-only, uses native actions, remains readable on z
  assert.equal(await toolbar.getByRole('button',{name:'剪辑',exact:true}).isEnabled(),true);
  assert.equal(await toolbar.getByRole('button',{name:'裁剪',exact:true}).count(),0);
  assert.equal(await toolbar.getByRole('button',{name:'音频分离',exact:true}).isEnabled(),true);
- for(const name of ['合规检测','标记','智能续写','片段重拍','解析','字幕擦除','超分','标签','生成历史']){
+ assert.equal(await toolbar.getByRole('button',{name:'标签',exact:true}).isEnabled(),true);
+ for(const name of ['合规检测','标记','智能续写','片段重拍','解析','字幕擦除','超分','生成历史']){
   const button=toolbar.getByRole('button',{name,exact:true});assert.equal(await button.isDisabled(),true);assert.match(await button.getAttribute('title'),/后续接入/);
  }
  const first=await toolbar.boundingBox();assert.ok(first.x>=0&&first.x+first.width<=1280);

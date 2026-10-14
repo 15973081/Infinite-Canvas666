@@ -119,7 +119,7 @@ test('creating a canvas retains it in the catalog when the current document cann
     await page.route('**/api/canvases/new-film',route=>route.fulfill({json:{canvas:created}}));
     await page.evaluate(()=>{MemberCanvasEdit.leave=()=>MemberCanvasEdit.options.flush();createPromptNode(700,250).text='尚未保存的剧本';});
     await page.getByRole('button',{name:'新建画布',exact:true}).click();await page.getByRole('textbox',{name:'画布名称',exact:true}).fill('新电影');await page.getByRole('button',{name:'创建',exact:true}).click();
-    await page.locator('#pixmaxNavigator [role=status]').filter({hasText:'画布已创建'}).waitFor();assert.equal(admissions,1);assert.ok(page.url().endsWith('/canvas-test'));assert.equal(await page.locator('[data-canvas-open="new-film"]').count(),1);
+    await page.locator('#pixmaxNavigator [role=status]').filter({hasText:'画布已创建'}).waitFor();await page.locator('[data-canvas-open="new-film"]').waitFor();assert.equal(admissions,1);assert.ok(page.url().endsWith('/canvas-test'));assert.equal(await page.locator('[data-canvas-open="new-film"]').count(),1);
     fail=false;await page.locator('[data-canvas-open="new-film"]').click();await page.waitForURL('**/canvases/new-film');await page.waitForFunction(()=>canvas?.id==='new-film');assert.equal(record.nodes[0].text,'尚未保存的剧本');assert.deepEqual(errors,[]);
 });
 

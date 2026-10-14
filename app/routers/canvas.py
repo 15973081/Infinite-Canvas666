@@ -1158,6 +1158,14 @@ async def download_canvas_assets(payload: CanvasAssetDownloadRequest):
     raw_items = payload.items or [{"url": url} for url in payload.urls]
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for raw in raw_items[:1000]:
+            if isinstance(raw, dict) and raw.get('kind') == 'text':
+                content = str(raw.get('text') or '').encode('utf-8')
+                if len(content) > 1024 * 1024:
+                    raise HTTPException(413, '单个文本节点超过导出大小限制')
+                name = canvas_workflow_unique_archive_name(sanitize_export_filename(raw.get('name') or 'text.txt', 'text.txt'), used_names)
+                zf.writestr(name, content)
+                count += 1
+                continue
             if isinstance(raw, dict):
                 text = str(raw.get("url") or "").strip()
                 requested_name = str(raw.get("name") or "").strip()
@@ -1301,10 +1309,14 @@ async def import_canvas_workflow(file: UploadFile = File(...)):
     if resource_mapping:
         nodes_payload = canvas_workflow_replace_strings(nodes_payload, resource_mapping)
         connections_payload = canvas_workflow_replace_strings(connections_payload, resource_mapping)
+    nested = workflow.get('workflow') if isinstance(workflow.get('workflow'), dict) else {}
+    tags = workflow.get('node_tags', nested.get('node_tags'))
+    normalized = canvas_workflow_payload(nodes_payload, connections_payload, workflow.get('resources') or [], tags)
     return {
-        "workflow": canvas_workflow_payload(nodes_payload, connections_payload, workflow.get("resources") or []),
+        "workflow": normalized,
         "nodes": nodes_payload,
         "connections": connections_payload,
+        **({'node_tags': normalized['node_tags']} if 'node_tags' in normalized else {}),
         "resource_map": resource_mapping,
     }
 
@@ -1402,6 +1414,8 @@ def _save_canvas_update(canvas_id: str, payload: CanvasSaveRequest):
     canvas["icon"] = (payload.icon or canvas.get("icon") or "layers")[:32]
     canvas["kind"] = normalize_canvas_kind(canvas.get("kind"))
     canvas["nodes"] = payload.nodes
+    if 'node_tags' in fields_set:
+        canvas['node_tags'] = [tag.model_dump() for tag in payload.node_tags or []]
     if "cover" in fields_set:
         canvas["cover"] = payload.cover.model_dump() if payload.cover else None
     canvas['task_result_version'] = payload.task_result_version

@@ -26,7 +26,7 @@ function pixmaxNameWidth(title){
 }
 function pixmaxNodeCaption(node,kind,label){
     const title=node.label || (!node.generationKind&&node.images?.[0]?.name?node.images[0].name.replace(/\.[^.]+$/,''):label);
-    return `<div class="generation-node-caption">${pixmaxSvg(kind)}<input class="pixmax-node-name" aria-label="节点名称" value="${escapeAttr(title)}" style="width:${pixmaxNameWidth(title)}px" ${isSmartCanvasLocked()?'readonly':''}></div>`;
+    return `<div class="generation-node-caption">${pixmaxSvg(kind)}<input class="pixmax-node-name" aria-label="节点名称" value="${escapeAttr(title)}" style="width:${pixmaxNameWidth(title)}px" ${isSmartCanvasLocked()?'readonly':''}>${window.PixmaxTags?.markup(node)||''}</div>`;
 }
 function pixmaxUniqueNodeLabel(base){
     const labels=new Set(nodes.map(node=>node.label||(node.type==='smart-prompt'?'文本生成节点':node.generationKind==='video'?'视频生成节点':node.generationKind==='image'?'图像生成节点':'')));
@@ -48,7 +48,7 @@ function pixmaxConnectionMenuTypes(node,port){
 }
 function pixmaxCanConnect(from,to){return !!window.PixmaxCanvasAssets.connectionRules[pixmaxNativeNodeType(from)]?.source.includes(pixmaxNativeNodeType(to));}
 
-const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','annotation','continuation','reshoot','parse','erase','upscale','tags','video-history']);
+const PIXMAX_VIDEO_DEFERRED=new Set(['compliance','annotation','continuation','reshoot','parse','erase','upscale','video-history']);
 function pixmaxVideoToolbarActions(node){
     const item=node?.images?.[smartNodeToolbarImageIndex(node)]||{};
     const editing=!isSmartCanvasLocked();
@@ -61,7 +61,7 @@ function pixmaxVideoToolbarActions(node){
         later('parse','解析','layout-grid'),later('erase','字幕擦除','captions'),later('upscale','超分','scan'),
         {key:'depth-video',label:'深度视频',icon:'layers',enabled:editing,hint:editing?'深度视频 · 本地提取':'请先开始编辑画布'},
         {key:'audio-separate',label:'音频分离',icon:'audio-lines',enabled:editing,hint:editing?'音频分离 · 提取静音视频和音轨':'请先开始编辑画布'},
-        {...later('tags','标签','tag'),compact:true}, {...later('video-history','生成历史','history'),compact:true},
+        {key:'tags',label:'标签',icon:'tag',enabled:true,compact:true}, {...later('video-history','生成历史','history'),compact:true},
         {key:'download',label:'下载',icon:'download',enabled:true,compact:true},
         {key:'preview',label:'放大预览',icon:'maximize-2',enabled:true,compact:true},
         {key:'asset',label:'保存到资产库',icon:'library-big',enabled:editing,compact:true},
@@ -435,7 +435,7 @@ function openSmartCanvasContext(event,node){
     createMenuPoint=screenToWorld(event);
     const menu=document.createElement('div');menu.className='pixmax-context-menu create-menu-context';menu.setAttribute('role','menu');
     const media=node?.images?.[0]||node?.studioPreview;
-    menu.innerHTML=node?`${media?.url?'<button data-context-action="asset">保存到资产库</button>':''}<button data-context-action="pin">${node.pinned?'取消 pin':'pin 到汇总'}</button><button data-context-action="copy">复制 <kbd>Ctrl C</kbd></button>${media?.url?'<button data-context-action="cover">设为项目封面</button>':''}<button data-context-action="delete">删除 <kbd>Delete</kbd></button>`:'<button data-context-action="upload">上传</button><button data-context-action="add">添加节点</button><hr><button data-context-action="undo">撤销 <kbd>Ctrl Z</kbd></button><button data-context-action="redo">重做 <kbd>Ctrl Shift Z</kbd></button><hr><button data-context-action="paste">粘贴 <kbd>Ctrl V</kbd></button><button data-context-action="paste-links">粘贴（保留连线） <kbd>Ctrl Shift V</kbd></button>';
+    menu.innerHTML=node?`${media?.url?'<button data-context-action="asset">保存到资产库</button>':''}<button data-context-action="pin">${(window.PixmaxTags?.ids(node).length??node.pinned)?'取消 pin':'pin 到汇总'}</button><button data-context-action="copy">复制 <kbd>Ctrl C</kbd></button>${media?.url?'<button data-context-action="cover">设为项目封面</button>':''}<button data-context-action="delete">删除 <kbd>Delete</kbd></button>`:'<button data-context-action="upload">上传</button><button data-context-action="add">添加节点</button><hr><button data-context-action="undo">撤销 <kbd>Ctrl Z</kbd></button><button data-context-action="redo">重做 <kbd>Ctrl Shift Z</kbd></button><hr><button data-context-action="paste">粘贴 <kbd>Ctrl V</kbd></button><button data-context-action="paste-links">粘贴（保留连线） <kbd>Ctrl Shift V</kbd></button>';
     shell.appendChild(menu);
     menu.style.left=Math.max(8,Math.min(event.clientX,innerWidth-menu.offsetWidth-8))+'px';menu.style.top=Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))+'px';
     menu.addEventListener('mousedown',event=>event.stopPropagation());
@@ -448,7 +448,7 @@ function openSmartCanvasContext(event,node){
         closeSmartCanvasContext();
         if(kind==='upload')document.getElementById('fileInput').click();
         if(kind==='copy'){if(!isNodeSelected(node.id))smartSelection.createdNode(node.id);copySelectedNodes();}
-        if(kind==='pin'){pushUndo();node.pinned=!node.pinned;refreshSmartNodes([node.id]);scheduleSave();}
+        if(kind==='pin')window.PixmaxTags.togglePin(node);
         if(kind==='delete')deleteSmartNodes(isNodeSelected(node.id)?selectedNodeIds():[node.id]);
         if(kind==='asset'){if(node.images?.[0])saveSmartImageToAssetLibrary(node.id,0);else addUrlToAssetLibrary(media.url,media.name||node.label||smartStudioTitle(node));}
         if(kind==='cover'){pushUndo();canvas.cover={...(canvas.cover||{}),node_id:node.id,index:0};scheduleSave();toast('已设为项目封面');}
@@ -465,5 +465,6 @@ function redoSmartCanvas(){
     if(isSmartCanvasLocked() || !smartRedoStack.length)return;
     undoStack.push(snapshotForUndo());
     const snapshot=smartRedoStack.pop();nodes=snapshot.nodes;canvas.nodes=nodes;canvas.connections=snapshot.connections;
+    if(snapshot.nodeTags)canvas.node_tags=snapshot.nodeTags;
     smartSelection.restoreDocument(snapshot);smartComposer.documentReplaced();render();scheduleSave();
 }

@@ -468,8 +468,8 @@ def canvas_workflow_replace_strings(value, mapping):
         return mapping.get(value, value)
     return value
 
-def canvas_workflow_payload(nodes, connections, resources=None):
-    return {
+def canvas_workflow_payload(nodes, connections, resources=None, node_tags=None):
+    result = {
         "format": "infinite-canvas-workflow",
         "version": 1,
         "exported_at": now_ms(),
@@ -477,6 +477,14 @@ def canvas_workflow_payload(nodes, connections, resources=None):
         "connections": connections or [],
         "resources": resources or [],
     }
+    if node_tags is not None:
+        from app.models import CanvasTagEnvelope
+        from pydantic import ValidationError
+        try:
+            result['node_tags'] = [tag.model_dump() for tag in CanvasTagEnvelope(node_tags=node_tags).node_tags]
+        except ValidationError as error:
+            raise HTTPException(400, '工作流标签格式不正确') from error
+    return result
 
 def build_canvas_workflow_archive(payload: CanvasWorkflowExportRequest) -> Tuple[bytes, Dict[str, Any]]:
     from app.services.media import output_file_from_url
@@ -504,7 +512,7 @@ def build_canvas_workflow_archive(payload: CanvasWorkflowExportRequest) -> Tuple
                     "name": os.path.basename(path),
                     "size": os.path.getsize(path),
                 })
-        workflow = canvas_workflow_payload(nodes_payload, connections_payload, resources)
+        workflow = canvas_workflow_payload(nodes_payload, connections_payload, resources, [tag.model_dump() for tag in payload.node_tags] if payload.node_tags is not None else None)
         zf.writestr("workflow.json", json.dumps(workflow, ensure_ascii=False, indent=2))
     buffer.seek(0)
     return buffer.getvalue(), {"resources": resources, "node_count": len(nodes_payload), "connection_count": len(connections_payload)}

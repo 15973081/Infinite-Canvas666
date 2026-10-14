@@ -125,26 +125,7 @@ function bindPixmaxSidebarEvents(panel){
     panel.addEventListener('wheel',event=>event.stopPropagation(),{passive:true});
 }
 function openPixmaxPins(){
-    document.getElementById('pixmaxPinsPanel')?.remove();
-    const origin=canvas,panel=document.createElement('aside');panel.id='pixmaxPinsPanel';panel.className='pixmax-creation-sidebar';panel.setAttribute('aria-label','pin汇总');
-    panel.innerHTML='<header><strong>pin汇总</strong><button type="button" data-pin-close aria-label="关闭pin汇总">×</button></header><div class="pixmax-pin-list"></div>';
-    const draw=()=>{
-        const pinned=nodes.filter(node=>node.pinned);
-        panel.querySelector('.pixmax-pin-list').innerHTML=pinned.length?pinned.map(node=>{
-            const media=node.images?.[0]||node.studioPreview,poster=media&&(mediaKindForItem(media)==='image'?smartMediaPreviewUrl(media,256):pixmaxMediaPoster(media));
-            return `<article><button type="button" data-pin-focus="${escapeAttr(node.id)}" aria-label="定位 ${escapeAttr(node.label||node.title||node.id)}">${poster?`<img src="${escapeAttr(poster)}" alt="">`:''}<strong>${escapeHtml(node.label||node.title||'节点')}</strong><p>${escapeHtml((node.text||node.promptDraftText||media?.name||'').slice(0,240))}</p></button><button type="button" data-pin-remove="${escapeAttr(node.id)}" aria-label="取消pin">×</button></article>`;
-        }).join(''):'<p class="pixmax-creation-hint">右键节点，选择“pin 到汇总”收藏素材和文本</p>';
-    };
-    panel.onclick=event=>{
-        if(event.target.closest('[data-pin-close]'))return panel.remove();
-        if(canvas!==origin){panel.remove();return;}
-        const action=event.target.closest('[data-pin-focus],[data-pin-remove]');if(!action)return;
-        const node=nodes.find(node=>node.id===(action.dataset.pinFocus||action.dataset.pinRemove));if(!node)return;
-        if(action.hasAttribute('data-pin-focus'))focusPixmaxNode(node);
-        else if(!isSmartCanvasLocked()){pushUndo();node.pinned=false;scheduleSave();draw();}
-    };
-    bindPixmaxSidebarEvents(panel);
-    shell.appendChild(panel);draw();
+    return window.PixmaxTags.openPins();
 }
 function openPixmaxAssistant(){
     if(isSmartCanvasLocked())return toast('请先开始编辑画布');
@@ -171,7 +152,7 @@ function openPixmaxAssistant(){
                 owner=selectedNode();
                 if(!owner){const point=viewportCenter();owner=createPromptNode(point.x,point.y,{select:false});owner.label='创作助手';}
             }
-            const references=()=>[owner,...nodes.filter(node=>node.pinned&&node!==owner)];
+            const references=()=>[owner,...nodes.filter(node=>(window.PixmaxTags?PixmaxTags.ids(node).length:node.pinned)&&node!==owner)];
             const signature=()=>JSON.stringify(references().map(node=>({id:node.id,text:node.text||'',prompt:node.promptDraftText||'',images:(node.images||[]).map(mediaItemForStorage)})));
             const pinned=references(),snapshot=signature();
             const context=pixmaxTextContext(owner),pinsText=pinned.map(node=>[node.label||node.title||'素材',node.text||node.promptDraftText||'',...(node.images||[]).map(media=>media.name||media.kind||'素材')].join('\n')).join('\n\n');

@@ -42,6 +42,7 @@
             const images=[...new Map(assets.map(asset=>[asset.url,asset])).values()];
             if(['audio','video','model'].includes(kind))images.forEach(asset=>asset.kind=kind);
             const node={id:source.uuid,type:types[source.type],x:number(info.position?.x),y:number(info.position?.y),images,
+                tags:Array.isArray(info.data?.tags)?[...new Set(info.data.tags.filter(id=>typeof id==='string'))]:[],
                 label:String(info.data?.label||''),created_at:number(source.createTime,Date.now()),pixmaxSourceType:source.type,
                 ...(info.width?{w:number(info.width)}:{}),...(info.height?{h:number(info.height)}:{})};
             if(node.type==='smart-prompt'){
@@ -71,7 +72,14 @@
             }
         }
         nodes.forEach(node=>node.inputNodeIds=connections.filter(edge=>edge.to===node.id).map(edge=>edge.from));
-        return {format:'infinite-canvas-workflow',version:1,nodes,connections,warnings};
+        const tagState=metadata(document.metaData).nodeTags;
+        let nodeTags;
+        if(tagState){
+            if(tagState.schemaVersion!==1||!Array.isArray(tagState.value?.tags))throw new Error('不支持此 Pixmax 标签元数据版本');
+            nodeTags=tagState.value.tags;
+        }else if(nodes.some(node=>node.tags.length))nodeTags=[['yellow','#FBBC05'],['blue','#4285F4'],['purple','#8825F9'],['green','#35AF4B'],['pink','#EA35BA'],['white','#FFFFFF']].map(([id,color])=>({id,color}));
+        if(nodeTags){const used=new Set(nodes.flatMap(node=>node.tags));nodeTags=nodeTags.filter(tag=>used.has(tag.id));}
+        return {format:'infinite-canvas-workflow',version:1,nodes,connections,warnings,...(nodeTags?{node_tags:nodeTags}:{})};
     }
     window.PixmaxWorkflow={isNative,convert};
 })();

@@ -31,7 +31,7 @@ def build_workflow(payload):
             archive_name = "resources/" + canvas_workflow_unique_archive_name(asset["display_name"], used)
             archive.write(path, archive_name)
             resources.append({"url": ref, "archive": archive_name, "name": asset["display_name"], "size": asset["size_bytes"]})
-        archive.writestr("workflow.json", json.dumps(canvas_workflow_payload(payload.nodes, payload.connections, resources), ensure_ascii=False))
+        archive.writestr("workflow.json", json.dumps(canvas_workflow_payload(payload.nodes, payload.connections, resources, [tag.model_dump() for tag in payload.node_tags] if payload.node_tags is not None else None), ensure_ascii=False))
     asset = media.publish(target, name, role="export")
     return target, asset, {"resources": resources, "node_count": len(payload.nodes), "connection_count": len(payload.connections)}
 
@@ -60,6 +60,16 @@ def download_assets(payload):
     used, count = set(), 0
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         for item in (payload.items or [{"url": ref} for ref in payload.urls])[:1000]:
+            if isinstance(item, dict) and item.get('kind') == 'text':
+                text = str(item.get('text') or '')
+                content = text.encode('utf-8')
+                if len(content) > 1024 * 1024:
+                    raise HTTPException(413, '单个文本节点超过导出大小限制')
+                media.check_budget(len(content))
+                name = sanitize_export_filename(item.get('name') or 'text.txt', 'text.txt')
+                archive.writestr(canvas_workflow_unique_archive_name(name, used), content)
+                count += 1
+                continue
             ref = item.get("url", "") if isinstance(item, dict) else str(item)
             asset = media.get_asset(ref)
             if not asset:
@@ -121,8 +131,9 @@ def import_workflow(file):
         raise HTTPException(400, "工作流缺少 nodes")
     nodes = canvas_workflow_replace_strings(workflow["nodes"], mapping)
     connections = workflow.get("connections") or []
-    return {"workflow": canvas_workflow_payload(nodes, connections, workflow.get("resources") or []),
-            "nodes": nodes, "connections": connections, "resource_map": mapping}
+    result = canvas_workflow_payload(nodes, connections, workflow.get("resources") or [], workflow.get('node_tags'))
+    return {"workflow": result, "nodes": nodes, "connections": connections, "resource_map": mapping,
+            **({'node_tags': result['node_tags']} if 'node_tags' in result else {})}
 
 
 def export_group(payload):

@@ -399,6 +399,9 @@
     function exportCanvasWorkflow(payload){
         return request('/api/canvas-workflows/export', jsonBodyInit('POST', payload));
     }
+    function downloadCanvasAssets(payload){
+        return request('/api/canvas-assets/download',jsonBodyInit('POST',payload));
+    }
 
     function exportCanvasWorkflowToLibrary(payload){
         return request('/api/canvas-workflows/export-to-library', jsonBodyInit('POST', payload));
@@ -523,6 +526,7 @@
         updateCanvasFolder,
         deleteCanvasFolder,
         exportCanvasWorkflow,
+        downloadCanvasAssets,
         exportCanvasWorkflowToLibrary,
         importCanvasWorkflow,
         trimSmartCanvasVideo,

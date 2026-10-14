@@ -3,7 +3,8 @@
 Extracted from main.py — Phase 1 physical split, no behavior changes.
 """
 from typing import Literal, List, Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from pydantic_core import PydanticCustomError
 from fastapi import UploadFile
 
 from app.config import (
@@ -259,13 +260,30 @@ class CanvasMetaUpdate(BaseModel):
     pinned: Optional[bool] = None
 
 
+class CanvasNodeTag(BaseModel):
+    id: str = Field(min_length=1, max_length=96)
+    color: str = Field(pattern=r'^#[0-9a-fA-F]{6}$')
+    name: str = Field(default='', max_length=80)
+
+
+class CanvasTagEnvelope(BaseModel):
+    node_tags: Optional[List[CanvasNodeTag]] = Field(default=None, max_length=256)
+
+    @field_validator('node_tags')
+    @classmethod
+    def unique_tag_ids(cls, value):
+        if value is not None and len({tag.id for tag in value}) != len(value):
+            raise PydanticCustomError('canvas_tag_duplicate', '标签标识不能重复')
+        return value
+
+
 class CanvasCoverSelection(BaseModel):
     node_id: str = Field(default="", max_length=128)
     index: int = Field(default=-1, ge=-1, le=100000, strict=True)
     text: str = Field(default="", max_length=80)
 
 
-class CanvasSaveRequest(BaseModel):
+class CanvasSaveRequest(CanvasTagEnvelope):
     cover: Optional[CanvasCoverSelection] = None
     task_result_version: int = Field(default=0, ge=0, strict=True)
     title: str = "未命名画布"
@@ -290,7 +308,7 @@ class CanvasAssetDownloadRequest(BaseModel):
     filename: str = "canvas-output-images.zip"
 
 
-class CanvasWorkflowExportRequest(BaseModel):
+class CanvasWorkflowExportRequest(CanvasTagEnvelope):
     nodes: List[Dict[str, Any]] = []
     connections: List[Dict[str, Any]] = []
     filename: str = "canvas-workflow.zip"
