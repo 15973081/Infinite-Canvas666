@@ -4657,8 +4657,25 @@ export const unmountCanvasPlayer = instance => {canvasPlayerCaptureStates.delete
 // Reuse the original media processor; canvas persistence stays in the host app.
 export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
+let canvasModelSelectorSequence=0;
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountModelSelector(target,props) {
+    const data=z({value:props.value,options:props.options}),disabled=z(!!props.disabled),portalClass='pixmax-reshoot-model-portal-'+(++canvasModelSelectorSequence);let disposed=false;
+    const preparePortal=()=>{const portal=document.querySelector('.'+portalClass);if(!portal||portal.dataset.modelKeysBound)return;portal.dataset.modelKeysBound='true';
+      portal.addEventListener('wheel',event=>event.stopPropagation(),{passive:true});
+      portal.addEventListener('keydown',event=>{event.stopPropagation();if(disposed)return;
+        if(event.key==='Escape'){event.preventDefault();const button=target.querySelector('button');if(button?.getAttribute('aria-expanded')==='true')button.click();button?.focus();return;}
+        const buttons=[...portal.querySelectorAll('[data-select-option]:not(:disabled)')],index=buttons.indexOf(document.activeElement);
+        if(buttons.length&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next].focus();}
+      });};
+    const instance=Tf(Kz,{target,props:{...props,placement:'top',portal:true,subtitleReveal:'hover-selected',
+      triggerClass:'w-full',dropdownClass:'pixmax-reshoot-model-options '+portalClass+' w-[min(100vw-2rem,366px)]',
+      get value(){return G(data).value;},get options(){return G(data).options;},get disabled(){return G(disabled);},
+      onOpenChange(open){const button=target.querySelector('button');button?.setAttribute('aria-expanded',String(open));if(open)void tf().then(()=>{if(!disposed&&target.isConnected)preparePortal();});props.onOpenChange?.(open);}}});
+    await tf();const button=target.querySelector('button');button?.setAttribute('aria-label','重拍模型');button?.setAttribute('aria-haspopup','true');
+    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){disposed=true;return Of(instance);}};
+  },
   async mountParameters(target, props) {
     const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
     const data=z({value:props.value,fields:props.fields}),disabled=z(!!props.disabled);

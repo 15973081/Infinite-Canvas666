@@ -1,6 +1,7 @@
 /* Native media + real member leases, uploads, graph saves and task receipts. */
 const assert=require('node:assert/strict'),readline=require('node:readline'),fs=require('node:fs'),path=require('node:path');
 const {fixture}=require('./canvas-browser.cjs');
+const chooseReshootModel=require('./pixmax-reshoot-model.cjs');
 const lines=readline.createInterface({input:process.stdin}),requests=new Map();let sequence=0,resolveInitial,dataRoot;
 const initial=new Promise(resolve=>resolveInitial=resolve);
 lines.on('line',line=>{let message=JSON.parse(line);if(message.initial){dataRoot=path.resolve(message.initial.directory);return resolveInitial(message.initial);}assert.match(message.file,/^response-\d+\.json$/);message=JSON.parse(fs.readFileSync(path.join(dataRoot,message.file),'utf8'));const resolve=requests.get(message.id);requests.delete(message.id);resolve(message);});
@@ -12,7 +13,7 @@ async function transport(request){const path=new URL(request.url()).pathname;if(
     try{
         const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,permissions:['canvas.read','canvas.edit','canvas.create','generation.submit','provider.use','asset.read','asset.manage'],apiHandler:transport});
         for(const pattern of ['**/assets/cloud/**','**/api/media/**','**/api/media-preview**'])await page.route(pattern,async route=>{const response=await rpc(route.request());if(response.binaryFile)assert.match(response.binaryFile,/^binary-\d+\.bin$/);return route.fulfill(response.binaryFile?{status:response.status,body:fs.readFileSync(path.join(dataRoot,response.binaryFile)),contentType:response.contentType,headers:response.headers}: {status:response.status,json:response.body});});
-        await page.evaluate(config=>{window.__reshootOptions=MemberCanvasEdit.options;CanvasSession.context.member.id=config.member;CanvasSession.context.workspace.id=config.workspace;CanvasSession.storageKey=key=>config.member+':'+config.workspace+':'+key;apiProviders=[config.provider];},config);
+        await page.evaluate(config=>{window.__reshootOptions=MemberCanvasEdit.options;CanvasSession.context.member.id=config.member;CanvasSession.context.workspace.id=config.workspace;CanvasSession.storageKey=key=>config.member+':'+config.workspace+':'+key;apiProviders=[config.provider,...(config.secondary?[config.secondary]:[])];},config);
         for(const file of ['member-canvas-edit.js','canvas-task-bindings.js'])await page.addScriptTag({url:'/static/js/'+file});
         await page.evaluate(async config=>{
             await MemberCanvasEdit.mount(__reshootOptions);await MemberCanvasEdit.active.lease.start(MemberCanvasEdit.active.options.reload);
@@ -20,7 +21,8 @@ async function transport(request){const path=new URL(request.url()).pathname;if(
             else{const source=createNode(600,140,[{...config.source,kind:'video',duration:8}],{select:false});window.__realReshootSource=source.id;await saveCanvas({force:true});await PixmaxSegmentReshoot.create(source.id,0);}
             function assertNativeSource(target){if(!target||target.images.length||!nodes.some(node=>node.id===target.segmentReshoot.source.nodeId))throw new Error('Native reshoot source or empty output did not import');}
         },config);
-        if(config.nativeDocument)await page.getByRole('combobox',{name:'重拍模型'}).selectOption(JSON.stringify([config.provider.id,config.provider.video_models[0]]));
+        if(config.nativeDocument)await chooseReshootModel(page,config.provider.name,config.provider.video_models[0]);
+        if(config.secondary)await chooseReshootModel(page,config.secondary.name,config.secondary.video_models[0]);
         await page.locator('[data-reshoot-timeline] img').first().waitFor();await page.waitForFunction(()=>document.querySelector('.pixmax-segment-reshoot-modal video').readyState>=2);
         const strip=await page.locator('[data-reshoot-timeline] [role=slider]').first().boundingBox();assert.ok(strip&&strip.width>0);await page.mouse.click(strip.x+strip.width*.8,strip.y+strip.height-3);await page.waitForFunction(()=>Math.abs(document.querySelector('.pixmax-segment-reshoot-modal video').currentTime-6.4)<.15);
         try{await page.getByRole('textbox',{name:'重拍要求'}).fill('将衣服改为红色');}catch(error){throw new Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({available:PixmaxSegmentReshoot.available(),providers:apiProviders.map(({id,protocol,platform,has_key,video_models})=>({id,protocol,platform,has_key,video_models})),notices:[...document.querySelectorAll('[role=status],.toast')].map(item=>item.textContent)}))));}

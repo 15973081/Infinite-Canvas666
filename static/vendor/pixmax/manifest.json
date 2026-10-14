@@ -12,7 +12,8 @@
       "Ktt",
       "gMt",
       "M1",
-      "g$"
+      "g$",
+      "Kz"
     ],
     "model_graphics": [
       "J1e",
@@ -30,7 +31,8 @@
     "Scope native reshoot range tooltip above the host modal",
     "Expose reactive capture permission for native source preview players",
     "Expose native rich prompt editor with scoped reference adapters",
-    "Expose native reshoot parameter controls and freeze public model fields"
+    "Expose native reshoot parameter controls and freeze public model fields",
+    "Expose native model selector with host provider and policy adapters"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }

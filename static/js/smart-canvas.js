@@ -542,6 +542,7 @@ window.addEventListener('frontend:before-reload', event => {
 bindSmartSessionVisibility();
 
 function refreshSmartModelControls(){
+    window.PixmaxSegmentReshoot?.configurationChanged?.();
     const active = document.activeElement;
     const editing = dynamicParams?.contains(active) ? dynamicParams : null;
     if(editing && active?.matches('input,textarea,select,[contenteditable="true"]')){

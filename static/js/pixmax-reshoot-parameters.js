@@ -10,6 +10,18 @@
         return schemaPromise;
     }
     function resolutions(config){return smartVideoResolutions(config).filter(value=>['','480p','720p','1080p'].includes(value));}
+    function modelCatalog(){
+        return (apiProviders||[]).filter(provider=>provider.enabled!==false&&videoProviderPlatform(provider.id)==='volcengine').flatMap(provider=>(provider.video_models||[]).filter(isSeedance25VideoModel).filter(model=>provider.model_policies?.['video:'+model]?.visible!==false).map(model=>{
+            const allowed=resolutions({videoProvider:provider.id,videoModel:model});
+            const reason=!provider.has_key?'供应商尚未配置密钥':provider.model_policies?.['video:'+model]?.enabled===false?'此模型已停用':!allowed.length?'此模型没有可用的重拍分辨率':'';
+            return {provider,model,value:JSON.stringify([provider.id,model]),label:(provider.name||provider.id)+' · '+model,
+                subtitle:(provider.name||provider.id)+' · '+(allowed.map(value=>value||'自动').join(' / ')||'规格不可用'),tag:'Seedance 2.5',disabled:!!reason,tooltip:reason};
+        }));
+    }
+    function modelData(node){
+        const options=modelCatalog().map(({value,label,subtitle,tag,disabled,tooltip})=>({value,label,subtitle,tag,disabled,tooltip})),selected=JSON.stringify([node.runSettings.videoProvider,node.runSettings.videoModel]);
+        return {value:options.some(option=>option.value===selected)?selected:'',options};
+    }
     function settings(node,config=node.runSettings){
         return {...config,count:1,videoTaskMode:'edit',videoAspect:'adaptive',videoDuration:Math.max(4,Math.min(30,Math.round(node.segmentReshoot.endSec-node.segmentReshoot.startSec))),
             videoGenerateAudio:config.videoGenerateAudio??true,videoOutputFormat:config.videoOutputFormat||'mp4'};
@@ -37,5 +49,5 @@
         const config={...node.runSettings,videoResolution:String(value.resolution||'').toLowerCase(),videoGenerateAudio:value.includeAudio==='true',videoOutputFormat:value.outputFormat};
         Object.assign(node.runSettings,validate(node,config));
     }
-    window.PixmaxReshootParameters=Object.freeze({schema,resolutions,settings,validate,data,modelChanged,apply});
+    window.PixmaxReshootParameters=Object.freeze({schema,resolutions,settings,validate,data,modelChanged,apply,modelCatalog,modelData});
 })();

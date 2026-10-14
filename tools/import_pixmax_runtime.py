@@ -24,7 +24,7 @@ runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e(".
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
 runtime = runtime.replace('e("https://app.pixmax.cn/node_modules/is-buffer/index.js")', 'e("../node_modules/is-buffer/index.js")')
 runtime = runtime.replace('var NG=f3e(),PG=j$e(NG)', 'var NG="/static/vendor/pixmax/previs",PG=j$e(NG)')
-for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(', 'function g$(']:
+for symbol in ['function $6e(', 'function ujt(', 'function Tf(', 'function Of(', 'II=class', 'separateAudioAndVideo(', 'J1e=class', 'Dc=class', 'Lc=class', 'async function wnt(', 'function Snt(', 'function Ktt(', 'function gMt(', 'function M1(', 'function g$(', 'function Kz(']:
     assert symbol in runtime, f'Missing editor entry: {symbol}'
 marker_hook = 'let n=N,r=jNt(),i=G(_);'
 assert runtime.count(marker_hook) == 1, 'Video annotation controller changed; inspect before importing'
@@ -78,8 +78,25 @@ export const unmountCanvasPlayer = instance => {canvasPlayerCaptureStates.delete
 // Reuse the original media processor; canvas persistence stays in the host app.
 export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
+let canvasModelSelectorSequence=0;
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountModelSelector(target,props) {
+    const data=z({value:props.value,options:props.options}),disabled=z(!!props.disabled),portalClass='pixmax-reshoot-model-portal-'+(++canvasModelSelectorSequence);let disposed=false;
+    const preparePortal=()=>{const portal=document.querySelector('.'+portalClass);if(!portal||portal.dataset.modelKeysBound)return;portal.dataset.modelKeysBound='true';
+      portal.addEventListener('wheel',event=>event.stopPropagation(),{passive:true});
+      portal.addEventListener('keydown',event=>{event.stopPropagation();if(disposed)return;
+        if(event.key==='Escape'){event.preventDefault();const button=target.querySelector('button');if(button?.getAttribute('aria-expanded')==='true')button.click();button?.focus();return;}
+        const buttons=[...portal.querySelectorAll('[data-select-option]:not(:disabled)')],index=buttons.indexOf(document.activeElement);
+        if(buttons.length&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next].focus();}
+      });};
+    const instance=Tf(Kz,{target,props:{...props,placement:'top',portal:true,subtitleReveal:'hover-selected',
+      triggerClass:'w-full',dropdownClass:'pixmax-reshoot-model-options '+portalClass+' w-[min(100vw-2rem,366px)]',
+      get value(){return G(data).value;},get options(){return G(data).options;},get disabled(){return G(disabled);},
+      onOpenChange(open){const button=target.querySelector('button');button?.setAttribute('aria-expanded',String(open));if(open)void tf().then(()=>{if(!disposed&&target.isConnected)preparePortal();});props.onOpenChange?.(open);}}});
+    await tf();const button=target.querySelector('button');button?.setAttribute('aria-label','重拍模型');button?.setAttribute('aria-haspopup','true');
+    return {instance,setData(next){B(data,next,true);},setDisabled(next){B(disabled,!!next);},destroy(){disposed=true;return Of(instance);}};
+  },
   async mountParameters(target, props) {
     const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
     const data=z({value:props.value,fields:props.fields}),disabled=z(!!props.disabled);
@@ -137,8 +154,8 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz'], 'model_graphics': ['J1e','Dc','Lc']},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

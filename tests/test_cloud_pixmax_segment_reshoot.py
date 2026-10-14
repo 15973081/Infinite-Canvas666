@@ -15,7 +15,7 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters'])
+@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters', 'model-switch'])
 def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path, import_mode):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
@@ -23,9 +23,14 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     provider_id = 'reshoot-' + uuid.uuid4().hex[:16]
     configured = platform['client'].put('/api/providers/' + provider_id, json={'config': {'name': '重拍隔离验收', 'base_url': 'https://supplier.test/api/v3', 'protocol': 'volcengine', 'enabled': True, 'video_models': [model]}, 'expected_version': 0, 'secrets': {'api_key': 'test-only-reshoot'}, 'reason': '隔离验收'})
     assert configured.status_code == 200, configured.text
-    assigned = platform['client'].put('/api/provider-assignments', params={'workspace': world['a']['id']}, json={'expected_version': 1, 'provider_ids': [provider_id], 'primary_provider_id': provider_id, 'reason': '隔离验收'})
+    secondary_id=provider_id+'-second' if import_mode=='model-switch' else None
+    if secondary_id:
+        configured=platform['client'].put('/api/providers/'+secondary_id,json={'config':{'name':'原生切换目标','base_url':'https://supplier.test/api/v3','protocol':'volcengine','enabled':True,'video_models':[model],'model_policies':{'video:'+model:{'resolutions':['480p']}}},'expected_version':0,'secrets':{'api_key':'test-only-selector'},'reason':'隔离验收'})
+        assert configured.status_code==200,configured.text
+    assigned = platform['client'].put('/api/provider-assignments', params={'workspace': world['a']['id']}, json={'expected_version': 1, 'provider_ids': [provider_id, *([secondary_id] if secondary_id else [])], 'primary_provider_id': provider_id, 'reason': '隔离验收'})
     assert assigned.status_code == 200, assigned.text
     provider = next(item for item in world['editor'].get('/api/config', headers=headers(world['a'])).json()['api_providers'] if item['id'] == provider_id)
+    secondary=next((item for item in world['editor'].get('/api/config',headers=headers(world['a'])).json()['api_providers'] if item['id']==secondary_id),None)
     video = tmp_path / 'reshoot-source.mp4'
     subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=160x90:rate=24', '-t', '8', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-y', str(video)], check=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     uploaded = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (video.name, video.read_bytes(), 'video/mp4')})
@@ -76,7 +81,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     process = subprocess.Popen(['node', str(root / 'tests/helpers/pixmax-segment-reshoot-http.cjs')], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done, task_ids, finalized = False, [], set()
     try:
-        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'parameters': bool(output), 'references': references, 'nativeDocument': native_document, 'provider': provider, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
+        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'parameters': bool(output), 'references': references, 'nativeDocument': native_document, 'provider': provider, 'secondary':secondary, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
         for line in process.stdout:
             pointer = json.loads(line)
             if pointer.get('done'): done = True; break
@@ -138,7 +143,10 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         assert abs(float(clip_info['format']['duration']) - (5 if native_document else 4)) < .15
         with workspace_scope(world['a']['id']):
             request = tasks.request(task_ids[0])
-            assert request['task_mode'] == 'edit' and request['provider_id'] == provider_id
+            assert request['task_mode'] == 'edit' and request['provider_id'] == (secondary_id or provider_id)
+            if secondary:
+                assert request['resolution']=='480p'
+                assert node['runSettings']['videoProvider']==secondary_id and node['runSettings']['videoResolution']=='480p'
             if output:
                 assert request['output_format'] == 'mov' and request['generate_audio'] is False
                 assert request['resolution'] == '1080p' and request['aspect_ratio'] == 'adaptive'
