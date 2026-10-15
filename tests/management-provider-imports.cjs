@@ -81,7 +81,7 @@ test('late form completion cannot close a newer dialog or show its errors there'
     let connected=[], task, resolve, reject;
     const pending=new Promise((yes,no)=>{resolve=yes;reject=no;});
     const d={open:true,classList:{toggle(){}},close(){this.open=false;this.closed=(this.closed||0)+1;},showModal(){this.open=true;}};
-    const f={reset(){}}, confirm={}, cancel={}, message={};
+    const f={dataset:{},reset(){}}, confirm={}, cancel={}, message={};
     const body={replaceChildren(...nodes){connected.forEach(n=>n.isConnected=false);connected=nodes;nodes.forEach(n=>n.isConnected=true);}};
     const nodes={'#dialog':d,'#dialog-form':f,'#dialog-body':body,'#confirm-dialog':confirm,'#cancel-dialog':cancel,'#message':message};
     const context=vm.createContext({$:s=>nodes[s],el:()=>({setAttribute(){}}),FormData:class {},
@@ -90,9 +90,13 @@ test('late form completion cannot close a newer dialog or show its errors there'
     context.dialog('old',[],()=>pending);
     f.onsubmit({preventDefault(){}});
     context.dialog('new',[],()=>{});
+    f.dataset.dirty='true';f.dataset.saving='true';confirm.disabled=true;
     const newError=connected.at(-1);
     if(outcome==='success')resolve();else reject(new Error('old request failed'));
     await task;
     assert.equal(d.closed,undefined);assert.equal(d.open,true);assert.equal(newError.hidden,true);
+    assert.equal(f.dataset.dirty,'true','a late old save cannot clear the new draft guard');
+    assert.equal(f.dataset.saving,'true','a late old request cannot unlock a newer save');
+    assert.equal(confirm.disabled,true,'the new save button stays locked');
   }
 });

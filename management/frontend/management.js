@@ -144,19 +144,20 @@
   function dialog(title, elements, submit, confirmText = '确认保存', wide = false) {
     const d = $('#dialog'), f = $('#dialog-form'), error = el('p', '', 'dialog-error');
     error.setAttribute('role', 'alert'); error.hidden = true;
-    d.classList.toggle('wide', wide); f.reset(); f.dataset.dirty='false'; $('#dialog-body').replaceChildren(el('h2', title), ...elements, error);
+    d.classList.toggle('wide', wide); f.reset(); f.dataset.dirty='false'; f.dataset.saving='false'; $('#confirm-dialog').disabled=false; $('#dialog-body').replaceChildren(el('h2', title), ...elements, error);
     $('#confirm-dialog').textContent = confirmText; $('#confirm-dialog').hidden = !submit; $('#cancel-dialog').textContent = submit ? '取消' : '关闭';
-    f.onsubmit = e => { e.preventDefault(); execute(async () => {
+    f.onsubmit = e => { e.preventDefault(); if(f.dataset.saving==='true')return; execute(async () => {
       error.hidden = true;
       f.dataset.saving='true';
-      try { await submit(new FormData(f)); f.dataset.dirty='false'; }
+      $('#confirm-dialog').disabled=true;
+      try { await submit(new FormData(f)); if(error.isConnected && d.open)f.dataset.dirty='false'; }
       catch (failure) {
         if (!error.isConnected || !d.open) return;
         error.textContent = failure.message; error.hidden = false; return;
-      } finally {f.dataset.saving='false';}
+      } finally {if(error.isConnected && d.open){f.dataset.saving='false';$('#confirm-dialog').disabled=false;}}
       if (!error.isConnected || !d.open) return;
       d.close(); await refresh(); notice('操作已完成');
-    }, $('#confirm-dialog')); };
+    }); };
     if (!d.open) d.showModal();
   }
   function tokenDialog(token) {
