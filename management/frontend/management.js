@@ -5,6 +5,8 @@
   const names = {imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   let memberSearch = '', memberStatus = '';
   let identityPaused = false;
+  let permissionPaused = false, accessCheck = null;
+  const permissionChanged = '管理权限已改变，本页已暂停操作。请保留未提交内容后刷新页面。';
   let navigationReturnFocus;
   function closeNavigation(restoreFocus = true) {
     const wasOpen = $('#shell').classList.contains('navigation-open');
@@ -104,16 +106,18 @@
   function notice(text, error = false) { const e = $('#message'); e.textContent = text; e.className = error ? 'error' : ''; e.hidden = false; }
   async function api(path, options = {}) {
     if (identityPaused) throw new Error(errors.member_identity_changed);
+    if (permissionPaused && path !== '/api/auth/logout') throw new Error(permissionChanged);
     const response = await fetch(path, {credentials: 'same-origin', ...options, headers: {'Content-Type': 'application/json', ...options.headers,
       ...(me && path !== '/api/auth/login' ? {'X-Member-ID':me.member.id} : {})}});
     const data = await response.json().catch(() => ({}));
     if (identityPaused) throw new Error(errors.member_identity_changed);
+    if (permissionPaused && path !== '/api/auth/logout') throw new Error(permissionChanged);
     if (!response.ok) {
       const code = data.detail?.code;
       if (response.status === 409 && code === 'member_identity_changed') { identityPaused = true; serial++; notice(errors.member_identity_changed, true); }
       if (response.status === 401) showLogin();
       const error = new Error(errors[code] || (response.status === 422 ? '请检查填写内容。' : '操作未完成，请刷新后重试。'));
-      error.status = response.status; throw error;
+      error.status = response.status; error.code = code; throw error;
     }
     return data;
   }
@@ -163,10 +167,10 @@
   function tokenDialog(token) {
     dialog('成员激活凭证', [el('p', '请将此凭证交给对应成员，用于首次设置密码。凭证在 24 小时后失效，请妥善保存。'), el('div', token, 'token')], null);
   }
-  function showLogin() { closeNavigation(false); me = null; serial++; $('#shell').hidden = $('#unavailable').hidden = true; $('#login').hidden = false; $('#dialog').close(); $('#content').replaceChildren(); }
+  function showLogin() { closeNavigation(false); me = null; permissionPaused = false; serial++; $('#shell').hidden = $('#unavailable').hidden = true; $('#login').hidden = false; $('#dialog').close(); $('#content').replaceChildren(); }
   async function refresh() {
     try { me = await api('/api/me'); } catch(e) {
-      if (e.status !== 401 && !identityPaused) { serial++; $('#shell').hidden = $('#login').hidden = true; $('#unavailable').hidden = false; $('#unavailable-reason').textContent = e.message; $('#dialog').close(); $('#content').replaceChildren(); }
+      if (e.status !== 401 && !identityPaused && !permissionPaused) { serial++; $('#shell').hidden = $('#login').hidden = true; $('#unavailable').hidden = false; $('#unavailable-reason').textContent = e.message; $('#dialog').close(); $('#content').replaceChildren(); }
       throw e;
     }
     $('#login').hidden = $('#unavailable').hidden = true; $('#shell').hidden = false;
@@ -999,5 +1003,24 @@
     const f = new FormData(e.target); await call('/api/auth/login', 'POST', {username: f.get('username'), password: f.get('password'), remember: f.has('remember')});
     e.target.reset(); $('#message').hidden = true; await refresh();
   }, e.target.querySelector('button')); };
+  function checkAdminAccess() {
+    if (!me || identityPaused || permissionPaused) return;
+    if (accessCheck) return accessCheck;
+    const bound = me;
+    const grants = snapshot => JSON.stringify({permissions:[...new Set(snapshot.permissions)].sort(),
+      workspaces:snapshot.workspaces.map(space => [space.id,space.status,[...new Set(space.permissions)].sort()]).sort((a,b)=>a[0].localeCompare(b[0]))});
+    const pause = () => { permissionPaused = true; serial++; notice(permissionChanged, true); };
+    accessCheck = (async () => {
+      try {
+        const current = await api('/api/me', {signal:AbortSignal.timeout(15000)});
+        if (me === bound && grants(current) !== grants(bound)) pause();
+      } catch(error) {
+        if (me === bound && error.status === 403 && ['management_permission_required','permission_denied','workspace_forbidden','workspace_unavailable'].includes(error.code)) pause();
+      }
+    })().finally(() => { accessCheck = null; });
+    return accessCheck;
+  }
+  window.addEventListener('focus', checkAdminAccess);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void checkAdminAccess(); });
   refresh().catch(e => { if (e.status !== 401) notice(e.message, true); });
 })();
