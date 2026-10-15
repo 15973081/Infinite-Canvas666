@@ -49,8 +49,8 @@ test('speech parameters and current text references produce a playable saved aud
     assert.equal(api.calls.length,1);assert.equal(api.calls[0].mode,'speech');assert.equal(api.calls[0].vol,0);
     assert.equal(api.calls[0].speed,1.25);assert.equal(api.calls[0].voice_modify_pitch,7);assert.equal(api.calls[0].pitch,-2);
     assert.match(api.calls[0].prompt,/刚更新的参考文本/);
-    await page.getByRole('button',{name:'关闭音频生成',exact:true}).click();await page.getByRole('button',{name:'播放音频',exact:true}).click();
-    await page.waitForFunction(()=>document.querySelector('audio')?.readyState>=2);
+    await page.getByRole('button',{name:'关闭音频生成',exact:true}).click();await page.getByRole('button',{name:'播放音频',exact:true}).click({timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify({errors,players:await page.locator('.pixmax-audio-mount').evaluateAll(elements=>elements.map(element=>element.outerHTML.slice(0,900)))}));});
+    await page.waitForFunction(()=>Number(document.querySelector('.pixmax-audio-mount')?.dataset.duration)>0&&document.querySelector('.pixmax-audio-mount')?.dataset.playing==='true');
     await page.evaluate(()=>saveCanvas({force:true}));assert.equal(record.nodes[0].audioGeneration.vol,0);assert.equal(record.nodes[0].images[0].kind,'audio');
     await page.evaluate(()=>performUndo());assert.equal(await page.evaluate(()=>nodes[0].images.length),0);assert.deepEqual(errors,[]);
 });
@@ -120,6 +120,6 @@ test('saved pending audio recovers on a fresh document and readonly users can pl
     await page.evaluate(()=>{MemberCanvasEdit.setEditable(false);render();});
     assert.equal(await page.locator('[data-studio-open]').count(),1,await page.evaluate(()=>JSON.stringify({nodes,viewport,html:world.innerHTML.slice(0,2000)})));
     assert.equal(await page.locator('[data-studio-open]').isEnabled(),false);
-    await page.getByRole('button',{name:'播放音频',exact:true}).click();await page.waitForFunction(()=>document.querySelector('audio')?.readyState>=2);
+    await page.getByRole('button',{name:'播放音频',exact:true}).click();await page.waitForFunction(()=>Number(document.querySelector('.pixmax-audio-mount')?.dataset.duration)>0&&document.querySelector('.pixmax-audio-mount')?.dataset.playing==='true');
     assert.equal(api.calls.length,1);assert.deepEqual(errors,[]);
 });

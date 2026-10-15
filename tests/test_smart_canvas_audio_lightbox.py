@@ -25,7 +25,7 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
         cls.main_source = MAIN_PY.read_text(encoding="utf-8")
         cls.canvas_source = read_canvas_source(CANVAS_JS)
 
-    def test_audio_nodes_render_lightweight_open_buttons(self):
+    def test_audio_nodes_render_native_mounts_and_group_preview_buttons(self):
         thumb_media = _source_between(
             self.source,
             "function thumbMediaHtml(",
@@ -38,8 +38,8 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
         )
 
         self.assertIn("smart-audio-open", thumb_media)
-        self.assertIn("smart-audio-open", single_media)
-        self.assertIn("smartAudioWaveformSvg()", single_media)
+        self.assertIn("pixmaxAudioCardHtml(img)", single_media)
+        self.assertNotIn("smartAudioWaveformSvg()", single_media)
         self.assertNotIn("<audio", thumb_media)
         self.assertNotIn("<audio", single_media)
 
@@ -51,10 +51,10 @@ class SmartCanvasAudioLightboxTests(unittest.TestCase):
         )
 
         self.assertIn("isAudioMediaItem(image)", layout)
-        self.assertIn("width:300", layout)
-        self.assertIn("height:180", layout)
+        self.assertIn("width:280", layout)
+        self.assertIn("height:120", layout)
 
-    def test_audio_lightbox_owns_the_only_dynamic_player(self):
+    def test_separate_audio_lightbox_releases_its_dynamic_player(self):
         lightbox = canvas_function_source(self.source, "createSmartAudioPreview")
 
         self.assertIn("document.createElement('audio')", lightbox)

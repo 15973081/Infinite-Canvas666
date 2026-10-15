@@ -20,6 +20,11 @@ bundle = (source / 'index-DKTODaUF.js').read_text(encoding='utf-8')
 marker = 'async function $$t(){'
 assert bundle.count(marker) == 1, 'Reference bootstrap changed; inspect before importing'
 runtime = bundle[:bundle.index(marker)]
+assert 'function Bv(e,t)' in runtime, 'Native audio player boundary changed'
+audio_label='G(i).paused?`Play audio`:`Pause audio`'
+assert runtime.count(audio_label)==1, 'Native audio accessibility boundary changed'
+runtime=runtime.replace('function Bv(e,t){eu(t,!0);','function Bv(e,t){eu(t,!0);const canvasAudioProps=t;')
+runtime=runtime.replace(audio_label,'G(i).paused?(canvasAudioProps.playLabel??`Play audio`):(canvasAudioProps.pauseLabel??`Pause audio`)')
 # HTTrack mistook this internal CommonJS key for an external script URL.
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/mutation.js")', 'e("./mutation.js")')
 runtime = runtime.replace('e("https://app.pixmax.cn/assets/core-js/', 'e("core-js/')
@@ -396,13 +401,18 @@ export const unmountCanvasVideoAnnotation = instance => Of(instance);
 export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
   PerspectiveCamera:Qo,AmbientLight:rs,DirectionalLight:ns,OrbitControls:Lc,
   Box3:Cr,Vector3:ln};
+// Uploaded and generated audio share the captured Bv waveform/controller.
+export async function mountCanvasAudio(target, props) {
+  const instance=Tf(Bv,{target,props:{...props,playLabel:'播放音频',pauseLabel:'暂停音频'}});
+  await tf();return {instance,controller:instance.controller,destroy(){return Of(instance);}};
+}
 '''
 (destination / 'editors.js').write_text(runtime, encoding='utf-8')
 (destination / 'editors.css').write_bytes((source / 'index-Dvu1CoBX.css').read_bytes())
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'generation_references': 'o$', 'generation_form': 'N1', 'camera_motion_library': ['Rlt','klt','f$','Dlt'], 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
+    'components': {'director': '$6e', 'editor': 'ujt', 'audio_player': 'Bv', 'media_processor': 'II', 'video_annotation': 'WNt', 'generation_references': 'o$', 'generation_form': 'N1', 'camera_motion_library': ['Rlt','klt','f$','Dlt'], 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
     'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits', 'Expose native N1 reference cards with host graph, readonly and viewport adapters', 'Mount the complete N1 generation form with scoped host schema, fullscreen, fee preview and camera portal', 'Expose captured camera motion library and editor with scoped APIs, preview upload lifetime and modal ownership'],
     'camera_motion_catalog': 'The supplied mirror contains no camera-motion/plaza/list response; shared plaza data must be provisioned separately.',
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'

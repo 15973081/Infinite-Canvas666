@@ -4,6 +4,7 @@
   "components": {
     "director": "$6e",
     "editor": "ujt",
+    "audio_player": "Bv",
     "media_processor": "II",
     "video_annotation": "WNt",
     "generation_references": "o$",

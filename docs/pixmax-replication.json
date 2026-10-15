@@ -319,6 +319,15 @@
       ],
       "verificationScope": "实际媒体、编辑资格、HTTP 接收、保存与隔离数据库所有权均执行；供应商完成使用受控替身，无收费生成或用户画布写入。计数测试不作为相对 Pixmax 的 FPS 结论。"
     },
+    "nativeAudioSurfaceEvidence": {
+      "status": "implemented_local_requires_final_verification",
+      "source": ["static/js/pixmax-canvas-audio.js", "static/js/smart-pixmax.js", "static/js/canvas/smart/smart-workspace.js", "static/css/pixmax-canvas.css", "tools/import_pixmax_runtime.py"],
+      "nativeContract": "参考旧镜像 Bv 与新镜像 ry：上传及生成音频共用波形播放器。280×120 容器、8px 内边距、520×140 画布；下方居中播放按钮和右侧时长胶囊。保留原生 24px 播放图标和 16px 加载图标；初始显示参考波形，播放后由原生组件读取并解码真实振幅。原版波形未绑定拖动 seek，本次未新增此交互。",
+      "designCoordination": "已按用户要求向现有画布设计任务 01a13348-b7d0-7500-92e8-64517d2f153b 同步五张截图，收到两套镜像源码、原生 DOM 及尺寸核对；设计核对无共享工作区代码修改。",
+      "verified": ["上传和生成音频替换为同一捕获组件，移除生成结果的大音符/播放按钮表面", "真实 MP3 播放、暂停、进度和时长；首次点击前不创建音频解码元素", "完整/局部刷新移植原播放器，重命名及视野外重绘不重启正在播放的音频", "播放期间不回收卡片；暂停且失焦后允许回收，返回视野恢复为暂停状态", "删除、撤销及页面退出时释放原生音频，异步挂载核对节点及空间生命周期", "只读音频播放不提交编辑写入；原任务回执、恢复及媒体引用保存保留"],
+      "verification": {"frontendCases":119,"frontendLog":".local/pixmax-native-audio-regression.log","databaseAndStaticCases":12,"databaseLog":".local/pixmax-native-audio-http.log","preview":".local/pixmax-native-audio-cards.png","scope":"真实浏览器媒体和隔离数据库音频任务执行；供应商完成使用替身，未调用收费模型。"},
+      "remaining": ["混合历史组和大批量音频的完整原生对照", "生成面板仍出现旧平台/模型/规格混排的来源需按运行资源、supported 条件和原生挂载失败区分，不能仅凭截图归因缓存", "整体画布全部 UI、工具和真实生产网络最终验收"]
+    },
     "modelInputContractsEvidence": {
       "status": "implemented_local_requires_final_verification",
       "source": ["static/js/pixmax-model-contract.js", "static/js/pixmax-generation-parameters.js", "static/js/pixmax-generation-form.js", "static/js/pixmax-batch-execution.js", "static/js/canvas/smart/smart-execution.js", "tools/import_pixmax_runtime.py", "static/vendor/pixmax/generation-schema.json"],

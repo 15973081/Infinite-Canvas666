@@ -578,7 +578,7 @@ function scheduleSmartViewportRefresh(...args){return smartWorkspaceView.schedul
 function canRecycleSmartMediaNode(node, el){
     const reshootPreview=window.PixmaxSegmentReshoot?.previewMedia(node);
     if(!node || (node.type && node.type !== 'smart-image') || !(node.images || []).length&&!reshootPreview) return false;
-    if(node.running || node.queued || smartNodePendingCount(node) || isNodeSelected(node.id)) return false;
+    if(node.running || node.queued || smartNodePendingCount(node) || isNodeSelected(node.id)||el?.querySelector('.pixmax-audio-mount[data-playing="true"]')) return false;
     if(dragState || resizeState || thumbDragState || portDragState || selectionState || smartCascadeAnyRunning()) return false;
     if(el?.contains(document.activeElement)) return false;
     if(reshootPreview ? [...(el?.querySelectorAll('video,audio')||[])].some(media=>!media.paused) : el?.querySelector('video,audio'))return false;
@@ -1901,7 +1901,7 @@ function updateImageResolutionBadgeElement(itemEl, img){
 
 function singleMediaHtml(img, w, h){
     if(isFileMediaItem(img) || isTextMediaItem(img)) return `<div class="node-img media-card media-file-card" style="width:${w}px;height:${h}px"><div class="media-card-icon"><i data-lucide="${isTextMediaItem(img) ? 'file-text' : 'file'}"></i></div><div class="media-card-title">${escapeHtml(img.name || (isTextMediaItem(img) ? 'Text' : 'File'))}</div><div class="media-card-sub">${isTextMediaItem(img) ? 'TEXT' : 'FILE'}</div></div>`;
-    if(isAudioMediaItem(img)) return `<div class="node-img media-card media-audio-card" style="width:${w}px;height:${h}px"><div class="smart-audio-copy"><div class="smart-audio-title" title="${escapeAttr(img.name || 'Audio')}">${escapeHtml(img.name || 'Audio')}</div><div class="smart-audio-meta">${escapeHtml(smartAudioFormatLabel(img))} · 音频素材</div></div><div class="smart-audio-player"><button class="smart-audio-open" type="button" title="打开音频播放器" aria-label="打开音频播放器"><i data-lucide="play"></i></button>${smartAudioWaveformSvg()}</div></div>`;
+    if(isAudioMediaItem(img)) return `<div class="node-img" style="width:100%;height:100%">${pixmaxAudioCardHtml(img)}</div>`;
     if(isVideoMediaItem(img)){
         const source=displayMediaUrl(img.previewVideoUrl?{...img,url:img.previewVideoUrl}:img),poster=pixmaxMediaPoster(img);
         return `<div class="node-img media-card media-video-card" style="width:${w}px;height:${h}px"><div class="pixmax-player-mount" data-src="${escapeAttr(source)}" data-url="${escapeAttr(img.url)}" data-poster="${escapeAttr(poster)}" data-duration="${Number(img.duration)||0}"></div></div>`;
@@ -1964,6 +1964,10 @@ function restoreMediaPlaybackState(media, state){
 }
 
 function transplantSmartMediaElements(oldNodeEl, newNodeEl){
+    for(const player of oldNodeEl.querySelectorAll('.pixmax-audio-mount')){
+        const next=[...newNodeEl.querySelectorAll('.pixmax-audio-mount')].find(target=>target.dataset.audioKey===player.dataset.audioKey&&target.dataset.src===player.dataset.src);
+        if(next)next.replaceWith(player);
+    }
     const oldItems = [...(oldNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.pixmax-reshoot-source') || [])];
     const newItems = [...(newNodeEl?.querySelectorAll?.('.thumb-item,.image-wrap,.pixmax-reshoot-source') || [])];
     oldItems.forEach((oldItem, index) => {
@@ -4716,8 +4720,8 @@ function createSmartWorkspaceView(){
         const changed = smartChangedConnectionNodes();
         withSmartComputation(() => nodes.forEach(node => {
             if(node.hidden)return;
-            const html = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
             const current = existing.get(node.id);
+            const html = isSmartNodeInViewport(node, 400)||current?.querySelector('.pixmax-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
             existing.delete(node.id);
             const previous = current && smartRenderedNodes.get(current);
             // Object identity also matters: controls close over their node object.
@@ -4781,7 +4785,7 @@ function createSmartWorkspaceView(){
             }
             const scroll = current.querySelector('[data-thumb-scroll]')?.scrollTop ?? smartViewportScrolls.get(node) ?? 0;
             const tpl = document.createElement('template');
-            tpl.innerHTML = isSmartNodeInViewport(node, 400) ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
+            tpl.innerHTML = isSmartNodeInViewport(node, 400)||current.querySelector('.pixmax-audio-mount[data-playing="true"]') ? renderSmartNodeHtml(node) : renderSmartNodePlaceholderHtml(node);
             const fresh = tpl.content.firstElementChild;
             if(!fresh) return;
             releaseSmartGroupPreviews(current);

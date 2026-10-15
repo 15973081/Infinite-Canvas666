@@ -22,8 +22,9 @@ test('audio drafts and image mode never render or submit audio as an image',asyn
  assert.equal(await page.locator('#promptInput .mention-image-token').getAttribute('data-kind'),'audio');
  assert.equal(await page.locator('#promptInput .smart-ref-symbol svg').count(),1);
  assert.equal(await page.locator('#promptInput .mention-image-token').innerText(),'@音频');
- assert.equal(await page.locator('.media-audio-card .smart-audio-waveform').count(),1);
- assert.equal(await page.locator('.media-audio-card .smart-audio-open').count(),1);
+ await page.locator('.pixmax-audio-mount[data-audio-ready=true]').waitFor();
+ assert.equal(await page.locator('.pixmax-audio-card canvas').count(),1);
+ assert.equal(await page.getByRole('button',{name:'播放音频',exact:true}).count(),1);
  assert.equal(await page.locator('audio').count(),0,'displaying audio must not create a decoder');
  const result=await page.evaluate(()=>{
   let error='';try{buildPromptRequest(nodes[0]);}catch(e){error=e.message;}
@@ -55,7 +56,7 @@ test('video mode audio references keep type, alias insertion, preview routing an
  for(const theme of ['dark']){
   await page.evaluate(theme=>{viewport={x:0,y:0,scale:1};applyViewport();},theme);
   await page.locator('.smart-ref-audio').screenshot({path:'.local/smart-audio-reference/'+theme+'-reference.png',animations:'disabled'});
-  await page.locator('.media-audio-card').screenshot({path:'.local/smart-audio-reference/'+theme+'-node.png',animations:'disabled'});
+  await page.locator('.pixmax-audio-card').screenshot({path:'.local/smart-audio-reference/'+theme+'-node.png',animations:'disabled'});
   const sizes=await page.locator('.smart-ref-audio').evaluate(el=>({w:el.clientWidth,scroll:el.scrollWidth,h:el.clientHeight}));
   assert.ok(sizes.scroll<=sizes.w&&sizes.h<=60);
  }
