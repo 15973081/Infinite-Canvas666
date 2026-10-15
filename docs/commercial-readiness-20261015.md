@@ -1,6 +1,6 @@
 # 商业化准备：2026-10-15 首轮交付
 
-更新：2026-10-16 第二轮完成 3 项登录、空间权限与占用修复；详见文末第二轮验收记录。
+更新：2026-10-16 第三轮完成 4 项管理员身份、跨标签登录、费用分页与弹窗保护修复；详见文末各轮验收记录。
 
 ## 范围与结论
 
@@ -121,3 +121,40 @@ node --test tests/studio-dark-only.browser.cjs tests/smart-asset-panel-resize.br
 后端命令需要本机隔离 PostgreSQL 已启动，可通过 `tools/cloud_local.py start` 启动。日志保存在 `.local/commercial-kickoff/round2-frontend-tests.log` 与 `.local/commercial-kickoff/round2-server-tests.log`。
 
 本轮没有推送或部署。建议下一轮核对管理员角色操作的可见性与错误反馈、独立标签页切换账号，以及费用流水的失败路径；支付、租户开通和素材生命周期仍按前述验收门槛推进。人工验收实际部署环境仍待完成。
+
+## 第三轮：2026-10-16 管理员权限、跨标签登录与费用流水
+
+基线为 `869a6b2a`，本轮完成 4 项并逐项提交。现有后台仍在每次受保护操作中检查角色权限，本轮新增页面账号绑定和相关交互保护，不扩大管理员权限。
+
+| 可复现问题 | 修复与独立验收点 | 提交 |
+| --- | --- | --- |
+| 管理后台在另一标签页换号后，旧页面操作只依赖新 Cookie | 前端请求携带当前显示的成员 ID，后台在读取、修改及退出登录前核对。冲突返回 409，旧页停止后续请求并保留未提交表单；保留内容后需刷新页面。普通权限不足仍可按原流程重试。 | `c6cc4c53` |
+| 工作台其他标签页成功登录或退出，后台画布要等下次请求/聚焦才得知 | 成功登录和退出写入不含账号、令牌或草稿的随机通知；其他同源页面收到通知后暂停，通知不能授予或恢复身份。同账号重新登录也触发暂停，草稿保留。 | `b212b1a1` |
+| 费用翻页请求未返回时快速点击“下一页”，会从第一页直接跳到第三页 | 查询中禁用并拦截重复翻页，始终以已显示页计算目标页。重置筛选可以替代旧请求，迟到结果不能覆盖新结果。个人费用与管理员费用共用修复。 | `ae93ce27` |
+| 旧管理弹窗保存请求迟到，清除新弹窗的未保存标记并解除保存锁 | 旧请求只能更新自己所属弹窗的状态，不能影响新表单、保存按钮或离开保护；同一表单保存中也拦截重复提交。 | `b1121a7f` |
+
+### 验收证据与复验方式
+
+前端和浏览器回归 **199 项通过，0 失败、0 跳过**。其中费用精确格式测试文件还包含 5 个金额断言。真实 HTTP 与隔离 PostgreSQL 的管理员、成员、费用归属和对话计费测试 **63 项通过，0 失败、593 项未选中**，产生 5 条现有依赖弃用警告。
+
+每项问题先用失败用例确认，再修复与复验。扩大管理后台回归时发现旧测试的模拟表单缺少 `dataset`；补全模拟对象并增加未保存/保存锁断言后，复现并修复第四项实际状态竞态。没有忽略失败用例。
+
+```powershell
+$env:NODE_PATH = 'C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
+$managementTests = @(rg --files tests -g 'management-*.cjs')
+node --test @managementTests tests/studio-dark-only.browser.cjs tests/smart-asset-panel-resize.browser.cjs tests/member-canvas-header.browser.cjs tests/commercial-readiness.browser.cjs tests/member-session-frames.browser.cjs tests/member-session.cjs tests/member-login.cjs tests/frontend-reload-guards.cjs tests/member-canvas-edit.cjs tests/canvas-edit-lease.cjs tests/member-canvas-refresh.cjs tests/account-billing-pagination.browser.cjs tests/account-billing-ui.cjs tests/chat-billing.browser.cjs
+$env:ACCOUNT_BILLING_INTEGRATION = '1'
+.\.venv\Scripts\python.exe tools/cloud_test.py tests/test_account_billing.py -k "test_account_billing or test_cloud_management or test_cloud_members or test_cloud_chat_billing or test_cloud_workbench_management"
+```
+
+后端复验需要先启动本机隔离 PostgreSQL。日志为 `.local/commercial-kickoff/round3-frontend-tests.log` 和 `.local/commercial-kickoff/round3-server-tests.log`。
+
+人工验收可以按上表分别操作：两标签管理员换号后尝试保存旧表单；另一工作台标签登录或退出时观察旧画布暂停；限速网络下连续翻页及重置费用筛选；旧弹窗请求延迟完成时检查新表单未保存标记与保存按钮。第四项的确定性竞态由自动化测试构造。
+
+### 本轮边界与下一步
+
+跨标签通知限于同源、同一浏览器存储范围；存储被禁用时保留原有焦点、可见性及服务端响应检查。通知本身不会恢复租约。管理员身份冲突后需要刷新页面，刷新前的未保存提示仍有效。后台账号绑定头用于防止旧页面误操作，不能代替 Cookie 身份验证或角色授权；未携带此头的兼容客户端仍按既有认证授权处理。
+
+费用修复处理的是查询展示竞态，没有改动费用计算、支付、退款或账本金额。浏览器用受控接口构造故障，服务端测试使用本机临时 schema；不等同于部署环境人工验收。管理前端发布时需按现有构建流程重新生成管理静态资源。本轮未推送、未部署，初始处于停止状态的测试数据库服务已在验收后停止。
+
+下一轮可继续按独立场景核对角色降权后的管理入口反馈、费用补录失败后的重新预览，以及跨标签恢复后的草稿另存。支付闭环、租户开通和素材生命周期仍未据此宣布完成。
