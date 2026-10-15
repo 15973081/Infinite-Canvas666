@@ -39,6 +39,43 @@ body.studio-smart-canvas .member-canvas-edit button.member-canvas-primary {
   color: #fafafa;
 }
 
+/* Collaboration dialogs and read-only previews belong to the same canvas surface. */
+body.studio-smart-canvas :is(.member-canvas-drafts,.member-media-preview) {
+  box-sizing: border-box;
+  margin: auto;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  background: var(--studio-panel);
+  color: var(--studio-text);
+  border-color: var(--studio-border);
+  border-radius: 12px;
+  box-shadow: 0 16px 64px #0008;
+}
+body.studio-smart-canvas :is(.member-canvas-drafts,.member-media-preview)::backdrop {
+  background: #0009;
+}
+body.studio-smart-canvas :is(.member-canvas-drafts,.member-media-preview) :is(button,a,textarea) {
+  background: var(--studio-surface-muted);
+  color: var(--studio-text);
+  border-color: var(--studio-border);
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+body.studio-smart-canvas :is(.member-canvas-drafts,.member-media-preview) :is(button,a,textarea):focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+body.studio-smart-canvas .member-canvas-drafts button { margin: 4px 4px 4px 0; }
+body.studio-smart-canvas .member-canvas-result-row { border-color: var(--studio-border); }
+body.studio-smart-canvas .member-media-preview-stage { background: var(--studio-page); }
+body.studio-smart-canvas .member-media-preview [role=status] { color: var(--studio-text-muted); }
+@media(max-width:480px) {
+  body.studio-smart-canvas :is(.member-canvas-drafts,.member-media-preview) { padding: 16px; }
+}
+
 /* Card actions stay legible and reachable while the canvas zooms and pans. */
 .shell .smart-node-floating-menu {
   position: absolute;
