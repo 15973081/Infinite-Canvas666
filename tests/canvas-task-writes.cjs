@@ -227,27 +227,6 @@ test('smart running timer does not clear a replacement node or newer run token',
  }
 });
 
-test('smart cascade outer cleanup leaves another canvas and a newer run untouched',async()=>{
- for(const outcome of ['success','failure','paused'])for(const scenario of ['unchanged','handoff','target','canvas','new-run']){
-  const w=fixture(),source={id:'src',type:'smart-image'},out={id:'out',type:'smart-image'},gate=deferred(),counts={render:0,save:0,error:0};let reached=false;
-  const graph={path:[source,out],root:source,edges:[{key:'src->out'}],children:new Map([['src',[out]]])};
-  const c={window:w,nodes:[source,out],canvas:{id:'c'},settings:{},selectedId:'out',selectedIds:[],selectedImage:{},smartComposer:{finishCascade(){},outputSelected(){}},
-   smartCascadeRuns:new Map(),smartCascadeSilentSelection:false,smartLoopContext:null,smartCascadeRunPath:null,promptInput:{innerHTML:'original'},composer:{classList:{remove:()=>{}}},runBtn:{},cascadeRunBtn:{},
-   isSmartCanvasLocked:()=>false,selectedNode:()=>out,canRunSmartCascade:()=>true,savePromptDraftForCurrent:()=>{},smartCascadeGraphForTail:()=>graph,
-   smartCascadeAnyRunning:()=>c.smartCascadeRuns.size>0,cloneSmartSettings:s=>({...s}),syncSmartCascadeLegacyState:()=>{},pushUndo:()=>{},refreshConnectionLayer:()=>counts.render++,updateComposer:()=>counts.render++,
-   isSmartImageNode:()=>true,defaultReferenceImagesFor:()=>[],
-   runCascadeStepIntoNode:async()=>{reached=true;await gate.promise;if(outcome==='failure')throw Error('failed');if(outcome==='paused')throw api.pending();return [{url:'result'}];},cascadeRefsFromOutputs:r=>r,
-   scheduleSave:()=>counts.save++,render:()=>counts.render++,toast:()=>counts.error++,tr:s=>s};
-  installSmartSelection(c);
- install(c,'smart-canvas.js','canvasTaskWriteGuard','throwIfSmartCascadeStopRequested','runSmartCascade');
-  const waiting=c.runSmartCascade(out);await until(()=>reached);
-  let replacement;if(scenario==='new-run'){const key=[...c.smartCascadeRuns.keys()][0];replacement={runKey:key};c.smartCascadeRuns.set(key,replacement);change(c,'canvas',source,out);}else change(c,scenario,source,out);
-  const before=clone({nodes:c.nodes,settings:c.settings,selectedId:c.smartSelection.nodeId,prompt:c.promptInput,counts});gate.resolve();await waiting;
-  if(scenario==='unchanged'&&outcome!=='paused')assert.ok(counts.save>0||counts.error>0);
-  else assert.deepEqual(clone({nodes:c.nodes,settings:c.settings,selectedId:c.smartSelection.nodeId,prompt:c.promptInput,counts}),before,outcome+scenario);
-  if(replacement)assert.equal([...c.smartCascadeRuns.values()][0],replacement);else assert.equal(c.smartCascadeRuns.size,0);
- }
-});
 test('smart step guarded writeback preserves target state on late success/failure',async()=>{
  for(const outcome of ['success','failure','paused'])for(const scenario of ['unchanged','handoff','source','target','canvas']){
   const w=fixture(),source={id:'src',type:'smart-image'},out={id:'out',images:[{url:'old'}],promptDraftText:'keep'},gate=deferred(),counts={render:0,log:0,replace:0};let reached=false;

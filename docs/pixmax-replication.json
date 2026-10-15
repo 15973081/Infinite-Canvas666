@@ -1,7 +1,8 @@
 {
   "objective": "智能画布全面复刻 Pixmax 的界面、交互与功能，并保留现有数据、后台和编辑权限",
   "reference": "C:/project/skill-clone/output/pixmax-canvas-1f1b1a95",
-  "excluded": ["循环节点", "并发控制"],
+  "excluded": ["循环节点", "并发控制", "旧版一键运行/全链路级联执行"],
+  "alignmentPolicy": "根据用户最新要求，除基本模型选择和生成及必要的后台/权限/数据保护外，UI 与交互以 Pixmax 源码为准。发现旧版冲突优先删除，参考中没有的旧功能不继续扩展；不因删除入口而清理已有媒体或已接收任务。",
   "requirements": [
     {"id": "canvas-ui", "name": "画布/节点目录、搜索、工具栏、节点菜单、布局和视口交互", "status": "in_progress"},
     {"id": "document", "name": "原生 Pixmax 数据转换、导入、保存、恢复与撤销", "status": "in_progress"},
@@ -318,6 +319,15 @@
         "真实部署网络、真实供应商输出质量和同场景大画布 FPS/内存对比仍未验收"
       ],
       "verificationScope": "实际媒体、编辑资格、HTTP 接收、保存与隔离数据库所有权均执行；供应商完成使用受控替身，无收费生成或用户画布写入。计数测试不作为相对 Pixmax 的 FPS 结论。"
+    },
+    "legacyCascadeRetirementEvidence": {
+      "status": "implemented_local",
+      "source": ["static/smart-canvas.html", "static/js/smart-canvas.js", "static/js/canvas/smart/smart-execution.js", "static/js/canvas/smart/smart-workspace.js", "static/css/smart-canvas.css", "static/css/smart-canvas-services.css", "static/css/smart-composer.css"],
+      "referenceEvidence": "两套提供的 Pixmax 运行时 N1/I2 普通生成表单均无旧版一键运行入口；参考批量行为由 previewTasks/prepareBatchTasks/submitBatchTask 实现，具有 prepared/skipped/excludedDownstreamIds，与旧版从链尾回溯根节点并遍历分支自动生成的 runSmartCascade 不同。",
+      "removed": ["旧 composer 一键运行按钮、绑定和独有样式", "链尾入口资格与根/分支图遍历", "全链路运行及停止调度器、分支复制辅助逻辑"],
+      "preserved": ["供应商和模型选择、单次图像/视频生成及独立回执", "Pixmax 分组批量执行及下游排除规则", "历史节点、提示词、连线、媒体、撤销和已接收任务恢复；底层单次模型请求及写回保护继续保留"],
+      "verification": {"frontendCases":157,"frontendLog":".local/pixmax-legacy-cascade-removal-front.log","databaseCases":3,"databaseLog":".local/pixmax-legacy-cascade-removal-http.log","scope":"连接普通生成节点后浏览器确认入口及全图执行器均不存在，节点与连线保留；实际图像/视频请求、模型选择、原生表单、批次、回执和所有权回归；供应商使用替身，无收费生成。旧功能专属调度器测试随删除移除，单次模型与任务写回测试保留。"},
+      "remaining": ["更多旧版 UI 和交互冲突继续逐项按参考源码核对；整体复刻仍未完成"]
     },
     "nativeAudioSurfaceEvidence": {
       "status": "implemented_local_requires_final_verification",

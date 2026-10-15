@@ -17,7 +17,6 @@ const mentionPreview = document.getElementById('mentionPreview');
 const engineSelect = document.getElementById('engineSelect');
 const dynamicParams = document.getElementById('dynamicParams');
 const runBtn = document.getElementById('runBtn');
-const cascadeRunBtn = document.getElementById('cascadeRunBtn');
 const fileInput = document.getElementById('fileInput');
 const apiKindToggle = document.getElementById('apiKindToggle');
 const inputThumbsRow = document.getElementById('inputThumbsRow');
@@ -360,7 +359,6 @@ async function loadCanvas(options={}){
                     if(lease.canEdit) resumeSmartPendingTasks();
                     if(!lease.canEdit){clearTimeout(saveTimer);saveTimer=null;cancelSmartNodeGestures();}
                     if(runBtn) runBtn.disabled=!lease.canEdit || smartCascadeAnyRunning();
-                    if(cascadeRunBtn) cascadeRunBtn.disabled=!lease.canEdit;
                 }
             });
         }
@@ -452,10 +450,6 @@ if(promptResize){
     });
 }
 runBtn.onclick = runGeneration;
-cascadeRunBtn.onclick = () => {
-    if(smartCascadeAnyRunning()){ requestSmartCascadeStop(); return; }
-    runSmartCascade();
-};
 fileInput.onchange = () => {
     const groupPoint = pendingGroupUploadPoint;
     if(!fileInput.files?.length){

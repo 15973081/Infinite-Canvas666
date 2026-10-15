@@ -53,25 +53,19 @@ test('workflow import and member draft restoration retire loop nodes without los
     assert.deepEqual(errors,[]);
 });
 
-test('ordinary cascade executes each step once, shares branch outputs and still stops after the current step',async t=>{
-    const {page,errors}=await fixture(t,'smart',false);
-    const result=await page.evaluate(async()=>{
-        nodes=[{id:'root',type:'smart-image',x:0,y:0,images:[{url:'/test-image.svg',kind:'image'}]},
-            ...['left','right','tail'].map((id,i)=>({id,type:'smart-image',x:350+i*300,y:100*i,images:id==='left'?[{url:'/test-image.svg',kind:'image'}]:[]}))];
-        canvas.nodes=nodes;
-        canvas.connections=[{from:'root',to:'left',kind:'input'},{from:'root',to:'right',kind:'input'},{from:'left',to:'tail',kind:'input'}];
-        clearSelection();render();
-        const generated=[],received=[];
-        runCascadeStepIntoNode=async(source,target)=>{generated.push(source.id+'->'+target.id);return [{url:'/test-image.svg',kind:'image'}];};
-        appendCascadeRefsToReceiver=(target,refs)=>{received.push(target.id);return refs;};
-        const tail=nodes.find(n=>n.id==='tail');
-        await runSmartCascade(tail);
-        const first={generated:[...generated],received:[...received],running:smartCascadeAnyRunning()};
-        generated.length=received.length=0;
-        runCascadeStepIntoNode=async(source,target)=>{generated.push(source.id+'->'+target.id);requestSmartCascadeStop();return [{url:'/test-image.svg',kind:'image'}];};
-        await runSmartCascade(tail);
-        return {first,stopped:{generated,received,running:smartCascadeAnyRunning()}};
+test('legacy one-click cascade is absent from connected ordinary generation nodes',async t=>{
+    const {page,errors,writes}=await fixture(t,'smart',true,{secureOrigin:true});
+    await page.evaluate(()=>{
+        apiProviders=[{id:'p',enabled:true,has_key:true,image_models:['gpt-image-2']}];
+        nodes=['root','middle','tail'].map((id,index)=>({id,type:'smart-image',generationKind:'image',x:100+index*300,y:180,images:index===0?[{url:'/test-image.svg',kind:'image'}]:[],promptDraftText:'模型生成要求',runSettings:{engine:'api',apiKind:'image',provider_id:'p',model:'gpt-image-2',resolution:'1k',ratio:'square',count:1}}));
+        canvas.nodes=nodes;canvas.connections=[{from:'root',to:'middle',kind:'input'},{from:'middle',to:'tail',kind:'input'}];smartSelection.createdNode('tail');render();
     });
-    assert.deepEqual(result,{first:{generated:['root->left','left->tail'],received:['right'],running:false},stopped:{generated:['root->left'],received:[],running:false}});
-    assert.deepEqual(errors,[]);
+    await page.locator('.pixmax-native-generation-form').waitFor();
+    assert.equal(await page.locator('#cascadeRunBtn,.cascade-run-btn').count(),0);
+    assert.equal(await page.getByRole('button',{name:'一键运行',exact:true}).count(),0);
+    assert.deepEqual(await page.evaluate(()=>({run:typeof runSmartCascade,stop:typeof requestSmartCascadeStop,plan:typeof smartCascadeGraphForTail})),{run:'undefined',stop:'undefined',plan:'undefined'});
+    assert.equal(await page.getByRole('button',{name:'生成模型',exact:true}).count(),1);
+    assert.equal(await page.locator('[data-native-generation-submit]').count(),1);
+    assert.deepEqual(await page.evaluate(()=>({nodes:nodes.length,edges:canvas.connections.length})),{nodes:3,edges:2});
+    assert.equal(writes.filter(write=>/canvas-(image|video)-tasks/.test(write.path)).length,0);assert.deepEqual(errors,[]);
 });

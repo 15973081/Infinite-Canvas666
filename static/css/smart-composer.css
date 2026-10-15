@@ -60,7 +60,6 @@ body.studio-smart-canvas #shell #composer .smart-pill:hover { background:var(--s
 #composer .composer-actions { align-items:center; gap:8px; padding-top:12px; border-top:1px solid var(--st-line); }
 body.studio-smart-canvas #shell #composer .engine-select { margin-right:auto; max-width:130px; height:30px; padding:0 5px; border:0; border-radius:6px; font-size:11px; color:var(--st-muted)!important; background:transparent!important; }
 #composer .run-btn { min-width:100px; width:auto; height:36px; padding:0 16px; gap:7px; border-radius:10px; font-size:12px; font-weight:600; }
-body.studio-smart-canvas #shell #composer .cascade-run-btn { min-width:0; padding:0 12px; background:transparent!important; color:var(--st-text)!important; border:1px solid var(--st-line)!important; font-weight:400; }
 #composer .composer-advanced { margin-left:auto; }
 #composer .composer-advanced > summary { display:flex; height:30px; align-items:center; gap:6px; padding:0 8px; border-radius:7px; color:var(--st-muted); font-size:11px; cursor:pointer; list-style:none; }
 #composer .composer-advanced > summary::-webkit-details-marker { display:none; }

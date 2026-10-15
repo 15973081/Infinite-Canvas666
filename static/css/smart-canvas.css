@@ -143,7 +143,6 @@ body.smart-llm-instr-resize .prompt-node-llm select { pointer-events:none !impor
 .smart-node-input-thumb .audio-thumb span { display:none; }
 .smart-node-input-badge { position:absolute; left:3px; top:3px; min-width:20px; height:16px; padding:0 4px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:rgba(15,23,42,.84); color:#fff; font-size:8.5px; line-height:1; font-weight:900; box-shadow:0 2px 7px rgba(15,23,42,.18); }
 .smart-node-input-more { display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:11px; font-weight:900; }
-.cascade-run-btn.is-stop { border-color:#ef4444; background:#ef4444; color:#fff; }
 .create-menu { position:fixed; z-index:75; display:none; width:216px; max-width:calc(100vw - 24px); padding:6px; border-radius:12px; background:var(--panel); border:1px solid var(--line); box-shadow:0 8px 28px var(--shadow); backdrop-filter:blur(20px); }
 .create-menu.open { display:block; }
 .create-menu-grid { display:flex; flex-direction:column; gap:2px; }
@@ -672,8 +671,6 @@ video.node-img { object-fit:cover; background:var(--studio-media-stage); }
 .run-btn span { white-space:nowrap; }
 .run-btn i,.run-btn svg { width:var(--ctrl-icon) !important; height:var(--ctrl-icon) !important; stroke-width:2; flex:0 0 auto; }
 .run-btn:disabled { opacity:.55; cursor:wait; }
-.cascade-run-btn { width:76px; background:var(--card); color:var(--text); border:1px solid var(--line); }
-.cascade-run-btn:hover:not(:disabled) { border-color:var(--text); }
 .param-row { grid-area:params; min-width:0; margin-top:0; display:flex; align-items:center; gap:var(--ctrl-gap); overflow:visible; flex-wrap:wrap; row-gap:4px; }
 .param-row > select { flex:0 0 auto; width:auto; max-width:96px; }
 .param-row select,.dynamic-params select,.dynamic-params input,.dynamic-params textarea { height:var(--ctrl-height); min-width:0; border-radius:999px; border:1px solid transparent; background:transparent; color:var(--text); padding:0 var(--ctrl-xpad); font-size:var(--ctrl-font); line-height:1; font-weight:500; outline:none; transition:background .15s ease, border-color .15s ease; }

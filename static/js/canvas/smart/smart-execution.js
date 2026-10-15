@@ -1272,9 +1272,6 @@ function primaryImageInputFor(node, options={}){
     return (options.includeFlow ? directImageInputsForKinds(node, ['input', 'flow']) : directImageInputsFor(node))[0] || null;
 }
 
-function hasDownstreamImageNode(node){
-    return downstreamNodesForId(node?.id).some(n => isSmartImageNode(n) && !isHistoryGroupNode(n));
-}
 
 function isGeneratedOutputForNode(sourceNode, targetNode){
     return Boolean(sourceNode?.id && targetNode?.sourceNodeId === sourceNode.id);
@@ -1349,50 +1346,8 @@ function downstreamImageTargetsFor(node){
         });
 }
 
-function downstreamCascadeTargetsFor(node){
-    if(!node?.id) return [];
-    return (canvas?.connections || [])
-        .filter(conn => conn.from === node.id && ['input','flow'].includes(conn.kind || 'flow'))
-        .map(conn => nodes.find(n => n.id === conn.to))
-        .filter(n => n && !isHistoryGroupNode(n) && isSmartImageNode(n))
-        .sort((a, b) => {
-            const ax = Number(a.x) || 0, bx = Number(b.x) || 0;
-            if(ax !== bx) return ax - bx;
-            return (Number(a.y) || 0) - (Number(b.y) || 0);
-        });
-}
 
-function smartCascadeGraphForTail(tail){
-    const path = smartImageChainTo(tail?.id, {includeFlow:true}).filter(n => isSmartImageNode(n) && !isHistoryGroupNode(n));
-    if(!path.length) return {root:null, path:[], edges:[], children:new Map()};
-    const root = path[0];
-    const edges = [];
-    const children = new Map();
-    const seenEdges = new Set();
-    const visiting = new Set();
-    const walk = node => {
-        if(!node?.id || visiting.has(node.id)) return;
-        visiting.add(node.id);
-        const targets = downstreamCascadeTargetsFor(node);
-        children.set(node.id, targets);
-        targets.forEach(target => {
-            const key = `${node.id}->${target.id}`;
-            if(!seenEdges.has(key)){
-                seenEdges.add(key);
-                edges.push({source:node, target, key});
-            }
-            walk(target);
-        });
-        visiting.delete(node.id);
-    };
-    walk(root);
-    return {root, path, edges, children};
-}
 
-function canRunSmartCascade(node){
-    if(!isSmartImageNode(node) || isHistoryGroupNode(node) || hasDownstreamImageNode(node)) return false;
-    return smartCascadeGraphForTail(node).edges.length > 0;
-}
 
 function cascadeConnectionKeys(){
     return new Set([...smartCascadeRuns.values()].flatMap(run => Object.keys(run.runPath?.states || {})));
@@ -1589,19 +1544,6 @@ function appendOutputsToNode(node, additions, kind='image', options={}){
     return next;
 }
 
-function syncCascadeRunButton(node=selectedNode()){
-    if(!cascadeRunBtn) return;
-    const visible = canRunSmartCascade(node);
-    cascadeRunBtn.style.display = visible ? 'inline-flex' : 'none';
-    const runState = smartCascadeRuns.get(smartCascadeActiveRunId) || null;
-    const runningForNode = Boolean(runState);
-    cascadeRunBtn.disabled = !visible || (!runningForNode && Boolean(node?.running)) || Boolean(runState?.stopRequested);
-    cascadeRunBtn.classList.toggle('is-stop', runningForNode);
-    cascadeRunBtn.innerHTML = runningForNode
-        ? `<i data-lucide="square"></i><span>${escapeHtml(smartCascadeStopText(Boolean(runState?.stopRequested)))}</span>`
-        : `<i data-lucide="workflow"></i><span>${escapeHtml('一键运行')}</span>`;
-    refreshIcons();
-}
 
 function loadNodePromptDraftToInput(node){
     if(node?.nativePrompt?.schemaVersion===1){PixmaxReshootReferences.setPrompt(node,node.nativePrompt.prompt);promptInput.innerHTML=node.promptDraftHtml;return;}
@@ -1801,157 +1743,12 @@ async function runCascadeStepIntoNode(sourceNode, targetNode, inputRefs, ctx=nul
     }
 }
 
-function appendCascadeRefsToReceiver(node, refs, ctx=null){
-    if(!node || !refs?.length) return [];
-    const additions = refs
-        .filter(ref => ref?.url)
-        .map((ref, i) => stripImageGenerationMeta({
-            url:ref.url,
-            name:ref.name || `output-${i + 1}.png`,
-            kind:ref.kind || (isVideoMediaItem(ref) ? 'video' : 'image')
-        }));
-    if(!additions.length) return [];
-    replaceOutputsToNodeWithHistory(node, additions, mediaKindForUrls(additions, additions.some(isVideoMediaItem) ? 'video' : 'image'));
-    render();
-    return additions;
-}
 
-function cascadeRefsFromOutputs(outputs, targetNode){
-    return (outputs || []).filter(img => img?.url).map((img, index) => ({
-        url:img.url,
-        name:img.name || `图${index + 1}`,
-        kind:img.kind || 'image',
-        role:`image_${index + 1}`,
-        nodeId:targetNode?.id || '',
-        imageIndex:targetNode ? (targetNode.images || []).length - outputs.length + index : index
-    }));
-}
 
-function smartCascadeStopText(stopping=false){
-    return stopping ? '停止中...' : '停止运行';
-}
 
-function smartCascadeAbortError(){
-    const err = new Error('已停止一键运行');
-    err.smartCascadeStopped = true;
-    return err;
-}
 
-function throwIfSmartCascadeStopRequested(runState=null){
-    runState?.writeGuard?.check();
-    if(runState?.stopRequested || (!runState && smartCascadeStopRequested)) throw smartCascadeAbortError();
-}
 
-function requestSmartCascadeStop(){
-    const runState = smartCascadeRuns.get(smartCascadeActiveRunId) || [...smartCascadeRuns.values()][0] || null;
-    if(runState){
-        if(runState.stopRequested) return;
-        runState.stopRequested = true;
-        syncSmartCascadeLegacyState(runState.runKey);
-    } else {
-        if(!smartCascadeRunning || smartCascadeStopRequested) return;
-        smartCascadeStopRequested = true;
-    }
-    toast('已请求停止，当前任务完成后停止');
-    render();
-}
 
-async function runSmartCascade(targetNode=null){
-    if(isSmartCanvasLocked()) return toast('画布正在被其他人编辑，无法运行');
-    const tail = targetNode || selectedNode();
-    if(!canRunSmartCascade(tail)){ toast('请选择链路结尾图片节点'); return; }
-    if(smartCascadeAnyRunning()){ requestSmartCascadeStop(); return; }
-    savePromptDraftForCurrent();
-    const graph = smartCascadeGraphForTail(tail);
-    const originalSelected = smartSelection.nodeId;
-    const originalSettings = cloneSmartSettings(settings);
-    const originalPromptHtml = promptInput.innerHTML;
-    const runKey = 'cascade-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-    const writeGuard = canvasTaskWriteGuard(tail, graph.root, ...graph.path);
-    writeGuard.check();
-    const runState = {runKey, stopRequested:false, runPath:{states:{}}, writeGuard};
-    graph.edges.forEach(edge => {runState.runPath.states[edge.key] = 'wait';});
-    smartCascadeRuns.set(runKey, runState);
-    syncSmartCascadeLegacyState(runKey);
-    smartCascadeSilentSelection = true;
-    runBtn.disabled = true;
-    cascadeRunBtn.disabled = false;
-    pushUndo();
-    refreshConnectionLayer();
-    updateComposer();
-    const ownsUi = smartTaskUiGuard();
-    const ctx = {runState};
-    try {
-        const runBranch = async (source, incomingRefs=[]) => {
-            throwIfSmartCascadeStopRequested(runState);
-            const targets = graph.children.get(source.id) || [];
-            let sharedRefs = incomingRefs;
-            for(let index = 0; index < targets.length; index++){
-                throwIfSmartCascadeStopRequested(runState);
-                const target = targets[index];
-                const edgeKey = source.id + '->' + target.id;
-                let outputs;
-                runState.runPath.states[edgeKey] = 'active';
-                refreshConnectionLayer();
-                try {
-                    if(index === 0){
-                        outputs = await runCascadeStepIntoNode(source, target, incomingRefs, ctx);
-                        writeGuard.check();
-                        sharedRefs = cascadeRefsFromOutputs(outputs, target);
-                    } else {
-                        outputs = appendCascadeRefsToReceiver(target, sharedRefs, ctx);
-                    }
-                } catch(err){
-                    if(err?.resultPending || !writeGuard.valid()) throw err?.inputChanged ? err : writeGuard.pause();
-                    if(/缺少提示词|需要输入文本|need prompt/i.test(err.message || '') && incomingRefs.length){
-                        outputs = appendCascadeRefsToReceiver(target, incomingRefs, ctx);
-                        if(index === 0) sharedRefs = cascadeRefsFromOutputs(outputs, target);
-                    } else throw err;
-                }
-                runState.runPath.states[edgeKey] = 'done';
-                refreshConnectionLayer();
-                const refs = index === 0 ? sharedRefs : cascadeRefsFromOutputs(outputs, target);
-                throwIfSmartCascadeStopRequested(runState);
-                await runBranch(target, refs);
-            }
-        };
-        const rootRefs = defaultReferenceImagesFor(graph.root, true, ctx).filter(img => img?.url);
-        await runBranch(graph.root, rootRefs);
-        throwIfSmartCascadeStopRequested(runState);
-        if(ownsUi()){
-            smartSelection.taskFinished();
-            settings = originalSettings;
-            promptInput.innerHTML = originalPromptHtml;
-        }
-        scheduleSave();
-        toast('一键运行完成');
-    } catch(e){
-        if(e?.resultPending || !writeGuard.valid()){
-            if(e?.inputChanged && writeGuard.valid()) toast(e.message);
-            writeGuard.pause();
-            return;
-        }
-        if(ownsUi()){
-            smartSelection.taskFailed(originalSelected);
-            settings = originalSettings;
-            promptInput.innerHTML = originalPromptHtml;
-        }
-        toast(e?.smartCascadeStopped ? '已停止一键运行' : (e.message || '生成失败').slice(0, 160));
-    } finally {
-        if(smartCascadeRuns.get(runKey) === runState){
-            smartCascadeRuns.delete(runKey);
-            syncSmartCascadeLegacyState();
-            if(!smartCascadeAnyRunning()) smartCascadeSilentSelection = false;
-        }
-        if(writeGuard.valid()){
-            smartCascadeSilentSelection = false;
-            runBtn.disabled = smartCascadeAnyRunning();
-            cascadeRunBtn.disabled = false;
-            scheduleSave();
-            render();
-        }
-    }
-}
 
 function smartTaskInputDocument(){
     const projection=canvasForStorage({...canvas,nodes});

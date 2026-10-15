@@ -4181,7 +4181,7 @@ function createSmartComposer(){
     function close({saveDraft=true,clearInput=false}={}){
         if(destroyed)return;if(saveDraft && !paused)savePromptDraftForCurrent();
         documentReplaced();smartComposerBaseline=null;composer.classList.remove('open');
-        if(cascadeRunBtn)cascadeRunBtn.style.display='none';setPromptInputLocked(false);
+        setPromptInputLocked(false);
         if(clearInput)setPromptText('');
     }
     function pause(){if(!destroyed){inputVersion++;paused=true;}}
@@ -4370,7 +4370,6 @@ function createSmartComposer(){
         if(lastComposerNodeId && (canvas?.id!==targetCanvasId || (activeComposerSubject && !nodes.includes(activeComposerSubject))))documentReplaced();
         if(smartCascadeSilentSelection && !activeComposerSubject){
             composer.classList.remove('open');
-            if(cascadeRunBtn) cascadeRunBtn.style.display = 'none';
             activeComposerSubject = null;
             lastComposerNodeId = '';
             return;
@@ -4392,12 +4391,10 @@ function createSmartComposer(){
             loadPromptDraft(subject);
         }
         setPromptInputLocked(false);
-        syncCascadeRunButton(node);
         positionComposerForNode(node);
         const promptHeight = Math.max(60, Math.min(380, Number(settings.promptH) || 124));
         promptInput.style.setProperty('--prompt-h', `${promptHeight}px`);
         renderInputPromptPreview(node);
-        syncCascadeRunButton(node);
         // Model controls may normalize displayed values. Capture a fresh baseline
         // only when that would not absorb an existing, unsaved user edit.
         const hasUnsavedComposerChanges = !switchedNode && smartComposerBaseline?.nodeId === node.id

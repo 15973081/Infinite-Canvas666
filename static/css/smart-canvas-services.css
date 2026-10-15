@@ -113,7 +113,6 @@ body.smart-llm-instr-resize, body.smart-llm-instr-resize * { user-select:none !i
 .loop-smart-footer .loop-number-control { width:100%; }
 .loop-smart-footer .loop-number-trigger { width:100%; height:36px; padding:0 7px; }
 .loop-smart-run { width:100%; flex:0 0 40px; height:40px; border-radius:13px; border:1px solid var(--strong); background:var(--strong); color:var(--strong-text); display:flex; align-items:center; justify-content:center; gap:7px; font-size:12px; font-weight:900; box-shadow:0 10px 22px rgba(15,23,42,.16); }
-.loop-smart-run.is-stop,.cascade-run-btn.is-stop { border-color:#ef4444; background:#ef4444; color:#fff; }
 .loop-number-control { position:relative; flex:0 0 auto; min-width:0; z-index:1; }
 .loop-number-control::before { content:""; position:absolute; left:-6px; right:-6px; bottom:100%; height:10px; pointer-events:auto; }
 .loop-number-control:hover, .loop-number-control:focus-within { z-index:60; }
@@ -525,8 +524,6 @@ body.smart-node-resize .smart-node-floating-menu { opacity:0 !important; pointer
 .run-btn span { white-space:nowrap; }
 .run-btn i,.run-btn svg { width:var(--ctrl-icon) !important; height:var(--ctrl-icon) !important; stroke-width:2; flex:0 0 auto; }
 .run-btn:disabled { opacity:.55; cursor:wait; }
-.cascade-run-btn { width:76px; background:var(--card); color:var(--text); border:1px solid var(--line); }
-.cascade-run-btn:hover:not(:disabled) { border-color:var(--text); }
 .param-row { grid-area:params; min-width:0; margin-top:0; display:flex; align-items:center; gap:var(--ctrl-gap); overflow:visible; flex-wrap:wrap; row-gap:4px; }
 .param-row > select { flex:0 0 auto; width:auto; max-width:96px; }
 .param-row select,.dynamic-params select,.dynamic-params input,.dynamic-params textarea { height:var(--ctrl-height); min-width:0; border-radius:999px; border:1px solid transparent; background:transparent; color:var(--text); padding:0 var(--ctrl-xpad); font-size:var(--ctrl-font); line-height:1; font-weight:500; outline:none; transition:background .15s ease, border-color .15s ease; }

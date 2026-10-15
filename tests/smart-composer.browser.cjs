@@ -29,7 +29,6 @@ async function fixture(t){
   });
   composer.classList.add('open');composer.style.cssText='left:230px;top:100px;';
   document.getElementById('promptInput').textContent='让角色缓缓转身，镜头向前推进。保留原图的柔和光线与画面细节。';
-  document.getElementById('cascadeRunBtn').style.display='inline-flex';
  },labels);
  const names=['renderVideoToggleControl','renderVideoTrustedAssetControl','renderVideoAdvancedControl','renderDynamicParams','renderApiVideoParams','renderVolcengineVideoParams','renderVideoProviderControl','renderVideoModelControl','isSeedance25VideoModel','renderSeedance25TaskModeControl','renderVideoDurationControl','renderVideoAspectControl','videoAspectIconClass','renderVideoResolutionControl','closeAllSmartPopovers','bindDynamicParams','syncApiKindToggleVisibility'];
  await page.addScriptTag({content:names.map(fn).join('\n')+'\nrenderDynamicParams();'});
@@ -72,7 +71,7 @@ test('card layout fits desktop and narrow screens on the dark canvas',async t=>{
   },{dark,width});
   const card=await page.locator('.composer-card').boundingBox();assert.ok(card.x>=0&&card.x+card.width<=width);
   assert.equal(await page.locator('.composer-card').evaluate(e=>getComputedStyle(e).backgroundColor),dark?'rgb(18, 22, 17)':'rgb(255, 255, 255)');
-  for(const selector of ['#runBtn','#engineSelect','#cascadeRunBtn','.composer-advanced summary','.model-control > .smart-pill']){
+  for(const selector of ['#runBtn','#engineSelect','.composer-advanced summary','.model-control > .smart-pill']){
    const b=await page.locator(selector).boundingBox();assert.ok(b.x>=card.x&&b.x+b.width<=card.x+card.width+1,selector);
   }
   await page.locator('.composer-advanced summary').click();
