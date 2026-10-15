@@ -6,7 +6,7 @@
   async function create({fetchReport,personal=false,assignmentApi=null}){
     style();const root=el('section',undefined,'billing-view'),toolbar=el('form',undefined,'billing-toolbar'),body=el('div',undefined,'billing-results'),overview=el('div',undefined,'billing-overview'),message=el('p','','billing-note billing-message');message.setAttribute('role','status');
     root.classList.toggle('billing-personal',personal); toolbar.setAttribute('aria-label','费用筛选');
-    let page=1,member='',request=0,params={};
+    let page=1,member='',request=0,params={},loading=false;
     function field(title,type='text'){const label=el('label',title),input=el('input');input.type=type;input.setAttribute('aria-label',title);label.append(input);toolbar.append(label);return input;}
     const from=field('开始时间','datetime-local'),to=field('结束时间（不含）','datetime-local'),canvas=field('画布名称或 ID');
     let account,space;
@@ -22,7 +22,7 @@
     function table(heads,rows){const wrap=el('div',undefined,'billing-scroll'),t=el('table'),head=el('tr');heads.forEach(h=>{const th=el('th',h);th.scope='col';head.append(th);});const thead=el('thead');thead.append(head);t.append(thead);const tb=el('tbody');rows.forEach(cells=>{const tr=el('tr');cells.forEach((v,index)=>{const td=el('td');td.dataset.label=heads[index];td.append(v instanceof Node?v:document.createTextNode(String(v??'')));tr.append(td);});tb.append(tr);});t.append(tb);wrap.append(t);return wrap;}
     function action(text,fn){const b=el('button',text);b.type='button';b.onclick=fn;return b;}
     toolbar.onsubmit=e=>{e.preventDefault();params={canvas_query:canvas.value.trim()};if(account)params.account_query=account.value.trim();if(space&&space.value)params.workspace=space.value;if(from.value)params.from_ms=new Date(from.value).getTime();if(to.value){params.to_ms=new Date(to.value).getTime();}member='';page=1;void load();};
-    async function load(){const stamp=++request;submit.disabled=true;submit.textContent='查询中…';root.setAttribute('aria-busy','true');message.textContent='正在读取费用…';message.className='billing-note billing-message';try{
+    async function load(){const stamp=++request;loading=true;body.querySelectorAll('.billing-pager button').forEach(button=>{button.disabled=true;});submit.disabled=true;submit.textContent='查询中…';root.setAttribute('aria-busy','true');message.textContent='正在读取费用…';message.className='billing-note billing-message';try{
       const data=await fetchReport({...params,page,...(member?{member_id:member}:{})});if(stamp!==request)return;page=data.page;body.replaceChildren();
       if(space){const selected=space.value;space.replaceChildren(new Option('全部历史空间',''));(data.workspaces||[]).forEach(w=>space.append(new Option(w.name,w.id)));space.value=selected;}
       message.textContent='';
@@ -56,8 +56,8 @@
         const cost=e.cost_status==='priced'?pair(money(e.amount_micros,e.currency),e.kind==='chat'?((e.billing_type==='per_call'?'按次计费 · 1 次':'Token 计费')+(e.token_usage?' · 输入 '+e.token_usage.input_tokens+' / 输出 '+e.token_usage.output_tokens:'')):(e.estimated?'估算 · ':'')+(e.base_amount_micros!=null?'基础 '+money(e.base_amount_micros,e.currency)+' × '+String(Number(e.discount_rate||1)*100)+'%':'历史折扣未记录'),'billing-amount'):el('span',e.cost_status==='unknown'?'待核算':'不计费','billing-badge '+(e.cost_status==='unknown'?'billing-pending':'billing-neutral'));
         const status=el('span',e.status==='failed'?'失败':e.status==='success'?'成功':e.status==='uncertain'?'待核对':e.status==='pending'?'处理中':e.status,'billing-badge '+(e.status==='success'?'billing-success':e.status==='failed'?'billing-failed':'billing-neutral'));
         return personal?[time,location,model,cost,status,origin]:[time,e.username||'待归属',location,model,cost,status,origin];})));
-      const pager=el('div',undefined,'billing-pager'),prev=action('上一页',()=>{page--;void load();}),next=action('下一页',()=>{page++;void load();});prev.disabled=page<=1;next.disabled=page>=data.pages;pager.append(el('span','共 '+data.records+' 条','billing-page-total'),prev,el('span',page+' / '+data.pages,'billing-page-number'),next);body.append(pager);
-    }catch(error){if(stamp===request){message.textContent=error.message;message.className='billing-error billing-message';body.replaceChildren();overview.replaceChildren();}}finally{if(stamp===request){submit.disabled=false;submit.textContent='查询';root.setAttribute('aria-busy','false');}}}
+      const displayedPage=page,pager=el('div',undefined,'billing-pager'),prev=action('上一页',()=>{if(loading)return;page=displayedPage-1;void load();}),next=action('下一页',()=>{if(loading)return;page=displayedPage+1;void load();});prev.disabled=page<=1;next.disabled=page>=data.pages;pager.append(el('span','共 '+data.records+' 条','billing-page-total'),prev,el('span',page+' / '+data.pages,'billing-page-number'),next);body.append(pager);
+    }catch(error){if(stamp===request){message.textContent=error.message;message.className='billing-error billing-message';body.replaceChildren();overview.replaceChildren();}}finally{if(stamp===request){loading=false;submit.disabled=false;submit.textContent='查询';root.setAttribute('aria-busy','false');}}}
     await load();return root;
   }
   async function assignmentDialog(api,refresh){
