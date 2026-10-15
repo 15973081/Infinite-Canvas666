@@ -1,5 +1,7 @@
 # 商业化准备：2026-10-15 首轮交付
 
+更新：2026-10-16 第二轮完成 3 项登录、空间权限与占用修复；详见文末第二轮验收记录。
+
 ## 范围与结论
 
 根据用户提供的 `C:/Users/MSI/Desktop/缺少的功能.pdf`（2 页、14 个需求方向），本轮完成 4 个可独立复验的小目标。代码验收通过，实际工作空间的人工验收待用户完成。它们不代表 14 个方向全部完成，也不代表支付、租户和积分体系已经具备上线条件。
@@ -81,3 +83,41 @@ node --test tests/studio-dark-only.browser.cjs tests/smart-asset-panel-resize.br
 [打开演示稿](../output/commercial-kickoff/project-kickoff.pptx)
 
 已检查导出后的 12 页并通过结构、字体来源、版面和可重新导入检查。模板原有第 8 页时间线延伸到页面边界，保留其设计。演示稿未在 Microsoft PowerPoint 中原生打开验收。
+
+## 第二轮：2026-10-16 登录、空间权限与占用
+
+以 `60011e9a` 为基线，本轮完成 3 个可独立验收的问题，继续使用同一分支。以上首轮测试数量与范围保留为历史记录；本节是新增交付，不代表全部商业化需求完成。启动演示稿仍为首轮快照。
+
+| 问题与触发条件 | 修复后行为 | 提交 |
+| --- | --- | --- |
+| 主工作台或其中一个嵌入画布登录失效，其他画布仍持有编辑资格 | 会话暂停传递到同源父子页面和其他嵌入画布，每页只触发一次；编辑资格失效并保留本地草稿。新加载的子页拒绝继承已暂停的工作台。 | `40182e39` |
+| 管理员撤销空间成员身份或调整权限后，前端仍使用旧权限与缓存列表 | 页面重新获得焦点、恢复可见、打开或刷新空间菜单时核对当前权限；权限集合变化即暂停，保留旧页面内容，重新打开才采用新权限。恢复入口也检查空间是否仍可访问。 | `f87696ca` |
+| 领取或接手编辑资格成功，但随后加载文档失败，留下无人使用的占用 | 只用本次尚未开始编辑的私有凭据、代次与版本尝试归还占用；取消期间迟到的领取响应同样清理。别人已接管时旧凭据无法释放新占用。 | `1360ec8f` |
+
+### 初步验收步骤与边界
+
+1. **嵌入画布联动**：在受控测试工作台打开两张嵌入画布并留下未保存内容，让主页面或任一子页的账号接口返回 401。所有页面应暂停；两张画布不能再编辑或发起业务请求，自动草稿仍包含原文。重复错误不堆叠提示。
+2. **空间权限变化**：在测试空间打开编辑页，再由管理员撤销成员身份或改为只读。回到该页面或打开空间菜单，工作台及其子页应暂停。仅改空间名称、权限顺序不触发暂停。已失去空间访问权时，重新确认登录不应显示可重开的成功提示。
+3. **启动失败后的占用**：在测试环境使领取资格成功后的文档加载失败；另一成员应能直接开始编辑。交接后加载失败也应如此。若另一管理员已接管，原页面清理后新编辑者仍能续期。画布内容与版本不应被这些清理动作修改。
+
+普通独立浏览器标签各自通过焦点/可见性变化及接口响应复核；本轮没有添加跨标签实时广播或管理员权限推送。服务端仍在每次业务请求时执行权限校验。暂时无法查询权限时不会授予新权限，也不会仅凭网络故障抹除当前页面。登录恢复不会自动恢复编辑租约。
+
+仅在尚未进入编辑状态时归还未使用的占用；已编辑页面断线或保存结果不确定时仍遵循原有草稿和租约保护。清理请求失败或被拒绝时保留原始加载错误，不自动重试或借用新凭据，占用由服务器到期规则处理。
+
+### 本轮自动化证据
+
+- **前端 133 项通过，0 失败、0 跳过**：11 个测试文件，包括 5 个 Chrome 浏览器测试文件。新增浏览器场景加载真实会话、租约、画布控制脚本与样式，以受控接口验证父子页面联动、权限变更和 IndexedDB 草稿保留。
+- **后端联调 72 项通过，0 失败、575 项未选中**：真实 ASGI HTTP、独立 PostgreSQL 事务，以及 Node 运行的真实前端租约客户端。经典画布与智能画布均覆盖启动失败、交接加载失败、管理员接管期间的旧凭据清理。13 条现有依赖弃用警告未影响测试。
+- 测试数据库限定本机 `canvas_cloud_test`，每轮使用独立临时 schema 并在结束时清理；对象存储和账号库位于临时目录。未修改生产数据库、未触发真实供应商任务或支付。
+
+在仓库根目录复验：
+
+```powershell
+$env:NODE_PATH = 'C:\Users\MSI\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\node_modules'
+node --test tests/studio-dark-only.browser.cjs tests/smart-asset-panel-resize.browser.cjs tests/member-canvas-header.browser.cjs tests/commercial-readiness.browser.cjs tests/member-session-frames.browser.cjs tests/member-session.cjs tests/member-login.cjs tests/frontend-reload-guards.cjs tests/member-canvas-edit.cjs tests/canvas-edit-lease.cjs tests/member-canvas-refresh.cjs
+.\.venv\Scripts\python.exe tools/cloud_test.py -k "test_cloud_member_gateway or test_cloud_workspaces or test_cloud_members or test_cloud_canvas_leases"
+```
+
+后端命令需要本机隔离 PostgreSQL 已启动，可通过 `tools/cloud_local.py start` 启动。日志保存在 `.local/commercial-kickoff/round2-frontend-tests.log` 与 `.local/commercial-kickoff/round2-server-tests.log`。
+
+本轮没有推送或部署。建议下一轮核对管理员角色操作的可见性与错误反馈、独立标签页切换账号，以及费用流水的失败路径；支付、租户开通和素材生命周期仍按前述验收门槛推进。人工验收实际部署环境仍待完成。
