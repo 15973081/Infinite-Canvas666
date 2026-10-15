@@ -18,7 +18,7 @@ class Node {
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
 }
 function harness({member='alice', selected='space_a', parent, search='', pathname='/static/canvas.html', failBusiness=false, accountFailure=null}={}) {
-    const calls=[], body=new Node('body'), nodes=[], store=new Map(), frames=[];
+    const calls=[], body=new Node('body'), nodes=[], store=new Map(), frames=[], server={workspaceFailure:false};
     if (selected) store.set('canvas:workspace:' + member, selected);
     const spaces = [{id:'space_a',name:'A',permissions:['canvas.read']},{id:'space_b',name:'B',permissions:['canvas.edit']}];
     const location = {href:'http://localhost'+pathname + search, origin:'http://localhost',host:'localhost',pathname,search,replace(){},assign(){},reload(){}};
@@ -28,7 +28,10 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
         const path = new URL(url instanceof Request ? url.url : String(url),location.href).pathname;
         if (accountFailure && path === accountFailure.path) return Response.json({detail:{code:accountFailure.code}},{status:accountFailure.status});
         if (path === '/api/auth/status') return Response.json({authenticated:true,mode:'members',member:{id:member,display_name:member,avatar:''}});
-        if (path === '/api/auth/workspaces') return Response.json({workspaces:spaces});
+        if (path === '/api/auth/workspaces') {
+            if(server.workspaceFailure)throw new Error('network unavailable');
+            return Response.json({workspaces:spaces});
+        }
         return failBusiness ? Response.json({detail:{code:'member_identity_changed'}},{status:409}) : Response.json({ok:true});
     }};
     window.parent=parent || window;
@@ -36,7 +39,7 @@ function harness({member='alice', selected='space_a', parent, search='', pathnam
         CustomEvent:class {constructor(type,init){this.type=type;this.detail=init?.detail;}},
         sessionStorage:{getItem:key=>store.get(key),setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)}};
     vm.runInNewContext(source,context);
-    return {window,calls,nodes,store,frames};
+    return {window,calls,nodes,store,frames,spaces,server};
 }
 async function settle(){for(let i=0;i<20;i++) await new Promise(resolve=>setImmediate(resolve));}
 
@@ -65,6 +68,40 @@ test('new embedded pages cannot inherit a paused workbench session',async()=>{
     await assert.rejects(child.window.CanvasSession.ready,/暂停/);
     await assert.rejects(child.window.fetch('/api/canvases'),/暂停/);
     assert.equal(child.calls.some(call=>call.url==='/api/canvases'),false);
+});
+
+for(const change of ['revoked','downgraded','upgraded'])test(`focus rechecks ${change} workspace access without silently changing the active context`,async()=>{
+    const h=harness({selected:'space_b'});await h.window.CanvasSession.ready;
+    if(change==='revoked')h.spaces.pop();
+    else h.spaces[1].permissions=change==='downgraded'?['canvas.read']:['canvas.read','canvas.edit'];
+    await h.window.events.focus();
+    assert.equal(h.window.CanvasSession.paused,true);
+    assert.deepEqual(Array.from(h.window.CanvasSession.context.workspace.permissions),['canvas.edit']);
+    await assert.rejects(h.window.fetch('/api/canvases'),/暂停/);
+});
+
+test('opening or refreshing the space menu detects revoked membership',async()=>{
+    for(const refresh of [false,true]){
+        const h=harness();await h.window.CanvasSession.ready;
+        h.spaces.shift();
+        if(refresh)await h.nodes.find(node=>node.tag==='button'&&node.textContent==='刷新空间列表').events.click();
+        else {const menu=h.nodes.find(node=>node.className==='member-session-spaces');menu.open=true;menu.events.toggle();await settle();}
+        assert.equal(h.window.CanvasSession.paused,true);
+    }
+});
+
+test('temporary workspace lookup failures preserve identity and can be retried on focus',async()=>{
+    const h=harness();await h.window.CanvasSession.ready;
+    h.server.workspaceFailure=true;await h.window.events.focus();
+    assert.equal(h.window.CanvasSession.paused,false);
+    h.server.workspaceFailure=false;h.spaces.shift();await h.window.events.focus();
+    assert.equal(h.window.CanvasSession.paused,true);
+});
+
+test('workspace labels and permission order may change without pausing an equivalent grant',async()=>{
+    const h=harness();h.spaces[0].permissions=['canvas.edit','canvas.read'];await h.window.CanvasSession.ready;
+    h.spaces[0].permissions=['canvas.read','canvas.edit'];h.spaces[0].name='Renamed';
+    await h.window.events.focus();assert.equal(h.window.CanvasSession.paused,false);
 });
 
 test('canonical page workspace overrides remembered space and refuses conflicting query',async()=>{

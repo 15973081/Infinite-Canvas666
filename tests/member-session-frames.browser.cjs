@@ -9,6 +9,7 @@ async function setup(t){
     await page.route('**/*',async route=>{
         const request=route.request(),url=new URL(request.url());requests.push(url.pathname);
         if(url.pathname.startsWith('/static/js/'))return route.fulfill({contentType:'text/javascript; charset=utf-8',body:fs.readFileSync(path.resolve('.'+url.pathname),'utf8')});
+        if(url.pathname.startsWith('/static/css/'))return route.fulfill({contentType:'text/css; charset=utf-8',body:fs.readFileSync(path.resolve('.'+url.pathname),'utf8')});
         if(url.pathname.startsWith('/api/')){
             if(state.expired)return route.fulfill({status:401,json:{detail:{code:'authentication_required'}}});
             let data={};
@@ -21,7 +22,7 @@ async function setup(t){
                 holder:{id:'alice',is_self:true},server_time:new Date().toISOString(),expires_at:new Date(Date.now()+60000).toISOString()};
             return route.fulfill({json:data});
         }
-        return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><script src="/static/js/member-session.js"></script></head><body><textarea id="draft">unsaved local draft</textarea><script src="/static/js/canvas-edit-lease.js"></script><script src="/static/js/member-canvas-edit.js"></script></body></html>'});
+        return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><head><link rel="stylesheet" href="/static/css/member-session.css"><link rel="stylesheet" href="/static/css/member-canvas-edit.css"><script src="/static/js/member-session.js"></script></head><body><textarea id="draft">unsaved local draft</textarea><script src="/static/js/canvas-edit-lease.js"></script><script src="/static/js/member-canvas-edit.js"></script></body></html>'});
     });
     await page.goto('https://member-session.test/workspaces/space_a');
     await page.evaluate(async()=>{await CanvasSession.ready;for(const name of ['first','second']){
@@ -58,6 +59,29 @@ for(const origin of ['parent','child'])test(`401 in ${origin} stops both real em
             try{return await new Promise(resolve=>{const request=db.transaction('drafts').objectStore('drafts').getAll();request.onsuccess=()=>resolve(request.result.some(row=>JSON.stringify(row).includes('unsaved local draft')));});}
             finally{db.close();}
         });
+    }
+    assert.deepEqual(errors,[]);
+});
+
+for(const trigger of ['focus','visibility','menu'])test(`${trigger} detects changed space grants and stops embedded editors`,async t=>{
+    const {page,state,errors}=await setup(t);
+    if(trigger==='focus')state.permissions=['canvas.read'];
+    else state.available=false;
+    if(trigger==='menu')await page.getByLabel('切换工作空间',{exact:true}).click();
+    else await page.evaluate(trigger=>{
+        if(trigger==='focus')window.dispatchEvent(new Event('focus'));
+        else document.dispatchEvent(new Event('visibilitychange'));
+    },trigger);
+    await page.waitForFunction(()=>CanvasSession.paused);
+    for(const frame of page.frames().filter(frame=>frame.parentFrame())){
+        assert.equal(await frame.evaluate(()=>MemberCanvasEdit.canEdit),false);
+        assert.equal(await frame.locator('#draft').inputValue(),'unsaved local draft');
+    }
+    assert.deepEqual(await page.evaluate(()=>Array.from(CanvasSession.context.workspace.permissions)),['canvas.read','canvas.edit']);
+    if(!state.available){
+        await page.getByRole('button',{name:'重新检查登录',exact:true}).click();
+        await page.getByText('当前空间仍不可用，请先保留草稿，再返回工作台选择可用空间。',{exact:true}).waitFor();
+        assert.equal(await page.getByRole('button',{name:'重新打开',exact:true}).count(),0);
     }
     assert.deepEqual(errors,[]);
 });

@@ -6,7 +6,7 @@
         ? new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, {once:true})) : Promise.resolve();
     document.documentElement.classList.add('member-session-pending');
     let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0, maintenance = null;
-    let workspaceChoices = null;
+    let workspaceRefresh = null, sessionRefresh = null;
     let storageSnapshot = null, storageUpdated = 0;
     let releaseBar = () => {};
     const accountPaths = new Set(['/api/account/billing','/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
@@ -43,6 +43,23 @@
             } catch (_) {}
         }
     }
+    function refreshWorkspaces() {
+        if (workspaceRefresh) return workspaceRefresh;
+        workspaceRefresh = (async () => {
+            const data = await json('/api/auth/workspaces', {headers:{'X-Member-ID':context.member.id}});
+            if (!Array.isArray(data.workspaces)) throw new Error('空间列表响应不完整，请重试。');
+            const current = data.workspaces.find(space => space.id === context.workspace.id);
+            if (!current) await pause('你已失去这个空间的访问权限，已暂停当前工作台。');
+            else {
+                if (!Array.isArray(current.permissions)) throw new Error('空间权限响应不完整，请重试。');
+                const permissions = values => JSON.stringify([...new Set(values)].sort());
+                if (permissions(current.permissions) !== permissions(context.workspace.permissions))
+                    await pause('空间权限已改变，请先保留草稿，再重新打开工作台以使用最新权限。');
+            }
+            return data;
+        })().finally(() => { workspaceRefresh = null; });
+        return workspaceRefresh;
+    }
     async function showPanel(title, description) {
         await domReady;
         panel?.remove();
@@ -72,6 +89,8 @@
                 try {
                     const status = await json('/api/auth/status');
                     if (!status.authenticated || status.member?.id !== context?.member.id) throw new Error('请先以原账号登录；切换账号须重新打开工作台。');
+                    const spaces = await json('/api/auth/workspaces', {headers:{'X-Member-ID':context.member.id}});
+                    if (!spaces.workspaces?.some(space => space.id === context.workspace.id)) throw new Error('当前空间仍不可用，请先保留草稿，再返回工作台选择可用空间。');
                     feedback.textContent='';
                     banner.replaceChildren(element('span', '身份已确认。请先保留草稿，再重新打开页面领取编辑资格。'), button('重新打开', async () => {
                         if (!await flushPages()) {feedback.textContent='当前更改尚未保存，请先在自动草稿中保留或另存副本，再重新打开。';return;}
@@ -269,14 +288,12 @@
         const message=element('p','', 'member-space-message'); message.setAttribute('role','status');
         let loading=false, switching=false;
         const close=() => {menu.open=false;};
-        const refresh=button('刷新空间列表',async () => load(true));
-        async function load(force=false){
+        const refresh=button('刷新空间列表',async () => load());
+        async function load(){
             if(loading || switching) return;
             loading=true; refresh.disabled=true; message.textContent='正在加载…';
             try {
-                const data = !force && workspaceChoices ? {workspaces:workspaceChoices}
-                    : await json('/api/auth/workspaces',{headers:{'X-Member-ID':context.member.id}});
-                workspaceChoices=data.workspaces;
+                const data = await refreshWorkspaces();
                 list.replaceChildren();
                 for(const workspace of data.workspaces){
                     const current=workspace.id===context.workspace.id;
@@ -395,12 +412,11 @@
             if (inherited && requested && requested !== inherited.workspace.id) throw new Error('嵌入页面的空间与工作台不一致。');
             let saved = '';
             try { saved = sessionStorage.getItem('canvas:workspace:' + status.member.id) || ''; } catch (_) {}
-            workspaceChoices=spaces;
             const selected = inherited?.workspace.id || requested || saved;
             let workspace = spaces.find(space => space.id === selected);
             if (requested && !workspace) throw new Error('你未被分配到链接指定的空间。请返回工作台选择可用空间。');
             if (!workspace) workspace = spaces.length === 1 ? spaces[0] : await choose(status.member, spaces, true);
-            context = Object.freeze({member:Object.freeze(status.member), workspace:Object.freeze(workspace)});
+            context = Object.freeze({member:Object.freeze(status.member), workspace:Object.freeze({...workspace,permissions:Object.freeze([...workspace.permissions])})});
             await domReady;
             checkActive();
             document.documentElement.classList.remove('member-session-pending');
@@ -477,11 +493,18 @@
         await observeResponse(response);
         return response;
     };
-    window.addEventListener('focus', async () => {
+    async function recheckSession() {
         if (!context || blocked) return;
-        try {
-            const status = await json('/api/auth/status');
-            if (!status.authenticated || status.member?.id !== context.member.id) await pause('登录身份已变化，已暂停当前页面。');
-        } catch (_) {} // Network errors do not authorize a new identity.
-    });
+        if (sessionRefresh) return sessionRefresh;
+        sessionRefresh = (async () => {
+            try {
+                const status = await json('/api/auth/status');
+                if (!status.authenticated || status.mode !== 'members' || status.member?.id !== context.member.id) await pause('登录身份已变化，已暂停当前页面。');
+                if (!blocked) await refreshWorkspaces();
+            } catch (_) {} // A failed lookup neither changes the bound context nor grants access.
+        })().finally(() => { sessionRefresh = null; });
+        return sessionRefresh;
+    }
+    window.addEventListener('focus', recheckSession);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) void recheckSession(); });
 })();
