@@ -6,13 +6,13 @@ const initial=new Promise(resolve=>resolveInitial=resolve);
 lines.on('line',line=>{let message=JSON.parse(line);if(message.initial){dataRoot=path.resolve(message.initial.directory);return resolveInitial(message.initial);}assert.match(message.file,/^response-\d+\.json$/);message=JSON.parse(fs.readFileSync(path.join(dataRoot,message.file),'utf8'));const resolve=requests.get(message.id);requests.delete(message.id);resolve(message);});
 const watchdog=setTimeout(()=>{console.error('Native prompt browser bridge timed out');process.exit(2);},60000);watchdog.unref();
 async function rpc(request){const url=new URL(request.url()),id=++sequence,answer=new Promise(resolve=>requests.set(id,resolve)),body=request.postDataBuffer(),bodyFile=body?'body-'+id+'.bin':null;if(body)fs.writeFileSync(path.join(dataRoot,bodyFile),body);const file='request-'+id+'.json';fs.writeFileSync(path.join(dataRoot,file),JSON.stringify({id,path:url.pathname+url.search,method:request.method(),headers:request.headers(),bodyFile}));process.stdout.write(JSON.stringify({file})+'\n');return answer;}
-async function transport(request){const pathname=new URL(request.url()).pathname;if(/^\/api\/(canvases|canvas-folders|canvas-(image|video)-tasks|subject-library)(\/|$)/.test(pathname)||pathname==='/api/config')return rpc(request);}
+async function transport(request){const pathname=new URL(request.url()).pathname;if(/^\/api\/(canvases|canvas-folders|canvas-(image|video)-tasks|subject-library|camera-motions)(\/|$)/.test(pathname)||pathname==='/api/config'||pathname==='/api/ai/upload')return rpc(request);}
 (async()=>{
     const config=await initial,cleanup=[];
     try{
         const {page,errors}=await fixture({after:fn=>cleanup.push(fn)},'smart',true,{secureOrigin:true,origin:'http://testserver',record:config.canvas,permissions:['canvas.read','canvas.edit','canvas.create','generation.submit','provider.use','asset.read','asset.manage'],apiHandler:transport});
         for(const pattern of ['**/assets/cloud/**','**/api/media/**','**/api/media-preview**'])await page.route(pattern,async route=>{const response=await rpc(route.request());if(response.binaryFile)assert.match(response.binaryFile,/^binary-\d+\.bin$/);return route.fulfill(response.binaryFile?{status:response.status,body:fs.readFileSync(path.join(dataRoot,response.binaryFile)),contentType:response.contentType,headers:response.headers}:{status:response.status,json:response.body});});
-        await page.evaluate(config=>{window.__nativeOptions=MemberCanvasEdit.options;CanvasSession.context.member.id=config.member;CanvasSession.context.workspace.id=config.workspace;CanvasSession.storageKey=key=>config.member+':'+config.workspace+':'+key;apiProviders=[config.provider];},config);
+        await page.evaluate(config=>{window.__nativeOptions=MemberCanvasEdit.options;CanvasSession.context.member.id=config.member;CanvasSession.context.workspace.id=config.workspace;CanvasSession.storageKey=key=>config.member+':'+config.workspace+':'+key;CanvasSession.url=value=>{const url=new URL(value,location.origin);url.searchParams.set('workspace',config.workspace);return url.href;};apiProviders=[config.provider];},config);
         for(const file of ['member-canvas-edit.js','canvas-task-bindings.js'])await page.addScriptTag({url:'/static/js/'+file});
         await page.evaluate(async config=>{
             await MemberCanvasEdit.mount(__nativeOptions);await MemberCanvasEdit.active.lease.start(MemberCanvasEdit.active.options.reload);
@@ -22,6 +22,9 @@ async function transport(request){const pathname=new URL(request.url()).pathname
         },config);
         if(await page.locator('.pixmax-navigator-toggle[aria-expanded=true]').count())await page.locator('.pixmax-navigator-toggle').click();
         await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('黄昏的摄影师缓慢回头');
+        if(config.camerawork){
+            await page.getByRole('button',{name:'运镜',exact:true}).click();const library=page.locator('[data-native-camerawork="library"]');await library.getByRole('button',{name:'我的运镜',exact:true}).click();await library.getByRole('button',{name:'新建运镜',exact:true}).click();const editor=page.locator('[data-native-camerawork="editor"]');await editor.getByRole('textbox',{name:'运镜名称',exact:true}).fill('数据库运镜');await editor.getByRole('textbox',{name:'运镜提示词',exact:true}).fill('镜头缓慢绕人物环绕一周');await editor.locator('input[type=file]').setInputFiles(config.camerawork);await editor.getByRole('button',{name:'确认',exact:true}).click();await editor.waitFor({state:'detached'});await library.getByText('数据库运镜',{exact:true}).click();await library.waitFor({state:'detached'});assert.equal(await page.locator('[data-hash-type=camerawork]').count(),1);
+        }
         if(config.subject){
             await page.getByRole('button',{name:'主体库',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.getByText(config.subject.name,{exact:true}).waitFor();await library.locator('[data-subject-cards] .group').filter({hasText:config.subject.name}).hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});
             assert.equal(await page.locator('.pixmax-native-prompt [data-editor-node-type=subject-reference]').count(),1);
@@ -47,6 +50,7 @@ async function transport(request){const pathname=new URL(request.url()).pathname
         await page.getByRole('textbox',{name:'生成提示词',exact:true}).waitFor();
         await page.locator('#composer.pixmax-native-form-active').waitFor();
         if(config.subject||config.kind==='image')assert.equal(await page.locator('.pixmax-native-prompt '+(config.subject?'[data-editor-node-type=subject-reference]':'[data-hash-type=camera]')).count(),1);
+        if(config.camerawork)assert.equal(await page.locator('[data-hash-type=camerawork]').count(),1);
         if(config.mode)assert.equal(await page.evaluate(()=>__nativeTarget.runSettings.videoReferenceMode),{文生视频:'textToVideo',图生视频:'imageToVideo',首尾帧:'firstAndLastFrame',多模态参考:'referToVideo',视频编辑:'videoEdit',向后延长:'extend_backward',向前延长:'extend_forward'}[config.mode]);
         assert.match(await page.getByRole('textbox',{name:'生成提示词',exact:true}).innerText(),/黄昏的摄影师/);assert.deepEqual(errors,[]);process.stdout.write(JSON.stringify({done:true,targetId:await page.evaluate(()=>__nativeTarget.id)})+'\n');
     }finally{for(const close of cleanup.reverse())await close();clearTimeout(watchdog);lines.close();}

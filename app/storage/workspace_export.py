@@ -37,7 +37,7 @@ def export(directory, workspace):
                 conditions += ' AND asset_id IN (SELECT id FROM assets WHERE workspace_id=%s AND '+ASSET_FILTER+')'
                 args.append(workspace)
             elif table == 'workspace_documents':
-                conditions += ' AND kind=ANY(%s)'
+                conditions += " AND (kind=ANY(%s) OR (kind='camera_motion' AND id='plaza'))"
                 args.append(list(DOCUMENT_KINDS))
             elif table == 'ledger_entries':
                 # Personal chat billing includes private conversation titles.
@@ -78,8 +78,8 @@ def export(directory, workspace):
     manifest = {'format':'workspace-shared-export-v1','workspace_id':workspace,'created_at':time.time(),
                 'media_backend':media_backend(),'counts':counts,'files':files,
                 'object_count':object_count,'object_bytes':object_bytes,'unfinished_assets':unfinished,
-                'document_kinds':list(DOCUMENT_KINDS),
-                'excluded':['private_conversations','private_chat_attachments','private_chat_billing','identity_and_sessions','provider_configuration',
+                'document_kinds':list(DOCUMENT_KINDS),'document_selectors':[{'kind':'camera_motion','id':'plaza'}],
+                'excluded':['private_conversations','private_camera_motion_catalogs','private_chat_attachments','private_chat_billing','identity_and_sessions','provider_configuration',
                             'task_execution_and_checkpoints','unfinished_upload_bytes'],
                 'restore':'Shared-data export only; database disaster recovery requires a platform backup.'}
     pending = directory/'manifest.pending'

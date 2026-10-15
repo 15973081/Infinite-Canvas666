@@ -15,7 +15,7 @@ def apply_record(conn,record):
     """The authoritative accepted intent also repairs an interrupted DB commit."""
     owner=record['owner_id']
     # Replay also removes catalogs restored from an older backup after closure.
-    conn.execute("DELETE FROM workspace_documents WHERE kind='subject_library' AND id=%s", ('personal:'+owner,))
+    conn.execute("DELETE FROM workspace_documents WHERE kind IN ('subject_library','camera_motion') AND id=%s", ('personal:'+owner,))
     if conn.execute('SELECT 1 FROM account_closures WHERE member_id=%s',(owner,)).fetchone(): return
     if not conn.execute('SELECT 1 FROM members WHERE id=%s FOR UPDATE',(owner,)).fetchone(): return
     for attachment in record['attachments']:
@@ -86,7 +86,7 @@ def close(actor,password,confirmation):
         conn.execute('LOCK TABLE assets IN SHARE ROW EXCLUSIVE MODE')
         # Remove the owner's private documents; blockers roll this transaction back.
         conn.execute("DELETE FROM workspace_documents WHERE kind='conversation' AND starts_with(id,%s)",(owner+'/',))
-        conn.execute("DELETE FROM workspace_documents WHERE kind='subject_library' AND id=%s", ('personal:'+owner,))
+        conn.execute("DELETE FROM workspace_documents WHERE kind IN ('subject_library','camera_motion') AND id=%s", ('personal:'+owner,))
         roots=conn.execute("SELECT * FROM assets WHERE role='chat-attachment' AND metadata->>'chat_owner'=%s AND status<>'deleted' ORDER BY workspace_id,id",(owner,)).fetchall()
         attachments=[]
         from app.services.canvas_asset_purge import check_references
@@ -123,7 +123,7 @@ def reconcile(limit=5):
         with az.policy_transaction(change=True) as conn:
             if record['kind']=='account':
                 if conn.execute('SELECT 1 FROM account_closures WHERE member_id=%s',(record['owner_id'],)).fetchone():
-                    removed=conn.execute("DELETE FROM workspace_documents WHERE kind='subject_library' AND id=%s",
+                    removed=conn.execute("DELETE FROM workspace_documents WHERE kind IN ('subject_library','camera_motion') AND id=%s",
                                          ('personal:'+record['owner_id'],)).rowcount
                     if not removed: continue
                     az.audit(conn,None,'subject_library.closed_catalog_replayed',record['owner_id'],details={'catalogs':removed})

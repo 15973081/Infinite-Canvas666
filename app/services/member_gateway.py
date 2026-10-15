@@ -61,6 +61,12 @@ def selected_workspace(scope):
 
 
 def permissions(path, method):
+    if path == '/api/camera-motions':
+        return ('asset.read',) if method == 'GET' else ('asset.read', 'asset.manage') if method == 'POST' else None
+    if re.fullmatch(r'/api/camera-motions/motion_[a-f0-9]{32}/favorite', path) and method == 'PUT':
+        return ('asset.read',)
+    if re.fullmatch(r'/api/camera-motions/motion_[a-f0-9]{32}', path):
+        return ('asset.read',) if method == 'GET' else ('asset.read','asset.manage') if method in {'PUT','DELETE'} else None
     if path == '/api/subject-library' and method == 'GET':
         return ('asset.read',)
     if re.fullmatch(r'/api/subject-library/(?:PERSONAL|TEAM)/groups', path) and method == 'POST':

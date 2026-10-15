@@ -40,13 +40,13 @@ def test_native_generation_price_preview_is_scoped_read_only_and_uses_server_pri
         assert conn.execute('SELECT count(*) AS n FROM ledger_entries').fetchone()['n']==fees
 
 
-@pytest.mark.parametrize('kind', ['image', 'video', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])
+@pytest.mark.parametrize('kind', ['image', 'video', 'video-motion', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])
 def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exports_owned_media(world, platform, tmp_path, kind):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
     root=Path(__file__).resolve().parents[1]
     mode={'video-text':'文生视频','video-first-frame':'图生视频','video-first-last':'首尾帧','video-first-last-same':'首尾帧','video-reference':'多模态参考','video-edit':'视频编辑','video-extend-backward':'向后延长','video-extend-forward':'向前延长'}.get(kind)
-    same=kind=='video-first-last-same';parameters=kind.endswith('-parameters');kind=kind.split('-')[0]
+    camerawork=kind=='video-motion';same=kind=='video-first-last-same';parameters=kind.endswith('-parameters');kind=kind.split('-')[0]
     provider_id='native-prompt-'+uuid.uuid4().hex[:16]
     configured=platform['client'].put('/api/providers/'+provider_id,json={
         'config':{'name':'原生提示词隔离验收','base_url':'https://supplier.test/api/v3','protocol':'volcengine' if kind=='video' else 'openai','enabled':True,'image_models':['gpt-image-2'] if kind=='image' else [],'video_models':['doubao-seedance-2-5-pro'] if kind=='video' else []},
@@ -86,7 +86,7 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         assert response.status_code==200,response.text
         output={**response.json()['files'][0],'kind':'video'}
     subject=None
-    if kind=='video' and not mode:
+    if kind=='video' and not mode and not camerawork:
         response=world['editor'].post('/api/subject-library/PERSONAL/groups',headers=headers(world['a']),json={'expected_revision':0,'name':'摄影师主体','description':'黄昏的摄影师'})
         assert response.status_code==200,response.text
         subject={'id':response.json()['target_id'],'name':'摄影师主体'}
@@ -95,12 +95,14 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         for index,item in enumerate(assets):
             response=world['editor'].post('/api/subject-library/PERSONAL/groups/'+subject['id']+'/items',headers=headers(world['a']),json={'expected_revision':index+2,'kind':item['kind'],'name':item['kind'],'url':item['url']})
             assert response.status_code==200,response.text
+    motion_file=tmp_path/'camera-motion-preview.png'
+    if camerawork:motion_file.write_bytes(content.getvalue())
     path,canvas=setup_canvas(world,'smart')
     process=subprocess.Popen(['node',str(root/'tests/helpers/pixmax-native-prompt-http.cjs')],cwd=root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     done,task_ids,finalized=False,[],set()
     endpoint='/api/canvas-'+kind+'-tasks'
     try:
-        process.stdin.write(json.dumps({'initial':{'directory':str(tmp_path),'canvas':canvas,'kind':kind,'parameters':parameters,'provider':provider,'member':world['people'][0]['id'],'workspace':world['a']['id'],'subject':subject,'mode':mode,'references':references}})+'\n');process.stdin.flush()
+        process.stdin.write(json.dumps({'initial':{'directory':str(tmp_path),'canvas':canvas,'kind':kind,'parameters':parameters,'provider':provider,'member':world['people'][0]['id'],'workspace':world['a']['id'],'subject':subject,'mode':mode,'references':references,'camerawork':str(motion_file) if camerawork else None}})+'\n');process.stdin.flush()
         for line in process.stdout:
             pointer=json.loads(line)
             if pointer.get('done'):done=pointer;break
@@ -163,6 +165,12 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
                     assert request['resolution']=='1080p' and request['generate_audio'] is True and request['output_format']=='mov'
                     assert node['runSettings']['videoOutputFormat']=='mov' and node['runSettings']['videoGenerateAudio'] is True
                     assert 'quicktime' in world['viewer'].get(output['url'],headers=headers(world['a'])).headers['content-type']
+            if camerawork:
+                assert '镜头缓慢绕人物环绕一周' in request['prompt']
+                assert '%%#[camerawork]' in node['nativePrompt']['prompt'] and 'motion_' not in request['prompt']
+                assert request['images']==[] and request['videos']==[] and request['audios']==[]
+                catalog=world['editor'].get('/api/camera-motions',headers=headers(world['a']),params={'tab':'mine'}).json()
+                assert catalog['data'][0]['name']=='数据库运镜'
             if subject:
                 assert '摄影师主体（文本1、图片1、音频1、视频1）' in request['prompt']
                 assert '年轻摄影师，穿着蓝色外套' in request['prompt'] and subject['id'] not in request['prompt']
@@ -185,7 +193,7 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         exported=world['editor'].post('/api/canvas-workflows/export',headers=headers(world['a']),json={'nodes':saved['nodes'],'connections':saved['connections'],'include_resources':True})
         assert exported.status_code==200,exported.text
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
-            workflow=json.loads(archive.read('workflow.json'));assert len(workflow['resources'])==len({item['url'] for item in [*(references if mode else assets),output]})
+            workflow=json.loads(archive.read('workflow.json'));assert len(workflow['resources'])==len({item['url'] for item in [*(references if mode else [] if camerawork else assets),output]})
         imported=world['editor'].post('/api/canvas-workflows/import',headers=headers(world['a']),files={'file':('native-prompt.zip',exported.content,'application/zip')})
         assert imported.status_code==200,imported.text
         copy=next(item for item in imported.json()['nodes'] if item.get('nativePrompt'))

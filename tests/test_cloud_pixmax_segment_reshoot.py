@@ -15,7 +15,7 @@ from test_cloud_canvas_leases import setup_canvas
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
 
 
-@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters', 'model-switch', 'camera', 'subjects'])
+@pytest.mark.parametrize('import_mode', ['create', 'native', 'native-cache', 'references', 'parameters', 'model-switch', 'camera', 'camerawork', 'subjects'])
 def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task_and_saves_owned_result(world, platform, tmp_path, import_mode):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
@@ -36,6 +36,11 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     uploaded = world['editor'].post('/api/ai/upload', headers=headers(world['a']), files={'files': (video.name, video.read_bytes(), 'video/mp4')})
     assert uploaded.status_code == 200, uploaded.text
     source = uploaded.json()['files'][0]
+    camerawork = None
+    if import_mode == 'camerawork':
+        response = world['editor'].post('/api/camera-motions', headers=headers(world['a']), json={'name':'重拍运镜','prompt':'镜头从低处缓慢环绕人物','url':source['url'],'expected_revision':0})
+        assert response.status_code == 200, response.text
+        camerawork = response.json()['data']
     output = None
     if import_mode == 'parameters':
         output_file = tmp_path / 'supplier-result.mov'
@@ -94,7 +99,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
     process = subprocess.Popen(['node', str(root / 'tests/helpers/pixmax-segment-reshoot-http.cjs')], cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     done, task_ids, finalized = False, [], set()
     try:
-        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'subject':subject, 'camera':import_mode=='camera', 'parameters': bool(output), 'references': references, 'nativeDocument': native_document, 'provider': provider, 'secondary':secondary, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
+        process.stdin.write(json.dumps({'initial': {'directory': str(tmp_path), 'canvas': canvas, 'source': source, 'subject':subject, 'camera':import_mode=='camera', 'camerawork':camerawork, 'parameters': bool(output), 'references': references, 'nativeDocument': native_document, 'provider': provider, 'secondary':secondary, 'member': world['people'][0]['id'], 'workspace': world['a']['id']}}) + '\n'); process.stdin.flush()
         for line in process.stdout:
             pointer = json.loads(line)
             if pointer.get('done'): done = True; break
@@ -146,6 +151,9 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
             if subject:
                 assert node['segmentReshoot']['subjects'][0]['groupId'] == subject['id']
                 assert node['segmentReshoot']['subjects'][0]['memberId'] == world['people'][0]['id']
+        elif camerawork:
+            assert '将衣服改为红色' in node['segmentReshoot']['prompt']
+            assert node['segmentReshoot']['prompt'].count('%%#[camerawork]') == 1
         elif import_mode=='camera':
             assert '将衣服改为红色' in node['segmentReshoot']['prompt']
             assert node['segmentReshoot']['prompt'].count('%%#[camera]')==1
@@ -163,6 +171,9 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         with workspace_scope(world['a']['id']):
             request = tasks.request(task_ids[0])
             assert request['task_mode'] == 'edit' and request['provider_id'] == (secondary_id or provider_id)
+            if camerawork:
+                assert '镜头从低处缓慢环绕人物' in request['prompt']
+                assert '%%#[' not in request['prompt'] and camerawork['uuid'] not in request['prompt']
             if import_mode=='camera':
                 assert 'Fujifilm GFX100 II' in request['prompt'] and 'ARRI Signature' in request['prompt']
                 assert '%%#[' not in request['prompt']
@@ -209,7 +220,7 @@ def test_pixmax_segment_reshoot_actual_browser_crops_uploads_binds_one_edit_task
         copy = next(item for item in imported.json()['nodes'] if item.get('segmentReshoot'))
         assert len(copy['segmentReshoot']['preparedMedia']) == 3
         assert copy['segmentReshoot']['source']['media']['url'] != node['segmentReshoot']['source']['media']['url']
-        if import_mode=='camera':
+        if import_mode=='camera' or camerawork:
             assert copy['segmentReshoot']['prompt']==node['segmentReshoot']['prompt']
         if references:
             imported_refs = [item for item in imported.json()['nodes'] if item.get('hidden')]

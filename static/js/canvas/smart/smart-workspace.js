@@ -3874,7 +3874,7 @@ function bindSmartWorkspaceGestures(){
     });
     window.addEventListener('keydown', e => {
         const key = String(e.key || '').toLowerCase();
-        if(e.isComposing||smartStudioSession||document.querySelector('.pixmax-storyboard-modal'))return;
+        if(e.isComposing||smartStudioSession||document.querySelector('.pixmax-storyboard-modal,[data-native-camerawork]'))return;
         if((e.ctrlKey||e.metaKey)&&key==='v')pixmaxPasteWithLinks=e.shiftKey;
         if(!isEditableTarget(e.target)){
             if(e.code==='Space'){e.preventDefault();pixmaxSpacePanning=true;shell.classList.add('pixmax-space-pan');return;}

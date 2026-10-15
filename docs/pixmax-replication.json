@@ -138,6 +138,71 @@
       "visualEvidence": {"image": ".local/pixmax-video-mode-frames.png", "scope": "本项目合成图像夹具下的首尾帧模式。输入区已接入原生 o$ 卡片，见 nativeGenerationReferenceEvidence；完整 N1 表单视觉仍待最终核对。"},
       "remaining": ["其余图像/视频模型的模式、尺寸、时长和原生输入卡片约束完整映射", "完整 N1 布局、全屏、费用提示与首尾帧输入卡片视觉最终对齐", "视频素材的真实供应商尺寸、格式、时长及质量验收", "真实混合媒体大画布和 Pixmax 双方同场景帧率、内存验证"]
     },
+    "cameraworkLibraryEvidence": {
+      "status": "implemented_local_requires_final_verification",
+      "component": "捕获的 Rlt 运镜库、klt 创建/编辑、f$ 卡片、Dlt 上传及 Uv 删除确认",
+      "source": [
+        "tools/import_pixmax_runtime.py",
+        "static/js/pixmax-camerawork.js",
+        "static/js/pixmax-generation-form.js",
+        "static/js/pixmax-segment-reshoot.js",
+        "app/routers/camera_motions.py",
+        "app/services/camera_motions.py"
+      ],
+      "nativeContract": "运镜广场、我的收藏、我的运镜三栏，500ms 搜索、每页 50 条及原生滚动续页；原生预览上传、创建、编辑、收藏、删除、视频悬停预览和 camerawork hash 插入。界面复用原组件，账户、文件及持久化适配到本项目。",
+      "plazaData": {
+        "state": "not_captured",
+        "checkedSnapshots": [
+          "pixmax/browser/manifest.json",
+          "pixmax-canvas-1f1b1a95/browser/manifest.json",
+          "pixmax-tv-20261014/browser/manifest.json"
+        ],
+        "result": "上述镜像没有 camera-motion/plaza/list 响应；本项目广场读取空间共享目录，当前未提供原始广场条目或预览资源，不把测试夹具写入生产目录。"
+      },
+      "verified": [
+        "个人目录与收藏按成员、空间隔离；广场为共享目录；无管理权限不能创建、编辑或删除，但可收藏可见条目",
+        "预览采用现有真实上传、私有对象地址和素材引用锁；拒绝外空间、私有对话附件及删除中预览，目录删除不删除空间素材",
+        "目录和单条运镜采用版本校验，两个并发编辑只有一个成功；冲突保留原生编辑器中的未保存文字",
+        "普通视频生成及片段重拍均可插入原生 hash；供应商请求仅接收解码正文，不把目录 UUID、预览文件或编码标记混入生成输入",
+        "删除或修改目录条目不改变已插入提示词的快照；保存重开及工作流 ZIP 导入导出保留原生标签和正文",
+        "视频预览在关闭时暂停并释放资源；切换编辑资格、迟到目录响应和取消后完成的上传不能重建弹窗或污染下一份草稿",
+        "390px 窄屏及全屏编辑内均可创建运镜；嵌套弹窗 Escape 恢复焦点，弹窗中的 Delete 不删除画布节点，确认按钮保持原生深色文字",
+        "个人导出包含本人跨空间运镜元数据；导出期间目录更新、删除或新增目录拒绝发布旧快照；共享导出仅包含广场，不包含个人目录与收藏",
+        "账号注销及接受注销意图后的旧备份回放清除个人运镜；已注销成员的个人目录不能重新读写；其他成员及广场保留",
+        "原生生成表单素材入口读取现有 categories.items，选择后创建真实输入连接"
+      ],
+      "verification": {
+        "state": "passed",
+        "motionBrowserCases": 11,
+        "motionDatabaseCases": 10,
+        "frontendRegressionCases": 183,
+        "surfaceSupplementCases": 25,
+        "databaseRegressionCases": 59,
+        "accountRegressionCases": 15,
+        "ordinaryMotionDatabaseCases": 1,
+        "reshootMotionDatabaseCases": 1,
+        "reshootMotionBrowserCases": 1,
+        "countsOverlap": true,
+        "logs": [
+          ".local/pixmax-camerawork-frontend-regression.log",
+          ".local/pixmax-camerawork-surface-verified.log",
+          ".local/pixmax-camerawork-database-regression.log",
+          ".local/pixmax-camerawork-account-regression.log",
+          ".local/pixmax-camerawork-http-second.log",
+          ".local/pixmax-camerawork-reshoot-http-final.log"
+        ],
+        "scope": "真实 Chrome、认证 ASGI、隔离 PostgreSQL、真实上传/裁剪/素材归属/保存/工作流 ZIP。目录浏览器专项使用明确的本地 HTTP 夹具。供应商完成使用替身；不发送收费生成请求。计数含交叉覆盖，不能相加作为独立用例总数。"
+      },
+      "visualEvidence": [
+        ".local/pixmax-native-camerawork-chip.png",
+        ".local/pixmax-camerawork-editor-mobile.png"
+      ],
+      "remaining": [
+        "Pixmax 广场原始条目、排序、封面及视频资源的数据补齐",
+        "更多账户、模型、长提示词与原生 hash 协议的完整最终对照",
+        "真实混合媒体大画布的 FPS、内存及真实供应商生成质量验收"
+      ]
+    },
     "nativeGenerationFormEvidence": {
       "status": "implemented_local_requires_final_verification",
       "component": "捕获的完整 N1 生成表单，包含 M1、Kz、g$、o$、sst 和原生全屏切换",
@@ -175,7 +240,7 @@
       },
       "remaining": [
         "39 个原生图像/视频模型的完整字段、规则和供应商映射",
-        "运镜资源库及对应原生 hash 插入；该入口当前未开放",
+        "运镜库和原生 hash 插入已接入，见 cameraworkLibraryEvidence；广场原始条目仍待补齐",
         "原生上传、替换输入、素材库、全景和全部错误标记的完整视觉交互对照",
         "真实混合媒体大画布与 Pixmax 同场景 FPS、内存、首屏及供应商质量验收"
       ]
@@ -365,12 +430,12 @@
         "databaseCases": 7,
         "verified": ["原生相机、镜头、焦距、光圈四列与上下切换；34 个选项沿用原生目录，插入采用原生 camera hash 标签并自动递增编号", "27 份公开 PNG 共 239080 字节保存到本地，原生资源地址重写为本项目路径；每份资源保留来源、长度和 SHA256，首屏图片加载及截图已核对", "hash 标记保留原生 UTF8/Base64 载荷和正文；生成前展开相机或已导入 camerawork 的文字描述，节点编号、运动资源编号和编码标记不进入供应商提示词", "参数面板、普通提示词编辑、保存重开和独立复制保留标签及原有正文；损坏 UTF8、非法 JSON、不可能的目录索引、未知类型和未解析主体标记在裁剪/上传和任务创建前阻止提交", "偏好通过当前成员与空间的存储键保存；不使用 Pixmax 匿名/账号偏好。使用生产 storageKey 方法验证命名空间隔离及损坏偏好回退，保留其他成员/空间数据", "390px 面板在视口内，Escape 只收起相机面板；失去编辑资格关闭面板并阻止插入，关闭与替换弹窗释放原生组件", "第七种真实数据库浏览器流程通过原生面板插入 Fujifilm/ARRI 标记，保存编码提示词，但实际任务收到展开的文字；四份工作流资源 ZIP 往返保持原生标签"],
         "preview": ".local/pixmax-reshoot-camera-panel.png",
-        "scope": "本阶段完成相机参数面板、camera hash 及已导入 camerawork 正文转换。完整运镜资源库选择/创建/收藏、主体库引用和其他 hash 协议仍需接入；主体标记尚未解析时明确阻止提交。供应商完成使用替身，不作为生成质量验收。"
+        "scope": "本阶段完成相机参数面板、camera hash 及已导入 camerawork 正文转换。运镜选择/创建/收藏及普通生成和片段重拍插入见 cameraworkLibraryEvidence；原始广场数据和其他 hash 协议仍待补齐。主体标记尚未解析时明确阻止提交。供应商完成使用替身，不作为生成质量验收。"
       },
       "relatedRegression": "镜头提示词阶段最终 278 项前端检查通过，包含 60 项重拍浏览器流程、4 项编码转换检查、模型策略、目录、历史、任务绑定、保存、原生编辑器和性能机制回归；七种隔离数据库浏览器流程通过。最终日志为 .local/pixmax-reshoot-camera-front-final.log 与 .local/pixmax-reshoot-camera-db-final.log；语法、JSON、全部 27 份 PNG 来源/哈希、diff 和截图检查通过。前一阶段的 Python/数据库扩展回归保留在 params 日志，未作为本阶段重跑；性能机制测试不能据此推断整体 FPS 或相对 Pixmax 的性能。",
       "preview": ".local/pixmax-segment-reshoot.png",
       "generationScope": "真实浏览器、媒体处理、上传、编辑资格与数据库链路均实际执行；供应商生成由受控完成替身代替，未调用收费模型。结果质量与生产供应商仍需最终验收。",
-      "remaining": ["片段重拍主体库引用见 subjectLibraryUiEvidence，普通图像/视频原生提示词及视频主体入口见 ordinaryGenerationPromptEvidence；仍需完整运镜资源库与其他 hash 提示词协议；原生 @ 和混合素材见 promptReferenceEvidence，五项参数见 parameterEvidence，模型选择器见 modelSelectorEvidence，相机/hash 编码见 cameraPromptEvidence", "更多历史文档及 ZIP 素材重新登记后缓存重建的完整最终对照", "源预览的目录、标签、生成历史及展开/收起视觉语义最终对照", "未知任务期间修改输入、多个窗口、批次执行与生成历史/撤销的完整最终对照", "更长视频、更高分辨率、不同编码及生产供应商的最终验收"]
+      "remaining": ["片段重拍主体库引用见 subjectLibraryUiEvidence，普通图像/视频原生提示词及视频主体入口见 ordinaryGenerationPromptEvidence；运镜库接入见 cameraworkLibraryEvidence；仍需原始广场数据与其他 hash 提示词协议；原生 @ 和混合素材见 promptReferenceEvidence，五项参数见 parameterEvidence，模型选择器见 modelSelectorEvidence，相机/hash 编码见 cameraPromptEvidence", "更多历史文档及 ZIP 素材重新登记后缓存重建的完整最终对照", "源预览的目录、标签、生成历史及展开/收起视觉语义最终对照", "未知任务期间修改输入、多个窗口、批次执行与生成历史/撤销的完整最终对照", "更长视频、更高分辨率、不同编码及生产供应商的最终验收"]
     },
     "videoAnnotationEvidence": {"source": "static/js/pixmax-video-annotation.js", "nativeEngine": "WNt 标注界面、ANt 控制器与 aqe 的时间戳 PNG 导出流程；复用本地冻结的参考运行时", "result": ["每个标记对应原分辨率 PNG", "一个同时连接原视频及标记图片的视频编辑草稿", "可执行素材引用芯片，并保留原生引用提示词"], "browserCases": 13, "databaseCases": 2, "verified": ["真实 H.264 视频的颜色选择和画笔绘制，PNG 像素包含标记且保留源画面", "多个时间点分别导出图片并共同连接一个视频草稿；一步撤销", "保存重试及普通保存确认不会重复上传或插入，后续画笔修改重新视为未保存", "上传失败可下载本地 PNG 并重试", "编辑资格、来源、工作空间及关闭窗口变化拒绝迟到上传", "只读访问拒绝绘制入口；导航取消保留未保存标记", "上传期间移动及保存来源不会误判素材身份", "工作流导入、剪贴板和 Alt 复制重映射引用；导入素材地址变化更新引用芯片", "真实数据库中上传、图谱保存、只读素材访问和包含素材的 ZIP 往返"], "relatedRegression": "78 项标记、视频工具、音频分离、原生画布、标签及性能/生命周期回归通过；新增来源身份用例亦通过", "preview": ".local/pixmax-video-annotation.png", "generationScope": "保存后创建视频编辑草稿；未调用收费视频模型，供应商编辑能力与最终生成须另行验收", "remaining": ["更多长视频和高分辨率素材的最终验收", "参考全部绘制工具及移动屏幕的最终交互对照"]},
     "connectionIndexEvidence": {"source": "static/js/canvas/smart/smart-workspace.js", "implementation": ["结构摘要变化时重建节点位置、入边和相邻边索引", "局部 SVG 更新仅枚举目标节点相邻边", "缓存保存数组位置而非节点对象，读取最新对象", "保留结构摘要检查以检测同长度的原地改线、顺序和类型变化"], "verifiedCases": 47, "verified": ["局部连线与全图几何一致且不替换无关 DOM", "新增、删除、重排、原地改线、节点重排、撤销及文档替换", "对象替换后读取当前节点及连线内容", "编辑权限、命中/悬停、队列取消和页面生命周期回归"], "measurementDate": "2026-10-14T03:26:06.255Z", "beforeMedianMs": {"181": 0.2, "1000": 0.7, "3000": 2.1}, "afterMedianMs": {"181": 0.2, "1000": 0.6, "3000": 1.8}, "beforeP95Ms": {"181": 0.3, "1000": 0.9, "3000": 2.5}, "afterP95Ms": {"181": 0.3, "1000": 0.9, "3000": 2.1}, "metric": "Synchronous scoped connection refresh; 10 warmups and 100 samples; synthetic text nodes, chain edges; excludes frame paint and remote generation", "remaining": ["结构摘要校验仍遍历节点和连线", "真实混合素材画布的帧绘制、内存和双方同场景性能验证"]},
