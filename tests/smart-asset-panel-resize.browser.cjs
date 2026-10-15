@@ -50,12 +50,12 @@ test('Smart sidebar drag expands the grid, persists across reload and resets wit
     assert.deepEqual(errors, []);
 });
 
-test('Smart sidebar clamps to the viewport under UI zoom and keeps the desktop preference', async t=>{
+test('Smart sidebar ignores retired UI zoom and keeps the desktop preference', async t=>{
     const {page, errors} = await panel(t);
     await page.evaluate(()=>{document.documentElement.removeAttribute('data-studio-scale');StudioScale.set('115');});
     const before = await width(page);
     await drag(page, 230);
-    assert.ok(Math.abs(await width(page) - before - 200) <= 2);
+    assert.ok(Math.abs(await width(page) - before - 230) <= 2);
     const preferred = await width(page);
     await page.setViewportSize({width:390,height:900});
     await page.evaluate(()=>StudioScale.set('140'));

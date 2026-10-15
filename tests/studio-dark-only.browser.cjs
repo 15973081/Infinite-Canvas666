@@ -86,16 +86,29 @@ for (const kind of ['classic', 'smart']) test(`${kind} canvas stays dark after r
     assert.deepEqual(errors, []);
 });
 
-test('display scaling still propagates to an embedded page without a theme protocol', async t => {
+test('retired display scaling cannot resize the workbench or embedded pages', async t => {
     const {page, errors} = await fixture(t, 'classic', false, {home:true, startPath:'/static/index.html'});
-    await page.evaluate(() => StudioScale.set('125'));
-    const child = await page.locator('#frame-canvas').elementHandle().then(handle => handle.contentFrame());
-    await child.waitForFunction(() => StudioScale.getMode() === '125');
-    assert.equal((await appearance(child)).scale, '1.250');
-    assert.equal(await page.evaluate(() => document.body.classList.contains('studio-scale-host')), true);
+    await page.addInitScript(() => {
+        localStorage.setItem('studio_ui_scale_mode','140');
+        Object.defineProperty(window,'screen',{value:{width:3840,height:2160}});
+        Object.defineProperty(window,'devicePixelRatio',{value:1});
+    });
     await page.reload();
     await page.frameLocator('#frame-canvas').locator('.canvas-open').first().waitFor();
-    assert.equal(await page.evaluate(() => StudioScale.getMode()), '125');
+    await page.evaluate(() => StudioScale.set('125'));
+    const child = await page.locator('#frame-canvas').elementHandle().then(handle => handle.contentFrame());
+    await child.waitForFunction(() => StudioScale.getMode() === '100');
+    assert.equal((await appearance(child)).scale, '1.000');
+    assert.equal(await page.evaluate(() => document.body.classList.contains('studio-scale-host')), false);
+    await page.reload();
+    await page.frameLocator('#frame-canvas').locator('.canvas-open').first().waitFor();
+    assert.equal(await page.evaluate(() => StudioScale.getMode()), '100');
+    assert.equal(await page.evaluate(() => localStorage.getItem('studio_ui_scale_mode')), null);
+    for(const width of [390,1920,3840]) {
+        await page.setViewportSize({width,height:900});
+        assert.equal(await page.evaluate(() => getComputedStyle(document.body).zoom),'1');
+        assert.equal((await appearance(page)).scale,'1.000');
+    }
     assert.equal((await appearance(page)).dark, true);
     assert.deepEqual(errors, []);
 });
