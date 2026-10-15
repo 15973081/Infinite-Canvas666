@@ -8,6 +8,7 @@
     let context = null, blocked = false, panel = null, bar = null, maintenanceBanner = null, maintenanceTime = 0, maintenance = null;
     let workspaceChoices = null;
     let storageSnapshot = null, storageUpdated = 0;
+    let releaseBar = () => {};
     const accountPaths = new Set(['/api/account/billing','/api/management-entry', '/api/auth/status', '/api/auth/login', '/api/auth/activate', '/api/auth/workspaces', '/api/auth/logout', '/api/auth/profile', '/api/frontend/version']);
     accountPaths.add('/api/account/data'); accountPaths.add('/api/account/data/export');
     accountPaths.add('/api/account/data/close');
@@ -295,12 +296,13 @@
             finally {loading=false;refresh.disabled=false;}
         }
         const outside=event => {if(!menu.contains(event.target)) close();};
-        const escape=event => {if(event.key==='Escape' && menu.open){close();summary.focus();}};
+        const escape=event => {if(event.key==='Escape' && menu.open){event.preventDefault();event.stopPropagation();close();summary.focus();}};
         // Keyboard dismissal must work before the deferred toggle event fires.
         menu.addEventListener('keydown',escape);
         menu.addEventListener('toggle',() => {
             if(menu.open){
-                bar?.querySelector('.member-session-account')?.removeAttribute('open');
+                const account=bar?.querySelector('.member-session-account');
+                if(!account?.contains(menu))account?.removeAttribute('open');
                 void load();document.addEventListener('pointerdown',outside,true);document.addEventListener('keydown',escape,true);window.addEventListener('blur',close);
                 void storage.load();
             } else {
@@ -311,26 +313,46 @@
         void storage.load();return menu;
     }
     function renderBar() {
+        releaseBar();
         bar?.remove();
         if (window.parent !== window && window.parent.CanvasSession?.enabled) return;
+        const canvasTopbar=document.querySelector?.('body.studio-smart-canvas .pixmax-topbar');
         bar = element('nav', undefined, 'member-session-bar'); bar.setAttribute('aria-label', '成员与空间');
         document.documentElement.classList.add('member-workspace-shell');
+        if(canvasTopbar){
+            document.documentElement.classList.add('member-canvas-shell');
+            bar.classList.add('member-session-canvas-controls');
+        } else document.documentElement.classList.remove('member-canvas-shell');
         const brand=element('span','shadox','member-session-brand');
         const space=createSpaceMenu();
         const account=element('details',undefined,'member-session-account');
         const summary=element('summary'); summary.setAttribute('aria-label','账号：'+context.member.display_name);
+        summary.title=context.member.display_name+' · '+context.workspace.name;
         const avatar=element('span',Array.from(context.member.display_name || '成员')[0],'member-session-avatar');
         summary.append(avatar,element('span',context.member.display_name));
         const menu=element('div',undefined,'member-session-account-menu');
-        menu.append(element('small','当前账号'),element('strong',context.member.display_name),
+        menu.append(element('small','当前账号'),element('strong',context.member.display_name));
+        if(canvasTopbar)menu.append(space);
+        menu.append(
             button('我的费用',async () => {account.open=false;try {await import('/static/js/billing-view.js');await window.CanvasBillingUI.showPersonal();}catch(error){window.alert(error.message);}}),
             button('个人数据',async () => {account.open=false;try {await import('/static/js/account-data.js');await window.CanvasAccountData.show();}catch(error){window.alert(error.message);}}),
             button('成员资料',() => {account.open=false;return profile();}),button('退出登录',async () => {
                 account.open=false;
                 try { await logout(); } catch (error) { window.alert(error.message); }
             }));
-        account.append(summary,menu); bar.append(brand,space,account);
-        document.body.append(bar);
+        account.append(summary,menu);
+        if(canvasTopbar){
+            bar.append(account);canvasTopbar.append(bar);
+            const close=()=>{account.open=false;space.open=false;};
+            const outside=event=>{if(!account.contains(event.target))close();};
+            const escape=event=>{if(event.key==='Escape'&&account.open){event.preventDefault();event.stopPropagation();close();summary.focus();}};
+            account.addEventListener('keydown',escape);
+            account.addEventListener('toggle',()=>{if(!account.open)space.open=false;});
+            document.addEventListener('pointerdown',outside,true);
+            releaseBar=()=>{close();document.removeEventListener('pointerdown',outside,true);};
+        } else {
+            bar.append(brand,space,account);document.body.append(bar);releaseBar=()=>{};
+        }
     }
     async function initialize() {
         try {

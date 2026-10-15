@@ -43,6 +43,24 @@ html.member-workspace-shell body:has(>.app-shell),html.member-workspace-shell bo
 html.member-workspace-shell body>.app-shell,html.member-workspace-shell body>.shell{margin-top:56px;height:calc(100vh - 56px)!important}
 html.member-workspace-shell .app-shell>.sidebar{height:100%;max-height:100%}
 
+/* Canvas identity and account controls float over the canvas without a header row. */
+html.member-canvas-shell body>.shell{margin-top:0;height:100vh!important;height:100dvh!important}
+html.member-canvas-shell .member-session-canvas-controls{position:relative;inset:auto;display:flex;width:auto;height:auto;padding:0;gap:0;border:0;background:transparent;box-shadow:none}
+.member-session-canvas-controls .member-session-account{margin:0}
+.member-session-canvas-controls .member-session-account>summary{width:36px;height:36px;max-width:none;padding:0;justify-content:center;border-radius:50%}
+.member-session-canvas-controls .member-session-account>summary>span:nth-child(2),.member-session-canvas-controls .member-session-account>summary::after{display:none}
+.member-session-canvas-controls .member-session-avatar{width:34px;height:34px;border-radius:50%;background:#24262b;color:#b6bdc8;border-color:#313136}
+.member-session-canvas-controls .member-session-account-menu{width:320px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 80px);overflow:auto;background:#141416;border:1px solid #313136;border-radius:14px;box-shadow:0 12px 36px #0006}
+.member-session-canvas-controls .member-session-spaces{margin:4px 0 8px;padding-bottom:8px;border-bottom:1px solid var(--ms-border)}
+.member-session-canvas-controls .member-session-space{max-width:none;width:100%;box-sizing:border-box;padding:10px;font-weight:500}
+.member-session-canvas-controls .member-space-menu{position:static;width:100%;max-width:none;max-height:none;margin-top:4px;padding:0;border:0;background:transparent;box-shadow:none;overflow:visible}
+.member-session-canvas-controls .member-space-storage{margin-bottom:12px}
+html.member-canvas-shell .pixmax-topbar{z-index:72}
+html.member-canvas-shell .pixmax-topbar:has(.member-session-account[open]){z-index:100010}
+html.member-canvas-shell .member-session-maintenance{top:64px}
+@media(max-width:700px){html.member-canvas-shell .pixmax-topbar>.pixmax-control[aria-label="任务消息"]{display:none}}
+@media(max-width:480px){html.member-canvas-shell .pixmax-logo-bar .smart-title{max-width:85px}html.member-canvas-shell .pixmax-topbar{gap:6px}html.member-canvas-shell .pixmax-topbar>.pixmax-control{width:32px;height:32px;border-radius:10px}html.member-canvas-shell .pixmax-topbar>.pixmax-control[aria-label="复制画布链接"]{display:none}}
+
 /* Font-independent chevrons, aligned with the label rather than its baseline. */
 .member-session-bar .member-session-space{display:flex;align-items:center;gap:8px}
 .member-session-space>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
