@@ -4,6 +4,7 @@
   let me, view = 'overview', workspace = '', pageAfter = '', auditBefore = '', taskStatus = 'needs_review', taskAfter = '', backupAfter = '', occupancyAfter = '', serial = 0, reportRequest = 0;
   const names = {imageTools:'图片工具',modelBilling:'模型与计费',billing:'账号费用',databases: '数据库连接', overview: '概览', members: '成员与分配', spaces: '空间', roles: '角色与权限', maintenance: '维护中心', providers: '供应商与分配', audit: '操作审计', tasks: '任务处置', backups: '备份记录', occupancy: '画布占用'};
   let memberSearch = '', memberStatus = '';
+  let identityPaused = false;
   let navigationReturnFocus;
   function closeNavigation(restoreFocus = true) {
     const wasOpen = $('#shell').classList.contains('navigation-open');
@@ -50,6 +51,7 @@
     backup_already_pending:'当前范围已有排队或执行中的备份，请刷新记录。',
     backup_request_conflict:'此请求编号已用于其他备份，请重新打开。',
     invalid_backup_request:'请填写备份说明并核对空间。',
+    member_identity_changed: '登录账号已改变，本页已暂停操作。请保留未提交内容后刷新页面。',
     authentication_required: '登录已失效，请重新登录。', management_permission_required: '此账号尚未获授管理权限。',
     invalid_credentials: '账号或密码不正确。', login_rate_limited: '登录尝试过多，请稍后重试。',
     permission_denied: '当前账号没有此项权限。', cannot_delegate_permission: '不能授予超出你权限范围的角色。',
@@ -101,11 +103,15 @@
   function el(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
   function notice(text, error = false) { const e = $('#message'); e.textContent = text; e.className = error ? 'error' : ''; e.hidden = false; }
   async function api(path, options = {}) {
-    const response = await fetch(path, {credentials: 'same-origin', ...options, headers: {'Content-Type': 'application/json', ...options.headers}});
+    if (identityPaused) throw new Error(errors.member_identity_changed);
+    const response = await fetch(path, {credentials: 'same-origin', ...options, headers: {'Content-Type': 'application/json', ...options.headers,
+      ...(me && path !== '/api/auth/login' ? {'X-Member-ID':me.member.id} : {})}});
     const data = await response.json().catch(() => ({}));
+    if (identityPaused) throw new Error(errors.member_identity_changed);
     if (!response.ok) {
-      if (response.status === 401) showLogin();
       const code = data.detail?.code;
+      if (response.status === 409 && code === 'member_identity_changed') { identityPaused = true; serial++; notice(errors.member_identity_changed, true); }
+      if (response.status === 401) showLogin();
       const error = new Error(errors[code] || (response.status === 422 ? '请检查填写内容。' : '操作未完成，请刷新后重试。'));
       error.status = response.status; throw error;
     }
@@ -159,7 +165,7 @@
   function showLogin() { closeNavigation(false); me = null; serial++; $('#shell').hidden = $('#unavailable').hidden = true; $('#login').hidden = false; $('#dialog').close(); $('#content').replaceChildren(); }
   async function refresh() {
     try { me = await api('/api/me'); } catch(e) {
-      if (e.status !== 401) { serial++; $('#shell').hidden = $('#login').hidden = true; $('#unavailable').hidden = false; $('#unavailable-reason').textContent = e.message; $('#dialog').close(); $('#content').replaceChildren(); }
+      if (e.status !== 401 && !identityPaused) { serial++; $('#shell').hidden = $('#login').hidden = true; $('#unavailable').hidden = false; $('#unavailable-reason').textContent = e.message; $('#dialog').close(); $('#content').replaceChildren(); }
       throw e;
     }
     $('#login').hidden = $('#unavailable').hidden = true; $('#shell').hidden = false;

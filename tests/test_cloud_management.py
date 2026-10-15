@@ -61,6 +61,19 @@ def test_member_search_status_and_cursor_are_applied_together(platform):
     assert not c.get('/api/members', params={'workspace': wid, 'search': prefix, 'status': 'invited'}).json()['members']
 
 
+def test_stale_admin_identity_cannot_read_mutate_or_logout_the_current_account(platform):
+    c = platform['client']
+    current = c.get('/api/me').json()['member']['id']
+    stale = {'X-Member-ID': 'previous-admin-tab'}
+    username = 'blocked_' + uuid.uuid4().hex[:12]
+    for method, path, payload in [('GET', '/api/me', None), ('POST', '/api/members', {'username': username, 'display_name': 'Must not create'}), ('POST', '/api/auth/logout', None)]:
+        response = c.request(method, path, headers=stale, json=payload)
+        assert response.status_code == 409, response.text
+        assert response.json()['detail']['code'] == 'member_identity_changed'
+    assert c.get('/api/me', headers={'X-Member-ID': current}).status_code == 200
+    assert c.get('/api/members', params={'search': username}).json()['members'] == []
+
+
 def space(client, administrator):
     response = client.post('/api/workspaces', json={'name': '管理验收空间', 'administrator_id': administrator})
     assert response.status_code == 201, response.text

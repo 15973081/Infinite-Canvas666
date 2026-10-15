@@ -78,6 +78,9 @@ class Admission:
                 principal = await asyncio.to_thread(session, scope)
                 if not principal:
                     az.fail('authentication_required', 401)
+                claimed_member = headers.get(b'x-member-id', b'').decode('latin-1')
+                if claimed_member and claimed_member != principal.member_id:
+                    az.fail('member_identity_changed', 409)
                 # Logout remains possible after management grants are revoked.
                 if path != '/api/auth/logout':
                     await asyncio.to_thread(queries.snapshot, principal)
