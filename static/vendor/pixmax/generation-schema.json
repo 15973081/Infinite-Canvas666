@@ -135,6 +135,74 @@
           ],
           "default": "true"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": null,
+            "singleMaxSize": 10485760,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "JPG",
+              "PNG",
+              "BMP",
+              "TIFF",
+              "WEBP",
+              "GIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:8",
+              "max": "8:1",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 384,
+                "height": 384
+              },
+              "max": {
+                "width": 2048,
+                "height": 2048
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -270,6 +338,74 @@
           ],
           "default": "true"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": null,
+            "singleMaxSize": 10485760,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "JPG",
+              "PNG",
+              "BMP",
+              "TIFF",
+              "WEBP",
+              "GIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:8",
+              "max": "8:1",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 384,
+                "height": 384
+              },
+              "max": {
+                "width": 2048,
+                "height": 2048
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -376,6 +512,75 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": null,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF",
+              "HEIC",
+              "HEIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:16",
+              "max": "16:1",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 15,
+                "height": 15
+              },
+              "max": null,
+              "area": {
+                "minPixels": null,
+                "maxPixels": 36000000
+              }
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -458,6 +663,43 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -540,6 +782,43 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -622,6 +901,43 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -704,6 +1020,43 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -815,6 +1168,75 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,14]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": null,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF",
+              "HEIC",
+              "HEIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:16",
+              "max": "16:1",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 15,
+                "height": 15
+              },
+              "max": null,
+              "area": {
+                "minPixels": null,
+                "maxPixels": 36000000
+              }
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -921,6 +1343,43 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,14]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -1056,6 +1515,43 @@
           ],
           "default": "true"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[1,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -1191,6 +1687,43 @@
           ],
           "default": "true"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[1,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -1283,6 +1816,41 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "GENERATE_TEXT"
       ]
     },
     {
@@ -1404,6 +1972,41 @@
           ],
           "default": ""
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "GENERATE_TEXT"
       ]
     },
     {
@@ -1857,6 +2460,143 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,30]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": true,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": true,
+            "singleMaxSize": 209715200,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            },
+            "maxDuration": 31,
+            "minDuration": 1,
+            "totalDuration": null,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": true,
+            "singleMaxSize": 15728640,
+            "totalMaxSize": null,
+            "formats": [
+              "MP3",
+              "WAV"
+            ],
+            "maxDuration": 30,
+            "minDuration": 2,
+            "totalDuration": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,50]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -2272,6 +3012,146 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,30]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": true,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": true,
+            "singleMaxSize": 209715200,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": {
+                "minPixels": 409600,
+                "maxPixels": 8295044
+              }
+            },
+            "maxDuration": 30,
+            "minDuration": 2,
+            "totalDuration": null,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": true,
+            "singleMaxSize": 15728640,
+            "totalMaxSize": null,
+            "formats": [
+              "MP3",
+              "WAV"
+            ],
+            "maxDuration": 30,
+            "minDuration": 2,
+            "totalDuration": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,50]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -2671,6 +3551,143 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,9]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": true,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": true,
+            "singleMaxSize": 209715200,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            },
+            "maxDuration": 16,
+            "minDuration": 1,
+            "totalDuration": 16,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": true,
+            "singleMaxSize": 15728640,
+            "totalMaxSize": null,
+            "formats": [
+              "MP3",
+              "WAV"
+            ],
+            "maxDuration": 16,
+            "minDuration": 1,
+            "totalDuration": 15
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,15]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -3060,6 +4077,143 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,9]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": true,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": true,
+            "singleMaxSize": 52428800,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            },
+            "maxDuration": 15,
+            "minDuration": 2,
+            "totalDuration": 15,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": true,
+            "singleMaxSize": 15728640,
+            "totalMaxSize": null,
+            "formats": [
+              "MP3",
+              "WAV"
+            ],
+            "maxDuration": 16,
+            "minDuration": 1,
+            "totalDuration": 16
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,15]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -3449,6 +4603,140 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,9]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": true,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": true,
+            "singleMaxSize": 52428800,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            },
+            "maxDuration": 16,
+            "minDuration": 1,
+            "totalDuration": 16,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": true,
+            "singleMaxSize": null,
+            "totalMaxSize": null,
+            "formats": null,
+            "maxDuration": null,
+            "minDuration": null,
+            "totalDuration": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,15]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -3793,6 +5081,78 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,15]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": null,
+            "singleMaxSize": 52428800,
+            "totalMaxSize": null,
+            "formats": [
+              "PNG",
+              "JPEG",
+              "JPG",
+              "WEBP"
+            ],
+            "aspectRatio": null,
+            "resolution": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": null,
+            "singleMaxSize": 52428800,
+            "totalMaxSize": null,
+            "formats": [
+              "MP3"
+            ],
+            "maxDuration": 12,
+            "minDuration": 3,
+            "totalDuration": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -4182,6 +5542,145 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,9]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": true,
+            "singleMaxSize": 31457280,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "PNG",
+              "WEBP",
+              "BMP",
+              "TIFF",
+              "GIF",
+              "HEIC",
+              "HEIF"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "0.4",
+              "max": "2.5",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": true,
+            "singleMaxSize": 209715200,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "2:5",
+              "max": "5:2",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 300,
+                "height": 300
+              },
+              "max": {
+                "width": 6000,
+                "height": 6000
+              },
+              "area": null
+            },
+            "maxDuration": 16,
+            "minDuration": 1,
+            "totalDuration": 16,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": true,
+            "singleMaxSize": 15728640,
+            "totalMaxSize": null,
+            "formats": [
+              "MP3",
+              "WAV"
+            ],
+            "maxDuration": 16,
+            "minDuration": 1,
+            "totalDuration": 16
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,12]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -4637,6 +6136,132 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": null,
+            "singleMaxSize": 20971520,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "JPG",
+              "PNG",
+              "BMP",
+              "WEBP"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:8",
+              "max": "8:1",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 240,
+                "height": 240
+              },
+              "max": {
+                "width": 8000,
+                "height": 8000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,5]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": null,
+            "singleMaxSize": 104857600,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:8",
+              "max": "8:1",
+              "allowed": null
+            },
+            "resolution": null,
+            "maxDuration": 15,
+            "minDuration": 1,
+            "totalDuration": 15,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,5]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": null,
+            "singleMaxSize": 15728640,
+            "totalMaxSize": null,
+            "formats": [
+              "WAV",
+              "MP3"
+            ],
+            "maxDuration": 16,
+            "minDuration": 1,
+            "totalDuration": 15
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -5092,6 +6717,132 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": {
+            "type": "IMAGE",
+            "complianceResult": null,
+            "singleMaxSize": 20971520,
+            "totalMaxSize": null,
+            "formats": [
+              "JPEG",
+              "JPG",
+              "PNG",
+              "BMP",
+              "WEBP"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:8",
+              "max": "8:1",
+              "allowed": null
+            },
+            "resolution": {
+              "min": {
+                "width": 240,
+                "height": 240
+              },
+              "max": {
+                "width": 8000,
+                "height": 8000
+              },
+              "area": null
+            }
+          }
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,5]",
+          "allTextLength": null,
+          "properties": {
+            "type": "VIDEO",
+            "complianceResult": null,
+            "singleMaxSize": null,
+            "totalMaxSize": null,
+            "formats": [
+              "MP4",
+              "MOV"
+            ],
+            "aspectRatio": {
+              "mode": "range",
+              "min": "1:8",
+              "max": "8:1",
+              "allowed": null
+            },
+            "resolution": null,
+            "maxDuration": 15,
+            "minDuration": 1,
+            "totalDuration": 15,
+            "maxFrameRate": 60,
+            "supportedCodecs": null
+          }
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,5]",
+          "allTextLength": null,
+          "properties": {
+            "type": "AUDIO",
+            "complianceResult": null,
+            "singleMaxSize": null,
+            "totalMaxSize": null,
+            "formats": [
+              "WAV",
+              "MP3"
+            ],
+            "maxDuration": 15,
+            "minDuration": 1,
+            "totalDuration": 15
+          }
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO",
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -5501,6 +7252,56 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,9]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -5829,6 +7630,52 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,2]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -6306,6 +8153,52 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,7]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -6602,6 +8495,50 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[1,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE"
       ]
     },
     {
@@ -7007,6 +8944,54 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,7]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,2]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -7313,6 +9298,34 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,9]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -7662,6 +9675,52 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,2]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -8028,6 +10087,56 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,9]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,1]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,1]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -8495,6 +10604,53 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE"
+          ],
+          "length": "[0,14]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,10]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -8893,6 +11049,52 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,2]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -9297,6 +11499,54 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,7]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,1]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -9668,6 +11918,52 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,2]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -10207,6 +12503,54 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,2]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,1]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -10630,6 +12974,53 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -10800,6 +13191,54 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -11028,6 +13467,54 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,0]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_STORYBOARD"
       ]
     },
     {
@@ -11475,6 +13962,68 @@
           ],
           "default": "1"
         }
+      ],
+      "inputConstraints": [
+        {
+          "codes": [
+            "BASE_TEXT",
+            "GENERATE_TEXT"
+          ],
+          "length": "[0,20]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_AUDIO",
+            "GENERATE_AUDIO"
+          ],
+          "length": "[0,1]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD"
+          ],
+          "length": "[0,5]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,3]",
+          "allTextLength": null,
+          "properties": null
+        },
+        {
+          "codes": [
+            "BASE_IMAGE",
+            "GENERATE_IMAGE",
+            "GENERATE_STORYBOARD",
+            "BASE_VIDEO",
+            "GENERATE_VIDEO"
+          ],
+          "length": "[0,5]",
+          "allTextLength": null,
+          "properties": null
+        }
+      ],
+      "allowInputNodeTypes": [
+        "BASE_TEXT",
+        "BASE_IMAGE",
+        "BASE_VIDEO",
+        "BASE_AUDIO",
+        "GENERATE_TEXT",
+        "GENERATE_IMAGE",
+        "GENERATE_VIDEO",
+        "GENERATE_AUDIO",
+        "GENERATE_STORYBOARD"
       ]
     }
   ]

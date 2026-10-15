@@ -124,7 +124,7 @@ function smartRun(stage,outcome){
  const gate=deferred(),counts={render:0,save:0,log:0,finish:0,error:0,restore:0};let reached=false;
  const boundary=async at=>{if(at===stage){reached=true;await gate.promise;if(outcome==='failure')throw Error('upstream failed');}};
  const c={window:w,nodes:[source],canvas:{id:'c',connections:[]},settings:{engine:'api',apiKind:'image',count:1},
-  selectedId:'src',selectedNode:()=>source,isSmartCanvasLocked:()=>false,cloneSmartSettings:s=>({...s}),smartSettingsForNode:()=>({engine:'api',apiKind:'image',count:1}),buildPromptRequest:()=>({prompt:'hello',refs:[]}),
+  selectedId:'src',selectedNode:()=>source,isSmartCanvasLocked:()=>false,savePromptDraftForCurrent:()=>{},cloneSmartSettings:s=>({...s}),smartSettingsForNode:()=>({engine:'api',apiKind:'image',count:1}),buildPromptRequest:()=>({prompt:'hello',refs:[]}),
   snapshotRunMeta:()=>({}),smartRunSnapshot:()=>({nodeId:'src',settings:{}}),rememberRecentSmartSettings:()=>{},nowMs:()=>1000,isApiLikeEngine:e=>e==='api',smartImageUsesWorkflowInput:()=>false,
   pushUndo:()=>{},stripRunInputMeta:m=>m,undoSuppressed:false,createPendingOutputFromSource:()=>{c.nodes.push(out);return out;},coolNodeRunningState:()=>{},coolRunButton:()=>{},render:()=>counts.render++,runBtn:{},
   runApiGeneration:async()=>{await boundary('submit');return {taskIds:['t'],providerId:'p',model:'model'};},

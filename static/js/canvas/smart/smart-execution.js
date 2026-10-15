@@ -1635,6 +1635,8 @@ async function generateUrlsForCurrentSettings(node, prompt, refs, runSettings=se
     writeGuard.check(); inputBinding?.check();
     inputBinding ||= smartTaskInputBinding(node,node,writeGuard);
     if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){await PixmaxSubjects.refresh(node,writeGuard.valid,{checkOnly:true});writeGuard.check();inputBinding.check();}
+    await window.PixmaxGenerationParameters?.validateInputs(node,runSettings);
+    writeGuard.check();inputBinding.check();
     let activeSettings = window.PixmaxSegmentReshoot?.executionSettings(node,runSettings||settings)||runSettings||settings;
     if(node.segmentReshoot?.schemaVersion===1){const request=PixmaxReshootReferences.request(node,activeSettings);prompt=request.prompt;refs=request.refs;activeSettings=request.settings;}
     if(activeSettings.engine === 'comfy') return generateComfyUrlsWithSettings(activeSettings, prompt, refs);
@@ -2010,6 +2012,10 @@ async function runGeneration(){
         const guard=canvasTaskWriteGuard(node),configuration=JSON.stringify(settingsForStorage(smartSettingsForNode(node)));
         const valid=()=>guard.valid()&&selectedNode()===node&&activeComposerNode()===node&&JSON.stringify(settingsForStorage(smartSettingsForNode(node)))===configuration;
         try{await PixmaxSubjects.refresh(node,valid);guard.check();if(!valid())throw Error('生成节点或参数已变化，请确认当前内容后重新生成');}catch(error){return toast(error.message);}
+    }
+    if(window.PixmaxGenerationParameters?.supported(node)){
+        const guard=canvasTaskWriteGuard(node),signature=PixmaxReshootReferences.signature(node);
+        try{await PixmaxGenerationParameters.validateInputs(node);guard.check();if(selectedNode()!==node||PixmaxReshootReferences.signature(node)!==signature)throw Error('生成节点或参考已变化，请确认当前内容后重新生成');}catch(error){return toast(error.message);}
     }
     if(window.PixmaxBatchExecution?.busy(node.id))return toast('此节点正在批量生成，请等待当前任务完成');
     const previousSettings = cloneSmartSettings(settings);

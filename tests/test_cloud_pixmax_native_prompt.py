@@ -40,16 +40,16 @@ def test_native_generation_price_preview_is_scoped_read_only_and_uses_server_pri
         assert conn.execute('SELECT count(*) AS n FROM ledger_entries').fetchone()['n']==fees
 
 
-@pytest.mark.parametrize('kind', ['image', 'video', 'video-motion', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])
+@pytest.mark.parametrize('kind', ['image', 'image-edit-contract', 'video', 'video-motion', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])
 def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exports_owned_media(world, platform, tmp_path, kind):
     from app.storage import database, tasks, media
     from app.storage.workspace import workspace_scope
     root=Path(__file__).resolve().parents[1]
     mode={'video-text':'文生视频','video-first-frame':'图生视频','video-first-last':'首尾帧','video-first-last-same':'首尾帧','video-reference':'多模态参考','video-edit':'视频编辑','video-extend-backward':'向后延长','video-extend-forward':'向前延长'}.get(kind)
-    camerawork=kind=='video-motion';same=kind=='video-first-last-same';parameters=kind.endswith('-parameters');kind=kind.split('-')[0]
+    contract=kind=='image-edit-contract';camerawork=kind=='video-motion';same=kind=='video-first-last-same';parameters=kind.endswith('-parameters');kind=kind.split('-')[0]
     provider_id='native-prompt-'+uuid.uuid4().hex[:16]
     configured=platform['client'].put('/api/providers/'+provider_id,json={
-        'config':{'name':'原生提示词隔离验收','base_url':'https://supplier.test/api/v3','protocol':'volcengine' if kind=='video' else 'openai','enabled':True,'image_models':['gpt-image-2'] if kind=='image' else [],'video_models':['doubao-seedance-2-5-pro'] if kind=='video' else []},
+        'config':{'name':'原生提示词隔离验收','base_url':'https://supplier.test/api/v3','protocol':'volcengine' if kind=='video' else 'openai','enabled':True,'image_models':['qwen-image-edit-plus' if contract else 'gpt-image-2'] if kind=='image' else [],'video_models':['doubao-seedance-2-5-pro'] if kind=='video' else []},
         'expected_version':0,'secrets':{'api_key':'test-only-native-prompt'},'reason':'隔离验收'})
     assert configured.status_code==200,configured.text
     assigned=platform['client'].put('/api/provider-assignments',params={'workspace':world['a']['id']},json={'expected_version':1,'provider_ids':[provider_id],'primary_provider_id':provider_id,'reason':'隔离验收'})
@@ -68,6 +68,7 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         assets.append({**response.json()['files'][0],'kind':media_kind})
     output=assets[-1]
     references=[]
+    if contract:references=assets[:1]
     if mode=='图生视频':references=assets[:1]
     elif mode=='首尾帧':
         references=assets[:1]
@@ -156,6 +157,9 @@ def test_native_general_prompt_browser_admits_scoped_task_restores_chips_and_exp
         assert '黄昏的摄影师' in node['nativePrompt']['prompt']
         with workspace_scope(world['a']['id']):
             request=tasks.request(task_ids[0]);assert request['provider_id']==provider_id
+            if contract:
+                assert request['model']=='qwen-image-edit-plus' and len(request['reference_images'])==1
+                assert re.search(r'ast_[a-f0-9]{32}',request['reference_images'][0]['url']).group()==re.search(r'ast_[a-f0-9]{32}',assets[0]['url']).group()
             assert '黄昏的摄影师' in request['prompt'] and '%%' not in request['prompt']
             if parameters:
                 if kind=='image':

@@ -14,9 +14,10 @@
         function data(){
             const base=PixmaxGenerationParameters.formData(node,definitions),refs=plan();base.value.prompt=raw();
             let message;try{PixmaxGenerationParameters.validate(node);PixmaxReshootReferences.validate(node,refs);}catch(error){message=error.message;}
-            const summary=message?[{errMsg:message,support:''}]:[];
+            const issues=PixmaxGenerationParameters.inputIssues(node,undefined,refs),summary=[...(message?[{errMsg:message,support:''}]:[]),...issues];
+            const sourceDetails=Object.create(null);for(const issue of issues)for(const id of issue.sourceIds)(sourceDetails[id]||=[]).push(issue);
             const mode=PixmaxVideoModes.selected(smartSettingsForNode(node)),images=refs.resources.filter(entry=>entry.kind==='image');
-            return {...base,graph:graphData(refs,base.value),referenceNames:Object.fromEntries(refs.resources.map(entry=>[entry.id,'引用 '+(entry.kind==='image'&&['imageToVideo','firstAndLastFrame'].includes(mode)?images.indexOf(entry)===0?'首帧':'尾帧':entry.alias)+' · '+entry.name])),validation:{invalid:!!message,sourceDetails:{},summary,groups:message?[{title:'生成设置',items:summary}]:[]},generateLabel};
+            return {...base,graph:graphData(refs,base.value),referenceNames:Object.fromEntries(refs.resources.map(entry=>[entry.id,'引用 '+(entry.kind==='image'&&['imageToVideo','firstAndLastFrame'].includes(mode)?images.indexOf(entry)===0?'首帧':'尾帧':entry.alias)+' · '+entry.name])),validation:{invalid:summary.length>0,sourceDetails,summary,groups:summary.length?[{title:'生成设置',items:summary}]:[]},generateLabel};
         }
         function refresh(){
             if(!current())return;motionLibrary?.sync();const quoteKey=JSON.stringify([PixmaxReshootReferences.signature(node),apiProviders]);

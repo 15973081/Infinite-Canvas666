@@ -443,7 +443,9 @@ def collect_generation_models(value):
             for field in public_fields:
                 for key in ['min','max','step']:
                     if key in field:field[key]=float(field[key])
-            models.append({'nodeType':value['nodeType'],'modelCode':value['modelCode'],'modelName':value['modelName'],'fields':public_fields})
+            models.append({'nodeType':value['nodeType'],'modelCode':value['modelCode'],'modelName':value['modelName'],'fields':public_fields,
+                           'inputConstraints':value['modelConfig'].get('allowNodeType',[]),
+                           'allowInputNodeTypes':value.get('allowInputNodeTypes',[])})
         for item in value.values():collect_generation_models(item)
     elif isinstance(value,list):
         for item in value:collect_generation_models(item)

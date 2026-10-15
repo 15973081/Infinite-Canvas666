@@ -319,6 +319,39 @@
       ],
       "verificationScope": "实际媒体、编辑资格、HTTP 接收、保存与隔离数据库所有权均执行；供应商完成使用受控替身，无收费生成或用户画布写入。计数测试不作为相对 Pixmax 的 FPS 结论。"
     },
+    "modelInputContractsEvidence": {
+      "status": "implemented_local_requires_final_verification",
+      "source": ["static/js/pixmax-model-contract.js", "static/js/pixmax-generation-parameters.js", "static/js/pixmax-generation-form.js", "static/js/pixmax-batch-execution.js", "static/js/canvas/smart/smart-execution.js", "tools/import_pixmax_runtime.py", "static/vendor/pixmax/generation-schema.json"],
+      "publicModels": 39,
+      "implemented": [
+        "按模型代码、公开名称和明确的 Seedance/Seedream API 名称识别 39 个模型；按图像/视频隔离，不将 Draft、Fast、Mini 或 Lite 误归为完整模型，也不将未知后缀猜作已知模型",
+        "导入器保留公开 allowInputNodeTypes 及 modelConfig.allowNodeType，包括数量、组合数量及源媒体属性要求；未复制账号、订阅、折扣或价格",
+        "原生 N1 schema 接入参考连线数量约束，表单展示数量错误和受影响的参考卡片；普通生成、级联生成和批次预览均校验，不合格草稿可继续编辑和切换模型",
+        "Qwen 编辑模型缺图及超过 3 图、MiniMax 纯文本图像模型误接图片、Wan 2.6 图片/视频合计超过 5 份等场景按冻结规则拒绝",
+        "异步加载公共约束期间核对编辑资格、选中节点及输入签名；主体目录刷新后再检查参考数量"
+      ],
+      "verification": {
+        "frontendLog": ".local/pixmax-model-contract-regression-final.log",
+        "frontendCases": 129,
+        "surfaceLog": ".local/pixmax-model-contract-surface-final.log",
+        "surfaceCases": 29,
+        "bindingLog": ".local/pixmax-model-contract-binding-verified.log",
+        "bindingCases": 120,
+        "countScope": "最终表面回归 29 项中有 28 项包含于前端主回归 129 项，另增对象属性名节点 ID 的错误详情用例；任务绑定 120 项为独立文件。合计 250 个不同的前端/任务机制检查，不能据此推断 FPS 或真实供应商能力。",
+        "databaseLog": ".local/pixmax-model-contract-http-final.log",
+        "databaseCases": 5,
+        "databaseScope": "新增 Qwen 编辑模型实际浏览器/ASGI/PostgreSQL 接收、媒体引用、保存恢复与工作流导出，及既有图像参数、多模态视频、两种首尾帧回归；仅供应商完成使用替身，未调用收费模型",
+        "hoverRegression": "既有悬停平移断言在前一提交和本次修改均可复现读取视频估算尺寸的时序问题；改为等待真实视频元数据及布局后测量，保留 12px 平移和参考卡片 DOM 复用断言",
+        "bindingFixture": "旧生命周期隔离测试补充原生表单阶段已引入的草稿落盘依赖 savePromptDraftForCurrent；不改变生产保存行为。",
+        "sourceVerification": "39 份公开输入约束及允许类型逐项与提供镜像比较一致；5 个运行时/公开配置文件再次生成后 SHA256 不变；检查实际错误卡片和表单截图。"
+      },
+      "remaining": [
+        "39 模型全部参数选项、默认值、字段联动、生成模式和实际供应商协议映射尚未完成，当前仍保留接收项目原有参数和能力政策",
+        "已保留的格式、尺寸、文件大小、时长和合规等源媒体属性限制尚未全部接入验证；本阶段只验证输入数量及组合数量",
+        "更多模型别名、参考工具特殊输入、视频批量数量及真实供应商行为最终核对；公共快照约束不替代后端供应商准入和权限检查",
+        "部署网络、移动屏幕、更多媒体规模及原生交互最终验收"
+      ]
+    },
     "ordinaryGenerationParametersEvidence": {
       "status": "implemented_local_requires_final_verification",
       "component": "普通 N1 面板使用的 Kz 模型/数量选择器与 g$ 参数组合控件；完整 N1 服务、表单与生成模式尚未完成",

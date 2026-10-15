@@ -33,6 +33,11 @@
     async function prepare(node,type){
         window.PixmaxGenerationParameters?.validate(node);
         if(node.segmentReshoot?.schemaVersion===1||node.nativePrompt?.schemaVersion===1){const guard=canvasTaskWriteGuard(node);await PixmaxSubjects.refresh(node,guard.valid,{checkOnly:true});guard.check();}
+        if(window.PixmaxGenerationParameters?.supported(node)){
+            const guard=canvasTaskWriteGuard(node),signature=PixmaxReshootReferences.signature(node);
+            await PixmaxGenerationParameters.validateInputs(node);guard.check();
+            if(PixmaxReshootReferences.signature(node)!==signature)throw Error('生成节点或参考已变化，请重新预览');
+        }
         if(type==='audio')return window.PixmaxAudioCreation.prepare(node);
         if(type==='model')return window.PixmaxModelCreation.prepare(node);
         if(type==='llm'){

@@ -92,7 +92,11 @@ test('a stale native finalize event cannot reintroduce a disconnected reference'
 });
 
 test('native hover preview follows a canvas pan without rebuilding reference cards',async t=>{
-    const {page,errors}=await setup(t,['video']);await area(page).getByRole('button',{name:/引用 视频1/}).hover();await page.waitForFunction(()=>[...document.querySelectorAll('video')].some(video=>!video.closest('#world')&&video.src.includes('native-reference-video0.mp4')));const before=await page.evaluate(()=>{
+    const {page,errors}=await setup(t,['video']);await area(page).getByRole('button',{name:/引用 视频1/}).hover();
+    // Native hover starts at an estimated size, then centers again when video
+    // metadata supplies its aspect ratio. Measure the pan after that layout.
+    await page.waitForFunction(()=>[...document.querySelectorAll('video')].some(video=>!video.closest('#world')&&video.src.includes('native-reference-video0.mp4')&&video.readyState>=1&&video.videoWidth>0));
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));const before=await page.evaluate(()=>{
         const video=[...document.querySelectorAll('video')].find(video=>!video.closest('#world')&&video.src.includes('native-reference-video0.mp4'));let popup=video;while(popup&&getComputedStyle(popup).position!=='fixed')popup=popup.parentElement;window.nativePanPopup=popup;window.nativePanCard=document.querySelector('.pixmax-native-generation-references [data-source-node-order-item]');return popup.getBoundingClientRect().x;
     });await page.evaluate(()=>{viewport.x+=12;applyViewport();});await page.waitForFunction(x=>Math.abs(nativePanPopup.getBoundingClientRect().x-x-12)<1,before,{timeout:2500});assert.equal(await page.evaluate(()=>document.querySelector('.pixmax-native-generation-references [data-source-node-order-item]')===nativePanCard),true);assert.deepEqual(errors,[]);
 });

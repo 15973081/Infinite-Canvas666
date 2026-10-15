@@ -1,7 +1,7 @@
 /* N1's native Kz/g$ controls; provider identities and policy remain host-owned. */
 (() => {
     'use strict';
-    let definitionPromise;
+    let definitionPromise,referenceDefinitions=[];
     const select=(name,options)=>({name,type:'select',options:options.map(([value,name])=>({value:String(value),name}))});
     const supported=node=>Boolean(window.CanvasSession?.enabled&&node?.type==='smart-image'&&!node.segmentReshoot&&!node.localDepth&&isApiLikeEngine(smartSettingsForNode(node).engine));
     function configuration(node){
@@ -20,12 +20,17 @@
         }));
     }
     async function definitions(){
-        return definitionPromise||=fetch('/static/vendor/pixmax/generation-schema.json').then(async response=>{if(!response.ok)throw Error('原生生成参数加载失败');const value=await response.json();if(!Array.isArray(value.models))throw Error('原生生成参数格式无效');return value.models;}).catch(error=>{definitionPromise=null;throw error;});
+        return definitionPromise||=fetch('/static/vendor/pixmax/generation-schema.json').then(async response=>{if(!response.ok)throw Error('原生生成参数加载失败');const value=await response.json();if(!Array.isArray(value.models))throw Error('原生生成参数格式无效');referenceDefinitions=value.models;return value.models;}).catch(error=>{definitionPromise=null;throw error;});
     }
     function referenceModel(config,definitions){
-        const [,model]=identity(config),name=String(model||'').toLowerCase();
-        const code=isSeedance25VideoModel(model)?'PIXDANCE_2_5':isSeedance20VideoModel(model)?'PIXDANCE_2':name.includes('seedream-4-5')?'DOUBAO_SEEDREAM_4_5':name.includes('seedream-5')?'DOUBAO_SEEDREAM_5_PRO':undefined;
-        return definitions.find(item=>item.modelCode===code);
+        return PixmaxModelContract.resolve(definitions,config.apiKind,identity(config)[1]);
+    }
+    function inputIssues(node,config=configuration(node),current=PixmaxReshootReferences.plan(node,{configuration:config})){
+        return supported(node)?PixmaxModelContract.inputIssues(referenceModel(config,referenceDefinitions),current.resources):[];
+    }
+    async function validateInputs(node,config=configuration(node),current){
+        if(!supported(node))return;await definitions();
+        const issues=inputIssues(node,config,current);if(issues.length)throw Error(issues.map(issue=>issue.errMsg+'；'+issue.support).join('\n'));
     }
     function data(node,definitions){
         const config=configuration(node),native=referenceModel(config,definitions),fields=[],disabledFieldNames=[];
@@ -81,7 +86,7 @@
             if(config.apiKind==='image')fields.push(select('count',[1,2,3,4,5,6,7,8].map(value=>[value,value+'张'])));
             else if(PixmaxVideoModes.supported(next))fields.push({name:'referModel',type:'radio',default:'auto',options:PixmaxVideoModes.options(node,next,definitionsValue).map(option=>({name:option.label,value:option.value,disabled:option.disabled}))});
             if(config.apiKind==='video')for(const [name,key] of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']])fields.push({name,type:'switch',default:String(!!next[key])});
-            return {modelCode:option.value,modelName:option.label,connectConstraint:[],filedConfig:fields.map(field=>({...field,default:parameters.value[field.name]??field.default??String(config.count||1)}))};
+            return {modelCode:option.value,modelName:option.label,connectConstraint:PixmaxModelContract.connections(referenceModel(next,definitionsValue)),filedConfig:fields.map(field=>({...field,default:parameters.value[field.name]??field.default??String(config.count||1)}))};
         };
         const parameters=data(node,definitionsValue),videoEdit=config.apiKind==='video'&&PixmaxVideoModes.selected(config)==='videoEdit';
         if(videoEdit){const source=PixmaxReshootReferences.plan(node).incomingNodes.find(source=>source.type==='video'&&source.data.url),field=parameters.fields.find(field=>field.name==='duration');if(source&&field){const duration=Math.max(1,Math.floor(Number(source.data.duration)||0)),choices=(field.options||[]).filter(option=>!option.disabled).map(option=>Number(option.value)).filter(Number.isFinite);parameters.value.duration=String(choices.sort((a,b)=>Math.abs(a-duration)-Math.abs(b-duration)||b-a)[0]??Math.max(field.min,Math.min(duration,field.max)));}}
@@ -99,5 +104,5 @@
         }
         return config;
     }
-    window.PixmaxGenerationParameters=Object.freeze({supported,configuration,catalog,data,apply,validate,definitions,formData,applyForm});
+    window.PixmaxGenerationParameters=Object.freeze({supported,configuration,catalog,data,apply,validate,definitions,formData,applyForm,referenceModel,inputIssues,validateInputs});
 })();
