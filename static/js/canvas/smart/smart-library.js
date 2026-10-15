@@ -549,11 +549,16 @@ async function chooseSmartAssetTarget(){
         .filter(category => ['image','media'].includes(String(category.type || 'image').toLowerCase()) && !category.readonly)
         .map(category => ({libraryId:library.id, categoryId:category.id, label:`${library.name || '素材库'} / ${category.name || '分组'}`})));
     if(!targets.length){ toast('请先创建可编辑的素材库和图片分组'); return null; }
+    const selected = targets.findIndex(target => target.libraryId === smartAssetPanel.state.libraryId && target.categoryId === smartAssetPanel.state.categoryId);
+    return chooseSmartAssetOption('选择素材库 / 分组', targets, Math.max(0, selected));
+}
+
+function chooseSmartAssetOption(title, targets, selected=0){
     return new Promise(resolve => {
-        assetDialogTitle.textContent = '选择素材库 / 分组';
+        assetDialogTitle.textContent = title;
         assetDialogInput.hidden = true;
         assetDialogTarget.hidden = false;
-        assetDialogTarget.innerHTML = targets.map((target, index) => `<option value="${index}" ${target.libraryId === smartAssetPanel.state.libraryId && target.categoryId === smartAssetPanel.state.categoryId ? 'selected' : ''}>${escapeHtml(target.label)}</option>`).join('');
+        assetDialogTarget.innerHTML = targets.map((target, index) => `<option value="${index}" ${index === selected ? 'selected' : ''}>${escapeHtml(target.label)}</option>`).join('');
         assetDialogBackdrop.hidden = false;
         assetDialogBackdrop.classList.add('open');
         assetDialogTarget.focus();
@@ -639,8 +644,19 @@ function smartAvatarPlatform(provider){
     return window.CanvasAssetAuth.registrationPlatform(provider);
 }
 
-function quickSmartAvatarProvider(){
-    return window.CanvasAssetAuth.registrationProvider(apiProviders);
+async function quickSmartAvatarProvider(node){
+    const candidates = (apiProviders || []).filter(provider => provider.enabled !== false && smartAvatarPlatform(provider));
+    if(!candidates.length) return null;
+    // Use the same resolved configuration as generation, including unsaved defaults.
+    const targets = node?.generationKind === 'video' ? [node] : nodes.filter(target => target.generationKind === 'video'
+        && (typeof canvas !== 'undefined' ? canvas?.connections || [] : []).some(edge => edge.from === node?.id && edge.to === target.id));
+    const preferred = new Set(targets.map(target => smartSettingsForNode(target).videoProvider).filter(id => candidates.some(provider => provider.id === id)));
+    if(preferred.size === 1) return candidates.find(provider => preferred.has(provider.id));
+    if(candidates.length === 1) return candidates[0];
+    const selected = candidates.findIndex(provider => preferred.has(provider.id));
+    const choice = await chooseSmartAssetOption('选择合规检测平台', candidates.map(provider => ({provider,
+        label:`${provider.name || provider.id} · ${provider.volcengine_project_name || 'default'}${window.CanvasAssetAuth.registrationReady(provider) ? '' : '（需配置 AK/SK）'}`})), Math.max(0, selected));
+    return choice?.provider || null;
 }
 
 async function smartAvatarRequest(path, libraryId, providerId){
@@ -671,8 +687,8 @@ function pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, atte
                 image.face_auth_status = 'Active';
                 image.asset_uris = smartAuthenticatedUris(data.item);
                 render(); scheduleSave(); toast('素材认证已通过');
-            } else if(registration.status === 'Failed'){
-                image.face_auth_status = 'Failed';
+            } else if(['Failed','Cancelled'].includes(registration.status)){
+                image.face_auth_status = registration.status;
                 image.asset_uris = {};
                 render(); scheduleSave(); toast(registration.detail || '素材认证未通过');
             } else pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, attempt + 1);
@@ -687,32 +703,53 @@ function pollSmartImageFaceAuth(nodeId, index, itemId, libraryId, provider, atte
 async function quickFaceAuthSmartImage(nodeId, index){
     const node = nodes.find(entry => entry.id === nodeId);
     const image = node?.images?.[index];
-    if(!image?.url) return;
+    if(!image?.url || (typeof isSmartCanvasLocked === 'function' && isSmartCanvasLocked())) return;
+    const pending = quickFaceAuthSmartImage.pending ||= new WeakSet();
+    if(pending.has(image)) return;
+    pending.add(image);
     const sourceUrl = image.url;
-    const isCurrent = () => nodes.includes(node) && node.images[index] === image && image.url === sourceUrl;
-    const provider = quickSmartAvatarProvider();
-    if(!provider) return toast('请先在 API 平台管理中配置火山引擎');
-    if(!window.CanvasAssetAuth.registrationReady(provider)) return toast('火山引擎素材认证需要 AK/SK，请在管理平台补齐 Access Key ID 和 Secret Access Key。');
-    const target = await chooseSmartAssetTarget();
-    if(!target || !isCurrent()) return;
+    const isCurrent = () => nodes.includes(node) && node.images[index] === image && image.url === sourceUrl
+        && (typeof isSmartCanvasLocked !== 'function' || !isSmartCanvasLocked());
     try {
+        const provider = await quickSmartAvatarProvider(node);
+        if(!provider){
+            if(!(apiProviders || []).some(p => p.enabled !== false && smartAvatarPlatform(p))) toast('请先在 API 平台管理中配置火山引擎');
+            return;
+        }
+        if(!isCurrent()) return;
+        if(!window.CanvasAssetAuth.registrationReady(provider)) return toast('火山引擎素材认证需要 AK/SK，请在管理平台补齐 Access Key ID 和 Secret Access Key。');
+        const linked = image.asset_item_id && smartAssetItemLocation(image.asset_item_id);
+        const target = linked || await chooseSmartAssetTarget();
+        if(!target || !isCurrent()) return;
         toast('正在上传素材并提交素材认证…');
-        const {item, libraryId} = await ensureSmartImageAsset(node, index, target);
+        const {item, libraryId} = linked || await ensureSmartImageAsset(node, index, target);
         if(!isCurrent()) return;
         const registration = item?.registrations?.[smartAvatarPlatform(provider)] || {};
         const auth = window.CanvasAssetAuth.resolve({},item,provider);
         if(auth.status === 'ScopeMismatch') return toast(window.CanvasAssetAuth.error(auth.status));
-        if(registration.status === 'Active'){
+        if(auth.ready){
             image.face_auth_status = 'Active'; image.asset_uris = smartAuthenticatedUris(item); render(); scheduleSave(); return toast('该素材已通过素材认证');
         }
         image.face_auth_status = 'Processing'; image.asset_uris = {}; render(); scheduleSave();
-        if(registration.status !== 'Processing') await smartAvatarRequest(`/api/asset-library/items/${encodeURIComponent(item.id)}/register-avatar`, libraryId, provider.id);
+        if(!['Queued','Uploading','Processing'].includes(registration.status)){
+            const data = await smartAvatarRequest(`/api/asset-library/items/${encodeURIComponent(item.id)}/register-avatar`, libraryId, provider.id);
+            setAssetLibraryFromResponse(data);
+            if(!isCurrent()) return;
+            const result = data.item?.registrations?.[smartAvatarPlatform(provider)] || {};
+            image.face_auth_status = result.status || 'Processing';
+            image.asset_uris = smartAuthenticatedUris(data.item);
+            render(); scheduleSave();
+            if(result.status === 'Active') return toast('该素材已通过素材认证');
+            if(['Failed','Cancelled'].includes(result.status)) return toast(result.detail || '素材认证未通过');
+        }
         if(!isCurrent()) return;
         toast('已提交审核，稍后自动更新');
         pollSmartImageFaceAuth(nodeId, index, item.id, libraryId, provider);
     } catch(e) {
         if(!isCurrent()) return;
         image.face_auth_status = 'Failed'; image.asset_uris = {}; render(); scheduleSave(); toast(e.message || '素材认证提交失败');
+    } finally {
+        pending.delete(image);
     }
 }
 

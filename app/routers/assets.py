@@ -525,7 +525,7 @@ async def register_asset_library_avatar(item_id: str, payload: AssetAvatarRegist
     platform = avatar_platform_for_provider(provider)
     if platform not in AVATAR_SUPPORTED_PLATFORMS:
         name = (provider or {}).get("name") or (provider or {}).get("id") or "该平台"
-        raise HTTPException(status_code=400, detail=f"「{name}」暂不支持数字人/真人认证（目前仅 APIMart 可用，火山等平台待接入官方资产 API）。")
+        raise HTTPException(status_code=400, detail=f"「{name}」暂不支持素材认证（已接入 APIMart 和火山引擎资产 API）。")
     existing_regs = target_item.get("registrations") if isinstance(target_item.get("registrations"), dict) else {}
     existing_reg = existing_regs.get(platform) if isinstance(existing_regs.get(platform), dict) else {}
     project_name = str(provider.get("volcengine_project_name") or VOLCENGINE_DEFAULT_PROJECT_NAME) if platform == "volcengine" else str(payload.project_name or "default")
@@ -791,6 +791,8 @@ async def check_asset_library_avatar(item_id: str, payload: AssetAvatarRegisterR
     reg = regs.get(platform) if isinstance(regs.get(platform), dict) else {}
     validate_avatar_registration_scope(reg,provider,platform,provider.get("volcengine_project_name") if platform == "volcengine" else payload.project_name)
     task_id = str(reg.get("task_id") or "").strip()
+    if str(reg.get("status") or "") in ("Queued", "Uploading", "Cancelled"):
+        return {"library": lib, "item": target_item, "status": reg["status"]}
     if not task_id:
         raise HTTPException(status_code=400, detail="该素材还没有提交到这个平台的认证审核。")
     if platform == "apimart":

@@ -2130,7 +2130,7 @@ function runSmartNodeToolbarAction(nodeId, action){
     if(action==='tags')return window.PixmaxTags.openPicker([nodeId],world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="tags"]`));
     if(PIXMAX_VIDEO_DEFERRED.has(action))return;
     if(action==='video-history'||action==='image-history')return window.PixmaxGenerationHistory?.openNode(node,world.querySelector(`[data-node-id="${CSS.escape(nodeId)}"][data-smart-node-action="${action}"]`));
-    if(['trim','auth','asset','depth-video','audio-separate','annotation','parse','reshoot'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
+    if(['trim','auth','compliance','asset','depth-video','audio-separate','annotation','parse','reshoot'].includes(action)&&isSmartCanvasLocked()){toast('请先开始编辑画布。');return;}
     smartSelection.toolbarImage(nodeId, index);
     if(action==='audio-separate'&&kind==='video')return window.PixmaxMediaTools.openAudioSeparate(nodeId,index);
     if(action==='annotation'&&kind==='video')return window.PixmaxVideoAnnotation.open(nodeId,index);
@@ -2152,9 +2152,8 @@ function runSmartNodeToolbarAction(nodeId, action){
         saveSmartImageToAssetLibrary(nodeId, index);
         return;
     }
-    if(action === 'auth'){
-        quickFaceAuthSmartImage(nodeId, index);
-        return;
+    if(action === 'auth' || action === 'compliance'){
+        return quickFaceAuthSmartImage(nodeId, index);
     }
     if(action === 'depth-video' && kind === 'video'){
         return openPixmaxVideoDepthMenu(nodeId,index);

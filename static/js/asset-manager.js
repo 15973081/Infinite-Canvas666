@@ -2294,7 +2294,7 @@ function renderAvatarRegistrationCard(item, platform, reg, busy){
             <div class="avatar-uri" title="只能在 ${escapeAttr(avatarPlatformLabel(platform))} 平台的视频生成中通过 @ 调用">${escapeHtml(reg.asset_uri)}</div>
             <div class="asset-tools">
                 <button class="asset-btn" type="button" data-avatar-copy="${escapeAttr(reg.asset_uri)}"><i data-lucide="copy"></i><span>复制 asset:// 地址</span></button>
-                <button class="asset-btn" type="button" data-avatar-register="${escapeAttr(item.id)}" ${provAttr} ${busy ? 'disabled' : ''}><i data-lucide="refresh-cw"></i><span>${busy ? '处理中…' : '重新注册'}</span></button>
+                <button class="asset-btn" type="button" data-avatar-check="${escapeAttr(item.id)}" ${provAttr} ${busy ? 'disabled' : ''}><i data-lucide="refresh-cw"></i><span>${busy ? '查询中…' : '刷新审核状态'}</span></button>
             </div>
         </div>`;
     }
@@ -2350,7 +2350,11 @@ function renderAvatarSection(item){
     const supported = providerAvatarSupported(selected);
     const credentialMessage = providerAvatarCredentialMessage(selected);
     const noKey = !!credentialMessage;
-    const alreadyRegistered = supported && regs[selPlatform] && regs[selPlatform].task_id;
+    const registration = supported ? regs[selPlatform] : null;
+    const refreshOnly = registration?.task_id && ['Active','Processing'].includes(registration.status);
+    const submittingNow = ['Queued','Uploading'].includes(registration?.status);
+    const scopeMismatch = registration && ((registration.provider_id || 'volcengine') !== selected?.id
+        || (registration.project_name || 'default') !== (selected?.volcengine_project_name || 'default'));
     const select = `<select class="avatar-provider-select" data-avatar-provider>${providers.map(p => `<option value="${escapeAttr(p.id)}" ${p.id === selected?.id ? 'selected' : ''}>${escapeHtml(avatarProviderOptionLabel(p))}</option>`).join('')}</select>`;
     let registerUI;
     if(!supported){
@@ -2360,8 +2364,8 @@ function renderAvatarSection(item){
             <div class="avatar-hint">提交到 ${escapeHtml(avatarPlatformLabel(selPlatform))} 私域素材审核，通过后生成 asset:// 地址，可在该平台的视频生成中通过 @ 直接调用。</div>
             ${select}
             ${noKey ? `<div class="avatar-hint warn">${escapeHtml(credentialMessage)}</div>` : ''}
-            ${alreadyRegistered ? '<div class="avatar-hint">该平台已注册，再次提交会覆盖该平台的认证。</div>' : ''}
-            <button class="asset-btn primary" type="button" data-avatar-register="${escapeAttr(item.id)}" data-avatar-prov="${escapeAttr(selected?.id || '')}" ${busy || noKey ? 'disabled' : ''}><i data-lucide="user-round-plus"></i><span>${busy ? '注册中，请稍候…' : (alreadyRegistered ? '重新注册到该平台' : '注册并等待审核')}</span></button>`;
+            ${scopeMismatch ? '<div class="avatar-hint warn">该素材已绑定其他账号或项目，请切回原配置；如需在目标项目认证，请新建素材。</div>' : refreshOnly ? '<div class="avatar-hint">该素材已提交认证，可刷新审核状态，无需重复注册。</div>' : ''}
+            <button class="asset-btn primary" type="button" data-avatar-${refreshOnly ? 'check' : 'register'}="${escapeAttr(item.id)}" data-avatar-prov="${escapeAttr(selected?.id || '')}" ${busy || noKey || submittingNow || scopeMismatch ? 'disabled' : ''}><i data-lucide="${refreshOnly ? 'refresh-cw' : 'user-round-plus'}"></i><span>${busy || submittingNow ? '处理中，请稍候…' : refreshOnly ? '刷新审核状态' : registration ? '重新提交审核' : '注册并等待审核'}</span></button>`;
     }
     return `<div class="avatar-section" data-avatar-status-region="${escapeAttr(item.id)}">
         ${submittingCard}${cards}
