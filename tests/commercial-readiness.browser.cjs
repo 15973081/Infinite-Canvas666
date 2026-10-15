@@ -38,7 +38,7 @@ test('smart canvas drafts use the Pixmax palette and remain reachable in narrow 
     assert.equal(await dialog.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(20, 20, 22)');
     assert.equal(await dialog.getByRole('button',{name:'关闭',exact:true}).evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(37, 37, 41)');
     fs.mkdirSync('.local/commercial-kickoff',{recursive:true});
-    for(const width of [320,390,1280]){
+    for(const width of [320,390,720,1280]){
         await page.setViewportSize({width,height:720});
         const bounds=await dialog.evaluate(el=>{const r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,overflow:el.scrollWidth>el.clientWidth};});
         assert.ok(bounds.left>=0&&bounds.right<=width&&bounds.top>=0&&bounds.bottom<=720,JSON.stringify(bounds));
