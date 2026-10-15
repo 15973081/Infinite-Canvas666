@@ -2,11 +2,11 @@
 (() => {
     'use strict';
     let active,loading;
-    const scope=()=>CanvasSession.context?.member?.id+':'+CanvasSession.context?.workspace?.id;
+    const scope=()=>window.CanvasSession?.enabled?CanvasSession.context?.member?.id+':'+CanvasSession.context?.workspace?.id:'local';
     const runtime=()=>loading||=import('/static/vendor/pixmax/editors.js').then(value=>value.canvasSegmentReshoot).catch(error=>{loading=null;throw error;});
     const readable=session=>!session.closed&&active===session&&canvas===session.canvas&&scope()===session.scope&&nodes.includes(session.node)&&activeComposerNode()===session.node&&composer.classList.contains('open');
     const editable=session=>readable(session)&&session.guard.valid()&&!isSmartCanvasLocked();
-    const supported=node=>Boolean(window.CanvasSession?.enabled&&node?.type==='smart-image'&&!node.segmentReshoot&&!node.localDepth&&isApiLikeEngine(smartSettingsForNode(node).engine));
+    const supported=node=>window.PixmaxGenerationParameters?.supported(node);
     function raw(node){
         if(node.nativePrompt?.schemaVersion===1)return node.nativePrompt.prompt;
         const temporary={...node,nativePrompt:{schemaVersion:1,prompt:'',subjects:[]}};PixmaxReshootReferences.captureComposer(temporary);return temporary.nativePrompt.prompt;

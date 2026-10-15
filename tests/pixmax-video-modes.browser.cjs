@@ -6,9 +6,9 @@ async function setup(t,kinds=[],{same=false,model='doubao-seedance-2-5-pro'}={})
         apiProviders=[{id:'p',name:'视频模式验收',enabled:true,has_key:true,protocol:'volcengine',video_models:[model]}];Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});
         window.modeNode=createGenerationNodeAt({x:440,y:100},'video');Object.assign(modeNode.runSettings,{engine:'api',apiKind:'video',videoProvider:'p',videoModel:model,videoDuration:5,videoResolution:'720p',videoAspect:'16:9'});
         window.modeSources=kinds.map((kind,index)=>{const node={id:uid('reference'),type:'smart-image',pixmaxSourceType:kind==='image'?'BASE_IMAGE':kind==='video'?'BASE_VIDEO':'BASE_AUDIO',x:index*250,y:0,images:[{url:kind==='image'?'/test-image.svg'+(same?'':'?frame='+index):'/output/reference-'+kind+index+'.mp4',kind,duration:8,name:'素材'+index}]};nodes.push(node);canvas.connections.push({from:node.id,to:modeNode.id,kind:'input'});return node;});render();
-    },{kinds,same,model});await f.page.getByRole('button',{name:'视频生成模式',exact:true}).waitFor({timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(await f.page.evaluate(()=>({notices:[...document.querySelectorAll('.toast,[role=status]')].map(node=>node.textContent),config:modeNode.runSettings,buttons:[...document.querySelectorAll('.pixmax-generation-controls button')].map(node=>({label:node.getAttribute('aria-label'),text:node.textContent,hidden:node.closest('[hidden]')?.outerHTML.slice(0,150)}))})))+'; '+JSON.stringify(f.errors));});return f;
+    },{kinds,same,model});await f.page.getByRole('tablist',{name:'视频生成模式',exact:true}).waitFor({timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(await f.page.evaluate(()=>({notices:[...document.querySelectorAll('.toast,[role=status]')].map(node=>node.textContent),config:modeNode.runSettings,buttons:[...document.querySelectorAll('.pixmax-generation-controls button')].map(node=>({label:node.getAttribute('aria-label'),text:node.textContent,hidden:node.closest('[hidden]')?.outerHTML.slice(0,150)}))})))+'; '+JSON.stringify(f.errors));});return f;
 }
-async function choose(page,name){await page.getByRole('button',{name:'视频生成模式',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name,exact:true}).click();}
+async function choose(page,name){await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name,exact:true}).click();}
 async function tasks(page){
     const calls=[],records=new Map();await page.addScriptTag({url:'/static/js/canvas-task-bindings.js'});await page.route('**/output/mode-result.mp4',route=>route.fulfill({contentType:'video/mp4',body:fs.readFileSync(path.join(__dirname,'fixtures/pixmax-audio-source.mp4'))}));
     await page.route('**/api/canvas-video-tasks**',route=>{
@@ -23,7 +23,7 @@ for(const [mode,kinds,roles] of [['文生视频',[],[]],['图生视频',['image'
     if(roles.includes('first_frame'))assert.equal(calls[0].aspect_ratio,'adaptive');assert.equal(await page.evaluate(()=>modeNode.images.length),1);await page.evaluate(()=>saveCanvas({force:true}));assert.ok(record.nodes.find(node=>node.generationKind==='video').runSettings.videoReferenceMode);assert.deepEqual(errors,[]);
 });
 test('native mode availability follows connected input types and rejects mixed frame inputs',async t=>{
-    const {page,errors}=await setup(t,['image','audio']);await page.getByRole('button',{name:'视频生成模式',exact:true}).click();const menu=page.locator('.pixmax-reshoot-model-options');assert.equal(await menu.getByRole('button',{name:'文生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'图生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'首尾帧',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'参考生视频',exact:true}).isEnabled(),true);assert.deepEqual(errors,[]);
+    const {page,errors}=await setup(t,['image','audio']);const menu=page.getByRole('tablist',{name:'视频生成模式'});assert.equal(await menu.getByRole('tab',{name:'文生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('tab',{name:'图生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('tab',{name:'首尾帧',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('tab',{name:'参考生视频',exact:true}).isEnabled(),true);assert.deepEqual(errors,[]);
 });
 test('a disconnected tail frame prevents admission and preserves the explicit mode',async t=>{
     const {page,errors}=await setup(t,['image','image']),calls=await tasks(page);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('首尾镜头');await choose(page,'首尾帧');await page.evaluate(()=>{canvas.connections=canvas.connections.filter(edge=>edge.from!==modeSources[1].id);render();});await page.evaluate(()=>runGeneration());assert.equal(calls.length,0);assert.equal(await page.evaluate(()=>modeNode.runSettings.videoReferenceMode),'firstAndLastFrame');assert.deepEqual(errors,[]);
@@ -62,7 +62,7 @@ for(const [label,mode,duration] of [['视频编辑','edit',-1],['向后延长','
 });
 
 test('extension preserves multiple video and audio references while native edit remains constrained',async t=>{
-    const {page,errors}=await setup(t,['video','video','audio']),calls=await tasks(page);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('延续光线');await page.getByRole('button',{name:'视频生成模式',exact:true}).click();assert.equal(await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:'视频编辑',exact:true}).isDisabled(),true);await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:'向后延长',exact:true}).click();await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].videos.length,2);assert.equal(calls[0].audios.length,1);assert.deepEqual(errors,[]);
+    const {page,errors}=await setup(t,['video','video','audio']),calls=await tasks(page);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('延续光线');assert.equal(await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name:'视频编辑',exact:true}).isDisabled(),true);await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name:'向后延长',exact:true}).click();await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].videos.length,2);assert.equal(calls[0].audios.length,1);assert.deepEqual(errors,[]);
 });
 
 test('changing from video edit to Seedance 2.0 resets an unsupported saved mode',async t=>{
@@ -89,8 +89,7 @@ for(const kinds of [[],['image'],['video']])test('automatic video reruns retain 
 
 test('Draft uses its own mode contract and unknown suffixes never inherit full model capabilities',async t=>{
     const {page,errors}=await setup(t,['video'],{model:'doubao-seedance-2-5-draft'});
-    await page.getByRole('button',{name:'视频生成模式',exact:true}).click();
-    const menu=page.locator('.pixmax-reshoot-model-options');assert.equal(await menu.getByRole('button',{name:'视频编辑',exact:true}).count(),0);assert.equal(await menu.getByRole('button',{name:'向后延长',exact:true}).count(),0);
+    const menu=page.getByRole('tablist',{name:'视频生成模式'});assert.equal(await menu.getByRole('tab',{name:'视频编辑',exact:true}).count(),0);assert.equal(await menu.getByRole('tab',{name:'向后延长',exact:true}).count(),0);
     const result=await page.evaluate(()=>({unknown:PixmaxVideoModes.supported({...modeNode.runSettings,videoModel:'doubao-seedance-2-5-pro-custom'}),draftError:(()=>{try{PixmaxVideoModes.choose(modeNode,modeNode.runSettings,'videoEdit');return '';}catch(error){return error.message;}})()}));
     assert.equal(result.unknown,false);assert.match(result.draftError,/不支持视频编辑/);assert.deepEqual(errors,[]);
 });

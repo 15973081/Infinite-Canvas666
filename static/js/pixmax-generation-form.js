@@ -21,7 +21,7 @@
         }
         function refresh(){
             if(!current())return;motionLibrary?.sync();const quoteKey=JSON.stringify([PixmaxReshootReferences.signature(node),apiProviders]);
-            if(quoteKey!==quoteStamp){quoteStamp=quoteKey;generateLabel='生成';quoteVersion++;clearTimeout(quoteTimer);if(editable())quoteTimer=setTimeout(()=>void quote(quoteKey),300);}
+            if(quoteKey!==quoteStamp){quoteStamp=quoteKey;generateLabel='生成';quoteVersion++;clearTimeout(quoteTimer);if(editable()&&window.CanvasSession?.enabled)quoteTimer=setTimeout(()=>void quote(quoteKey),300);}
             const next=data(),key=JSON.stringify(next);if(key!==signature){signature=key;handle?.setData(next);}handle?.setDisabled(!editable());
         }
         async function quote(key){
@@ -61,12 +61,14 @@
             }catch(error){if(picker.isConnected)picker.querySelector('[role=status]').textContent=error.message;}
         }
         async function subjects(){
+            if(!window.CanvasSession?.enabled)return toast('请在成员画布中使用主体库');
             if(!allowed())return;await PixmaxSubjectLibrary.open({api,node,valid:allowed,onRoot,onChoose:async(group,type)=>{if(!allowed())return;project(raw());const chip=PixmaxSubjects.select(node,group,type);handle.instance.insertChipItem('subject-reference',chip);project(handle.instance.getSerializedPrompt());render();refresh();}});
         }
         async function camerawork(){
+            if(!window.CanvasSession?.enabled)return toast('请在成员画布中使用运镜库');
             if(!allowed())return;motionLibrary=await PixmaxCamerawork.open({api,valid:allowed,onRoot,onClose:()=>{motionLibrary=null;},onChoose:motion=>{if(!allowed())return false;const inserted=handle.instance.insertCameraworkChip(motion);if(inserted){project(handle.instance.getSerializedPrompt());refresh();}return !!inserted;}});
         }
-        const key=CanvasSession.storageKey('pixmax-camera-preferences-v1');
+        const key=window.CanvasSession?.storageKey?.('pixmax-camera-preferences-v1')||'pixmax-camera-preferences-v1';
         try{
             handle=await api.mountGenerationForm(target,{data:data(),nodeId:node.id,formVariant:smartSettingsForNode(node).apiKind==='video'?'video-gen':'default',showCameraParamsEntry:smartSettingsForNode(node).apiKind==='image',showCamerawork:true,viewport,disabled:!editable(),fieldLabelOverrides:{watermark:'水印',enhancePrompt:'提示词增强',enableUpsample:'超分辨率',cameraFixed:'固定镜头',quality:'画质',duration:'时长',customWidth:'宽度',customHeight:'高度',customRatioWidth:'比例宽',customRatioHeight:'比例高'},canPreview:source=>!String(source.data.url||'').startsWith('asset://'),subjectApi:PixmaxSubjects.adapter(node,current),subjectMediaUrl:url=>displayMediaUrl({url}),atMentionPicker:{getModel:mentionModel,connect:id=>allowed()&&PixmaxReshootReferences.connect(node,id)},enabledProtocols:['at-mention','hash-rich','subject-reference'],graphActions,onChange:changed,onSubmit:async()=>{if(allowed())await runGeneration();},onNotice:toast,onOpenAssets:assets,onOpenSubjects:subjects,onOpenCamerawork:camerawork,
                 readCameraPreferences:()=>{try{const value=JSON.parse(localStorage.getItem(key)||'null'),indices=value?.indices;if(!indices||Object.entries(PixmaxPromptCatalog).some(([name,items])=>!Number.isInteger(indices[name])||indices[name]<0||indices[name]>=items.length))return null;return {indices};}catch{return null;}},writeCameraPreferences:indices=>{if(allowed())localStorage.setItem(key,JSON.stringify({indices}));},

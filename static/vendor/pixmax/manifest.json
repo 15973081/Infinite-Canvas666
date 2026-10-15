@@ -9,6 +9,7 @@
     "video_annotation": "WNt",
     "generation_references": "o$",
     "generation_form": "N1",
+    "video_modes": "XNt",
     "camera_motion_library": [
       "Rlt",
       "klt",
@@ -49,7 +50,8 @@
     "Expose ordinary generation controls with native parameter portal lifecycle and viewport limits",
     "Expose native N1 reference cards with host graph, readonly and viewport adapters",
     "Mount the complete N1 generation form with scoped host schema, fullscreen, fee preview and camera portal",
-    "Expose captured camera motion library and editor with scoped APIs, preview upload lifetime and modal ownership"
+    "Expose captured camera motion library and editor with scoped APIs, preview upload lifetime and modal ownership",
+    "Use native XNt video mode tabs with reactive host schema, explicit selection and readonly guards"
   ],
   "camera_motion_catalog": "The supplied mirror contains no camera-motion/plaza/list response; shared plaza data must be provisioned separately.",
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."

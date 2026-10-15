@@ -32,7 +32,7 @@ async function transport(request){const pathname=new URL(request.url()).pathname
             await page.getByRole('button',{name:'相机',exact:true}).click();const panel=page.locator('[data-native-camera]');await panel.waitFor();await panel.locator('header button').click();assert.equal(await page.locator('.pixmax-native-prompt [data-hash-type=camera]').count(),1);
         }
         if(config.mode){
-            await page.getByRole('button',{name:'视频生成模式',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:config.mode,exact:true}).click();
+            await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name:config.mode,exact:true}).click();
             await page.locator('#composer.pixmax-native-form-active').waitFor();
             assert.equal(await page.locator('.pixmax-native-generation-references [data-source-node-order-item]').count(),config.references.length);
             if(config.references.length){const label=['图生视频','首尾帧'].includes(config.mode)?'首帧':'图片1';await page.locator('.pixmax-native-generation-references').getByRole('button',{name:new RegExp('引用 '+label)}).click();await page.waitForFunction(()=>__nativeTarget.nativePrompt.prompt.includes('[image]'));}

@@ -3,7 +3,7 @@
     'use strict';
     let definitionPromise,referenceDefinitions=[];
     const select=(name,options)=>({name,type:'select',options:options.map(([value,name])=>({value:String(value),name}))});
-    const supported=node=>Boolean(window.CanvasSession?.enabled&&node?.type==='smart-image'&&!node.segmentReshoot&&!node.localDepth&&isApiLikeEngine(smartSettingsForNode(node).engine));
+    const supported=node=>Boolean((window.CanvasSession?.enabled||smartSettingsForNode(node).apiKind==='video')&&node?.type==='smart-image'&&!node.segmentReshoot&&!node.localDepth&&isApiLikeEngine(smartSettingsForNode(node).engine));
     function configuration(node){
         const resolved=smartSettingsForNode(node),saved=node.runSettings||{},kind=resolved.apiKind;
         const identity=kind==='video'?saved.videoProvider&&saved.videoModel:saved.provider_id&&saved.model;
@@ -84,7 +84,7 @@
             if(config.apiKind==='video')next.videoDuration=VideoDurationPolicy.clamp(next.videoDuration,smartVideoDurationRange(next));
             const temp={...node,runSettings:next},parameters=data(temp,definitionsValue),fields=[{name:'prompt',type:'text',default:'',max:10000},...parameters.fields];
             if(config.apiKind==='image')fields.push(select('count',[1,2,3,4,5,6,7,8].map(value=>[value,value+'张'])));
-            else if(PixmaxVideoModes.supported(next))fields.push({name:'referModel',type:'radio',default:'auto',options:PixmaxVideoModes.options(node,next,definitionsValue).map(option=>({name:option.label,value:option.value,disabled:option.disabled}))});
+            else if(PixmaxVideoModes.supported(next))fields.push({name:'referModel',type:'radio',default:'auto',options:PixmaxVideoModes.options(node,next,definitionsValue).map(option=>({name:option.label,label:option.label,value:option.value,disabled:option.disabled}))});
             if(config.apiKind==='video')for(const [name,key] of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']])fields.push({name,type:'switch',default:String(!!next[key])});
             return {modelCode:option.value,modelName:option.label,connectConstraint:PixmaxModelContract.connections(referenceModel(next,definitionsValue)),filedConfig:fields.map(field=>({...field,default:parameters.value[field.name]??field.default??String(config.count||1)}))};
         };

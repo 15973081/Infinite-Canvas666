@@ -608,6 +608,7 @@ button,input,textarea {
 .pixmax-native-references-active #inputThumbsRow,.pixmax-native-references-active #inputPromptPreview{display:none!important}
 .pixmax-native-generation-references{grid-area:thumbs;min-width:0;width:100%;max-height:min(240px,30vh);overflow-x:hidden;overflow-y:auto;margin-bottom:4px}
 .pixmax-native-form-active>.composer-card{display:none!important}
+.composer.pixmax-native-form-active{z-index:100}
 .pixmax-native-generation-form{width:100%;min-width:0}
 .pixmax-native-generation-form [data-native-generation-surface]{min-width:0;width:100%}
 .pixmax-native-generation-fullscreen{z-index:100120!important}

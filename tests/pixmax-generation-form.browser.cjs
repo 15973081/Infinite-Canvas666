@@ -4,6 +4,35 @@ async function host(t,{priced=false}={}){
     const f=await fixture(t,'smart',true,{secureOrigin:true});const quotes=[];await f.page.route('**/api/canvases/*/generation-preview**',route=>{quotes.push(route.request().postDataJSON());return route.fulfill({json:{cost:priced?{status:'estimated',currency:'CNY',amount_micros:150000,base_amount_micros:200000}:{status:'unknown'}}});});
     await f.page.evaluate(()=>{apiProviders=[{id:'p',name:'原生表单',has_key:true,enabled:true,image_models:['gpt-image-2']}];Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});window.formHost=createGenerationNodeAt({x:400,y:100},'image');Object.assign(formHost.runSettings,{engine:'api',apiKind:'image',provider_id:'p',model:'gpt-image-2'});render();});await f.page.locator('.pixmax-native-generation-form [role=textbox]').waitFor();return {...f,quotes};
 }
+
+for(const generator of [false,true])test(`standalone ${generator?'generation':'media'} video uses native mode tabs and reference cards instead of the legacy composer`,async t=>{
+    const {page,errors,writes}=await fixture(t,'smart',false,{secureOrigin:true});
+    await page.evaluate(generator=>{
+        apiProviders=[{id:'p',name:'视频平台',enabled:true,has_key:true,protocol:'volcengine',video_models:['doubao-seedance-2-5-pro']}];
+        window.videoFormNode=generator?createGenerationNodeAt({x:400,y:80},'video'):createNode(400,80,[{url:'/output/old-result.mp4',kind:'video',poster:'/test-image.svg'}],{select:true});
+        videoFormNode.runSettings||={};
+        Object.assign(videoFormNode.runSettings,{engine:'api',apiKind:'video',videoProvider:'p',videoModel:'doubao-seedance-2-5-pro',videoResolution:'720p',videoGenerateAudio:true});
+        const source={id:'video-reference',type:'smart-image',x:40,y:80,images:[{url:'/output/reference.mp4',poster:'/test-image.svg',kind:'video',name:'参考视频',duration:8}]};
+        nodes.push(source);canvas.connections.push({from:source.id,to:videoFormNode.id,kind:'input'});render();
+    },generator);
+    const modes=page.getByRole('tablist',{name:'视频生成模式'});
+    await modes.waitFor({timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({selected:smartSelection.nodeId,config:videoFormNode.runSettings,resolved:smartSettingsForNode(videoFormNode),composer:composer.className,notices:document.getElementById('toast').textContent})))+'; '+JSON.stringify(errors));});assert.equal(await page.locator('#composer > .composer-card').isVisible(),false);
+    assert.equal(await modes.getByRole('tab',{name:'文生视频',exact:true}).isDisabled(),true);
+    await modes.getByRole('tab',{name:'参考生视频',exact:true}).click();
+    assert.equal(await modes.getByRole('tab',{name:'参考生视频',exact:true}).getAttribute('aria-selected'),'true');
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('保持原视频人物和镜头');
+    assert.equal(await page.evaluate(()=>videoFormNode.nativePrompt.prompt),'保持原视频人物和镜头');
+    const request=await page.evaluate(()=>PixmaxBatchExecution.prepare(videoFormNode,'video'));
+    assert.equal(request.prompt,'保持原视频人物和镜头');assert.deepEqual(request.videos,['/output/reference.mp4']);
+    assert.equal(await page.locator('.pixmax-native-generation-references').getByRole('button',{name:/引用 视频1/}).count(),1);
+    await page.getByRole('button',{name:'全屏',exact:true}).click();
+    const modal=page.getByRole('dialog',{name:'全屏',exact:true});await modal.waitFor();
+    assert.equal(await modal.getByRole('tab',{name:'参考生视频',exact:true}).getAttribute('aria-selected'),'true');
+    await page.keyboard.press('Escape');await modal.waitFor({state:'detached'});
+    if(generator)await page.screenshot({path:'.local/pixmax-video-native-tabs.png'});
+    assert.equal(writes.filter(write=>/generation-preview|canvas-video-tasks|register-avatar/.test(write.path)).length,0);
+    assert.deepEqual(errors,[]);
+});
 test('native fullscreen keeps a canonical prompt draft and restores it on closing',async t=>{
     const {page,errors}=await host(t);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('开始的草稿');await page.getByRole('button',{name:'全屏',exact:true}).click();const modal=page.getByRole('dialog',{name:'全屏',exact:true});await modal.getByRole('textbox',{name:'生成提示词',exact:true}).waitFor({timeout:2000}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(errors)+'; '+JSON.stringify(await page.evaluate(()=>({notice:document.getElementById('toast').textContent,active:activeComposerNode()?.id,full:document.querySelector('[role=dialog]')?.outerHTML.slice(0,800)}))));});await modal.getByRole('textbox',{name:'生成提示词',exact:true}).fill('全屏继续编辑');await page.keyboard.press('Escape');await modal.waitFor({state:'detached'});assert.equal(await page.getByRole('textbox',{name:'生成提示词',exact:true}).innerText(),'全屏继续编辑');assert.equal(await page.evaluate(()=>formHost.nativePrompt.prompt),'全屏继续编辑');assert.deepEqual(errors,[]);await page.screenshot({path:'.local/pixmax-native-fullscreen-closed.png'});
 });

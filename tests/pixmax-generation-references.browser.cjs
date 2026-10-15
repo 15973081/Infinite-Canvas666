@@ -29,7 +29,7 @@ test('native disconnect removes one source from generation while retaining its c
 });
 
 test('native first and last frame labels retain two independent slots for an identical image',async t=>{
-    const {page,errors}=await setup(t,['image','image'],{same:true});await page.getByRole('button',{name:'视频生成模式',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:'首尾帧',exact:true}).click();assert.equal(await cards(page).count(),2);assert.equal(await area(page).getByRole('button',{name:/引用 首帧/}).count(),1);assert.equal(await area(page).getByRole('button',{name:/引用 尾帧/}).count(),1);assert.equal(await area(page).getByText('图片',{exact:true}).count(),2);assert.deepEqual(errors,[]);
+    const {page,errors}=await setup(t,['image','image'],{same:true});await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name:'首尾帧',exact:true}).click();assert.equal(await cards(page).count(),2);assert.equal(await area(page).getByRole('button',{name:/引用 首帧/}).count(),1);assert.equal(await area(page).getByRole('button',{name:/引用 尾帧/}).count(),1);assert.equal(await area(page).getByText('图片',{exact:true}).count(),2);assert.deepEqual(errors,[]);
 });
 
 test('native inputs disable editing and disconnect actions after edit ownership is lost',async t=>{
@@ -53,7 +53,7 @@ async function moveFirstRight(page){
     const item=cards(page).first().locator('xpath=ancestor-or-self::*[@tabindex][1]');await item.focus();await page.keyboard.press('Space');await page.keyboard.press('ArrowRight');await page.keyboard.press('Space');
 }
 test('native keyboard sorting changes frame roles while the rich mention keeps its original source',async t=>{
-    const {page,errors}=await setup(t,['image','image']);await page.getByRole('button',{name:'视频生成模式',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:'首尾帧',exact:true}).click();await area(page).getByRole('button',{name:/引用 首帧/}).click();await moveFirstRight(page);
+    const {page,errors}=await setup(t,['image','image']);await page.getByRole('tablist',{name:'视频生成模式'}).getByRole('tab',{name:'首尾帧',exact:true}).click();await area(page).getByRole('button',{name:/引用 首帧/}).click();await moveFirstRight(page);
     await page.waitForFunction(()=>PixmaxReshootReferences.plan(referenceTarget).entries[0].nodeId===referenceSources[1].id,null,{timeout:2500});
     const result=await page.evaluate(async()=>{const request=buildPromptRequest(referenceTarget);return {prompt:referenceTarget.nativePrompt.prompt,source:referenceSources[0].id,payload:await runApiVideoGeneration(request.prompt,request.refs,referenceTarget.runSettings,null,{preview:true})};});assert.ok(result.prompt.includes(result.source));assert.match(result.payload.images[0].url,/ref=1/);assert.deepEqual(result.payload.images.map(image=>image.role),['first_frame','last_frame']);assert.deepEqual(errors,[]);
 });

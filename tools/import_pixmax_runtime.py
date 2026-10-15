@@ -140,6 +140,26 @@ for before,after in form_hooks.items():
     assert form_segment.count(before)==1, 'Native generation form boundary changed: '+before
     form_segment=form_segment.replace(before,after)
 runtime=runtime[:form_start]+form_segment+runtime[form_end:]
+
+# The video node passes XNt as N1's videoModeSlot. Keep its native pill tabs,
+# while the host owns provider capability checks and explicit mode selection.
+mode_start=runtime.index('function XNt(')
+mode_end=runtime.index('hf([`click`]);',mode_start)
+mode_segment=runtime[mode_start:mode_end]
+mode_hooks={
+    'function XNt(e,t){eu(t,!0);':'const canvasVideoModeRules=lk;function XNt(e,t){eu(t,!0);const lk=t.ruleEngine??canvasVideoModeRules;',
+    'l=lk.configMap.get(Bp.GenerateVideo)??[],u=R(()=>lk.findConfigByModelValue(l,t.model))':'l=R(()=>t.schema??lk.configMap.get(Bp.GenerateVideo)??[]),u=R(()=>lk.findConfigByModelValue(G(l),t.model))',
+    'function h(e){return':'function h(e){if(t.disabled)return false;if(typeof e.disabled===`boolean`)return !e.disabled;return',
+    'function g(e){return':'function g(e){if(t.preserveSelection)return {...t.value,referModel:e};return',
+    'pd(()=>{let e=G(p).filter':'pd(()=>{if(t.preserveSelection)return;let e=G(p).filter',
+    'var r=YNt();':'var r=YNt();Q(r,`role`,`tablist`);Q(r,`aria-label`,`视频生成模式`);',
+    'l=R(()=>s.get(G(r).value)??G(r).value)':'l=R(()=>G(r).label??s.get(G(r).value)??G(r).value)',
+    'n.disabled=!G(i),Z(n,1,':'n.disabled=!G(i),Q(n,`role`,`tab`),Q(n,`aria-selected`,G(d)),Z(n,1,',
+}
+for before,after in mode_hooks.items():
+    assert mode_segment.count(before)==1, f'Native video mode boundary changed: {before}'
+    mode_segment=mode_segment.replace(before,after)
+runtime=runtime[:mode_start]+mode_segment+runtime[mode_end:]
 # Keep the captured camera motion library, editor and confirmation components.
 motion_start=runtime.index('function Rlt(')
 motion_end=runtime.index('hf([`keydown`,`pointerdown`,`click`,`input`]);function m$',motion_start)
@@ -291,7 +311,7 @@ export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params
     const rules=Object.create(lk);Object.defineProperty(rules,'configMap',{get(){return new Map([[props.formVariant==='video-gen'?Bp.GenerateVideo:Bp.GenerateImage,G(data).schema]]);}});
     let instance,disposed=false;
     instance=Tf(N1,{target,context:new Map([[tCe,container],[Bz,{user:null}]]),props:{...props,preserveUnavailableModels:true,ruleEngine:rules,hostGraph:graph,modelDefaultPrompt:(_code,value)=>value,resolveValue:value=>value,previewViewport:{get current(){return {zoom:G(view).scale||1};}},
-      videoModeSlot:anchor=>{const mode=R(()=>G(data).schema.find(model=>model.modelCode===G(data).value.model)?.filedConfig.find(field=>field.name==='referModel'));const fragment=Cf();X(H(fragment),target=>{G(mode)&&target((anchor)=>Kz(anchor,{ariaLabel:'视频生成模式',portal:true,placement:'top',dropdownClass:'pixmax-reshoot-model-options',get value(){return G(data).value.referModel;},get options(){return G(mode).options.map(option=>({...option,label:option.name}));},get disabled(){return G(disabled);},onChange:value=>props.onChange({...G(data).value,referModel:value})}));});J(anchor,fragment);},
+      videoModeSlot:anchor=>XNt(anchor,{ruleEngine:rules,preserveSelection:true,get schema(){return G(data).schema;},get nodes(){return G(data).graph.nodes.filter(node=>node.id!==props.nodeId);},get model(){return G(data).value.model;},get value(){return G(data).value;},get disabled(){return G(disabled);},onChange:value=>props.onChange(value)}),
       onFormRoot(root,fullscreen){root.dataset.nativeGenerationSurface='';root.dataset.fullscreen=String(fullscreen);root.classList.add('pixmax-native-prompt');props.onFormRoot?.(root,fullscreen);void tf().then(()=>{if(disposed||!root.isConnected)return;const submit=root.querySelector('[data-native-generation-submit]'),controls=submit?.parentElement?.parentElement?.parentElement;if(controls){controls.dataset.nativeGenerationControls='';controls.firstElementChild.dataset.nativeGenerationOptions='';}const editor=instance.getRichEditorManager()?.editorEl;if(editor){editor.parentElement.dataset.nativePromptHost='';editor.setAttribute('role','textbox');editor.setAttribute('aria-label',props.promptAriaLabel||'生成提示词');editor.setAttribute('aria-multiline','true');}});},
       onReferencesRoot(root){root.classList.add('pixmax-native-generation-references');root.setAttribute('aria-label','参考素材');},
       get schema(){return G(data).schema;},get value(){return G(data).value;},get modelOptions(){return G(data).modelOptions;},get validation(){return G(data).validation;},get disabledFieldNames(){return G(data).disabledFieldNames;},get referenceNames(){return G(data).referenceNames;},get videoEdit(){return G(data).videoEdit;},get disabled(){return G(disabled);},get generateLabel(){return G(data).generateLabel||'生成';},get viewportVersion(){return G(view);}}});
@@ -412,8 +432,8 @@ export async function mountCanvasAudio(target, props) {
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'audio_player': 'Bv', 'media_processor': 'II', 'video_annotation': 'WNt', 'generation_references': 'o$', 'generation_form': 'N1', 'camera_motion_library': ['Rlt','klt','f$','Dlt'], 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits', 'Expose native N1 reference cards with host graph, readonly and viewport adapters', 'Mount the complete N1 generation form with scoped host schema, fullscreen, fee preview and camera portal', 'Expose captured camera motion library and editor with scoped APIs, preview upload lifetime and modal ownership'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'audio_player': 'Bv', 'media_processor': 'II', 'video_annotation': 'WNt', 'generation_references': 'o$', 'generation_form': 'N1', 'video_modes': 'XNt', 'camera_motion_library': ['Rlt','klt','f$','Dlt'], 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits', 'Expose native N1 reference cards with host graph, readonly and viewport adapters', 'Mount the complete N1 generation form with scoped host schema, fullscreen, fee preview and camera portal', 'Expose captured camera motion library and editor with scoped APIs, preview upload lifetime and modal ownership', 'Use native XNt video mode tabs with reactive host schema, explicit selection and readonly guards'],
     'camera_motion_catalog': 'The supplied mirror contains no camera-motion/plaza/list response; shared plaza data must be provisioned separately.',
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
