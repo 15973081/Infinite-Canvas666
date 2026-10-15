@@ -1,7 +1,7 @@
 /* N1's native Kz/g$ controls; provider identities and policy remain host-owned. */
 (() => {
     'use strict';
-    let definitionPromise,legacyOwner;
+    let definitionPromise;
     const select=(name,options)=>({name,type:'select',options:options.map(([value,name])=>({value:String(value),name}))});
     const supported=node=>Boolean(window.CanvasSession?.enabled&&node?.type==='smart-image'&&!node.segmentReshoot&&!node.localDepth&&isApiLikeEngine(smartSettingsForNode(node).engine));
     function configuration(node){
@@ -38,7 +38,7 @@
             add('includeAudio',[['true','Audio On'],['false','Audio Off']]);
             if(isSeedance25VideoModel(config.videoModel))add('outputFormat',[['mp4','MP4'],['mov','MOV']]);
             if(window.PixmaxVideoModes?.lockedAspect(config))disabledFieldNames.push('aspectRatio');
-            if(window.PixmaxVideoModes?.supported(config)&&window.PixmaxVideoModes.selected(config)==='videoEdit')disabledFieldNames.push('duration');
+            if(window.PixmaxVideoModes?.supported(config)&&isSeedance25VideoModel(config.videoModel)&&window.PixmaxVideoModes.selected(config)==='videoEdit')disabledFieldNames.push('duration');
             return {fields,disabledFieldNames,value:{resolution:config.videoResolution||'',aspectRatio:disabledFieldNames.includes('aspectRatio')?'adaptive':config.videoAspect||'16:9',duration:disabledFieldNames.includes('duration')?'-1':String(config.videoDuration??5),includeAudio:String(!!config.videoGenerateAudio),outputFormat:config.videoOutputFormat||'mp4'}};
         }
         add('aspectRatio',Object.keys(SIZE_MAP).map(value=>[value,({square:'1:1',landscape:'3:2',portrait:'2:3',landscape43:'4:3',portrait43:'3:4',wide:'16:9',story:'9:16',ultrawide:'21:9',ultratall:'9:21'})[value]]).concat([['source','原图比例'],['custom','自定义比例']]));
@@ -72,50 +72,32 @@
         }else if(config.resolution==='custom'&&(!Number.isSafeInteger(config.customWidth)||!Number.isSafeInteger(config.customHeight)||config.customWidth<1||config.customHeight<1||config.customWidth>8192||config.customHeight>8192))throw Error('自定义图像尺寸无效');
         return config;
     }
-    async function mount({node,api,valid,editable,onRoot}){
-        const definitionsValue=await definitions();if(!valid())return;
-        const root=document.createElement('div');root.className='pixmax-generation-controls';root.innerHTML='<div data-generation-model></div><div data-generation-parameters></div><div data-generation-count></div><div data-generation-mode></div><div data-generation-advanced></div>';
-        dynamicParams.after(root);onRoot?.(root,true);let closed=false,signature,handles=[],refresh=()=>{};const owner={};
-        for(const event of ['mousedown','keydown','wheel'])root.addEventListener(event,event=>event.stopPropagation());
-        const current=()=>!closed&&valid()&&root.isConnected;
-        function commit(config){
-            if(!current()||!editable())return;validate(node,config);
-            if(config.ratio==='source'){
-                const ratio=reducedRatioForImage(sourceRatioImageForNode(node)||PixmaxReshootReferences.plan(node).resources.find(entry=>entry.kind==='image')?.media);if(!ratio)throw Error('原图尺寸尚未就绪，请稍后重试');
-                config={...config,customRatio:ratio.w+':'+ratio.h,customRatioWidth:ratio.w,customRatioHeight:ratio.h};
-            }
-            if(JSON.stringify(settingsForStorage(config))===JSON.stringify(settingsForStorage(configuration(node))))return;
-            pushUndo();node.runSettings=settingsForStorage(config);settings={...settings,...config};persistActiveSmartSettings();renderDynamicParams(false);scheduleSave();refresh();positionComposerForNode(node);
-        }
-        const change=callback=>value=>{try{if(current()&&editable())callback(value);}catch(error){if(current())toast(error.message);}};
-        try{
-        const model=await api.mountModelSelector(root.querySelector('[data-generation-model]'),{...modelData(),ariaLabel:'生成模型',placeholder:'请选择生成模型',selectedLabelClass:'truncate min-w-0 text-left',onChange:change(value=>{
-            const [provider,selected]=JSON.parse(value),old=configuration(node);let config=old.apiKind==='video'?{...old,engine:'api',videoProvider:provider,videoModel:selected}:{...old,engine:'api',provider_id:provider,model:selected};
-            const specs=resolutions(config),key=old.apiKind==='video'?'videoResolution':'resolution';if(!config.outpaintResolutionLocked&&!specs.includes(config[key]||''))config[key]=specs.includes(old.apiKind==='video'?'720p':'1k')?(old.apiKind==='video'?'720p':'1k'):specs[0];
-            if(old.apiKind==='image'&&config.resolution==='custom'){config.customWidth=Number(config.customWidth)||1024;config.customHeight=Number(config.customHeight)||1024;config.customSize=config.customWidth+'x'+config.customHeight;}
-            if(old.apiKind==='video'){config.videoDuration=VideoDurationPolicy.clamp(config.videoDuration,smartVideoDurationRange(config));if(!isSeedance25VideoModel(selected))delete config.videoOutputFormat;if(!window.PixmaxVideoModes.supported(config)||!window.PixmaxVideoModes.options(node,config,definitionsValue).some(option=>option.value===window.PixmaxVideoModes.selected(config))){config.videoReferenceMode='auto';config.videoTaskMode='auto';}}commit(config);
-        })});handles.push(model);
-        const parameters=await api.mountParameters(root.querySelector('[data-generation-parameters]'),{...data(node,definitionsValue),ariaLabel:'生成参数',fieldLabelOverrides:{quality:'画质',duration:'时长',customWidth:'宽度',customHeight:'高度',customRatioWidth:'比例宽',customRatioHeight:'比例高'},onChange:change(value=>commit(apply(configuration(node),value)))});handles.push(parameters);
-        const count=await api.mountModelSelector(root.querySelector('[data-generation-count]'),{...countData(),ariaLabel:'生成数量',onChange:change(value=>commit({...configuration(node),count:Number(value)}))});handles.push(count);
-        const mode=await api.mountModelSelector(root.querySelector('[data-generation-mode]'),{...modeData(),ariaLabel:'视频生成模式',onChange:change(value=>commit(window.PixmaxVideoModes.choose(node,configuration(node),value)))});handles.push(mode);
-        const advanced=await api.mountParameters(root.querySelector('[data-generation-advanced]'),{...advancedData(),ariaLabel:'更多生成设置',disabledFieldNames:[],displayTextOverride:'更多设置',fieldLabelOverrides:{videoEnhancePrompt:'提示词增强',videoEnableUpsample:'高清',videoWatermark:'水印',videoCameraFixed:'镜头固定',videoMultimodal:'智能多参',videoUseFrameRoles:'首尾帧'},onChange:change(value=>{
-            const config=configuration(node),framesSelected=value.videoUseFrameRoles==='true'&&!config.videoUseFrameRoles;for(const key of Object.keys(value))config[key]=value[key]==='true';if(framesSelected)config.videoMultimodal=false;else if(config.videoMultimodal)config.videoUseFrameRoles=false;commit(config);
-        })});handles.push(advanced);
-        if(!current()){destroy();return;}
-        legacyOwner=owner;dynamicParams.hidden=true;engineSelect.hidden=true;refresh();
-        function modelData(){const options=catalog(node),value=JSON.stringify(identity(configuration(node)));return {options,value:options.some(option=>option.value===value)?value:''};}
-        function countData(){return {value:String(configuration(node).count||1),options:[1,2,3,4,5,6,7,8].map(value=>({label:value+'张',value:String(value)}))};}
-        function modeData(){const config=configuration(node);return {value:window.PixmaxVideoModes.selected(config),options:window.PixmaxVideoModes.supported(config)?window.PixmaxVideoModes.options(node,config,definitionsValue):[]};}
-        function advancedData(){const config=configuration(node),keys=['videoEnhancePrompt','videoEnableUpsample','videoWatermark','videoCameraFixed','videoMultimodal',...(videoProviderPlatform(config.videoProvider)!=='volcengine'?['videoUseFrameRoles']:[])];return {fields:keys.map(name=>select(name,[['true','开启'],['false','关闭']])),value:Object.fromEntries(keys.map(key=>[key,String(!!config[key])]))};}
-        refresh=()=>{
-            if(!current())return;const config=configuration(node),next=JSON.stringify([config,catalog(node),modeData()]),disabled=!editable();
-            if(signature!==next){signature=next;model.setData(modelData());parameters.setData(data(node,definitionsValue));count.setData(countData());mode.setData(modeData());advanced.setData(advancedData());}
-            handles.forEach(handle=>handle.setDisabled(disabled));
-            root.querySelector('[data-generation-count]').hidden=config.apiKind==='video';root.querySelector('[data-generation-mode]').hidden=!window.PixmaxVideoModes.supported(config);root.querySelector('[data-generation-advanced]').hidden=config.apiKind!=='video';
-        }
-        return {refresh,destroy};
-        }catch(error){destroy();throw error;}
-        function destroy(){if(closed)return;closed=true;handles.forEach(handle=>handle.destroy());root.remove();onRoot?.(root,false);if(legacyOwner===owner){legacyOwner=null;dynamicParams.hidden=false;engineSelect.hidden=false;}}
+    function formData(node,definitionsValue){
+        const config=configuration(node),options=catalog(node),make=(option)=>{
+            const [provider,model]=JSON.parse(option.value),next=config.apiKind==='video'?{...config,videoProvider:provider,videoModel:model}:{...config,provider_id:provider,model};
+            const specs=resolutions(next),sizeKey=config.apiKind==='video'?'videoResolution':'resolution';if(!specs.includes(next[sizeKey]||''))next[sizeKey]=specs.includes(config.apiKind==='video'?'720p':'1k')?(config.apiKind==='video'?'720p':'1k'):specs[0];
+            if(config.apiKind==='video')next.videoDuration=VideoDurationPolicy.clamp(next.videoDuration,smartVideoDurationRange(next));
+            const temp={...node,runSettings:next},parameters=data(temp,definitionsValue),fields=[{name:'prompt',type:'text',default:'',max:10000},...parameters.fields];
+            if(config.apiKind==='image')fields.push(select('count',[1,2,3,4,5,6,7,8].map(value=>[value,value+'张'])));
+            else if(PixmaxVideoModes.supported(next))fields.push({name:'referModel',type:'radio',default:'auto',options:PixmaxVideoModes.options(node,next,definitionsValue).map(option=>({name:option.label,value:option.value,disabled:option.disabled}))});
+            if(config.apiKind==='video')for(const [name,key] of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']])fields.push({name,type:'switch',default:String(!!next[key])});
+            return {modelCode:option.value,modelName:option.label,connectConstraint:[],filedConfig:fields.map(field=>({...field,default:parameters.value[field.name]??field.default??String(config.count||1)}))};
+        };
+        const parameters=data(node,definitionsValue),videoEdit=config.apiKind==='video'&&PixmaxVideoModes.selected(config)==='videoEdit';
+        if(videoEdit){const source=PixmaxReshootReferences.plan(node).incomingNodes.find(source=>source.type==='video'&&source.data.url),field=parameters.fields.find(field=>field.name==='duration');if(source&&field){const duration=Math.max(1,Math.floor(Number(source.data.duration)||0)),choices=(field.options||[]).filter(option=>!option.disabled).map(option=>Number(option.value)).filter(Number.isFinite);parameters.value.duration=String(choices.sort((a,b)=>Math.abs(a-duration)-Math.abs(b-duration)||b-a)[0]??Math.max(field.min,Math.min(duration,field.max)));}}
+        return {schema:options.map(make),modelOptions:options.map(option=>({...option,text:option.label})),disabledFieldNames:parameters.disabledFieldNames,value:{...parameters.value,model:JSON.stringify(identity(config)),prompt:node.nativePrompt?.prompt||'',count:String(config.count||1),referModel:PixmaxVideoModes.selected(config),watermark:String(!!config.videoWatermark),enhancePrompt:String(!!config.videoEnhancePrompt),enableUpsample:String(!!config.videoEnableUpsample),cameraFixed:String(!!config.videoCameraFixed)},videoEdit};
     }
-    window.PixmaxGenerationParameters=Object.freeze({supported,configuration,catalog,data,apply,validate,mount});
+    function applyForm(node,value){
+        let config=configuration(node);const [provider,model]=JSON.parse(value.model);
+        config=config.apiKind==='video'?{...config,engine:'api',videoProvider:provider,videoModel:model}:{...config,engine:'api',provider_id:provider,model};
+        config=apply(config,value);
+        if(config.apiKind==='image')config.count=Number(value.count||1);
+        else{
+            if(PixmaxVideoModes.supported(config))config=PixmaxVideoModes.choose(node,config,value.referModel||'auto');
+            for(const [name,key]of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']])config[key]=value[name]==='true';
+            if(!isSeedance25VideoModel(config.videoModel))delete config.videoOutputFormat;
+        }
+        return config;
+    }
+    window.PixmaxGenerationParameters=Object.freeze({supported,configuration,catalog,data,apply,validate,definitions,formData,applyForm});
 })();

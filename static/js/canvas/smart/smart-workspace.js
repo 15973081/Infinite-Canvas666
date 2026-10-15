@@ -551,6 +551,7 @@ function applyViewport(){
     positionPixmaxVideoToolbars();
     scheduleSmartMinimapRender(true);
     scheduleSmartViewportRefresh();
+    window.PixmaxNativePrompt?.updateViewport();
 }
 
 // 视野裁剪：判断节点是否在智能画布可见区域内
@@ -2824,9 +2825,9 @@ function positionComposerForNode(node){
     const x=Math.max(minX,Math.min(rect.x+rect.width/2-cardW/2,minX+available-cardW));
     composer.style.left = `${x}px`;
     let top=16,bottom=shell.clientHeight-16;
-    const card=composer.querySelector('.composer-card');
+    const card=composer.querySelector('.pixmax-native-generation-form [data-native-generation-surface]')||composer.querySelector('.composer-card');
     if(card){card.style.maxHeight='';card.style.overflowY='';}
-    if(composer.classList.contains('pixmax-native-references-active')){
+    if(composer.classList.contains('pixmax-native-references-active')||composer.classList.contains('pixmax-native-form-active')){
         const screenLeft=shellRect.left+viewport.x+x*scale,screenRight=screenLeft+cardW*scale;
         for(const overlay of shell.querySelectorAll('.pixmax-topbar,.pixmax-bottom-controls,.smart-minimap')){
             if(overlay.hidden)continue;const box=overlay.getBoundingClientRect();
@@ -2834,7 +2835,7 @@ function positionComposerForNode(node){
             if(overlay.classList.contains('pixmax-topbar'))top=Math.max(top,box.bottom-shellRect.top+12);
             else bottom=Math.min(bottom,box.top-shellRect.top-12);
         }
-        if(card){card.style.maxHeight=Math.max(160,(bottom-top)/scale)+'px';card.style.overflowY='auto';}
+        if(card){const maximum=Math.max(160,(bottom-top)/scale),natural=card.scrollHeight;card.style.maxHeight=maximum+'px';card.style.overflowY=natural>maximum?'auto':'visible';}
     }
     const minY=(top-viewport.y)/scale,maxY=(bottom-viewport.y)/scale-composer.offsetHeight;
     composer.style.top = `${Math.max(minY,Math.min(rect.y+rect.height+gap,Math.max(minY,maxY)))}px`;
@@ -4234,6 +4235,12 @@ function createSmartComposer(){
         const subject = activeComposerNode();
         if(!subject) return;
         window.PixmaxNativePrompt?.flush(subject);
+        if(subject.nativePrompt?.schemaVersion===1){
+            PixmaxReshootReferences.setPrompt(subject,subject.nativePrompt.prompt);
+            delete promptInput.dataset.preserveDraftOnce;
+            if(smartComposerBaseline?.nodeId===subject.id){smartComposerBaseline.html=promptInput.innerHTML;smartComposerBaseline.text=promptPlainText();smartComposerBaseline.settings=JSON.stringify(settingsForStorage(settings));}
+            return;
+        }
         if(promptInput?.dataset?.preserveDraftOnce === '1' && subject.promptDraftHtml){
             delete promptInput.dataset.preserveDraftOnce;
             return;

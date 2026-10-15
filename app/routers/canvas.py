@@ -23,7 +23,7 @@ from app.services.canvas_tasks import (
 )
 from app.services.volcengine_billing import pricing_context, video_accounting
 from app.services.canvas_ledger import task_billing_fields
-from app.services.canvas_batch import CanvasBatchPreview
+from app.services.canvas_batch import CanvasBatchPreview, CanvasGenerationPreview
 router = APIRouter()
 
 
@@ -31,6 +31,12 @@ router = APIRouter()
 def preview_canvas_batch(canvas_id: str, payload: CanvasBatchPreview):
     from app.services.canvas_batch import preview
     return preview(canvas_id, payload)
+
+
+@router.post('/api/canvases/{canvas_id}/generation-preview')
+def preview_canvas_generation(canvas_id: str, payload: CanvasGenerationPreview):
+    from app.services.canvas_batch import generation_preview
+    return generation_preview(canvas_id, payload)
 
 _canvas_video_recovery_started = False
 _canvas_video_recovery_tasks = set()

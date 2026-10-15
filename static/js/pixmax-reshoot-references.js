@@ -47,7 +47,7 @@
     function decorate(entries,crop){
         const resources=[...(crop?[crop]:[]),...entries],byId=new Map(resources.map(entry=>[entry.id,entry]));
         const mentions=resources.map(entry=>({id:entry.id,type:entry.kind,index:Number(entry.alias.replace(/\D/g,''))-1,tokenTitle:entry.name.replace(/[\[\]\r\n]/g,' '),displayTitle:entry.alias+' ('+entry.name+')',thumbnailUrl:entry.kind==='image'?smartMediaPreviewUrl(entry.media,256):entry.kind==='video'?pixmaxMediaPoster(entry.media):undefined}));
-        const incomingNodes=resources.map(entry=>({id:entry.id,type:entry.kind,data:{label:entry.name,text:entry.text,url:entry.media?.url,thumbnailUrl:entry.kind==='image'?smartMediaPreviewUrl(entry.media,256):undefined,poster:entry.kind==='video'?pixmaxMediaPoster(entry.media):undefined}}));
+        const incomingNodes=resources.map(entry=>({id:entry.id,type:entry.kind,data:{label:entry.name,text:entry.text,duration:entry.media?.duration,url:entry.media?.url,thumbnailUrl:entry.kind==='image'?smartMediaPreviewUrl(entry.media,256):undefined,poster:entry.kind==='video'?pixmaxMediaPoster(entry.media):undefined}}));
         return {entries,resources,byId,mentions,incomingNodes};
     }
     function validate(node,current=plan(node)){

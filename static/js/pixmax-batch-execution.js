@@ -147,5 +147,5 @@
         const binding=await CanvasTaskBindings.recover({task:record,taskId:item.id,canvasId:canvas.id,kind:'smart',sourceId:item.node.id,targetId:item.node.id,read:smartTaskInputDocument,valid});
         return commitSmartStudioTaskResult(item.node,record,'llm',binding,{recovered:true,valid,applyResult:()=>{item.node.text=record.result.text;item.node.creationResults=[...(item.node.creationResults||[]),{taskId:item.id,text:record.result.text}].slice(-50);}});
     }
-    window.PixmaxBatchExecution=Object.freeze({kind,plan,preview,submit,open,recover,busy:id=>id===undefined?admissions>0||active.size>0:active.has(nodes.find(node=>node.id===id))||reservations.has(nodes.find(node=>node.id===id)),ownsTask:id=>[...active.values()].includes(id)});
+    window.PixmaxBatchExecution=Object.freeze({kind,plan,prepare,preview,submit,open,recover,busy:id=>id===undefined?admissions>0||active.size>0:active.has(nodes.find(node=>node.id===id))||reservations.has(nodes.find(node=>node.id===id)),ownsTask:id=>[...active.values()].includes(id)});
 })();

@@ -3,7 +3,7 @@ const {fixture}=require('./helpers/canvas-browser.cjs');
 async function setup(t,kind='image'){
     const result=await fixture(t,'smart',true,{secureOrigin:true});
     await result.page.evaluate(kind=>{
-        apiProviders=[{id:'p',name:'第一供应商',has_key:true,enabled:true,image_models:['gpt-image-2'],video_models:['doubao-seedance-2-5-pro'],platform:'volcengine'},{id:'second',name:'第二供应商',has_key:true,enabled:true,image_models:['gpt-image-2'],video_models:['doubao-seedance-2-5-pro'],platform:'volcengine',model_policies:{'video:doubao-seedance-2-5-pro':{resolutions:['480p'],duration_min:4,duration_max:8}}}];
+        apiProviders=[{id:'p',name:'第一供应商',has_key:true,enabled:true,image_models:['gpt-image-2'],video_models:['doubao-seedance-2-5-pro'],protocol:'volcengine'},{id:'second',name:'第二供应商',has_key:true,enabled:true,image_models:['gpt-image-2'],video_models:['doubao-seedance-2-5-pro'],protocol:'volcengine',model_policies:{'video:doubao-seedance-2-5-pro':{resolutions:['480p'],duration_min:4,duration_max:8}}}];
         Object.defineProperty(MemberCanvasEdit,'canSave',{get(){return this.canEdit;}});Object.defineProperty(MemberCanvasEdit.active.lease,'revision',{get(){return canvas.revision;}});
         window.generationNode=createGenerationNodeAt({x:440,y:100},kind);Object.assign(generationNode.runSettings,{engine:'api',apiKind:kind,provider_id:'p',model:'gpt-image-2',videoProvider:'p',videoModel:'doubao-seedance-2-5-pro',videoDuration:5,videoAspect:'16:9',videoResolution:'720p'});render();
     },kind);
@@ -73,12 +73,12 @@ test('a late schema load mounts controls only for the current composer owner',as
     const {page,errors}=await fixture(t,'smart',true,{secureOrigin:true});let release,entered;const gate=new Promise(resolve=>release=resolve),pending=new Promise(resolve=>entered=resolve);
     await page.route('**/static/vendor/pixmax/generation-schema.json',async route=>{entered();await gate;await route.fallback();});
     await page.evaluate(()=>{apiProviders=[{id:'p',name:'当前供应商',enabled:true,has_key:true,image_models:['gpt-image-2']}];window.first=createGenerationNodeAt({x:300,y:100},'image');});await pending;
-    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('第一份草稿');await page.evaluate(()=>{window.second=createGenerationNodeAt({x:600,y:100},'image');});release();await page.getByRole('button',{name:'生成模型',exact:true}).waitFor();
-    assert.equal(await page.locator('.pixmax-generation-controls').count(),1);assert.equal(await page.evaluate(()=>activeComposerNode()===second&&dynamicParams.hidden),true);assert.equal(await page.evaluate(()=>first.nativePrompt.prompt),'第一份草稿');assert.deepEqual(errors,[]);
+    await page.locator('#promptInput').fill('第一份草稿');await page.evaluate(()=>{window.second=createGenerationNodeAt({x:600,y:100},'image');});release();await page.getByRole('button',{name:'生成模型',exact:true}).waitFor();
+    assert.equal(await page.locator('.pixmax-native-generation-form').count(),1);assert.equal(await page.evaluate(()=>activeComposerNode()===second&&getComputedStyle(composer.querySelector('.composer-card')).display==='none'),true);assert.equal(await page.evaluate(()=>first.nativePrompt.prompt),'第一份草稿');assert.deepEqual(errors,[]);
 });
 
 test('native advanced video options retain the host watermark flag in the real request',async t=>{
-    const {page,errors}=await setup(t,'video'),calls=await tasks(page,'video');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('摄影师转身');await page.getByRole('button',{name:'更多生成设置',exact:true}).click();const menu=page.locator('[data-combo-selector-panel]');await menu.getByText('水印',{exact:true}).locator('..').getByRole('button',{name:'开启',exact:true}).click();await page.keyboard.press('Escape');await menu.waitFor({state:'detached'});
+    const {page,errors}=await setup(t,'video'),calls=await tasks(page,'video');await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('摄影师转身');await page.getByText('高级选项',{exact:true}).click();await page.locator('.pixmax-native-generation-form').getByRole('switch',{name:'水印',exact:true}).click();
     await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].watermark,true);assert.equal(await page.evaluate(()=>generationNode.runSettings.videoWatermark),true);assert.deepEqual(errors,[]);
 });
 

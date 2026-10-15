@@ -15,8 +15,29 @@ from PIL import Image
 from test_cloud_member_gateway import operator, world, headers
 from test_cloud_management import platform
 from test_cloud_canvas_leases import setup_canvas
+from test_cloud_image_receipts import image_space
 
 pytestmark = pytest.mark.skipif(os.getenv('CLOUD_INTEGRATION_TEST') != '1', reason='Use tools/cloud_test.py')
+
+
+def test_native_generation_price_preview_is_scoped_read_only_and_uses_server_prices(world,image_space):
+    from app.storage import database
+    path,canvas=setup_canvas(world,'smart')
+    body={'kind':'image','request':{'provider_id':image_space,'model':'test','prompt':'价格预览','size':'1024x1024','n':4}}
+    with database.connection() as conn:
+        before=conn.execute('SELECT count(*) AS n FROM tasks').fetchone()['n'];fees=conn.execute('SELECT count(*) AS n FROM ledger_entries').fetchone()['n']
+    response=world['editor'].post(path+'/generation-preview',headers=headers(world['a']),json=body)
+    assert response.status_code==200,response.text
+    assert response.json()['cost']=={'status':'estimated','currency':'CNY','amount_micros':200000,'base_amount_micros':200000}
+    for invalid,status in [({**body,'kind':'audio'},422),({**body,'request':{**body['request'],'prompt':''}},422),({**body,'request':{**body['request'],'model':'not-configured'}},403)]:
+        denied=world['editor'].post(path+'/generation-preview',headers=headers(world['a']),json=invalid)
+        assert denied.status_code==status,denied.text
+    assert world['outsider'].post(path+'/generation-preview',headers=headers(world['b']),json=body).status_code in (403,404)
+    body['request']['provider_id']='not-assigned'
+    assert world['editor'].post(path+'/generation-preview',headers=headers(world['a']),json=body).status_code in (400,403,404)
+    with database.connection() as conn:
+        assert conn.execute('SELECT count(*) AS n FROM tasks').fetchone()['n']==before
+        assert conn.execute('SELECT count(*) AS n FROM ledger_entries').fetchone()['n']==fees
 
 
 @pytest.mark.parametrize('kind', ['image', 'video', 'image-parameters', 'video-parameters','video-text','video-first-frame','video-first-last','video-first-last-same','video-reference','video-edit','video-extend-backward','video-extend-forward'])

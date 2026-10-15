@@ -66,7 +66,7 @@ test('extension preserves multiple video and audio references while native edit 
 });
 
 test('changing from video edit to Seedance 2.0 resets an unsupported saved mode',async t=>{
-    const {page,errors}=await setup(t,['video']);await choose(page,'视频编辑');await page.evaluate(()=>{apiProviders[0].video_models.push('doubao-seedance-2-0-260128');PixmaxNativePrompt.sync();});await page.getByRole('button',{name:'生成模型',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:/doubao-seedance-2-0-260128/}).click();assert.equal(await page.evaluate(()=>modeNode.runSettings.videoReferenceMode),'auto');assert.equal(await page.evaluate(()=>modeNode.runSettings.videoTaskMode),'auto');assert.deepEqual(errors,[]);
+    const {page,errors}=await setup(t,['video']);await choose(page,'视频编辑');await page.evaluate(()=>{apiProviders[0].video_models.push('doubao-seedance-2-0-260128');PixmaxNativePrompt.sync();});await page.getByRole('button',{name:'生成模型',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:/doubao-seedance-2-0-260128/}).click();assert.equal(await page.evaluate(()=>modeNode.runSettings.videoReferenceMode),'auto',await page.evaluate(()=>JSON.stringify({config:modeNode.runSettings,notice:document.getElementById('toast').textContent})));assert.equal(await page.evaluate(()=>modeNode.runSettings.videoTaskMode),'auto');assert.deepEqual(errors,[]);
 });
 
 test('native modes reject providers that only register Volcengine assets and proxy paths without role support',async t=>{

@@ -23,6 +23,32 @@ class CanvasBatchPreview(BaseModel):
     items: list[BatchPreviewItem] = Field(min_length=1, max_length=20000)
 
 
+class CanvasGenerationPreview(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    kind: Literal['image', 'video']
+    request: dict[str, Any]
+
+
+def generation_preview(canvas_id, payload):
+    from app.services.canvas import load_canvas
+    from app.providers.registry import get_api_provider_exact
+    from app.services.model_commercial import enforce
+    load_canvas(canvas_id)
+    model = OnlineImageRequest if payload.kind == 'image' else CanvasVideoRequest
+    try:
+        request = model(**payload.request)
+    except ValidationError:
+        raise HTTPException(422, '生成参数无效') from None
+    provider = get_api_provider_exact(request.provider_id)
+    values = request.model_dump(mode='json')
+    enforce(provider, payload.kind, values)
+    if payload.kind == 'video':
+        from app.routers.canvas import _validate_video_output_format, _validate_video_input_roles
+        _validate_video_output_format(request, provider)
+        _validate_video_input_roles(request, provider)
+    return {'cost': estimate(payload.kind, values, provider)}
+
+
 def estimate(kind, request, provider):
     from app.services.canvas_ledger import historical_price, MAX_AMOUNT
     from app.services.model_commercial import amounts

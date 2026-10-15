@@ -40,6 +40,9 @@ runtime=runtime.replace(camera_write,'(t.writePreferences?t.writePreferences(o.i
 camera_start=runtime.index('function sst(')
 camera_end_component=runtime.index('var LX=',camera_start)
 camera_segment=runtime[camera_start:camera_end_component]
+camera_segment=camera_segment.replace('function sst(e,t){eu(t,!0);','function sst(e,t){eu(t,!0);const cameraProps=t;')
+assert camera_segment.count('var t=ost(),r=V(t)')==1
+camera_segment=camera_segment.replace('var t=ost(),r=V(t)','var t=ost(),r=(Zf(t,()=>cameraProps.portal?canvasCameraPortal:void 0),V(t))')
 camera_escape='e.key===`Escape`&&(e.preventDefault(),a(!1))'
 assert camera_segment.count(camera_escape)==1
 camera_segment=camera_segment.replace(camera_escape,'e.key===`Escape`&&(t.stopEscapePropagation&&e.stopPropagation(),e.preventDefault(),a(!1))')
@@ -56,6 +59,14 @@ parameters_position='i=e.top-t-4;P({left:Math.round(r),top:Math.round(i)})'
 assert parameters_segment.count(parameters_position)==1, 'Native parameter positioning changed'
 parameters_segment=parameters_segment.replace(parameters_position,'i=Math.max(8,Math.min(e.top-t-4,window.innerHeight-t-8));P({left:Math.round(r),top:Math.round(i)})')
 runtime=runtime[:parameters_start]+parameters_segment+runtime[parameters_end:]
+selector_start=runtime.index('function Kz(')
+selector_hook='I.disabled=h()'
+selector_position=runtime.index(selector_hook,selector_start)
+assert selector_position-selector_start<12000
+runtime=runtime[:selector_position]+runtime[selector_position:].replace(selector_hook,'I.disabled=h();t.ariaLabel&&Q(I,`aria-label`,t.ariaLabel);Q(I,`aria-expanded`,G(v));Q(I,`aria-haspopup`,`true`)',1)
+parameter_trigger='gp(re,e=>B(h,e),()=>G(h))'
+assert runtime.count(parameter_trigger)==1
+runtime=runtime.replace(parameter_trigger,'gp(re,e=>{B(h,e);e&&t.ariaLabel&&Q(e,`aria-label`,t.ariaLabel)},()=>G(h))')
 references_start=runtime.index('function o$(')
 references_end=runtime.index('hf([`click`,`mousedown`,`pointerdown`]);',references_start)
 references_segment=runtime[references_start:references_end]
@@ -69,6 +80,7 @@ reference_hooks={
     'W(e=>{Z(l,1,`bg-s-button-secondary-nor':'W(e=>{l.disabled=!!t.disabled;w.disabled=!!t.disabled;Q(l,`aria-label`,t.referenceNames?.[G(i).id]??G(i).data.label);Z(l,1,`bg-s-button-secondary-nor',
     'get previewScale(){return d.current.zoom},estimateSize':'get previewScale(){return d.current.zoom},get viewportVersion(){return t.viewportVersion},zIndex:t.previewZIndex??110,estimateSize',
     'items:_[G(r)],type:G(r),dropTargetStyle:{}':'items:_[G(r)],type:G(r),dragDisabled:!!t.disabled,dropTargetStyle:{}',
+    'var r=$ct(),i=V(r);':'var r=$ct(),i=(t.onRootReady?.(r),V(r));',
 }
 for before,after in reference_hooks.items():
     assert references_segment.count(before)==1, 'Native input reference boundary changed: '+before
@@ -79,6 +91,50 @@ preview_hook='pd(()=>{if(G(p),!G(C))return;'
 preview_end=runtime.index(preview_hook,preview_start)
 assert preview_end-preview_start<6000, 'Native floating preview lifecycle changed'
 runtime=runtime[:preview_end]+runtime[preview_end:].replace(preview_hook,'pd(()=>{if(t.viewportVersion,G(p),!G(C))return;',1)
+form_start=runtime.index('function N1(')
+form_end=runtime.index('hf([`click`,`keydown`]);var Pft=',form_start)
+form_segment=runtime[form_start:form_end]
+form_hooks={
+    'function N1(e,t){eu(t,!0);':'const canvasGenerationRules=lk;function N1(e,t){eu(t,!0);const generationFormProps=t,lk=t.ruleEngine??canvasGenerationRules;',
+    'c=V_(),l=DC(),u=z_(),d=H_(),f=bq(),p=hq(),m=Iq()':'c=V_(),l=t.hostGraph??DC(),u=z_(),d=H_(),f=t.modelOptions?null:bq(),p=t.modelOptions?null:hq(),m=t.modelDefaultPrompt?null:Iq()',
+    'get nodes(){return G(pe)},get nodeId(){return t.nodeId},get leading()':'onRootReady:t.onReferencesRoot,hostGraph:generationFormProps.hostGraph??l,previewViewport:t.previewViewport,get viewportVersion(){return t.viewportVersion},get disabled(){return t.disabled},previewZIndex:t.previewZIndex,get referenceNames(){return t.referenceNames},canPreview:t.canPreview,get nodes(){return G(pe)},get nodeId(){return t.nodeId},get leading()',
+    'get atMentionPicker(){return Ae},get placeholder()':'subjectMediaUrl:t.subjectMediaUrl,get readonly(){return t.disabled},get atMentionPicker(){return Ae},get placeholder()',
+    'let Ae={getModel:Oe,connect:ke}':'let Ae=t.atMentionPicker??{getModel:Oe,connect:ke}',
+    'var i=Mft(),s=V(i),c=V(s)':'var i=Mft(),s=(t.onFormRoot?.(i,r()),V(i)),c=V(s)',
+    'K(`click`,i,()=>B(S,!0))':'K(`click`,i,()=>t.onOpenAssets?t.onOpenAssets():B(S,!0))',
+    'K(`click`,r,()=>B(C,!0))':'K(`click`,r,()=>t.onOpenSubjects?t.onOpenSubjects():B(C,!0))',
+    'y()===`video-gen`&&e(_)':'y()===`video-gen`&&!(t.onOpenAssets&&t.onOpenSubjects)&&e(_)',
+    'Rlt(U(r,2),{onClose:()=>B(D,!1),onSelect:Jt':'!generationFormProps.onOpenCamerawork&&Rlt(U(r,2),{onClose:()=>B(D,!1),onSelect:Jt',
+    'K(`click`,r,()=>B(D,!0))':'K(`click`,r,()=>generationFormProps.onOpenCamerawork?generationFormProps.onOpenCamerawork():B(D,!0))',
+    'sst(U(r,2),{onInsert:qt':'sst(U(r,2),{portal:true,stopEscapePropagation:true,get disabled(){return generationFormProps.disabled},readPreferences:generationFormProps.readCameraPreferences,writePreferences:generationFormProps.writeCameraPreferences,onInsert:qt',
+    'y()===`video-gen`&&e(ye)':'y()===`video-gen`&&t.showCamerawork!==false&&e(ye)',
+    'Kz(te,{get value(){return t.value.model}':'Kz(te,{ariaLabel:`生成模型`,portal:true,dropdownClass:`pixmax-reshoot-model-options pixmax-native-form-model-options`,get disabled(){return t.disabled},get value(){return t.value.model}',
+    'dropdownClass:`w-[min(100vw-2rem,366px)]`':'dropdownClass:`pixmax-reshoot-model-options pixmax-native-form-model-options w-[min(100vw-2rem,366px)]`',
+    'g$(e,{separator:`·`,get placeholder()':'g$(e,{ariaLabel:`生成参数`,get disabled(){return t.disabled},fieldLabelOverrides:t.fieldLabelOverrides,separator:`·`,get placeholder()',
+    'Kz(i,{get value(){return t.value[G(pt).name]}':'Kz(i,{ariaLabel:`生成数量`,portal:true,dropdownClass:`pixmax-reshoot-model-options`,get disabled(){return t.disabled},get value(){return t.value[G(pt).name]}',
+    'be=R(()=>G(ve).length>0)':'be=R(()=>t.validation?t.validation.invalid:G(ve).length>0)',
+    'let Se=R(()=>{let e=GX(G(ve))':'let Se=R(()=>{if(generationFormProps.validation)return generationFormProps.validation.sourceDetails;let e=GX(G(ve))',
+    'Ce=R(()=>KX(WX(G(ve)),xe)),we=R(()=>qX(G(ve),xe))':'Ce=R(()=>t.validation?t.validation.summary:KX(WX(G(ve)),xe)),we=R(()=>t.validation?t.validation.groups:qX(G(ve),xe))',
+    'pd(()=>{let e=t.nodeId,n=G(_e);':'pd(()=>{if(t.validation)return;let e=t.nodeId,n=G(_e);',
+    'function Xt(e){':'function Xt(e){if(generationFormProps.fieldLabelOverrides?.[e.name])return generationFormProps.fieldLabelOverrides[e.name];',
+    'get disabled(){return G(i)},onChange:e=>Bt(G(n).name':'get ariaLabel(){return Xt(G(n))},get disabled(){return generationFormProps.disabled||G(i)},onChange:e=>Bt(G(n).name',
+    'function A(e){G(k)?.openInsertionPanel(e)}':'pd(()=>{if(t.disabled){B(E,false);B(S,false);B(C,false);B(D,false);B(O,null)}});function A(e){G(k)?.openInsertionPanel(e)}',
+    'function Fe(e,t=G(Ne)){return lk.validateAndFallbackValue(e,Pe(e,t),G(fe))}':'function Fe(e,n=G(Ne)){return t.resolveValue?t.resolveValue(e):lk.validateAndFallbackValue(e,Pe(e,n),G(fe))}',
+    'rt=R(()=>{nL(),ZO();':'rt=R(()=>{if(t.modelOptions)return t.modelOptions;nL(),ZO();',
+    'ut=R(()=>G(Me)?.modelCode===`PIXDANCE_2_5`&&t.value.referModel===`videoEdit`)':'ut=R(()=>t.videoEdit??(G(Me)?.modelCode===`PIXDANCE_2_5`&&t.value.referModel===`videoEdit`))',
+    'return G(ut)&&e.push(`duration`),G(tt)&&G(mt)?.name&&e.push(G(mt).name),e':'return G(ut)&&e.push(`duration`),G(tt)&&G(mt)?.name&&e.push(G(mt).name),[...new Set([...e,...t.disabledFieldNames??[]])]',
+    'pd(()=>{if(!G(rt).find(e=>e.value===t.value.model)?.disabled)return;':'pd(()=>{if(t.preserveUnavailableModels||!G(rt).find(e=>e.value===t.value.model)?.disabled)return;',
+    'r.prompt=!i.trim()&&e&&G(M)?jq(m.value.modelDefaultPrompts,G(M),e.modelCode,a):i':'r.prompt=!i.trim()&&e&&G(M)?t.modelDefaultPrompt?t.modelDefaultPrompt(e.modelCode,a):jq(m.value.modelDefaultPrompts,G(M),e.modelCode,a):i',
+    'let Rt=R(()=>{if(v()':'let Rt=R(()=>{if(t.generateLabel!==undefined)return null;if(v()',
+    'zt=R(()=>{if(v()':'zt=R(()=>{if(t.generateLabel!==undefined)return t.generateLabel;if(v()',
+    '[data-combo-selector-panel], [data-rich-editor-insertion-panel], [data-input-file-link-overlay]':'[data-native-camera], [data-combo-selector-panel], [data-rich-editor-insertion-panel], [data-input-file-link-overlay]',
+    'var en={insertCameraParamsChip:Yt}':'var en={insertCameraParamsChip:Yt,getRichEditorManager:()=>G(k)?.getRichEditorManager(),getSerializedPrompt:()=>G(k)?.getSerializedPrompt(),insertChipItem:(type,item)=>G(k)?.insertChipItem(type,item,`caret`),setFullscreen:next=>{if(next!==G(wt))Qt();}}',
+    'Le.disabled=t.disabled||G(Tt)||G(be)':'Q(Le,`data-native-generation-submit`,``);Le.disabled=t.disabled||G(Tt)||G(be)',
+}
+for before,after in form_hooks.items():
+    assert form_segment.count(before)==1, 'Native generation form boundary changed: '+before
+    form_segment=form_segment.replace(before,after)
+runtime=runtime[:form_start]+form_segment+runtime[form_end:]
 camera_end=bundle.index('AX={camera:EX,lens:DX,focalLength:OX,aperture:kX}')
 camera_names=re.findall(r'/assets/([A-Za-z0-9_-]+\.png)',bundle[bundle.rfind('mot=',0,camera_end):camera_end])
 assert len(camera_names)==27
@@ -142,9 +198,38 @@ export const unmountCanvasPlayer = instance => {canvasPlayerCaptureStates.delete
 // Reuse the original media processor; canvas persistence stays in the host app.
 export const separateCanvasAudio = options => II.separateAudioAndVideo(options);
 // Preserve native segment range limits, crop/frame preparation and upload caching.
+function canvasCameraPortal(root){
+  const anchor=document.createComment('native camera');root.before(anchor);document.body.append(root);root.dataset.nativeCamera='';
+  const position=()=>{const source=anchor.parentElement;if(!source)return;const box=source.getBoundingClientRect();root.style.cssText='position:fixed;bottom:auto;right:auto;height:auto;margin:0;z-index:100160;width:'+Math.min(440,innerWidth-16)+'px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow:auto';const bounds=root.getBoundingClientRect();root.style.left=Math.max(8,Math.min(box.left,innerWidth-bounds.width-8))+'px';root.style.top=Math.max(8,Math.min(box.top-bounds.height-4,innerHeight-bounds.height-8))+'px';};
+  position();window.addEventListener('resize',position);window.addEventListener('scroll',position,true);
+  const wheel=event=>event.stopPropagation();root.addEventListener('wheel',wheel,{passive:true});
+  return()=>{window.removeEventListener('resize',position);window.removeEventListener('scroll',position,true);root.removeEventListener('wheel',wheel);root.remove();anchor.remove();};
+}
 let canvasModelSelectorSequence=0;
 export const canvasSegmentReshoot = {durationStatus:tJ,normalizeRange:Ktt,params:iJ,prepare:wnt,buildFiles:Snt,
   mountPlayer:mountCanvasPlayer, unmountPlayer:unmountCanvasPlayer,
+  async mountGenerationForm(target,props) {
+    const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
+    container.registerInstance(j_,{debug(){},info(){},warn:console.warn,error:console.error});
+    const notify=props.onNotice||(()=>{});container.registerInstance(N_,{success:notify,error:notify,warning:notify,info:notify,pending:notify,remove(){}});container.registerInstance(JSe,props.subjectApi);
+    const data=z(props.data),disabled=z(!!props.disabled),view=z({...props.viewport}),graph={get nodes(){return G(data).graph.nodes;},get edges(){return G(data).graph.edges;},...props.graphActions};
+    const rules=Object.create(lk);Object.defineProperty(rules,'configMap',{get(){return new Map([[props.formVariant==='video-gen'?Bp.GenerateVideo:Bp.GenerateImage,G(data).schema]]);}});
+    let instance,disposed=false;
+    instance=Tf(N1,{target,context:new Map([[tCe,container],[Bz,{user:null}]]),props:{...props,preserveUnavailableModels:true,ruleEngine:rules,hostGraph:graph,modelDefaultPrompt:(_code,value)=>value,resolveValue:value=>value,previewViewport:{get current(){return {zoom:G(view).scale||1};}},
+      videoModeSlot:anchor=>{const mode=R(()=>G(data).schema.find(model=>model.modelCode===G(data).value.model)?.filedConfig.find(field=>field.name==='referModel'));const fragment=Cf();X(H(fragment),target=>{G(mode)&&target((anchor)=>Kz(anchor,{ariaLabel:'视频生成模式',portal:true,placement:'top',dropdownClass:'pixmax-reshoot-model-options',get value(){return G(data).value.referModel;},get options(){return G(mode).options.map(option=>({...option,label:option.name}));},get disabled(){return G(disabled);},onChange:value=>props.onChange({...G(data).value,referModel:value})}));});J(anchor,fragment);},
+      onFormRoot(root,fullscreen){root.dataset.nativeGenerationSurface='';root.dataset.fullscreen=String(fullscreen);root.classList.add('pixmax-native-prompt');props.onFormRoot?.(root,fullscreen);void tf().then(()=>{if(disposed||!root.isConnected)return;const submit=root.querySelector('[data-native-generation-submit]'),controls=submit?.parentElement?.parentElement?.parentElement;if(controls){controls.dataset.nativeGenerationControls='';controls.firstElementChild.dataset.nativeGenerationOptions='';}const editor=instance.getRichEditorManager()?.editorEl;if(editor){editor.parentElement.dataset.nativePromptHost='';editor.setAttribute('role','textbox');editor.setAttribute('aria-label',props.promptAriaLabel||'生成提示词');editor.setAttribute('aria-multiline','true');}});},
+      onReferencesRoot(root){root.classList.add('pixmax-native-generation-references');root.setAttribute('aria-label','参考素材');},
+      get schema(){return G(data).schema;},get value(){return G(data).value;},get modelOptions(){return G(data).modelOptions;},get validation(){return G(data).validation;},get disabledFieldNames(){return G(data).disabledFieldNames;},get referenceNames(){return G(data).referenceNames;},get videoEdit(){return G(data).videoEdit;},get disabled(){return G(disabled);},get generateLabel(){return G(data).generateLabel||'生成';},get viewportVersion(){return G(view);}}});
+    const escape=event=>{
+      if(event.key!=='Escape'||disposed)return;
+      const surface=[...document.querySelectorAll('[data-native-generation-surface]')].find(root=>root.dataset.fullscreen==='true')||target;
+      if(document.querySelector('[data-combo-selector-panel]')){event.preventDefault();event.stopPropagation();surface.querySelector('button[aria-label="生成参数"]')?.click();return;}
+      const button=surface.querySelector('button[aria-expanded="true"]');if(button){event.preventDefault();event.stopPropagation();button.click();button.focus();return;}
+      if(surface.dataset.fullscreen==='true'){event.preventDefault();event.stopPropagation();instance.setFullscreen(false);}
+    };
+    document.addEventListener('keydown',escape,true);
+    await tf();return {instance,setData(next){B(data,next,true);const manager=instance.getRichEditorManager();if(manager&&manager.serialize()!==next.value.prompt)manager.deserialize(next.value.prompt);},setDisabled(next){B(disabled,!!next);if(next)instance.setFullscreen(false);},setViewport(next){B(view,{...next},true);},destroy(){disposed=true;document.removeEventListener('keydown',escape,true);return Of(instance);}};
+  },
   async mountReferences(target,props) {
     const container=new f,i18n=await KLe();await du(i18n).changeLanguage('zh');container.registerInstance(M_,i18n);
     const data=z({nodes:props.nodes||[],referenceNames:props.referenceNames||{}}),disabled=z(!!props.disabled),view=z({...props.viewport});
@@ -247,8 +332,8 @@ export const canvasModelGraphics = {GLTFLoader:J1e,WebGLRenderer:Dc,Scene:cr,
 (destination / 'manifest.json').write_text(json.dumps({
     'source': 'User-supplied Pixmax frontend mirror',
     'original_bundle_sha256': hashlib.sha256(bundle.encode()).hexdigest(),
-    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'generation_references': 'o$', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
-    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits', 'Expose native N1 reference cards with host graph, readonly and viewport adapters'],
+    'components': {'director': '$6e', 'editor': 'ujt', 'media_processor': 'II', 'video_annotation': 'WNt', 'generation_references': 'o$', 'generation_form': 'N1', 'segment_reshoot': ['wnt','Snt','Ktt','gMt','M1','g$','Kz','sst','cX','Art'], 'model_graphics': ['J1e','Dc','Lc']},
+    'changes': ['Remove account/router bootstrap', 'Export editor mounts and scoped service context', 'Export native local audio/video separation', 'Expose native video annotation with host graph adapter and marker lifetime hook', 'Export native segment reshoot crop, frame capture, range limits and upload cache', 'Expose native reshoot thumbnail timeline with reactive range and lifecycle controls', 'Scope native reshoot range tooltip above the host modal', 'Expose reactive capture permission for native source preview players', 'Expose native rich prompt editor with scoped reference adapters', 'Expose native reshoot parameter controls and freeze public model fields', 'Expose native model selector with host provider and policy adapters', 'Expose native camera panel with member-scoped preferences and local public artwork', 'Expose ordinary generation controls with native parameter portal lifecycle and viewport limits', 'Expose native N1 reference cards with host graph, readonly and viewport adapters', 'Mount the complete N1 generation form with scoped host schema, fullscreen, fee preview and camera portal'],
     'stage_assets': 'Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py.'
 }, indent=2), encoding='utf-8')
 print(f'Imported editor runtime into {destination}')

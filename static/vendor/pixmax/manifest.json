@@ -7,6 +7,7 @@
     "media_processor": "II",
     "video_annotation": "WNt",
     "generation_references": "o$",
+    "generation_form": "N1",
     "segment_reshoot": [
       "wnt",
       "Snt",
@@ -39,7 +40,8 @@
     "Expose native model selector with host provider and policy adapters",
     "Expose native camera panel with member-scoped preferences and local public artwork",
     "Expose ordinary generation controls with native parameter portal lifecycle and viewport limits",
-    "Expose native N1 reference cards with host graph, readonly and viewport adapters"
+    "Expose native N1 reference cards with host graph, readonly and viewport adapters",
+    "Mount the complete N1 generation form with scoped host schema, fullscreen, fee preview and camera portal"
   ],
   "stage_assets": "Provision the public character/motion library with tools/fetch_pixmax_stage_assets.py."
 }

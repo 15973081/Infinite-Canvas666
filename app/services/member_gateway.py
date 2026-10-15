@@ -138,6 +138,8 @@ def permissions(path, method):
         return PERMISSIONS
     if re.fullmatch(r'/api/canvases/[^/]+/batch-preview', path) and method == 'POST':
         return ('canvas.read', 'canvas.edit', 'generation.submit', 'provider.use')
+    if re.fullmatch(r'/api/canvases/[^/]+/generation-preview', path) and method == 'POST':
+        return ('canvas.read', 'provider.use', 'generation.submit')
     if re.fullmatch(r'/api/canvas-(?:image|video|llm|audio|model)-tasks(?:/[^/]+)?', path):
         return ('task.read',) if method == 'GET' else ('generation.submit', 'provider.use') if method == 'POST' else None
     if path in {'/api/canvases', '/api/canvases/trash'}:
@@ -226,7 +228,7 @@ def operation(path, method):
         return 'observe', None  # Lease handlers enforce maintenance inside their transaction.
     if path in {'/api/maintenance/status', '/ws/stats'} or re.fullmatch(r'/ws/canvases/[^/]+', path):
         return 'observe', None
-    if method in {'GET', 'HEAD'} or path in {'/api/canvas-assets/references', '/api/canvas-assets/check', '/api/canvas-assets/download', '/api/canvas-workflows/export', '/api/smart-canvas/group-export'}:
+    if method in {'GET', 'HEAD'} or re.fullmatch(r'/api/canvases/[^/]+/generation-preview',path) or path in {'/api/canvas-assets/references', '/api/canvas-assets/check', '/api/canvas-assets/download', '/api/canvas-workflows/export', '/api/smart-canvas/group-export'}:
         return 'read', None
     upload = re.fullmatch(r'/api/media/uploads/(ast_[a-f0-9]{32})(?:/parts/[0-9]+(?:/complete)?|/complete)?', path)
     if upload:

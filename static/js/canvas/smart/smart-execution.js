@@ -804,6 +804,7 @@ function attachRunMeta(targetNode, meta){
         targetNode.promptDraftHtml = htmlHasToken ? meta.promptHtml : (rebuiltHtml || meta.promptHtml);
         targetNode.promptDraftText = meta.promptText || '';
     }
+    if(targetNode.nativePrompt?.schemaVersion===1)PixmaxReshootReferences.setPrompt(targetNode,targetNode.nativePrompt.prompt);
     targetNode.images = (targetNode.images || []).map(img => stripImageGenerationMeta(img));
 }
 
@@ -1953,7 +1954,7 @@ async function runSmartCascade(targetNode=null){
 function smartTaskInputDocument(){
     const projection=canvasForStorage({...canvas,nodes});
     const subject=activeComposerNode();
-    if(subject && promptInput?.dataset?.promptLocked!=='1' && !(promptInput?.dataset?.preserveDraftOnce==='1' && subject.promptDraftHtml)){
+    if(subject && subject.nativePrompt?.schemaVersion!==1 && promptInput?.dataset?.promptLocked!=='1' && !(promptInput?.dataset?.preserveDraftOnce==='1' && subject.promptDraftHtml)){
         const copy=projection.nodes.find(node=>node.id===subject.id);
         const changes=smartComposerChanges(subject);
         if(copy && changes.prompt){copy.promptDraftHtml=promptInput.innerHTML;copy.promptDraftText=promptPlainText();}

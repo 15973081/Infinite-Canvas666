@@ -117,7 +117,7 @@
       "verified": [
         "首帧/尾帧角色在实际供应商请求体中保留，不再统一改写为 reference_image；同一图片的两个独立输入槽位可分别充当首帧和尾帧",
         "连接类型或数量决定菜单可用性，断开尾帧和审阅后重排会阻止提交；原始输入在结果产生后的再次运行中继续使用",
-        "Seedance 2.5 首帧、首尾帧、编辑及延长保持 adaptive 比例；原生编辑时长显示 Auto 且禁改，实际编辑任务使用 -1；2.0 首尾帧保留指定比例",
+        "Seedance 2.5 首帧、首尾帧、编辑及延长保持 adaptive 比例；原生完整表单显示源视频时长的原生选项映射值且禁改，实际编辑任务使用 -1；2.0 首尾帧保留指定比例",
         "会员配置只公开 video_capabilities.native_roles 能力标记，继续隐藏协议和供应商地址；注册火山素材的其他协议及不支持角色的代理路径不会冒充原生接口；后端在入队和提交前拒绝代理首尾帧",
         "单任务和批次预览共用图片角色及数量校验；隔离数据库拒绝尾帧单独使用、角色混用、视频冒充图片、音视频与首尾帧混用及不符比例，拒绝后不创建任务",
         "保存重开、画布复制、工作流资源导出导入保留模式、图像角色和重新映射后的素材；编辑模式切换到不支持该菜单的模型自动恢复自动判断"
@@ -138,10 +138,52 @@
       "visualEvidence": {"image": ".local/pixmax-video-mode-frames.png", "scope": "本项目合成图像夹具下的首尾帧模式。输入区已接入原生 o$ 卡片，见 nativeGenerationReferenceEvidence；完整 N1 表单视觉仍待最终核对。"},
       "remaining": ["其余图像/视频模型的模式、尺寸、时长和原生输入卡片约束完整映射", "完整 N1 布局、全屏、费用提示与首尾帧输入卡片视觉最终对齐", "视频素材的真实供应商尺寸、格式、时长及质量验收", "真实混合媒体大画布和 Pixmax 双方同场景帧率、内存验证"]
     },
+    "nativeGenerationFormEvidence": {
+      "status": "implemented_local_requires_final_verification",
+      "component": "捕获的完整 N1 生成表单，包含 M1、Kz、g$、o$、sst 和原生全屏切换",
+      "source": [
+        "tools/import_pixmax_runtime.py",
+        "static/js/pixmax-generation-form.js",
+        "static/js/pixmax-native-prompt.js",
+        "static/js/pixmax-generation-parameters.js",
+        "app/services/canvas_batch.py",
+        "app/services/member_gateway.py"
+      ],
+      "nativeContract": "完整表单拥有编辑器、模型、参数、数量、引用卡片、高级开关、相机和全屏子树；供应商、权限、图、保存和任务由本项目适配。移除普通生成的独立控件与引用卡片挂载路径。",
+      "verified": [
+        "原生全屏继续编辑并保存同一份提示词；Escape、关闭和编辑资格失效正确清理，支持全屏内相机插入",
+        "成员及空间隔离的相机偏好校验；浮动相机脱离缩放画布定位，窄屏控件换行且保持可点击",
+        "相同模型区分供应商，模型规格和时长策略生效；保留自定义图像尺寸、声音、MOV、水印等实际请求参数",
+        "原生参考卡片支持四类素材、首尾帧独立槽位、键盘及鼠标排序、断开、失效引用阻止提交和原生媒体预览",
+        "300ms 合并价格预览请求，使用只读服务端定价及折扣；迟到估算不能覆盖已切换数量，拒绝的估算不创建任务或费用",
+        "原生提示词为唯一输入来源；隐藏区域标签刷新、主体目录更新、保存和任务元信息不能覆盖原生文档",
+        "原生提示词输入不触发整张画布 render，60 个无关节点保持 DOM；模型及图结构变更仍调用现有呈现流程"
+      ],
+      "verification": {
+        "state": "passed",
+        "browserCases": 77,
+        "relatedFrontendCases": 116,
+        "estimateUnitCases": 4,
+        "databaseCases": 22,
+        "logs": [
+          ".local/pixmax-full-form-browser-verified.log",
+          ".local/pixmax-full-form-related-final.log",
+          ".local/pixmax-full-form-estimate-unit.log",
+          ".local/pixmax-full-form-database-final.log"
+        ],
+        "scope": "真实 Chrome 操作与本项目原生表单；数据库桥接使用认证 ASGI、隔离 PostgreSQL、真实会员租约和私有素材。供应商完成及提交使用测试替身，不发送收费生成请求。浏览器无关 DOM 保留断言不等同于大画布 FPS 实测。"
+      },
+      "remaining": [
+        "39 个原生图像/视频模型的完整字段、规则和供应商映射",
+        "运镜资源库及对应原生 hash 插入；该入口当前未开放",
+        "原生上传、替换输入、素材库、全景和全部错误标记的完整视觉交互对照",
+        "真实混合媒体大画布与 Pixmax 同场景 FPS、内存、首屏及供应商质量验收"
+      ]
+    },
     "nativeGenerationReferenceEvidence": {
       "status": "implemented_local_requires_final_verification",
       "component": "捕获的 N1 生成表单所用 o$ 原生输入卡片与 wY 浮动预览",
-      "source": ["tools/import_pixmax_runtime.py", "static/vendor/pixmax/manifest.json", "static/js/pixmax-generation-references.js", "static/js/pixmax-native-prompt.js", "static/js/canvas/smart/smart-workspace.js", "static/css/pixmax-canvas.css"],
+      "source": ["tools/import_pixmax_runtime.py", "static/vendor/pixmax/manifest.json", "static/js/pixmax-generation-form.js", "static/js/pixmax-native-prompt.js", "static/js/canvas/smart/smart-workspace.js", "static/css/pixmax-canvas.css"],
       "nativeContract": "按原生文本、音频、图片、视频分组及编号显示卡片，复用原生缩略图、悬停预览、鼠标和键盘拖动排序、悬停断开按钮与点击插入引用。原生 WorkflowProvider 边界映射到本项目引用计划，不复制 Pixmax 的身份、计费或画布服务。",
       "verified": [
         "实际原生卡片点击插入 M1 类型化引用并通过本项目请求构建；排序改变请求素材顺序但引用始终保留原来源 ID",
@@ -165,7 +207,7 @@
         "scope": "真实浏览器组件和操作，13 个普通生成/拒绝及 8 个片段重拍隔离数据库用例；供应商和任务结果使用测试替身，媒体归属、会员租约、保存、ZIP 往返为真实流程。原生剪辑回归先等待真实播放器元数据，再操作时间范围；未发送付费生成请求。"
       },
       "visualEvidence": [".local/pixmax-native-reference-cards.png", ".local/pixmax-native-reference-mobile.png"],
-      "remaining": ["完整 N1 表单布局、全屏、生成费用和高级字段视觉对齐", "原生属性规则的卡片错误标记、摘要及所有模型的输入约束映射", "原生上传/替换输入交互与素材库入口完整对齐", "真实混合媒体大画布与 Pixmax 双方同场景性能及供应商质量验收"]
+      "remaining": ["完整表单接入及本轮验证见 nativeGenerationFormEvidence；所有字段和视觉细节仍需最终对照", "原生属性规则的卡片错误标记、摘要及所有模型的输入约束映射", "原生上传/替换输入交互与素材库入口完整对齐", "真实混合媒体大画布与 Pixmax 双方同场景性能及供应商质量验收"]
     },
     "ordinaryGenerationPromptEvidence": {
       "status": "implemented_local_requires_final_verification",
