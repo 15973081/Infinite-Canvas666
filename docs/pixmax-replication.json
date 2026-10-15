@@ -110,6 +110,30 @@
       },
       "remaining": ["片段重拍原生主体入口已接入，见 subjectLibraryUiEvidence；普通图像/视频编辑器和独立主体管理入口仍需对齐", "跨成员/空间复制、更多未知任务与并发目录生命周期的完整最终对照", "主体目录全部视觉、移动端与大规模交互的最终验证"]
     },
+    "videoNodeConflictAudit20261015": {
+      "reference": "C:/project/skill-clone/output/pixmax-canvas-1f1b1a95/mirror/app.pixmax.cn/assets/index-Bcq66HVs.js",
+      "scope": "视频素材节点与视频生成节点的引用、模式、参数和原生导入；沿用现有播放器、工具条、任务提交及编辑资格保护",
+      "verification": {"relatedCasesPassed":110,"coverage":"原生模式、提示词、导入、参数、参考排序、播放器、节点工具条及旧生成节点回归；修改后的导入和角色优先级另行定向复验","supplierCalls":"测试替身，未调用收费服务","preview":".local/pixmax-video-generation-flow.png"},
+      "fixed": [
+        "自动模式重复生成只读取上游输入，不再将本节点的上次视频结果当作新参考；原有普通素材节点仍可使用自身媒体",
+        "视频生成 @ 选择器包含画布视频，插入后连接来源并编译为视频引用；断线后保持失效提示并阻止提交",
+        "导入原生文档还原 referModel、编辑任务类型、自适应比例与编辑时长；普通视频原生提示词随新节点 ID 重映射，不丢失首尾帧引用",
+        "模型身份按完整名称识别；Draft 使用自己的原生模式字段，不继承完整版的视频编辑和延长能力；未知后缀不猜测能力",
+        "主动切换到不支持原生模式的模型时清除旧编辑任务类型；保存的显式模式与任务类型不一致时阻止提交",
+        "原生图片角色优先于遗留 videoUseFrameRoles，参考图片不会被旧首尾帧开关改写",
+        "referToVideo 的菜单名称与指定参考一致，显示参考生视频"
+      ],
+      "referenceConflicts": [
+        "指定参考的模式组件会在当前模式不符合输入时自动选取第一个有效模式；普通生成表单也会因提示词引用切换到 referToVideo。当前宿主保留已选显式模式，在输入失效时提示并阻止提交，避免无声改变生成意图",
+        "原生视频编辑表单显示源视频时长；本项目原生编辑请求用 duration=-1 表示跟随源视频，两者属于显示值与请求值，不能直接把显示数字覆盖到请求",
+        "现有播放器和表单运行时从另一个 Pixmax 镜像构建 index-DKTODaUF.js 提取；本次按指定 index-Bcq66HVs.js 核对模式行为，没有宣称两份构建或所有界面细节完全相同"
+      ],
+      "remaining": [
+        "视频工具条中的合规检测、智能续写、字幕擦除、超分仍为未接通入口；截图存在按钮不代表已具备服务端功能",
+        "显式原生模式按已配置供应商能力提供，其他模型的 imageRefer、lastFrameToVideo、videoExtend 等模式还需对应传输适配；未知原生模式保留并提示",
+        "浏览器任务服务和供应商完成响应使用测试替身，未调用收费模型；不能据此宣称线上生成服务已验收"
+      ]
+    },
     "nativeVideoModeEvidence": {
       "status": "implemented_local_requires_final_verification",
       "source": ["static/js/pixmax-video-modes.js", "static/js/pixmax-generation-parameters.js", "static/js/pixmax-reshoot-references.js", "static/js/canvas/smart/smart-execution.js", "app/routers/canvas.py", "app/services/canvas_batch.py", "app/services/member_gateway.py"],

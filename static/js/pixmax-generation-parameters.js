@@ -93,12 +93,13 @@
         return {schema:options.map(make),modelOptions:options.map(option=>({...option,text:option.label})),disabledFieldNames:parameters.disabledFieldNames,value:{...parameters.value,model:JSON.stringify(identity(config)),prompt:node.nativePrompt?.prompt||'',count:String(config.count||1),referModel:PixmaxVideoModes.selected(config),watermark:String(!!config.videoWatermark),enhancePrompt:String(!!config.videoEnhancePrompt),enableUpsample:String(!!config.videoEnableUpsample),cameraFixed:String(!!config.videoCameraFixed)},videoEdit};
     }
     function applyForm(node,value){
-        let config=configuration(node);const [provider,model]=JSON.parse(value.model);
+        let config=configuration(node);const [provider,model]=JSON.parse(value.model),changedModel=JSON.stringify(identity(config))!==value.model;
         config=config.apiKind==='video'?{...config,engine:'api',videoProvider:provider,videoModel:model}:{...config,engine:'api',provider_id:provider,model};
         config=apply(config,value);
         if(config.apiKind==='image')config.count=Number(value.count||1);
         else{
             if(PixmaxVideoModes.supported(config))config=PixmaxVideoModes.choose(node,config,value.referModel||'auto');
+            else if(changedModel){config.videoReferenceMode='auto';config.videoTaskMode='auto';config.videoUseFrameRoles=false;}
             for(const [name,key]of [['watermark','videoWatermark'],['enhancePrompt','videoEnhancePrompt'],['enableUpsample','videoEnableUpsample'],['cameraFixed','videoCameraFixed']])config[key]=value[name]==='true';
             if(!isSeedance25VideoModel(config.videoModel))delete config.videoOutputFormat;
         }

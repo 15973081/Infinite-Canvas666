@@ -5,6 +5,19 @@ const convert=value=>JSON.parse(JSON.stringify(context.window.PixmaxWorkflow.con
 const nativeStoryboard=require('./helpers/pixmax-storyboard-native.cjs');
 const nativeReshoot=require('./helpers/pixmax-reshoot-native.cjs');
 
+for(const mode of ['textToVideo','referToVideo','imageToVideo','firstAndLastFrame','videoEdit'])test('native video import retains mode '+mode+' and its effective task parameters',()=>{
+    const source={nodes:[{uuid:'video',type:'GENERATE_VIDEO',params:{model:'PIXDANCE_2_5',referModel:mode,prompt:'镜头',aspectRatio:'16:9',duration:8}}]};
+    const result=convert(source),config=result.nodes[0].runSettings;
+    assert.equal(config.videoReferenceMode,mode);assert.equal(config.videoTaskMode,mode==='videoEdit'?'edit':'auto');
+    assert.equal(config.videoDuration,mode==='videoEdit'?-1:8);assert.equal(config.videoAspect,['imageToVideo','firstAndLastFrame','videoEdit'].includes(mode)?'adaptive':'16:9');
+    assert.equal(config.videoProvider,undefined);assert.equal(source.nodes[0].params.duration,8);assert.deepEqual(result.warnings,[]);
+});
+
+test('unknown native video modes remain explicit with an actionable import warning',()=>{
+    const result=convert({nodes:[{uuid:'video',type:'GENERATE_VIDEO',params:{model:'MINIMAX_H3',referModel:'lastFrameToVideo'}}]});
+    assert.equal(result.nodes[0].runSettings.videoReferenceMode,'lastFrameToVideo');assert.match(result.warnings[0],/lastFrameToVideo/);
+});
+
 test('native reshoot preserves sound and output format while normalizing video resolution',()=>{
     const source=nativeReshoot();Object.assign(source.nodes[1].params,{resolution:'1080P',includeAudio:'false',outputFormat:'mov'});const target=convert(source).nodes[1];assert.equal(target.runSettings.videoResolution,'1080p');assert.equal(target.runSettings.videoGenerateAudio,false);assert.equal(target.runSettings.videoOutputFormat,'mov');assert.equal(target.pixmaxParams.outputFormat,'mov');
 });

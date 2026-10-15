@@ -944,9 +944,11 @@ function defaultReferenceImagesFor(node, consume=false, ctx=null,configuration=n
     const storyboard=window.PixmaxStoryboardMedia?.referencesFor(node);
     if(storyboard)return uniqueReferenceImages(storyboard,slots);
     const self = selfReferenceImagesForNode(node, consume, ctx).filter(img => img?.url);
-    const explicitVideo=smartGenerationKind(node)==='video'&&configuration?.videoReferenceMode&&configuration.videoReferenceMode!=='auto';
-    const upstream = explicitVideo?(smartImageUsesWorkflowInput(node,ctx)?workflowInputImagesFor(node,consume,ctx):inputImagesFor(node,consume,ctx)):defaultInputImagesFor(node, consume, ctx);
-    if(explicitVideo)return uniqueReferenceImages(upstream,slots);
+    // A generator's result is an output, including in automatic mode. Reusing
+    // it here changes text/image-to-video into video-to-video on the second run.
+    const videoGenerator=smartGenerationKind(node)==='video';
+    const upstream = videoGenerator?(smartImageUsesWorkflowInput(node,ctx)?workflowInputImagesFor(node,consume,ctx):inputImagesFor(node,consume,ctx)):defaultInputImagesFor(node, consume, ctx);
+    if(videoGenerator)return uniqueReferenceImages(upstream,slots);
     if(smartImageUsesWorkflowInput(node, ctx)) return uniqueReferenceImages(upstream,slots);
     if(self.length) return uniqueReferenceImages(self,slots);
     return uniqueReferenceImages(upstream,slots);
@@ -2048,7 +2050,7 @@ async function runApiVideoGeneration(prompt, refs, runSettings=settings,inputBin
         const refImages = imageRefsOnly(uploadedRefs).map((ref, i) => {
             const item = {url:effUrl(ref), name:ref.name || `图${i + 1}`};
             if(nativeRoles)item.role=nativeRoles[i];
-            if(useFrameRoles){
+            if(useFrameRoles&&!nativeRoles){
                 if(i === 0) item.role = 'first_frame';
                 else if(i === 1) item.role = 'last_frame';
             }

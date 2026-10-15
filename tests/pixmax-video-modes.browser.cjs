@@ -16,14 +16,14 @@ async function tasks(page){
         return route.fulfill({json:records.get(new URL(route.request().url()).pathname.split('/').pop())});
     });return calls;
 }
-for(const [mode,kinds,roles] of [['文生视频',[],[]],['图生视频',['image'],['first_frame']],['首尾帧',['image','image'],['first_frame','last_frame']],['多模态参考',['image','video','audio'],['reference_image']]])test('native '+mode+' compiles distinct task inputs and preserves its selected mode',async t=>{
+for(const [mode,kinds,roles] of [['文生视频',[],[]],['图生视频',['image'],['first_frame']],['首尾帧',['image','image'],['first_frame','last_frame']],['参考生视频',['image','video','audio'],['reference_image']]])test('native '+mode+' compiles distinct task inputs and preserves its selected mode',async t=>{
     const {page,errors,record}=await setup(t,kinds),calls=await tasks(page);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('海边的摄影师');await choose(page,mode);
     if(mode==='首尾帧')await page.screenshot({path:'.local/pixmax-video-mode-frames.png'});
     await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.deepEqual(calls[0].images.map(image=>image.role),roles);assert.equal(calls[0].videos.length,kinds.filter(kind=>kind==='video').length);assert.equal(calls[0].audios.length,kinds.filter(kind=>kind==='audio').length);
     if(roles.includes('first_frame'))assert.equal(calls[0].aspect_ratio,'adaptive');assert.equal(await page.evaluate(()=>modeNode.images.length),1);await page.evaluate(()=>saveCanvas({force:true}));assert.ok(record.nodes.find(node=>node.generationKind==='video').runSettings.videoReferenceMode);assert.deepEqual(errors,[]);
 });
 test('native mode availability follows connected input types and rejects mixed frame inputs',async t=>{
-    const {page,errors}=await setup(t,['image','audio']);await page.getByRole('button',{name:'视频生成模式',exact:true}).click();const menu=page.locator('.pixmax-reshoot-model-options');assert.equal(await menu.getByRole('button',{name:'文生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'图生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'首尾帧',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'多模态参考',exact:true}).isEnabled(),true);assert.deepEqual(errors,[]);
+    const {page,errors}=await setup(t,['image','audio']);await page.getByRole('button',{name:'视频生成模式',exact:true}).click();const menu=page.locator('.pixmax-reshoot-model-options');assert.equal(await menu.getByRole('button',{name:'文生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'图生视频',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'首尾帧',exact:true}).isDisabled(),true);assert.equal(await menu.getByRole('button',{name:'参考生视频',exact:true}).isEnabled(),true);assert.deepEqual(errors,[]);
 });
 test('a disconnected tail frame prevents admission and preserves the explicit mode',async t=>{
     const {page,errors}=await setup(t,['image','image']),calls=await tasks(page);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('首尾镜头');await choose(page,'首尾帧');await page.evaluate(()=>{canvas.connections=canvas.connections.filter(edge=>edge.from!==modeSources[1].id);render();});await page.evaluate(()=>runGeneration());assert.equal(calls.length,0);assert.equal(await page.evaluate(()=>modeNode.runSettings.videoReferenceMode),'firstAndLastFrame');assert.deepEqual(errors,[]);
@@ -76,4 +76,58 @@ test('native modes reject providers that only register Volcengine assets and pro
 
 test('legacy video edit settings retain admission while native controls show effective automatic settings',async t=>{
     const {page,errors}=await setup(t,['video']),calls=await tasks(page);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('调整旧视频');await page.evaluate(()=>{delete modeNode.runSettings.videoReferenceMode;modeNode.runSettings.videoTaskMode='edit';PixmaxNativePrompt.sync();});await page.getByRole('button',{name:'生成参数',exact:true}).click();const menu=page.locator('[data-combo-selector-panel]');assert.equal(await menu.locator('input[aria-label="时长"]').isDisabled(),true);const effective=await page.evaluate(()=>PixmaxGenerationParameters.data(modeNode,[]).value);assert.equal(effective.duration,'-1');assert.equal(effective.aspectRatio,'adaptive');await page.keyboard.press('Escape');await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);assert.equal(calls[0].task_mode,'edit');assert.deepEqual(errors,[]);
+});
+
+for(const kinds of [[],['image'],['video']])test('automatic video reruns retain upstream inputs: '+JSON.stringify(kinds),async t=>{
+    const {page,errors}=await setup(t,kinds),calls=await tasks(page);
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('保持原本的镜头输入');
+    await page.evaluate(()=>runGeneration());assert.equal(calls.length,1);
+    await page.evaluate(()=>runGeneration());assert.equal(calls.length,2);
+    assert.deepEqual(calls[1].images,calls[0].images);assert.deepEqual(calls[1].videos,calls[0].videos);
+    assert.equal(calls[1].videos.includes('/output/mode-result.mp4'),false);assert.deepEqual(errors,[]);
+});
+
+test('Draft uses its own mode contract and unknown suffixes never inherit full model capabilities',async t=>{
+    const {page,errors}=await setup(t,['video'],{model:'doubao-seedance-2-5-draft'});
+    await page.getByRole('button',{name:'视频生成模式',exact:true}).click();
+    const menu=page.locator('.pixmax-reshoot-model-options');assert.equal(await menu.getByRole('button',{name:'视频编辑',exact:true}).count(),0);assert.equal(await menu.getByRole('button',{name:'向后延长',exact:true}).count(),0);
+    const result=await page.evaluate(()=>({unknown:PixmaxVideoModes.supported({...modeNode.runSettings,videoModel:'doubao-seedance-2-5-pro-custom'}),draftError:(()=>{try{PixmaxVideoModes.choose(modeNode,modeNode.runSettings,'videoEdit');return '';}catch(error){return error.message;}})()}));
+    assert.equal(result.unknown,false);assert.match(result.draftError,/不支持视频编辑/);assert.deepEqual(errors,[]);
+});
+
+test('switching from edit to a generic video model clears incompatible task intent',async t=>{
+    const {page,errors}=await setup(t,['video']);await choose(page,'视频编辑');
+    await page.evaluate(()=>{apiProviders[0].video_models.push('generic-video');PixmaxNativePrompt.sync();});
+    await page.getByRole('button',{name:'生成模型',exact:true}).click();await page.locator('.pixmax-reshoot-model-options').getByRole('button',{name:/generic-video/}).click();
+    assert.deepEqual(await page.evaluate(()=>({model:modeNode.runSettings.videoModel,mode:modeNode.runSettings.videoReferenceMode,task:modeNode.runSettings.videoTaskMode})),{model:'generic-video',mode:'auto',task:'auto'});assert.deepEqual(errors,[]);
+});
+
+test('conflicting saved native mode and task type block submission',async t=>{
+    const {page,errors}=await setup(t,['video']),calls=await tasks(page);
+    await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('保留参考视频');await choose(page,'参考生视频');
+    await page.evaluate(()=>{modeNode.runSettings.videoTaskMode='edit';render();});await page.evaluate(()=>runGeneration());
+    assert.equal(calls.length,0);assert.match(await page.locator('#toast').textContent(),/任务类型冲突/);assert.deepEqual(errors,[]);
+});
+
+test('native reference roles take precedence over an inherited legacy frame flag',async t=>{
+    const {page,errors}=await setup(t,['image']);await choose(page,'参考生视频');
+    const payload=await page.evaluate(async()=>{
+        delete apiProviders[0].protocol;apiProviders[0].video_capabilities={native_roles:true};modeNode.runSettings.videoUseFrameRoles=true;
+        const request=buildPromptRequestForNode(modeNode,null);return runApiVideoGeneration('保留图片参考',request.refs,modeNode.runSettings,null,{preview:true});
+    });
+    assert.deepEqual(payload.images.map(image=>image.role),['reference_image']);assert.deepEqual(errors,[]);
+});
+
+test('native video import remaps rich references, retains frame intent and saves the executable draft',async t=>{
+    const {page,errors,record}=await setup(t,[]);
+    const result=await page.evaluate(async()=>{
+        const native={nodes:[{uuid:'head',type:'BASE_IMAGE',defaultAsset:{type:'IMAGE',webUrl:'/test-image.svg?head'}},{uuid:'tail',type:'BASE_IMAGE',defaultAsset:{type:'IMAGE',webUrl:'/test-image.svg?tail'}},{uuid:'target',type:'GENERATE_VIDEO',prevNodeUuids:['head','tail'],params:{model:'PIXDANCE_2_5',referModel:'firstAndLastFrame',aspectRatio:'16:9',resolution:'720P',duration:'5',prompt:'从 %%@[首帧][image][0](head)%% 过渡到 %%@[尾帧][image][1](tail)%%'}}]};
+        insertSmartWorkflowIntoCanvas(native);const imported=nodes.find(node=>node.pixmaxSourceType==='GENERATE_VIDEO');
+        Object.assign(imported.runSettings,{videoProvider:'p',videoModel:'doubao-seedance-2-5-pro',videoGenerateAudio:false});
+        const request=buildPromptRequestForNode(imported,null),payload=await runApiVideoGeneration(request.prompt,request.refs,imported.runSettings,null,{preview:true});
+        await saveCanvas({force:true});return {payload,prompt:imported.nativePrompt.prompt,id:imported.id,sourceIds:canvas.connections.filter(edge=>edge.to===imported.id).map(edge=>edge.from)};
+    });
+    assert.deepEqual(result.payload.images.map(image=>image.role),['first_frame','last_frame']);assert.equal(result.payload.aspect_ratio,'adaptive');assert.match(result.payload.prompt,/图片1.*图片2/);
+    assert.ok(result.sourceIds.every(id=>result.prompt.includes('('+id+')')));assert.ok(!result.prompt.includes('(head)'));assert.ok(!result.prompt.includes('(tail)'));
+    const saved=record.nodes.find(node=>node.id===result.id);assert.equal(saved.nativePrompt.prompt,result.prompt);assert.equal(saved.runSettings.videoReferenceMode,'firstAndLastFrame');assert.deepEqual(errors,[]);
 });

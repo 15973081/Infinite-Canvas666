@@ -91,6 +91,23 @@ test('native at picker connects a canvas image and a removed connection blocks t
     await page.evaluate(()=>{canvas.connections=canvas.connections.filter(edge=>edge.to!==promptNode.id);render();});await page.evaluate(()=>runGeneration());assert.equal(calls.length,0);assert.ok(await page.locator('.toast').filter({hasText:'失效参考'}).count());assert.deepEqual(errors,[]);
 });
 
+test('video at picker connects a video and its mention compiles to the submitted reference',async t=>{
+    const {page,errors}=await setup(t,'video');
+    await page.route('**/output/reference.mp4',route=>route.fulfill({contentType:'video/mp4',body:fs.readFileSync(path.join(__dirname,'fixtures/pixmax-audio-source.mp4'))}));
+    await page.route('**/api/media-preview?**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="#52627c"/><path d="m68 26 32 19-32 19Z" fill="#eef1f7"/></svg>'}));
+    await page.evaluate(()=>{promptNode.x=800;promptNode.y=140;promptNode.label='视频生成节点';const source=createNode(170,140,[{url:'/output/reference.mp4',kind:'video',duration:8}],{select:false,deferRender:true});source.label='参考镜头';render();});
+    const editor=page.getByRole('textbox',{name:'生成提示词',exact:true});await editor.click();await editor.pressSequentially('@');
+    const picker=page.locator('[data-rich-editor-insertion-panel]');await picker.waitFor();await picker.locator('input').fill('参考镜头');await picker.getByRole('button',{name:/参考镜头/}).click();
+    await page.waitForFunction(()=>promptNode.nativePrompt?.prompt.includes('[video]'));
+    const request=await page.evaluate(async()=>{const request=buildPromptRequest(promptNode);return runApiVideoGeneration(request.prompt,request.refs,promptNode.runSettings,null,{preview:true});});
+    assert.deepEqual(request.videos,['/output/reference.mp4']);assert.match(request.prompt,/视频1/);
+    await page.waitForFunction(()=>document.querySelector('.pixmax-inline-video')?.readyState>=2);
+    await page.waitForFunction(()=>[...document.querySelectorAll('.pixmax-native-generation-references img')].every(img=>img.complete&&img.naturalWidth>0),null,{timeout:2500}).catch(async error=>{throw Error(error.message+'; '+JSON.stringify(await page.evaluate(()=>({images:[...document.querySelectorAll('.pixmax-native-generation-references img')].map(img=>({src:img.src,complete:img.complete,w:img.naturalWidth})),sources:PixmaxReshootReferences.plan(promptNode).incomingNodes}))));});
+    await page.screenshot({path:'.local/pixmax-video-generation-flow.png'});
+    await page.evaluate(()=>{canvas.connections=[];render();});
+    assert.match(await page.evaluate(()=>{try{buildPromptRequest(promptNode);return '';}catch(error){return error.message;}}),/失效参考/);assert.deepEqual(errors,[]);
+});
+
 test('copying a native subject prompt includes its hidden typed inputs and independent copies fail closed',async t=>{
     const {page,errors}=await setup(t,'video');await catalog(page);await page.getByRole('textbox',{name:'生成提示词',exact:true}).fill('摄影师');
     await page.getByRole('button',{name:'主体库',exact:true}).click();const library=page.getByRole('dialog',{name:'主体库',exact:true});await library.getByText('摄影师主体',{exact:true}).waitFor();await library.locator('[data-subject-cards] .group').hover();await library.getByRole('button',{name:'应用',exact:true}).click();await library.waitFor({state:'detached'});

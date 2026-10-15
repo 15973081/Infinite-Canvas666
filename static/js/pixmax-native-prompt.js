@@ -12,7 +12,7 @@
         const temporary={...node,nativePrompt:{schemaVersion:1,prompt:'',subjects:[]}};PixmaxReshootReferences.captureComposer(temporary);return temporary.nativePrompt.prompt;
     }
     function mentionModel(node){
-        const current=PixmaxReshootReferences.plan(node),cited=new Set(current.resources.map(entry=>entry.nodeId)),categories=smartSettingsForNode(node).apiKind==='video'?['text','image','audio']:['text','image'];
+        const current=PixmaxReshootReferences.plan(node),cited=new Set(current.resources.map(entry=>entry.nodeId)),categories=smartSettingsForNode(node).apiKind==='video'?['text','image','audio','video']:['text','image'];
         return {cited:current.mentions,allowedCategories:categories,canvasItems:nodes.filter(source=>source!==node&&!source.hidden&&!cited.has(source.id)).map(source=>({id:source.id,category:source.type==='smart-prompt'?'text':mediaKindForItem(source.images?.[0]),label:source.label||source.text?.slice(0,40)||'素材'})).filter(source=>categories.includes(source.category))};
     }
     function dispose(){

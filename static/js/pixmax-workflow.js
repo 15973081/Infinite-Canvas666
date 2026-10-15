@@ -118,6 +118,17 @@
                 node.runSettings={engine:'api',apiKind:kind,...(kind==='video'?{videoModel:String(params.model||''),videoDuration:number(params.duration,5),videoAspect:ratio,videoResolution:String(params.resolution||'').toLowerCase(),...(params.includeAudio!==undefined?{videoGenerateAudio:params.includeAudio===true||params.includeAudio==='true'}:{}),...(params.model==='PIXDANCE_2_5'&&params.outputFormat?{videoOutputFormat:String(params.outputFormat).toLowerCase()}:{})}:{model:String(params.model||'')}),
                     resolution:String(params.resolution||'1k').toLowerCase(),ratio:ratios[ratio]||'custom',
                     ...(!ratios[ratio]?{customRatio:ratio,customRatioWidth:ratio.split(':')[0]||'',customRatioHeight:ratio.split(':')[1]||''}:{})};
+                if(kind==='video'&&!info.data?.segmentReshoot)node.nativePrompt={schemaVersion:1,prompt:String(params.prompt||''),subjects:[]};
+                if(kind==='video'&&params.referModel){
+                    // Keep the native intent even before a local provider is
+                    // selected. Unknown modes must not silently become auto.
+                    const mode=String(params.referModel);
+                    node.runSettings.videoReferenceMode=mode;
+                    node.runSettings.videoTaskMode=mode==='videoEdit'?'edit':'auto';
+                    if(mode==='videoEdit')node.runSettings.videoDuration=-1;
+                    if(params.model==='PIXDANCE_2_5'&&['imageToVideo','firstAndLastFrame','videoEdit'].includes(mode))node.runSettings.videoAspect='adaptive';
+                    if(!['textToVideo','referToVideo','imageToVideo','firstAndLastFrame','videoEdit'].includes(mode))warnings.push('视频生成模式需要适配后才能执行：'+mode+'（'+node.id+'）');
+                }
             }
             if(node.type==='smart-storyboard')Object.assign(node,storyboard(source,info,warnings));
             if(source.type==='GENERATE_AUDIO'){

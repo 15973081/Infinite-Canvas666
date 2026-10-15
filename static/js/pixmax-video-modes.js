@@ -1,8 +1,19 @@
 /* Native referModel choices compile to actual image roles and existing video tasks. */
 (() => {
     'use strict';
-    const labels={auto:'自动判断',textToVideo:'文生视频',referToVideo:'多模态参考',imageToVideo:'图生视频',firstAndLastFrame:'首尾帧',videoEdit:'视频编辑',extend_backward:'向后延长',extend_forward:'向前延长'};
-    const family=config=>String(config.videoModel||'').toLowerCase().replaceAll('_','-').replaceAll('.','-').includes('seedance-2-5')?'2.5':String(config.videoModel||'').toLowerCase().replaceAll('_','-').replaceAll('.','-').includes('seedance-2-0')?'2.0':'';
+    const labels={auto:'自动判断',textToVideo:'文生视频',referToVideo:'参考生视频',imageToVideo:'图生视频',firstAndLastFrame:'首尾帧',videoEdit:'视频编辑',extend_backward:'向后延长',extend_forward:'向前延长'};
+    function modelCode(config){
+        const value=String(config.videoModel||'').toLowerCase().replace(/[_.]/g,'-');
+        const native={'pixdance-2-5':'PIXDANCE_2_5','pixdance-2-5-draft':'PIXDANCE_2_5_DRAFT','pixdance-2':'PIXDANCE_2','pixdance-2-fast':'PIXDANCE_2_FAST','pixdance-2-mini':'PIXDANCE_2_MINI'}[value];
+        if(native)return native;
+        const match=value.match(/^(?:doubao-)?seedance-(2-5|2-0)(?:-(pro|draft|fast|mini))?(?:-\d{6,8})?$/);
+        if(!match)return '';
+        const [,version,variant]=match;
+        if(version==='2-5')return !variant||variant==='pro'?'PIXDANCE_2_5':variant==='draft'?'PIXDANCE_2_5_DRAFT':'';
+        return variant==='draft'?'':'PIXDANCE_2'+(['fast','mini'].includes(variant)?'_'+variant.toUpperCase():'');
+    }
+    const family=config=>modelCode(config).startsWith('PIXDANCE_2_5')?'2.5':modelCode(config)?'2.0':'';
+    const canEdit=config=>modelCode(config)==='PIXDANCE_2_5';
     function supported(config){
         const provider=(apiProviders||[]).find(provider=>provider.id===config.videoProvider);
         if(config.apiKind!=='video'||!family(config))return false;
@@ -22,22 +33,26 @@
         if(mode==='imageToVideo')return n.image!==1||n.audio||n.video?'图生视频需要恰好一张图片，不能混用音频或视频参考':'';
         if(mode==='firstAndLastFrame')return n.image!==2||n.audio||n.video?'首尾帧需要恰好两张图片，不能混用音频或视频参考':'';
         if(mode==='referToVideo')return !n.image&&!n.video&&!n.audio?'多模态参考至少需要一份媒体素材':family(config)==='2.0'&&!n.image&&!n.video?'Seedance 2.0 不能只使用音频参考':'';
-        if(mode==='videoEdit')return family(config)!=='2.5'?'当前模型不支持视频编辑':n.video!==1||n.audio?'视频编辑需要一个视频，不能混用音频参考':'';
-        if(['extend_backward','extend_forward'].includes(mode))return family(config)!=='2.5'?'当前模型不支持视频延长':!n.video?'视频延长至少需要一个视频':'';
+        if(mode==='videoEdit')return !canEdit(config)?'当前模型不支持视频编辑':n.video!==1||n.audio?'视频编辑需要一个视频，不能混用音频参考':'';
+        if(['extend_backward','extend_forward'].includes(mode))return !canEdit(config)?'当前模型不支持视频延长':!n.video?'视频延长至少需要一个视频':'';
         return '视频生成模式无效，请重新选择';
     }
     const lockedAspect=config=>supported(config)&&family(config)==='2.5'&&['imageToVideo','firstAndLastFrame','videoEdit','extend_backward','extend_forward'].includes(selected(config));
     function validate(config,refs){
         const error=reason(config,refs);if(error)throw Error(error);
+        if(config.videoReferenceMode&&config.videoReferenceMode!=='auto'){
+            const expected=config.videoReferenceMode==='videoEdit'?'edit':['extend_backward','extend_forward'].includes(config.videoReferenceMode)?config.videoReferenceMode:'auto';
+            if(config.videoTaskMode&&config.videoTaskMode!==expected)throw Error('视频生成模式与任务类型冲突，请重新选择视频模式');
+        }
         if(config.videoReferenceMode&&config.videoReferenceMode!=='auto'&&lockedAspect(config)&&config.videoAspect!=='adaptive')throw Error('当前视频模式要求自适应比例，请重新选择模式');return config;
     }
     const references=(node,config)=>PixmaxReshootReferences.plan(node,{configuration:config}).entries.filter(entry=>entry.media).map(entry=>entry.media);
     function options(node,config,definitions){
-        const code=family(config)==='2.5'?'PIXDANCE_2_5':'PIXDANCE_2',native=definitions?.find(model=>model.modelCode===code),values=native?.fields.find(field=>field.name==='referModel')?.options.map(option=>option.value)||['textToVideo','referToVideo','imageToVideo','firstAndLastFrame',...(family(config)==='2.5'?['videoEdit']:[])];
+        const native=definitions?.find(model=>model.modelCode===modelCode(config)),values=native?.fields.find(field=>field.name==='referModel')?.options.map(option=>option.value)||['textToVideo','referToVideo','imageToVideo','firstAndLastFrame',...(canEdit(config)?['videoEdit']:[])];
         // All explicit modes use upstream inputs; only first/last keeps duplicate image slots.
         // Scope this reuse to one menu calculation so changed edges cannot leave stale inputs.
         let normalRefs,frameRefs;
-        return ['auto',...values,...(family(config)==='2.5'?['extend_backward','extend_forward']:[])].map(value=>{
+        return ['auto',...values,...(canEdit(config)?['extend_backward','extend_forward']:[])].map(value=>{
             const next={...config,videoReferenceMode:value,videoTaskMode:'auto'},refs=value==='auto'?[]:value==='firstAndLastFrame'?(frameRefs??=references(node,next)):(normalRefs??=references(node,next)),tooltip=reason(next,refs,value);
             return {value,label:labels[value]||value,disabled:!!tooltip,tooltip};
         });
